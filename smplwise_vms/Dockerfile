@@ -1,0 +1,51 @@
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22
+FROM ${BUILD_FROM}
+
+# poppler-utils provides pdftoppm/pdfinfo: PDF pages are rasterized in a separate, time-bounded process.
+# pango: text shaping (HarfBuzz) and bidi (FriBidi) for the electricity bill PDF (WeasyPrint); with poppler-utils already
+# present it adds only pango + libxft (~1 MB). Fonts are bundled in the package (assets/bill/fonts), none are installed.
+# Verified on this image for amd64 (EL8: scripts/addon_image/check_bill_pdf.sh, docs/architecture/ELECTRICITY_BILL_PDF.md
+# section 8.0); aarch64 checked for wheels only. The add-on logs the active PDF engine at start-up ("bill pdf engine: ...") and
+# shows it in the billing settings. The image has no system fonts on purpose: every bill font is bundled.
+RUN apk add --no-cache poppler-utils jpeg zlib libpng ffmpeg pango
+
+WORKDIR /app
+COPY backend/requirements.txt /app/requirements.txt
+# PY-CONSTRAINTS-LOCK-2407: constraints.txt pins every package of the resolved set (direct and transitive) for CPython 3.12 on
+# musl, amd64 and aarch64 alike, so the Supervisor's install-time resolution installs exactly the locked versions.
+# Regenerate with scripts/lock_python.py; scripts/gate/addon_build_check.sh compares the installed set with it.
+COPY backend/constraints.txt /app/constraints.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt -c /app/constraints.txt
+
+COPY backend/smplwise /app/smplwise
+COPY www /app/www
+# CR-038 S4: the handler page's own small bundle, served ONLY by the public listener (never inside www/, never by the main app).
+COPY www-public /app/www-public
+# CR-021 S4: the running version's `[platform-restart]` marker is read from the add-on's own notes (services/release_notes.py).
+COPY CHANGELOG.md /app/CHANGELOG.md
+# LICENSE-2310 (2.40.6): the third-party notices (WisKey MIT among them) ship with the add-on, a copy of the repository root file.
+COPY THIRD_PARTY_NOTICES.md /app/THIRD_PARTY_NOTICES.md
+# The bridge integration ships in the image and is copied into Home Assistant's custom_components at start-up.
+# WISKEY-ADOPT-2272: the same folder carries the source-pinned WisKey native integration (integration/hikvision_intercom, pin
+# file integration/hikvision_intercom.pin.json); services/wiskey_auto_install.py stages it next to the bridge.
+COPY integration /app/integration
+# The signed release APK (owner decision 2026-10-06) ships inside the image: scripts/stage_apk.py places SmplWiseArx.apk and
+# SmplWiseArx.apk.json in downloads/ of the build context before a release. downloads/ always exists (a tracked README), so
+# this COPY works with or without an APK - when none was staged the add-on offers nothing at the login screen.
+COPY downloads/ /app/downloads/
+RUN chmod -R a-w /app/downloads
+COPY run.sh /run.sh
+RUN chmod a+x /run.sh
+
+ENV SW_WWW_DIR=/app/www \
+    SW_WWW_PUBLIC_DIR=/app/www-public \
+    SW_DOWNLOADS_DIR=/app/downloads \
+    SW_DATA_DIR=/data \
+    SW_HOST=0.0.0.0 \
+    SW_PORT=8099 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1
+
+LABEL io.hass.version="2.43.6" io.hass.type="addon" io.hass.arch="amd64|aarch64"
+
+CMD [ "/run.sh" ]

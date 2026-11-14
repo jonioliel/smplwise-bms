@@ -1,0 +1,162 @@
+"""CR-038 section 13.4: the module's CR-018 notification sources, as plain data (services/notify_policy.py builds its `Source` rows from
+this list - no import of the notification engine here, so the catalogue can be read while notify_policy is still loading).
+
+Titles and bodies are rendered by services/tickets/notify_bridge.py at emit time - with the module's configured name (D33) - and
+reach the engine as the `title` / `body` parameters; the catalogue templates are therefore just "{title}" / "{body}". The settings
+labels never name the module (a rename must not leave a stale word in the policy matrix); the category is `tickets`.
+
+Recipients: `ticket_managers` (the manager members of the ticket's department; `ticket.new_unassigned` only those with notify_new),
+`ticket_assignee` (the internal assignee), `managers` for the installation-level `ticket.channel_down`. Visibility: subject kind
+`ticket` -> services/tickets/access.visible (notify_visibility), `system` for the channel source. All are OFF while the module is
+off (the bridge emits nothing, and the policy matrix does not list them)."""
+from __future__ import annotations
+
+from typing import Any
+
+PREFIX = "ticket."
+CATEGORY = "tickets"
+RULE_MANAGERS = "ticket_managers"
+RULE_ASSIGNEE = "ticket_assignee"
+SUBJECT = "ticket"
+# TKRFQ5 (RFQ contract section 16): the requests-for-quotation sources. Subject kind `rfq` (visibility = rfq.visible, the request's own
+# rule), recipients `rfq_managers` (the RFQ manager rule: the creator, the internal owner and the department's managers, each with
+# tickets.external where the request lies). Rendered by services/tickets/rfq_notify.py; never an amount, a vendor name or a text.
+RFQ_PREFIX = "rfq."
+RULE_RFQ_MANAGERS = "rfq_managers"
+SUBJECT_RFQ = "rfq"
+PREFIXES = (PREFIX, RFQ_PREFIX)
+
+# key, label (settings matrix, no module noun), severity (the default; a ticket's priority decides at emit time), who, push, resolves, subject
+SOURCE_DEFS: tuple[dict[str, Any], ...] = (
+    {"key": "ticket.new_unassigned", "label": "חדש וממתין למטפל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    {"key": "ticket.assigned", "label": "הועבר לטיפולך", "severity": "alert", "who": RULE_ASSIGNEE, "resolves": True, "app": True},  # PUSHSVC-295: also to the phone app
+    # PUSHSVC-295: the people of a request hear about it in the phone app - the requester (`created_by`, an Arx user) and the internal
+    # assignee, never the person who acted. One row per person and event (recipient = origin.user_id, like the assignee sources);
+    # the number, the place and the status label only, never a note's text. `info`: quiet hours and the device's category mute apply.
+    {"key": "ticket.status_update", "label": "סטטוס עודכן", "severity": "info", "who": RULE_ASSIGNEE, "resolves": False, "app": True},
+    {"key": "ticket.comment_added", "label": "נוספה הערה", "severity": "info", "who": RULE_ASSIGNEE, "resolves": False, "app": True},
+    {"key": "ticket.reminder", "label": "תזכורת למטפל", "severity": "alert", "who": RULE_ASSIGNEE, "resolves": True},
+    {"key": "ticket.stuck", "label": "חריגה מזמני הטיפול", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    {"key": "ticket.returned", "label": "הוחזר למנהל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    {"key": "ticket.question", "label": "שאלה מהמטפל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    {"key": "ticket.done", "label": "טיפול הסתיים - ממתין לסגירה", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False},
+    {"key": "ticket.reply_unmatched", "label": "תשובה שלא שויכה", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False},
+    {"key": "ticket.send_failed", "label": "הודעה למטפל לא נשלחה", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    {"key": "ticket.contact_changed", "label": "פרטי איש קשר השתנו", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    {"key": "ticket.channel_down", "label": "חשבון וואטסאפ מנותק", "severity": "alert", "who": "managers", "resolves": True, "subject": "system"},
+    {"key": "ticket.cost_submitted", "label": "הוגשה דרישת תשלום", "severity": "info", "who": RULE_MANAGERS, "resolves": True},  # S9b: audience `costs`
+    {"key": "ticket.cost_missing", "label": "לא הוגשה דרישת תשלום", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},  # S9b: audience `costs`
+    # TKNOTIFMATRIX: the grouped summary of the events a department's matrix sends "in the digest" (services/tickets/notify_matrix.py);
+    # counts and the department only, never a title or a text. Created only while `notify.digest_enabled` is on
+    {"key": "ticket.digest", "label": "תקציר אירועים", "severity": "info", "who": RULE_MANAGERS, "resolves": False, "push": False},
+    # TKSTAFF1 (security review F3): the user's own mobile for no-login work links was set / changed by someone else - told to that user
+    # only (subject `session` = the user), never the number
+    {"key": "ticket.staff_mobile", "label": "הנייד שלי לקישורי עבודה השתנה", "severity": "info", "who": "initiator", "resolves": False,
+     "subject": "session"},
+    # VPORTALRFQ: a vendor company asked in the portal to add / replace a technician - to the managers (installation level, subject
+    # `system`), resolved when an editor decides or the vendor withdraws it; no name, no number in the text
+    {"key": "ticket.portal_tech_request", "label": "בקשת ספק לעדכון טכנאי",  # no label_en, like the other ticket sources
+     "severity": "info", "who": "managers", "resolves": True, "subject": "system", "push": False},
+    # CR-INTAKE99 (owner 143-156): a free-text request from a known number waits for approval (a count and the suggested urgency only,
+    # never the text, a name or a number); and the daily summary of messages from numbers NOT on the list (owner 267: a count only)
+    {"key": "ticket.intake_new", "label": "פנייה חדשה ממתינה לאישור", "severity": "info", "who": "managers", "resolves": True, "subject": "system"},
+    {"key": "ticket.intake_unlisted", "label": "סיכום יומי: פניות ממספרים שאינם ברשימה", "severity": "info", "who": "managers",
+     "resolves": False, "subject": "system", "push": False},
+    # TKRFQ5: what a vendor did on his quote page (or by a WhatsApp reply) and the deadline - to the RFQ managers only
+    {"key": "rfq.quote_received", "label": "הצעת מחיר התקבלה או עודכנה", "label_en": "Quote received or updated", "severity": "info",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    {"key": "rfq.declined", "label": "ספק השיב שאינו מעוניין", "label_en": "Vendor declined", "severity": "info", "who": RULE_RFQ_MANAGERS,
+     "resolves": True, "subject": SUBJECT_RFQ, "push": False},
+    {"key": "rfq.question", "label": "שאלת הבהרה מספק", "label_en": "Clarification question from a vendor", "severity": "alert",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    {"key": "rfq.due_passed", "label": "המועד להגשת הצעות עבר", "label_en": "Quote deadline passed", "severity": "info",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirmed his arrival date (+ the payment schedule) or proposed another date
+    {"key": "rfq.arrival", "label": "ספק אישר מועד הגעה או הציע מועד אחר", "label_en": "Vendor confirmed or proposed an arrival date",
+     "severity": "info", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # RFQQUESTIONS: a vendor question still unanswered after `rfq.question_reminder_hours` (default 24, 0 = off)
+    {"key": "rfq.question_unanswered", "label": "שאלת ספק ממתינה לתשובה", "label_en": "Vendor question waiting for an answer",
+     "severity": "alert", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # RFQPAY2: an approved instalment passed its due day and is not marked paid - the RFQ managers who see the costs (audience `costs`);
+    # resolved when nothing of that award is overdue any more. WhatsApp off by default (as every source)
+    {"key": "rfq.instalment_overdue", "label": "מועד תשלום לספק עבר", "label_en": "Vendor payment past its date", "severity": "alert",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # CR-AWARD-NOTICE: the awarded vendor gave notice through his link that he postpones the work (the reference and the place only);
+    # resolved when a manager moves the arrival window or acknowledges it, or the request ends
+    {"key": "rfq.vendor_postponement", "label": "ספק הודיע על דחיית העבודה", "label_en": "Vendor gave notice of postponing the work",
+     "severity": "alert", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # MGRDASH phases 4-5 (docs/design/MANAGER_DASHBOARD_SPEC_HE.md section 9): the manager overview's alerts - ALL OFF by default
+    # (`enabled: False`), switched on in the notification settings. Never a person in the text, never an amount.
+    # phase 4: an approved instalment is due tomorrow and not marked paid - the RFQ managers who may mark it (tickets.costs + view,
+    # audience `pay`); one row per award and day, resolved when it is paid / moved or the day comes
+    {"key": "rfq.instalment_due_tomorrow", "label": "מועד תשלום לספק מחר", "label_en": "Vendor payment due tomorrow", "severity": "info",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ, "enabled": False},
+    # phase 5: the morning summary of each manager (working days, at `ui.dash_digest_hour`) - his own numbers, to him only (subject
+    # `session` = the user); and a department whose stuck requests reached `ui.dash_dept_stuck` - to each of its managers (his own
+    # count of it), once until the number drops below the threshold
+    {"key": "ticket.dash_digest", "label": "סיכום בוקר למנהלים", "severity": "info",
+     "who": "initiator", "resolves": False, "subject": "session", "enabled": False},
+    {"key": "ticket.dash_busy_department", "label": "מחלקה עמוסה", "severity": "alert",
+     "who": "initiator", "resolves": True, "subject": "session", "enabled": False},
+    # CR-SVC215 slice 1 (section 11): vendor visits and department budgets. Each is listed in the policy matrix only while its feature
+    # switch is on (`visits.enabled` / `budgets.enabled` of the tickets settings document, `listed` below); never a person's name, an
+    # amount or a typed text in the notification - the number, the place and (for a budget) the period only.
+    {"key": "ticket.visit_planned", "label": "נקבע ביקור ספק", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False,
+     "feature": "visits"},
+    {"key": "ticket.arrived", "label": "ספק דיווח על הגעה", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False,
+     "feature": "visits"},
+    {"key": "ticket.arrival_missed", "label": "ספק לא הגיע בחלון הביקור", "severity": "alert", "who": RULE_MANAGERS, "resolves": True,
+     "feature": "visits"},
+    {"key": "ticket.budget_warning", "label": "תקציב מתקרב לסף", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False,
+     "feature": "budgets"},
+    {"key": "ticket.budget_exceeded", "label": "חריגה מתקציב", "severity": "alert", "who": RULE_MANAGERS, "resolves": True,
+     "feature": "budgets"},
+)
+FEATURE_OF: dict[str, str] = {d["key"]: d["feature"] for d in SOURCE_DEFS if d.get("feature")}
+KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
+LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}
+
+
+def module_on(conn: Any) -> bool:
+    """The module switch, read without importing the module's services (the policy matrix hides these sources while it is off)."""
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'tickets.enabled'").fetchone()
+    except Exception:  # noqa: BLE001 - a database without the settings table (a unit fixture) has no module either
+        return False
+    return bool(row) and str(row[0]) == "true"
+
+
+def feature_on(conn: Any, feature: str) -> bool:
+    """CR-SVC215: one of the module's feature switches (`<feature>.enabled` in the `tickets.settings` document, default ON - owner answer
+    36), read without importing the module's services. A missing or corrupt document reads as the default."""
+    import json
+
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'tickets.settings'").fetchone()
+        doc = json.loads(row[0]) if row else {}
+    except Exception:  # noqa: BLE001 - no settings table / a corrupt value: the default
+        doc = {}
+    block = doc.get(feature) if isinstance(doc, dict) else None
+    value = block.get("enabled") if isinstance(block, dict) else None
+    return value if isinstance(value, bool) else True
+
+
+def listed(conn: Any, source_key: str) -> bool:
+    """Whether the policy matrix lists a source now: every non-ticket source; the ticket and RFQ sources only while the module is on;
+    a CR-SVC215 source only while its feature switch is on too."""
+    if not source_key.startswith(PREFIXES):
+        return True
+    if not module_on(conn):
+        return False
+    feature = FEATURE_OF.get(source_key)
+    return feature is None or feature_on(conn, feature)
+
+
+def source_kwargs() -> list[dict[str, Any]]:
+    """The keyword arguments of notify_policy.Source for every ticket source."""
+    return [
+        {"key": d["key"], "label": d["label"], "category": CATEGORY, "severity": d["severity"], "title": "{title}", "body": "{body}",
+         "who": d["who"], "push": d.get("push", True), "subject": d.get("subject", SUBJECT), "resolves": d["resolves"], "resolve_text": "טופל", "app": d.get("app", False),
+         "enabled": d.get("enabled", True)}
+        for d in SOURCE_DEFS
+    ]

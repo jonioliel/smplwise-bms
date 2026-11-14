@@ -1,0 +1,699 @@
+"""The only code that talks HTTP to a Frigate server (NN5 phase F1, docs/changes/CR-029-FRIGATE-PROVIDER.md).
+
+Frigate 0.18 in one paragraph: the authenticated port (8971, TLS with a self-signed certificate by default) takes
+`POST /api/login {"user","password"}` and answers a JWT cookie `frigate_token` (24 h). Everything else this phase uses is a
+GET under `/api/...`, `/vod/...` or `/clips/...`. A viewer account is enough; the adapter never creates one.
+
+F1 is READ-ONLY toward Frigate; F2 adds `FrigateHttp.write` with its own, separate allow-list (`WRITE_ALLOWED`, one class per unit of
+approval) and never widens `GET_ALLOWED` into a write. The read paths below stay read-only. The traffic this module may send is exactly: one login POST per session and GETs whose path
+matches `GET_ALLOWED`. Every other path is refused locally before a byte is sent (`frigate_path_not_allowed`), as Provision's
+`READ_COMMANDS`. Two routes the study measured as dangerous are not on the list: `/api/events/summary` (14 MB unfiltered) and
+the clip / export family (a GET that makes the server cut a clip: design only until the owner approves a test).
+
+Rules kept from the other adapters (ADP section 1): device I/O only (no SQLite, no audit, no permission decisions),
+synchronous and bounded (the `nvr.deadline` contract applies), errors are `ApiError` with the shared codes, and no address,
+user name, password, token or stream URL in any error detail or log line. The JWT lives in memory only.
+"""
+from __future__ import annotations
+
+import contextlib
+import contextvars
+import hashlib
+import json
+import re
+import threading
+import time
+from collections.abc import Iterator
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+
+from ...config import Settings
+from ...errors import ApiError
+from .. import nvr
+
+VENDOR = "frigate"
+
+CAM = r"[A-Za-z0-9_.-]{1,64}"
+ID = r"[0-9]{9,11}(?:\.[0-9]+)?-[A-Za-z0-9]{4,10}"
+NUM = r"[0-9]{1,11}(?:\.[0-9]+)?"
+OBJ = r"[A-Za-z0-9_.-]{1,80}"      # F2b: an export id (`<camera>_<6 chars>` in Frigate) or a case id
+LABEL = r"[A-Za-z0-9_-]{1,40}"     # F2b: the label of a manual event
+# The F1 allow-list. Anchored full-path matches; query strings are validated separately (`_check_query`).
+GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
+    r"/api/version",
+    r"/api/stats",
+    r"/api/config",
+    r"/api/openapi\.json",
+    r"/api/go2rtc/streams",
+    r"/api/labels",
+    r"/api/sub_labels",
+    r"/api/profile",
+    r"/api/profiles",                                # F2: read before / after a profile switch
+    r"/api/profile/active",
+    r"/api/events",                                  # always with a window and a limit (see WINDOWED)
+    rf"/api/events/{ID}",
+    rf"/api/events/{ID}/thumbnail\.jpg",
+    rf"/api/events/{ID}/snapshot\.jpg",
+    r"/api/review",                                  # always with a window and a limit
+    rf"/api/review/{ID}",
+    r"/api/review/summary",
+    r"/api/review/activity/motion",
+    rf"/api/{CAM}/recordings",
+    rf"/api/{CAM}/recordings/summary",
+    r"/api/recordings/storage",
+    rf"/api/{CAM}/latest\.jpg",
+    rf"/api/{CAM}/recordings/{NUM}/snapshot\.jpg",
+    rf"/clips/review/thumb-{CAM}-{ID}\.webp",
+    rf"/vod/{CAM}/start/{NUM}/end/{NUM}/index\.m3u8",
+    rf"/vod/{CAM}/start/{NUM}/end/{NUM}/(?:init-v\d+\.mp4|seg-\d+-v\d+\.m4s)",
+))
+# F2: reads that exist only to support a write class (a camera's PTZ facts). Not on GET_ALLOWED: the F1 read paths are unchanged, and
+# these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
+CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),
+                                                    re.compile(r"/api/exports"), re.compile(r"/api/cases"),  # F2b: read-back of the export / case write classes
+                                                    re.compile(rf"/api/jobs/export/{OBJ}"),  # 0.18: an export is a queued job before its row exists
+                                                    re.compile(r"/api/config/schema\.json"))  # FRGS: the instance's config schema (compared, never trusted)
+
+# F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
+# permission (frigate_control_svc.PERMISSION). A path that is not here is refused locally before a byte is sent, exactly like a GET.
+# Never listed, on purpose: /api/config/set outside the `config` class (FRGS), /api/config/save, /api/restart, deletes of events / reviews / recordings (export and case deletes: F2b, own classes),
+# /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
+ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
+RECORD_FEATURES = ("enabled", "recordings", "snapshots")
+# FRIGATE-295 (0.18 `PUT /api/camera/{cam}/set/{feature}/{sub_command}`): runtime switches of ONE named zone / motion mask / object mask of ONE
+# camera. Frigate refuses ON for an item disabled in its YAML (logged, answered 200), so the read-back decides.
+SUB_FEATURES = ("zone", "motion_mask", "object_mask")
+SUB = r"[A-Za-z0-9_-]{1,64}"
+WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
+    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),
+                  ("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(SUB_FEATURES)})/{SUB}"))),
+    "record": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(RECORD_FEATURES)})")),),
+    "profile": (("PUT", re.compile(r"/api/camera/\*/set/profile")),),
+    "review": (("POST", re.compile(r"/api/reviews/viewed")), ("DELETE", re.compile(rf"/api/review/{ID}/viewed"))),
+    "events": (("POST", re.compile(rf"/api/events/{ID}/retain")), ("DELETE", re.compile(rf"/api/events/{ID}/retain")),
+               ("POST", re.compile(rf"/api/events/{ID}/sub_label")),
+               # F2b: manual events (create on ONE camera with a label, end by id). UNVERIFIED wire shapes.
+               ("POST", re.compile(rf"/api/events/{CAM}/{LABEL}/create")), ("PUT", re.compile(rf"/api/events/{ID}/end"))),
+    # F2b: Frigate-native exports and cases. Deletes exist here ONLY for ids the service layer proves Arx created itself; Frigate's
+    # export of a camera time range is one camera, one bounded range. UNVERIFIED wire shapes.
+    # Verified against the 0.18.2 OpenAPI (FRIGATE-295): there is no `DELETE /api/export/{id}`; a delete is `POST /api/exports/delete {"ids": [...]}`
+    # (the service sends exactly one id it proved Arx created) and an assignment to a case is `POST /api/exports/reassign`.
+    "exports": (("POST", re.compile(rf"/api/export/{CAM}/start/{NUM}/end/{NUM}")), ("PATCH", re.compile(rf"/api/export/{OBJ}/rename")),
+                ("POST", re.compile(r"/api/exports/delete")), ("POST", re.compile(r"/api/exports/reassign"))),
+    "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
+    # FRGS (CR-029 section 13): zones and the curated camera settings. The path is generic, so what may be written is decided by the ONLY
+    # caller, `recorders/frigate_config.FrigateConfig._set` (one section of one camera, keys from its allow-listed schema). Never `/api/config/save`
+    # (a raw YAML upload), never a restart. UNVERIFIED wire shape.
+    "config": (("PUT", re.compile(r"/api/config/set")),),
+}
+# F2b: the clip read. Read-only GET, streamed, kept OFF `GET_ALLOWED` (no F1 read path can reach it) and reachable only through `open_clip`,
+# which the Arx clip routes alone call, after permission and the first-supervised-read gate. UNVERIFIED wire shape: Frigate cuts the clip on the
+# server (`/api/{camera}/start/{s}/end/{e}/clip.mp4`, `/api/events/{id}/clip.mp4`); nothing has been read from a real instance yet.
+CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"),
+                                             re.compile(rf"/api/review/{ID}/clip\.mp4"))   # FRIGATE-295: a review item's clip (0.18)
+CLIP_MAX_BYTES = 400_000_000
+CLIP_TIMEOUT_S = 30.0           # per network read; the total is bounded by CLIP_TOTAL_S
+CLIP_TOTAL_S = 300.0
+WRITE_BODY_MAX = 20_000
+WRITE_REPLY_MAX = 200_000
+WRITE_TIMEOUT_S = 8.0
+
+# Routes that must carry a time window / a limit: an unbounded call returns megabytes (live finding) and loads Frigate's CPU.
+WINDOWED = {"/api/events": ("limit",), "/api/review": ("limit",), f"/api/review/activity/motion": ("after", "before")}
+QUERY_KEYS = frozenset({"after", "before", "limit", "severity", "reviewed", "cameras", "labels", "zones", "h", "timezone", "camera",
+                        "has_clip", "has_snapshot", "include_thumbnails", "bbox", "quality"})
+LIMIT_MAX = 500
+
+JSON_MAX_BYTES = 8_000_000
+OPENAPI_MAX_BYTES = 3_000_000
+IMAGE_MAX_BYTES = 6_000_000
+PLAYLIST_MAX_BYTES = 1_000_000
+SEGMENT_MAX_BYTES = 24_000_000
+READ_TIMEOUT_S = 8.0
+LOGIN_TIMEOUT_S = 8.0
+REFUSED_BACKOFF_S = 300.0     # after Frigate refuses the credentials no further login for this long (Frigate rate-limits logins)
+# FRIGATE-FORBIDDEN-2341 (owner's home install, 2026-11-01): a recorder whose saved password Frigate refuses (401 on /api/login) was retried
+# every 5 minutes for days. Each further refusal of the SAME credentials doubles the wait, up to this; new credentials are tried at once.
+REFUSED_BACKOFF_MAX_S = 1800.0
+TOKEN_TTL_S = 20 * 3600.0     # the cookie is valid 24 h; the adapter renews before that (and on any 401)
+
+# FRIGLIVE-295 (live 0.18.0, 2026-10-21): Frigate's nginx keeps a ~5 s micro-cache of `/api/*` answers (`X-Cache-Status: HIT`). A read made
+# right after a write therefore shows the state BEFORE the write for up to ~6 s (measured: every runtime toggle "appeared" after 5.5-6.1 s,
+# a retain / reviewed flag likewise). Frigate's nginx honours `X-Cache-Bypass: 1` (`X-Cache-Status: BYPASS`). Reads that decide about a
+# write (state before, read-back after, the stale check of an undo) send it (`fresh=True`); polling and discovery keep the cache, which
+# protects Frigate's CPU.
+CACHE_BYPASS = {"X-Cache-Bypass": "1"}
+
+_TOKENS: dict[str, tuple[str, float]] = {}   # device_key -> (JWT, obtained at monotonic)
+_REFUSED: dict[tuple[str, str], "Refusal"] = {}  # (device_key, credential fingerprint) -> the standing refusal of those credentials
+_LOCK = threading.Lock()
+_LOGIN_LOCKS: dict[str, threading.Lock] = {}
+_monotonic = time.monotonic
+
+URL_USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@\s\"']+@")
+SECRET_KEY = re.compile(r"(?i)(pass(word)?|secret|token|api_?key|auth|credential|user(name)?)$")
+
+
+def clear_cache() -> None:
+    with _LOCK:
+        _TOKENS.clear()
+        _REFUSED.clear()
+
+
+@dataclass(frozen=True)
+class Refusal:
+    """Frigate refused one device's credentials (keyed by a fingerprint of user + password, never the password itself): no login with
+    them before `until` (monotonic). `strikes` counts their refusals in a row; `status` is Frigate's answer (401 / 403). Other
+    credentials for the same device (a connection test of a corrected password) are not held back by it."""
+    until: float
+    strikes: int
+    status: int
+
+
+def refused_delay(strikes: int) -> float:
+    """5, 10, 20, 30, 30 ... minutes: the wait after the n-th refusal in a row of the same credentials."""
+    return min(REFUSED_BACKOFF_MAX_S, REFUSED_BACKOFF_S * 2 ** max(0, strikes - 1))
+
+
+@dataclass(frozen=True)
+class Reply:
+    status: int
+    headers: dict[str, str]
+    body: bytes
+
+    def json(self) -> Any:
+        try:
+            return json.loads(self.body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"error": type(exc).__name__}) from exc
+
+    def text(self) -> str:
+        return self.body.decode("utf-8", "replace")
+
+
+# ---------------------------------------------------------------------------------------------- scrubbing
+
+def scrub_text(value: str) -> str:
+    """URL user-info (`rtsp://user:pass@host`) removed from any text; used before a string leaves the adapter."""
+    return URL_USERINFO.sub(r"\1***@", value)
+
+
+def scrub(value: Any) -> Any:
+    """A copy of a decoded JSON document with every secret-shaped value removed: keys named like a password / token / user /
+    secret, URL user-info inside strings, and Frigate's `ffmpeg_cmds` (full command lines with the same credentials)."""
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            if k == "ffmpeg_cmds":
+                continue
+            if isinstance(k, str) and SECRET_KEY.search(k):
+                out[k] = "***" if v not in (None, "") else v
+            else:
+                out[k] = scrub(v)
+        return out
+    if isinstance(value, list):
+        return [scrub(v) for v in value]
+    if isinstance(value, str):
+        return scrub_text(value)
+    return value
+
+
+# ---------------------------------------------------------------------------------------------- errors
+
+_STEP_TIMEOUT: contextvars.ContextVar[float | None] = contextvars.ContextVar("sw_frigate_step_timeout", default=None)
+_TIMEOUT_ERRORS = frozenset({"ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout", "TimeoutException"})
+
+
+@contextlib.contextmanager
+def step_timeout(seconds: float) -> Iterator[None]:
+    """Inside the block no single request of this thread gets a shorter timeout than `seconds` (the connection test of a slow instance;
+    `nvr.deadline` still bounds the whole test). Normal operation keeps READ_TIMEOUT_S / LOGIN_TIMEOUT_S."""
+    token = _STEP_TIMEOUT.set(seconds)
+    try:
+        yield
+    finally:
+        _STEP_TIMEOUT.reset(token)
+
+
+def is_timeout(exc: ApiError) -> bool:
+    """A `source_unavailable` that came from a network timeout (the instance answered too slowly), as opposed to a refused connection or a 5xx."""
+    return exc.code == "source_unavailable" and (exc.details or {}).get("error") in _TIMEOUT_ERRORS
+
+
+def unavailable(op: str, exc: Exception) -> ApiError:
+    return ApiError(503, "source_unavailable", "Frigate אינו זמין כרגע.", retryable=True, details={"op": op, "error": type(exc).__name__})
+
+
+def forbidden(op: str, status: int, reason: str | None = None) -> ApiError:
+    return ApiError(503, "source_forbidden", "Frigate דחה את פרטי הגישה או את ההרשאה.", details={"op": op, "status": status, **({"reason": reason} if reason else {})})
+
+
+def map_status(op: str, status: int, optional: bool = False) -> ApiError:
+    """The study's error map (7.3): 401/403 -> source_forbidden, 404 on an optional route -> `frigate_route_missing` (the caller
+    turns that into capability False), 400 -> nvr_rejected, 429 and 5xx -> source_unavailable."""
+    if status in (401, 403):
+        return forbidden(op, status)
+    if status == 404:
+        return ApiError(404, "frigate_route_missing" if optional else "not_found", "המשאב לא נמצא ב־Frigate.", details={"op": op, "status": status})
+    if status == 400:
+        return ApiError(409, "nvr_rejected", "Frigate דחה את הבקשה.", details={"op": op, "status": status})
+    return ApiError(503, "source_unavailable", "Frigate אינו זמין כרגע.", retryable=True, details={"op": op, "status": status})
+
+
+def _check_query(path: str, params: dict[str, Any] | None) -> None:
+    params = params or {}
+    for key in params:
+        if key not in QUERY_KEYS:
+            raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת.", details={"op": "query", "reason": "query_key"})
+    for must in WINDOWED.get(path, ()):
+        if must not in params:
+            raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate חייבת להיות מוגבלת בזמן ובכמות.", details={"op": "query", "reason": "unbounded"})
+    if "limit" in params:
+        try:
+            if not 1 <= int(params["limit"]) <= LIMIT_MAX:
+                raise ValueError
+        except (TypeError, ValueError) as exc:
+            raise ApiError(409, "frigate_path_not_allowed", "מגבלת הבקשה אינה תקינה.", details={"op": "query", "reason": "limit"}) from exc
+
+
+def _dot_segment(path: str) -> bool:
+    """Security review 2.2.0 L6: httpx normalises `.` / `..` segments AFTER the allow-list matched (`/api/cam/../set/x`
+    reaches `/api/set/x`), so a path holding one is never allowed, whatever pattern it would match."""
+    return any(seg in (".", "..") for seg in path.split("/"))
+
+
+def allowed(path: str) -> bool:
+    return not _dot_segment(path) and any(p.fullmatch(path) for p in GET_ALLOWED)
+
+
+def control_read_allowed(path: str) -> bool:
+    return not _dot_segment(path) and any(p.fullmatch(path) for p in CONTROL_GET_ALLOWED)
+
+
+def clip_allowed(path: str) -> bool:
+    return any(p.fullmatch(path) for p in CLIP_ALLOWED)
+
+
+def write_allowed(klass: str, method: str, path: str) -> bool:
+    return not _dot_segment(path) and any(m == method and p.fullmatch(path) for m, p in WRITE_ALLOWED.get(klass, ()))
+
+
+# ---------------------------------------------------------------------------------------------- the client
+
+class ClipStream:
+    """An open clip answer: `content_type`, the declared `length` (or None) and `chunks()`, a one-shot generator that enforces the byte cap and
+    the total time and always closes the connection (also when the consumer stops early)."""
+
+    def __init__(self, stack: Any, response: httpx.Response, content_type: str, length: int | None, max_bytes: int) -> None:
+        self._stack, self._r, self.content_type, self.length, self._max = stack, response, content_type, length, max_bytes
+
+    def close(self) -> None:
+        self._stack.close()
+
+    def chunks(self):
+        sent = 0
+        deadline = time.monotonic() + CLIP_TOTAL_S
+        try:
+            for piece in self._r.iter_bytes():
+                sent += len(piece)
+                if sent > self._max or time.monotonic() > deadline:
+                    break   # the answer is already on its way to the client: stop here, the cut-short body tells it
+                yield piece
+        except httpx.HTTPError:
+            return
+        finally:
+            self.close()
+
+
+class FrigateHttp:
+    """One recorder's HTTP access. Constructed from that recorder's effective settings (`recorder_scope.settings_for`):
+    `nvr_host`, `nvr_http_port` (default 8971), `nvr_user` / `nvr_password` (the encrypted connection secret), and the extras
+    `scheme` ("https" default | "http"), `tls_mode` ("pin" | "verify" | "trust"), `tls_pin` (SHA-256), `restream_port`."""
+
+    def __init__(self, recorder_id: str, settings: Settings, *, transport: httpx.BaseTransport | None = None) -> None:
+        self.recorder_id = recorder_id
+        self._settings = settings
+        self._transport = transport  # tests: httpx.MockTransport(fake.handle)
+
+    # ------------------------------------------------------------------------------------------ connection
+
+    @property
+    def extra(self) -> dict[str, Any]:
+        return self._settings.nvr_extra if isinstance(self._settings.nvr_extra, dict) else {}
+
+    @property
+    def scheme(self) -> str:
+        return "http" if str(self.extra.get("scheme", "https")).lower() == "http" else "https"
+
+    @property
+    def device_key(self) -> str:
+        dest = f"{(self._settings.nvr_host or '').strip('[]').lower()}|{self._settings.nvr_http_port}|{self.scheme}|{self._settings.nvr_user or ''}"
+        return "frig-" + hashlib.sha256(dest.encode("utf-8")).hexdigest()[:16]
+
+    def tls_mode(self) -> str:
+        mode = str(self.extra.get("tls_mode") or "").lower()
+        if mode in ("verify", "pin", "trust"):
+            return mode
+        return "trust" if self.extra.get("tls_verify") is False else "pin" if self.extra.get("tls_pin") else "verify"
+
+    def base_url(self) -> str:
+        host = self._settings.nvr_host or ""
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        return f"{self.scheme}://{host}:{self._settings.nvr_http_port}"
+
+    def _pin(self) -> str:
+        pin = str(self.extra.get("tls_pin") or "").strip().lower().replace(":", "")
+        if not re.fullmatch(r"[0-9a-f]{64}", pin):
+            raise ApiError(409, "tls_pin_missing", "לא נשמרה טביעת אצבע של תעודת Frigate. בצעו בדיקת חיבור ושמרו.", details={"op": "tls"})
+        return pin
+
+    def _verify(self) -> Any:
+        from . import provision_isr as pisr
+
+        if self.scheme == "https" and self.tls_mode() == "pin":
+            return pisr.pinned_context(self._pin())  # the pin is checked on the SAME connection, before any request byte
+        if self.scheme == "https" and self.tls_mode() == "trust":
+            return False
+        return nvr._ssl_context()
+
+    def _client(self, timeout: float = READ_TIMEOUT_S) -> httpx.Client:
+        from ...mode import ensure_recorder_enabled
+
+        floor = _STEP_TIMEOUT.get()
+        if floor is not None:
+            timeout = max(timeout, floor)   # a connection test only (step_timeout); still capped by the test's own deadline
+
+        ensure_recorder_enabled(self._settings)  # a recorder disabled while the process runs is never contacted
+        s = self._settings
+        if not s.nvr_host or not s.nvr_user or not s.nvr_password:
+            raise ApiError(503, "source_not_configured", "פרטי Frigate לא הוגדרו.")
+        kwargs: dict[str, Any] = {"base_url": self.base_url(), "timeout": timeout, "verify": self._verify()}
+        if self._transport is not None:
+            kwargs["transport"] = self._transport
+        return httpx.Client(**kwargs)
+
+    def warnings(self) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        if self.scheme == "http":
+            out.append({"code": "frigate_plain_http", "severity": "warning", "dismissible": True,
+                        "message": "החיבור ל־Frigate אינו מוצפן; הסיסמה והתמונות עוברות ברשת כמות שהן."})
+        if self.scheme == "https" and self.tls_mode() == "trust":
+            out.append({"code": "tls_trust_any", "severity": "warning", "dismissible": True,
+                        "message": "תעודת ה־HTTPS של Frigate אינה נבדקת. מומלץ לנעוץ את התעודה בבדיקת החיבור."})
+        return out
+
+    # ------------------------------------------------------------------------------------------ session
+
+    def _login_lock(self) -> threading.Lock:
+        with _LOCK:
+            return _LOGIN_LOCKS.setdefault(self.device_key, threading.Lock())
+
+    def _cached_token(self) -> str | None:
+        with _LOCK:
+            hit = _TOKENS.get(self.device_key)
+        return hit[0] if hit and _monotonic() - hit[1] < TOKEN_TTL_S else None
+
+    def forget_token(self) -> None:
+        with _LOCK:
+            _TOKENS.pop(self.device_key, None)
+
+    def _cred_fp(self) -> str:
+        s = self._settings
+        return hashlib.sha256(f"{s.nvr_user or ''}\n{s.nvr_password or ''}".encode("utf-8")).hexdigest()[:16]
+
+    def _refusal_key(self) -> tuple[str, str]:
+        return (self.device_key, self._cred_fp())
+
+    def _note_refused(self, status: int) -> Refusal:
+        """Record one more refusal of the current credentials (the backoff doubles while they stay the same)."""
+        key = self._refusal_key()
+        with _LOCK:
+            prev = _REFUSED.get(key)
+            strikes = prev.strikes + 1 if prev is not None else 1
+            hit = _REFUSED[key] = Refusal(_monotonic() + refused_delay(strikes), strikes, status)
+        return hit
+
+    def refusal(self) -> dict[str, Any] | None:
+        """The standing refusal of THIS adapter's credentials, or None (never refused, or accepted since): `status` (401 / 403),
+        `strikes` and `retry_in_s` (0 once the next login is allowed). For the event loop's wait and the health text."""
+        with _LOCK:
+            hit = _REFUSED.get(self._refusal_key())
+        if hit is None:
+            return None
+        return {"status": hit.status, "strikes": hit.strikes, "retry_in_s": max(0.0, round(hit.until - _monotonic(), 1))}
+
+    def _check_refused(self) -> None:
+        with _LOCK:
+            hit = _REFUSED.get(self._refusal_key())
+        if hit is not None and hit.until > _monotonic():
+            raise ApiError(503, "source_forbidden", "Frigate דחה את פרטי הגישה. ניסיון נוסף יתאפשר בעוד כמה דקות.",
+                           details={"op": "login", "reason": "credentials_refused_backoff", "status": hit.status,
+                                    "retry_in_s": round(hit.until - _monotonic())})
+
+    def login(self) -> str:
+        """The ONE non-GET request of this adapter: POST /api/login. One login at a time per device; a refusal starts a
+        backoff (Frigate rate-limits logins: 5 per minute). The token is returned and cached in memory, never stored."""
+        with self._login_lock():
+            cached = self._cached_token()
+            if cached:
+                return cached
+            self._check_refused()
+            nvr.check_deadline("login")
+            s = self._settings
+            with self._client(timeout=LOGIN_TIMEOUT_S) as c:
+                try:
+                    r = c.post("/api/login", json={"user": s.nvr_user, "password": s.nvr_password}, timeout=nvr.bounded_timeout(c.timeout))
+                except httpx.HTTPError as exc:
+                    if nvr.past_deadline():
+                        raise nvr.deadline_error("login") from exc
+                    from . import provision_isr as pisr
+
+                    if pisr.PIN_MISMATCH in str(exc):
+                        raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": "login"}) from exc
+                    raise unavailable("login", exc) from exc
+            if r.status_code in (401, 403):
+                self._note_refused(r.status_code)
+                raise forbidden("login", r.status_code, "credentials")
+            if r.status_code == 429:
+                raise ApiError(503, "source_unavailable", "Frigate הגביל ניסיונות כניסה. נסו שוב בעוד דקה.", retryable=True, details={"op": "login", "status": 429})
+            if r.status_code != 200:
+                raise map_status("login", r.status_code)
+            token = r.cookies.get("frigate_token") or _token_from_set_cookie(r.headers.get_list("set-cookie"))
+            if not token:
+                try:
+                    body = r.json()
+                    token = body.get("access_token") or body.get("token") if isinstance(body, dict) else None
+                except ValueError:
+                    token = None
+            if not token or not isinstance(token, str):
+                raise ApiError(503, "source_invalid", "Frigate לא החזיר אסימון כניסה.", details={"op": "login"})
+            with _LOCK:
+                _TOKENS[self.device_key] = (token, _monotonic())
+                _REFUSED.pop(self._refusal_key(), None)
+            return token
+
+    # ------------------------------------------------------------------------------------------ one GET
+
+    def get(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False,
+            timeout: float = READ_TIMEOUT_S, control: bool = False, fresh: bool = False) -> Reply:
+        """GET one allow-listed path. 401 -> one fresh login and one retry; a second 401 is `source_forbidden`. Raises ApiError for
+        everything but a 200. `fresh=True` bypasses Frigate's nginx micro-cache (CACHE_BYPASS): for reads that verify a write."""
+        if not (allowed(path) or (control and control_read_allowed(path))):
+            raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "get", "reason": "not_allowed"})
+        _check_query(path, params)
+        for attempt in (0, 1):
+            token = self.login()
+            reply = self._send(path, params, token, max_bytes, timeout, fresh)
+            if reply.status == 401 and attempt == 0:
+                self.forget_token()
+                continue
+            break
+        if reply.status == 401:
+            self._note_refused(401)
+            self.forget_token()
+        if reply.status != 200:
+            raise map_status(_op(path), reply.status, optional)
+        return reply
+
+    def _send(self, path: str, params: dict[str, Any] | None, token: str, max_bytes: int, timeout: float, fresh: bool = False) -> Reply:
+        nvr.check_deadline(path)
+        headers = {"Cookie": f"frigate_token={token}", **(CACHE_BYPASS if fresh else {})}
+        with self._client(timeout=timeout) as c:
+            try:
+                with c.stream("GET", path, params=params, headers=headers, timeout=nvr.bounded_timeout(c.timeout)) as r:
+                    declared = r.headers.get("content-length")
+                    if declared and declared.isdigit() and int(declared) > max_bytes:
+                        raise ApiError(503, "source_too_large", "תשובת Frigate גדולה מהצפוי.", details={"op": _op(path)})
+                    data = nvr.read_capped(r, max_bytes, _op(path)) if r.status_code == 200 else b""
+                    return Reply(r.status_code, {k.lower(): v for k, v in r.headers.items()}, data)
+            except httpx.HTTPError as exc:
+                if nvr.past_deadline():
+                    raise nvr.deadline_error(_op(path)) from exc
+                from . import provision_isr as pisr
+
+                if pisr.PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": _op(path)}) from exc
+                raise unavailable(_op(path), exc) from exc
+
+    # ------------------------------------------------------------------------------------------ one clip read (F2b)
+
+    def open_clip(self, path: str, *, max_bytes: int | None = None) -> "ClipStream":
+        """ONE streamed GET of a clip (`CLIP_ALLOWED` only). 401 -> one fresh login and one retry; any other non-200 is mapped like a read.
+        The returned stream yields the body in pieces, refuses to pass `max_bytes` (a declared length over the cap is refused before the first
+        byte) and the total time `CLIP_TOTAL_S`; only a `video/*` or octet-stream content type is passed on. The caller must close it."""
+        if not clip_allowed(path):
+            raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "clip", "reason": "not_allowed"})
+        max_bytes = CLIP_MAX_BYTES if max_bytes is None else max_bytes
+        from contextlib import ExitStack
+
+        for attempt in (0, 1):
+            token = self.login()
+            stack = ExitStack()
+            try:
+                c = stack.enter_context(self._client(timeout=CLIP_TIMEOUT_S))
+                r = stack.enter_context(c.stream("GET", path, headers={"Cookie": f"frigate_token={token}"}, timeout=CLIP_TIMEOUT_S))
+                if r.status_code == 401 and attempt == 0:
+                    stack.close()
+                    self.forget_token()
+                    continue
+                if r.status_code != 200:
+                    status = r.status_code
+                    # FRIGLIVE-295 (live 0.18.0): a window without recordings is 400 {"success": false, "message": "No recordings found for the
+                    # specified time range"}; that is "no recording here", not a refused request
+                    no_rec = status == 400 and _says_no_recordings(r)
+                    stack.close()
+                    if no_rec:
+                        raise ApiError(409, "no_recording", "אין הקלטה בטווח המבוקש.", details={"op": "clip"})
+                    if status == 401:
+                        self.forget_token()
+                    raise map_status("clip", status)
+                declared = r.headers.get("content-length")
+                if declared and declared.isdigit() and int(declared) > max_bytes:
+                    stack.close()
+                    raise ApiError(503, "source_too_large", "הקליפ גדול מהמותר.", details={"op": "clip"})
+                ctype = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+                if not (ctype.startswith("video/") or ctype == "application/octet-stream"):
+                    stack.close()
+                    raise ApiError(503, "source_invalid", "תשובת Frigate אינה קליפ וידאו.", details={"op": "clip"})
+                return ClipStream(stack, r, ctype, int(declared) if declared and declared.isdigit() else None, max_bytes)
+            except httpx.HTTPError as exc:
+                stack.close()
+                from . import provision_isr as pisr
+
+                if pisr.PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": "clip"}) from exc
+                raise unavailable("clip", exc) from exc
+            except BaseException:
+                stack.close()
+                raise
+        raise map_status("clip", 401)
+
+    # ------------------------------------------------------------------------------------------ one write (F2)
+
+    def write(self, klass: str, method: str, path: str, body: Any = None) -> Reply:
+        """ONE write to Frigate: `method path` must be on the allow-list of `klass` (WRITE_ALLOWED) or nothing is sent. 401 -> one fresh
+        login and one retry of the SAME request (a refused request never reached Frigate's handler, so this cannot repeat an effect);
+        any other failure is NOT retried here or by a caller (a lost answer is reported as an unknown outcome, never repeated). A 403 is
+        `frigate_write_forbidden` (the account is not allowed to write). Raises ApiError for everything but a 2xx."""
+        if not write_allowed(klass, method, path):
+            raise ApiError(409, "frigate_path_not_allowed", "בקשת כתיבה ל־Frigate אינה מותרת.", details={"op": "write", "reason": "not_allowed"})
+        payload = json.dumps(body).encode("utf-8") if body is not None else None
+        if payload is not None and len(payload) > WRITE_BODY_MAX:
+            raise ApiError(422, "frigate_body_too_large", "גוף הבקשה גדול מדי.", details={"op": "write"})
+        for attempt in (0, 1):
+            token = self.login()
+            reply = self._send_write(method, path, payload, token)
+            if reply.status == 401 and attempt == 0:
+                self.forget_token()
+                continue
+            break
+        if reply.status == 401:
+            self.forget_token()
+        if reply.status in (401, 403):
+            raise ApiError(409, "frigate_write_forbidden", "חשבון Frigate אינו מורשה לבצע שינויים.", details={"op": _op(path), "status": reply.status})
+        if not 200 <= reply.status < 300:
+            raise map_status(_op(path), reply.status)
+        return reply
+
+    def _send_write(self, method: str, path: str, payload: bytes | None, token: str) -> Reply:
+        nvr.check_deadline(path)
+        headers = {"Cookie": f"frigate_token={token}"}
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        with self._client(timeout=WRITE_TIMEOUT_S) as c:
+            try:
+                with c.stream(method, path, content=payload, headers=headers, timeout=nvr.bounded_timeout(c.timeout)) as r:
+                    data = nvr.read_capped(r, WRITE_REPLY_MAX, _op(path)) if 200 <= r.status_code < 300 else b""
+                    return Reply(r.status_code, {k.lower(): v for k, v in r.headers.items()}, data)
+            except httpx.HTTPError as exc:
+                if nvr.past_deadline():
+                    raise nvr.deadline_error(_op(path)) from exc
+                from . import provision_isr as pisr
+
+                if pisr.PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": _op(path)}) from exc
+                raise ApiError(503, "frigate_write_unknown", "לא התקבלה תשובה מ־Frigate; מצב השינוי אינו ידוע. בדקו את המצב לפני ניסיון נוסף.",
+                               details={"op": _op(path), "error": type(exc).__name__}) from exc
+
+    # ------------------------------------------------------------------------------------------ conveniences
+
+    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False, control: bool = False,
+                 fresh: bool = False) -> Any:
+        return self.get(path, params, max_bytes=max_bytes, optional=optional, control=control, fresh=fresh).json()
+
+    def websocket_url(self) -> str:
+        return ("wss" if self.scheme == "https" else "ws") + self.base_url()[len(self.scheme):] + "/ws"
+
+    def websocket_headers(self) -> dict[str, str]:
+        return {"Cookie": f"frigate_token={self.login()}"}
+
+    def websocket_ssl(self) -> Any:
+        """The TLS context for the `/ws` connection: the same rule as the HTTP client (verify / pin / trust)."""
+        if self.scheme != "https":
+            return None
+        return self._verify() if self.tls_mode() != "trust" else _trust_context()
+
+
+def _trust_context() -> Any:
+    import ssl
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def _says_no_recordings(r: httpx.Response) -> bool:
+    """A 400 clip answer whose (small) JSON body says there are no recordings in the window."""
+    try:
+        body = b""
+        for piece in r.iter_bytes():
+            body += piece
+            if len(body) > 2000:
+                return False
+        doc = json.loads(body.decode("utf-8"))
+    except (httpx.HTTPError, ValueError, UnicodeDecodeError):
+        return False
+    msg = doc.get("message") if isinstance(doc, dict) else None
+    return isinstance(msg, str) and "no recordings" in msg.lower()
+
+
+def _token_from_set_cookie(headers: list[str]) -> str | None:
+    for h in headers:
+        m = re.match(r"\s*frigate_token=([^;]+)", h)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _op(path: str) -> str:
+    """A path as the error detail names it: camera names and ids are generic, never a host. Long ids are shortened."""
+    return re.sub(r"[0-9]{9,11}(?:\.[0-9]+)?-[A-Za-z0-9]{4,10}", "<id>", path)[:80]
+
+
+def q(value: str) -> str:
+    return quote(value, safe="")

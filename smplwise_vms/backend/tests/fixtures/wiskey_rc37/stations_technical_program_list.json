@@ -1,0 +1,90 @@
+{
+ "programs": [
+  {
+   "station_id": "entry-a",
+   "door": 1,
+   "api_id": 1,
+   "revision": 1,
+   "policy": {
+    "timezone": "Asia/Jerusalem",
+    "schedule": {
+     "name": "Morning",
+     "weekly": {
+      "Monday": [
+       {
+        "start": "07:00",
+        "end": "19:00"
+       }
+      ],
+      "Tuesday": [
+       {
+        "start": "07:00",
+        "end": "19:00"
+       }
+      ],
+      "Wednesday": [],
+      "Thursday": [],
+      "Friday": [],
+      "Saturday": [],
+      "Sunday": [
+       {
+        "start": "07:00",
+        "end": "24:00"
+       }
+      ]
+     },
+     "holidays": []
+    }
+   },
+   "enabled": true,
+   "removing": false,
+   "execution": {
+    "owned": true,
+    "attempted": "2026-09-27/07:00/19:00",
+    "status": "held_acknowledged"
+   },
+   "error": null,
+   "checked_at": "2026-09-27T07:00:05+00:00"
+  }
+ ],
+ "saved": [
+  {
+   "station_id": "entry-a",
+   "door": 1,
+   "revision": 1,
+   "policy": {
+    "timezone": "Asia/Jerusalem",
+    "schedule": {
+     "name": "Morning",
+     "weekly": {
+      "Monday": [
+       {
+        "start": "07:00",
+        "end": "19:00"
+       }
+      ],
+      "Tuesday": [
+       {
+        "start": "07:00",
+        "end": "19:00"
+       }
+      ],
+      "Wednesday": [],
+      "Thursday": [],
+      "Friday": [],
+      "Saturday": [],
+      "Sunday": [
+       {
+        "start": "07:00",
+        "end": "24:00"
+       }
+      ]
+     },
+     "holidays": []
+    }
+   }
+  }
+ ],
+ "timezone": "Asia/Jerusalem",
+ "native_supported": false
+}

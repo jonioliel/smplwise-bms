@@ -1,0 +1,181 @@
+"""BUILDING-PRESENCE-2271 (board r339, plan PLAN_R339 phase 1): the building's anonymous presence, from the sensors the owner tags.
+
+GET  /presence/building          the live aggregate (presence.building.view at any scope). `configured: false` while nothing is tagged -
+                                  the screens then show nothing at all.
+GET  /presence/building/sensors  the candidate sensors (class-detected) with their tag (system.configure)
+PUT  /presence/building/sensors  the tagged set, replaced as a whole (system.configure; audited, entity ids only)
+PUT  /presence/building/settings hold (debounce) seconds and the empty-timeout minutes (system.configure; audited)
+
+Live state only: no history table, no person, no phone. The read is not audited (anonymous, polled)."""
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, ConfigDict, Field
+
+from ..audit import audit
+from ..auth import resolve_principal, resolve_remote_first, settings_of, touch_user
+from ..errors import ApiError, forbidden, validation
+from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
+from ..remote_channel import is_remote
+from ..services import area_presence as ap
+from ..services import building_presence as bp
+from ..services import building_presence_history as bph
+from ..services import ha_sync
+from ..services import presence_people as people_svc
+
+router = APIRouter()
+
+
+def _principal(request: Request) -> Principal:
+    return resolve_remote_first(request) if is_remote(request) else resolve_principal(request, settings_of(request))
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
+class SensorsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_ids: list[str] = Field(max_length=bp.MAX_SENSORS, default_factory=list)
+
+
+class SettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
+    hold_seconds: int | None = None
+    empty_minutes: int | None = None
+    retention_days: int | None = None
+    home_display: str | None = None
+    map_tint: bool | None = None
+    area_line: bool | None = None  # AREA-PRESENCE-LINE-2351: the area screen's presence line (off by default)
+    # PRESENCE-COMPACT-2310: the home card's display options (validated against bp.CHOICES)
+    card_style: str | None = None
+    card_empty_rooms: str | None = None
+    card_details: str | None = None
+    card_all_empty: str | None = None
+
+
+class RoomIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_id: str
+    area_id: str | None = None
+
+
+@router.get("/presence/building")
+def building_snapshot(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """The live anonymous occupancy of the building and its rooms from the tagged presence sensors (presence.building.view); `configured: false` while none is tagged."""
+    db = request.app.state.db
+    with db.connection(mode="read", label="presence.building") as conn:
+        touch_user(conn, principal)
+        if bp.VIEW not in permissions_anywhere(conn, principal):
+            with db.write_aside() as w:
+                audit(w, actor=principal, action=bp.VIEW, decision="denied", resource_type="installation", resource_id="*", reason="no_binding", request_id=_rid(request))
+            raise forbidden(permission=bp.VIEW)
+        note_grant(authorize(conn, principal, bp.VIEW, INSTALLATION), bp.VIEW)
+        return bp.snapshot(conn, fresh=bool(ha_sync.STATE.connected))
+
+
+@router.get("/presence/area/{area_id}")
+def area_presence_line(area_id: str, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """AREA-PRESENCE-LINE-2351: who / how many are in one area now, for the area screen's presence line.
+
+    presence.building.view or presence.view anywhere; each part only with its own permission. `line: false` while the administrator has not switched the line on (nothing is read
+    then). Names only under the people `show_names` setting; the people part is audited like GET presence/people (throttled, counts only).
+    Owner 02.11 (round 14): presence.building.view without presence.view gets the people part as an anonymous count only
+    (`{count, names: null, more: 0, anonymous: true}`, services/area_presence.py) - never a name or any per-person field."""
+    if len(area_id) > 120:
+        raise validation("אזור לא תקין.", field="area_id")
+    db = request.app.state.db
+    with db.connection(mode="read", label="presence.area") as conn:
+        touch_user(conn, principal)
+        perms = permissions_anywhere(conn, principal)
+        if bp.VIEW not in perms and people_svc.VIEW not in perms:
+            with db.write_aside() as w:
+                audit(w, actor=principal, action=bp.VIEW, decision="denied", resource_type="area", resource_id=area_id, reason="no_binding", request_id=_rid(request))
+            raise forbidden(permission=bp.VIEW)
+        out, view = ap.area_line(conn, principal, area_id, fresh=bool(ha_sync.STATE.connected))
+        if view is not None and people_svc.should_audit(principal.user_id):
+            with db.write_aside() as w:  # counts only, never a name (as GET presence/people)
+                audit(w, actor=principal, action="presence.people.view", decision="allowed", resource_type="area", resource_id=area_id, request_id=_rid(request),
+                      details={"inside": view["totals"]["inside"], "named": view["totals"]["named"], "hidden": view["totals"]["hidden"], "enabled": view["enabled"],
+                               "area": (out["people"] or {}).get("count", 0), "anonymous": bool((out["people"] or {}).get("anonymous"))})
+        return out
+
+
+@router.get("/presence/building/sensors")
+def building_sensors(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """The presence / motion sensors that can be tagged, with their tag and the two settings (system.configure)."""
+    with request.app.state.db.connection(mode="read", label="presence.building.sensors") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        return bp.list_for_settings(conn)
+
+
+@router.put("/presence/building/sensors")
+def set_building_sensors(body: SensorsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """Replace the tagged set (system.configure; binary sensors only; audited with entity ids)."""
+    with request.app.state.db.connection(label="presence.building.tag") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        try:
+            added, removed = bp.replace_tags(conn, body.entity_ids, principal.user_id)
+        except LookupError as exc:
+            raise validation("חיישן לא מוכר.", entity_id=str(exc)) from None
+        except ValueError:
+            raise ApiError(422, "too_many", "יותר מדי חיישנים מסומנים.") from None
+        audit(conn, actor=principal, action="presence.building.tag", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+              details={"added": added, "removed": removed, "total": len(bp.tagged_ids(conn))})
+        return bp.list_for_settings(conn)
+
+
+@router.put("/presence/building/settings")
+def set_building_settings(body: SettingsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """The debounce hold (seconds) and the empty timeout (minutes) (system.configure; audited)."""
+    with request.app.state.db.connection(label="presence.building.settings") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        try:
+            cfg = bp.set_config(conn, body.model_dump(exclude_none=True))
+        except ValueError as exc:
+            raise validation("ערך לא תקין.", field=str(exc)) from None
+        audit(conn, actor=principal, action="presence.building.settings", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details=cfg)
+        if "enabled" in body.model_fields_set and body.enabled is False:  # switching OFF stops the history and erases it (nothing about the past is kept)
+            bph.purge(conn)
+        return {"settings": cfg}
+
+
+@router.put("/presence/building/room")
+def set_building_sensor_room(body: RoomIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """Place a tagged sensor in a room (area_id) or back to its own (null) (system.configure; audited)."""
+    with request.app.state.db.connection(label="presence.building.room") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        try:
+            bp.set_room(conn, body.entity_id, body.area_id)
+        except LookupError as exc:
+            raise validation("חיישן או חדר לא מוכרים.", ref=str(exc)) from None
+        audit(conn, actor=principal, action="presence.building.room", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+              details={"entity_id": body.entity_id, "area_id": body.area_id})
+        return bp.list_for_settings(conn)
+
+
+@router.get("/presence/building/history")
+def building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """How much history is kept (count, oldest) and for how long (system.configure)."""
+    with request.app.state.db.connection(mode="read", label="presence.building.history") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        return bph.summary(conn)
+
+
+@router.delete("/presence/building/history")
+def purge_building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """Erase the whole presence history now (system.configure; audited with the number of rows)."""
+    with request.app.state.db.connection(label="presence.building.purge") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        n = bph.purge(conn)
+        audit(conn, actor=principal, action="presence.building.purge", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details={"rows": n})
+        return {"deleted": n, **bph.summary(conn)}

@@ -1,0 +1,247 @@
+{
+  "_note": "Derived by W10CLIENT-295 from WisKey's W10_REGISTRATION_AND_SCHEMAS.json (the `parameters_schema` of the six W10 commands only; WisKey fixture CODE 546af6885c95ff51ba4cd7f7c486d6c5100afde6). Test data, not a copy of WisKey code. A rename on WisKey's side is a change here and in services/wiskey_media_contract.py.",
+  "source_file_sha256": "397359267c81f9bf6649d6ce5e208eb46b09c3ebfeb0258f6ed5853e6836d556",
+  "source_fixture_sha256": "a95f7d31251f9d1145523cbfdd7dc99ac571c984d9e947ae695ba2f26ce158cd",
+  "commands": {
+    "media/station_descriptor": {
+      "outer_type": "hikvision_intercom/media/station_descriptor",
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "actor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+              },
+              "display_name": {
+                "type": "string",
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "id",
+              "display_name"
+            ],
+            "additionalProperties": false
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "station_id",
+          "actor",
+          "request_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "media/stream_lease": {
+      "outer_type": "hikvision_intercom/media/stream_lease",
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+          },
+          "profile": {
+            "const": "main"
+          },
+          "actor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+              },
+              "display_name": {
+                "type": "string",
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "id",
+              "display_name"
+            ],
+            "additionalProperties": false
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        },
+        "required": [
+          "session",
+          "profile",
+          "actor",
+          "request_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "media/talk_open": {
+      "outer_type": "hikvision_intercom/media/talk_open",
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+          },
+          "actor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+              },
+              "display_name": {
+                "type": "string",
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "id",
+              "display_name"
+            ],
+            "additionalProperties": false
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "session",
+          "actor",
+          "request_id",
+          "expires_at"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "media/talk_frame": {
+      "outer_type": "hikvision_intercom/media/talk_frame",
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "talk_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "data": {
+                  "type": "string",
+                  "minLength": 216,
+                  "maxLength": 216,
+                  "contentEncoding": "base64"
+                }
+              },
+              "required": [
+                "seq",
+                "data"
+              ],
+              "additionalProperties": false
+            },
+            "oneOf": [
+              {
+                "minItems": 5,
+                "maxItems": 5
+              },
+              {
+                "minItems": 10,
+                "maxItems": 10
+              }
+            ]
+          }
+        },
+        "required": [
+          "talk_ref",
+          "frames"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "media/talk_floor": {
+      "outer_type": "hikvision_intercom/media/talk_floor",
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "talk_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+          },
+          "held": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "talk_ref",
+          "held"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "media/talk_close": {
+      "outer_type": "hikvision_intercom/media/talk_close",
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "talk_ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+          },
+          "reason": {
+            "enum": [
+              "stopped",
+              "ended",
+              "expired",
+              "access_lost",
+              "upstream_closed"
+            ]
+          }
+        },
+        "required": [
+          "talk_ref",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

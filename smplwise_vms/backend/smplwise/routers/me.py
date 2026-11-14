@@ -1,0 +1,301 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import queue
+import sqlite3
+import time
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
+
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..capabilities import may_see_recorders, resolve as resolve_capabilities
+from ..db import Database, get_setting, now_iso, permission_revision
+from ..errors import forbidden, validation
+from ..mode import installation_mode
+from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
+from ..services import brand_assets, revocation
+from ..services import user_events, user_prefs
+
+router = APIRouter()
+
+# /me/ws: how often the socket re-reads the fingerprint without a signal (a binding that expired, a change made by
+# another process) and how often it sends a heartbeat
+ME_RECHECK_S = 15.0
+ME_HEARTBEAT_S = 30.0
+
+
+def _interface_block(conn: sqlite3.Connection, principal: Principal) -> dict | None:
+    from ..services import home_interface
+
+    try:
+        return home_interface.effective(conn, principal.user_id)
+    except sqlite3.Error:  # an add-on whose migration has not run yet: no block, the shell keeps the full interface
+        return None
+
+
+def _active(conn: sqlite3.Connection, principal: Principal) -> bool:
+    row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
+    return row is None or bool(row["active"])
+
+
+@router.get("/me")
+def me(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+       known: str | None = Query(None, max_length=64)) -> dict:
+    """Who the caller is and what they may do - computed on this request, never cached (T055). `known` = the
+    fingerprint the shell holds; `permissions_changed` says whether it moved since."""
+    fingerprint = permissions_fingerprint(conn, principal)
+    from ..remote_channel import channel_of
+
+    channel = channel_of(request)
+    remote = None
+    if channel == "remote":  # CR-008: what the Arx client needs (session mode, idle lock, video profile policy)
+        from ..services.ha_user_auth import remote_settings
+
+        remote = {k: v for k, v in remote_settings(conn).items() if k not in ("remote.require_mfa_admin", "remote.admins_default")}
+    installation_permissions = effective_permissions(conn, principal, INSTALLATION)
+    extra: dict = {}
+    if "system.configure" in installation_permissions:
+        # CR-022 section 8: a saved / removed NVR connection waits for a restart; the banner survives reloads and other admins see it
+        # CR-024: a change to any recorder (connection, enable / disable, removal) counts
+        from ..services.connection_store import any_pending_restart
+
+        extra["connection_pending_restart"] = any_pending_restart(conn, settings_of(request))
+        # CR-READY96: the last RECORDED readiness score (a cheap read, never a computation) - for whoever configures the system only
+        from ..services import readiness as readiness_svc
+
+        extra["readiness"] = readiness_svc.chip(conn)
+    if get_setting(conn, "presence.required_sensors") is not None:
+        # CR-027: what the required-sensors policy says about this caller on this channel (the app's user agent counts as the
+        # app); `blocked` is what the shell acts on, the rest is the reason it shows. Absent until the policy was ever written.
+        from ..services import presence
+
+        extra["presence_gate"] = presence.gate_for(conn, principal.user_id, app=presence.is_app_user_agent(request.headers.get("user-agent")))
+    if principal.source == "local":
+        # USR2: what the shell needs for an Arx-only identity - whether its administrative permissions wait for the second factor
+        # (owner answer Q3), whether the session is gated (enrolment / password change) and the reset mode the administrator chose
+        from ..services import local_identity, local_passkeys
+        from ..services import second_factor as sf
+        from ..services.ha_user_auth import session_of
+
+        s = session_of(request)
+        cred = conn.execute("SELECT must_change, reset_mode FROM auth_local_credentials WHERE user_id = ?", (principal.user_id,)).fetchone()
+        admin = local_identity.holds_admin(conn, principal.user_id)
+        extra["local_identity"] = {
+            "admin_permissions": admin,
+            "admin_permissions_blocked": admin and not principal.factor_ok,
+            "second_factor_enrolled": sf.is_enrolled(conn, principal.user_id),
+            "gate": getattr(s, "gate", "") or None,
+            "must_change_password": bool(cred and cred["must_change"]),
+            "reset_mode": cred["reset_mode"] if cred else "manager_only",
+            # USR2 phase 4: a usable passkey is a factor too (Q3); the shell offers the passkey section from these
+            "passkeys": len(local_passkeys.usable_rows(conn, principal.user_id)),
+            "factor_enrolled": local_passkeys.has_factor(conn, principal.user_id),
+        }
+    from ..services import wall as wall_service
+    from ..services.tickets import access as tickets_access, naming as tickets_naming
+    from ..services.notices import store as notices_store
+    from ..services.tickets import settings_doc as tickets_settings  # D17 (slice 3): the long-press behaviour
+
+    tickets_name = tickets_naming.read(conn)
+    from ..services import demo_mode as demo_svc
+    from ..services import incidents as incidents_svc  # CR-LIVEEVENT100: the live event mode switch (OFF by default)
+
+    return {
+        **extra,
+        "demo": demo_svc.me_block(request.app.state.db),  # CR-READY96: every signed-in user is told while a demo runs (the banner)
+        # CR-038 section 6: the optional modules the shell offers (the switch alone - permissions decide the rest) and the tickets
+        # module's display name per language (owner decision D33: every screen names the module through it)
+        "modules": {"notices": notices_store.module_on(conn),  # CR-NOTICE106: the notice board's switch (OFF by default)
+                    "tickets": tickets_access.module_on(conn), "tickets_name": {k: tickets_name[k] for k in tickets_naming.LANGS}, "tickets_long_press": tickets_settings.read(conn)["device_long_press"],  # D17 (slice 3)
+                    "incidents": incidents_svc.module_on(conn),  # CR-LIVEEVENT100: the live event mode switch (OFF by default)
+                    # FIX2200 (owner 2026-10-25): the voice announcements switch - the הכרזות tab hides while it is off (OFF by default)
+                    "announce": get_setting(conn, "announce.enabled") == "true"},
+        # HOME-SIMPLE-2420: which interface opens (home / full), whether the personal menu offers the switch, the home-only and
+        # wall-panel locks (the server enforces home-only itself: services/home_interface.enforce)
+        "interface": _interface_block(conn, principal),
+        "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
+        "channel": channel,
+        "remote": remote,
+        "brand": brand_assets.full_view(conn),  # LOGOS-295: company name / logo stamps, logo size, dark-background mode, tab title parts
+        "user": {
+            "id": principal.user_id,
+            "username": principal.username,
+            "display_name": principal.display_name,
+            "source": principal.source,
+        },
+        "active": _active(conn, principal),
+        "bindings": bindings_of(conn, principal),
+        "permissions_installation": installation_permissions,
+        "permissions_any": permissions_anywhere(conn, principal),  # what the shell may show at all (any scope)
+        "has_access": has_any_binding(conn, principal),
+        "permission_revision": permission_revision(conn),
+        "permissions_fingerprint": fingerprint,
+        "permissions_changed": bool(known) and known != fingerprint,
+        "bootstrap_state": get_setting(conn, "bootstrap_state", "pending"),
+        # NVR-less mode (mode.py): `ha_only` hides the NVR areas in the shell; every route still checks permissions itself
+        "mode": installation_mode(settings_of(request)),
+        # NN1 (capabilities.py): what this installation has - booleans for everyone, the recorder detail only for whoever
+        # may read the NVR configuration. Not authorisation: every route checks its own permission first.
+        "capabilities": resolve_capabilities(settings_of(request), conn).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
+    }
+
+
+class PrefsPatch(BaseModel):
+    """A partial update of the caller's own preferences (CR-013). Only known keys are accepted (an unknown key is a
+    422, so this is never free-form client storage); null resets a key to its default."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    nav_order: list[Any] | None = Field(default=None, alias="nav.order", max_length=user_prefs.MAX_LIST)
+    ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
+    ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # Bubble foundation: a partial override of the look dials (services/look.py); null = follow the installation
+    ui_background: str | None = Field(default=None, alias="ui.background")  # CRY: builtin | none | custom, the background behind the glass (services/user_prefs.py); null = follow the installation
+    ui_tabs_mode: str | None = Field(default=None, alias="ui.tabs_mode")  # release 0.1.153: tabs | hybrid | dropdown (services/tabs_mode.py); null = follow the installation
+    ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # the same per tab group
+    ui_dd_style: str | None = Field(default=None, alias="ui.dd_style")  # release 0.1.157: auto | pill | field | underline | text | prefix | tonal (services/dd_style.py); null = follow the installation
+    ui_dd_phone: str | None = Field(default=None, alias="ui.dd_phone")  # owner 2026-10-03: sheet | list, how a dropdown opens on a phone (services/dd_style.py); null = follow the installation
+    ui_dd_search: str | None = Field(default=None, alias="ui.dd_search")  # 2.0.2: always | 4 | 8 | never, from how many cameras a multi-select picker searches (services/dd_style.py); null = follow the installation
+    ui_dd_picker: str | None = Field(default=None, alias="ui.dd_picker")  # 2.0.2: dropdown | chips, how the camera comparison picker is shown (services/dd_style.py); null = follow the installation
+    ui_dd_place: str | None = Field(default=None, alias="ui.dd_place")  # 2026-10-17: 1 | 2 | 3 | 4, where the header dropdown sits on a wide screen (services/dd_style.py); null = follow the installation
+    ui_dd_settings_nav: str | None = Field(default=None, alias="ui.dd_settings_nav")  # PHONENAV-295: tabs | dropdown, how the Settings sub-pages are navigated on a phone (services/user_prefs.py); null = tabs
+    ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # the same per tab group
+    ui_dd_size: str | None = Field(default=None, alias="ui.dd_size")  # Unreleased: sm | md | lg, the size of a dropdown (services/dd_style.py); null = follow the installation
+    ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # the same per tab group
+    ui_dd_ring: str | None = Field(default=None, alias="ui.dd_ring")  # Unreleased: 1 | 1.5 | 2 | 3 px ring thickness, capsule style only (services/dd_style.py); null = follow the installation
+    ui_dd_ring_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_ring_groups")  # the same per tab group
+    ui_dd_panel: str | None = Field(default=None, alias="ui.dd_panel")  # Unreleased: button | 240 | 300, open-panel width, capsule style only; null = follow the installation
+    ui_dd_panel_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_panel_groups")  # the same per tab group
+    tickets_board: dict[str, Any] | None = Field(default=None, alias="tickets.board")  # CR-038 S6b (D24): the tickets board's view / columns / sort / density (services/tickets/table_prefs.py); null = defaults
+    generator_view_mode: str | None = Field(default=None, alias="generator.view_mode")  # CR-031: gauges | charts, the generator live screen's presentation (null = gauges)
+    tickets_board_tree_hidden: str | None = Field(default=None, alias="tickets.board.tree_hidden")  # CR-038 D30: hidden | shown, the manager board's side tree (null = shown)
+    setup_hint: dict[str, Any] | None = Field(default=None, alias="setup.hint")  # 2.6.0 TKWIZHINT: {"dismissed": true, "failed": [step ids]} - the shell's setup hint was hidden (services/user_prefs.py); null = show it
+    plan_quality: str | None = Field(default=None, alias="plan.quality")  # owner bug 2026-10-10: auto | 1 | 2 (2.4.7: also realistic | lite), the user's own 3D view mode (services/user_prefs.py); null = follow the installation
+    video_transport: str | None = Field(default=None, alias="video.transport")  # VIDEO-TRANSPORT-2400: auto | webrtc | mse, the viewer's own live transport (services/video_transport.py); null = follow the installation
+    plan_wizard: dict[str, Any] | None = Field(default=None, alias="plan.wizard")  # PLAN3D-R28-WIZARD-2433: the plan wizard's own choices (services/user_prefs.py); null = the recommended defaults
+    wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
+    wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
+    devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)
+    home_personal: dict[str, Any] | None = Field(default=None, alias="home.personal")  # home redesign: needs screen.personalize (validated by services/home_config.py)
+    multimedia_personal: dict[str, Any] | None = Field(default=None, alias="multimedia.personal")  # CR-015: needs screen.personalize (validated by services/media_layout.py)
+
+
+PERSONALIZE = "screen.personalize"
+
+
+def may_personalize(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """The caller holds `screen.personalize` at some scope (a cosmetic permission: the owner grants it per person)."""
+    return PERSONALIZE in permissions_anywhere(conn, principal)
+
+
+def _prefs_of(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+    """The caller's preferences as they may see them: `home.personal` exists only for a holder of screen.personalize - without it
+    the stored row is read as absent (no value, not in `stored`, not in `updated_at`; it stays in the table and comes back if the
+    permission is granted again)."""
+    hide = () if may_personalize(conn, principal) else user_prefs.PERSONAL_KEYS
+    return user_prefs.get_prefs(conn, principal.user_id, hide)
+
+@router.get("/me/prefs")
+def get_my_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The caller's own interface preferences - every known key with its value or default (`stored` names the keys the
+    user set). Another user's preferences are never readable."""
+    return _prefs_of(conn, principal)
+
+
+@router.put("/me/prefs")
+def put_my_prefs(body: PrefsPatch, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Set or reset (null) the caller's own preferences; `nav.order` keeps the known tab ids in the given order, drops
+    unknown ids and appends the missing ones in the default order. Presentation only: no permission changes."""
+    patch = {user_prefs_key(name): value for name, value in body.model_dump(by_alias=False).items() if name in body.model_fields_set}
+    allowed = may_personalize(conn, principal)
+    if patch.get(user_prefs.PERSONAL_MEDIA_KEY) is not None and not allowed:
+        # CR-015 (MEDIA_API.md 3.15): the personal screens page is for holders of screen.personalize only (clearing it is always allowed);
+        # its own refusal code, checked before the generic one below (review L7)
+        from ..audit import audit
+        from ..errors import ApiError
+
+        audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
+        raise ApiError(403, "personalize_required", "התאמה אישית של המסך דורשת הרשאה.", details={"permission": PERSONALIZE})
+    if any(patch.get(k) is not None for k in user_prefs.PERSONAL_KEYS if k != user_prefs.PERSONAL_MEDIA_KEY) and not allowed:
+        # home redesign / area rows: the personal home screen is for holders of screen.personalize only (clearing it is always allowed)
+        from ..audit import audit
+
+        audit(conn, actor=principal, action=PERSONALIZE, decision="denied", resource_type=INSTALLATION[0], resource_id=INSTALLATION[1], reason="permission_missing")
+        raise forbidden(permission=PERSONALIZE)
+    try:
+        user_prefs.set_prefs(conn, principal.user_id, patch)
+    except ValueError as exc:
+        raise validation("ההעדפה שנשלחה אינה תקינה.", reason=str(exc)) from exc
+    return _prefs_of(conn, principal)
+
+
+def user_prefs_key(field: str) -> str:
+    return PrefsPatch.model_fields[field].alias or field
+
+
+@router.websocket("/me/ws")
+async def me_ws(websocket: WebSocket) -> None:
+    """The shell's access channel (T055): `{"type": "permissions_changed", "payload": {...}}` as soon as the caller's
+    bindings, groups, roles or HA active flag change (services/revocation signal, polled every second; and a re-read
+    every ME_RECHECK_S for changes nothing signalled), plus a heartbeat. The browser then re-fetches /me and the
+    navigation; what it may no longer see, the server already refuses."""
+    from .media import _principal_for_ws  # local import: media imports this package's siblings
+
+    db: Database = websocket.app.state.db
+    principal = await _principal_for_ws(websocket)
+    if principal is None:
+        await websocket.close(code=4401)
+        return
+
+    def _state() -> dict:
+        with db.connection(mode="read", label="me/ws") as conn:
+            return {"permissions_fingerprint": permissions_fingerprint(conn, principal), "permission_revision": permission_revision(conn), "active": _active(conn, principal)}
+
+    state = await run_in_threadpool(_state)
+    await websocket.accept()
+    seq = 0
+    gen = revocation.generation(principal.user_id)
+    checked = beat = time.time()
+
+    async def send(kind: str, payload: dict) -> None:
+        nonlocal seq
+        seq += 1
+        await websocket.send_text(json.dumps({"version": 1, "type": kind, "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "payload": payload}))
+
+    async def reader() -> None:  # the client never sends anything we need; this only notices a closed socket
+        while True:
+            await websocket.receive_text()
+
+    listen = asyncio.create_task(reader())
+    frames = user_events.subscribe(principal.user_id)  # CR-018: notification / notification_state / notify_summary for THIS user only
+    try:
+        await send("hello", state)
+        while not listen.done():
+            await asyncio.sleep(1)
+            while True:
+                try:
+                    frame = frames.get_nowait()
+                except queue.Empty:
+                    break
+                await send(frame["type"], frame["payload"])
+            now = time.time()
+            moved = revocation.generation(principal.user_id) != gen
+            if moved or now - checked >= ME_RECHECK_S:
+                gen = revocation.generation(principal.user_id)
+                checked = now
+                fresh = await run_in_threadpool(_state)
+                if fresh["permissions_fingerprint"] != state["permissions_fingerprint"] or fresh["active"] != state["active"]:
+                    state = fresh
+                    await send("permissions_changed", fresh)
+            if now - beat >= ME_HEARTBEAT_S:
+                beat = now
+                await send("heartbeat", {})
+    except Exception:  # noqa: BLE001 - a dropped socket ends the loop
+        pass
+    finally:
+        listen.cancel()
+        user_events.unsubscribe(principal.user_id, frames)

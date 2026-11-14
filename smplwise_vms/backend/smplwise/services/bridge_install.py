@@ -1,0 +1,302 @@
+"""Deliver the SMPLWISE Bridge custom integration from the add-on into Home Assistant (ADR-012).
+
+The add-on image ships the integration (`/app/integration/smplwise_bridge`). With the `homeassistant_config`
+mapping the add-on copies it to `<ha config>/custom_components/smplwise_bridge` when it is missing or
+outdated, then announces itself through the Supervisor discovery API so Home Assistant offers
+"SMPLWISE Bridge" with the pairing code already filled in. Nothing else in the config directory is
+touched; the owner still restarts Home Assistant after a fresh copy (custom components load at start)
+and confirms the discovered integration. Without the mapping (or outside the add-on) the status says so
+and the manual path (copy + pairing code) remains.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import shutil
+import socket
+import sqlite3
+import threading
+from pathlib import Path
+from typing import Any
+
+from ..config import Settings
+from ..db import Database, get_setting, now_iso, unlocked
+from ..errors import ApiError
+from . import bridge_keys as bk
+from . import ha_bridge, ha_client, self_update
+from .wiskey_distribution_digest import digest as distribution_digest, files as distribution_files
+
+log = logging.getLogger("smplwise.bridge")
+
+DOMAIN = "smplwise_bridge"
+MARKER = ".smplwise_installed.json"
+ADDON_PORT = 8099
+
+STATE: dict[str, Any] = {
+    "source_version": None,
+    "config_dir": None,
+    "installed_version": None,
+    "installed_at": None,
+    "installed_now": False,
+    "last_run": None,
+    "last_error": None,
+    "discovery_posted_at": None,
+}
+_lock = threading.Lock()
+
+
+def source_dir() -> Path | None:
+    """The integration files: SW_INTEGRATION_SRC, the add-on image copy, or the repository checkout (dev)."""
+    env = os.environ.get("SW_INTEGRATION_SRC")
+    candidates = [Path(env)] if env else []
+    candidates.append(Path("/app/integration") / DOMAIN)
+    parents = Path(__file__).resolve().parents
+    if len(parents) > 4:  # inside the image the module sits at /app/smplwise/services: no repository above it
+        candidates.append(parents[4] / "custom_components" / DOMAIN)
+    for c in candidates:
+        if (c / "manifest.json").is_file():
+            return c
+    return None
+
+
+def ha_config_dir() -> Path | None:
+    """The Home Assistant config directory as mounted in the add-on (`/homeassistant` with the current
+    Supervisor mapping, `/config` with the legacy one); SW_HA_CONFIG_DIR overrides for development."""
+    env = os.environ.get("SW_HA_CONFIG_DIR")
+    candidates = [Path(env)] if env else [Path("/homeassistant"), Path("/config")]
+    for c in candidates:
+        if c.is_dir() and ((c / "configuration.yaml").is_file() or (c / ".storage").is_dir()):
+            return c
+    return None
+
+
+def read_version(d: Path) -> str | None:
+    try:
+        return json.loads((d / "manifest.json").read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _marker(target: Path) -> dict[str, Any]:
+    try:
+        return json.loads((target / MARKER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _manual_owner_profile(cfg: Path | None) -> bool:
+    return bool(cfg and ((cfg / "hikvision_intercom_manual_upgrade.json").exists()
+        or (cfg / "hikvision_intercom_manual_upgrade.json").is_symlink()
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").exists()
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").is_symlink()))
+
+
+def _target_digest(target: Path) -> str | None:
+    try:
+        return distribution_digest(target)
+    except (OSError, ValueError):
+        return None
+
+
+def _copy_tree(src: Path, dst: Path) -> int:
+    """Fresh copy next to the target, then swap (Home Assistant only reads custom components at start-up)."""
+    expected = distribution_digest(src)  # rejects links/collisions before copy
+    tmp = dst.with_name(dst.name + ".smplwise-new")
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    shutil.copytree(src, tmp, symlinks=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", MARKER))
+    if distribution_digest(tmp) != expected:
+        raise OSError("component_copy_digest_mismatch")
+    if dst.exists():
+        old = dst.with_name(dst.name + ".smplwise-old")
+        if old.exists():
+            shutil.rmtree(old)
+        dst.rename(old)
+        tmp.rename(dst)
+        shutil.rmtree(old, ignore_errors=True)
+    else:
+        tmp.rename(dst)
+    return sum(1 for p in dst.rglob("*") if p.is_file())
+
+
+def addon_url() -> str:
+    """The add-on as Home Assistant Core reaches it: the container hostname inside the Supervisor network."""
+    return f"http://{socket.gethostname()}:{ADDON_PORT}"
+
+
+def _discovery_code(conn: sqlite3.Connection) -> str | None:
+    """K-01: the ONLY value a discovery may carry is the plain pairing code that has not been adopted into the key set yet
+    (`ensure_pairing`'s return: None once the key set exists). Never `signing_key()`: after a rotation that is the current key."""
+    code = ha_bridge.ensure_pairing(conn, False)
+    return code if code and not bk.adopted(conn) else None
+
+
+def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connection | None = None) -> bool:
+    """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered, or an existing bridge entry takes
+    the code through its K-02 re-pair path). Only while a fresh pairing code waits to be paired (first install or a re-pair): once the code
+    is adopted into the key set nothing is announced (K-01).
+
+    BRIDGE-STALE-DISCOVERY-2383: Home Assistant replays every Supervisor discovery at each start, so Arx keeps ITS message equal to the
+    current code: the uuid of every post is recorded, and a message whose code is no longer current is deleted - after adoption, after a
+    re-pair (the new one is posted first), and whenever announcing is skipped (services/bridge_discovery.py). On a manual WisKey owner
+    profile the code is still delivered to an EXISTING bridge entry (installs nothing; never with the automatic-install flag); without a
+    known bridge the owner adds the integration himself."""
+    from . import bridge_discovery as bd
+    from . import wiskey_auto_install as wai
+
+    if not ha_client.supervisor_token():
+        return False
+    manual = _manual_owner_profile(ha_config_dir())
+
+    def read(c: sqlite3.Connection) -> tuple[str | None, bool]:
+        if not bd.may_announce(c, manual):
+            return None, False
+        return _discovery_code(c), (not manual) and bool(wai.switch_on(c))
+
+    if conn is not None:
+        secret, auto = read(conn)
+    else:
+        with db.connection() as c:
+            secret, auto = read(c)
+    if not secret:
+        STATE["discovery_posted_at"] = None
+        bd.retire(db, settings, conn)
+        return False
+    # WISKEY-ADOPT-2272 (WisKey owner28): with the automatic installation switched on, the announcement asks the bridge to pair
+    # without its confirmation form (the add-on's own authenticated Supervisor discovery); otherwise unchanged
+    config = {"addon_url": addon_url(), "pairing_code": secret, **({"wiskey_auto_install": True} if auto else {})}
+    try:
+        if conn is not None:
+            with unlocked(conn):  # the Supervisor call runs without the request's write lock
+                data = ha_client.post_discovery(settings, DOMAIN, config)
+        else:
+            data = ha_client.post_discovery(settings, DOMAIN, config)
+    except ApiError as exc:
+        STATE["last_error"] = f"discovery:{exc.code}"
+        log.warning("bridge discovery announcement failed: %s", exc.code)
+        return False
+    except self_update.ProbeRefused:
+        # BRIDGE-STALE-DISCOVERY-2383 finding: the single door's discovery shape (DISCOVERY_CONFIG_KEYS, string values) does not admit the
+        # automatic-install flag, so that announcement never left Arx and used to raise out of here (a 500 on a re-pair). Reported to the
+        # owner; until it is decided the announcement fails cleanly instead.
+        STATE["last_error"] = "discovery:call_refused"
+        log.warning("bridge discovery announcement refused by the infrastructure allow-list (automatic-install flag)")
+        return False
+    STATE["discovery_posted_at"] = now_iso()
+    try:
+        bd.after_post(db, settings, conn, (data or {}).get("uuid"), secret)
+    except Exception as exc:  # noqa: BLE001 - the announcement itself went out; the housekeeping retries at the next start
+        log.warning("bridge discovery record failed (%s)", type(exc).__name__)
+    return True
+
+
+def install(db: Database, settings: Settings, force: bool = False, announce: bool = True, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+    """Copy the integration into Home Assistant's config directory when missing/outdated (or forced).
+    `conn` is the request transaction when called from a handler (a nested connection would wait on it)."""
+    if conn is None:
+        with db.connection(label="automatic WisKey installation") as owned:
+            return install(db,settings,force,announce,owned)
+    with _lock:
+        STATE["last_run"] = now_iso()
+        STATE["last_error"] = None
+        STATE["installed_now"] = False
+        STATE["discovery_posted_at"] = None
+        src = source_dir()
+        cfg = ha_config_dir()
+        STATE["source_version"] = read_version(src) if src else None
+        STATE["config_dir"] = str(cfg) if cfg else None
+        if not src:
+            STATE["last_error"] = "source_missing"
+            return status(db, conn)
+        if not cfg:
+            STATE["last_error"] = "ha_config_not_mapped"
+            return status(db, conn)
+        if _manual_owner_profile(cfg):
+            STATE["last_error"] = "manual_owner_upgrade_profile"
+            # WISKEY-RC7-ADOPT-2331 (section 8a): the native guard records the refusal (read-only preflight, one audit row per new
+            # refusal); nothing is written to either component directory
+            from . import wiskey_auto_install as wai
+
+            wai.installer_step(db, settings, cfg, src, conn=conn, restart=False)
+            if announce:
+                # BRIDGE-STALE-DISCOVERY-2383: nothing is copied, but Arx's own discovery message is still kept current (a new code to the
+                # existing bridge entry) or removed (a stale code would come back into the bridge at every Home Assistant start)
+                announce_discovery(db, settings, conn)
+            return status(db, conn)
+        target = cfg / "custom_components" / DOMAIN
+        installed = read_version(target) if target.is_dir() else None
+        STATE["installed_version"] = installed
+        STATE["installed_at"] = _marker(target).get("at") if installed else None
+        try:
+            # WISKEY-RC4-2310: re-copy on a forced run, a missing target, a different version label OR different content (rc.4 portable
+            # digest); an installed tree the digest refuses (a link, a case alias, no manifest) counts as different and is replaced.
+            if force or not target.is_dir() or installed != STATE["source_version"] or distribution_digest(src) != _target_digest(target):
+                from .wiskey_native_projection import invalidate
+                invalidate(cfg)
+                (cfg / "custom_components").mkdir(exist_ok=True)
+                n = _copy_tree(src, target)
+                at = now_iso()
+                (target / MARKER).write_text(json.dumps({"version": STATE["source_version"], "at": at, "files": n}), encoding="utf-8")
+                STATE.update(installed_version=STATE["source_version"], installed_at=at, installed_now=True)
+                log.info("bridge integration %s copied into Home Assistant's custom_components (%d files); restart Home Assistant to load it", STATE["source_version"], n)
+        except (OSError, ValueError) as exc:  # ValueError: the source tree is refused by the digest (link, alias, no manifest)
+            STATE["last_error"] = f"copy_failed:{type(exc).__name__}"
+            log.warning("bridge integration copy failed: %s", type(exc).__name__)
+            return status(db, conn)
+    # WISKEY-ADOPT-2272: the pinned WisKey native bundle next to the bridge (staging, one restart per digest) - only with the
+    # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement. WisKey M12 policy B (S2): the gate
+    # (`preflight_managed_runtime`: guards, OFF before any Core read, the Core runtime READ gate) runs inside installer_step, in front of
+    # the native writer only - Arx deviation, owner default D2=a: the contribution's call before the bridge copy above is not adopted.
+    from . import wiskey_auto_install as wai
+
+    wai.installer_step(db, settings, cfg, src, conn=conn, restart=announce)
+    if announce:
+        announce_discovery(db, settings, conn)
+    return status(db, conn)
+
+
+def run_startup(db: Database, settings: Settings) -> None:
+    """Start-up hook: never raises; a missing mapping simply leaves the status at not_available."""
+    try:
+        st = install(db, settings, force=False, announce=True)
+        if st["state"] == "not_available":
+            log.info("bridge integration not delivered automatically (%s); manual install remains possible", st["last_error"])
+    except Exception as exc:  # noqa: BLE001 - start-up must not fail because of the integration copy
+        STATE["last_error"] = f"crash:{type(exc).__name__}"
+        log.exception("bridge install at start-up failed")
+
+
+def _state(d: dict[str, Any]) -> str:
+    if d["last_error"] in ("source_missing", "ha_config_not_mapped", "manual_owner_upgrade_profile") or not d["config_dir"]:
+        return "not_available"
+    if d["last_error"] and str(d["last_error"]).startswith("copy_failed"):
+        return "error"
+    if not d["installed_version"]:
+        return "not_installed"
+    if d["active_version"] == d["installed_version"]:
+        return "active"
+    if d["active_version"]:
+        return "update_pending"
+    return "installed_pending"
+
+
+def status(db: Database | None = None, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+    d = dict(STATE)
+    active = None
+    try:
+        if conn is not None:
+            active = get_setting(conn, "bridge.integration_version") or None
+        elif db is not None:
+            with db.connection() as c:
+                active = get_setting(c, "bridge.integration_version") or None
+    except sqlite3.OperationalError:
+        active = None
+    d["active_version"] = active
+    d["up_to_date"] = bool(d["source_version"]) and d["installed_version"] == d["source_version"]
+    d["state"] = _state(d)
+    d["addon_url"] = addon_url()
+    from . import wiskey_auto_install as wai
+
+    d["wiskey_native"] = dict(wai.NATIVE)  # WISKEY-ADOPT-2272: off / staged / up_to_date / source_missing / error (+ code), no path
+    return d

@@ -1,0 +1,165 @@
+{
+ "name": "noisy",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.0105,
+ "walls": [
+  {
+   "a": [
+    113.4,
+    129.5
+   ],
+   "b": [
+    1473.2,
+    110.6
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1473.2,
+    110.6
+   ],
+   "b": [
+    1486.6,
+    1070.5
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1486.6,
+    1070.5
+   ],
+   "b": [
+    126.8,
+    1089.4
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    126.8,
+    1089.4
+   ],
+   "b": [
+    113.4,
+    129.5
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    793.3,
+    120.0
+   ],
+   "b": [
+    806.7,
+    1080.0
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    120.1,
+    609.5
+   ],
+   "b": [
+    800.0,
+    600.0
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    801.4,
+    700.0
+   ],
+   "b": [
+    1481.3,
+    690.5
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  }
+ ],
+ "doors": [
+  {
+   "centre": [
+    797.2,
+    400.0
+   ],
+   "width_px": 90,
+   "wall": 4,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  },
+  {
+   "centre": [
+    460.0,
+    604.7
+   ],
+   "width_px": 90,
+   "wall": 5,
+   "hinge": "end",
+   "swing": "right",
+   "double": false
+  },
+  {
+   "centre": [
+    1141.4,
+    695.2
+   ],
+   "width_px": 90,
+   "wall": 6,
+   "hinge": "start",
+   "swing": "right",
+   "double": false
+  },
+  {
+   "centre": [
+    406.7,
+    1085.5
+   ],
+   "width_px": 90,
+   "wall": 2,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  }
+ ],
+ "windows": [
+  {
+   "centre": [
+    453.3,
+    124.8
+   ],
+   "width_px": 120,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1133.3,
+    115.3
+   ],
+   "width_px": 120,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1484.1,
+    890.5
+   ],
+   "width_px": 120,
+   "wall": 1
+  }
+ ],
+ "rotation_deg": 0.8
+}

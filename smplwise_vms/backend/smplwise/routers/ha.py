@@ -1,0 +1,900 @@
+"""Home Assistant entities API (chapters 14/15): catalogue, per-entity detail, safe actions through the bridge,
+live state push, and the bridge pairing/directory endpoints."""
+from __future__ import annotations
+
+import asyncio
+import datetime as dt
+import json
+import logging
+import queue
+import socket
+import sqlite3
+import threading
+import time
+import uuid
+from typing import Any
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, WebSocket
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
+
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..config import Settings
+from ..db import Database, bump_permission_revision, get_setting, is_storage_full, now_iso, retry_locked, set_setting
+from ..errors import ApiError
+from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
+from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
+from ..services import bridge_discovery, push_queue, service_identity
+from ..services import devices as dsvc
+from ..services.timeutil import iso_utc, parse_utc
+from .media import _principal_for_ws
+
+router = APIRouter()
+log = logging.getLogger("smplwise.ha")
+
+
+# ---------------------------------------------------------------- scoping
+
+# The scope rule itself lives in services/ha_scope.py (shared with the devices area, CR-007); these names stay for
+# this router's own handlers and the anchors router.
+_visible_floors = ha_scope.visible_floors
+_placements = ha_scope.placements
+_entity_allowed = ha_scope.entity_allowed
+
+
+def _grant_label(permission: str) -> str:
+    from .access import PERMISSION_LABELS  # the one Hebrew label catalogue (lazy: routers stay independent)
+
+    return PERMISSION_LABELS.get(permission, permission)
+
+
+def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "הישות לא נמצאה בקטלוג.")
+    return ha_sync.entity_row(row)
+
+
+# ---------------------------------------------------------------- catalogue
+
+@router.get("/ha/status")
+def status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    settings = settings_of(request)
+    paired_at = get_setting(conn, "bridge.paired_at") or None
+    return {
+        "configured": ha_client.configured(settings),
+        "sync": ha_sync.STATE.as_dict(),
+        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0], "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
+        "integration": bridge_install.status(conn=conn),
+        "can_configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
+    }
+
+
+@router.get("/ha/entities")
+def list_entities(
+    principal: Principal = Depends(current_principal),
+    conn: sqlite3.Connection = Depends(get_conn),
+    domain: str | None = Query(None, pattern="^[a-z_]+$"),
+    q: str | None = None,
+    area: str | None = None,
+    placed: bool | None = None,
+    include_disabled: bool = False,
+    limit: int = Query(500, ge=1, le=2000),
+) -> dict[str, Any]:
+    """The catalogue: everything for installation-wide readers, only placed entities on visible floors otherwise."""
+    wide, floors = _visible_floors(conn, principal, "entity.state.read")
+    placements = _placements(conn)
+    if not wide and not floors:
+        require(conn, principal, "entity.state.read", INSTALLATION)
+    sql = "SELECT * FROM ha_entities WHERE removed_at IS NULL"
+    args: list[Any] = []
+    if not include_disabled:
+        sql += " AND disabled = 0"
+    if domain:
+        sql += " AND domain = ?"
+        args.append(domain)
+    if area:
+        sql += " AND (area_id = ? OR area_name = ?)"
+        args.extend([area, area])
+    if q:
+        sql += " AND (entity_id LIKE ? OR name LIKE ? OR area_name LIKE ?)"
+        like = f"%{q}%"
+        args.extend([like, like, like])
+    sql += " ORDER BY domain, name, entity_id LIMIT ?"
+    args.append(limit)
+    rows = [ha_sync.entity_row(r) for r in conn.execute(sql, args).fetchall()]
+    from ..services import alarm as alarm_svc
+
+    managed = alarm_svc.managed_controls(conn)
+    media_managed = media_store.managed_entities(conn)  # CR-015: the endpoints of an approved screen are operated from "מולטימדיה"
+    out = []
+    for r in rows:
+        pl = placements.get(r["entity_id"], [])
+        if not ha_scope.entity_visible(wide, floors, placements, r["entity_id"]):
+            continue
+        if placed is True and not pl:
+            continue
+        if placed is False and pl:
+            continue
+        r["placements"] = pl
+        # CR-010 review B1: what the alarm section owns is listed read-only here (flag + no actions)
+        r["alarm_managed"] = r["entity_id"] in managed
+        # CR-014: a scheduler switch is listed read-only - the schedules screen is where it is operated
+        r["schedule_entity"] = dsvc.is_scheduler_entity(r["entity_id"], r.get("platform"))
+        r["media_managed"] = r["entity_id"] in media_managed
+        r["actions"] = [] if (r["alarm_managed"] or r["schedule_entity"] or r["media_managed"]) else ha_bridge.actions_for(r["domain"])
+        if r["domain"] == "lock" and (r.get("platform") or "") in intercom_doors.WISKEY_PLATFORMS:
+            r["actions"] = [x for x in r["actions"] if x["id"] != "lock.lock"]  # CR-033 D6: a WisKey door has no lock action
+        out.append(r)
+    domains: dict[str, int] = {}
+    areas: list[dict[str, Any]] = []
+    if wide:
+        for r in conn.execute("SELECT domain, COUNT(*) AS n FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 GROUP BY domain").fetchall():
+            domains[r["domain"]] = r["n"]
+        areas = [dict(r) for r in conn.execute("SELECT DISTINCT area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND area_id IS NOT NULL ORDER BY area_name").fetchall()]
+    else:  # floor-scoped readers: the filter chips describe only what they may see (review of 2026-09-30, F1)
+        seen_areas: dict[Any, dict[str, Any]] = {}
+        for r in conn.execute("SELECT entity_id, domain, area_id, area_name FROM ha_entities WHERE removed_at IS NULL AND disabled = 0").fetchall():
+            if not ha_scope.entity_visible(wide, floors, placements, r["entity_id"]):
+                continue
+            domains[r["domain"]] = domains.get(r["domain"], 0) + 1
+            if r["area_id"] is not None:
+                seen_areas[r["area_id"]] = {"area_id": r["area_id"], "area_name": r["area_name"]}
+        areas = sorted(seen_areas.values(), key=lambda a: a["area_name"] or "")
+    return {"entities": out, "domains": domains, "areas": areas, "sync": ha_sync.STATE.as_dict(), "can_control": authorize(conn, principal, "ha.entity.control", INSTALLATION).allowed or bool(_visible_floors(conn, principal, "ha.entity.control")[1])}
+
+
+@router.get("/ha/entities/{entity_id}")
+def get_entity(entity_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    if not _entity_allowed(conn, principal, entity_id, "entity.state.read"):
+        require(conn, principal, "entity.state.read", INSTALLATION)
+    e = _entity(conn, entity_id)
+    e["placements"] = _placements(conn).get(entity_id, [])
+    e["can_control"] = _entity_allowed(conn, principal, entity_id, "ha.entity.control")
+    # each action says whether this caller holds it: control plus the action's own grant when it has one (T079)
+    from ..services import alarm as alarm_svc
+
+    e["alarm_managed"] = alarm_svc.is_managed_control(conn, entity_id)  # CR-010 review B1: read-only here
+    e["schedule_entity"] = dsvc.is_scheduler_entity(entity_id, e.get("platform"))  # CR-014: read-only here
+    e["media_managed"] = media_store.is_managed(conn, entity_id)  # CR-015: read-only here, operated from "מולטימדיה"
+    e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"] or e["media_managed"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
+    wiskey = intercom_doors.is_wiskey_lock(conn, entity_id)
+    if e["actions"] and wiskey:
+        # CR-033 D3: a WisKey door's open is the one door rule's answer (access.doors.open on its station or door.unlock on it)
+        e["wiskey_door"] = True
+        e["actions"] = [a for a in e["actions"] if a["id"] != "lock.lock"]  # D6: no lock
+    if e["domain"] == "lock":
+        # UNLOCK-REASON-2370: why the open action is (not) offered - the same function the devices panel's `can_unlock` uses; `granted`
+        # of lock.unlock IS "ok", so the two cannot disagree. A reason code only (nothing about the configuration).
+        e["unlock_reason"] = door_authority.unlock_reason(conn, principal, entity_id, wiskey=wiskey, alarm_managed=bool(e["alarm_managed"]), can_control=bool(e["can_control"]))
+        e["actions"] = [{**a, "granted": e["unlock_reason"] == "ok", "reason": e["unlock_reason"]} if a["id"] == "lock.unlock" else a for a in e["actions"]]
+    e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
+    return e
+
+
+# ---------------------------------------------------------------- actions (through the bridge only)
+
+class ActionBody(BaseModel):
+    """contracts/schemas/entity-action.schema.json — closed: the body never carries an identity or a raw service call (T079)."""
+    model_config = ConfigDict(extra="forbid")
+    entity_binding_id: str | None = None
+    allowed_action_id: str = Field(min_length=1, max_length=60)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    expected_state_version: str | None = None
+    confirmation_grant: str | None = None
+    client_request_id: str = Field(min_length=1, max_length=80)
+    expires_at: str
+    # BUILDING-SCOPE-CONTROL-2351: on a multi-building site, the building whose view the control was pressed in - the entity must be one of
+    # that building's (services/building_scope), else 403 `outside_building`, audited, nothing sent; absent = exactly as before
+    building: str | None = Field(None, min_length=1, max_length=64)
+
+
+def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
+    return ha_actions.action_row(conn, action_id)  # shared with the devices area's bulk actions (CR-007 slice 3)
+
+
+@router.post("/ha/entities/{entity_id}/actions", status_code=202)
+def run_action(entity_id: str, body: ActionBody, request: Request, response: Response, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """LAT1 (2026-10-08): every check runs on the request's READ connection (no SQLite write lock is taken before the
+    command leaves), then the durable record - the pending ha_actions row and the `ha.action` attempt audit row - is committed
+    in one short write (SEC246 L3, owner 2026-10-11: record, then send; at most PENDING_WAIT_S, else 503 busy and nothing is
+    sent), and the signed call is dispatched over the kept bridge connection. The answer, the HA context id and the result
+    audit row follow in one durable transaction once the bridge answered. Before this the route waited for the write gate (BEGIN IMMEDIATE) and an fsync before the call:
+    a writer holding the lock for 1.5 s delayed the switch by 1.5 s (tests/test_lat1_toggle_latency.py).
+    The per-hop timing is returned in a `Server-Timing` header (browser DevTools -> Network -> the request -> Timing)."""
+    timing = ha_actions.HopTimer()
+    out = _run_action(entity_id, body, request, principal, conn, timing)
+    response.headers["Server-Timing"] = timing.header()
+    return out
+
+
+PENDING_WAIT_S = 2.0  # SEC246 L3: the longest wait for the command's record before the command is refused (503 busy, nothing sent)
+# T035: the httpx failures that happen before the request could leave (the connection was never made) - nothing reached Home
+# Assistant. Any other transport failure of `execute` may follow a delivered command (services/device_bulk.py reads the same names).
+NOT_SENT_TRANSPORT_ERRORS = frozenset({"ConnectError", "ConnectTimeout"})
+OUTCOME_UNKNOWN_TEXT = "לא ידוע אם הפקודה בוצעה: הקשר עם תשתית המערכת נפסק אחרי שהפקודה נשלחה. בדקו את מצב ההתקן לפני ניסיון נוסף."
+STORAGE_FULL_TEXT = "אחסון התוסף מלא, ולכן הפקודה לא נרשמה ולא נשלחה. יש לפנות מקום בדיסק של התוסף."
+# LAT1 ran the calls on an 8-worker dispatch pool (to overlap them with the pending record); SEC246 L3 records first, so the
+# call runs in the request's own thread and only the bound stays: at most 8 single-entity calls in flight at once
+_DISPATCH_SLOTS = threading.BoundedSemaphore(8)
+_INFLIGHT_LOCK = threading.Lock()
+_INFLIGHT: dict[tuple[str, str], threading.Event] = {}
+
+
+def _claim(key: tuple[str, str]) -> threading.Event | None:
+    """Mark one (user, client_request_id) as in flight; None when another request already carries it."""
+    with _INFLIGHT_LOCK:
+        if key in _INFLIGHT:
+            return None
+        ev = _INFLIGHT[key] = threading.Event()
+        return ev
+
+
+def _unclaim(key: tuple[str, str], ev: threading.Event) -> None:
+    with _INFLIGHT_LOCK:
+        if _INFLIGHT.get(key) is ev:
+            del _INFLIGHT[key]
+    ev.set()
+
+
+def _run_action(entity_id: str, body: ActionBody, request: Request, principal: Principal, conn: sqlite3.Connection, timing: "ha_actions.HopTimer") -> dict[str, Any]:
+    settings = settings_of(request)
+    db: Database = request.app.state.db
+    rid = getattr(request.state, "correlation_id", None)
+    if body.allowed_action_id in ("lock.lock", "lock.unlock") and intercom_doors.is_wiskey_lock(conn, entity_id):
+        _door_gate(conn, principal, request, entity_id, body.allowed_action_id)  # SEC-WXD L2: the permission first, a uniform 403
+        _building_gate(conn, principal, request, entity_id, body)  # BUILDING-SCOPE-CONTROL-2351: then the building, before the door path
+    if body.allowed_action_id == "lock.lock" and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D6: WisKey does not support lock - never sent, whoever asks, from a tile, a map card or "lock all"
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="wiskey_lock_unsupported",
+              request_id=rid, details={"action": body.allowed_action_id})
+        raise door_path_guard.lock_unsupported()
+    if body.allowed_action_id == "lock.unlock" and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D3/D4: a WisKey door is opened only through the one door authority and the door transport - never
+        # through the bridge's `execute` / `lock.unlock`, and ha.entity.control is not what decides it
+        e = _entity(conn, entity_id)
+        if e["removed_at"] or e["disabled"]:
+            raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
+        ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
+        from .access_control import open_from_tile
+
+        out = open_from_tile(request, principal, entity_id, body.allowed_action_id, body.client_request_id, body.expires_at, body.confirmation_grant)
+        timing.mark("door")
+        return out
+    if not ha_scope.control_allowed(conn, principal, entity_id):
+        # devices.control (CR-007 slice 2) reaches this same route, but only for the everyday domains
+        # (ha_scope.DEVICES_CONTROL_DOMAINS: never a lock, the alarm panel, a siren, a script, a scene or a button).
+        # Anything else needs ha.entity.control, which stays the audited reason for the 403 - so a devices.control-only
+        # caller asking for lock.lock is denied and audited exactly like a caller holding no control at all.
+        require(conn, principal, "ha.entity.control", INSTALLATION)
+    note_grant(ha_scope.control_decision(conn, principal, entity_id), "ha.action")  # T055: the action's audit rows name its scope
+    _building_gate(conn, principal, request, entity_id, body)  # BUILDING-SCOPE-CONTROL-2351: right after the permission, before anything else
+    # CR-010 review B1 / M1: after the permission check (a caller holding no control keeps its audited 403), refused
+    # for everyone who does hold it
+    _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_scheduler_switch(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_media_managed(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_door_chain(conn, principal, request, entity_id, body.allowed_action_id)
+    e = _entity(conn, entity_id)
+    if e["removed_at"] or e["disabled"]:
+        raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
+    try:
+        expires = parse_utc(body.expires_at)
+    except ValueError:
+        raise ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")
+    if expires < dt.datetime.now(dt.timezone.utc):
+        raise ApiError(409, "expired", "הבקשה פגה; נסה שוב.")
+    existing = conn.execute("SELECT * FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", (principal.user_id, body.client_request_id)).fetchone()
+    if existing:
+        return _action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice
+    spec, data = ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
+    ha_bridge.check_entity_range(body.allowed_action_id, data, e.get("attributes"))
+    grant = spec.get("grant")
+    if grant and not _entity_allowed(conn, principal, entity_id, grant):
+        # unlock and its kind need their own grant; general entity control never implies them (T079)
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="grant_required",
+              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "grant": grant})
+        raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
+    if spec["sensitive"] and body.confirmation_grant != "confirmed":
+        raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
+    if not service_identity.identity_ok(principal, settings):  # CR-008: the Arx remote channel is the same HA user; USR2 P3: a local one, the service identity
+        raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
+    if (spec["domain"], spec["service"]) == ("script", "turn_on") and service_identity.is_local(principal) and service_identity.extended_on(conn):
+        # SVCIDENT3 (owner answer 2026-10-18): an Arx-only person runs a script from device control only with the script run permission too -
+        # `script.run` or `script.manage`, held anywhere, exactly as the automations screen's run route asks; else the audited 403
+        if not ({"script.run", "script.manage"} & set(permissions_anywhere(conn, principal))):
+            require(conn, principal, "script.run", INSTALLATION)
+    # USR2 P3: a local (Arx-only) principal acts through the service identity, `devices.control` allow-list only (the alarm panel goes through the
+    # alarm section and its PIN rules); a Home Assistant principal keeps {"user_id": its own id}. Refused here = nothing recorded, nothing sent.
+    subj = service_identity.subject(conn, principal, "devices.control", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=rid,
+                                   entity_id=entity_id)  # SVCIDENT3: a script / scene runs only from the runnable allowlist
+    secret = ha_bridge.signing_key(conn)
+    paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
+    aid, now = uuid.uuid4().hex[:12], now_iso()
+    # the arguments as validated (cleaned: a stripped option, a number) - the attribute confirmation compares to these
+    cleaned = {k: v for k, v in data.items() if k != "entity_id"}
+    row_args = (aid, entity_id, body.allowed_action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now,
+                ha_bridge.expectation_for(spec, e.get("attributes")), "bridge")
+    insert_sql = "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"
+    if not paired:
+        with db.write_aside(label="ha.action not paired") as w:
+            w.execute(insert_sql, row_args)
+            w.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
+            audit(w, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
+                  request_id=rid, details={"action": body.allowed_action_id, "id": aid})
+        raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד.", details={"action_id": aid})
+    key = (principal.user_id, body.client_request_id)
+    claim = _claim(key)
+    if claim is None:
+        # the same click is already being sent by another request of this user: never a second call - wait for it, answer its record
+        with _INFLIGHT_LOCK:
+            other = _INFLIGHT.get(key)
+        if other is not None:
+            other.wait(20)
+        with db.connection(mode="read", label="ha.action duplicate") as r:
+            again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+            if again:
+                return _action_row(r, again["id"])
+        raise ApiError(409, "duplicate_in_flight", "הבקשה כבר נשלחה; רעננו.")
+    # the request's read snapshot may predate a duplicate that finished a moment ago (it held the claim until its row was
+    # committed): look again on a fresh snapshot now that this request holds the claim - a duplicate click never sends twice
+    with db.connection(mode="read", label="ha.action recheck") as r:
+        again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+        if again:
+            _unclaim(key, claim)
+            return _action_row(r, again["id"])
+    try:
+        payload = ha_bridge.sign(secret or "", {**subj, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
+        timing.mark("checks")
+
+        # SEC246 L3 (owner 2026-10-11): record, then send. The pending row and the attempt audit row are committed in ONE
+        # transaction BEFORE the signed command leaves; when they cannot be recorded within PENDING_WAIT_S the command is NOT
+        # sent and the client gets 503 busy (retryable). All the checks above still ran on the read connection, so only this
+        # one short write waits - and it is queued ahead of the background writers (the state mirror, ~40/s on a busy house).
+        # Server-Timing: pending_wait = gate queue + BEGIN IMMEDIATE, pending_commit = COMMIT (the fsync), pending_row = all of it.
+        def _pending() -> None:
+            start = timing.clock()
+            with db.write_aside(label="ha.action pending", wait_s=PENDING_WAIT_S, priority=True) as w:
+                timing.span("pending_wait", start)
+                w.execute(insert_sql, row_args)
+                audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="attempt",
+                      request_id=rid, details={"action": body.allowed_action_id, "id": aid, "phase": "attempt", "arguments": body.arguments,
+                                               "sensitive": spec["sensitive"], **({"service_identity": True} if "on_behalf_of" in subj else {})})
+                written = timing.clock()
+            timing.span("pending_commit", written)
+
+        try:
+            with timing.hop("pending_row"):
+                _pending()
+        except Exception as exc:  # noqa: BLE001 - nothing was sent; the server log is the trace of the refused attempt
+            log.warning("ha.action %s NOT sent (the record could not be written: %s): user=%s entity=%s action=%s request=%s",
+                        aid, type(exc).__name__, principal.user_id, entity_id, body.allowed_action_id, rid)
+            if is_storage_full(exc):  # T035: a full data disk is not "busy" - pressing again will not help
+                raise ApiError(507, "storage_full", STORAGE_FULL_TEXT, details={"sent": False}) from None
+            raise ApiError(503, "busy", "המערכת עסוקה כרגע והפקודה לא נשלחה. נסו שוב בעוד רגע.", retryable=True,
+                           details={"sent": False, "retry_after_s": 2})
+        # the record is durable: the command leaves now, from this thread (record-first leaves nothing to overlap with the
+        # call, so no hand-off to a dispatch thread); at most _DISPATCH_SLOTS calls in flight, as the 8 dispatch workers were;
+        # no lock is held while it is in flight
+        try:
+            with _DISPATCH_SLOTS:
+                result = timing.timed("bridge", ha_client.call_bridge_execute, settings, payload)
+        except ApiError as exc:
+            # T035 (outage run): a transport error AFTER the connection was made (a read timeout, a dropped socket) may follow a
+            # delivered command - the record says `unknown`, never `failed`, and the answer is not retryable, so nobody presses
+            # again on a door that may already be open (the bulk path and the door path read the same transport names)
+            maybe_sent = exc.code == "ha_unavailable" and (exc.details or {}).get("error") not in NOT_SENT_TRANSPORT_ERRORS
+            row_status = "unknown" if maybe_sent else "failed"
+
+            def _failed() -> None:
+                with db.write_aside(label="ha.action failed") as w:
+                    w.execute(insert_sql, row_args)
+                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (row_status, exc.code, now_iso(), aid))
+                    audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+                          request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": row_status})
+
+            retry_locked(_failed, what="ha.action failed row", attempts=3, base_s=0.25)
+            if maybe_sent:
+                raise ApiError(504, "action_outcome_unknown", OUTCOME_UNKNOWN_TEXT, retryable=False,
+                               details={"outcome": "unknown", "action_id": aid, "error": (exc.details or {}).get("error")}) from None
+            raise
+        status, error = ha_actions.bridge_status(result)
+        ok = status == "pending"
+
+        def _answer() -> dict[str, Any]:
+            with db.write_aside(label="ha.action answer") as w:
+                w.execute(insert_sql, row_args)
+                w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+                device_activity.note_context(w, aid, result, principal.user_id, principal.username)  # DEVHIST: HA's context id of the command -> the person behind the state change
+                audit(w, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
+                      request_id=rid, details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
+                return _action_row(w, aid)
+
+        with timing.hop("record"):
+            out = retry_locked(_answer, what="ha.action answer", attempts=3, base_s=0.25)
+    finally:
+        _unclaim(key, claim)
+    log.info("ha.action %s %s -> %s (%s)", entity_id, body.allowed_action_id, out["status"], timing.log_line())
+    out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון." if ok else None
+    out["timing_ms"] = timing.as_dict()
+    return out
+
+
+def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """SEC-WXD L2: a WisKey lock's lock / unlock is decided by the one door rule at station level (the station the door map
+    links the entity to, else the one its registry entry names) BEFORE anything about the door is answered - whether it is
+    mapped, its station's name and whether that is online. A caller without control of the entity gets exactly the
+    audited 403 an ordinary lock gives; one with control but no door permission the door rule's own 403."""
+    from ..services import door_authority
+
+    row = intercom_doors.map_row(conn, entity_id)
+    if row is not None:
+        station = row["config_entry_id"]
+    else:
+        reg = conn.execute("SELECT config_entry_id FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        station = (reg["config_entry_id"] if reg else None) or ""
+    decision = door_authority.check(conn, principal, station, None, entity_id=entity_id, dev_mode=bool(settings_of(request).dev_user))
+    if decision.allowed:
+        return
+    if not ha_scope.control_allowed(conn, principal, entity_id):
+        require(conn, principal, "ha.entity.control", INSTALLATION)  # the same audited 403 as for any lock
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=decision.reason,
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason, "action": action_id})
+
+
+def _building_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, body: ActionBody) -> None:
+    """BUILDING-SCOPE-CONTROL-2351: a control pressed inside one building of a multi-building site (the tiles' panel, its lock-all, a
+    WisKey door's open from a tile) names that building; the entity must be one of the building's (services/building_scope, the same
+    check the bulk route and the tiles list run). Refused = 403 `outside_building` (or 404 `building_not_found`), audited as an
+    `ha.action` denial with the building id, before anything is recorded or sent. Runs after the permission check, so a caller without
+    control keeps its own audited 403 and learns nothing about where the entity is. No `building` = nothing here, exactly as before."""
+    if body.building is None:
+        return
+    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    entity = ha_sync.entity_row(row) if row else {"entity_id": entity_id, "area_id": None}
+    try:
+        building_scope.require_entity(conn, body.building, entity)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "building_id": body.building})
+        raise
+
+
+def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-010 security review B1 / M1: an alarm panel and every control the alarm section owns (a zone's bypass switch or
+    select, an unpaired bypass-like control, an override target - services/alarm.managed_controls) are operated ONLY
+    through routers/alarm.py, whatever the caller holds here: there the alarm.* permissions, the code policy, the lockout,
+    the remote settings, the confirmation and the alarm.* audit rows apply. This general route (map cards, the devices
+    screens, the catalogue) refuses them with 409 use_alarm_screen, audited."""
+    from ..services import alarm as alarm_svc
+
+    if not alarm_svc.is_managed_control(conn, entity_id):
+        return
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_alarm_screen",
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (הגדרות › אבטחה › אזעקה).", details={"action": action_id, "route": f"/security/alarm"})
+
+
+def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-014 (SCHEDULER_API.md 5.5): a schedule's own switch (`switch.schedule_*`, platform scheduler) is operated only
+    from the schedules screen, where enabling, disabling and running carry their own permissions, confirmations and
+    audit rows. This general route refuses it with 409 use_schedules_screen, audited, after the permission check (a
+    caller holding no control keeps its audited 403)."""
+    if not dsvc.is_scheduler(conn, entity_id):
+        return
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_schedules_screen",
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(409, "use_schedules_screen", "התזמון מנוהל במסך התזמונים.", details={"action": action_id, "route": "/devices/schedules"})
+
+
+def _refuse_door_chain(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-033 D9 (rule R-17): a script, a scene, a button or a non-WisKey lock (a lock group, a template lock) pressed on a
+    tile or a map card that reaches a WisKey door - or may reach one, as far as the static resolver can tell - is refused
+    here, audited, before anything is sent: no inner `lock.unlock` reaches a WisKey lock on an Arx-started path. A WisKey
+    lock's own unlock never gets here (the door path above)."""
+    from ..services import door_run_guard
+
+    try:
+        door_run_guard.judge_entity_action(conn, entity_id, action_id)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+              request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+        raise
+
+
+def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-015 (MEDIA_API.md 5.2): a `route: "media"` action - a key, a typed text, a source or app pick, a step, a sound output - is sent
+    only by the multimedia commands route, and every media_player / remote entity that is an endpoint of an APPROVED screen is
+    operated only there too (the alarm / scheduler precedent): the media permissions, rate limits and audit are the one authority
+    for a managed screen, so this general route can never send an arbitrary `play_media` or a key. 409 use_media_screen, audited,
+    after the permission check (a caller holding no control keeps its audited 403)."""
+    spec = ha_bridge.ACTIONS.get(action_id) or {}
+    # CR-016 review M2: a volume, mute, power or play action on ANY endpoint of an audio-side media device - approved or not, a helper group included - is the media
+    # screen's too: this route knows no ceiling, party rule or per-member scope
+    audio_action = action_id.startswith("media_player.") and media_store.is_audio_endpoint(conn, entity_id)
+    if spec.get("route") != "media" and not audio_action and not media_store.is_managed(conn, entity_id):
+        return
+    audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_media_screen",
+          request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+    raise ApiError(409, "use_media_screen", "המסך נשלט ממסך המולטימדיה.", details={"action": action_id, "route": "/multimedia/screens"})
+
+
+@router.get("/ha/actions/{action_id}")
+def get_action(action_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Poll a pending action: confirmed when the entity reached the expected state after the request, unknown after 20 s."""
+    a = _action_row(conn, action_id)
+    if a["principal_user_id"] != principal.user_id and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
+        raise ApiError(403, "forbidden", "הפעולה שייכת למשתמש אחר.")
+    if ha_actions.refresh(conn, a):  # the confirmation rules live in services/ha_actions.py (shared with bulk actions)
+        a = _action_row(conn, action_id)
+        if a["status"] == "confirmed":
+            from ..services import media_commands
+
+            media_commands.on_action_confirmed(conn, action_id)  # CR-015: a confirmed source / app pick joins the screen's "recent" list
+    return a
+
+
+# ---------------------------------------------------------------- developer identity mode only
+
+dev_router = APIRouter()  # included only when settings.dev_user and not settings.in_addon (main.py): truly absent
+                          # in the add-on, a structural 404 before any auth or body validation runs (review R1, Minor 3)
+
+
+class DevAttributesIn(BaseModel):
+    """Home Assistant attributes are an open bag by nature (icon, unit, device-specific keys); only the one field
+    the sync helpers coerce with int() is typed, so a bad value 422s here instead of 500ing in ha_sync (Minor 2)."""
+    model_config = ConfigDict(extra="allow")
+    supported_features: int | None = None
+
+
+class DevStateIn(BaseModel):
+    entity_id: str = Field(pattern=r"^[a-z_]+\.[a-z0-9_]+$", max_length=255)
+    state: str = Field(max_length=255)
+    attributes: DevAttributesIn = Field(default_factory=DevAttributesIn)
+
+
+class DevStatesIn(BaseModel):
+    states: list[DevStateIn] = Field(min_length=1, max_length=50)
+
+
+def _dev_only(settings: Settings) -> None:
+    """Defense in depth: the route itself is registered only where SW_DEV_USER runs the backend outside the add-on
+    (main.py); this is a second, in-handler check of the same condition, inside Home Assistant it is a 404."""
+    if settings.in_addon or not settings.dev_user:
+        raise ApiError(404, "not_found", "לא נמצא.")
+
+
+@dev_router.post("/ha/dev/states")
+def dev_states(body: DevStatesIn, request: Request, background: BackgroundTasks, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Inject entity states as if Home Assistant sent them (the same upsert and the same push the sync uses), for live
+    specs and manual checks without a Home Assistant. Developer identity mode only; system.configure; audited."""
+    _dev_only(settings_of(request))
+    require(conn, principal, "system.configure", INSTALLATION)
+    now = now_iso()
+    rows = []
+    for st in body.states:
+        row = ha_sync.upsert_state(conn, {"entity_id": st.entity_id, "state": st.state, "attributes": st.attributes.model_dump(), "last_changed": now, "last_updated": now})
+        ha_sync.STATE.sequence += 1
+        ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
+        rows.append(row)
+        background.add_task(media_store.on_state_event, request.app.state.db, st.entity_id)  # CR-015: the same `media_state` frame a real state event sends, after the commit
+    audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+          details={"entities": [r["entity_id"] for r in rows]})
+    return {"entities": rows}
+
+
+class DevRegistryIn(BaseModel):
+    """The four registry listings as Home Assistant returns them (`config/*_registry/list`), trimmed to what
+    ha_client.registry_maps reads. Open bags on purpose: the sync itself only picks known keys."""
+    model_config = ConfigDict(extra="forbid")
+    entities: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+    devices: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+    areas: list[dict[str, Any]] = Field(default_factory=list, max_length=200)
+    floors: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+    labels: list[dict[str, Any]] | None = Field(default=None, max_length=200)  # HA-LABELS-SYNC-2351: None = keep the label mirror
+
+
+@dev_router.post("/ha/dev/registry")
+def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Inject entity / device / area / floor registries as if Home Assistant sent them (the same mapping and the same
+    writes the sync's registry refresh uses), for the CR-007 devices specs without a Home Assistant. Developer identity
+    mode only; system.configure; audited. Entities in STATE_DOMAINS_SKIP are ignored as in the sync."""
+    _dev_only(settings_of(request))
+    require(conn, principal, "system.configure", INSTALLATION)
+    for e in body.entities:
+        if not isinstance(e.get("entity_id"), str) or "." not in e["entity_id"]:
+            raise ApiError(422, "validation_error", "לכל ישות נדרש entity_id בצורת domain.object_id.")
+    for a in body.areas:
+        if not isinstance(a.get("area_id"), str) or not a["area_id"]:
+            raise ApiError(422, "validation_error", "לכל אזור נדרש area_id.")
+    for f in body.floors:
+        if not isinstance(f.get("floor_id"), str) or not f["floor_id"]:
+            raise ApiError(422, "validation_error", "לכל קומה נדרש floor_id.")
+    maps = ha_client.registry_maps(body.entities, body.devices, body.areas, body.floors)
+    maps = {k: v for k, v in maps.items() if k.split(".", 1)[0] not in ha_sync.STATE_DOMAINS_SKIP}
+    from ..services import switch_protection  # CR-019: as the sync's own refresh - rename follow, gone, classify new switches
+
+    db: Database = request.app.state.db
+    # one write transaction under the sync's mirror lock: a seed never interleaves with a registry refresh (the checks
+    # above ran on the read connection, so no SQLite write lock is held while waiting for the mirror lock)
+    with ha_sync.SYNC.mirror_lock, db.connection() as wconn:
+        before = ha_sync.mirror_fingerprint(wconn)
+        n = ha_sync.apply_registry(wconn, maps)
+        ha_sync.apply_structure(wconn, body.areas, body.floors, body.labels)
+        media_store.apply_devices(wconn, body.devices)  # CR-015: the device mirror and the media model, as the sync's refresh does
+        switch_protection.reconcile(wconn, set(maps), devices=body.devices)
+        media_changed = media_store.rebuild(wconn)
+        changed = ha_sync.mirror_fingerprint(wconn) != before
+        audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None),
+              details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
+    ha_sync.STATE.last_registry_at = now_iso()
+    if changed:
+        ha_sync.STATE.last_structure_at = ha_sync.STATE.last_registry_at
+    if media_changed:
+        ha_sync.publish({"type": "media_devices_changed", "reason": "registry"})
+    if changed:  # the same notice the sync's refresh sends, after the commit
+        ha_sync.publish({"type": "structure_changed", "reason": "dev", "changed": True, "last_registry_at": ha_sync.STATE.last_registry_at})
+    return {"entities": n, "areas": len(body.areas), "floors": len(body.floors), "changed": changed}
+
+
+# ---------------------------------------------------------------- bridge pairing + directory (integration side)
+
+@router.post("/ha/bridge/install")
+def bridge_install_now(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Copy the integration into Home Assistant's config directory again and re-announce it (system.configure)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    audit(conn, actor=principal, action="bridge.install", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
+    db: Database = request.app.state.db
+    return bridge_install.install(db, settings_of(request), force=True, announce=True, conn=conn)
+
+
+def _lease_repair(reason: str) -> None:
+    """T9: unpair / re-pair / key regeneration revokes every live capture lease and asks the lease worker for a new stream.
+    EXTENSION POINT (CR-034, origin/pilot/WISKEY-CRs): the key-rotation gate tool calls this with `key_rotation`."""
+    from ..services import capture_lease, lease_events
+
+    capture_lease.on_authority_change("key_rotation" if reason == "key_rotation" else "repair", all=True)
+    lease_events.WORKER.request_reset(reason)
+
+
+@router.get("/ha/bridge/pairing")
+def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    from ..services import bridge_key_revocation as bkr
+
+    if bkr.is_revoked(conn):
+        # WXH4-EMERGENCY-REVOKE-2407 (owner decision 2): after an emergency revocation the new code is shown only on the bridge-key screen,
+        # to a system administrator after a fresh re-authentication (audited) - never here; a further new code is a further revocation
+        if regenerate:
+            audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="denied", resource_type="installation", resource_id="*",
+                  reason=bkr.REVOKED_CODE, request_id=getattr(request.state, "correlation_id", None))
+            raise ApiError(409, bkr.REVOKED_CODE, "מפתח הגשר בוטל בחירום. קוד חדש נוצר ומוצג רק במסך מפתח הגשר, אחרי אימות מחדש.")
+        host = socket.gethostname()
+        return {"pairing_code": None, "revoked": True, "key_set": False, "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": None,
+                "announced": False, "announce_path": bridge_discovery.path_open(conn)}
+    secret = ha_bridge.ensure_pairing(conn, regenerate=regenerate)
+    if regenerate:
+        _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
+        audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
+    host = socket.gethostname()
+    announced = False
+    if regenerate:
+        peer_mod.clear_capability(conn)  # a new pairing: the bridge must announce again
+        # BRIDGE-STALE-DISCOVERY-2383: the new code goes to the existing bridge entry through Arx's own discovery message (the bridge's K-02
+        # re-pair path) when that path is open; otherwise the old message is deleted so it cannot bring the old code back at a restart
+        announced = bridge_install.announce_discovery(request.app.state.db, settings_of(request), conn)
+    return {"pairing_code": secret, "key_set": ha_bridge.key_set_adopted(conn), "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": get_setting(conn, "bridge.paired_at") or None,
+            "announced": announced, "announce_path": bridge_discovery.path_open(conn)}
+
+
+@router.post("/ha/bridge/ping")
+def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
+    if "purpose" in message:  # WXH-LEFTOVERS-2405: `purpose` marks a message Arx signs FOR the bridge (cast origin, key status) - never a ping
+        raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
+    ha_bridge.verify_message(conn, message, pairing=True)  # WXH4: while revoked, only the NEW code verifies, and only here
+    from ..services import bridge_key_revocation
+
+    bridge_key_revocation.on_paired(conn, message.get("version"))  # WXH4-EMERGENCY-REVOKE-2407: the new code proved - the revocation ends
+    _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: (re-)paired - every capture lease goes, a new stream
+    set_setting(conn, "bridge.paired_at", now_iso())
+    set_setting(conn, "bridge.integration_version", str(message.get("version") or ""))
+    audit(conn, actor=None, action="bridge.paired", decision="allowed", resource_type="installation", resource_id="*", details={"integration_version": message.get("version")})
+    return {"ok": True, "paired_at": get_setting(conn, "bridge.paired_at")}
+
+
+@router.post("/ha/bridge/directory")
+def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
+    try:
+        ha_bridge.verify_message(conn, message)
+    except ApiError as exc:
+        bridge_discovery.note_directory_refused(exc.code)  # BRIDGE-STALE-DISCOVERY-2383: "the bridge signs with another code" for the diagnostics
+        raise
+    bridge_discovery.note_directory_accepted()
+    # HA-01: a directory push is a user list and nothing else - a key-rotation control body (or any body without a `users` list) signed with a
+    # live key must never reach the deactivation below (a missing list would read as "nobody exists" and switch every operator off)
+    if message.get("protocol") is not None or message.get("op") is not None or not isinstance(message.get("users"), list):
+        raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
+    peer_mod.note_capability(conn, message.get("rotation"))  # HMACACT-295: the bridge (0.9.5+) announces its key-rotation support in the signed push
+    peer_mod.note_key_generation(conn, message.get("key_generation"))  # WXH-LEFTOVERS-2405: a bridge that reports its key generation (state only)
+    users = message.get("users") or []
+    now = now_iso()
+    # USR2 R11: an id of the Arx-only form (`l_...`) is never a Home Assistant user - a push naming one is ignored for it, so the
+    # directory can never shadow, mirror onto or deactivate a local identity
+    users = [u for u in users if isinstance(u, dict) and not str(u.get("id") or "").startswith("l_")]
+    for u in users:
+        if not u.get("id"):
+            continue
+        conn.execute(
+            "INSERT INTO ha_users(id, name, username, is_active, is_admin, group_ids_json, synced_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, username = excluded.username, is_active = excluded.is_active, is_admin = excluded.is_admin, group_ids_json = excluded.group_ids_json, synced_at = excluded.synced_at",
+            (u["id"], u.get("name"), u.get("username"), 1 if u.get("is_active", True) else 0, 1 if u.get("is_admin") else 0, json.dumps(u.get("group_ids") or []), now),
+        )
+    ids = [u["id"] for u in users if u.get("id")]
+    if ids:
+        conn.execute(f"UPDATE ha_users SET is_active = 0 WHERE id NOT IN ({','.join('?' * len(ids))})", ids)
+    _apply_directory_to_users(conn, request, {u["id"]: u for u in users if u.get("id")})
+    from ..services.tickets import staff_links  # TKSTAFF1 (R7 a): a deactivated user's no-login staff links die with the push
+
+    staff_links.safe_recheck(conn)
+    from ..services.tickets import out_documents  # TEMPLINK-2320 (owner 4A): a deactivated user's report links die with the push
+
+    out_documents.revoke_for_inactive_users_safe(conn)
+    set_setting(conn, "bridge.directory_at", now)
+    if not get_setting(conn, "bridge.paired_at"):
+        set_setting(conn, "bridge.paired_at", now)
+    # the running integration's version travels with every push: recording it only at pairing left the connections
+    # page saying "HA still runs <old>" forever after an update + restart (0.1.58)
+    version = str(message.get("version") or "")
+    if version and version != (get_setting(conn, "bridge.integration_version") or ""):
+        set_setting(conn, "bridge.integration_version", version)
+        audit(conn, actor=None, action="bridge.version_seen", decision="allowed", resource_type="installation", resource_id="*", details={"integration_version": version})
+    if "delegated_authoring" in message:  # CR-017 (bridge 0.6.0): the options-flow switch and the time it last changed - read-only state, never a request
+        new = "true" if message.get("delegated_authoring") is True else "false"
+        if new != (get_setting(conn, "bridge.delegated_authoring") or ""):
+            changed = str(message.get("delegated_changed_at") or message.get("delegation_changed_at") or now)[:40]
+            set_setting(conn, "bridge.delegated_authoring", new)
+            set_setting(conn, "bridge.delegation_changed_at", changed)
+            audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
+    # USR2 P3 (bridge 0.9.0): the bridge's own copy of the service identity - state for the settings self-check, never a request
+    service_identity.note_directory_push(conn, message)
+    # SCHEDIMPACT-295: whether the bridge judges a local person's schedules itself (its schedule fences) - state only
+    from ..services import schedule_identity
+
+    schedule_identity.note_directory_push(conn, message)
+    # DOOR-BRIDGE-BLOCK-2404 (bridge 0.10.5): the bridge's own WisKey door block setting - state only, audited when it changes
+    from ..services import door_execute_guard
+
+    door_execute_guard.note_directory_push(conn, message)
+    # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
+    # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
+    from ..services import cast_sessions
+
+    origin = cast_sessions.announced_origin(conn, settings_of(request))
+    key = ha_bridge.signing_key(conn) or ""
+    # WXH-LEFTOVERS-2405 (CR-034 section 2 item 3): the key-status record the bridge hands on through the capability's status - signed under
+    # its own purpose with the current key, never key material; an older bridge ignores the field (it reads `cast` only)
+    from ..services import bridge_rotation
+
+    return {"ok": True, "users": len(ids), "cast": ha_bridge.sign(key, {"purpose": "cast_origin", "cast_origin": origin}),
+            "key_status": ha_bridge.sign(key, {"purpose": "key_status", **bridge_rotation.key_status(conn)})}
+
+
+def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed: dict[str, dict[str, Any]]) -> None:
+    """Mirror HA's active flag onto users seen through Ingress: disabled or deleted in HA means no access here
+    (observed at the next push, within 60 s); audit keeps the id. A current VMS administrator is never dropped
+    merely because a push omitted him (that needs an explicit is_active=false from HA), so a bridge hiccup
+    cannot lock the installation."""
+    from ..services import revocation
+
+    admins = {r["subject_id"] for r in conn.execute("SELECT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow' AND revoked_at IS NULL").fetchall()}
+    disabled: list[str] = []
+    # CR-008: first seen through Arx. USR2 R11: `source = 'local'` rows (Arx-only identities) are never mirrored or dropped here
+    for r in conn.execute("SELECT id, active FROM users WHERE source IN ('ingress', 'remote') AND substr(id, 1, 2) <> 'l_'").fetchall():
+        p = pushed.get(r["id"])
+        if p is None:
+            active_now = 1 if r["id"] in admins else 0
+        else:
+            active_now = 1 if p.get("is_active", True) else 0
+        if active_now == r["active"]:
+            continue
+        conn.execute("UPDATE users SET active = ? WHERE id = ?", (active_now, r["id"]))
+        audit(conn, actor=None, action="identity.user_enabled" if active_now else "identity.user_disabled", decision="allowed", resource_type="user", resource_id=r["id"],
+              reason="ha_directory" if p is not None else "missing_from_directory", request_id=getattr(request.state, "correlation_id", None))
+        if not active_now:
+            disabled.append(r["id"])
+        else:
+            revocation.changed([r["id"]])  # re-enabled: the shell re-fetches /me (T055)
+    if disabled:
+        # CR-WISKEY-LEASE-REVOCATION-EVENT T2: the actor's capture lease first, with its own reason (the bump below then revokes
+        # every other live lease too - the owner's strict T1 rule)
+        from ..services import capture_lease
+
+        capture_lease.on_authority_change("actor_disabled", user_ids=[u for u in disabled if u in pushed])
+        capture_lease.on_authority_change("actor_removed", user_ids=[u for u in disabled if u not in pushed])
+        bump_permission_revision(conn)
+        revocation.mark(disabled)
+
+
+# ---------------------------------------------------------------- live push
+
+@router.websocket("/ha/ws")
+async def ha_ws(websocket: WebSocket) -> None:
+    db: Database = websocket.app.state.db
+    principal = await _principal_for_ws(websocket)
+    if principal is None:
+        await websocket.close(code=4401)
+        return
+
+    def _scope() -> tuple[bool, set[str], dict[str, list[dict[str, str]]]]:
+        with db.connection() as conn:
+            wide, floors = _visible_floors(conn, principal, "entity.state.read")
+            return wide, floors, _placements(conn)
+
+    def _media_scope() -> tuple[bool, set[str], bool]:
+        with db.connection() as conn:
+            mw, mf = ha_scope.visible_floors(conn, principal, media_store.PERM_READ)
+            return mw, mf, authorize(conn, principal, media_store.CONFIGURE, INSTALLATION).allowed  # the anchor entity id is an administrator's detail
+
+    wide, floors, placements = await run_in_threadpool(_scope)
+    if not wide and not floors:
+        await websocket.close(code=4403)
+        return
+    mwide, mfloors, madmin = await run_in_threadpool(_media_scope)  # CR-015: media frames follow media.read, not entity.state.read
+    await websocket.accept()
+    from ..services import revocation
+
+    q = ha_sync.subscribe()
+    seq = 0
+    last_scope = time.time()
+    access_gen = revocation.generation(principal.user_id)
+    try:
+        while True:
+            try:
+                msg = await push_queue.next_item(q, 30)  # FOLLOWUPS-2406: no executor thread held per socket
+            except (asyncio.TimeoutError, queue.Empty):
+                seq += 1
+                await websocket.send_text(json.dumps({"version": 1, "type": "heartbeat", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": {"sync": ha_sync.STATE.as_dict()}}))
+                continue
+            if time.time() - last_scope > 60 or revocation.generation(principal.user_id) != access_gen:  # T055: at once on an access change
+                access_gen = revocation.generation(principal.user_id)
+                wide, floors, placements = await run_in_threadpool(_scope)
+                mwide, mfloors, madmin = await run_in_threadpool(_media_scope)
+                last_scope = time.time()
+            payload = msg
+            if msg.get("type") == "entity_state_changed":
+                if not ha_scope.entity_visible(wide, floors, placements, msg["entity"]["entity_id"]):
+                    continue
+            elif msg.get("type") == "media_state":
+                # CR-015: only to a subscriber who sees the screen's anchor under media.read (contract 4: payload {device_key, entity_id, live})
+                if not ha_scope.entity_visible(mwide, mfloors, placements, msg["entity_id"]):
+                    continue
+                payload = {k: v for k, v in msg.items() if k not in ("type", "group_anchors") and (k != "entity_id" or madmin)}  # review L5: the anchor entity id only for system.configure
+                anchors, group = msg.get("group_anchors") or {}, (msg.get("live") or {}).get("group")
+                if anchors and group:
+                    # CR-016: a frame names the devices of its group by key - a subscriber is told only the ones it may read (the anchors are never sent)
+                    def _seen(k: str | None) -> bool:
+                        return bool(k) and ha_scope.entity_visible(mwide, mfloors, placements, anchors.get(k) or "")
+
+                    leader_seen = _seen(group["leader_key"])
+                    # the group's name is the leader's: a subscriber who may not read the leader never learns it (the REST path, media_store.visible_group, says the same)
+                    payload["live"] = {**payload["live"], "group": {**group, "leader_key": group["leader_key"] if leader_seen else None,
+                                                                    "member_keys": [k for k in group["member_keys"] if _seen(k)],
+                                                                    "name": group.get("name") if leader_seen or group.get("static") else None}}
+            elif msg.get("type") == "media_devices_changed":
+                if not mwide and not mfloors:
+                    continue
+                payload = {"reason": msg.get("reason")}
+            elif msg.get("type") == "media_groups_changed":
+                # CR-016: a saved group or the favourites curation changed - no ids, only to a subscriber who holds media.read somewhere
+                if not mwide and not mfloors:
+                    continue
+                payload = {}
+            seq += 1
+            await websocket.send_text(json.dumps({"version": 1, "type": msg.get("type"), "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": payload}, ensure_ascii=False, default=str))
+    except Exception:
+        pass
+    finally:
+        ha_sync.unsubscribe(q)

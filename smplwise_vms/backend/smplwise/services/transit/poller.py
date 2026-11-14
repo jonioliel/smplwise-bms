@@ -1,0 +1,347 @@
+"""BUSTIMES-295 - the one background loop that talks to the third party.
+
+Every `poll_s` seconds (installation setting, default 30, floor 30 unless acknowledged; only while the module is on, the notice boards are on and at least one enabled board shows transit) it collects the DISTINCT
+stop codes the boards use - one request per code, shared by every screen - and stores for each the planned boardable arrivals of
+`now .. now + the widest display window + 90 minutes`, so "the next bus after the window" and the last-known fallback exist. A circuit breaker
+(1, 2, 4, 8 minutes) stops the calls while the source fails; the cache keeps serving its last rows with their age. The nightly catalogue
+download (catalogue.py) is run by the same loop. Nothing here is on the path of a screen's request: the display route reads the cache only."""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import logging
+import os
+import threading
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+from ...config import Settings
+from ...db import Database, get_setting, set_setting
+from . import catalogue, model, stride
+from . import provider as provider_mod
+
+log = logging.getLogger("smplwise.transit")
+
+INTERVAL_S = 30.0  # the default of `transit.config.poll_s`; the loop reads the setting each round
+EXTRA_MIN = 90
+MAX_RANGE_MIN = 240 + EXTRA_MIN
+BACKOFF_S = (60, 120, 240, 480, 900, 1800)  # BUSSTATUS-297: a long provider outage settles at one try per 30 minutes (was 8)
+RETRY_AFTER_MAX_S = 3600
+CATALOGUE_RETRY_S = 1800
+
+
+@dataclass
+class Health:
+    """The source's health (in memory; the durable part is `transit_cache.fetched_at`)."""
+
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    last_ok_at: dt.datetime | None = None
+    last_error_at: dt.datetime | None = None
+    last_error: str = ""
+    errors: int = 0
+    consecutive: int = 0
+    backoff_until: dt.datetime | None = None
+    failing_since: dt.datetime | None = None
+    retry_after_until: dt.datetime | None = None  # POLISH4-WP8: the provider itself asked to wait (Retry-After) until then; a manual check honours it
+    restored: bool = False  # BUSSTATUS-297: the persisted state was read (once per process)
+
+    def ok(self, now: dt.datetime) -> None:
+        with self.lock:
+            self.last_ok_at, self.consecutive, self.backoff_until, self.failing_since = now, 0, None, None
+            self.retry_after_until = None
+
+    def fail(self, now: dt.datetime, kind: str, retry_after_s: int | None = None) -> None:
+        with self.lock:
+            self.errors += 1
+            self.consecutive += 1
+            if self.failing_since is None:
+                self.failing_since = now
+            self.last_error, self.last_error_at = kind, now
+            wait = BACKOFF_S[min(self.consecutive, len(BACKOFF_S)) - 1]
+            if retry_after_s:  # the provider said when to come back (Retry-After): never earlier than that, never later than an hour
+                wait = max(wait, min(int(retry_after_s), RETRY_AFTER_MAX_S))
+                self.retry_after_until = now + dt.timedelta(seconds=min(int(retry_after_s), RETRY_AFTER_MAX_S))
+            else:
+                self.retry_after_until = None
+            self.backoff_until = now + dt.timedelta(seconds=wait)
+
+    def pristine(self) -> bool:
+        with self.lock:
+            return not self.restored and self.consecutive == 0 and not self.last_error
+
+    def dump(self) -> dict[str, Any]:
+        with self.lock:
+            return {"last_ok_at": _iso(self.last_ok_at), "last_error_at": _iso(self.last_error_at), "last_error": self.last_error, "errors": self.errors,
+                    "consecutive": self.consecutive, "failing_since": _iso(self.failing_since), "backoff_until": _iso(self.backoff_until),
+                    "retry_after_until": _iso(self.retry_after_until)}
+
+    def load(self, doc: dict[str, Any]) -> None:
+        def t(k: str) -> dt.datetime | None:
+            return stride.parse_time(doc.get(k)) if isinstance(doc.get(k), str) else None
+
+        with self.lock:
+            self.restored = True
+            self.last_ok_at, self.last_error_at, self.failing_since, self.backoff_until = t("last_ok_at"), t("last_error_at"), t("failing_since"), t("backoff_until")
+            self.retry_after_until = t("retry_after_until")
+            self.last_error = doc["last_error"] if isinstance(doc.get("last_error"), str) else ""
+            self.errors = doc["errors"] if isinstance(doc.get("errors"), int) else 0
+            self.consecutive = doc["consecutive"] if isinstance(doc.get("consecutive"), int) else 0
+
+    def blocked(self, now: dt.datetime) -> bool:
+        with self.lock:
+            return self.backoff_until is not None and now < self.backoff_until
+
+    def retry_after_left(self, now: dt.datetime) -> int:
+        """Seconds the PROVIDER asked us to wait (its Retry-After); 0 when it asked nothing or the time has passed (our own backoff is not counted)."""
+        with self.lock:
+            if self.retry_after_until is None or now >= self.retry_after_until:
+                return 0
+            return max(1, int((self.retry_after_until - now).total_seconds()))
+
+    def view(self) -> dict[str, Any]:
+        with self.lock:
+            return {"last_ok_at": _iso(self.last_ok_at), "last_error_at": _iso(self.last_error_at), "last_error": self.last_error or None,
+                    "errors": self.errors, "consecutive_errors": self.consecutive, "backoff_until": _iso(self.backoff_until),
+                    "failing_since": _iso(self.failing_since)}
+
+
+HEALTH = Health()
+HEALTH_KEY = "transit.health"  # BUSSTATUS-297: the source health in the settings store, so a restart does not forget an outage
+
+
+def restore_health(conn: Any) -> None:
+    """Read the persisted source health into memory, once per process and only while memory holds nothing of its own (screens, the health
+    view and the poller call it; it is a no-op afterwards)."""
+    if not HEALTH.pristine():
+        return
+    try:
+        doc = json.loads(get_setting(conn, HEALTH_KEY, "") or "{}")
+    except ValueError:
+        doc = {}
+    HEALTH.load(doc if isinstance(doc, dict) else {})
+
+
+def persist_health(db: Database) -> None:
+    try:
+        with db.connection(label="transit.health.persist") as conn:
+            set_setting(conn, HEALTH_KEY, json.dumps(HEALTH.dump(), separators=(",", ":")))
+    except Exception:  # noqa: BLE001 - the state is a convenience; a failed write never stops the loop
+        log.warning("transit health could not be persisted")
+_PROVIDERS: dict[int, tuple[Any, Any]] = {}  # id(fetch callable) -> (fetch, its scheduled provider)
+_LAST_CATALOGUE_TRY: dict[str, dt.datetime] = {}
+
+
+def _iso(t: dt.datetime | None) -> str | None:
+    return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z") if t else None
+
+
+def load_config(conn: Any) -> dict[str, Any]:
+    return model.load_config(get_setting(conn, model.CONFIG_KEY, ""))
+
+
+def used_codes(conn: Any) -> dict[int, int]:
+    """`{stop code: the widest window (minutes) of an enabled board showing it}` for the codes the poller must fetch; {} = nothing to do."""
+    from ..notices import model as nmodel
+    from ..notices import store as nstore
+
+    cfg = load_config(conn)
+    if not cfg["enabled"] or not cfg["stops"] or not nstore.module_on(conn):
+        return {}
+    out: dict[int, int] = {}
+    for r in conn.execute("SELECT display_json FROM notice_boards WHERE deleted_at IS NULL AND enabled = 1").fetchall():
+        screen = nmodel.load_display(r["display_json"]).get("transit") or {}
+        if not screen.get("enabled"):
+            continue
+        for code in model.selection(cfg, screen):
+            out[code] = max(out.get(code, 0), int(screen.get("window_min") or 60))
+    return out
+
+
+def _provider_for(source: Any, tz: Any) -> provider_mod.ArrivalProvider:
+    """The provider of a pass: a provider object as it is; a bare Fetch callable wrapped once (its stop-id and destination caches live in the wrapper)."""
+    if hasattr(source, "arrivals"):
+        return source
+    got = _PROVIDERS.get(id(source))
+    if got is None or got[0] is not source:
+        got = (source, provider_mod.RealtimeProvider(source, tz))
+        _PROVIDERS[id(source)] = got
+    return got[1]
+
+
+def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
+    """One pass: ask the provider once per used code and store the rows. `source` is an ArrivalProvider (provider.py) or a Stride fetch callable.
+    Returns a small summary (tests, the manual refresh)."""
+    from ..notices import sources
+
+    with db.connection(mode="read", label="transit.poll.plan") as conn:
+        want = used_codes(conn)
+        tz = sources.installation_tz(conn)
+        cfg = load_config(conn)
+        restore_health(conn)
+    if not want:
+        return {"codes": 0, "fetched": 0, "skipped": "idle"}
+    if HEALTH.blocked(now):
+        return {"codes": len(want), "fetched": 0, "skipped": "backoff"}
+    prov = _provider_for(source, tz)
+    if hasattr(prov, "configure"):
+        prov.configure(position_fresh_s=model.position_fresh_s(cfg), poll_s=model.poll_s(cfg))
+    if hasattr(prov, "new_pass"):
+        prov.new_pass()
+    fetched, failed, retry_after = 0, None, None
+    for code, window in sorted(want.items()):
+        try:
+            to = now + dt.timedelta(minutes=min(window, 240) + EXTRA_MIN)
+            try:
+                rows = prov.arrivals(code, now, to)
+            except provider_mod.UnknownStop:
+                _store(db, code, now, now, [])  # an unknown stop: an empty cache says "nothing", it is not the source's failure
+                continue
+            _store(db, code, now, to, rows)
+            fetched += 1
+        except stride.StrideError as exc:
+            failed, retry_after = exc.kind, exc.retry_after_s
+            break
+        except Exception as exc:  # noqa: BLE001 - one bad pass never kills the loop
+            log.exception("transit poll failed")
+            failed = type(exc).__name__
+            break
+    was_failing = HEALTH.view()["consecutive_errors"] > 0
+    if failed:
+        HEALTH.fail(now, failed, retry_after)
+        persist_health(db)
+    else:
+        HEALTH.ok(now)
+        if was_failing:
+            persist_health(db)  # the recovery is written too; a healthy source writes nothing
+    with db.connection(label="transit.poll.prune") as conn:
+        marks = ",".join("?" * len(want))
+        conn.execute(f"DELETE FROM transit_cache WHERE code NOT IN ({marks})", tuple(want))
+    return {"codes": len(want), "fetched": fetched, "error": failed}
+
+
+def check_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
+    """POLISH4-WP8 (owner-approved 02.11): the settings screen's "check now" - ONE arrivals request per CONFIGURED stop, now, even when no
+    screen shows the stops (the loop polls only stops a screen uses, so an idle installation keeps showing its last failure for days). Never
+    loops, never changes the settings. Our own circuit-breaker backoff is not honoured (a person asked); the provider's Retry-After is.
+    The result updates the source health (a success clears the failure run and records the success; a failure is one more error) and,
+    for the stops a screen uses, the cache rows. Returns {codes, fetched, ok, error, skipped, retry_after_s}."""
+    from ..notices import sources
+
+    with db.connection(mode="read", label="transit.check.plan") as conn:
+        cfg = load_config(conn)
+        want = used_codes(conn)
+        tz = sources.installation_tz(conn)
+        restore_health(conn)
+    codes = [int(s["code"]) for s in cfg["stops"]]
+    if not codes:
+        return {"codes": 0, "fetched": 0, "ok": False, "error": None, "skipped": "no_stops", "retry_after_s": None}
+    wait = HEALTH.retry_after_left(now)
+    if wait:
+        return {"codes": len(codes), "fetched": 0, "ok": False, "error": None, "skipped": "retry_after", "retry_after_s": wait}
+    prov = _provider_for(source, tz)
+    if hasattr(prov, "configure"):
+        prov.configure(position_fresh_s=model.position_fresh_s(cfg), poll_s=model.poll_s(cfg))
+    if hasattr(prov, "new_pass"):
+        prov.new_pass()
+    fetched, failed, retry_after = 0, None, None
+    for code in codes:
+        window = want.get(code, 60)
+        to = now + dt.timedelta(minutes=min(window, 240) + EXTRA_MIN)
+        try:
+            try:
+                rows = prov.arrivals(code, now, to)
+            except provider_mod.UnknownStop:
+                rows = []  # the source answered: an unknown stop is not the source's failure
+            if code in want:
+                _store(db, code, now, to, rows)
+            fetched += 1
+        except stride.StrideError as exc:
+            failed, retry_after = exc.kind, exc.retry_after_s
+            break
+        except Exception as exc:  # noqa: BLE001 - a manual check reports, it never raises into the route
+            log.exception("transit check failed")
+            failed = type(exc).__name__
+            break
+    if failed:
+        HEALTH.fail(now, failed, retry_after)
+    else:
+        HEALTH.ok(now)
+    persist_health(db)
+    return {"codes": len(codes), "fetched": fetched, "ok": not failed, "error": failed, "skipped": None, "retry_after_s": retry_after}
+
+
+def _store(db: Database, code: int, fetched_at: dt.datetime, window_to: dt.datetime, rows: list[dict[str, Any]]) -> None:
+    with db.connection(label="transit.poll.store") as conn:
+        conn.execute("INSERT INTO transit_cache(code, fetched_at, window_to, rows_json) VALUES (?, ?, ?, ?) "
+                     "ON CONFLICT(code) DO UPDATE SET fetched_at = excluded.fetched_at, window_to = excluded.window_to, rows_json = excluded.rows_json",
+                     (code, _iso(fetched_at), _iso(window_to), json.dumps(rows, ensure_ascii=False, separators=(",", ":"))))
+
+
+def catalogue_pass(db: Database, fetch: stride.Fetch, now: dt.datetime, *, force: bool = False) -> dict[str, Any] | None:
+    """The nightly download when it is due (or `force`); a failure is retried at most every 30 minutes. None = nothing was due."""
+    from ..notices import sources
+
+    with db.connection(mode="read", label="transit.catalogue.plan") as conn:
+        cfg = load_config(conn)
+        tz = sources.installation_tz(conn)
+        local = now.astimezone(tz)
+        if not force and not (cfg["enabled"] and catalogue.due(conn, local)):
+            return None
+    last = _LAST_CATALOGUE_TRY.get("t")
+    if not force and last is not None and (now - last).total_seconds() < CATALOGUE_RETRY_S:
+        return None
+    _LAST_CATALOGUE_TRY["t"] = now
+    res = catalogue.refresh(db, fetch, now, local.date())
+    if res.get("error") and res.get("error_at") == _iso(now) and model.is_outage(res["error"]):
+        HEALTH.fail(now, res["error"])  # BUSSTATUS-297: a failed nightly download is the same provider's outage (503, empty list...) - it counts
+        persist_health(db)
+    return res
+
+
+class Poller:
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.stop_evt = threading.Event()
+        self.wake = threading.Event()
+
+    def start(self, db: Database, settings: Settings, fetch: Any = None) -> None:
+        if os.environ.get("SW_TRANSIT", "1") == "0" or (self.thread and self.thread.is_alive()):
+            return
+        self.stop_evt.clear()
+        self.thread = threading.Thread(target=self._loop, args=(db, fetch or stride.http_fetch), name="transit-poller", daemon=True)
+        self.thread.start()
+
+    def kick(self) -> None:
+        """Run a pass now (the settings screen just changed something)."""
+        self.wake.set()
+
+    def shutdown(self, timeout: float = 3.0) -> None:
+        self.stop_evt.set()
+        self.wake.set()
+        t = self.thread
+        if t is not None and t is not threading.current_thread():
+            t.join(timeout=timeout)
+
+    @staticmethod
+    def _interval(db: Database) -> float:
+        try:
+            with db.connection(mode="read", label="transit.poll.interval") as conn:
+                return float(model.poll_s(load_config(conn)))
+        except Exception:  # noqa: BLE001 - the default cadence beats a dead loop
+            return INTERVAL_S
+
+    def _loop(self, db: Database, fetch: Any) -> None:
+        if self.stop_evt.wait(20.0):
+            return
+        while not self.stop_evt.is_set():
+            now = dt.datetime.now(dt.timezone.utc)
+            try:
+                catalogue_pass(db, fetch, now)
+                poll_once(db, fetch, now)
+            except Exception:  # noqa: BLE001 - the loop never dies on one bad pass
+                log.exception("transit pass failed")
+            self.wake.wait(self._interval(db))
+            self.wake.clear()
+
+
+POLLER = Poller()

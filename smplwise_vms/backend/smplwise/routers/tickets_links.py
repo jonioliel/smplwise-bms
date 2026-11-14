@@ -1,0 +1,166 @@
+"""CR-038 slice 4 - the manager's side of handler links and the public page's administration (spec 8.1, 10, 14.2, 17):
+
+- `POST /tickets/{id}/assign/preview`         manager + tickets.external: the outgoing text, channel, link times, refusals (no effect)
+- `POST /tickets/{id}/link/copy|new|revoke|resend`   manager (copy / new / resend also tickets.external): services/tickets/external.py
+- `GET  /tickets/health`                       system.configure: the public listener, its counters, the key, the links (spec 17)
+- `POST /tickets/address/probe`                system.configure, LOCAL ONLY (remote_channel.BLOCKED_ON_REMOTE), 6 / min: SSRF-safe
+- `POST /tickets/key/rotate`                   system.configure + confirm: every live link revoked, every phone key re-derived
+- `POST /tickets/documents/{id}/revoke`        tickets.configure: ONE document link dies now (`manual`), audited by id only (DOCLINKSEC-295 L-01)
+Every route answers the module's uniform 404 while it is off. Mounted BEFORE routers/tickets.py (`/tickets/{ticket_id}` would
+match `/tickets/health`). The copy answer carries the handler URL: `Cache-Control: no-store`, never logged, never audited."""
+from __future__ import annotations
+
+import sqlite3
+from typing import Any, Literal
+
+from fastapi import APIRouter, Depends, Path, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
+
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..errors import ApiError
+from ..rbac import INSTALLATION, Principal, require
+from ..services.tickets import access, address_probe, attachments, external, handler_links, links, settings_doc, store_links
+from ..services.tickets.access import Viewer, text
+from ..services.tickets.keyring import KEYS
+from ..services.tickets.module_key import ModuleKeyError
+from ..services.tickets.public_runtime import RUNTIME
+from .tickets import ID, _detail, module_gate
+
+router = APIRouter(dependencies=[Depends(module_gate)])
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
+class PreviewBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    contact_id: str = Field(min_length=1, max_length=64, pattern=ID)
+    require_code: bool = False
+    location_nav: bool = False  # CR-ORG-LOCATIONS: preview the message with the navigation link (default off)
+
+
+@router.post("/tickets/{ticket_id}/assign/preview")
+def assign_preview(body: PreviewBody, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    return external.preview(conn, viewer, seen, body.contact_id, require_code=body.require_code, location_nav=body.location_nav)
+
+
+@router.post("/tickets/{ticket_id}/link/{action}")
+def link_action(request: Request, ticket_id: str = Path(..., pattern=ID), action: Literal["copy", "new", "revoke", "resend"] = Path(...),
+                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    rid = _rid(request)
+    if action == "copy":
+        answer = external.copy_link(conn, viewer, seen, rid)
+        return JSONResponse(answer, headers={"Cache-Control": "no-store"})
+    if action == "new":
+        external.new_link(conn, viewer, seen, rid)
+    elif action == "revoke":
+        external.revoke_link(conn, viewer, seen, rid)
+    else:
+        external.resend(conn, viewer, seen, rid)
+    return _detail(conn, viewer, ticket_id)
+
+
+@router.get("/tickets/health")
+def health(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    out = RUNTIME.health(conn)
+    try:
+        out["attachments_bytes"] = attachments.used_bytes(settings_of(request).data_dir)
+    except Exception:  # noqa: BLE001 - a health page never fails on a statistic
+        out["attachments_bytes"] = None
+    return out
+
+
+class ProbeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    base_url: str | None = Field(default=None, max_length=300)
+
+
+@router.post("/tickets/address/probe")
+async def probe(body: ProbeBody, request: Request, principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    if not address_probe.admit():
+        raise ApiError(429, "rate_limited", text(conn, "יותר מדי בדיקות. נסו שוב בעוד דקה."), retryable=True, details={"retry_after_s": 60})
+    pub = settings_doc.read(conn)["public"]
+    base = body.base_url if body.base_url is not None else pub["base_url"]
+    from ..services.tickets import links as links_mod
+
+    prefix = links_mod.effective_prefix(base or "", pub["path_prefix"])
+    from ..services.tickets.public_server import SERVER
+
+    def last_probe() -> dict[str, Any] | None:  # the running listener's note of the probe's nonce (wiring item 5, W13)
+        return ((SERVER.snapshot() or {}).get("stats") or {}).get("last_probe")
+
+    result = await run_in_threadpool(lambda: address_probe.probe(base or "", last_probe=last_probe if SERVER.running else None, prefix=prefix))
+    audit(conn, actor=principal, action="tickets.address.probe", decision="allowed", resource_type="installation", resource_id="tickets",
+          request_id=_rid(request), details={"result": result["result"]})
+    return result
+
+
+DOC_ID = r"^[0-9a-f]{32}$"  # out_documents.mint: secrets.token_hex(16)
+
+
+@router.post("/tickets/documents/{doc_id}/revoke")
+def revoke_document(request: Request, doc_id: str = Path(..., pattern=DOC_ID), principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """DOCLINKSEC-295 L-01: cut ONE document link (a report sent to the wrong vendor, a link reported as leaked) without rotating the module
+    key or switching documents off. Idempotent: a link already revoked answers `revoked: false`. The janitor drops the bytes on its next
+    pass. The audit row names the document id and its module only - never a token, a URL, a recipient or the content."""
+    from ..services.tickets import out_documents
+
+    require(conn, principal, "tickets.configure", INSTALLATION)
+    found = out_documents.row(conn, doc_id)
+    if found is None:
+        raise ApiError(404, "document_not_found", text(conn, "המסמך לא נמצא."))
+    changed = out_documents.revoke(conn, doc_id, "manual", handler_links.now_utc())
+    audit(conn, actor=principal, action="report.document.revoke", decision="allowed", resource_type="outbound_document", resource_id=doc_id,
+          request_id=_rid(request), details={"module": found["module"], "reason": "manual", "changed": changed})
+    return {"id": doc_id, "revoked": changed}
+
+
+class RotateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: Literal[True]
+
+
+@router.post("/tickets/key/rotate")
+def rotate_key(body: RotateBody, request: Request, principal: Principal = Depends(current_principal),
+               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Spec 7.4: a new module key - every live link revoked (`module_key`), every contact's phone key re-derived, in ONE
+    transaction; the old key file stays until no row names it (the janitor retires it), so no crash point strands a row."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    if not KEYS.can_rotate():
+        raise ApiError(409, "rotation_unavailable", text(conn, "החלפת המפתח אינה זמינה בגרסה זו."))
+    try:
+        new_id, new_key = KEYS.stage()
+    except ModuleKeyError:
+        raise ApiError(409, "module_key_missing", text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי.")) from None
+    now = handler_links.now_utc()
+    revoked = 0
+    for row in store_links.live_links(conn):
+        if handler_links.revoke(conn, row, "module_key", now):
+            revoked += 1
+    from ..services.tickets import rfq_links  # TKRFQ1: the RFQ vendor links derive under the same key
+
+    revoked += rfq_links.revoke_all_live(conn, "module_key", now)
+    from ..services.tickets import out_documents  # CR-VENDORQ-294: a document link derives under the same key
+
+    revoked += out_documents.revoke_all_live(conn, "module_key", now)
+    rekeyed = 0
+    for c in store_links.phone_keyed_contacts(conn):
+        store_links.set_phone_key(conn, c["id"], links.phone_key(new_key, c["phone_e164"]), new_id)
+        rekeyed += 1
+    KEYS.commit(new_id)
+    audit(conn, actor=principal, action="ticket.key.rotate", decision="allowed", resource_type="installation", resource_id="tickets",
+          request_id=_rid(request), details={"links_revoked": revoked, "contacts_rekeyed": rekeyed})
+    return {"rotated": True, "links_revoked": revoked, "contacts_rekeyed": rekeyed}

@@ -1,0 +1,289 @@
+execute:
+  name: Execute (SMPLWISE add-on only)
+  description: >-
+    Runs an allow-listed Home Assistant action on behalf of a VMS user. Called by the SMPLWISE add-on with a
+    signed request; the action is executed with that user's own context so Home Assistant's entity permissions
+    apply. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the action runs as.
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    domain:
+      description: Service domain.
+      example: light
+    service:
+      description: Service name.
+      example: turn_on
+    data:
+      description: Service data (must include entity_id).
+      example: '{"entity_id": "light.lobby"}'
+    request_id:
+      description: Add-on action id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+set_entity_area:
+  name: Set entity area (SMPLWISE add-on only)
+  description: >-
+    Moves one entity to a Home Assistant area (a registry/config write, not a service call). Called by the
+    SMPLWISE add-on with a signed request, only when an administrator assigned the entity in the VMS. Not meant
+    to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id recorded as the actor (for the audit trail only; registry writes carry no per-user Context).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    entity_id:
+      description: Entity to move.
+      example: light.lobby
+    area_id:
+      description: Target area id, or empty to clear the entity's area.
+      example: lobby
+    request_id:
+      description: Add-on action id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+schedule:
+  name: Schedule (SMPLWISE add-on only)
+  description: >-
+    Adds, edits, removes, copies, runs, enables or disables one schedule of the Scheduler component on behalf of a
+    VMS user. Called by the SMPLWISE add-on with a signed request; the bridge re-validates every action, refuses codes
+    and unlisted services, and checks the user's own entity permissions. Never enable_all or disable_all. Not meant
+    to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the change runs as.
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    op:
+      description: One of add, edit, remove, copy, run, enable, disable.
+      example: edit
+    request_id:
+      description: Add-on operation id (for the audit trail).
+      example: "a1b2c3"
+    schedule_id:
+      description: The component's schedule id (every op but add).
+      example: "3f9a1c"
+    schedule_entity_id:
+      description: The schedule's own switch entity (every op but add); must be a Scheduler switch whose unique id is schedule_id.
+      example: switch.schedule_3f9a1c
+    payload:
+      description: The component's fields for add / edit (weekdays, timeslots, repeat_type, name, start_date, end_date, tags). Never a code.
+    name:
+      description: Name of the copy (op copy).
+    time:
+      description: Slot start to run (op run), HH:MM:SS.
+      example: "07:00:00"
+    skip_conditions:
+      description: Run ignoring the slot's conditions (op run).
+    sensitive:
+      description: True when any action locks, unlocks, arms, disarms or moves a door. The bridge refuses a false flag on what it can recognise.
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+stream_source:
+  name: Stream source (SMPLWISE add-on only)
+  description: >-
+    Read-only. Returns the stream source Home Assistant reports for ONE camera entity, so the SMPLWISE add-on can show
+    that camera as live video. Called by the add-on with a signed request, only for a camera the owner chose to show
+    live and only on behalf of a Home Assistant administrator. The address may carry the camera's credentials: it is
+    returned only to the add-on and never logged. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the request is made for (must be an active administrator).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    entity_id:
+      description: The camera entity.
+      example: camera.garden
+    request_id:
+      description: Add-on request id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+media_query:
+  name: Media query (SMPLWISE add-on only)
+  description: >-
+    Read-only. Returns what a speaker's music layer reports - the length, position and the current and next item of its
+    queue, or a trimmed list of the library (favourites, stations, playlists) - through the Music Assistant integration's
+    response services. Called by the SMPLWISE add-on with a signed request on behalf of a Home Assistant user; the bridge
+    finds the Music Assistant config entry itself and accepts only the two queries and the arguments listed here. Not meant
+    to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the question is asked for (must be active).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    query:
+      description: queue or library.
+      example: queue
+    entity_id:
+      description: queue only - the Music Assistant player.
+      example: media_player.kitchen_speaker
+    media_type:
+      description: library only - radio, playlist, track, album or artist.
+      example: playlist
+    favorite:
+      description: library only - favourites only.
+    limit:
+      description: library only - at most 100.
+    offset:
+      description: library only.
+    order_by:
+      description: library only - name, last_played or timestamp_added.
+    request_id:
+      description: Add-on request id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+sync_directory:
+  name: Sync user directory (SMPLWISE add-on only)
+  description: Pushes the Home Assistant user directory (ids, names, active/admin flags, groups) to the SMPLWISE add-on now instead of waiting for the next minute.
+
+config_item:
+  name: Config item (SMPLWISE add-on only)
+  description: >-
+    Writes (upsert, delete) or runs (enable, disable, trigger, run_script, stop_script, apply_scene) ONE automation,
+    script or scene on behalf of a VMS user. Called by the SMPLWISE add-on with a signed request. A write is judged
+    again here: closed block schemas, the allowed services, no code or secret anywhere that is authored, every block
+    outside the simple builder identical to a stored one, a compare-and-set against the revision the user edited, a
+    ring of 10 backups, an atomic write, and a reload of only the changed item. Only a Home Assistant administrator may
+    write, unless the options switch "delegated authoring" is on - and then only simple-builder content. Runs use the
+    user's own context. Never calls anything else. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the operation runs as (must be active).
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    op:
+      description: One of upsert, delete, enable, disable, trigger, run_script, stop_script, apply_scene.
+      example: upsert
+    request_id:
+      description: Add-on operation id (for the audit trail).
+      example: "a1b2c3"
+    kind:
+      description: automation, script or scene (not for apply_scene).
+      example: automation
+    item_id:
+      description: The config id of the item (a script's object id).
+      example: "1727712345678"
+    base_revision:
+      description: The revision of the item as the user edited it (null to create). The write is refused as stale when the stored item changed.
+      example: "9f2c0d1e4b7a6c35"
+    profile:
+      description: builder (simple-builder content) or code (the code view; administrators only).
+      example: builder
+    config:
+      description: The item exactly as it is to be stored (upsert). Never a code.
+    preserved:
+      description: Fingerprints of the blocks kept byte for byte; each must also be in the stored item.
+    sensitive:
+      description: True when the config calls an alarm, a lock, a siren or a door-class cover. The bridge refuses a false flag on what it can recognise.
+    variables:
+      description: Variables for trigger / run_script.
+    skip_condition:
+      description: Run the automation's actions without its conditions (trigger).
+    entity_id:
+      description: The scene entity (apply_scene).
+      example: scene.salon_evening
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+    kid:
+      description: (version 2 signatures only) the key id the message is signed with.
+
+cast_stream:
+  name: Cast a camera to a screen (SMPLWISE add-on only)
+  description: >-
+    Plays the SMPLWISE add-on's cast-relay address (one camera's live HLS, a short-lived token in the path) on ONE Google
+    Cast media player, stops it, or switches it off - on behalf of a Home Assistant user, with that user's own
+    permissions. Called by the add-on with a signed request. The address must be the relay origin the paired add-on
+    announced, on this Home Assistant host; nothing else is ever played. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the request is made for.
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    op:
+      description: play, stop or off.
+      example: play
+    entity_id:
+      description: The Google Cast media player.
+      example: media_player.living_room_tv
+    url:
+      description: (play only) the add-on's cast-relay address.
+    title:
+      description: (play only) the title the screen shows (the camera's name).
+    request_id:
+      description: Add-on request id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+rotate:
+  name: Rotate the bridge key (SMPLWISE add-on only)
+  description: >-
+    One signed control message of the add-on's bridge-key rotation (begin, probe, commit, retire, abort or status). The bridge
+    derives the next key itself, proves it to the add-on, switches only on the add-on's signed commit and keeps both keys for at
+    most 180 seconds. Called by the add-on only; the signature decides, nothing here is for automations.
+  fields:
+    protocol:
+      description: The rotation protocol name.
+    op:
+      description: begin, probe, commit, retire, abort or status.
+    rotation_id:
+      description: The add-on's id of this rotation.
+    kid:
+      description: Key id the message is signed with.
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature (version 2, bound to the key id).
+
+lease_event:
+  name: Capture lease event (SMPLWISE add-on only)
+  description: >-
+    One signed message of the capture lease's revocation stream (lease_revoke, lease_heartbeat or lease_stream_reset). The bridge checks the
+    contract's stages (transport, encoding, parse, schema, binding, signature, time, replay) and hands the verified message to the WisKey
+    consumer; only a closed answer comes back. Called by the add-on only; the signature decides, nothing
+    here is for automations.
+  fields:
+    signed_message_json:
+      description: The whole signed message as one JSON text (at most 8192 bytes). Nothing else is accepted.
+
+lease_request:
+  name: Capture lease request (SMPLWISE add-on only)
+  description: >-
+    One signed request of the capture lease (capture_start, capture_status, capture_confirm or capture_cancel). The bridge checks the
+    contract's stages and hands the verified request to the WisKey consumer; only a closed answer comes back. Called by the add-on only; the signature decides, nothing here is for automations.
+  fields:
+    signed_message_json:
+      description: The whole signed message as one JSON text (at most 8192 bytes). Nothing else is accepted.

@@ -1,0 +1,693 @@
+{
+  "version": "1.1",
+  "status": "DESIGN_NOT_RUNTIME",
+  "roles": [
+    {
+      "id": "viewer",
+      "name_he": "צופה",
+      "permissions": [
+        "map.read",
+        "access.read",
+        "devices.read",
+        "alarm.view",
+        "entity.state.read",
+        "video.live",
+        "media.read",
+        "presence.report",
+        "calendar.view"
+      ]
+    },
+    {
+      "id": "kiosk",
+      "name_he": "תצוגת קיוסק",
+      "permissions": [
+        "map.read",
+        "video.live",
+        "wall.view"
+      ]
+    },
+    {
+      "id": "operator",
+      "name_he": "מפעיל",
+      "permissions": [
+        "map.read",
+        "access.read",
+        "access.stations.read",
+        "access.events.read",
+        "access.people.read",
+        "access.call",
+        "access.windows.cancel",
+        "devices.read",
+        "alarm.view",
+        "alarm.arm",
+        "devices.control",
+        "entity.state.read",
+        "video.live",
+        "video.playback",
+        "events.read",
+        "events.ack",
+        "reports.shift",
+        "video.export",
+        "ha.entity.control",
+        "cases.manage",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.group",
+        "media.browse",
+        "media.queue",
+        "media.cast",
+        "analytics.review",
+        "energy.view",
+        "generator.view",
+        "water.view",
+        "water.ack",
+        "maintenance.view",
+        "maintenance.perform",
+        "infra.temperature.ack",
+        "presence.report",
+        "tickets.view",
+        "tickets.create",
+        "calendar.view",
+        "calendar.book"
+      ]
+    },
+    {
+      "id": "editor",
+      "name_he": "עורך מפות ותצוגות",
+      "permissions": [
+        "map.read",
+        "access.read",
+        "devices.read",
+        "alarm.view",
+        "entity.state.read",
+        "video.live",
+        "map.import",
+        "map.edit",
+        "map.publish",
+        "placement.edit",
+        "views.edit",
+        "catalog.manage",
+        "media.read",
+        "presence.report",
+        "calendar.view",
+        "notices.view",
+        "notices.manage"
+      ]
+    },
+    {
+      "id": "site_admin",
+      "name_he": "מנהל אתר / מבנה / קומה",
+      "permissions": [
+        "map.read",
+        "access.read",
+        "access.doors.open",
+        "devices.read",
+        "alarm.view",
+        "alarm.arm",
+        "alarm.disarm",
+        "alarm.bypass",
+        "access.people.manage",
+        "devices.control",
+        "access.cards.capture",
+        "access.pin.generate",
+        "access.people.stations",
+        "access.stations.read",
+        "access.events.read",
+        "access.events.export",
+        "access.people.read",
+        "access.people.sensitive",
+        "access.people.message",
+        "access.call",
+        "access.windows.manage",
+        "access.windows.cancel",
+        "access.emergency.lock",
+        "access.admin.read",
+        "devices.control_bulk",
+        "entity.state.read",
+        "video.live",
+        "video.playback",
+        "events.read",
+        "events.ack",
+        "reports.shift",
+        "map.import",
+        "map.edit",
+        "map.publish",
+        "placement.edit",
+        "views.edit",
+        "catalog.manage",
+        "site.content.configure",
+        "video.export",
+        "ha.entity.control",
+        "cases.manage",
+        "rules.manage",
+        "rbac.assign",
+        "schedule.view",
+        "schedule.manage",
+        "automation.manage",
+        "scene.manage",
+        "script.run",
+        "script.manage",
+        "automation.code_view",
+        "scenario.view",
+        "scenario.manage",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.public",
+        "media.bulk",
+        "media.layout",
+        "media.group",
+        "media.browse",
+        "media.queue",
+        "media.cast",
+        "media.announce",
+        "analytics.review",
+        "analytics.control",
+        "analytics.record_control",
+        "analytics.profile",
+        "analytics.events",
+        "analytics.exports",
+        "analytics.cases",
+        "energy.view",
+        "energy.bills",
+        "energy.manage",
+        "generator.view",
+        "generator.manage",
+        "water.view",
+        "water.ack",
+        "water.manage",
+        "water.bills",
+        "infra.elevators.manage",
+        "maintenance.view",
+        "maintenance.perform",
+        "maintenance.manage",
+        "emergency.view",
+        "emergency.manage",
+        "infra.temperature.manage",
+        "infra.temperature.ack",
+        "infra.temperature.report_link",
+        "infra.temperature.report_link_send",
+        "insights.read",
+        "insights.manage",
+        "reports.building",
+        "presence.report",
+        "history.presence",
+        "presence.building.view",
+        "tickets.view",
+        "tickets.create",
+        "tickets.manage",
+        "tickets.external",
+        "tickets.costs.view",
+        "notices.view",
+        "notices.manage",
+        "notices.push",
+        "notices.delete",
+        "calendar.view",
+        "calendar.book",
+        "calendar.book_for_others",
+        "calendar.manage",
+        "calendar.maintenance"
+      ]
+    },
+    {
+      "id": "system_admin",
+      "name_he": "מנהל מערכת",
+      "permissions": [
+        "map.read",
+        "access.read",
+        "access.doors.open",
+        "devices.read",
+        "alarm.view",
+        "alarm.arm",
+        "alarm.disarm",
+        "alarm.bypass",
+        "access.people.manage",
+        "devices.control",
+        "access.cards.capture",
+        "access.pin.generate",
+        "access.external.grant",
+        "access.visitor.invite",
+        "access.doors.automate",
+        "access.people.stations",
+        "access.stations.read",
+        "access.events.read",
+        "access.events.export",
+        "access.people.read",
+        "access.people.sensitive",
+        "access.people.message",
+        "access.call",
+        "access.windows.manage",
+        "access.windows.cancel",
+        "access.emergency.lock",
+        "access.emergency.open",
+        "emergency.open.grant",
+        "access.admin.read",
+        "access.schedules.manage",
+        "access.stations.manage",
+        "access.groups.manage",
+        "devices.control_bulk",
+        "entity.state.read",
+        "video.live",
+        "video.playback",
+        "events.read",
+        "events.ack",
+        "reports.shift",
+        "map.import",
+        "map.edit",
+        "map.publish",
+        "placement.edit",
+        "views.edit",
+        "catalog.manage",
+        "site.content.configure",
+        "system.configure",
+        "sources.configure",
+        "identity.directory.read",
+        "identity.local.manage",
+        "rbac.assign",
+        "rbac.roles.manage",
+        "audit.read",
+        "backup.manage",
+        "system.update",
+        "users.ha_manage",
+        "bridge.key.rotate",
+        "partner.manage",
+        "video.export",
+        "ha.entity.control",
+        "cases.manage",
+        "rules.manage",
+        "schedule.view",
+        "schedule.manage",
+        "schedule.sensitive",
+        "automation.manage",
+        "scene.manage",
+        "script.run",
+        "script.manage",
+        "automation.code_view",
+        "scenario.view",
+        "scenario.manage",
+        "scenario.admin",
+        "screen.personalize",
+        "notify.manage",
+        "nvr.config.write",
+        "nvr.configure",
+        "nvr.config.events",
+        "nvr.config.detection",
+        "nvr.config.privacy",
+        "nvr.config.smart",
+        "nvr.config.schedule",
+        "nvr.config.osd",
+        "nvr.config.time",
+        "nvr.record.manual",
+        "nvr.record.lock",
+        "nvr.alarm_output",
+        "nvr.storage.test",
+        "nvr.system.reboot",
+        "nvr.camera.reboot",
+        "media.read",
+        "media.control",
+        "media.power",
+        "media.public",
+        "media.bulk",
+        "media.layout",
+        "media.group",
+        "media.browse",
+        "media.queue",
+        "media.cast",
+        "media.announce",
+        "analytics.review",
+        "analytics.control",
+        "analytics.record_control",
+        "analytics.profile",
+        "analytics.events",
+        "analytics.exports",
+        "analytics.cases",
+        "energy.view",
+        "energy.bills",
+        "energy.manage",
+        "generator.view",
+        "generator.manage",
+        "water.view",
+        "water.ack",
+        "water.manage",
+        "water.bills",
+        "infra.elevators.manage",
+        "maintenance.view",
+        "maintenance.perform",
+        "maintenance.manage",
+        "emergency.view",
+        "emergency.manage",
+        "infra.temperature.manage",
+        "infra.temperature.ack",
+        "infra.temperature.report_link",
+        "infra.temperature.report_link_send",
+        "insights.read",
+        "insights.manage",
+        "reports.building",
+        "presence.report",
+        "history.presence",
+        "presence.building.view",
+        "presence.sensors.view",
+        "presence.view",
+        "tickets.view",
+        "tickets.create",
+        "tickets.manage",
+        "tickets.external",
+        "tickets.all_departments",
+        "tickets.configure",
+        "tickets.costs.view",
+        "tickets.costs",
+        "tickets.delete",
+        "tickets.handlers",
+        "tickets.directory",
+        "tickets.technician_requests",
+        "tickets.intake",
+        "messaging.accounts.manage",
+        "occupancy.view",
+        "notices.view",
+        "notices.manage",
+        "notices.push",
+        "notices.boards",
+        "notices.delete",
+        "calendar.view",
+        "calendar.book",
+        "calendar.book_for_others",
+        "calendar.manage",
+        "calendar.maintenance",
+        "calendar.guests",
+        "calendar.configure",
+        "calendar.connect"
+      ]
+    },
+    {
+      "id": "door_opener",
+      "name_he": "פותח דלתות",
+      "permissions": [
+        "access.read",
+        "access.doors.open"
+      ]
+    },
+    {
+      "id": "tickets_view",
+      "name_he": "צפייה ב{tickets}",
+      "permissions": [
+        "tickets.view"
+      ]
+    },
+    {
+      "id": "tickets_create",
+      "name_he": "פתיחת {tickets}",
+      "permissions": [
+        "tickets.create"
+      ]
+    },
+    {
+      "id": "tickets_manage",
+      "name_he": "ניהול {tickets}",
+      "permissions": [
+        "tickets.manage"
+      ]
+    },
+    {
+      "id": "tickets_all_departments",
+      "name_he": "כל המחלקות ב{tickets}",
+      "permissions": [
+        "tickets.all_departments"
+      ]
+    },
+    {
+      "id": "tickets_external",
+      "name_he": "שליחת {tickets} לגורם חיצוני",
+      "permissions": [
+        "tickets.external"
+      ]
+    },
+    {
+      "id": "tickets_configure",
+      "name_he": "הגדרות {tickets}",
+      "permissions": [
+        "tickets.configure"
+      ]
+    },
+    {
+      "id": "tickets_costs_view",
+      "name_he": "צפייה בעלויות {tickets}",
+      "permissions": [
+        "tickets.costs.view"
+      ]
+    },
+    {
+      "id": "tickets_costs",
+      "name_he": "אישור עלויות {tickets}",
+      "permissions": [
+        "tickets.costs"
+      ]
+    },
+    {
+      "id": "tickets_delete",
+      "name_he": "מחיקת {tickets}",
+      "permissions": [
+        "tickets.delete"
+      ]
+    },
+    {
+      "id": "tickets_handlers",
+      "name_he": "ניהול מטפלים וספקים ב{tickets}",
+      "permissions": [
+        "tickets.handlers"
+      ]
+    },
+    {
+      "id": "tickets_directory",
+      "name_he": "ספריית ספקים ואנשי קשר חיצוניים ב{tickets}",
+      "permissions": [
+        "tickets.directory"
+      ]
+    },
+    {
+      "id": "tickets_technician_requests",
+      "name_he": "אישור בקשות טכנאים מספקים ב{tickets}",
+      "permissions": [
+        "tickets.technician_requests"
+      ]
+    },
+    {
+      "id": "tickets_intake",
+      "name_he": "קליטת פניות ב{tickets}",
+      "permissions": [
+        "tickets.intake"
+      ]
+    },
+    {
+      "id": "door_windows_manager",
+      "name_he": "ניהול חלונות פתיחה",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.windows.manage"
+      ]
+    },
+    {
+      "id": "door_windows_guard",
+      "name_he": "הפסקת חלון פתיחה",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.windows.cancel"
+      ]
+    },
+    {
+      "id": "emergency_lock",
+      "name_he": "נעילת חירום",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.emergency.lock"
+      ]
+    },
+    {
+      "id": "emergency_open",
+      "name_he": "פתיחת חירום",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.emergency.open"
+      ]
+    },
+    {
+      "id": "security_manager",
+      "name_he": "אחראי ביטחון",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "emergency.open.grant"
+      ]
+    },
+    {
+      "id": "notices_manage",
+      "name_he": "לוח הודעות: כתיבה",
+      "permissions": [
+        "notices.view",
+        "notices.manage"
+      ]
+    },
+    {
+      "id": "notices_push",
+      "name_he": "לוח הודעות: שליחת התראה",
+      "permissions": [
+        "notices.push"
+      ]
+    },
+    {
+      "id": "notices_delete",
+      "name_he": "לוח הודעות: מחיקה",
+      "permissions": [
+        "notices.view",
+        "notices.manage",
+        "notices.delete"
+      ]
+    },
+    {
+      "id": "notices_boards",
+      "name_he": "לוח הודעות: לוחות תצוגה",
+      "permissions": [
+        "notices.boards"
+      ]
+    },
+    {
+      "id": "announcer",
+      "name_he": "מכריז: הכרזות קוליות",
+      "permissions": [
+        "devices.read",
+        "media.announce"
+      ]
+    },
+    {
+      "id": "calendar_booker",
+      "name_he": "יומנים: הזמנות שלי",
+      "permissions": [
+        "calendar.view",
+        "calendar.book"
+      ]
+    },
+    {
+      "id": "calendar_on_behalf",
+      "name_he": "יומנים: הזמנה בשם צוות, חוג או לקוח",
+      "permissions": [
+        "calendar.book_for_others"
+      ]
+    },
+    {
+      "id": "calendar_manager",
+      "name_he": "יומנים: ניהול יומנים",
+      "permissions": [
+        "calendar.manage"
+      ]
+    },
+    {
+      "id": "calendar_maintenance",
+      "name_he": "יומנים: חלונות תחזוקה",
+      "permissions": [
+        "calendar.maintenance"
+      ]
+    },
+    {
+      "id": "calendar_connect",
+      "name_he": "יומנים: חיבור יומנים חיצוניים",
+      "permissions": [
+        "calendar.connect"
+      ]
+    }
+  ],
+  "sensitive_permissions_not_implied": [
+    "rules.ha_notify",
+    "video.export",
+    "audio.talk",
+    "camera.ptz",
+    "ha.entity.control",
+    "door.unlock",
+    "access.doors.open",
+    "access.release",
+    "access.people.manage",
+    "access.cards.capture",
+    "access.pin.generate",
+    "access.external.grant",
+    "access.visitor.invite",
+    "access.doors.automate",
+    "access.people.stations",
+    "access.events.export",
+    "access.people.sensitive",
+    "access.people.message",
+    "access.call",
+    "access.windows.manage",
+    "access.windows.cancel",
+    "access.emergency.lock",
+    "access.emergency.open",
+    "emergency.open.grant",
+    "access.schedules.manage",
+    "access.stations.manage",
+    "access.groups.manage",
+    "devices.control_bulk",
+    "media.bulk",
+    "media.public",
+    "media.announce",
+    "alarm.disarm",
+    "alarm.bypass",
+    "schedule.manage",
+    "schedule.sensitive",
+    "notify.manage",
+    "presence.view",
+    "fire.acknowledge",
+    "automation.manage",
+    "scene.manage",
+    "script.manage",
+    "automation.code_view",
+    "scenario.view",
+    "scenario.manage",
+    "scenario.admin",
+    "nvr.config.write",
+    "nvr.config.events",
+    "nvr.config.detection",
+    "nvr.config.privacy",
+    "nvr.config.smart",
+    "nvr.config.schedule",
+    "nvr.config.osd",
+    "nvr.config.time",
+    "nvr.record.manual",
+    "nvr.record.lock",
+    "nvr.alarm_output",
+    "nvr.storage.test",
+    "nvr.system.reboot",
+    "nvr.camera.reboot",
+    "energy.bills",
+    "history.presence",
+    "water.bills",
+    "analytics.control",
+    "analytics.record_control",
+    "analytics.profile",
+    "analytics.events",
+    "analytics.exports",
+    "analytics.cases",
+    "tickets.all_departments",
+    "tickets.external",
+    "tickets.configure",
+    "tickets.costs.view",
+    "tickets.costs",
+    "tickets.delete",
+    "tickets.handlers",
+    "tickets.directory",
+    "tickets.technician_requests",
+    "tickets.intake",
+    "messaging.accounts.manage",
+    "occupancy.view",
+    "messaging.pacing.reserve",
+    "demo.run",
+    "demo.run_anywhere",
+    "bridge.key.rotate",
+    "partner.manage",
+    "calendar.maintenance",
+    "calendar.guests",
+    "calendar.connect"
+  ],
+  "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
+}

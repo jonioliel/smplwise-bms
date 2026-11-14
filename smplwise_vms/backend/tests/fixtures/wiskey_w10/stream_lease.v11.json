@@ -1,0 +1,5 @@
+{
+  "_note": "contract v1.1 lease: the RTSP source is a reserved .invalid host with fake credentials",
+  "source": "rtsp://fixture-user:fixture-pass@station-a.invalid:554/stream/main",
+  "expires_at": "2026-01-01T00:00:15+00:00"
+}

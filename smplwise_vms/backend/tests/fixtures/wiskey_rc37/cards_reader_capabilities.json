@@ -1,0 +1,8 @@
+{
+ "readers": [
+  0,
+  1
+ ],
+ "card_min": 4,
+ "card_max": 20
+}

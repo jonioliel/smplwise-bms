@@ -1,0 +1,908 @@
+"""Event centre API (chapter 26, T032): scoped listing, per-camera markers for the timeline, acknowledge,
+summary and a WebSocket that pushes new events as they are stored."""
+from __future__ import annotations
+
+import asyncio
+import datetime as dt
+import json
+import queue
+import sqlite3
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
+
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..config import Settings
+from ..db import Database, database_of, new_id, now_iso
+from ..errors import ApiError
+from ..mode import is_ha_only
+from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import correlation, events_cache, events_derive, events_ingest, push_queue, revocation, spotlights, thumbnails
+from ..services.access import RowScope, camera_allowed, require_camera, row_scope
+from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
+from .media import _principal_for_ws
+from .settings import read_settings
+
+router = APIRouter()
+TYPES = ("motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other")
+
+
+def _scope(conn: sqlite3.Connection, principal: Principal) -> tuple[bool, RowScope]:
+    """(everything, row scope): a camera event follows the caller's camera scope, a camera-less event the
+    installation-wide grant - a camera deny no longer hides the camera-less events of an installation-wide reader
+    (security review T055 M3). Nobody with events.read nowhere gets anything (the audited 403)."""
+    sc = row_scope(conn, principal, "events.read")
+    if not sc.any():
+        require(conn, principal, "events.read", INSTALLATION)
+    return sc.everything, sc
+
+
+def _visible(row: dict[str, Any], wide: bool, sc: RowScope) -> bool:
+    return wide or sc.allows_row(row.get("camera_id"))
+
+
+def _scope_key(wide: bool, sc: RowScope) -> tuple[Any, ...]:
+    """The caller's visible scope in an events-cache key (T068 x T055): installation-wide, or whether camera-less rows
+    are visible plus the exact camera id set - two callers that see different rows never share an entry."""
+    return ("*",) if wide else ("cameras", sc.camera_less, *events_cache.scope_key(False, set(sc.cameras.ids)))
+
+
+def _camera_ids(wide: bool, sc: RowScope) -> set[str] | None:
+    """The camera set the correlation / route helpers take (None = every camera)."""
+    return None if wide or sc.cameras.everything else set(sc.cameras.ids)
+
+
+def _with_names(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    names = {r["id"]: (r["alias"] or r["name_source"] or r["id"]) for r in conn.execute("SELECT id, alias, name_source FROM cameras").fetchall()}
+    for r in rows:
+        r["camera_name"] = names.get(r.get("camera_id") or "", None)
+        if r.get("source") == "ha" and not r["camera_name"]:
+            r["camera_name"] = (r.get("details") or {}).get("name")  # a sensor transition is shown under the sensor's name (T053)
+    return rows
+
+
+def _with_places(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """NVRLESS-295: where a sensor (source 'ha') event's entity is placed now - `place` = {floor_id, floor_name, building_name, zone}
+    from its current plan anchor and the smallest zone containing it, or None (not placed). One pass over the anchors; rows of
+    other sources are left alone."""
+    wanted = {str((r.get("details") or {}).get("entity_id")) for r in rows if r.get("source") == "ha" and (r.get("details") or {}).get("entity_id")}
+    if not wanted:
+        return rows
+    floors = {f["id"]: (f["name"], f["bname"]) for f in conn.execute(
+        "SELECT f.id, f.name, b.name AS bname FROM floors f JOIN buildings b ON b.id = f.building_id WHERE f.deleted_at IS NULL").fetchall()}
+    zones: dict[str, list[tuple[float, str, list[dict[str, float]]]]] = {}
+    for z in conn.execute("SELECT floor_id, name, polygon_json FROM spatial_zones WHERE deleted_at IS NULL").fetchall():
+        try:
+            poly = json.loads(z["polygon_json"] or "[]")
+        except ValueError:
+            continue
+        if len(poly) >= 3:
+            zones.setdefault(z["floor_id"], []).append((_area(poly), z["name"], poly))
+    placed: dict[str, dict[str, Any]] = {}
+    for a in conn.execute("SELECT resource_id, floor_id, x, y FROM map_anchors WHERE resource_type = 'ha_entity' AND effective_to IS NULL ORDER BY updated_at").fetchall():
+        if a["resource_id"] not in wanted or a["floor_id"] not in floors:
+            continue
+        hit = min(((ar, nm) for ar, nm, poly in zones.get(a["floor_id"], []) if correlation._inside(a["x"], a["y"], poly)), default=None)
+        placed[a["resource_id"]] = {"floor_id": a["floor_id"], "floor_name": floors[a["floor_id"]][0], "building_name": floors[a["floor_id"]][1], "zone": hit[1] if hit else None}
+    for r in rows:
+        if r.get("source") == "ha":
+            r["place"] = placed.get(str((r.get("details") or {}).get("entity_id") or ""))
+    return rows
+
+
+def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: int = 0) -> list[dict[str, Any]]:
+    """Thumbnail state per row; the first `queue_first` rows without one are queued for generation."""
+    ask: list[str] = []
+    known = thumbnails.statuses_for(settings, [r["id"] for r in rows if thumbnails.eligible(r)])  # one folder index, not two stats per row
+    for i, r in enumerate(rows):
+        if not thumbnails.eligible(r):
+            r["thumbnail"] = "unavailable"
+            continue
+        st = known[r["id"]]
+        if st == "none" and i < queue_first:
+            ask.append(r["id"])
+            st = "pending"
+        r["thumbnail"] = st
+    if ask and not is_ha_only(settings):  # NVR-less mode: no worker, no recording to grab a picture from
+        thumbnails.WORKER.request(settings, ask)
+    elif ask:
+        for r in rows:
+            if r["id"] in ask:
+                r["thumbnail"] = "unavailable"
+    return rows
+
+
+@router.get("/events")
+def list_events(
+    request: Request,
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    camera_id: str | None = None,
+    type: str | None = Query(None, pattern="^[a-z_]+$"),
+    unacked: bool = False,
+    acked: bool = False,
+    limit: int = Query(200, ge=1, le=1000),
+    site_id: str | None = None,
+    building_id: str | None = None,
+    floor_id: str | None = None,
+    zone_id: str | None = None,
+    source: str | None = Query(None, pattern="^(alertstream|recording|system|ha|frigate)$"),
+    severity: str | None = Query(None, pattern="^(info|alert|critical)$"),
+    q: str | None = Query(None, max_length=200),
+    recorder_id: str | None = Query(None, max_length=40),
+) -> dict[str, Any]:
+    """Events by time, camera, type, place (site / building / floor / zone, through the current anchors), source,
+    recorder (CR-024: the multi-source event log - an event of the recorder's alert stream or of one of its cameras)
+    and free text (T062: over the camera's name and the event's own details - an HA entity's friendly name, a
+    device class, anything stored on the row - not just the structured filters above).
+    A filter that cannot match by construction — a type this installation never produced, a place without placed
+    items — is reported in `filters.unsupported` instead of an empty list that looks like "nothing happened"."""
+    # list_windows calls this function directly: Query defaults arrive as Query objects, never as values
+    type = type if isinstance(type, str) else None
+    source = source if isinstance(source, str) else None
+    severity = severity if isinstance(severity, str) else None
+    q = q.strip() if isinstance(q, str) else None
+    recorder_id = recorder_id if isinstance(recorder_id, str) and recorder_id else None
+    date, from_, to = (v if isinstance(v, str) else None for v in (date, from_, to))
+    limit = limit if isinstance(limit, int) else 200
+    wide, ids = _scope(conn, principal)  # authorization runs on every request, before the cache is consulted
+    params = (date, from_, to, camera_id, type, bool(unacked), bool(acked), limit, site_id, building_id, floor_id, zone_id, source, severity, q, recorder_id)
+
+    def compute() -> dict[str, Any]:
+        return _list_window(conn, wide, ids, *params)
+
+    out = _cached(conn, ("events.list", params, _scope_key(wide, ids)), ("events", "structure"), compute)
+    _with_thumbs(settings_of(request), out["events"], queue_first=30)
+    out["ingest"] = events_ingest.STATE.as_dict()
+    out["derive"] = events_derive.STATE
+    return out
+
+
+def _cached(conn: sqlite3.Connection, key: tuple[Any, ...], counters: tuple[str, ...], compute) -> dict[str, Any]:
+    """One window through the events-window cache (T068), keyed by the database file's identity too (tests open several;
+    a restore that replaces the file restarts its counters, and must never meet entries of the old file); every value is
+    a dict whose optional "events" list is copied row by row on the way out."""
+    db = database_of(conn)
+    if db is None:
+        return compute()
+
+    def copy(v: dict[str, Any]) -> dict[str, Any]:
+        return {**v, "events": events_cache.copy_rows(v["events"])} if "events" in v else dict(v)
+
+    return events_cache.CACHE.fetch(conn, (events_cache.db_identity(db.path), *key), counters, compute, cost=lambda v: len(v.get("events", ())) + 1, copy=copy)
+
+
+def _list_window(conn: sqlite3.Connection, wide: bool, ids: RowScope, date: str | None, from_: str | None, to: str | None, camera_id: str | None,
+                 type: str | None, unacked: bool, acked: bool, limit: int, site_id: str | None, building_id: str | None, floor_id: str | None,
+                 zone_id: str | None, source: str | None, severity: str | None, q: str | None, recorder_id: str | None = None) -> dict[str, Any]:
+    """The cacheable part of the events list: rows (with camera names), window and filter notes - no thumbnail state,
+    no live ingest state (both change without a database write and are added per request)."""
+    s = read_settings(conn)
+    tz_name = s["time.zone"]
+    unsupported: list[dict[str, str]] = []
+    applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity, "q": q,
+                                 "recorder_id": recorder_id}.items() if v}
+    place = _place_filter(conn, site_id, building_id, floor_id, zone_id)
+    if place is not None:
+        cams, ents, note = place
+        if note:
+            unsupported.append(note)
+    if type and type not in _types_present(conn, 90):
+        unsupported.append({"field": "type", "value": type, "reason": _type_reason(type, 90)})
+    if date:
+        start, end = local_day_bounds(dt.date.fromisoformat(date), zone(tz_name))
+    elif from_ and to:
+        try:
+            start, end = parse_utc(from_), parse_utc(to)
+        except ValueError:
+            raise ApiError(422, "validation", "זמן חייב להיות UTC (Z).")
+    else:
+        # default: the last 24 h, with a little slack for events that arrive as we ask
+        end = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
+        start = end - dt.timedelta(hours=24, minutes=5)
+    sql = "SELECT * FROM events WHERE occurred_at >= ? AND occurred_at < ?"
+    args: list[Any] = [iso_utc(start), iso_utc(end)]
+    if camera_id:
+        sql += " AND camera_id = ?"
+        args.append(camera_id)
+    if recorder_id:  # CR-024: the recorder's own alert-stream events and every event of one of its cameras
+        sql += " AND (recorder_id = ? OR camera_id IN (SELECT id FROM cameras WHERE recorder_id = ?))"
+        args.extend([recorder_id, recorder_id])
+    if type:
+        sql += " AND type = ?"
+        args.append(type)
+    if source:
+        sql += " AND source = ?"
+        args.append(source)
+    if severity:
+        sql += " AND severity = ?"
+        args.append(severity)
+    if q:
+        like = f"%{q}%"
+        sql += " AND (details_json LIKE ? OR camera_id IN (SELECT id FROM cameras WHERE alias LIKE ? OR name_source LIKE ?))"
+        args.extend([like, like, like])
+    if place is not None:
+        cams, ents, _ = place
+        parts = []
+        if cams:
+            parts.append(f"camera_id IN ({','.join('?' * len(cams))})")
+            args.extend(sorted(cams))
+        if ents:
+            parts.append(f"(source = 'ha' AND json_extract(details_json, '$.entity_id') IN ({','.join('?' * len(ents))}))")
+            args.extend(sorted(ents))
+        sql += " AND (" + " OR ".join(parts) + ")" if parts else " AND 0"
+    if unacked:
+        sql += " AND acked_at IS NULL"
+    if acked:
+        sql += " AND acked_at IS NOT NULL"
+    sql += " ORDER BY occurred_at DESC LIMIT ?"
+    args.append(limit * 3 if not wide else limit)
+    rows = [events_ingest.row_to_event(r) for r in conn.execute(sql, args).fetchall()]
+    rows = [r for r in rows if _visible(r, wide, ids)][:limit]
+    return {
+        "events": _with_places(conn, _with_names(conn, rows)),
+        "from": iso_utc(start),
+        "to": iso_utc(end),
+        "timezone": tz_name,
+        "types": TYPES,
+        "filters": {"applied": applied, "unsupported": unsupported},
+    }
+
+
+# ---------------------------------------------------------------- spatial metadata search (T062)
+
+TYPE_REASON = {
+    "person": "ה־NVR לא שלח אירוע זיהוי אדם ב־{days} הימים האחרונים; דורש אירועים חכמים (VCA) במצלמה או ב־NVR",
+    "vehicle": "ה־NVR לא שלח אירוע זיהוי רכב ב־{days} הימים האחרונים; דורש אירועים חכמים (VCA) במצלמה או ב־NVR",
+    "line": "ה־NVR לא שלח חציית קו ב־{days} הימים האחרונים; דורש הגדרת line crossing במצלמה",
+    "field": "ה־NVR לא שלח חדירה לאזור ב־{days} הימים האחרונים; דורש הגדרת intrusion במצלמה",
+    "door": "לא נרשמו מעברי מצב של חיישני דלת או מנעולים ב־{days} הימים האחרונים",
+    "coverage_gap": "לא נרשמו פערי כיסוי ב־{days} הימים האחרונים (זה טוב)",
+}
+
+
+def _type_reason(t: str, days: int) -> str:
+    return TYPE_REASON.get(t, "סוג האירוע לא הופיע ב־{days} הימים האחרונים; המערכת מציגה רק סוגים שהמקורות שלה מפיקים בפועל").format(days=days)
+
+
+def _facet_rows(conn: sqlite3.Connection, since: str) -> list[sqlite3.Row]:
+    """(type, source, severity, camera_id, n) of the events that occurred at or after `since`. SOAK-DBGROWTH-2412: whole UTC
+    days come from events_facet_days (migration 0210, kept by triggers in the same transaction as every event write), only
+    the first, partial day is counted from the events table - the numbers of the old GROUP BY over every row of the
+    period, at the cost of one day of events instead of all of them (~490 ms at 677k rows in the soak, linear)."""
+    first_day = since[:10]
+    next_day = (dt.date.fromisoformat(first_day) + dt.timedelta(days=1)).isoformat()  # "YYYY-MM-DD" sorts before any time of that day
+    return conn.execute(
+        "SELECT type, source, severity, camera_id, SUM(n) AS n FROM ("
+        " SELECT type, source, severity, NULLIF(camera_key, '') AS camera_id, n FROM events_facet_days WHERE day > ?"
+        " UNION ALL SELECT type, source, severity, camera_id, 1 AS n FROM events WHERE occurred_at >= ? AND occurred_at < ?"
+        ") GROUP BY type, source, severity, camera_id",
+        (first_day, since, next_day),
+    ).fetchall()
+
+
+def _types_present(conn: sqlite3.Connection, days: int) -> dict[str, int]:
+    since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days))
+    out: dict[str, int] = {}
+    for r in _facet_rows(conn, since):
+        out[r["type"]] = out.get(r["type"], 0) + r["n"]
+    return out
+
+
+def _place_filter(conn: sqlite3.Connection, site_id: str | None, building_id: str | None, floor_id: str | None, zone_id: str | None) -> tuple[set[str], set[str], dict[str, str] | None] | None:
+    """Cameras and HA entities whose current anchor lies in the requested place; None when no place was asked for.
+    The third element names why the filter cannot match (nothing placed there), so the caller can say so."""
+    if not any((site_id, building_id, floor_id, zone_id)):
+        return None
+    if zone_id:
+        z = conn.execute("SELECT * FROM spatial_zones WHERE id = ? AND deleted_at IS NULL", (zone_id,)).fetchone()
+        if not z:
+            raise ApiError(404, "not_found", "האזור לא נמצא.")
+        poly = json.loads(z["polygon_json"])
+        anchors = conn.execute("SELECT resource_type, resource_id, x, y FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL", (z["floor_id"],)).fetchall()
+        cams = {a["resource_id"] for a in anchors if a["resource_type"] == "camera" and correlation._inside(a["x"], a["y"], poly)}
+        ents = {a["resource_id"] for a in anchors if a["resource_type"] == "ha_entity" and correlation._inside(a["x"], a["y"], poly)}
+        note = None if cams or ents else {"field": "zone_id", "value": zone_id, "reason": f"באזור \"{z['name']}\" לא מוצבות מצלמות או חיישנים, ולכן אין אירועים שאפשר לשייך אליו"}
+        return cams, ents, note
+    if floor_id:
+        if not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (floor_id,)).fetchone():
+            raise ApiError(404, "not_found", "הקומה לא נמצאה.")
+        floors, field, value = {floor_id}, "floor_id", floor_id
+    elif building_id:
+        floors = {r["id"] for r in conn.execute("SELECT id FROM floors WHERE building_id = ? AND deleted_at IS NULL", (building_id,)).fetchall()}
+        field, value = "building_id", building_id
+    else:
+        floors = {r["id"] for r in conn.execute("SELECT f.id FROM floors f JOIN buildings b ON b.id = f.building_id WHERE b.site_id = ? AND f.deleted_at IS NULL", (site_id,)).fetchall()}
+        field, value = "site_id", site_id or ""
+    cams: set[str] = set()
+    ents: set[str] = set()
+    if floors:
+        q = ",".join("?" * len(floors))
+        for a in conn.execute(f"SELECT resource_type, resource_id FROM map_anchors WHERE floor_id IN ({q}) AND effective_to IS NULL", sorted(floors)).fetchall():
+            (cams if a["resource_type"] == "camera" else ents).add(a["resource_id"])
+        # CR-009: the cameras and devices of a room another floor shares with these floors are in this place too
+        from ..services.shared_spaces import mirrored_anchor_floors
+
+        for (rtype, rid), pairs in mirrored_anchor_floors(conn).items():
+            if any(fid in floors for fid, _home in pairs):
+                (cams if rtype == "camera" else ents).add(rid)
+    note = None if cams or ents else {"field": field, "value": value, "reason": "במקום הזה לא מוצבות מצלמות או חיישנים על תוכנית; הצב פריטים בעורך התוכנית כדי לחפש לפי מיקום"}
+    return cams, ents, note
+
+
+@router.get("/events/facets")
+def event_facets(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), days: int = Query(90, ge=1, le=365)) -> dict[str, Any]:
+    """Which search fields have data in this installation and why the others are empty (T062): types, sources and
+    severities seen in the last `days`, the places (site / building / floor / zone) with what is placed in them."""
+    wide, ids = _scope(conn, principal)
+    days = days if isinstance(days, int) else 90
+    # the facets count rows, not repeats: a burst that only bumps `count` leaves them cached (counter events_rows)
+    # T055 nit: the places are limited to the caller's reach - floors they hold events.read on (per request, part of the key)
+    floors_held = None if wide or ids.camera_less else tuple(sorted(f[0] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()
+                                                                  if authorize(conn, principal, "events.read", ("floor", f[0])).allowed))
+    return _cached(conn, ("events.facets", days, _scope_key(wide, ids), floors_held), ("events_rows", "structure"), lambda: _facets(conn, wide, ids, days, floors_held))
+
+
+def _facets(conn: sqlite3.Connection, wide: bool, ids: RowScope, days: int, floors_held: tuple[str, ...] | None = None) -> dict[str, Any]:
+    since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days))
+    types: dict[str, int] = {}
+    sources: dict[str, int] = {}
+    severities: dict[str, int] = {}
+    for r in _facet_rows(conn, since):
+        if not _visible(dict(r), wide, ids):
+            continue
+        types[r["type"]] = types.get(r["type"], 0) + r["n"]
+        sources[r["source"]] = sources.get(r["source"], 0) + r["n"]
+        severities[r["severity"]] = severities.get(r["severity"], 0) + r["n"]
+    placed: dict[str, dict[str, int]] = {}
+    zone_hits: dict[str, dict[str, int]] = {}
+    anchors = conn.execute("SELECT floor_id, resource_type, resource_id, x, y FROM map_anchors WHERE effective_to IS NULL").fetchall()
+    zones = conn.execute("SELECT id, floor_id, name, kind, polygon_json FROM spatial_zones WHERE deleted_at IS NULL ORDER BY name").fetchall()
+    for a in anchors:
+        if not wide and a["resource_type"] == "camera" and not ids.cameras.allows(a["resource_id"]):
+            continue
+        p = placed.setdefault(a["floor_id"], {"cameras": 0, "sensors": 0})
+        p["cameras" if a["resource_type"] == "camera" else "sensors"] += 1
+        for z in zones:
+            if z["floor_id"] == a["floor_id"] and correlation._inside(a["x"], a["y"], json.loads(z["polygon_json"])):
+                zh = zone_hits.setdefault(z["id"], {"cameras": 0, "sensors": 0})
+                zh["cameras" if a["resource_type"] == "camera" else "sensors"] += 1
+    places = []
+    # T055 nit: only the places in the caller's reach - a floor they hold events.read on, or one with a camera they see
+    cam_floors = {a["floor_id"] for a in anchors if a["resource_type"] == "camera" and ids.cameras.allows(a["resource_id"])}
+
+    def floor_in_reach(fid: str) -> bool:
+        return floors_held is None or fid in cam_floors or fid in floors_held
+
+    for site in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
+        buildings = []
+        for b in conn.execute("SELECT id, name FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (site["id"],)).fetchall():
+            floors = []
+            for f in conn.execute("SELECT id, name FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY sort_order, level", (b["id"],)).fetchall():
+                if not floor_in_reach(f["id"]):
+                    continue
+                counts = placed.get(f["id"], {"cameras": 0, "sensors": 0})
+                floors.append({"id": f["id"], "name": f["name"], **counts, "zones": [{"id": z["id"], "name": z["name"], "kind": z["kind"], **zone_hits.get(z["id"], {"cameras": 0, "sensors": 0})} for z in zones if z["floor_id"] == f["id"]]})
+            if floors:
+                buildings.append({"id": b["id"], "name": b["name"], "floors": floors})
+        if buildings:
+            places.append({"id": site["id"], "name": site["name"], "buildings": buildings})
+    notes = []
+    if "ha" not in sources:
+        notes.append("אין אירועי חיישני התקנים בתקופה: או שתשתית המערכת לא מחוברת, או שאין חיישני דלת / תנועה / מנעולים שהשתנו")
+    if not any(p["cameras"] for p in placed.values()):
+        notes.append("אף מצלמה לא מוצבת על תוכנית: חיפוש לפי מקום אינו אפשרי עד שמציבים מצלמות בעורך התוכנית")
+    return {
+        "days": days, "since": since,
+        "types": [{"type": t, "count": n} for t, n in sorted(types.items(), key=lambda kv: -kv[1])],
+        "sources": [{"source": t, "count": n} for t, n in sorted(sources.items(), key=lambda kv: -kv[1])],
+        "severities": [{"severity": t, "count": n} for t, n in sorted(severities.items(), key=lambda kv: -kv[1])],
+        "unavailable_types": [{"type": t, "reason": _type_reason(t, days)} for t in TYPES if t not in types],
+        "places": places, "notes": notes,
+    }
+
+
+@router.get("/events/summary")
+def summary(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    wide, ids = _scope(conn, principal)
+    s = read_settings(conn)
+    start, end = local_day_bounds(dt.datetime.now(zone(s["time.zone"])).date(), zone(s["time.zone"]))
+    rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE occurred_at >= ? AND occurred_at < ?", (iso_utc(start), iso_utc(end))).fetchall()]
+    rows = [r for r in rows if _visible(r, wide, ids)]
+    by_type: dict[str, int] = {}
+    for r in rows:
+        by_type[r["type"]] = by_type.get(r["type"], 0) + 1
+    return {
+        "today": {"total": len(rows), "unacked": sum(1 for r in rows if not r["acked_at"]), "by_type": by_type, "measured": sum(1 for r in rows if r["confidence"] == "measured"), "inferred": sum(1 for r in rows if r["confidence"] == "inferred")},
+        "ingest": events_ingest.STATE.as_dict(),
+        "derive": events_derive.STATE,
+    }
+
+
+SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
+
+
+GROUP_MODES = ("camera", "all", "zone", "floor")
+
+
+def camera_groups(conn: sqlite3.Connection, by: str) -> dict[str, tuple[str, str]]:
+    """camera_id -> (group key, label) for the zone / floor grouping modes, from the current map anchors."""
+    out: dict[str, tuple[str, str]] = {}
+    if by not in ("zone", "floor"):
+        return out
+    floors = {r["id"]: f"{r['bname']} · {r['fname']}" for r in conn.execute(
+        "SELECT f.id, f.name AS fname, b.name AS bname FROM floors f JOIN buildings b ON b.id = f.building_id WHERE f.deleted_at IS NULL").fetchall()}
+    zones: dict[str, list[tuple[str, str, list[dict[str, float]]]]] = {}
+    if by == "zone":
+        for z in conn.execute("SELECT id, floor_id, name, polygon_json FROM spatial_zones WHERE deleted_at IS NULL ORDER BY name").fetchall():
+            try:
+                poly = json.loads(z["polygon_json"] or "[]")
+            except ValueError:
+                poly = []
+            if len(poly) >= 3:
+                zones.setdefault(z["floor_id"], []).append((z["id"], z["name"], poly))
+    for a in conn.execute("SELECT floor_id, resource_id, x, y FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall():
+        if by == "floor":
+            out[a["resource_id"]] = (f"floor:{a['floor_id']}", floors.get(a["floor_id"], "קומה"))
+            continue
+        hit = next(((zid, name) for zid, name, poly in zones.get(a["floor_id"], []) if correlation._inside(a["x"], a["y"], poly)), None)
+        out[a["resource_id"]] = (f"zone:{hit[0]}", hit[1]) if hit else (f"nozone:{a['floor_id']}", f"ללא חדר · {floors.get(a['floor_id'], 'קומה')}")
+    return out
+
+
+MANUAL_LABEL = "קיבוץ ידני"
+
+
+def manual_groups(conn: sqlite3.Connection, event_ids: list[str]) -> dict[str, str]:
+    """event id -> manual group id for the events an operator regrouped (M047), read per request: never cached."""
+    if not event_ids:
+        return {}
+    out: dict[str, str] = {}
+    for i in range(0, len(event_ids), 400):
+        chunk = event_ids[i:i + 400]
+        for r in conn.execute(f"SELECT event_id, group_id FROM event_window_members WHERE event_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
+            out[r["event_id"]] = r["group_id"]
+    return out
+
+
+def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "camera", groups: dict[str, tuple[str, str]] | None = None,
+                  manual: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    """Merge events whose gaps are at most `gap_seconds` into review windows (newest first). `by` picks what a window
+    spans: one camera (default), every camera together, a room (zone) or a floor - `groups` maps camera ids to the
+    (key, label) of the last two; cameras without a place fall into "לא ממופה". System events (no camera) form one
+    window each. The raw events keep their ids inside the window. `manual` (M047) maps event ids to the group an
+    operator put them in: those events form one window per group whatever the gap and the mode, and leave the
+    automatic windows. Every window carries its spotlight verdict (services/spotlights.py)."""
+    groups = groups or {}
+    manual = manual or {}
+
+    def key_of(ev: dict[str, Any]) -> tuple[str | None, str | None]:
+        cam = ev.get("camera_id")
+        gid = manual.get(ev["id"])
+        if gid:
+            return f"manual:{gid}", MANUAL_LABEL
+        if cam is None:
+            return None, None
+        if by == "camera":
+            return cam, None
+        if by == "all":
+            return "all", "כל המצלמות"
+        g = groups.get(cam)
+        return (g[0], g[1]) if g else ("unplaced", "לא ממופה")
+
+    by_key: dict[str | None, list[dict[str, Any]]] = {}
+    labels: dict[str | None, str | None] = {}
+    for ev in events:
+        k, label = key_of(ev)
+        by_key.setdefault(k, []).append(ev)
+        labels[k] = label
+    windows: list[dict[str, Any]] = []
+    for k, items in by_key.items():
+        items.sort(key=lambda e: e["occurred_at"])
+        current: dict[str, Any] | None = None
+        for ev in items:
+            start = parse_utc(ev["occurred_at"])
+            end = parse_utc(ev["ended_at"]) if ev.get("ended_at") else start
+            is_manual = isinstance(k, str) and k.startswith("manual:")
+            if current is not None and k is not None and (is_manual or (start - current["_end"]).total_seconds() <= gap_seconds):
+                current["_end"] = max(current["_end"], end)
+                current["_events"].append(ev)
+            else:
+                cam = ev.get("camera_id") if by == "camera" and not is_manual else None
+                current = {"_start": start, "_end": end, "_events": [ev], "camera_id": cam, "_key": k, "_label": labels.get(k), "_manual": k[len("manual:"):] if is_manual else None}
+                windows.append(current)
+    out: list[dict[str, Any]] = []
+    for w in windows:
+        evs = w["_events"]
+        types: dict[str, int] = {}
+        for ev in evs:
+            types[ev["type"]] = types.get(ev["type"], 0) + 1
+        dominant = max(types.items(), key=lambda kv: (kv[1], kv[0]))[0]
+        severity = max((ev["severity"] for ev in evs), key=lambda sv: SEVERITY_RANK.get(sv, 0))
+        acked = sum(1 for ev in evs if ev.get("acked_at"))
+        thumb_ev = next((ev for ev in evs if ev.get("thumbnail") == "ready"), None) or next((ev for ev in evs if ev.get("thumbnail") == "pending"), None) or evs[0]
+        cameras = sorted({ev.get("camera_id") for ev in evs if ev.get("camera_id")})
+        manual_id = w.get("_manual")
+        single = (by == "camera" or w["_key"] is None) and not manual_id
+        # a manual window of one camera keeps that camera's name; of several, the names joined (the label says "manual")
+        manual_name = evs[0].get("camera_name") if manual_id and len(cameras) <= 1 else " · ".join(sorted({ev.get("camera_name") for ev in evs if ev.get("camera_name")})) if manual_id else None
+        out.append({
+            "id": f"{w['_key'] or 'system'}:{iso_utc(w['_start'])}",
+            "camera_id": w["camera_id"] if not manual_id else (cameras[0] if len(cameras) == 1 else None),
+            "camera_name": evs[0].get("camera_name") if single else (manual_name or w["_label"]),
+            "channel": evs[0].get("channel") if single else None,
+            "group": "manual" if manual_id else by,
+            "group_label": w["_label"],
+            "manual_group_id": manual_id,
+            "spotlight": spotlights.evaluate(evs),
+            "camera_ids": cameras,
+            "camera_names": sorted({ev.get("camera_name") for ev in evs if ev.get("camera_name")}),
+            "start": iso_utc(w["_start"]),
+            "end": iso_utc(w["_end"]),
+            "count": len(evs),
+            "types": types,
+            "dominant_type": dominant,
+            "severity": severity,
+            "acked_count": acked,
+            "acked": acked == len(evs),
+            "first_event_id": evs[0]["id"],
+            "last_event_id": evs[-1]["id"],
+            "event_ids": [ev["id"] for ev in evs],
+            "thumbnail": thumb_ev.get("thumbnail", "none"),
+            "thumbnail_event_id": thumb_ev["id"],
+            "confidence": "measured" if any(ev.get("confidence") == "measured" for ev in evs) else "inferred",
+        })
+    out.sort(key=lambda w: w["start"], reverse=True)
+    return out
+
+
+@router.get("/events/windows")
+def list_windows(
+    request: Request,
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),  # T068: a read, never under the write lock (it held it for the whole 1000-row build)
+    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    camera_id: str | None = None,
+    gap: int = Query(180, ge=30, le=3600),
+    limit: int = Query(200, ge=1, le=1000),
+    by: str = Query("camera", pattern="^(camera|all|zone|floor)$"),
+    spotlight: bool = False,
+) -> dict[str, Any]:
+    """Review windows (design M26): the day's events grouped by proximity - per camera, all cameras together, per
+    room or per floor (`by`, 0.1.62); nothing is deleted or merged in the store, the raw events stay reachable
+    through their ids. M047: every window carries its spotlight verdict (rules explained); `spotlight=true` lists
+    only the lit ones; an operator's manual groups (POST /events/windows/groups) override the automatic grouping."""
+    spotlight = spotlight if isinstance(spotlight, bool) else False
+    raw = list_events(request, principal, conn, date=date, from_=from_, to=to, camera_id=camera_id, type=None, unacked=False, acked=False, limit=1000)
+    windows = group_windows(raw["events"], gap, by, camera_groups(conn, by), manual_groups(conn, [ev["id"] for ev in raw["events"]]))
+    lit = sum(1 for w in windows if w["spotlight"]["on"])
+    if spotlight:
+        windows = [w for w in windows if w["spotlight"]["on"]]
+    windows = windows[:limit]
+    return {"windows": windows, "from": raw["from"], "to": raw["to"], "timezone": raw["timezone"], "gap_seconds": gap, "group": by, "events_total": len(raw["events"]),
+            "spotlights": lit, "spotlight_rules": [{"code": c, "score": s, "label": lbl, "why": why} for c, (s, lbl, why) in spotlights.RULES.items()], "ingest": raw["ingest"]}
+
+
+class WindowGroupIn(BaseModel):
+    """The raw events an operator puts into one review window (a split: part of a window; a join: two windows)."""
+    event_ids: list[str] = Field(min_length=1, max_length=500)
+    note: str = Field(default="", max_length=200)
+
+
+@router.post("/events/windows/groups", status_code=201)
+def group_window_events(body: WindowGroupIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Correct the grouping (M047): the named events form one review window from now on, whatever the gap or the
+    grouping mode. An event already in another manual group moves. Needs events.ack on every event's camera (the
+    same right as handling the window); unknown or out-of-scope events are skipped and reported; nothing is changed
+    on the events themselves. Audited by name."""
+    sc = row_scope(conn, principal, "events.ack")
+    kept: list[str] = []
+    skipped: list[str] = []
+    for eid in dict.fromkeys(body.event_ids):
+        row = conn.execute("SELECT camera_id FROM events WHERE id = ?", (eid,)).fetchone()
+        if not row or not sc.allows_row(row["camera_id"]):
+            skipped.append(eid)
+            continue
+        kept.append(eid)
+    if not kept:
+        if skipped and not sc.any():
+            require(conn, principal, "events.ack", INSTALLATION)
+        raise ApiError(422, "validation", "אף אחד מהאירועים לא נמצא או אינו בהרשאתך.", details={"skipped": skipped})
+    gid = new_id()
+    now = now_iso()
+    conn.execute("INSERT INTO event_window_groups(id, note, created_by, created_by_username, created_at) VALUES (?,?,?,?,?)", (gid, body.note.strip(), principal.user_id, principal.username, now))
+    emptied: set[str] = set()
+    for eid in kept:
+        prev = conn.execute("SELECT group_id FROM event_window_members WHERE event_id = ?", (eid,)).fetchone()
+        if prev:
+            emptied.add(prev["group_id"])
+        conn.execute("INSERT OR REPLACE INTO event_window_members(event_id, group_id, added_at) VALUES (?,?,?)", (eid, gid, now))
+    for old in emptied:  # a group its members all left is gone, not a ghost window
+        if not conn.execute("SELECT 1 FROM event_window_members WHERE group_id = ? LIMIT 1", (old,)).fetchone():
+            conn.execute("DELETE FROM event_window_groups WHERE id = ?", (old,))
+    audit(conn, actor=principal, action="event.window.group", decision="allowed", resource_type="event_window_group", resource_id=gid,
+          request_id=getattr(request.state, "correlation_id", None), details={"event_ids": kept, "skipped": skipped, "note": body.note.strip()})
+    return {"group_id": gid, "event_ids": kept, "skipped": skipped, "note": body.note.strip()}
+
+
+@router.delete("/events/windows/groups/{group_id}", status_code=204)
+def ungroup_window_events(group_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+    """Dissolve a manual group: its events go back to the automatic windows. Needs events.ack on every member's camera."""
+    members = conn.execute("SELECT m.event_id, e.camera_id FROM event_window_members m JOIN events e ON e.id = m.event_id WHERE m.group_id = ?", (group_id,)).fetchall()
+    if not conn.execute("SELECT 1 FROM event_window_groups WHERE id = ?", (group_id,)).fetchone():
+        raise ApiError(404, "not_found", "הקיבוץ לא נמצא.")
+    sc = row_scope(conn, principal, "events.ack")
+    for m in members:
+        if not sc.allows_row(m["camera_id"]):  # the audited 403 of the first member the caller may not handle
+            if m["camera_id"]:
+                require_camera(conn, principal, m["camera_id"], "events.ack")
+            require(conn, principal, "events.ack", INSTALLATION)
+    if not members:
+        require(conn, principal, "events.ack", INSTALLATION)
+    conn.execute("DELETE FROM event_window_members WHERE group_id = ?", (group_id,))
+    conn.execute("DELETE FROM event_window_groups WHERE id = ?", (group_id,))
+    audit(conn, actor=principal, action="event.window.ungroup", decision="allowed", resource_type="event_window_group", resource_id=group_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"event_ids": [m["event_id"] for m in members]})
+
+
+class AckManyIn(BaseModel):
+    event_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+@router.post("/events/ack-many")
+def ack_many(body: AckManyIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Handle a whole window: every event is checked for scope like a single ack; each ack is audited by name."""
+    acked: list[str] = []
+    skipped: list[str] = []
+    # T055 B2: per event, the camera's own decision (a camera deny holds even for an installation-wide holder); a
+    # camera-less event needs the installation grant
+    sc = row_scope(conn, principal, "events.ack")
+    for eid in dict.fromkeys(body.event_ids):
+        row = conn.execute("SELECT * FROM events WHERE id = ?", (eid,)).fetchone()
+        if not row:
+            skipped.append(eid)
+            continue
+        ev = events_ingest.row_to_event(row)
+        if not sc.allows_row(ev["camera_id"]):
+            skipped.append(eid)
+            continue
+        if not ev["acked_at"]:
+            conn.execute("UPDATE events SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, eid))
+            audit(conn, actor=principal, action="event.ack", decision="allowed", resource_type="event", resource_id=eid,
+                  request_id=getattr(request.state, "correlation_id", None), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"], "window": True})
+        acked.append(eid)
+    if not acked and skipped:
+        require(conn, principal, "events.ack", INSTALLATION)
+    return {"acked": acked, "skipped": skipped}
+
+
+@router.get("/cameras/{camera_id}/events")
+def camera_events(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
+    """Timeline markers for one camera and local day (events.read or video.playback on that camera)."""
+    # T055 B2 / nit: the camera's own decision first (403 before 404, and no installation fallback past a camera deny)
+    if not camera_allowed(conn, principal, camera_id, "video.playback"):
+        require_camera(conn, principal, camera_id, "events.read")
+    if not conn.execute("SELECT 1 FROM cameras WHERE id = ?", (camera_id,)).fetchone():
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    def compute() -> dict[str, Any]:
+        s = read_settings(conn)
+        start, end = local_day_bounds(dt.date.fromisoformat(date), zone(s["time.zone"]))
+        rows = [events_ingest.row_to_event(r) for r in conn.execute("SELECT * FROM events WHERE camera_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", (camera_id, iso_utc(start), iso_utc(end))).fetchall()]
+        return {"camera_id": camera_id, "date": date, "timezone": s["time.zone"], "events": rows}
+
+    # the day's markers are the same for every caller allowed to see this camera (checked above, on every request)
+    return _cached(conn, ("events.timeline", camera_id, date), ("events", "structure"), compute)
+
+
+@router.get("/events/{event_id}/thumbnail")
+def thumbnail(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
+    """The event's picture from the recording: 200 image/jpeg when ready, 202 while it is being grabbed,
+    404 when the recording has no usable frame (remembered for an hour)."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.read")
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    settings = settings_of(request)
+    if ev.get("source") == "frigate":  # NN5 F1: a Frigate event's picture is the review thumbnail, fetched through Arx
+        from ..services.recorders import frigate_io
+
+        d = ev.get("details") or {}
+        a = frigate_io.adapter_for(conn, settings, ev.get("recorder_id") or d.get("recorder_id") or "")
+        if not d.get("review_id") or not d.get("camera_key"):
+            raise ApiError(404, "thumbnail_unavailable", "לאירוע הזה אין תמונה.")
+        data, ctype = a.review_thumbnail(str(d["camera_key"]), str(d["review_id"]))
+        from fastapi.responses import Response as _Response
+
+        return _Response(data, media_type=ctype, headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+    if not thumbnails.eligible(ev):
+        raise ApiError(404, "thumbnail_unavailable", "לאירוע הזה אין הקלטה לתמונה.")
+    st = thumbnails.status_for(settings, event_id)
+    if st == "ready":
+        return FileResponse(thumbnails.path_for(settings, event_id), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+    if st == "unavailable":
+        raise ApiError(404, "thumbnail_unavailable", "לא נמצא פריים בהקלטה בזמן האירוע.")
+    if st == "none" and is_ha_only(settings):
+        raise ApiError(404, "thumbnail_unavailable", "אין תמונה לאירוע במצב ללא NVR.", details={"mode": "ha_only"})
+    if st == "none":
+        thumbnails.WORKER.request(settings, [event_id])
+    return JSONResponse(status_code=202, content={"status": "pending", "queued": thumbnails.STATE["queued"]}, headers={"Retry-After": "4"})
+
+
+def _inside(x: float, y: float, poly: list[dict[str, float]]) -> bool:
+    inside = False
+    j = len(poly) - 1
+    for i in range(len(poly)):
+        a, b = poly[i], poly[j]
+        if (a["y"] > y) != (b["y"] > y) and x < (b["x"] - a["x"]) * (y - a["y"]) / (b["y"] - a["y"]) + a["x"]:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _area(poly: list[dict[str, float]]) -> float:
+    return abs(sum(poly[i]["x"] * poly[(i + 1) % len(poly)]["y"] - poly[(i + 1) % len(poly)]["x"] * poly[i]["y"] for i in range(len(poly)))) / 2
+
+
+def _location(conn: sqlite3.Connection, camera_id: str) -> dict[str, Any] | None:
+    """Where the camera sits: its current anchor, the floor and building, the smallest zone containing it (M27)."""
+    a = conn.execute(
+        "SELECT a.id AS anchor_id, a.floor_id, a.x, a.y, f.name AS floor_name, f.building_id, b.name AS building_name FROM map_anchors a "
+        "JOIN floors f ON f.id = a.floor_id JOIN buildings b ON b.id = f.building_id "
+        "WHERE a.resource_type = 'camera' AND a.resource_id = ? AND a.effective_to IS NULL ORDER BY a.updated_at DESC LIMIT 1",
+        (camera_id,),
+    ).fetchone()
+    if not a:
+        return None
+    zone = None
+    best = None
+    for z in conn.execute("SELECT name, polygon_json FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL", (a["floor_id"],)).fetchall():
+        poly = json.loads(z["polygon_json"])
+        if len(poly) >= 3 and _inside(a["x"], a["y"], poly):
+            area = _area(poly)
+            if best is None or area < best:
+                best, zone = area, z["name"]
+    has_plan = conn.execute("SELECT 1 FROM plan_versions WHERE floor_id = ? AND status = 'published'", (a["floor_id"],)).fetchone() is not None
+    return {
+        "anchor_id": a["anchor_id"],
+        "floor_id": a["floor_id"],
+        "floor_name": a["floor_name"],
+        "building_id": a["building_id"],
+        "building_name": a["building_name"],
+        "x": a["x"],
+        "y": a["y"],
+        "zone": zone,
+        "has_plan": has_plan,
+    }
+
+
+@router.get("/events/{event_id}")
+def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One event with its picture state and the camera's place on the floor (event page, design M27)."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.read")
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    _with_thumbs(settings_of(request), [ev], queue_first=1)
+    _with_names(conn, [ev])
+    ev["location"] = _location(conn, ev["camera_id"]) if ev["camera_id"] else None
+    ev["timezone"] = read_settings(conn)["time.zone"]
+    return ev
+
+
+@router.get("/events/{event_id}/correlation")
+def event_correlation(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
+    """Door–camera–sensor neighbourhood of an event (T053): what nearby sensors, locks, commands and cameras reported
+    within ±window seconds, each with its certainty. A command is never proof; nothing here triggers an action."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.read")
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    wide, ids = _scope(conn, principal)
+    can_entities = authorize(conn, principal, "entity.state.read", INSTALLATION).allowed
+    out = correlation.correlate(conn, ev, window_s=window, camera_ids_allowed=_camera_ids(wide, ids), include_entities=can_entities)
+    _with_names(conn, [ev])
+    out["event"] = {k: ev.get(k) for k in ("id", "type", "source", "camera_id", "camera_name", "occurred_at", "received_at", "confidence", "details")}
+    return out
+
+
+@router.get("/events/{event_id}/route")
+def event_route(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
+    """Suggested next cameras for a hypothetical path after the event (T064): same room, adjacent room, within reach —
+    ranked, with the window to look at and the activity each camera reported. Never an identification; never an action."""
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.read")
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    wide, ids = _scope(conn, principal)
+    return correlation.suggest_route(conn, ev, window_s=window, camera_ids_allowed=_camera_ids(wide, ids))
+
+
+@router.post("/events/{event_id}/ack")
+def ack(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    ev = events_ingest.row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.ack")
+    else:
+        require(conn, principal, "events.ack", INSTALLATION)
+    if not ev["acked_at"]:
+        conn.execute("UPDATE events SET acked_at = ?, acked_by = ?, acked_by_username = ? WHERE id = ?", (now_iso(), principal.user_id, principal.username, event_id))
+        audit(conn, actor=principal, action="event.ack", decision="allowed", resource_type="event", resource_id=event_id,
+              request_id=getattr(request.state, "correlation_id", None), details={"type": ev["type"], "camera_id": ev["camera_id"], "occurred_at": ev["occurred_at"]})
+    out = events_ingest.row_to_event(conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone())
+    return _with_names(conn, [out])[0]
+
+
+@router.websocket("/events/ws")
+async def events_ws(websocket: WebSocket) -> None:
+    """Pushes each newly stored event (scoped to the caller) as {"type":"event_added","payload":event}; a
+    heartbeat every 30 s carries the ingestion state so the client can show coverage honestly."""
+    db: Database = websocket.app.state.db
+    principal = await _principal_for_ws(websocket)
+    if principal is None:
+        await websocket.close(code=4401)
+        return
+
+    def _scope_now() -> tuple[bool, RowScope]:
+        with db.connection() as conn:
+            sc = row_scope(conn, principal, "events.read")  # nothing held = nothing pushed
+            return sc.everything, sc
+
+    try:
+        wide, ids = await run_in_threadpool(_scope_now)
+    except ApiError:
+        await websocket.close(code=4403)
+        return
+    await websocket.accept()
+    q = events_ingest.subscribe()
+    seq = 0
+    last_scope = asyncio.get_event_loop().time()
+    access_gen = revocation.generation(principal.user_id)
+    try:
+        while True:
+            try:
+                ev = await push_queue.next_item(q, 30)  # FOLLOWUPS-2406: no executor thread held per socket
+            except (asyncio.TimeoutError, queue.Empty):
+                seq += 1
+                await websocket.send_text(json.dumps({"version": 1, "type": "heartbeat", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": {"ingest": events_ingest.STATE.as_dict()}}))
+                continue
+            if asyncio.get_event_loop().time() - last_scope > 60 or revocation.generation(principal.user_id) != access_gen:  # at once on an access change (T055), else within a minute
+                access_gen = revocation.generation(principal.user_id)
+                wide, ids = await run_in_threadpool(_scope_now)
+                last_scope = asyncio.get_event_loop().time()
+            if not _visible(ev, wide, ids):
+                continue
+            msg_type = ev.get("_type", "event_added")
+            seq += 1
+            await websocket.send_text(json.dumps({"version": 1, "type": msg_type, "sequence": seq, "subscription_id": principal.user_id, "occurred_at": ev["occurred_at"], "received_at": now_iso(), "payload": {k: v for k, v in ev.items() if k != "_type"}}, ensure_ascii=False))
+    except Exception:
+        pass
+    finally:
+        events_ingest.unsubscribe(q)

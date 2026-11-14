@@ -1,0 +1,6 @@
+{
+  "_note": "AVW10-295 fake overview.api facts after W10 (section 3.4): the six commands listed. The tests drop entries to check the provider selection.",
+  "version": "2.1.0-w10-fake",
+  "min_client": 1,
+  "commands": ["overview", "media/station_descriptor", "media/stream_lease", "media/talk_open", "media/talk_frame", "media/talk_floor", "media/talk_close"]
+}

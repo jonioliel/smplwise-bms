@@ -1,0 +1,52 @@
+{
+  "provenance": {
+    "what": "Facts of WisKey's Native live_validation feature, read as DATA (no code copied, nothing imported or executed) for WISKEY-LIVE-VALIDATION-2390.",
+    "runtime": "2.0.1-rc.10",
+    "source_ref": "origin/codex/wiskey-mac-m12-policy-b-2026-11-02",
+    "source_commit": "2834aa5e8830f55e270dc5c99b8313f3c05fe3de",
+    "files": [
+      "custom_components/hikvision_intercom/access/arx_validation_execution.py (VALIDATION_KIND, PERMISSIONS, OBSERVATIONS, ValidationCoordinator.__init__ / run / receipt)",
+      "custom_components/hikvision_intercom/access/arx_feature_plans.py (REQUIREMENTS.live_validation)",
+      "custom_components/hikvision_intercom/access/arx_feature_host.py (start_admitted: a video step needs prepare_media; feature_host_status)",
+      "custom_components/hikvision_intercom/arx_feature_api.py (COMMANDS)"
+    ],
+    "pin": "docs/integrations/wiskey/catalog/rc10-extract (branch pilot/WISKEY-RC10-PIN-2382): surface.static.json registries.features.commands"
+  },
+  "feature": "live_validation",
+  "requirements": ["checklist_ref", "owner_go_ref", "expiry"],
+  "private_input": {
+    "kind": "native_validation.v1",
+    "keys": ["checklist_ref", "kind", "owner_go", "steps"],
+    "owner_go_keys": ["approved", "authority_revision", "expiry", "owner_user_id", "reference"],
+    "step_keys": ["action", "mapping_revision", "physical_relay", "station_id", "step_id"],
+    "media_step_extra_keys": ["consent", "duration_seconds"],
+    "max_steps": 64
+  },
+  "permissions": {
+    "run": "validation/run",
+    "identity": "validation/identity",
+    "door_capabilities": "validation/door_capabilities",
+    "door_read": "validation/door_read",
+    "pulse": "door/pulse",
+    "video": "validation/media",
+    "two_way_audio": "validation/media"
+  },
+  "observations": {
+    "identity": {"identity_matched": true},
+    "door_capabilities": {"pulse_advertised": true},
+    "door_read": {"configuration_read": true},
+    "pulse": {"command_acknowledged": true},
+    "video": {"native_session_closed": true},
+    "two_way_audio": {"native_session_closed": true}
+  },
+  "phases": ["prepared", "attempted", "acknowledged", "unknown", "aborted", "denied"],
+  "receipt_keys": ["checklist_ref", "human_witness", "original", "owner_go", "physical_result", "replay_available", "steps"],
+  "receipt_constants": {"physical_result": "unknown", "human_witness": "unknown", "replay_available": false},
+  "step_record_keys": ["action", "observation", "phase", "step_id", "target"],
+  "target_description_keys": ["api_relay", "identity", "mapping_revision", "physical_relay", "station_id"],
+  "a_failed_step_aborts_the_rest": true,
+  "video_step_without_prepare_media": "native_media_ingress_required",
+  "feature_commands": ["features/cancel", "features/emergency_event_status_v1", "features/emergency_secure_v1", "features/people_csv_preview",
+                       "features/prepare_media", "features/result", "features/start", "features/status"],
+  "host_status_blockers": ["authenticated_current_source_not_installed", "feature_disabled", "signed_feature_policy_not_current"]
+}

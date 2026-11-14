@@ -1,0 +1,454 @@
+"""Health report (T033): one check per subsystem with its own status, so the operator sees which part is fine,
+which is not configured and which is failing — never one green light for everything. Device probes are
+cached for a short while so the settings page cannot hammer the NVR."""
+from __future__ import annotations
+
+import os
+import shutil
+import sqlite3
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+from .. import __version__
+from . import media_reach
+from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, go2rtc_url, installation_block
+from ..capabilities import resolve as resolve_capabilities
+from ..config import Settings
+from ..db import get_setting, now_iso, permission_revision
+from ..errors import reason_of
+from . import autosync, events_derive, events_ingest, ha_bridge, ha_client, ha_sync, media_store, thumbnails
+from . import backup as backup_svc
+from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
+
+PROBE_TTL_S = 20
+HA_GRACE_S = 60  # NVR-less mode: a Home Assistant disconnection longer than this is an error
+STORAGE_ERROR_FREE = 512 * 1024**2  # less free space than this on /data is an error (the report's storage check and the top-bar summary)
+STARTED = time.time()
+_probe_lock = threading.Lock()
+_probe_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
+def _check(id: str, label: str, status: str, detail: str, **meta: Any) -> dict[str, Any]:
+    return {"id": id, "label": label, "status": status, "detail": detail, "meta": meta}
+
+
+def _dir_size(p: Path) -> int:
+    total = 0
+    if not p.exists():
+        return 0
+    for root, _dirs, files in os.walk(p):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
+def _fmt_bytes(n: int) -> str:
+    if n >= 1024**3:
+        return f"{n / 1024**3:.1f} GB"
+    if n >= 1024**2:
+        return f"{n / 1024**2:.0f} MB"
+    return f"{n / 1024:.0f} KB"
+
+
+def _age_s(iso: str | None) -> float | None:
+    if not iso:
+        return None
+    import datetime as dt
+
+    try:
+        t = dt.datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (dt.datetime.now(dt.timezone.utc) - t).total_seconds()
+
+
+def _cached(key: str, fn) -> dict[str, Any]:
+    now = time.time()
+    with _probe_lock:
+        hit = _probe_cache.get(key)
+        if hit and now - hit[0] < PROBE_TTL_S:
+            return hit[1]
+    result = fn()
+    with _probe_lock:
+        _probe_cache[key] = (time.time(), result)
+    return result
+
+
+def invalidate() -> None:
+    with _probe_lock:
+        _probe_cache.clear()
+
+
+def _probe_nvr(settings: Settings) -> dict[str, Any]:
+    from . import nvr
+
+    if not (settings.nvr_host and settings.nvr_user):
+        return {"status": "warn", "detail": "ה־NVR לא מוגדר בהגדרות התוסף.", "configured": False}
+    t0 = time.time()
+    from .recorders import vendor_io
+
+    if vendor_io.handles(settings) or (settings.nvr_vendor or "") == "frigate":  # CR-025: a Provision-ISR / NN5: Frigate recorder answers through its adapter
+        if (settings.nvr_vendor or "") == "frigate":
+            from .recorders.frigate import FrigateAdapter
+
+            h = FrigateAdapter(getattr(settings, "nvr_recorder_id", None) or "nvr-1", settings).health()
+        else:
+            h = vendor_io.adapter(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1").health()
+        if not h.online:
+            return {"status": "error", "detail": f"אין תשובה מה־NVR ({h.error}).", "configured": True, "error": h.error}
+        return {"status": "ok", "detail": f"מחובר · {h.model or 'דגם לא ידוע'} · קושחה {h.firmware or '?'}", "configured": True, "model": h.model, "firmware": h.firmware,
+                "ms": int((time.time() - t0) * 1000)}
+    try:
+        info = nvr.device_info(settings)
+    except Exception as exc:  # noqa: BLE001 - the report must never fail because a device is down
+        return {"status": "error", "detail": f"אין תשובה מה־NVR ({reason_of(exc)}).", "configured": True, "error": reason_of(exc)}
+    return {"status": "ok", "detail": f"מחובר · {info.get('model') or 'דגם לא ידוע'} · קושחה {info.get('firmware') or '?'}", "configured": True, "model": info.get("model"), "firmware": info.get("firmware"), "ms": int((time.time() - t0) * 1000)}
+
+
+def _probe_go2rtc(settings: Settings) -> dict[str, Any]:
+    from .go2rtc import STREAM_PREFIX, Go2rtc
+
+    if not settings.go2rtc_url:
+        return {"status": "warn", "detail": "כתובת go2rtc לא הוגדרה.", "configured": False}
+    try:
+        g = Go2rtc(settings)
+        info = g.info()
+        streams = g.list_streams()
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "detail": f"go2rtc אינו זמין ({reason_of(exc)}).", "configured": True, "error": reason_of(exc)}
+    ours = [s for s in streams if s.startswith(STREAM_PREFIX)]
+    online = sum(1 for s in ours if streams[s].online)
+    idle = sum(1 for s in ours if streams[s].state == "idle")  # GO2RTC-STREAM-SYNC-2436: ready, connected when someone watches
+    return {"status": "ok", "detail": f"גרסה {info.get('version', '?')} · {len(ours)} זרמים שלנו ({online} פעילים כעת, {idle} מוכנים) · {len(streams) - len(ours)} זרמים זרים לא נגעו", "configured": True, "version": info.get("version"), "streams": len(ours), "online": online, "idle": idle, "foreign": len(streams) - len(ours)}
+
+
+VIDEO_REASON = {"h265": "H.265", "mjpeg": "MJPEG", "b_frames": "B-frames", "svc": "SVC"}
+
+
+def _video_check(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
+    """CR-008 D7: which main / sub streams play over WebRTC (from the last discovery). A warning only when it matters:
+    the remote channel is on and remote viewers get the main stream first; otherwise the same facts, status ok."""
+    from . import stream_codecs
+
+    s = stream_codecs.summary(conn, with_names=True)
+    blocked = s["main_not_webrtc"]
+    if not s["checked"]:
+        return _check("video_webrtc", "וידאו ב־WebRTC (זרם ראשי / משני)", "ok", "קידוד הזרמים טרם נקרא מה־NVR (נקרא בגילוי המצלמות הבא).", **s)
+    m, sub = s["main"], s["sub"]
+    detail = (f"זרם ראשי: {m['ok']} מתנגנים ב־WebRTC · {m['no']} לא · {m['unknown']} לא ידוע · "
+              f"זרם משני: {sub['ok']} · {sub['no']} · {sub['unknown']}")
+    if blocked:
+        detail += " · לא יתנגנו ב־WebRTC: " + ", ".join(f"{b['name']} ({VIDEO_REASON.get(str(b['reason']), b['reason'])})" for b in blocked[:6]) + (f" ועוד {len(blocked) - 6}" if len(blocked) > 6 else "")
+    remote_main = bool(settings.remote_access) and (get_setting(conn, "remote.default_profile", "main") or "main") == "main"
+    status = "warn" if blocked and remote_main else "ok"
+    return _check("video_webrtc", "וידאו ב־WebRTC (זרם ראשי / משני)", status, detail, remote_main_first=remote_main, **s)
+
+
+def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+
+    # database
+    try:
+        integrity = conn.execute("PRAGMA quick_check").fetchone()[0]
+        journal = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        db_bytes = settings.db_path.stat().st_size if settings.db_path.exists() else 0
+        checks.append(_check("db", "מסד נתונים", "ok" if integrity == "ok" else "error", f"{'תקין' if integrity == 'ok' else integrity} · {journal.upper()} · {_fmt_bytes(db_bytes)} · סכימה {backup_svc.schema_version(conn)} · מהדורת הרשאות {permission_revision(conn)}", integrity=integrity, journal=journal, bytes=db_bytes, schema=backup_svc.schema_version(conn)))
+    except sqlite3.Error as exc:
+        checks.append(_check("db", "מסד נתונים", "error", f"שגיאת מסד: {type(exc).__name__}"))
+
+    # storage
+    try:
+        du = shutil.disk_usage(settings.data_dir)
+        sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports"), "imported": _dir_size(settings.data_dir / "imported")}
+        free_ratio = du.free / du.total if du.total else 1
+        st = "error" if du.free < STORAGE_ERROR_FREE else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
+        checks.append(_check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}", free=du.free, total=du.total, **sizes))
+    except OSError as exc:
+        checks.append(_check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})"))
+
+    # devices (probed, cached)
+    ha_only = is_ha_only(settings)
+    caps = resolve_capabilities(settings, conn)  # NVRLESS-CAMERAS-2411: cameras without a recorder count
+    if ha_only:
+        # NVR-less mode (mode.py): the NVR is not part of this installation - a neutral "off", never a warning; go2rtc is
+        # optional (WisKey station video) and is probed only when it is configured
+        nvr = {"status": "off", "detail": f"{NVR_LESS_LABEL} (Home Assistant בלבד). גילוי מצלמות, קליטת התראות, אירועים נגזרים, תמונות אירועים וייצוא אינם פועלים; להוספת NVR: nvr_host ב־Configuration של ה־Add-on והפעלה מחדש.", "configured": False, "mode": "ha_only"}
+        go = _cached("go2rtc", lambda: _probe_go2rtc(settings)) if (probe and settings.go2rtc_url) else (
+            {"status": "off", "detail": "לא מוגדר (רשות במצב ללא NVR: וידאו של עמדות WisKey).", "configured": False} if not settings.go2rtc_url else {"status": "warn", "detail": "לא נבדק בבקשה זו."})
+    elif probe:
+        nvr = _cached("nvr", lambda: _probe_nvr(settings))
+        go = _cached("go2rtc", lambda: _probe_go2rtc(settings))
+        if caps.unsupported_reason == NVR_WITHOUT_GO2RTC and settings.nvr_user:
+            # NN1, owner decision 2026-10-03: a connected NVR without go2rtc is not a supported installation - an error that
+            # says why (a fresh install whose NVR is not connected yet keeps the "not configured" warning above)
+            go = {"status": "error", "detail": UNSUPPORTED_MESSAGES[NVR_WITHOUT_GO2RTC] + " " + UNSUPPORTED_ACTIONS[NVR_WITHOUT_GO2RTC],
+                  "configured": False, "required": True}
+    else:
+        nvr = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
+        go = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
+    from .recorders import vendor_io
+
+    nvr_label = "NVR (Provision-ISR)" if vendor_io.handles(settings) else "NVR (Hikvision ISAPI)"
+    checks.append(_check("nvr", nvr_label, nvr["status"], nvr["detail"], **{k: v for k, v in nvr.items() if k not in ("status", "detail")}))
+    checks.extend(_recorder_time_checks(settings, conn))
+    checks.append(_check("go2rtc", "go2rtc (מדיה)", go["status"], go["detail"], **{k: v for k, v in go.items() if k not in ("status", "detail")}))
+
+    # Home Assistant sync + bridge
+    hs = ha_sync.STATE.as_dict()
+    if not ha_client.configured(settings):
+        checks.append(_check("ha_sync", "סנכרון Home Assistant", "error" if is_ha_only(settings) else "warn", "אין חיבור ל־Home Assistant בהגדרות (בתוסף: אוטומטי דרך ה־Supervisor).", configured=False))
+    else:
+        age = _age_s(hs.get("last_event_at") or hs.get("last_snapshot_at"))
+        st = "ok" if hs.get("connected") else ("warn" if hs.get("last_snapshot_at") else "error")
+        if is_ha_only(settings) and not hs.get("connected") and ha_sync.STATE.down_for() > HA_GRACE_S:
+            st = "error"  # NVR-less mode: Home Assistant is the product
+        checks.append(_check("ha_sync", "סנכרון Home Assistant", st, f"{'מחובר' if hs.get('connected') else 'מנותק'} · {hs.get('entities', 0)} ישויות · HA {hs.get('ha_version') or '?'} · עדכון אחרון {'לפני ' + str(int(age)) + ' שנ׳' if age is not None else '—'}{' · ' + str(hs.get('last_error')) if hs.get('last_error') else ''}", **hs))
+    paired = ha_bridge.is_paired_secret(conn) and bool(get_setting(conn, "bridge.paired_at"))
+    users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0] if "ha_users" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} else 0
+    dir_age = _age_s(get_setting(conn, "bridge.directory_at") or None)
+    bridge_v = get_setting(conn, "bridge.integration_version")
+    bridge_old = paired and bool(bridge_v) and media_store.version_tuple(bridge_v) < media_store.version_tuple(ha_bridge.BRIDGE_EQUIPMENT_REQUIRED)
+    checks.append(_check("bridge", "גשר Arx (אינטגרציה)", "ok" if paired and not bridge_old and (dir_age is None or dir_age < 15 * 60) else ("warn" if paired else "warn"), f"{'מצומד' if paired else 'לא מצומד'} · גרסת אינטגרציה {get_setting(conn, 'bridge.integration_version') or '?'}{' · נדרש עדכון של רכיב החיבור (' + ha_bridge.BRIDGE_EQUIPMENT_REQUIRED + ' ומעלה) לכרטיסי ציוד' if bridge_old else ''} · {users} משתמשים בספרייה · ספרייה עודכנה {'לפני ' + str(int(dir_age // 60)) + ' דק׳' if dir_age is not None else 'טרם'}", paired=paired, integration_version=get_setting(conn, "bridge.integration_version"), bridge_required=ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, bridge_outdated=bridge_old, directory_users=users, directory_age_s=dir_age))
+
+    # events
+    ing = events_ingest.STATE.as_dict()
+    if ha_only:
+        pass  # NVR-less mode: no alert stream, no derived events, no discovery, thumbnails or exports (see the nvr check)
+    elif not (settings.nvr_host and settings.nvr_user):
+        checks.append(_check("events_ingest", "קליטת התראות מה־NVR", "warn", "ה־NVR לא מוגדר.", configured=False))
+    else:
+        hb = _age_s(ing.get("last_heartbeat_at"))
+        checks.append(_check("events_ingest", "קליטת התראות מה־NVR (alertStream)", "ok" if ing.get("connected") else "error", f"{'מחובר' if ing.get('connected') else 'מנותק'} · פעימה {'לפני ' + str(int(hb)) + ' שנ׳' if hb is not None else '—'} · {ing.get('events_stored', 0)} התראות נקלטו · {ing.get('reconnects', 0)} חיבורים מחדש{' · ' + str(ing.get('last_error')) if ing.get('last_error') else ''}", **ing))
+    dv = dict(events_derive.STATE)
+    dage = _age_s(dv.get("last_ok"))
+    if not ha_only:
+        checks.append(_check("events_derive", "אירועים נגזרים מהקלטות", "error" if dv.get("last_error") else ("ok" if dv.get("last_ok") else "warn"), f"{'שגיאה: ' + str(dv['last_error']) if dv.get('last_error') else ('עודכן לפני ' + str(int(dage // 60)) + ' דק׳' if dage is not None else 'טרם רץ')} · {dv.get('derived', 0)} נגזרו · {conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]} אירועים במאגר", **dv))
+
+    # discovery / thumbnails / exports / sessions / backups
+    ds = dict(autosync.STATE)
+    cams = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0]
+    cage = _age_s(ds.get("cameras_last_ok"))
+    if not ha_only:
+        checks.append(_check("discovery", "גילוי מצלמות מה־NVR", "error" if ds.get("cameras_last_error") else ("ok" if ds.get("cameras_last_ok") else "warn"), f"{cams} מצלמות רשומות · {'עודכן לפני ' + str(int(cage // 60)) + ' דק׳' if cage is not None else 'טרם רץ'} · כל {autosync.INTERVAL_S // 60} דק׳{' · ' + str(ds.get('cameras_last_error')) if ds.get('cameras_last_error') else ''}", cameras=cams, **ds))
+    if not ha_only:
+        checks.append(_video_check(settings, conn))
+    th = dict(thumbnails.STATE)
+    if not ha_only:
+        checks.append(_check("thumbnails", "תמונות אירועים (ffmpeg)", "error" if th.get("last_error") == "ffmpeg_missing" else ("warn" if th.get("failed", 0) > th.get("generated", 0) and th.get("failed", 0) > 3 else "ok"), f"{th.get('generated', 0)} נוצרו · {th.get('failed', 0)} נכשלו · {th.get('queued', 0)} בתור{' · אחרונה: ' + str(th.get('last_error')) if th.get('last_error') else ''}", **th))
+    jobs = {r[0]: r[1] for r in conn.execute("SELECT state, COUNT(*) FROM export_jobs GROUP BY state").fetchall()}
+    from . import exports as exports_svc
+
+    disk = exports_svc.disk_state(settings, exports_svc.min_free_mb(conn))  # T068: a full data disk pauses exports
+    disk_note = f" · הדיסק של התוסף: {disk['free_mb']} MB פנויים, מתחת למינימום {disk['min_free_mb']} MB - ייצואים חדשים נדחים" if disk["low"] else ""
+    if not ha_only:
+        checks.append(_check("exports", "ייצוא קטעים", "warn" if jobs.get("failed") or jobs.get("paused_disk_full") or disk["low"] else "ok",
+                         (" · ".join(f"{n} {s}" for s, n in jobs.items()) if jobs else "אין עבודות ייצוא") + disk_note, data_disk=disk, **jobs))
+    from ..routers.media import REGISTRY as LIVE
+    from .playback import REGISTRY as PB
+
+    live_n = LIVE.count()
+    pb_n = len(PB.active())
+    checks.append(_check("sessions", "זרמים פעילים דרך התוסף", "ok", f"{live_n} חיים · {pb_n} ניגון", live=live_n, playback=pb_n))
+    backups = backup_svc.list_backups(settings)
+    last = backups[0] if backups else None
+    bage = _age_s(last["created_at"]) if last else None
+    checks.append(_check("backups", "גיבויים", "error" if not last else ("warn" if bage is not None and bage > 2 * 86400 else "ok"), f"{len(backups)} גיבויים · אחרון {last['name'] + ' (' + last['kind'] + ')' if last else 'אין עדיין'}{' · לפני ' + str(int(bage // 3600)) + ' שע׳' if bage is not None else ''}", count=len(backups), last=last["name"] if last else None, last_kind=last["kind"] if last else None, last_age_s=bage))
+
+    # PUBCOUNT-295 / D-04: the vendor portal's start worker (switch OFF by default) answers "sent" even when its queue dropped the request;
+    # the administrator sees the counts here (shown once a worker ran or anything was counted; a drop within the last hour is a warning)
+    from .tickets import public_portal
+
+    ps = public_portal.worker_stats()
+    if ps["running"] or ps["accepted"] or ps["dropped"]:
+        checks.append(_check("portal_start", "קליטת בקשות כניסה לפורטל ספקים", "warn" if ps["dropped_1h"] else "ok",
+                             f"{ps['accepted']} התקבלו · {ps['dropped']} נפלו (בשעה האחרונה: {ps['dropped_1h']}) · תור {ps['depth']}/{ps['max']}", **ps))
+
+    # BUSTIMES-295: the public-transport source (only while the module is in use): last success, age of the data, error count. No ticket action.
+    from datetime import datetime, timezone
+
+    from .transit import health as transit_health
+
+    tv = transit_health.view(conn, datetime.now(timezone.utc))
+    if tv["state"] != "off":
+        age = tv["age_s"]
+        age_text = "אין נתונים עדיין" if age is None else f"הנתונים בני {age // 60} דק׳"
+        # BUSSTATUS-297: a provider outage (5xx / timeout) is a calm "external data source unavailable" with the last good time, not a warning
+        # (it escalates to a warning after `outage_warn_h`, default 6 h)
+        source_down = tv["state"] == "source_down"
+        lead = f"מקור הנתונים החיצוני אינו זמין (תקלה אצל הספק, לא באתר); הנתון התקין האחרון: {tv['last_good_at'] or 'לא ידוע'} UTC · " if source_down else ""
+        checks.append(_check("transit", "זמני תחבורה ציבורית", "ok" if tv["state"] in ("ok", "source_down") else "warn",
+                             lead + f"{age_text} · {tv['codes_in_use']} תחנות בשימוש · {tv['errors']} שגיאות מאז ההפעלה" + (f" · שגיאה אחרונה: {tv['last_error']}" if tv["last_error"] else ""),
+                             state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], last_good_at=tv["last_good_at"], outage=tv["outage"], errors=tv["errors"],
+                             codes_in_use=tv["codes_in_use"]))
+
+    restarts = _restarts_check(settings)  # SEGFAULT-PLAYBACK-2332: only after the crash guard restarted the server at least once
+    if restarts:
+        checks.append(restarts)
+
+    # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
+    from . import secrets_store
+
+    if secrets_store.LINGERING_OPTIONS:
+        names = ", ".join(secrets_store.LINGERING_OPTIONS)
+        checks.append(_check("secret_options", "סודות ישנים בהגדרות התוסף", "warn",
+                             f"סוד ישן עדיין שמור בהגדרות התוסף: יש להסיר אותו ({names}). הערכים נשמרים מוצפנים בהגדרות › חיבורים › סודות.",
+                             names=list(secrets_store.LINGERING_OPTIONS)))
+    worst = "ok"  # "off" (not part of this installation) never lowers the overall status
+    for c in checks:
+        if c["status"] == "error":
+            worst = "error"
+            break
+        if c["status"] == "warn":
+            worst = "warn"
+    return {"status": worst, "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S,
+            # NN1: the report is for system administrators only, so the recorder detail is included
+            "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps), "checks": checks}
+
+
+def _restarts_view(settings: Settings) -> dict[str, Any]:
+    from .. import crashguard
+
+    try:
+        return crashguard.state_view(settings.data_dir)
+    except Exception:  # noqa: BLE001 - the report never fails because of the crash record
+        return {"count_total": 0, "crashes_24h": 0, "safe_mode": False, "last_at": None, "last_signal": None, "last_uptime_s": None, "supervised": False}
+
+
+def _restarts_check(settings: Settings) -> dict[str, Any] | None:
+    """The crash guard's record (smplwise/crashguard.py): how often the server process died from a signal and was started again.
+    Shown only once there is something to show; warn while a crash is less than 24 hours old or safe mode is on."""
+    rv = _restarts_view(settings)
+    if not rv["count_total"] and not rv["safe_mode"]:
+        return None
+    parts = [f"{rv['crashes_24h']} קריסות ביממה האחרונה", f"{rv['count_total']} בסך הכול"]
+    if rv["last_at"]:
+        parts.append(f"אחרונה {rv['last_at']} ({rv['last_signal']}, אחרי {int(rv['last_uptime_s'] or 0)} שנ׳ פעילות)")
+    if rv["safe_mode"]:
+        parts.append("מצב בטוח: לולאת אירועים ומפענח HTTP ללא רכיבים טבעיים")
+    parts.append("עקבת הקריסה נשמרת ב־crash/faulthandler.log וביומן התוסף")
+    status = "warn" if rv["crashes_24h"] or rv["safe_mode"] else "ok"
+    return _check("process_restarts", "הפעלות מחדש אחרי קריסה", status, " · ".join(parts), **rv)
+
+
+def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
+    """Cheap status for every signed-in user (top-bar pill): only cached job states and the backup age, never a
+    network probe. `items` lists what is wrong in operator words; `status` is the worst of them."""
+    items: list[dict[str, Any]] = []
+    nvr = bool(settings.nvr_host and settings.nvr_user)
+    ing = events_ingest.STATE
+    if is_ha_only(settings):
+        pass  # NVR-less mode: no NVR is expected, so its absence is not something to check (mode.py)
+    elif nvr:
+        down_for = (time.time() - ing.disconnected_since) if (not ing.connected and ing.disconnected_since) else 0
+        if not ing.connected and (down_for > 60 or not ing.last_heartbeat_at):
+            items.append({"id": "nvr", "status": "error", "label": "NVR מנותק — אין התראות חיות; וידאו חי והקלטות עשויים להיכשל"})
+        ds = autosync.STATE
+        if ds.get("cameras_last_error") and not ds.get("cameras_last_ok"):
+            items.append({"id": "discovery", "status": "error", "label": "גילוי המצלמות מה־NVR נכשל"})
+        elif ds.get("cameras_last_error"):
+            items.append({"id": "discovery", "status": "warn", "label": "גילוי המצלמות האחרון נכשל; משתמשים ברשימה הקודמת"})
+        if not go2rtc_url(settings):
+            # NN1, owner decision 2026-10-03: an NVR without go2rtc is not a supported installation (operator wording)
+            items.append({"id": "go2rtc", "status": "error", "label": "שרת המדיה (go2rtc) לא הוגדר — אין וידאו חי ואין ניגון הקלטות; התקנה עם NVR אינה נתמכת בלעדיו"})
+        elif ds.get("streams_last_error") and not media_reach.REACH.unreachable(settings):  # unreachable: the item below says it all
+            items.append({"id": "go2rtc", "status": "warn", "label": "סנכרון הזרמים ל־go2rtc נכשל"})
+    else:
+        items.append({"id": "nvr", "status": "warn", "label": "ה־NVR לא הוגדר"})
+    if media_reach.REACH.unreachable(settings):
+        # HEALTH-GO2RTC-2430 (lab 11.11: two days of silent "ok"): the video service did not answer the add-on's last contact - every
+        # live, playback and snapshot path is down. Operator wording, no component name; system.health raises the administrators'
+        # notice once this held for the policy's after_s (300 s) and resolves it on recovery (notify_sources.HEALTH_ITEMS).
+        items.append({"id": "video_service", "status": "error", "label": "שירות הווידאו לא זמין — אין וידאו חי ואין ניגון הקלטות", "since": media_reach.REACH.view(settings)["since"]})
+    hs_now = ha_sync.STATE
+    if ha_client.configured(settings) and not hs_now.connected and hs_now.last_error == "ha_forbidden":
+        # T035 (outage run): the platform refused the add-on's token - this does not heal by waiting, so it is said plainly
+        items.append({"id": "ha", "status": "error", "label": "תשתית המערכת דחתה את הרשאת הגישה של התוסף — מצבי התקנים אינם מתעדכנים ופקודות לא יישלחו עד לחידוש ההרשאה"})
+    elif is_ha_only(settings):
+        # NVR-less mode: Home Assistant is the whole product - missing, or down past a minute, is an error
+        hs = ha_sync.STATE
+        if not ha_client.configured(settings):
+            items.append({"id": "ha", "status": "error", "label": "אין חיבור לתשתית המערכת — במצב ללא NVR המערכת כולה נשענת עליה"})
+        elif not hs.connected and hs.down_for() > HA_GRACE_S:
+            items.append({"id": "ha", "status": "error", "label": "תשתית המערכת מנותקת — שליטה בהתקנים ומצבי ישויות אינם זמינים"})
+        elif not hs.connected and hs.last_snapshot_at:
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים"})
+    elif ha_client.configured(settings):
+        hs = ha_sync.STATE
+        if not hs.connected and hs.last_snapshot_at:
+            items.append({"id": "ha", "status": "warn", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים"})
+        elif not hs.connected and not hs.last_snapshot_at and hs.last_error:
+            items.append({"id": "ha", "status": "warn", "label": "אין חיבור לתשתית המערכת"})
+    if thumbnails.STATE.get("last_error") == "ffmpeg_missing":
+        items.append({"id": "thumbnails", "status": "warn", "label": "ffmpeg חסר — אין תמונות אירועים"})
+    try:  # T035 (outage run): a full data disk reaches every operator, not only the administrator's health report (same threshold)
+        if shutil.disk_usage(settings.data_dir).free < STORAGE_ERROR_FREE:
+            items.append({"id": "storage", "status": "error", "label": "אחסון התוסף כמעט מלא — שמירות, תיעוד פעולות ופקודות עלולים להיכשל"})
+    except OSError:
+        pass
+    backups = backup_svc.list_backups(settings)
+    last_age = _age_s(backups[0]["created_at"]) if backups else None
+    if not backups:
+        items.append({"id": "backups", "status": "warn", "label": "אין עדיין גיבוי של הפרויקט"})
+    elif last_age is not None and last_age > 2 * 86400:
+        items.append({"id": "backups", "status": "warn", "label": "הגיבוי האחרון ישן מיומיים"})
+    from .tickets import public_portal
+
+    dropped_1h = public_portal.worker_stats()["dropped_1h"]
+    if dropped_1h:  # PUBCOUNT-295 / D-04: the operator notice - a vendor's code request was dropped (the vendor saw "sent")
+        items.append({"id": "portal_start", "status": "warn", "label": f"{dropped_1h} בקשות קוד של ספקים לא טופלו בשעה האחרונה (התור מלא)"})
+    from datetime import datetime, timezone
+
+    from .transit import health as transit_health
+
+    from .transit import model as transit_model
+
+    tv_s = transit_health.view(conn, datetime.now(timezone.utc))
+    if tv_s["state"] == "down":  # BUSTIMES-295: the screens show "unavailable" - the installer sees why
+        provider = tv_s["consecutive_errors"] > 0 and transit_model.is_outage(tv_s["last_error"])  # BUSSTATUS-297: only after the outage outlasted outage_warn_h
+        items.append({"id": "transit", "status": "warn", "label": "מקור נתוני התחבורה הציבורית אינו זמין זמן רב (תקלה אצל הספק)" if provider else "נתוני התחבורה הציבורית אינם מתעדכנים"})
+    rv = _restarts_view(settings)
+    if rv["crashes_24h"]:
+        items.append({"id": "process_restarts", "status": "warn", "label": f"שרת התוסף קרס והופעל מחדש אוטומטית ({rv['crashes_24h']} ביממה האחרונה)"})
+    worst = "ok"
+    for it in items:
+        if it["status"] == "error":
+            worst = "error"
+            break
+        worst = "warn"
+    return {"status": worst, "mode": installation_mode(settings), "items": items, "checked_at": now_iso(), "version": __version__}
+
+
+
+def _recorder_time_checks(settings: Settings, conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """CR-025 (owner decision 2026-10-04): per Provision recorder, the time basis (device clock or Israel time) and a note
+    when the device's clock rule differs from the installation zone. Cached facts only, never a device call."""
+    from ..recorder_scope import configured_ids, settings_for
+    from .recorders import vendor_io
+
+    try:
+        tz_name = get_setting(conn, "time.zone") or "Asia/Jerusalem"
+    except Exception:  # noqa: BLE001
+        tz_name = "Asia/Jerusalem"
+    out = []
+    for rid in configured_ids(settings):
+        rs = settings_for(settings, rid)
+        if not vendor_io.handles(rs):
+            continue
+        note = vendor_io.time_note(rs, rid, str(tz_name))
+        if note is None:
+            continue
+        basis = "שעון ישראל" if note["basis"] == "iana" else "שעון המכשיר"
+        if not note.get("known"):
+            out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "ok", f"לפי {basis} · כלל השעון של המכשיר טרם נקרא", **note))
+        elif note.get("differs_now") or note.get("differs_periods"):
+            when = "כרגע" if note.get("differs_now") else "בחלק מהשנה (מעבר שעון)"
+            out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "warn",
+                              f"לפי {basis} · שעון המכשיר שונה משעון ישראל {when}; זמני החיפוש והניגון מומרים לפי {basis}", **note))
+        else:
+            out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "ok", f"לפי {basis} · שעון המכשיר תואם לשעון ישראל", **note))
+    return out

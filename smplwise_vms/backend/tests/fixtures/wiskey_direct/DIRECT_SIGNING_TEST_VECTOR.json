@@ -1,0 +1,19 @@
+{
+  "synthetic_test_key_only": "wiskey-direct-v1-public-test-key",
+  "canonical_utf8": "{\"command\":\"direct/connect\",\"expires_at\":\"2026-10-24T07:30:15+00:00\",\"issued_at\":\"2026-10-24T07:30:00+00:00\",\"kind\":\"wiskey-direct-connect.v1\",\"parameters\":{\"challenge\":\"0123456789abcdef0123456789abcdef\"},\"query_owner_id\":\"pairing\"}",
+  "canonical_sha256": "18e843fbfbcbbd8e5baabb021b0c1a041961bdbe28f2ca420e39dcc4e6cfacd3",
+  "signing_preimage": "1792827000.fedcba9876543210.18e843fbfbcbbd8e5baabb021b0c1a041961bdbe28f2ca420e39dcc4e6cfacd3",
+  "bridge": {
+    "kind": "wiskey-direct-connect.v1",
+    "command": "direct/connect",
+    "query_owner_id": "pairing",
+    "issued_at": "2026-10-24T07:30:00+00:00",
+    "expires_at": "2026-10-24T07:30:15+00:00",
+    "parameters": {
+      "challenge": "0123456789abcdef0123456789abcdef"
+    },
+    "ts": 1792827000,
+    "nonce": "fedcba9876543210",
+    "sig": "ef70d23ac735b8c59b889d1f8bbb29073249b4924a356b51872d517d7f28b55e"
+  }
+}

@@ -1,0 +1,301 @@
+{
+  "document": "CAPTURE_ANSWER_CODES",
+  "status": "Arx answer to ARX-LEASE-RESPONSE, 2026-10-17. Closed tables; design only; route OFF on both sides.",
+  "request_id_rule": {
+    "acknowledged": "required, equal to the request's request_id",
+    "refused": "required, equal to the request's request_id",
+    "sent_unknown": "required, equal to the request's request_id (capture_confirm only)",
+    "rejected_stages_transport_encoding_parse_schema": "absent",
+    "rejected_stages_binding_signature_time_state": "required, equal to the request's request_id",
+    "source": "DTO v3 section 9 rule (request_id iff the schema stage passed); SCHEMA.md section 4 event answers use the same rule"
+  },
+  "rejected": {
+    "pre_schema": {
+      "transport": [
+        "transport_shape"
+      ],
+      "encoding": [
+        "invalid_utf8",
+        "lone_surrogate",
+        "message_too_large"
+      ],
+      "parse": [
+        "invalid_json",
+        "duplicate_key",
+        "non_json_constant",
+        "non_integer_number",
+        "integer_out_of_range",
+        "lone_surrogate",
+        "not_an_object"
+      ],
+      "schema": [
+        "unknown_field",
+        "missing_field",
+        "wrong_type",
+        "bad_format",
+        "bad_value"
+      ]
+    },
+    "post_schema": {
+      "capture_start": {
+        "binding": [
+          "ts_mismatch",
+          "action_service_mismatch",
+          "station_scope_mismatch",
+          "lease_window"
+        ],
+        "signature": [
+          "bad_signature"
+        ],
+        "time": [
+          "clock_invalid",
+          "lifetime_invalid",
+          "not_yet_valid",
+          "expired"
+        ],
+        "state": [
+          "replay",
+          "storage_unavailable"
+        ]
+      },
+      "capture_status": {
+        "binding": [
+          "ts_mismatch",
+          "action_service_mismatch",
+          "station_scope_mismatch"
+        ],
+        "signature": [
+          "bad_signature"
+        ],
+        "time": [
+          "clock_invalid",
+          "lifetime_invalid",
+          "not_yet_valid",
+          "expired"
+        ],
+        "state": [
+          "replay",
+          "storage_unavailable"
+        ]
+      },
+      "capture_confirm": {
+        "binding": [
+          "ts_mismatch",
+          "action_service_mismatch",
+          "station_scope_mismatch"
+        ],
+        "signature": [
+          "bad_signature"
+        ],
+        "time": [
+          "clock_invalid",
+          "lifetime_invalid",
+          "not_yet_valid",
+          "expired"
+        ],
+        "state": [
+          "replay",
+          "storage_unavailable"
+        ]
+      },
+      "capture_cancel": {
+        "binding": [
+          "ts_mismatch",
+          "action_service_mismatch",
+          "station_scope_mismatch"
+        ],
+        "signature": [
+          "bad_signature"
+        ],
+        "time": [
+          "clock_invalid",
+          "lifetime_invalid",
+          "not_yet_valid",
+          "expired"
+        ],
+        "state": [
+          "replay",
+          "storage_unavailable"
+        ]
+      }
+    }
+  },
+  "refused": {
+    "capture_start": [
+      "capture_station_busy",
+      "capture_limit",
+      "revision_conflict",
+      "lease_gone",
+      "binding_denied",
+      "capture_unsupported",
+      "capture_reader_invalid",
+      "capture_failed"
+    ],
+    "capture_status": [
+      "capture_not_found",
+      "lease_gone",
+      "binding_denied",
+      "capture_operation_busy"
+    ],
+    "capture_confirm": [
+      "capture_not_ready",
+      "invalid_text",
+      "capture_operation_busy",
+      "capture_not_found",
+      "lease_gone",
+      "binding_denied",
+      "card_conflict",
+      "revision_conflict"
+    ],
+    "capture_cancel": [
+      "capture_not_found",
+      "lease_gone",
+      "binding_denied",
+      "capture_applying"
+    ]
+  },
+  "refused_liveness": {
+    "session_unchanged": [
+      "capture_applying",
+      "capture_not_ready",
+      "capture_operation_busy",
+      "invalid_text"
+    ],
+    "session_ended": [
+      "binding_denied",
+      "capture_failed",
+      "capture_limit",
+      "capture_not_found",
+      "capture_reader_invalid",
+      "capture_station_busy",
+      "capture_unsupported",
+      "card_conflict",
+      "lease_gone",
+      "revision_conflict"
+    ],
+    "rule_start": "A refused capture_start means the host holds no session and no collector for that lease_ref when it answers (a collector it started was retired synchronously before the answer).",
+    "rule_binding_denied": "binding_denied: the request did not match the session/admission (actor, station, session_id, admission tuple, wildcard confirm); the host ends any session of that lease_ref (fail closed).",
+    "rule_lease_gone": "lease_gone: the host ended the session because its authority went away (revoke, expiry, 15 s silence, stream/sequence/permission_revision change, authority or receiver change).",
+    "rule_capture_not_found": "capture_not_found: the host holds no session for that lease_ref (never had one, or it already ended)."
+  },
+  "sent_unknown": {
+    "allowed_on": [
+      "capture_confirm"
+    ],
+    "on_other_actions": "not a valid answer; Arx treats it as no clear answer"
+  },
+  "status_capture_state": {
+    "states": [
+      "preparing",
+      "waiting",
+      "captured",
+      "error"
+    ],
+    "errors": [
+      "capture_timeout",
+      "capture_unsupported",
+      "capture_reader_invalid",
+      "capture_failed"
+    ],
+    "note": "`applying` is not reported on the lease route: while a confirm runs the host refuses status with capture_operation_busy."
+  },
+  "internal_to_wire_for_wiskey": {
+    "source": "custom_components/hikvision_intercom/trusted_actions/lease_experimental.py @ 9a1dadd6 / c7b5e214, sha256 f6c15e4c649cce3f81590ade357290692995dc466893686332a66a06fca29993",
+    "map": [
+      [
+        "schema/*, parse/invalid_json, binding/station_scope_mismatch, binding/action_service_mismatch, binding/lease_window, signature/bad_signature, time/lifetime_invalid, time/clock_invalid, state/replay",
+        "rejected, same stage/code"
+      ],
+      [
+        "time/expired_or_future (now >= expires_at)",
+        "rejected time/expired"
+      ],
+      [
+        "time/expired_or_future (issued_at > now + 2 s)",
+        "rejected time/not_yet_valid"
+      ],
+      [
+        "state/capacity, state/replay_unavailable",
+        "rejected state/storage_unavailable"
+      ],
+      [
+        "binding/service_payload (lease_service.py)",
+        "rejected transport/transport_shape"
+      ],
+      [
+        "state/unverified, binding/operation_missing, state/operation_finished",
+        "refused binding_denied (internal guards; must not normally reach the wire)"
+      ],
+      [
+        "binding/admission_mismatch, binding/actor_mismatch, binding/session_mismatch, binding/wildcard_confirm",
+        "refused binding_denied"
+      ],
+      [
+        "state/stream_or_revision_changed, state/authority_changed, binding/receiver_changed, state/lease_gone",
+        "refused lease_gone"
+      ],
+      [
+        "state/capture_not_found",
+        "refused capture_not_found"
+      ],
+      [
+        "state/capture_station_busy (station already has a session)",
+        "refused capture_station_busy"
+      ],
+      [
+        "state/capture_station_busy (session count limit)",
+        "refused capture_limit"
+      ],
+      [
+        "state/capture_not_ready at capture_start, or a collector failure before the answer",
+        "refused capture_failed / capture_unsupported / capture_reader_invalid"
+      ],
+      [
+        "state/capture_not_ready at capture_confirm",
+        "refused capture_not_ready"
+      ],
+      [
+        "state/capture_operation_busy",
+        "refused capture_operation_busy"
+      ],
+      [
+        "internal return 'sent_unknown' (confirm after possible dispatch)",
+        "sent_unknown"
+      ],
+      [
+        "binding/response_contract_incomplete (lease_service.request)",
+        "removed: the request seam now answers with these closed shapes"
+      ]
+    ]
+  },
+  "arx_handling_at_pilot_LEASE_FIX_ded814ce": {
+    "source": "smplwise_vms/backend/smplwise/routers/access_control.py (_lease_confirm, _lease_cancel, start path) and services/capture_lease_route.py classify_request/tick",
+    "capture_start": {
+      "acknowledged": "ledger active, session followed",
+      "refused|rejected": "ledger destroyed(start_refused), 409",
+      "sent_unknown|no answer|invalid": "revoke(start_unknown), station held for the rest of 120 s, 504"
+    },
+    "capture_status": {
+      "acknowledged": "state updated",
+      "refused capture_not_found|lease_gone": "session expired/lost, ledger finished",
+      "other refused|rejected|invalid": "ignored, next poll"
+    },
+    "capture_confirm": {
+      "acknowledged + valid person": "confirmed, destroyed(confirmed)",
+      "rejected | refused capture_not_ready|invalid_text": "back to captured",
+      "refused capture_not_found|lease_gone": "lost",
+      "other refused": "closed, destroyed(error)",
+      "sent_unknown|no answer|invalid": "unconfirmed, destroyed(confirm_unknown), 'לא ידוע אם הכרטיס נוסף'"
+    },
+    "capture_cancel": {
+      "acknowledged cancelled:true": "cancelled",
+      "refused capture_not_found|lease_gone": "lost",
+      "anything else": "cancel_unknown + revoke(cancel_unknown)"
+    },
+    "arx_followups": [
+      "confirm: treat refused capture_operation_busy like capture_not_ready (today it closes the session)",
+      "tests/fake_wiskey.py FakeLeaseHost: technology 'mifare' -> a WisKey TECHNOLOGIES value; cancel without a session -> refused capture_not_found; LEASE_PERSON.assignments as an object keyed by station",
+      "fold these schemas into docs/contracts/wiskey-capture-lease/SCHEMA.md section 4 on pilot/LEASE-FIX (no change of meaning)"
+    ]
+  }
+}

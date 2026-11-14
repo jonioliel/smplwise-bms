@@ -1,0 +1,443 @@
+from __future__ import annotations
+
+import io
+import os
+import sys
+import time
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# CR-023: the electricity sampler thread stays off in tests (they call energy_sampler.tick with explicit instants)
+os.environ.setdefault("SW_ENERGY_SAMPLER", "0")
+os.environ.setdefault("SW_GENERATOR", "0")
+os.environ.setdefault("SW_ELEVATORS", "0")  # CR-INFRA-ELEVATORS 2.8.0: tests call elevators_runtime.evaluate / tick with explicit instants
+os.environ.setdefault("SW_TEMPERATURE", "0")  # CR-INFRA-TEMPERATURE 2.9.1: tests call temperature_runtime.evaluate / tick with explicit instants
+os.environ.setdefault("SW_WISKEY_JOIN_LIVE_THREAD", "0")  # WISKEY-JOIN-LIVE-2382: tests call wiskey_join_live.MANAGER.evaluate directly
+os.environ.setdefault("SW_SCENARIOS", "0")  # XSCENARIO109-295: tests call scenarios.step / tick with explicit instants
+# CR-023: the bill PDF engine self-check (one child render per app start) stays off; tests call bill_pdf.self_check() directly
+os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
+os.environ.setdefault("SW_MAPPING_AUTO_STARTUP", "0")  # MAPPING-IMPROVE-2351: tests call mapping_auto.run directly
+# CR-026: the recorder health poller stays off; tests call recorder_health.probe / poll_once / tick with explicit instants
+os.environ.setdefault("SW_RECORDER_HEALTH", "0")
+# CAMHEALTH091: the camera image health poller stays off; tests call camera_image_health.record / sample / poll_once / tick directly
+os.environ.setdefault("SW_CAMERA_IMAGE_HEALTH", "0")
+os.environ.setdefault("SW_CAMERA_SOURCE_HEALTH", "0")  # CAMERA-STREAM-SOURCES-2410: the tests call check_once directly
+# NN5: the Frigate event loop (WebSocket + polling) stays off in app tests; they call frigate_events.poll_reviews / run_loop explicitly
+os.environ.setdefault("SW_FRIGATE_EVENTS", "0")
+# CR-021 S4: the start-up read of the running release's [platform-restart] marker stays off (a flagged release must not add a
+# restart reason to every test app); tests call release_notes.note_release_restart with their own file
+os.environ.setdefault("SW_RELEASE_MARKER", "0")
+# CR-038 S5b: the ticket outbox worker thread stays off; tests call messaging.RUNTIME.run_once with explicit instants
+os.environ.setdefault("SW_TICKETS_OUTBOX", "0")
+# CR-ARX-WISKEY-SHARED-IDENTITY: the external-grant worker thread stays off; tests call access_grants.WORKER.run_once explicitly
+os.environ.setdefault("SW_ACCESS_GRANTS_WORKER", "0")
+# BUSTIMES-295: the bus-times poller thread stays off; tests call transit.poller.poll_once / catalogue_pass with a recorded fake
+os.environ.setdefault("SW_TRANSIT", "0")
+# CR-039 DOORWIN-295: the door-windows watchdog thread stays off; tests call door_windows.WORKER.run_once / sync / watch with explicit instants
+os.environ.setdefault("SW_DOORWIN_WORKER", "0")
+os.environ.setdefault("SW_STARTUP_WARMUP", "0")  # WARMUP-POLISH-2421: no warm-up thread in the test apps (tests call startup_warmup.run)
+# WISKEY-EVENT-CURSOR-2400: the service feed's events/resume_v1 pump stays off; tests drive wiskey_event_resume.step / pass_once / run with a fake WisKey
+os.environ.setdefault("SW_WISKEY_EVENT_RESUME", "0")
+
+from smplwise.config import Settings  # noqa: E402
+from smplwise.main import create_app  # noqa: E402
+
+# GATESPEED-293: a fresh test app copies a database migrated once per process instead of running every migration again
+# (tests/db_template.py; proof in tests/test_db_template.py). SW_TEST_DB_TEMPLATE=0 restores the per-test migrations.
+import db_template as _db_template  # noqa: E402
+from smplwise.db import Database as _Database  # noqa: E402
+
+_db_template.install(_Database)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--sw-repeat", type=int, default=1, help="run every selected test N times (flaky-test verification; combine with a CPU burner)")
+
+
+@pytest.fixture(autouse=True)
+def _sw_repeat_index(request: pytest.FixtureRequest) -> None:
+    return None
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    n = metafunc.config.getoption("--sw-repeat")
+    if n > 1 and "_sw_repeat_index" in metafunc.fixturenames:
+        metafunc.parametrize("_sw_repeat_index", range(n), ids=lambda i: f"rep{i}")
+
+
+def sw_time_factor() -> float:
+    """Multiplier for the generous (default) side of a wall-clock performance bound in a test.
+
+    A handful of tests assert a property that is really about behaviour ("does not slow the detector down",
+    "does not wait for the worker", "reads do not block on a writer") but can only observe it by timing
+    something. Their default bound is deliberately loose so a busy workstation - another agent's build, a second
+    pytest worker, antivirus - does not turn a behavioural check into a flaky one. Set `SW_TEST_TIME_FACTOR` (a
+    float, default 1) to loosen it further on a machine or CI runner that is reliably slower or busier; values
+    below 1 are ignored. See `sw_perf_enabled` for the tight bound each of these tests keeps available on request.
+    """
+    try:
+        factor = float(os.environ.get("SW_TEST_TIME_FACTOR", "1"))
+    except ValueError:
+        return 1.0
+    return factor if factor > 1.0 else 1.0
+
+
+def sw_load_factor(samples: int = 5, spin_s: float = 0.05, cap: float = 12.0) -> float:
+    """How much slower than an idle core this thread is being run right now (>= 1, capped), for the few bounds that are
+    really about wall-clock time (a latency, a throughput) and so cannot be made clock-free.
+
+    Spins the calling thread for `spin_s` of wall time and compares it with the CPU time the thread actually got
+    (`time.thread_time`, per thread - other threads of the test do not count). On an idle machine the two are equal; when the
+    runner carries other jobs the thread is descheduled and wall/CPU grows by about the factor the code under test is slowed.
+    The median of `samples` spins is used, multiplied with `sw_time_factor()` (the manual override). Call it AFTER the
+    measured work so it sees the load the work saw. It never loosens a bound on an idle machine (returns 1.0 there)."""
+    ratios: list[float] = []
+    for _ in range(samples):
+        w0, c0 = time.perf_counter(), time.thread_time()
+        while time.perf_counter() - w0 < spin_s:
+            pass
+        wall, cpu = time.perf_counter() - w0, time.thread_time() - c0
+        ratios.append(wall / cpu if cpu > 0 else 1.0)
+    ratios.sort()
+    return min(max(ratios[len(ratios) // 2], 1.0), cap) * sw_time_factor()
+
+
+def warm_routes(client) -> None:
+    """Build FastAPI's per-app route state up front, outside a timed window (TEST-DEBT-2412).
+
+    Since fastapi 0.141 each included router of an app builds its route state (dependants, compiled paths, pydantic
+    adapters) lazily, on the first request that is matched against it, under one lock. A path that matches nothing walks
+    every router, so one such request builds them all: about 4-10 s on a busy workstation or runner, paid once per
+    `create_app`. A test that times "the answer is immediate" from a fresh app measured that build instead of the answer
+    (test_nvr_less 409 routes, the remote flood, the setup check deadline). Call this before such a timed request."""
+    for path in ("/api/v1/__sw_warm_routes__", "/arx/api/v1/__sw_warm_routes__"):
+        client.get(path)
+
+
+def sw_perf_enabled() -> bool:
+    """True when `SW_PERF=1` asks for the strict, original wall-clock bound on a performance test.
+
+    These bounds are tight enough to catch a real regression (an accidental O(n^2) merge, a lock that starts
+    blocking readers) but only hold on a quiet machine, so they are opt-in rather than the default assertion.
+    """
+    return os.environ.get("SW_PERF") == "1"
+
+
+@pytest.fixture()
+def settings(tmp_path: Path) -> Settings:
+    return Settings(
+        data_dir=tmp_path / "data",
+        www_dir=None,
+        in_addon=False,
+        trusted_proxies=("172.30.32.2",),
+        dev_user="joni",
+        bootstrap_admin_username="joni",
+        # what load_settings gives a developer / test backend without NVR_HOST: the full mode with a placeholder host and
+        # no credentials (config.DEV_NVR_PLACEHOLDER); the NVR-less mode (no nvr_host at all) has its own test_nvr_less.py
+        nvr_host="nvr-placeholder.test",
+        nvr_http_port=80,
+        nvr_user=None,
+        nvr_password=None,
+        go2rtc_url=None,
+        log_level="warning",
+        max_upload_bytes=5 * 1024 * 1024,
+        max_pdf_pages=5,
+        max_render_px=800,
+        preview_px=300,
+    )
+
+
+import datetime as _dt  # noqa: E402
+import time as _time  # noqa: E402
+import types as _types  # noqa: E402
+
+# 12:00 on a Monday in Asia/Jerusalem (UTC+3 until 2026-10-25): outside the default quiet hours (22:00-07:00).
+DAY_ANCHOR = _dt.datetime(2026, 10, 5, 9, 0, tzinfo=_dt.timezone.utc)
+_DAY_T0 = _time.monotonic()
+
+
+def day_now() -> _dt.datetime:
+    """The pinned daytime clock: starts at DAY_ANCHOR and runs forward with the test run (so ordering still holds)."""
+    return DAY_ANCHOR + _dt.timedelta(seconds=_time.monotonic() - _DAY_T0)
+
+
+@pytest.fixture()
+def daytime_clock(monkeypatch):
+    """Pin the notification and push clocks to a daytime instant so a test does not depend on the wall clock.
+
+    Tests that need another instant (a night inside quiet hours, an escalation boundary) patch `notify.now_utc`
+    after this fixture; everything that decides from `now` (installation quiet hours, per-user push quiet hours,
+    outbox staleness) reads that one seam. `push.plan` falls back to `datetime.now` when no instant is passed:
+    it is routed through the same seam here, with no change to production code."""
+    from smplwise.services import notify
+    from smplwise.services import push as push_svc
+
+    class _Datetime(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            at = notify.now_utc()
+            return at.astimezone(tz) if tz is not None else at.replace(tzinfo=None)
+
+    shim = _types.SimpleNamespace(**{k: v for k, v in vars(_dt).items() if not k.startswith("__")})
+    shim.datetime = _Datetime
+    monkeypatch.setattr(notify, "now_utc", day_now)
+    monkeypatch.setattr(push_svc, "dt", shim)
+    return day_now
+
+
+def datetime_shim(now_fn) -> _types.SimpleNamespace:
+    """A stand-in for a module's `datetime as dt` whose `dt.datetime.now(tz)` reads `now_fn()` (an aware UTC datetime); every
+    other name of the datetime module is the real one. Patch it over one module (`monkeypatch.setattr(mod, "dt", datetime_shim(f))`)
+    to pin the wall clock a router or service reads, with no change to production code (the seam `daytime_clock` uses too)."""
+
+    class _Datetime(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            at = now_fn()
+            return at.astimezone(tz) if tz is not None else at.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+
+    shim = _types.SimpleNamespace(**{k: v for k, v in vars(_dt).items() if not k.startswith("__")})
+    shim.datetime = _Datetime
+    return shim
+
+
+@pytest.fixture(autouse=True)
+def _clear_stream_options_cache():
+    """CR-020 S2: the Hikvision adapter caches capability discovery per process; every test starts without it (the fake
+    NVR's capability answers differ from test to test)."""
+    from smplwise.services.recorders import hikvision
+
+    hikvision.clear_options_cache()
+    yield
+    hikvision.clear_options_cache()
+
+
+@pytest.fixture()
+def client(settings: Settings) -> TestClient:
+    return TestClient(create_app(settings))
+
+
+def as_user(username: str) -> dict[str, str]:
+    """Developer-mode identity override (only honoured when SW_DEV_USER is set and never in the add-on)."""
+    return {"X-SW-Dev-User": username}
+
+
+def png_bytes(width: int = 640, height: int = 400, color=(240, 240, 250)) -> bytes:
+    im = Image.new("RGB", (width, height), color)
+    for x in range(0, width, 40):
+        for y in range(height):
+            im.putpixel((x, y), (120, 130, 150))
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def pdf_bytes(pages: int = 2) -> bytes:
+    import pymupdf
+
+    doc = pymupdf.open()
+    for i in range(pages):
+        page = doc.new_page(width=595, height=842)
+        page.draw_rect(pymupdf.Rect(60, 60, 535, 780), color=(0.2, 0.3, 0.5), width=2)
+        page.insert_text((80, 100), f"synthetic plan page {i + 1}", fontsize=18)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def seed_tree(client: TestClient) -> dict[str, str]:
+    """Admin creates site → building → two floors. Returns ids."""
+    site = client.post("/api/v1/sites", json={"name": "אתר בדיקה", "address": "רחוב 1"}).json()
+    building = client.post(f"/api/v1/sites/{site['id']}/buildings", json={"name": "מבנה א"}).json()
+    f2 = client.post(f"/api/v1/buildings/{building['id']}/floors", json={"name": "קומה 2", "level": 2}).json()
+    f3 = client.post(f"/api/v1/buildings/{building['id']}/floors", json={"name": "קומה 3", "level": 3}).json()
+    return {"site": site["id"], "building": building["id"], "floor2": f2["id"], "floor3": f3["id"]}
+
+
+def enable_search(client: TestClient, mode: str = "all", roles: str = "") -> None:
+    """TOPPILL-295: the global search is off by default; a test that exercises it turns it on first (as the installation's admin)."""
+    r = client.patch("/api/v1/settings", json={"ui.global_search": mode, **({"ui.global_search_roles": roles} if roles else {})})
+    assert r.status_code == 200, r.text
+
+
+def bind(client: TestClient, settings: Settings, username: str, role: str, scope_type: str, scope_id: str) -> None:
+    """Direct DB binding for tests (the bindings API arrives with T076/T083)."""
+    from smplwise.db import Database, new_id, now_iso, permission_revision
+
+    # make sure the user row exists so the id is stable
+    client.get("/api/v1/me", headers=as_user(username))
+    db = Database(settings.db_path)
+    with db.connection() as conn:
+        conn.execute(
+            "INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) VALUES (?, 'user', ?, ?, ?, ?, 'allow', ?, 'test', ?)",
+            (new_id(), f"dev-{username}", role, scope_type, scope_id, permission_revision(conn), now_iso()),
+        )
+
+
+@pytest.fixture(autouse=True)
+def _recorders_disabled_set_is_per_test():
+    """CR-024: `recorder_scope.DISABLED` is process state (set at start-up and by PATCH /recorders); a test never inherits another's."""
+    from smplwise import recorder_scope
+
+    recorder_scope.DISABLED.clear()
+    recorder_scope.WRITES.clear()  # NVR-H264-BULK-2341: the per-recorder writes switch is process state too
+    yield
+    recorder_scope.DISABLED.clear()
+    recorder_scope.WRITES.clear()
+
+
+@pytest.fixture(autouse=True)
+def _bridge_push_refusals_are_per_test():
+    """BRIDGE-STALE-DISCOVERY-2383: the refused-directory-push counter is process state; a refused push in one test must not turn the
+    "גשר Arx" line red in the next."""
+    from smplwise.services import bridge_discovery
+
+    bridge_discovery.reset_for_tests()
+    yield
+    bridge_discovery.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _media_reach_is_per_test():
+    """HEALTH-GO2RTC-2430: `media_reach.REACH` (is the video service reachable) is process state fed by every go2rtc call. A test whose
+    fake go2rtc refuses connections must not leave the next test's /health `degraded`."""
+    from smplwise.services import media_reach
+
+    from smplwise.services import video_services  # HEALTH-GO2RTC-FOLLOWUP-2431: the discovery cache and the listed go2rtc slugs
+
+    media_reach.REACH.reset()
+    video_services.reset_for_tests()
+    yield
+    media_reach.REACH.reset()
+    video_services.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _storage_report_cache_is_per_test():
+    """`services.storage` keeps a process-wide 10-minute report cache, and the start-up warm-up fills it from a daemon thread that
+    can finish after its test is over. Without this, a report built for another test's settings (an NVR, disks) leaks into the next
+    one depending on timing - e.g. the NVR-less storage assertions failed under load and passed alone."""
+    from smplwise.services import storage
+
+    storage.invalidate()
+    yield
+    storage.invalidate()
+
+
+@pytest.fixture(autouse=True)
+def _ha_token_refusals_are_per_test():
+    """FOLLOWUPS-2406: `ha_client` keeps a process-wide ledger of tokens Home Assistant refused (keyed by a hash of the token) and
+    holds the next WebSocket session with such a token for up to 15 minutes. The fakes all use the token "t": a refusal scripted
+    in one test must not hold the next test's session."""
+    from smplwise.services import ha_client
+
+    ha_client.reset_refusals()
+    yield
+    ha_client.reset_refusals()
+
+
+def _intercom_feed_idle() -> None:
+    from smplwise.services import intercom_sync
+
+    thread = intercom_sync.SYNC.thread
+    if thread is not None and thread.is_alive():
+        return  # a feed a test started is still winding down: never pulled from under it
+    intercom_sync.STATE.reset()
+    with intercom_sync.SYNC._cache_lock:
+        cached = intercom_sync.SYNC._cache is not None
+    if cached:
+        intercom_sync.SYNC._drop()
+
+
+@pytest.fixture(autouse=True)
+def _intercom_feed_state_is_per_test():
+    """FOLLOWUPS-2406: the WisKey feed's STATE (state, WisKey version, counters) and its served copy are process-wide. A test that
+    put a copy there (tests/fake_trusted_bridge.FakeWisKeyFeed before this fix: a copy without `station-1`) or stored an overview
+    on a private IntercomSync (its `_store` writes the module STATE: WisKey 4.2.0) left it to every later test of the worker:
+    test_notify_channels::test_release_route_* got 404 before the origin was audited, and test_wiskey_pairing_2382's rotation
+    line read "WisKey present". Both failed in a combined run and passed alone. Put back to idle before and after each test."""
+    _intercom_feed_idle()
+    yield
+    _intercom_feed_idle()
+
+
+def _pristine_ha_link() -> dict:
+    from smplwise.services import ha_sync
+
+    return {k: ha_sync.STATE.__dict__.get(k) for k in ("connected", "disconnected_since")}
+
+
+_HA_LINK_AT_IMPORT = _pristine_ha_link()
+
+
+@pytest.fixture(autouse=True)
+def _ha_sync_link_is_per_test():
+    """`ha_sync.STATE` is process-wide and the socket thread never runs in tests, so the link is down unless a test says otherwise.
+    About twenty fixtures set `STATE.connected = True` and never undo it; without this, every later test of the same worker saw a
+    connected mirror (e.g. `test_notices_info_295` read a generator chip as "ok" instead of the honest "off" after `test_alarm`).
+    The flag and its `disconnected_since` stamp are put back to their import-time values (bypassing `__setattr__`, which would
+    stamp a fresh "just lost" instant) before and after each test; a test that needs the link up still sets it itself."""
+    from smplwise.services import ha_sync
+
+    ha_sync.STATE.__dict__.update(_HA_LINK_AT_IMPORT)
+    yield
+    ha_sync.STATE.__dict__.update(_HA_LINK_AT_IMPORT)
+
+
+def _pristine_bridge_install() -> dict:
+    from smplwise.services import bridge_install
+
+    return dict(bridge_install.STATE)
+
+
+_BRIDGE_INSTALL_AT_IMPORT = _pristine_bridge_install()
+
+
+@pytest.fixture(autouse=True)
+def _bridge_install_state_is_per_test():
+    """`bridge_install.STATE` (source / installed version, the mapped HA config dir, last error) is process-wide. Every test that runs
+    an install with a mapped config dir (tests/test_bridge_install.py and a dozen WisKey / Lovelace files) left it set, and a later
+    test of the same process saw a "bridge copy waiting for a Home Assistant restart": platform_restart.reasons() reported a
+    `bridge` reason, and four tests of test_self_update.py / test_self_update_s3.py failed after test_bridge_install.py
+    (GATE-HYGIENE-2402; docs/changes/BRIDGE-UPDATE-LISTENER-2401.md). The dict is put back to its import-time content (the same
+    object: modules hold a reference to it) before and after each test."""
+    from smplwise.services import bridge_install
+
+    bridge_install.STATE.clear()
+    bridge_install.STATE.update(_BRIDGE_INSTALL_AT_IMPORT)
+    yield
+    bridge_install.STATE.clear()
+    bridge_install.STATE.update(_BRIDGE_INSTALL_AT_IMPORT)
+
+
+# ---------------------------------------------------------------- SW_DB_IO_GUARD=1: I/O under the SQLite write lock
+
+if os.environ.get("SW_DB_IO_GUARD") == "1":
+    import json as _json
+
+    from db_io_guard import CURRENT_TEST, FINDINGS, install  # noqa: E402
+
+    @pytest.fixture(scope="session", autouse=True)
+    def _db_io_guard():
+        """Inventory of device / network / subprocess I/O made while a write lock is held (tests/db_io_guard.py)."""
+        mp = pytest.MonkeyPatch()
+        install(mp.setattr)
+        yield
+        mp.undo()
+        found = FINDINGS.report()
+        print(f"\n[db-io-guard] {len(found)} I/O site(s) under a held write lock")
+        for item in found:
+            print(f"[db-io-guard] {item['count']:4d}x {item['kind']:10s} holder={item['holder']!r} {item['where']} targets={item['targets']} tests={item['tests'][:2]}")
+        out = os.environ.get("SW_DB_IO_GUARD_OUT")
+        if out:
+            with open(out, "w", encoding="utf-8") as fh:
+                _json.dump(found, fh, ensure_ascii=False, indent=1)
+
+    @pytest.fixture(autouse=True)
+    def _db_io_guard_test(request):
+        CURRENT_TEST["id"] = request.node.nodeid
+        yield

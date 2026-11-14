@@ -1,0 +1,413 @@
+"""CR-008 SmplWise Arx: the remote channel `https://<HA hostname><remote_path>/...` (default `/arx`).
+
+A Cloudflare tunnel path route sends `/arx/...` unchanged to the add-on (`http://<addon host>:8099`). This pure ASGI
+middleware sits in front of everything:
+
+- the add-on option `remote_access` is off → every `/arx...` request is 404 (a WebSocket is refused), even when a tunnel
+  route exists;
+- `/arx` → `308 /arx/` (the only redirect; the query string is kept);
+- `/arx/<rest>` → the ASGI `root_path` becomes `/arx` (Starlette routes the rest, `request.url` keeps the full path) and
+  the request state carries `sw_channel = "remote"`. Every other request is `sw_channel = "local"` (Ingress or refused,
+  exactly as before). The channel comes from the path alone and the Ingress trust from the peer address alone, so a
+  request is never both: on the remote channel `auth.resolve_principal` accepts only an Arx session cookie or an HA
+  bearer token, and the middleware DROPS any inbound `X-Remote-User-*`, `X-Ingress-*` and developer identity header
+  before anything else sees them;
+- remote responses get the security headers of CR-008 §3e (CSP with `frame-ancestors 'self'`, `X-Frame-Options:
+  SAMEORIGIN` - the WisKey embed and Ingress framing are same-origin -, `Referrer-Policy`, `Permissions-Policy`,
+  `nosniff`, and `Cache-Control: no-store` on the API). HSTS is left to Cloudflare (the tunnel terminates TLS). CR-008
+  P2: a stricter policy (CSP_STRICT) runs report-only next to the enforced one until `remote.csp_enforce` makes it the
+  enforced one; both report to `<remote_path>/api/v1/csp-report` (counters only, routers/remote.py);
+- a state-changing request carrying the Arx session cookie must prove it comes from this origin (csrf_ok) or it is
+  refused 403 `csrf_refused` and audited (security review B1).
+"""
+from __future__ import annotations
+
+import json
+import re
+from typing import Any
+
+from .config import Settings
+
+CHANNEL_KEY = "sw_channel"
+REMOTE = "remote"
+LOCAL = "local"
+
+# identity / Ingress headers that only the Supervisor's Ingress proxy may set; never honoured on the remote channel
+_DROPPED_PREFIXES = (b"x-remote-user-", b"x-ingress-", b"x-hass-")
+_DROPPED = {b"x-sw-dev-user"}
+
+# style-src needs 'unsafe-inline': Lit templates bind inline `style=` attributes throughout the product (no script is
+# inline). connect-src 'self' covers the same-origin ws(s): sockets and HA's /auth endpoints; frame-src 'self' the
+# WisKey panel (/hikvision-intercom); blob: the MSE player and exported frames.
+CSP = "; ".join([
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
+    "frame-src 'self'",
+    "frame-ancestors 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+])
+# CR-008 P2: the stricter candidate. Inline <style> ELEMENTS are refused (style-src-elem 'self' - an injected style block
+# can exfiltrate data through attribute selectors and redress the page); inline style ATTRIBUTES stay allowed
+# (style-src-attr), because Lit binds them everywhere. Lit's `static styles` are constructed stylesheets, which CSP does
+# not govern. It ships as Content-Security-Policy-Report-Only until the owner has reviewed the reports and switched
+# `remote.csp_enforce` on (הגדרות › גישה מרחוק); then it is the enforced policy.
+CSP_STRICT = CSP.replace("style-src 'self' 'unsafe-inline'", "style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'")
+REPORT_GROUP = "arx-csp"
+REPORT_PATH = "/api/v1/csp-report"  # under the remote prefix: POST <remote_path>/api/v1/csp-report (routers/remote.py)
+_CSP_MODE = {"enforce_strict": False}
+
+# LAZYMIC-295 (owner 2026-10-21): the microphone follows the features that use it. Two things in the authenticated app
+# open the browser microphone: Arx's own push-to-talk (wiskey/talk-mic.ts, behind `access.station_media` = video_talk,
+# off by default) and the embedded WisKey panel (screens/wiskey-embed.ts, iframe allow="microphone" on the same
+# origin - its talk and microphone test), reachable whenever the WisKey area is not hidden (`ui.hide_wiskey`). The
+# document's policy also bounds what that iframe may be delegated, so the microphone stays (self) while either is on
+# and becomes () only when both are off. The camera policy is unchanged (CR-008 section 3e, CR-CAMVF-295).
+PERMISSIONS_POLICY_MIC = b"camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+PERMISSIONS_POLICY_NO_MIC = b"camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+MIC_SETTINGS = ("access.station_media", "ui.hide_wiskey")
+# the defaults (station_media off, WisKey area shown) allow it; refreshed at start-up, on PATCH settings and every 30 s
+_MIC_MODE = {"allowed": True}
+
+_STATIC_HEADERS: list[tuple[bytes, bytes]] = [
+    (b"x-frame-options", b"SAMEORIGIN"),
+    (b"referrer-policy", b"same-origin"),
+    (b"x-content-type-options", b"nosniff"),
+    (b"cross-origin-opener-policy", b"same-origin"),
+]
+
+
+def mic_allowed_by(station_media: str | None, hide_wiskey: str | None) -> bool:
+    """True when a feature that is ON needs the microphone: talk (`video_talk`) or the embedded WisKey panel (the area
+    is not hidden). Unknown / corrupt values fail open to "allowed" only for the WisKey area (its default is shown)."""
+    return (station_media or "off") == "video_talk" or (hide_wiskey or "false") != "true"
+
+
+def set_mic_allowed(on: bool) -> None:
+    _MIC_MODE["allowed"] = bool(on)
+
+
+def mic_allowed() -> bool:
+    return _MIC_MODE["allowed"]
+
+
+def load_mic_mode_from(conn: Any) -> None:
+    """Recompute the microphone mode from an open connection (sees the caller's own uncommitted writes)."""
+    from .db import get_setting
+
+    set_mic_allowed(mic_allowed_by(get_setting(conn, "access.station_media", "off"), get_setting(conn, "ui.hide_wiskey", "false")))
+
+
+def permissions_policy() -> bytes:
+    return PERMISSIONS_POLICY_MIC if mic_allowed() else PERMISSIONS_POLICY_NO_MIC
+
+
+def base_headers() -> list[tuple[bytes, bytes]]:
+    """The non-CSP security headers, built per response (the Permissions-Policy follows the current settings)."""
+    return [*_STATIC_HEADERS[:2], (b"permissions-policy", permissions_policy()), *_STATIC_HEADERS[2:]]
+
+
+BASE_HEADERS: list[tuple[bytes, bytes]] = base_headers()  # the header names (and the default values) - see base_headers()
+
+
+def plain_security_headers() -> list[tuple[bytes, bytes]]:
+    return [(b"content-security-policy", CSP.encode()), *base_headers()]  # without reporting
+
+
+SECURITY_HEADERS: list[tuple[bytes, bytes]] = plain_security_headers()  # the defaults; responses use plain_security_headers()
+
+
+def set_csp_enforce(on: bool) -> None:
+    """Switch the stricter policy between report-only (False, the default) and enforced (True) - immediately, for the
+    next response. Called by PATCH settings and at start-up; the background pass re-reads it every 30 s (a restore)."""
+    _CSP_MODE["enforce_strict"] = bool(on)
+
+
+def csp_enforcing() -> bool:
+    return _CSP_MODE["enforce_strict"]
+
+
+def load_csp_mode(db: Any) -> None:
+    try:
+        with db.connection(mode="read", label="csp mode") as conn:
+            from .db import get_setting
+
+            set_csp_enforce((get_setting(conn, "remote.csp_enforce", "false") or "false") == "true")
+            load_mic_mode_from(conn)  # LAZYMIC-295: the microphone mode follows the database the same way (a restore)
+    except Exception:  # noqa: BLE001 - keep the current mode when the database cannot be read
+        pass
+
+
+def security_headers(prefix: str) -> list[tuple[bytes, bytes]]:
+    """The remote channel's headers: the enforced CSP (the base policy, or the strict one once `remote.csp_enforce` is
+    on), the strict one as report-only while it is not, both reporting to `<prefix>/api/v1/csp-report` (the Reporting
+    API group and the older report-uri, for Firefox and Safari)."""
+    endpoint = prefix + REPORT_PATH
+    report = f"; report-uri {endpoint}; report-to {REPORT_GROUP}"
+    out = [(b"reporting-endpoints", f'{REPORT_GROUP}="{endpoint}"'.encode())]
+    if csp_enforcing():
+        out.append((b"content-security-policy", (CSP_STRICT + report).encode()))
+    else:
+        out.append((b"content-security-policy", (CSP + report).encode()))
+        out.append((b"content-security-policy-report-only", (CSP_STRICT + report).encode()))
+    return out + base_headers()
+
+
+_OWN = {b"content-security-policy-report-only", b"reporting-endpoints"} | {h for h, _ in BASE_HEADERS}
+
+
+# machine-to-machine routes with no user identity (the HA bridge integration's signed calls on the internal network):
+# never reachable through the tunnel
+# CR-022 section 10: the NVR connection (its secret, the SSRF-shaped connection test) and the add-on restart are local-only
+BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory", "/api/v1/nvr/connection", "/api/v1/nvr/vendors", "/api/v1/system/restart",
+                     "/api/v1/multimedia/admin/ma-connection",  # CR-016 section 18: the music server's address, token and SSRF-shaped test are local only
+                     "/api/v1/nvr/encoding-batches")  # CR-020 phase D: a bulk encoding change is local-only (its undo too: routers/nvr_batch.py)
+
+
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+# CR-024: the recorders' management (connections, add, remove, health) is local-only like the CR-022 connection routes
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/recorders",)
+# CR-028: the cast administration (the relay origin and its self-check, the per-screen switches, the test cast) is local-only; a remote user
+# may start / extend / switch / stop a cast (the playback runs on the LAN)
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/multimedia/cast/config", "/api/v1/multimedia/cast/origin", "/api/v1/multimedia/cast/screens",
+                                         "/api/v1/multimedia/cast/test")
+# CR-038 S4 (review T11): the tickets handler page's address probe fetches an administrator-typed URL - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/address/probe",)
+# CR-038 S5a (section 20): the WhatsApp test send (a typed number, a real message) is local-only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/messaging/whatsapp/test",)
+# CR-038 security review 2026-10-14 (2.5.1): the module key rotation revokes every live link - local sessions only. (The public
+# keys of PUT /tickets/settings - base_url, trusted proxies, client-address header - are refused remotely in routers/tickets_admin.py.)
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/key/rotate",)
+# TKSECRETS2: the in-app secrets store (values written, the go2rtc / WisKey tests) - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/secrets",)
+# HEALTH-GO2RTC-FOLLOWUP-2431: the video service list and choice (the address every live / playback path uses) - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/video-services",)
+# USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) is configured and inspected from local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/identity/service-identity",)
+# CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key and its rotation are administered from local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/bridge-key",)
+# WISKEY-PAIRING-2382: the Arx <-> WisKey pairing block (its repair answer carries a new pairing code) - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/wiskey-pairing",)
+# NVRMASK-295: a privacy-mask preview / write (masks live view and the recording) is local-only; the undo stays reachable
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/nvr/privacy-masks",)
+# CALCONNECT-2330: the outgoing iCal feed document (a token address, no signed-in person) is not served through the tunnel - contract 15.6 /
+# 15.11: public exposure waits for the feed security review, so the remote channel answers the uniform 404 (local / ingress only; feeds off by default)
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/calendar/feed",)
+# CAL-FEED-REVIEW-2351 (docs/changes/CAL-FEED-REVIEW-2351.md): a per-feed remote switch (`cal_feeds.remote_enabled`, default off) may open ONE
+# feed's address on the tunnel. The edge cannot read it, so exactly a well-formed `GET /api/v1/calendar/feed/<43-char token>.ics` passes on
+# to the route, which answers the same uniform 404 unless that feed's switch is on; any other method or shape under the prefix stays
+# blocked here. Nothing else is route-gated.
+ROUTE_GATED_ON_REMOTE = (("/api/v1/calendar/feed", re.compile(r"^/api/v1/calendar/feed/[A-Za-z0-9_-]{43}\.ics$"), frozenset({"GET"})),)
+
+
+def _route_gated(kind: str, method: str, rest: str) -> bool:
+    return kind == "http" and any(method in methods and shape.fullmatch(rest) is not None for _, shape, methods in ROUTE_GATED_ON_REMOTE)
+SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
+# What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
+# accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.
+CSRF_REQUIRED = {"header": "Origin", "value": "<scheme>://<host[:port]> of this server, no path", "alternative": "Sec-Fetch-Site: same-origin"}
+
+
+def csrf_body(reason: str = "missing_origin") -> bytes:
+    return json.dumps({"code": "csrf_refused", "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.", "retryable": False, "correlation_id": "",
+                       "details": {"reason": reason, "required": CSRF_REQUIRED}}, ensure_ascii=False).encode("utf-8")
+
+
+CSRF_BODY = csrf_body()
+
+
+def _header(headers: list[tuple[bytes, bytes]], name: bytes) -> str | None:
+    for k, v in headers:
+        if k.lower() == name:
+            return v.decode("latin-1")
+    return None
+
+
+def _session_cookie(headers: list[tuple[bytes, bytes]]) -> str | None:
+    raw = ";".join(v.decode("latin-1") for k, v in headers if k.lower() == b"cookie")
+    for part in raw.split(";"):
+        name, _, value = part.strip().partition("=")
+        if name in SESSION_COOKIES and value:
+            return value
+    return None
+
+
+def csrf_reason(scope: dict, headers: list[tuple[bytes, bytes]]) -> str | None:
+    """None when the request passes the cross-site rule (`csrf_ok`), else why it does not: `missing_origin` (neither `Origin` nor
+    `Sec-Fetch-Site`), `cross_site` (`Sec-Fetch-Site` is not same-origin), `origin_mismatch` (an `Origin` that is not this request's
+    scheme + host, `null`, or with a path)."""
+    site = _header(headers, b"sec-fetch-site")
+    if site is not None:
+        return None if site == "same-origin" else "cross_site"
+    if not _header(headers, b"origin"):
+        return "missing_origin"
+    return None if csrf_ok(scope, headers) else "origin_mismatch"
+
+
+def csrf_ok(scope: dict, headers: list[tuple[bytes, bytes]]) -> bool:
+    """A state-changing request that carries the Arx session cookie must come from an Arx page on this very origin
+    (CR-008 security review B1). SameSite=Strict still sends the cookie on same-SITE requests (a sibling sub-domain of
+    the zone), and ~35 POST routes take no JSON body, so neither the cookie flag nor the content type is enough.
+    `Sec-Fetch-Site: same-origin` when the browser sends it (every current browser does); otherwise `Origin` equal to
+    this request's scheme + host. Neither header → refused."""
+    site = _header(headers, b"sec-fetch-site")
+    if site is not None:
+        return site == "same-origin"
+    origin = _header(headers, b"origin")
+    host = _header(headers, b"host")
+    if not origin or not host or origin == "null":
+        return False
+    from urllib.parse import urlsplit
+
+    try:
+        o = urlsplit(origin)
+    except ValueError:
+        return False
+    schemes = {"https", scope.get("scheme") or "http"}
+    xfp = _header(headers, b"x-forwarded-proto")
+    if xfp:
+        schemes = {xfp.split(",")[0].strip().lower()}
+    return o.netloc.lower() == host.lower() and o.scheme in schemes and not o.path.strip("/")
+
+
+def _audit_csrf(scope: dict, headers: list[tuple[bytes, bytes]], sid: str | None) -> None:
+    app = scope.get("app")
+    db = getattr(getattr(app, "state", None), "db", None)
+    if db is None:
+        return
+    from .audit import audit
+    from .services import ha_user_auth as hua
+
+    session = hua.STORE.peek(sid) if sid else None
+    details = {"method": scope.get("method"), "path": scope.get("path"), "origin": (_header(headers, b"origin") or "")[:200],
+               "sec_fetch_site": _header(headers, b"sec-fetch-site") or "",
+               "client_ip": (_header(headers, b"cf-connecting-ip") or (_header(headers, b"x-forwarded-for") or "").split(",")[0]).strip()[:64]}
+    if session is None:
+        # a cookie of no live session is something anyone can send: at most one row per address a minute (each row is a
+        # turn in the write queue); a refused request of a real session is always recorded
+        write, suppressed = hua.REFUSAL_AUDITS.admit(f"csrf_refused|{details['client_ip']}")
+        if not write:
+            return
+        if suppressed:
+            details["suppressed_since_last"] = suppressed
+    try:
+        with db.connection(label="csrf_refused") as conn:
+            audit(conn, actor=session.principal if session else None, action="auth.remote_csrf_refused", decision="denied", resource_type="request",
+                  resource_id=None, reason="csrf_refused", details=details)
+    except Exception:  # noqa: BLE001 - the refusal stands even when the audit row cannot be written
+        import logging
+
+        logging.getLogger("smplwise.remote").exception("could not audit a refused cross-site request")
+
+
+def channel_of(conn: Any) -> str:
+    """`remote` or `local` for a Request / WebSocket (or anything with an ASGI scope)."""
+    scope = getattr(conn, "scope", None) or {}
+    return (scope.get("state") or {}).get(CHANNEL_KEY, LOCAL)
+
+
+def is_remote(conn: Any) -> bool:
+    return channel_of(conn) == REMOTE
+
+
+def _clean_headers(headers: list[tuple[bytes, bytes]]) -> list[tuple[bytes, bytes]]:
+    return [(k, v) for k, v in headers if k.lower() not in _DROPPED and not k.lower().startswith(_DROPPED_PREFIXES)]
+
+
+async def _plain(send, status: int, body: bytes, extra: list[tuple[bytes, bytes]] | None = None) -> None:
+    headers = [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()), *plain_security_headers(), *(extra or [])]
+    await send({"type": "http.response.start", "status": status, "headers": headers})
+    await send({"type": "http.response.body", "body": body})
+
+
+class RemoteChannel:
+    def __init__(self, app, settings: Settings) -> None:
+        self.app = app
+        self.settings = settings
+        self.prefix = settings.remote_path
+
+    async def __call__(self, scope, receive, send) -> None:
+        kind = scope["type"]
+        if kind not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        path: str = scope.get("path") or "/"
+        prefix = self.prefix
+        remote = path == prefix or path.startswith(prefix + "/")
+        state = scope.setdefault("state", {})
+        if not remote:
+            state[CHANNEL_KEY] = LOCAL
+            await self.app(scope, receive, send)
+            return
+        if not self.settings.remote_access:
+            if kind == "websocket":
+                await send({"type": "websocket.close", "code": 4404})
+                return
+            await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
+            return
+        if path == prefix:
+            if kind == "websocket":
+                await send({"type": "websocket.close", "code": 4404})
+                return
+            qs = scope.get("query_string") or b""
+            location = (prefix + "/").encode() + (b"?" + qs if qs else b"")
+            await _plain(send, 308, b"", [(b"location", location)])
+            return
+        rest = path[len(prefix):]
+        if any(rest == b or rest.startswith(b + "/") for b in BLOCKED_ON_REMOTE) and not _route_gated(kind, (scope.get("method") or "GET").upper(), rest):
+            await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
+            return
+        if kind == "http" and rest.lower().endswith(".map"):  # PUB-05: the bundle's source maps are not served without an identity (Ingress keeps them)
+            await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
+            return
+        headers = list(scope.get("headers") or [])
+        if kind == "http" and (scope.get("method") or "GET").upper() not in SAFE_METHODS:
+            sid = _session_cookie(headers)
+            # a bearer-only request (no cookie) is exempt, and so is the CSP report sink (browsers post violation reports
+            # without fetch metadata we could rely on; it changes nothing but bounded counters)
+            reason = csrf_reason(scope, headers) if sid is not None and rest != REPORT_PATH else None
+            if reason is not None:
+                from starlette.concurrency import run_in_threadpool
+
+                await run_in_threadpool(_audit_csrf, scope, headers, sid)
+                await _plain(send, 403, csrf_body(reason))
+                return
+        child = dict(scope)
+        child["root_path"] = (scope.get("root_path") or "") + prefix
+        child["headers"] = _clean_headers(headers)
+        state[CHANNEL_KEY] = REMOTE
+        child["state"] = state
+        if kind == "websocket":
+            await self.app(child, receive, send)
+            return
+        api = path.startswith(prefix + "/api/")
+        ours = security_headers(prefix)
+
+        async def send_secured(message) -> None:
+            if message["type"] == "http.response.start":
+                # a route's own Content-Security-Policy (e.g. `sandbox` on an evidence file) is KEPT: browsers enforce every
+                # CSP header, so ours only adds restrictions (CR-008 P2; the MVP replaced it)
+                headers = [(k, v) for k, v in (message.get("headers") or []) if k.lower() not in _OWN]
+                headers.extend(ours)
+                if api and not any(k.lower() == b"cache-control" for k, _ in headers):
+                    headers.append((b"cache-control", b"no-store"))
+                rotated = state.get("sw_local_set_cookie")
+                if rotated:  # USR2: a local session rotated while this request was served - the new cookie goes out with it
+                    headers.append((b"set-cookie", rotated.encode("latin-1")))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(child, receive, send_secured)
+
+
+def install(app, settings: Settings) -> None:
+    """Outermost middleware: nothing (not even the correlation id middleware) sees an un-stripped remote request."""
+    app.add_middleware(RemoteChannel, settings=settings)

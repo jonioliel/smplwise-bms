@@ -1,0 +1,142 @@
+{
+ "name": "fragments",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.02,
+ "walls": [
+  {
+   "a": [
+    200,
+    200
+   ],
+   "b": [
+    1400,
+    200
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1400,
+    200
+   ],
+   "b": [
+    1400,
+    1000
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1400,
+    1000
+   ],
+   "b": [
+    200,
+    1000
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    200,
+    1000
+   ],
+   "b": [
+    200,
+    200
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    700,
+    206
+   ],
+   "b": [
+    700,
+    994
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    206,
+    600
+   ],
+   "b": [
+    700,
+    600
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    700,
+    500
+   ],
+   "b": [
+    1394,
+    500
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    1050,
+    506
+   ],
+   "b": [
+    1050,
+    994
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  }
+ ],
+ "doors": [
+  {
+   "centre": [
+    1150,
+    500
+   ],
+   "width_px": 45,
+   "wall": 6,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  },
+  {
+   "centre": [
+    560,
+    600
+   ],
+   "width_px": 50,
+   "wall": 5,
+   "hinge": "start",
+   "swing": "none",
+   "double": false,
+   "passage": true
+  },
+  {
+   "centre": [
+    450,
+    1000
+   ],
+   "width_px": 45,
+   "wall": 2,
+   "hinge": "start",
+   "swing": "right",
+   "double": false
+  }
+ ],
+ "windows": [],
+ "objects": []
+}

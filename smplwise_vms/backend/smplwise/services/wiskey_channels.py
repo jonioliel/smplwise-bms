@@ -1,0 +1,292 @@
+"""Per-channel WisKey command allow-lists (CR-036 S1 / S4, sections 2.1 and 5; decisions D-004 / D-006).
+
+Arx reaches WisKey only through the add-on, over Home Assistant WebSocket sessions it opens itself. Each *channel* is a fixed
+list of the WisKey commands (and the few Home Assistant frames) that may be sent through it. The list is enforced at the
+session's `call` helper (`guard`), so a code path that tries to send anything else is refused before a frame is written - the
+browser never names a WisKey command, and no channel is a generic proxy.
+
+- `background`: the read-only station-health session (services/wiskey_background_feed.py). It keeps only the closed D-006
+  projection; its account is meant to hold WisKey `overview: view` and nothing else.
+- `service`: the add-on's own identity (SUPERVISOR_TOKEN). It is the *write channel* of D-004 (door release, call signal,
+  announcement, people writes, card capture), plus the entry-center feed and the reads a write flow needs (the person
+  editor's `users/get`, the announcement's engines, the card-capture status).
+- `read` (S4): the adapter's READ commands (services/intercom_adapter.py) - every one a command the pinned catalog classifies
+  READ, none of them a write. Same socket as `service` (the same identity), a different guard.
+- `technical` (S4): four reads the catalog does NOT classify READ (they carry `api_contract` and pass WisKey's re-auth guard)
+  and that the S4 source review found side-effect free (only in-memory busy markers; `technical_codes_get` reads the device
+  and returns presence booleans only). Kept apart from `read` so the read channel's rule stays exact: no non-READ command.
+  `stations/technical_relays` is on no list (it needs `stations: manage` and configures relays).
+- `messaging` (CR-036 WA): the three WhatsApp commands the people screen's message dialog needs (services/intercom_messaging.py):
+  `whatsapp/status` (is the messaging service connected, which accounts), `whatsapp/preview` (issues the one-use token that WisKey
+  binds a send to; its own message text - which WisKey builds with the person's PIN in it - is NEVER read) and `whatsapp/send` (the
+  text Arx rendered itself, confirmed). Not `whatsapp/history` (it returns chat content), `whatsapp/media` or the template commands
+  (the template catalogue is Arx's own, edited in Settings). Same socket and identity as `service`; the SEND is a write and runs in
+  the message lane of the feed (intercom_sync), the status read in the read lane.
+
+`subscribe`, `tts/engines` and `tts/start` have their own handlers in WisKey and are absent from the static catalog
+(docs/integrations/wiskey/catalog/<pin>/CONTRACT_DIFF.md); the contract tests check them separately.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from . import intercom_client, wiskey_media_contract
+from .intercom_client import IntercomError
+
+log = logging.getLogger("smplwise.intercom")
+
+PREFIX = intercom_client.DOMAIN + "/"
+NOT_ALLOWED = "not_allowed_on_channel"
+RESERVED_KEY = "reserved_frame_key"
+RESERVED = frozenset({"id", "type"})  # the frame's own keys (ha_client.call sets them; WisKey R4-08)
+
+BACKGROUND = frozenset({"overview", "subscribe", "authorization/session"})
+
+SERVICE_READS = frozenset({
+    "overview", "subscribe", "authorization/session",  # the entry-center feed and the diagnostics
+    "users/get",  # the person editor's read (access.people.manage; a write flow)
+    "tts/engines", "cards/capture_status",  # reads that belong to a write flow
+})
+SERVICE_WRITES = frozenset({
+    "stations/test_unlock", "media/signal", "tts/start",  # physical actions (the door: access.doors.open; calls / announcements: access.call)
+    "users/create", "users/update", "users/delete", "users/pin_generate",  # person editor (access.people.manage)
+    "cards/reader_capabilities", "cards/capture_start", "cards/capture_cancel", "cards/capture_confirm",  # card capture
+    # CR-036 S11: the person writes the editor did not have (access.people.manage on the person's stations)
+    "users/archive", "users/unarchive", "users/set_active", "users/temporary_cancel", "cards/add", "cards/remove",
+})
+SERVICE = SERVICE_READS | SERVICE_WRITES
+
+# CR-036 S4: exactly the commands services/intercom_adapter.py sends (CHANNEL_OF there; tests/test_intercom_adapter.py
+# checks both directions), each a READ command in the pinned catalog.
+READ = frozenset({
+    "users/query", "users/get", "users/photo_get",
+    "events/list", "events/detail", "events/export",
+    "profiles/settings_get", "profiles/versions",
+    "schedules/list", "schedules/plan_list", "schedules/operations_list",
+    "health/get", "sync/status", "conflicts/list", "fleet/alerts", "audit/list",
+})
+# CR-036 S4: the reviewed non-READ reads (see the module note); `api_contract` on every frame.
+TECHNICAL = frozenset({
+    "stations/technical_program_list", "stations/technical_hold_get", "stations/technical_codes_get", "health/history",
+})
+# CR-036 WA: the message dialog's commands. All three are non-READ in the pinned catalog (so `api_contract` goes on every frame);
+# `whatsapp/preview` and `whatsapp/send` need `users: manage` in WisKey, `whatsapp/status` `users: view`.
+MESSAGING = frozenset({"whatsapp/status", "whatsapp/preview", "whatsapp/send"})
+# CR-WISKEY-LEASE-REVOCATION-EVENT L5: the capture-lease route's four SIGNED actions (protocol wiskey-capture-lease-v1). NOT a
+# WebSocket channel - they leave through the bridge's trusted-caller transport (services/lease_events.py), never through a
+# guarded `call`, so they are deliberately absent from ALLOWLISTS; the classic `cards/capture_*` WS commands stay on `service`.
+LEASE_SIGNED = frozenset({"capture_start", "capture_status", "capture_confirm", "capture_cancel"})
+# ECCACT-295: the readback channel - WisKey's Mac-delivered candidate READS (round 11, `arx_preview_features.CANDIDATE_READS`):
+# `users/access_state` (v1), `users/access_state_v2` and `schedules/normalize_user`. They are NOT in the pinned static catalog
+# (they were added after the pin), so the catalog-membership test skips this channel; every one is a read that WisKey admits only for
+# an active administrator while its build gate is on, and WisKey lists it in `overview.api.commands` only then (capability negotiation,
+# services/wiskey_readback.py). No write is on it. Same socket and identity as `service`.
+READBACK = frozenset({"users/access_state", "users/access_state_v2", "schedules/normalize_user"})
+# PACING12-295: WisKey's pacing envelope (`whatsapp_pacing_status_v1`), a READ specified on WisKey's side after the pin. The adapter sends it
+# only when WisKey's discovery (`overview.api.commands`) lists it (services/intercom_messaging_adapter.py `refresh_pacing`); it is on its own
+# channel so that the messaging channel stays exactly the pinned three and nothing else can ride the pacing guard.
+PACING = frozenset({"whatsapp/pacing_status_v1"})
+# WISKEY-WA-QUEUE-2400 (T12): WisKey's VERSIONED paced free-text send. `whatsapp/send_pacing_v1` takes the same token / text as
+# `whatsapp/send` and answers the closed `whatsapp_send_outcome_v1` (a not_sent with WisKey's own ledger delay, or an honest unknown).
+# Used only when the administrator opted in (`messaging.wa_installed` {send_pacing_v1}, default OFF) AND WisKey's discovery lists it;
+# `whatsapp/preview` rides along because the token it issues binds the send (same coroutine, same slot). Its own channel so the
+# `messaging` channel keeps exactly its three commands; additive: no existing list changes.
+MESSAGING_PACED = frozenset({"whatsapp/preview", "whatsapp/send_pacing_v1"})
+# WKDIRECT-295 (S6): the `media` channel of AVW10-295 is REMOVED. WisKey's six W10 commands are no channel's allow-list any more: they
+# leave Arx only as signed `bridge` envelopes (services/wiskey_media_bridge.py - the direct API or the signed Home Assistant path), never
+# as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
+W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
+UNPINNED_CHANNELS = frozenset({"readback", "pacing", "messaging_paced", "visits_push"})
+# WISKEY-STATION-OPS-2390 (plan 2026-11-03 T4): a station's maintenance from the stations drawer and its list action
+# (services/wiskey_station_ops.py): queue the station's sync, re-read its capabilities and inventory, refresh its health report, read its
+# clock again. All four are station-scoped and non-READ in the pinned catalog (`api_contract` on every frame); none sets anything on the
+# device (`clock/station_sync`, which WRITES the clock, is NOT here). Same socket and identity as `service`, a guard of its own, so the
+# service channel's write list stays the reviewed one and nothing else can ride this guard.
+MAINTENANCE = frozenset({"sync/station", "stations/rescan", "health/refresh", "stations/clock_refresh"})
+# WISKEY-DOOR-TECH-2390 (plan 2026-11-03 T6, owner Q5 = a): the door technical WRITES from the stations drawer
+# (services/wiskey_door_tech.py): a door's hold-open schedule draft (save / delete), a public door code (add / replace / remove - the
+# value goes to WisKey once and is never stored, logged or answered by Arx) and the door's hold-open program (save / pause / remove).
+# All five are non-READ, station-scoped and granted at `stations: manage` in the pinned catalog (`api_contract` on every frame); the
+# reads that go with them stay on `technical`. One read rides along: `overview`, sent in the SAME coroutine right before a code write
+# to learn WisKey's API relay id of the door (the served copy drops it), so the read and the write share one slot and one session. Same
+# socket and identity as `service`, a closed guard of its own, so neither the service channel's reviewed write list nor the technical
+# channel's reads change, and nothing else can ride this guard.
+DOOR_TECHNICAL = frozenset({
+    "overview",
+    "stations/technical_hold_save", "stations/technical_hold_delete", "stations/technical_codes_write",
+    "stations/technical_program_save", "stations/technical_program_action",
+})
+# WISKEY-PEOPLE-COMPLETE-2390 (owner Q3 "a", 03.11): the people that exist on a door station but not in WisKey's person list, and the
+# duplicate checks of the people screen (services/station_people.py). Reads: `stations/inventory` (one station's users as the device
+# reports them - WisKey reads the device; READ in the pinned catalog, `stations: view`), `users/data_quality` and `users/duplicate_check`
+# (READ, `users: view`; no PIN, no full card number) and `users/pin_check` (non-READ, `users: manage`; answers `available` only - the
+# PIN goes to WisKey once and is never kept). Writes (non-READ, `users: manage`): `users/adopt` (WisKey takes over the station user as
+# is - nothing is created on the station), `users/ignore` (WisKey's own ignore flag) and `users/delete_unmanaged` (WisKey removes the
+# station user through its own sync - a device write). Same socket and identity as `service`; never a generic proxy.
+STATION_PEOPLE = frozenset({"stations/inventory", "users/data_quality", "users/duplicate_check", "users/pin_check",
+                            "users/adopt", "users/ignore", "users/delete_unmanaged"})
+# WISKEY-PROFILES-EDIT-2390 (plan 2026-11-03 T8): the groups and profile fields editor (services/wiskey_profiles.py): WisKey's impact
+# preview and the apply of a reviewed policy (non-READ, `management: manage`, `api_contract` on both frames), the compare of two policy
+# versions and the group suggestions for one person (both READ). `profiles/settings_update` (the direct save without the review) is on
+# NO list. Same socket and identity as `service`, a guard of its own, so the service channel's write list stays the reviewed one.
+PROFILES = frozenset({"profiles/settings_preview", "profiles/settings_apply", "profiles/versions_compare", "users/group_suggestions"})
+# WISKEY-SCHED-WRITE-2390 (plan 2026-11-03 T7): the device schedule LIBRARY's write side (services/wiskey_schedule_writes.py) - library
+# create / update / delete / import / export, the station reads before an apply (readiness, dependencies, assess), comparison baselines,
+# deployment proposals, responsibility claims and deployment jobs. Installation-wide in WisKey (`management: view` / `manage`). Not the
+# per-door technical hold (`stations/technical_*`, task T6) and not the three list reads (they stay on `read`). Same socket and identity
+# as `service`, a guard of its own, so no other channel can carry these and this guard carries nothing else.
+SCHEDULES = frozenset({
+    "schedules/preview", "schedules/create", "schedules/update", "schedules/delete", "schedules/export", "schedules/import_preview",
+    "schedules/import_apply", "schedules/readiness", "schedules/dependencies", "schedules/assess", "schedules/baseline_save",
+    "schedules/baseline_clear", "schedules/plan_preview", "schedules/plan_save", "schedules/plan_recheck", "schedules/plan_delete",
+    "schedules/plan_export", "schedules/operations_claim_preview", "schedules/operations_claim_confirm", "schedules/operations_claim_release",
+    "schedules/operations_create", "schedules/operations_check", "schedules/operations_cancel", "schedules/operations_archive",
+})
+
+# WISKEY-INSTALLER-NATIVE-2400 (owner decision 03.11, Q7 "ג"): WisKey's installer tools in Arx (services/wiskey_installer*.py) - the
+# fleet clock / NTP (`clock/*`), a station's technical settings (`stations/technical_get` / `technical_update`) and the platform
+# (`platform/*`). Administrator commands in WisKey; in Arx system.configure at the installation, a confirmation per write and a typed
+# phrase for the dangerous ones. Same socket and identity as `service`, a guard of its own, so the service channel's reviewed write list
+# stays as it was and nothing else can ride this guard. Each phase of the branch adds its own commands here.
+INSTALLER = frozenset({
+    # phase 1: clock / NTP (the station's clock READ again is the station-maintenance channel's `stations/clock_refresh`, not here)
+    "clock/settings_get", "clock/settings_update", "clock/host_status", "clock/host_apply", "clock/station_sync",
+    # phase 2: a station's technical settings (door name, open time, relay inversion; capability and password-presence flags)
+    "stations/technical_get", "stations/technical_update",
+    # phase 3: removing / replacing a station (WisKey's reviewed lifecycle; adding one is WisKey's config-entry flow, not a WS command).
+    # Not `platform/lifecycle_decide`: Arx's single service identity cannot be WisKey's separate approver.
+    "platform/lifecycle_review", "platform/lifecycle_prepare", "platform/lifecycle_jobs", "platform/lifecycle_plan", "platform/lifecycle_apply",
+    "platform/lifecycle_verify", "platform/lifecycle_remove",
+    # phase 4: the rest of the platform - configuration, export / import, webhook, retention, integrity, capacity, the fleet configuration
+    # change and the maintenance queue. Not the dual-approval decisions, `maintenance_resume_v1` (native owner), `archive` / `report` /
+    # `delete` (see services/wiskey_installer_platform.py).
+    "platform/get", "platform/capacity", "platform/integrity", "platform/demo", "platform/save", "platform/export", "platform/import_preview",
+    "platform/import_apply", "platform/webhook_save", "platform/webhook_key", "platform/retention_preview", "platform/retention_apply",
+    "platform/config_read", "platform/config_preview", "platform/config_apply", "platform/maintenance_preview", "platform/maintenance_enqueue",
+    "platform/maintenance_jobs", "platform/maintenance_cancel",
+})
+
+# WISKEY-OPS-VIEWS-2400 (integration plan T11, rows 79, 80, 82): the operations and fleet views of Settings › תפעול האינטרקום
+# (services/wiskey_ops_views.py). Nine READS (each one WisKey's catalog classifies READ; sent without `api_contract`) and ONE write,
+# `jobs/action` - which Arx sends only with `action: "cancel"` (the job's own revision, a confirmation, an audit row before and after).
+# Not `jobs/approval_*` (Arx's single service identity cannot be WisKey's separate approver), not `jobs/bulk_create` / `csv_create`
+# (bulk edits are Arx's own screen), not `events/print` / `events/export` (the entry log's CSV is the read channel's). Same socket and
+# identity as `service`, a guard of its own, so no other channel's list changes.
+OPERATIONS = frozenset({
+    "overview/summary", "operations/query", "investigations/query", "jobs/list", "jobs/errors", "platform/capacity", "fleet/inventory_export",
+    "audit/export", "events/report",
+    "jobs/action",  # the one write: cancel only (services/wiskey_ops_views.py CANCEL)
+})
+
+# WISKEY-CONFLICTS-2400 (plan 2026-11-03 T5): the conflict review / resolve and the fleet alert snooze from the conflicts screen and the
+# status page (services/wiskey_triage.py). All four are in the pinned catalog and non-READ there (`api_contract` on every frame);
+# `conflicts/review` reads the station and writes nothing, the other three change WisKey's own record / suppression state (a resolve then
+# QUEUES the person's or the station's sync in WisKey). Same socket and identity as `service`, a guard of its own: the service channel's
+# write list stays the reviewed one and nothing else can ride this guard. ADDITIVE: other branches add their own channels next to it.
+TRIAGE = frozenset({"conflicts/review", "conflicts/resolve", "conflicts/resolve_deletion", "fleet/alerts_action"})
+
+# WISKEY-ACCESS-DIAG-2400 (plan 2026-11-03 T10): the access-diagnostics views (services/wiskey_access_diag.py; capability matrix rows 28,
+# 29, 36, 89). `diagnostics` holds READS only: eight commands the pinned catalog classifies READ ("can X open door Y" - the access scenario -,
+# the comparison and its pickers, the periodic reviews and one review's preview, data quality, identity lifecycle, sync diagnostics) and
+# `stations/permission_audit`, which the catalog does NOT classify READ (it carries `api_contract`) and which rc.10's source shows reads the
+# station's inventory and writes nothing (`device_writes: 0`, admin_operations_api.py / access/permission_audit.py). `access_review` is the
+# ONE write of the views: a periodic-review decision (`users/access_review_decide`), a durable receipt in WisKey that changes no access and
+# no device (access/permission_reviews.py: "decisions never mutate admission policy or equipment"). Both ride the service socket (same
+# identity), each with a guard of its own, so the read list stays write-free and the decision cannot ride any other guard.
+DIAGNOSTICS = frozenset({
+    "users/access_scenario", "users/access_compare", "users/access_compare_options", "users/access_reviews", "users/access_review_preview",
+    "users/data_quality", "users/lifecycle", "sync/diagnostics", "stations/permission_audit",
+})
+ACCESS_REVIEW = frozenset({"users/access_review_decide"})
+
+# WISKEY-VISITS-2407 (card WISKEY-VISITS-2400, owner 07.11 option "ב"): WisKey's visits shown in Arx and Arx's invitations recorded in WisKey
+# (services/wiskey_visits.py). `visits` holds two READS (the catalog classifies both READ): the visit list (read only in Arx) and the guest
+# templates (presets of Arx's invite form). `visits_push` holds ONE write, `visits/record_external_v1` - the record of an Arx invitation, an
+# idempotent upsert keyed by the invitation id; it is NOT in WisKey rc.10 (the ask, docs/changes/WISKEY-VISITS-2407.md), so the channel is
+# unpinned and the feature stays off until WisKey lists the command. Never on any channel: `visits/create` / `request` / `decide` /
+# `operators` and `guest_templates/upsert` / `delete` (WisKey's own two-person visit flow; Arx's single identity cannot be its approver).
+VISITS = frozenset({"visits/list", "guest_templates/get"})
+VISITS_PUSH = frozenset({"visits/record_external_v1"})
+
+ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW, "messaging_paced": MESSAGING_PACED, "visits": VISITS, "visits_push": VISITS_PUSH}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage", "diagnostics", "access_review", "messaging_paced", "visits", "visits_push")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+
+# Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
+# `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
+HA_FRAMES: dict[str, frozenset[str]] = {
+    "background": frozenset({"get_config"}),
+    "service": frozenset({"get_config", "subscribe_entities", "unsubscribe_events"}),
+    "read": frozenset(),
+    "technical": frozenset(),
+    "messaging": frozenset(),
+    "readback": frozenset(),
+    "pacing": frozenset(),
+    "maintenance": frozenset(),
+    "door_technical": frozenset(),
+    "station_people": frozenset(),
+    "profiles": frozenset(),
+    "schedules": frozenset(),
+    "installer": frozenset(),
+    "operations": frozenset(),
+    "triage": frozenset(),
+    "diagnostics": frozenset(),
+    "access_review": frozenset(),
+    "messaging_paced": frozenset(),
+    "visits": frozenset(),
+    "visits_push": frozenset(),
+}
+
+
+def allowed(channel: str, msg_type: str) -> bool:
+    """Whether `msg_type` (a full WebSocket `type`) may be sent on `channel`. An unknown channel allows nothing."""
+    if msg_type.startswith(PREFIX):
+        return msg_type[len(PREFIX):] in ALLOWLISTS.get(channel, frozenset())
+    return msg_type in HA_FRAMES.get(channel, frozenset())
+
+
+def guard(call: intercom_client.Call, channel: str) -> intercom_client.Call:
+    """`call` wrapped so that only `channel`'s allow-list can be sent. A refused frame raises IntercomError
+    (`not_allowed_on_channel`) before anything is written to the socket; that is a programming error, logged once per send
+    with the command name only."""
+    if channel not in ALLOWLISTS:
+        raise ValueError(f"unknown WisKey channel {channel!r}")
+
+    async def guarded(msg_type: str, **kw: Any) -> dict[str, Any]:
+        if RESERVED.intersection(kw):  # R4-08: a top-level `type` / `id` would replace the checked type or the generated id on the wire
+            log.error("WisKey %s channel: refused a frame carrying a reserved key (%s)", channel, ",".join(sorted(RESERVED.intersection(kw))))
+            raise IntercomError(RESERVED_KEY, msg_type if isinstance(msg_type, str) else "")
+        if not isinstance(msg_type, str) or not allowed(channel, msg_type):
+            log.error("WisKey %s channel: refused to send %s (not on the channel's allow-list)", channel, msg_type)
+            raise IntercomError(NOT_ALLOWED, msg_type)
+        return await call(msg_type, **kw)
+
+    guarded.channel = channel  # type: ignore[attr-defined]
+    return guarded
+
+
+def describe() -> dict[str, Any]:
+    """The allow-lists as the diagnostics view shows them (sorted command names; `writes` = the service channel's writes)."""
+    return {
+        "background": sorted(BACKGROUND),
+        "service": {"reads": sorted(SERVICE_READS), "writes": sorted(SERVICE_WRITES)},
+        "read": {"commands": sorted(READ), "in_use": True},
+        "technical": {"commands": sorted(TECHNICAL), "in_use": True},
+        "messaging": {"commands": sorted(MESSAGING), "in_use": True},
+        "readback": {"commands": sorted(READBACK), "in_use": True},
+        "pacing": {"commands": sorted(PACING), "in_use": True},
+        "maintenance": {"commands": sorted(MAINTENANCE), "in_use": True},
+        "door_technical": {"commands": sorted(DOOR_TECHNICAL), "in_use": True},
+        "station_people": {"commands": sorted(STATION_PEOPLE), "in_use": True},
+        "profiles": {"commands": sorted(PROFILES), "in_use": True},
+        "schedules": {"commands": sorted(SCHEDULES), "in_use": True},
+        "installer": {"commands": sorted(INSTALLER), "in_use": True},
+        "operations": {"commands": sorted(OPERATIONS), "in_use": True},
+        "triage": {"commands": sorted(TRIAGE), "in_use": True},
+        "diagnostics": {"commands": sorted(DIAGNOSTICS), "in_use": True},
+        "access_review": {"commands": sorted(ACCESS_REVIEW), "in_use": True},
+        "messaging_paced": {"commands": sorted(MESSAGING_PACED), "in_use": True},
+        "visits": {"commands": sorted(VISITS), "in_use": True},
+        "visits_push": {"commands": sorted(VISITS_PUSH), "in_use": True},
+    }

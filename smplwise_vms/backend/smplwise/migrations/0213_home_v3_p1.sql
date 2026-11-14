@@ -1,0 +1,13 @@
+-- HOME-V3-P1-2430 (owner approval of the home interface mockup v3, 2026-11-11; phase 1 = security and intercom).
+--
+-- home_interface_policy.guests: the home administrator marked this person as one who may invite a guest with a temporary door code
+--   from the home interface (owner decision: "only people the home administrator marked"). It is a restriction on top of the role
+--   model, never a grant: the invitation route still needs the visitor switch (`access.visitors`, off by default) and the person's
+--   own `access.visitor.invite` on every chosen station. For a home-only person the server also refuses the visitor routes unless
+--   this flag is on (services/home_interface.enforce). Default 0 = nobody, so the upgrade changes nothing.
+--
+-- The administrator's room wallpaper for everyone (owner decision 16b) needs no table: the choices live in the settings row
+--   `home.room_wallpapers` (JSON {room_key: "g:<gallery>" | "img"}) and a shared picture is a home_room_image row whose user_id is
+--   the reserved value '*' (services/home_v3.SHARED). Additive: the previous version ignores the column, the setting and the row
+--   (rollback = leave them).
+ALTER TABLE home_interface_policy ADD COLUMN guests INTEGER NOT NULL DEFAULT 0;

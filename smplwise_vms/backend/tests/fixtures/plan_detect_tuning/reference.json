@@ -1,0 +1,130 @@
+{
+ "name": "reference",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.02,
+ "walls": [
+  {
+   "a": [
+    300,
+    250
+   ],
+   "b": [
+    1300,
+    250
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1300,
+    250
+   ],
+   "b": [
+    1300,
+    950
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1300,
+    950
+   ],
+   "b": [
+    300,
+    950
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    300,
+    950
+   ],
+   "b": [
+    300,
+    250
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    800,
+    256
+   ],
+   "b": [
+    800,
+    944
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    306,
+    600
+   ],
+   "b": [
+    800,
+    600
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    900,
+    800
+   ],
+   "b": [
+    1150,
+    800
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    1300,
+    700
+   ],
+   "b": [
+    1500,
+    700
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  }
+ ],
+ "doors": [
+  {
+   "centre": [
+    800,
+    420
+   ],
+   "width_px": 45,
+   "wall": 4,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  },
+  {
+   "centre": [
+    560,
+    950
+   ],
+   "width_px": 45,
+   "wall": 2,
+   "hinge": "start",
+   "swing": "right",
+   "double": false
+  }
+ ],
+ "windows": [],
+ "objects": []
+}

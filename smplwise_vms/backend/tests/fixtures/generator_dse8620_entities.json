@@ -1,0 +1,3852 @@
+[
+{
+"entity_id": "sensor.gen_supply_source",
+"name": "Supply Source",
+"domain": "sensor",
+"device_class": "enum",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "mains"
+},
+{
+"entity_id": "sensor.gen_generator_state",
+"name": "Generator State",
+"domain": "sensor",
+"device_class": "enum",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "stopped"
+},
+{
+"entity_id": "sensor.gen_control_mode",
+"name": "Control Mode",
+"domain": "sensor",
+"device_class": "enum",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "auto"
+},
+{
+"entity_id": "sensor.gen_highest_alarm_severity",
+"name": "Highest Alarm Severity",
+"domain": "sensor",
+"device_class": "enum",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "none"
+},
+{
+"entity_id": "sensor.gen_active_alarm_count",
+"name": "Active Alarm Count",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "0"
+},
+{
+"entity_id": "sensor.gen_monitoring_status",
+"name": "Monitoring Status",
+"domain": "sensor",
+"device_class": "enum",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "ok"
+},
+{
+"entity_id": "sensor.gen_last_successful_poll",
+"name": "Last Successful Poll",
+"domain": "sensor",
+"device_class": "timestamp",
+"unit": null,
+"category": "diagnostic",
+"disabled": null,
+"state": "2026-10-05T16:10:37+00:00"
+},
+{
+"entity_id": "sensor.gen_last_poll_duration",
+"name": "Last Poll Duration",
+"domain": "sensor",
+"device_class": null,
+"unit": "ms",
+"category": "diagnostic",
+"disabled": null,
+"state": "17.7"
+},
+{
+"entity_id": "sensor.gen_important_unavailable_count",
+"name": "Important Unavailable Count",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": null,
+"state": "0"
+},
+{
+"entity_id": "sensor.gen_manufacturer_code",
+"name": "Manufacturer Code",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_controller_model_code",
+"name": "Controller Model Code",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_controller_serial_number",
+"name": "Controller Serial Number",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_oil_pressure",
+"name": "Oil Pressure",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_coolant_temperature",
+"name": "Coolant Temperature",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_oil_temperature",
+"name": "Oil Temperature",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_fuel_level",
+"name": "Fuel Level",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_charge_alternator_voltage",
+"name": "Charge Alternator Voltage",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_battery_voltage",
+"name": "Battery Voltage",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "25.8"
+},
+{
+"entity_id": "sensor.gen_engine_speed",
+"name": "Engine Speed",
+"domain": "sensor",
+"device_class": null,
+"unit": "rpm",
+"category": null,
+"disabled": null,
+"state": "0"
+},
+{
+"entity_id": "sensor.gen_generator_frequency",
+"name": "Generator Frequency",
+"domain": "sensor",
+"device_class": "frequency",
+"unit": "Hz",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_voltage_l1_n",
+"name": "Generator Voltage L1-N",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_voltage_l2_n",
+"name": "Generator Voltage L2-N",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_voltage_l3_n",
+"name": "Generator Voltage L3-N",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_voltage_l1_l2",
+"name": "Generator Voltage L1-L2",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_voltage_l2_l3",
+"name": "Generator Voltage L2-L3",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_voltage_l3_l1",
+"name": "Generator Voltage L3-L1",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_current_l1",
+"name": "Generator Current L1",
+"domain": "sensor",
+"device_class": "current",
+"unit": "A",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_current_l2",
+"name": "Generator Current L2",
+"domain": "sensor",
+"device_class": "current",
+"unit": "A",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_current_l3",
+"name": "Generator Current L3",
+"domain": "sensor",
+"device_class": "current",
+"unit": "A",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_earth_current",
+"name": "Generator Earth Current",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_power_l1",
+"name": "Generator Power L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_power_l2",
+"name": "Generator Power L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_power_l3",
+"name": "Generator Power L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_frequency",
+"name": "Mains Frequency",
+"domain": "sensor",
+"device_class": "frequency",
+"unit": "Hz",
+"category": null,
+"disabled": null,
+"state": "50.1"
+},
+{
+"entity_id": "sensor.gen_mains_voltage_l1_n",
+"name": "Mains Voltage L1 N",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "236.5"
+},
+{
+"entity_id": "sensor.gen_mains_voltage_l2_n",
+"name": "Mains Voltage L2 N",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "235.6"
+},
+{
+"entity_id": "sensor.gen_mains_voltage_l3_n",
+"name": "Mains Voltage L3 N",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "236.9"
+},
+{
+"entity_id": "sensor.gen_mains_voltage_l1_l2",
+"name": "Mains Voltage L1-L2",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "408.5"
+},
+{
+"entity_id": "sensor.gen_mains_voltage_l2_l3",
+"name": "Mains Voltage L2-L3",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "410.2"
+},
+{
+"entity_id": "sensor.gen_mains_voltage_l3_l1",
+"name": "Mains Voltage L3-L1",
+"domain": "sensor",
+"device_class": "voltage",
+"unit": "V",
+"category": null,
+"disabled": null,
+"state": "410.9"
+},
+{
+"entity_id": "sensor.gen_generator_phase_rotation",
+"name": "Generator Phase Rotation",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_phase_rotation",
+"name": "Mains Phase Rotation",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_current_l1",
+"name": "Mains Current L1",
+"domain": "sensor",
+"device_class": "current",
+"unit": "A",
+"category": null,
+"disabled": null,
+"state": "35.0"
+},
+{
+"entity_id": "sensor.gen_mains_current_l2",
+"name": "Mains Current L2",
+"domain": "sensor",
+"device_class": "current",
+"unit": "A",
+"category": null,
+"disabled": null,
+"state": "unavailable"
+},
+{
+"entity_id": "sensor.gen_mains_current_l3",
+"name": "Mains Current L3",
+"domain": "sensor",
+"device_class": "current",
+"unit": "A",
+"category": null,
+"disabled": null,
+"state": "unavailable"
+},
+{
+"entity_id": "sensor.gen_mains_earth_current",
+"name": "Mains Earth Current",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_power_l1",
+"name": "Mains Power L1",
+"domain": "sensor",
+"device_class": "power",
+"unit": "kW",
+"category": null,
+"disabled": null,
+"state": "7.36"
+},
+{
+"entity_id": "sensor.gen_mains_power_l2",
+"name": "Mains Power L2",
+"domain": "sensor",
+"device_class": "power",
+"unit": "kW",
+"category": null,
+"disabled": null,
+"state": "unavailable"
+},
+{
+"entity_id": "sensor.gen_mains_power_l3",
+"name": "Mains Power L3",
+"domain": "sensor",
+"device_class": "power",
+"unit": "kW",
+"category": null,
+"disabled": null,
+"state": "unavailable"
+},
+{
+"entity_id": "sensor.gen_load_current_l1",
+"name": "Load Current L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_current_l2",
+"name": "Load Current L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_current_l3",
+"name": "Load Current L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_power_l1",
+"name": "Load Power L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_power_l2",
+"name": "Load Power L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_power_l3",
+"name": "Load Power L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_total_power",
+"name": "Generator Total Power",
+"domain": "sensor",
+"device_class": "power",
+"unit": "kW",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_apparent_power_l1",
+"name": "Generator Apparent Power L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_apparent_power_l2",
+"name": "Generator Apparent Power L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_apparent_power_l3",
+"name": "Generator Apparent Power L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_total_apparent_power",
+"name": "Generator Total Apparent Power",
+"domain": "sensor",
+"device_class": "apparent_power",
+"unit": "kVA",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_reactive_power_l1",
+"name": "Generator Reactive Power L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_reactive_power_l2",
+"name": "Generator Reactive Power L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_reactive_power_l3",
+"name": "Generator Reactive Power L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_total_reactive_power",
+"name": "Generator Total Reactive Power",
+"domain": "sensor",
+"device_class": "reactive_power",
+"unit": "kvar",
+"category": null,
+"disabled": null,
+"state": "0.0"
+},
+{
+"entity_id": "sensor.gen_generator_power_factor_l1",
+"name": "Generator Power Factor L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_power_factor_l2",
+"name": "Generator Power Factor L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_power_factor_l3",
+"name": "Generator Power Factor L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_average_power_factor",
+"name": "Generator Average Power Factor",
+"domain": "sensor",
+"device_class": "power_factor",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "unavailable"
+},
+{
+"entity_id": "sensor.gen_generator_percent_power",
+"name": "Generator Percent Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_percent_reactive_power",
+"name": "Generator Percent Reactive Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_total_power",
+"name": "Mains Total Power",
+"domain": "sensor",
+"device_class": "power",
+"unit": "kW",
+"category": null,
+"disabled": null,
+"state": "22.08"
+},
+{
+"entity_id": "sensor.gen_mains_apparent_power_l1",
+"name": "Mains Apparent Power L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_apparent_power_l2",
+"name": "Mains Apparent Power L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_apparent_power_l3",
+"name": "Mains Apparent Power L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_total_apparent_power",
+"name": "Mains Total Apparent Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_reactive_power_l1",
+"name": "Mains Reactive Power L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_reactive_power_l2",
+"name": "Mains Reactive Power L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_reactive_power_l3",
+"name": "Mains Reactive Power L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_total_reactive_power",
+"name": "Mains Total Reactive Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_power_factor_l1",
+"name": "Mains Power Factor L1",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_power_factor_l2",
+"name": "Mains Power Factor L2",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_power_factor_l3",
+"name": "Mains Power Factor L3",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_average_power_factor",
+"name": "Mains Average Power Factor",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_percent_power",
+"name": "Mains Percent Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_percent_reactive_power",
+"name": "Mains Percent Reactive Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_total_power",
+"name": "Load Total Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_load_total_reactive_power",
+"name": "Load Total Reactive Power",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_rocof",
+"name": "Mains Rocof",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_vector_shift",
+"name": "Mains Vector Shift",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_engine_runtime",
+"name": "Engine Runtime",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_positive_energy",
+"name": "Generator Positive Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_negative_energy",
+"name": "Generator Negative Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_apparent_energy",
+"name": "Generator Apparent Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_generator_reactive_energy",
+"name": "Generator Reactive Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_engine_starts",
+"name": "Engine Starts",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_positive_energy",
+"name": "Mains Positive Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_negative_energy",
+"name": "Mains Negative Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_apparent_energy",
+"name": "Mains Apparent Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_mains_reactive_energy",
+"name": "Mains Reactive Energy",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "sensor.gen_fuel_used",
+"name": "Fuel Used",
+"domain": "sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_mains_healthy",
+"name": "Mains Healthy",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "on"
+},
+{
+"entity_id": "binary_sensor.gen_generator_electrical_output_healthy",
+"name": "Generator Electrical Output Healthy",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_mains_voltage_healthy",
+"name": "Mains Voltage Healthy",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_mains_frequency_healthy",
+"name": "Mains Frequency Healthy",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_generator_voltage_healthy",
+"name": "Generator Voltage Healthy",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_generator_frequency_healthy",
+"name": "Generator Frequency Healthy",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_main_bus_voltage_present_calculated",
+"name": "Main Bus Voltage Present (Calculated)",
+"domain": "binary_sensor",
+"device_class": "power",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "on"
+},
+{
+"entity_id": "binary_sensor.gen_load_on_mains",
+"name": "Load On Mains",
+"domain": "binary_sensor",
+"device_class": "power",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "on"
+},
+{
+"entity_id": "binary_sensor.gen_load_on_generator",
+"name": "Load On Generator",
+"domain": "binary_sensor",
+"device_class": "power",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_sources_parallel",
+"name": "Sources Parallel",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_mains_breaker_closed",
+"name": "Mains Breaker Closed",
+"domain": "binary_sensor",
+"device_class": "power",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "on"
+},
+{
+"entity_id": "binary_sensor.gen_generator_breaker_closed",
+"name": "Generator Breaker Closed",
+"domain": "binary_sensor",
+"device_class": "power",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_running",
+"name": "Generator Running",
+"domain": "binary_sensor",
+"device_class": "running",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_mains_available_indication",
+"name": "Mains Available Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_raw_bus_available_indication",
+"name": "Raw Bus Available Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_mains_fault",
+"name": "Mains Fault",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_fault",
+"name": "Generator Fault",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_transfer_panel_or_controller_fault",
+"name": "Transfer Panel Or Controller Fault",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_any_fault",
+"name": "Any Fault",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_warning_active",
+"name": "Warning Active",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_shutdown_active",
+"name": "Shutdown Active",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_electrical_trip_active",
+"name": "Electrical Trip Active",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_controlled_shutdown_active",
+"name": "Controlled Shutdown Active",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_control_unit_failure",
+"name": "Control Unit Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_control_unit_not_configured",
+"name": "Control Unit Not Configured",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": null,
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_generator_reverse_power_stage_1",
+"name": "Generator Reverse Power Stage 1",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_reverse_power_stage_2",
+"name": "Generator Reverse Power Stage 2",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_over_voltage_stage_1",
+"name": "Generator Over Voltage Stage 1",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_over_voltage_stage_2",
+"name": "Generator Over Voltage Stage 2",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_under_voltage_stage_1",
+"name": "Generator Under Voltage Stage 1",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_under_voltage_stage_2",
+"name": "Generator Under Voltage Stage 2",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_over_frequency_stage_1",
+"name": "Generator Over Frequency Stage 1",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_over_frequency_stage_2",
+"name": "Generator Over Frequency Stage 2",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_under_frequency_stage_1",
+"name": "Generator Under Frequency Stage 1",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_under_frequency_stage_2",
+"name": "Generator Under Frequency Stage 2",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_synchronising_failure_gb",
+"name": "Synchronising Failure GB",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_synchronising_failure_mb",
+"name": "Synchronising Failure MB",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_breaker_open_failure",
+"name": "Generator Breaker Open Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_breaker_close_failure",
+"name": "Generator Breaker Close Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_generator_breaker_position_failure",
+"name": "Generator Breaker Position Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_mains_breaker_open_failure",
+"name": "Mains Breaker Open Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_mains_breaker_close_failure",
+"name": "Mains Breaker Close Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_mains_breaker_position_failure",
+"name": "Mains Breaker Position Failure",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": null,
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_a",
+"name": "Digital Input A",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_b",
+"name": "Digital Input B",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_c",
+"name": "Digital Input C",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_d",
+"name": "Digital Input D",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_e",
+"name": "Digital Input E",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_f",
+"name": "Digital Input F",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_g",
+"name": "Digital Input G",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_h",
+"name": "Digital Input H",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_i",
+"name": "Digital Input I",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_j",
+"name": "Digital Input J",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_k",
+"name": "Digital Input K",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_digital_input_l",
+"name": "Digital Input L",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_fuel_output",
+"name": "Fuel Output",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_crank_output",
+"name": "Crank Output",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_stop_mode_indication",
+"name": "Stop Mode Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_manual_mode_indication",
+"name": "Manual Mode Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_test_mode_indication",
+"name": "Test Mode Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_auto_mode_indication",
+"name": "Auto Mode Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_raw_mains_breaker_indication",
+"name": "Raw Mains Breaker Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_raw_bus_breaker_indication",
+"name": "Raw Bus Breaker Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_c_mains",
+"name": "Output C Mains",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_d_generator",
+"name": "Output D Generator",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_e",
+"name": "Output E",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_f",
+"name": "Output F",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_g",
+"name": "Output G",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_h",
+"name": "Output H",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_i",
+"name": "Output I",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_j",
+"name": "Output J",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_k",
+"name": "Output K",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_l",
+"name": "Output L",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_m",
+"name": "Output M",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_output_n",
+"name": "Output N",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_emergency_stop",
+"name": "Alarm Emergency Stop",
+"domain": "binary_sensor",
+"device_class": "problem",
+"unit": null,
+"category": "diagnostic",
+"disabled": null,
+"state": "off"
+},
+{
+"entity_id": "binary_sensor.gen_alarm_low_oil_pressure",
+"name": "Alarm Low Oil Pressure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_high_coolant_temperature",
+"name": "Alarm High Coolant Temperature",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_low_coolant_temperature",
+"name": "Alarm Low Coolant Temperature",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_under_speed",
+"name": "Alarm Under Speed",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_over_speed",
+"name": "Alarm Over Speed",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_under_frequency",
+"name": "Alarm Generator Under Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_over_frequency",
+"name": "Alarm Generator Over Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_under_voltage",
+"name": "Alarm Generator Under Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_over_voltage",
+"name": "Alarm Generator Over Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_battery_under_voltage",
+"name": "Alarm Battery Under Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_battery_over_voltage",
+"name": "Alarm Battery Over Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_charge_alternator_failure",
+"name": "Alarm Charge Alternator Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fail_to_start",
+"name": "Alarm Fail To Start",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fail_to_stop",
+"name": "Alarm Fail To Stop",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_failed_to_close",
+"name": "Alarm Generator Failed To Close",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_failed_to_close",
+"name": "Alarm Mains Failed To Close",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_oil_pressure_sender_fault",
+"name": "Alarm Oil Pressure Sender Fault",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_loss_of_magnetic_pickup",
+"name": "Alarm Loss Of Magnetic Pickup",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_magnetic_pickup_open_circuit",
+"name": "Alarm Magnetic Pickup Open Circuit",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_high_current",
+"name": "Alarm Generator High Current",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_calibration_lost",
+"name": "Alarm Calibration Lost",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_low_fuel_level",
+"name": "Alarm Low Fuel Level",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_can_ecu_warning",
+"name": "Alarm Can Ecu Warning",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_can_ecu_shutdown",
+"name": "Alarm Can Ecu Shutdown",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_can_ecu_data_failure",
+"name": "Alarm Can Ecu Data Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_low_oil_level_switch",
+"name": "Alarm Low Oil Level Switch",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_high_coolant_temperature_switch",
+"name": "Alarm High Coolant Temperature Switch",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_low_fuel_level_switch",
+"name": "Alarm Low Fuel Level Switch",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_expansion_unit_watchdog",
+"name": "Alarm Expansion Unit Watchdog",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_kw_overload",
+"name": "Alarm Generator Kw Overload",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_negative_phase_sequence",
+"name": "Alarm Negative Phase Sequence",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_earth_fault_trip",
+"name": "Alarm Earth Fault Trip",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_phase_rotation",
+"name": "Alarm Generator Phase Rotation",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_automatic_voltage_sensing_failure",
+"name": "Alarm Automatic Voltage Sensing Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_maintenance_due",
+"name": "Alarm Maintenance Due",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_loading_frequency_not_reached",
+"name": "Alarm Loading Frequency Not Reached",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_loading_voltage_not_reached",
+"name": "Alarm Loading Voltage Not Reached",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fuel_usage_while_running",
+"name": "Alarm Fuel Usage While Running",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fuel_usage_while_stopped",
+"name": "Alarm Fuel Usage While Stopped",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_protections_disabled",
+"name": "Alarm Protections Disabled",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_protections_blocked",
+"name": "Alarm Protections Blocked",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_breaker_failed_to_open",
+"name": "Alarm Generator Breaker Failed To Open",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_breaker_failed_to_open",
+"name": "Alarm Mains Breaker Failed To Open",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_breaker_failed_to_close",
+"name": "Alarm Bus Breaker Failed To Close",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_breaker_failed_to_open",
+"name": "Alarm Bus Breaker Failed To Open",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_reverse_power",
+"name": "Alarm Generator Reverse Power",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_short_circuit",
+"name": "Alarm Short Circuit",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_air_flap_closed",
+"name": "Alarm Air Flap Closed",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_failure_to_synchronise",
+"name": "Alarm Failure To Synchronise",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_live",
+"name": "Alarm Bus Live",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_not_live",
+"name": "Alarm Bus Not Live",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_phase_rotation",
+"name": "Alarm Bus Phase Rotation",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_priority_selection_error",
+"name": "Alarm Priority Selection Error",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_data_error",
+"name": "Alarm Msc Data Error",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_id_error",
+"name": "Alarm Msc Id Error",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_under_voltage",
+"name": "Alarm Bus Under Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_over_voltage",
+"name": "Alarm Bus Over Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_under_frequency",
+"name": "Alarm Bus Under Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_over_frequency",
+"name": "Alarm Bus Over Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_failure",
+"name": "Alarm Msc Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_too_few_sets",
+"name": "Alarm Too Few Sets",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_sets_inhibited",
+"name": "Alarm Sets Inhibited",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_incompatible_module_version",
+"name": "Alarm Incompatible Module Version",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_reverse_power_or_export",
+"name": "Alarm Mains Reverse Power Or Export",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_minimum_sets_not_reached",
+"name": "Alarm Minimum Sets Not Reached",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_insufficient_capacity",
+"name": "Alarm Insufficient Capacity",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_out_of_sync",
+"name": "Alarm Out Of Sync",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_alternative_auxiliary_mains_failure",
+"name": "Alarm Alternative Auxiliary Mains Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_loss_of_excitation",
+"name": "Alarm Loss Of Excitation",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_rocof",
+"name": "Alarm Mains Rocof",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_vector_shift",
+"name": "Alarm Mains Vector Shift",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_under_frequency",
+"name": "Alarm Mains Decoupling Under Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_over_frequency",
+"name": "Alarm Mains Decoupling Over Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_under_voltage",
+"name": "Alarm Mains Decoupling Under Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_over_voltage",
+"name": "Alarm Mains Decoupling Over Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_combined_mains_decoupling",
+"name": "Alarm Combined Mains Decoupling",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_inlet_temperature",
+"name": "Alarm Inlet Temperature",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_phase_rotation",
+"name": "Alarm Mains Phase Rotation",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_avr_trim_limit",
+"name": "Alarm Avr Trim Limit",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_high_coolant_temperature_electrical_trip",
+"name": "Alarm High Coolant Temperature Electrical Trip",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_coolant_temperature_sender_open_circuit",
+"name": "Alarm Coolant Temperature Sender Open Circuit",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_out_of_sync_bus",
+"name": "Alarm Out Of Sync Bus",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_out_of_sync_mains",
+"name": "Alarm Out Of Sync Mains",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_1_live",
+"name": "Alarm Bus 1 Live",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_1_phase_rotation",
+"name": "Alarm Bus 1 Phase Rotation",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_live",
+"name": "Alarm Bus 2 Live",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_phase_rotation",
+"name": "Alarm Bus 2 Phase Rotation",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_089",
+"name": "Alarm Unimplemented 089",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_ecu_protect",
+"name": "Alarm Ecu Protect",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_ecu_malfunction",
+"name": "Alarm Ecu Malfunction",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_ecu_indication",
+"name": "Alarm Ecu Indication",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_093",
+"name": "Alarm Unimplemented 093",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_094",
+"name": "Alarm Unimplemented 094",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_hest_active",
+"name": "Alarm Hest Active",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_dptc_filter",
+"name": "Alarm Dptc Filter",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_water_in_fuel",
+"name": "Alarm Water In Fuel",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_ecu_heater",
+"name": "Alarm Ecu Heater",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_ecu_cooler",
+"name": "Alarm Ecu Cooler",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_100",
+"name": "Alarm Unimplemented 100",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_101",
+"name": "Alarm Unimplemented 101",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_102",
+"name": "Alarm Unimplemented 102",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_103",
+"name": "Alarm Unimplemented 103",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_104",
+"name": "Alarm Unimplemented 104",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_105",
+"name": "Alarm Unimplemented 105",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_106",
+"name": "Alarm Unimplemented 106",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_107",
+"name": "Alarm Unimplemented 107",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_108",
+"name": "Alarm Unimplemented 108",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_high_fuel_level",
+"name": "Alarm High Fuel Level",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unimplemented_110",
+"name": "Alarm Unimplemented 110",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_module_communication_failure_8661",
+"name": "Alarm Module Communication Failure 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_module_warning_8661",
+"name": "Alarm Bus Module Warning 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_module_trip_8661",
+"name": "Alarm Bus Module Trip 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_module_warning_8661",
+"name": "Alarm Mains Module Warning 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_module_trip_8661",
+"name": "Alarm Mains Module Trip 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_load_live_8661",
+"name": "Alarm Load Live 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_load_not_live_8661",
+"name": "Alarm Load Not Live 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_load_phase_rotation_8661",
+"name": "Alarm Load Phase Rotation 8661",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_def_level_low",
+"name": "Alarm Def Level Low",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_scr_inducement",
+"name": "Alarm Scr Inducement",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_heater_sensor_failure",
+"name": "Alarm Heater Sensor Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_over_zero_sequence_voltage",
+"name": "Alarm Mains Over Zero Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_under_positive_sequence_voltage",
+"name": "Alarm Mains Under Positive Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_over_negative_sequence_voltage",
+"name": "Alarm Mains Over Negative Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_asymmetry_high",
+"name": "Alarm Mains Asymmetry High",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_over_zero_sequence_voltage",
+"name": "Alarm Bus Over Zero Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_under_positive_sequence_voltage",
+"name": "Alarm Bus Under Positive Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_over_negative_sequence_voltage",
+"name": "Alarm Bus Over Negative Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_asymmetry_high",
+"name": "Alarm Bus Asymmetry High",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_electrical_trip_stop_inhibited",
+"name": "Alarm Electrical Trip Stop Inhibited",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fuel_tank_bund_level_high",
+"name": "Alarm Fuel Tank Bund Level High",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_1_data_error",
+"name": "Alarm Msc Link 1 Data Error",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_2_data_error",
+"name": "Alarm Msc Link 2 Data Error",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_low_voltage",
+"name": "Alarm Bus 2 Low Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_high_voltage",
+"name": "Alarm Bus 2 High Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_low_frequency",
+"name": "Alarm Bus 2 Low Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_high_frequency",
+"name": "Alarm Bus 2 High Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_1_failure",
+"name": "Alarm Msc Link 1 Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_2_failure",
+"name": "Alarm Msc Link 2 Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_1_too_few_sets",
+"name": "Alarm Msc Link 1 Too Few Sets",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_2_too_few_sets",
+"name": "Alarm Msc Link 2 Too Few Sets",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_link_1_and_2_failure",
+"name": "Alarm Msc Link 1 And 2 Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_electrical_trip_from_8660",
+"name": "Alarm Electrical Trip From 8660",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_avr_can_dm1_red_stop_lamp",
+"name": "Alarm Avr Can Dm1 Red Stop Lamp",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_over_zero_sequence_voltage",
+"name": "Alarm Generator Over Zero Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_under_positive_sequence_voltage",
+"name": "Alarm Generator Under Positive Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_over_negative_sequence_voltage",
+"name": "Alarm Generator Over Negative Sequence Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_generator_asymmetry_high",
+"name": "Alarm Generator Asymmetry High",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_under_frequency_stage_2",
+"name": "Alarm Mains Decoupling Under Frequency Stage 2",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_over_frequency_stage_2",
+"name": "Alarm Mains Decoupling Over Frequency Stage 2",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_under_voltage_stage_2",
+"name": "Alarm Mains Decoupling Under Voltage Stage 2",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_mains_decoupling_over_voltage_stage_2",
+"name": "Alarm Mains Decoupling Over Voltage Stage 2",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fault_ride_through_event",
+"name": "Alarm Fault Ride Through Event",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_avr_data_failure",
+"name": "Alarm Avr Data Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_avr_red_lamp",
+"name": "Alarm Avr Red Lamp",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_units_on_bus",
+"name": "Alarm Msc Units On Bus",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_units_on_bus_group_controller_primary",
+"name": "Alarm Msc Units On Bus Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_msc_units_on_bus_group_controller_secondary",
+"name": "Alarm Msc Units On Bus Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_failure",
+"name": "Alarm Amsc Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_failure_group_controller_primary",
+"name": "Alarm Amsc Failure Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_failure_group_controller_secondary",
+"name": "Alarm Amsc Failure Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_data_error_port_1",
+"name": "Alarm Amsc Data Error Port 1",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_data_error_port_2",
+"name": "Alarm Amsc Data Error Port 2",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_data_error_port_1_group_controller_primary",
+"name": "Alarm Amsc Data Error Port 1 Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_data_error_port_2_group_controller_primary",
+"name": "Alarm Amsc Data Error Port 2 Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_data_error_port_1_group_controller_secondary",
+"name": "Alarm Amsc Data Error Port 1 Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_data_error_port_2_group_controller_secondary",
+"name": "Alarm Amsc Data Error Port 2 Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_too_few_sets",
+"name": "Alarm Amsc Too Few Sets",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_too_few_sets_group_controller_primary",
+"name": "Alarm Amsc Too Few Sets Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_too_few_sets_group_controller_secondary",
+"name": "Alarm Amsc Too Few Sets Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_alarms_inhibited",
+"name": "Alarm Amsc Alarms Inhibited",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_alarms_inhibited_group_controller_primary",
+"name": "Alarm Amsc Alarms Inhibited Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_alarms_inhibited_group_controller_secondary",
+"name": "Alarm Amsc Alarms Inhibited Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_id_error",
+"name": "Alarm Amsc Id Error",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_id_error_group_controller_primary",
+"name": "Alarm Amsc Id Error Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_amsc_id_error_group_controller_secondary",
+"name": "Alarm Amsc Id Error Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_sensing_failure",
+"name": "Alarm Bus Sensing Failure",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_sensing_failure_group_controller_primary",
+"name": "Alarm Bus Sensing Failure Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_sensing_failure_group_controller_secondary",
+"name": "Alarm Bus Sensing Failure Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_spinning_reserve_not_reached",
+"name": "Alarm Spinning Reserve Not Reached",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_spinning_reserve_not_reached_group_controller_primary",
+"name": "Alarm Spinning Reserve Not Reached Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_spinning_reserve_not_reached_group_controller_secondary",
+"name": "Alarm Spinning Reserve Not Reached Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_spinning_capacity_not_reached",
+"name": "Alarm Spinning Capacity Not Reached",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_spinning_capacity_not_reached_group_controller_primary",
+"name": "Alarm Spinning Capacity Not Reached Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_spinning_capacity_not_reached_group_controller_secondary",
+"name": "Alarm Spinning Capacity Not Reached Group Controller Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_live_group_controller_primary",
+"name": "Alarm Bus Live Group Controller Primary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_fuel_sender_fault",
+"name": "Alarm Fuel Sender Fault",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_low_voltage_secondary",
+"name": "Alarm Bus 2 Low Voltage Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_high_voltage_secondary",
+"name": "Alarm Bus 2 High Voltage Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_low_frequency_secondary",
+"name": "Alarm Bus 2 Low Frequency Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_2_high_frequency_secondary",
+"name": "Alarm Bus 2 High Frequency Secondary",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_over_current",
+"name": "Alarm Bus Over Current",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_left_to_right_power_warning",
+"name": "Alarm Bus Left To Right Power Warning",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_left_to_right_power_alarm",
+"name": "Alarm Bus Left To Right Power Alarm",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_right_to_left_power_warning",
+"name": "Alarm Bus Right To Left Power Warning",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_bus_right_to_left_power_alarm",
+"name": "Alarm Bus Right To Left Power Alarm",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_overspeed_runaway",
+"name": "Alarm Overspeed Runaway",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_over_frequency_runaway",
+"name": "Alarm Over Frequency Runaway",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_left_bus_available_voltage",
+"name": "Alarm Left Bus Available Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_left_bus_available_frequency",
+"name": "Alarm Left Bus Available Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_right_bus_available_voltage",
+"name": "Alarm Right Bus Available Voltage",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_right_bus_available_frequency",
+"name": "Alarm Right Bus Available Frequency",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_left_bus_dead",
+"name": "Alarm Left Bus Dead",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_right_bus_dead",
+"name": "Alarm Right Bus Dead",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_minimum_capacity_not_reached",
+"name": "Alarm Minimum Capacity Not Reached",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_master_amsc_token_not_obtained",
+"name": "Alarm Master Amsc Token Not Obtained",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_unable_to_join_segments",
+"name": "Alarm Unable To Join Segments",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_reserved_208",
+"name": "Alarm Reserved 208",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_reserved_209",
+"name": "Alarm Reserved 209",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+},
+{
+"entity_id": "binary_sensor.gen_alarm_reserved_210",
+"name": "Alarm Reserved 210",
+"domain": "binary_sensor",
+"device_class": null,
+"unit": null,
+"category": "diagnostic",
+"disabled": "integration",
+"state": null
+}
+]

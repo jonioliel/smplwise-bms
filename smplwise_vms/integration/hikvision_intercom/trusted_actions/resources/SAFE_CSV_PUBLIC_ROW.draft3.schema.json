@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:seven:safe_csv_public_row-draft3",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "person_id": {
+      "type": "string",
+      "format": "uuid",
+      "x-source": "canonical ManagedUser.id, stability scoped to persisted record"
+    },
+    "profile_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "x-proposed-source-alias": "user.revision, broader than four fields; not hash",
+      "x-source-alias": "user.revision arithmetic creation/update and exact positive stored int validation; no profile-body digest"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[^\\u0000-\\u001f]*$",
+      "x-predicate": "source length<=32 before strip; output must already be NFC. Non-NFC refuses invalid_field(display_name); never normalize silently."
+    },
+    "valid_from": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "valid_until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "group_ids": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 48,
+        "pattern": "^[a-z][a-z0-9_]{0,47}(?![\\s\\S])",
+        "x-source": "identifier fullmatch; exact unchanged IDs; unknown membership data not grant"
+      },
+      "x-source": "list<=64, unique, source sorted; no trim or expanded grammar"
+    }
+  },
+  "required": [
+    "person_id",
+    "profile_revision",
+    "display_name",
+    "valid_from",
+    "valid_until",
+    "group_ids"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "valid_from": {
+              "type": "null"
+            },
+            "valid_until": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "valid_from": {
+              "type": "string"
+            },
+            "valid_until": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "x-predicates": "bothnull or two aware decoded UTC instants; strict until>from and source1970..2037; calendar/order/precision/NFC checked by future predicates, not schema alone",
+  "x-legacy": "new document only; classic CSV/old schemas unchanged"
+}

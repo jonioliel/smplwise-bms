@@ -1,0 +1,526 @@
+"""The home screen's widget configuration (home redesign, owner decisions 2026-09-30): pure functions, no database.
+
+One installation config (setting `home.widgets`, a JSON object read back as an object) plus an optional PERSONAL override
+of the users who hold `screen.personalize` (/me/prefs `home.personal`). The screen has three directions - a: control
+centre (a wide band above everything), b: side panel, c: compact single row - and six widgets: the clock, the weather,
+Shabbat (the Jewish calendar), the alarm status card (read-only), the quick actions and the screens (`media`, CR-015: how many
+screens are on and a chip per screen that opens its remote; it has no entity to choose, only the common settings). Everything about a widget is
+editable: on / off, its size (s / m / l - per direction, because the three layouts pack differently), its heading, the
+order, and which entity feeds each field (the weather entity and the fields of it to show, one sensor per Jewish-calendar
+field). Nothing here is a permission: the actions, the alarm and the entities are still authorised by the server on their
+own routes; this only shapes what is drawn.
+
+On a phone the widgets have a presentation of their own: `phone_layout` (a horizontal snap row, one card under the other -
+the default - or two per row) and, per widget, `phone_on` (null = the same as `on`) and `phone_size` (null = the desktop size of the
+direction, at most medium), edited next to the desktop ones and independent of them.
+
+Canonical config (what `normalise` returns and the setting stores; every key is optional on input and filled with the
+default, an unknown key is refused - this is never free-form client storage):
+
+    {"order": ["clock", "weather", "shabbat", "alarm", "quick", "media"], "phone_layout": "snap|stack|two",
+     "clock":    {"on", "sizes": {"a", "b", "c"}, "label", "mode": "time|datetime", "seconds", "hebrew"},
+     "weather":  {"on", "sizes", "label", "entity", "fields": [...], "forecast": "3|5|max", "sources": {field: sensor}},
+     "shabbat":  {"on", "sizes", "label"},
+     "alarm":    {"on", "sizes", "label", "entity"},
+     "quick":    {"on", "sizes", "label", "actions": ["lights_off", "all_off"]},
+     "media":    {"on", "sizes", "label", "phone_on", "phone_size"},
+     "agenda":   {"on", "sizes", "label", "calendars": ["calendar.x", ...], "days": 1|3|7|14},          (BV1, 2026-10-05)
+     "launcher": {"on", "sizes", "label", "items": [{"kind": "route|scene|script|quick", "id", "label"}]},  (BV1)
+     "generators": {"on", "sizes", "label", "phone_on", "phone_size"},                                   (GENWIDGET 2.9.3)
+     "doors":    {"on", "sizes", "label", "phone_on", "phone_size"},                                   (DOORWIN2-295)
+     "notices":  {"on", "sizes", "label", "phone_on", "phone_size"},                                   (NOTICEPAGE-295)
+     "presence": {"on", "sizes", "label", "phone_on", "phone_size"},                                   (PRESENCE-2280)
+     "xsection": {"on", "sizes", "label", "phone_on", "phone_size"},                    (XS-MINI-WIDGET-2351, OFF by default)
+     "calendar": {"date", "parsha", "candles", "havdalah", "holiday", "extras": [{"entity_id", "label"}]}}
+
+BV1 also gives the clock and the weather a `style` ("card" | "tile"): the Bubble skin draws the tile, the other skins keep the card.
+"""
+from __future__ import annotations
+
+import copy
+import json
+import re
+from typing import Any, Callable
+
+DIRECTIONS = ("a", "b", "c")
+DEFAULT_DIRECTION = "a"  # owner decision 2026-09-30: the control centre
+SIDES = ("start", "end")
+DEFAULT_SIDE = "end"
+# `media` (CR-015) is appended: a stored order without it keeps its look, the widget lands last like every widget a release adds.
+# BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way.
+# CR-INFRA-ELEVATORS 2.8.0: `elevators` is appended the same way (it is drawn only once the viewer sees at least one elevator).
+# CR-INFRA-TEMPERATURE phase 3 (idea 12): `temperature` is appended the same way (drawn only once the viewer sees a unit, and while the
+# installation setting `home_widget` is on); it has the elevators' shape (mode / hidden / filter).
+# GENWIDGET 2.9.3: `generators` is appended the same way (drawn only once the viewer sees at least one generator; no options of its own).
+WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence", "xsection")  # XS-MINI-WIDGET-2351: `xsection` (the mini building cross-section) appended last, OFF by default; DOORWIN2-295: `doors` (drawn only while the doors tab is on and a door is visible); NOTICEPAGE-295: `notices` appended last (drawn only while the notice board module is on and the viewer may read)
+# the widgets of an infrastructure list: HOW (one combined card / a card per item / both), WHICH items are left out, all states or alerts only
+LIST_WIDGETS = ("elevators", "temperature")
+SIZES = ("s", "m", "l")
+PHONE_LAYOUTS = ("snap", "stack", "two")  # a horizontal snap row | one card under the other | two per row (wrapping)
+DEFAULT_PHONE_LAYOUT = "stack"
+LEGACY_SIZES = {"chip": "s", "medium": "m", "large": "l"}  # the 0.1.146 sizes (home.clock_size ...)
+# what each direction packs well: the hero band of a takes the big cards, the side column of b the small ones (the mockup)
+DEFAULT_SIZES: dict[str, dict[str, str]] = {
+    "clock": {"a": "l", "b": "m", "c": "m"},
+    "weather": {"a": "l", "b": "m", "c": "m"},
+    "shabbat": {"a": "m", "b": "m", "c": "m"},
+    "alarm": {"a": "m", "b": "s", "c": "m"},
+    "quick": {"a": "m", "b": "s", "c": "m"},
+    "media": {"a": "m", "b": "s", "c": "m"},
+    "agenda": {"a": "m", "b": "m", "c": "m"},
+    "launcher": {"a": "m", "b": "s", "c": "m"},
+    "elevators": {"a": "m", "b": "s", "c": "m"},
+    "temperature": {"a": "m", "b": "s", "c": "m"},
+    "generators": {"a": "m", "b": "s", "c": "m"},
+    "doors": {"a": "m", "b": "s", "c": "m"},
+    "notices": {"a": "m", "b": "s", "c": "m"},
+    "presence": {"a": "m", "b": "s", "c": "m"},
+    "xsection": {"a": "m", "b": "s", "c": "m"},
+}
+# XS-MINI-WIDGET-2351: the widgets a fresh installation (and a stored config without the key) has switched off
+OFF_BY_DEFAULT = frozenset({"xsection"})
+# CR-INFRA-ELEVATORS 2.8.0 (owner decision 10b + owner feedback 2026-10-18): how the elevators appear on the home screen -
+# one card per elevator, ONE combined card for all of them, or both; which elevators are left out; all states or only the alerting ones.
+ELEVATOR_MODES = ("combined", "cards", "both")
+ELEVATOR_FILTERS = ("all", "alerts")
+ELEVATOR_HIDDEN_MAX = 50
+_ELEVATOR_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+CLOCK_MODES = ("time", "datetime")
+# BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card)
+TILE_STYLES = ("card", "tile")
+AGENDA_DAYS = (1, 3, 7, 14)
+AGENDA_CALENDARS_MAX = 6
+LAUNCHER_ITEMS_MAX = 12
+LAUNCH_KINDS = ("route", "scene", "script", "quick")
+# the product's own screens a launcher button may open (the frontend table api/launcher.ts carries the route and the permission of each)
+LAUNCH_ROUTES = ("live", "events", "map", "alarm", "screens", "players", "schedules", "automations", "wiskey", "energy", "settings", "home")
+WEATHER_FIELDS = ("condition", "temperature", "apparent", "humidity", "wind", "pressure", "visibility", "uv", "precipitation", "forecast")
+# the numeric fields a sensor may feed instead of the weather entity's own attribute
+WEATHER_SOURCE_FIELDS = ("temperature", "apparent", "humidity", "wind", "pressure", "visibility", "uv", "precipitation")
+DEFAULT_WEATHER_FIELDS = ["temperature", "condition", "humidity", "wind", "forecast"]
+FORECAST_LENS = ("3", "5", "max")
+QUICK_ACTIONS = ("lights_off", "all_off")
+CALENDAR_FIELDS = ("date", "parsha", "candles", "havdalah", "holiday")
+LABEL_MAX = 30
+EXTRAS_MAX = 4
+CONFIG_MAX_JSON = 8000
+
+_WEATHER = re.compile(r"^weather\.[a-z0-9_]{1,100}$")
+_SENSOR = re.compile(r"^sensor\.[a-z0-9_]{1,100}$")
+_EXTRA = re.compile(r"^(sensor|binary_sensor)\.[a-z0-9_]{1,100}$")
+_ALARM = re.compile(r"^alarm_control_panel\.[a-z0-9_]{1,100}$")
+_CALENDAR = re.compile(r"^calendar\.[a-z0-9_]{1,100}$")
+_SCENE = re.compile(r"^scene\.[a-z0-9_]{1,100}$")
+_SCRIPT = re.compile(r"^script\.[a-z0-9_]{1,100}$")
+
+
+def _default_widget(wid: str) -> dict[str, Any]:
+    base: dict[str, Any] = {"on": wid not in OFF_BY_DEFAULT, "sizes": dict(DEFAULT_SIZES[wid]), "label": "", "phone_on": None, "phone_size": None}
+    if wid == "clock":
+        base.update({"mode": "datetime", "seconds": False, "hebrew": True, "style": "card"})
+    elif wid == "weather":
+        base.update({"entity": "", "fields": list(DEFAULT_WEATHER_FIELDS), "forecast": "5", "sources": {}, "style": "card"})
+    elif wid == "alarm":
+        base.update({"entity": ""})
+    elif wid == "quick":
+        base.update({"actions": list(QUICK_ACTIONS)})
+    elif wid == "agenda":
+        base.update({"calendars": [], "days": 7})
+    elif wid == "launcher":
+        base.update({"items": []})
+    elif wid in LIST_WIDGETS:
+        base.update({"mode": "combined", "hidden": [], "filter": "all"})
+    return base
+
+
+def default_config() -> dict[str, Any]:
+    """The built-in configuration (no entities: `home_screen.default_config` adds the suggestions the catalogue offers)."""
+    cfg: dict[str, Any] = {"order": list(WIDGET_IDS), "phone_layout": DEFAULT_PHONE_LAYOUT}
+    for wid in WIDGET_IDS:
+        cfg[wid] = _default_widget(wid)
+    cfg["calendar"] = {**{f: "" for f in CALENDAR_FIELDS}, "extras": []}
+    return cfg
+
+
+# ------------------------------------------------------------------------------------------------ validation helpers
+
+
+def _obj(value: Any, name: str, allowed: set[str]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be an object")
+    extra = set(value) - allowed
+    if extra:
+        raise ValueError(f"{name}: unknown key {sorted(extra)[0]}")
+    return value
+
+
+def _bool(value: Any, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be true or false")
+    return value
+
+
+def _choice(value: Any, allowed: tuple[str, ...], name: str) -> str:
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"{name} must be one of {', '.join(allowed)}")
+    return value
+
+
+def _label(value: Any, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be text")
+    text = value.strip()
+    if len(text) > LABEL_MAX or any(ord(c) < 32 or ord(c) == 127 for c in text):
+        raise ValueError(f"{name} must be plain text of at most {LABEL_MAX} characters")
+    return text
+
+
+def _entity(value: Any, pattern: re.Pattern[str], name: str) -> str:
+    if not isinstance(value, str) or (value and not pattern.match(value)):
+        raise ValueError(f"{name} is not a valid entity id")
+    return value
+
+
+def _sizes(value: Any, wid: str) -> dict[str, str]:
+    given = _obj(value, f"{wid}.sizes", set(DIRECTIONS))
+    out = dict(DEFAULT_SIZES[wid])
+    for d, s in given.items():
+        out[d] = _choice(s, SIZES, f"{wid}.sizes.{d}")
+    return out
+
+
+def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str]:
+    if not isinstance(value, list) or len(value) > len(allowed):
+        raise ValueError(f"{name} must be a list")
+    out: list[str] = []
+    for item in value:
+        _choice(item, allowed, name)
+        if item not in out:
+            out.append(item)
+    return out
+
+
+def _widget(wid: str, value: Any) -> dict[str, Any]:
+    common = {"on", "sizes", "label", "phone_on", "phone_size"}
+    extra = {"clock": {"mode", "seconds", "hebrew", "style"}, "weather": {"entity", "fields", "forecast", "sources", "style"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set(),
+             "agenda": {"calendars", "days"}, "launcher": {"items"}, "elevators": {"mode", "hidden", "filter"}, "temperature": {"mode", "hidden", "filter"}, "generators": set(), "doors": set(), "notices": set(), "presence": set(), "xsection": set()}[wid]
+    given = _obj(value, wid, common | extra)
+    out = _default_widget(wid)
+    if "on" in given:
+        out["on"] = _bool(given["on"], f"{wid}.on")
+    if "sizes" in given:
+        out["sizes"] = _sizes(given["sizes"], wid)
+    if "label" in given:
+        out["label"] = _label(given["label"], f"{wid}.label")
+    # the phone presentation: null = follow the desktop (old configs have neither key)
+    if given.get("phone_on") is not None:
+        out["phone_on"] = _bool(given["phone_on"], f"{wid}.phone_on")
+    if given.get("phone_size") is not None:
+        out["phone_size"] = _choice(given["phone_size"], SIZES, f"{wid}.phone_size")
+    if wid == "clock":
+        if "mode" in given:
+            out["mode"] = _choice(given["mode"], CLOCK_MODES, "clock.mode")
+        for k in ("seconds", "hebrew"):
+            if k in given:
+                out[k] = _bool(given[k], f"clock.{k}")
+        if "style" in given:
+            out["style"] = _choice(given["style"], TILE_STYLES, "clock.style")
+    elif wid == "weather":
+        if "entity" in given:
+            out["entity"] = _entity(given["entity"], _WEATHER, "weather.entity")
+        if "fields" in given:
+            out["fields"] = _ordered_subset(given["fields"], WEATHER_FIELDS, "weather.fields")
+        if "forecast" in given:
+            out["forecast"] = _choice(given["forecast"], FORECAST_LENS, "weather.forecast")
+        if "sources" in given:
+            src = _obj(given["sources"], "weather.sources", set(WEATHER_SOURCE_FIELDS))
+            out["sources"] = {k: _entity(v, _SENSOR, f"weather.sources.{k}") for k, v in src.items() if v}
+        if "style" in given:
+            out["style"] = _choice(given["style"], TILE_STYLES, "weather.style")
+    elif wid == "alarm":
+        if "entity" in given:
+            out["entity"] = _entity(given["entity"], _ALARM, "alarm.entity")
+    elif wid == "quick":
+        if "actions" in given:
+            out["actions"] = _ordered_subset(given["actions"], QUICK_ACTIONS, "quick.actions")
+    elif wid == "agenda":
+        if "calendars" in given:
+            out["calendars"] = _entity_list(given["calendars"], _CALENDAR, AGENDA_CALENDARS_MAX, "agenda.calendars")
+        if "days" in given:
+            d = given["days"]
+            if isinstance(d, bool) or not isinstance(d, int) or d not in AGENDA_DAYS:
+                raise ValueError(f"agenda.days must be one of {', '.join(str(x) for x in AGENDA_DAYS)}")
+            out["days"] = d
+    elif wid == "launcher":
+        if "items" in given:
+            out["items"] = _launch_items(given["items"])
+    elif wid in LIST_WIDGETS:
+        if "mode" in given:
+            out["mode"] = _choice(given["mode"], ELEVATOR_MODES, f"{wid}.mode")
+        if "filter" in given:
+            out["filter"] = _choice(given["filter"], ELEVATOR_FILTERS, f"{wid}.filter")
+        if "hidden" in given:
+            out["hidden"] = elevator_ids(given["hidden"], f"{wid}.hidden")
+    return out
+
+
+def elevator_ids(value: Any, name: str) -> list[str]:
+    """The elevators left out of the home screen: distinct elevator ids (an id that no longer exists is harmless - it matches nothing)."""
+    if not isinstance(value, list) or len(value) > ELEVATOR_HIDDEN_MAX:
+        raise ValueError(f"{name} must be a list of at most {ELEVATOR_HIDDEN_MAX}")
+    out: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not _ELEVATOR_ID.match(item):
+            raise ValueError(f"{name} holds an invalid elevator id")
+        if item not in out:
+            out.append(item)
+    return out
+
+
+def _entity_list(value: Any, pattern: re.Pattern[str], limit: int, name: str) -> list[str]:
+    """A list of distinct entity ids of one domain, at most `limit` of them."""
+    if not isinstance(value, list) or len(value) > limit:
+        raise ValueError(f"{name} must be a list of at most {limit}")
+    out: list[str] = []
+    for item in value:
+        eid = _entity(item, pattern, name)
+        if not eid:
+            raise ValueError(f"{name} holds an empty entity id")
+        if eid not in out:
+            out.append(eid)
+    return out
+
+
+def _launch_items(value: Any) -> list[dict[str, Any]]:
+    """The launcher's items: `{"kind": route|scene|script|quick, "id": <route id | entity id | quick action>, "label": <own label or "">}`,
+    distinct by (kind, id), at most LAUNCHER_ITEMS_MAX. The permission each needs is the server's business on the item's own route;
+    the configuration only says what is drawn."""
+    if not isinstance(value, list) or len(value) > LAUNCHER_ITEMS_MAX:
+        raise ValueError(f"launcher.items must be a list of at most {LAUNCHER_ITEMS_MAX}")
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in value:
+        e = _obj(item, "launcher.items item", {"kind", "id", "label"})
+        kind = _choice(e.get("kind"), LAUNCH_KINDS, "launcher.items.kind")
+        raw_id = e.get("id")
+        if kind == "route":
+            iid = _choice(raw_id, LAUNCH_ROUTES, "launcher.items.id (route)")
+        elif kind == "quick":
+            iid = _choice(raw_id, QUICK_ACTIONS, "launcher.items.id (quick)")
+        else:
+            iid = _entity(raw_id, _SCENE if kind == "scene" else _SCRIPT, f"launcher.items.id ({kind})")
+            if not iid:
+                raise ValueError(f"launcher.items.id ({kind}) is empty")
+        if (kind, iid) in seen:
+            raise ValueError("launcher.items needs distinct items")
+        seen.add((kind, iid))
+        out.append({"kind": kind, "id": iid, "label": _label(e.get("label", ""), "launcher.items.label")})
+    return out
+
+
+def _calendar(value: Any) -> dict[str, Any]:
+    given = _obj(value, "calendar", set(CALENDAR_FIELDS) | {"extras"})
+    out = {**{f: "" for f in CALENDAR_FIELDS}, "extras": []}
+    for f in CALENDAR_FIELDS:
+        if f in given:
+            out[f] = _entity(given[f], _SENSOR, f"calendar.{f}")
+    if "extras" in given:
+        extras = given["extras"]
+        if not isinstance(extras, list) or len(extras) > EXTRAS_MAX:
+            raise ValueError(f"calendar.extras must be a list of at most {EXTRAS_MAX}")
+        seen: set[str] = set()
+        for item in extras:
+            e = _obj(item, "calendar.extras item", {"entity_id", "label"})
+            eid = _entity(e.get("entity_id", ""), _EXTRA, "calendar.extras.entity_id")
+            if not eid or eid in seen:
+                raise ValueError("calendar.extras needs distinct entities")
+            seen.add(eid)
+            out["extras"].append({"entity_id": eid, "label": _label(e.get("label", ""), "calendar.extras.label")})
+    return out
+
+
+def normalise(value: Any) -> dict[str, Any]:
+    """A config coming from a client or from storage in its canonical form, or ValueError. Missing parts take the default."""
+    given = _obj(value, "home.widgets", {"order", "calendar", "phone_layout", *WIDGET_IDS})
+    cfg = default_config()
+    if "order" in given:
+        raw = given["order"]
+        if not isinstance(raw, list) or len(raw) > len(WIDGET_IDS):
+            raise ValueError("order must be a list of widget ids")
+        seen: list[str] = []
+        for item in raw:
+            if not isinstance(item, str) or item not in WIDGET_IDS:
+                raise ValueError("order holds an unknown widget id")
+            if item not in seen:
+                seen.append(item)
+        cfg["order"] = seen + [w for w in WIDGET_IDS if w not in seen]
+    if "phone_layout" in given:
+        cfg["phone_layout"] = _choice(given["phone_layout"], PHONE_LAYOUTS, "phone_layout")
+    for wid in WIDGET_IDS:
+        if wid in given:
+            cfg[wid] = _widget(wid, given[wid])
+    if "calendar" in given:
+        cfg["calendar"] = _calendar(given["calendar"])
+    if len(json.dumps(cfg, ensure_ascii=False)) > CONFIG_MAX_JSON:
+        raise ValueError("home.widgets is too large")
+    return cfg
+
+
+def parse_stored(raw: str | None) -> dict[str, Any] | None:
+    """The stored setting: a canonical config, or None for 'not set' / anything unreadable (an old or hand-edited value
+    reads as the default, never as an error for the screen)."""
+    if not raw or not raw.strip():
+        return None
+    try:
+        return normalise(json.loads(raw))
+    except (ValueError, TypeError):
+        return None
+
+
+# ------------------------------------------------------------------------------------------------ defaults from the catalogue
+
+# The Jewish Calendar integration's entity ids (platform `jewish_calendar`): the first rule that matches wins for a field.
+_CALENDAR_RULES: dict[str, tuple[str, ...]] = {
+    "date": (r"_date$", r"hebrew_date"),
+    "parsha": (r"weekly_portion", r"parsha", r"parshat"),
+    "candles": (r"upcoming_shabbat_candle_lighting", r"upcoming_candle_lighting", r"candle_lighting", r"candle"),
+    "havdalah": (r"upcoming_shabbat_havdalah", r"upcoming_havdalah", r"havdalah"),
+    "holiday": (r"_holiday$", r"holiday"),
+}
+
+
+def suggest_calendar(sensor_ids: list[str]) -> dict[str, str]:
+    """A sensible sensor per Jewish-calendar field from the ids of the Jewish Calendar integration's sensors ('' = none
+    found). Deterministic: the ids are looked at in sorted order."""
+    ids = sorted(sensor_ids)
+    out: dict[str, str] = {}
+    for field, rules in _CALENDAR_RULES.items():
+        pick = ""
+        for rule in rules:
+            pick = next((i for i in ids if re.search(rule, i) and i not in out.values()), "")
+            if pick:
+                break
+        out[field] = pick
+    return out
+
+
+def with_suggestions(cfg: dict[str, Any], weather_ids: list[str], calendar_sensor_ids: list[str]) -> dict[str, Any]:
+    """`cfg` with the catalogue's suggestions filled in where nothing is chosen (weather entity, calendar sensors)."""
+    out = copy.deepcopy(cfg)
+    if not out["weather"]["entity"] and weather_ids:
+        out["weather"]["entity"] = sorted(weather_ids)[0]
+    sug = suggest_calendar(calendar_sensor_ids)
+    for f in CALENDAR_FIELDS:
+        if not out["calendar"][f]:
+            out["calendar"][f] = sug.get(f, "")
+    return out
+
+
+def from_legacy(get: Callable[[str, str], str]) -> dict[str, Any] | None:
+    """The 0.1.146 `home.clock` / `home.weather` / `home.jewish` keys as a config, or None when none of them was ever
+    switched on (then the built-in default with suggestions applies). `get(key, default)` reads a setting."""
+    clock = get("home.clock", "off")
+    weather_on = get("home.weather", "false") == "true"
+    jewish_on = get("home.jewish", "false") == "true"
+    if clock == "off" and not weather_on and not jewish_on:
+        return None
+
+    def size(key: str) -> dict[str, str]:
+        s = LEGACY_SIZES.get(get(key, "medium"), "m")
+        return {d: s for d in DIRECTIONS}
+
+    cfg = default_config()
+    cfg["clock"].update({"on": clock in CLOCK_MODES, "mode": clock if clock in CLOCK_MODES else "datetime", "seconds": get("home.clock_seconds", "false") == "true", "sizes": size("home.clock_size")})
+    cfg["weather"].update({"on": weather_on, "entity": get("home.weather_entity", ""), "sizes": size("home.weather_size")})
+    cfg["shabbat"].update({"on": jewish_on, "sizes": size("home.jewish_size")})
+    cfg["calendar"].update({"parsha": get("home.jewish_parsha", ""), "candles": get("home.jewish_candles", ""), "havdalah": get("home.jewish_havdalah", ""), "date": get("home.jewish_date", "")})
+    try:
+        return normalise(cfg)
+    except ValueError:  # a hand-edited legacy value: start from the default instead
+        return None
+
+
+# ------------------------------------------------------------------------------------------------ the personal override
+
+PERSONAL_WIDGET_KEYS = {"on", "size"}
+# CR-INFRA-ELEVATORS 2.8.0 (owner feedback 2026-10-18): a user may also choose for himself HOW the elevators appear and WHICH are left out
+PERSONAL_ELEVATOR_KEYS = {"mode", "hidden"}
+
+
+def normalise_personal(value: Any) -> dict[str, Any]:
+    """`home.personal` of /me/prefs: {"direction": a|b|c|null, "order": [ids]|null, "widgets": {id: {"on": bool|null,
+    "size": s|m|l|null}}}. Canonical form: entries that say nothing are dropped; ValueError for anything else."""
+    given = _obj(value, "home.personal", {"direction", "order", "widgets", "phone_layout", "screen"})
+    out: dict[str, Any] = {"direction": None, "order": None, "widgets": {}, "phone_layout": None}
+    if given.get("screen") is not None:
+        # HOME-295: the user's own summary tiles (honoured while home.screen.summary_chooser = user) and how an area opens on his phone
+        from . import home_screen_options
+
+        screen = home_screen_options.normalize_personal(given["screen"])
+        if screen:
+            out["screen"] = screen
+    if given.get("phone_layout") is not None:
+        out["phone_layout"] = _choice(given["phone_layout"], PHONE_LAYOUTS, "home.personal.phone_layout")
+    if given.get("direction") is not None:
+        out["direction"] = _choice(given["direction"], DIRECTIONS, "home.personal.direction")
+    if given.get("order") is not None:
+        raw = given["order"]
+        if not isinstance(raw, list) or len(raw) > len(WIDGET_IDS):
+            raise ValueError("home.personal.order must be a list of widget ids")
+        seen: list[str] = []
+        for item in raw:
+            _choice(item, WIDGET_IDS, "home.personal.order")
+            if item not in seen:
+                seen.append(item)
+        out["order"] = seen + [w for w in WIDGET_IDS if w not in seen]
+    if given.get("widgets") is not None:
+        widgets = _obj(given["widgets"], "home.personal.widgets", set(WIDGET_IDS))
+        for wid, w in widgets.items():
+            e = _obj(w, f"home.personal.widgets.{wid}", PERSONAL_WIDGET_KEYS | (PERSONAL_ELEVATOR_KEYS if wid in LIST_WIDGETS else set()))
+            entry: dict[str, Any] = {}
+            if e.get("mode") is not None:
+                entry["mode"] = _choice(e["mode"], ELEVATOR_MODES, f"home.personal.widgets.{wid}.mode")
+            if e.get("hidden") is not None:
+                entry["hidden"] = elevator_ids(e["hidden"], f"home.personal.widgets.{wid}.hidden")
+            if e.get("on") is not None:
+                entry["on"] = _bool(e["on"], f"home.personal.widgets.{wid}.on")
+            if e.get("size") is not None:
+                entry["size"] = _choice(e["size"], SIZES, f"home.personal.widgets.{wid}.size")
+            if entry:
+                out["widgets"][wid] = entry
+    return out
+
+
+def personal_is_empty(p: dict[str, Any] | None) -> bool:
+    return not p or (p.get("direction") is None and p.get("order") is None and not p.get("widgets") and p.get("phone_layout") is None and not p.get("screen"))
+
+
+def apply_personal(cfg: dict[str, Any], direction: str, personal: dict[str, Any] | None) -> tuple[dict[str, Any], str]:
+    """The installation config and direction with one user's personal override laid over them: the user's direction, their
+    order, and per widget their on / off and their size for the direction that ends up shown. The installation's entities,
+    fields and headings are never personal."""
+    if personal_is_empty(personal):
+        return cfg, direction
+    assert personal is not None
+    out = copy.deepcopy(cfg)
+    if personal.get("direction") in DIRECTIONS:
+        direction = personal["direction"]
+    if personal.get("order"):
+        out["order"] = list(personal["order"])
+    if personal.get("phone_layout") in PHONE_LAYOUTS:
+        out["phone_layout"] = personal["phone_layout"]
+    for wid, e in (personal.get("widgets") or {}).items():
+        if wid not in WIDGET_IDS:
+            continue
+        if "on" in e:
+            out[wid]["on"] = bool(e["on"])
+            out[wid]["phone_on"] = None  # a personal on / off is for every screen, the phone included
+        if e.get("size") in SIZES:
+            out[wid]["sizes"][direction] = e["size"]
+        if wid in LIST_WIDGETS:  # 2.8.0: the user's own display mode, and the elevators (units) HE leaves out ADDED to the installation's (review L5:
+            # an elevator the administrator hides later is hidden for him too; a user cannot bring back one the administrator hid)
+            if e.get("mode") in ELEVATOR_MODES:
+                out[wid]["mode"] = e["mode"]
+            if isinstance(e.get("hidden"), list):
+                out[wid]["hidden"] = list(dict.fromkeys([*out[wid]["hidden"], *e["hidden"]]))
+    return out, direction

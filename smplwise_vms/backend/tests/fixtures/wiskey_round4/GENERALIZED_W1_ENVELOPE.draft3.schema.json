@@ -1,0 +1,844 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-validation": "VALIDATION_NOT_RUN; static structure/refs only, no installed jsonschema",
+  "x-runtime-enabled": false,
+  "type": "object",
+  "properties": {
+    "contract_version": {
+      "const": "wiskey-arx-generalized-w1-draft.3"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "x-origin": "Arx server-generated UUID; no actual identifier created"
+    },
+    "actor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "human"
+            },
+            "user_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "x-bound": "proposed logical identifiers only"
+            }
+          },
+          "required": [
+            "kind",
+            "user_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "automation"
+            },
+            "automation_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "x-bound": "proposed logical identifiers only"
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "x-bound": "proposed logical identifiers only"
+            },
+            "trigger_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "x-bound": "proposed logical identifiers only"
+            },
+            "creator_user_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "x-bound": "proposed logical identifiers only"
+            },
+            "approver_user_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "x-bound": "proposed logical identifiers only"
+            },
+            "grant_revision": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "automation_id",
+            "run_id",
+            "trigger_id",
+            "creator_user_id",
+            "approver_user_id",
+            "grant_revision"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "action": {
+      "enum": [
+        "audit/list",
+        "authorization/session",
+        "cards/add",
+        "cards/capture_cancel",
+        "cards/capture_confirm",
+        "cards/capture_start",
+        "cards/capture_status",
+        "cards/reader_capabilities",
+        "cards/remove",
+        "conflicts/list",
+        "emergency/open",
+        "emergency/release",
+        "emergency/secure",
+        "events/detail",
+        "events/export",
+        "events/list",
+        "fleet/alerts",
+        "health/get",
+        "health/history",
+        "media/signal",
+        "overview",
+        "profiles/settings_get",
+        "profiles/versions",
+        "schedules/list",
+        "schedules/operations_list",
+        "schedules/plan_list",
+        "stations/technical_codes_get",
+        "stations/technical_hold_get",
+        "stations/technical_program_action",
+        "stations/technical_program_list",
+        "stations/technical_program_save",
+        "stations/test_unlock",
+        "subscribe",
+        "sync/status",
+        "tts/engines",
+        "tts/start",
+        "users/archive",
+        "users/create",
+        "users/csv_export",
+        "users/csv_inspect",
+        "users/delete",
+        "users/get",
+        "users/photo_get",
+        "users/pin_generate",
+        "users/query",
+        "users/set_active",
+        "users/temporary_cancel",
+        "users/unarchive",
+        "users/update",
+        "whatsapp/preview",
+        "whatsapp/send",
+        "whatsapp/status"
+      ]
+    },
+    "channel": {
+      "enum": [
+        "interactive",
+        "automation"
+      ],
+      "x-reserved-channel": "background OFF; not admitted"
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "logical_target_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-bound": "proposed logical identifiers only"
+        },
+        "binding_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "config_entry_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-bound": "proposed logical identifiers only"
+        },
+        "physical_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "api_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "logical_target_id",
+        "binding_revision"
+      ],
+      "additionalProperties": false,
+      "x-constraint": "For each door, config_entry_id+physical_index explicit binding required; api_id separate numeric mapping; no unique_id/name parsing"
+    },
+    "grant": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-bound": "proposed logical identifiers only"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "permission_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-bound": "proposed logical identifiers only"
+        }
+      },
+      "required": [
+        "grant_id",
+        "grant_revision",
+        "permission_revision",
+        "decision_id"
+      ],
+      "additionalProperties": false
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-bound": "proposed logical identifiers only"
+    },
+    "operation_binding_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-bound": "proposed logical identifiers only"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "request_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operation_scope": {
+      "enum": [
+        "pulse",
+        "program",
+        "emergency"
+      ]
+    },
+    "window_until": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "selection_revision": {
+      "enum": [
+        "rev1",
+        "rev2"
+      ],
+      "x-source": "Arx reported revision names; not current active permission"
+    },
+    "operation": {
+      "type": "object",
+      "properties": {
+        "request_schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "request_schema_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "parameter_reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "public_descriptor_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        },
+        "permission_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        },
+        "selection_revision": {
+          "enum": [
+            "rev1",
+            "rev2"
+          ]
+        },
+        "parameter_transport": {
+          "enum": [
+            "closed_public_parameters",
+            "agreed_sensitive_opaque_reference"
+          ]
+        },
+        "definition_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        }
+      },
+      "required": [
+        "request_schema_id",
+        "request_schema_revision",
+        "parameter_reference",
+        "public_descriptor_revision",
+        "permission_revision",
+        "selection_revision",
+        "parameter_transport"
+      ],
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        },
+        "permission_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        },
+        "binding_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        },
+        "selection_revision": {
+          "enum": [
+            "rev1",
+            "rev2"
+          ]
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "operation_binding_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "request_schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "request_schema_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "definition_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        }
+      },
+      "required": [
+        "decision_id",
+        "grant_revision",
+        "permission_revision",
+        "binding_revision",
+        "selection_revision",
+        "decided_at",
+        "request_id",
+        "operation_id",
+        "operation_binding_ref",
+        "request_schema_id",
+        "request_schema_revision"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "contract_version",
+    "request_id",
+    "actor",
+    "action",
+    "channel",
+    "target",
+    "grant",
+    "operation_id",
+    "operation_binding_ref",
+    "issued_at",
+    "request_expires_at",
+    "selection_revision",
+    "operation",
+    "decision"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "stations/test_unlock"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation_scope": {
+            "const": "pulse"
+          }
+        },
+        "required": [
+          "operation_scope"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "stations/technical_program_save",
+              "stations/technical_program_action"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation_scope": {
+            "const": "program"
+          }
+        },
+        "required": [
+          "operation_scope"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "emergency/open",
+              "emergency/secure",
+              "emergency/release"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation_scope": {
+            "const": "emergency"
+          }
+        },
+        "required": [
+          "operation_scope"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "not": {
+              "enum": [
+                "stations/test_unlock",
+                "stations/technical_program_save",
+                "stations/technical_program_action",
+                "emergency/open",
+                "emergency/secure",
+                "emergency/release"
+              ]
+            }
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "operation_scope"
+              ]
+            },
+            {
+              "required": [
+                "window_until"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "automation"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "actor"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "enum": [
+              "stations/test_unlock",
+              "stations/technical_program_save",
+              "stations/technical_program_action"
+            ]
+          },
+          "operation_scope": {
+            "enum": [
+              "pulse",
+              "program"
+            ]
+          },
+          "channel": {
+            "const": "automation"
+          }
+        },
+        "required": [
+          "operation_scope"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation_scope": {
+            "const": "emergency"
+          }
+        },
+        "required": [
+          "operation_scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "human"
+              },
+              "user_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "x-bound": "proposed logical identifiers only"
+              }
+            },
+            "required": [
+              "kind",
+              "user_id"
+            ],
+            "additionalProperties": false
+          },
+          "channel": {
+            "const": "interactive"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "window_until"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation_scope": {
+            "const": "program"
+          }
+        },
+        "required": [
+          "operation_scope",
+          "timezone"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "stations/test_unlock",
+              "stations/technical_program_save",
+              "stations/technical_program_action",
+              "emergency/open",
+              "emergency/secure",
+              "emergency/release"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "required": [
+              "config_entry_id",
+              "physical_index"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "users/pin_generate"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "human"
+              },
+              "user_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "x-bound": "proposed logical identifiers only"
+              }
+            },
+            "required": [
+              "kind",
+              "user_id"
+            ],
+            "additionalProperties": false
+          },
+          "channel": {
+            "const": "interactive"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "const": "automation"
+          }
+        },
+        "required": [
+          "channel"
+        ]
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "automation"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "human"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "actor"
+        ]
+      },
+      "then": {
+        "properties": {
+          "channel": {
+            "const": "interactive"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "stations/technical_program_save",
+              "stations/technical_program_action",
+              "emergency/open",
+              "emergency/secure",
+              "emergency/release"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": false
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "users/csv_inspect",
+              "users/csv_export"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "selection_revision": {
+            "const": "rev2"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation_scope": {
+            "const": "program"
+          }
+        },
+        "required": [
+          "operation_scope"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "required": [
+              "definition_revision"
+            ]
+          },
+          "decision": {
+            "required": [
+              "definition_revision"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "x-authority": "Arx RBAC only, per dispatch fresh grant/actor/target/action/channel/revision decision",
+  "x-no-secret-material": "Authentication proof mechanism excluded from this DTO draft; no key/nonce/signature/fingerprint implementation",
+  "x-binding-gap": "operation_binding_ref must resolve an immutable authorized exact typed operation; canonicalization and sensitive transport not proven or implemented",
+  "x-unknown-version-action": "reject before dispatch by default",
+  "x-door-only-scope": "pulse/program/emergency applies only to door-domain actions; general W2 uses caller context without pretending users/get is a pulse",
+  "x-automation-limit": "Only per-door pulse/program; no generic service fallback or automation CRUD/PG/emergency expansion",
+  "x-unknown-parameters": "This envelope grants no untyped body. Each action must reference a separately agreed closed request/result schema. Unclosed schema means OFF.",
+  "x-sensitive-PG-policy": "Dedicated personal interactive grant, opaque response/no-store/no body/hash/length; first authorized request permitted only through separately agreed binding; B duplicate refused.",
+  "x-time-predicates": "Future agreed check: request expires after issued and no later than15s; window_until is separate absolute aware instant, may exceed26h, requires ZoneInfo interpretation. JSON format checks and temporal relations not executed.",
+  "x-api-id": "If supplied, compare to server-resolved config_entry_id+physical_index binding and revision; never trust caller api_id as authority.",
+  "$id": "urn:wiskey:arx:seven:w1-envelope-draft3",
+  "x-extra-five": "enumerated for mapping only; then:false while selection absent. Future revision required to admit.",
+  "x-typed-parameter-boundary": "No inline body. parameter_reference resolves immutable exact typed arguments under agreed per-action schema; unresolved schema/provenance denies activation.",
+  "x-cross-field-predicates": "W1_PREDICATES.json mandatory alongside JSON Schema; annotations are not executable proof.",
+  "x-legacy": "new draft only; no change to old draft.1, trusted-door v1/v2/v3, source classic or registration",
+  "x-transport": "new versioned generalized-operation service draft; same bridge parser/HMAC mechanism as door DTOv3, distinct domain/schema, no keys added; old door wire untouched",
+  "x-binding": "Bridge verifies signed closed public descriptor, resolves parameter_reference into exact immutable typed operation, and hands off unforgeable internal capability-bound DTO; raw JSON or digest alone never authenticates WisKey caller",
+  "x-sensitive-binding": "Sensitive parameters are only immutable opaque references; resolved inside engine path; no value/hash/length in signed public descriptor, output/error/audit",
+  "x-expiry": "generalized request <=15s; existing door DTO30s not changed; every dispatch/page separately authorized; business windows/replay distinct"
+}

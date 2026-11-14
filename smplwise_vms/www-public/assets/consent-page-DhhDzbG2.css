@@ -1,0 +1,1 @@
+.consent{display:grid;gap:var(--sw-s-3);inline-size:100%;max-inline-size:480px}.consent-lead{font-size:var(--sw-fs-md);font-weight:600}.consent-small{color:var(--sw-text-2)}.consent-bad{color:var(--sw-danger)}.consent-actions{display:grid;gap:10px}.consent-actions .btn{min-block-size:44px}

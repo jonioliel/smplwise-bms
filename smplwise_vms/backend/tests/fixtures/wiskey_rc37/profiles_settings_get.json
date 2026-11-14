@@ -1,0 +1,56 @@
+{
+ "revision": 7,
+ "photo_enabled": true,
+ "fields": [
+  {
+   "id": "department",
+   "label": "Department",
+   "enabled": true,
+   "type": "select",
+   "required": false,
+   "unique": false,
+   "depends_on": null,
+   "options": [
+    "Engineering",
+    "Security"
+   ]
+  }
+ ],
+ "groups": [
+  {
+   "id": "staff",
+   "label": "Staff",
+   "enabled": true,
+   "station_ids": [
+    "entry-a",
+    "entry-b"
+   ]
+  },
+  {
+   "id": "night",
+   "label": "Night shift",
+   "enabled": true,
+   "station_ids": [
+    "entry-c"
+   ]
+  },
+  {
+   "id": "visitors",
+   "label": "Visitors",
+   "enabled": false
+  }
+ ],
+ "templates": [
+  {
+   "id": "guest",
+   "label": "Guest",
+   "enabled": true,
+   "profile": {
+    "department": "Secret Department"
+   },
+   "group_ids": [
+    "visitors"
+   ]
+  }
+ ]
+}

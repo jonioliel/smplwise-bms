@@ -1,0 +1,13 @@
+[project]
+name = "smplwise-vms-backend"
+version = "0.1.0"
+description = "SmplWise Arx add-on backend"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "timing_lane: a wall-clock / load-sensitive test; the release gate deselects it (-m 'not timing_lane') and the non-blocking timing lane runs it when the runner is quiet (docs/testing/GATE_LANES.md)",
+]

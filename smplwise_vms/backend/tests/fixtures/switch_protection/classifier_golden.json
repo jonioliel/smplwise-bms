@@ -1,0 +1,5851 @@
+{
+ "classifier_version": 1,
+ "cases": [
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Pool pump",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Boiler",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Water heater",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Hot water",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Geyser",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "DHW",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Immersion",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Circulation",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Recirculation",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Sump",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Booster",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Solar heater",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "משאבה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "משאבת ביוב",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "משאבות",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "דוד",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "בוילר",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מחמם מים",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "חימום מים",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "גוף חימום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "סירקולציה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "דוד שמש",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "המשאבה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "water_heating by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "לדוד",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Heater",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Radiator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Oven",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Stove",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Cooktop",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Hob",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Kettle",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Hot plate",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Hotplate",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Urn",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Iron",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "תנור",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "כיריים",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "קומקום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מיחם",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "פלטה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מפזר חום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "רדיאטור",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "heat_appliance by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מגהץ",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Gate",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Garage",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Front door",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Barrier",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Boom",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Maglock",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Mag lock",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Strike",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Latch",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Lock relay",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Intercom",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Doorbell",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Opener",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Buzzer",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Turnstile",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "שער",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "חניה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "חנייה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "דלת",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מחסום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "זרוע",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מנעול",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אלקטרומגנט",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אינטרקום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "פעמון",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "פותחן",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "access by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "קודן",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Fridge",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Refrigerator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Freezer",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Deep freeze",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Chiller",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Wine cooler",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מקרר",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מקפיא",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "cold by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "קירור",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Server",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "NAS",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Router",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Modem",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "UPS",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Network switch",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "PoE",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Access point",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "WiFi",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Mesh",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Firewall",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Gateway",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Hub",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Bridge",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Coordinator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Zigbee",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Zwave",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Z-Wave stick",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Rack",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "NVR",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "DVR",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Synology",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "QNAP",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Unraid",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Proxmox",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "UniFi",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "MikroTik",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Starlink",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ONT",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "שרת",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ראוטר",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "נתב",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מודם",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אל פסק",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אל-פסק",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אלפסק",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מתג רשת",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "תקשורת",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "רכזת",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אינטרנט",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "וויפי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "network by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "סיב אופטי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Alarm",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Siren",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Security",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Panic",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Smoke",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Detector",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Camera",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "CCTV",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Recording",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Record",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Detect",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Privacy mode",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אזעקה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "צופר",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "סירנה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אבטחה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "פאניקה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "גלאי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "עשן",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מצלמה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מצלמות",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מקליט",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "security by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "הקלטה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Pool",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Spa",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Jacuzzi",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Hot tub",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Chlorinator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Salt cell",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "בריכה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ג'קוזי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ספא",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "pool by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "כלור",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Irrigation",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Sprinkler",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Valve",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Drip",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Tap",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Faucet",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Water main",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Main water",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Shutoff",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Shut off",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Leak",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "השקיה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ממטרה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ממטרות",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "טפטוף",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ברז",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מגוף",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "שסתום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מים ראשי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "water_valve by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "נזילה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Aquarium",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Fish tank",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Terrarium",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Incubator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Oxygen",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Medical",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "CPAP",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אקווריום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "דגים",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "טרריום",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "חמצן",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "רפואי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "life_support by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מכשיר נשימה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "EV",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Charger",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Charging",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Wallbox",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Inverter",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Battery",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Generator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Solar",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "PV",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Grid",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Main breaker",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Main power",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מטען",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "טעינה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "רכב חשמלי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ממיר",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "סוללה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "גנרטור",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "סולארי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מפסק ראשי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "energy by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "חשמל ראשי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy"
+   }
+  },
+  {
+   "note": "elevator by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Elevator",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "elevator"
+   }
+  },
+  {
+   "note": "elevator by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Lift",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "elevator"
+   }
+  },
+  {
+   "note": "elevator by name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מעלית",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "elevator"
+   }
+  },
+  {
+   "note": "rule names the field and the term",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "משאבה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "name:משאבה"
+   }
+  },
+  {
+   "note": "object id is a signal",
+   "entity": {
+    "entity_id": "switch.boiler_relay",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "entity_id:boiler"
+   }
+  },
+  {
+   "note": "original name is a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay",
+    "original_name": "Fridge",
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold",
+    "rule": "original_name:fridge"
+   }
+  },
+  {
+   "note": "platform hassio",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "hassio"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "infrastructure",
+    "rule": "platform:hassio"
+   }
+  },
+  {
+   "note": "platform unifi",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "unifi"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network",
+    "rule": "platform:unifi"
+   }
+  },
+  {
+   "note": "platform wake_on_lan",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "wake_on_lan"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network",
+    "rule": "platform:wake_on_lan"
+   }
+  },
+  {
+   "note": "platform frigate",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "frigate"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "platform:frigate"
+   }
+  },
+  {
+   "note": "platform alarmo",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "alarmo"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "platform:alarmo"
+   }
+  },
+  {
+   "note": "platform nuki",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "nuki"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "platform:nuki"
+   }
+  },
+  {
+   "note": "platform switcher_kis",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "switcher_kis"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "platform:switcher_kis"
+   }
+  },
+  {
+   "note": "platform rainbird",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "rainbird"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve",
+    "rule": "platform:rainbird"
+   }
+  },
+  {
+   "note": "platform omnilogic",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "omnilogic"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool",
+    "rule": "platform:omnilogic"
+   }
+  },
+  {
+   "note": "platform home_connect",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "home_connect"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance",
+    "rule": "platform:home_connect"
+   }
+  },
+  {
+   "note": "platform wallbox",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "wallbox"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy",
+    "rule": "platform:wallbox"
+   }
+  },
+  {
+   "note": "add-on switch: an add-on's start / stop would stop the add-on itself",
+   "entity": {
+    "entity_id": "switch.mosquitto_broker",
+    "name": "Mosquitto broker",
+    "original_name": null,
+    "icon": null,
+    "platform": "hassio"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "infrastructure",
+    "rule": "platform:hassio"
+   }
+  },
+  {
+   "note": "generic platform shelly is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "shelly"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform tuya is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "tuya"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform mqtt is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "mqtt"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform zha is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "zha"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform zwave_js is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "zwave_js"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform esphome is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "esphome"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform template is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "template"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "generic platform sonoff is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": "sonoff"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "sibling sibling:lock",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "lock"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:lock"
+   }
+  },
+  {
+   "note": "sibling sibling:cover/garage",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "cover",
+     "device_class": "garage"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:cover/garage"
+   }
+  },
+  {
+   "note": "sibling sibling:cover/gate",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "cover",
+     "device_class": "gate"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:cover/gate"
+   }
+  },
+  {
+   "note": "sibling sibling:cover/door",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "cover",
+     "device_class": "door"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:cover/door"
+   }
+  },
+  {
+   "note": "sibling sibling:binary_sensor/door",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "binary_sensor",
+     "device_class": "door"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:binary_sensor/door"
+   }
+  },
+  {
+   "note": "sibling sibling:binary_sensor/garage_door",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "binary_sensor",
+     "device_class": "garage_door"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:binary_sensor/garage_door"
+   }
+  },
+  {
+   "note": "sibling sibling:alarm_control_panel",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "alarm_control_panel"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "sibling:alarm_control_panel"
+   }
+  },
+  {
+   "note": "sibling sibling:siren",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "siren"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "sibling:siren"
+   }
+  },
+  {
+   "note": "sibling sibling:camera",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "camera"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "sibling:camera"
+   }
+  },
+  {
+   "note": "sibling sibling:water_heater",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "water_heater"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "sibling:water_heater"
+   }
+  },
+  {
+   "note": "sibling sibling:valve",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "valve"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "water_valve",
+    "rule": "sibling:valve"
+   }
+  },
+  {
+   "note": "sibling {'domain': 'cover', 'device_class': 'shutter'} is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "cover",
+     "device_class": "shutter"
+    }
+   ],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "sibling {'domain': 'binary_sensor', 'device_class': 'motion'} is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "binary_sensor",
+     "device_class": "motion"
+    }
+   ],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "sibling {'domain': 'sensor', 'device_class': 'power'} is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "sensor",
+     "device_class": "power"
+    }
+   ],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "sibling {'domain': 'light'} is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "x.sibling",
+     "domain": "light"
+    }
+   ],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "icon mdi:water-pump",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:water-pump",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "icon:mdi:water-pump"
+   }
+  },
+  {
+   "note": "icon mdi:pump",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:pump",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "icon:mdi:pump"
+   }
+  },
+  {
+   "note": "icon mdi:water-boiler",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:water-boiler",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "icon:mdi:water-boiler"
+   }
+  },
+  {
+   "note": "icon mdi:radiator",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:radiator",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance",
+    "rule": "icon:mdi:radiator"
+   }
+  },
+  {
+   "note": "icon mdi:fire",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:fire",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance",
+    "rule": "icon:mdi:fire"
+   }
+  },
+  {
+   "note": "icon mdi:gate",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:gate",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "icon:mdi:gate"
+   }
+  },
+  {
+   "note": "icon mdi:gate-open",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:gate-open",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "icon:mdi:gate-open"
+   }
+  },
+  {
+   "note": "icon mdi:garage-variant",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:garage-variant",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "icon:mdi:garage-variant"
+   }
+  },
+  {
+   "note": "icon mdi:door-open",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:door-open",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "icon:mdi:door-open"
+   }
+  },
+  {
+   "note": "icon mdi:lock-outline",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:lock-outline",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "icon:mdi:lock-outline"
+   }
+  },
+  {
+   "note": "icon mdi:doorbell-video",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:doorbell-video",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "icon:mdi:doorbell-video"
+   }
+  },
+  {
+   "note": "icon mdi:fridge-outline",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:fridge-outline",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "cold",
+    "rule": "icon:mdi:fridge-outline"
+   }
+  },
+  {
+   "note": "icon mdi:server",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:server",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network",
+    "rule": "icon:mdi:server"
+   }
+  },
+  {
+   "note": "icon mdi:ups",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:ups",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network",
+    "rule": "icon:mdi:ups"
+   }
+  },
+  {
+   "note": "icon mdi:shield-home",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:shield-home",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "icon:mdi:shield-home"
+   }
+  },
+  {
+   "note": "icon mdi:camera-outline",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:camera-outline",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "icon:mdi:camera-outline"
+   }
+  },
+  {
+   "note": "icon mdi:cctv",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:cctv",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "icon:mdi:cctv"
+   }
+  },
+  {
+   "note": "icon mdi:alarm-light",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:alarm-light",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security",
+    "rule": "icon:mdi:alarm-light"
+   }
+  },
+  {
+   "note": "icon mdi:pool",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:pool",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool",
+    "rule": "icon:mdi:pool"
+   }
+  },
+  {
+   "note": "icon mdi:hot-tub",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:hot-tub",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool",
+    "rule": "icon:mdi:hot-tub"
+   }
+  },
+  {
+   "note": "icon mdi:sprinkler-variant",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:sprinkler-variant",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve",
+    "rule": "icon:mdi:sprinkler-variant"
+   }
+  },
+  {
+   "note": "icon mdi:valve-open",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:valve-open",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve",
+    "rule": "icon:mdi:valve-open"
+   }
+  },
+  {
+   "note": "icon mdi:water-pump-off",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:water-pump-off",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_valve",
+    "rule": "icon:mdi:water-pump-off"
+   }
+  },
+  {
+   "note": "icon mdi:fish",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:fish",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "life_support",
+    "rule": "icon:mdi:fish"
+   }
+  },
+  {
+   "note": "icon mdi:ev-station",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:ev-station",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy",
+    "rule": "icon:mdi:ev-station"
+   }
+  },
+  {
+   "note": "icon mdi:ev-plug-type2",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:ev-plug-type2",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy",
+    "rule": "icon:mdi:ev-plug-type2"
+   }
+  },
+  {
+   "note": "icon mdi:battery-charging",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:battery-charging",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy",
+    "rule": "icon:mdi:battery-charging"
+   }
+  },
+  {
+   "note": "icon mdi:solar-panel",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:solar-panel",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy",
+    "rule": "icon:mdi:solar-panel"
+   }
+  },
+  {
+   "note": "icon mdi:elevator-passenger",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:elevator-passenger",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "elevator",
+    "rule": "icon:mdi:elevator-passenger"
+   }
+  },
+  {
+   "note": "icon mdi:lightbulb is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:lightbulb",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "icon mdi:power-socket-eu is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:power-socket-eu",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "icon mdi:toggle-switch is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:toggle-switch",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "icon mdi:fridge-industrial is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:fridge-industrial",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "icon mdi:lamp is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 3",
+    "original_name": null,
+    "icon": "mdi:lamp",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "device name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "Pool pump controller"
+   },
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "device:pump"
+   }
+  },
+  {
+   "note": "device user name (Hebrew)",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "Shelly 1",
+    "name_by_user": "שער חשמלי"
+   },
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "device:שער"
+   }
+  },
+  {
+   "note": "device manufacturer",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "DS920",
+    "manufacturer": "Synology"
+   },
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network",
+    "rule": "device:synology"
+   }
+  },
+  {
+   "note": "device model",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "Box",
+    "model": "Wallbox Pulsar"
+   },
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "energy",
+    "rule": "device:wallbox"
+   }
+  },
+  {
+   "note": "a plain device is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "Shelly 1PM",
+    "manufacturer": "Shelly",
+    "model": "SNSW-001P16EU"
+   },
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "technical room חדר שרתים",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר שרתים",
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "technical room ארון תקשורת",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "ארון תקשורת",
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "technical room חדר תקשורת",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר תקשורת",
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "technical room Server room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Server room",
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "technical room Comms room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Comms room",
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "technical room Network closet",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Network closet",
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "technical room חדר מכונות",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר מכונות",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room חדר משאבות",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר משאבות",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room חדר טכני",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר טכני",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room חדר דוודים",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר דוודים",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room Boiler room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Boiler room",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room Plant room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Plant room",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room Machine room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Machine room",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "technical room Pump room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Pump room",
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "area סלון is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "סלון",
+   "expect": null
+  },
+  {
+   "note": "area Utility is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Utility",
+   "expect": null
+  },
+  {
+   "note": "area מחסן is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "מחסן",
+   "expect": null
+  },
+  {
+   "note": "area כניסה is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "כניסה",
+   "expect": null
+  },
+  {
+   "note": "area Kitchen is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "Kitchen",
+   "expect": null
+  },
+  {
+   "note": "area חדר שינה is not a signal",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay 4",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": "חדר שינה",
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: Gate light",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "Gate light",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: Garage lights",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "Garage lights",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: Pool lights",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "Pool lights",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: Door LED strip",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "Door LED strip",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: Camera spot",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "Camera spot",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: Security lighting",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "Security lighting",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: תאורת חניה",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "תאורת חניה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: תאורת בריכה",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "תאורת בריכה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: מנורת שער",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "מנורת שער",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: פנס חניה",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "פנס חניה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: נורת דלת",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "נורת דלת",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "lighting word suppresses a weak hit: שער לד",
+   "entity": {
+    "entity_id": "switch.relay_5",
+    "name": "שער לד",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "pump is strong: never suppressed",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "משאבת בריכה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "name:משאבת"
+   }
+  },
+  {
+   "note": "pump light is still a pump (accepted false positive)",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Garden pump light",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "a heater with a lamp is still a heater",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Heater lamp",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "heat_appliance"
+   }
+  },
+  {
+   "note": "'לד' inside 'ילדים' is not a lighting word",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מצלמה חדר ילדים",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "security"
+   }
+  },
+  {
+   "note": "accepted false positive: a lamp in David's room",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מנורה בחדר של דוד",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "name:דוד"
+   }
+  },
+  {
+   "note": "token boundary: Groups",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Groups",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Navigate",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Navigate",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Dinas lamp",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Dinas lamp",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Pumpkin lights",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Pumpkin lights",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Doorway",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Doorway",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Spare outlet",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Spare outlet",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Tapestry",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Tapestry",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Evening lamp",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Evening lamp",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Liftoff",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Liftoff",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "token boundary: Stripe sign",
+   "entity": {
+    "entity_id": "switch.relay_6",
+    "name": "Stripe sign",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Relay 2",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Relay 2",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Living room",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Living room",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Outlet",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Outlet",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Plug",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Plug",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: מפסק",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "מפסק",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: אור",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "אור",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Utility",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Utility",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: מחסן",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "מחסן",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: כניסה",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "כניסה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Kitchen",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Kitchen",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Bedroom fan",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Bedroom fan",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Christmas tree",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Christmas tree",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: סלון",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "סלון",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "no signal: Switch 1",
+   "entity": {
+    "entity_id": "switch.relay_7",
+    "name": "Switch 1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": null
+  },
+  {
+   "note": "mixed: English pump first",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Pump משאבה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "name:pump"
+   }
+  },
+  {
+   "note": "mixed: Hebrew gate with an English word",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "שער Gate",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access"
+   }
+  },
+  {
+   "note": "upper case",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "PUMP",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "full-width letters (NFKC)",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ＰＵＭＰ",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "geresh variant",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ג׳קוזי",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "pool"
+   }
+  },
+  {
+   "note": "maqaf variant",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "אל־פסק",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "Hebrew points",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "מַשְׁאֵבָה",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating"
+   }
+  },
+  {
+   "note": "digits apart from letters",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "ups1",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "network"
+   }
+  },
+  {
+   "note": "platform before the name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Lamp",
+    "original_name": null,
+    "icon": null,
+    "platform": "hassio"
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "infrastructure",
+    "rule": "platform:hassio"
+   }
+  },
+  {
+   "note": "sibling before the name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Pump",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": null,
+   "siblings": [
+    {
+     "entity_id": "lock.x",
+     "domain": "lock"
+    }
+   ],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "sibling:lock"
+   }
+  },
+  {
+   "note": "icon before the name",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Gate",
+    "original_name": null,
+    "icon": "mdi:pump",
+    "platform": null
+   },
+   "device": null,
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "water_heating",
+    "rule": "icon:mdi:pump"
+   }
+  },
+  {
+   "note": "name before the device",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Gate",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "Pump controller"
+   },
+   "siblings": [],
+   "area": null,
+   "expect": {
+    "category": "access",
+    "rule": "name:gate"
+   }
+  },
+  {
+   "note": "area last",
+   "entity": {
+    "entity_id": "switch.relay_1",
+    "name": "Relay",
+    "original_name": null,
+    "icon": null,
+    "platform": null
+   },
+   "device": {
+    "name": "Lamp"
+   },
+   "siblings": [],
+   "area": "חדר שרתים",
+   "expect": {
+    "category": "network",
+    "rule": "area:חדר שרתים"
+   }
+  }
+ ]
+}

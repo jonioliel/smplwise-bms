@@ -1,0 +1,55 @@
+{
+ "format": "hikvision_intercom.event_support",
+ "version": 1,
+ "integration_version": "2.0.0-rc.37",
+ "case_id": "0123456789abcdef",
+ "event": {
+  "timestamp": "2026-09-27T08:40:00+00:00",
+  "received_at": "2026-09-27T08:40:00+00:00",
+  "event_type": "access_granted",
+  "major": 5,
+  "minor": 1,
+  "authentication": "card",
+  "result": "granted",
+  "recovered": false
+ },
+ "evidence": {
+  "identity_state": "identified",
+  "origin": "live_stream",
+  "arrival_delay_seconds": 1,
+  "time_source": "device",
+  "source": "stream",
+  "live_automation": true
+ },
+ "source_identity": {
+  "source_fields": {
+   "employeeNoString": "provided",
+   "employeeNo": "missing",
+   "name": "provided"
+  },
+  "normalized_employee": true,
+  "normalized_name": true,
+  "normalized": true,
+  "time_interpretation": "verified_device_zone",
+  "central_name_resolved": true
+ },
+ "record": {
+  "id": "ev-7",
+  "station_id": "entry-a",
+  "timestamp": "2026-09-27T08:40:00+00:00",
+  "received_at": "2026-09-27T08:40:00+00:00",
+  "time_source": "device",
+  "employee_no": "1001",
+  "person_name": "Dana",
+  "door": 1,
+  "api_door": 1,
+  "authentication": "card",
+  "result": "granted",
+  "event_type": "access_granted",
+  "major": 5,
+  "minor": 1,
+  "card": "•••• 1234",
+  "recovered": false,
+  "source": "stream"
+ }
+}

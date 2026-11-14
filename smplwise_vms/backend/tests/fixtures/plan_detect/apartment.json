@@ -1,0 +1,164 @@
+{
+ "name": "apartment",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.01,
+ "walls": [
+  {
+   "a": [
+    120,
+    120
+   ],
+   "b": [
+    1480,
+    120
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1480,
+    120
+   ],
+   "b": [
+    1480,
+    1080
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1480,
+    1080
+   ],
+   "b": [
+    120,
+    1080
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    120,
+    1080
+   ],
+   "b": [
+    120,
+    120
+   ],
+   "thickness_px": 16,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    800,
+    120
+   ],
+   "b": [
+    800,
+    1080
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    120,
+    600
+   ],
+   "b": [
+    800,
+    600
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    800,
+    700
+   ],
+   "b": [
+    1480,
+    700
+   ],
+   "thickness_px": 10,
+   "kind": "interior"
+  }
+ ],
+ "doors": [
+  {
+   "centre": [
+    800,
+    400
+   ],
+   "width_px": 90,
+   "wall": 4,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  },
+  {
+   "centre": [
+    460,
+    600
+   ],
+   "width_px": 90,
+   "wall": 5,
+   "hinge": "end",
+   "swing": "right",
+   "double": false
+  },
+  {
+   "centre": [
+    1140,
+    700
+   ],
+   "width_px": 90,
+   "wall": 6,
+   "hinge": "start",
+   "swing": "right",
+   "double": false
+  },
+  {
+   "centre": [
+    400,
+    1080
+   ],
+   "width_px": 90,
+   "wall": 2,
+   "hinge": "start",
+   "swing": "left",
+   "double": false
+  }
+ ],
+ "windows": [
+  {
+   "centre": [
+    460,
+    120
+   ],
+   "width_px": 120,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1140,
+    120
+   ],
+   "width_px": 120,
+   "wall": 0
+  },
+  {
+   "centre": [
+    1480,
+    900
+   ],
+   "width_px": 120,
+   "wall": 1
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "records": [
+  {
+   "id": "ev-2",
+   "station_id": "entry-a",
+   "timestamp": "2026-09-27T07:59:00+03:00",
+   "received_at": "2026-09-27T04:59:01+00:00",
+   "time_source": "device",
+   "person_name": "Dana",
+   "employee_no": "1001",
+   "door": 1,
+   "api_door": 1,
+   "authentication": "card",
+   "result": "granted",
+   "event_type": "access_granted",
+   "card": "•••• 1234",
+   "recovered": false,
+   "major": 5,
+   "minor": 1,
+   "source": "stream",
+   "evidence": {
+    "identity_state": "identified",
+    "origin": "live",
+    "arrival_delay_seconds": 1,
+    "time_source": "device",
+    "source": "stream",
+    "live_automation": true
+   },
+   "portrait": {
+    "user_id": "u1",
+    "revision": 1
+   }
+  },
+  {
+   "id": "ev-1",
+   "station_id": "entry-a",
+   "timestamp": "2026-09-27T07:59:00+03:00",
+   "received_at": "2026-09-27T04:59:01+00:00",
+   "time_source": "device",
+   "person_name": null,
+   "employee_no": null,
+   "door": 1,
+   "api_door": 1,
+   "authentication": "card",
+   "result": "denied",
+   "event_type": "access_denied",
+   "card": "••••",
+   "recovered": false,
+   "major": 5,
+   "minor": 1,
+   "source": "stream",
+   "evidence": {
+    "identity_state": "identified",
+    "origin": "live",
+    "arrival_delay_seconds": 1,
+    "time_source": "device",
+    "source": "stream",
+    "live_automation": true
+   },
+   "portrait": null
+  }
+ ],
+ "next": "ev-1",
+ "retention_days": 30,
+ "capacity": 5000,
+ "membership_basis": null,
+ "storage_failed": false,
+ "stations": {
+  "entry-a": {
+   "stream": "connected",
+   "history": "recovered",
+   "reconnects": 0,
+   "last_frame_at": "2026-09-27T05:00:00+00:00",
+   "telemetry": {
+    "seen": 3
+   },
+   "recovered_until": null
+  }
+ }
+}

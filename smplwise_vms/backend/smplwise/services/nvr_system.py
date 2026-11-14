@@ -1,0 +1,365 @@
+"""Owner-approved NVR system writes (0.1.71): clock / NTP (D2), OSD and channel name (D1), alarm outputs (A3),
+disk S.M.A.R.T. test (C3) and reboot (D3); the VMS-side connection edit (D4) moved to services/connection_store.py and
+routers/nvr_connection.py with CR-022 (stored in Arx, no Supervisor options write). Every device write goes through the
+change log in `nvr_write` (GET → mutate → PUT → verify, audited); one-shot commands (pulse, test, reboot, clock)
+are recorded without a "before" document, so they cannot be rolled back by mistake."""
+from __future__ import annotations
+
+import datetime as dt
+import html
+import re
+import sqlite3
+from typing import Any
+
+import httpx
+from zoneinfo import ZoneInfo
+
+from ..audit import audit
+from ..config import Settings
+from ..errors import ApiError
+from .nvr import _client, _get
+from .nvr_write import _put, _record, apply_change
+
+TIME_PATH = "/ISAPI/System/time"
+NTP_PATH = "/ISAPI/System/time/ntpServers/1"
+IO_OUTPUTS = "/ISAPI/System/IO/outputs"
+HDD_LIST = "/ISAPI/ContentMgmt/Storage/hdd"
+REBOOT_PATH = "/ISAPI/System/reboot"
+CLOCK_VERIFY_S = 120  # a clock write that leaves the device further off than this is reported as failed
+XMLNS = 'xmlns="http://www.hikvision.com/ver20/XMLSchema"'
+
+
+# ---------------------------------------------------------------- XML helpers
+
+def tag(xml: str, name: str) -> str | None:
+    m = re.search(rf"<{name}(?:\s[^>]*)?>(.*?)</{name}>", xml, re.S)
+    return m.group(1).strip() if m else None
+
+
+def set_tag(xml: str, name: str, value: str) -> str:
+    """Replace the first <name>…</name>; the document is returned unchanged when the tag is missing."""
+    return re.sub(rf"(<{name}(?:\s[^>]*)?>)(.*?)(</{name}>)", lambda m: m.group(1) + html.escape(value, quote=False) + m.group(3), xml, count=1, flags=re.S)
+
+
+def set_in_block(xml: str, block: str, name: str, value: str) -> str:
+    """Replace <name> inside the first <block>…</block> only (OSD overlays keep several `enabled` tags)."""
+    m = re.search(rf"<{block}(?:\s[^>]*)?>.*?</{block}>", xml, re.S)
+    if not m:
+        return xml
+    return xml[: m.start()] + set_tag(m.group(0), name, value) + xml[m.end():]
+
+
+def blocks(xml: str, name: str) -> list[str]:
+    return re.findall(rf"<{name}(?:\s[^>]*)?>.*?</{name}>", xml, re.S)
+
+
+# ---------------------------------------------------------------- D2: clock and NTP
+
+def device_instant(local: str | None, tz: ZoneInfo | None = None) -> dt.datetime | None:
+    """The instant an NVR's `localTime` stands for. Hikvision reports the WALL clock (already moved by its own summer
+    time rule) but tags it with the zone's STANDARD offset, e.g. `12:04:09+02:00` at 12:04 in Israel in September
+    (+03:00). Taken literally that is an hour ahead of the real time (+3599 s of drift). When the installation zone is known and the tag is that zone's
+    standard or current offset, the digits are read as the zone's wall clock; any other tag (a device set to another
+    zone) is honoured as written, and a naive value is the zone's wall clock (UTC without a zone)."""
+    if not local:
+        return None
+    try:
+        d = dt.datetime.fromisoformat(local.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if tz is None:
+        return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+    wall = d.replace(tzinfo=tz)
+    if d.tzinfo is None:
+        return wall
+    off = d.utcoffset()
+    cur = wall.utcoffset()
+    std = cur - (wall.dst() or dt.timedelta(0)) if cur is not None else None
+    return wall if off in (cur, std) else d
+
+
+_parse_device_time = device_instant  # the previous name; the zone is optional
+
+
+def time_status(settings: Settings, *, client: httpx.Client | None = None, now: dt.datetime | None = None, tz: ZoneInfo | None = None) -> dict[str, Any]:
+    """The NVR clock as it reports it, its drift from this server's clock, and the first NTP server."""
+    own = client is None
+    c = client or _client(settings)
+    try:
+        t = _get(c, TIME_PATH)
+        try:
+            n = _get(c, NTP_PATH)
+        except ApiError:
+            n = ""
+    finally:
+        if own:
+            c.close()
+    local = tag(t, "localTime")
+    device = device_instant(local, tz)
+    ref = now or dt.datetime.now(dt.timezone.utc)
+    drift = round((device - ref).total_seconds()) if device else None
+    return {
+        "mode": tag(t, "timeMode"), "local_time": local, "time_zone": tag(t, "timeZone"), "windows_zone": tag(t, "windowsZone"), "drift_s": drift,
+        "ntp": {"host": tag(n, "hostName") or tag(n, "ipAddress"), "port": int(tag(n, "portNo") or 123), "interval_min": int(tag(n, "synchronizeInterval") or 0)} if n else None,
+    }
+
+
+def time_document(xml: str, *, mode: str | None, at: dt.datetime | None, tz: ZoneInfo | None = None) -> str:
+    """Set the mode and / or the clock. The clock is written the way the device reports it: the wall clock in the
+    installation zone (summer time included) when `tz` is given and the device's tag is that zone's standard or
+    current offset, otherwise the device's own offset applied to UTC (taken from its localTime)."""
+    out = xml
+    if mode:
+        out = set_tag(out, "timeMode", mode)
+    if at:
+        current = device_instant(tag(xml, "localTime"))
+        offset = current.utcoffset() if current else dt.timedelta(0)
+        stamp = tag(xml, "localTime")
+        try:
+            parsed_stamp = dt.datetime.fromisoformat(stamp.strip().replace("Z", "+00:00")) if stamp else None
+        except ValueError:  # an unreadable clock value: fall back to UTC digits, never a 500
+            parsed_stamp = None
+        tag_offset = parsed_stamp.utcoffset() if parsed_stamp else None
+        if tz is not None and parsed_stamp is not None and tag_offset is None:
+            # no offset reported: the read treats the value as the zone's wall clock, so write it the same way
+            out = set_tag(out, "localTime", at.astimezone(tz).strftime("%Y-%m-%dT%H:%M:%S"))
+            return out
+        if tz is not None and tag_offset is not None and device_instant(stamp, tz) != current:
+            wall = at.astimezone(tz).replace(tzinfo=None)  # the zone's wall clock, tagged with the device's own offset
+            offset = tag_offset
+        else:
+            wall = (at.astimezone(dt.timezone.utc) + (offset or dt.timedelta(0))).replace(tzinfo=None)
+        local = wall.replace(tzinfo=dt.timezone(offset or dt.timedelta(0)))
+        out = set_tag(out, "localTime", local.strftime("%Y-%m-%dT%H:%M:%S%z")[:-2] + ":" + local.strftime("%z")[-2:])
+    return out
+
+
+def sync_clock(settings: Settings, conn: sqlite3.Connection, principal: Any, *, mode: str | None = None, request_id: str | None = None,
+               client: httpx.Client | None = None, now: dt.datetime | None = None, tz: ZoneInfo | None = None) -> dict[str, Any]:
+    """Write this server's time to the NVR (manual mode for the write), then put the mode back (NTP stays NTP)."""
+    own = client is None
+    c = client or _client(settings)
+    try:
+        before_mode = tag(_get(c, TIME_PATH), "timeMode") or "manual"
+        at = now or dt.datetime.now(dt.timezone.utc)
+        rec = apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="clock", path=TIME_PATH,
+                           mutate=lambda x: time_document(x, mode="manual", at=at, tz=tz), note="סנכרון השעון לשעון השרת", request_id=request_id, client=c, keep_before=False)
+        # read the clock back: the write's encoding (wall clock under the device's own offset tag) is inferred from how the
+        # device reports its time, so a device that reads the tag literally would end up an hour off - say so instead of
+        # leaving it unseen (a check against the real time only when the caller did not fix `now`)
+        drift = None
+        if now is None:
+            try:
+                drift = time_status(settings, client=c, tz=tz).get("drift_s")
+            except ApiError:
+                drift = None
+        final = mode or before_mode
+        if final != "manual":
+            apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="time-mode", path=TIME_PATH,
+                         mutate=lambda x: time_document(x, mode=final, at=None), note=f"מצב שעון: {final}", request_id=request_id, client=c, keep_before=False)
+        if drift is not None and abs(drift) > CLOCK_VERIFY_S:
+            audit(conn, actor=principal, action="nvr.clock.verify_failed", decision="denied", resource_type="nvr", resource_id="clock", request_id=request_id, details={"drift_s": drift})
+            raise ApiError(502, "clock_verify_failed", f"אחרי הסנכרון שעון ה־NVR סוטה ב־{drift} שניות. בדקו את השעון במסך המערכת; במצב NTP הוא יתוקן בסנכרון הבא.", details={"drift_s": drift})
+    finally:
+        if own:
+            c.close()
+    return rec
+
+
+def set_time_mode(settings: Settings, conn: sqlite3.Connection, principal: Any, *, mode: str, request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
+    return apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="time-mode", path=TIME_PATH,
+                        mutate=lambda x: time_document(x, mode=mode, at=None), note=f"מצב שעון: {mode}", request_id=request_id, client=client, keep_before=False)
+
+
+def ntp_document(xml: str, *, host: str, port: int, interval_min: int | None) -> str:
+    is_ip = bool(re.fullmatch(r"(\d{1,3}\.){3}\d{1,3}", host))
+    out = set_tag(xml, "addressingFormatType", "ipaddress" if is_ip else "hostname")
+    out = set_tag(out, "ipAddress" if is_ip else "hostName", host)
+    out = set_tag(out, "portNo", str(port))
+    if interval_min:
+        out = set_tag(out, "synchronizeInterval", str(interval_min))
+    return out
+
+
+def set_ntp(settings: Settings, conn: sqlite3.Connection, principal: Any, *, host: str, port: int = 123, interval_min: int | None = None,
+            request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
+    return apply_change(settings, conn, principal, kind="time", permission="nvr.config.time", target="ntp", path=NTP_PATH,
+                        mutate=lambda x: ntp_document(x, host=host, port=port, interval_min=interval_min), note=f"שרת NTP: {host}", request_id=request_id, client=client)
+
+
+# ---------------------------------------------------------------- D1: OSD and channel name
+
+def overlays_path(channel: int) -> str:
+    return f"/ISAPI/System/Video/inputs/channels/{channel}/overlays"
+
+
+def proxy_channel_path(channel: int) -> str:
+    return f"/ISAPI/ContentMgmt/InputProxy/channels/{channel}"
+
+
+def osd_status(settings: Settings, channel: int, *, client: httpx.Client | None = None) -> dict[str, Any]:
+    own = client is None
+    c = client or _client(settings)
+    try:
+        o = _get(c, overlays_path(channel))
+        try:
+            p = _get(c, proxy_channel_path(channel))
+        except ApiError:
+            p = ""
+    finally:
+        if own:
+            c.close()
+    name_block = next(iter(blocks(o, "channelNameOverlay")), "")
+    dt_block = next(iter(blocks(o, "DateTimeOverlay")), "")
+    return {
+        "nvr_name": html.unescape(tag(p, "name") or "") if p else None,
+        "screen": {"width": int(tag(o, "normalizedScreenWidth") or 0), "height": int(tag(o, "normalizedScreenHeight") or 0)},
+        "channel_name": {"enabled": tag(name_block, "enabled") == "true", "x": int(tag(name_block, "positionX") or 0), "y": int(tag(name_block, "positionY") or 0)} if name_block else None,
+        "datetime": {"enabled": tag(dt_block, "enabled") == "true", "x": int(tag(dt_block, "positionX") or 0), "y": int(tag(dt_block, "positionY") or 0),
+                     "date_style": tag(dt_block, "dateStyle"), "time_style": tag(dt_block, "timeStyle"), "display_week": tag(dt_block, "displayWeek") == "true"} if dt_block else None,
+    }
+
+
+DATE_STYLES = ("MM-DD-YYYY", "DD-MM-YYYY", "YYYY-MM-DD", "MM/DD/YYYY", "DD/MM/YYYY", "YYYY/MM/DD")
+
+
+def osd_document(xml: str, *, name_enabled: bool | None, datetime_enabled: bool | None, date_style: str | None, time_style: str | None, display_week: bool | None) -> str:
+    out = xml
+    if name_enabled is not None:
+        out = set_in_block(out, "channelNameOverlay", "enabled", "true" if name_enabled else "false")
+    if datetime_enabled is not None:
+        out = set_in_block(out, "DateTimeOverlay", "enabled", "true" if datetime_enabled else "false")
+    if date_style:
+        out = set_in_block(out, "DateTimeOverlay", "dateStyle", date_style)
+    if time_style:
+        out = set_in_block(out, "DateTimeOverlay", "timeStyle", time_style)
+    if display_week is not None:
+        out = set_in_block(out, "DateTimeOverlay", "displayWeek", "true" if display_week else "false")
+    return out
+
+
+def set_channel_name(settings: Settings, conn: sqlite3.Connection, principal: Any, channel: int, name: str, *, request_id: str | None = None,
+                     client: httpx.Client | None = None) -> dict[str, Any]:
+    """The camera's name on the NVR (and so on its OSD) becomes the VMS name; the InputProxy document is written back as read."""
+    return apply_change(settings, conn, principal, kind="osd", permission="nvr.config.osd", target=f"name-{channel}", path=proxy_channel_path(channel),
+                        mutate=lambda x: set_tag(x, "name", name), note=f"שם ערוץ {channel}: {name}", request_id=request_id, client=client)
+
+
+# ---------------------------------------------------------------- A3: alarm outputs
+
+def alarm_outputs(settings: Settings, *, client: httpx.Client | None = None) -> list[dict[str, Any]]:
+    own = client is None
+    c = client or _client(settings)
+    try:
+        xml = _get(c, IO_OUTPUTS)
+    finally:
+        if own:
+            c.close()
+    out = []
+    for b in blocks(xml, "IOOutputPort"):
+        oid = tag(b, "id")
+        if not oid:
+            continue
+        out.append({"id": int(oid), "name": html.unescape(tag(b, "name") or ""), "use_type": tag(b, "IOUseType") or "", "enabled": tag(b, "enabled") == "true",
+                    "io_type": tag(b, "IOType") or "", "pulse_ms": int(tag(b, "pulseDuration") or 0) or None, "default_state": tag(b, "defaultState") or "",
+                    # the lab NVR triggers its own relay; a camera's output (id 8xx, digitalChannel) answers invalidOperation through the NVR
+                    "pulse_supported": (tag(b, "IOType") or "") == "local"})
+    return out
+
+
+PULSE_XML = f'<IOPortData version="2.0" {XMLNS}><outputState>high</outputState></IOPortData>'
+
+
+def pulse_output(settings: Settings, conn: sqlite3.Connection, principal: Any, output_id: int, *, request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
+    """Trigger the output once (the port's own pulse duration ends it); recorded, audited, not rollbackable."""
+    path = f"{IO_OUTPUTS}/{output_id}/trigger"
+    own = client is None
+    c = client or _client(settings)
+    try:
+        try:
+            _put(c, path, PULSE_XML)
+        except ApiError as exc:
+            _record(conn, principal, kind="alarm_output", permission="nvr.alarm_output", target=f"output-{output_id}", path=path, before=None, after=PULSE_XML, status="failed", error=exc.code, note="הפעלת יציאה")
+            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=f"output-{output_id}", reason=exc.code, request_id=request_id, details={"kind": "alarm_output", "path": path})
+            raise
+    finally:
+        if own:
+            c.close()
+    rec = _record(conn, principal, kind="alarm_output", permission="nvr.alarm_output", target=f"output-{output_id}", path=path, before=None, after=PULSE_XML, status="applied", note="הפעלת יציאה (pulse)")
+    audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=f"output-{output_id}", request_id=request_id, details={"kind": "alarm_output", "path": path, "change_id": rec["id"]})
+    return rec
+
+
+# ---------------------------------------------------------------- C3: disks and S.M.A.R.T.
+
+def hdd_list(settings: Settings, *, client: httpx.Client | None = None) -> list[dict[str, Any]]:
+    own = client is None
+    c = client or _client(settings)
+    try:
+        xml = _get(c, HDD_LIST)
+        disks = []
+        for b in blocks(xml, "hdd"):
+            hid = tag(b, "id")
+            if not hid:
+                continue
+            d = {"id": int(hid), "name": tag(b, "hddName") or f"hdd{hid}", "type": tag(b, "hddType") or "", "status": tag(b, "status") or "", "capacity_mb": int(tag(b, "capacity") or 0),
+                 "free_mb": int(tag(b, "freeSpace") or 0), "property": tag(b, "property") or "", "smart": None}
+            try:
+                s = _get(c, f"{HDD_LIST}/{hid}/SMARTTest/status")
+                d["smart"] = {"temperature_c": int(tag(s, "temprature") or tag(s, "temperature") or 0) or None, "power_on_days": int(tag(s, "powerOnDay") or 0) or None,
+                              "self_eval": tag(s, "selfEvaluaingStatus"), "all_eval": tag(s, "allEvaluaingStatus"), "test_percent": int(tag(s, "selfTestPercent") or 0),
+                              "test_status": tag(s, "selfTestStatus"), "test_type": tag(s, "selfTestType")}
+            except ApiError:
+                d["smart"] = None
+            disks.append(d)
+        return disks
+    finally:
+        if own:
+            c.close()
+
+
+def smart_test_xml(hdd_id: int, kind: str) -> str:
+    return f'<SMARTTest version="2.0" {XMLNS}><hddID>{hdd_id}</hddID><selfTestType>{kind}</selfTestType></SMARTTest>'
+
+
+def start_smart_test(settings: Settings, conn: sqlite3.Connection, principal: Any, hdd_id: int, kind: str = "short", *, request_id: str | None = None,
+                     client: httpx.Client | None = None) -> dict[str, Any]:
+    path = f"{HDD_LIST}/{hdd_id}/SMARTTest"
+    xml = smart_test_xml(hdd_id, kind)
+    own = client is None
+    c = client or _client(settings)
+    try:
+        try:
+            _put(c, path, xml)
+        except ApiError as exc:
+            _record(conn, principal, kind="storage_test", permission="nvr.storage.test", target=f"hdd-{hdd_id}", path=path, before=None, after=xml, status="failed", error=exc.code, note=f"בדיקת SMART {kind}")
+            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=f"hdd-{hdd_id}", reason=exc.code, request_id=request_id, details={"kind": "storage_test", "path": path})
+            raise
+    finally:
+        if own:
+            c.close()
+    rec = _record(conn, principal, kind="storage_test", permission="nvr.storage.test", target=f"hdd-{hdd_id}", path=path, before=None, after=xml, status="applied", note=f"בדיקת SMART {kind}")
+    audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=f"hdd-{hdd_id}", request_id=request_id, details={"kind": "storage_test", "path": path, "change_id": rec["id"]})
+    return rec
+
+
+# ---------------------------------------------------------------- D3: reboot
+
+def reboot(settings: Settings, conn: sqlite3.Connection, principal: Any, *, request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
+    """PUT /ISAPI/System/reboot: no live video and no recording for a minute or two; recorded and audited first."""
+    own = client is None
+    c = client or _client(settings)
+    try:
+        try:
+            _put(c, REBOOT_PATH, "")
+        except ApiError as exc:
+            _record(conn, principal, kind="reboot", permission="nvr.system.reboot", target="system", path=REBOOT_PATH, before=None, after=None, status="failed", error=exc.code, note="הפעלה מחדש")
+            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id="system", reason=exc.code, request_id=request_id, details={"kind": "reboot"})
+            raise
+    finally:
+        if own:
+            c.close()
+    rec = _record(conn, principal, kind="reboot", permission="nvr.system.reboot", target="system", path=REBOOT_PATH, before=None, after=None, status="applied", note="הפעלה מחדש של ה־NVR")
+    audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id="system", request_id=request_id, details={"kind": "reboot", "change_id": rec["id"]})
+    return rec
+

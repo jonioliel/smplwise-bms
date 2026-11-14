@@ -1,0 +1,5 @@
+{
+  "_note": "AVW10-295 fake refusal frame of media/talk_open: someone (the panel or another operator) holds the station (section 3.3).",
+  "success": false,
+  "error": {"code": "audio_busy", "message": "station busy"}
+}

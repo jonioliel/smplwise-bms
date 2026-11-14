@@ -1,0 +1,131 @@
+{
+ "name": "lnotch",
+ "width": 1600,
+ "height": 1200,
+ "scale_m_per_px": 0.02,
+ "walls": [
+  {
+   "a": [
+    200,
+    200
+   ],
+   "b": [
+    1000,
+    200
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1000,
+    200
+   ],
+   "b": [
+    1000,
+    600
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1000,
+    600
+   ],
+   "b": [
+    1400,
+    600
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1400,
+    600
+   ],
+   "b": [
+    1400,
+    1000
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1400,
+    1000
+   ],
+   "b": [
+    200,
+    1000
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    200,
+    1000
+   ],
+   "b": [
+    200,
+    200
+   ],
+   "thickness_px": 12,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    600,
+    206
+   ],
+   "b": [
+    600,
+    994
+   ],
+   "thickness_px": 7,
+   "kind": "interior"
+  },
+  {
+   "a": [
+    1200,
+    480
+   ],
+   "b": [
+    1200,
+    60
+   ],
+   "thickness_px": 8,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1100,
+    570
+   ],
+   "b": [
+    1100,
+    60
+   ],
+   "thickness_px": 8,
+   "kind": "exterior"
+  },
+  {
+   "a": [
+    1130,
+    575
+   ],
+   "b": [
+    1560,
+    575
+   ],
+   "thickness_px": 8,
+   "kind": "exterior"
+  }
+ ],
+ "doors": [],
+ "windows": [],
+ "objects": []
+}

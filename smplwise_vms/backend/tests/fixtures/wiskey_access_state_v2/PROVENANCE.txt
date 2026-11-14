@@ -1,0 +1,25 @@
+Synthetic access_state_v2 answers (WKV2-295). No real person, station, host, PIN or card.
+
+Derived by hand (not executed) from the WisKey delivery pinned in the round-12 audit:
+  delivery commit 3d09290a4a257d470bff6081a9f31d3ad96a6267, payload handoff/arx-exchange/wr12/1
+    (contracts/READBACK_V2_CONTRACT_AND_MIGRATION.txt)
+  implementation commit c932c553f45d5e304ba87d42a422e5c9f04a1cfe:
+    custom_components/hikvision_intercom/access/person_readback.py (project)
+    custom_components/hikvision_intercom/access/revocation_snapshot.py (project_v2)
+    tests/test_arx_revocation_snapshot_v2.py and tests/test_arx_revocation_api_v2.py (the snapshots: person-a, revision 4)
+
+File -> source:
+  present_empty_bookkeeping            test_arx_revocation_api_v2.py test_v1_and_v2_use_the_original_repository_without_writes
+                                       (revocation_pending false, central_revoked true; audit F-02)
+  present_revoked_pin_pending          test_central_revocation_and_cleanup_are_separate_same_revision_facts (retired PIN target)
+  present_disabled_row_unapplied       test_disabled_historical_assignment_does_not_grant_access_or_prove_cleanup
+  present_enabled_row_synced           test_every_remaining_central_access_component_prevents_revoked (enabled assignment patch)
+  present_active_no_rows               test_every_remaining_central_access_component_prevents_revoked ({"active": true} patch)
+  absent / delete_pending              test_absence_and_deletion_pending_never_prove_central_revocation
+  present_revoked_disabled_row_applied, present_revoked_two_disabled_rows_applied, present_disabled_row_behind
+                                       Arx-derived from the project() rules (disabled row, desired == person revision, applied
+                                       bookkeeping); not in WisKey's tests. Whether WisKey keeps such rows after a full revoke is an
+                                       open question (CR-WISKEY-V2-CONSUMER-295 Q1).
+
+`timing_policy` is null in every present fixture: WisKey's snapshots store access_timing_policy None and Arx assumes
+normalize_policy(None) projects null (open question Q4). Station ids are the WisKey test ids (station-a, station-b).

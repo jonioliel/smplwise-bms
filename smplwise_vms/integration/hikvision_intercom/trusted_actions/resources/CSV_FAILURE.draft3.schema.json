@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:run-all:csv-failure-draft3",
+  "x-status": "PROPOSED_OFF_NOT_WRITTEN_AGREEMENT",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "const": "csv_refusal"
+    },
+    "code": {
+      "enum": [
+        "invalid_field",
+        "cursor_stale",
+        "record_too_large"
+      ]
+    },
+    "field": {
+      "enum": [
+        "display_name",
+        "valid_from",
+        "valid_until",
+        "group_ids",
+        "person_id",
+        "profile_revision"
+      ]
+    },
+    "operation_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    }
+  },
+  "required": [
+    "kind",
+    "code"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "invalid_field"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "required": [
+          "field"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "field"
+          ]
+        }
+      }
+    }
+  ]
+}

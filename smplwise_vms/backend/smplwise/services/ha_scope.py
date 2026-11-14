@@ -1,0 +1,258 @@
+"""Who may see which Home Assistant entity (chapters 14/15, CR-007): one rule for the catalogue, the push socket, the
+map bundle and the devices area. An installation-wide holder of the permission sees everything; a holder bound to
+floors sees only entities placed on those floors - anchored on their map or wired to a circuit of their published
+structure (T085). HA areas and floors are the owner's naming, not a scope - with ONE exception (owner decision 02.11, round 14, answer B):
+on a multi-building site, under the installation setting "הרשאת בניין לפי" = "מפה + מיפוי אזורים" (the default), a holder bound to a
+BUILDING (or above it) also reaches the entities whose area the home mapping puts in that building (services/building_scope) - a union
+with the placement rule, decided here only (`FloorSet.mapped`, `mapping_decision`), so every caller of this module follows it. A floor
+binding never gains anything from the mapping, an unmapped area adds nothing, and an explicit deny on the floor the area maps to wins."""
+from __future__ import annotations
+
+import sqlite3
+from typing import Any, Callable
+
+from ..rbac import INSTALLATION, Decision, Principal, authorize, require
+
+Placements = dict[str, list[dict[str, str]]]
+
+# The two permissions that let a caller run a single-entity action (CR-007 slice 2): the older, broader
+# ha.entity.control (every allow-listed action, every screen that used it before this slice keeps working unchanged)
+# and the new devices.control, which reaches ONLY the everyday domains of the devices area below - never a lock, the
+# alarm panel, a siren, a script, a scene or a button (coordinator ruling on the slice-2 review, 2026-09-28: those
+# stay behind ha.entity.control, and a sensitive action's extra grant - door.unlock, alarm.disarm - on top).
+# Either grant is checked at the entity's own floor scope.
+CONTROL_PERMISSIONS = ("ha.entity.control", "devices.control")
+# CR-007 slice 4: humidifier joins fan/climate on the climate card (target humidity, mode) - still never a lock,
+# alarm panel, siren, script, scene or button.
+DEVICES_CONTROL_DOMAINS = frozenset({"light", "switch", "input_boolean", "cover", "climate", "fan", "humidifier", "media_player"})
+
+
+def devices_control_reaches(conn: sqlite3.Connection, entity_id: str) -> bool:
+    """Whether devices.control can ever cover `entity_id`: the domain must be one of DEVICES_CONTROL_DOMAINS
+    (validate_action already refuses an action whose domain differs from the entity's, so the entity's domain is the
+    action's domain), and it must not be a door / garage / gate cover or anything placed on the map's door layer -
+    CR-007 slice-4 review MEDIUM 2: `POST /ha/entities/{id}/actions` reached `ha_scope.control_allowed` with only a
+    domain check, so a devices.control-only caller could open a gate cover the bulk path already refuses to touch.
+    ha.entity.control keeps its old, broader rights on these entities - this refusal is devices.control's own."""
+    domain = entity_id.split(".", 1)[0]
+    if domain not in DEVICES_CONTROL_DOMAINS:
+        return False
+    from . import devices as dsvc
+
+    if domain == "cover":
+        row = conn.execute("SELECT device_class FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+        if row and (row["device_class"] or "") in dsvc.DOOR_COVER_CLASSES:
+            return False
+    on_door_layer = conn.execute(
+        "SELECT 1 FROM map_anchors WHERE resource_type = 'ha_entity' AND resource_id = ? AND layer_id = ? AND effective_to IS NULL",
+        (entity_id, dsvc.DOOR_LAYER),
+    ).fetchone()
+    return on_door_layer is None
+
+
+def devices_control_reaches_checker(conn: sqlite3.Connection) -> Callable[[str], bool]:
+    """`devices_control_reaches` precomputed as a per-entity predicate (one query for the door layer, one for the
+    door-class covers) instead of up to two queries per entity - for callers that check many entities at once
+    (services/device_bulk.py bulk_scope, control_checker below)."""
+    from . import devices as dsvc
+
+    door_layer = {
+        r[0]
+        for r in conn.execute(
+            "SELECT resource_id FROM map_anchors WHERE resource_type = 'ha_entity' AND layer_id = ? AND effective_to IS NULL", (dsvc.DOOR_LAYER,)
+        ).fetchall()
+    }
+    door_covers = {
+        r[0]
+        for r in conn.execute(
+            f"SELECT entity_id FROM ha_entities WHERE domain = 'cover' AND device_class IN ({','.join('?' * len(dsvc.DOOR_COVER_CLASSES))})",
+            list(dsvc.DOOR_COVER_CLASSES),
+        ).fetchall()
+    }
+
+    def check(entity_id: str) -> bool:
+        domain = entity_id.split(".", 1)[0]
+        return domain in DEVICES_CONTROL_DOMAINS and entity_id not in door_layer and entity_id not in door_covers
+
+    return check
+
+
+class FloorSet(set):
+    """The floors a caller holds a permission on (a plain set to every existing caller) that also remembers the floors
+    an explicit deny takes it away on: a placement through a shared room (CR-009) counts only when the room's home floor
+    is not denied - deny wins (entity_visible)."""
+
+    denied: frozenset[str] = frozenset()
+    # round 14: the entities this caller reaches through the home mapping (a building binding, the setting on); empty = the rule before
+    mapped: frozenset[str] = frozenset()
+
+    def __bool__(self) -> bool:  # "holds it somewhere": a floor, or an entity through the mapping (a building without floors of ours)
+        return set.__len__(self) > 0 or bool(self.mapped)
+
+
+def visible_floors(conn: sqlite3.Connection, principal: Principal, permission: str) -> tuple[bool, set[str]]:
+    """(installation-wide, floor ids): wide callers get an empty set, everyone else the floors where they hold it
+    (a FloorSet carrying the explicitly denied floors too)."""
+    if authorize(conn, principal, permission, INSTALLATION).allowed:
+        return True, FloorSet()
+    floors = FloorSet()
+    denied: set[str] = set()
+    for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall():
+        d = authorize(conn, principal, permission, ("floor", f["id"]))
+        if d.allowed:
+            floors.add(f["id"])
+        elif d.reason == "explicit_deny":
+            denied.add(f["id"])
+    floors.denied = frozenset(denied)
+    floors.mapped = mapped_entities(conn, principal, permission, floors.denied)
+    return False, floors
+
+
+def mapped_entities(conn: sqlite3.Connection, principal: Principal, permission: str, denied: frozenset[str] = frozenset()) -> frozenset[str]:
+    """Round 14: the entities `principal` reaches with `permission` through the home mapping - those whose area resolves to a building
+    where the permission holds at the BUILDING scope (a building, site or installation binding; a floor binding is not enough), unless the
+    floor the area maps to carries an explicit deny. Empty while the multi-building switch is off or the setting is "מיקום במפה"."""
+    from . import building_scope
+
+    if not building_scope.mapping_reach_on(conn):
+        return frozenset()
+    held = {r[0] for r in conn.execute("SELECT id FROM buildings WHERE deleted_at IS NULL").fetchall()
+            if authorize(conn, principal, permission, ("building", r[0])).allowed}
+    if not held:
+        return frozenset()
+    return frozenset(eid for eid, (b, f) in building_scope.entity_targets(conn).items() if b in held and (f is None or f not in denied))
+
+
+def mapping_decision(conn: sqlite3.Connection, principal: Principal, permission: str, entity_id: str) -> Decision | None:
+    """The allowing decision behind a reach through the home mapping (the building binding), for the audit rows that name the scope an
+    action ran under - the same rule as `mapped_entities`, for one entity. None = no such reach."""
+    from . import building_scope
+
+    if not building_scope.mapping_reach_on(conn):
+        return None
+    target = building_scope.entity_targets(conn).get(entity_id)
+    if target is None:
+        return None
+    building_id, floor_id = target
+    if floor_id is not None and authorize(conn, principal, permission, ("floor", floor_id)).reason == "explicit_deny":
+        return None
+    d = authorize(conn, principal, permission, ("building", building_id))
+    return d if d.allowed else None
+
+
+def placements(conn: sqlite3.Connection) -> Placements:
+    """Where an entity is on the maps: its anchors, the floors whose published structure has a circuit switched by it
+    (T085) - a floor viewer reads such a switch, a floor operator controls it, the push socket forwards it - and the
+    other floors of a shared room it is placed in (CR-009; `shared_from` = the room's home floor)."""
+    out: Placements = {}
+    for r in conn.execute(
+        "SELECT a.resource_id, a.floor_id, f.name AS floor_name FROM map_anchors a JOIN floors f ON f.id = a.floor_id WHERE a.resource_type = 'ha_entity' AND a.effective_to IS NULL"
+    ).fetchall():
+        out.setdefault(r["resource_id"], []).append({"floor_id": r["floor_id"], "floor_name": r["floor_name"]})
+    from . import geometry_store, shared_spaces
+
+    switches = geometry_store.circuit_switches(conn)
+    names: dict[str, str] | None = None
+    if switches:
+        names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
+        for eid, floors in switches.items():
+            have = {p["floor_id"] for p in out.get(eid, [])}
+            for fid in floors:
+                if fid in names and fid not in have:
+                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid]})
+                    have.add(fid)
+    if shared_spaces.any_active(conn):
+        # CR-009 (security review B1): a MEMBER of a shared room is placed on every floor that shows the room - by the
+        # explicit member list, never by where its anchor or the room's polygon lie
+        names = names or {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
+        share_floors = shared_spaces.member_share_floors(conn)
+        for (rtype, eid), pairs in shared_spaces.mirrored_anchor_floors(conn).items():
+            if rtype != "ha_entity":
+                continue
+            have = {p["floor_id"] for p in out.get(eid, [])}
+            for fid, origin in pairs:
+                if fid in names and fid not in have:
+                    out.setdefault(eid, []).append({"floor_id": fid, "floor_name": names[fid], "shared_from": origin,
+                                                    "share_floors": sorted(share_floors.get(("ha_entity", eid), set()))})
+                    have.add(fid)
+    return out
+
+
+def own_placements(conn: sqlite3.Connection) -> Placements:
+    """`placements` without a shared room's mirrors (`shared_from`): the entity's own anchors and circuits only. The
+    alarm's reach rule (review M1) - a shared room widens nobody's alarm permission to another floor."""
+    return {eid: own for eid, ps in placements(conn).items() if (own := [p for p in ps if not p.get("shared_from")])}
+
+
+def entity_visible(wide: bool, floors: set[str], placed: Placements, entity_id: str) -> bool:
+    """The one placement rule: wide callers see it; a floor-scoped caller only when it is placed on one of their floors.
+    A member of a shared room (CR-009) follows the camera chain rule: an explicit deny on ANY floor of the room takes it
+    away (security review L3: cameras and entities behave the same)."""
+    places = placed.get(entity_id, [])
+    denied = getattr(floors, "denied", frozenset())
+    if not wide and denied and any(denied & set(p.get("share_floors") or ()) for p in places):
+        return False
+    return wide or any(p["floor_id"] in floors for p in places) or entity_id in getattr(floors, "mapped", ())
+
+
+def entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str, permission: str) -> bool:
+    wide, floors = visible_floors(conn, principal, permission)
+    if wide:
+        return True
+    return entity_visible(False, floors, placements(conn), entity_id)
+
+
+def control_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> bool:
+    """Whether the caller may run a single-entity action on `entity_id`: ha.entity.control at that entity's floor
+    scope (any allow-listed domain), or devices.control at that scope for the DEVICES_CONTROL_DOMAINS only. Used by
+    the shared /ha/entities/{id}/actions route (routers/ha.py); neither grant implies the other."""
+    if entity_allowed(conn, principal, entity_id, "ha.entity.control"):
+        return True
+    return devices_control_reaches(conn, entity_id) and entity_allowed(conn, principal, entity_id, "devices.control")
+
+
+def control_decision(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> Decision | None:
+    """The allowing decision behind control_allowed (installation-wide, else the first floor the entity is placed on) -
+    what the action's audit rows record as the scope it was authorised under (T055). None = not allowed."""
+    placed = placements(conn).get(entity_id, [])
+    for perm in CONTROL_PERMISSIONS:
+        if perm == "devices.control" and not devices_control_reaches(conn, entity_id):
+            continue
+        share_floors = {f for p in placed for f in p.get("share_floors") or ()}
+        denied_on_room = any(authorize(conn, principal, perm, ("floor", f)).reason == "explicit_deny" for f in share_floors)
+        for target in [INSTALLATION] + [("floor", p["floor_id"]) for p in placed]:
+            d = authorize(conn, principal, perm, target)
+            if d.allowed and (target == INSTALLATION or not denied_on_room):  # CR-009: a deny on any floor of the room wins
+                return d
+        d = mapping_decision(conn, principal, perm, entity_id)  # round 14: the building binding through the home mapping
+        if d is not None and not denied_on_room:
+            return d
+    return None
+
+
+def control_checker(conn: sqlite3.Connection, principal: Principal) -> Callable[[str], bool]:
+    """control_allowed as a per-entity predicate built once per request (the devices area's cards: one scope lookup
+    per area instead of one per row)."""
+    ha_wide, ha_floors = visible_floors(conn, principal, "ha.entity.control")
+    dc_wide, dc_floors = visible_floors(conn, principal, "devices.control")
+    placed = placements(conn) if (ha_floors or dc_floors) and not ha_wide else {}
+    reaches = devices_control_reaches_checker(conn)
+
+    def check(entity_id: str) -> bool:
+        if entity_visible(ha_wide, ha_floors, placed, entity_id):
+            return True
+        return reaches(entity_id) and entity_visible(dc_wide, dc_floors, placed, entity_id)
+
+    return check
+
+
+def scoped_rows(conn: sqlite3.Connection, principal: Principal, permission: str, rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
+    """`rows` (each with an `entity_id`) narrowed to what the caller may see, and whether it was narrowed at all.
+    Raises the audited 403 when the caller holds the permission nowhere."""
+    wide, floors = visible_floors(conn, principal, permission)
+    if not wide and not floors:
+        require(conn, principal, permission, INSTALLATION)
+    if wide:
+        return rows, False
+    placed = placements(conn)
+    return [r for r in rows if entity_visible(False, floors, placed, r["entity_id"])], True

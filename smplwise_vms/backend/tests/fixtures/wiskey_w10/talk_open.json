@@ -1,0 +1,6 @@
+{
+  "_note": "AVW10-295 fake reply to media/talk_open (section 3.3).",
+  "talk_ref": "wk-talk-0123456789abcdef",
+  "codec": "pcmu",
+  "frame_ms": 20
+}
