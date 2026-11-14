@@ -14,6 +14,7 @@ import {
   uploadSetPhoto,
   type PhotoSet,
 } from '../api/wall';
+import { tr } from '../i18n/msg/media';
 
 const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -90,13 +91,13 @@ export class SwWallPhotoSets extends LitElement {
     let done = 0;
     const problems: string[] = [];
     for (const f of list) {
-      this.progress = `מעלה ${++done} מתוך ${list.length}`;
+      this.progress = tr('מעלה {n} מתוך {total}', { n: ++done, total: list.length });
       if (!OK_TYPES.includes(f.type)) {
-        problems.push(`${f.name}: רק JPEG, PNG או WebP`);
+        problems.push(tr('{name}: רק JPEG, PNG או WebP', { name: f.name }));
         continue;
       }
       if (f.size > this.limits.max_bytes) {
-        problems.push(`${f.name}: גדול מ-8MB`);
+        problems.push(tr('{name}: גדול מ-8MB', { name: f.name }));
         continue;
       }
       try {
@@ -142,22 +143,22 @@ export class SwWallPhotoSets extends LitElement {
   protected render() {
     if (!this.open) return nothing;
     const cur = this.sets.find((s) => s.id === this.current);
-    return html`<sw-dialog open heading="תמונות למסכי קיר" data-wall-photos-dialog @close=${() => this.close()}>
+    return html`<sw-dialog open heading=${tr('תמונות למסכי קיר')} data-wall-photos-dialog @close=${() => this.close()}>
       <div class="sets" data-wall-photo-sets>${this.sets.map((s) => html`<button class="set" aria-pressed=${s.id === this.current} data-wall-set=${s.id} @click=${() => { this.current = s.id; this.confirmDelete = false; void this.loadPhotos(); }}>${s.name} · ${s.count}</button>`)}</div>
-      <div class="row"><sw-field label="תיקייה חדשה"><input type="text" maxlength="40" aria-label="שם תיקייה חדשה" data-wall-new-set .value=${this.name} @input=${(e: Event) => (this.name = (e.target as HTMLInputElement).value)} /></sw-field>
-        <sw-button size="sm" data-wall-create-set ?disabled=${this.busy || !this.name.trim()} @click=${() => void this.create()}>הוספה</sw-button></div>
+      <div class="row"><sw-field label=${tr('תיקייה חדשה')}><input type="text" maxlength="40" aria-label=${tr('שם תיקייה חדשה')} data-wall-new-set .value=${this.name} @input=${(e: Event) => (this.name = (e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-button size="sm" data-wall-create-set ?disabled=${this.busy || !this.name.trim()} @click=${() => void this.create()}>${tr('הוספה')}</sw-button></div>
       ${cur
-        ? html`<div class="row"><b>${cur.name}</b><span class="muted">${cur.count} מתוך ${this.limits.max_files}${cur.used_by.length ? ` · בשימוש: ${cur.used_by.join(', ')}` : ''}</span></div>
-          <div class="row"><input type="file" multiple accept="image/jpeg,image/png,image/webp" aria-label="העלאת תמונות" data-wall-upload ?disabled=${this.busy} @change=${(e: Event) => { const el = e.target as HTMLInputElement; void this.upload(el.files).then(() => (el.value = '')); }} />
+        ? html`<div class="row"><b>${cur.name}</b><span class="muted">${tr('{n} מתוך {max}', { n: cur.count, max: this.limits.max_files })}${cur.used_by.length ? tr(' · בשימוש: {list}', { list: cur.used_by.join(', ') }) : ''}</span></div>
+          <div class="row"><input type="file" multiple accept="image/jpeg,image/png,image/webp" aria-label=${tr('העלאת תמונות')} data-wall-upload ?disabled=${this.busy} @change=${(e: Event) => { const el = e.target as HTMLInputElement; void this.upload(el.files).then(() => (el.value = '')); }} />
             ${this.progress ? html`<span class="muted" data-wall-progress>${this.progress}</span>` : nothing}</div>
-          <div class="muted">JPEG, PNG או WebP · עד 8MB לתמונה · התמונות נשמרות בשרת בלבד (בגודל מסך), בלי נתוני מיקום</div>
-          <div class="grid" data-wall-photo-grid>${this.photos.map((p) => html`<div class="ph" data-wall-photo=${p.id}><img loading="lazy" alt="" src=${photoPreviewUrl(cur.id, p.id)} /><button aria-label="מחיקת תמונה" data-wall-photo-del=${p.id} @click=${() => void this.removePhoto(p.id)}>×</button></div>`)}</div>
+          <div class="muted">${tr('JPEG, PNG או WebP · עד 8MB לתמונה · התמונות נשמרות בשרת בלבד (בגודל מסך), בלי נתוני מיקום')}</div>
+          <div class="grid" data-wall-photo-grid>${this.photos.map((p) => html`<div class="ph" data-wall-photo=${p.id}><img loading="lazy" alt="" src=${photoPreviewUrl(cur.id, p.id)} /><button aria-label=${tr('מחיקת תמונה')} data-wall-photo-del=${p.id} @click=${() => void this.removePhoto(p.id)}>×</button></div>`)}</div>
           ${this.confirmDelete
-            ? html`<div class="row"><span class="warn">למחוק את התיקייה וכל התמונות שבה?${cur.used_by.length ? ' מסגרת התמונות במסכים שמשתמשים בה תכבה.' : ''}</span><sw-button size="sm" variant="danger" data-wall-set-delete-confirm ?disabled=${this.busy} @click=${() => void this.removeSet()}>מחיקה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.confirmDelete = false)}>ביטול</sw-button></div>`
-            : html`<sw-button size="sm" variant="ghost" data-wall-set-delete @click=${() => (this.confirmDelete = true)}>מחיקת התיקייה</sw-button>`}`
-        : html`<p class="muted" data-wall-photos-empty>אין תיקיות עדיין. הוסיפו תיקייה והעלו אליה תמונות.</p>`}
+            ? html`<div class="row"><span class="warn">${tr('למחוק את התיקייה וכל התמונות שבה?')}${cur.used_by.length ? tr(' מסגרת התמונות במסכים שמשתמשים בה תכבה.') : ''}</span><sw-button size="sm" variant="danger" data-wall-set-delete-confirm ?disabled=${this.busy} @click=${() => void this.removeSet()}>${tr('מחיקה')}</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.confirmDelete = false)}>${tr('ביטול')}</sw-button></div>`
+            : html`<sw-button size="sm" variant="ghost" data-wall-set-delete @click=${() => (this.confirmDelete = true)}>${tr('מחיקת התיקייה')}</sw-button>`}`
+        : html`<p class="muted" data-wall-photos-empty>${tr('אין תיקיות עדיין. הוסיפו תיקייה והעלו אליה תמונות.')}</p>`}
       ${this.error ? html`<div class="warn" role="alert" data-wall-photos-error>${this.error}</div>` : nothing}
-      <sw-button slot="footer" variant="primary" @click=${() => this.close()}>סגירה</sw-button>
+      <sw-button slot="footer" variant="primary" @click=${() => this.close()}>${tr('סגירה')}</sw-button>
     </sw-dialog>`;
   }
 }

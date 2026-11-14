@@ -14,6 +14,7 @@ import { encodingLead } from './nvr-verify-logic';
 import type { CameraDetail, EncodingField, NvrCamera, StreamEncoding, StreamOptions, StreamRole, Verdict } from '../api/nvr-settings';
 import { DASH, ROLE_HE } from './nvr-cameras-logic';
 import { FIELD_HE, REASON_HE, countLabel, reasonHe, valueLabel, type ConfirmModel } from './nvr-cameras-edit';
+import { tr } from '../i18n/msg/media';
 
 // ------------------------------------------------------------------------------------------------ the streams that can be chosen
 
@@ -57,7 +58,7 @@ export function encodingStreams(cameras: NvrCamera[], details: Map<string, Camer
       const s = fresh(raw, d);
       let reason = '';
       if (stale) reason = REASON_HE.stale;
-      else if (d === undefined) reason = 'נטען';
+      else if (d === undefined) reason = tr('נטען');
       else if (d === 'error' || (d && d.stale)) reason = REASON_HE.detail_error;
       else if (c.online === false) reason = REASON_HE.offline;
       else if (s.writable === false) reason = reasonHe(s.not_writable_reason);
@@ -150,7 +151,7 @@ export const EMPTY_DRAFT: EncDraft = { codec: '', resolution: '', fps: '', bitra
 /** The fields of the form in display order. */
 export const DRAFT_FIELDS: (keyof EncDraft)[] = ['codec', 'resolution', 'fps', 'bitrate_mode', 'bitrate_kbps', 'quality', 'gop', 'svc', 'smart_codec'];
 
-export const LEAVE = 'ללא שינוי';
+export const LEAVE = tr('ללא שינוי');
 
 export interface EncChoices {
   codec: string[];
@@ -241,7 +242,7 @@ export function onBitrateMode(d: EncDraft, mode: EncDraft['bitrate_mode']): EncD
 }
 
 /** One short line under the form / in the preview: H.264 is what the live view plays over WebRTC. Shown only when the codec is changed. */
-export const WEBRTC_NOTE = 'הצפייה החיה מנגנת ב־WebRTC רק H.264.';
+export const WEBRTC_NOTE = tr('הצפייה החיה מנגנת ב־WebRTC רק H.264.');
 
 // ------------------------------------------------------------------------------------------------ the preview
 
@@ -273,8 +274,8 @@ export type PreviewTab = 'change' | 'skip' | 'unchanged';
 /** The preview's numbers in one line: "ישתנו 12 זרמים · לא ניתן: 3 זרמים · כבר מוגדרים: 2 זרמים". */
 export function previewSummary(p: EncodingPreview): string {
   const n = p.counts;
-  const streams = (k: number) => (k === 1 ? 'זרם אחד' : `${k} זרמים`);
-  return [n.change ? `ישתנו ${streams(n.change)}` : 'אין מה לשנות', n.skip ? `לא ניתן: ${streams(n.skip)}` : '', n.unchanged ? `כבר מוגדרים: ${streams(n.unchanged)}` : '']
+  const streams = (k: number) => (k === 1 ? tr('זרם אחד') : tr('{k} זרמים', { k }));
+  return [n.change ? tr('ישתנו {streams}', { streams: streams(n.change) }) : tr('אין מה לשנות'), n.skip ? tr('לא ניתן: {streams}', { streams: streams(n.skip) }) : '', n.unchanged ? tr('כבר מוגדרים: {streams}', { streams: streams(n.unchanged) }) : '']
     .filter(Boolean)
     .join(' · ');
 }
@@ -289,20 +290,20 @@ export function startRequest(p: EncodingPreview, onRefusal?: RefusalPolicy): Enc
   };
 }
 
-export const streamsLabel = (n: number): string => (n === 1 ? 'זרם אחד' : `${n} זרמים`);
-export const inStreams = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
+export const streamsLabel = (n: number): string => (n === 1 ? tr('זרם אחד') : tr('{n} זרמים', { n }));
+export const inStreams = (n: number): string => (n === 1 ? tr('בזרם אחד') : tr('ב־{n} זרמים', { n }));
 
-export const ENC_CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
+export const ENC_CONFIRM_LEAD = tr('השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.');
 
 /** The ONE confirmation (the S2C rules: one dialog, the count, two buttons, the streams under "פרטים"; no typed word). */
 export function encodingConfirmModel(p: EncodingPreview, nameOf: (it: PlanItem) => string, onRefusal?: RefusalPolicy): ConfirmModel {
   const items = p.items.filter((i) => i.status === 'change');
   return {
-    heading: `לשנות את הקידוד ${inStreams(items.length)}?`,
+    heading: tr('לשנות את הקידוד {where}?', { where: inStreams(items.length) }),
     // CAM-H264-VERIFY-2361: the lead says what a refused camera does (skip and continue / stop); an older server without the policy keeps the S2C words
     lead: onRefusal ? encodingLead(onRefusal) : ENC_CONFIRM_LEAD,
     count: countLabel(p.changes_total),
-    confirmLabel: 'החל',
+    confirmLabel: tr('החל'),
     details: [],
     names: items.map(nameOf),
   };
@@ -316,22 +317,22 @@ export function encErrorLine(e: { status: number; code: string; user_message?: s
   switch (e.code) {
     case 'stale':
     case 'plan_changed':
-      return { text: 'ההגדרות במצלמות השתנו. התצוגה המקדימה נטענה מחדש.', reload: true };
+      return { text: tr('ההגדרות במצלמות השתנו. התצוגה המקדימה נטענה מחדש.'), reload: true };
     case 'batch_in_progress':
-      return { text: 'מתבצע שינוי מרובה', reload: false };
+      return { text: tr('מתבצע שינוי מרובה'), reload: false };
     case 'batch_target_not_allowed':
-      return { text: 'אחד הזרמים כבר אינו מתאים. התצוגה המקדימה נטענה מחדש.', reload: true };
+      return { text: tr('אחד הזרמים כבר אינו מתאים. התצוגה המקדימה נטענה מחדש.'), reload: true };
     case 'write_in_progress':
-      return { text: 'שינוי אחר של אחד הזרמים מתבצע. נסו שוב בעוד רגע.', reload: false };
+      return { text: tr('שינוי אחר של אחד הזרמים מתבצע. נסו שוב בעוד רגע.'), reload: false };
     case 'forbidden':
-      return { text: 'אין הרשאה לפעולה הזו.', reload: false };
+      return { text: tr('אין הרשאה לפעולה הזו.'), reload: false };
     case 'source_unavailable':
     case 'source_timeout':
-      return { text: 'ה־NVR אינו זמין.', reload: false };
+      return { text: tr('ה־NVR אינו זמין.'), reload: false };
     case 'network':
-      return { text: 'אין חיבור לשרת.', reload: false };
+      return { text: tr('אין חיבור לשרת.'), reload: false };
     default:
-      return { text: e.user_message || 'הפעולה לא בוצעה.', reload: false };
+      return { text: e.user_message || tr('הפעולה לא בוצעה.'), reload: false };
   }
 }
 

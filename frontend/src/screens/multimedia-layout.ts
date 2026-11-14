@@ -12,14 +12,15 @@ import {
   DEFAULT_CARD, effectiveLayout, moveKey, resolveCards,
   type CardCfg, type CardGroup, type GroupBy, type MediaDevice, type MediaLayout, type MediaPersonal, type Size,
 } from '../api/media-screens';
+import { tr } from '../i18n/msg/media';
 
 export type EditScope = 'all' | 'me';
 export type StateFilter = 'all' | 'on' | 'off' | 'un';
 
-export const SIZE_LABEL: Record<Size, string> = { s: 'קטן', m: 'רגיל', l: 'גדול' };
-export const GROUP_LABEL: Record<GroupBy, string> = { floor: 'לפי קומה', area: 'לפי חדר', none: 'רציף' };
+export const SIZE_LABEL: Record<Size, string> = { s: tr('קטן'), m: tr('רגיל'), l: tr('גדול') };
+export const GROUP_LABEL: Record<GroupBy, string> = { floor: tr('לפי קומה'), area: tr('לפי חדר'), none: tr('רציף') };
 export const STATE_FILTERS: { id: StateFilter; label: string }[] = [
-  { id: 'all', label: 'הכל' }, { id: 'on', label: 'פועלים' }, { id: 'off', label: 'כבויים' }, { id: 'un', label: 'לא זמינים' },
+  { id: 'all', label: tr('הכל') }, { id: 'on', label: tr('פועלים') }, { id: 'off', label: tr('כבויים') }, { id: 'un', label: tr('לא זמינים') },
 ];
 /** The most "מועדפים" the server takes (MEDIA_API.md §2.4). */
 export const PINNED_MAX = 24;
@@ -116,7 +117,7 @@ export function floorsOf(devices: MediaDevice[], layout: Pick<MediaLayout, 'floo
   const map = new Map<string, FloorRef>();
   for (const d of devices) {
     const id = floorIdOf(d);
-    const f = map.get(id) ?? { id, name: d.floor_name ?? 'ללא שיוך', count: 0 };
+    const f = map.get(id) ?? { id, name: d.floor_name ?? tr('ללא שיוך'), count: 0 };
     f.count += 1;
     map.set(id, f);
   }

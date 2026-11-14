@@ -28,15 +28,16 @@ import {
 } from './nvr-cameras-edit';
 import type { EncodingChanges } from '../api/nvr-settings';
 import { dayTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/media';
 
 /** The editor's line when "שמור" cannot open the confirmation: the press always answers (owner report 2026-10-04: "nothing happens"). */
 export const SAVE_LINE = {
-  gone: 'הזרם אינו זמין כרגע. סגרו את החלונית ופתחו שוב.',
-  loading: 'טוען את האפשרויות של הקידוד. נסו שוב בעוד רגע.',
-  no_options: 'יכולות הזרם אינן ידועות, ולכן אי אפשר לשמור.',
-  invalid: 'יש לבחור ערך תקין',
-  nothing: 'אין שינויים לשמירה.',
-  failed: 'השינוי לא נשמר. נסו שוב.',
+  gone: tr('הזרם אינו זמין כרגע. סגרו את החלונית ופתחו שוב.'),
+  loading: tr('טוען את האפשרויות של הקידוד. נסו שוב בעוד רגע.'),
+  no_options: tr('יכולות הזרם אינן ידועות, ולכן אי אפשר לשמור.'),
+  invalid: tr('יש לבחור ערך תקין'),
+  nothing: tr('אין שינויים לשמירה.'),
+  failed: tr('השינוי לא נשמר. נסו שוב.'),
 } as const;
 
 /**
@@ -493,7 +494,7 @@ export class NvrCameraEditor extends LitElement {
     const codec = d.codec || s.codec || '';
     const lock = (f: EncodingField) => {
       const by = lockedBy(f, s, o, d);
-      return by ? `${FIELD_HE[f]} נעול` : null;
+      return by ? tr('{field} נעול', { field: FIELD_HE[f] }) : null;
     };
     return shownFields(s, o, d).map((f) => {
       switch (f) {
@@ -504,7 +505,7 @@ export class NvrCameraEditor extends LitElement {
         case 'resolution':
           return this.select(f, FIELD_HE[f], o.resolution[codec] ?? [], lock(f), bad.has(f), (v) => v.replace(/x/i, '×'));
         case 'fps':
-          return this.select(f, FIELD_HE[f], [...(o.fps_full ? ['full'] : []), ...o.fps.map(String)], lock(f), bad.has(f), (v) => (v === 'full' ? 'מלא' : v));
+          return this.select(f, FIELD_HE[f], [...(o.fps_full ? ['full'] : []), ...o.fps.map(String)], lock(f), bad.has(f), (v) => (v === 'full' ? tr('מלא') : v));
         case 'bitrate_mode':
           return this.select(f, FIELD_HE[f], o.bitrate_mode, lock(f), bad.has(f));
         case 'quality':
@@ -532,12 +533,12 @@ export class NvrCameraEditor extends LitElement {
     if (!list || !list.length) return nothing;
     const last = undoable(list);
     return html`<details class="history" data-nvr-history>
-      <summary>שינויים אחרונים</summary>
+      <summary>${tr('שינויים אחרונים')}</summary>
       <ol>${list.map(
         (c) => html`<li data-change=${c.id} data-status=${c.status}>
           <span class="when">${this.when(c.created_at)} · ${STATUS_HE[c.status] ?? c.status}</span>
           <span class="what">${changeFields(c).map((x) => html`<span>${fieldName(x.field)} <bdi>${x.from}</bdi> ← <bdi>${x.to}</bdi></span>`)}</span>
-          ${last && last.id === c.id ? html`<sw-button size="sm" data-nvr-undo-change ?disabled=${this.busy} @click=${() => void this.undo(c.id)}>בטל</sw-button>` : nothing}
+          ${last && last.id === c.id ? html`<sw-button size="sm" data-nvr-undo-change ?disabled=${this.busy} @click=${() => void this.undo(c.id)}>${tr('בטל')}</sw-button>` : nothing}
         </li>`,
       )}</ol>
     </details>`;
@@ -558,8 +559,8 @@ export class NvrCameraEditor extends LitElement {
         ? html`<form @submit=${(e: Event) => e.preventDefault()} data-nvr-editor-form aria-busy=${this.busy}>${this.fields()}</form>
             ${this.line ? html`<p class="line" role="status" data-nvr-editor-line>${this.line}</p>` : nothing}
             ${this.renderHistory()}
-            <sw-button slot="footer" variant="ghost" data-nvr-editor-cancel @click=${this.close}>ביטול</sw-button>
-            <sw-button slot="footer" variant="primary" data-nvr-editor-save ?disabled=${!dirty || !valid || this.busy || !this.optsFit} @click=${this.save}>שמור</sw-button>`
+            <sw-button slot="footer" variant="ghost" data-nvr-editor-cancel @click=${this.close}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="primary" data-nvr-editor-save ?disabled=${!dirty || !valid || this.busy || !this.optsFit} @click=${this.save}>${tr('שמור')}</sw-button>`
         : nothing}
       <nvr-confirm .model=${this.confirm} @confirm=${() => void this.confirmed()} @cancel=${() => ((this.confirm = null), (this.pending = null))}></nvr-confirm>
     </sw-drawer>`;

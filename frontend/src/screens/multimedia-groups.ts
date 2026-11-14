@@ -31,6 +31,7 @@ import { glyphIcon, mIcon, nameText } from '../components/media-icons';
 import { playerView } from '../components/media-player-now';
 import { runPlayerCommand } from '../components/media-player-run';
 import { capPercent, presetFloors, presetIsLive, presetRooms, splitGroups, summarizeRecord } from './multimedia-players-layout';
+import { tr } from '../i18n/msg/media';
 
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
@@ -616,7 +617,7 @@ export class MultimediaGroups extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhone);
     this.offEdit = registerScreenEdit({
       id: 'multimedia-groups-edit',
-      label: 'עריכת הקבוצות השמורות',
+      label: tr('עריכת הקבוצות השמורות'),
       icon: 'edit',
       can: () => this.canEdit && !this.editing,
       run: () => this.enterEdit(),
@@ -808,10 +809,10 @@ export class MultimediaGroups extends LitElement {
       if (preview) {
         const floors = preview.floors;
         this.dialog?.confirm({
-          heading: `לצרף ${preview.devices} חדרים לקבוצה אחת?`,
-          sub: floors > 1 ? `הקבוצה תשמיע ב־${floors} קומות.` : undefined,
+          heading: tr('לצרף {devices} חדרים לקבוצה אחת?', { devices: preview.devices }),
+          sub: floors > 1 ? tr('הקבוצה תשמיע ב־{floors} קומות.', { floors }) : undefined,
           names: previewNames(preview),
-          ok: 'צרף',
+          ok: tr('צרף'),
           run: async () => {
             await this.apply(p, true);
           },
@@ -846,7 +847,7 @@ export class MultimediaGroups extends LitElement {
       const dlg = this.dialog;
       if (!dlg) return resolve(false);
       dlg.confirm({
-        heading: `לשלוט ב־${pv.devices} חדרים יחד?`, sub: pv.floors > 1 ? `הקבוצה משמיעה ב־${pv.floors} קומות.` : undefined, names: previewNames(pv), ok: 'בצע',
+        heading: tr('לשלוט ב־{devices} חדרים יחד?', { devices: pv.devices }), sub: pv.floors > 1 ? tr('הקבוצה משמיעה ב־{floors} קומות.', { floors: pv.floors }) : undefined, names: previewNames(pv), ok: tr('בצע'),
         run: async () => resolve(true), cancel: () => resolve(false),
       });
     });
@@ -911,10 +912,10 @@ export class MultimediaGroups extends LitElement {
         const rec = await this.record(r.bulk_id);
         const names = new Map<string, { text: string; bad: boolean }>();
         for (const m of rec?.members ?? []) {
-          if (m.outcome === 'clamped') names.set(m.device_key, { text: 'הוגבל לתקרה', bad: false });
-          else if (m.outcome === 'skipped_muted') names.set(m.device_key, { text: 'מושתק', bad: false });
-          else if (m.outcome === 'skipped_unavailable' || m.outcome === 'skipped_off') names.set(m.device_key, { text: m.outcome === 'skipped_off' ? 'כבוי' : 'לא זמין', bad: false });
-          else if (m.outcome === 'not_allowed' || m.outcome === 'unknown') names.set(m.device_key, { text: m.outcome === 'not_allowed' ? 'אין הרשאה' : 'לא ידוע', bad: true });
+          if (m.outcome === 'clamped') names.set(m.device_key, { text: tr('הוגבל לתקרה'), bad: false });
+          else if (m.outcome === 'skipped_muted') names.set(m.device_key, { text: tr('מושתק'), bad: false });
+          else if (m.outcome === 'skipped_unavailable' || m.outcome === 'skipped_off') names.set(m.device_key, { text: m.outcome === 'skipped_off' ? tr('כבוי') : tr('לא זמין'), bad: false });
+          else if (m.outcome === 'not_allowed' || m.outcome === 'unknown') names.set(m.device_key, { text: m.outcome === 'not_allowed' ? tr('אין הרשאה') : tr('לא ידוע'), bad: true });
         }
         const all = new Map(this.notes);
         all.set(g.leader_key, names);
@@ -942,7 +943,7 @@ export class MultimediaGroups extends LitElement {
     try {
       await players().deletePreset(p.id, p.revision);
       this.deleting = null;
-      this.say('נמחק');
+      this.say(tr('נמחק'));
       await this.load();
     } catch (err) {
       this.actionError = playerErrorText(err);
@@ -971,13 +972,13 @@ export class MultimediaGroups extends LitElement {
     const level = this.local.get(`m:${m.key}`) ?? m.volume ?? 0;
     const can = this.canControl && !!d?.can.control && !!d?.caps.volume_set && m.available;
     const cap = d ? capPercent(effectiveCeiling(d)) : null;
-    const sub = note ? html`<small class=${note.bad ? 'bad' : 'ok'}>${note.text}</small>` : html`<small>${isLead ? html`${bidi(m.area_name ?? '')}${m.area_name ? ' · ' : ''}מוביל` : bidi(m.area_name ?? '')}</small>`;
+    const sub = note ? html`<small class=${note.bad ? 'bad' : 'ok'}>${note.text}</small>` : html`<small>${isLead ? html`${bidi(m.area_name ?? '')}${m.area_name ? ' · ' : ''}${tr('מוביל')}` : bidi(m.area_name ?? '')}</small>`;
     const action = opts.leave && !isLead && this.canGroup
-      ? html`<button type="button" class="rb" data-leave=${m.key} aria-label=${`נתק · ${m.name}`} title="נתק" @click=${() => void this.leaveRoom(m.key)}>${mIcon('unlink')}</button>`
-      : html`<button type="button" class=${classMap({ rb: true, muted: !!m.muted })} aria-pressed=${String(!!m.muted)} aria-label=${`${m.muted ? 'בטל השתקה' : 'השתק'} · ${m.name}`} ?disabled=${!can} @click=${() => void this.mute(m.key, !!m.muted)}>${mIcon(m.muted ? 'volOff' : 'vol')}</button>`;
+      ? html`<button type="button" class="rb" data-leave=${m.key} aria-label=${tr('נתק · {name}', { name: m.name })} title=${tr('נתק')} @click=${() => void this.leaveRoom(m.key)}>${mIcon('unlink')}</button>`
+      : html`<button type="button" class=${classMap({ rb: true, muted: !!m.muted })} aria-pressed=${String(!!m.muted)} aria-label=${`${m.muted ? tr('בטל השתקה') : tr('השתק')} · ${m.name}`} ?disabled=${!can} @click=${() => void this.mute(m.key, !!m.muted)}>${mIcon(m.muted ? 'volOff' : 'vol')}</button>`;
     return html`<div class=${classMap({ mrow: true, lead: isLead, dim: !m.available })} data-member=${m.key}>
       <div class="nm"><b>${nameText(bidi(m.name))}</b>${sub}</div>
-      <span class="rngwrap">${cap !== null ? html`<span class="cap" style=${`--cap:${cap}%`}></span>` : nothing}<input class="rng sm" type="range" min="0" max="100" .value=${String(level)} style=${this.rangeStyle(level)} aria-label=${`עוצמה · ${m.name}`} ?disabled=${!can} @input=${(e: Event) => this.roomSlide(m.key, Number((e.target as HTMLInputElement).value))} /></span>
+      <span class="rngwrap">${cap !== null ? html`<span class="cap" style=${`--cap:${cap}%`}></span>` : nothing}<input class="rng sm" type="range" min="0" max="100" .value=${String(level)} style=${this.rangeStyle(level)} aria-label=${tr('עוצמה · {name}', { name: m.name })} ?disabled=${!can} @input=${(e: Event) => this.roomSlide(m.key, Number((e.target as HTMLInputElement).value))} /></span>
       <span class="vv"><span class="n">${can || m.volume !== null ? level : '—'}</span></span>${action}
     </div>`;
   }
@@ -985,7 +986,7 @@ export class MultimediaGroups extends LitElement {
   private groupVolume(g: MediaGroup): TemplateResult | typeof nothing {
     if (!this.canControl || !g.can.volume) return nothing;
     const v = this.local.get(`g:${g.leader_key}`) ?? g.volume ?? 0;
-    return html`<div class="vrow"><span class="lbl">קבוצה</span><input class="rng" type="range" min="0" max="100" .value=${String(v)} style=${this.rangeStyle(v)} data-group-volume=${g.leader_key} aria-label="עוצמת הקבוצה" @input=${(e: Event) => this.groupSlide(g, Number((e.target as HTMLInputElement).value))} /><span class="vv"><span class="n">${v}</span></span></div>`;
+    return html`<div class="vrow"><span class="lbl">${tr('קבוצה')}</span><input class="rng" type="range" min="0" max="100" .value=${String(v)} style=${this.rangeStyle(v)} data-group-volume=${g.leader_key} aria-label=${tr('עוצמת הקבוצה')} @input=${(e: Event) => this.groupSlide(g, Number((e.target as HTMLInputElement).value))} /><span class="vv"><span class="n">${v}</span></span></div>`;
   }
 
   /** A live group, a static group or a helper shortcut. */
@@ -994,25 +995,25 @@ export class MultimediaGroups extends LitElement {
     const v = leader ? playerView(leader) : null;
     const lit = !!v?.rgb && (v.playing || v.paused);
     const rooms = g.members.map((m) => m.area_name || m.name);
-    const state = !leader || type === 'helper' ? '' : v?.playing ? ' · מנגן' : v?.paused ? ' · מושהה' : ' · לא מנגן';
-    const sub = type === 'helper' ? `קבוצה וירטואלית · ${plural(g.members.length, 'חדר אחד', 'חדרים')}` : `${plural(g.members.length, 'חדר אחד', 'חדרים')}${g.floor_ids.length > 1 ? ` · ${g.floor_ids.length} קומות` : ''}${state}`;
+    const state = !leader || type === 'helper' ? '' : v?.playing ? tr(' · מנגן') : v?.paused ? tr(' · מושהה') : tr(' · לא מנגן');
+    const sub = type === 'helper' ? `${tr('קבוצה וירטואלית')} · ${plural(g.members.length, tr('חדר אחד'), tr('חדרים'))}` : `${plural(g.members.length, tr('חדר אחד'), tr('חדרים'))}${g.floor_ids.length > 1 ? tr(' · {length} קומות', { length: g.floor_ids.length }) : ''}${state}`;
     const title = type === 'live' ? rooms.join(' + ') : g.name;
     const hl = type === 'helper' && this.canControl ? this.helperLeaders(g) : [];
     const hPlaying = hl.some(isPlaying);
     const helperToggle = hl.length && (hPlaying || hl.some((l) => l.live.play === 'paused'))
-      ? html`<button type="button" class="rb" data-helper-toggle=${g.leader_key} aria-label=${`${hPlaying ? 'השהה' : 'המשך'} · ${g.name}`} @click=${() => void this.toggleHelper(g)}>${mIcon(hPlaying ? 'pause' : 'play')}</button>`
+      ? html`<button type="button" class="rb" data-helper-toggle=${g.leader_key} aria-label=${`${hPlaying ? tr('השהה') : tr('המשך')} · ${g.name}`} @click=${() => void this.toggleHelper(g)}>${mIcon(hPlaying ? 'pause' : 'play')}</button>`
       : nothing;
     const np = leader && (v?.playing || v?.paused) && v
-      ? html`<div class="gnp">${this.thumb(leader)}<div class="t"><b>${nameText(v.title || leader.live.now.title || '')}</b><small>${nameText(v.sub)}</small></div>${this.canControl && leader.can.control ? html`<button type="button" class="pk" aria-label=${`${v.playing ? 'השהה' : 'המשך'} · ${title}`} @click=${() => void this.togglePlay(g.leader_key)}>${mIcon(v.playing ? 'pause' : 'play')}</button>` : nothing}</div>`
+      ? html`<div class="gnp">${this.thumb(leader)}<div class="t"><b>${nameText(v.title || leader.live.now.title || '')}</b><small>${nameText(v.sub)}</small></div>${this.canControl && leader.can.control ? html`<button type="button" class="pk" aria-label=${`${v.playing ? tr('השהה') : tr('המשך')} · ${title}`} @click=${() => void this.togglePlay(g.leader_key)}>${mIcon(v.playing ? 'pause' : 'play')}</button>` : nothing}</div>`
       : nothing;
     const showRows = !this.phone || this.byRoom === g.leader_key;
-    const toggle = this.phone ? html`<button type="button" class="lnk" data-by-room=${g.leader_key} aria-expanded=${String(this.byRoom === g.leader_key)} @click=${() => (this.byRoom = this.byRoom === g.leader_key ? '' : g.leader_key)}>לפי חדר${mIcon('chevronDown')}</button>` : nothing;
-    return html`<article data-fit-item ?data-off=${off} class=${classMap({ gcard: true, glass: true, lit })} style=${lit ? `--art:${v!.rgb}` : ''} aria-label=${`קבוצה · ${title}`} data-group-card=${g.leader_key} data-group-type=${type}>
+    const toggle = this.phone ? html`<button type="button" class="lnk" data-by-room=${g.leader_key} aria-expanded=${String(this.byRoom === g.leader_key)} @click=${() => (this.byRoom = this.byRoom === g.leader_key ? '' : g.leader_key)}>${tr('לפי חדר')}${mIcon('chevronDown')}</button>` : nothing;
+    return html`<article data-fit-item ?data-off=${off} class=${classMap({ gcard: true, glass: true, lit })} style=${lit ? `--art:${v!.rgb}` : ''} aria-label=${tr('קבוצה · {title}', { title })} data-group-card=${g.leader_key} data-group-type=${type}>
       <span class="gbox" aria-hidden="true">${lit && v ? html`<div class="art" style=${`--a1:${v.a1};--a2:${v.a2}`}>${v.artwork ? html`<img src=${artworkUrl(v.artwork)} alt="" />` : nothing}</div>` : nothing}</span>
       <header class="gh"><span class="gi">${mIcon('group')}</span><div class="tx"><b>${nameText(bidi(title))}</b><small>${sub}</small></div>
-        ${helperToggle}${type === 'live' && this.canGroup ? html`<button type="button" class="btn sm quiet" data-ungroup=${g.leader_key} @click=${() => void this.ungroup(g)}>${mIcon('unlink')}פרק</button>` : nothing}</header>
+        ${helperToggle}${type === 'live' && this.canGroup ? html`<button type="button" class="btn sm quiet" data-ungroup=${g.leader_key} @click=${() => void this.ungroup(g)}>${mIcon('unlink')}${tr('פרק')}</button>` : nothing}</header>
       ${np}${this.groupVolume(g)}
-      <div class="psh"><h4>לפי חדר</h4>${toggle}</div>
+      <div class="psh"><h4>${tr('לפי חדר')}</h4>${toggle}</div>
       ${showRows ? html`<div class="members">${g.members.map((m) => this.memberRow(g, m, { leave: type === 'live' }))}</div>` : nothing}
     </article>`;
   }
@@ -1031,19 +1032,19 @@ export class MultimediaGroups extends LitElement {
       return html`<span class=${classMap({ chipx: true, bad, ok })}>${mIcon(bad ? 'warning' : ok ? 'check' : 'speaker')}${nameText(bidi(r.room))}${vol !== undefined ? html` <span class="n">${vol}</span>` : nothing}</span>`;
     });
     let foot: TemplateResult;
-    if (run?.pending) foot = html`<span class="st" data-preset-state="running">${mIcon('group')}מצרף…</span>`;
+    if (run?.pending) foot = html`<span class="st" data-preset-state="running">${mIcon('group')}${tr('מצרף…')}</span>`;
     else if (run && run.failed.length) foot = html`<span class="st bad" data-preset-state="partial">${mIcon('warning')}${run.failed.map((f) => f.text).join(', ')}</span>`;
-    else if (live) foot = html`<span class="st ok" data-preset-state="live">${mIcon('check')}פועל</span>`;
-    else if (p.missing.length) foot = html`<span class="st bad" data-preset-state="missing">${mIcon('warning')}${plural(p.missing.length, 'חדר אחד לא מוגדר', 'חדרים לא מוגדרים')}</span>`;
-    else foot = html`<span class="st" data-preset-state="idle">${plural(rooms.length, 'חדר אחד', 'חדרים')}${floors > 1 ? ` · ${floors} קומות` : ''}${p.volumes ? ' · עם עוצמות' : ''}</span>`;
+    else if (live) foot = html`<span class="st ok" data-preset-state="live">${mIcon('check')}${tr('פועל')}</span>`;
+    else if (p.missing.length) foot = html`<span class="st bad" data-preset-state="missing">${mIcon('warning')}${plural(p.missing.length, tr('חדר אחד לא מוגדר'), tr('חדרים לא מוגדרים'))}</span>`;
+    else foot = html`<span class="st" data-preset-state="idle">${plural(rooms.length, tr('חדר אחד'), tr('חדרים'))}${floors > 1 ? tr(' · {floors} קומות', { floors }) : ''}${p.volumes ? tr(' · עם עוצמות') : ''}</span>`;
     const act = this.canGroup
-      ? html`<button type="button" class=${classMap({ btn: true, primary: !live, quiet: live, pend: !!run?.pending })} data-apply=${p.id} ?disabled=${live || !!run?.pending || p.missing.length > 0} @click=${() => void this.apply(p)}>${mIcon('play')}הפעל</button>`
+      ? html`<button type="button" class=${classMap({ btn: true, primary: !live, quiet: live, pend: !!run?.pending })} data-apply=${p.id} ?disabled=${live || !!run?.pending || p.missing.length > 0} @click=${() => void this.apply(p)}>${mIcon('play')}${tr('הפעל')}</button>`
       : nothing;
     const ed = this.editing
-      ? html`<span class="ecard"><button type="button" data-preset-edit=${p.id} aria-label=${`ערוך · ${p.name}`} @click=${() => this.editor?.show(draftOf(p))}>${mIcon('edit')}</button><button type="button" data-preset-delete=${p.id} aria-label=${`מחק · ${p.name}`} @click=${() => { this.actionError = ''; this.deleting = p; }}>${mIcon('trash')}</button></span>`
+      ? html`<span class="ecard"><button type="button" data-preset-edit=${p.id} aria-label=${tr('ערוך · {name}', { name: p.name })} @click=${() => this.editor?.show(draftOf(p))}>${mIcon('edit')}</button><button type="button" data-preset-delete=${p.id} aria-label=${tr('מחק · {name}', { name: p.name })} @click=${() => { this.actionError = ''; this.deleting = p; }}>${mIcon('trash')}</button></span>`
       : nothing;
-    return html`<article data-fit-item ?data-off=${off} class=${classMap({ gcard: true, glass: true, editing: this.editing })} aria-label=${`קבוצה שמורה · ${p.name}`} data-preset=${p.id}>${ed}
-      <header class="gh"><span class="gi src">${mIcon('star')}</span><div class="tx"><b>${nameText(bidi(p.name))}</b><small>${leader ? html`מוביל: ${nameText(bidi(leader.room))}` : nothing}</small></div></header>
+    return html`<article data-fit-item ?data-off=${off} class=${classMap({ gcard: true, glass: true, editing: this.editing })} aria-label=${tr('קבוצה שמורה · {name}', { name: p.name })} data-preset=${p.id}>${ed}
+      <header class="gh"><span class="gi src">${mIcon('star')}</span><div class="tx"><b>${nameText(bidi(p.name))}</b><small>${leader ? html`${tr('מוביל:')} ${nameText(bidi(leader.room))}` : nothing}</small></div></header>
       <div class="roomchips">${chips}</div>
       <div class="gfoot">${foot}<span class="grow"></span>${act}</div>
     </article>`;
@@ -1054,7 +1055,7 @@ export class MultimediaGroups extends LitElement {
     if (this.phase !== 'ready' || this.editing) return '';
     const { live } = splitGroups(this.groups, this.devices);
     const n = this.presets.length;
-    return [live.length ? (live.length === 1 ? 'קבוצה אחת פועלת' : `${live.length} קבוצות פועלות`) : '', n ? `${n} שמורות` : ''].filter(Boolean).join(' · ');
+    return [live.length ? (live.length === 1 ? tr('קבוצה אחת פועלת') : tr('{length} קבוצות פועלות', { length: live.length })) : '', n ? tr('{n} שמורות', { n }) : ''].filter(Boolean).join(' · ');
   }
 
   /** AUDIT30-D3: the pager sits at the end of sw-page's title row (slot "actions"). */
@@ -1072,19 +1073,19 @@ export class MultimediaGroups extends LitElement {
   }
 
   private editBar(): TemplateResult {
-    return html`<div class="editbar" data-mm-editbar><span class="t">${mIcon('edit')}עריכת הקבוצות השמורות</span><span class="grow"></span>
-      <button type="button" class="btn sm quiet" data-preset-new @click=${() => this.editor?.show(draftOf(null))}>${mIcon('plus')}קבוצה חדשה</button>
-      <button type="button" class="btn sm primary" data-mm-done @click=${() => this.leaveEdit()}>${mIcon('check')}סיום</button></div>`;
+    return html`<div class="editbar" data-mm-editbar><span class="t">${mIcon('edit')}${tr('עריכת הקבוצות השמורות')}</span><span class="grow"></span>
+      <button type="button" class="btn sm quiet" data-preset-new @click=${() => this.editor?.show(draftOf(null))}>${mIcon('plus')}${tr('קבוצה חדשה')}</button>
+      <button type="button" class="btn sm primary" data-mm-done @click=${() => this.leaveEdit()}>${mIcon('check')}${tr('סיום')}</button></div>`;
   }
 
   private body(): TemplateResult | typeof nothing {
     if (this.phase === 'loading') return this.skeleton();
-    if (this.phase === 'error') return html`<div data-mm-state="error">${this.stateBox('warning', 'לא ניתן לטעון את הקבוצות', html`<button type="button" class="btn sm" data-mm-retry @click=${() => { this.phase = 'loading'; void this.load(); }}>${mIcon('refresh')}נסה שוב</button>`)}</div>`;
-    if (this.phase === 'forbidden') return html`<div data-mm-state="forbidden">${this.stateBox('group', 'אין הרשאת צפייה בקבוצות')}</div>`;
-    if (this.phase === 'disabled') return html`<div data-mm-state="disabled">${this.stateBox('power', 'המולטימדיה כבויה')}</div>`;
+    if (this.phase === 'error') return html`<div data-mm-state="error">${this.stateBox('warning', tr('לא ניתן לטעון את הקבוצות'), html`<button type="button" class="btn sm" data-mm-retry @click=${() => { this.phase = 'loading'; void this.load(); }}>${mIcon('refresh')}${tr('נסה שוב')}</button>`)}</div>`;
+    if (this.phase === 'forbidden') return html`<div data-mm-state="forbidden">${this.stateBox('group', tr('אין הרשאת צפייה בקבוצות'))}</div>`;
+    if (this.phase === 'disabled') return html`<div data-mm-state="disabled">${this.stateBox('power', tr('המולטימדיה כבויה'))}</div>`;
     const { live, static: stat, helpers } = splitGroups(this.groups, this.devices);
-    const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.<button type="button" class="btn sm" @click=${() => void this.load()}>נסה שוב</button></div>` : nothing;
-    const newBtn = this.canEdit && !this.editing ? html`<button type="button" class="btn sm quiet" data-preset-new @click=${() => this.editor?.show(draftOf(null))}>${mIcon('plus')}קבוצה חדשה</button>` : nothing;
+    const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}${tr('הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.')}<button type="button" class="btn sm" @click=${() => void this.load()}>${tr('נסה שוב')}</button></div>` : nothing;
+    const newBtn = this.canEdit && !this.editing ? html`<button type="button" class="btn sm quiet" data-preset-new @click=${() => this.editor?.show(draftOf(null))}>${mIcon('plus')}${tr('קבוצה חדשה')}</button>` : nothing;
     const statics = [...stat.map((g) => ({ g, t: 'static' as const })), ...helpers.map((g) => ({ g, t: 'helper' as const }))];
     // NOSCROLL-1366-2437: the cards of the three sections in reading order are paged together on a desktop; a section shows its cards of
     // this page, an empty section's notice shows on the first page (live) or the last page (saved)
@@ -1098,22 +1099,22 @@ export class MultimediaGroups extends LitElement {
     const liveNone = live.length ? live.every((_, i) => liveOff(i)) : !first;
     const staticNone = statics.every((_, i) => staticOff(i));
     const savedNone = this.presets.length ? this.presets.every((_, i) => savedOff(i)) : !last;
-    const liveSec = html`<section class="fsec" ?data-off=${liveNone} data-section="live"><header class="sh"><div><h2>פועלות עכשיו</h2>${live.length ? html`<small>${plural(live.length, 'קבוצה אחת', 'קבוצות')}</small>` : nothing}</div></header>
-      ${live.length ? html`<div class="ggrid">${live.map((g, i) => this.groupCard(g, 'live', liveOff(i)))}</div>` : this.stateBox('group', 'אין קבוצה פעילה', undefined, true)}</section>`;
-    const staticSec = statics.length ? html`<section class="fsec" ?data-off=${staticNone} data-section="static"><header class="sh"><div><h2>קבוצות קבועות</h2><small>${plural(statics.length, 'קבוצה אחת', 'קבוצות')}</small></div></header><div class="ggrid">${statics.map((x, i) => this.groupCard(x.g, x.t, staticOff(i)))}</div></section>` : nothing;
-    const savedSec = html`<section class="fsec" ?data-off=${savedNone} data-section="saved"><header class="sh"><div><h2>קבוצות שמורות</h2><small><span class="n">${this.presets.length}</span> שמורות</small></div><span class="grow"></span>${newBtn}</header>
-      ${this.presets.length ? html`<div class="ggrid">${this.presets.map((p, i) => this.presetCard(p, savedOff(i)))}</div>` : this.stateBox('group', 'אין קבוצות שמורות', undefined, true)}</section>`;
+    const liveSec = html`<section class="fsec" ?data-off=${liveNone} data-section="live"><header class="sh"><div><h2>${tr('פועלות עכשיו')}</h2>${live.length ? html`<small>${plural(live.length, tr('קבוצה אחת'), tr('קבוצות'))}</small>` : nothing}</div></header>
+      ${live.length ? html`<div class="ggrid">${live.map((g, i) => this.groupCard(g, 'live', liveOff(i)))}</div>` : this.stateBox('group', tr('אין קבוצה פעילה'), undefined, true)}</section>`;
+    const staticSec = statics.length ? html`<section class="fsec" ?data-off=${staticNone} data-section="static"><header class="sh"><div><h2>${tr('קבוצות קבועות')}</h2><small>${plural(statics.length, tr('קבוצה אחת'), tr('קבוצות'))}</small></div></header><div class="ggrid">${statics.map((x, i) => this.groupCard(x.g, x.t, staticOff(i)))}</div></section>` : nothing;
+    const savedSec = html`<section class="fsec" ?data-off=${savedNone} data-section="saved"><header class="sh"><div><h2>${tr('קבוצות שמורות')}</h2><small><span class="n">${this.presets.length}</span> ${tr('שמורות')}</small></div><span class="grow"></span>${newBtn}</header>
+      ${this.presets.length ? html`<div class="ggrid">${this.presets.map((p, i) => this.presetCard(p, savedOff(i)))}</div>` : this.stateBox('group', tr('אין קבוצות שמורות'), undefined, true)}</section>`;
     return html`${stale}${this.editing ? this.editBar() : nothing}<div class="groups" data-mm-state="ready">${liveSec}${staticSec}${savedSec}</div>`;
   }
 
   private deleteDialog(): TemplateResult {
     const p = this.deleting;
     if (!p) return html`<sw-dialog data-preset-delete-dialog="closed"></sw-dialog>`;
-    return html`<sw-dialog open ?locked=${this.busy} heading=${`למחוק את "${p.name}"?`} data-preset-delete-dialog="open" @close=${() => (this.deleting = null)}>
+    return html`<sw-dialog open ?locked=${this.busy} heading=${tr('למחוק את "{name}"?', { name: p.name })} data-preset-delete-dialog="open" @close=${() => (this.deleting = null)}>
       ${this.actionError ? html`<div style="color:var(--sw-danger);font-size:var(--sw-fs-sm)" role="alert">${this.actionError}</div>` : nothing}
       <div style="display:flex;justify-content:flex-end;gap:8px;padding-block-start:6px">
-        <sw-button data-pd-no autofocus ?disabled=${this.busy} @click=${() => (this.deleting = null)}>ביטול</sw-button>
-        <sw-button variant="danger" data-pd-yes ?disabled=${this.busy} @click=${() => void this.deletePreset()}>מחק</sw-button>
+        <sw-button data-pd-no autofocus ?disabled=${this.busy} @click=${() => (this.deleting = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="danger" data-pd-yes ?disabled=${this.busy} @click=${() => void this.deletePreset()}>${tr('מחק')}</sw-button>
       </div></sw-dialog>`;
   }
 
@@ -1123,9 +1124,9 @@ export class MultimediaGroups extends LitElement {
 
   render() {
     const body = this.body(); // first: it tells the pager in the header how many cards there are
-    return html`<sw-page class="page" wide heading="קבוצות" subheading=${this.summary()} data-screen="multimedia-groups">${this.pagerAction()}${this.editing ? body : html`<div class="scr" data-mm-region>${body}</div>`}</sw-page>
+    return html`<sw-page class="page" wide heading=${tr('קבוצות')} subheading=${this.summary()} data-screen="multimedia-groups">${this.pagerAction()}${this.editing ? body : html`<div class="scr" data-mm-region>${body}</div>`}</sw-page>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
-    <media-preset-editor .devices=${this.devices} @preset-saved=${() => { this.say('נשמר'); void this.load(); }} @preset-stale=${() => void this.load()}></media-preset-editor>
+    <media-preset-editor .devices=${this.devices} @preset-saved=${() => { this.say(tr('נשמר')); void this.load(); }} @preset-stale=${() => void this.load()}></media-preset-editor>
     ${this.deleteDialog()}
     ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${mIcon('check')}${this.toast}</div>` : nothing}`;
   }

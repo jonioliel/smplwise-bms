@@ -60,6 +60,7 @@ import {
   type EncStream,
   type PreviewTab,
 } from './nvr-encoding-logic';
+import { tr } from '../i18n/msg/media';
 
 type Phase = 'closed' | 'select' | 'settings' | 'preview' | 'confirm';
 
@@ -505,22 +506,22 @@ export class NvrEncodingBatch extends LitElement {
     const selectable = this.rows.filter((r) => r.selectable).length;
     const fl = encFiltersActive(f);
     return html`${this.renderPreset()}<div class="tools" data-nvr-enc-filters>
-        <sw-field class="q"><input type="search" placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" data-nvr-enc-search .value=${f.q} @input=${(e: Event) => this.patchFilters({ q: (e.target as HTMLInputElement).value })} /></sw-field>
-        ${this.dd('זרם', 'role', f.role, [{ id: '', label: 'כל הזרמים' }, { id: 'main', label: 'ראשי' }, { id: 'sub', label: 'משני' }], (id) => this.patchFilters({ role: id as EncFilters['role'] }))}
-        ${this.dd('קידוד', 'codec', f.codec, [{ id: '', label: 'כל הקידודים' }, { id: 'h264', label: 'H.264' }, { id: 'h265', label: 'H.265' }, { id: 'other', label: 'אחר' }], (id) => this.patchFilters({ codec: id as EncFilters['codec'] }))}
-        ${this.dd('SVC', 'svc', f.svc, [{ id: '', label: 'כל ה־SVC' }, { id: 'on', label: 'SVC פעיל' }, { id: 'off', label: 'SVC כבוי' }, { id: 'none', label: 'ללא SVC' }], (id) => this.patchFilters({ svc: id as EncFilters['svc'] }))}
-        ${this.dd('WebRTC', 'webrtc', f.webrtc, [{ id: '', label: 'כל ה־WebRTC' }, { id: 'ok', label: 'מתנגן' }, { id: 'no', label: 'לא מתנגן' }, { id: 'unknown', label: 'לא ידוע' }], (id) => this.patchFilters({ webrtc: id as EncFilters['webrtc'] }))}
+        <sw-field class="q"><input type="search" placeholder=${tr('חיפוש מצלמה')} aria-label=${tr('חיפוש מצלמה')} data-nvr-enc-search .value=${f.q} @input=${(e: Event) => this.patchFilters({ q: (e.target as HTMLInputElement).value })} /></sw-field>
+        ${this.dd(tr('זרם'), 'role', f.role, [{ id: '', label: tr('כל הזרמים') }, { id: 'main', label: tr('ראשי') }, { id: 'sub', label: tr('משני') }], (id) => this.patchFilters({ role: id as EncFilters['role'] }))}
+        ${this.dd(tr('קידוד'), 'codec', f.codec, [{ id: '', label: tr('כל הקידודים') }, { id: 'h264', label: 'H.264' }, { id: 'h265', label: 'H.265' }, { id: 'other', label: tr('אחר') }], (id) => this.patchFilters({ codec: id as EncFilters['codec'] }))}
+        ${this.dd('SVC', 'svc', f.svc, [{ id: '', label: tr('כל ה־SVC') }, { id: 'on', label: tr('SVC פעיל') }, { id: 'off', label: tr('SVC כבוי') }, { id: 'none', label: tr('ללא SVC') }], (id) => this.patchFilters({ svc: id as EncFilters['svc'] }))}
+        ${this.dd('WebRTC', 'webrtc', f.webrtc, [{ id: '', label: tr('כל ה־WebRTC') }, { id: 'ok', label: tr('מתנגן') }, { id: 'no', label: tr('לא מתנגן') }, { id: 'unknown', label: tr('לא ידוע') }], (id) => this.patchFilters({ webrtc: id as EncFilters['webrtc'] }))}
       </div>
       <div class="tools">
-        <sw-button size="sm" data-nvr-enc-all ?disabled=${!matching.some((r) => r.selectable)} @click=${() => (this.selected = selectAllStreams(this.selected, matching))}>${fl ? `בחר הכל (${matching.filter((r) => r.selectable).length})` : 'בחר הכל'}</sw-button>
-        <sw-button size="sm" variant="ghost" data-nvr-enc-clear @click=${() => (this.selected = new Set())}>נקה</sw-button>
-        ${fl ? html`<sw-button size="sm" variant="ghost" data-nvr-enc-unfilter @click=${() => this.patchFilters({ ...NO_ENC_FILTERS })}>נקה סינון</sw-button>` : nothing}
+        <sw-button size="sm" data-nvr-enc-all ?disabled=${!matching.some((r) => r.selectable)} @click=${() => (this.selected = selectAllStreams(this.selected, matching))}>${fl ? tr('בחר הכל ({length})', { length: matching.filter((r) => r.selectable).length }) : tr('בחר הכל')}</sw-button>
+        <sw-button size="sm" variant="ghost" data-nvr-enc-clear @click=${() => (this.selected = new Set())}>${tr('נקה')}</sw-button>
+        ${fl ? html`<sw-button size="sm" variant="ghost" data-nvr-enc-unfilter @click=${() => this.patchFilters({ ...NO_ENC_FILTERS })}>${tr('נקה סינון')}</sw-button>` : nothing}
       </div>
-      <div class="count" data-nvr-enc-count role="status">${`נבחרו ${picked} מתוך ${selectable}`}${fl ? ` · ${matching.length} תוצאות` : ''}</div>
-      ${matching.length ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), 'זרמים') : html`<p class="msg" data-nvr-enc-none role="status">אין זרמים שמתאימים לסינון.</p>`}
+      <div class="count" data-nvr-enc-count role="status">${tr('נבחרו {picked} מתוך {selectable}', { picked, selectable })}${fl ? tr(' · {length} תוצאות', { length: matching.length }) : ''}</div>
+      ${matching.length ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), tr('זרמים')) : html`<p class="msg" data-nvr-enc-none role="status">${tr('אין זרמים שמתאימים לסינון.')}</p>`}
       ${this.line ? html`<p class="msg" data-nvr-enc-line role="alert">${this.line}</p>` : nothing}
-      <sw-button slot="footer" variant="ghost" data-nvr-enc-cancel @click=${() => (this.phase = 'closed')}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-nvr-enc-next ?disabled=${picked < 1} @click=${() => this.toSettings()}>המשך</sw-button>`;
+      <sw-button slot="footer" variant="ghost" data-nvr-enc-cancel @click=${() => (this.phase = 'closed')}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-nvr-enc-next ?disabled=${picked < 1} @click=${() => this.toSettings()}>${tr('המשך')}</sw-button>`;
   }
 
   private toSettings() {
@@ -544,12 +545,12 @@ export class NvrEncodingBatch extends LitElement {
         <p class="note" data-nvr-h264-why>${PRESET_WHY} ${PRESET_STORAGE}</p>
       </div>
       <div class="tools">
-        ${this.dd('מצלמות', 'h264-scope', this.presetScope, SCOPE_ITEMS, (id) => ((this.presetScope = id as PresetScope), (this.line = '')))}
-        ${this.dd('זרמים', 'h264-role', this.presetRole, ROLE_ITEMS, (id) => ((this.presetRole = id as PresetRole), (this.line = '')))}
-        <sw-button size="sm" variant="primary" data-nvr-h264-run ?disabled=${empty || this.busy} @click=${() => this.runPreset()}>${this.busy && this.presetMode ? 'בודק…' : presetButtonLabel(streams.length)}</sw-button>
-        <sw-button size="sm" variant="ghost" data-nvr-verify-reports @click=${() => this.emit('verify-reports')}>דוחות בדיקה קודמים</sw-button>
+        ${this.dd(tr('מצלמות'), 'h264-scope', this.presetScope, SCOPE_ITEMS, (id) => ((this.presetScope = id as PresetScope), (this.line = '')))}
+        ${this.dd(tr('זרמים'), 'h264-role', this.presetRole, ROLE_ITEMS, (id) => ((this.presetRole = id as PresetRole), (this.line = '')))}
+        <sw-button size="sm" variant="primary" data-nvr-h264-run ?disabled=${empty || this.busy} @click=${() => this.runPreset()}>${this.busy && this.presetMode ? tr('בודק…') : presetButtonLabel(streams.length)}</sw-button>
+        <sw-button size="sm" variant="ghost" data-nvr-verify-reports @click=${() => this.emit('verify-reports')}>${tr('דוחות בדיקה קודמים')}</sw-button>
       </div>
-      ${empty || blocked.writesOff ? html`<p class="msg" data-nvr-h264-empty role="status">${empty ? presetEmptyLine(this.presetScope, blocked, this.selected.size) : `${blocked.writesOff} זרמים לא ישתנו: שינויי הגדרות ב־NVR כבויים (הגדרות החיבור).`}</p>` : nothing}
+      ${empty || blocked.writesOff ? html`<p class="msg" data-nvr-h264-empty role="status">${empty ? presetEmptyLine(this.presetScope, blocked, this.selected.size) : tr('{writesOff} זרמים לא ישתנו: שינויי הגדרות ב־NVR כבויים (הגדרות החיבור).', { writesOff: blocked.writesOff })}</p>` : nothing}
     </section>`;
   }
 
@@ -570,16 +571,16 @@ export class NvrEncodingBatch extends LitElement {
     const ch = choicesFor(picked, this.details, d.codec);
     const { settings, invalid } = settingsOf(d, ch);
     const leave: DropdownItem = { id: '', label: LEAVE };
-    const onOff: DropdownItem[] = [leave, { id: 'on', label: 'פעיל' }, { id: 'off', label: 'כבוי' }];
+    const onOff: DropdownItem[] = [leave, { id: 'on', label: tr('פעיל') }, { id: 'off', label: tr('כבוי') }];
     const set = (p: Partial<EncDraft>) => (this.draft = { ...this.draft, ...p });
-    const num = (f: 'bitrate_kbps' | 'gop', range: { min: number; max: number } | null) => html`<sw-field label=${FIELD_HE[f] + (f === 'bitrate_kbps' ? ' (kbps)' : '')} hint=${invalid.includes(f) ? `טווח ${rangeLabel(range)}` : ''}>
+    const num = (f: 'bitrate_kbps' | 'gop', range: { min: number; max: number } | null) => html`<sw-field label=${FIELD_HE[f] + (f === 'bitrate_kbps' ? ' (kbps)' : '')} hint=${invalid.includes(f) ? tr('טווח {range}', { range: rangeLabel(range) }) : ''}>
         <input inputmode="numeric" placeholder=${LEAVE} aria-label=${FIELD_HE[f]} data-nvr-enc-input=${f} aria-invalid=${invalid.includes(f) ? 'true' : 'false'} .value=${d[f]} @input=${(e: Event) => set({ [f]: (e.target as HTMLInputElement).value } as Partial<EncDraft>)} />
       </sw-field>`;
-    return html`<p class="count" data-nvr-enc-picked>${`נבחרו ${picked.length === 1 ? 'זרם אחד' : `${picked.length} זרמים`}`}</p>
+    return html`<p class="count" data-nvr-enc-picked>${picked.length === 1 ? tr('נבחרו זרם אחד') : tr('נבחרו {n} זרמים', { n: picked.length })}</p>
       <div class="form" data-nvr-enc-form>
         <sw-field label=${FIELD_HE.codec}>${this.dd(FIELD_HE.codec, 'codec-target', d.codec, [leave, ...ch.codec.map((c) => ({ id: c, label: c }))], (id) => (this.draft = onCodec(this.draft, id as EncDraft['codec'], choicesFor(picked, this.details, id))))}</sw-field>
         <sw-field label=${FIELD_HE.resolution}>${this.dd(FIELD_HE.resolution, 'resolution', d.resolution, [leave, ...ch.resolution.map((r) => ({ id: r, label: valueLabel('resolution', r) }))], (id) => set({ resolution: id }))}</sw-field>
-        <sw-field label=${FIELD_HE.fps}>${this.dd(FIELD_HE.fps, 'fps', d.fps, [leave, ...(ch.fpsFull ? [{ id: 'full', label: 'מלא' }] : []), ...ch.fps.map((f) => ({ id: String(f), label: String(f) }))], (id) => set({ fps: id }))}</sw-field>
+        <sw-field label=${FIELD_HE.fps}>${this.dd(FIELD_HE.fps, 'fps', d.fps, [leave, ...(ch.fpsFull ? [{ id: 'full', label: tr('מלא') }] : []), ...ch.fps.map((f) => ({ id: String(f), label: String(f) }))], (id) => set({ fps: id }))}</sw-field>
         <sw-field label=${FIELD_HE.bitrate_mode}>${this.dd(FIELD_HE.bitrate_mode, 'bitrate_mode', d.bitrate_mode, [leave, ...ch.bitrateMode.map((m) => ({ id: m, label: m }))], (id) => (this.draft = onBitrateMode(this.draft, id as EncDraft['bitrate_mode'])))}</sw-field>
         ${num('bitrate_kbps', ch.bitrate)}
         <sw-field label=${FIELD_HE.quality}>${this.dd(FIELD_HE.quality, 'quality', d.quality, [leave, ...(d.bitrate_mode === 'CBR' ? [] : ch.quality.map((q) => ({ id: String(q), label: String(q) })))], (id) => set({ quality: id }))}</sw-field>
@@ -589,8 +590,8 @@ export class NvrEncodingBatch extends LitElement {
       </div>
       ${d.codec ? html`<p class="note" data-nvr-enc-webrtc>${WEBRTC_NOTE}</p>` : nothing}
       ${this.line ? html`<p class="msg" data-nvr-enc-line role="alert">${this.line}</p>` : nothing}
-      <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = 'select'), (this.line = ''))}>חזרה</sw-button>
-      <sw-button slot="footer" variant="primary" data-nvr-enc-preview ?disabled=${!hasSettings(settings) || invalid.length > 0 || this.busy} @click=${() => void this.runPreview()}>${this.busy ? 'בודק…' : 'תצוגה מקדימה'}</sw-button>`;
+      <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = 'select'), (this.line = ''))}>${tr('חזרה')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-nvr-enc-preview ?disabled=${!hasSettings(settings) || invalid.length > 0 || this.busy} @click=${() => void this.runPreview()}>${this.busy ? tr('בודק…') : tr('תצוגה מקדימה')}</sw-button>`;
   }
 
   // ---------------------------------------------------------------------------------------------- step 3: the preview
@@ -628,14 +629,14 @@ export class NvrEncodingBatch extends LitElement {
   private previewRow(it: PlanItem) {
     let line: TemplateResult;
     if (it.status === 'skip') line = html`<span class="ln" data-nvr-enc-reason title=${it.message ?? ''}>${it.message ?? ''}</span>`;
-    else if (it.status === 'unchanged') line = html`<span class="ln muted">כבר מוגדר כך</span>`;
+    else if (it.status === 'unchanged') line = html`<span class="ln muted">${tr('כבר מוגדר כך')}</span>`;
     else {
       const ds = deltas(it);
       const kept = keptNotes(it);
       const title = [...ds.filter((x) => x.adjusted).map((x) => `${x.label}: ${x.why}`), ...kept.map((k) => `${k.label}: ${k.why}`)].join('\n');
       line = html`<span class="ln" data-nvr-enc-delta title=${title}>${ds.map(
         (x, i) => html`${i ? ' · ' : ''}${x.label} <bdi class="ltr">${x.from}</bdi> <span class="arrow" aria-hidden="true">←</span> <bdi class="ltr ${x.adjusted ? 'adj' : ''}" data-adjusted=${x.adjusted ? 'true' : 'false'}>${x.to}${x.adjusted ? '*' : ''}</bdi>`,
-      )}${kept.length ? html` · <span class="muted" data-nvr-enc-kept>${kept.map((k) => k.label).join(', ')} ${'ללא שינוי'}</span>` : nothing}</span>`;
+      )}${kept.length ? html` · <span class="muted" data-nvr-enc-kept>${kept.map((k) => k.label).join(', ')} ${tr('ללא שינוי')}</span>` : nothing}</span>`;
     }
     return html`<div class="row" role="listitem" data-nvr-enc-item=${it.index} data-status=${it.status}><span class="nm">${this.nameOf(it)}</span>${line}</div>`;
   }
@@ -645,27 +646,27 @@ export class NvrEncodingBatch extends LitElement {
     if (!p) return nothing;
     const list = p.items.filter((i) => i.status === this.tab);
     const tabs = [
-      { id: 'change', label: 'ישתנו', count: p.counts.change },
-      { id: 'skip', label: 'לא ניתן', count: p.counts.skip },
-      { id: 'unchanged', label: 'כבר מוגדרים', count: p.counts.unchanged },
+      { id: 'change', label: tr('ישתנו'), count: p.counts.change },
+      { id: 'skip', label: tr('לא ניתן'), count: p.counts.skip },
+      { id: 'unchanged', label: tr('כבר מוגדרים'), count: p.counts.unchanged },
     ].filter((t) => t.count > 0 || t.id === 'change');
     const adjusted = p.adjusted > 0;
     return html`<p class="sum" data-nvr-enc-summary role="status">${previewSummary(p)}</p>
       ${this.presetMode
-        ? html`<p class="note" data-nvr-h264-preview-note>${PRESET_WHY} ${PRESET_STORAGE} רזולוציה, קצב פריימים וקצב סיביות נשארים כמו שהם, אלא אם המצלמה דורשת התאמה. ${PRESET_FLOW}</p>`
+        ? html`<p class="note" data-nvr-h264-preview-note>${tr('{PRESET_WHY} {PRESET_STORAGE} רזולוציה, קצב פריימים וקצב סיביות נשארים כמו שהם, אלא אם המצלמה דורשת התאמה. {PRESET_FLOW}', { PRESET_WHY, PRESET_STORAGE, PRESET_FLOW })}</p>`
         : p.settings.codec
           ? html`<p class="note" data-nvr-enc-webrtc>${WEBRTC_NOTE}</p>`
           : nothing}
-      ${adjusted ? html`<p class="note" data-nvr-enc-adjusted>* הותאם למה שהמצלמה מאפשרת</p>` : nothing}
-      <sw-tabs data-nvr-enc-tabs .items=${tabs} .active=${this.tab} group-label="תצוגה מקדימה" @change=${(e: CustomEvent<{ id: string }>) => ((this.tab = e.detail.id as PreviewTab), this.resetScroll())}></sw-tabs>
-      ${list.length ? this.vlist(list.length, PREV_ROW, 'preview', (i) => this.previewRow(list[i]), 'תצוגה מקדימה') : html`<p class="msg" data-nvr-enc-empty role="status">אין זרמים ברשימה הזו.</p>`}
+      ${adjusted ? html`<p class="note" data-nvr-enc-adjusted>${tr('* הותאם למה שהמצלמה מאפשרת')}</p>` : nothing}
+      <sw-tabs data-nvr-enc-tabs .items=${tabs} .active=${this.tab} group-label=${tr('תצוגה מקדימה')} @change=${(e: CustomEvent<{ id: string }>) => ((this.tab = e.detail.id as PreviewTab), this.resetScroll())}></sw-tabs>
+      ${list.length ? this.vlist(list.length, PREV_ROW, 'preview', (i) => this.previewRow(list[i]), tr('תצוגה מקדימה')) : html`<p class="msg" data-nvr-enc-empty role="status">${tr('אין זרמים ברשימה הזו.')}</p>`}
       ${this.refusalKnown && p.counts.change > 1
         ? html`<div class="tools" data-nvr-enc-refusal>${this.dd(REFUSAL_LABEL, 'on-refusal', this.onRefusal, [...REFUSAL_ITEMS], (id) => (this.onRefusal = normalizeRefusal(id)))}<span class="note" data-nvr-enc-refusal-hint>${REFUSAL_HINT[this.onRefusal]}</span></div>`
         : nothing}
-      ${p.batch_in_progress ? html`<p class="msg" data-nvr-enc-busy role="status">מתבצע שינוי מרובה</p>` : nothing}
+      ${p.batch_in_progress ? html`<p class="msg" data-nvr-enc-busy role="status">${tr('מתבצע שינוי מרובה')}</p>` : nothing}
       ${this.line ? html`<p class="msg" data-nvr-enc-line role="alert">${this.line}</p>` : nothing}
-      <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = this.presetMode ? 'select' : 'settings'), (this.line = ''))}>חזרה</sw-button>
-      <sw-button slot="footer" variant="primary" data-nvr-enc-apply ?disabled=${!p.counts.change || p.batch_in_progress || this.busy} @click=${() => this.askConfirm()}>${p.counts.change ? `החל על ${p.counts.change === 1 ? 'זרם אחד' : `${p.counts.change} זרמים`}` : 'החל'}</sw-button>`;
+      <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = this.presetMode ? 'select' : 'settings'), (this.line = ''))}>${tr('חזרה')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-nvr-enc-apply ?disabled=${!p.counts.change || p.batch_in_progress || this.busy} @click=${() => this.askConfirm()}>${p.counts.change ? (p.counts.change === 1 ? tr('החל על זרם אחד') : tr('החל על {n} זרמים', { n: p.counts.change })) : tr('החל')}</sw-button>`;
   }
 
   private askConfirm() {
@@ -726,7 +727,7 @@ export class NvrEncodingBatch extends LitElement {
 
   render() {
     const open = this.phase === 'select' || this.phase === 'settings' || this.phase === 'preview';
-    const heading = this.phase === 'settings' ? 'ההגדרות החדשות' : this.phase === 'preview' ? 'תצוגה מקדימה' : 'שינוי קידוד לכמה מצלמות';
+    const heading = this.phase === 'settings' ? tr('ההגדרות החדשות') : this.phase === 'preview' ? tr('תצוגה מקדימה') : tr('שינוי קידוד לכמה מצלמות');
     return html`<sw-dialog wide ?open=${open} heading=${heading} data-nvr-enc data-phase=${this.phase} ?locked=${this.busy} @close=${(e: Event) => {
         e.stopPropagation();
         this.phase = 'closed';

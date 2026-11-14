@@ -12,9 +12,10 @@
  */
 import type { BitrateMode, CameraDetail, EncodingChanges, EncodingField, NvrCamera, StreamChange, StreamEncoding, StreamOptions } from '../api/nvr-settings';
 import { DASH, ROLE_HE } from './nvr-cameras-logic';
+import { tr } from '../i18n/msg/media';
 
 export const FIELD_HE: Record<EncodingField, string> = {
-  codec: 'קידוד', profile: 'פרופיל', resolution: 'רזולוציה', fps: 'FPS', bitrate_mode: 'סוג קצב', bitrate_kbps: 'קצב', quality: 'איכות', gop: 'GOP',
+  codec: tr('קידוד'), profile: tr('פרופיל'), resolution: tr('רזולוציה'), fps: 'FPS', bitrate_mode: tr('סוג קצב'), bitrate_kbps: tr('קצב'), quality: tr('איכות'), gop: 'GOP',
   svc: 'SVC', smart_codec: 'Smart codec', b_frames: 'B-frames',
 };
 
@@ -43,19 +44,19 @@ export interface Control {
 const NONE: Control = { show: false, enabled: false, reason: '' };
 
 export const REASON_HE: Record<string, string> = {
-  read_only: 'השינוי אינו זמין',
-  not_supported: 'ה־NVR אינו תומך בשינוי הזרם הזה',
-  capabilities_unreadable: 'יכולות הזרם אינן ידועות',
-  proxied: 'ה־NVR אינו מאפשר לשנות את הזרם הזה',
-  offline: 'המצלמה אינה מקוונת',
-  stale: 'ה־NVR אינו זמין',
-  detail_error: 'ה־NVR אינו זמין',
-  no_options: 'יכולות הזרם אינן ידועות',
+  read_only: tr('השינוי אינו זמין'),
+  not_supported: tr('ה־NVR אינו תומך בשינוי הזרם הזה'),
+  capabilities_unreadable: tr('יכולות הזרם אינן ידועות'),
+  proxied: tr('ה־NVR אינו מאפשר לשנות את הזרם הזה'),
+  offline: tr('המצלמה אינה מקוונת'),
+  stale: tr('ה־NVR אינו זמין'),
+  detail_error: tr('ה־NVR אינו זמין'),
+  no_options: tr('יכולות הזרם אינן ידועות'),
   // Provision-ISR (CR-025 NN2B): the NVR itself cannot write this stream (server support gate, 409 `nvr_not_supported`)
-  device_refused: 'ה־NVR אינו מעביר שינויים למצלמה הזו',
-  write_api_missing: 'ה־NVR אינו תומך בשינוי הגדרות זרם',
-  no_caps: 'יכולות הזרם אינן ידועות',
-  writes_disabled: 'כתיבה ל־NVR הזה כבויה',
+  device_refused: tr('ה־NVR אינו מעביר שינויים למצלמה הזו'),
+  write_api_missing: tr('ה־NVR אינו תומך בשינוי הגדרות זרם'),
+  no_caps: tr('יכולות הזרם אינן ידועות'),
+  writes_disabled: tr('כתיבה ל־NVR הזה כבויה'),
 };
 
 /** `not_writable_reason` is a code of the server or - when the device's capability documents were refused - the device's own short status
@@ -87,8 +88,8 @@ export function control(kind: 'svc' | 'edit', cam: Pick<NvrCamera, 'camera_id' |
 /** Display of a field's value in the confirmation, the change log and the editor (LTR values are wrapped by the caller). */
 export function valueLabel(field: EncodingField | string, v: unknown): string {
   if (v === null || v === undefined || v === '') return DASH;
-  if (typeof v === 'boolean') return v ? 'פעיל' : 'כבוי';
-  if (field === 'fps') return v === 'full' || v === 0 ? 'מלא' : String(v);
+  if (typeof v === 'boolean') return v ? tr('פעיל') : tr('כבוי');
+  if (field === 'fps') return v === 'full' || v === 0 ? tr('מלא') : String(v);
   if (field === 'resolution') return String(v).replace(/x/i, '×');
   if (field === 'bitrate_kbps') return `${v} kbps`;
   return String(v);
@@ -115,7 +116,7 @@ export interface ConfirmModel {
   extraLabel?: string;
 }
 
-export const countLabel = (n: number): string => (n === 1 ? 'שינוי אחד' : `${n} שינויים`);
+export const countLabel = (n: number): string => (n === 1 ? tr('שינוי אחד') : tr('{n} שינויים', { n }));
 
 /** The value the stream holds for a field, in the same shape the request uses. */
 export function currentValue(s: StreamEncoding, f: EncodingField): unknown {
@@ -127,13 +128,13 @@ export function currentValue(s: StreamEncoding, f: EncodingField): unknown {
 export function confirmModel(camera: string, s: StreamEncoding, changes: EncodingChanges): ConfirmModel {
   const fields = (Object.keys(changes) as EncodingField[]).filter((f) => changes[f] !== undefined);
   const only = fields.length === 1 ? fields[0] : null;
-  const lead = `${camera} · ${ROLE_HE[s.role]}. השידור ייקטע לכמה שניות.`;
+  const lead = tr('{camera} · {role}. השידור ייקטע לכמה שניות.', { camera, role: ROLE_HE[s.role] });
   const details = fields.map((f) => ({ field: f, label: FIELD_HE[f], from: valueLabel(f, currentValue(s, f)), to: valueLabel(f, changes[f]) }));
   if (only === 'svc') {
     const on = changes.svc === true;
-    return { heading: on ? 'להפעיל SVC?' : 'לכבות SVC?', lead, count: countLabel(1), confirmLabel: on ? 'הפעל' : 'כבה', details };
+    return { heading: on ? tr('להפעיל SVC?') : tr('לכבות SVC?'), lead, count: countLabel(1), confirmLabel: on ? tr('הפעל') : tr('כבה'), details };
   }
-  return { heading: 'לשמור את השינויים?', lead, count: countLabel(fields.length), confirmLabel: 'שמור', details };
+  return { heading: tr('לשמור את השינויים?'), lead, count: countLabel(fields.length), confirmLabel: tr('שמור'), details };
 }
 
 // ------------------------------------------------------------------------------------------------ errors
@@ -155,33 +156,33 @@ export interface ErrorLine {
 export const isUnknownOutcome = (e: ErrorShape): boolean => e.code === 'source_unavailable' && e.details?.outcome === 'unknown';
 
 const LINE: Record<string, string> = {
-  stale: 'הערכים השתנו ב־NVR. נטען מחדש.',
-  write_in_progress: 'שינוי אחר של הזרם הזה מתבצע. נסו שוב בעוד רגע.',
-  batch_in_progress: 'מתבצע שינוי מרובה',
-  nvr_busy: 'ה־NVR עסוק. נסו שוב בעוד רגע.',
-  nvr_no_effect: 'ה־NVR אישר את השינוי אבל לא שינה את ההגדרה.',
-  nvr_diverged: 'ה־NVR שינה רק חלק מההגדרות. נטען מחדש.',
-  nvr_not_supported: 'ה־NVR אינו תומך בשינוי הזה.',
-  nvr_rejected: 'ה־NVR דחה את השינוי.',
-  capabilities_unreadable: 'יכולות הזרם אינן ידועות, ולכן השינוי בוטל.',
-  confirm_required: 'נדרש אישור.',
-  value_not_allowed: 'הערך אינו נתמך במצלמה.',
-  field_locked: 'השדה נעול כרגע.',
-  field_not_supported: 'השדה אינו נתמך בזרם הזה.',
-  not_rollbackable: 'אי אפשר לבטל את השינוי הזה.',
-  forbidden: 'אין הרשאה לפעולה הזו.',
-  source_unavailable: 'ה־NVR אינו זמין.',
-  source_forbidden: 'ל־NVR אין הרשאה לשינוי הזה.',
+  stale: tr('הערכים השתנו ב־NVR. נטען מחדש.'),
+  write_in_progress: tr('שינוי אחר של הזרם הזה מתבצע. נסו שוב בעוד רגע.'),
+  batch_in_progress: tr('מתבצע שינוי מרובה'),
+  nvr_busy: tr('ה־NVR עסוק. נסו שוב בעוד רגע.'),
+  nvr_no_effect: tr('ה־NVR אישר את השינוי אבל לא שינה את ההגדרה.'),
+  nvr_diverged: tr('ה־NVR שינה רק חלק מההגדרות. נטען מחדש.'),
+  nvr_not_supported: tr('ה־NVR אינו תומך בשינוי הזה.'),
+  nvr_rejected: tr('ה־NVR דחה את השינוי.'),
+  capabilities_unreadable: tr('יכולות הזרם אינן ידועות, ולכן השינוי בוטל.'),
+  confirm_required: tr('נדרש אישור.'),
+  value_not_allowed: tr('הערך אינו נתמך במצלמה.'),
+  field_locked: tr('השדה נעול כרגע.'),
+  field_not_supported: tr('השדה אינו נתמך בזרם הזה.'),
+  not_rollbackable: tr('אי אפשר לבטל את השינוי הזה.'),
+  forbidden: tr('אין הרשאה לפעולה הזו.'),
+  source_unavailable: tr('ה־NVR אינו זמין.'),
+  source_forbidden: tr('ל־NVR אין הרשאה לשינוי הזה.'),
 };
 
 /** The one muted line under a row / in the editor for a failed write or undo. */
 export function errorLine(e: ErrorShape): ErrorLine {
-  if (isUnknownOutcome(e)) return { text: 'הסטטוס נבדק', reload: true };
+  if (isUnknownOutcome(e)) return { text: tr('הסטטוס נבדק'), reload: true };
   const reload = e.code === 'stale' || e.code === 'nvr_diverged';
   // a value kept through a codec change that the new codec lacks: the server's own line names the field and the codec
   if (e.code === 'value_not_allowed' && typeof e.details?.codec === 'string' && e.user_message) return { text: e.user_message, reload };
   if (e.code === 'value_not_allowed' && typeof e.details?.field === 'string' && e.details.field in FIELD_HE) return { text: `${FIELD_HE[e.details.field as EncodingField]}: ${LINE.value_not_allowed}`, reload };
-  const text = LINE[e.code] ?? (e.user_message || 'השינוי לא נשמר.');
+  const text = LINE[e.code] ?? (e.user_message || tr('השינוי לא נשמר.'));
   return { text, reload };
 }
 
@@ -355,7 +356,7 @@ export function changeFields(c: StreamChange): { field: string; from: string; to
 export const fieldName = (f: string): string => FIELD_HE[f as EncodingField] ?? f;
 
 export const STATUS_HE: Record<string, string> = {
-  pending: 'בתהליך', applied: 'נשמר', unchanged: 'ללא שינוי', no_effect: 'לא נקלט', refused: 'נדחה', failed: 'נכשל', diverged: 'נשמר חלקית', rolled_back: 'בוטל',
+  pending: tr('בתהליך'), applied: tr('נשמר'), unchanged: tr('ללא שינוי'), no_effect: tr('לא נקלט'), refused: tr('נדחה'), failed: tr('נכשל'), diverged: tr('נשמר חלקית'), rolled_back: tr('בוטל'),
 };
 
 /** The newest `limit` stream-encoding changes of one stream, newest first. Rows without XML, by contract. */

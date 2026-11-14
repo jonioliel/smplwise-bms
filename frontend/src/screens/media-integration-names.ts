@@ -4,6 +4,7 @@
  * into names a person recognises. An id that is not in the table is shown exactly as it is (never guessed, never dropped). Settings screens only:
  * the operator screens show no integration at all. Pure and tested: tests/unit-media-integration-names.spec.ts.
  */
+import { tr } from '../i18n/msg/media';
 
 /** The platform id -> the name shown in the settings lists. Brand names stay in Latin script; the device kind is added in Hebrew where the brand alone is ambiguous. */
 export const INTEGRATION_NAMES: Readonly<Record<string, string>> = {
@@ -30,23 +31,23 @@ export const INTEGRATION_NAMES: Readonly<Record<string, string>> = {
   androidtv: 'Android TV (ADB)',
   androidtv_remote: 'Android TV',
   // television makers
-  samsungtv: 'Samsung (טלוויזיה)',
-  samsungtv_smart: 'Samsung (טלוויזיה, Smart)',
-  webostv: 'LG webOS (טלוויזיה)',
-  philips_js: 'Philips (טלוויזיה)',
-  braviatv: 'Sony Bravia (טלוויזיה)',
-  bravia: 'Sony Bravia (טלוויזיה)',
-  vizio: 'Vizio (טלוויזיה)',
+  samsungtv: tr('Samsung (טלוויזיה)'),
+  samsungtv_smart: tr('Samsung (טלוויזיה, Smart)'),
+  webostv: tr('LG webOS (טלוויזיה)'),
+  philips_js: tr('Philips (טלוויזיה)'),
+  braviatv: tr('Sony Bravia (טלוויזיה)'),
+  bravia: tr('Sony Bravia (טלוויזיה)'),
+  vizio: tr('Vizio (טלוויזיה)'),
   // receivers and amplifiers
-  denonavr: 'Denon / Marantz (מגבר)',
-  onkyo: 'Onkyo (מגבר)',
-  yamaha: 'Yamaha (מגבר)',
+  denonavr: tr('Denon / Marantz (מגבר)'),
+  onkyo: tr('Onkyo (מגבר)'),
+  yamaha: tr('Yamaha (מגבר)'),
   // generic protocols and helpers
-  dlna_dmr: 'DLNA (נגן)',
-  dlna_dms: 'DLNA (שרת מדיה)',
+  dlna_dmr: tr('DLNA (נגן)'),
+  dlna_dms: tr('DLNA (שרת מדיה)'),
   upnp: 'UPnP',
-  universal: 'נגן מורכב (Universal)',
-  group: 'קבוצה',
+  universal: tr('נגן מורכב (Universal)'),
+  group: tr('קבוצה'),
   esphome: 'ESPHome',
   mqtt: 'MQTT',
   homekit_controller: 'HomeKit',

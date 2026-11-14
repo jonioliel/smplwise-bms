@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import type { ConfirmModel } from './nvr-cameras-edit';
+import { tr } from '../i18n/msg/media';
 
 /**
  * CR-020 S2: the ONE confirmation of every stream change (owner Q3 = A): the heading, one line naming the camera and the stream,
@@ -146,15 +147,15 @@ export class NvrConfirm extends LitElement {
         ? html`<p data-nvr-confirm-lead>${m.lead}</p>
             <p class="count" data-nvr-confirm-count>${m.count}</p>
             <details data-nvr-confirm-details>
-              <summary>פרטים</summary>
+              <summary>${tr('פרטים')}</summary>
               ${m.names
-                ? html`<ul class="names" data-nvr-confirm-names tabindex="0" aria-label="המצלמות">${m.names.map((n) => html`<li>${n}</li>`)}</ul>`
+                ? html`<ul class="names" data-nvr-confirm-names tabindex="0" aria-label=${tr('המצלמות')}>${m.names.map((n) => html`<li>${n}</li>`)}</ul>`
                 : html`<ul>${m.details.map((d) => html`<li data-field=${d.field}><span class="k">${d.label}</span><bdi>${d.from}</bdi><span class="arrow" aria-hidden="true">←</span><bdi>${d.to}</bdi></li>`)}</ul>`}
             </details>
             ${m.extraLabel
               ? html`<div class="extra"><sw-button variant="ghost" size="sm" data-nvr-extra @click=${() => this.dispatchEvent(new CustomEvent('extra', { bubbles: true, composed: true }))}>${m.extraLabel}</sw-button></div>`
               : nothing}
-            <sw-button slot="footer" variant="ghost" data-nvr-cancel @click=${this.cancel}>ביטול</sw-button>
+            <sw-button slot="footer" variant="ghost" data-nvr-cancel @click=${this.cancel}>${tr('ביטול')}</sw-button>
             <sw-button slot="footer" variant="primary" data-nvr-confirm @click=${() => this.dispatchEvent(new CustomEvent('confirm', { bubbles: true, composed: true }))}>${m.confirmLabel}</sw-button>`
         : nothing}
     </sw-dialog>`;

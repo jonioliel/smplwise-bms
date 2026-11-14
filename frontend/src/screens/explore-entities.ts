@@ -21,6 +21,7 @@ import { domainLabel, entityTone, fmtTime, listEntities, stateLabel, subscribeHa
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncDisconnectedText } from '../api/ha-sync-status';
+import { tr } from '../i18n/msg/media';
 
 interface Ent {
   id: string;
@@ -236,12 +237,12 @@ export class ExploreEntities extends LitElement {
   }
 
   private columns: TableColumn[] = [
-    { key: 'name', label: 'ישות', render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;inline-size:26px;block-size:26px;border-radius:var(--sw-r-xs);background:var(--sw-accent-soft);color:var(--sw-accent)"><sw-icon name=${domainIcon(String(r.domain))} size=${13}></sw-icon></span><span><strong>${String(r.name)}</strong><div class="ltr" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${String(r.id)}</div></span></span>` },
+    { key: 'name', label: tr('ישות'), render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;inline-size:26px;block-size:26px;border-radius:var(--sw-r-xs);background:var(--sw-accent-soft);color:var(--sw-accent)"><sw-icon name=${domainIcon(String(r.domain))} size=${13}></sw-icon></span><span><strong>${String(r.name)}</strong><div class="ltr" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${String(r.id)}</div></span></span>` },
     { key: 'domain', label: 'Domain', ltr: true },
-    { key: 'area', label: 'אזור' },
-    { key: 'state', label: 'מצב' },
-    { key: 'fresh', label: 'רעננות', render: (r) => html`<sw-badge kind=${r.fresh as StateKind} label=${r.fresh === 'live' || r.fresh === 'neutral' ? 'עדכני' : r.fresh === 'stale' ? 'מיושן' : r.fresh === 'offline' ? 'לא זמין' : 'לא ידוע'}></sw-badge>` },
-    { key: 'placed', label: 'במפה', render: (r) => (r.placed ? html`<sw-badge kind="recorded" label="מוצב"></sw-badge>` : html`<span style="color:var(--sw-text-3)">לא</span>`) },
+    { key: 'area', label: tr('אזור') },
+    { key: 'state', label: tr('מצב') },
+    { key: 'fresh', label: tr('רעננות'), render: (r) => html`<sw-badge kind=${r.fresh as StateKind} label=${r.fresh === 'live' || r.fresh === 'neutral' ? tr('עדכני') : r.fresh === 'stale' ? tr('מיושן') : r.fresh === 'offline' ? tr('לא זמין') : tr('לא ידוע')}></sw-badge>` },
+    { key: 'placed', label: tr('במפה'), render: (r) => (r.placed ? html`<sw-badge kind="recorded" label=${tr('מוצב')}></sw-badge>` : html`<span style="color:var(--sw-text-3)">${tr('לא')}</span>`) },
   ];
 
   private toRow(e: HaEntity): Ent {
@@ -253,7 +254,7 @@ export class ExploreEntities extends LitElement {
       state: stateLabel(e),
       fresh: entityTone(e),
       placed: Boolean(e.placements?.length),
-      actions: e.actions?.length ? e.actions.map((a) => `${a.label}${a.sensitive ? ' (רגיש)' : ''}`).join(' / ') : 'קריאה בלבד',
+      actions: e.actions?.length ? e.actions.map((a) => `${a.label}${a.sensitive ? tr(' (רגיש)') : ''}`).join(' / ') : tr('קריאה בלבד'),
     };
   }
 
@@ -262,21 +263,21 @@ export class ExploreEntities extends LitElement {
     const attrs = Object.entries(e.attributes).filter(([k]) => k !== 'friendly_name' && k !== 'icon').slice(0, 14);
     return html`<sw-drawer open heading=${e.name || e.original_name || e.entity_id} subheading=${e.entity_id} @close=${() => (this.selected = null)}>
       <dl>
-        <dt>מצב</dt><dd><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge></dd>
+        <dt>${tr('מצב')}</dt><dd><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge></dd>
         <dt>Domain</dt><dd><span class="ltr">${e.domain}</span> · ${domainLabel(e.domain)}${e.device_class ? html` · <span class="ltr">${e.device_class}</span>` : nothing}</dd>
-        <dt>אזור</dt><dd>${e.area_name ?? '—'}${e.ha_floor_name ? ` · ${e.ha_floor_name}` : ''}</dd>
-        <dt>שינוי אחרון</dt><dd>${fmtTime(e.last_changed)}</dd>
-        <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}${e.fresh ? '' : ' · הסנכרון מנותק'}</dd>
-        <dt>אינטגרציה</dt><dd><span class="ltr">${e.platform ?? '—'}</span></dd>
-        <dt>פעולות נתמכות</dt><dd>${e.actions?.length ? e.actions.map((a) => `${a.label}${a.sensitive ? ' (רגיש)' : ''}`).join(' / ') : 'קריאה בלבד'}</dd>
-        <dt>במפה</dt><dd>${e.placements?.length ? html`<span class="chips">${e.placements.map((p) => html`<sw-chip @click=${() => navigate(`/explore/floors/${p.floor_id}`)}>${p.floor_name}</sw-chip>`)}</span>` : 'לא מוצב'}</dd>
+        <dt>${tr('אזור')}</dt><dd>${e.area_name ?? '—'}${e.ha_floor_name ? ` · ${e.ha_floor_name}` : ''}</dd>
+        <dt>${tr('שינוי אחרון')}</dt><dd>${fmtTime(e.last_changed)}</dd>
+        <dt>${tr('נראה לאחרונה')}</dt><dd>${fmtTime(e.state_seen_at)}${e.fresh ? '' : tr(' · הסנכרון מנותק')}</dd>
+        <dt>${tr('אינטגרציה')}</dt><dd><span class="ltr">${e.platform ?? '—'}</span></dd>
+        <dt>${tr('פעולות נתמכות')}</dt><dd>${e.actions?.length ? e.actions.map((a) => `${a.label}${a.sensitive ? tr(' (רגיש)') : ''}`).join(' / ') : tr('קריאה בלבד')}</dd>
+        <dt>${tr('במפה')}</dt><dd>${e.placements?.length ? html`<span class="chips">${e.placements.map((p) => html`<sw-chip @click=${() => navigate(`/explore/floors/${p.floor_id}`)}>${p.floor_name}</sw-chip>`)}</span>` : tr('לא מוצב')}</dd>
       </dl>
       ${attrs.length ? html`<div class="attrs">${attrs.map(([k, v]) => html`<span>${k}</span><span>${typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>`)}</div>` : nothing}
-      <div class="note">הקטלוג הוא שיקוף לקריאה בלבד של תשתית המערכת. הפעולות רצות בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.</div>
+      <div class="note">${tr('הקטלוג הוא שיקוף לקריאה בלבד של תשתית המערכת. הפעולות רצות בזהות המשתמש; שליטה מהמפה דורשת הרשאת ha.entity.control.')}</div>
       <div slot="footer">
         ${e.placements?.length
-          ? html`<sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${e.placements![0].floor_id}`)}>הצג במפה</sw-button>`
-          : phoneRestricted('structure') ? nothing /* placing on the map opens the plan editor: hidden on a phone with the structure option (owner decision 2026-09-30) */ : html`<sw-button variant="primary" icon="map" ?disabled=${!this.firstFloorId} title=${this.firstFloorId ? 'פותח את עורך התוכנית עם הישות מוכנה להצבה' : 'אין קומות עדיין'} @click=${() => this.firstFloorId && navigate(`/explore/floors/${this.firstFloorId}/edit`, { entity: e.entity_id })}>הצב במפה</sw-button>`}
+          ? html`<sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${e.placements![0].floor_id}`)}>${tr('הצג במפה')}</sw-button>`
+          : phoneRestricted('structure') ? nothing /* placing on the map opens the plan editor: hidden on a phone with the structure option (owner decision 2026-09-30) */ : html`<sw-button variant="primary" icon="map" ?disabled=${!this.firstFloorId} title=${this.firstFloorId ? tr('פותח את עורך התוכנית עם הישות מוכנה להצבה') : tr('אין קומות עדיין')} @click=${() => this.firstFloorId && navigate(`/explore/floors/${this.firstFloorId}/edit`, { entity: e.entity_id })}>${tr('הצב במפה')}</sw-button>`}
       </div>
     </sw-drawer>`;
   }
@@ -289,27 +290,27 @@ export class ExploreEntities extends LitElement {
     const ent = cat?.entities.find((e) => e.entity_id === this.selected);
     const total = domains.reduce((n, [, c]) => n + c, 0);
     const sub = sync
-      ? `${total} ישויות בקטלוג · ${sync.connected ? `סנכרון פעיל · גרסה ${sync.ha_version ?? ''}` : `הסנכרון ${syncDisconnectedText(sync.last_error)}`}`
-      : 'טוען את הקטלוג…';
+      ? `${tr('{total} ישויות בקטלוג', { total })} · ${sync.connected ? tr('סנכרון פעיל · גרסה {version}', { version: sync.ha_version ?? '' }) : tr('הסנכרון {state}', { state: syncDisconnectedText(sync.last_error) })}`
+      : tr('טוען את הקטלוג…');
     return html`
-      <sw-page crumbs="הגדרות" heading="קטלוג ההתקנים" subheading=${sub}>
-        <sw-button slot="actions" icon="refresh" ?disabled=${this.loading} @click=${() => this.load()}>רענון</sw-button>
+      <sw-page crumbs=${tr('הגדרות')} heading=${tr('קטלוג ההתקנים')} subheading=${sub}>
+        <sw-button slot="actions" icon="refresh" ?disabled=${this.loading} @click=${() => this.load()}>${tr('רענון')}</sw-button>
         <div class="filters">
-          <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></sw-field>
-          <sw-field><select aria-label="אזור" @change=${(e: Event) => { this.area = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="">כל האזורים</option>${(cat?.areas ?? []).map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.area}>${a.area_name ?? a.area_id}</option>`)}</select></sw-field>
-          <sw-chip ?selected=${this.onlyPlaced} icon="map" @click=${() => { this.onlyPlaced = !this.onlyPlaced; void this.load(); }}>מוצבות בלבד</sw-chip>
+          <sw-field class="search"><input type="search" placeholder=${tr('חיפוש לפי שם, entity_id או אזור')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-field><select aria-label=${tr('אזור')} @change=${(e: Event) => { this.area = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="">${tr('כל האזורים')}</option>${(cat?.areas ?? []).map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.area}>${a.area_name ?? a.area_id}</option>`)}</select></sw-field>
+          <sw-chip ?selected=${this.onlyPlaced} icon="map" @click=${() => { this.onlyPlaced = !this.onlyPlaced; void this.load(); }}>${tr('מוצבות בלבד')}</sw-chip>
         </div>
         <div class="filters">
-          <sw-chip ?selected=${this.domain === 'all'} count=${total} @click=${() => { this.domain = 'all'; void this.load(); }}>הכל</sw-chip>
+          <sw-chip ?selected=${this.domain === 'all'} count=${total} @click=${() => { this.domain = 'all'; void this.load(); }}>${tr('הכל')}</sw-chip>
           ${domains.map(([d, n]) => html`<sw-chip ?selected=${d === this.domain} count=${n} @click=${() => { this.domain = d; void this.load(); }}><span class="ltr">${d}</span></sw-chip>`)}
         </div>
         <div class="stage">
           ${this.error
-            ? html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`
+            ? html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`
             : !cat
               ? html`<sw-state-panel state="loading"></sw-state-panel>`
               : !rows.length
-                ? html`<sw-state-panel icon=${total ? 'filter' : 'list'} state="empty" heading=${total ? 'אין ישויות שתואמות את הסינון' : 'הקטלוג ריק'} hint=${total ? 'נקה את החיפוש או בחר domain אחר.' : sync?.connected ? 'ההסנכרון פעיל אך טרם התקבלו מצבים.' : 'לא מחובר לתשתית המערכת. בדוק בהגדרות → כללי.'}></sw-state-panel>`
+                ? html`<sw-state-panel icon=${total ? 'filter' : 'list'} state="empty" heading=${total ? tr('אין ישויות שתואמות את הסינון') : tr('הקטלוג ריק')} hint=${total ? tr('נקה את החיפוש או בחר domain אחר.') : sync?.connected ? tr('ההסנכרון פעיל אך טרם התקבלו מצבים.') : tr('לא מחובר לתשתית המערכת. בדוק בהגדרות → כללי.')}></sw-state-panel>`
                 : html`<sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>`}
           ${ent ? this.renderApiDrawer(ent) : nothing}
         </div>
@@ -318,33 +319,33 @@ export class ExploreEntities extends LitElement {
   }
 
   render() {
-    if (this.forbidden) return html`<sw-page crumbs="הגדרות" heading="קטלוג ההתקנים"><sw-state-panel state="forbidden" data-entities-forbidden></sw-state-panel></sw-page>`;
+    if (this.forbidden) return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('קטלוג ההתקנים')}><sw-state-panel state="forbidden" data-entities-forbidden></sw-state-panel></sw-page>`;
     if (isApi()) return this.renderApi();
     const domains = ['all', ...new Set(ENTITIES.map((e) => e.domain))];
     const rows = ENTITIES.filter((e) => this.domain === 'all' || e.domain === this.domain);
     const ent = ENTITIES.find((e) => e.id === this.selected);
     return html`
-      <sw-page crumbs="הגדרות" heading="קטלוג ההתקנים" subheading="${ENTITIES.length} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה">
-        <sw-button slot="actions" icon="refresh">סנכרון</sw-button>
+      <sw-page crumbs=${tr('הגדרות')} heading=${tr('קטלוג ההתקנים')} subheading=${tr('{n} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה', { n: ENTITIES.length })}>
+        <sw-button slot="actions" icon="refresh">${tr('סנכרון')}</sw-button>
         <div class="filters">
-          <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" /></sw-field>
-          ${domains.map((d) => html`<sw-chip ?selected=${d === this.domain} @click=${() => (this.domain = d)}>${d === 'all' ? 'הכל' : d}</sw-chip>`)}
+          <sw-field class="search"><input type="search" placeholder=${tr('חיפוש לפי שם, entity_id או אזור')} /></sw-field>
+          ${domains.map((d) => html`<sw-chip ?selected=${d === this.domain} @click=${() => (this.domain = d)}>${d === 'all' ? tr('הכל') : d}</sw-chip>`)}
         </div>
         <div class="stage">
           <sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>
           ${ent
             ? html`<sw-drawer open heading=${ent.name} subheading=${ent.id} @close=${() => (this.selected = null)}>
                 <dl>
-                  <dt>מצב</dt><dd><sw-badge kind=${ent.fresh} label=${ent.state}></sw-badge></dd>
+                  <dt>${tr('מצב')}</dt><dd><sw-badge kind=${ent.fresh} label=${ent.state}></sw-badge></dd>
                   <dt>Domain</dt><dd><span class="ltr">${ent.domain}</span></dd>
-                  <dt>אזור</dt><dd>${ent.area}</dd>
-                  <dt>פעולות נתמכות</dt><dd>${ent.actions}</dd>
-                  <dt>במפה</dt><dd>${ent.placed ? 'קומה 0' : 'לא מוצב'}</dd>
+                  <dt>${tr('אזור')}</dt><dd>${ent.area}</dd>
+                  <dt>${tr('פעולות נתמכות')}</dt><dd>${ent.actions}</dd>
+                  <dt>${tr('במפה')}</dt><dd>${ent.placed ? 'קומה 0' : tr('לא מוצב')}</dd>
                 </dl>
-                <div class="note">ישות מ־domain לא מוכר מקבלת כרטיס כללי לקריאה בלבד. scripts ו־scenes חסומים עד allowlist.</div>
+                <div class="note">${tr('ישות מ־domain לא מוכר מקבלת כרטיס כללי לקריאה בלבד. scripts ו־scenes חסומים עד allowlist.')}</div>
                 <div slot="footer">
-                  <sw-button variant="primary" icon="map">${ent.placed ? 'הצג במפה' : 'הצב במפה'}</sw-button>
-                  <sw-button variant="ghost">פתח בתשתית המערכת</sw-button>
+                  <sw-button variant="primary" icon="map">${ent.placed ? tr('הצג במפה') : tr('הצב במפה')}</sw-button>
+                  <sw-button variant="ghost">${tr('פתח בתשתית המערכת')}</sw-button>
                 </div>
               </sw-drawer>`
             : ''}

@@ -6,14 +6,15 @@
  * item without one. Device strings are rendered as text only.
  */
 import type { Batch, BatchItem, BatchVerify, ItemVerify, RefusalPolicy, VerifyOutcome } from '../api/nvr-batch';
+import { tr } from '../i18n/msg/media';
 
 export const OUTCOME_HE: Record<VerifyOutcome, string> = {
-  confirmed: 'המצלמה אישרה',
-  nvr_accepted: 'המקליט קיבל',
-  still_old: 'עדיין בקידוד הקודם',
-  restart_needed: 'צריך אתחול',
-  failed: 'נכשל',
-  unchanged: 'כבר מוגדר',
+  confirmed: tr('המצלמה אישרה'),
+  nvr_accepted: tr('המקליט קיבל'),
+  still_old: tr('עדיין בקידוד הקודם'),
+  restart_needed: tr('צריך אתחול'),
+  failed: tr('נכשל'),
+  unchanged: tr('כבר מוגדר'),
 };
 
 export type VerifyTone = 'ok' | 'info' | 'warn' | 'bad' | 'muted';
@@ -38,11 +39,11 @@ export function outcomeLabel(v: ItemVerify | null | undefined): string {
   if (v.label) return v.label;
   switch (v.outcome) {
     case 'confirmed':
-      return v.expected ? `המצלמה אישרה (${v.expected})` : OUTCOME_HE.confirmed;
+      return v.expected ? tr('המצלמה אישרה ({expected})', { expected: v.expected }) : OUTCOME_HE.confirmed;
     case 'still_old':
-      return v.media_codec ? `עדיין ${v.media_codec}` : OUTCOME_HE.still_old;
+      return v.media_codec ? tr('עדיין {media_codec}', { media_codec: v.media_codec }) : OUTCOME_HE.still_old;
     case 'failed':
-      return `נכשל: ${v.reason ?? 'השינוי לא בוצע'}`;
+      return tr('נכשל: {reason}', { reason: v.reason ?? tr('השינוי לא בוצע') });
     default:
       return OUTCOME_HE[v.outcome];
   }
@@ -52,35 +53,35 @@ export const outcomeTone = (v: ItemVerify | null | undefined): VerifyTone => (v 
 
 // ------------------------------------------------------------------------------------------------ the refusal policy
 
-export const REFUSAL_LABEL = 'אם ה־NVR מסרב לשנות מצלמה';
+export const REFUSAL_LABEL = tr('אם ה־NVR מסרב לשנות מצלמה');
 
 export const REFUSAL_ITEMS: readonly { id: RefusalPolicy; label: string }[] = [
-  { id: 'skip', label: 'לדלג ולהמשיך' },
-  { id: 'stop', label: 'לעצור את כל ההמרה' },
+  { id: 'skip', label: tr('לדלג ולהמשיך') },
+  { id: 'stop', label: tr('לעצור את כל ההמרה') },
 ];
 
 export const REFUSAL_HINT: Record<RefusalPolicy, string> = {
-  skip: 'המצלמה נשארת כמו שהיא ונרשמת בדוח, וההמרה ממשיכה לשאר המצלמות.',
-  stop: 'ההמרה נעצרת במצלמה הראשונה שה־NVR מסרב לשנות; מה שכבר השתנה נשאר, ואפשר להחזיר אותו.',
+  skip: tr('המצלמה נשארת כמו שהיא ונרשמת בדוח, וההמרה ממשיכה לשאר המצלמות.'),
+  stop: tr('ההמרה נעצרת במצלמה הראשונה שה־NVR מסרב לשנות; מה שכבר השתנה נשאר, ואפשר להחזיר אותו.'),
 };
 
 /** A stored / answered value; anything else reads as the default (`skip`, owner 2026-11-02). An older server that names none stops (`fallback`). */
 export const normalizeRefusal = (v: unknown, fallback: RefusalPolicy = 'skip'): RefusalPolicy => (v === 'skip' || v === 'stop' ? v : fallback);
 
-const VERIFY_NOTE = 'בסוף תוצג בדיקה של מה שכל מצלמה שולחת בפועל.';
+const VERIFY_NOTE = tr('בסוף תוצג בדיקה של מה שכל מצלמה שולחת בפועל.');
 
 /** The lead of the ONE confirmation of an encoding change, by policy. */
 export function encodingLead(policy: RefusalPolicy): string {
   return policy === 'skip'
-    ? `השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה; מצלמה שה־NVR מסרב לשנות תדולג וההמרה תמשיך. ${VERIFY_NOTE}`
-    : `השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה. ${VERIFY_NOTE}`;
+    ? tr('השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה; מצלמה שה־NVR מסרב לשנות תדולג וההמרה תמשיך. {VERIFY_NOTE}', { VERIFY_NOTE })
+    : tr('השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה. {VERIFY_NOTE}', { VERIFY_NOTE });
 }
 
 /** The lead of the undo of an encoding change, by policy. */
 export function encodingUndoLead(policy: RefusalPolicy): string {
   return policy === 'skip'
-    ? 'השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה; מצלמה שה־NVR מסרב להחזיר תדולג, ואפשר לנסות אותה שוב.'
-    : 'השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה ותעצור בשגיאה הראשונה.';
+    ? tr('השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה; מצלמה שה־NVR מסרב להחזיר תדולג, ואפשר לנסות אותה שוב.')
+    : tr('השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה ותעצור בשגיאה הראשונה.');
 }
 
 // ------------------------------------------------------------------------------------------------ the report
@@ -89,24 +90,24 @@ export const isVerifyActive = (v: BatchVerify | null | undefined): boolean => v?
 
 const n = (x: number | undefined): number => (typeof x === 'number' && x > 0 ? x : 0);
 const join = (parts: (string | false | '')[]): string => parts.filter(Boolean).join(' · ');
-const streams = (k: number): string => (k === 1 ? 'זרם אחד' : `${k} זרמים`);
+const streams = (k: number): string => (k === 1 ? tr('זרם אחד') : tr('{k} זרמים', { k }));
 
 /** One line over the list. */
 export function verifySummary(v: BatchVerify | null | undefined): string {
   if (!v || v.state === 'none') return '';
-  if (v.state === 'pending') return 'הבדיקה תתחיל בסיום השינוי.';
-  if (v.state === 'running') return 'בודק מה כל מצלמה שולחת בפועל…';
+  if (v.state === 'pending') return tr('הבדיקה תתחיל בסיום השינוי.');
+  if (v.state === 'running') return tr('בודק מה כל מצלמה שולחת בפועל…');
   const c = v.counts ?? ({} as Record<VerifyOutcome, number>);
   const line = join([
-    n(c.confirmed) > 0 && `המצלמה אישרה: ${streams(n(c.confirmed))}`,
-    n(c.nvr_accepted) > 0 && `המקליט קיבל (לא נבדק במצלמה): ${streams(n(c.nvr_accepted))}`,
-    n(c.still_old) > 0 && `עדיין בקידוד הקודם: ${streams(n(c.still_old))}`,
-    n(c.restart_needed) > 0 && `צריך אתחול: ${streams(n(c.restart_needed))}`,
-    n(c.failed) > 0 && `נכשל: ${streams(n(c.failed))}`,
-    (v.skipped?.length ?? 0) > 0 && `דולגו: ${streams(v.skipped.length)}`,
-    n(c.unchanged) > 0 && `כבר מוגדר: ${streams(n(c.unchanged))}`,
+    n(c.confirmed) > 0 && tr('המצלמה אישרה: {streams}', { streams: streams(n(c.confirmed)) }),
+    n(c.nvr_accepted) > 0 && tr('המקליט קיבל (לא נבדק במצלמה): {streams}', { streams: streams(n(c.nvr_accepted)) }),
+    n(c.still_old) > 0 && tr('עדיין בקידוד הקודם: {streams}', { streams: streams(n(c.still_old)) }),
+    n(c.restart_needed) > 0 && tr('צריך אתחול: {streams}', { streams: streams(n(c.restart_needed)) }),
+    n(c.failed) > 0 && tr('נכשל: {streams}', { streams: streams(n(c.failed)) }),
+    (v.skipped?.length ?? 0) > 0 && tr('דולגו: {streams}', { streams: streams(v.skipped.length) }),
+    n(c.unchanged) > 0 && tr('כבר מוגדר: {streams}', { streams: streams(n(c.unchanged)) }),
   ]);
-  return v.state === 'interrupted' ? join(['הבדיקה נקטעה; אפשר לבדוק שוב', line]) : line || 'אין זרמים בדוח.';
+  return v.state === 'interrupted' ? join([tr('הבדיקה נקטעה; אפשר לבדוק שוב'), line]) : line || tr('אין זרמים בדוח.');
 }
 
 export type VerifyTab = 'all' | 'worklist' | 'skipped';
@@ -124,35 +125,35 @@ export function verifyTabs(b: Batch): { id: VerifyTab; label: string; count: num
   const work = verifyRows(b, 'worklist').length;
   const skip = verifyRows(b, 'skipped').length;
   return [
-    { id: 'all' as VerifyTab, label: 'כל הזרמים', count: all },
-    { id: 'worklist' as VerifyTab, label: 'מצלמות שלא השתנו', count: work },
-    { id: 'skipped' as VerifyTab, label: 'דולגו', count: skip },
+    { id: 'all' as VerifyTab, label: tr('כל הזרמים'), count: all },
+    { id: 'worklist' as VerifyTab, label: tr('מצלמות שלא השתנו'), count: work },
+    { id: 'skipped' as VerifyTab, label: tr('דולגו'), count: skip },
   ].filter((t) => t.id !== 'skipped' || t.count > 0);
 }
 
 export function reportTitle(b: Pick<Batch, 'kind'>): string {
-  return b.kind === 'rollback' ? 'דוח בדיקה · החזרה לערכים הקודמים' : 'דוח בדיקה · שינוי קידוד';
+  return b.kind === 'rollback' ? tr('דוח בדיקה · החזרה לערכים הקודמים') : tr('דוח בדיקה · שינוי קידוד');
 }
 
 /** The line shown when the re-check was refused. */
 export function recheckErrorLine(e: { status: number; code: string; user_message?: string }): string {
   switch (e.code) {
     case 'verify_too_soon':
-      return 'בדיקה חוזרת אפשרית בעוד כמה שניות.';
+      return tr('בדיקה חוזרת אפשרית בעוד כמה שניות.');
     case 'verify_in_progress':
-      return 'הבדיקה עדיין מתבצעת.';
+      return tr('הבדיקה עדיין מתבצעת.');
     case 'nothing_to_verify':
-      return 'אין מצלמות לבדיקה חוזרת.';
+      return tr('אין מצלמות לבדיקה חוזרת.');
     case 'verify_not_available':
-      return 'בדיקה חוזרת קיימת רק לשינוי קידוד.';
+      return tr('בדיקה חוזרת קיימת רק לשינוי קידוד.');
     case 'network':
-      return 'אין חיבור לשרת.';
+      return tr('אין חיבור לשרת.');
     default:
-      return e.status === 403 ? 'אין הרשאה לפעולה הזו.' : e.user_message || 'הבדיקה לא התחילה.';
+      return e.status === 403 ? tr('אין הרשאה לפעולה הזו.') : e.user_message || tr('הבדיקה לא התחילה.');
   }
 }
 
-export const RECHECK_HINT = 'בדיקה חוזרת קוראת בלבד: רשימת הזרמים מה־NVR ומה שהמצלמות שולחות. שום הגדרה לא משתנה.';
+export const RECHECK_HINT = tr('בדיקה חוזרת קוראת בלבד: רשימת הזרמים מה־NVR ומה שהמצלמות שולחות. שום הגדרה לא משתנה.');
 
 /** The encoding batches whose report can be opened again, newest first. */
 export function recentReports(list: Batch[]): Batch[] {
@@ -169,6 +170,6 @@ export function whenLabel(iso: string | null | undefined): string {
 }
 
 export function recentLabel(b: Batch): string {
-  const what = b.kind === 'rollback' ? 'החזרה לערכים הקודמים' : b.settings?.codec ? `המרה ל־${b.settings.codec}` : 'שינוי קידוד';
+  const what = b.kind === 'rollback' ? tr('החזרה לערכים הקודמים') : b.settings?.codec ? tr('המרה ל־{codec}', { codec: b.settings.codec }) : tr('שינוי קידוד');
   return join([what, whenLabel(b.created_at)]);
 }

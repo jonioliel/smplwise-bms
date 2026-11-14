@@ -24,6 +24,7 @@ import { autoNoticeText, buildPlan, health, itemKey, labelCoverage, labelCoverag
 import { applyMapping, loadMapping, type MappingData } from '../api/mapping';
 import { navigate } from '../router';
 import { SystemMapping } from './system-mapping';
+import { tr } from '../i18n/msg/media';
 
 const refsOf = (d: MappingData) => d.buildings.map((b) => ({ id: b.id, name: b.name, shared: b.is_shared }));
 
@@ -79,7 +80,7 @@ async function autoInsert(host: SystemMapping) {
 function autoNotice(d: MappingData) {
   const t = autoNoticeText(d);
   return t
-    ? html`<div class="health ok" role="status" data-mapping-auto-notice><sw-icon name="sparkle" size=${22}></sw-icon><div class="t"><b>${t}</b><span>לפי הסימונים והכללים השמורים, בגרסה ${d.versions[0].number}. אפשר לחזור לגרסה קודמת בכל רגע.</span></div></div>`
+    ? html`<div class="health ok" role="status" data-mapping-auto-notice><sw-icon name="sparkle" size=${22}></sw-icon><div class="t"><b>${t}</b><span>${tr('לפי הסימונים והכללים השמורים, בגרסה {number}. אפשר לחזור לגרסה קודמת בכל רגע.', { number: d.versions[0].number })}</span></div></div>`
     : nothing;
 }
 
@@ -87,20 +88,20 @@ function card(host: SystemMapping, h: Health) {
   const d = host.mapping;
   if (!d) return nothing;
   if (!d.seen)
-    return html`<div class="health ok" data-mapping-health="labels"><sw-icon name="info" size=${22}></sw-icon><div class="t"><b>תוויות ממערכת הבית</b>${coverageLine(d)}</div></div>`;
+    return html`<div class="health ok" data-mapping-health="labels"><sw-icon name="info" size=${22}></sw-icon><div class="t"><b>${tr('תוויות ממערכת הבית')}</b>${coverageLine(d)}</div></div>`;
   return html`${autoNotice(d)}${freshCard(host, d, h)}`;
 }
 
 function freshCard(host: SystemMapping, d: NonNullable<SystemMapping['mapping']>, h: Health) {
   if (!h.fresh.length)
-    return html`<div class="health ok" data-mapping-health="ok"><sw-icon name="check" size=${22}></sw-icon><div class="t"><b>המיפוי מעודכן</b><span>כל השמות במערכת הבית מוכרים מאז ההחלה האחרונה.</span>${coverageLine(d)}</div></div>`;
+    return html`<div class="health ok" data-mapping-health="ok"><sw-icon name="check" size=${22}></sw-icon><div class="t"><b>${tr('המיפוי מעודכן')}</b><span>${tr('כל השמות במערכת הבית מוכרים מאז ההחלה האחרונה.')}</span>${coverageLine(d)}</div></div>`;
   if (d.settings.auto_insert === 'on' && h.ready.length) void autoInsert(host);
-  const sample = h.ready.slice(0, 2).map((it) => `"${it.name}" ← ${where(d, it)}`).join(', ');
+  const sample = h.ready.slice(0, 2).map((it) => tr('"{name}" ← {where}', { name: it.name, where: where(d, it) })).join(', ');
   const openNames = h.open.slice(0, 2).map((it) => `"${it.name}"`).join(', ');
   const n = h.fresh.length;
   return html`<div class="health" data-mapping-health="fresh"><sw-icon name="warning" size=${22}></sw-icon>
-    <div class="t"><b data-mapping-health-count>${n} ${n === 1 ? 'שם חדש' : 'שמות חדשים'} במערכת הבית</b>
-      <span>${h.ready.length ? `לפי הסימון: ${sample}${h.ready.length > 2 ? ` ועוד ${h.ready.length - 2}` : ''}. ` : ''}${h.open.length ? `${openNames}${h.open.length > 2 ? ` ועוד ${h.open.length - 2}` : ''} - צריך החלטה.` : ''}</span>${coverageLine(d)}</div>
+    <div class="t"><b data-mapping-health-count>${n === 1 ? tr('{n} שם חדש במערכת הבית', { n }) : tr('{n} שמות חדשים במערכת הבית', { n })}</b>
+      <span>${h.ready.length ? `${tr('לפי הסימון: {sample}', { sample })}${h.ready.length > 2 ? tr(' ועוד {n}', { n: h.ready.length - 2 }) : ''}. ` : ''}${h.open.length ? `${openNames}${h.open.length > 2 ? tr(' ועוד {n}', { n: h.open.length - 2 }) : ''}${tr(' - צריך החלטה.')}` : ''}</span>${coverageLine(d)}</div>
     ${h.ready.length
       ? html`<sw-button size="sm" variant="primary" icon="check" data-mapping-confirm @click=${async (e: Event) => {
           const b = e.currentTarget as HTMLElement & { disabled: boolean };
@@ -112,9 +113,9 @@ function freshCard(host: SystemMapping, d: NonNullable<SystemMapping['mapping']>
             b.disabled = false;
             alertError(host, err);
           }
-        }}>אשר ${h.ready.length}</sw-button>`
+        }}>${tr('אשר {length}', { length: h.ready.length })}</sw-button>`
       : nothing}
-    ${h.open.length ? html`<sw-button size="sm" data-mapping-health-decide @click=${() => host.openAssistant('decide')}>${h.open.length === 1 ? `החלט על "${h.open[0].name}"` : `החלט על ${h.open.length}`}</sw-button>` : nothing}
+    ${h.open.length ? html`<sw-button size="sm" data-mapping-health-decide @click=${() => host.openAssistant('decide')}>${h.open.length === 1 ? tr('החלט על "{name}"', { name: h.open[0].name }) : tr('החלט על {length}', { length: h.open.length })}</sw-button>` : nothing}
   </div>`;
 }
 
@@ -179,7 +180,7 @@ export class MappingHealthChip extends LitElement {
   render() {
     const h = this.h;
     if (!h || !h.fresh.length) return nothing;
-    return html`<button type="button" data-home-mapping-health @click=${() => navigate('/system/diagnostics', { tab: 'buildings' })}><sw-icon name="warning" size=${14}></sw-icon><b>${h.fresh.length}</b> ${h.fresh.length === 1 ? 'אזור חדש' : 'אזורים חדשים'} - ${h.ready.length ? 'אשר' : 'החלט'}</button>`;
+    return html`<button type="button" data-home-mapping-health @click=${() => navigate('/system/diagnostics', { tab: 'buildings' })}><sw-icon name="warning" size=${14}></sw-icon><b>${h.fresh.length}</b> ${h.fresh.length === 1 ? tr('אזור חדש') : tr('אזורים חדשים')} - ${h.ready.length ? tr('אשר') : tr('החלט')}</button>`;
   }
 }
 

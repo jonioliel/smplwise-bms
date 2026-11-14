@@ -10,6 +10,7 @@ import {
   type RuleKind, type Summary, type TableRow, type Target, type TokenKind,
 } from '../api/mapping-engine';
 import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../api/mapping';
+import { tr } from '../i18n/msg/media';
 
 /**
  * MAPPING-ASSIST-2330 `<mapping-assistant>` - the approved round-10 mockup v3: one question first ("איך הבניין מסומן בשמות שלכם?"), the
@@ -20,26 +21,26 @@ import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../
  */
 type Step = 'mark' | 'table' | 'decide' | 'levels' | 'summary' | 'done';
 const STEPS: { id: Exclude<Step, 'done'>; label: string }[] = [
-  { id: 'mark', label: 'צורת הסימון' },
-  { id: 'table', label: 'סימון ← בניין' },
-  { id: 'decide', label: 'החלטות' },
+  { id: 'mark', label: tr('צורת הסימון') },
+  { id: 'table', label: tr('סימון ← בניין') },
+  { id: 'decide', label: tr('החלטות') },
   // MAPPING-IMPROVE-2351: only when a floor has no level anywhere (none in the home system, none in its name)
-  { id: 'levels', label: 'קומות ללא מפלס' },
-  { id: 'summary', label: 'סיכום' },
+  { id: 'levels', label: tr('קומות ללא מפלס') },
+  { id: 'summary', label: tr('סיכום') },
 ];
 /** The level picker's range (an answer outside it is still listed). */
 const LEVEL_PICK = Array.from({ length: 66 }, (_x, i) => i - 5);
 
 export const POS_TEXT: Record<Position | 'advanced', { title: string; ex: TemplateResult[] }> = {
-  start: { title: 'בתחילת השם', ex: [html`<b>א</b> · לובי`, html`<b>1</b> · לובי`, html`<b>B2</b>-לובי`] },
-  end: { title: 'בסוף השם', ex: [html`לובי · <b>א</b>`, html`חדר מכונות - <b>2</b>`] },
-  label: { title: 'בתווית', ex: [html`לובי <i>תווית</i> <b>בניין א</b>`, html`חניון <i>תווית</i> <b>משותף</b>`] },
-  word: { title: 'מילה בתוך השם', ex: [html`לובי בניין <b>צפון</b>`, html`מחסן מגדל <b>2</b>`] },
-  advanced: { title: 'שילוב / מתקדם', ex: [html`התחלה לרוב השמות`, html`תווית לחניון`] },
+  start: { title: tr('בתחילת השם'), ex: [html`<b>${tr('א')}</b> · ${tr('לובי')}`, html`<b>1</b> · ${tr('לובי')}`, html`<b>B2</b>${tr('-לובי')}`] },
+  end: { title: tr('בסוף השם'), ex: [html`${tr('לובי ·')} <b>${tr('א')}</b>`, html`${tr('חדר מכונות -')} <b>2</b>`] },
+  label: { title: tr('בתווית'), ex: [html`${tr('לובי')} <i>${tr('תווית')}</i> <b>${tr('בניין א')}</b>`, html`${tr('חניון')} <i>${tr('תווית')}</i> <b>${tr('משותף')}</b>`] },
+  word: { title: tr('מילה בתוך השם'), ex: [html`${tr('לובי בניין')} <b>${tr('צפון')}</b>`, html`${tr('מחסן מגדל')} <b>2</b>`] },
+  advanced: { title: tr('שילוב / מתקדם'), ex: [html`${tr('התחלה לרוב השמות')}`, html`${tr('תווית לחניון')}`] },
 };
-const SEP_LABEL: Record<string, string> = { '·': '" · "', '-': '"-"', ':': '":"', ' ': 'רווח' };
-const KIND_LABEL: Record<TokenKind, string> = { letter: 'אות', number: 'מספר', word: 'מילה', any: 'כל דבר עד המפריד' };
-export const RULE_LABEL: Record<RuleKind, string> = { table: 'לפי טבלת הסימונים', starts: 'השם מתחיל ב-', ends: 'השם מסתיים ב-', contains: 'השם מכיל', label: 'התווית היא', regex: 'ביטוי רגולרי' };
+const SEP_LABEL: Record<string, string> = { '·': '" · "', '-': '"-"', ':': '":"', ' ': tr('רווח') };
+const KIND_LABEL: Record<TokenKind, string> = { letter: tr('אות'), number: tr('מספר'), word: tr('מילה'), any: tr('כל דבר עד המפריד') };
+export const RULE_LABEL: Record<RuleKind, string> = { table: tr('לפי טבלת הסימונים'), starts: tr('השם מתחיל ב-'), ends: tr('השם מסתיים ב-'), contains: tr('השם מכיל'), label: tr('התווית היא'), regex: tr('ביטוי רגולרי') };
 
 @customElement('mapping-assistant')
 export class MappingAssistant extends LitElement {
@@ -1242,7 +1243,7 @@ export class MappingAssistant extends LitElement {
   setState(next: MappingState, ruleChange = false) {
     if (ruleChange && Object.keys(next.decisions).length) {
       const n = manualImpact(this.data.mapItems, this.st, next, { buildings: this.refs, settings: this.data.settings });
-      this.notice = n ? `השינוי היה משנה ${n} ${n === 1 ? 'החלטה ידנית' : 'החלטות ידניות'} - ${n === 1 ? 'היא נשארת' : 'הן נשארות'} כפי שהחלטתם.` : '';
+      this.notice = n ? (n === 1 ? tr('השינוי היה משנה {n} החלטה ידנית - היא נשארת כפי שהחלטתם.', { n }) : tr('השינוי היה משנה {n} החלטות ידניות - הן נשארות כפי שהחלטתם.', { n })) : '';
     }
     this.st = next;
   }
@@ -1252,10 +1253,10 @@ export class MappingAssistant extends LitElement {
   }
 
   bName(t: Target | null | undefined): string {
-    if (!t) return 'לא נבחר';
-    if (t.t === 'none') return 'לא משויך';
+    if (!t) return tr('לא נבחר');
+    if (t.t === 'none') return tr('לא משויך');
     if (t.t === 'new') return t.name;
-    return this.data.buildings.find((b) => b.id === t.id)?.name ?? 'בניין שנמחק';
+    return this.data.buildings.find((b) => b.id === t.id)?.name ?? tr('בניין שנמחק');
   }
 
   isShared(t: Target | null | undefined): boolean {
@@ -1293,8 +1294,8 @@ export class MappingAssistant extends LitElement {
   /** Back from the summary / the levels step: the step before it that is shown. */
   private backFrom(step: 'levels' | 'summary'): { to: Step; label: string } {
     const m = this.model();
-    if (step === 'summary' && m.lq.length) return { to: 'levels', label: 'קומות ללא מפלס' };
-    return this.withDecisions && (m.qs.length || Object.keys(this.st.decisions).length) ? { to: 'decide', label: 'ההחלטות' } : { to: 'table', label: 'הטבלה' };
+    if (step === 'summary' && m.lq.length) return { to: 'levels', label: tr('קומות ללא מפלס') };
+    return this.withDecisions && (m.qs.length || Object.keys(this.st.decisions).length) ? { to: 'decide', label: tr('ההחלטות') } : { to: 'table', label: tr('הטבלה') };
   }
 
   /** One "קומות ללא מפלס" answer (undefined = unanswered again). */
@@ -1378,9 +1379,9 @@ export class MappingAssistant extends LitElement {
           <div class="q">${head.q}</div>
         </div>
         ${this.step !== 'done'
-          ? html`<div class="dots" aria-label=${`שלב ${idx + 1} מתוך ${steps.length}`}>${steps.map((_s, i) => html`<i class=${i < idx ? 'past' : i === idx ? 'on' : ''}></i>`)}<span>${steps[idx]?.label}</span></div>`
+          ? html`<div class="dots" aria-label=${tr('שלב {n} מתוך {total}', { n: idx + 1, total: steps.length })}>${steps.map((_s, i) => html`<i class=${i < idx ? 'past' : i === idx ? 'on' : ''}></i>`)}<span>${steps[idx]?.label}</span></div>`
           : nothing}
-        <sw-button class="x" variant="ghost" icon="close" iconOnly label="סגור" data-ma-close @click=${() => this.close()}></sw-button>
+        <sw-button class="x" variant="ghost" icon="close" iconOnly label=${tr('סגור')} data-ma-close @click=${() => this.close()}></sw-button>
       </header>
       <main>
         ${this.notice ? html`<div class="notice" role="status" data-ma-manual-impact><sw-icon name="info" size=${15}></sw-icon>${this.notice}</div>` : nothing}
@@ -1396,19 +1397,19 @@ export class MappingAssistant extends LitElement {
     const d = m.det;
     switch (this.step) {
       case 'mark':
-        return { title: 'איך הבניין מסומן בשמות שלכם?', q: `המערכת בדקה את כל ${d.total} השמות במערכת הבית וסימנה את מה שנראה הכי סביר. אפשר לבחור אחרת - התצוגה למטה מתעדכנת מיד.` };
+        return { title: tr('איך הבניין מסומן בשמות שלכם?'), q: tr('המערכת בדקה את כל {total} השמות במערכת הבית וסימנה את מה שנראה הכי סביר. אפשר לבחור אחרת - התצוגה למטה מתעדכנת מיד.', { total: d.total }) };
       case 'table':
-        return { title: 'סימון בשם ← בניין', q: `${m.rows.length} סימונים נמצאו. לכל אחד - איזה בניין? שני סימונים לאותו בניין מתאחדים (בחירה או גרירה), סימון בלי בניין - בניין חדש, קיים או "לא משויך".` };
+        return { title: tr('סימון בשם ← בניין'), q: tr('{length} סימונים נמצאו. לכל אחד - איזה בניין? שני סימונים לאותו בניין מתאחדים (בחירה או גרירה), סימון בלי בניין - בניין חדש, קיים או "לא משויך".', { length: m.rows.length }) };
       case 'decide':
-        return { title: 'מה צריך את ההחלטה שלכם', q: `רק החריגים. כל השאר (${d.total - m.qs.reduce((n, q) => n + q.count, 0)} פריטים) כבר במקום. הכפתור המודגש הוא מה שהמערכת הייתה בוחרת.` };
+        return { title: tr('מה צריך את ההחלטה שלכם'), q: tr('רק החריגים. כל השאר ({n} פריטים) כבר במקום. הכפתור המודגש הוא מה שהמערכת הייתה בוחרת.', { n: d.total - m.qs.reduce((n, q) => n + q.count, 0) }) };
       case 'levels': {
         const n = m.lq.length;
-        return { title: 'קומות ללא מפלס', q: `${n === 1 ? 'קומה אחת' : `${n} קומות`} במערכת הבית בלי מפלס ובלי מספר בשם. באיזה מפלס ${n === 1 ? 'היא' : 'כל אחת'} - או "זהה לקומה קיימת"? דילוג = קומה חדשה במפלס 0, כמו היום.` };
+        return { title: tr('קומות ללא מפלס'), q: n === 1 ? tr('קומה אחת במערכת הבית בלי מפלס ובלי מספר בשם. באיזה מפלס היא - או "זהה לקומה קיימת"? דילוג = קומה חדשה במפלס 0, כמו היום.') : tr('{n} קומות במערכת הבית בלי מפלס ובלי מספר בשם. באיזה מפלס כל אחת - או "זהה לקומה קיימת"? דילוג = קומה חדשה במפלס 0, כמו היום.', { n }) };
       }
       case 'summary':
-        return { title: 'סיכום ואישור', q: 'מה יקרה כשתלחצו "החל". אפשר לחזור ולשנות אחר כך.' };
+        return { title: tr('סיכום ואישור'), q: tr('מה יקרה כשתלחצו "החל". אפשר לחזור ולשנות אחר כך.') };
       default:
-        return { title: 'המיפוי הוחל', q: '' };
+        return { title: tr('המיפוי הוחל'), q: '' };
     }
   }
 
@@ -1418,27 +1419,27 @@ export class MappingAssistant extends LitElement {
     const back = (to: Step, label: string) => html`<sw-button variant="secondary" icon="chevron" data-ma-back @click=${() => void this.go(to)}>${label}</sw-button>`;
     switch (this.step) {
       case 'mark':
-        return html`<footer><sw-button variant="ghost" @click=${() => this.close()}>ביטול</sw-button><span class="ln">שום דבר לא משתנה עד "החל" בסיכום</span><span class="sp"></span>
-          <sw-button variant="primary" data-ma-next ?disabled=${this.busy} @click=${() => void this.go('table')}>נכון, המשך</sw-button></footer>`;
+        return html`<footer><sw-button variant="ghost" @click=${() => this.close()}>${tr('ביטול')}</sw-button><span class="ln">${tr('שום דבר לא משתנה עד "החל" בסיכום')}</span><span class="sp"></span>
+          <sw-button variant="primary" data-ma-next ?disabled=${this.busy} @click=${() => void this.go('table')}>${tr('נכון, המשך')}</sw-button></footer>`;
       case 'table':
-        return html`<footer>${back('mark', 'צורת הסימון')}<span class="ln">שום דבר לא משתנה עד "החל" בסיכום</span><span class="sp"></span>
-          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.withDecisions && open ? 'decide' : this.afterDecide)}>${this.withDecisions && open ? `המשך - ${open} ${open === 1 ? 'החלטה מחכה' : 'החלטות מחכות'}` : m.lq.length ? `המשך - ${m.lq.length === 1 ? 'קומה אחת ללא מפלס' : `${m.lq.length} קומות ללא מפלס`}` : 'המשך לסיכום'}</sw-button></footer>`;
+        return html`<footer>${back('mark', tr('צורת הסימון'))}<span class="ln">${tr('שום דבר לא משתנה עד "החל" בסיכום')}</span><span class="sp"></span>
+          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.withDecisions && open ? 'decide' : this.afterDecide)}>${this.withDecisions && open ? (open === 1 ? tr('המשך - {n} החלטה מחכה', { n: open }) : tr('המשך - {n} החלטות מחכות', { n: open })) : m.lq.length ? (m.lq.length === 1 ? tr('המשך - קומה אחת ללא מפלס') : tr('המשך - {n} קומות ללא מפלס', { n: m.lq.length })) : tr('המשך לסיכום')}</sw-button></footer>`;
       case 'decide':
-        return html`<footer>${back('table', 'הטבלה')}<span class="ln">אפשר להמשיך גם עם החלטות פתוחות - הפריטים יישארו כמו שהם, עם אזהרה</span><span class="sp"></span>
-          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.afterDecide)}>${m.lq.length ? 'המשך - קומות ללא מפלס' : 'המשך לסיכום'}</sw-button></footer>`;
+        return html`<footer>${back('table', tr('הטבלה'))}<span class="ln">${tr('אפשר להמשיך גם עם החלטות פתוחות - הפריטים יישארו כמו שהם, עם אזהרה')}</span><span class="sp"></span>
+          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.afterDecide)}>${m.lq.length ? tr('המשך - קומות ללא מפלס') : tr('המשך לסיכום')}</sw-button></footer>`;
       case 'levels': {
         const b = this.backFrom('levels');
         const left = m.lq.filter((q) => !q.answer).length;
-        return html`<footer>${back(b.to, b.label)}<span class="ln">${left ? `${left} ${left === 1 ? 'קומה מחכה' : 'קומות מחכות'} למפלס` : 'לכל הקומות יש מפלס'}</span><span class="sp"></span>
-          ${left ? html`<sw-button variant="secondary" data-ma-levels-skip @click=${() => { this.skipLevels(); void this.go('summary'); }}>${left === 1 ? 'דלג - מפלס 0' : 'דלג - מפלס 0 לכולן'}</sw-button>` : nothing}
-          <sw-button variant="primary" data-ma-next ?disabled=${left > 0} @click=${() => void this.go('summary')}>המשך לסיכום</sw-button></footer>`;
+        return html`<footer>${back(b.to, b.label)}<span class="ln">${left ? (left === 1 ? tr('{n} קומה מחכה למפלס', { n: left }) : tr('{n} קומות מחכות למפלס', { n: left })) : tr('לכל הקומות יש מפלס')}</span><span class="sp"></span>
+          ${left ? html`<sw-button variant="secondary" data-ma-levels-skip @click=${() => { this.skipLevels(); void this.go('summary'); }}>${left === 1 ? tr('דלג - מפלס 0') : tr('דלג - מפלס 0 לכולן')}</sw-button>` : nothing}
+          <sw-button variant="primary" data-ma-next ?disabled=${left > 0} @click=${() => void this.go('summary')}>${tr('המשך לסיכום')}</sw-button></footer>`;
       }
       case 'summary': {
         const b = this.backFrom('summary');
-        return html`<footer>${back(b.to, b.label)}<span class="ln">${m.sum.manual} החלטות שלכם · ${m.sum.byFloor} לפי הקומה · השאר לפי הסימון</span><span class="sp"></span></footer>`;
+        return html`<footer>${back(b.to, b.label)}<span class="ln">${tr('{manual} החלטות שלכם · {byFloor} לפי הקומה · השאר לפי הסימון', { manual: m.sum.manual, byFloor: m.sum.byFloor })}</span><span class="sp"></span></footer>`;
       }
       default:
-        return html`<footer><span class="sp"></span><sw-button variant="primary" data-ma-finish @click=${() => this.close()}>סיום</sw-button></footer>`;
+        return html`<footer><span class="sp"></span><sw-button variant="primary" data-ma-finish @click=${() => this.close()}>${tr('סיום')}</sw-button></footer>`;
     }
   }
 
@@ -1454,11 +1455,11 @@ export class MappingAssistant extends LitElement {
       else this.setState({ ...this.st, advanced: false, spec: { ...this.st.spec, position: p, seps: p === 'end' || p === 'start' ? this.st.spec.seps : this.st.spec.seps } }, true);
     };
     const fit = (p: Position | 'advanced') => {
-      if (p === 'advanced') return html`רשימת כללים בשפה פשוטה`;
+      if (p === 'advanced') return html`${tr('רשימת כללים בשפה פשוטה')}`;
       const pct = p === this.st.spec.position ? d.pct : sug.alternatives[p];
-      return html`מסביר <b>${pct}%</b> מהשמות`;
+      return html`${tr('מסביר')} <b>${pct}%</b> ${tr('מהשמות')}`;
     };
-    const opts = html`<div class="opts" role="radiogroup" aria-label="איפה הסימון">
+    const opts = html`<div class="opts" role="radiogroup" aria-label=${tr('איפה הסימון')}>
       ${[...POSITIONS, ...(MappingAssistant.rulesView ? ['advanced' as const] : [])].map((p) => html`<button type="button" role="radio" class="opt press" data-ma-pos=${p} aria-checked=${String(sel === p)} @click=${() => pick(p)}>
           <h2><span class="rd" aria-hidden="true"></span>${POS_TEXT[p].title}</h2>
           <div class="ex">${POS_TEXT[p].ex.map((e) => html`<span>${e}</span>`)}</div>
@@ -1467,9 +1468,8 @@ export class MappingAssistant extends LitElement {
     </div>`;
     const seps = Object.entries(d.sepUse).filter(([s]) => s !== '·');
     const detected = html`<div class="detected" data-ma-detected><sw-icon name="sparkle" size=${18}></sw-icon>
-      <span>${this.st.spec.position === sug.spec.position && !this.st.advanced ? 'זיהינו: ' : 'כך נקראים השמות: '}<b>${POS_TEXT[this.st.spec.position].title}</b>${this.st.spec.position === 'start' || this.st.spec.position === 'end' ? html`, מופרד ב-<b>${this.st.spec.seps.map((s) => SEP_LABEL[s] ?? `"${s}"`).join(' / ')}</b>` : nothing}.
-        מסביר <b data-ma-pct>${d.pct}%</b> מהשמות שלכם - <bdi>${d.marked}</bdi> מתוך <bdi>${d.total}</bdi>${seps.length ? html` (${seps.map(([s, n]) => `${n} עם ${SEP_LABEL[s] ?? s}`).join(', ')})` : nothing}.
-        <span class="more">${d.unmarked.length ? html`${d.unmarked.length} שמות בלי סימון - ${this.data.settings.floor_inherit === 'on' ? 'מי שבקומה של בניין ברור נכנס לפי הקומה, על השאר נשאל.' : 'נשאל עליהם בהמשך.'}` : 'כל השמות מסומנים.'}</span></span>
+      <span>${this.st.spec.position === sug.spec.position && !this.st.advanced ? tr('זיהינו: ') : tr('כך נקראים השמות: ')}<b>${POS_TEXT[this.st.spec.position].title}</b>${this.st.spec.position === 'start' || this.st.spec.position === 'end' ? html`${tr(', מופרד ב-')}<b>${this.st.spec.seps.map((s) => SEP_LABEL[s] ?? `"${s}"`).join(' / ')}</b>` : nothing}${tr('. מסביר')} <b data-ma-pct>${d.pct}%</b> ${tr('מהשמות שלכם -')} <bdi>${d.marked}</bdi> ${tr('מתוך')} <bdi>${d.total}</bdi>${seps.length ? html` (${seps.map(([s, n]) => tr('{n} עם {sep}', { n, sep: SEP_LABEL[s] ?? s })).join(', ')})` : nothing}.
+        <span class="more">${d.unmarked.length ? html`${tr('{n} שמות בלי סימון -', { n: d.unmarked.length })} ${this.data.settings.floor_inherit === 'on' ? tr('מי שבקומה של בניין ברור נכנס לפי הקומה, על השאר נשאל.') : tr('נשאל עליהם בהמשך.')}` : tr('כל השמות מסומנים.')}</span></span>
     </div>`;
     const sp = this.st.spec;
     const chip = (on: boolean, label: string, click: () => void, count?: number, attr = '') => html`<button type="button" class="ch press" aria-pressed=${String(on)} data-ma-chip=${attr} @click=${click}>${label}${count ? html`<small>${count}</small>` : nothing}</button>`;
@@ -1481,29 +1481,29 @@ export class MappingAssistant extends LitElement {
     const custom = sp.seps.filter((s) => !(SEP_CHIPS as readonly string[]).includes(s));
     const ctrls = this.st.spec.position === 'label' ? nothing : html`<div class="ctrls">
       ${sp.position === 'word'
-        ? html`<label class="grp"><b>המילה שלפני הסימון:</b><input class="tx short" data-ma-marker .value=${sp.marker} @input=${(e: Event) => this.setSpec({ marker: (e.target as HTMLInputElement).value })} /></label>`
-        : html`<div class="grp"><b>המפריד:</b>${SEP_CHIPS.map((s) => chip(sp.seps.includes(s), SEP_LABEL[s], () => toggleSep(s), d.sepUse[s], `sep-${s === ' ' ? 'space' : s}`))}
+        ? html`<label class="grp"><b>${tr('המילה שלפני הסימון:')}</b><input class="tx short" data-ma-marker .value=${sp.marker} @input=${(e: Event) => this.setSpec({ marker: (e.target as HTMLInputElement).value })} /></label>`
+        : html`<div class="grp"><b>${tr('המפריד:')}</b>${SEP_CHIPS.map((s) => chip(sp.seps.includes(s), SEP_LABEL[s], () => toggleSep(s), d.sepUse[s], `sep-${s === ' ' ? 'space' : s}`))}
             ${custom.map((s) => chip(true, `"${s}"`, () => toggleSep(s), d.sepUse[s], 'sep-custom'))}
-            <input class="tx short" placeholder="אחר…" aria-label="מפריד אחר" maxlength="4" .value=${this.customSep} @input=${(e: Event) => (this.customSep = (e.target as HTMLInputElement).value)}
+            <input class="tx short" placeholder=${tr('אחר…')} aria-label=${tr('מפריד אחר')} maxlength="4" .value=${this.customSep} @input=${(e: Event) => (this.customSep = (e.target as HTMLInputElement).value)}
               @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && this.customSep.trim() && !sp.seps.includes(this.customSep.trim())) { this.setSpec({ seps: [...sp.seps, this.customSep.trim()] }); this.customSep = ''; } }} /></div>`}
-      <div class="grp"><b>${sp.position === 'end' ? 'מה אחרי המפריד:' : sp.position === 'word' ? 'הסימון הוא:' : 'מה לפני המפריד:'}</b>${(['letter', 'number', 'word', 'any'] as TokenKind[]).map((k) => chip(sp.kind === k, KIND_LABEL[k], () => this.setSpec({ kind: k }), undefined, `kind-${k}`))}</div>
+      <div class="grp"><b>${sp.position === 'end' ? tr('מה אחרי המפריד:') : sp.position === 'word' ? tr('הסימון הוא:') : tr('מה לפני המפריד:')}</b>${(['letter', 'number', 'word', 'any'] as TokenKind[]).map((k) => chip(sp.kind === k, KIND_LABEL[k], () => this.setSpec({ kind: k }), undefined, `kind-${k}`))}</div>
     </div>`;
     const names = [...this.data.mapItems.slice(0, 40), ...d.unmarked.slice(0, 10)];
     const preview = html`<div class="live">
-      <div class="panel names"><h3>השמות שלכם, כפי שהמערכת קוראת אותם</h3><div class="scroll" data-ma-names>
+      <div class="panel names"><h3>${tr('השמות שלכם, כפי שהמערכת קוראת אותם')}</h3><div class="scroll" data-ma-names>
         ${names.map((it) => {
           const t = tokenize(it, sp);
-          return t ? html`<div class="nm"><span class="t"><bdi>${this.markName(it.name, t.token)}</bdi></span><small>${it.kind === 'floor' ? 'קומה' : 'אזור'}</small></div>` : html`<div class="nm no"><span class="t"><mark>?</mark> <bdi>${it.name}</bdi></span><small>בלי סימון</small></div>`;
+          return t ? html`<div class="nm"><span class="t"><bdi>${this.markName(it.name, t.token)}</bdi></span><small>${it.kind === 'floor' ? tr('קומה') : tr('אזור')}</small></div>` : html`<div class="nm no"><span class="t"><mark>?</mark> <bdi>${it.name}</bdi></span><small>${tr('בלי סימון')}</small></div>`;
         })}
-        <div class="hint">… ועוד ${Math.max(0, d.total - names.length)} שמות</div></div></div>
-      <div class="panel"><h3>הקיבוץ שיוצא מזה<span class="sp"></span><span class="ct">${d.tokens.length} סימונים</span></h3><div class="scroll"><div class="groups" data-ma-groups>
+        <div class="hint">${tr('… ועוד {n} שמות', { n: Math.max(0, d.total - names.length) })}</div></div></div>
+      <div class="panel"><h3>${tr('הקיבוץ שיוצא מזה')}<span class="sp"></span><span class="ct">${tr('{length} סימונים', { length: d.tokens.length })}</span></h3><div class="scroll"><div class="groups" data-ma-groups>
         ${d.tokens.map((s) => {
-          const tr = m.rows.find((r) => r.token === s.token);
-          const to = tr?.target;
-          return html`<div class="tokc"><div class="th"><span class="g ${this.isShared(to) ? 'sh' : !to ? 'un' : ''}" title=${s.token}>${s.token}</span><span class="ct">${s.floors} קומות · ${s.areas} אזורים</span><span class="arr">← ${to ? this.bName(to) : '?'}</span></div>
+          const row = m.rows.find((r) => r.token === s.token);
+          const to = row?.target;
+          return html`<div class="tokc"><div class="th"><span class="g ${this.isShared(to) ? 'sh' : !to ? 'un' : ''}" title=${s.token}>${s.token}</span><span class="ct">${tr('{floors} קומות · {areas} אזורים', { floors: s.floors, areas: s.areas })}</span><span class="arr">← ${to ? this.bName(to) : '?'}</span></div>
             <div class="samp">${s.samples.slice(0, 4).map((x) => html`<span title=${x}><bdi>${x}</bdi></span>`)}</div></div>`;
         })}
-        ${d.unmarked.length ? html`<div class="tokc"><div class="th"><span class="g un">?</span><span class="ct">${d.unmarked.length} בלי סימון</span><span class="arr">← שאלה</span></div><div class="samp">${d.unmarked.slice(0, 4).map((x) => html`<span><bdi>${x.name}</bdi></span>`)}</div></div>` : nothing}
+        ${d.unmarked.length ? html`<div class="tokc"><div class="th"><span class="g un">?</span><span class="ct">${tr('{length} בלי סימון', { length: d.unmarked.length })}</span><span class="arr">${tr('← שאלה')}</span></div><div class="samp">${d.unmarked.slice(0, 4).map((x) => html`<span><bdi>${x.name}</bdi></span>`)}</div></div>` : nothing}
       </div></div></div>
     </div>`;
     return html`${opts}${detected}${ctrls}${this.st.advanced && MappingAssistant.rulesView ? MappingAssistant.rulesView(this) : preview}`;
@@ -1519,11 +1519,11 @@ export class MappingAssistant extends LitElement {
 
   private targetOptions(cur: Target | undefined, token: string) {
     const order = exceptionOrder(this.data.settings);
-    const nw = html`<option value=${`n:${newBuildingName(token)}`} ?selected=${cur?.t === 'new'}>בניין חדש "${newBuildingName(token)}"</option>`;
+    const nw = html`<option value=${`n:${newBuildingName(token)}`} ?selected=${cur?.t === 'new'}>${tr('בניין חדש "{name}"', { name: newBuildingName(token) })}</option>`;
     const ex = this.data.buildings.map((b) => html`<option value=${`b:${b.id}`} ?selected=${cur?.t === 'b' && cur.id === b.id}>${b.name}</option>`);
-    const none = html`<option value="none" ?selected=${cur?.t === 'none'}>לא משויך</option>`;
-    const parts = order.map((o) => (o === 'new' ? nw : o === 'existing' ? html`<optgroup label="בניין קיים">${ex}</optgroup>` : none));
-    return html`${cur ? nothing : html`<option value="" selected>בחרו - או נשאל בהמשך</option>`}${parts}`;
+    const none = html`<option value="none" ?selected=${cur?.t === 'none'}>${tr('לא משויך')}</option>`;
+    const parts = order.map((o) => (o === 'new' ? nw : o === 'existing' ? html`<optgroup label=${tr('בניין קיים')}>${ex}</optgroup>` : none));
+    return html`${cur ? nothing : html`<option value="" selected>${tr('בחרו - או נשאל בהמשך')}</option>`}${parts}`;
   }
 
   parseTarget(v: string): Target | null {
@@ -1545,7 +1545,7 @@ export class MappingAssistant extends LitElement {
     const m = this.model();
     const sepNote = (r: TableRow) => {
       const other = Object.keys(r.stat.seps).filter((s) => s !== '·' && s !== this.st.spec.seps[0]);
-      return other.length ? html`<small>גם עם ${other.map((s) => SEP_LABEL[s] ?? `"${s}"`).join(', ')}</small>` : nothing;
+      return other.length ? html`<small>${tr('גם עם {list}', { list: other.map((s) => SEP_LABEL[s] ?? `"${s}"`).join(', ') })}</small>` : nothing;
     };
     const drop = (onto: string) => (e: DragEvent) => {
       e.preventDefault();
@@ -1555,32 +1555,32 @@ export class MappingAssistant extends LitElement {
     };
     const rows = m.rows.map((r) => html`<div class="tk ${this.dragTok && this.dragTok !== r.token ? 'dropzone' : ''}" data-ma-token=${r.token}
         @dragover=${(e: DragEvent) => { if (this.dragTok) e.preventDefault(); }} @drop=${drop(r.token)}>
-      <button class="grip" draggable="true" aria-label=${`גרור את "${r.token}" על סימון אחר כדי לאחד`} title="גרירה על שורה אחרת = אותו בניין"
+      <button class="grip" draggable="true" aria-label=${tr('גרור את "{token}" על סימון אחר כדי לאחד', { token: r.token })} title=${tr('גרירה על שורה אחרת = אותו בניין')}
         @dragstart=${(e: DragEvent) => { this.dragTok = r.token; e.dataTransfer?.setData('text/plain', r.token); }} @dragend=${() => (this.dragTok = '')}><sw-icon name="grip" size=${16}></sw-icon></button>
-      <span class="tok"><span class="g ${this.isShared(r.target) ? 'sh' : !r.target ? 'un' : ''}" title=${r.token}>${r.token}</span>${sepNote(r)}${r.merged ? html`<span class="tag m" data-ma-merged>מאוחד</span>` : nothing}${r.manual ? html`<span class="tag">נוסף ידנית</span>` : nothing}</span>
-      <select data-ma-target=${r.token} aria-label=${`הבניין של "${r.token}"`} @change=${(e: Event) => this.setToken(r.token, (e.target as HTMLSelectElement).value)}>${this.targetOptions(r.target, r.token)}</select>
-      <span class="c"><b>${r.stat.floors} קומות, ${r.stat.areas} אזורים</b>${!r.target ? html`<small>אין בניין "${r.token}" - חדש? קיים?</small>` : r.own ? nothing : html`<small>לפי שם הבניין</small>`}</span>
+      <span class="tok"><span class="g ${this.isShared(r.target) ? 'sh' : !r.target ? 'un' : ''}" title=${r.token}>${r.token}</span>${sepNote(r)}${r.merged ? html`<span class="tag m" data-ma-merged>${tr('מאוחד')}</span>` : nothing}${r.manual ? html`<span class="tag">${tr('נוסף ידנית')}</span>` : nothing}</span>
+      <select data-ma-target=${r.token} aria-label=${tr('הבניין של "{token}"', { token: r.token })} @change=${(e: Event) => this.setToken(r.token, (e.target as HTMLSelectElement).value)}>${this.targetOptions(r.target, r.token)}</select>
+      <span class="c"><b>${tr('{floors} קומות, {areas} אזורים', { floors: r.stat.floors, areas: r.stat.areas })}</b>${!r.target ? html`<small>${tr('אין בניין "{token}" - חדש? קיים?', { token: r.token })}</small>` : r.own ? nothing : html`<small>${tr('לפי שם הבניין')}</small>`}</span>
       <span class="samp">${r.stat.samples.slice(0, 4).map((s) => html`<span title=${s}><bdi>${s}</bdi></span>`)}${r.stat.floors + r.stat.areas > 4 ? html`<span>+${r.stat.floors + r.stat.areas - 4}</span>` : nothing}</span>
     </div>`);
     const un = m.det.unmarked;
     const byFloor = m.sum.byFloor;
-    const unRow = html`<div class="tk" data-ma-token-none><span></span><span class="tok"><span class="g un">?</span><small>בלי סימון</small></span><span class="ct">נשאל בהמשך</span>
-      <span class="c"><b>${un.filter((x) => x.kind === 'floor').length} קומות, ${un.filter((x) => x.kind === 'area').length} אזורים</b>${byFloor ? html`<small>${byFloor} מהם ייכנסו לפי הקומה שלהם</small>` : nothing}</span>
+    const unRow = html`<div class="tk" data-ma-token-none><span></span><span class="tok"><span class="g un">?</span><small>${tr('בלי סימון')}</small></span><span class="ct">${tr('נשאל בהמשך')}</span>
+      <span class="c"><b>${tr('{floors} קומות, {areas} אזורים', { floors: un.filter((x) => x.kind === 'floor').length, areas: un.filter((x) => x.kind === 'area').length })}</b>${byFloor ? html`<small>${tr('{byFloor} מהם ייכנסו לפי הקומה שלהם', { byFloor })}</small>` : nothing}</span>
       <span class="samp">${un.slice(0, 4).map((s) => html`<span><bdi>${s.name}</bdi></span>`)}</span></div>`;
-    const add = html`<div class="add"><input class="tx short" data-ma-add-token placeholder="למשל A" aria-label="סימון חדש" maxlength="12" .value=${this.addTok} @input=${(e: Event) => (this.addTok = (e.target as HTMLInputElement).value)} />
+    const add = html`<div class="add"><input class="tx short" data-ma-add-token placeholder=${tr('למשל A')} aria-label=${tr('סימון חדש')} maxlength="12" .value=${this.addTok} @input=${(e: Event) => (this.addTok = (e.target as HTMLInputElement).value)} />
       <sw-button size="sm" variant="ghost" icon="plus" data-ma-add ?disabled=${!this.addTok.trim() || m.rows.some((r) => r.token === this.addTok.trim())}
-        @click=${() => { const t = this.addTok.trim(); this.setState({ ...this.st, manual_tokens: [...this.st.manual_tokens, t] }); this.addTok = ''; }}>הוסף סימון ידנית</sw-button>
-      <span>אם במערכת הבית יופיעו גם שמות באנגלית, למשל "A" ← בניין א</span></div>`;
+        @click=${() => { const t = this.addTok.trim(); this.setState({ ...this.st, manual_tokens: [...this.st.manual_tokens, t] }); this.addTok = ''; }}>${tr('הוסף סימון ידנית')}</sw-button>
+      <span>${tr('אם במערכת הבית יופיעו גם שמות באנגלית, למשל "A" ← בניין א')}</span></div>`;
     const sideRows = m.sum.buildings.filter((b) => b.floors + b.areas + b.tokens.length > 0 || b.target.t === 'b');
-    const side = html`<div class="panel side"><h3><sw-icon name="building" size=${16}></sw-icon>הבניינים שיוצאים מזה</h3><div class="scroll" data-ma-side>
+    const side = html`<div class="panel side"><h3><sw-icon name="building" size=${16}></sw-icon>${tr('הבניינים שיוצאים מזה')}</h3><div class="scroll" data-ma-side>
       ${sideRows.map((b) => html`<div class="bl"><span class="g ${this.isShared(b.target) ? 'sh' : ''}">${b.target.t === 'new' ? html`<sw-icon name="plus" size=${14}></sw-icon>` : html`<sw-icon name="building" size=${14}></sw-icon>`}</span>
-        <span class="t"><b>${this.bName(b.target)}</b><span>${b.floors} קומות · ${b.areas} אזורים${b.target.t === 'new' ? ' · ייווצר' : ''}</span></span>
+        <span class="t"><b>${this.bName(b.target)}</b><span>${tr('{floors} קומות · {areas} אזורים', { floors: b.floors, areas: b.areas })}${b.target.t === 'new' ? tr(' · ייווצר') : ''}</span></span>
         <span class="toks">${b.tokens.map((t) => html`<span class="tag">${t}</span>`)}</span></div>`)}
-      <div class="bl"><span class="g un">?</span><span class="t"><b>לא משויך / שאלה</b><span>${m.sum.unassigned.floors} קומות · ${m.sum.unassigned.areas} אזורים</span></span></div>
-      <div class="hint">הטבלה נשמרת: שם חדש במערכת הבית שמתחיל ב"ב ·" ייכנס לבניין ב בלי לשאול שוב (${this.data.settings.auto_insert === 'on' ? 'לבד, לפי ההגדרה' : 'אחרי "אשר"'}). סימון שלא מופיע כאן - שאלה.</div>
+      <div class="bl"><span class="g un">?</span><span class="t"><b>${tr('לא משויך / שאלה')}</b><span>${tr('{floors} קומות · {areas} אזורים', { floors: m.sum.unassigned.floors, areas: m.sum.unassigned.areas })}</span></span></div>
+      <div class="hint">${tr('הטבלה נשמרת: שם חדש במערכת הבית שמתחיל ב"ב ·" ייכנס לבניין ב בלי לשאול שוב ({how}). סימון שלא מופיע כאן - שאלה.', { how: this.data.settings.auto_insert === 'on' ? tr('לבד, לפי ההגדרה') : tr('אחרי "אשר"') })}</div>
     </div></div>`;
     return html`<div class="two"><div class="panel"><div class="scroll" data-ma-table>
-        <div class="tk hdr"><span></span><span>סימון בשם</span><span>בניין אצלנו</span><span>כמה</span><span>דוגמאות</span></div>
+        <div class="tk hdr"><span></span><span>${tr('סימון בשם')}</span><span>${tr('בניין אצלנו')}</span><span>${tr('כמה')}</span><span>${tr('דוגמאות')}</span></div>
         ${rows}${unRow}${add}</div></div>${side}</div>`;
   }
 
@@ -1603,22 +1603,22 @@ export class MappingAssistant extends LitElement {
       const cur = value(q.answer);
       const levels = q.answer?.t === 'level' && !LEVEL_PICK.includes(q.answer.level) ? [...LEVEL_PICK, q.answer.level].sort((a, b) => a - b) : LEVEL_PICK;
       const tag = !q.answer
-        ? html`<span class="tag wn">מחכה</span>`
+        ? html`<span class="tag wn">${tr('מחכה')}</span>`
         : q.answer.t === 'skip'
-          ? html`<span class="tag">מפלס 0</span>`
-          : html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>נקבע</span>`;
+          ? html`<span class="tag">${tr('מפלס 0')}</span>`
+          : html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>${tr('נקבע')}</span>`;
       return html`<div class="lv" data-ma-level=${q.id}>
-        <span class="t"><b><bdi>${it?.name ?? q.rest}</bdi></b><small>${this.bName(to)} · ${q.answer?.t === 'floor' ? 'לקומה קיימת' : `קומה "${q.rest}"`}</small></span>
-        <select data-ma-level-pick=${q.id} aria-label=${`המפלס של "${it?.name ?? q.rest}"`} @change=${(e: Event) => this.setLevel(q.id, parse((e.target as HTMLSelectElement).value))}>
-          <option value="" ?selected=${!cur}>בחרו מפלס</option>
-          ${existing.length ? html`<optgroup label="זהה לקומה קיימת">${existing.map((f) => html`<option value=${`f:${f.id}`} ?selected=${cur === `f:${f.id}`}>${f.name} (מפלס ${f.level})</option>`)}</optgroup>` : nothing}
-          <optgroup label="מפלס לקומה חדשה">${levels.map((n) => html`<option value=${`l:${n}`} ?selected=${cur === `l:${n}`}>מפלס ${n}</option>`)}</optgroup>
-          <option value="skip" ?selected=${cur === 'skip'}>דלג - מפלס 0, כמו היום</option>
+        <span class="t"><b><bdi>${it?.name ?? q.rest}</bdi></b><small>${this.bName(to)} · ${q.answer?.t === 'floor' ? tr('לקומה קיימת') : tr('קומה "{rest}"', { rest: q.rest })}</small></span>
+        <select data-ma-level-pick=${q.id} aria-label=${tr('המפלס של "{name}"', { name: it?.name ?? q.rest })} @change=${(e: Event) => this.setLevel(q.id, parse((e.target as HTMLSelectElement).value))}>
+          <option value="" ?selected=${!cur}>${tr('בחרו מפלס')}</option>
+          ${existing.length ? html`<optgroup label=${tr('זהה לקומה קיימת')}>${existing.map((f) => html`<option value=${`f:${f.id}`} ?selected=${cur === `f:${f.id}`}>${tr('{name} (מפלס {level})', { name: f.name, level: f.level })}</option>`)}</optgroup>` : nothing}
+          <optgroup label=${tr('מפלס לקומה חדשה')}>${levels.map((n) => html`<option value=${`l:${n}`} ?selected=${cur === `l:${n}`}>${tr('מפלס {n}', { n })}</option>`)}</optgroup>
+          <option value="skip" ?selected=${cur === 'skip'}>${tr('דלג - מפלס 0, כמו היום')}</option>
         </select>
         ${tag}
       </div>`;
     });
-    return html`<div class="panel" style="flex:1 1 auto"><h3><sw-icon name="building" size=${16}></sw-icon>קומות בלי מפלס<span class="sp"></span><span class="ct">${m.lq.length}</span></h3>
+    return html`<div class="panel" style="flex:1 1 auto"><h3><sw-icon name="building" size=${16}></sw-icon>${tr('קומות בלי מפלס')}<span class="sp"></span><span class="ct">${m.lq.length}</span></h3>
       <div class="scroll" data-ma-levels>${rows}</div></div>`;
   }
 
@@ -1631,30 +1631,30 @@ export class MappingAssistant extends LitElement {
     return html`<div class="panel" style="flex:1 1 auto"><div class="scroll"><div class="sum" data-ma-summary>
         ${rows.map((b) => html`<div class="srow" data-ma-sum-row=${b.key}>
           <span class="g ${this.isShared(b.target) ? 'sh' : ''}"><sw-icon name=${b.target.t === 'new' ? 'plus' : 'building'} size=${15}></sw-icon></span>
-          <div class="t"><b>${this.bName(b.target)}${b.target.t === 'new' ? html` <span class="tag new">בניין חדש</span>` : nothing}</b>
-            <span>${b.floors + b.areas ? `${b.floors} קומות ו-${b.areas} אזורים ממערכת הבית יופיעו תחת ${this.bName(b.target)}` : 'שום דבר ממערכת הבית לא מגיע לבניין הזה'}${b.manual ? html` · <em>${b.manual} החלטות שלכם</em>` : nothing}${b.byFloor ? ` · ${b.byFloor} לפי הקומה` : ''}${b.tokens.length ? ` · סימון ${b.tokens.map((t) => `"${t}"`).join(', ')}` : ''}</span></div>
-          <span class="st ${b.floors + b.areas ? '' : 'wn'}"><sw-icon name=${b.floors + b.areas ? 'check' : 'info'} size=${14}></sw-icon>${b.floors + b.areas ? 'מוכן' : 'ריק'}</span></div>`)}
+          <div class="t"><b>${this.bName(b.target)}${b.target.t === 'new' ? html` <span class="tag new">${tr('בניין חדש')}</span>` : nothing}</b>
+            <span>${b.floors + b.areas ? tr('{floors} קומות ו-{areas} אזורים ממערכת הבית יופיעו תחת {building}', { floors: b.floors, areas: b.areas, building: this.bName(b.target) }) : tr('שום דבר ממערכת הבית לא מגיע לבניין הזה')}${b.manual ? html` · <em>${tr('{manual} החלטות שלכם', { manual: b.manual })}</em>` : nothing}${b.byFloor ? tr(' · {byFloor} לפי הקומה', { byFloor: b.byFloor }) : ''}${b.tokens.length ? tr(' · סימון {list}', { list: b.tokens.map((t) => `"${t}"`).join(', ') }) : ''}</span></div>
+          <span class="st ${b.floors + b.areas ? '' : 'wn'}"><sw-icon name=${b.floors + b.areas ? 'check' : 'info'} size=${14}></sw-icon>${b.floors + b.areas ? tr('מוכן') : tr('ריק')}</span></div>`)}
         <div class="srow" data-ma-sum-row="none"><span class="g un">?</span>
-          <div class="t"><b>לא משויך</b><span>${m.sum.unassigned.floors} קומות ו-${m.sum.unassigned.areas} אזורים יישארו בלי בניין${m.sum.open ? ` (${m.sum.open} מהם מחכים להחלטה - יישארו כמו שהם)` : ''}. אפשר לסדר אותם אחר כך מההגדרות.</span></div>
-          ${m.qs.length ? html`<span class="st wn"><sw-icon name="warning" size=${14}></sw-icon>${m.qs.length} החלטות פתוחות</span>` : html`<span class="st"><sw-icon name="check" size=${14}></sw-icon>הכל הוחלט</span>`}</div>
+          <div class="t"><b>${tr('לא משויך')}</b><span>${tr('{floors} קומות ו-{areas} אזורים יישארו בלי בניין', { floors: m.sum.unassigned.floors, areas: m.sum.unassigned.areas })}${m.sum.open ? tr(' ({open} מהם מחכים להחלטה - יישארו כמו שהם)', { open: m.sum.open }) : ''}${tr('. אפשר לסדר אותם אחר כך מההגדרות.')}</span></div>
+          ${m.qs.length ? html`<span class="st wn"><sw-icon name="warning" size=${14}></sw-icon>${tr('{length} החלטות פתוחות', { length: m.qs.length })}</span>` : html`<span class="st"><sw-icon name="check" size=${14}></sw-icon>${tr('הכל הוחלט')}</span>`}</div>
       </div></div></div>
-      <div class="applybox" data-ma-applybox><div class="t"><b>להחיל את המיפוי?</b>
-          <ul><li><sw-icon name="check" size=${13}></sw-icon>נשמר כגרסה ${nextVersion}</li><li><sw-icon name="check" size=${13}></sw-icon>נרשם ביומן הפעולות</li><li><sw-icon name="check" size=${13}></sw-icon>הפיך: "חזרה לגרסה זו" בהגדרות</li><li><sw-icon name="check" size=${13}></sw-icon>שום דבר לא משתנה במערכת הבית עצמה</li></ul></div>
-        <sw-button variant="ghost" @click=${() => this.close()}>ביטול</sw-button>
-        <sw-button variant="primary" icon="check" data-ma-apply ?disabled=${this.busy} @click=${() => void this.apply()}>${this.busy ? 'מחיל…' : 'החל'}</sw-button></div>`;
+      <div class="applybox" data-ma-applybox><div class="t"><b>${tr('להחיל את המיפוי?')}</b>
+          <ul><li><sw-icon name="check" size=${13}></sw-icon>${tr('נשמר כגרסה {nextVersion}', { nextVersion })}</li><li><sw-icon name="check" size=${13}></sw-icon>${tr('נרשם ביומן הפעולות')}</li><li><sw-icon name="check" size=${13}></sw-icon>${tr('הפיך: "חזרה לגרסה זו" בהגדרות')}</li><li><sw-icon name="check" size=${13}></sw-icon>${tr('שום דבר לא משתנה במערכת הבית עצמה')}</li></ul></div>
+        <sw-button variant="ghost" @click=${() => this.close()}>${tr('ביטול')}</sw-button>
+        <sw-button variant="primary" icon="check" data-ma-apply ?disabled=${this.busy} @click=${() => void this.apply()}>${this.busy ? tr('מחיל…') : tr('החל')}</sw-button></div>`;
   }
 
   private renderDone() {
     const a = this.applied!;
     return html`<div class="donebox" data-ma-done><span class="badge-ok"><sw-icon name="check" size=${28}></sw-icon></span>
-      <h2>המיפוי נשמר - גרסה ${a.version}</h2>
-      <p>${a.created ? `${a.created} ${a.created === 1 ? 'בניין חדש נוצר' : 'בניינים חדשים נוצרו'}. ` : ''}שם חדש במערכת הבית עם סימון מוכר ${this.data.settings.auto_insert === 'on' ? 'ייכנס למקומו לבד' : 'יחכה ל"אשר" בכרטיס בהגדרות'}. אפשר תמיד לחזור לגרסה קודמת.</p>
+      <h2>${tr('המיפוי נשמר - גרסה {version}', { version: a.version })}</h2>
+      <p>${a.created ? `${a.created === 1 ? tr('{n} בניין חדש נוצר.', { n: a.created }) : tr('{n} בניינים חדשים נוצרו.', { n: a.created })} ` : ''}${tr('שם חדש במערכת הבית עם סימון מוכר {what}. אפשר תמיד לחזור לגרסה קודמת.', { what: this.data.settings.auto_insert === 'on' ? tr('ייכנס למקומו לבד') : tr('יחכה ל"אשר" בכרטיס בהגדרות') })}</p>
       ${this.multiOn
-        ? html`<p data-ma-multi-on>תצוגת ריבוי הבניינים פעילה: המסך הראשי מציג את האתר לפי בניינים.</p>`
+        ? html`<p data-ma-multi-on>${tr('תצוגת ריבוי הבניינים פעילה: המסך הראשי מציג את האתר לפי בניינים.')}</p>`
         : this.data.can_toggle
-          ? html`<div class="offer" data-ma-offer><span>תצוגת ריבוי הבניינים כבויה - המסך הראשי עדיין מציג בניין אחד.</span>
-              <sw-button variant="primary" icon="building" data-ma-enable-multi ?disabled=${this.busy} @click=${() => void this.enableMulti()}>הפעל עכשיו את תצוגת ריבוי הבניינים</sw-button></div>`
-          : html`<p>תצוגת ריבוי הבניינים כבויה. מי שמנהל את כל האתרים יכול להפעיל אותה בהגדרות ‹ בניינים ומיפוי.</p>`}
+          ? html`<div class="offer" data-ma-offer><span>${tr('תצוגת ריבוי הבניינים כבויה - המסך הראשי עדיין מציג בניין אחד.')}</span>
+              <sw-button variant="primary" icon="building" data-ma-enable-multi ?disabled=${this.busy} @click=${() => void this.enableMulti()}>${tr('הפעל עכשיו את תצוגת ריבוי הבניינים')}</sw-button></div>`
+          : html`<p>${tr('תצוגת ריבוי הבניינים כבויה. מי שמנהל את כל האתרים יכול להפעיל אותה בהגדרות ‹ בניינים ומיפוי.')}</p>`}
     </div>`;
   }
 

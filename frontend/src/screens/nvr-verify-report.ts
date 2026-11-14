@@ -22,6 +22,7 @@ import {
   whenLabel,
   type VerifyTab,
 } from './nvr-verify-logic';
+import { tr } from '../i18n/msg/media';
 
 const POLL_MS = 2000;
 
@@ -181,7 +182,7 @@ export class NvrVerifyReport extends LitElement {
       this.recent = recentReports(await nvrBatch().recent());
     } catch {
       this.recent = [];
-      this.line = 'לא ניתן לקרוא את הדוחות.';
+      this.line = tr('לא ניתן לקרוא את הדוחות.');
     }
   }
 
@@ -194,7 +195,7 @@ export class NvrVerifyReport extends LitElement {
       if (b.state === 'running' || isVerifyActive(b.verify)) this.arm(id, mine);
     } catch (err) {
       if (mine !== this.seq) return;
-      this.line = err instanceof ApiError && err.status === 404 ? 'הדוח לא נמצא.' : 'אין חיבור לשרת. ממשיך לנסות.';
+      this.line = err instanceof ApiError && err.status === 404 ? tr('הדוח לא נמצא.') : tr('אין חיבור לשרת. ממשיך לנסות.');
       if (!(err instanceof ApiError && err.status === 404)) this.arm(id, mine);
     }
   }
@@ -246,10 +247,10 @@ export class NvrVerifyReport extends LitElement {
 
   private row(i: BatchItem) {
     const v = i.verify ?? null;
-    const label = v ? outcomeLabel(v) : isVerifyActive(this.batch?.verify) ? 'בבדיקה' : 'לא נבדק';
+    const label = v ? outcomeLabel(v) : isVerifyActive(this.batch?.verify) ? tr('בבדיקה') : tr('לא נבדק');
     const ch = i.camera_id ? this.info[i.camera_id]?.channel : undefined;
     return html`<div class="row" role="listitem" data-nvr-verify-item=${i.index} data-outcome=${v?.outcome ?? ''}>
-      <span class="nm">${this.nameOf(i)}${ch !== undefined ? html` <span class="meta">ערוץ <span class="ltr">${ch}</span></span>` : nothing}</span>
+      <span class="nm">${this.nameOf(i)}${ch !== undefined ? html` <span class="meta">${tr('ערוץ')} <span class="ltr">${ch}</span></span>` : nothing}</span>
       <span class="chip ${outcomeTone(v)}" data-nvr-verify-chip title=${label}>${label}</span>
       ${v?.detail ? html`<span class="ln" data-nvr-verify-detail>${v.detail}</span>` : nothing}
     </div>`;
@@ -257,36 +258,36 @@ export class NvrVerifyReport extends LitElement {
 
   private renderReport() {
     const b = this.batch;
-    if (!b) return html`<p class="msg" role="status">טוען…</p>${this.line ? html`<p class="msg" role="alert">${this.line}</p>` : nothing}`;
+    if (!b) return html`<p class="msg" role="status">${tr('טוען…')}</p>${this.line ? html`<p class="msg" role="alert">${this.line}</p>` : nothing}`;
     const rows = verifyRows(b, this.tab);
     const tabs = verifyTabs(b);
     const can = !!b.verify?.can_recheck && !this.busy;
-    return html`<p class="sum" data-nvr-verify-summary role="status">${verifySummary(b.verify) || 'אין בדיקה לשינוי הזה.'}</p>
-      <sw-tabs data-nvr-verify-tabs .items=${tabs} .active=${this.tab} group-label="דוח בדיקה" @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as VerifyTab)}></sw-tabs>
+    return html`<p class="sum" data-nvr-verify-summary role="status">${verifySummary(b.verify) || tr('אין בדיקה לשינוי הזה.')}</p>
+      <sw-tabs data-nvr-verify-tabs .items=${tabs} .active=${this.tab} group-label=${tr('דוח בדיקה')} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as VerifyTab)}></sw-tabs>
       ${rows.length
-        ? html`<div class="list" role="list" aria-label="זרמים" data-nvr-verify-list=${this.tab}>${repeat(rows, (i) => i.index, (i) => this.row(i))}</div>`
-        : html`<p class="msg" data-nvr-verify-empty role="status">${this.tab === 'worklist' ? 'כל המצלמות השתנו.' : 'אין זרמים ברשימה הזו.'}</p>`}
+        ? html`<div class="list" role="list" aria-label=${tr('זרמים')} data-nvr-verify-list=${this.tab}>${repeat(rows, (i) => i.index, (i) => this.row(i))}</div>`
+        : html`<p class="msg" data-nvr-verify-empty role="status">${this.tab === 'worklist' ? tr('כל המצלמות השתנו.') : tr('אין זרמים ברשימה הזו.')}</p>`}
       <p class="hint" data-nvr-verify-hint>${RECHECK_HINT}</p>
       ${this.line ? html`<p class="msg" data-nvr-verify-line role="alert">${this.line}</p>` : nothing}
-      ${this.fromList ? html`<sw-button slot="footer" variant="ghost" data-nvr-verify-back @click=${() => void this.showList()}>לכל הדוחות</sw-button>` : nothing}
-      <sw-button slot="footer" data-nvr-verify-recheck ?disabled=${!can} title=${RECHECK_HINT} @click=${() => void this.recheck()}>${this.busy ? 'שולח…' : 'בדוק שוב'}</sw-button>
-      <sw-button slot="footer" variant="primary" data-nvr-verify-close @click=${() => this.close()}>סגור</sw-button>`;
+      ${this.fromList ? html`<sw-button slot="footer" variant="ghost" data-nvr-verify-back @click=${() => void this.showList()}>${tr('לכל הדוחות')}</sw-button>` : nothing}
+      <sw-button slot="footer" data-nvr-verify-recheck ?disabled=${!can} title=${RECHECK_HINT} @click=${() => void this.recheck()}>${this.busy ? tr('שולח…') : tr('בדוק שוב')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-nvr-verify-close @click=${() => this.close()}>${tr('סגור')}</sw-button>`;
   }
 
   private renderList() {
     const list = this.recent;
     return html`${list === null
-        ? html`<p class="msg" role="status">טוען…</p>`
+        ? html`<p class="msg" role="status">${tr('טוען…')}</p>`
         : list.length
-          ? html`<div class="list" role="list" aria-label="דוחות" data-nvr-verify-reports>${repeat(list, (b) => b.batch_id, (b) => html`<button type="button" class="pick" role="listitem" data-nvr-verify-open=${b.batch_id} @click=${() => void this.show(b.batch_id, true)}>${recentLabel(b)}</button>`)}</div>`
-          : html`<p class="msg" data-nvr-verify-none role="status">אין עדיין דוחות של שינוי קידוד.</p>`}
+          ? html`<div class="list" role="list" aria-label=${tr('דוחות')} data-nvr-verify-reports>${repeat(list, (b) => b.batch_id, (b) => html`<button type="button" class="pick" role="listitem" data-nvr-verify-open=${b.batch_id} @click=${() => void this.show(b.batch_id, true)}>${recentLabel(b)}</button>`)}</div>`
+          : html`<p class="msg" data-nvr-verify-none role="status">${tr('אין עדיין דוחות של שינוי קידוד.')}</p>`}
       ${this.line ? html`<p class="msg" role="alert">${this.line}</p>` : nothing}
-      <sw-button slot="footer" variant="primary" data-nvr-verify-close @click=${() => this.close()}>סגור</sw-button>`;
+      <sw-button slot="footer" variant="primary" data-nvr-verify-close @click=${() => this.close()}>${tr('סגור')}</sw-button>`;
   }
 
   render() {
     const b = this.batch;
-    const heading = this.view === 'list' ? 'דוחות בדיקה' : b ? reportTitle(b) : 'דוח בדיקה';
+    const heading = this.view === 'list' ? tr('דוחות בדיקה') : b ? reportTitle(b) : tr('דוח בדיקה');
     const sub = this.view === 'report' && b ? whenLabel(b.verify?.checked_at ?? b.created_at ?? null) : '';
     return html`<sw-dialog wide ?open=${this.open} heading=${heading} subheading=${sub} data-nvr-verify data-view=${this.view} @close=${(e: Event) => {
       e.stopPropagation();

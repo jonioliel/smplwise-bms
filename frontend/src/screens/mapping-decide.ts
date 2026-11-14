@@ -7,31 +7,32 @@
 import { html, nothing } from 'lit';
 import { answer, exceptionOrder, itemKey, leaveAllUnassigned, newBuildingName, targetKey, type Question, type Target } from '../api/mapping-engine';
 import { MappingAssistant } from './mapping-assistant';
+import { tr } from '../i18n/msg/media';
 
 function questionText(h: MappingAssistant, q: Question): { name: string; where: string; ask: string } {
   const it = q.item;
   const c = q.conflict;
   const items = h.data.mapItems;
   const floor = it?.kind === 'area' && it.floorId ? items.find((x) => x.kind === 'floor' && x.id === it.floorId) : undefined;
-  const where = it?.kind === 'floor' ? `קומה · ${items.filter((x) => x.kind === 'area' && x.floorId === it.id).length} אזורים` : floor ? `בקומה "${floor.name}"` : 'בלי קומה';
+  const where = it?.kind === 'floor' ? tr('קומה · {length} אזורים', { length: items.filter((x) => x.kind === 'area' && x.floorId === it.id).length }) : floor ? tr('בקומה "{name}"', { name: floor.name }) : tr('בלי קומה');
   switch (q.kind) {
     case 'unknown_token':
-      return { name: `"${q.token}"`, where: `${q.count} ${q.count === 1 ? 'שם מתחיל' : 'שמות מתחילים'} בסימון הזה`, ask: `אין בניין "${q.token}". מה לעשות עם הסימון?` };
+      return { name: `"${q.token}"`, where: q.count === 1 ? tr('{n} שם מתחיל בסימון הזה', { n: q.count }) : tr('{n} שמות מתחילים בסימון הזה', { n: q.count }), ask: tr('אין בניין "{token}". מה לעשות עם הסימון?', { token: String(q.token) }) };
     case 'floor':
-      return { name: it!.name, where, ask: `השם אומר ${h.bName(c.options[1])}, אבל הקומה שלו בבניין ${h.bName(c.options[0])}. איפה הוא באמת?` };
+      return { name: it!.name, where, ask: tr('השם אומר {byName}, אבל הקומה שלו בבניין {byFloor}. איפה הוא באמת?', { byName: h.bName(c.options[1]), byFloor: h.bName(c.options[0]) }) };
     case 'label':
-      return { name: it!.name, where, ask: `השם אומר ${h.bName(c.options[0])}, התווית במערכת הבית אומרת ${h.bName(c.options[1])}. מי צודק?` };
+      return { name: it!.name, where, ask: tr('השם אומר {byName}, התווית במערכת הבית אומרת {byLabel}. מי צודק?', { byName: h.bName(c.options[0]), byLabel: h.bName(c.options[1]) }) };
     case 'rules':
-      return { name: it!.name, where, ask: `שני כללים לא מסכימים: ${h.bName(c.options[0])} או ${h.bName(c.options[1])}?` };
+      return { name: it!.name, where, ask: tr('שני כללים לא מסכימים: {a} או {b}?', { a: h.bName(c.options[0]), b: h.bName(c.options[1]) }) };
     default:
-      return { name: it!.name, where, ask: `בלי סימון בשם${floor ? '' : ' ובלי קומה'}. לאיזה בניין?` };
+      return { name: it!.name, where, ask: floor ? tr('בלי סימון בשם. לאיזה בניין?') : tr('בלי סימון בשם ובלי קומה. לאיזה בניין?') };
   }
 }
 
 function optionLabel(h: MappingAssistant, q: Question, t: Target, i: number): { t: string; s: string } {
-  const why = q.kind === 'floor' ? (i === 0 ? 'לפי הקומה' : 'לפי השם') : q.kind === 'label' ? (i === 0 ? 'לפי השם' : 'לפי התווית') : q.kind === 'rules' ? `כלל ${i + 1}` : q.kind === 'no_mark' && t.t !== 'none' ? 'לפי הקומה / התווית' : '';
-  if (t.t === 'new') return { t: `כן, בניין חדש "${t.name}"`, s: '' };
-  if (t.t === 'none') return { t: 'השאר לא משויך', s: '' };
+  const why = q.kind === 'floor' ? (i === 0 ? tr('לפי הקומה') : tr('לפי השם')) : q.kind === 'label' ? (i === 0 ? tr('לפי השם') : tr('לפי התווית')) : q.kind === 'rules' ? tr('כלל {n}', { n: i + 1 }) : q.kind === 'no_mark' && t.t !== 'none' ? tr('לפי הקומה / התווית') : '';
+  if (t.t === 'new') return { t: tr('כן, בניין חדש "{name}"', { name: t.name }), s: '' };
+  if (t.t === 'none') return { t: tr('השאר לא משויך'), s: '' };
   return { t: h.bName(t), s: why };
 }
 
@@ -48,8 +49,8 @@ function renderQuestion(h: MappingAssistant, q: Question) {
   if (!opts.some((o) => o.t === 'none') && q.kind === 'no_mark') opts.push({ t: 'none' });
   const existingFirst = q.kind === 'unknown_token' && s.new_token === 'existing_first';
   const decide = (t: Target) => h.setState(answer(h.st, q, t));
-  const picker = html`<select data-ma-pick aria-label="בניין קיים" @change=${(e: Event) => { const t = h.parseTarget((e.target as HTMLSelectElement).value); if (t) decide(t); }}>
-    <option value="" selected>${q.kind === 'unknown_token' ? 'שייך לבניין קיים…' : 'בניין אחר…'}</option>
+  const picker = html`<select data-ma-pick aria-label=${tr('בניין קיים')} @change=${(e: Event) => { const t = h.parseTarget((e.target as HTMLSelectElement).value); if (t) decide(t); }}>
+    <option value="" selected>${q.kind === 'unknown_token' ? tr('שייך לבניין קיים…') : tr('בניין אחר…')}</option>
     ${h.data.buildings.map((b) => html`<option value=${`b:${b.id}`}>${b.name}</option>`)}</select>`;
   const btns = opts.map((o, i) => {
     const l = optionLabel(h, q, o, i);
@@ -71,20 +72,20 @@ export function renderDecide(h: MappingAssistant) {
   const total = m.qs.length + done;
   const pct = total ? Math.round((100 * done) / total) : 100;
   const nameOf = (k: string) => h.data.mapItems.find((x) => itemKey(x) === k)?.name ?? k;
-  return html`<div class="prog" data-ma-progress><b data-ma-left>${m.qs.length ? `נשארו ${m.qs.length} ${m.qs.length === 1 ? 'החלטה' : 'החלטות'}` : 'אין החלטות פתוחות'}</b>
-      <span class="bar" role="progressbar" aria-label="ההחלטות" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}><i style=${`inline-size:${pct}%`}></i></span>
-      <span class="ct">${done} הוחלטו · ${total} בסך הכל</span>
-      ${m.qs.length ? html`<sw-button size="sm" variant="ghost" data-ma-all-none @click=${() => h.setState(leaveAllUnassigned(st, m.qs))}>השאר את כולם "לא משויך" לעכשיו</sw-button>` : nothing}</div>
+  return html`<div class="prog" data-ma-progress><b data-ma-left>${m.qs.length ? (m.qs.length === 1 ? tr('נשארו {n} החלטה', { n: m.qs.length }) : tr('נשארו {n} החלטות', { n: m.qs.length })) : tr('אין החלטות פתוחות')}</b>
+      <span class="bar" role="progressbar" aria-label=${tr('ההחלטות')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}><i style=${`inline-size:${pct}%`}></i></span>
+      <span class="ct">${tr('{done} הוחלטו · {total} בסך הכל', { done, total })}</span>
+      ${m.qs.length ? html`<sw-button size="sm" variant="ghost" data-ma-all-none @click=${() => h.setState(leaveAllUnassigned(st, m.qs))}>${tr('השאר את כולם "לא משויך" לעכשיו')}</sw-button>` : nothing}</div>
     <div class="two">
       <div class="panel"><div class="scroll">${m.qs.length
         ? html`<div class="decs" data-ma-questions>${m.qs.map((q) => renderQuestion(h, q))}</div>`
-        : html`<div class="empty" data-ma-no-questions><sw-icon name="check" size=${28}></sw-icon><b>כל הפריטים במקום</b><span>אפשר להמשיך לסיכום.</span></div>`}</div></div>
-      <div class="panel side"><h3><sw-icon name="check" size=${16}></sw-icon>הוחלט</h3><div class="scroll dones" data-ma-dones>
+        : html`<div class="empty" data-ma-no-questions><sw-icon name="check" size=${28}></sw-icon><b>${tr('כל הפריטים במקום')}</b><span>${tr('אפשר להמשיך לסיכום.')}</span></div>`}</div></div>
+      <div class="panel side"><h3><sw-icon name="check" size=${16}></sw-icon>${tr('הוחלט')}</h3><div class="scroll dones" data-ma-dones>
         ${decided.map(([k, t]) => html`<div class="done"><sw-icon name="check" size=${14}></sw-icon><b><bdi>${nameOf(k)}</bdi></b><span>← ${h.bName(t)}</span><span class="sp"></span>
-          <button type="button" class="link" data-ma-undo=${k} @click=${() => { const d = { ...st.decisions }; delete d[k]; h.setState({ ...st, decisions: d }); }}>שנה</button></div>`)}
+          <button type="button" class="link" data-ma-undo=${k} @click=${() => { const d = { ...st.decisions }; delete d[k]; h.setState({ ...st, decisions: d }); }}>${tr('שנה')}</button></div>`)}
         ${tokenAnswers.map(([t, to]) => html`<div class="done"><sw-icon name="check" size=${14}></sw-icon><b>"${t}"</b><span>← ${h.bName(to)}</span><span class="sp"></span>
-          <button type="button" class="link" data-ma-undo-token=${t} @click=${() => { const k = { ...st.tokens }; delete k[t]; h.setState({ ...st, tokens: k }, true); }}>שנה</button></div>`)}
-        ${!done ? html`<div class="hint">התשובות שלכם יופיעו כאן. החלטה ידנית גוברת על כל כלל, גם בעתיד.</div>` : nothing}
+          <button type="button" class="link" data-ma-undo-token=${t} @click=${() => { const k = { ...st.tokens }; delete k[t]; h.setState({ ...st, tokens: k }, true); }}>${tr('שנה')}</button></div>`)}
+        ${!done ? html`<div class="hint">${tr('התשובות שלכם יופיעו כאן. החלטה ידנית גוברת על כל כלל, גם בעתיד.')}</div>` : nothing}
       </div></div>
     </div>`;
 }

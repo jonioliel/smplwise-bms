@@ -36,6 +36,7 @@ import { floorScreenBuilding } from '../api/home-site';
 import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { floorLightsTarget, linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
+import { tr } from '../i18n/msg/media';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | { kind: 'home'; floor: Floor } | null;
 
@@ -125,7 +126,7 @@ export class ExploreFloors extends LitElement {
     };
     const plate = (floorId: string) => [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => pt(floorId, [u, v])).map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ');
     const height = 72 + top;
-    return html`<sw-card heading="קשרים בין קומות" subheading="מדרגות ומעליות שמקשרות קומות (מבנה מפורסם)" data-floor-links>
+    return html`<sw-card heading=${tr('קשרים בין קומות')} subheading=${tr('מדרגות ומעליות שמקשרות קומות (מבנה מפורסם)')} data-floor-links>
       <div class="links">
         <svg class="stack" viewBox=${`0 0 120 ${height}`} aria-hidden="true">
           ${order.map((f) => svg`<g data-stack-floor=${f.id}><polygon class="plate" points=${plate(f.id)} /><text class="pname" x="2" y=${(dy(f.id) + 38).toFixed(1)}>${f.name}</text></g>`)}
@@ -139,7 +140,7 @@ export class ExploreFloors extends LitElement {
           })}
         </svg>
         <ul class="lklist">
-          ${links.map((l) => html`<li data-link-row=${l.id}>${l.kindLabel}: ${bidi(l.a.label)} ↔ ${bidi(l.b?.label ?? l.farLabel)}${l.b ? '' : ' (התאום עדיין לא פורסם)'}</li>`)}
+          ${links.map((l) => html`<li data-link-row=${l.id}>${l.kindLabel}: ${bidi(l.a.label)} ↔ ${bidi(l.b?.label ?? l.farLabel)}${l.b ? '' : tr(' (התאום עדיין לא פורסם)')}</li>`)}
         </ul>
       </div>
     </sw-card>`;
@@ -628,7 +629,7 @@ export class ExploreFloors extends LitElement {
     const sigOf = new Map(sigs.map((x) => [x.id, x]));
     const metrics = xsMetrics(sigs, o); // SYN-COLUMNS-2321: a metric the building has no source for is not drawn on the tiles
     const links = this.linksFor(floors);
-    const secLinks = links.length ? sectionLinksOf(links) : demo || !isApi() ? [{ kind: 'stairs' as const, label: 'מדרגות', floors: sigs.map((x) => x.id) }] : [];
+    const secLinks = links.length ? sectionLinksOf(links) : demo || !isApi() ? [{ kind: 'stairs' as const, label: tr('מדרגות'), floors: sigs.map((x) => x.id) }] : [];
     const mock = parseRoute().params.get('firemock');
     if (o.fire_ui) setFireMock(mock, sigs);
     else setFireMock(null);
@@ -645,7 +646,7 @@ export class ExploreFloors extends LitElement {
       const card = html`<button class="floor ${sel?.id === f.id ? 'on' : ''} ${this.hoverId === f.id ? 'hl' : ''}" data-floor-card=${f.id} @click=${() => this.pickFloor(f.id)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && (this.hoverId = f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && (this.hoverId = null)} aria-pressed=${sel?.id === f.id}>
         <div class="txt">
           <div class="title">${bidi(f.name)}</div>
-          <div class="counts">${f.camera_count} מצלמות${f.shared_camera_count ? html` <span class="shared" data-floor-shared=${f.id}>(+${f.shared_camera_count} משותפות)</span>` : nothing} · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
+          <div class="counts">${tr('{n} מצלמות', { n: f.camera_count })}${f.shared_camera_count ? html` <span class="shared" data-floor-shared=${f.id}>${tr('(+{n} משותפות)', { n: f.shared_camera_count })}</span>` : nothing} · ${tr('{n} פריטים במפה', { n: f.anchor_count })} · ${tr('מפלס {level}', { level: ltrNum(f.level) })}${f.has_plan ? '' : tr(' · אין תוכנית עדיין')}${f.draft_version_id ? tr(' · טיוטה ממתינה לפרסום') : ''}</div>
         </div>
         <sw-floor-iso data-floor-iso=${f.id} .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} .iso=${this.isoFor(f)} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
         <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
@@ -657,21 +658,21 @@ export class ExploreFloors extends LitElement {
       ${this.phone.restricted('structure')
         ? nothing
         : html`<div>
-            <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>קומה חדשה</sw-button>
-            <sw-button variant="ghost" icon="building" @click=${() => this.openDialog({ kind: 'building' })}>מבנה חדש</sw-button>
+            <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>${tr('קומה חדשה')}</sw-button>
+            <sw-button variant="ghost" icon="building" @click=${() => this.openDialog({ kind: 'building' })}>${tr('מבנה חדש')}</sw-button>
           </div>`}
       ${sel
         ? html`<div>
             ${this.phone.restricted('structure')
               ? nothing
-              : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
+              : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>${tr('עריכה')}</sw-button>
                 <sw-button variant="ghost" icon="link" data-home-link-btn @click=${() => this.openDialog({ kind: 'home', floor: sel })}>${xt('homeLinkBtn')}</sw-button>
-                <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
-                <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>
-                <sw-button icon="sparkle" data-plan-wizard @click=${() => navigate(`/explore/floors/${sel.id}/wizard`)}>תוכנית מתמונה</sw-button>`}
-            ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
+                <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>${tr('מחיקה')}</sw-button>
+                <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? tr('תוכנית חדשה') : tr('העלאת תוכנית')}</sw-button>
+                <sw-button icon="sparkle" data-plan-wizard @click=${() => navigate(`/explore/floors/${sel.id}/wizard`)}>${tr('תוכנית מתמונה')}</sw-button>`}
+            ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>${tr('בקשה לאדריכל')}</sw-button>`}
             ${sigOf.get(sel.id) && metrics.light && this.lightsAllowed(sigOf.get(sel.id)!) ? html`<sw-button variant="ghost" icon="light" data-floor-lights-open=${sel.id} @click=${() => (this.lightsOf = sigOf.get(sel.id)!)}>${xt('floorLightsBtn')}</sw-button>` : nothing}
-            <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
+            <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>${tr('פתח את {name}', { name: sel.name })}</sw-button>
           </div>`
         : nothing}
     </div>`;
@@ -682,7 +683,7 @@ export class ExploreFloors extends LitElement {
       @xs-pick=${(e: CustomEvent<{ id: string }>) => this.pickFloor(e.detail.id, true)} @xs-hover=${(e: CustomEvent<{ id: string | null }>) => (this.hoverId = e.detail.id)}></sw-xsection>`;
     const beside = this.sectionBeside();
     const list = html`<div class="list" data-floor-list data-step=${step} data-cols=${cols} data-many=${o.many}>
-      ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button></div></div>`}
+      ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? tr('למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.') : tr('למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).')}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>${tr('בקשה לאדריכל')}</sw-button></div></div>`}
       ${phone && place === 'card' ? html`<sw-xs-compact .floors=${sigs} .opts=${o} selectedId=${sel?.id ?? ''} @xs-open-sheet=${() => (this.sheetOpen = true)}></sw-xs-compact>` : nothing}
       <div class="cards" data-step=${step} data-cols=${cols} ?data-align=${aligns}>${cards}</div>
       ${folded ? this.renderLinksFolded(links) : this.renderLinks(floors)}
@@ -735,7 +736,7 @@ export class ExploreFloors extends LitElement {
     } catch (err) {
       if (err instanceof ApiError && err.code === 'has_anchors' && this.dialog?.kind === 'delete') {
         this.dialog = { ...this.dialog, force: true };
-        this.error = `${err.body.user_message} (${(err.body.details as { anchors?: number }).anchors ?? ''} פריטים)`;
+        this.error = `${err.body.user_message} ${tr('({n} פריטים)', { n: (err.body.details as { anchors?: number }).anchors ?? '' })}`;
       } else this.error = describeError(err);
     } finally {
       this.busy = false;
@@ -754,29 +755,29 @@ export class ExploreFloors extends LitElement {
     const d = this.dialog;
     if (!d || this.phone.restricted('structure')) return nothing;
     const demo = this.tree?.source === 'demo';
-    const nameField = html`<sw-field label="שם"><input .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder="למשל: קומה 1" autofocus /></sw-field>`;
-    const levelField = html`<sw-field label="מפלס (0 = קרקע, שלילי = מרתף)" hint="קובע את סדר התצוגה בין הקומות"><input type="number" data-ltr .value=${String(this.formLevel)} @input=${(e: Event) => (this.formLevel = Number((e.target as HTMLInputElement).value))} /></sw-field>`;
+    const nameField = html`<sw-field label=${tr('שם')}><input .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder=${tr('למשל: קומה 1')} autofocus /></sw-field>`;
+    const levelField = html`<sw-field label=${tr('מפלס (0 = קרקע, שלילי = מרתף)')} hint=${tr('קובע את סדר התצוגה בין הקומות')}><input type="number" data-ltr .value=${String(this.formLevel)} @input=${(e: Event) => (this.formLevel = Number((e.target as HTMLInputElement).value))} /></sw-field>`;
     const errorLine = this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
-    const demoLine = demo ? html`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>` : nothing;
+    const demoLine = demo ? html`<div class="err">${tr('נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.')}</div>` : nothing;
     switch (d.kind) {
       case 'floor':
-        return html`<sw-dialog open heading="קומה חדשה" subheading=${`${building.name}`} @close=${() => (this.dialog = null)}>
+        return html`<sw-dialog open heading=${tr('קומה חדשה')} subheading=${`${building.name}`} @close=${() => (this.dialog = null)}>
           ${nameField}${levelField}${errorLine}${demoLine}
-          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
-          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(async () => { const f = await createFloor(building.id, { name: this.formName.trim(), level: this.formLevel }); this.selected = f.id; })}>הוסף קומה</sw-button>
+          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(async () => { const f = await createFloor(building.id, { name: this.formName.trim(), level: this.formLevel }); this.selected = f.id; })}>${tr('הוסף קומה')}</sw-button>
         </sw-dialog>`;
       case 'rename':
-        return html`<sw-dialog open heading="עריכת קומה" subheading=${d.floor.name} @close=${() => (this.dialog = null)}>
+        return html`<sw-dialog open heading=${tr('עריכת קומה')} subheading=${d.floor.name} @close=${() => (this.dialog = null)}>
           ${nameField}${levelField}${errorLine}${demoLine}
-          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
-          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(() => updateFloor(d.floor.id, { name: this.formName.trim(), level: this.formLevel }))}>שמירה</sw-button>
+          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(() => updateFloor(d.floor.id, { name: this.formName.trim(), level: this.formLevel }))}>${tr('שמירה')}</sw-button>
         </sw-dialog>`;
       case 'delete':
-        return html`<sw-dialog open heading="מחיקת קומה" subheading=${d.floor.name} @close=${() => (this.dialog = null)}>
-          <div style="font-size:var(--sw-fs-sm)">${d.force ? 'על הקומה מוצבים פריטים. מחיקה תסיר אותם מהמפה (ההיסטוריה נשמרת באודיט). להמשיך?' : 'הקומה תוסר מהמערכת. תוכניות שפורסמו נשמרות בארכיון; מצלמות והקלטות ב־NVR אינן נמחקות.'}</div>
+        return html`<sw-dialog open heading=${tr('מחיקת קומה')} subheading=${d.floor.name} @close=${() => (this.dialog = null)}>
+          <div style="font-size:var(--sw-fs-sm)">${d.force ? tr('על הקומה מוצבים פריטים. מחיקה תסיר אותם מהמפה (ההיסטוריה נשמרת באודיט). להמשיך?') : tr('הקומה תוסר מהמערכת. תוכניות שפורסמו נשמרות בארכיון; מצלמות והקלטות ב־NVR אינן נמחקות.')}</div>
           ${errorLine}${demoLine}
-          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
-          <sw-button slot="footer" variant="danger" ?disabled=${this.busy || demo} @click=${() => this.run(async () => { await deleteFloor(d.floor.id, d.force); if (this.selected === d.floor.id) this.selected = null; })}>${d.force ? 'מחק כולל הפריטים' : 'מחק קומה'}</sw-button>
+          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+          <sw-button slot="footer" variant="danger" ?disabled=${this.busy || demo} @click=${() => this.run(async () => { await deleteFloor(d.floor.id, d.force); if (this.selected === d.floor.id) this.selected = null; })}>${d.force ? tr('מחק כולל הפריטים') : tr('מחק קומה')}</sw-button>
         </sw-dialog>`;
       case 'home': {
         const floors = building.floors ?? [];
@@ -788,21 +789,21 @@ export class ExploreFloors extends LitElement {
           @saved=${(e: CustomEvent<{ links: HomeLinks }>) => { this.dialog = null; if (this.xsData) this.xsData = { ...this.xsData, links: e.detail.links }; void loadXsData().then((x) => (this.xsData = x)); }}></sw-floor-home-link>`;
       }
       case 'building':
-        return html`<sw-dialog open heading="מבנה חדש" subheading=${this.context?.site.name ?? ''} @close=${() => (this.dialog = null)}>
+        return html`<sw-dialog open heading=${tr('מבנה חדש')} subheading=${this.context?.site.name ?? ''} @close=${() => (this.dialog = null)}>
           ${nameField}${errorLine}${demoLine}
-          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
-          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(async () => { const b = await createBuilding(this.context!.site.id, { name: this.formName.trim() }); navigate(`/explore/buildings/${b.id}/floors`); })}>הוסף מבנה</sw-button>
+          <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || demo} @click=${() => this.run(async () => { const b = await createBuilding(this.context!.site.id, { name: this.formName.trim() }); navigate(`/explore/buildings/${b.id}/floors`); })}>${tr('הוסף מבנה')}</sw-button>
         </sw-dialog>`;
     }
   }
 
   render() {
-    if (!this.tree) return html`<sw-page heading="קומות"><sw-state-panel icon="floor" state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
+    if (!this.tree) return html`<sw-page heading=${tr('קומות')}><sw-state-panel icon="floor" state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
     const ctx = this.context;
     if (!ctx) {
-      return html`<sw-page heading="קומות" subheading="אין עדיין אתרים ומבנים">
-        <sw-state-panel icon="floor" state="empty" heading="עוד אין מבנים" hint="צור אתר ומבנה כדי להוסיף קומות ותוכניות.">
-          <div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => navigate('/explore/sites')}>לאתרים</sw-button></div>
+      return html`<sw-page heading=${tr('קומות')} subheading=${tr('אין עדיין אתרים ומבנים')}>
+        <sw-state-panel icon="floor" state="empty" heading=${tr('עוד אין מבנים')} hint=${tr('צור אתר ומבנה כדי להוסיף קומות ותוכניות.')}>
+          <div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => navigate('/explore/sites')}>${tr('לאתרים')}</sw-button></div>
         </sw-state-panel>
       </sw-page>`;
     }
@@ -813,22 +814,22 @@ export class ExploreFloors extends LitElement {
     const totalCams = floors.reduce((n, f) => n + f.camera_count, 0);
     const tree = this.tree;
     return html`
-      <sw-page heading=${building.name} subheading=${`${site.address || site.name} · ${floors.length} קומות${tree.source === 'demo' ? ' · נתוני הדגמה' : ''}`} crumbs=${`אתרים | ${site.name} | ${building.name}`}>
+      <sw-page heading=${building.name} subheading=${`${site.address || site.name} · ${tr('{n} קומות', { n: floors.length })}${tree.source === 'demo' ? tr(' · נתוני הדגמה') : ''}`} crumbs=${`${tr('אתרים')} | ${site.name} | ${building.name}`}>
         ${this.sectionBeside() ? nothing : html`<div slot="actions" class="pic"><sw-scene kind="building"></sw-scene></div>`}
-        <div class="tabsrow"><sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        <div class="tabsrow"><sw-tabs .items=${[{ id: 'floors', label: tr('קומות'), count: floors.length }, { id: 'cameras', label: tr('מצלמות'), count: totalCams }, { id: 'details', label: tr('פרטים') }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
           ${this.phone.matches && this.tab === 'floors' && this.xsEff().phone_place === 'sheet' && floors.length ? html`<sw-button class="xsbtn" size="sm" variant="ghost" data-xs-sheet-btn @click=${() => (this.sheetOpen = true)}>${xt('sectionOpenBtn')}</sw-button>` : nothing}
         </div>
         ${this.tab === 'floors'
           ? this.renderFloorsTab(floors, sel, tree.source === 'demo')
           : this.tab === 'cameras'
-            ? html`<div class="cams">${floors.map((f) => html`<sw-card heading=${bidi(f.name)} subheading="${f.camera_count} מצלמות" interactive @click=${() => navigate(`/explore/floors/${f.id}`)}></sw-card>`)}</div>`
-            : html`<sw-card heading="פרטי המבנה">
+            ? html`<div class="cams">${floors.map((f) => html`<sw-card heading=${bidi(f.name)} subheading=${tr('{n} מצלמות', { n: f.camera_count })} interactive @click=${() => navigate(`/explore/floors/${f.id}`)}></sw-card>`)}</div>`
+            : html`<sw-card heading=${tr('פרטי המבנה')}>
                 <dl>
-                  <dt>אתר</dt><dd>${site.name}</dd>
-                  <dt>כתובת</dt><dd>${site.address || '—'}</dd>
-                  <dt>אזור זמן</dt><dd><span class="ltr">${site.timezone}</span></dd>
-                  <dt>קומות</dt><dd>${floors.length} · ${floors.filter((f) => f.has_plan).length} עם תוכנית מפורסמת</dd>
-                  <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית בין קומות מוגדרות בעורך התוכנית ("מחבר אל"); הקשרים שפורסמו מופיעים בלשונית הקומות</dd>
+                  <dt>${tr('אתר')}</dt><dd>${site.name}</dd>
+                  <dt>${tr('כתובת')}</dt><dd>${site.address || '—'}</dd>
+                  <dt>${tr('אזור זמן')}</dt><dd><span class="ltr">${site.timezone}</span></dd>
+                  <dt>${tr('קומות')}</dt><dd>${floors.length} · ${tr('{n} עם תוכנית מפורסמת', { n: floors.filter((f) => f.has_plan).length })}</dd>
+                  <dt>${tr('קשרים בין קומות')}</dt><dd>${tr('מדרגות ומעלית בין קומות מוגדרות בעורך התוכנית ("מחבר אל"); הקשרים שפורסמו מופיעים בלשונית הקומות')}</dd>
                 </dl>
               </sw-card>`}
         ${this.renderDialog(building)}

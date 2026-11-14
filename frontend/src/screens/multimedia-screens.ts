@@ -38,6 +38,7 @@ import {
   type EditScope, type Filters, type StateFilter,
 } from './multimedia-layout';
 import { applyMultimediaKinds } from '../shell/nav';
+import { tr } from '../i18n/msg/media';
 
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
@@ -588,7 +589,7 @@ export class MultimediaScreens extends LitElement {
     // addition A: the layout editor is entered from the user menu (shell/screen-edit.ts), never from a button in the page
     this.offEdit = registerScreenEdit({
       id: 'multimedia-layout',
-      label: 'עריכת מסך המולטימדיה',
+      label: tr('עריכת מסך המולטימדיה'),
       icon: 'edit',
       can: () => this.canEdit && !this.editing,
       run: () => this.enterEdit(),
@@ -641,7 +642,7 @@ export class MultimediaScreens extends LitElement {
     const rooms = roomsOf(this.devices, f.floor);
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
     if (tools && this.roomsAsDropdown(rooms.length + 1)) {
-      publishPairChip(this, { group: 'multimedia', label: 'חדרים', value: f.area, items: [{ id: '', label: 'הכל', icon: 'home' as const }, { id: '--sep', label: '', divider: true }, ...rooms.map((r) => ({ id: r.id, label: r.name, icon: 'door' as const }))], onPick: (id) => this.setFilters({ area: id }) });
+      publishPairChip(this, { group: 'multimedia', label: tr('חדרים'), value: f.area, items: [{ id: '', label: tr('הכל'), icon: 'home' as const }, { id: '--sep', label: '', divider: true }, ...rooms.map((r) => ({ id: r.id, label: r.name, icon: 'door' as const }))], onPick: (id) => this.setFilters({ area: id }) });
     } else clearPairChip(this);
   }
 
@@ -852,7 +853,7 @@ export class MultimediaScreens extends LitElement {
         ? await media().saveLayout(installationPayload(this.draft, this.devices, this.res.installation, this.homeFloors), this.res.revision)
         : await savePersonal(personalFrom(this.res.installation, this.draft, this.devices));
       this.leaveEdit();
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       if (err instanceof ApiError && err.code === 'revision_conflict') this.conflict = true;
       else this.saveError = describeError(err);
@@ -866,7 +867,7 @@ export class MultimediaScreens extends LitElement {
     try {
       this.res = this.scope === 'all' ? await media().resetLayout() : await savePersonal(null);
       this.leaveEdit();
-      this.say('חזר לברירת המחדל');
+      this.say(tr('חזר לברירת המחדל'));
     } catch (err) {
       this.saveError = describeError(err);
       this.busy = false;
@@ -902,11 +903,11 @@ export class MultimediaScreens extends LitElement {
     const pinned = draft.pinned.includes(d.key);
     const name = d.name;
     return html`<span class="ecard" slot="edit">
-      <button type="button" aria-label=${`הקדם · ${name}`} title="הקדם" ?disabled=${index === 0} @click=${() => this.patchDraft(moveInGroup(draft, this.devices, d.key, -1))}>${mIcon('arrowUp')}</button>
-      <button type="button" aria-label=${`אחר · ${name}`} title="אחר" ?disabled=${index === count - 1} @click=${() => this.patchDraft(moveInGroup(draft, this.devices, d.key, 1))}>${mIcon('arrowDown')}</button>
-      <button type="button" aria-label=${`גודל · ${name}`} title="גודל" @click=${() => this.patchDraft(setCard(draft, d.key, { size: SIZE_ORDER[(SIZE_ORDER.indexOf(size) + 1) % 3] }))}>${size.toUpperCase()}</button>
-      ${this.scope === 'all' ? html`<button type="button" aria-pressed=${String(pinned)} aria-label=${`מועדף · ${name}`} title="מועדף" @click=${() => this.patchDraft(togglePin(draft, d.key))}>${mIcon('star')}</button>` : nothing}
-      <button type="button" aria-label=${`${c.on ? 'הסתר' : 'הצג'} · ${name}`} title=${c.on ? 'הסתר' : 'הצג'} @click=${() => this.patchDraft(setCard(draft, d.key, { on: !c.on }))}>${mIcon(c.on ? 'eye' : 'eyeOff')}</button>
+      <button type="button" aria-label=${tr('הקדם · {name}', { name })} title=${tr('הקדם')} ?disabled=${index === 0} @click=${() => this.patchDraft(moveInGroup(draft, this.devices, d.key, -1))}>${mIcon('arrowUp')}</button>
+      <button type="button" aria-label=${tr('אחר · {name}', { name })} title=${tr('אחר')} ?disabled=${index === count - 1} @click=${() => this.patchDraft(moveInGroup(draft, this.devices, d.key, 1))}>${mIcon('arrowDown')}</button>
+      <button type="button" aria-label=${tr('גודל · {name}', { name })} title=${tr('גודל')} @click=${() => this.patchDraft(setCard(draft, d.key, { size: SIZE_ORDER[(SIZE_ORDER.indexOf(size) + 1) % 3] }))}>${size.toUpperCase()}</button>
+      ${this.scope === 'all' ? html`<button type="button" aria-pressed=${String(pinned)} aria-label=${tr('מועדף · {name}', { name })} title=${tr('מועדף')} @click=${() => this.patchDraft(togglePin(draft, d.key))}>${mIcon('star')}</button>` : nothing}
+      <button type="button" aria-label=${`${c.on ? tr('הסתר') : tr('הצג')} · ${name}`} title=${c.on ? tr('הסתר') : tr('הצג')} @click=${() => this.patchDraft(setCard(draft, d.key, { on: !c.on }))}>${mIcon(c.on ? 'eye' : 'eyeOff')}</button>
     </span>`;
   }
 
@@ -927,7 +928,7 @@ export class MultimediaScreens extends LitElement {
     const target = this.editing ? null : this.floorOfGroup(g);
     const sameScope = this.devices.filter((d) => (target?.scope === 'area' ? (d.area_id ?? '') === target.id : target ? (d.floor_id ?? NO_FLOOR) === target.id : false));
     const offBtn = target && !this.editing && bulkCandidates(sameScope).length
-      ? html`<button type="button" class="btn sm quiet dz" data-bulk-off=${target.id} @click=${() => this.bulk?.show({ scope: target.scope, id: target.id, name: g.label })}>${mIcon('power')}כבה מסכים</button>`
+      ? html`<button type="button" class="btn sm quiet dz" data-bulk-off=${target.id} @click=${() => this.bulk?.show({ scope: target.scope, id: target.id, name: g.label })}>${mIcon('power')}${tr('כבה מסכים')}</button>`
       : nothing;
     const title = g.id === 'pinned' || g.id === 'all' || !target || this.editing
       ? html`<h2>${nameText(bidi(g.label))}</h2>`
@@ -937,7 +938,7 @@ export class MultimediaScreens extends LitElement {
       return html`<section class="fsec" ?data-off=${none} aria-label=${g.label} data-group=${g.id}><div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length, off(idx)))}</div></section>`;
     }
     return html`<section class="fsec" ?data-off=${none} aria-label=${g.label} data-group=${g.id}>
-      <header class="sh"><div>${title}<small><span class="n">${counts.total}</span> ${counts.total === 1 ? 'מסך' : 'מסכים'}${lit ? html` · <em><span class="n">${lit}</span></em> פועלים` : nothing}</small></div><span class="grow"></span>${offBtn}</header>
+      <header class="sh"><div>${title}<small><span class="n">${counts.total}</span> ${counts.total === 1 ? tr('מסך') : tr('מסכים')}${lit ? html` · <em><span class="n">${lit}</span></em> ${tr('פועלים')}` : nothing}</small></div><span class="grow"></span>${offBtn}</header>
       <div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length, off(idx)))}</div>
     </section>`;
   }
@@ -952,7 +953,7 @@ export class MultimediaScreens extends LitElement {
   private summary(): string {
     if (this.phone || this.editing || this.phase !== 'ready' || !this.devices.length) return '';
     const c = countsOf(this.devices);
-    return `${c.on} פועלים מתוך ${c.total}${c.un ? ` · ${c.un} לא זמין` : ''}`;
+    return `${tr('{on} פועלים מתוך {total}', { on: c.on, total: c.total })}${c.un ? tr(' · {n} לא זמין', { n: c.un }) : ''}`;
   }
 
   /** AUDIT30-D3: the floor menu sits at the end of sw-page's title row (slot "actions"). */
@@ -972,23 +973,23 @@ export class MultimediaScreens extends LitElement {
     if (!tools) return nothing;
     return html`<div class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
       <div class="dh-row">
-        ${this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
-          <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
+        ${this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : html`<div class="rooms" role="group" aria-label=${tr('חדרים')} @pointerdown=${this.roomsDrag}>
+          <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>${tr('הכל')}</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
         </div>`}
       </div>
       <div class="dh-det">
         ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
-        <div class="seg sm" role="radiogroup" aria-label="סינון לפי מצב">${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilters({ state: s.id as StateFilter })}>${s.label}${s.id === 'on' ? html` <small>${c.on}</small>` : s.id === 'un' && c.un ? html` <small>${c.un}</small>` : nothing}</button>`)}</div>
-        <label class="search">${mIcon('search')}<span class="vh">חיפוש מסך</span><input type="search" data-search placeholder="חיפוש מסך או חדר" .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
+        <div class="seg sm" role="radiogroup" aria-label=${tr('סינון לפי מצב')}>${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilters({ state: s.id as StateFilter })}>${s.label}${s.id === 'on' ? html` <small>${c.on}</small>` : s.id === 'un' && c.un ? html` <small>${c.un}</small>` : nothing}</button>`)}</div>
+        <label class="search">${mIcon('search')}<span class="vh">${tr('חיפוש מסך')}</span><input type="search" data-search placeholder=${tr('חיפוש מסך או חדר')} .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
       </div>
     </div>`;
   }
 
   /** The floor filter as the capsule-capable dropdown (0.1.164): the same component, style, size, ring and panel width as every other dropdown of the multimedia group. */
   private floorChip(floors: ReturnType<typeof floorsOf>): TemplateResult {
-    const items: DropdownItem[] = [{ id: '', label: 'כל הקומות', count: this.devices.length, icon: 'home' }, { id: '--sep', label: '', divider: true }, ...floors.map((x) => ({ id: x.id, label: x.name, count: x.count, icon: 'layers' as const }))];
-    return html`<div class="flwrap"><sw-dropdown data-floor-menu label="קומות" icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
+    const items: DropdownItem[] = [{ id: '', label: tr('כל הקומות'), count: this.devices.length, icon: 'home' }, { id: '--sep', label: '', divider: true }, ...floors.map((x) => ({ id: x.id, label: x.name, count: x.count, icon: 'layers' as const }))];
+    return html`<div class="flwrap"><sw-dropdown data-floor-menu label=${tr('קומות')} icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
   }
 
   /** The room chips scroll by a mouse drag too (a touch scrolls natively). */
@@ -1032,16 +1033,16 @@ export class MultimediaScreens extends LitElement {
   private editBar(): TemplateResult {
     const both = this.res.can_edit && this.res.can_personalize;
     return html`<div class="editbar" data-mm-editbar>
-      <span class="t">${mIcon('edit')}עריכת מסך המולטימדיה</span>
-      ${both ? html`<div class="seg sm" role="radiogroup" aria-label="עבור מי">
-        <button type="button" role="radio" aria-checked=${String(this.scope === 'all')} data-scope="all" @click=${() => this.setScope('all')}>לכולם</button>
-        <button type="button" role="radio" aria-checked=${String(this.scope === 'me')} data-scope="me" @click=${() => this.setScope('me')}>רק אני</button></div>` : nothing}
+      <span class="t">${mIcon('edit')}${tr('עריכת מסך המולטימדיה')}</span>
+      ${both ? html`<div class="seg sm" role="radiogroup" aria-label=${tr('עבור מי')}>
+        <button type="button" role="radio" aria-checked=${String(this.scope === 'all')} data-scope="all" @click=${() => this.setScope('all')}>${tr('לכולם')}</button>
+        <button type="button" role="radio" aria-checked=${String(this.scope === 'me')} data-scope="me" @click=${() => this.setScope('me')}>${tr('רק אני')}</button></div>` : nothing}
       <span class="grow"></span>
-      ${this.conflict ? html`<span class="note-bad" role="alert">המסך נערך במקום אחר</span><button type="button" class="btn sm" @click=${() => void this.reloadAfterConflict()}>טען מחדש</button>` : nothing}
+      ${this.conflict ? html`<span class="note-bad" role="alert">${tr('המסך נערך במקום אחר')}</span><button type="button" class="btn sm" @click=${() => void this.reloadAfterConflict()}>${tr('טען מחדש')}</button>` : nothing}
       ${this.saveError ? html`<span class="note-bad" role="alert">${this.saveError}</span>` : nothing}
-      <button type="button" class="btn sm quiet" data-mm-cancel ?disabled=${this.busy} @click=${() => this.askCancel()}>ביטול</button>
-      <button type="button" class="btn sm quiet dz" data-mm-reset ?disabled=${this.busy} @click=${() => (this.confirm = 'reset')}>ברירת מחדל</button>
-      <button type="button" class="btn sm primary" data-mm-save ?disabled=${this.busy || !this.dirty || this.conflict} @click=${() => void this.save()}>${mIcon('check')}שמור</button>
+      <button type="button" class="btn sm quiet" data-mm-cancel ?disabled=${this.busy} @click=${() => this.askCancel()}>${tr('ביטול')}</button>
+      <button type="button" class="btn sm quiet dz" data-mm-reset ?disabled=${this.busy} @click=${() => (this.confirm = 'reset')}>${tr('ברירת מחדל')}</button>
+      <button type="button" class="btn sm primary" data-mm-save ?disabled=${this.busy || !this.dirty || this.conflict} @click=${() => void this.save()}>${mIcon('check')}${tr('שמור')}</button>
     </div>`;
   }
 
@@ -1049,29 +1050,29 @@ export class MultimediaScreens extends LitElement {
     const c = this.confirm;
     if (!c) return html`<sw-dialog data-mm-confirm="closed"></sw-dialog>`;
     const reset = c === 'reset';
-    const heading = reset ? (this.scope === 'all' ? 'להחזיר את המסך לברירת המחדל לכולם?' : 'להחזיר את המסך שלי לברירת המחדל?') : 'לבטל את השינויים?';
+    const heading = reset ? (this.scope === 'all' ? tr('להחזיר את המסך לברירת המחדל לכולם?') : tr('להחזיר את המסך שלי לברירת המחדל?')) : tr('לבטל את השינויים?');
     return html`<sw-dialog open heading=${heading} data-mm-confirm=${c} @close=${() => (this.confirm = null)}>
       <div style="display:flex;justify-content:flex-end;gap:8px;padding-block-start:6px">
-        <sw-button data-mm-confirm-no autofocus @click=${() => (this.confirm = null)}>${reset ? 'ביטול' : 'המשך עריכה'}</sw-button>
-        <sw-button variant="danger" data-mm-confirm-yes @click=${() => (reset ? void this.resetLayout() : this.leaveEdit())}>${reset ? 'החזר' : 'בטל שינויים'}</sw-button>
+        <sw-button data-mm-confirm-no autofocus @click=${() => (this.confirm = null)}>${reset ? tr('ביטול') : tr('המשך עריכה')}</sw-button>
+        <sw-button variant="danger" data-mm-confirm-yes @click=${() => (reset ? void this.resetLayout() : this.leaveEdit())}>${reset ? tr('החזר') : tr('בטל שינויים')}</sw-button>
       </div></sw-dialog>`;
   }
 
   private body(): TemplateResult | typeof nothing {
     if (this.phase === 'loading') return this.skeleton();
     if (this.phase === 'error') {
-      return html`<div data-mm-state="error">${this.stateBox('warning', 'לא ניתן לטעון את המסכים', html`<button type="button" class="btn sm" data-mm-retry @click=${() => { this.phase = 'loading'; void this.load(); }}>${mIcon('refresh')}נסה שוב</button>`)}</div>`;
+      return html`<div data-mm-state="error">${this.stateBox('warning', tr('לא ניתן לטעון את המסכים'), html`<button type="button" class="btn sm" data-mm-retry @click=${() => { this.phase = 'loading'; void this.load(); }}>${mIcon('refresh')}${tr('נסה שוב')}</button>`)}</div>`;
     }
-    if (this.phase === 'forbidden') return html`<div data-mm-state="forbidden">${this.stateBox('tv', 'אין הרשאת צפייה במסכים')}</div>`;
-    if (this.phase === 'disabled') return html`<div data-mm-state="disabled">${this.stateBox('power', 'המולטימדיה כבויה')}</div>`;
+    if (this.phase === 'forbidden') return html`<div data-mm-state="forbidden">${this.stateBox('tv', tr('אין הרשאת צפייה במסכים'))}</div>`;
+    if (this.phase === 'disabled') return html`<div data-mm-state="disabled">${this.stateBox('power', tr('המולטימדיה כבויה'))}</div>`;
     if (!this.devices.length) {
       const cfg = this.status?.can.configure;
-      return html`<div data-mm-state="empty">${this.stateBox('tv', 'אין מסכים', cfg ? html`<a class="btn sm" href="#/system/multimedia">להגדרות</a>` : undefined)}</div>`;
+      return html`<div data-mm-state="empty">${this.stateBox('tv', tr('אין מסכים'), cfg ? html`<a class="btn sm" href="#/system/multimedia">${tr('להגדרות')}</a>` : undefined)}</div>`;
     }
     const groups = this.groupsToShow();
-    const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.<button type="button" class="btn sm" @click=${() => void this.load()}>נסה שוב</button></div>` : nothing;
+    const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}${tr('הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.')}<button type="button" class="btn sm" @click=${() => void this.load()}>${tr('נסה שוב')}</button></div>` : nothing;
     if (!groups.length) {
-      return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו מסכים', filtersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
+      return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', tr('לא נמצאו מסכים'), filtersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(NO_FILTER)}>${tr('נקה סינון')}</button>` : undefined)}</div>`;
     }
     let offset = 0;
     const offsets = groups.map((g) => ((offset += g.items.length), offset - g.items.length));
@@ -1085,7 +1086,7 @@ export class MultimediaScreens extends LitElement {
 
   render() {
     const body = this.body(); // first: it tells the pager in the header how many cards there are
-    return html`<sw-page class="page" wide heading="מסכים" subheading=${this.summary()} data-screen="multimedia">
+    return html`<sw-page class="page" wide heading=${tr('מסכים')} subheading=${this.summary()} data-screen="multimedia">
       ${this.floorAction()}
       ${this.header()}
       ${this.editing && this.draft
