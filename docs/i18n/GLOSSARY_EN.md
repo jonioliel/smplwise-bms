@@ -209,3 +209,65 @@ word list for every English catalogue (`src/i18n/*`, `src/tickets/*-text.ts`, `s
 | לפני {n} דק׳ | {n} min ago |
 | עכשיו | Now |
 | שעה / ימים | Hour / days |
+
+## Terms added while translating (I18N-EN-SWITCH-2438)
+
+Collected from the module passes; the first column is the Hebrew as the screens write it.
+
+| Hebrew | English |
+| --- | --- |
+| מערכת הבית | home system (settings) |
+| תחנה / עמדה (WisKey) | station |
+| ממסר / מיפוי ממסרים | relay / relay mapping |
+| אמצעי זיהוי | credentials |
+| מס׳ עובד / מזהה עובד | employee no. / employee ID |
+| עובד / מבקר / קבלן (קטגוריה) | staff / visitor / contractor |
+| השבתה / מושבת / הפעלה | deactivate / deactivated / activate |
+| פתוח קבוע / החזקה פתוחה | held open / hold-open |
+| אבחון הרשאות | access diagnostics |
+| אימות דו־שלבי / אפליקציית אימות / מפתח גישה | two-step verification / authenticator app / passkey |
+| זהות שירות | service identity |
+| כניסות (sessions) | sign-ins |
+| השתקה (התראת עמדה לזמן קצוב) | snooze |
+| סטייה (שעון) / סטיית שעון | drift / clock drift |
+| סיסמת חטיפה | duress password |
+| רשת (החשמל), אובדן רשת, מתג העברה | mains, mains lost, transfer switch |
+| הספק / הספק נקוב / מקדם הספק | power / rated power / power factor |
+| מתח / זרם / תדר / פאזה | voltage / current / frequency / phase |
+| סל״ד / שעות עבודה / התנעה | RPM / running hours / start |
+| ניתוב התראות / ספי התראה | alert routing / alert thresholds |
+| קוט״ש | kWh |
+| כיול / מקדם / הפרש | calibration / factor / offset |
+| תעו״ז, פס, עונה | time of use, band, season |
+| הפקת חיוב / הנפקה / אסמכתה | create bill / issue / reference |
+| טריגר / תנאי / פעולה | trigger / condition / action |
+| סצנה / סקריפט / תרחיש | scene / script / scenario |
+| משבצת | slot |
+| דריכה / נטרול | arm / disarm |
+| שבת וחג / מוצאי שבת | Shabbat and holidays / after Shabbat |
+| סל המחזור | recycle bin |
+| הרצה יבשה | dry run |
+| חבילת ראיות / סימנייה | evidence bundle / bookmark |
+| שעון־אב | master clock |
+| לוח הקלטה / לוחות זימון | recording schedule / arming schedules |
+| חציית קו / פריצה לאזור | line crossing / intrusion |
+| מסכת פרטיות | privacy mask |
+| קידוד / קצב | codec, encoding / bitrate |
+| הזמנה (חדר) / מוזמנים / מארגן | booking / attendees / organiser |
+| חלון תחזוקה | maintenance window |
+| תריס / תריס גלילה / סוכך | blind / roller blind / awning |
+| מתגים מוגנים | protected switches |
+| פריסה (מסך) | layout |
+| שלט / מגבר / שומר מסך | remote / amplifier / screensaver |
+| לוח תצוגה | TV board |
+| בדיקה מקדימה | preflight check |
+| סבב / נקודת בדיקה | round / checkpoint |
+| ספק (מודול התחזוקה) | supplier (the maintenance module's existing English; tickets and quotes say vendor) |
+
+## Known single-key compromises
+
+A source-text table has one English per Hebrew text in a module. Where one Hebrew word carries two meanings in the same module,
+the English follows the commoner one until the Hebrew is split (a follow-up per module):
+calendars "חזרה" (Back / Repeat), components "סגור" (Close / Closed), "יציאה" (Sign out / the remote's Exit key),
+system-b "שמירה" (Save / Retention: the Retention tab is left in Hebrew), media "אחר" (Other / move later), devices "אחר"
+(Other / move later), electricity "ביטול" (Cancel / Undo).

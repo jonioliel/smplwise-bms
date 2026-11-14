@@ -1,4076 +1,17 @@
 {
  "totals": {
   "lang": "en",
-  "catalogues": 89,
-  "keys": 11027,
-  "missing": 3858,
+  "catalogues": 131,
+  "keys": 24847,
+  "missing": 20,
   "identical": 3,
-  "hebrew": 0,
-  "gap": 3811,
-  "hardcodedModules": 71,
-  "hardcodedLiterals": 25028,
-  "hardcodedFiles": 582
+  "hebrew": 2,
+  "gap": 6,
+  "hardcodedModules": 45,
+  "hardcodedLiterals": 8698,
+  "hardcodedFiles": 291
  },
  "catalogues": [
-  {
-   "name": "i18n/he",
-   "keys": 1288,
-   "missing": 1137,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 1127,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "app.search",
-    "app.notifications",
-    "app.account",
-    "modes.live",
-    "modes.explore",
-    "modes.investigate",
-    "modes.system",
-    "nav.styleguide",
-    "breadcrumb.site",
-    "breadcrumb.building",
-    "breadcrumb.floor",
-    "floor.switcher",
-    "floor.layers",
-    "floor.cameras",
-    "floor.doors",
-    "floor.lights",
-    "floor.sensors",
-    "floor.cluster",
-    "floor.zoomIn",
-    "floor.zoomOut",
-    "floor.fit",
-    "floor.noPlan",
-    "floor.noPlanHint",
-    "floor.uploadPlan",
-    "floor.listView",
-    "floor.stalePlan",
-    "walk.bar",
-    "walk.exit",
-    "walk.standAt",
-    "walk.route",
-    "walk.routeStop",
-    "walk.xMetres",
-    "walk.yMetres",
-    "walk.headingDeg",
-    "walk.heading",
-    "walk.noWay",
-    "walk.kindSaved",
-    "walk.kindDoor",
-    "walk.kindRoom",
-    "walk.kindCamera",
-    "walk.kindCentre",
-    "states.loading",
-    "states.empty",
-    "states.error",
-    "states.errorHint",
-    "states.retry",
-    "states.forbidden",
-    "states.forbiddenHint",
-    "states.stale",
-    "states.staleHint",
-    "states.partial",
-    "states.offline",
-    "states.unknown",
-    "states.live",
-    "states.recorded",
-    "states.historic",
-    "camera.preview",
-    "camera.enlarge",
-    "camera.recordings",
-    "camera.pin",
-    "camera.unpin",
-    "camera.snapshot",
-    "camera.offlineReason",
-    "camera.forbiddenReason",
-    "camera.staleReason",
-    "camera.source",
-    "camera.timeSource",
-    "camera.quality",
-    "camera.main",
-    "camera.sub",
-    "entity.state",
-    "entity.lastChanged",
-    "entity.control",
-    "entity.noControl",
-    "entity.openInHa",
-    "entity.door",
-    "entity.light",
-    "entity.sensor",
-    "entity.locked",
-    "entity.unlocked",
-    "entity.on",
-    "entity.off",
-    "entity.confirm",
-    "cast.button",
-    "cast.pickerTitle",
-    "cast.pickerFor",
-    "cast.recent",
-    "cast.noFloor",
-    "cast.stateFree",
-    "cast.stateOff",
-    "cast.stateMusic",
-    "cast.stateCasting",
-    "cast.stateUnavailable",
-    "cast.blockedNoPermission",
-    "cast.blockedUnsupported",
-    "cast.blockedNotAllowed",
-    "cast.blockedPublic",
-    "cast.blockedUnavailable",
-    "cast.profileSub",
-    "cast.profileMain",
-    "cast.profileMainNo",
-    "cast.durationDefault",
-    "cast.durationPermanent",
-    "cast.minutes",
-    "cast.start",
-    "cast.starting",
-    "cast.switchHere",
-    "cast.confirmBusy",
-    "cast.confirmBusyYes",
-    "cast.mine",
-    "cast.mineLink",
-    "cast.empty",
-    "cast.notReady",
-    "cast.notReadyAdmin",
-    "cast.loading",
-    "cast.close",
-    "cast.sheetRegion",
-    "cast.remoteNote",
-    "cast.pillLabel",
-    "cast.pillTimeLeft",
-    "cast.pillPermanent",
-    "cast.pillExtend",
-    "cast.pillExtendLeft",
-    "cast.pillStop",
-    "cast.pillStopAll",
-    "cast.stopTitle",
-    "cast.stopOff",
-    "cast.stopOffHint",
-    "cast.stopYes",
-    "cast.stopKeep",
-    "cast.starting2",
-    "cast.playing",
-    "cast.notConfirmed",
-    "cast.retry",
-    "cast.startedBy",
-    "cast.me",
-    "cast.switched",
-    "cast.extended",
-    "cast.stopped",
-    "cast.started",
-    "cast.cameraOf",
-    "generator.tab",
-    "generator.pages.live",
-    "generator.pages.alerts",
-    "generator.pages.charts",
-    "generator.pages.history",
-    "generator.pages.log",
-    "generator.pickerLabel",
-    "generator.forbidden",
-    "generator.loadError",
-    "generator.retry",
-    "generator.live.dataLive",
-    "generator.live.ago.s",
-    "generator.live.ago.m",
-    "generator.live.ago.h",
-    "generator.live.ago.d",
-    "generator.live.updated",
-    "generator.live.statusRunningLoad",
-    "generator.live.statusRunningTest",
-    "generator.live.statusRunningIdle",
-    "generator.live.statusStopped",
-    "generator.live.statusStoppedMains",
-    "generator.live.flowTitle",
-    "generator.live.engineTitle",
-    "generator.live.phaseTitle",
-    "generator.live.phaseTitleOne",
-    "generator.live.viewLabel",
-    "generator.live.viewGauges",
-    "generator.live.viewCharts",
-    "generator.live.historyTitle",
-    "generator.live.fullView",
-    "generator.live.offlineTitle",
-    "generator.live.offlineBody",
-    "generator.live.staleTitle",
-    "generator.live.staleBody",
-    "generator.live.lastSeen",
-    "generator.live.counts",
-    "generator.live.mapping",
-    "generator.live.mainsLostChip",
-    "generator.live.mainsOkChip",
-    "generator.live.testChip",
-    "generator.engine.running",
-    "generator.engine.stopped",
-    "generator.engine.starting",
-    "generator.engine.cooling",
-    "generator.engine.fault",
-    "generator.engine.unknown",
-    "generator.modes.auto",
-    "generator.modes.manual",
-    "generator.modes.off",
-    "generator.modes.test",
-    "generator.modes.other",
-    "generator.notAuto",
-    "generator.rows.state",
-    "generator.rows.mode",
-    "generator.rows.hours",
-    "generator.rows.rpm",
-    "generator.rows.last_start",
-    "generator.rows.last_test",
-    "generator.rows.next_test",
-    "generator.rows.service",
-    "generator.rows.hoursUnit",
-    "generator.rows.startsUnit",
-    "generator.rows.since",
-    "generator.rows.serviceIn",
-    "generator.gauge.fuel_pct",
-    "generator.gauge.battery_v",
-    "generator.gauge.coolant_temp",
-    "generator.gauge.oil_pressure",
-    "generator.gauge.load_pct",
-    "generator.gauge.limMin",
-    "generator.gauge.limMax",
-    "generator.gauge.limIdle",
-    "generator.gauge.limRated",
-    "generator.phase.phase",
-    "generator.phase.v",
-    "generator.phase.a",
-    "generator.phase.kw",
-    "generator.phase.bar",
-    "generator.phase.generator",
-    "generator.phase.total",
-    "generator.phase.avg",
-    "generator.phase.freq",
-    "generator.phase.pf",
-    "generator.flow.aria",
-    "generator.flow.grid",
-    "generator.flow.ats",
-    "generator.flow.atsGen",
-    "generator.flow.atsGrid",
-    "generator.flow.atsOpen",
-    "generator.flow.load",
-    "generator.flow.mainsOk",
-    "generator.flow.mainsNone",
-    "generator.flow.mainsAvail",
-    "generator.flow.mainsLost",
-    "generator.flow.mainsLostAt",
-    "generator.flow.unknown",
-    "generator.flow.noComm",
-    "generator.flow.running",
-    "generator.flow.stopped",
-    "generator.flow.idle",
-    "generator.flow.onLoad",
-    "generator.flow.test",
-    "generator.flow.loadShort",
-    "generator.flow.modeWord",
-    "generator.flow.fed",
-    "generator.flow.unfed",
-    "generator.flow.ofGen",
-    "generator.flow.fromMains",
-    "generator.flow.fromGen",
-    "generator.flow.fromMainsShort",
-    "generator.kpi.load_pct",
-    "generator.kpi.gen_kw",
-    "generator.kpi.fuel_pct",
-    "generator.kpi.battery_v",
-    "generator.charts.title",
-    "generator.charts.from",
-    "generator.charts.to",
-    "generator.charts.apply",
-    "generator.charts.csv",
-    "generator.charts.min",
-    "generator.charts.avg",
-    "generator.charts.max",
-    "generator.charts.noData",
-    "generator.charts.retention",
-    "generator.charts.rangeError.missing",
-    "generator.charts.rangeError.order",
-    "generator.charts.rangeError.future",
-    "generator.charts.rangeError.span",
-    "generator.charts.ranges.1h",
-    "generator.charts.ranges.24h",
-    "generator.charts.ranges.7d",
-    "generator.charts.ranges.30d",
-    "generator.charts.ranges.custom",
-    "generator.charts.axisNow",
-    "generator.charts.axisAgo.1h",
-    "generator.charts.axisAgo.24h",
-    "generator.charts.axisAgo.7d",
-    "generator.charts.axisAgo.30d",
-    "generator.charts.metrics.load_pct",
-    "generator.charts.metrics.gen_kw",
-    "generator.charts.metrics.gen_v_l1",
-    "generator.charts.metrics.gen_v_l2",
-    "generator.charts.metrics.gen_v_l3",
-    "generator.charts.metrics.fuel_pct",
-    "generator.charts.metrics.battery_v",
-    "generator.charts.metrics.coolant_temp",
-    "generator.charts.metrics.oil_pressure",
-    "generator.alerts.active",
-    "generator.alerts.unacked",
-    "generator.alerts.acked",
-    "generator.alerts.ackAll",
-    "generator.alerts.ack",
-    "generator.alerts.details",
-    "generator.alerts.ackedBy",
-    "generator.alerts.repeated",
-    "generator.alerts.emptyTitle",
-    "generator.alerts.toHistory",
-    "generator.alerts.loadMore",
-    "generator.alerts.sev.critical",
-    "generator.alerts.sev.alert",
-    "generator.alerts.sev.info",
-    "generator.alerts.cleared",
-    "generator.alerts.open",
-    "generator.alerts.pending",
-    "generator.alerts.notNeeded",
-    "generator.alerts.durationMin",
-    "generator.alerts.durationH",
-    "generator.history.title",
-    "generator.history.kept",
-    "generator.history.search",
-    "generator.history.windows.today",
-    "generator.history.windows.7d",
-    "generator.history.windows.30d",
-    "generator.history.windows.custom",
-    "generator.history.severity",
-    "generator.history.type",
-    "generator.history.ack",
-    "generator.history.state",
-    "generator.history.all",
-    "generator.history.yes",
-    "generator.history.no",
-    "generator.history.stateOpen",
-    "generator.history.stateClosed",
-    "generator.history.cols.at",
-    "generator.history.cols.alert",
-    "generator.history.cols.severity",
-    "generator.history.cols.state",
-    "generator.history.cols.ack",
-    "generator.history.count",
-    "generator.history.clear",
-    "generator.history.empty",
-    "generator.detail.title",
-    "generator.detail.duration",
-    "generator.detail.note",
-    "generator.detail.notePh",
-    "generator.detail.ack",
-    "generator.detail.mute",
-    "generator.detail.muted",
-    "generator.detail.snapshot",
-    "generator.detail.timeline",
-    "generator.detail.close",
-    "generator.detail.acked",
-    "generator.detail.tl.raised",
-    "generator.detail.tl.escalated",
-    "generator.detail.tl.delivery_failed",
-    "generator.detail.tl.folded",
-    "generator.detail.tl.acknowledged",
-    "generator.detail.tl.cleared",
-    "generator.snap.fuel_pct",
-    "generator.snap.battery_v",
-    "generator.snap.coolant_temp",
-    "generator.snap.oil_pressure",
-    "generator.snap.load_pct",
-    "generator.snap.rpm",
-    "generator.snap.gen_kw",
-    "generator.notFound.title",
-    "generator.notFound.body",
-    "generator.notFound.checked",
-    "generator.notFound.retry",
-    "generator.notFound.toSettings",
-    "generator.notFound.detecting",
-    "generator.notFound.partialTitle",
-    "generator.notFound.partialBody",
-    "generator.notFound.howTitle",
-    "generator.notFound.how.0",
-    "generator.notFound.how.1",
-    "generator.notFound.how.2",
-    "generator.settings.title",
-    "generator.settings.subs.routing",
-    "generator.settings.subs.mapping",
-    "generator.settings.subs.thresholds",
-    "generator.settings.subs.retention",
-    "generator.settings.subs.permissions",
-    "generator.settings.detectionOk",
-    "generator.settings.detectionNone",
-    "generator.settings.detectionNoneBody",
-    "generator.settings.detectionCounts",
-    "generator.settings.detectionPartial",
-    "generator.settings.rescan",
-    "generator.settings.manualPick",
-    "generator.settings.manualSearch",
-    "generator.settings.manualRoles",
-    "generator.settings.manualAdd",
-    "generator.settings.manualRegistered",
-    "generator.settings.manualNone",
-    "generator.settings.name",
-    "generator.settings.rated",
-    "generator.settings.ratedKva",
-    "generator.settings.saved",
-    "generator.settings.save",
-    "generator.settings.reset",
-    "generator.settings.cancel",
-    "generator.settings.lastCheck",
-    "generator.settings.mapIntro",
-    "generator.settings.mapRole",
-    "generator.settings.mapSensor",
-    "generator.settings.mapAuto",
-    "generator.settings.mapManual",
-    "generator.settings.mapNone",
-    "generator.settings.mapDisabled",
-    "generator.settings.mapCore",
-    "generator.settings.mapAuto2",
-    "generator.settings.mapClear",
-    "generator.settings.mapSave",
-    "generator.settings.thIntro",
-    "generator.settings.thDefault",
-    "generator.settings.th.oil_min_bar",
-    "generator.settings.th.coolant_max_c",
-    "generator.settings.th.rpm_max",
-    "generator.settings.th.fuel_low_pct",
-    "generator.settings.th.fuel_empty_pct",
-    "generator.settings.th.overload_pct",
-    "generator.settings.th.v_min",
-    "generator.settings.th.v_max",
-    "generator.settings.th.hz_min",
-    "generator.settings.th.hz_max",
-    "generator.settings.th.battery_min_12v",
-    "generator.settings.th.battery_min_24v",
-    "generator.settings.th.service_warn_h",
-    "generator.settings.th.service_every_h",
-    "generator.settings.th.running_rpm",
-    "generator.settings.retAlerts",
-    "generator.settings.retHistory",
-    "generator.settings.retStale",
-    "generator.settings.retInfo",
-    "generator.settings.permsBody",
-    "generator.settings.permsLink",
-    "generator.settings.routingEmpty",
-    "generator.settings.routingEmptyBody",
-    "generator.settings.routingNote",
-    "generator.settings.colOn",
-    "generator.settings.colAlert",
-    "generator.settings.colSev",
-    "generator.settings.colRec",
-    "generator.settings.colCh",
-    "generator.settings.colQuiet",
-    "generator.settings.activeCount",
-    "generator.settings.noSensor",
-    "generator.settings.needs",
-    "generator.settings.noRec",
-    "generator.settings.quiet.pass",
-    "generator.settings.quiet.matrix",
-    "generator.settings.quiet.hold",
-    "generator.settings.quietLong.pass",
-    "generator.settings.quietLong.matrix",
-    "generator.settings.quietLong.hold",
-    "generator.settings.ch.push",
-    "generator.settings.ch.app",
-    "generator.settings.ch.email",
-    "generator.settings.soon",
-    "generator.settings.inboxAlways",
-    "generator.settings.roleNames.operator",
-    "generator.settings.roleNames.site_admin",
-    "generator.settings.roleNames.system_admin",
-    "generator.settings.editTitle",
-    "generator.settings.active",
-    "generator.settings.severity",
-    "generator.settings.recRoles",
-    "generator.settings.recUsers",
-    "generator.settings.escalateShort",
-    "generator.settings.routingEmptyShort",
-    "generator.settings.channels",
-    "generator.settings.quietHours",
-    "generator.settings.escalate",
-    "generator.settings.escalateOff",
-    "generator.settings.escalateAfter",
-    "generator.settings.message",
-    "generator.settings.vars",
-    "generator.settings.varsNote",
-    "generator.settings.preview",
-    "generator.settings.routeSaved",
-    "generator.settings.tplInvalid",
-    "generator.settings.tplAllowed",
-    "generator.settings.tplCounter",
-    "generator.settings.tplClip",
-    "generator.settings.tplDetailNote",
-    "generator.settings.tplRestore",
-    "generator.settings.resetDone",
-    "generator.settings.confirmReset",
-    "generator.settings.conflict",
-    "generator.settings.sampleDevice",
-    "generator.settings.sampleSite",
-    "frigate.control.title",
-    "frigate.control.analytics",
-    "frigate.control.record",
-    "frigate.control.profile",
-    "frigate.control.noProfile",
-    "frigate.control.feature.detect",
-    "frigate.control.feature.motion",
-    "frigate.control.feature.audio",
-    "frigate.control.feature.review_alerts",
-    "frigate.control.feature.review_detections",
-    "frigate.control.feature.notifications",
-    "frigate.control.feature.improve_contrast",
-    "frigate.control.feature.birdseye",
-    "frigate.control.feature.ptz_autotracker",
-    "frigate.control.feature.enabled",
-    "frigate.control.feature.recordings",
-    "frigate.control.feature.snapshots",
-    "frigate.control.named",
-    "frigate.control.namedKind.zone",
-    "frigate.control.namedKind.motion_mask",
-    "frigate.control.namedKind.object_mask",
-    "frigate.control.saved",
-    "frigate.control.unverified",
-    "frigate.control.failed",
-    "frigate.control.confirmTitleOff",
-    "frigate.control.confirmTitleOffShort",
-    "frigate.control.confirmTitleOn",
-    "frigate.control.confirmRecordOff",
-    "frigate.control.confirmProfile",
-    "frigate.control.confirm",
-    "frigate.control.cancel",
-    "frigate.control.suggested",
-    "frigate.control.retain",
-    "frigate.control.retained",
-    "frigate.control.subLabel",
-    "frigate.control.subLabelSave",
-    "frigate.control.eventObject",
-    "frigate.control.settings.title",
-    "frigate.control.settings.intro",
-    "frigate.control.settings.perAction",
-    "frigate.control.settings.classes.analytics",
-    "frigate.control.settings.classes.record",
-    "frigate.control.settings.classes.profile",
-    "frigate.control.settings.classes.review",
-    "frigate.control.settings.classes.events",
-    "frigate.control.settings.classes.exports",
-    "frigate.control.settings.classes.cases",
-    "frigate.control.settings.classes.config",
-    "frigate.control.settings.classes.ptz",
-    "frigate.control.settings.tabs.classes",
-    "frigate.control.settings.tabs.profiles",
-    "frigate.control.settings.tabs.config",
-    "frigate.control.settings.tabs.exports",
-    "frigate.control.settings.tabs.cases",
-    "frigate.control.settings.tabs.events",
-    "frigate.control.settings.tabs.log",
-    "frigate.control.settings.tabs.supervision",
-    "frigate.control.settings.confirmDelete",
-    "frigate.control.settings.classesOn",
-    "frigate.control.settings.classOff",
-    "frigate.control.settings.noPermission",
-    "frigate.control.settings.firstPending",
-    "frigate.control.settings.kinds.export_create",
-    "frigate.control.settings.kinds.export_rename",
-    "frigate.control.settings.kinds.export_delete",
-    "frigate.control.settings.kinds.export_assign",
-    "frigate.control.settings.kinds.case_create",
-    "frigate.control.settings.kinds.case_rename",
-    "frigate.control.settings.kinds.case_delete",
-    "frigate.control.settings.kinds.event_create",
-    "frigate.control.settings.kinds.event_end",
-    "frigate.control.settings.kinds.profile_auto",
-    "frigate.control.settings.kinds.clip_read",
-    "frigate.control.settings.kinds.config_zone",
-    "frigate.control.settings.kinds.config_settings",
-    "frigate.control.settings.supervised.label",
-    "frigate.control.settings.supervised.hint",
-    "frigate.control.settings.supervised.need",
-    "frigate.control.settings.auto.title",
-    "frigate.control.settings.auto.mode",
-    "frigate.control.settings.auto.modes.off",
-    "frigate.control.settings.auto.modes.suggest",
-    "frigate.control.settings.auto.modes.apply",
-    "frigate.control.settings.auto.consent",
-    "frigate.control.settings.auto.consentBy",
-    "frigate.control.settings.auto.willApply",
-    "frigate.control.settings.auto.suggestOnly",
-    "frigate.control.settings.auto.offText",
-    "frigate.control.settings.auto.blockedClass",
-    "frigate.control.settings.auto.blockedConsent",
-    "frigate.control.settings.auto.blockedFirst",
-    "frigate.control.settings.auto.suggestions",
-    "frigate.control.settings.auto.noSuggestions",
-    "frigate.control.settings.auto.apply",
-    "frigate.control.settings.auto.dismiss",
-    "frigate.control.settings.auto.recent",
-    "frigate.control.settings.auto.noRecent",
-    "frigate.control.settings.auto.applied",
-    "frigate.control.settings.auto.dismissed",
-    "frigate.control.settings.auto.confirmApply",
-    "frigate.control.settings.auto.status.pending",
-    "frigate.control.settings.auto.status.suggested",
-    "frigate.control.settings.auto.status.applied",
-    "frigate.control.settings.auto.status.unverified",
-    "frigate.control.settings.auto.status.skipped",
-    "frigate.control.settings.auto.status.failed",
-    "frigate.control.settings.auto.status.expired",
-    "frigate.control.settings.auto.status.dismissed",
-    "frigate.control.settings.auto.status.superseded",
-    "frigate.control.settings.auto.reason.class_off",
-    "frigate.control.settings.auto.reason.no_consent",
-    "frigate.control.settings.auto.reason.first_write_unsupervised",
-    "frigate.control.settings.auto.reason.already_active",
-    "frigate.control.settings.auto.reason.by_user",
-    "frigate.control.settings.auto.reason.mode_off",
-    "frigate.control.settings.auto.profileNone",
-    "frigate.control.settings.auto.arrow",
-    "frigate.control.settings.exports.create",
-    "frigate.control.settings.exports.name",
-    "frigate.control.settings.exports.camera",
-    "frigate.control.settings.exports.from",
-    "frigate.control.settings.exports.to",
-    "frigate.control.settings.exports.date",
-    "frigate.control.settings.exports.inProgress",
-    "frigate.control.settings.exports.ready",
-    "frigate.control.settings.exports.origin",
-    "frigate.control.settings.exports.rename",
-    "frigate.control.settings.exports.delete",
-    "frigate.control.settings.exports.deleteTitle",
-    "frigate.control.settings.exports.deleteText",
-    "frigate.control.settings.exports.empty",
-    "frigate.control.settings.exports.rangeMissing",
-    "frigate.control.settings.exports.rangeOrder",
-    "frigate.control.settings.exports.rangeLong",
-    "frigate.control.settings.exports.rangeFuture",
-    "frigate.control.settings.exports.created",
-    "frigate.control.settings.exports.renamed",
-    "frigate.control.settings.exports.deleted",
-    "frigate.control.settings.exports.case",
-    "frigate.control.settings.exports.moveToCase",
-    "frigate.control.settings.exports.noCase",
-    "frigate.control.settings.exports.moved",
-    "frigate.control.settings.exports.chooseCamera",
-    "frigate.control.settings.exports.state",
-    "frigate.control.settings.cases.create",
-    "frigate.control.settings.cases.name",
-    "frigate.control.settings.cases.description",
-    "frigate.control.settings.cases.created",
-    "frigate.control.settings.cases.renamed",
-    "frigate.control.settings.cases.deleted",
-    "frigate.control.settings.cases.deleteTitle",
-    "frigate.control.settings.cases.empty",
-    "frigate.control.settings.cases.createdAt",
-    "frigate.control.settings.cases.origin",
-    "frigate.control.settings.events.create",
-    "frigate.control.settings.events.label",
-    "frigate.control.settings.events.duration",
-    "frigate.control.settings.events.openEnded",
-    "frigate.control.settings.events.end",
-    "frigate.control.settings.events.ended",
-    "frigate.control.settings.events.created",
-    "frigate.control.settings.events.openList",
-    "frigate.control.settings.events.empty",
-    "frigate.control.settings.events.camera",
-    "frigate.control.settings.events.subLabel",
-    "frigate.control.settings.events.durationError",
-    "frigate.control.settings.events.labelError",
-    "frigate.control.settings.supervision.title",
-    "frigate.control.settings.supervision.intro",
-    "frigate.control.settings.supervision.done",
-    "frigate.control.settings.supervision.pending",
-    "frigate.control.settings.supervision.clipTitle",
-    "frigate.control.settings.supervision.clipText",
-    "frigate.control.settings.supervision.open",
-    "frigate.control.settings.supervision.clipSupervised",
-    "frigate.control.settings.supervision.clipRangeError",
-    "frigate.control.settings.supervision.play",
-    "frigate.control.settings.supervision.openTab",
-    "frigate.control.settings.supervision.clipLoading",
-    "frigate.control.settings.supervision.clipError",
-    "frigate.control.settings.supervision.close",
-    "frigate.control.settings.config.camera",
-    "frigate.control.settings.config.zones",
-    "frigate.control.settings.config.settings",
-    "frigate.control.settings.config.newZone",
-    "frigate.control.settings.config.name",
-    "frigate.control.settings.config.objects",
-    "frigate.control.settings.config.allObjects",
-    "frigate.control.settings.config.inertia",
-    "frigate.control.settings.config.loitering",
-    "frigate.control.settings.config.points",
-    "frigate.control.settings.config.draw",
-    "frigate.control.settings.config.undoPoint",
-    "frigate.control.settings.config.clear",
-    "frigate.control.settings.config.save",
-    "frigate.control.settings.config.cancel",
-    "frigate.control.settings.config.remove",
-    "frigate.control.settings.config.removed",
-    "frigate.control.settings.config.removeTitle",
-    "frigate.control.settings.config.saved",
-    "frigate.control.settings.config.sent",
-    "frigate.control.settings.config.deleted",
-    "frigate.control.settings.config.readOnly",
-    "frigate.control.settings.config.notEditable",
-    "frigate.control.settings.config.classOff",
-    "frigate.control.settings.config.confirmTitle",
-    "frigate.control.settings.config.confirmText",
-    "frigate.control.settings.config.noZones",
-    "frigate.control.settings.config.noCameras",
-    "frigate.control.settings.config.noFrame",
-    "frigate.control.settings.config.insertPoint",
-    "frigate.control.settings.config.loading",
-    "frigate.control.settings.config.defaultValue",
-    "frigate.control.settings.config.useDefault",
-    "frigate.control.settings.config.unavailable",
-    "frigate.control.settings.config.rangeError",
-    "frigate.control.settings.config.nameError.pattern",
-    "frigate.control.settings.config.nameError.camera",
-    "frigate.control.settings.config.nameError.taken",
-    "frigate.control.settings.config.polyError.few",
-    "frigate.control.settings.config.polyError.many",
-    "frigate.control.settings.config.polyError.outside",
-    "frigate.control.settings.config.polyError.repeat",
-    "frigate.control.settings.config.polyError.flat",
-    "frigate.control.settings.config.sections.detect",
-    "frigate.control.settings.config.sections.motion",
-    "frigate.control.settings.config.sections.objects",
-    "frigate.control.settings.config.sections.snapshots",
-    "frigate.control.settings.config.sections.record",
-    "frigate.control.settings.config.sections.review",
-    "frigate.control.settings.config.fields.detect.fps",
-    "frigate.control.settings.config.fields.motion.threshold",
-    "frigate.control.settings.config.fields.motion.contour_area",
-    "frigate.control.settings.config.fields.motion.lightning_threshold",
-    "frigate.control.settings.config.fields.objects.track",
-    "frigate.control.settings.config.fields.snapshots.retain.default",
-    "frigate.control.settings.config.fields.record.alerts.retain.days",
-    "frigate.control.settings.config.fields.record.detections.retain.days",
-    "frigate.control.settings.config.fields.review.alerts.labels",
-    "frigate.control.settings.config.labels.person",
-    "frigate.control.settings.config.labels.car",
-    "frigate.control.settings.config.labels.bicycle",
-    "frigate.control.settings.config.labels.motorcycle",
-    "frigate.control.settings.config.labels.bus",
-    "frigate.control.settings.config.labels.truck",
-    "frigate.control.settings.config.labels.dog",
-    "frigate.control.settings.config.labels.cat",
-    "frigate.control.settings.config.labels.bird",
-    "frigate.control.settings.config.labels.horse",
-    "frigate.control.settings.config.labels.package",
-    "frigate.control.settings.config.labels.face",
-    "frigate.control.settings.config.labels.license_plate",
-    "frigate.control.settings.view.label",
-    "frigate.control.settings.view.cards",
-    "frigate.control.settings.view.table",
-    "frigate.control.settings.actions",
-    "frigate.control.settings.ptzNotReleased",
-    "frigate.control.settings.rules",
-    "frigate.control.settings.rulesNone",
-    "frigate.control.settings.log",
-    "frigate.control.settings.logEmpty",
-    "frigate.control.settings.undo",
-    "frigate.control.settings.undone",
-    "frigate.control.settings.failed",
-    "frigate.control.settings.unverified",
-    "frigate.control.settings.reverted",
-    "frigate.control.settings.by",
-    "frigate.control.settings.unavailable",
-    "frigate.control.settings.summaryWrites",
-    "frigate.control.alarm.disarmed",
-    "frigate.control.alarm.armed_home",
-    "frigate.control.alarm.armed_away",
-    "frigate.control.alarm.armed_night",
-    "frigate.control.alarm.armed_vacation",
-    "frigate.control.alarm.armed_custom_bypass",
-    "frigate.control.alarm.pending",
-    "frigate.control.alarm.arming",
-    "frigate.control.alarm.triggered",
-    "frigate.summary.title",
-    "frigate.summary.version",
-    "frigate.summary.cameras",
-    "frigate.summary.camerasOf",
-    "frigate.summary.disabled",
-    "frigate.summary.detectors",
-    "frigate.summary.noDetectors",
-    "frigate.summary.features",
-    "frigate.summary.retention",
-    "frigate.summary.retentionMotion",
-    "frigate.summary.retentionAll",
-    "frigate.summary.retentionEvents",
-    "frigate.summary.retentionOff",
-    "frigate.summary.moreAfterSave",
-    "frigate.summary.unavailable",
-    "frigate.summary.days",
-    "frigate.summary.on",
-    "frigate.summary.off",
-    "frigate.summary.readOnly",
-    "frigate.summary.stillOnly",
-    "frigate.summary.live",
-    "frigate.summary.liveOf",
-    "frigate.summary.liveNone",
-    "frigate.summary.liveWhy",
-    "frigate.summary.liveReason.off",
-    "frigate.summary.liveReason.no_go2rtc_url",
-    "frigate.summary.liveReason.no_streams",
-    "frigate.summary.liveReason.no_match",
-    "frigate.summary.liveReason.partial",
-    "frigate.summary.liveReason.flag_off",
-    "frigate.summary.lastEvent",
-    "frigate.summary.lastEventNone",
-    "frigate.summary.eventsStale",
-    "frigate.summary.linkHint",
-    "frigate.summary.viewerHint",
-    "frigate.features.review_items",
-    "frigate.features.object_events",
-    "frigate.features.timeline",
-    "frigate.features.recordings",
-    "frigate.features.hls_playback",
-    "frigate.features.snapshots_latest",
-    "frigate.features.restream",
-    "frigate.features.search_text",
-    "frigate.features.search_semantic",
-    "frigate.features.zones",
-    "frigate.features.audio_events",
-    "frigate.features.faces",
-    "frigate.features.lpr",
-    "frigate.features.genai",
-    "frigate.health.detectors",
-    "frigate.health.inference",
-    "frigate.health.overloaded",
-    "frigate.health.cameras",
-    "frigate.health.fps",
-    "frigate.health.storageLeft",
-    "frigate.health.hours",
-    "frigate.health.partial",
-    "frigate.health.reconnects",
-    "frigate.health.stalls",
-    "frigate.health.cameraOff",
-    "frigate.health.cameraDown",
-    "frigate.health.cameraOk",
-    "frigate.health.cameraDetectOff",
-    "frigate.review.title",
-    "frigate.review.subtitle",
-    "frigate.review.layerAlert",
-    "frigate.review.layerDetection",
-    "frigate.review.layerMotion",
-    "frigate.review.layerAlertOne",
-    "frigate.review.layerDetectionOne",
-    "frigate.review.layerMotionOne",
-    "frigate.review.camera",
-    "frigate.review.allCameras",
-    "frigate.review.period",
-    "frigate.review.periodToday",
-    "frigate.review.period24h",
-    "frigate.review.period7d",
-    "frigate.review.period30d",
-    "frigate.review.status",
-    "frigate.review.statusAll",
-    "frigate.review.statusUnreviewed",
-    "frigate.review.statusReviewed",
-    "frigate.review.object",
-    "frigate.review.allObjects",
-    "frigate.review.reviewed",
-    "frigate.review.unreviewed",
-    "frigate.review.markReviewed",
-    "frigate.review.markUnreviewed",
-    "frigate.review.markShown",
-    "frigate.review.selected",
-    "frigate.review.selectAll",
-    "frigate.review.clearSelection",
-    "frigate.review.open",
-    "frigate.review.openRecording",
-    "frigate.review.recordingUnavailable",
-    "frigate.review.recordingNoCoverage",
-    "frigate.review.objects",
-    "frigate.review.zones",
-    "frigate.review.noZones",
-    "frigate.review.where",
-    "frigate.review.duration",
-    "frigate.review.timeline",
-    "frigate.review.noTimeline",
-    "frigate.review.activity",
-    "frigate.review.detections",
-    "frigate.review.motionCap",
-    "frigate.review.motionHint",
-    "frigate.review.topScore",
-    "frigate.review.loading",
-    "frigate.review.empty",
-    "frigate.review.emptyHint",
-    "frigate.review.emptyAllReviewed",
-    "frigate.review.offline",
-    "frigate.review.forbidden",
-    "frigate.review.forbiddenHint",
-    "frigate.review.error",
-    "frigate.review.retry",
-    "frigate.review.loadMore",
-    "frigate.review.markFailed",
-    "frigate.review.noThumb",
-    "frigate.review.shortcuts",
-    "frigate.review.shortcutsText",
-    "frigate.review.fallbackLink",
-    "frigate.review.time",
-    "frigate.review.noPermissionMark",
-    "frigate.review.partialCoverage",
-    "frigate.review.demo",
-    "frigate.review.view",
-    "frigate.review.viewCards",
-    "frigate.review.viewTable",
-    "frigate.review.keysTitle",
-    "frigate.review.state",
-    "frigate.review.actions",
-    "frigate.review.exportClip",
-    "frigate.review.exportTitle",
-    "frigate.review.exportName",
-    "frigate.review.exportRange",
-    "frigate.review.exported",
-    "frigate.review.exportFailed",
-    "frigate.review.clearFilters",
-    "frigate.review.showReviewed",
-    "frigate.review.ongoing",
-    "frigate.review.prevItem",
-    "frigate.review.nextItem",
-    "frigate.review.of",
-    "frigate.review.keyRows.move",
-    "frigate.review.keyRows.ends",
-    "frigate.review.keyRows.select",
-    "frigate.review.keyRows.reviewed",
-    "frigate.review.keyRows.open",
-    "frigate.review.keyRows.drawer",
-    "frigate.review.keyRows.all",
-    "frigate.review.keyRows.esc",
-    "frigate.review.kind.enter",
-    "frigate.review.kind.zone",
-    "frigate.review.kind.stationary",
-    "frigate.review.kind.active",
-    "frigate.review.kind.exit",
-    "frigate.review.kind.attribute",
-    "frigate.review.kind.start",
-    "frigate.review.kind.end",
-    "frigate.review.kind.ongoing",
-    "frigate.review.obj.person",
-    "frigate.review.obj.car",
-    "frigate.review.obj.vehicle",
-    "frigate.review.obj.truck",
-    "frigate.review.obj.bus",
-    "frigate.review.obj.motorcycle",
-    "frigate.review.obj.bicycle",
-    "frigate.review.obj.dog",
-    "frigate.review.obj.cat",
-    "frigate.review.obj.package",
-    "frigate.review.obj.bird",
-    "frigate.review.obj.animal",
-    "frigate.live.stillLabel",
-    "frigate.live.stillLabelEvery",
-    "frigate.live.stillStale",
-    "frigate.live.seconds",
-    "frigate.live.stillHint",
-    "frigate.live.stillExplain",
-    "frigate.live.paused",
-    "actions.close",
-    "actions.cancel",
-    "actions.save",
-    "actions.apply",
-    "actions.refresh",
-    "actions.more",
-    "actions.back",
-    "deviceActivity.menuActivity",
-    "deviceActivity.menuSchedules",
-    "deviceActivity.menuLabel",
-    "deviceActivity.popupLabel",
-    "deviceActivity.tabs",
-    "deviceActivity.tabActivity",
-    "deviceActivity.tabSchedules",
-    "deviceActivity.close",
-    "deviceActivity.refresh",
-    "deviceActivity.loadMore",
-    "deviceActivity.loadingMore",
-    "deviceActivity.loading",
-    "deviceActivity.filterPeriod",
-    "deviceActivity.filterActor",
-    "deviceActivity.filterKind",
-    "deviceActivity.emptyTitle",
-    "deviceActivity.emptyNone",
-    "deviceActivity.widen",
-    "deviceActivity.clearFilters",
-    "deviceActivity.forbiddenTitle",
-    "deviceActivity.forbiddenHint",
-    "deviceActivity.unavailableTitle",
-    "deviceActivity.unavailableHint",
-    "deviceActivity.retry",
-    "deviceActivity.partialBanner",
-    "deviceActivity.schedLoading",
-    "deviceActivity.schedEmpty",
-    "deviceActivity.schedForbidden",
-    "deviceActivity.schedUnavailable",
-    "deviceActivity.schedAdd",
-    "deviceActivity.schedEdit",
-    "deviceActivity.schedView",
-    "deviceActivity.schedReadOnly",
-    "deviceActivity.schedEnabled",
-    "deviceActivity.schedDisabled",
-    "deviceActivity.schedEditTitle",
-    "deviceActivity.schedNewTitle",
-    "deviceActivity.schedBack",
-    "deviceActivity.schedMore",
-    "deviceActivity.viewLabel",
-    "deviceActivity.viewCards",
-    "deviceActivity.viewList",
-    "deviceActivity.filterTools",
-    "deviceActivity.eventsCount",
-    "deviceActivity.eventOne",
-    "deviceActivity.feedList",
-    "nativeDevice.title",
-    "nativeDevice.loading",
-    "nativeDevice.registered",
-    "nativeDevice.notRegistered",
-    "nativeDevice.status",
-    "nativeDevice.name",
-    "nativeDevice.locationAuth",
-    "nativeDevice.precise",
-    "nativeDevice.yes",
-    "nativeDevice.no",
-    "nativeDevice.lastEvent",
-    "nativeDevice.never",
-    "nativeDevice.sensors",
-    "nativeDevice.unknown",
-    "nativeDevice.authAlways",
-    "nativeDevice.authWhenInUse",
-    "nativeDevice.authDenied",
-    "nativeDevice.authNotDetermined",
-    "nativeDevice.sensorOn",
-    "nativeDevice.sensorOff",
-    "nativeDevice.sensorUnavailable",
-    "nativeDevice.openLocation",
-    "nativeDevice.openSensors",
-    "secondFactor.title",
-    "secondFactor.loginPrompt",
-    "secondFactor.off",
-    "secondFactor.on",
-    "secondFactor.since",
-    "secondFactor.enable",
-    "secondFactor.disable",
-    "secondFactor.scan",
-    "secondFactor.qrLabel",
-    "secondFactor.keyLabel",
-    "secondFactor.codeLabel",
-    "secondFactor.confirm",
-    "secondFactor.cancel",
-    "secondFactor.enabledDone",
-    "secondFactor.disabledDone",
-    "secondFactor.adminLabel",
-    "secondFactor.adminReset",
-    "secondFactor.adminResetDone",
-    "secondFactor.adminResetConfirm",
-    "secondFactor.adminStepUp",
-    "secondFactor.policyLabel",
-    "secondFactor.policyOptional",
-    "secondFactor.policyAdmins",
-    "secondFactor.overrideLabel",
-    "secondFactor.overrideInherit",
-    "secondFactor.overrideOptional",
-    "secondFactor.overrideRequired",
-    "brandLogos.heading",
-    "brandLogos.subheading",
-    "brandLogos.tabs",
-    "brandLogos.tabFiles",
-    "brandLogos.tabLook",
-    "brandLogos.tabTitle",
-    "brandLogos.tabPreview",
-    "brandLogos.readOnly",
-    "brandLogos.lightTitle",
-    "brandLogos.darkTitle",
-    "brandLogos.optional",
-    "brandLogos.rules",
-    "brandLogos.darkRules",
-    "brandLogos.dropHere",
-    "brandLogos.dropDark",
-    "brandLogos.choose",
-    "brandLogos.chooseOther",
-    "brandLogos.replace",
-    "brandLogos.remove",
-    "brandLogos.removed",
-    "brandLogos.uploading",
-    "brandLogos.uploaded",
-    "brandLogos.previewLight",
-    "brandLogos.previewDark",
-    "brandLogos.uploadedBy",
-    "brandLogos.sizeLabel",
-    "brandLogos.size_s",
-    "brandLogos.size_m",
-    "brandLogos.size_l",
-    "brandLogos.size_xl",
-    "brandLogos.darkLabel",
-    "brandLogos.darkHint",
-    "brandLogos.mode_plate",
-    "brandLogos.mode_plate_d",
-    "brandLogos.mode_file",
-    "brandLogos.mode_file_d",
-    "brandLogos.mode_invert",
-    "brandLogos.mode_invert_d",
-    "brandLogos.recommended",
-    "brandLogos.noDarkFile",
-    "brandLogos.toUpload",
-    "brandLogos.nameLabel",
-    "brandLogos.nameHint",
-    "brandLogos.kindLabel",
-    "brandLogos.kind_developer",
-    "brandLogos.kind_management",
-    "brandLogos.kind_other",
-    "brandLogos.projectLabel",
-    "brandLogos.projectHint",
-    "brandLogos.prefixLabel",
-    "brandLogos.prefixHint",
-    "brandLogos.modeLabel",
-    "brandLogos.tmode_both",
-    "brandLogos.tmode_dev",
-    "brandLogos.tmode_project",
-    "brandLogos.tabDemo",
-    "brandLogos.previewTitle",
-    "brandLogos.previewLightCap",
-    "brandLogos.previewDarkCap",
-    "brandLogos.previewNote",
-    "brandLogos.save",
-    "brandLogos.saved",
-    "brandLogos.unsaved",
-    "brandLogos.stays",
-    "brandLogos.companyAlt",
-    "brandLogos.warn_odd_aspect",
-    "brandLogos.warn_very_light",
-    "brandLogos.warn_no_alpha",
-    "videoCopy.recorder",
-    "videoCopy.recorderMain",
-    "videoCopy.recorderAll",
-    "videoCopy.recorderDetails",
-    "videoCopy.presets",
-    "videoCopy.triggers",
-    "videoCopy.triggersEmpty",
-    "videoCopy.schedEmpty",
-    "videoCopy.siteTime",
-    "videoCopy.sourceTime",
-    "videoCopy.healthDemoSub",
-    "videoCopy.playbackDemoSub",
-    "videoCopy.syncFromRecorder",
-    "videoCopy.nameOnRecorder"
-   ]
-  },
-  {
-   "name": "i18n/wiskey-installer",
-   "keys": 374,
-   "missing": 374,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 371,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "installer.title",
-    "installer.sub",
-    "installer.tabs.clock",
-    "installer.tabs.technical",
-    "installer.tabs.lifecycle",
-    "installer.tabs.platform",
-    "installer.forbiddenTitle",
-    "installer.forbiddenHint",
-    "installer.errorTitle",
-    "installer.retry",
-    "installer.reload",
-    "installer.loading",
-    "installer.unavailableTool",
-    "installer.unknownTool",
-    "installer.feedDown",
-    "installer.yes",
-    "installer.no",
-    "installer.online",
-    "installer.offline",
-    "installer.cancel",
-    "installer.close",
-    "installer.confirm.typeToConfirm",
-    "installer.confirm.typedLabel",
-    "installer.confirm.send",
-    "installer.confirm.sending",
-    "installer.confirm.noChanges",
-    "installer.confirm.before",
-    "installer.confirm.after",
-    "installer.confirm.willChange",
-    "installer.confirm.once",
-    "installer.result.completed",
-    "installer.result.refused",
-    "installer.result.not_sent",
-    "installer.result.unknown",
-    "installer.result.retryIn",
-    "installer.clock.settingsTitle",
-    "installer.clock.settingsHint",
-    "installer.clock.server",
-    "installer.clock.port",
-    "installer.clock.interval",
-    "installer.clock.revision",
-    "installer.clock.save",
-    "installer.clock.defaults",
-    "installer.clock.invalid.server",
-    "installer.clock.invalid.port",
-    "installer.clock.invalid.interval",
-    "installer.clock.saveHeading",
-    "installer.clock.hostTitle",
-    "installer.clock.hostSupported",
-    "installer.clock.hostUnsupported",
-    "installer.clock.hostSynced",
-    "installer.clock.hostNotSynced",
-    "installer.clock.hostServers",
-    "installer.clock.hostApply",
-    "installer.clock.hostApplyHeading",
-    "installer.clock.hostApplyBody",
-    "installer.clock.hostApplyPort",
-    "installer.clock.hostApplied",
-    "installer.clock.stationsTitle",
-    "installer.clock.stationsHint",
-    "installer.clock.colStation",
-    "installer.clock.colSkew",
-    "installer.clock.colMode",
-    "installer.clock.colChecked",
-    "installer.clock.check",
-    "installer.clock.sync",
-    "installer.clock.syncHeading",
-    "installer.clock.syncBody",
-    "installer.clock.copySystem",
-    "installer.clock.syncResult",
-    "installer.clock.verified",
-    "installer.clock.notVerified",
-    "installer.clock.skew",
-    "installer.clock.noClock",
-    "installer.clock.modes.manual",
-    "installer.clock.modes.satellite",
-    "installer.clock.modes.platform",
-    "installer.clock.modes.NONE",
-    "installer.clock.modes.unknown",
-    "installer.clock.noStations",
-    "installer.clock.sectionUnavailable",
-    "technical.pick",
-    "technical.pickHint",
-    "technical.read",
-    "technical.reread",
-    "technical.readAt",
-    "technical.offline",
-    "technical.door",
-    "technical.notMapped",
-    "technical.doorError",
-    "technical.fields.doorName",
-    "technical.fields.openDuration",
-    "technical.fields.relayReverseEnabled",
-    "technical.bounds",
-    "technical.lengthBounds",
-    "technical.relayOn",
-    "technical.relayOff",
-    "technical.relayWarn",
-    "technical.save",
-    "technical.saveHeading",
-    "technical.saveBody",
-    "technical.saved",
-    "technical.invalid",
-    "technical.features",
-    "technical.supported",
-    "technical.notSupported",
-    "technical.passwords",
-    "technical.pinState.configured",
-    "technical.pinState.absent",
-    "technical.pinState.unknown",
-    "technical.passwordNames.engineeringConfigured",
-    "technical.passwordNames.setupAlarmConfigured",
-    "technical.passwordNames.householderUnlockConfigured",
-    "technical.passwordNames.antiHijackingConfigured",
-    "technical.passwordNames.sendCardConfigured",
-    "technical.set",
-    "technical.unset",
-    "technical.relays",
-    "technical.relayRow",
-    "technical.noRelays",
-    "technical.empty",
-    "lifecycle.addTitle",
-    "lifecycle.addHint",
-    "lifecycle.addStart",
-    "lifecycle.reTitle",
-    "lifecycle.reHint",
-    "lifecycle.reStart",
-    "lifecycle.station",
-    "lifecycle.wizardTitle.add",
-    "lifecycle.wizardTitle.reconfigure",
-    "lifecycle.steps.user",
-    "lifecycle.steps.reconfigure",
-    "lifecycle.steps.confirm_device",
-    "lifecycle.steps.locks",
-    "lifecycle.steps.mapping",
-    "lifecycle.steps.confirm_mapping",
-    "lifecycle.steps.other",
-    "lifecycle.fields.name",
-    "lifecycle.fields.host",
-    "lifecycle.fields.username",
-    "lifecycle.fields.password",
-    "lifecycle.fields.scheme",
-    "lifecycle.fields.port",
-    "lifecycle.fields.verify_ssl",
-    "lifecycle.fields.rtsp_port",
-    "lifecycle.fields.lock_name",
-    "lifecycle.fields.api_id",
-    "lifecycle.fields.mode",
-    "lifecycle.fields.result",
-    "lifecycle.passwordKeep",
-    "lifecycle.modes.camera_only",
-    "lifecycle.modes.map_active_relay",
-    "lifecycle.modes.keep_confirmed_mapping",
-    "lifecycle.results.released_and_returned",
-    "lifecycle.results.choose_again",
-    "lifecycle.results.camera_only",
-    "lifecycle.device",
-    "lifecycle.model",
-    "lifecycle.firmware",
-    "lifecycle.serial",
-    "lifecycle.deviceConfirm",
-    "lifecycle.next",
-    "lifecycle.cancel",
-    "lifecycle.checking",
-    "lifecycle.pulseWarn",
-    "lifecycle.pulseButton",
-    "lifecycle.pulseHeading",
-    "lifecycle.commitHeading",
-    "lifecycle.commitBody",
-    "lifecycle.created",
-    "lifecycle.reconfigured",
-    "lifecycle.aborted",
-    "lifecycle.cancelled",
-    "lifecycle.flowErrors.invalid_auth",
-    "lifecycle.flowErrors.cannot_connect",
-    "lifecycle.flowErrors.unsupported_device",
-    "lifecycle.flowErrors.invalid_response",
-    "lifecycle.flowErrors.access_removal_pending",
-    "lifecycle.flowErrors.test_required",
-    "lifecycle.flowErrors.invalid_mapping",
-    "lifecycle.flowErrors.unlock_failed",
-    "lifecycle.flowErrors.confirmation_required",
-    "lifecycle.flowErrors.other",
-    "lifecycle.abortReasons.already_configured",
-    "lifecycle.abortReasons.unique_id_mismatch",
-    "lifecycle.abortReasons.reconfigure_successful",
-    "lifecycle.abortReasons.already_in_progress",
-    "lifecycle.removeTitle",
-    "lifecycle.removeHint",
-    "lifecycle.source",
-    "lifecycle.target",
-    "lifecycle.noTarget",
-    "lifecycle.review",
-    "lifecycle.impact",
-    "lifecycle.people",
-    "lifecycle.bindings",
-    "lifecycle.unknownOwners",
-    "lifecycle.holdPrograms",
-    "lifecycle.nativeSchedules",
-    "lifecycle.blockers",
-    "lifecycle.noBlockers",
-    "lifecycle.blockerText.target_already_in_use",
-    "lifecycle.blockerText.target_ownership_unverified",
-    "lifecycle.blockerText.target_contains_accounts",
-    "lifecycle.blockerText.target_lock_mapping_incomplete",
-    "lifecycle.blockerText.native_schedule_redeployment_required",
-    "lifecycle.blockerText.hold_programs_require_separate_review",
-    "lifecycle.blockerText.other",
-    "lifecycle.prepare",
-    "lifecycle.prepareHeading",
-    "lifecycle.prepareBody",
-    "lifecycle.jobs",
-    "lifecycle.noJobs",
-    "lifecycle.refresh",
-    "lifecycle.states.prepared",
-    "lifecycle.states.approved",
-    "lifecycle.states.rejected",
-    "lifecycle.states.applied",
-    "lifecycle.states.verified",
-    "lifecycle.states.removing",
-    "lifecycle.states.removed",
-    "lifecycle.states.expired",
-    "lifecycle.states.failed",
-    "lifecycle.states.unknown",
-    "lifecycle.stepLabels.0",
-    "lifecycle.stepLabels.1",
-    "lifecycle.stepLabels.2",
-    "lifecycle.stepLabels.3",
-    "lifecycle.actions.apply",
-    "lifecycle.actions.verify",
-    "lifecycle.actions.remove",
-    "lifecycle.applyHeading",
-    "lifecycle.applyBody",
-    "lifecycle.verifyHeading",
-    "lifecycle.verifyBody",
-    "lifecycle.removeHeading",
-    "lifecycle.removeBody",
-    "lifecycle.approval",
-    "lifecycle.doneJob",
-    "platform.healthTitle",
-    "platform.integrity",
-    "platform.integrityOk",
-    "platform.integrityBad",
-    "platform.noWrites",
-    "platform.components.access",
-    "platform.components.panel_permissions",
-    "platform.components.appearance_settings",
-    "platform.components.profile_settings",
-    "platform.components.schedule_journal",
-    "platform.components.hold_programs",
-    "platform.components.operations_center",
-    "platform.components.events",
-    "platform.components.operations_validation",
-    "platform.events",
-    "platform.eventsLine",
-    "platform.demo",
-    "platform.capacityTitle",
-    "platform.capacityHint",
-    "platform.users",
-    "platform.cards",
-    "platform.daysTo",
-    "platform.alerts.unknown",
-    "platform.alerts.stale",
-    "platform.alerts.at_limit",
-    "platform.alerts.near_limit",
-    "platform.alerts.growth_to_limit",
-    "platform.alerts.observed",
-    "platform.metaTitle",
-    "platform.metaHint",
-    "platform.zone",
-    "platform.owner",
-    "platform.tags",
-    "platform.thresholds.offline",
-    "platform.thresholds.sync_stalled",
-    "platform.thresholds.event_gap",
-    "platform.windowOn",
-    "platform.days.0",
-    "platform.days.1",
-    "platform.days.2",
-    "platform.days.3",
-    "platform.days.4",
-    "platform.days.5",
-    "platform.days.6",
-    "platform.dayNames",
-    "platform.start",
-    "platform.end",
-    "platform.timezone",
-    "platform.saveMeta",
-    "platform.metaHeading",
-    "platform.metaBody",
-    "platform.changeTitle",
-    "platform.changeHint",
-    "platform.stations",
-    "platform.door",
-    "platform.mode",
-    "platform.modeNow",
-    "platform.modeWindow",
-    "platform.preview",
-    "platform.previewEmpty",
-    "platform.apply",
-    "platform.enqueue",
-    "platform.applyHeading",
-    "platform.applyBody",
-    "platform.enqueueHeading",
-    "platform.enqueueBody",
-    "platform.receipts",
-    "platform.receiptOk",
-    "platform.receiptFail",
-    "platform.partial",
-    "platform.queueTitle",
-    "platform.noJobs",
-    "platform.jobStates.queued",
-    "platform.jobStates.awaiting_approval",
-    "platform.jobStates.rejected",
-    "platform.jobStates.cancelled",
-    "platform.jobStates.verified",
-    "platform.jobStates.completed_with_errors",
-    "platform.jobStates.expired",
-    "platform.jobStates.unknown",
-    "platform.rowStates.pending",
-    "platform.rowStates.writing",
-    "platform.rowStates.verified",
-    "platform.rowStates.failed",
-    "platform.rowStates.uncertain",
-    "platform.rowStates.cancelled",
-    "platform.rowStates.unknown",
-    "platform.cancelJob",
-    "platform.cancelHeading",
-    "platform.cancelBody",
-    "platform.retentionTitle",
-    "platform.retentionHint",
-    "platform.retDays",
-    "platform.retCount",
-    "platform.retMb",
-    "platform.retPreview",
-    "platform.retRemoved",
-    "platform.retApply",
-    "platform.retHeading",
-    "platform.retBody",
-    "platform.webhookTitle",
-    "platform.webhookHint",
-    "platform.webhookOn",
-    "platform.url",
-    "platform.kinds.access_event",
-    "platform.kinds.security_denied",
-    "platform.kinds.configuration_result",
-    "platform.saveWebhook",
-    "platform.webhookHeading",
-    "platform.webhookBody",
-    "platform.showKey",
-    "platform.keyHeading",
-    "platform.keyBody",
-    "platform.keyShown",
-    "platform.hideKey",
-    "platform.invalid.url",
-    "platform.invalid.kinds",
-    "platform.invalid.days",
-    "platform.invalid.start",
-    "platform.invalid.end",
-    "platform.invalid.timezone",
-    "platform.ioTitle",
-    "platform.ioHint",
-    "platform.export",
-    "platform.importLabel",
-    "platform.mapTo",
-    "platform.importPreview",
-    "platform.importApply",
-    "platform.importHeading",
-    "platform.importBody",
-    "platform.imported",
-    "platform.saved"
-   ]
-  },
-  {
-   "name": "i18n/access-people",
-   "keys": 255,
-   "missing": 255,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 254,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "page.title",
-    "page.count",
-    "page.count_one",
-    "page.count_of",
-    "page.count_min",
-    "page.count_zero",
-    "search.name",
-    "search.name_number",
-    "search.label",
-    "view.label",
-    "view.cards",
-    "view.list",
-    "view.table",
-    "action.add",
-    "action.refresh",
-    "action.select",
-    "action.select_off",
-    "action.columns",
-    "action.more",
-    "action.clear",
-    "action.retry",
-    "action.reload",
-    "action.close",
-    "action.edit",
-    "action.message",
-    "action.message_selected",
-    "action.settings",
-    "action.show_photo",
-    "action.hide_photo",
-    "action.reveal_phone",
-    "action.hide_phone",
-    "action.select_all",
-    "action.clear_selection",
-    "action.select_row",
-    "filter.group",
-    "filter.station",
-    "filter.state",
-    "filter.rights",
-    "filter.credential",
-    "filter.profile",
-    "filter.profile_value",
-    "filter.sort",
-    "filter.any",
-    "filter.bar",
-    "state.active",
-    "state.inactive",
-    "state.expired",
-    "state.upcoming",
-    "state.archived",
-    "rights.assigned",
-    "rights.unassigned",
-    "rights.disabled",
-    "credential.pin",
-    "credential.no_pin",
-    "credential.card",
-    "credential.no_card",
-    "sort.name",
-    "sort.name_desc",
-    "sort.employee",
-    "col.name",
-    "col.employee",
-    "col.groups",
-    "col.stations",
-    "col.credentials",
-    "col.validity",
-    "col.state",
-    "col.sync",
-    "col.actions",
-    "row.stations",
-    "row.station_one",
-    "row.no_stations",
-    "row.no_groups",
-    "validity.permanent",
-    "validity.until",
-    "validity.from",
-    "validity.expired",
-    "validity.future",
-    "validity.window",
-    "validity.unknown",
-    "person.active",
-    "person.inactive",
-    "person.archived",
-    "cred.card",
-    "cred.cards",
-    "cred.pin",
-    "cred.none",
-    "cred.unknown",
-    "sync.synced",
-    "sync.pending",
-    "sync.syncing",
-    "sync.conflict",
-    "sync.error",
-    "sync.delete_pending",
-    "sync.offline",
-    "sync.unknown",
-    "sync.unassigned",
-    "state.loading",
-    "state.empty",
-    "state.no_results",
-    "state.error",
-    "state.forbidden",
-    "state.unavailable",
-    "state.unsupported",
-    "state.connecting",
-    "state.stale",
-    "state.page_stale",
-    "state.partial",
-    "state.partial_rate",
-    "state.partial_scan",
-    "state.detail_error",
-    "state.detail_gone",
-    "state.detail_loading",
-    "drawer.tab_details",
-    "drawer.tab_access",
-    "drawer.tab_groups",
-    "drawer.tabs",
-    "drawer.validity",
-    "drawer.timing",
-    "drawer.timing_always",
-    "drawer.timing_days",
-    "drawer.timing_dates",
-    "drawer.timing_hours",
-    "drawer.timing_zone",
-    "drawer.timing_native",
-    "drawer.timing_arx",
-    "drawer.credentials",
-    "drawer.category",
-    "drawer.employee",
-    "drawer.sensitive",
-    "drawer.phone",
-    "drawer.no_phone",
-    "drawer.photo",
-    "drawer.no_photo",
-    "drawer.photo_loading",
-    "drawer.photo_error",
-    "drawer.profile",
-    "drawer.responsible",
-    "drawer.purpose",
-    "drawer.stations",
-    "drawer.door",
-    "drawer.doors",
-    "syncerr.device_unavailable",
-    "syncerr.action_failed",
-    "syncerr.station_unloaded",
-    "syncerr.device_busy",
-    "drawer.access_off",
-    "drawer.no_access",
-    "drawer.error_detail",
-    "drawer.groups",
-    "drawer.no_groups",
-    "drawer.group_stations",
-    "drawer.unknown_value",
-    "drawer.tab_messages",
-    "category.staff",
-    "category.visitor",
-    "category.contractor",
-    "timing.weekly",
-    "timing.dates",
-    "bulk.selected",
-    "bulk.bar",
-    "msg.title",
-    "msg.title_bulk",
-    "msg.recipient",
-    "msg.phone_hidden",
-    "msg.phone_masked",
-    "msg.consent_granted",
-    "msg.consent_declined",
-    "msg.consent_unknown",
-    "msg.template",
-    "msg.free",
-    "msg.text",
-    "msg.send",
-    "msg.send_again",
-    "msg.send_n",
-    "msg.send_anyway",
-    "msg.confirm_send",
-    "msg.confirm_bulk",
-    "msg.back",
-    "msg.stop",
-    "msg.stopping",
-    "msg.cancel",
-    "msg.close",
-    "msg.sending",
-    "msg.sending_n",
-    "msg.sent",
-    "msg.failed",
-    "msg.uncertain",
-    "msg.rate",
-    "msg.cant",
-    "msg.preview_bulk",
-    "msg.preview_skip",
-    "msg.bulk_done",
-    "msg.bulk_held",
-    "msg.bulk_failed",
-    "msg.bulk_unknown",
-    "msg.results",
-    "msg.result_name",
-    "msg.result_outcome",
-    "msg.result_detail",
-    "msg.result_sent",
-    "msg.result_failed",
-    "msg.result_unknown",
-    "msg.bulk_over_quota",
-    "msg.bulk_too_many",
-    "msg.no_template",
-    "msg.too_long",
-    "msg.credential_blocked",
-    "msg.reason.no_phone",
-    "msg.reason.no_consent",
-    "msg.reason.no_service",
-    "msg.reason.not_registered",
-    "msg.reason.uncertain",
-    "msg.reason.unknown",
-    "msg.reason.expired",
-    "msg.reason.free_text_off",
-    "msg.reason.rate",
-    "msg.reason.person_limit",
-    "msg.reason.station_limit",
-    "msg.reason.outside_hours",
-    "msg.reason.forbidden",
-    "msg.reason.gone",
-    "msg.reason.template_changed",
-    "msg.reason.disabled",
-    "msg.reason.duplicate",
-    "msg.reason.refused",
-    "msg.reason.stopped",
-    "msg.reason.empty",
-    "msg.held",
-    "msg.consent_requested",
-    "msg.consent_requested_free",
-    "msg.result_held",
-    "msg.reason.consent_pending",
-    "msg.reason.consent_recent",
-    "msg.reason.consent_unavailable",
-    "hist.held",
-    "hist.dropped",
-    "hist.loading",
-    "hist.empty",
-    "hist.error",
-    "hist.retry",
-    "hist.free",
-    "hist.removed_template",
-    "hist.bulk",
-    "hist.by",
-    "hist.sent",
-    "hist.refused",
-    "hist.unknown",
-    "hist.pending",
-    "hist.list",
-    "optout.label",
-    "optout.by",
-    "optout.at",
-    "optout.error",
-    "optout.admin_only"
-   ]
-  },
-  {
-   "name": "i18n/access-diag",
-   "keys": 235,
-   "missing": 235,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 230,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "title",
-    "sub",
-    "loading",
-    "noPermission",
-    "noPermissionHint",
-    "loadError",
-    "retry",
-    "unavailable",
-    "unsupported",
-    "openPanel",
-    "peopleNeeded",
-    "readOnly",
-    "notPhysical",
-    "fetched",
-    "v_scenario",
-    "v_compare",
-    "v_reviews",
-    "v_quality",
-    "v_lifecycle",
-    "v_audit",
-    "v_sync",
-    "views",
-    "person",
-    "personPh",
-    "pickPerson",
-    "noMatches",
-    "door",
-    "pickDoor",
-    "doorLabel",
-    "when",
-    "now",
-    "atTime",
-    "check",
-    "checking",
-    "timeInvalid",
-    "timeAmbiguous",
-    "timeMissing",
-    "yes",
-    "no",
-    "why",
-    "r_allowed",
-    "r_archived",
-    "r_inactive",
-    "r_no_assignment",
-    "r_lock_not_assigned",
-    "r_outside_validity",
-    "r_outside_schedule",
-    "r_unknown",
-    "src_inherited",
-    "src_personal_allow",
-    "src_personal_deny",
-    "src_assignment",
-    "src_none",
-    "src_restricted",
-    "src_group_policy",
-    "src_unknown",
-    "validity",
-    "validityAlways",
-    "validityUntil",
-    "validityFrom",
-    "schedule",
-    "t_unrestricted",
-    "t_ha",
-    "t_native",
-    "t_unknown",
-    "draftIgnored",
-    "holidays",
-    "holidaysNote",
-    "station",
-    "stationOnline",
-    "stationOffline",
-    "sync",
-    "sync_synced",
-    "sync_pending",
-    "sync_syncing",
-    "sync_offline",
-    "sync_conflict",
-    "sync_error",
-    "sync_delete_pending",
-    "sync_unknown",
-    "syncBehind",
-    "lastSync",
-    "evidence",
-    "person_archived",
-    "person_inactive",
-    "compareKind",
-    "k_people",
-    "k_groups",
-    "k_doors",
-    "group",
-    "groupPh",
-    "first",
-    "second",
-    "compare",
-    "rel_shared",
-    "rel_left_only",
-    "rel_right_only",
-    "rel_neither",
-    "rel_unknown",
-    "sumShared",
-    "doorsCompareHint",
-    "noAssignment",
-    "incomplete",
-    "noRows",
-    "noPeopleRows",
-    "reviewDoor",
-    "st_all",
-    "st_pending",
-    "st_due",
-    "st_stale",
-    "st_completed",
-    "st_followup",
-    "st_archived",
-    "st_unknown",
-    "granted",
-    "notGranted",
-    "lastDecision",
-    "decidedBy",
-    "nextReview",
-    "d_keep",
-    "d_followup",
-    "d_unknown",
-    "review",
-    "noReviews",
-    "reviewTitle",
-    "reviewHint",
-    "decision",
-    "reason",
-    "reasonPh",
-    "cadence",
-    "days",
-    "history",
-    "noHistory",
-    "confirmTitle",
-    "confirmBody",
-    "confirm",
-    "cancel",
-    "close",
-    "saving",
-    "saved",
-    "decideViewOnly",
-    "decideNoPermission",
-    "stale",
-    "reload",
-    "more",
-    "prev",
-    "next",
-    "pageOf",
-    "q_all",
-    "q_missing",
-    "q_invalid",
-    "q_duplicate",
-    "q_current",
-    "q_archived",
-    "q_everyone",
-    "scanned",
-    "peopleIssues",
-    "noIssues",
-    "dupWith",
-    "c_missing_phone",
-    "c_invalid_phone",
-    "c_duplicate_display_name",
-    "c_duplicate_phone",
-    "c_duplicate_profile",
-    "c_profile_required",
-    "c_profile",
-    "c_other",
-    "window",
-    "lifeHint",
-    "expiring",
-    "expired",
-    "temporary",
-    "duplicates",
-    "withoutCred",
-    "credHidden",
-    "inDays",
-    "inHours",
-    "agoDays",
-    "today",
-    "noneExpiring",
-    "tmp_active",
-    "tmp_upcoming",
-    "tmp_expired",
-    "tmp_inactive",
-    "doorsCount",
-    "cat_staff",
-    "cat_visitor",
-    "cat_contractor",
-    "dup_display_name",
-    "dup_phone",
-    "dup_card_last4",
-    "dup_unknown",
-    "truncated",
-    "auditHint",
-    "runAudit",
-    "auditing",
-    "auditFor",
-    "a_matched",
-    "a_drift",
-    "a_unmanaged",
-    "a_unverified",
-    "a_unknown",
-    "unmanagedUser",
-    "diff_presence",
-    "diff_display_name",
-    "diff_user_type",
-    "diff_validity",
-    "diff_door_rights",
-    "diff_pin",
-    "diff_schedule",
-    "diff_privileged",
-    "diff_other_credentials",
-    "diff_cards",
-    "diff_other",
-    "auditIncomplete",
-    "pickStation",
-    "stationOfflineNote",
-    "noAuditYet",
-    "syncHint",
-    "version",
-    "stationRef",
-    "worker",
-    "pendingReq",
-    "targets",
-    "recentFailures",
-    "recent",
-    "noFailures",
-    "noStations",
-    "e_forbidden",
-    "e_generic"
-   ]
-  },
-  {
-   "name": "i18n/access-status",
-   "keys": 307,
-   "missing": 231,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 223,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "moreFailed",
-    "whenTomorrow",
-    "durMinutes",
-    "durHours",
-    "durDay",
-    "durDays",
-    "healthSub",
-    "healthOpen",
-    "healthEmpty",
-    "lastSeen",
-    "alertsSub",
-    "alertsPartial",
-    "alertKind",
-    "alertKindAll",
-    "alertMutedShow",
-    "alertSince",
-    "alertMuted",
-    "alertMutedUntil",
-    "alert_offline",
-    "alert_sync_stalled",
-    "alert_sync_conflict",
-    "alert_sync_error",
-    "alert_event_gap",
-    "alert_clock_drift",
-    "alert_other",
-    "sup_planned_maintenance",
-    "sup_network_work",
-    "sup_investigating",
-    "sup_other",
-    "syncSub",
-    "syncEmpty",
-    "sync_delete_pending",
-    "conflictsSub",
-    "colWho",
-    "colKind",
-    "colError",
-    "conflict_person",
-    "conflict_removal",
-    "conflict_revocation",
-    "conflict_other",
-    "unnamed",
-    "employeeShort",
-    "err_device_unavailable",
-    "err_revision_conflict",
-    "err_rate_limited",
-    "err_timeout",
-    "err_unauthorized",
-    "err_authentication_failed",
-    "err_station_offline",
-    "err_invalid_response",
-    "err_other",
-    "errUnknown",
-    "hdConnection",
-    "hdSync",
-    "hdEvents",
-    "hdClock",
-    "hdHistory",
-    "hdState",
-    "hdOnline",
-    "hdOffline",
-    "hdFirmware",
-    "hdPollFailures",
-    "hdRequests",
-    "hdRequestsVal",
-    "hdLastMs",
-    "hdP95",
-    "hdMs",
-    "hdSyncState",
-    "hdQueue",
-    "hdWorker",
-    "hdPendingRequest",
-    "hdYes",
-    "hdNo",
-    "hdAssignments",
-    "hdErrors",
-    "hdStream",
-    "hdHistoryState",
-    "hdReconnects",
-    "hdLastFrame",
-    "hdStorageFailed",
-    "hdClockStatus",
-    "hdSkew",
-    "hdSkewVal",
-    "hdDrift",
-    "hdTimeMode",
-    "hdChecked",
-    "hdClockError",
-    "hdNoEvents",
-    "hdNoClock",
-    "hdHistoryNone",
-    "hdHistoryPct",
-    "hdHistoryStorage",
-    "stream_connecting",
-    "stream_connected",
-    "stream_disconnected",
-    "stream_authentication_failed",
-    "stream_unavailable",
-    "stream_stopped",
-    "stream_unknown",
-    "hist_pending",
-    "hist_offline",
-    "hist_unavailable",
-    "hist_recovered",
-    "hist_authentication_failed",
-    "hist_incomplete",
-    "hist_unknown",
-    "drift_not_measured",
-    "drift_within_tolerance",
-    "drift_uncertain",
-    "drift_ahead",
-    "drift_behind",
-    "drift_repeated_ahead",
-    "drift_repeated_behind",
-    "drift_unknown",
-    "clock_ready",
-    "clock_stale",
-    "clock_unavailable",
-    "clock_unknown",
-    "tmode_manual",
-    "tmode_satellite",
-    "tmode_platform",
-    "tmode_NONE",
-    "tmode_unknown",
-    "auditSub",
-    "auditEmptyFiltered",
-    "auditRetention",
-    "auditTotal",
-    "auditStation",
-    "auditStationAll",
-    "auditAction",
-    "auditActionAll",
-    "auditClear",
-    "auditPeriod",
-    "auditPeriodAll",
-    "auditPeriod24h",
-    "auditPeriod7d",
-    "auditPeriod30d",
-    "auditPerson",
-    "auditPersonClear",
-    "auditPersonPick",
-    "auditFields",
-    "auditRevision",
-    "act_users_create",
-    "act_users_update",
-    "act_users_delete",
-    "act_users_set_active",
-    "act_users_archive",
-    "act_users_pin_generate",
-    "act_cards_add",
-    "act_cards_remove",
-    "act_profiles_settings_update",
-    "act_profiles_settings_apply",
-    "act_bulk_group_policy",
-    "act_stations_test_unlock",
-    "act_stations_technical_update",
-    "act_stations_rescan",
-    "act_stations_clock_refresh",
-    "act_conflicts_resolve",
-    "act_sync_run",
-    "fld_display_name",
-    "fld_employee_no",
-    "fld_valid_until",
-    "fld_valid_from",
-    "fld_phone",
-    "fld_groups",
-    "fld_stations",
-    "fld_photo",
-    "fld_pin",
-    "fld_cards",
-    "fld_profile",
-    "fld_access_timing",
-    "fld_active",
-    "fld_archived",
-    "groupsSub",
-    "groupsEmpty",
-    "groupOff",
-    "ruleAll",
-    "ruleNone",
-    "ruleUnknown",
-    "fieldsCount",
-    "fieldsEmpty",
-    "revisionNow",
-    "photoOn",
-    "photoOff",
-    "colField",
-    "colType",
-    "colOptions",
-    "colFlags",
-    "flagRequired",
-    "flagOptional",
-    "flagUnique",
-    "flagDepends",
-    "flagDisabled",
-    "ftype_text",
-    "ftype_select",
-    "ftype_number",
-    "ftype_date",
-    "ftype_unknown",
-    "versionsSub",
-    "versionsEmpty",
-    "versionsRetained",
-    "colRevision",
-    "colSaved",
-    "colChange",
-    "colFieldChanges",
-    "colGroupChanges",
-    "versionCurrent",
-    "ver_baseline",
-    "ver_system",
-    "ver_profiles_settings_update",
-    "ver_bulk_group_policy",
-    "ver_platform_lifecycle_apply",
-    "ver_other",
-    "policyOn",
-    "policyOff",
-    "pol_event_portrait_audit_text",
-    "pol_event_portrait_sensitive_text",
-    "pol_employee_no_sensitive_text",
-    "pol_sync_errors_everyone_text",
-    "sConnecting",
-    "sUnavailableHint",
-    "sRate",
-    "sRateHint"
-   ]
-  },
-  {
-   "name": "i18n/wiskey-profiles",
-   "keys": 201,
-   "missing": 201,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 201,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "title",
-    "sub",
-    "entry",
-    "entryHint",
-    "loading",
-    "loadError",
-    "retry",
-    "reload",
-    "noPermission",
-    "noPermissionHint",
-    "unsupported",
-    "partUnsupported",
-    "tabDraft",
-    "tabVersions",
-    "tabSuggest",
-    "revision",
-    "draftOf",
-    "rollbackOf",
-    "dirty",
-    "clean",
-    "discard",
-    "preview",
-    "previewing",
-    "groupsTitle",
-    "groupsHint",
-    "fieldsTitle",
-    "fieldsHint",
-    "settingsTitle",
-    "photoEnabled",
-    "addGroup",
-    "addField",
-    "newGroupLabel",
-    "newFieldLabel",
-    "label",
-    "id",
-    "enabled",
-    "disabled",
-    "stations",
-    "noStations",
-    "stationsNone",
-    "stationOffline",
-    "stationNoLock",
-    "stationUnknown",
-    "type",
-    "type_text",
-    "type_select",
-    "type_number",
-    "type_date",
-    "required",
-    "unique",
-    "options",
-    "optionsHint",
-    "dependsOn",
-    "dependsNone",
-    "dependsValue",
-    "conditional",
-    "newItem",
-    "edited",
-    "remove",
-    "moveUp",
-    "moveDown",
-    "p_label",
-    "p_id",
-    "p_duplicate",
-    "p_option",
-    "p_empty",
-    "p_too_many",
-    "p_parent",
-    "p_cycle",
-    "p_value",
-    "p_unknown_station",
-    "p_station",
-    "p_shape",
-    "p_type",
-    "problemsTitle",
-    "previewTitle",
-    "previewSub",
-    "changesTitle",
-    "impactPeople",
-    "impactStations",
-    "impactOffline",
-    "impactNone",
-    "impactPeopleCount",
-    "impactListed",
-    "impactTruncated",
-    "gains",
-    "loses",
-    "noChange",
-    "overrides",
-    "fieldsImpact",
-    "fieldChecked",
-    "fieldMissing",
-    "fieldInvalid",
-    "fieldDuplicates",
-    "fieldNewlyApplicable",
-    "fieldTemplates",
-    "blocked",
-    "deviceWrites",
-    "expiresAt",
-    "expired",
-    "confirmApply",
-    "confirmTitle",
-    "confirmText",
-    "confirmTextNoAccess",
-    "confirmCheck",
-    "cancel",
-    "back",
-    "saving",
-    "resultSaved",
-    "resultReadbackOk",
-    "resultReadbackOther",
-    "resultReadbackFail",
-    "resultSync",
-    "resultNoSync",
-    "resultChanged",
-    "resultRepeated",
-    "resultNotSaved",
-    "resultUnknown",
-    "resultUnknownText",
-    "check",
-    "checking",
-    "checkApplied",
-    "checkNotApplied",
-    "checkElsewhere",
-    "newPreview",
-    "done",
-    "versionsTitle",
-    "versionsHint",
-    "versionCurrent",
-    "versionBaseline",
-    "versionChanges",
-    "versionAction_baseline",
-    "versionAction_system",
-    "versionAction_profiles/settings_update",
-    "versionAction_bulk/group_policy",
-    "versionAction_platform/lifecycle_apply",
-    "compare",
-    "compareWith",
-    "compareTitle",
-    "compareEmpty",
-    "rollback",
-    "rollbackTitle",
-    "rollbackHint",
-    "note_photo_not_versioned",
-    "note_templates_not_versioned",
-    "note_disabled_not_removed",
-    "note_restored",
-    "note_missing_now",
-    "olderVersions",
-    "newerVersions",
-    "versionsEmpty",
-    "suggestTitle",
-    "suggestHint",
-    "suggestSearch",
-    "suggestSearchPh",
-    "suggestNoPeople",
-    "suggestFields",
-    "suggestNoFields",
-    "suggestRun",
-    "suggestNone",
-    "suggestMembers",
-    "suggestDoors",
-    "suggestBlocked",
-    "suggestValueHidden",
-    "suggestOpenPerson",
-    "prop_label",
-    "prop_enabled",
-    "prop_type",
-    "prop_required",
-    "prop_unique",
-    "prop_options",
-    "prop_depends_on",
-    "prop_station_ids",
-    "prop_photo_enabled",
-    "state_added",
-    "state_removed",
-    "state_changed",
-    "yes",
-    "no",
-    "none",
-    "kind_fields",
-    "kind_groups",
-    "kind_settings",
-    "e_profiles_revision_conflict",
-    "e_profiles_review_expired",
-    "e_profiles_review_stale",
-    "e_profiles_not_unique",
-    "e_profiles_invalid_draft",
-    "e_profiles_definition_removed",
-    "e_profiles_unmanaged_lock",
-    "e_profiles_outcome_pending",
-    "e_profiles_forbidden",
-    "e_profiles_reauth_required",
-    "e_profiles_unsupported",
-    "e_profiles_review_not_found",
-    "e_profiles_version_not_found",
-    "e_profiles_already_current",
-    "e_network",
-    "outcome_not_sent",
-    "outcome_refused",
-    "outcome_unknown"
-   ]
-  },
-  {
-   "name": "i18n/notices",
-   "keys": 454,
-   "missing": 187,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 187,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "emptyManager",
-    "forbidden",
-    "pinned",
-    "floorsN",
-    "groupsN",
-    "rolesN",
-    "untilArchived",
-    "continueEdit",
-    "composeSub",
-    "audOutOfScope",
-    "boardOff",
-    "noBoards",
-    "fDwell",
-    "fDwellHint",
-    "fWhen",
-    "fWhenHint",
-    "pushTick",
-    "pushHint",
-    "pushTv",
-    "pushNoPerm",
-    "pushDone",
-    "published",
-    "savedDraft",
-    "saved",
-    "archived",
-    "deleted",
-    "readSheet",
-    "readN",
-    "unreadN",
-    "recipients",
-    "readsNamesHint",
-    "setSub",
-    "setForbidden",
-    "moduleCard",
-    "moduleOn",
-    "moduleOff",
-    "turnOn",
-    "offBody",
-    "kvWrite",
-    "kvWriteV",
-    "kvPush",
-    "kvPushV",
-    "kvBoards",
-    "kvBoardsV",
-    "defaultsCard",
-    "dDays",
-    "dDaysUnit",
-    "dSeverity",
-    "dReads",
-    "dReadsNames",
-    "dReadsCounts",
-    "dPush",
-    "dPushSev",
-    "dPushAlways",
-    "dPushNever",
-    "dPushHint",
-    "dRetention",
-    "dWeather",
-    "dWeatherNone",
-    "dBuilding",
-    "dBuildingHint",
-    "dOrigin",
-    "dOriginHint",
-    "dRemote",
-    "dCustomFeeds",
-    "companyLogo",
-    "logoUpload",
-    "logoRemove",
-    "logoNone",
-    "logoWhere",
-    "boardsCount",
-    "firstBoard",
-    "boardsEmpty",
-    "bName",
-    "bSlug",
-    "bSlugHint",
-    "bState",
-    "bAddress",
-    "bItems",
-    "bSeen",
-    "bOnline",
-    "bNever",
-    "bDisabled",
-    "bIdle",
-    "open",
-    "boardEnabled",
-    "deleteBoard",
-    "deleteBoardQ",
-    "linkTitle",
-    "linkSub",
-    "linkSubNew",
-    "linkHint",
-    "linkLan",
-    "linkOnce",
-    "copied",
-    "done",
-    "tplCard",
-    "tplLive",
-    "tpl1",
-    "tpl1d",
-    "tpl2",
-    "tpl2d",
-    "tpl3",
-    "tpl3d",
-    "fullScreen",
-    "remoteHint",
-    "sendToTvs",
-    "theme",
-    "themeDay",
-    "themeNight",
-    "themeAuto",
-    "dayHours",
-    "dayHoursHint",
-    "orient",
-    "orAuto",
-    "orLand",
-    "orPort",
-    "fontSize",
-    "fsS",
-    "fsM",
-    "fsL",
-    "lang",
-    "place",
-    "nightDim",
-    "nightFrom",
-    "nightTo",
-    "nightLevel",
-    "burnIn",
-    "saverLabel",
-    "saver_off",
-    "saver_wash",
-    "saver_cycle",
-    "saver_wave",
-    "saver_ambient",
-    "logosLabel",
-    "logos_a",
-    "logos_b",
-    "logos_c",
-    "smplwiseLogo",
-    "whatShown",
-    "blkClock",
-    "blkHebdate",
-    "blkWelcome",
-    "blkWeather",
-    "blkWeatherNoEntity",
-    "hoursAhead",
-    "blkNews",
-    "blkNewsOff",
-    "feedPick",
-    "feedCustom",
-    "add",
-    "remove",
-    "speed",
-    "spSlow",
-    "spNormal",
-    "spFast",
-    "blkNotices",
-    "mode",
-    "modeRotation",
-    "modeAll",
-    "modeFocus",
-    "rotateEvery",
-    "seconds",
-    "rotateHint",
-    "urgent",
-    "urgStage",
-    "urgStay",
-    "urgFull",
-    "hold",
-    "holdNone",
-    "holdHint",
-    "dwellNote",
-    "notBuilt",
-    "boardNotices",
-    "removeFromBoard",
-    "addToBoard",
-    "boardEmpty",
-    "boardEmptyHint",
-    "kvTemplate",
-    "kvSeen",
-    "kvCreated",
-    "kvRotated",
-    "back",
-    "saveError",
-    "agoSec",
-    "agoMin",
-    "agoHour"
-   ]
-  },
-  {
-   "name": "i18n/wiskey-triage",
-   "keys": 142,
-   "missing": 142,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 142,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "title",
-    "subtitle",
-    "link",
-    "tabs.conflicts",
-    "tabs.alerts",
-    "openFull",
-    "refresh",
-    "loading",
-    "readOnly",
-    "conflicts.heading",
-    "conflicts.empty",
-    "conflicts.kind.person",
-    "conflicts.kind.removal",
-    "conflicts.kind.revocation",
-    "conflicts.kind.other",
-    "conflicts.state.conflict",
-    "conflicts.state.error",
-    "conflicts.state.pending",
-    "conflicts.state.delete_pending",
-    "conflicts.state.other",
-    "conflicts.person",
-    "conflicts.station",
-    "conflicts.hiddenPerson",
-    "conflicts.noReview",
-    "conflicts.review",
-    "conflicts.lastError",
-    "drawer.heading",
-    "drawer.reading",
-    "drawer.intro",
-    "drawer.reviewed",
-    "drawer.managed",
-    "drawer.device",
-    "drawer.missing",
-    "drawer.differences",
-    "drawer.noDifferences",
-    "drawer.plan",
-    "drawer.affected",
-    "drawer.affectedHint",
-    "drawer.unverified",
-    "drawer.choose",
-    "drawer.notAllowed",
-    "drawer.again",
-    "drawer.close",
-    "drawer.field.presence",
-    "drawer.field.display_name",
-    "drawer.field.user_type",
-    "drawer.field.validity",
-    "drawer.field.door_rights",
-    "drawer.field.pin",
-    "drawer.field.schedule",
-    "drawer.field.privileged",
-    "drawer.field.other_credentials",
-    "drawer.field.cards",
-    "drawer.field.other",
-    "drawer.planPerson.create",
-    "drawer.planPerson.delete",
-    "drawer.planPerson.update",
-    "drawer.planPerson.none",
-    "drawer.planPerson.unknown",
-    "drawer.planPin.none",
-    "drawer.planPin.remove",
-    "drawer.planPin.set",
-    "drawer.planPin.change",
-    "drawer.planPin.unknown",
-    "drawer.side.name",
-    "drawer.side.validity",
-    "drawer.side.doors",
-    "drawer.side.pin",
-    "drawer.side.cards",
-    "drawer.side.yes",
-    "drawer.side.no",
-    "drawer.side.unknown",
-    "drawer.side.always",
-    "direction.central.label",
-    "direction.central.hint",
-    "direction.device.label",
-    "direction.device.hint",
-    "direction.delete.label",
-    "direction.delete.hint",
-    "reason.deletion_not_pending",
-    "reason.ownership_missing",
-    "reason.user_not_found",
-    "reason.device_user_missing",
-    "reason.unknown",
-    "confirm.heading",
-    "confirm.body",
-    "confirm.ok",
-    "confirm.cancel",
-    "status.sending",
-    "status.sent",
-    "status.acknowledged",
-    "status.completed",
-    "status.failed",
-    "status.not_sent",
-    "status.unknown",
-    "status.stale",
-    "statusShort.sending",
-    "statusShort.sent",
-    "statusShort.acknowledged",
-    "statusShort.completed",
-    "statusShort.failed",
-    "statusShort.not_sent",
-    "statusShort.unknown",
-    "statusShort.stale",
-    "alerts.heading",
-    "alerts.empty",
-    "alerts.showSnoozed",
-    "alerts.kind.offline",
-    "alerts.kind.sync_stalled",
-    "alerts.kind.sync_conflict",
-    "alerts.kind.sync_error",
-    "alerts.kind.event_gap",
-    "alerts.kind.clock_drift",
-    "alerts.kind.maintenance",
-    "alerts.kind.other",
-    "alerts.severity.error",
-    "alerts.severity.warning",
-    "alerts.since",
-    "alerts.snoozedUntil",
-    "alerts.snooze",
-    "alerts.restore",
-    "alerts.stationSnooze",
-    "alerts.noAck",
-    "alerts.durationLabel",
-    "alerts.reasonLabel",
-    "alerts.duration.15",
-    "alerts.duration.60",
-    "alerts.duration.240",
-    "alerts.duration.1440",
-    "alerts.duration.10080",
-    "alerts.reasons.planned_maintenance",
-    "alerts.reasons.network_work",
-    "alerts.reasons.investigating",
-    "alerts.confirmSnooze",
-    "alerts.confirmRestore",
-    "alerts.confirmBody",
-    "notify.label",
-    "notify.hint",
-    "notify.on",
-    "notify.off",
-    "notify.noEdit",
-    "feedDown"
-   ]
-  },
-  {
-   "name": "i18n/maintenance",
-   "keys": 409,
-   "missing": 132,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 129,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "cat_elevator",
-    "cat_generator",
-    "cat_fire",
-    "cat_kitchen_hood",
-    "cat_electrical",
-    "cat_pumps",
-    "cat_hvac",
-    "cat_water",
-    "cat_safety",
-    "cat_other",
-    "doc_insurance",
-    "doc_electrician_license",
-    "doc_work_at_height",
-    "doc_other",
-    "device",
-    "requestLast",
-    "ticketErr_tickets_off",
-    "ticketErr_department_unavailable",
-    "renewedToast",
-    "doneToast",
-    "pausedToast",
-    "resumedToast",
-    "removedToast",
-    "vendorSub",
-    "vendorTasks",
-    "noDocuments",
-    "insuranceExpired",
-    "docExpired",
-    "docUntil",
-    "vendorOk",
-    "vendorNoDocs",
-    "noValidInsurance",
-    "noValidDoc",
-    "needsApproval",
-    "formNewCert",
-    "formNewDoc",
-    "formNewPlan",
-    "formNewRound",
-    "fKind",
-    "fCategory",
-    "fPlace",
-    "fPlaceNone",
-    "fVendor",
-    "fVendorNone",
-    "fDocType",
-    "fOwner",
-    "fOwnerNone",
-    "fValidUntil",
-    "fFirstDate",
-    "fInterval",
-    "fIntervalNone",
-    "fEvery",
-    "fUnit_day",
-    "fUnit_week",
-    "fUnit_month",
-    "fUnit_year",
-    "fLead",
-    "fLeadHint",
-    "fNotes",
-    "fChecklist",
-    "fAddItem",
-    "fItemLabel",
-    "fItemKind",
-    "fItemCheck",
-    "fItemNumber",
-    "fItemText",
-    "fItemMin",
-    "fItemMax",
-    "fItemRequired",
-    "fItemRemove",
-    "fAutoTicket",
-    "fDepartment",
-    "fDepartmentPick",
-    "fRequired",
-    "fBadDate",
-    "fBadNumber",
-    "fNeedItems",
-    "fRangeOrder",
-    "fVendorExpired",
-    "value",
-    "noteField",
-    "requestOpened",
-    "pointN",
-    "issuesN",
-    "issues1",
-    "issues0",
-    "runNote",
-    "runDone",
-    "runCancelled",
-    "missingRequired",
-    "runReadOnly",
-    "runAlreadyOpen",
-    "required",
-    "tagFor",
-    "tagTask",
-    "tagDevice",
-    "tagLabel",
-    "tagMedium",
-    "tagCreate",
-    "tagRevokeConfirm",
-    "tagRevoked",
-    "tagCreated",
-    "deviceSuffix",
-    "copyLink",
-    "copied",
-    "tagUrlHint",
-    "tagNoBase",
-    "scanTitle",
-    "scanNotFoundHint",
-    "scanOpen",
-    "scanDeviceTasks",
-    "scanOpenRequests",
-    "scanStartRound",
-    "setModule",
-    "setModuleHint",
-    "setLeads",
-    "setLeadsHint",
-    "setLead_certificate",
-    "setLead_preventive",
-    "setLead_round",
-    "setLead_vendor_document",
-    "setTagUrl",
-    "setTagUrlHint",
-    "setNotify",
-    "setPerms",
-    "setBadLead",
-    "setBadUrl",
-    "setForbidden",
-    "daysUnit"
-   ]
-  },
-  {
-   "name": "i18n/schedule-editor",
-   "keys": 144,
-   "missing": 130,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 128,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "assess",
-    "editorNew",
-    "editorEdit",
-    "name",
-    "namePlaceholder",
-    "weekTitle",
-    "gridHint",
-    "addWindow",
-    "removeWindow",
-    "from",
-    "to",
-    "closedDay",
-    "copyTo",
-    "copyAll",
-    "holidaysTitle",
-    "holidaysHint",
-    "addHoliday",
-    "holidayName",
-    "holidayFrom",
-    "holidayTo",
-    "holidayClosed",
-    "removeHoliday",
-    "summaryHours",
-    "checkTitle",
-    "checkAt",
-    "checkRun",
-    "checkOpen",
-    "checkClosed",
-    "sourceWeekly",
-    "sourceHoliday",
-    "checkNeeded",
-    "checkStale",
-    "checkOk",
-    "saving",
-    "confirmSaveTitle",
-    "confirmSaveNew",
-    "confirmSaveEdit",
-    "affectsPlans",
-    "confirmDeleteTitle",
-    "confirmDelete",
-    "confirmSend",
-    "saved",
-    "deleted",
-    "importTitle",
-    "importPick",
-    "importPreview",
-    "importAppend",
-    "importApply",
-    "importDone",
-    "importTooLarge",
-    "importRow",
-    "assessTitle",
-    "pickStation",
-    "assessRun",
-    "assessFits",
-    "assessExceeds",
-    "assessUnknown",
-    "limitRow",
-    "baselineTitle",
-    "baselineState",
-    "baselineSave",
-    "baselineClear",
-    "baselineSaved",
-    "baselineCleared",
-    "deployTitle",
-    "deployStations",
-    "deployStep1",
-    "deployStep2",
-    "deployStep3",
-    "slotsTitle",
-    "slotsHint",
-    "slotTemplate",
-    "slotWeekly",
-    "slotGroup",
-    "slotHoliday",
-    "range",
-    "readStation",
-    "reading",
-    "previewRun",
-    "previewAll",
-    "impactTitle",
-    "impactStation",
-    "impactDoors",
-    "impactNoDoors",
-    "impactPeople",
-    "impactPeopleUnknown",
-    "conflictsTitle",
-    "externalRef",
-    "activeRes",
-    "blockersTitle",
-    "savePlans",
-    "plansSaved",
-    "deployNow",
-    "confirmDeployTitle",
-    "confirmDeploy",
-    "progressTitle",
-    "progressDone",
-    "progressRunning",
-    "writesOff",
-    "jobsTitle",
-    "jobsEmpty",
-    "jobRecheck",
-    "jobCancel",
-    "jobArchive",
-    "plansTitle",
-    "planRecheck",
-    "planDelete",
-    "planClaim",
-    "planRelease",
-    "claimed",
-    "confirmPlanDelete",
-    "confirmClaimTitle",
-    "confirmClaim",
-    "confirmRelease",
-    "confirmRecheck",
-    "confirmJob",
-    "done",
-    "st_queued",
-    "st_refused",
-    "st_unknown",
-    "st_not_sent",
-    "notSent",
-    "unknownOutcome",
-    "noStations",
-    "offline",
-    "stationsPicked",
-    "stale",
-    "forbidden"
-   ]
-  },
-  {
-   "name": "i18n/access-writes",
-   "keys": 110,
-   "missing": 110,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 110,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "actions.open",
-    "actions.heading",
-    "act.edit",
-    "act.deactivate",
-    "act.activate",
-    "act.archive",
-    "act.restore",
-    "act.temporary_cancel",
-    "act.cards",
-    "act.photo",
-    "act.delete",
-    "confirm.deactivate",
-    "confirm.activate",
-    "confirm.archive",
-    "confirm.restore",
-    "confirm.temporary_cancel",
-    "confirm.delete",
-    "confirm.remove_card",
-    "confirm.remove_photo",
-    "reason.label",
-    "reason.visit_completed",
-    "reason.visit_cancelled",
-    "reason.access_no_longer_needed",
-    "btn.confirm",
-    "btn.cancel",
-    "btn.close",
-    "btn.check",
-    "btn.add_card",
-    "btn.remove",
-    "btn.read_card",
-    "btn.choose_photo",
-    "btn.save_photo",
-    "btn.remove_photo",
-    "btn.working",
-    "res.saved",
-    "res.pending",
-    "res.deleted",
-    "res.still_pending",
-    "res.unknown",
-    "res.not_sent",
-    "res.refused",
-    "err.scope",
-    "err.field",
-    "err.gone",
-    "err.revision",
-    "err.archive_state",
-    "err.archived",
-    "err.not_temporary",
-    "err.already_inactive",
-    "err.card_conflict",
-    "err.card_gone",
-    "err.card_invalid",
-    "err.approval",
-    "err.pin_interactive",
-    "err.busy",
-    "err.unavailable",
-    "err.duplicate",
-    "err.expired",
-    "err.forbidden",
-    "err.invalid",
-    "err.photo_disabled",
-    "err.guest",
-    "err.generic",
-    "photo.processing",
-    "photo.too_big",
-    "photo.not_image",
-    "photo.none",
-    "photo.preview",
-    "cards.number",
-    "cards.label",
-    "cards.none",
-    "cards.loading",
-    "cards.disabled",
-    "timing.heading",
-    "timing.mode",
-    "timing.none",
-    "timing.weekly",
-    "timing.dates",
-    "timing.days",
-    "timing.dates_label",
-    "timing.add_date",
-    "timing.periods",
-    "timing.add_period",
-    "timing.from",
-    "timing.to",
-    "timing.zone",
-    "timing.enforce",
-    "timing.enforce_draft",
-    "timing.enforce_ha",
-    "timing.native_locked",
-    "timing.err.days",
-    "timing.err.dates",
-    "timing.err.periods",
-    "timing.err.order",
-    "timing.err.overlap",
-    "timing.err.zone",
-    "day.Sunday",
-    "day.Monday",
-    "day.Tuesday",
-    "day.Wednesday",
-    "day.Thursday",
-    "day.Friday",
-    "day.Saturday",
-    "cat.label",
-    "cat.field",
-    "cat.staff",
-    "cat.visitor",
-    "cat.contractor",
-    "cat.responsible",
-    "cat.purpose"
-   ]
-  },
-  {
-   "name": "i18n/station-people",
-   "keys": 102,
-   "missing": 102,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 102,
-   "hasTable": false,
-   "devMarked": false,
-   "gapKeys": [
-    "open",
-    "title",
-    "intro",
-    "refresh",
-    "reading",
-    "reading_station",
-    "search",
-    "show_ignored",
-    "empty",
-    "empty_filtered",
-    "no_stations",
-    "feed_down",
-    "count",
-    "count_one",
-    "read_at",
-    "cached",
-    "col_name",
-    "col_number",
-    "col_stations",
-    "col_credentials",
-    "col_first_seen",
-    "no_name",
-    "two_names",
-    "pin",
-    "card",
-    "cards",
-    "face",
-    "none",
-    "hidden",
-    "hidden_hint",
-    "ignored_badge",
-    "station_off",
-    "station_numbers_hidden",
-    "reason_offline",
-    "reason_busy",
-    "reason_forbidden",
-    "reason_unsupported",
-    "reason_generic",
-    "act_adopt",
-    "act_ignore",
-    "act_unignore",
-    "act_delete",
-    "actions_for",
-    "adopt_title",
-    "adopt_text",
-    "adopt_link",
-    "adopt_link_hidden",
-    "adopt_checking",
-    "adopt_maybe",
-    "adopt_maybe_hidden",
-    "adopt_maybe_accept",
-    "adopt_check_failed",
-    "adopt_blocked",
-    "adopt_go",
-    "ignore_title",
-    "ignore_text",
-    "unignore_title",
-    "unignore_text",
-    "delete_title",
-    "delete_text",
-    "delete_type",
-    "delete_go",
-    "stations_list",
-    "confirm",
-    "cancel",
-    "close",
-    "working",
-    "res_title",
-    "res_ok",
-    "res_refused",
-    "res_unknown",
-    "res_not_sent",
-    "res_all_ok",
-    "res_partial",
-    "res_failed",
-    "res_unknown_all",
-    "res_pending",
-    "res_stored_only",
-    "res_open_person",
-    "imp_unsupported_credentials",
-    "imp_unmanaged_lock",
-    "imp_schedule_unverified",
-    "imp_pin_device_managed",
-    "imp_local_validity_needs_conversion",
-    "imp_device_user_missing",
-    "imp_ignored",
-    "imp_review_stale",
-    "imp_unknown",
-    "dup_strip",
-    "dup_show",
-    "dup_hide",
-    "dup_name",
-    "dup_phone",
-    "dup_profile",
-    "dup_more",
-    "dup_partial",
-    "dup_resolve",
-    "pin_checking",
-    "pin_free",
-    "pin_taken",
-    "pin_check_failed",
-    "pin_check_limited"
-   ]
-  },
-  {
-   "name": "i18n/fleet-report",
-   "keys": 120,
-   "missing": 99,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 99,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "keywords",
-    "sending",
-    "sentOk",
-    "sentFail",
-    "saveFail",
-    "stopNote",
-    "offSub",
-    "offDo",
-    "offLast",
-    "offLastNone",
-    "stoppedSent",
-    "stoppedFail",
-    "onSub",
-    "onFirstTitle",
-    "onFirstSub",
-    "onDo",
-    "onFirstDo",
-    "nourlSub",
-    "nourlDo",
-    "nourlBad",
-    "nourlLast",
-    "failSub",
-    "failDo",
-    "readyTitleNone",
-    "readyTitle",
-    "readyTitleOne",
-    "readySub",
-    "readyAllOk",
-    "readyUnavailable",
-    "sentCount",
-    "sentSub",
-    "sentNever",
-    "sentIntro",
-    "techNames",
-    "neverTitle",
-    "neverX",
-    "sentHeader",
-    "colWhen",
-    "colWhat",
-    "colSeq",
-    "seqHint",
-    "logEmpty",
-    "logOk",
-    "logRejected",
-    "logUnreachable",
-    "logRefused",
-    "logStop",
-    "exactTitle",
-    "exactHint",
-    "exactNow",
-    "exactLast",
-    "exactLoad",
-    "exactNone",
-    "techReady",
-    "techAllSet",
-    "techMissing",
-    "whereTo",
-    "whereToHint",
-    "isSet",
-    "notSet",
-    "invalid",
-    "signature",
-    "signatureHint",
-    "signatureNone",
-    "signatureOk",
-    "installId",
-    "installIdHint",
-    "enrollCode",
-    "enrollHint",
-    "copyFail",
-    "silentLabel",
-    "silentHint",
-    "hoursUnit",
-    "silentSave",
-    "silentRange",
-    "silentSaved",
-    "g_report",
-    "g_report_x",
-    "g_versions",
-    "g_versions_x",
-    "g_components",
-    "g_components_x",
-    "g_counts",
-    "g_counts_x",
-    "g_alerts",
-    "g_alerts_x",
-    "g_disk",
-    "g_backup",
-    "g_update",
-    "g_readiness",
-    "g_readiness_x",
-    "ty_const",
-    "ty_id",
-    "ty_num",
-    "ty_time",
-    "ty_enum",
-    "ty_bool",
-    "ty_version",
-    "ty_list"
-   ]
-  },
-  {
-   "name": "i18n/access-events",
-   "keys": 163,
-   "missing": 93,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 93,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "type_access_granted",
-    "type_access_denied",
-    "type_attempt_limit",
-    "type_unlock_record",
-    "type_door_unlocked",
-    "type_door_locked",
-    "type_contact_open",
-    "type_contact_closed",
-    "type_unlock_exception",
-    "type_door_not_opened",
-    "type_door_not_closed",
-    "type_ring",
-    "type_unknown",
-    "long_access_granted",
-    "long_access_denied",
-    "long_attempt_limit",
-    "long_unlock_record",
-    "long_door_unlocked",
-    "long_door_locked",
-    "long_contact_open",
-    "long_contact_closed",
-    "long_unlock_exception",
-    "long_door_not_opened",
-    "long_door_not_closed",
-    "long_ring",
-    "long_unknown",
-    "emptyMore",
-    "stateNotConfigured",
-    "stateConnecting",
-    "stateUnavailable",
-    "stateUnavailableHint",
-    "stateNotInstalled",
-    "stateRefused",
-    "stateError",
-    "stateErrorHint",
-    "stateRate",
-    "stateRateHint",
-    "stateUnsupported",
-    "toSettings",
-    "cursorExpired",
-    "reloadFromStart",
-    "historyGap",
-    "storageFailed",
-    "crTitle",
-    "crFrom",
-    "crUntil",
-    "crZone",
-    "crApply",
-    "crCancel",
-    "dType",
-    "dTimeSource",
-    "dReceived",
-    "tsDevice",
-    "tsReceived",
-    "dName",
-    "dEmployee",
-    "dPictureAlt",
-    "dPictureLoading",
-    "dPictureFail",
-    "dPictureGone",
-    "dRecordKind",
-    "dIdentity",
-    "dOrigin",
-    "dDelay",
-    "dDelaySeconds",
-    "dRecovered",
-    "dDetailFail",
-    "identity_identified",
-    "identity_id_only",
-    "identity_identity_unavailable",
-    "origin_history_query",
-    "origin_call_poll",
-    "origin_device_time_missing",
-    "origin_device_time_ahead",
-    "origin_delayed_stream",
-    "origin_device_not_current",
-    "origin_live_stream",
-    "exDoneNoCount",
-    "exAgain",
-    "exStation",
-    "exStationNeeded",
-    "exStationPick",
-    "exUnsupported",
-    "exUnavailable",
-    "exForbidden",
-    "exInvalid",
-    "exOther",
-    "prTitle",
-    "prPeriod",
-    "prStation",
-    "prFooter",
-    "prUnavailable",
-    "prNothing"
-   ]
-  },
-  {
-   "name": "i18n/access-messaging",
-   "keys": 102,
-   "missing": 81,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 80,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "segment",
-    "segments_label",
-    "title",
-    "sub",
-    "loading",
-    "load_failed",
-    "retry",
-    "service.connected",
-    "service.account",
-    "service.not_connected",
-    "service.unknown",
-    "service.unsupported",
-    "service.account_required",
-    "service.account_missing",
-    "service.no_account",
-    "enabled.title",
-    "enabled.on",
-    "enabled.off",
-    "free.title",
-    "free.on",
-    "free.off",
-    "bulk.title",
-    "bulk.hint",
-    "rate.title",
-    "rate.hint",
-    "org.title",
-    "org.hint",
-    "account.title",
-    "account.only",
-    "account.choose",
-    "templates.title",
-    "templates.sub",
-    "templates.empty",
-    "template.label",
-    "template.body",
-    "template.add",
-    "template.remove",
-    "template.insert_name",
-    "template.insert_org",
-    "template.new",
-    "consent.title",
-    "consent.sub",
-    "consent.switch",
-    "consent.on",
-    "consent.off",
-    "consent.wait",
-    "consent.wait_hint",
-    "consent.language",
-    "consent.lang.he",
-    "consent.lang.en",
-    "consent.lang.ar",
-    "consent.lang.ru",
-    "consent.wa_template",
-    "consent.wa_template_hint",
-    "consent.wa_language",
-    "consent.rules",
-    "consent.problem.module_off",
-    "consent.problem.public_page",
-    "consent.problem.key",
-    "err.bad_name",
-    "err.bad_language",
-    "save",
-    "saving",
-    "revert",
-    "saved",
-    "unsaved",
-    "invalid",
-    "save_failed",
-    "conflict",
-    "reload",
-    "err.empty",
-    "err.too_long",
-    "err.control_chars",
-    "err.unknown_placeholder",
-    "err.bad_braces",
-    "err.too_many_placeholders",
-    "err.organization_missing",
-    "err.duplicate_label",
-    "err.too_many",
-    "err.other"
-   ]
-  },
-  {
-   "name": "i18n/messaging-accounts",
-   "keys": 100,
-   "missing": 78,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 76,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "keywords",
-    "loading",
-    "forbidden",
-    "retry",
-    "refreshed",
-    "noAccounts",
-    "wsDown",
-    "manualTag",
-    "notInMirror",
-    "usedBy",
-    "unused",
-    "sends",
-    "lastSend",
-    "neverSent",
-    "noUses",
-    "deptOwn",
-    "installDefault",
-    "inheritDefault",
-    "deptsToggle",
-    "queued",
-    "w_shared_module",
-    "w_shared_outside",
-    "w_required_unmapped",
-    "w_maybe_same_number",
-    "w_down_disconnected",
-    "w_down_missing",
-    "w_down_unknown",
-    "sharedChip",
-    "manualRow",
-    "manualSub",
-    "manualTitle",
-    "manualValue",
-    "manualValueSub",
-    "manualStatus",
-    "labelField",
-    "add",
-    "selectHint",
-    "sharedOutside",
-    "sharedOutsideSub",
-    "pacingSub",
-    "pacingSummary",
-    "p_min_gap_s",
-    "p_jitter_s",
-    "p_per_hour",
-    "p_per_day",
-    "p_per_recipient_hour",
-    "p_hold_when_down_min",
-    "remove",
-    "removeInUse",
-    "testTitle",
-    "testTarget",
-    "testSend",
-    "testOff",
-    "testConfirmLine",
-    "testQueued",
-    "ch_whatsapp",
-    "ch_whatsapp_sub",
-    "ch_email",
-    "ch_email_sub",
-    "ch_inapp",
-    "ch_inapp_sub",
-    "cs_active",
-    "cs_down",
-    "cs_not_configured",
-    "cs_idle",
-    "discard",
-    "dirty",
-    "saved",
-    "readOnly",
-    "confirmTitle",
-    "confirmLine",
-    "confirmSave",
-    "err_manual_equals_discovered",
-    "err_manual_value_invalid",
-    "err_pacing_out_of_range",
-    "err_pacing_day_below_hour"
-   ]
-  },
-  {
-   "name": "i18n/access-schedules",
-   "keys": 97,
-   "missing": 70,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 69,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "offline",
-    "weekLabel",
-    "hoursUnknown",
-    "allDays",
-    "closed",
-    "datesTitle",
-    "checked",
-    "zone",
-    "st_active",
-    "st_paused",
-    "st_removing",
-    "st_error",
-    "st_draft",
-    "st_unknown",
-    "ex_idle",
-    "ex_opening",
-    "ex_held_acknowledged",
-    "ex_restoring",
-    "ex_unknown",
-    "kindHold",
-    "kindDraft",
-    "libraryEmpty",
-    "version",
-    "holidayOne",
-    "holidayMany",
-    "proposedFor",
-    "notProposed",
-    "plansEmpty",
-    "outdated",
-    "pl_current",
-    "pl_changed",
-    "pl_missing",
-    "pl_unavailable",
-    "pl_unknown",
-    "job_pending",
-    "job_queued",
-    "job_checking",
-    "job_blocked",
-    "job_ready",
-    "job_interrupted",
-    "job_failed",
-    "job_cancelled",
-    "job_verified",
-    "job_unknown",
-    "stationUnknown",
-    "unnamed",
-    "colDoor",
-    "colStation",
-    "colProgram",
-    "colKind",
-    "colWhen",
-    "colState",
-    "colCode",
-    "noDoors",
-    "loading",
-    "busy",
-    "stale",
-    "sNotConfigured",
-    "sUnavailable",
-    "sNotInstalled",
-    "sUnsupported",
-    "sConnecting",
-    "day_Sunday",
-    "day_Monday",
-    "day_Tuesday",
-    "day_Wednesday",
-    "day_Thursday",
-    "day_Friday",
-    "day_Saturday"
-   ]
-  },
-  {
-   "name": "i18n/access-parity",
-   "keys": 92,
-   "missing": 66,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 64,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "sub",
-    "subject",
-    "subjectMe",
-    "window",
-    "window24",
-    "window168",
-    "notRun",
-    "scr_stations",
-    "scr_people",
-    "scr_events",
-    "scr_groups",
-    "scr_schedules",
-    "scr_alerts",
-    "why_station_scope",
-    "why_installation_wide",
-    "why_permission",
-    "why_mismatch",
-    "why_partial",
-    "expected",
-    "notComplete",
-    "openClassic",
-    "ranFor",
-    "windowNote",
-    "summary",
-    "checklistSub",
-    "checklistClear",
-    "checklistDone",
-    "chk_overview",
-    "chk_stations",
-    "chk_people",
-    "chk_events",
-    "chk_schedules",
-    "item_stations_count",
-    "item_ringing",
-    "item_doors",
-    "item_technical",
-    "item_people_count",
-    "item_sample_person",
-    "item_last_events",
-    "item_event_filters",
-    "item_schedule",
-    "stationEvents",
-    "dispSub",
-    "dispCallHint",
-    "dispCallHintText",
-    "dispCallHintEveryone",
-    "dispCallHintCall",
-    "dispTalk",
-    "dispTalkText",
-    "dispTalkClassic",
-    "dispTalkHidden",
-    "dispAnnounce",
-    "dispAnnounceText",
-    "dispAnnounceScope",
-    "dispAnnounceStation",
-    "dispPhrases",
-    "dispPhrasesText",
-    "dispPhrasesCount",
-    "dispPhrasesBuiltIn",
-    "dispPhrasesDropped",
-    "dispSaved",
-    "dispReadOnly",
-    "dispRetry",
-    "dispLoading"
-   ]
-  },
-  {
-   "name": "i18n/local-identity",
-   "keys": 180,
-   "missing": 48,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 48,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "tabSub",
-    "off",
-    "add",
-    "colName",
-    "colUsername",
-    "colRole",
-    "colStatus",
-    "colLast",
-    "colFactor",
-    "status_pending_first_login",
-    "status_active",
-    "status_delayed",
-    "status_disabled",
-    "status_deleted",
-    "factorOn",
-    "factorOff",
-    "adminBadge",
-    "haBadge",
-    "displayName",
-    "email",
-    "notes",
-    "role",
-    "scope",
-    "adminNote",
-    "create",
-    "cancel",
-    "linkTitle",
-    "linkResetTitle",
-    "linkOnce",
-    "copy",
-    "copied",
-    "close",
-    "issueFirst",
-    "issueReset",
-    "temporary",
-    "localOnly",
-    "disable",
-    "enable",
-    "remove",
-    "removeConfirm",
-    "unlock",
-    "endSessions",
-    "changeRole",
-    "export",
-    "suggestAlso",
-    "empty",
-    "never",
-    "sessions"
-   ]
-  },
-  {
-   "name": "i18n/door-blocks",
-   "keys": 59,
-   "missing": 44,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 44,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "sub",
-    "retry",
-    "none",
-    "noEntities",
-    "noMatch",
-    "noItems",
-    "truncated",
-    "summary",
-    "summaryItems",
-    "sStale",
-    "usedBy",
-    "usedMore",
-    "releasedBy",
-    "toggle",
-    "itemFreed",
-    "itemBlocked",
-    "itemDevices",
-    "itemDevicesMore",
-    "itemDeviceReleased",
-    "itemStays",
-    "releaseTitle",
-    "releaseText",
-    "noteLabel",
-    "noteHint",
-    "reblockTitle",
-    "reblockText",
-    "noteOptional",
-    "saved",
-    "needNote",
-    "tooLong",
-    "d_lock",
-    "d_switch",
-    "d_light",
-    "d_cover",
-    "d_fan",
-    "d_button",
-    "d_media_player",
-    "d_select",
-    "d_number",
-    "d_valve",
-    "d_vacuum",
-    "d_alarm_control_panel",
-    "d_climate",
-    "d_other"
-   ]
-  },
-  {
-   "name": "i18n/ha-users",
-   "keys": 80,
-   "missing": 30,
-   "identical": 0,
-   "hebrew": 0,
-   "gap": 30,
-   "hasTable": true,
-   "devMarked": false,
-   "gapKeys": [
-    "keywords",
-    "via_supervisor",
-    "via_token",
-    "emptyHint",
-    "count",
-    "repair_person_missing",
-    "repair_compensation_failed",
-    "repair_binding_failed",
-    "repair_cleanup_failed",
-    "repair_missing_in_ha",
-    "fUsernameHint",
-    "createdNoPerson",
-    "e_name",
-    "e_username",
-    "e_mismatch",
-    "e_role",
-    "pw_too_short",
-    "pw_too_long",
-    "pw_repetitive",
-    "pw_common",
-    "pw_sequence",
-    "pw_contains_username",
-    "pw_contains_name",
-    "deactivateTitle",
-    "deactivateBody",
-    "activateTitle",
-    "activateBody",
-    "deactivated",
-    "activated",
-    "removeBody"
-   ]
-  },
   {
    "name": "i18n/access-external",
    "keys": 548,
@@ -4086,6 +27,21 @@
    ]
   },
   {
+   "name": "msg/system-a",
+   "keys": 999,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 2,
+   "gap": 2,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [
+    "הקלדת \"מחיקה\"",
+    "כדי לאשר, יש להקליד \"מחיקה\""
+   ],
+   "unused": 0
+  },
+  {
    "name": "i18n/announce",
    "keys": 148,
    "missing": 0,
@@ -4099,21 +55,109 @@
    ]
   },
   {
-   "name": "i18n/insights",
-   "keys": 237,
-   "missing": 5,
+   "name": "tickets/text",
+   "keys": 762,
+   "missing": 4,
    "identical": 0,
    "hebrew": 0,
    "gap": 1,
    "hasTable": true,
    "devMarked": false,
    "gapKeys": [
-    "langHe"
+    "lang_he"
    ]
+  },
+  {
+   "name": "i18n/access-diag",
+   "keys": 235,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-events",
+   "keys": 163,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-messaging",
+   "keys": 102,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-parity",
+   "keys": 92,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-people",
+   "keys": 255,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
   },
   {
    "name": "i18n/access-request",
    "keys": 128,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-schedules",
+   "keys": 97,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-status",
+   "keys": 307,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-writes",
+   "keys": 110,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4244,6 +288,17 @@
    "gapKeys": []
   },
   {
+   "name": "i18n/door-blocks",
+   "keys": 59,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
    "name": "i18n/door-windows",
    "keys": 203,
    "missing": 0,
@@ -4299,6 +354,17 @@
    "gapKeys": []
   },
   {
+   "name": "i18n/fleet-report",
+   "keys": 120,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
    "name": "i18n/generator-escalation",
    "keys": 9,
    "missing": 0,
@@ -4345,6 +411,28 @@
   {
    "name": "i18n/ha-events",
    "keys": 65,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/ha-users",
+   "keys": 80,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/he",
+   "keys": 1288,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4420,8 +508,52 @@
    "gapKeys": []
   },
   {
+   "name": "i18n/insights",
+   "keys": 237,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
    "name": "i18n/intake",
    "keys": 82,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/local-identity",
+   "keys": 180,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/maintenance",
+   "keys": 409,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/messaging-accounts",
+   "keys": 100,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4455,6 +587,17 @@
   {
    "name": "i18n/notice-chips",
    "keys": 22,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/notices",
+   "keys": 454,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4618,6 +761,17 @@
    "gapKeys": []
   },
   {
+   "name": "i18n/schedule-editor",
+   "keys": 144,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
    "name": "i18n/search-access",
    "keys": 7,
    "missing": 0,
@@ -4642,6 +796,17 @@
   {
    "name": "i18n/settings-cards",
    "keys": 56,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/station-people",
+   "keys": 102,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4750,8 +915,30 @@
    "gapKeys": []
   },
   {
+   "name": "i18n/wiskey-installer",
+   "keys": 374,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
    "name": "i18n/wiskey-managed",
    "keys": 119,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-profiles",
+   "keys": 201,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4816,8 +1003,472 @@
    "gapKeys": []
   },
   {
+   "name": "i18n/wiskey-triage",
+   "keys": 142,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
    "name": "i18n/xsection",
    "keys": 241,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "msg/automation",
+   "keys": 983,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/calendars",
+   "keys": 743,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/components",
+   "keys": 836,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/devices",
+   "keys": 849,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/electricity",
+   "keys": 428,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/investigate",
+   "keys": 829,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/live",
+   "keys": 381,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/media",
+   "keys": 1235,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/misc",
+   "keys": 458,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/screens",
+   "keys": 342,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/shell",
+   "keys": 233,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/system-b",
+   "keys": 1175,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/wiskey",
+   "keys": 541,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "screens/settings-nav-strings",
+   "keys": 4,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "screens/tabs-place-strings",
+   "keys": 12,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/board-text",
+   "keys": 87,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/calendar-text",
+   "keys": 58,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/conversation-text",
+   "keys": 75,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/cost-text",
+   "keys": 211,
+   "missing": 1,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/delete-text",
+   "keys": 19,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/device-text",
+   "keys": 45,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/drawer-text",
+   "keys": 172,
+   "missing": 3,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/list-text",
+   "keys": 67,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/map-text",
+   "keys": 21,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/messages-text",
+   "keys": 134,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/org-locations-text",
+   "keys": 58,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/overview-text",
+   "keys": 194,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/quote-text",
+   "keys": 151,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/rfq-settings-text",
+   "keys": 11,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/rfq-text",
+   "keys": 638,
+   "missing": 4,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/rules-text",
+   "keys": 73,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/table-text",
+   "keys": 135,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-deptmgr",
+   "keys": 23,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-needsreview",
+   "keys": 28,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-otp",
+   "keys": 17,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-s4",
+   "keys": 267,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-ui6",
+   "keys": 61,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/visits-settings-text",
+   "keys": 18,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/work-calendar-text",
+   "keys": 44,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "water/i18n",
+   "keys": 403,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -4828,390 +1479,6 @@
   }
  ],
  "hardcoded": [
-  {
-   "module": "screens/system-*",
-   "kind": "app",
-   "files": 56,
-   "literals": 3742,
-   "fileList": [
-    {
-     "file": "screens/system-access.ts",
-     "literals": 340
-    },
-    {
-     "file": "screens/system-alarm.ts",
-     "literals": 71
-    },
-    {
-     "file": "screens/system-announce-templates.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-announcements.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/system-audit.ts",
-     "literals": 74
-    },
-    {
-     "file": "screens/system-automations.ts",
-     "literals": 175
-    },
-    {
-     "file": "screens/system-calendar-sync.ts",
-     "literals": 107
-    },
-    {
-     "file": "screens/system-calendars.ts",
-     "literals": 229
-    },
-    {
-     "file": "screens/system-cast.ts",
-     "literals": 69
-    },
-    {
-     "file": "screens/system-design.ts",
-     "literals": 17
-    },
-    {
-     "file": "screens/system-devices.ts",
-     "literals": 62
-    },
-    {
-     "file": "screens/system-diagnostics.ts",
-     "literals": 501
-    },
-    {
-     "file": "screens/system-doors-logic.ts",
-     "literals": 66
-    },
-    {
-     "file": "screens/system-doors.ts",
-     "literals": 46
-    },
-    {
-     "file": "screens/system-fleet-report.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-home-screen.ts",
-     "literals": 16
-    },
-    {
-     "file": "screens/system-index.ts",
-     "literals": 147
-    },
-    {
-     "file": "screens/system-infra.ts",
-     "literals": 10
-    },
-    {
-     "file": "screens/system-intercom-installer.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-intercom-ops.ts",
-     "literals": 6
-    },
-    {
-     "file": "screens/system-local-users.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/system-look.ts",
-     "literals": 34
-    },
-    {
-     "file": "screens/system-lookup-scope.ts",
-     "literals": 6
-    },
-    {
-     "file": "screens/system-mapping.ts",
-     "literals": 78
-    },
-    {
-     "file": "screens/system-messaging-accounts.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-mobile-options.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-multimedia-players.ts",
-     "literals": 110
-    },
-    {
-     "file": "screens/system-multimedia.ts",
-     "literals": 80
-    },
-    {
-     "file": "screens/system-nav-size.ts",
-     "literals": 18
-    },
-    {
-     "file": "screens/system-nav.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/system-notices.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-notifications.ts",
-     "literals": 109
-    },
-    {
-     "file": "screens/system-palette-editor.ts",
-     "literals": 44
-    },
-    {
-     "file": "screens/system-plan-view.ts",
-     "literals": 31
-    },
-    {
-     "file": "screens/system-presence-places.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-presence.ts",
-     "literals": 32
-    },
-    {
-     "file": "screens/system-readiness.ts",
-     "literals": 74
-    },
-    {
-     "file": "screens/system-schedules.ts",
-     "literals": 109
-    },
-    {
-     "file": "screens/system-security-cameras.ts",
-     "literals": 61
-    },
-    {
-     "file": "screens/system-security-public.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-security-wiskey.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-security.ts",
-     "literals": 23
-    },
-    {
-     "file": "screens/system-setup.ts",
-     "literals": 203
-    },
-    {
-     "file": "screens/system-storage.ts",
-     "literals": 102
-    },
-    {
-     "file": "screens/system-tabs-mode.ts",
-     "literals": 95
-    },
-    {
-     "file": "screens/system-tabs.ts",
-     "literals": 43
-    },
-    {
-     "file": "screens/system-tickets.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/system-timeline-colors.ts",
-     "literals": 7
-    },
-    {
-     "file": "screens/system-update.ts",
-     "literals": 40
-    },
-    {
-     "file": "screens/system-video-conn-test.ts",
-     "literals": 15
-    },
-    {
-     "file": "screens/system-wall.ts",
-     "literals": 168
-    },
-    {
-     "file": "screens/system-wiskey-diagnostics.ts",
-     "literals": 80
-    },
-    {
-     "file": "screens/system-wiskey-pairing.ts",
-     "literals": 56
-    },
-    {
-     "file": "screens/system-wiskey-validation-card.ts",
-     "literals": 4
-    },
-    {
-     "file": "screens/system-wiskey-validation.ts",
-     "literals": 105
-    },
-    {
-     "file": "screens/system-wizard.ts",
-     "literals": 48
-    }
-   ]
-  },
-  {
-   "module": "tickets",
-   "kind": "app",
-   "files": 36,
-   "literals": 2999,
-   "fileList": [
-    {
-     "file": "tickets/board-text.ts",
-     "literals": 85
-    },
-    {
-     "file": "tickets/calendar-text.ts",
-     "literals": 56
-    },
-    {
-     "file": "tickets/camera-viewfinder.ts",
-     "literals": 18
-    },
-    {
-     "file": "tickets/code-lock-model.ts",
-     "literals": 4
-    },
-    {
-     "file": "tickets/contacts-directory.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/conversation-tab.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/conversation-text.ts",
-     "literals": 74
-    },
-    {
-     "file": "tickets/cost-text.ts",
-     "literals": 207
-    },
-    {
-     "file": "tickets/costs-demands-model.ts",
-     "literals": 20
-    },
-    {
-     "file": "tickets/delete-text.ts",
-     "literals": 19
-    },
-    {
-     "file": "tickets/device-text.ts",
-     "literals": 43
-    },
-    {
-     "file": "tickets/drawer-text.ts",
-     "literals": 169
-    },
-    {
-     "file": "tickets/list-card-model.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/list-text.ts",
-     "literals": 67
-    },
-    {
-     "file": "tickets/list-toolbar.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/map-text.ts",
-     "literals": 21
-    },
-    {
-     "file": "tickets/messages-text.ts",
-     "literals": 133
-    },
-    {
-     "file": "tickets/naming.ts",
-     "literals": 6
-    },
-    {
-     "file": "tickets/org-locations-text.ts",
-     "literals": 58
-    },
-    {
-     "file": "tickets/overview-text.ts",
-     "literals": 192
-    },
-    {
-     "file": "tickets/quote-text.ts",
-     "literals": 150
-    },
-    {
-     "file": "tickets/rfq-files-model.ts",
-     "literals": 2
-    },
-    {
-     "file": "tickets/rfq-model.ts",
-     "literals": 6
-    },
-    {
-     "file": "tickets/rfq-settings-text.ts",
-     "literals": 11
-    },
-    {
-     "file": "tickets/rfq-text.ts",
-     "literals": 633
-    },
-    {
-     "file": "tickets/rules-text.ts",
-     "literals": 73
-    },
-    {
-     "file": "tickets/table-styles.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/table-text.ts",
-     "literals": 131
-    },
-    {
-     "file": "tickets/text-deptmgr.ts",
-     "literals": 23
-    },
-    {
-     "file": "tickets/text-needsreview.ts",
-     "literals": 28
-    },
-    {
-     "file": "tickets/text-otp.ts",
-     "literals": 17
-    },
-    {
-     "file": "tickets/text-s4.ts",
-     "literals": 266
-    },
-    {
-     "file": "tickets/text-ui6.ts",
-     "literals": 61
-    },
-    {
-     "file": "tickets/text.ts",
-     "literals": 359
-    },
-    {
-     "file": "tickets/visits-settings-text.ts",
-     "literals": 18
-    },
-    {
-     "file": "tickets/work-calendar-text.ts",
-     "literals": 44
-    }
-   ]
-  },
   {
    "module": "api",
    "kind": "app",
@@ -5697,646 +1964,162 @@
    ]
   },
   {
-   "module": "screens/devices-*",
+   "module": "screens/system-*",
    "kind": "app",
-   "files": 21,
-   "literals": 1363,
+   "files": 23,
+   "literals": 1130,
    "fileList": [
     {
-     "file": "screens/devices-area-bubble.ts",
-     "literals": 96
-    },
-    {
-     "file": "screens/devices-area-design.ts",
-     "literals": 12
-    },
-    {
-     "file": "screens/devices-area-nav.ts",
-     "literals": 12
-    },
-    {
-     "file": "screens/devices-area.ts",
-     "literals": 120
-    },
-    {
-     "file": "screens/devices-automations.ts",
-     "literals": 42
-    },
-    {
-     "file": "screens/devices-building.ts",
-     "literals": 155
-    },
-    {
-     "file": "screens/devices-bulk.ts",
-     "literals": 108
-    },
-    {
-     "file": "screens/devices-camera-card.ts",
-     "literals": 26
-    },
-    {
-     "file": "screens/devices-camera-picker.ts",
-     "literals": 14
-    },
-    {
-     "file": "screens/devices-climate-kind-admin.ts",
-     "literals": 11
-    },
-    {
-     "file": "screens/devices-controls.ts",
-     "literals": 133
-    },
-    {
-     "file": "screens/devices-layout-cards.ts",
-     "literals": 22
-    },
-    {
-     "file": "screens/devices-layout-css.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/devices-layout.ts",
-     "literals": 213
-    },
-    {
-     "file": "screens/devices-media-card.ts",
-     "literals": 34
-    },
-    {
-     "file": "screens/devices-protected-switches-admin.ts",
-     "literals": 38
-    },
-    {
-     "file": "screens/devices-schedules.ts",
-     "literals": 135
-    },
-    {
-     "file": "screens/devices-synoptic-phone-css.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/devices-theme-picker.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/devices-tiles-panel.ts",
-     "literals": 148
-    },
-    {
-     "file": "screens/devices-type-admin.ts",
-     "literals": 37
-    }
-   ]
-  },
-  {
-   "module": "components",
-   "kind": "app",
-   "files": 76,
-   "literals": 1312,
-   "fileList": [
-    {
-     "file": "components/architect-request-dialog.ts",
-     "literals": 8
-    },
-    {
-     "file": "components/architect-request.ts",
+     "file": "screens/system-access.ts",
      "literals": 3
     },
     {
-     "file": "components/device-activity-logic.ts",
-     "literals": 111
-    },
-    {
-     "file": "components/media-bulk-dialog.ts",
-     "literals": 25
-    },
-    {
-     "file": "components/media-command.ts",
-     "literals": 4
-    },
-    {
-     "file": "components/media-group-dialog.ts",
-     "literals": 25
-    },
-    {
-     "file": "components/media-library-browse.ts",
-     "literals": 10
-    },
-    {
-     "file": "components/media-ma-connection.ts",
-     "literals": 22
-    },
-    {
-     "file": "components/media-now-hero.ts",
-     "literals": 9
-    },
-    {
-     "file": "components/media-now.ts",
-     "literals": 11
-    },
-    {
-     "file": "components/media-player-card.ts",
-     "literals": 36
-    },
-    {
-     "file": "components/media-player-logic.ts",
-     "literals": 25
-    },
-    {
-     "file": "components/media-player-now.ts",
-     "literals": 5
-    },
-    {
-     "file": "components/media-player-panel.ts",
+     "file": "screens/system-alarm.ts",
      "literals": 71
     },
     {
-     "file": "components/media-player-run.ts",
-     "literals": 5
-    },
-    {
-     "file": "components/media-player-volume.ts",
-     "literals": 17
-    },
-    {
-     "file": "components/media-preset-editor.ts",
-     "literals": 11
-    },
-    {
-     "file": "components/media-queue-list.ts",
-     "literals": 27
-    },
-    {
-     "file": "components/media-remote-css.ts",
+     "file": "screens/system-announce-templates.ts",
      "literals": 1
     },
     {
-     "file": "components/media-remote-keys.ts",
-     "literals": 41
-    },
-    {
-     "file": "components/media-remote-logic.ts",
+     "file": "screens/system-announcements.ts",
      "literals": 2
     },
     {
-     "file": "components/media-remote-pad.ts",
-     "literals": 3
+     "file": "screens/system-audit.ts",
+     "literals": 1
     },
     {
-     "file": "components/media-remote.ts",
-     "literals": 64
+     "file": "screens/system-calendar-sync.ts",
+     "literals": 1
     },
     {
-     "file": "components/media-screen-card.ts",
-     "literals": 27
+     "file": "screens/system-calendars.ts",
+     "literals": 1
     },
     {
-     "file": "components/multi-select.ts",
+     "file": "screens/system-cast.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-diagnostics.ts",
+     "literals": 501
+    },
+    {
+     "file": "screens/system-index.ts",
+     "literals": 68
+    },
+    {
+     "file": "screens/system-local-users.ts",
      "literals": 2
     },
     {
-     "file": "components/notify-center.ts",
-     "literals": 37
+     "file": "screens/system-multimedia-players.ts",
+     "literals": 1
     },
     {
-     "file": "components/notify-detail.ts",
+     "file": "screens/system-multimedia.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-nav-size.ts",
+     "literals": 7
+    },
+    {
+     "file": "screens/system-notices.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-notifications.ts",
+     "literals": 5
+    },
+    {
+     "file": "screens/system-palette-editor.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-plan-view.ts",
+     "literals": 31
+    },
+    {
+     "file": "screens/system-setup.ts",
+     "literals": 203
+    },
+    {
+     "file": "screens/system-storage.ts",
      "literals": 12
     },
     {
-     "file": "components/notify-logic.ts",
-     "literals": 85
-    },
-    {
-     "file": "components/notify-row.ts",
-     "literals": 6
-    },
-    {
-     "file": "components/notify-store.ts",
+     "file": "screens/system-tickets.ts",
      "literals": 3
     },
     {
-     "file": "components/nvr-connection-form.ts",
-     "literals": 78
+     "file": "screens/system-wall.ts",
+     "literals": 168
     },
     {
-     "file": "components/nvr-recorders-card.ts",
-     "literals": 32
-    },
-    {
-     "file": "components/nvr-restart-banner.ts",
-     "literals": 9
-    },
-    {
-     "file": "components/nvr-writes-switch.ts",
-     "literals": 3
-    },
-    {
-     "file": "components/recorded-month-logic.ts",
-     "literals": 37
-    },
-    {
-     "file": "components/recorder-health-panel.ts",
-     "literals": 63
-    },
-    {
-     "file": "components/restarts-card.ts",
-     "literals": 17
-    },
-    {
-     "file": "components/run-trace.ts",
-     "literals": 16
-    },
-    {
-     "file": "components/scene-capture.ts",
-     "literals": 20
-    },
-    {
-     "file": "components/script-fields-form.ts",
-     "literals": 2
-    },
-    {
-     "file": "components/sw-automation-card.ts",
-     "literals": 14
-    },
-    {
-     "file": "components/sw-automation-row.ts",
-     "literals": 11
-    },
-    {
-     "file": "components/sw-badge.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-block-card.ts",
-     "literals": 5
-    },
-    {
-     "file": "components/sw-camera-tile.ts",
-     "literals": 7
-    },
-    {
-     "file": "components/sw-case-picker.ts",
-     "literals": 20
-    },
-    {
-     "file": "components/sw-cast-picker.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-cast-pill.ts",
-     "literals": 4
-    },
-    {
-     "file": "components/sw-csp-reports.ts",
-     "literals": 24
-    },
-    {
-     "file": "components/sw-demo-banner.ts",
-     "literals": 7
-    },
-    {
-     "file": "components/sw-dialog.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-dropdown.ts",
-     "literals": 8
-    },
-    {
-     "file": "components/sw-field.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-history-lanes.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-kpi.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-list-display-settings.ts",
-     "literals": 3
-    },
-    {
-     "file": "components/sw-live-player.ts",
-     "literals": 64
-    },
-    {
-     "file": "components/sw-page.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-pill.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-popover.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-recorded-month.ts",
-     "literals": 7
-    },
-    {
-     "file": "components/sw-remote-sessions.ts",
-     "literals": 20
-    },
-    {
-     "file": "components/sw-schedule-bar.ts",
-     "literals": 6
-    },
-    {
-     "file": "components/sw-schedule-grid.ts",
-     "literals": 13
-    },
-    {
-     "file": "components/sw-secrets-card.ts",
-     "literals": 22
-    },
-    {
-     "file": "components/sw-share-members.ts",
-     "literals": 15
-    },
-    {
-     "file": "components/sw-sheet.ts",
-     "literals": 2
-    },
-    {
-     "file": "components/sw-table.ts",
-     "literals": 2
-    },
-    {
-     "file": "components/sw-timeline.ts",
-     "literals": 13
-    },
-    {
-     "file": "components/sw-toggle.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-video-service-picker.ts",
-     "literals": 16
-    },
-    {
-     "file": "components/sw-week-grid.ts",
-     "literals": 13
-    },
-    {
-     "file": "components/update-run.ts",
-     "literals": 17
-    },
-    {
-     "file": "components/wk-deep-links.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/wk-door-tech.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/wk-ops-charts.ts",
-     "literals": 2
-    }
-   ]
-  },
-  {
-   "module": "calendars",
-   "kind": "app",
-   "files": 19,
-   "literals": 1245,
-   "fileList": [
-    {
-     "file": "calendars/attendee-logic.ts",
-     "literals": 25
-    },
-    {
-     "file": "calendars/attendee-picker.ts",
-     "literals": 23
-    },
-    {
-     "file": "calendars/attendees-section.ts",
-     "literals": 5
-    },
-    {
-     "file": "calendars/booking-logic.ts",
-     "literals": 17
-    },
-    {
-     "file": "calendars/cal-page.ts",
-     "literals": 30
-    },
-    {
-     "file": "calendars/connect-dialogs.ts",
-     "literals": 87
-    },
-    {
-     "file": "calendars/connect-model.ts",
-     "literals": 12
-    },
-    {
-     "file": "calendars/demo.ts",
-     "literals": 211
-    },
-    {
-     "file": "calendars/event-drawer.ts",
-     "literals": 102
-    },
-    {
-     "file": "calendars/grid-logic.ts",
-     "literals": 47
-    },
-    {
-     "file": "calendars/grid-overlays.ts",
-     "literals": 83
-    },
-    {
-     "file": "calendars/maint-drawer.ts",
-     "literals": 40
-    },
-    {
-     "file": "calendars/model.ts",
-     "literals": 66
-    },
-    {
-     "file": "calendars/resident.ts",
-     "literals": 155
-    },
-    {
-     "file": "calendars/view-approvals.ts",
-     "literals": 95
-    },
-    {
-     "file": "calendars/view-calendar.ts",
-     "literals": 81
-    },
-    {
-     "file": "calendars/view-maint.ts",
-     "literals": 21
-    },
-    {
-     "file": "calendars/view-manage.ts",
-     "literals": 116
-    },
-    {
-     "file": "calendars/view-rooms.ts",
-     "literals": 29
+     "file": "screens/system-wiskey-validation.ts",
+     "literals": 45
     }
    ]
   },
   {
    "module": "screens/explore-*",
    "kind": "app",
-   "files": 7,
-   "literals": 1168,
+   "files": 4,
+   "literals": 857,
    "fileList": [
     {
      "file": "screens/explore-entities.ts",
-     "literals": 88
+     "literals": 30
     },
     {
      "file": "screens/explore-floor-map.ts",
      "literals": 202
     },
     {
-     "file": "screens/explore-floors.ts",
-     "literals": 55
-    },
-    {
      "file": "screens/explore-plan-editor.ts",
      "literals": 612
     },
     {
-     "file": "screens/explore-plan-import.ts",
-     "literals": 143
-    },
-    {
      "file": "screens/explore-presence.ts",
      "literals": 13
-    },
-    {
-     "file": "screens/explore-sites.ts",
-     "literals": 55
     }
    ]
   },
   {
-   "module": "screens/investigate-*",
+   "module": "screens/plan-*",
    "kind": "app",
-   "files": 12,
-   "literals": 1091,
+   "files": 2,
+   "literals": 615,
    "fileList": [
     {
-     "file": "screens/investigate-cases.ts",
-     "literals": 178
+     "file": "screens/plan-studio-panel.ts",
+     "literals": 592
     },
     {
-     "file": "screens/investigate-event-detail.ts",
-     "literals": 104
-    },
-    {
-     "file": "screens/investigate-events.ts",
-     "literals": 230
-    },
-    {
-     "file": "screens/investigate-exports.ts",
-     "literals": 41
-    },
-    {
-     "file": "screens/investigate-history-map.ts",
-     "literals": 169
-    },
-    {
-     "file": "screens/investigate-incidents.ts",
-     "literals": 10
-    },
-    {
-     "file": "screens/investigate-playback.ts",
-     "literals": 135
-    },
-    {
-     "file": "screens/investigate-reviews.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/investigate-rules.ts",
-     "literals": 111
-    },
-    {
-     "file": "screens/investigate-search.ts",
-     "literals": 76
-    },
-    {
-     "file": "screens/investigate-sync.ts",
-     "literals": 28
-    },
-    {
-     "file": "screens/investigate-time.ts",
-     "literals": 8
+     "file": "screens/plan-view-dials.ts",
+     "literals": 23
     }
    ]
   },
   {
    "module": "electricity",
    "kind": "app",
-   "files": 26,
-   "literals": 950,
+   "files": 9,
+   "literals": 416,
    "fileList": [
     {
-     "file": "electricity/access.ts",
-     "literals": 3
-    },
-    {
-     "file": "electricity/elec-account-list.ts",
-     "literals": 20
-    },
-    {
-     "file": "electricity/elec-account-page.ts",
-     "literals": 62
-    },
-    {
-     "file": "electricity/elec-bill-create.ts",
-     "literals": 15
-    },
-    {
      "file": "electricity/elec-bill-page.ts",
-     "literals": 79
+     "literals": 2
     },
     {
      "file": "electricity/elec-bill-paper.ts",
      "literals": 30
     },
     {
-     "file": "electricity/elec-bills-list.ts",
-     "literals": 11
-    },
-    {
-     "file": "electricity/elec-bills-table.ts",
-     "literals": 6
-    },
-    {
-     "file": "electricity/elec-chart-data.ts",
-     "literals": 2
-    },
-    {
-     "file": "electricity/elec-chart.ts",
-     "literals": 16
-    },
-    {
-     "file": "electricity/elec-customers.ts",
-     "literals": 37
-    },
-    {
      "file": "electricity/elec-format.ts",
-     "literals": 36
-    },
-    {
-     "file": "electricity/elec-formula-editor.ts",
-     "literals": 30
-    },
-    {
-     "file": "electricity/elec-formula.ts",
-     "literals": 25
+     "literals": 2
     },
     {
      "file": "electricity/elec-settings-calendar.ts",
@@ -6348,15 +2131,11 @@
     },
     {
      "file": "electricity/elec-tou-editor.ts",
-     "literals": 36
+     "literals": 2
     },
     {
      "file": "electricity/elec-tou.ts",
-     "literals": 15
-    },
-    {
-     "file": "electricity/elec-ui.ts",
-     "literals": 1
+     "literals": 8
     },
     {
      "file": "electricity/elec-wizard.ts",
@@ -6365,350 +2144,6 @@
     {
      "file": "electricity/fixtures.ts",
      "literals": 85
-    },
-    {
-     "file": "electricity/meter-card.ts",
-     "literals": 46
-    },
-    {
-     "file": "electricity/meter-name.ts",
-     "literals": 5
-    },
-    {
-     "file": "electricity/meter-picker.ts",
-     "literals": 25
-    },
-    {
-     "file": "electricity/meter-readings.ts",
-     "literals": 71
-    },
-    {
-     "file": "electricity/permission-rows.ts",
-     "literals": 7
-    }
-   ]
-  },
-  {
-   "module": "screens/plan-*",
-   "kind": "app",
-   "files": 4,
-   "literals": 705,
-   "fileList": [
-    {
-     "file": "screens/plan-area-links-admin.ts",
-     "literals": 31
-    },
-    {
-     "file": "screens/plan-studio-panel.ts",
-     "literals": 592
-    },
-    {
-     "file": "screens/plan-studio6-panel.ts",
-     "literals": 59
-    },
-    {
-     "file": "screens/plan-view-dials.ts",
-     "literals": 23
-    }
-   ]
-  },
-  {
-   "module": "screens/automation-*",
-   "kind": "app",
-   "files": 11,
-   "literals": 704,
-   "fileList": [
-    {
-     "file": "screens/automation-block-forms.ts",
-     "literals": 120
-    },
-    {
-     "file": "screens/automation-builder.ts",
-     "literals": 12
-    },
-    {
-     "file": "screens/automation-code.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/automation-drawer.ts",
-     "literals": 92
-    },
-    {
-     "file": "screens/automation-editor-base.ts",
-     "literals": 130
-    },
-    {
-     "file": "screens/automation-editor-logic.ts",
-     "literals": 230
-    },
-    {
-     "file": "screens/automation-entity-picker.ts",
-     "literals": 7
-    },
-    {
-     "file": "screens/automation-ext-dialogs.ts",
-     "literals": 53
-    },
-    {
-     "file": "screens/automation-ext-forms.ts",
-     "literals": 41
-    },
-    {
-     "file": "screens/automation-presence-forms.ts",
-     "literals": 10
-    },
-    {
-     "file": "screens/automation-templates.ts",
-     "literals": 4
-    }
-   ]
-  },
-  {
-   "module": "screens/schedule-*",
-   "kind": "app",
-   "files": 11,
-   "literals": 569,
-   "fileList": [
-    {
-     "file": "screens/schedule-conditions.ts",
-     "literals": 19
-    },
-    {
-     "file": "screens/schedule-create-dialog.ts",
-     "literals": 25
-    },
-    {
-     "file": "screens/schedule-drawer.ts",
-     "literals": 56
-    },
-    {
-     "file": "screens/schedule-edit-logic.ts",
-     "literals": 131
-    },
-    {
-     "file": "screens/schedule-editor.ts",
-     "literals": 142
-    },
-    {
-     "file": "screens/schedule-entity-picker.ts",
-     "literals": 13
-    },
-    {
-     "file": "screens/schedule-grid-logic.ts",
-     "literals": 18
-    },
-    {
-     "file": "screens/schedule-lowering-dialog.ts",
-     "literals": 21
-    },
-    {
-     "file": "screens/schedule-slot-panel.ts",
-     "literals": 60
-    },
-    {
-     "file": "screens/schedule-table-view.ts",
-     "literals": 37
-    },
-    {
-     "file": "screens/schedule-templates.ts",
-     "literals": 47
-    }
-   ]
-  },
-  {
-   "module": "screens/live-*",
-   "kind": "app",
-   "files": 4,
-   "literals": 506,
-   "fileList": [
-    {
-     "file": "screens/live-camera.ts",
-     "literals": 236
-    },
-    {
-     "file": "screens/live-overview.ts",
-     "literals": 114
-    },
-    {
-     "file": "screens/live-views.ts",
-     "literals": 62
-    },
-    {
-     "file": "screens/live-wall.ts",
-     "literals": 94
-    }
-   ]
-  },
-  {
-   "module": "screens/wiskey-*",
-   "kind": "app",
-   "files": 13,
-   "literals": 483,
-   "fileList": [
-    {
-     "file": "screens/wiskey-card-capture.ts",
-     "literals": 27
-    },
-    {
-     "file": "screens/wiskey-embed.ts",
-     "literals": 36
-    },
-    {
-     "file": "screens/wiskey-events.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/wiskey-format.ts",
-     "literals": 230
-    },
-    {
-     "file": "screens/wiskey-message-dialog.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/wiskey-overview.ts",
-     "literals": 95
-    },
-    {
-     "file": "screens/wiskey-people.ts",
-     "literals": 11
-    },
-    {
-     "file": "screens/wiskey-person-editor.ts",
-     "literals": 28
-    },
-    {
-     "file": "screens/wiskey-relay-map-logic.ts",
-     "literals": 17
-    },
-    {
-     "file": "screens/wiskey-relay-map.ts",
-     "literals": 19
-    },
-    {
-     "file": "screens/wiskey-schedules.ts",
-     "literals": 6
-    },
-    {
-     "file": "screens/wiskey-stations-logic.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/wiskey-stations.ts",
-     "literals": 6
-    }
-   ]
-  },
-  {
-   "module": "water",
-   "kind": "app",
-   "files": 2,
-   "literals": 432,
-   "fileList": [
-    {
-     "file": "water/billing-format.ts",
-     "literals": 31
-    },
-    {
-     "file": "water/i18n.ts",
-     "literals": 401
-    }
-   ]
-  },
-  {
-   "module": "screens/nvr-*",
-   "kind": "app",
-   "files": 13,
-   "literals": 369,
-   "fileList": [
-    {
-     "file": "screens/nvr-batch-logic.ts",
-     "literals": 72
-    },
-    {
-     "file": "screens/nvr-camera-batch.ts",
-     "literals": 27
-    },
-    {
-     "file": "screens/nvr-camera-editor.ts",
-     "literals": 12
-    },
-    {
-     "file": "screens/nvr-cameras-actions.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/nvr-cameras-edit.ts",
-     "literals": 57
-    },
-    {
-     "file": "screens/nvr-cameras-logic.ts",
-     "literals": 11
-    },
-    {
-     "file": "screens/nvr-confirm.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/nvr-encoding-batch.ts",
-     "literals": 62
-    },
-    {
-     "file": "screens/nvr-encoding-logic.ts",
-     "literals": 25
-    },
-    {
-     "file": "screens/nvr-h264-preset.ts",
-     "literals": 27
-    },
-    {
-     "file": "screens/nvr-undo-toast.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/nvr-verify-logic.ts",
-     "literals": 49
-    },
-    {
-     "file": "screens/nvr-verify-report.ts",
-     "literals": 22
-    }
-   ]
-  },
-  {
-   "module": "screens/multimedia-*",
-   "kind": "app",
-   "files": 7,
-   "literals": 296,
-   "fileList": [
-    {
-     "file": "screens/multimedia-edit-panel.ts",
-     "literals": 23
-    },
-    {
-     "file": "screens/multimedia-groups.ts",
-     "literals": 84
-    },
-    {
-     "file": "screens/multimedia-layout.ts",
-     "literals": 11
-    },
-    {
-     "file": "screens/multimedia-players-layout.ts",
-     "literals": 15
-    },
-    {
-     "file": "screens/multimedia-players.ts",
-     "literals": 54
-    },
-    {
-     "file": "screens/multimedia-remote-editor.ts",
-     "literals": 53
-    },
-    {
-     "file": "screens/multimedia-screens.ts",
-     "literals": 56
     }
    ]
   },
@@ -6737,126 +2172,34 @@
    ]
   },
   {
-   "module": "shell",
+   "module": "calendars",
    "kind": "app",
-   "files": 11,
-   "literals": 292,
+   "files": 6,
+   "literals": 223,
    "fileList": [
     {
-     "file": "shell/nav-size.ts",
-     "literals": 4
+     "file": "calendars/demo.ts",
+     "literals": 211
     },
     {
-     "file": "shell/nav.ts",
-     "literals": 111
+     "file": "calendars/event-drawer.ts",
+     "literals": 1
     },
     {
-     "file": "shell/phone.ts",
-     "literals": 8
-    },
-    {
-     "file": "shell/setup-hint.ts",
-     "literals": 7
-    },
-    {
-     "file": "shell/sw-app.ts",
-     "literals": 63
-    },
-    {
-     "file": "shell/sw-home-personal.ts",
-     "literals": 12
-    },
-    {
-     "file": "shell/sw-nav-order.ts",
-     "literals": 15
-    },
-    {
-     "file": "shell/sw-user-menu.ts",
-     "literals": 22
-    },
-    {
-     "file": "shell/sw-video-prefs.ts",
-     "literals": 5
-    },
-    {
-     "file": "shell/sw-wiskey-prefs.ts",
-     "literals": 8
-    },
-    {
-     "file": "shell/tabs-mode.ts",
-     "literals": 37
-    }
-   ]
-  },
-  {
-   "module": "screens/mapping-*",
-   "kind": "app",
-   "files": 4,
-   "literals": 287,
-   "fileList": [
-    {
-     "file": "screens/mapping-assistant.ts",
-     "literals": 202
-    },
-    {
-     "file": "screens/mapping-decide.ts",
-     "literals": 44
-    },
-    {
-     "file": "screens/mapping-health.ts",
-     "literals": 18
-    },
-    {
-     "file": "screens/mapping-rules.ts",
-     "literals": 23
-    }
-   ]
-  },
-  {
-   "module": "screens/home-*",
-   "kind": "app",
-   "files": 10,
-   "literals": 250,
-   "fileList": [
-    {
-     "file": "screens/home-ambient-bar.ts",
+     "file": "calendars/resident.ts",
      "literals": 2
     },
     {
-     "file": "screens/home-demo.ts",
-     "literals": 8
+     "file": "calendars/view-approvals.ts",
+     "literals": 1
     },
     {
-     "file": "screens/home-edit-bv1.ts",
-     "literals": 20
+     "file": "calendars/view-calendar.ts",
+     "literals": 4
     },
     {
-     "file": "screens/home-edit-drawer.ts",
-     "literals": 10
-    },
-    {
-     "file": "screens/home-edit-panel.ts",
-     "literals": 62
-    },
-    {
-     "file": "screens/home-site-demo.ts",
-     "literals": 36
-    },
-    {
-     "file": "screens/home-site-off.ts",
-     "literals": 34
-    },
-    {
-     "file": "screens/home-site-view.ts",
-     "literals": 20
-    },
-    {
-     "file": "screens/home-widgets-bv1.ts",
-     "literals": 10
-    },
-    {
-     "file": "screens/home-widgets.ts",
-     "literals": 48
+     "file": "calendars/view-manage.ts",
+     "literals": 4
     }
    ]
   },
@@ -6965,106 +2308,122 @@
    ]
   },
   {
-   "module": "screens/intercom-*",
+   "module": "screens/devices-*",
    "kind": "app",
-   "files": 1,
-   "literals": 160,
+   "files": 7,
+   "literals": 189,
    "fileList": [
     {
-     "file": "screens/intercom-ops-logic.ts",
-     "literals": 160
+     "file": "screens/devices-area.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/devices-automations.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-building.ts",
+     "literals": 155
+    },
+    {
+     "file": "screens/devices-layout-css.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-schedules.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-synoptic-phone-css.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-tiles-panel.ts",
+     "literals": 28
     }
    ]
   },
   {
-   "module": "design",
+   "module": "components",
    "kind": "app",
-   "files": 9,
-   "literals": 130,
+   "files": 13,
+   "literals": 99,
    "fileList": [
     {
-     "file": "design/look.ts",
-     "literals": 74
-    },
-    {
-     "file": "design/palette.ts",
-     "literals": 43
-    },
-    {
-     "file": "design/skins/bubble.ts",
+     "file": "components/architect-request.ts",
      "literals": 2
     },
     {
-     "file": "design/skins/classic.ts",
-     "literals": 3
-    },
-    {
-     "file": "design/skins/crystal.ts",
-     "literals": 2
-    },
-    {
-     "file": "design/skins/domus.ts",
-     "literals": 2
-    },
-    {
-     "file": "design/skins/infra.ts",
+     "file": "components/media-player-card.ts",
      "literals": 1
     },
     {
-     "file": "design/skins/soft.ts",
+     "file": "components/media-remote-css.ts",
      "literals": 1
     },
     {
-     "file": "design/skins/tesla.ts",
-     "literals": 2
+     "file": "components/sw-badge.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-camera-tile.ts",
+     "literals": 7
+    },
+    {
+     "file": "components/sw-dropdown.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-kpi.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-live-player.ts",
+     "literals": 64
+    },
+    {
+     "file": "components/sw-page.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-table.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-toggle.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/update-run.ts",
+     "literals": 17
+    },
+    {
+     "file": "components/wk-door-tech.ts",
+     "literals": 1
     }
    ]
   },
   {
-   "module": "screens/media-*",
+   "module": "screens/home-*",
    "kind": "app",
    "files": 4,
-   "literals": 114,
+   "literals": 93,
    "fileList": [
     {
-     "file": "screens/media-admin-list-logic.ts",
-     "literals": 15
+     "file": "screens/home-ambient-bar.ts",
+     "literals": 1
     },
     {
-     "file": "screens/media-admin-list.ts",
-     "literals": 61
+     "file": "screens/home-demo.ts",
+     "literals": 8
     },
     {
-     "file": "screens/media-cast-label.ts",
-     "literals": 24
+     "file": "screens/home-site-demo.ts",
+     "literals": 36
     },
     {
-     "file": "screens/media-integration-names.ts",
-     "literals": 14
-    }
-   ]
-  },
-  {
-   "module": "screens/automations-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 94,
-   "fileList": [
-    {
-     "file": "screens/automations-logic.ts",
-     "literals": 94
-    }
-   ]
-  },
-  {
-   "module": "screens/security-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 90,
-   "fileList": [
-    {
-     "file": "screens/security-alarm.ts",
-     "literals": 90
+     "file": "screens/home-widgets.ts",
+     "literals": 48
     }
    ]
   },
@@ -7101,94 +2460,54 @@
    ]
   },
   {
-   "module": "fleet",
+   "module": "tickets",
    "kind": "app",
-   "files": 1,
-   "literals": 74,
+   "files": 11,
+   "literals": 61,
    "fileList": [
     {
-     "file": "fleet/fleet-model.ts",
-     "literals": 74
-    }
-   ]
-  },
-  {
-   "module": "pwa",
-   "kind": "app",
-   "files": 5,
-   "literals": 72,
-   "fileList": [
-    {
-     "file": "pwa/arx-pwa-prompts.ts",
-     "literals": 10
+     "file": "tickets/camera-viewfinder.ts",
+     "literals": 18
     },
     {
-     "file": "pwa/notifications-settings.ts",
-     "literals": 55
+     "file": "tickets/code-lock-model.ts",
+     "literals": 4
     },
     {
-     "file": "pwa/offline-page.ts",
+     "file": "tickets/contacts-directory.ts",
      "literals": 1
     },
     {
-     "file": "pwa/push-v2.ts",
-     "literals": 3
+     "file": "tickets/conversation-tab.ts",
+     "literals": 1
     },
     {
-     "file": "pwa/push.ts",
-     "literals": 3
-    }
-   ]
-  },
-  {
-   "module": "screens/bubble-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 60,
-   "fileList": [
-    {
-     "file": "screens/bubble-demo.ts",
-     "literals": 60
-    }
-   ]
-  },
-  {
-   "module": "screens/schedules-*",
-   "kind": "app",
-   "files": 2,
-   "literals": 57,
-   "fileList": [
-    {
-     "file": "screens/schedules-logic.ts",
-     "literals": 55
+     "file": "tickets/costs-demands-model.ts",
+     "literals": 20
     },
     {
-     "file": "screens/schedules-week-view.ts",
+     "file": "tickets/list-card-model.ts",
+     "literals": 1
+    },
+    {
+     "file": "tickets/list-toolbar.ts",
+     "literals": 1
+    },
+    {
+     "file": "tickets/naming.ts",
+     "literals": 6
+    },
+    {
+     "file": "tickets/rfq-files-model.ts",
      "literals": 2
-    }
-   ]
-  },
-  {
-   "module": "arx",
-   "kind": "app",
-   "files": 4,
-   "literals": 53,
-   "fileList": [
-    {
-     "file": "arx/android-download.ts",
-     "literals": 3
     },
     {
-     "file": "arx/arx-login.ts",
-     "literals": 26
+     "file": "tickets/rfq-model.ts",
+     "literals": 6
     },
     {
-     "file": "arx/auth.ts",
-     "literals": 16
-    },
-    {
-     "file": "arx/native-device-view.ts",
-     "literals": 8
+     "file": "tickets/table-styles.ts",
+     "literals": 1
     }
    ]
   },
@@ -7209,369 +2528,185 @@
    ]
   },
   {
-   "module": "screens/electricity",
+   "module": "screens/investigate-*",
    "kind": "app",
-   "files": 2,
-   "literals": 46,
+   "files": 9,
+   "literals": 45,
    "fileList": [
     {
-     "file": "screens/electricity/page-meters.ts",
-     "literals": 32
+     "file": "screens/investigate-cases.ts",
+     "literals": 6
     },
     {
-     "file": "screens/electricity/settings-retention.ts",
+     "file": "screens/investigate-events.ts",
+     "literals": 9
+    },
+    {
+     "file": "screens/investigate-exports.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/investigate-history-map.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/investigate-incidents.ts",
+     "literals": 8
+    },
+    {
+     "file": "screens/investigate-playback.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/investigate-reviews.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/investigate-rules.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/investigate-search.ts",
+     "literals": 13
+    }
+   ]
+  },
+  {
+   "module": "screens/live-*",
+   "kind": "app",
+   "files": 3,
+   "literals": 36,
+   "fileList": [
+    {
+     "file": "screens/live-overview.ts",
      "literals": 14
+    },
+    {
+     "file": "screens/live-views.ts",
+     "literals": 17
+    },
+    {
+     "file": "screens/live-wall.ts",
+     "literals": 5
+    }
+   ]
+  },
+  {
+   "module": "screens/wiskey-*",
+   "kind": "app",
+   "files": 6,
+   "literals": 36,
+   "fileList": [
+    {
+     "file": "screens/wiskey-embed.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/wiskey-events.ts",
+     "literals": 5
+    },
+    {
+     "file": "screens/wiskey-overview.ts",
+     "literals": 8
+    },
+    {
+     "file": "screens/wiskey-people.ts",
+     "literals": 10
+    },
+    {
+     "file": "screens/wiskey-schedules.ts",
+     "literals": 6
+    },
+    {
+     "file": "screens/wiskey-stations.ts",
+     "literals": 6
+    }
+   ]
+  },
+  {
+   "module": "screens/bubble-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 31,
+   "fileList": [
+    {
+     "file": "screens/bubble-demo.ts",
+     "literals": 31
+    }
+   ]
+  },
+  {
+   "module": "water",
+   "kind": "app",
+   "files": 1,
+   "literals": 31,
+   "fileList": [
+    {
+     "file": "water/billing-format.ts",
+     "literals": 31
     }
    ]
   },
   {
    "module": "access-control",
    "kind": "app",
-   "files": 3,
-   "literals": 43,
+   "files": 1,
+   "literals": 23,
    "fileList": [
-    {
-     "file": "access-control/access.ts",
-     "literals": 13
-    },
     {
      "file": "access-control/messaging-logic.ts",
      "literals": 23
-    },
-    {
-     "file": "access-control/people-logic.ts",
-     "literals": 7
     }
    ]
   },
   {
-   "module": "screens/screens-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 40,
-   "fileList": [
-    {
-     "file": "screens/screens-index.ts",
-     "literals": 40
-    }
-   ]
-  },
-  {
-   "module": "access-external",
+   "module": "screens/schedule-*",
    "kind": "app",
    "files": 3,
-   "literals": 39,
+   "literals": 11,
    "fileList": [
     {
-     "file": "access-external/model.ts",
+     "file": "screens/schedule-edit-logic.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/schedule-lowering-dialog.ts",
      "literals": 2
     },
     {
-     "file": "access-external/wiskey-visits-logic.ts",
-     "literals": 26
-    },
-    {
-     "file": "access-external/wiskey-visits-panel.ts",
-     "literals": 11
-    }
-   ]
-  },
-  {
-   "module": "screens/styleguide-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 37,
-   "fileList": [
-    {
-     "file": "screens/styleguide-screen.ts",
-     "literals": 37
+     "file": "screens/schedule-table-view.ts",
+     "literals": 6
     }
    ]
   },
   {
    "module": "xsection",
    "kind": "app",
-   "files": 3,
-   "literals": 34,
+   "files": 1,
+   "literals": 6,
    "fileList": [
     {
      "file": "xsection/xs-data.ts",
      "literals": 6
-    },
-    {
-     "file": "xsection/xs-mini-model.ts",
-     "literals": 10
-    },
-    {
-     "file": "xsection/xs-mini-widget.ts",
-     "literals": 18
     }
    ]
   },
   {
-   "module": "wall",
-   "kind": "app",
-   "files": 1,
-   "literals": 31,
-   "fileList": [
-    {
-     "file": "wall/sw-wall.ts",
-     "literals": 31
-    }
-   ]
-  },
-  {
-   "module": "screens/protected-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 30,
-   "fileList": [
-    {
-     "file": "screens/protected-switches-logic.ts",
-     "literals": 30
-    }
-   ]
-  },
-  {
-   "module": "wiskey",
-   "kind": "app",
-   "files": 2,
-   "literals": 30,
-   "fileList": [
-    {
-     "file": "wiskey/deep-links.ts",
-     "literals": 28
-    },
-    {
-     "file": "wiskey/live-validation-link.ts",
-     "literals": 2
-    }
-   ]
-  },
-  {
-   "module": "screens/wall-*",
+   "module": "shell",
    "kind": "app",
    "files": 3,
-   "literals": 27,
+   "literals": 5,
    "fileList": [
     {
-     "file": "screens/wall-arrangement.ts",
-     "literals": 4
-    },
-    {
-     "file": "screens/wall-phone-bar.ts",
-     "literals": 4
-    },
-    {
-     "file": "screens/wall-photo-sets.ts",
-     "literals": 19
-    }
-   ]
-  },
-  {
-   "module": "screens/scenes-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 24,
-   "fileList": [
-    {
-     "file": "screens/scenes-panel.ts",
-     "literals": 24
-    }
-   ]
-  },
-  {
-   "module": "screens/script-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 23,
-   "fileList": [
-    {
-     "file": "screens/script-editor.ts",
-     "literals": 23
-    }
-   ]
-  },
-  {
-   "module": "screens/cast-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 21,
-   "fileList": [
-    {
-     "file": "screens/cast-logic.ts",
-     "literals": 21
-    }
-   ]
-  },
-  {
-   "module": "screens/lock-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 21,
-   "fileList": [
-    {
-     "file": "screens/lock-reason.ts",
-     "literals": 21
-    }
-   ]
-  },
-  {
-   "module": "screens/kiosk-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 19,
-   "fileList": [
-    {
-     "file": "screens/kiosk-wall.ts",
-     "literals": 19
-    }
-   ]
-  },
-  {
-   "module": "screens/device-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 18,
-   "fileList": [
-    {
-     "file": "screens/device-types-logic.ts",
-     "literals": 18
-    }
-   ]
-  },
-  {
-   "module": "screens/door-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 17,
-   "fileList": [
-    {
-     "file": "screens/door-path-logic.ts",
-     "literals": 17
-    }
-   ]
-  },
-  {
-   "module": "screens/area-*",
-   "kind": "app",
-   "files": 2,
-   "literals": 15,
-   "fileList": [
-    {
-     "file": "screens/area-quick-sheet.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/area-row-editor.ts",
-     "literals": 13
-    }
-   ]
-  },
-  {
-   "module": "screens/floor-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 15,
-   "fileList": [
-    {
-     "file": "screens/floor-stills.ts",
-     "literals": 15
-    }
-   ]
-  },
-  {
-   "module": "screens/scenarios-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 15,
-   "fileList": [
-    {
-     "file": "screens/scenarios-panel.ts",
-     "literals": 15
-    }
-   ]
-  },
-  {
-   "module": "screens/tabs-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 12,
-   "fileList": [
-    {
-     "file": "screens/tabs-place-strings.ts",
-     "literals": 12
-    }
-   ]
-  },
-  {
-   "module": "styles",
-   "kind": "app",
-   "files": 4,
-   "literals": 11,
-   "fileList": [
-    {
-     "file": "styles/automations-glass.ts",
-     "literals": 1
-    },
-    {
-     "file": "styles/devices-palettes.ts",
-     "literals": 8
-    },
-    {
-     "file": "styles/devices-themes.ts",
-     "literals": 1
-    },
-    {
-     "file": "styles/settings.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "screens/scripts-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 9,
-   "fileList": [
-    {
-     "file": "screens/scripts-panel.ts",
-     "literals": 9
-    }
-   ]
-  },
-  {
-   "module": "screens/scene-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 8,
-   "fileList": [
-    {
-     "file": "screens/scene-editor.ts",
-     "literals": 8
-    }
-   ]
-  },
-  {
-   "module": "screens/infra-*",
-   "kind": "app",
-   "files": 4,
-   "literals": 6,
-   "fileList": [
-    {
-     "file": "screens/infra-electricity.ts",
+     "file": "shell/sw-app.ts",
      "literals": 3
     },
     {
-     "file": "screens/infra-elevators.ts",
+     "file": "shell/sw-lang-prefs.ts",
      "literals": 1
     },
     {
-     "file": "screens/infra-generator.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/infra-temperature.ts",
+     "file": "shell/sw-nav-order.ts",
      "literals": 1
     }
    ]
@@ -7605,29 +2740,45 @@
    ]
   },
   {
-   "module": "generator",
+   "module": "arx",
    "kind": "app",
    "files": 2,
    "literals": 4,
    "fileList": [
     {
-     "file": "generator/access.ts",
-     "literals": 2
+     "file": "arx/android-download.ts",
+     "literals": 3
     },
     {
-     "file": "generator/gen-settings.ts",
-     "literals": 2
+     "file": "arx/arx-login.ts",
+     "literals": 1
     }
    ]
   },
   {
-   "module": "screens/settings-*",
+   "module": "pwa",
+   "kind": "app",
+   "files": 2,
+   "literals": 4,
+   "fileList": [
+    {
+     "file": "pwa/offline-page.ts",
+     "literals": 1
+    },
+    {
+     "file": "pwa/push-v2.ts",
+     "literals": 3
+    }
+   ]
+  },
+  {
+   "module": "screens/styleguide-*",
    "kind": "app",
    "files": 1,
    "literals": 4,
    "fileList": [
     {
-     "file": "screens/settings-nav-strings.ts",
+     "file": "screens/styleguide-screen.ts",
      "literals": 4
     }
    ]
@@ -7645,14 +2796,118 @@
    ]
   },
   {
-   "module": "screens/placeholder-*",
+   "module": "screens/electricity",
    "kind": "app",
    "files": 1,
    "literals": 3,
    "fileList": [
     {
-     "file": "screens/placeholder-screen.ts",
+     "file": "screens/electricity/settings-retention.ts",
      "literals": 3
+    }
+   ]
+  },
+  {
+   "module": "styles",
+   "kind": "app",
+   "files": 3,
+   "literals": 3,
+   "fileList": [
+    {
+     "file": "styles/automations-glass.ts",
+     "literals": 1
+    },
+    {
+     "file": "styles/devices-themes.ts",
+     "literals": 1
+    },
+    {
+     "file": "styles/settings.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "access-external",
+   "kind": "app",
+   "files": 1,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "access-external/model.ts",
+     "literals": 2
+    }
+   ]
+  },
+  {
+   "module": "design",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "design/skins/bubble.ts",
+     "literals": 1
+    },
+    {
+     "file": "design/skins/classic.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/area-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/area-quick-sheet.ts",
+     "literals": 2
+    }
+   ]
+  },
+  {
+   "module": "screens/automation-*",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/automation-editor-base.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/automation-ext-forms.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/infra-*",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/infra-elevators.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/infra-temperature.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/scenarios-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/scenarios-panel.ts",
+     "literals": 2
     }
    ]
   },
@@ -7720,6 +2975,30 @@
    "fileList": [
     {
      "file": "screens/insights-settings.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/multimedia-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/multimedia-remote-editor.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/nvr-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/nvr-encoding-batch.ts",
      "literals": 1
     }
    ]

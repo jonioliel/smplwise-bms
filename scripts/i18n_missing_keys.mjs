@@ -54,7 +54,10 @@ const rel = (p) => relative(SRC, p).split(sep).join('/');
 
 // ---------------------------------------------------------------- part 1: the registered catalogues
 const files = walk(SRC);
-const registering = files.filter((p) => /\bregisterCatalogue\(/.test(readFileSync(p, 'utf8')) && !p.endsWith(join('i18n', 'core.ts')));
+// a catalogue file calls registerCatalogue(...) itself, or msgCatalogue(...) (a source-text table, i18n/msg/*.ts)
+const registering = files.filter(
+  (p) => /\b(registerCatalogue|msgCatalogue)\(/.test(readFileSync(p, 'utf8')) && !p.endsWith(join('i18n', 'core.ts')) && !p.endsWith(join('i18n', 'msg.ts')),
+);
 
 async function loadCatalogues() {
   const require = createRequire(join(FRONTEND, 'package.json'));
