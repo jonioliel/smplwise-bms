@@ -11,16 +11,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import touch_user
-from ..db import Database
 from ..errors import ApiError, not_found
 from ..services import mobile_push as svc
-from .presence import CONFIGURE, Caller, _own_device, _rid, any_caller, device_caller
+from ._common import db_of as _db, rid as _rid
+from .presence import CONFIGURE, Caller, _own_device, any_caller, device_caller
 
 router = APIRouter()
-
-
-def _db(request: Request) -> Database:
-    return request.app.state.db
 
 
 class PushRegisterIn(BaseModel):

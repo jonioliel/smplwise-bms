@@ -29,6 +29,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import incidents as svc
 from ..services.access import require_camera
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -43,10 +44,6 @@ def _off() -> ApiError:
 def _gate(conn: sqlite3.Connection) -> None:
     if not svc.module_on(conn):
         raise _off()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _incident(conn: sqlite3.Connection, principal: Principal, incident_id: str, permission: str) -> sqlite3.Row:

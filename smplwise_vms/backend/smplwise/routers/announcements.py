@@ -37,6 +37,7 @@ from ..services import announce_screens as scr
 from ..services import announce_templates as tpl
 from ..services import announce_translate as tr
 from ..services import announcements as svc
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -88,10 +89,6 @@ class EmergencyBody(_Body):
 
 class TemplatesBody(_Body):
     templates: list[dict[str, Any]] = Field(max_length=tpl.MAX_TEMPLATES)
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.get("/announcements/areas")

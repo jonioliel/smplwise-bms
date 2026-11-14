@@ -21,6 +21,7 @@ from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..remote_channel import is_remote
 from ..services.partner import core, webhooks
 from ..services.partner.core import PartnerError
+from ._common import rid as _rid
 
 router = APIRouter()
 MANAGE = "partner.manage"
@@ -47,10 +48,6 @@ MESSAGES = {
     "feature_off": "ממשק השותפים כבוי.",
     "not_system_admin": "רק מנהל מערכת מנהל את ממשק השותפים.",
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _err(exc: PartnerError) -> ApiError:

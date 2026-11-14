@@ -22,13 +22,10 @@ from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import camera_image_health as cih
 from ..services.access import visible_camera_ids
+from ._common import rid as _rid
 
 router = APIRouter()
 PERMISSION = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _answer(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:

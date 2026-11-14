@@ -24,6 +24,7 @@ from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
 from ..services import revocation, wall, wall_alerts, wall_photos
 from ..services.access import visible_camera_ids
+from ._common import rid as _rid
 from .access import BindingBody, insert_binding, revoke_one, user_known, validate_binding
 
 router = APIRouter()
@@ -31,10 +32,6 @@ router = APIRouter()
 WALL_VIEW = "wall.view"
 WS_POLL_S = 1.0
 WS_HEARTBEAT_STORE_S = 30.0
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _names(conn: sqlite3.Connection) -> dict[str, str]:

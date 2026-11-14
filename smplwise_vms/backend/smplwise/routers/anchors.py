@@ -16,16 +16,13 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import door_authority, floor_images, plan_anchor_scope, plan_bakes
 from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
+from ._common import rid as _rid
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
 from .settings import read_settings
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def anchor_row(r: sqlite3.Row) -> dict[str, Any]:

@@ -22,7 +22,8 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured, after th
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr_settings
 from ..services.access import camera_allowed, camera_scope, require_camera
-from .nvr_write import _raw_body, json_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .nvr_write import json_body
 
 router = APIRouter()
 STREAM_REF_RE = re.compile(r"\d{1,6}")
@@ -36,10 +37,6 @@ WRITE_PERMISSION = nvr_settings.WRITE_PERMISSION
 RECORDER_ID = Query(default=None, pattern=r"^[A-Za-z0-9_.-]{1,40}$")
 STREAM_REF = Path(pattern=r"^\d{1,6}$")
 CODEC = Query(default=None, pattern=r"^[A-Za-z0-9.+_-]{1,32}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _can_write(conn: sqlite3.Connection, principal: Principal, camera_id: str | None = None) -> bool:

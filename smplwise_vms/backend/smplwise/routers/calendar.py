@@ -24,6 +24,7 @@ from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, req
 from ..services.calendar import calendars as cals
 from ..services.calendar import decisions, events, guests, jobs, model, occ
 from ..services.calendar.access import Ctx, Denied, get_visible, scope_of
+from ._common import rid as _rid
 
 OFF_HE = "מודול היומנים כבוי בהגדרות המערכת."
 
@@ -31,10 +32,6 @@ OFF_HE = "מודול היומנים כבוי בהגדרות המערכת."
 def _now() -> dt.datetime:
     """The route clock (tests replace it)."""
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> None:

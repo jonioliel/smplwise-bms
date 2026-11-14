@@ -21,6 +21,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.maintenance import access, files as mfiles, model, service
 from ..services.maintenance.access import Viewer
+from ._common import rid as _rid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 TOKEN = r"^[A-Za-z0-9_-]{16,64}$"
@@ -34,10 +35,6 @@ def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqli
 
 open_router = APIRouter()  # GET /maintenance/module only
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class _Body(BaseModel):

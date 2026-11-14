@@ -27,6 +27,7 @@ from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import building_scope
+from ._common import rid as _rid
 from .catalog import P_CONTENT, get_site
 
 router = APIRouter()
@@ -42,10 +43,6 @@ STATE_MAX_BYTES = 512 * 1024
 PLAN_MAX = 5000
 NAME_MAX = 120
 ID_MAX = 120
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def multi_building_on(conn: sqlite3.Connection) -> bool:

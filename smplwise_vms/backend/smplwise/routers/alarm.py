@@ -33,6 +33,7 @@ from ..services import alarm as svc
 from ..services import alarm_codes as codes
 from ..services import ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, service_identity
 from ..services.timeutil import parse_utc
+from ._common import is_json as _is_json, raw_body as _raw_body
 
 router = APIRouter()
 
@@ -167,15 +168,6 @@ def panels(request: Request, principal: Principal = Depends(current_principal), 
 
 
 # ---------------------------------------------------------------- body handling (JSON only, the code kept apart)
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
-
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel], secret_fields: tuple[str, ...] = ()) -> tuple[BaseModel, dict[str, Any]]:
     """(validated body, {secret field: value}). Secret fields (a code, a PIN) are taken out BEFORE validation, so no

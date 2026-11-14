@@ -37,14 +37,14 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 
 from ..audit import audit
 from ..auth import settings_of
-from ..db import Database
 from ..errors import ApiError
 from ..services import intercom_client, intercom_sync
 from ..services import intercom_authority as ia
 from ..services import intercom_writes as iw
 from ..services import station_people as sp
 from ..services.timeutil import parse_utc
-from .access_control import COMMAND_ID, DEDUPE_WINDOW_S, EXPIRY_MAX_S, SEND_WITHIN_S, _is_json, _raw_body, people_writer
+from ._common import db_of as _db, is_json as _is_json, raw_body as _raw_body, rid as _rid
+from .access_control import COMMAND_ID, DEDUPE_WINDOW_S, EXPIRY_MAX_S, SEND_WITHIN_S, people_writer
 
 log = logging.getLogger("smplwise.intercom")
 router = APIRouter()
@@ -82,14 +82,6 @@ GENERIC_HE: dict[str, str] = {
     "not_sent": "הפעולה לא נשלחה (בקרת הכניסה אינה זמינה כרגע או עסוקה). אפשר לנסות שוב.",
     "unknown": "לא ידוע אם הפעולה בוצעה. רעננו את הרשימה ובדקו לפני שמנסים שוב.",
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request) -> Database:
-    return request.app.state.db
 
 
 def _now() -> datetime:

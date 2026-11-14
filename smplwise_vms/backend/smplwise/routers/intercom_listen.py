@@ -41,8 +41,9 @@ from ..services import intercom_listen as il
 from ..services import intercom_media as im
 from ..services import wiskey_listen_adapter as adapter
 from ..services.leases import CameraLease
+from ._common import raw_body as _raw_body, rid as _rid
 from . import media
-from .intercom_media import CALL, MAX_STATION_ID, READ, _gate, _rid, _served_station, _visible_station
+from .intercom_media import CALL, MAX_STATION_ID, READ, _gate, _served_station, _visible_station
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom.listen")
@@ -53,10 +54,6 @@ MAX_TEXT = 512
 class ListenStart(BaseModel):
     model_config = ConfigDict(extra="forbid")
     client_request_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
 
 
 def _end_row(conn: sqlite3.Connection, principal: Any, s: il.ListenSession) -> None:

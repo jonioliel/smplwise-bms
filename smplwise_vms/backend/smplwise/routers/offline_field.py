@@ -31,16 +31,13 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import offline_field as svc
 from ..services.tickets import access
 from ..services.tickets.messaging import DEFAULT_TZ
+from ._common import rid as _rid
 
 router = APIRouter()
 
 MANAGE = "tickets.manage"
 CONFIGURE = "system.configure"
 ID = r"^[A-Za-z0-9_.:-]{1,80}$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(conn: sqlite3.Connection) -> None:

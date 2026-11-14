@@ -28,6 +28,7 @@ from ..rbac import INSTALLATION, STATION, Principal, authorize, require
 from ..services import intercom_doors, intercom_sync
 from ..services import wiskey_relay_map as rm
 from ..services import wiskey_relay_map_export as rmx
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -43,10 +44,6 @@ MESSAGES = {
     "relay_map_unchanged": (422, "לא היה שינוי במיפוי."),
     "confirm_required": (422, f"השינוי משפיע על דלת שיש לה אוטומציה. כדי לאשר יש להקליד \"{rm.CONFIRM_WORD}\"."),
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _user_name(conn: sqlite3.Connection, user_id: str | None) -> str | None:

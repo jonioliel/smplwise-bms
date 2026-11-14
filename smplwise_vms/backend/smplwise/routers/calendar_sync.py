@@ -32,6 +32,7 @@ from ..services.calendar.access import Ctx, Denied, get_visible
 from ..services.calendar.events import get_row
 from ..services.calendar_sync import credentials, engine, ics, oauth, registry
 from ..services.calendar_sync.adapter import PROVIDERS, SyncError
+from ._common import db_of as _db
 from . import calendar as cal_mod
 from .calendar import Body, _audit, _body, _errors, module_gate
 
@@ -74,10 +75,6 @@ OAUTH_HE = {
 
 def _oauth_err(exc: oauth.OAuthError) -> ApiError:
     return ApiError(exc.status, exc.code, OAUTH_HE.get(exc.code, "החיבור לספק נכשל."), retryable=exc.code in ("provider_unavailable", "rate_limited"))
-
-
-def _db(request: Request) -> Any:
-    return request.app.state.db
 
 
 def _audit_aside(request: Request, principal: Principal, action: str, rid: str, decision: str = "allowed", reason: str | None = None, **details: Any) -> None:

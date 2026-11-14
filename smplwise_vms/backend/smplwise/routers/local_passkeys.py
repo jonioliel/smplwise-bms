@@ -51,7 +51,8 @@ from ..services import local_identity as li
 from ..services import local_passkeys as lpk
 from ..services import second_factor as sf
 from .. import guarded_route
-from .local_identity import _error, _public_guard, _rid, _success, _user_row
+from ._common import rid as _rid
+from .local_identity import _error, _public_guard, _success, _user_row
 
 router = APIRouter()
 

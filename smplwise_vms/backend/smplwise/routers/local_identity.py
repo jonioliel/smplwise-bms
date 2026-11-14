@@ -65,6 +65,7 @@ from ..services import local_passwords as lp
 from ..services import local_reset as lr
 from ..services import presence, revocation
 from ..services import second_factor as sf
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -106,10 +107,6 @@ def public_post(path: str, **kwargs: Any):
     so on the local channel every body - well-formed or not - is the same 404, and on the remote channel the switch / transport / CSRF
     refusals come before any 422. The endpoint itself does not call the guard again."""
     return guarded_route.post(router, _public_guard, path, **kwargs)
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _error(request: Request, status: int, code: str, message: str, headers: dict[str, str] | None = None, retryable: bool = False) -> JSONResponse:

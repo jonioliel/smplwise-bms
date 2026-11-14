@@ -49,7 +49,8 @@ from ..rbac import Principal
 from ..services import intercom_authority as ia
 from ..services import intercom_client, intercom_sync
 from ..services import wiskey_door_tech as dt
-from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _raw_body, _station
+from ._common import raw_body as _raw_body
+from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"

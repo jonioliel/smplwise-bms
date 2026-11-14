@@ -20,6 +20,7 @@ from ..services import plan_geometry as pg
 from ..services import plan_zones
 from ..services import shared_spaces
 from ..services.tickets import store_locations
+from ._common import rid as _rid
 from .anchors import _editor_version
 from .catalog import get_floor
 
@@ -109,10 +110,6 @@ def zone_row(r: sqlite3.Row) -> dict[str, Any]:
 
 def floor_zones(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
     return [zone_row(r) for r in conn.execute("SELECT * FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY created_at, rowid", (floor_id,)).fetchall()]
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _get_zone(conn: sqlite3.Connection, zone_id: str) -> sqlite3.Row:

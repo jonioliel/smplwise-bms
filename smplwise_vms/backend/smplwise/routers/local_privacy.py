@@ -20,16 +20,13 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import local_identity as li
 from ..services import local_privacy as lp
+from ._common import rid as _rid
 
 router = APIRouter()
 
 OFF_HE = "ייצוא המידע האישי אינו מופעל במערכת הזו."
 SELF_ONLY_HE = "הפעולה זמינה רק למשתמש Arx שנכנס עם חשבון משלו."
 NOT_FOUND_HE = "המשתמש לא נמצא."
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _deliver(conn: sqlite3.Connection, request: Request, principal: Principal, subject: str, on_behalf: bool) -> Response:

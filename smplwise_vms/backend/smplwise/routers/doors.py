@@ -44,6 +44,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
 from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
                         revocation, trusted_door)
+from ._common import rid as _rid
 from . import access as acc
 
 router = APIRouter()
@@ -55,10 +56,6 @@ RELEASE = door_authority.RELEASE  # its legacy name (rbac.LEGACY_PERMISSIONS)
 DOOR_GRANTS = (DOOR_OPEN, RELEASE)  # a custom role's own list "includes door opening" when it names either
 MAX_ID = 128
 REQUEST_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _confirmed(value: Any) -> None:

@@ -27,6 +27,7 @@ from ..services import backup as backup_svc
 from ..services import backup_sensitive as sens
 from ..services import offbox_gdrive_connect, offbox_keys, offbox_restore, offbox_runtime, offbox_store
 from ..services.backup_offbox import ALLOWED_FIELDS, CONSENT_ONLY_FIELDS, CREDENTIAL_FIELDS, OffboxError, RetentionPolicy, build_destination
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
 
@@ -86,14 +87,6 @@ MESSAGES = {
 
 def _err(exc: OffboxError, status: int = 422) -> ApiError:
     return ApiError(status, exc.code, MESSAGES.get(exc.code, "הפעולה נדחתה."))
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request) -> Any:
-    return request.app.state.db
 
 
 class RetentionIn(BaseModel):

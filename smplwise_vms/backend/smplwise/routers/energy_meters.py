@@ -30,7 +30,7 @@ from ..services import energy_settings as es
 from ..services import energy_store as st
 from ..services.energy_provider import EnergyProvider, coverage_of
 from ..services.timeutil import parse_utc
-from .devices import _is_json, _raw_body
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 VIEW, MANAGE = es.VIEW, es.MANAGE
@@ -57,10 +57,6 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 _viewer = read_gate(lambda conn, principal: require(conn, principal, VIEW, INSTALLATION))

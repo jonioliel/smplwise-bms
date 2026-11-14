@@ -56,6 +56,7 @@ from ..services import intercom_authority as ia
 from ..services import intercom_writes as iw
 from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
+from ._common import is_json as _is_json, raw_body as _raw_body
 from .media import _principal_for_ws
 from .settings import read_settings
 
@@ -655,18 +656,6 @@ class _Action:
                 self._row(w, "allowed", reason, {"phase": "outcome", "outcome": outcome, **fields})
         except Exception:  # noqa: BLE001 - the command was sent; its attempt row stands (see the section note)
             log.exception("audit: the outcome (%s) of %s command %s could not be recorded; its attempt row stands", outcome, self.action, self.details.get("command_id"))
-
-
-async def _raw_body(request: Request) -> bytes:
-    """The request body, unparsed. Declared AFTER the permission dependency, so a caller without access.release gets
-    403 whatever they sent, and a body that is not JSON is an audited refusal (`_parse`), not FastAPI's bare 422."""
-    return await request.body()
-
-
-def _is_json(content_type: str | None) -> bool:
-    """`application/json` or an `application/<x>+json` subtype, parameters (charset) ignored."""
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
 def _parse(act: _Action, model: type[BaseModel], raw: bytes) -> Any:
