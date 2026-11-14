@@ -121,9 +121,9 @@ export class CalViewMaint extends LitElement {
         <span class="mode"><sw-icon name="info" size="14"></sw-icon>מעל הזמנה מאושרת: <b>${OVERLAP_SHORT[this.overlap]}</b></span>
       </div>
       ${list.length ? html`<div class="list">${pg.items.map((w) => this.row(w))}</div>
-        <div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
+        ${this.lists.paged ? html`<div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
           <span class="num" data-page>${pg.page} / ${pg.pages}</span>
-          <button type="button" class="btn" aria-label="הבא" ?disabled=${pg.page >= pg.pages} @click=${() => (this.page = pg.page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>`
+          <button type="button" class="btn" aria-label="הבא" ?disabled=${pg.page >= pg.pages} @click=${() => (this.page = pg.page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>` : nothing}`
       : html`<div class="center" data-cal-state="empty"><sw-state-panel icon="wrench" state="empty" heading=${this.seg === 'next' ? 'אין חלונות תחזוקה מתוכננים' : 'לא היו חלונות תחזוקה בשבוע שעבר'}
           hint="חלון תחזוקה מסמן חדרים כתפוסים לעבודה; לפני השמירה רואים אם הוא חופף להזמנות." actionLabel=${can && this.seg === 'next' ? 'חלון תחזוקה חדש' : ''}
           @action=${() => emit(this, CAL_EVENTS.newMaint, {})}></sw-state-panel></div>`}

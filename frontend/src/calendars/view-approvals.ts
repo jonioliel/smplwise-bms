@@ -357,6 +357,7 @@ export class CalViewApprovals extends LitElement {
   }
 
   private pager(page: number, pages: number) {
+    if (!this.lists.paged) return nothing; // PAGING-SETTING-2439: the list scrolls, no pager
     return html`<div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
       <span class="num" data-page>${page} / ${pages}</span>
       <button type="button" class="btn" aria-label="הבא" ?disabled=${page >= pages} @click=${() => (this.page = page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>`;

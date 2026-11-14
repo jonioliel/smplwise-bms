@@ -233,13 +233,15 @@ export class InfraTemperature extends LitElement {
       .grid { gap: 14px; }
     }
     /* PAGING-SETTING-2439: the long lists scroll (הגדרות › כללי) - the screen keeps its box, the counters and the floors stay, and the
-       unit cards scroll inside their own region (not measured in a browser yet: if the heights do not resolve, the screen scrolls as
-       it did before NOSCROLL-1366) */
+       unit cards scroll inside their own region (measured: layout-noscroll-1366 case temperature-many) */
     @media (min-width: 1101px) {
       :host([data-long-lists='scroll']) { block-size: 100%; min-block-size: 0; }
       :host([data-long-lists='scroll']) sw-page { block-size: 100%; min-block-size: 0; }
       :host([data-long-lists='scroll']) [data-temp-grid],
       :host([data-long-lists='scroll']) [data-temp-groups] { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; }
+      /* a card clips its overflow, so its rows would shrink to the box instead of overflowing it: rows keep their content height */
+      :host([data-long-lists='scroll']) [data-temp-grid],
+      :host([data-long-lists='scroll']) [data-temp-groups] { grid-auto-rows: max-content; }
     }
     @media (min-width: 1101px) and (max-height: 820px) {
       :host { padding-block: 10px 16px; }
