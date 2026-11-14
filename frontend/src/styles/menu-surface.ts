@@ -46,8 +46,8 @@
  * touch affordances of the walk (the joystick ring, the target mark: no text, they must show the scene), and the Bubble pop-up sheet
  * (`sw-sheet`), whose translucency is bounded by a computed contrast floor (design/contrast.ts) over a dimmed, blurred scrim.
  * DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A / 8B): the dialog (`sw-dialog`) and the drawer (`sw-drawer`) are no longer in that list -
- * they are ONE opaque surface each, painted with the same two tokens and registered below; the Bubble skin's own sheet rule
- * (skins/bubble.ts, its transparency dial) is the one recorded exception. The scrim behind a modal
+ * they are ONE opaque surface each, painted with the same two tokens and registered below - in the Bubble skin too (owner round 34,
+ * Q-DES-23 b): its transparency dial no longer reaches a dialog or a drawer. The scrim behind a modal
  * (`::backdrop`, `.backdrop`, `--sw-overlay`) may stay translucent.
  *
  * ADDING A MENU: use the two tokens, add the surface to MENU_SURFACES below, and run `tests/unit-menu-lint.spec.ts` (it also finds a new

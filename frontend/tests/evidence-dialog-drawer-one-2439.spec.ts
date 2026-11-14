@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 //   npm run build, then SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-dialog-drawer-one-2439.spec.ts --workers=1
 
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../test-results/dialog-drawer-one-2439');
-const SKINS = ['domus', 'classic', 'crystal'] as const;
+const SKINS = ['domus', 'classic', 'crystal', 'bubble'] as const; // bubble: opaque too (owner round 34, Q-DES-23 b)
 const SCHEMES = ['light', 'dark'] as const;
 
 async function mount(page: Page, skin: string, scheme: string, lang = 'he') {

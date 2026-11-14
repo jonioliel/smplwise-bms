@@ -76,7 +76,12 @@ so the lint fails if either gets a translucent fill or a blur again (the drawer'
   from the pressed tile, phone sheet with detents) are its behaviour.
 - `screens/home-edit-drawer.ts`: untouched - see question 2 below.
 
-## Contradictions recorded (not silently resolved) - questions for the owner
+## Contradictions recorded (not silently resolved) - answered by the owner in round 34
+
+Round 34 (2026-11-14): **Q-DES-21 a** keep today's button order (point 1: no change); **Q-DES-22 a** the home screen's edit panel
+stays a non-modal editor panel at the end of the row (point 2: no change); **Q-DES-23 b** dialogs and drawers are opaque in the
+Bubble style too (point 3: done - `skins/bubble.ts` paints `--sw-menu-surface` with no blur; the transparency setting still
+drives the other Bubble surfaces; the new spec measures bubble with the other skins). The points as they were recorded:
 
 1. **Footer order of the dialog.** The approved picture draws the main action first, at the start of the row (the drawer's order).
    The same question's text says "the visible change is only in the two translucent dialogs and the hand-built ones", and the 161
@@ -149,7 +154,7 @@ the entry check, queued at the branch head (`~/pre/entry_dlgdrw.log`; verdict `~
 NOT_RUN / not verified: the full suites (the entry check below); `evidence-wiskey-editor` against the fixture WisKey (skipped
 without it); `evidence-camera-card` (fixture-only) - the enlarged camera picture was not opened in a browser here; the mapping
 assistant was not opened in a browser; left-to-right (English) in a browser; a physical phone; other skins than Domus / classic /
-crystal for the new spec (tesla, soft, infra, bubble are not measured; bubble is the recorded exception).
+crystal / bubble for the new spec (tesla, soft, infra are not measured).
 
 ## Rollback
 

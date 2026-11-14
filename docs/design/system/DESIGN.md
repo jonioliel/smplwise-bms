@@ -352,8 +352,8 @@ Domus is a hybrid: the three glass levels carry the structure, and a real ladder
 | `--sw-shadow-primary` | `0 1px 2px rgba(27,72,204,.4), 0 8px 20px -4px rgba(36,88,230,.5)` | `0 1px 2px rgba(0,0,0,.5), 0 8px 20px -4px rgba(110,162,255,.35)` | primary button, selected chip |
 
 Glass material (`domus.ts:139-143`): panel `--sw-glass-blur` `blur(28px) saturate(1.7)`; rail, bottom bar and corner pill
-`--sw-glass-blur-nav` `blur(22px) saturate(1.6)`; `--sw-glass-blur-sheet` `blur(36px) saturate(1.7)` (the Bubble-style sheet only: the
-dialog and the drawer carry no blur, §7.10); the sheen
+`--sw-glass-blur-nav` `blur(22px) saturate(1.6)`; `--sw-glass-blur-sheet` `blur(36px) saturate(1.7)` (the pop-up sheet `sw-sheet` only: the
+dialog and the drawer carry no blur in any skin, §7.10); the sheen
 `--sw-glass-sheen` `linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.2) 38%, rgba(255,255,255,0) 72%)` (dark
 `.12` / `.03` at 40 % / `0`). A panel paints `var(--sw-glass-sheen), var(--sw-surface)` with
 `box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight)` (`domus.ts:167`).
@@ -474,13 +474,14 @@ keeps both surfaces opaque.
 **The dialog (`components/sw-dialog.ts`)**
 - **Opaque, no blur.** Fill `--sw-menu-surface`, edge `1px solid --sw-menu-border` (the floating-layer pair: opaque in every
   skin, and the solid twin inside a glass host), `--sw-shadow-3`. The page behind is dimmed by `--sw-overlay` and never shows
-  through the box. No `backdrop-filter` on the box in any skin (Bubble's own sheet rule is the recorded exception, Appendix A.2).
+  through the box. No `backdrop-filter` on the box in any skin - Bubble included (round 34, Q-DES-23 b: its transparency setting no longer reaches a
+  dialog or a drawer; it still drives the other Bubble surfaces).
 - **Always centred. Three fixed widths:** 440 px, `wide` 720 px, `xl` 1120 px (`fit` stays for a table whose width is not known
   ahead). Radius `--sw-r-lg` (26 px in Domus). `max-block-size: calc(100dvh - 32px)`; only the body scrolls.
 - **Top:** the title (`--sw-fs-xl`, bold, `--sw-heading`), one explanation line (`--sw-fs-sm`, `--sw-text-2`) and a round close
   button (`sw-button round iconOnly`). Padding `16px 18px 10px`. **Bottom:** the actions behind a hairline, padding
   `12px 18px 16px`, always in the same order: "ביטול" (ghost), then the main action (primary, or danger for a destructive one),
-  packed at the end of the row. Body `2px 18px 14px`, gap 10 px, labels above the fields.
+  packed at the end of the row (round 34, Q-DES-21 a: today's order stays; the dialog is not flipped to the drawer's order). Body `2px 18px 14px`, gap 10 px, labels above the fields.
 - **Phone (under 768 px):** a full-width sheet attached to the bottom edge, rising from it (a `clip-path` reveal from the bottom edge on
   `--sw-ease-drawer`, `--sw-t-sheet`); the top corners keep `--sw-r-lg`.
 - **Behaviour:** top layer (a manual popover), focus moves in and is trapped, Escape closes the top dialog, a press on the scrim
@@ -775,6 +776,9 @@ option is the default and the alternative must be reachable from the settings sc
 | Q-DES-6 | Pill buttons everywhere | **yes** | none yet | A.3 |
 | Q-DES-7 | Compact phone card for tables | **yes** | none yet | A.7 |
 | Q-DES-8 | One opaque dialog and one drawer; round 33 (2026-11-14) Q-DES-8A a and Q-DES-8B a: both approved as shown | n/a | done in `sw-dialog` / `sw-drawer` | §7.10, A.2 |
+| Q-DES-21 | (round 34) The dialog's buttons keep today's order: "ביטול" first, the main action last | n/a | as built | §7.10 |
+| Q-DES-22 | (round 34) The home screen's edit panel stays a non-modal editor panel at the end of the row | n/a | as built | A.2 |
+| Q-DES-23 | (round 34) Dialogs and drawers are opaque in the Bubble style too; its transparency setting still applies to other Bubble surfaces | no | done in `skins/bubble.ts` | §7.10 |
 | Q-DES-9 | Translate every operator term except "NVR" | no | n/a | A.21 |
 | Q-DES-10 | "Home Assistant" stays in the settings screens (it becomes one data source among several) | no | n/a | in force |
 | Q-DES-11 | One settings structure, but unsure: the glass structure of service management and notifications is excellent. Hold; discuss | n/a | n/a | **OPEN** (§13.3) |
@@ -906,16 +910,14 @@ element, each with the reason:
 - `screens/area-quick-sheet.ts` (`.panel`): the area's quick panel has three forms (a drawer on the inline start, a pop-up that
   grows from the pressed tile, a phone sheet with detents and a drag); already opaque and on the same side.
 - `screens/home-edit-drawer.ts` (`.he-drawer`) and the layout editor's `.lay-panel` (`screens/devices-layout-css.ts`): the docked
-  inspector of the layout editor, at the inline END, not modal (the page beside it stays draggable). **Open for the owner:** move
-  the inspector to the inline start with every drawer, or keep it as an editor panel that is not a drawer.
+  inspector of the layout editor, at the inline END, not modal (the page beside it stays draggable). **Decided** (round 34,
+  Q-DES-22 a): it stays a non-modal editor panel at the end of the row; it is not a drawer and the side rule does not apply to it.
 - `calendars/view-approvals.ts`, `calendars/view-manage.ts` (`aside.overlay`): the inline detail / side panel of the two screens
   shown as an overlay on a narrow window; `calendars/resident.ts` and `home/*` are the residents' interface (out of scope of
   Q-DES-8).
-- `design/skins/bubble.ts:159`: the Bubble skin still paints the dialog and the drawer with its translucent sheet and blur (its
-  transparency dial is an installation setting). **Open for the owner:** make Bubble opaque too, or keep the dial.
-- The dialog's footer order: the approved picture shows the main action first at the start of the row; the 161 files that use the
-  dialog place "ביטול" first and the main action at the end, and the proposal's text says existing dialogs do not change. The
-  existing order was kept. **Open for the owner:** flip every dialog to the drawer's order.
+
+Closed by round 34 (2026-11-14): the Bubble skin paints the dialog and the drawer opaque like every skin (Q-DES-23 b, done in
+`design/skins/bubble.ts`); the dialog's footer keeps today's order, "ביטול" first and the main action last (Q-DES-21 a).
 
 
 **A.3 Button shape (Q-DES-6: pill).** `components/sw-button.ts:41` `border-radius: var(--sw-r-sm)` (sm: `:93` `--sw-r-xs`);
