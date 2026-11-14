@@ -56,6 +56,24 @@ open at the moment the test counts them. A likely contributor is the faster noti
 one second), which this test's timing exposes; not proven. Not a stale test or an infra flake, so the branch was dropped, not patched
 in the train. It goes back to its owner with this evidence.
 
+### The second gate (`release/2436-train-r2` @ `c441013b7`) and the test-only fix
+
+Full release gate: verdict **fail**, 8288 s. Counts (pass / fail / flaky): backend 14902 / 0 / 2, preview 13257 / 1 / 23, dev
+729 / 0 / 1, fixture 28 / 1 / 0, pixel 243 / 0 / 3, visual 72 / 0 / 0; tsc, build, release check and add-on build pass. The
+WisKey lifecycle test passed. Two failures, both in specs whose frontend is byte-identical to the first gate, where they passed:
+
+- `unit-second-factor-admin-ui.spec.ts:176 [desktop]` (mocked backend): `mock.calls` had no PUT yet. The select's `@change` calls
+  an async method that sends the PUT; the spec read the call list right after `toHaveValue` without waiting (line 188), while the
+  same spec polls for the analogous second change a few lines later. A test race on the loaded runner (load ~45). **Fix (test
+  only):** the two reads after the first change are now `expect.poll`.
+- `evidence-camera-card.spec.ts:291 [mobile]` (real backend, fake media stack): after a reload, 2 of 3 live cards within 20 s
+  (the third card sits at the phone scroller's edge, as the spec's own comment says). Its retry alone ran the same assertions and
+  passed them, then reached the spec's `test.skip` for non-desktop projects (line 323), which the gate counts as "failed again
+  alone". Not changed; the targeted re-run covers it.
+
+The targeted re-run (`release_gate2.sh release/2436-train-r2 --after gate_release-2436-train-r2_c441013b7.json`) runs on the
+fixed head; its verdict is recorded in the release report.
+
 ## 3. Train commits
 
 | Commit | What |
