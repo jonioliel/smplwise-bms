@@ -92,7 +92,7 @@ export const tr = msgCatalogue('msg/shell', {
   'סקריפטים': 'Scripts',
   'Review · חלונות': 'Review · windows',
   // nav.ts: the Ctrl+K page targets (the keywords are matched, never shown)
-  'אבטחה ‹ {name}': 'Security › {name}',
+  'אבטחה ‹ {name}': 'Security \u203a {name}',
   'מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה': 'Alarm status, arming and disarming, sensors and bypass',
   'תמונת מצב ומצלמות': 'Overview and cameras',
   'אירועים, הקלטות ותיקים': 'Events, recordings and cases',
@@ -181,7 +181,7 @@ export const tr = msgCatalogue('msg/shell', {
   'מהאפליקציה': 'from the app',
   'ההרשאות שלך עודכנו': 'Your permissions were updated',
   'אזור WisKey מוסתר': 'The WisKey area is hidden',
-  'מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם.': 'A system administrator hid the WisKey area for all users in Settings › Entrance screen switches. It can be shown again there.',
+  'מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם.': 'A system administrator hid the WisKey area for all users in Settings \u203a Entrance screen switches. It can be shown again there.',
   'חזרה למפת הקומה': 'Back to the floor map',
   'חזרה לאתרים': 'Back to sites',
   'חזרה להגדרות': 'Back to settings',
@@ -235,7 +235,7 @@ export const tr = msgCatalogue('msg/shell', {
   'אפס לברירת המחדל': 'Reset to default',
   'שמור': 'Save',
 
-  // sw-home-personal.ts: My account › My screen
+  // sw-home-personal.ts: My account \u203a My screen
   'ברירת מחדל': 'Default',
   'כיוון': 'Direction',
   'בנייד': 'On phones',
@@ -245,7 +245,7 @@ export const tr = msgCatalogue('msg/shell', {
   'ליד שם האזור': 'Next to the area name',
   'ברירת מחדל של המערכת': 'System default',
 
-  // sw-video-prefs.ts, sw-wiskey-prefs.ts: My account › Video, WisKey
+  // sw-video-prefs.ts, sw-wiskey-prefs.ts: My account \u203a Video, WisKey
   'העברת וידאו חי': 'Live video transport',
   'כמו ההגדרה של המערכת ({mode})': 'Same as the system setting ({mode})',
   'ההגדרה האישית אינה זמינה כרגע': 'The personal setting is unavailable right now',

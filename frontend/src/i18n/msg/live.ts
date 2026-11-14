@@ -66,7 +66,7 @@ export const tr = msgCatalogue('msg/live', {
   'כל המצלמות מוסתרות בקיר': 'Every camera is hidden on the wall',
   'אין מצלמות זמינות': 'No cameras available',
   'המצלמות מתגלות אוטומטית מהמקליט בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי המקליט בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות.':
-    'Cameras are discovered from the recorder automatically at start-up and every 10 minutes. If the list is empty, check the recorder details in Settings › Connections or run a manual sync; you may also have no permission for the cameras.',
+    'Cameras are discovered from the recorder automatically at start-up and every 10 minutes. If the list is empty, check the recorder details in Settings \u203a Connections or run a manual sync; you may also have no permission for the cameras.',
   'למצלמות': 'Go to cameras',
   'גישה מרחוק': 'Remote access',
   'מדיה': 'Media',
@@ -82,7 +82,7 @@ export const tr = msgCatalogue('msg/live', {
   'מעבר למכסה מוצג צילום בלבד': 'beyond the limit only a snapshot is shown',
   'צילומים מתרעננים כל דקה': 'snapshots refresh every minute',
   'מוצגות {live} מצלמות חיות מתוך {of}': 'Showing {live} live cameras of {of}',
-  'המכסה: הגדרות ‹ {where}': 'Limit: Settings › {where}',
+  'המכסה: הגדרות ‹ {where}': 'Limit: Settings \u203a {where}',
   'נתוני הדגמה: קיר של {n} אריחים אינו פותח {n} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.':
     'Demo data: a wall of {n} tiles does not open {n} main streams at once; in automatic mode the grid shows the sub stream and the focused tile the main stream.',
   'עמודות אוטו': 'Auto columns',
@@ -205,7 +205,7 @@ export const tr = msgCatalogue('msg/live', {
   'לוחות הזמנים וחוקי ה־smart של המקליט נקראים עם הרשאת ניהול מקליט.': "The recorder's schedules and smart rules are read with the manage-recorder permission.",
   'המקליט כבר היה במצב הזה — לא נכתב דבר.': 'The recorder was already in this state — nothing was written.',
   'הלוח נכתב למקליט ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).':
-    'The schedule was written to the recorder and logged (it can be reverted from the change list in Settings › Connections).',
+    'The schedule was written to the recorder and logged (it can be reverted from the change list in Settings \u203a Connections).',
   'העריכה נפתחה למצלמה אחרת ולכן לא נכתבה למקליט. פתח את העריכה מחדש במצלמה הזו.':
     'The edit was opened for another camera, so it was not written to the recorder. Open the edit again on this camera.',
   'קורא לוחות מהמקליט…': 'Reading schedules from the recorder…',
@@ -246,7 +246,7 @@ export const tr = msgCatalogue('msg/live', {
   'הצורות והפרמטרים נכתבו למקליט ונרשמו, אבל המקליט סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק המקליט / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.':
     "The shapes and parameters were written to the recorder and logged, but the recorder refused to turn the rule on through ISAPI (invalidOperation). With this firmware the rule is turned on in the recorder's / camera's own interface (the camera's VCA resource); once it is on there, this view updates.",
   'הכללים נכתבו למקליט ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מהמקליט).':
-    'The rules were written to the recorder and logged (they can be reverted). "Person" / "vehicle" alerts arrive only when the channel notifies Arx (Settings › Connections › Alerts from the recorder).',
+    'The rules were written to the recorder and logged (they can be reverted). "Person" / "vehicle" alerts arrive only when the channel notifies Arx (Settings \u203a Connections \u203a Alerts from the recorder).',
   'שני הכיוונים': 'Both directions',
   'שמאל → ימין': 'Left → right',
   'ימין → שמאל': 'Right → left',
@@ -310,7 +310,7 @@ export const tr = msgCatalogue('msg/live', {
   'נקרא מהמקליט {time}': 'Read from the recorder {time}',
   '(מהמטמון)': '(from the cache)',
   'המקליט כבר היה במצב הזה, לא נכתב דבר.': 'The recorder was already in this state, nothing was written.',
-  'נכתב למקליט (שינוי {id}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.': 'Written to the recorder (change {id}). It can be reverted from Settings › Connections › Recent changes.',
+  'נכתב למקליט (שינוי {id}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.': 'Written to the recorder (change {id}). It can be reverted from Settings \u203a Connections \u203a Recent changes.',
   'לחץ או גרור על התמונה כדי לסמן תאים שמזהים תנועה': 'Click or drag on the picture to mark the cells that detect motion',
   '{n} מתוך {total} תאים': '{n} of {total} cells',
   'בחר הכל': 'Select all',

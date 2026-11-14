@@ -738,7 +738,7 @@ export const tr = msgCatalogue('msg/investigate', {
   'צעד־פריים זמין בהשהיה': 'Frame step is available while paused',
   '‹ פריים': '‹ Frame',
   'פריים אחד קדימה (בתוך המאגר)': 'One frame forward (within the buffer)',
-  'פריים ‹': 'Frame ›',
+  'פריים ‹': 'Frame \u203a',
   'אין הקלטה בזמן זה': 'No recording at this time',
   'טוען תמונה…': 'Loading picture…',
   'אין פריים בזמן זה': 'No frame at this time',

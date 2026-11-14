@@ -67,7 +67,7 @@ test('no catalogue under src/i18n keeps its own copy of the detector or the fill
   const dir = new URL('../src/i18n/', import.meta.url);
   const own: string[] = [];
   for (const f of readdirSync(dir)) {
-    if (!f.endsWith('.ts') || f === 'core.ts') continue;
+    if (!f.endsWith('.ts') || f === 'core.ts' || f === 'ui-lang-boot.ts') continue; // the boot module sets <html lang> before core is loaded
     const src = readFileSync(new URL(f, dir), 'utf8');
     if (/documentElement\.lang/.test(src)) own.push(`${f}: reads <html lang> itself`);
     if (/\.replace\(\/\\\{\(\\w\+\)\\\}\/g, \(m, k: string\) => \(k in \w+ \? String/.test(src)) own.push(`${f}: own {name} filler`);
@@ -77,7 +77,7 @@ test('no catalogue under src/i18n keeps its own copy of the detector or the fill
 
 test('every catalogue module registers its tables (the missing-keys report reads the registry)', () => {
   const dir = new URL('../src/i18n/', import.meta.url);
-  const notCatalogues = new Set(['core.ts', 'bidi.ts', 'en.ts', 'frigate-en.ts', 'frigate-text.ts', 'entity-label.ts', 'event-codes.ts']);
+  const notCatalogues = new Set(['core.ts', 'msg.ts', 'ui-lang.ts', 'ui-lang-boot.ts', 'bidi.ts', 'en.ts', 'frigate-en.ts', 'frigate-text.ts', 'entity-label.ts', 'event-codes.ts']);
   const missing = readdirSync(dir).filter((f) => f.endsWith('.ts') && !notCatalogues.has(f) && !/registerCatalogue\(/.test(readFileSync(new URL(f, dir), 'utf8')));
   expect(missing).toEqual([]);
 });

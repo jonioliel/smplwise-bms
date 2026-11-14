@@ -21,7 +21,7 @@ export const tr = msgCatalogue('msg/misc', {
   'שיתוף ואז "הוספה למסך הבית". התראות באייפון מגיעות רק לאפליקציה שהותקנה כך.': 'Share, then "Add to Home Screen". On iPhone, notifications reach only an app installed this way.',
   'סגירה': 'Close',
 
-  // pwa/notifications-settings.ts: Settings › Notifications (push)
+  // pwa/notifications-settings.ts: Settings \u203a Notifications (push)
   'התראות מחוקים': 'Alerts from rules',
   'כל התראה שחוק ב"חוקים והתראות" מעלה: תנועה, חציית קו, אדם, רכב': 'Every alert a rule in "Rules and alerts" raises: motion, line crossing, person, vehicle',
   'דלתות וכניסה': 'Doors and entry',
@@ -173,7 +173,7 @@ export const tr = msgCatalogue('msg/misc', {
   'מחובר': 'Connected',
   'גרסת הגדרות': 'Settings version',
 
-  // fleet/fleet-model.ts: Settings › Health reporting (time wording, the answer card, the 52 listed fields)
+  // fleet/fleet-model.ts: Settings \u203a Health reporting (time wording, the answer card, the 52 listed fields)
   'היום {time}': 'Today {time}',
   'אתמול {time}': 'Yesterday {time}',
   'מחר {time}': 'Tomorrow {time}',
@@ -376,7 +376,7 @@ export const tr = msgCatalogue('msg/misc', {
   'גרפיט': 'Graphite',
   'אפור ניטרלי, אינדיגו': 'Neutral grey, indigo',
 
-  // design/look.ts: the look dials (Settings › Look)
+  // design/look.ts: the look dials (Settings \u203a Look)
   'צפיפות': 'Density',
   'רחב': 'Wide',
   'רגיל': 'Normal',

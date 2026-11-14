@@ -203,7 +203,7 @@ export const tr = msgCatalogue('msg/wiskey', {
   'ניהול': 'Management',
   'קיר מצלמות': 'Camera wall',
   'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות ‹ מתגי מסכי כניסה את מסכי Arx.':
-    'You can try again, switch to the standalone WisKey screen or open it in a new window, or choose the Arx screens in Settings › Entrance screen switches.',
+    'You can try again, switch to the standalone WisKey screen or open it in a new window, or choose the Arx screens in Settings \u203a Entrance screen switches.',
   'לוח WisKey לא נמצא': 'The WisKey panel was not found',
   'האינטגרציה hikvision_intercom לא רשמה את הלוח {path} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו).':
     'The hikvision_intercom integration did not register the panel {path} (not installed, not loaded, or not visible to the user).',

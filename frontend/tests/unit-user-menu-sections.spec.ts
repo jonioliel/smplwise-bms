@@ -21,7 +21,7 @@ function body(name: string): string {
   throw new Error('unbalanced ' + name);
 }
 
-const FLAGS = ['sessionsOpen', 'wiskeyOpen', 'videoOpen', 'homeOpen', 'factorOpen', 'deviceOpen', 'staffOpen'];
+const FLAGS = ['sessionsOpen', 'wiskeyOpen', 'videoOpen', 'homeOpen', 'factorOpen', 'deviceOpen', 'staffOpen', 'langOpen'];
 
 test('closeSections drops every section flag', () => {
   const b = body('private closeSections()');
