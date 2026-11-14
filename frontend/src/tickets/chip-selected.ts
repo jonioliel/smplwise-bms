@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * AUDIT30-C-TICKETS (audit round 30, finding 4, owner question 3 answered with the recommended option: "light blue fill, blue text"):
@@ -19,11 +20,17 @@ export const ticketChipSelected = css`
   .prio .rc[aria-checked='true'],
   .pop button.rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true']:hover {
-    background: var(--sw-accent-soft);
-    border-color: transparent;
-    color: var(--sw-accent-text);
-    font-weight: var(--sw-fw-semibold);
-    box-shadow: none;
+    ${chipSelected}
+  }
+  /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+  .rc[aria-pressed='true']::before,
+  .rc[aria-checked='true']::before,
+  .rooms .rc[aria-pressed='true']::before,
+  .fchips .rc[aria-pressed='true']::before,
+  .fchips .rc[aria-checked='true']::before,
+  .prio .rc[aria-checked='true']::before,
+  .pop button.rc[aria-pressed='true']::before {
+    ${chipSelectedCheck}
   }
   .rc[aria-pressed='true'] small,
   .rc[aria-checked='true'] small {

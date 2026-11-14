@@ -138,7 +138,8 @@ How to read it:
   and is quoted with its file. Where the owner has decided a rule that the code does not follow yet, the rule is stated and the
   gap is listed in Appendix A with file and line. **When this file and the code disagree on a value, the code is right and this
   file has a bug**; when they disagree on a rule, Appendix A says which side moves.
-- Three questions are **OPEN** (§13). Nothing here decides them; both current behaviours are documented as they are.
+- Two questions are **OPEN** in this book (§13.1, §13.3). Nothing here decides them; both current behaviours are documented as
+  they are. The third, the selected chip (§13.2), and the default skin were decided in round 33 and are written in as rules.
 - Precedence: approved change request → `MASTER_SPEC_HE.md` and `docs/security/` → `AGENTS.md` → this document → the older
   design documents (§15).
 - The frontmatter carries the **Domus light** values (Domus is the primary rulebook); the dark column and the glass family are
@@ -152,11 +153,13 @@ Two words used throughout:
 - **Glass** = the `--dv-*` knob family (`frontend/src/styles/devices-themes.ts`, `devices-palettes.ts`) and the management
   screens built on it with `styles/media-glass.ts`, `media-page.ts`, `automations-glass.ts` and `components/notify-css.ts`.
 
-A fact that matters when reading the rest: the code's default skin is still `classic`
-(`frontend/src/design/skins/index.ts:25`, `smplwise_vms/backend/smplwise/routers/settings.py:93`). Classic and Domus are the
-"polished pair": same component rules in structure, same motion (`skins/polish-motion.ts`), different token values. The
-owner works in Domus, so Domus is the column this book treats as primary; the classic values are given beside it where they
-differ (§7b), because every pixel baseline of the default installation is classic.
+The default skin is **Domus** (owner round 33, Q-DES-1 option a; `DEFAULT_SKIN` in `frontend/src/design/skins/index.ts` and
+`DEFAULTS["ui.skin"]` in `smplwise_vms/backend/smplwise/routers/settings.py`, branch `pilot/DOMUS-DEFAULT-2439`). It was
+`classic` until then. The default is read at read time: a new installation and one that never stored a skin draw Domus; an
+installation that stored a skin (classic included) keeps it, and nothing is migrated. Classic, glass and the other skins stay
+selectable in the settings. Classic and Domus are the "polished pair": same component rules in structure, same motion
+(`skins/polish-motion.ts`), different token values. Domus is the column this book treats as primary; the classic values are
+given beside it where they differ (§7b).
 
 ## Overview
 
@@ -406,8 +409,11 @@ the Domus skin rules (`domus.ts:155-212`) are named where they change the pictur
 - 28 px (a literal), `padding-inline: 11px`, `--sw-fs-sm`, optional 7 px state dot and a count in `--sw-text-3`; Domus makes
   it a pill with the raised key face (`domus.ts:180`). The drawn height stays 28 px on the phone; the 44 px target comes
   from `.sw-hit`.
-- **Selected: OPEN (§13.2).** Today in Domus: the primary button's accent gradient with `--sw-text-inverse`
-  (`domus.ts:181`; base `sw-chip.ts:79-83`).
+- **Selected** (owner round 33, Q-DES-3 option b; `chipSelected` in `sw-chip.ts`, the same in every skin): the light-blue field
+  strengthened - `--sw-accent-soft` behind the deeper ink `--sw-accent-text-strong`, a ring in `--sw-accent` (the 1 px border
+  plus half a pixel inside it), a check mark before the label, weight 600, no raised key and no hover lift. A screen that owns
+  a local chip imports `chipSelected` and `chipSelectedCheck` instead of copying values. A setting, `ui.chip_selected`
+  (`strong` default, `soft`, `filled`, `dark`; §11).
 - Hover (fine pointer) `--sw-surface-2`; pressed scale 0.97; disabled `--sw-text-3` at 50 %.
 
 ### 7.3 Badge (`sw-badge.ts`)
@@ -538,9 +544,9 @@ Reduced motion: §10.3. Longer notes: `docs/design/MOTION_RULES.md`.
 - **Don't** mirror video, plan geometry, the 3D scene, the timeline or the 24 h axis.
 - **Don't** name the platform on an operator screen.
 
-## 7b. Classic beside Domus (the installed default)
+## 7b. Classic beside Domus (the default until round 33)
 
-For anyone refreshing baselines: the same names, the classic values (`design/skins/classic.ts`).
+For an installation that keeps classic: the same names, the classic values (`design/skins/classic.ts`).
 
 | Token | Classic light / dark | Domus light / dark |
 |---|---|---|
@@ -634,7 +640,7 @@ own accent and toggle colour (sand `#b3572a`, forest `#2e7d4f`, graphite `#4f5bd
 | Panel `.glass` (`media-glass.ts:190-197`) | `var(--mm-sheen), var(--dv-surface)`, blur, `1px solid var(--dv-border)`, radius `--dv-radius-md` (22 px), `--dv-shadow-1`; padding from the card knobs (18 / 20 px) | |
 | Button `.btn` (`media-glass.ts:199-268`) | pill, 38 px (`.sm` 34 px), `padding-inline: 16px`, `--sw-fs-base` / 600, glass face, `--dv-shadow-control` | hover → the solid surface; pressed `scale(.97)` in 120 ms; disabled `opacity: .45`; focus `2px solid var(--dv-focus)`, offset 2 px. `.primary` = `--dv-accent` with a glow `0 6px 16px var(--mm-accent-glow)`; `.quiet` = `--dv-surface-2`, no shadow; `.danger` = filled `--dv-danger`. 44 px on touch or ≤ 767 px |
 | Segmented `.seg` (`media-glass.ts:270-317`) | track `--dv-surface-3`, pill, `padding: 3px`; keys 32 px (`.sm` 30 px), `--sw-fs-base` / 600 | selected = `--mm-seg-thumb` fill, `--mm-seg-fg-on` ink, `--dv-shadow-control` |
-| Chip `.rc` (`media-page.ts:112-145`) | pill, 38 px, `padding-inline: 17px`, `--dv-surface-2` with blur, `--sw-fs-md` / 500, `--dv-text-2` | **selected: OPEN (§13.2).** Today: `background: var(--dv-text); color: var(--mm-text-inverse); font-weight: 600` (dark pill in light, light pill in dark) |
+| Chip `.rc` (`media-page.ts:112-145`) | pill, 38 px, `padding-inline: 17px`, `--dv-surface-2` with blur, `--sw-fs-md` / 500, `--dv-text-2` | **selected:** the shared `chipSelected` / `chipSelectedCheck` fragments of §7.2 (round 33, Q-DES-3 option b), in the glass palette's own accent |
 | Field `.inp` (`automations-glass.ts:181-194`) | pill, 44 px, `padding-inline: 14px`, `--dv-surface-2`, `--sw-fs-md` | focus-visible `2px solid var(--dv-focus)`, offset 1 px |
 | Switch `.tog` (`media-glass.ts:319-347`) | 46 × 28 px, thumb 24 px; on = `--dv-toggle-on` | 50 × 30 px on touch |
 | Search `.search` (`media-page.ts:171-203`) | pill, 38 px (44 on touch), min width 240 px, glass face | focus-within outline 2 px |
@@ -683,14 +689,16 @@ measurements. The proofs that run in the gate are `frontend/tests/unit-muted-con
 | `--sw-text-3` straight on `--sw-bg` | 5.5 | 8.0 | 5.4 | 7.8 |
 | `--sw-accent-text` on the solid panel | 7.5 | 8.4 | 6.7 | 8.3 |
 | `--sw-accent-text` on `--sw-accent-soft` | 6.1 | 5.9 | 5.7 | 6.1 |
-| `--sw-text-inverse` on `--sw-accent` (primary button, selected chip today) | 5.8 | 7.5 | 5.4 | 4.6 |
+| `--sw-text-inverse` on `--sw-accent` (primary button; the `filled` chip option) | 5.8 | 7.5 | 5.4 | 4.6 |
 | state `-text` on its `-soft` fill, lowest of the eight | 5.1 (live) | 4.8 (forbidden) | 4.6 (live) | 5.5 (forbidden) |
 | `--sw-on-warning` on `--sw-warning` | 5.0 | 9.7 | 8.5 | 9.7 |
 | `--sw-on-success` on `--sw-success` | 5.4 | 10.6 | 8.3 | 10.6 |
 | `--sw-badge-fg` on `--sw-badge-bg` | 6.5 | 6.6 | 6.5 | 6.6 |
 | `--sw-focus` against the solid panel | 5.7 | 7.7 | 5.4 | 7.0 |
 | switch off-track against the solid panel | 4.2 | 4.6 | 4.3 | 4.8 |
-| `--sw-accent-soft` fill against the solid panel (the "light blue chip" boundary) | 1.2 | 1.4 | 1.2 | 1.4 |
+| `--sw-accent-soft` fill against the solid panel (the plain "light blue chip", the `soft` option) | 1.2 | 1.4 | 1.2 | 1.4 |
+| `--sw-accent-text-strong` on `--sw-accent-soft` (the selected chip's label) | 7.8 | 8.3 | 7.4 | 8.9 |
+| `--sw-accent` ring against the solid panel (the selected chip's boundary) | 5.7 | 6.7 | 5.4 | 3.8 |
 | **under the floor** | | | | |
 | filled badge: `--sw-text-inverse` on `--sw-offline` | **3.6** | 6.4 | **2.5** | **3.0** |
 | filled badge: `--sw-text-inverse` on `--sw-danger` | 4.6 | 6.8 | **3.8** | **2.8** |
@@ -700,8 +708,11 @@ Glass default palette: `--dv-text` on its solid surface 16.6 (dark 15.6); `--dv-
 `--dv-text-3` on the 64 % glass over the Domus canvas base 5.0; the selected chip of today (`--mm-text-inverse` on
 `--dv-text`) 17.0 (15.6).
 
-The last row of "light blue chip" is why Q-DES-3 is open: the ink passes, the fill alone does not separate the selected chip
-from its neighbours (1.2:1 to 1.4:1; a boundary needs 3:1 or a non-colour cue).
+The "light blue chip" row is why the owner chose the strengthened chip (round 33, Q-DES-3 option b): the fill alone does not
+separate the selected chip from its neighbours (1.2:1 to 1.4:1), so the boundary is the accent ring (3:1 or more in every live
+skin, light and dark) and the check mark is the cue that needs no colour. Proof: `frontend/tests/unit-chip-selected-2439.spec.ts`
+(tokens, every skin) and `evidence-polish2-295.spec.ts` (computed on the screens: a chosen chip is 3:1 from its track again;
+audit round 30 had narrowed that rule to segment keys).
 
 ### 10.2 Keyboard, focus and targets
 - One focus ring everywhere (§7.11), visible on every surface including over video; never removed without a replacement
@@ -738,9 +749,9 @@ option is the default and the alternative must be reachable from the settings sc
 
 | Id | Decision | Setting? | Key today | State |
 |---|---|---|---|---|
-| Q-DES-1 | Keep both rulebooks; this document describes both; show both side by side. He uses Domus most. | n/a | `ui.skin`, `devices.style` | done here; which one new screens follow is asked again in round 33 (§12) |
+| Q-DES-1 | Keep both rulebooks; this document describes both. Round 33 (option a): **Domus is the primary rulebook and the default skin**; glass stays a style chosen in the settings. | n/a | `ui.skin` (default `domus`), `devices.style` | done (`pilot/DOMUS-DEFAULT-2439`) |
 | Q-DES-2 | Heebo everywhere | **yes** | none yet | glass still uses the OS stack (A.1) |
-| Q-DES-3 | Light-blue chip with blue text, but he fears blue on blue; consult the design skills; settable | **yes** | none yet | **OPEN** (§13.2) |
+| Q-DES-3 | Round 33 (option b): the selected chip is the light-blue field strengthened - deeper ink, accent ring, check mark; settable | **yes** | `ui.chip_selected` (`strong` · `soft` · `filled` · `dark`) | done for `sw-chip` and the local chips that drew the soft pair (§13.2, A.27) |
 | Q-DES-4 | One low KPI tile on every screen | **yes** | `ui.tile_layout` (`auto` · `cards` · `compact`) | shared tile exists; local tiles remain (A.6) |
 | Q-DES-5 | "New" at the end of the header row; one floating button on the phone | **yes** | none yet | A.5 |
 | Q-DES-6 | Pill buttons everywhere | **yes** | none yet | A.3 |
@@ -763,20 +774,21 @@ option is the default and the alternative must be reachable from the settings sc
 | Q-SYS-6 | Every browser `confirm()` becomes the system dialog, same text | no | n/a | A.26 |
 | Q-HOME-6 | Home: a short fade; the rise only from "עוד" | **yes** | none yet | home scope |
 
-Settings that already exist and belong to this book: `ui.skin`, `ui.scheme` (`light` · `dark` · `auto`), `ui.motion`,
+Settings that already exist and belong to this book: `ui.skin`, `ui.chip_selected`, `ui.scheme` (`light` · `dark` · `auto`), `ui.motion`,
 `ui.entry_animations`, `ui.tile_layout`, `ui.long_lists`, `ui.accent`, `ui.toggle_on`, `ui.nav_size`, `ui.rail_tone`,
 `ui.tabs_mode`, `ui.dd_style` and its siblings, `ui.page_size.*`, and the five `devices.*` keys of §9. All are per
 installation; a browser may keep its own scheme, and `/me/prefs` may override `ui.nav_size`, `ui.look` and `ui.background`.
 
-Five new settings are owed by these decisions (font, selected-chip look, "new" placement, button shape, phone table card).
+Four new settings are owed by these decisions (font, "new" placement, button shape, phone table card); the fifth, the selected-chip
+look, exists (`ui.chip_selected`).
 Their keys are for the implementing branches to name; this book only requires that each exists, defaults to the decided
 option and sits with the other look settings (Settings › General › System look).
 
 ## 12. When to use Domus and when glass
 
-Status: the owner decided to keep both (round 32) and said Domus is the one he uses most. Round 33 asks him again which of
-the two a **new** screen is built to (recommended: Domus primary, glass selectable). Until that answer is in, the working
-rule is the conservative reading below; it changes nothing that is drawn today.
+Status: decided. The owner keeps both (round 32) and chose in round 33 (Q-DES-1 option a): **Domus is the primary rulebook
+and the default skin; glass stays a style the user selects in the settings.** A new screen is built to Domus. The table
+below is the working rule for what exists; how the glass management screens are laid out is round 33 Q-DES-11 (§13.3).
 
 | Situation | Use |
 |---|---|
@@ -807,7 +819,7 @@ Today: the shared `sw-dialog` and `sw-drawer` (§7.10), plus hand-built ones: th
 | ב | approve with changes (the owner writes them) | approve with changes |
 | ג | do not change now; the current forms stay | do not change now; drawers keep opening from two sides |
 
-### 13.2 The selected chip (Q-DES-3)
+### 13.2 The selected chip (Q-DES-3) - DECIDED: option ב
 The owner chose "light-blue chip, blue text", feared blue on blue would not read, and asked for the design skills' opinion
 and a setting. Today three looks exist: the accent-filled key (Domus and classic, `sw-chip`), the dark pill (glass `.rc`),
 and accent-soft in a few places. Measured candidates (round 33 page; text contrast / separation from the panel):
@@ -819,7 +831,12 @@ and accent-soft in a few places. Measured candidates (round 33 page; text contra
 | ג | filled blue | what Domus draws today; reads like a primary action; in dark the ink must be dark |
 | ד | filled dark (black in light, white in dark) | what glass draws today; highest contrast; foreign to the palette, heavy with several filter rows |
 
-Whatever is chosen becomes the default and the other three stay selectable in the settings.
+Decided in round 33: **ב** is the default, drawn by `chipSelected` (§7.2), and the other three stay selectable:
+`ui.chip_selected` = `strong` (ב) · `soft` (א) · `filled` (ג) · `dark` (ד), Settings › General › System look. Shipped numbers
+for Domus: text 7.8 / 8.3, ring 5.7 / 6.7 (light / dark; the page drew the dark field at 24 % of the accent and reported 7.6,
+the skin's own soft token is 20 %). Not converted yet: the local chips that still draw the dark pill or a plain accent
+(A.27); inside a glass palette other than the default, and in a glass area with a scheme of its own, the label falls back to
+the palette's text ink, and the `filled` / `dark` options use the shell's colours.
 
 ### 13.3 The structure of the settings screens (Q-DES-11, "discuss together")
 Two structures exist. **Page and cards** (most settings screens): `sw-page`, `sw-card`s, a save that appears when something
@@ -994,7 +1011,7 @@ question was not traced to a line here.
 `tickets/settings-rules.ts:267`, `tickets/settings-locations.ts:227`, `temperature/wizard.ts:212`, `temperature/detail.ts:486`,
 `generator/gen-routing.ts:183`, `components/sw-passkeys.ts:179`.
 
-**A.27 Selected chip, the three looks (Q-DES-3, OPEN: list only).** Accent key: `components/sw-chip.ts:79-83`,
+**A.27 Selected chip, the looks that remain (Q-DES-3 decided in round 33; `sw-chip` and the soft-pair chips are converted).** Accent key: `components/sw-chip.ts:79-83`,
 `design/skins/classic.ts:110`, `design/skins/domus.ts:181`. Dark pill: `styles/media-page.ts:139-140`,
 `screens/multimedia-screens.ts:230-231`, `screens/automation-drawer.ts:200-201`, `components/notify-css.ts:128-130`,
 `tickets/table-styles.ts:191-194`, `tickets/list-toolbar.ts:307-308`, `tickets/styles.ts:583-584`,
@@ -1002,8 +1019,8 @@ question was not traced to a line here.
 `screens/system-automations.ts:145-146`, `tickets/settings-styles.ts:165-166`.
 
 **A.28 Default skin.** `design/skins/index.ts:25` `DEFAULT_SKIN = 'classic'` and `routers/settings.py:93` `"ui.skin": "classic"`,
-while the owner's primary rulebook is Domus. Not a defect by itself: changing the default is a release-level decision (every
-baseline changes) and is not taken here.
+while the owner's primary rulebook is Domus. **Closed** by `pilot/DOMUS-DEFAULT-2439` (round 33, Q-DES-1): both are `domus`; the
+pixel baselines of the default installation were re-taken in Domus.
 
 **A.29 Stale comments.** `components/sw-page.ts:8` still says "18px title"; `components/sw-kpi.ts:89` says "20 px / 700" where
 Domus and classic resolve to 24 px.

@@ -88,15 +88,21 @@ DEFAULTS: dict[str, str] = {
     "ui.page_size.automations_cards_phone": "1",
     "ui.schedules_view": "rows",  # rows | cards | table | week
     "ui.automations_view": "rows",  # rows | cards (POLISH2-295: the cards with their sentence stay a choice; a browser may keep its own)
-    # Design foundation (2026-10-01): the installation's skin (classic = today's look | domus | tesla; frontend/src/design/skins)
+    # Design foundation (2026-10-01): the installation's skin (classic | domus | tesla ...; frontend/src/design/skins)
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
-    "ui.skin": "classic",
+    # DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): the default is domus (was classic). Read-time only: a stored row - classic
+    # included - is what the installation chose and is left as it is; DEFAULT_SKIN in frontend/src/design/skins/index.ts.
+    "ui.skin": "domus",
     "ui.scheme": "light",
     # MOTIONSETTING-297 (owner 2026-10-27): the motion setting, separate from the skin and the scheme - auto (follow the operating
     # system's reduced-motion choice) | full (ignore that reduction for non-essential motion) | reduced (zero durations, press scale 1,
     # the same thing the OS reduction does). Per installation; frontend/src/design/apply.ts reads it (data-motion on <html>).
     "ui.motion": "auto",
     "ui.entry_animations": "on",  # 2.29.0: on | off - the panel entrance animation of the classic / domus skins; ENTER_MODES in frontend/src/design/apply.ts
+    # DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b, "settable"): how a selected chip is drawn - strong (default: the light-blue
+    # field with a deeper ink, an accent ring and a check mark) | soft (the plain light-blue field) | filled (the accent key) | dark
+    # (the ink-filled pill). CHIP_ON_MODES in frontend/src/design/apply.ts.
+    "ui.chip_selected": "strong",
     "ui.rail_tone": "auto",  # SKINCOMP-297: auto | dark - the dark (navy) rail of a skin that has one (Arx Infra = direction D); RAIL_TONES in frontend/src/design/skins/index.ts
     # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
     # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
@@ -592,6 +598,8 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
         out["ui.motion"] = DEFAULTS["ui.motion"]
     if out.get("ui.entry_animations") not in ("on", "off"):  # 2.29.0: a corrupt value reads as the default
         out["ui.entry_animations"] = "on"
+    if out.get("ui.chip_selected") not in ("strong", "soft", "filled", "dark"):  # DOMUS-DEFAULT-2439: a corrupt value reads as the default
+        out["ui.chip_selected"] = DEFAULTS["ui.chip_selected"]
     if out.get("ui.rail_tone") not in ("auto", "dark"):  # SKINCOMP-297: a corrupt value reads as the default
         out["ui.rail_tone"] = "auto"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
@@ -870,6 +878,7 @@ class SettingsPatch(BaseModel):
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_motion: str | None = Field(default=None, pattern="^(auto|full|reduced)$", alias="ui.motion")  # MOTIONSETTING-297; keep in step with MOTION_MODES in frontend/src/design/apply.ts
     ui_entry_animations: str | None = Field(default=None, pattern="^(on|off)$", alias="ui.entry_animations")  # 2.29.0: keep in step with ENTER_MODES in frontend/src/design/apply.ts
+    ui_chip_selected: str | None = Field(default=None, pattern="^(strong|soft|filled|dark)$", alias="ui.chip_selected")  # DOMUS-DEFAULT-2439: keep in step with CHIP_ON_MODES in frontend/src/design/apply.ts
     ui_rail_tone: str | None = Field(default=None, pattern="^(auto|dark)$", alias="ui.rail_tone")  # SKINCOMP-297: keep in step with RAIL_TONES in frontend/src/design/skins/index.ts
 
     @field_validator("ui_skin")

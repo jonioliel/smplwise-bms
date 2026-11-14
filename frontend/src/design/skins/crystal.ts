@@ -41,6 +41,7 @@ const tokens: TokenTable = {
   '--sw-accent-hover': lt('#174cbd', '#a5c8ff'),
   '--sw-accent-soft': lt('rgba(30, 91, 216, 0.12)', 'rgba(138, 184, 255, 0.18)'),
   '--sw-accent-text': lt('#174cbd', '#9ec4ff'),
+  '--sw-accent-text-strong': lt('#133e9b', '#cde0ff'), // DOMUS-DEFAULT-2439: the selected chip's ink (tokens.ts)
   '--sw-focus': lt('#1e5bd8', '#9ec4ff'),
   '--sw-nav': lt('#1e5bd8', '#8ab8ff'),
   '--sw-live': lt('#1f9d55', '#3ddc84'),

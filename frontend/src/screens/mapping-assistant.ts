@@ -10,6 +10,7 @@ import {
   type RuleKind, type Summary, type TableRow, type Target, type TokenKind,
 } from '../api/mapping-engine';
 import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../api/mapping';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * MAPPING-ASSIST-2330 `<mapping-assistant>` - the approved round-10 mockup v3: one question first ("איך הבניין מסומן בשמות שלכם?"), the
@@ -339,10 +340,11 @@ export class MappingAssistant extends LitElement {
       white-space: nowrap;
     }
     .ch[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text, var(--sw-accent));
-      font-weight: var(--sw-fw-semibold);
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .ch[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .ch small {
       font-size: var(--sw-fs-xs);

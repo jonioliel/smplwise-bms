@@ -24,7 +24,7 @@ test('an accent writes the accent family for each scheme; a toggle colour writes
   const light = brandTokens({ accent: '#7c3aed', toggle: 'default' }, 'light');
   const dark = brandTokens({ accent: '#7c3aed', toggle: 'default' }, 'dark');
   for (const t of [light, dark]) {
-    expect(Object.keys(t).sort()).toEqual(['--sw-accent', '--sw-accent-hover', '--sw-accent-soft', '--sw-accent-text', '--sw-focus', '--sw-nav'].sort());
+    expect(Object.keys(t).sort()).toEqual(['--sw-accent', '--sw-accent-hover', '--sw-accent-soft', '--sw-accent-text', '--sw-accent-text-strong', '--sw-focus', '--sw-nav'].sort()); // DOMUS-DEFAULT-2439: + the selected chip's deeper ink
     expect(t['--sw-accent']).toBe('#7c3aed');
   }
   expect(light['--sw-accent-soft']).not.toBe(dark['--sw-accent-soft']);

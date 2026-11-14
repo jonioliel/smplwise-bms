@@ -36,6 +36,18 @@ export const REDUCED_MOTION_CORE = reducedMotionCore();
 /** Everything reduced motion sets (the older names and the Arx layer); the OS media query and `data-motion="reduced"` share it. */
 export const REDUCED_MOTION_DECLS = `${REDUCED_MOTION_CORE}${REDUCED_MOTION_ARX}`;
 
+/**
+ * DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3): the three alternatives of `ui.chip_selected`, as overrides of the `--sw-chip-on-*`
+ * knobs that components/sw-chip.ts `chipSelected` reads. soft = the plain light-blue field (the deeper ink token falls back to the
+ * accent ink - the selector outranks a skin's dark block; no ring, no check);
+ * filled = the accent key with the inverse ink; dark = the ink-filled pill. The filled / dark pairs resolve at :root (the shell's
+ * scheme and accent), so inside a glass screen with its own scheme they stay a legible pair of the shell's colours.
+ */
+export const CHIP_ON_CSS =
+  ':root[data-chip-on="soft"],:root[data-skin][data-theme][data-chip-on="soft"]{--sw-accent-text-strong:var(--sw-accent-text);--sw-chip-on-ring:transparent;--sw-chip-on-check:none}\n' +
+  ':root[data-chip-on="filled"],:root[data-skin][data-chip-on="filled"]{--sw-chip-on-bg:var(--sw-accent);--sw-chip-on-hover:var(--sw-accent-hover);--sw-chip-on-ink:var(--sw-text-inverse);--sw-chip-on-ring:var(--sw-accent);--sw-chip-on-check:none;--sw-chip-dot-ring:color-mix(in srgb, var(--sw-text-inverse) 70%, transparent)}\n' +
+  ':root[data-chip-on="dark"],:root[data-skin][data-chip-on="dark"]{--sw-chip-on-bg:var(--sw-text);--sw-chip-on-hover:color-mix(in srgb, var(--sw-text) 86%, var(--sw-surface-solid));--sw-chip-on-ink:var(--sw-surface-solid);--sw-chip-on-ring:var(--sw-text);--sw-chip-on-check:none}\n';
+
 /** One block set for a selector prefix (`:root` or `:root[data-skin="x"]`) and a table. */
 function blocks(prefix: string, t: TokenTable, first: boolean): string {
   const lightDecl = decls(t, 'light');
@@ -75,6 +87,9 @@ export function tokensCss(): string {
   css += `:root[data-motion="reduced"],:root[data-skin][data-motion="reduced"]{${REDUCED_MOTION_DECLS}}\n`;
   // 2.29.0: `ui.entry_animations` = off (<html data-enter="off">): the panel entrance of the classic / domus (and Arx) skins collapses to nothing
   css += ':root[data-enter="off"],:root[data-skin][data-enter="off"]{--sw-enter-ms:0ms !important;--sw-enter-y:0px !important;--sw-stagger:0ms !important}\n';
+  // DOMUS-DEFAULT-2439: `ui.chip_selected` (<html data-chip-on>, design/apply.ts) - the alternatives to the default selected chip
+  // ("strong": no block - components/sw-chip.ts chipSelected draws it from its own fallbacks). After the skin blocks, one more attribute.
+  css += CHIP_ON_CSS;
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;

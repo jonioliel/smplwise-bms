@@ -12,7 +12,7 @@ test('the registry keeps the bubble skin (code and tokens stay) but marks it fro
   expect([...FROZEN_SKINS]).toEqual(['bubble']);
   expect(FROZEN_FALLBACK_SKIN).toBe('domus');
   expect(FROZEN_SKINS).not.toContain(FROZEN_FALLBACK_SKIN);
-  expect(DEFAULT_SKIN).toBe('classic');
+  expect(DEFAULT_SKIN).toBe('domus'); // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1)
   expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft']); // SKINFOUND-297: the two Arx skins are selectable
 });
 

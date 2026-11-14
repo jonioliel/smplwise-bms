@@ -53,6 +53,7 @@ const tokens: TokenTable = {
   '--sw-accent-hover': lt('#255ddb', '#255ddb'),
   '--sw-accent-soft': lt('rgba(47, 109, 246, 0.12)', 'rgba(91, 141, 255, 0.2)'),
   '--sw-accent-text': lt('#2158d4', '#9ec0ff'),
+  '--sw-accent-text-strong': lt('#1b48ae', '#cddeff'), // DOMUS-DEFAULT-2439: the selected chip's ink (tokens.ts)
   '--sw-focus': lt('#2f6df6', '#9ec0ff'),
   '--sw-nav': lt('#2f6df6', '#2f6df6'),
   // states (iOS-leaning, TOKENS.md §3), the -text tier of round 2 on the blended soft fills

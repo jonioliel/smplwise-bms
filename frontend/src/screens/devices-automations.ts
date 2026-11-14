@@ -44,6 +44,7 @@ import type { CardAction } from '../components/sw-automation-card';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tablistKeydown } from '../components/a11y-keys';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
 const SCHEDULES_PATH = '/devices/schedules';
@@ -179,10 +180,11 @@ export class DevicesAutomations extends LitElement {
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text);
-      box-shadow: none;
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .rc[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     /* the owner's setting automations.sensitive_chip: red instead of amber, for every chip below (custom properties inherit through the shadow roots) */
     :host([data-sens='red']) {

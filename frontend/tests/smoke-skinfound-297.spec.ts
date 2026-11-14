@@ -41,9 +41,10 @@ function listen(page: Page) {
   return { errors, pageErrors };
 }
 
-async function load(page: Page, hash: string, ready: string, scheme: string) {
+async function load(page: Page, hash: string, ready: string, scheme: string, skin = '') {
   await page.goto('about:blank');
-  await page.goto(`/?design=a&look=performance:full&scheme=${scheme}#${hash}`);
+  // DOMUS-DEFAULT-2439: the default skin is domus now; the classic reference asks for classic by name (this page view only)
+  await page.goto(`/?design=a&look=performance:full&scheme=${scheme}${skin ? `&skin=${skin}` : ''}#${hash}`);
   await page.waitForSelector('sw-app');
   await page.waitForSelector(ready, { state: 'attached', timeout: 20_000 });
   await page.waitForTimeout(600);
@@ -101,7 +102,7 @@ test.describe('SKINFOUND-297: the Arx skins', () => {
     for (const scheme of ['light', 'dark']) {
       for (const r of ROUTES) {
         errors.length = 0;
-        await load(page, r.hash, r.ready, scheme);
+        await load(page, r.hash, r.ready, scheme, 'classic');
         await expect(page.locator('html')).toHaveAttribute('data-skin', 'classic');
         errors.forEach((e) => classicErrors.add(key(e)));
         if (r.id === 'home') classicLogos[scheme] = await logoSizes(page, phone);

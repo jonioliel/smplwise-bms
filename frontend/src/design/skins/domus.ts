@@ -46,6 +46,7 @@ const tokens: TokenTable = {
   '--sw-accent-hover': lt('#1b48cc', '#8ab5ff'),
   '--sw-accent-soft': lt('rgba(36,88,230,.14)', 'rgba(110,162,255,.2)'),
   '--sw-accent-text': lt('#1847c2', '#8fb8ff'),
+  '--sw-accent-text-strong': lt('#143a9e', '#c5d9ff'), // DOMUS-DEFAULT-2439: the selected chip's ink (tokens.ts)
   '--sw-focus': lt('#2458e6', '#7fb0ff'),
   '--sw-nav': lt('#2458e6', '#6ea2ff'),
   '--sw-live': lt('#1f9d55', '#3ddc84'),
@@ -178,10 +179,10 @@ const rules = `
 /* domus 6 - keys: round, raised (a vertical gradient, the light top edge, the dark lower edge of the bevel), pressed = sunk; pill chips */
 :host(sw-button) button { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)) var(--sw-surface-solid); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
 :host(sw-chip) button { border-radius: var(--sw-r-pill); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)) var(--sw-surface-solid); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
-:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
+:host(sw-button[variant='primary']) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
 :host(sw-button[variant='ghost']) button { background: transparent; box-shadow: none; }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-3-solid); box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.16); }
-:host(sw-button[variant='primary']) button:active:not(:disabled), :host(sw-chip[selected]) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: 0 2px 6px color-mix(in srgb, var(--sw-accent) 24%, transparent), inset 0 2px 4px rgba(0, 0, 0, 0.24); }
+:host(sw-button[variant='primary']) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: 0 2px 6px color-mix(in srgb, var(--sw-accent) 24%, transparent), inset 0 2px 4px rgba(0, 0, 0, 0.24); }
 @media (hover: hover) and (pointer: fine) { :host(sw-button:not([variant='ghost'])) button:hover:not(:disabled), :host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); } }
 /* domus 7 - fields: a soft well at rest, a glow of the accent on focus */
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: var(--sw-surface-2-solid); border-color: var(--sw-border-strong); border-radius: var(--sw-r-sm); box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06); }

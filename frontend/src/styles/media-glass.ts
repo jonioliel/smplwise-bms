@@ -830,6 +830,7 @@ export const mediaBubbleKnobs = css`
     --sw-accent-hover: inherit;
     --sw-accent-soft: inherit;
     --sw-accent-text: inherit;
+    --sw-accent-text-strong: inherit;
     --sw-focus: inherit;
     --sw-live: inherit;
     --sw-live-soft: inherit;

@@ -149,6 +149,15 @@ export const en = {
     on: 'On',
     off: 'Off',
   },
+  // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3): Settings > General > System look > Selected chip (ui.chip_selected)
+  chipOn: {
+    label: 'Selected chip',
+    note: 'How the choice is marked on filter chips across the system. Default: strengthened light blue, with a ring and a check mark',
+    strong: 'Strengthened',
+    soft: 'Light blue',
+    filled: 'Filled blue',
+    dark: 'Dark',
+  },
   background: {
     label: 'Background',
     note: 'Shown by the Crystal style; day and night follow the colour scheme',

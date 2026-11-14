@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CR-038: the look of the tickets screens - ALWAYS the glass style of the automations area (styles/automations-glass.ts on top of
@@ -582,9 +583,11 @@ export const ticketFormStyles = css`
   }
   /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
   .prio .rc[aria-checked='true'] {
-    background: var(--sw-accent-soft);
-    color: var(--sw-accent-text);
-    border-color: transparent;
+    ${chipSelected}
+  }
+  /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+  .prio .rc[aria-checked='true']::before {
+    ${chipSelectedCheck}
   }
   .similar {
     display: flex;

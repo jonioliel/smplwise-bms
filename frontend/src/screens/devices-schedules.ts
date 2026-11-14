@@ -86,6 +86,7 @@ import { toneColor } from '../components/sw-schedule-bar';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tablistKeydown } from '../components/a11y-keys';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 const VIEW_KEY = 'sw.schedules.view';
 const FILTERS_KEY = 'sw.schedules.filters';
@@ -232,10 +233,11 @@ export class DevicesSchedules extends LitElement {
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text);
-      box-shadow: none;
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .rc[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .dh-det .seg.kinds button {
       padding-inline: 14px;

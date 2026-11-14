@@ -27,6 +27,7 @@ const tokens: TokenTable = {
   '--sw-accent-hover': lt('#1d52d1', '#5f97ff'),
   '--sw-accent-soft': lt('rgba(38,98,240,.10)', 'rgba(61,126,255,.16)'),
   '--sw-accent-text': lt('#1f56d6', '#7fadff'),
+  '--sw-accent-text-strong': lt('#1947af', '#bcd4ff'), // DOMUS-DEFAULT-2439: the selected chip's ink (tokens.ts)
   '--sw-focus': lt('#2662f0', '#7fadff'),
   '--sw-nav': lt('#2662f0', '#3d7eff'),
   '--sw-live': lt('#0f9d58', '#2fd070'),
@@ -138,7 +139,6 @@ const rules = `
 :host(sw-button[variant='primary']) button { box-shadow: none; }
 :host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button { background: var(--hud-fill, transparent); }
 :host(sw-chip) button { background: var(--hud-fill, transparent); border-radius: var(--sw-r-md); box-shadow: none; }
-:host(sw-chip[selected]) button { background: var(--sw-text); border-color: var(--sw-text); color: var(--sw-text-inverse); }
 :host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: transparent; border-radius: var(--sw-r-sm); }
 /* tesla 6 - switch: an outlined track, the thumb in grey, accent when on */
