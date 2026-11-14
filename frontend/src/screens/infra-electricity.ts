@@ -15,6 +15,7 @@ import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/screens';
 
 // Every screen file of the module registers itself: `screens/electricity/page-*.ts` (pages) and `settings-*.ts` (settings sections). A file added by
 // the other UI branch needs no edit here (docs/architecture/ELECTRICITY_UI_SHELL.md).
@@ -127,17 +128,17 @@ export class InfraElectricity extends LitElement {
     if (!this.access.view || (def.money && !this.access.bills)) {
       body = html`<sw-state-panel state="forbidden" data-elec=${page} data-state="forbidden"></sw-state-panel>`;
     } else if (!customElements.get(def.tag)) {
-      body = html`<sw-state-panel icon="bolt" state="empty" heading="אין מסך" data-elec=${page} data-state="empty"></sw-state-panel>`;
+      body = html`<sw-state-panel icon="bolt" state="empty" heading=${tr('אין מסך')} data-elec=${page} data-state="empty"></sw-state-panel>`;
     } else {
       const tag = unsafeStatic(def.tag);
       body = shtml`<${tag} .segments=${(r?.segments ?? []).slice(3)} .params=${r?.params ?? new URLSearchParams()}></${tag}>`;
     }
     // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
-    this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
+    this.pagesChip = asChip ? infraPagesChip(tr('עמודים'), items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.electricity')} data-infra-pages></sw-tabs>`;
     // UXFIX-NAV-295 / AUDIT30-E2: the page's one h1 is sw-page's heading, the navigation label of the area
-    const heading = INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל';
+    const heading = INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? tr('מוני חשמל');
     return html`<sw-page heading=${heading} data-infra-page="electricity">${row === nothing ? nothing : html`<div class="rows" data-elec-shell>${row}</div>`}<div class="body" data-page=${page}>${body}</div></sw-page>`;
   }
 

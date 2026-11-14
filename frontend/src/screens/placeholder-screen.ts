@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import '../components/sw-state-panel';
+import { tr } from '../i18n/msg/screens';
 
 /** Honest placeholder for modes whose screens are built in later tasks. Never fakes data. */
 @customElement('placeholder-screen')
@@ -36,7 +37,7 @@ export class PlaceholderScreen extends LitElement {
     return html`
       <h2>${this.heading}</h2>
       <div class="box">
-        <sw-state-panel state="empty" heading="המסך הזה עדיין לא נבנה" hint=${`ייבנה במשימה ${this.task}. אין כאן נתונים מדומים.`}></sw-state-panel>
+        <sw-state-panel state="empty" heading=${tr('המסך הזה עדיין לא נבנה')} hint=${tr('ייבנה במשימה {task}. אין כאן נתונים מדומים.', { task: this.task })}></sw-state-panel>
       </div>
     `;
   }

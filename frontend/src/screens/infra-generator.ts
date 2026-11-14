@@ -30,6 +30,7 @@ import { elecCss } from '../electricity/styles';
 import { genCss } from '../generator/gen-styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/screens';
 
 const G = he.generator;
 // GENLOG092-295: 'log' (the run log) is offered only while its switch is on (log_enabled of the devices list; default off)
@@ -204,7 +205,7 @@ export class InfraGenerator extends LitElement {
     else body = html`<gen-alerts-page .device=${d} .mode=${page} .alertId=${this.route?.segments[3] ? decodeURIComponent(this.route.segments[3]) : ''} ?manage=${this.access.manage} @alerts-changed=${() => void this.loadDevice(d.id)}></gen-alerts-page>`;
     // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
-    this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
+    this.pagesChip = asChip ? infraPagesChip(tr('עמודים'), items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.generator')} data-infra-pages></sw-tabs>`;
     return html`<div class="rows" data-gen-shell>${row}${pick}${d ? html`<maint-cert-row kind="generator" subjectId=${d.id}></maint-cert-row>` : nothing}</div><div class="body" data-page=${page}>${body}</div>`;
   }

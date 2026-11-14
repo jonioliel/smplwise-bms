@@ -18,6 +18,7 @@ import { tt } from '../i18n/temperature';
 import { ELEVATOR_FILTERS, ELEVATOR_MODES, FILTER_KEY, MODE_KEY } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { settingsSegStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/screens';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
 export interface HomeEditFloor {
@@ -30,8 +31,8 @@ function optionsOf(list: { entity_id: string; name: string }[], current: string,
   const known = list.some((x) => x.entity_id === current);
   return [
     html`<option value="" ?selected=${!current}>${blank}</option>`,
-    ...(suggestion && !current && list.some((x) => x.entity_id === suggestion.entity_id) ? [html`<option value=${suggestion.entity_id}>הצעה: ${entityLabel(suggestion)}</option>`] : []),
-    ...(current && !known ? [html`<option value=${current} selected>${entityLabel({ entity_id: current }, 'חיישן שנבחר (אינו זמין כעת)')}</option>`] : []),
+    ...(suggestion && !current && list.some((x) => x.entity_id === suggestion.entity_id) ? [html`<option value=${suggestion.entity_id}>${tr('הצעה: {name}', { name: entityLabel(suggestion) })}</option>`] : []),
+    ...(current && !known ? [html`<option value=${current} selected>${entityLabel({ entity_id: current }, tr('חיישן שנבחר (אינו זמין כעת)'))}</option>`] : []),
     ...list.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${entityLabel(x)}</option>`),
   ];
 }
@@ -556,26 +557,26 @@ export class HomeEditPanel extends LitElement {
     const ids = this.floors.map((f) => f.id);
     const listed = this.listed;
     const shown = listed.filter((id) => d.config[id].on).length;
-    return html`<section class="home-edit" data-home-edit aria-label="הגדרות המסך הראשי">
+    return html`<section class="home-edit" data-home-edit aria-label=${tr('הגדרות המסך הראשי')}>
       <div class="col">
         <div class="grp" role="group" aria-labelledby="he-screen-h">
-        <h3 id="he-screen-h">המסך</h3>
-        <label class="f" data-home-title-field>כותרת המסך
+        <h3 id="he-screen-h">${tr('המסך')}</h3>
+        <label class="f" data-home-title-field>${tr('כותרת המסך')}
           <input type="text" data-home-title maxlength=${HOME_TITLE_MAX} .value=${d.title} placeholder=${HOME_TITLE_DEFAULT} @input=${(e: Event) => this.change({ title: (e.target as HTMLInputElement).value })} />
         </label>
         <div class="row">
-          <div class="lbl" id="he-dir">כיוון
+          <div class="lbl" id="he-dir">${tr('כיוון')}
             <span class="seg" role="group" aria-labelledby="he-dir" data-home-directions>
               ${DIRECTIONS.map((x: Direction) => html`<button type="button" data-home-direction=${x} aria-pressed=${String(d.direction === x)} @click=${() => this.change({ direction: x })}>${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}</button>`)}
             </span>
           </div>
           ${d.direction === 'b'
-            ? html`<div class="lbl" id="he-side">צד הלוח
+            ? html`<div class="lbl" id="he-side">${tr('צד הלוח')}
                 <span class="seg" role="group" aria-labelledby="he-side">${SIDES.map((s: Side) => html`<button type="button" data-home-side=${s} aria-pressed=${String(d.side === s)} @click=${() => this.change({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span>
               </div>`
             : nothing}
         </div>
-        <div class="lbl" id="he-phone">בנייד: איך הווידג׳טים מוצגים
+        <div class="lbl" id="he-phone">${tr('בנייד: איך הווידג׳טים מוצגים')}
           <span class="seg" role="group" aria-labelledby="he-phone" data-home-phone-layouts>
             ${PHONE_LAYOUTS.map((p: PhoneLayout) => html`<button type="button" data-home-phone-layout=${p} aria-pressed=${String(d.config.phone_layout === p)} @click=${() => this.setConfig((c) => (c.phone_layout = p))}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
           </span>
@@ -583,23 +584,23 @@ export class HomeEditPanel extends LitElement {
         </div>
         <div class="grp" role="group" aria-labelledby="he-widgets-h">
           <div class="gh-row">
-            <h3 id="he-widgets-h">ווידג׳טים</h3>
-            <span class="cnt" data-home-widgets-count>${shown}/${listed.length} מוצגים</span>
+            <h3 id="he-widgets-h">${tr('ווידג׳טים')}</h3>
+            <span class="cnt" data-home-widgets-count>${tr('{shown}/{total} מוצגים', { shown, total: listed.length })}</span>
             <span class="sp"></span>
-            <sw-button size="sm" variant="ghost" icon="refresh" data-home-reset-widgets @click=${() => this.dispatchEvent(new CustomEvent('home-reset', { bubbles: true, composed: true }))}>אפס ווידג׳טים לברירת מחדל</sw-button>
+            <sw-button size="sm" variant="ghost" icon="refresh" data-home-reset-widgets @click=${() => this.dispatchEvent(new CustomEvent('home-reset', { bubbles: true, composed: true }))}>${tr('אפס ווידג׳טים לברירת מחדל')}</sw-button>
           </div>
           ${this.candidatesError
             ? html`<div class="err" role="alert" data-home-candidates-error><sw-icon name="warning" size=${14}></sw-icon>${this.candidatesError}</div>`
             : this.candidates === null
-              ? html`<div class="note" role="status" data-home-candidates-loading>טוען את רשימת הישויות…</div>`
+              ? html`<div class="note" role="status" data-home-candidates-loading>${tr('טוען את רשימת הישויות…')}</div>`
               : nothing}
           <div class="wl">${repeat(listed, (id) => id, (id, i) => this.widgetRow(id, i))}</div>
         </div>
       </div>
       <div class="col" data-home-floors-col>
         <div class="grp">
-        <h3 id="he-floors-lbl">סדר הקומות</h3>
-        ${ids.length ? html`<p class="hint">גרור קומה או השתמש בחצים. הקומה הראשונה מוצגת ראשונה.</p>` : html`<p class="hint" data-home-floors-empty>אין עדיין קומות במבנה.</p>`}
+        <h3 id="he-floors-lbl">${tr('סדר הקומות')}</h3>
+        ${ids.length ? html`<p class="hint">${tr('גרור קומה או השתמש בחצים. הקומה הראשונה מוצגת ראשונה.')}</p>` : html`<p class="hint" data-home-floors-empty>${tr('אין עדיין קומות במבנה.')}</p>`}
         <ol data-home-floors aria-labelledby="he-floors-lbl">
           ${ids.map(
             (id, i) => html`<li class=${classMap({ floor: true, dragging: this.dragFloor === id })} data-home-floor=${id} draggable="true"
@@ -607,8 +608,8 @@ export class HomeEditPanel extends LitElement {
               <span class="grip" aria-hidden="true"><sw-icon name="grip" size=${14}></sw-icon></span>
               <span class="pos" aria-hidden="true">${i + 1}</span>
               <span class="nm">${bidi(this.floors[i].name)}</span>
-              <button type="button" data-home-floor-up=${id} aria-label=${`העבר את ${this.floors[i].name} למעלה`} title="למעלה" ?disabled=${i === 0} @click=${() => this.moveFloor(ids, id, i - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
-              <button type="button" data-home-floor-down=${id} aria-label=${`העבר את ${this.floors[i].name} למטה`} title="למטה" ?disabled=${i === ids.length - 1} @click=${() => this.moveFloor(ids, id, i + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
+              <button type="button" data-home-floor-up=${id} aria-label=${tr('העבר את {name} למעלה', { name: this.floors[i].name })} title=${tr('למעלה')} ?disabled=${i === 0} @click=${() => this.moveFloor(ids, id, i - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
+              <button type="button" data-home-floor-down=${id} aria-label=${tr('העבר את {name} למטה', { name: this.floors[i].name })} title=${tr('למטה')} ?disabled=${i === ids.length - 1} @click=${() => this.moveFloor(ids, id, i + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
             </li>`,
           )}
         </ol>
@@ -624,24 +625,24 @@ export class HomeEditPanel extends LitElement {
     const last = this.listed.length - 1;
     return html`<div class=${classMap({ w: true, off: !w.on, open })} data-home-wrow=${id}>
       <div class="w-top">
-        <label class="check"><input type="checkbox" data-home-toggle=${id} .checked=${w.on} @change=${(e: Event) => this.setWidget(id, { on: (e.target as HTMLInputElement).checked } as never)} aria-label=${`הצג ${WIDGET_NAME[id]}`} /><span class="w-name">${WIDGET_NAME[id]}</span></label>
-        <span class="seg" role="group" aria-label=${`גודל: ${WIDGET_NAME[id]}`}>${SIZES.map((s: Size) => html`<button type="button" data-home-wsize=${`${id}:${s}`} aria-pressed=${String(w.sizes[d.direction] === s)} ?disabled=${!w.on} @click=${() => this.setConfig((c) => (c[id].sizes[d.direction] = s))}>${SIZE_LABEL[s]}</button>`)}</span>
+        <label class="check"><input type="checkbox" data-home-toggle=${id} .checked=${w.on} @change=${(e: Event) => this.setWidget(id, { on: (e.target as HTMLInputElement).checked } as never)} aria-label=${tr('הצג {name}', { name: WIDGET_NAME[id] })} /><span class="w-name">${WIDGET_NAME[id]}</span></label>
+        <span class="seg" role="group" aria-label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })}>${SIZES.map((s: Size) => html`<button type="button" data-home-wsize=${`${id}:${s}`} aria-pressed=${String(w.sizes[d.direction] === s)} ?disabled=${!w.on} @click=${() => this.setConfig((c) => (c[id].sizes[d.direction] = s))}>${SIZE_LABEL[s]}</button>`)}</span>
         <span class="grow"></span>
-        <button type="button" class="ib" data-home-wmove=${id} data-home-wearlier=${id} aria-label=${`הקדם את ${WIDGET_NAME[id]}`} title="הקדם" ?disabled=${index === 0} @click=${() => this.moveW(id, index - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
-        <button type="button" class="ib" data-home-wmove=${id} data-home-wlater=${id} aria-label=${`אחר את ${WIDGET_NAME[id]}`} title="אחר" ?disabled=${index === last} @click=${() => this.moveW(id, index + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
-        <button type="button" class="ib" data-home-wopen=${id} aria-expanded=${String(open)} aria-label=${`הגדרות: ${WIDGET_NAME[id]}`} title="הגדרות" @click=${() => this.toggleOpen(id)}><sw-icon name=${open ? 'chevronDown' : 'chevronBack'} size=${14}></sw-icon></button>
+        <button type="button" class="ib" data-home-wmove=${id} data-home-wearlier=${id} aria-label=${tr('הקדם את {name}', { name: WIDGET_NAME[id] })} title=${tr('הקדם')} ?disabled=${index === 0} @click=${() => this.moveW(id, index - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
+        <button type="button" class="ib" data-home-wmove=${id} data-home-wlater=${id} aria-label=${tr('אחר את {name}', { name: WIDGET_NAME[id] })} title=${tr('אחר')} ?disabled=${index === last} @click=${() => this.moveW(id, index + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
+        <button type="button" class="ib" data-home-wopen=${id} aria-expanded=${String(open)} aria-label=${tr('הגדרות: {name}', { name: WIDGET_NAME[id] })} title=${tr('הגדרות')} @click=${() => this.toggleOpen(id)}><sw-icon name=${open ? 'chevronDown' : 'chevronBack'} size=${14}></sw-icon></button>
       </div>
       <div class="w-phone" data-home-wphone=${id}>
-        <span class="pl">בנייד</span>
-        <label class="check"><input type="checkbox" data-home-phone-on=${id} .checked=${widgetOn(w, true)} aria-label=${`הצג בנייד: ${WIDGET_NAME[id]}`} @change=${(e: Event) => this.setPhoneOn(id, (e.target as HTMLInputElement).checked)} />הצג</label>
-        <select data-home-phone-size=${id} aria-label=${`גודל בנייד: ${WIDGET_NAME[id]}`} ?disabled=${!widgetOn(w, true)} @change=${(e: Event) => this.setWidget(id, { phone_size: ((e.target as HTMLSelectElement).value || null) as Size | null } as never)}>
-          <option value="" ?selected=${!w.phone_size}>אוטומטי (${SIZE_LABEL[widgetSize({ ...w, phone_size: null }, d.direction, true)]})</option>
+        <span class="pl">${tr('בנייד')}</span>
+        <label class="check"><input type="checkbox" data-home-phone-on=${id} .checked=${widgetOn(w, true)} aria-label=${tr('הצג בנייד: {name}', { name: WIDGET_NAME[id] })} @change=${(e: Event) => this.setPhoneOn(id, (e.target as HTMLInputElement).checked)} />${tr('הצג')}</label>
+        <select data-home-phone-size=${id} aria-label=${tr('גודל בנייד: {name}', { name: WIDGET_NAME[id] })} ?disabled=${!widgetOn(w, true)} @change=${(e: Event) => this.setWidget(id, { phone_size: ((e.target as HTMLSelectElement).value || null) as Size | null } as never)}>
+          <option value="" ?selected=${!w.phone_size}>${tr('אוטומטי ({size})', { size: SIZE_LABEL[widgetSize({ ...w, phone_size: null }, d.direction, true)] })}</option>
           ${SIZES.map((s: Size) => html`<option value=${s} ?selected=${w.phone_size === s}>${SIZE_LABEL[s]}</option>`)}
         </select>
       </div>
       ${open
         ? html`<div class="w-body" data-home-wbody=${id}>
-            <label class="f">כותרת <input type="text" data-home-label=${id} maxlength=${LABEL_MAX} .value=${w.label} placeholder=${WIDGET_NAME[id]} @input=${(e: Event) => this.setWidget(id, { label: (e.target as HTMLInputElement).value } as never)} /></label>
+            <label class="f">${tr('כותרת')} <input type="text" data-home-label=${id} maxlength=${LABEL_MAX} .value=${w.label} placeholder=${WIDGET_NAME[id]} @input=${(e: Event) => this.setWidget(id, { label: (e.target as HTMLInputElement).value } as never)} /></label>
             ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : id === 'agenda' ? agendaBody(this.bv1) : id === 'launcher' ? launcherBody(this.bv1) : id === 'elevators' ? this.elevatorsBody() : id === 'temperature' ? this.temperatureBody() : id === 'media' || id === 'generators' || id === 'doors' ? nothing : this.quickBody()}
           </div>`
         : nothing}
@@ -659,11 +660,11 @@ export class HomeEditPanel extends LitElement {
     const c = this.draft.config;
     const sensors = this.candidates?.sensors ?? [];
     const sug = this.suggestion('date');
-    return html`<div class="f">תצוגה<span class="seg" role="group" aria-label="תצוגת השעון">${CLOCK_MODES.map((m) => html`<button type="button" data-home-clock-mode=${m} aria-pressed=${String(c.clock.mode === m)} @click=${() => this.setWidget('clock', { mode: m })}>${CLOCK_MODE_LABEL[m]}</button>`)}</span></div>
+    return html`<div class="f">${tr('תצוגה')}<span class="seg" role="group" aria-label=${tr('תצוגת השעון')}>${CLOCK_MODES.map((m) => html`<button type="button" data-home-clock-mode=${m} aria-pressed=${String(c.clock.mode === m)} @click=${() => this.setWidget('clock', { mode: m })}>${CLOCK_MODE_LABEL[m]}</button>`)}</span></div>
       ${styleRow(this.bv1, 'clock')}
-      <div class="f"><label class="check"><input type="checkbox" data-home-clock-seconds .checked=${c.clock.seconds} @change=${(e: Event) => this.setWidget('clock', { seconds: (e.target as HTMLInputElement).checked })} />עם שניות (בגודל גדול)</label>
-        <label class="check"><input type="checkbox" data-home-clock-hebrew ?disabled=${c.clock.mode !== 'datetime'} .checked=${c.clock.hebrew} @change=${(e: Event) => this.setWidget('clock', { hebrew: (e.target as HTMLInputElement).checked })} />תאריך עברי</label></div>
-      <label class="f wide">חיישן התאריך העברי<select data-home-cal="date" ?disabled=${!c.clock.hebrew} @change=${(e: Event) => this.setCal('date', (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, c.calendar.date, 'לא נבחר: מחושב בדפדפן', sug)}</select></label>`;
+      <div class="f"><label class="check"><input type="checkbox" data-home-clock-seconds .checked=${c.clock.seconds} @change=${(e: Event) => this.setWidget('clock', { seconds: (e.target as HTMLInputElement).checked })} />${tr('עם שניות (בגודל גדול)')}</label>
+        <label class="check"><input type="checkbox" data-home-clock-hebrew ?disabled=${c.clock.mode !== 'datetime'} .checked=${c.clock.hebrew} @change=${(e: Event) => this.setWidget('clock', { hebrew: (e.target as HTMLInputElement).checked })} />${tr('תאריך עברי')}</label></div>
+      <label class="f wide">${tr('חיישן התאריך העברי')}<select data-home-cal="date" ?disabled=${!c.clock.hebrew} @change=${(e: Event) => this.setCal('date', (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, c.calendar.date, tr('לא נבחר: מחושב בדפדפן'), sug)}</select></label>`;
   }
 
   // ---- weather
@@ -678,19 +679,19 @@ export class HomeEditPanel extends LitElement {
     const check = (f: WeatherField) => html`<label class="check" data-home-wfield-row=${f}><input type="checkbox" data-home-wfield=${f} .checked=${cfg.fields.includes(f)} @change=${(e: Event) => this.toggleField(f, (e.target as HTMLInputElement).checked)} />${WEATHER_FIELD_LABEL[f]}${w?.values[f] ? html`<span class="val">${w.values[f]!.v}${w.values[f]!.unit ? ` ${w.values[f]!.unit}` : ''}</span>` : nothing}</label>`;
     const shown = WEATHER_FIELDS.filter((f) => offers.includes(f));
     const hasForecast = offers.includes('forecast');
-    return html`<label class="f wide">ישות מזג האוויר
-        <select data-home-weather-entity @change=${(e: Event) => this.pickWeather((e.target as HTMLSelectElement).value)}>${optionsOf(cands, cfg.entity, 'לא נבחר')}</select></label>
+    return html`<label class="f wide">${tr('ישות מזג האוויר')}
+        <select data-home-weather-entity @change=${(e: Event) => this.pickWeather((e.target as HTMLSelectElement).value)}>${optionsOf(cands, cfg.entity, tr('לא נבחר'))}</select></label>
       ${styleRow(this.bv1, 'weather')}
-      ${cfg.entity && !w ? html`<div class="err wide" data-home-wx-missing>הישות לא נמצאה בקטלוג.</div>` : nothing}
-      ${w && !w.available ? html`<div class="err wide" data-home-wx-unavailable>הישות לא זמינה כרגע: הווידג׳ט מוסתר עד שתחזור.</div>` : nothing}
+      ${cfg.entity && !w ? html`<div class="err wide" data-home-wx-missing>${tr('הישות לא נמצאה בקטלוג.')}</div>` : nothing}
+      ${w && !w.available ? html`<div class="err wide" data-home-wx-unavailable>${tr('הישות לא זמינה כרגע: הווידג׳ט מוסתר עד שתחזור.')}</div>` : nothing}
       ${w
-        ? html`<div class="f wide" data-home-wfields>מה להציג (רק מה שהישות מדווחת)
+        ? html`<div class="f wide" data-home-wfields>${tr('מה להציג (רק מה שהישות מדווחת)')}
             <div class="fields">${shown.map(check)}</div></div>
           ${hasForecast
-            ? html`<div class="f wide">אורך התחזית<span class="seg" role="group" aria-label="אורך התחזית">${FORECAST_LENS.map((l: ForecastLen) => html`<button type="button" data-home-forecast-len=${l} aria-pressed=${String(cfg.forecast === l)} ?disabled=${!cfg.fields.includes('forecast')} @click=${() => this.setWidget('weather', { forecast: l })}>${l === 'max' ? `מקסימום (${forecastCount(w.forecast_len, 'max')})` : `${l} (${forecastCount(w.forecast_len, l)})`}</button>`)}</span></div>`
+            ? html`<div class="f wide">${tr('אורך התחזית')}<span class="seg" role="group" aria-label=${tr('אורך התחזית')}>${FORECAST_LENS.map((l: ForecastLen) => html`<button type="button" data-home-forecast-len=${l} aria-pressed=${String(cfg.forecast === l)} ?disabled=${!cfg.fields.includes('forecast')} @click=${() => this.setWidget('weather', { forecast: l })}>${l === 'max' ? tr('מקסימום ({n})', { n: forecastCount(w.forecast_len, 'max') }) : `${l} (${forecastCount(w.forecast_len, l)})`}</button>`)}</span></div>`
             : nothing}
-          <div class="f wide" data-home-wsources>מקור אחר לשדה (לא חובה)
-            ${WEATHER_SOURCE_FIELDS.filter((f) => cfg.fields.includes(f)).map((f) => html`<div class="frow"><span>${WEATHER_FIELD_LABEL[f]}</span><select data-home-wsource=${f} aria-label=${WEATHER_FIELD_LABEL[f]} @change=${(e: Event) => this.setSource(f, (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, cfg.sources[f] ?? '', 'מישות מזג האוויר')}</select></div>`)}
+          <div class="f wide" data-home-wsources>${tr('מקור אחר לשדה (לא חובה)')}
+            ${WEATHER_SOURCE_FIELDS.filter((f) => cfg.fields.includes(f)).map((f) => html`<div class="frow"><span>${WEATHER_FIELD_LABEL[f]}</span><select data-home-wsource=${f} aria-label=${WEATHER_FIELD_LABEL[f]} @change=${(e: Event) => this.setSource(f, (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, cfg.sources[f] ?? '', tr('מישות מזג האוויר'))}</select></div>`)}
           </div>`
         : nothing}`;
   }
@@ -749,26 +750,26 @@ export class HomeEditPanel extends LitElement {
       const others = sensors.filter((s) => !s.suggested);
       const opt = (x: { entity_id: string; name: string }) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${entityLabel(x)}</option>`;
       return html`<option value="" ?selected=${!current}>${blank}</option>
-        ${sug && !current ? html`<option value=${sug.entity_id}>הצעה: ${entityLabel(sug)}</option>` : nothing}
-        ${current && !sensors.some((x) => x.entity_id === current) ? html`<option value=${current} selected>${entityLabel({ entity_id: current }, 'חיישן שנבחר (אינו זמין כעת)')}</option>` : nothing}
-        ${suggested.length ? html`<optgroup label="לוח שנה עברי">${suggested.map(opt)}</optgroup>` : nothing}
-        <optgroup label="כל החיישנים">${others.map(opt)}</optgroup>`;
+        ${sug && !current ? html`<option value=${sug.entity_id}>${tr('הצעה: {name}', { name: entityLabel(sug) })}</option>` : nothing}
+        ${current && !sensors.some((x) => x.entity_id === current) ? html`<option value=${current} selected>${entityLabel({ entity_id: current }, tr('חיישן שנבחר (אינו זמין כעת)'))}</option>` : nothing}
+        ${suggested.length ? html`<optgroup label=${tr('לוח שנה עברי')}>${suggested.map(opt)}</optgroup>` : nothing}
+        <optgroup label=${tr('כל החיישנים')}>${others.map(opt)}</optgroup>`;
     };
     const hasSuggestions = CALENDAR_FIELDS.some((f) => !cal[f] && this.candidates?.suggested_calendar?.[f]);
     const fields = (['parsha', 'candles', 'havdalah', 'holiday'] as CalendarField[]).map(
-      (f) => html`<label class="f">${CALENDAR_FIELD_LABEL[f]}<select data-home-cal=${f} @change=${(e: Event) => this.setCal(f, (e.target as HTMLSelectElement).value)}>${groups(cal[f], 'לא נבחר', this.suggestion(f))}</select></label>`,
+      (f) => html`<label class="f">${CALENDAR_FIELD_LABEL[f]}<select data-home-cal=${f} @change=${(e: Event) => this.setCal(f, (e.target as HTMLSelectElement).value)}>${groups(cal[f], tr('לא נבחר'), this.suggestion(f))}</select></label>`,
     );
     return html`${fields}
-      ${hasSuggestions ? html`<div class="wide"><sw-button size="sm" data-home-suggest @click=${() => this.suggestAll()}>מלא הצעות אוטומטיות</sw-button></div>` : nothing}
-      <div class="f wide" data-home-extras>שדות נוספים (עד ${EXTRAS_MAX})
+      ${hasSuggestions ? html`<div class="wide"><sw-button size="sm" data-home-suggest @click=${() => this.suggestAll()}>${tr('מלא הצעות אוטומטיות')}</sw-button></div>` : nothing}
+      <div class="f wide" data-home-extras>${tr('שדות נוספים (עד {n})', { n: EXTRAS_MAX })}
         ${cal.extras.map(
           (x, i) => html`<div class="extra" data-home-extra=${i}>
-            <select aria-label="חיישן" data-home-extra-entity=${i} @change=${(e: Event) => this.setExtra(i, { entity_id: (e.target as HTMLSelectElement).value })}>${groups(x.entity_id, 'בחר חיישן')}</select>
-            <input type="text" aria-label="כותרת" data-home-extra-label=${i} maxlength=${LABEL_MAX} .value=${x.label} placeholder="כותרת" @input=${(e: Event) => this.setExtra(i, { label: (e.target as HTMLInputElement).value })} />
-            <button type="button" class="ib" data-home-extra-remove=${i} aria-label="הסר שדה" @click=${() => this.setConfig((c) => c.calendar.extras.splice(i, 1))}><sw-icon name="close" size=${13}></sw-icon></button>
+            <select aria-label=${tr('חיישן')} data-home-extra-entity=${i} @change=${(e: Event) => this.setExtra(i, { entity_id: (e.target as HTMLSelectElement).value })}>${groups(x.entity_id, tr('בחר חיישן'))}</select>
+            <input type="text" aria-label=${tr('כותרת')} data-home-extra-label=${i} maxlength=${LABEL_MAX} .value=${x.label} placeholder=${tr('כותרת')} @input=${(e: Event) => this.setExtra(i, { label: (e.target as HTMLInputElement).value })} />
+            <button type="button" class="ib" data-home-extra-remove=${i} aria-label=${tr('הסר שדה')} @click=${() => this.setConfig((c) => c.calendar.extras.splice(i, 1))}><sw-icon name="close" size=${13}></sw-icon></button>
           </div>`,
         )}
-        ${cal.extras.length < EXTRAS_MAX ? html`<div><sw-button size="sm" icon="plus" data-home-extra-add @click=${() => this.setConfig((c) => c.calendar.extras.push({ entity_id: '', label: '' }))}>הוסף שדה</sw-button></div>` : nothing}
+        ${cal.extras.length < EXTRAS_MAX ? html`<div><sw-button size="sm" icon="plus" data-home-extra-add @click=${() => this.setConfig((c) => c.calendar.extras.push({ entity_id: '', label: '' }))}>${tr('הוסף שדה')}</sw-button></div>` : nothing}
       </div>`;
   }
 
@@ -805,12 +806,12 @@ export class HomeEditPanel extends LitElement {
   private alarmBody() {
     const cfg = this.draft.config.alarm;
     const alarms = this.candidates?.alarms ?? [];
-    return html`<label class="f">לוח האזעקה<select data-home-alarm-entity @change=${(e: Event) => this.setWidget('alarm', { entity: (e.target as HTMLSelectElement).value })}>${optionsOf(alarms, cfg.entity, 'אוטומטי: הדחוף ביותר')}</select></label>`;
+    return html`<label class="f">${tr('לוח האזעקה')}<select data-home-alarm-entity @change=${(e: Event) => this.setWidget('alarm', { entity: (e.target as HTMLSelectElement).value })}>${optionsOf(alarms, cfg.entity, tr('אוטומטי: הדחוף ביותר'))}</select></label>`;
   }
 
   private quickBody() {
     const cfg = this.draft.config.quick;
-    return html`<div class="f wide">פעולות
+    return html`<div class="f wide">${tr('פעולות')}
       <div class="fields">${QUICK_ACTIONS.map((a: QuickAction) => html`<label class="check"><input type="checkbox" data-home-quick-action=${a} .checked=${cfg.actions.includes(a)} @change=${(e: Event) => this.toggleAction(a, (e.target as HTMLInputElement).checked)} />${QUICK_ACTION_LABEL[a]}</label>`)}</div></div>`;
   }
 

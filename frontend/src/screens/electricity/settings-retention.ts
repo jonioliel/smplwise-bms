@@ -9,6 +9,7 @@ import { fmtMb } from '../../electricity/format';
 import { elecCss } from '../../electricity/styles';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { tr } from '../../i18n/msg/screens';
 
 interface RowDef {
   key: RetentionKey;
@@ -19,11 +20,14 @@ interface RowDef {
 }
 
 const ROWS: RowDef[] = [
-  { key: 'raw_retention_days', label: 'קריאות גולמיות', usage: 'raw_bytes', owner: 'system' },
-  { key: 'interval_retention_months', label: 'נתוני רבע שעה', usage: 'interval_bytes', owner: 'system' },
-  { key: 'bill_retention_years', label: 'חיובים וקבצי PDF', usage: 'bill_bytes', owner: 'system' },
-  { key: 'draft_retention_days', label: 'טיוטות שלא הונפקו', usage: 'draft_bytes', owner: 'manage' },
+  { key: 'raw_retention_days', label: tr('קריאות גולמיות'), usage: 'raw_bytes', owner: 'system' },
+  { key: 'interval_retention_months', label: tr('נתוני רבע שעה'), usage: 'interval_bytes', owner: 'system' },
+  { key: 'bill_retention_years', label: tr('חיובים וקבצי PDF'), usage: 'bill_bytes', owner: 'system' },
+  { key: 'draft_retention_days', label: tr('טיוטות שלא הונפקו'), usage: 'draft_bytes', owner: 'manage' },
 ];
+
+/** I18N-EN-SWITCH-2438: the range units (api/electricity-meters.ts writes them in Hebrew) as the interface's language shows them. */
+const UNIT_TEXT: Record<string, string> = { 'ימים': tr('ימים'), 'חודשים': tr('חודשים'), 'שנים': tr('שנים') };
 
 /**
  * הגדרות › תשתיות › שמירת נתונים (CR-023 section 15, mockups "שמירת נתונים" and "ערך מחוץ לטווח"): how long raw readings, quarter-hour data and bills with
@@ -141,7 +145,7 @@ export class ElecSettingsRetention extends LitElement {
     const raw = (this.values[r.key] ?? '').trim();
     const range = this.data?.ranges[r.key] ?? RETENTION_RANGES[r.key];
     const n = Number(raw);
-    if (raw === '' || !Number.isInteger(n) || n < range.min || n > range.max) return `הערך חייב להיות בין ${range.min} ל-${range.max}`;
+    if (raw === '' || !Number.isInteger(n) || n < range.min || n > range.max) return tr('הערך חייב להיות בין {min} ל-{max}', { min: range.min, max: range.max });
     return '';
   }
 
@@ -175,7 +179,7 @@ export class ElecSettingsRetention extends LitElement {
   render() {
     if (!this.access.system && !this.access.manage) return html`<sw-state-panel state="forbidden" data-elec="retention" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') return html`<div data-elec="retention" data-state="loading" aria-busy="true" class="card">${[0, 1, 2, 3].map(() => html`<div class="row" style="padding:12px 0"><div class="skl" style="inline-size:36%"></div><span class="sp"></span><div class="skl" style="inline-size:20%"></div></div>`)}</div>`;
-    if (this.phase === 'error' || !this.data) return html`<div data-elec="retention" data-state="error"><sw-state-panel state="error" heading="לא ניתן לטעון את ההגדרות" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></div>`;
+    if (this.phase === 'error' || !this.data) return html`<div data-elec="retention" data-state="error"><sw-state-panel state="error" heading=${tr('לא ניתן לטעון את ההגדרות')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel></div>`;
     const d = this.data;
     const total = ROWS.reduce((s, r) => s + (d.usage[r.usage] ?? 0), 0);
     const hasChange = Object.keys(this.changed()).length > 0;
@@ -188,16 +192,16 @@ export class ElecSettingsRetention extends LitElement {
         const edited = !err && n !== d[r.key];
         return html`<div class="rowx" data-retention=${r.key}>
           <div class="grow"><div class="t1">${r.label}</div>
-            <div class="t2">${range.min} עד ${range.max} · בשימוש <span class="num" data-usage>${d.usage[r.usage] == null ? '-' : fmtMb(d.usage[r.usage]!)}</span>${edited && r.key !== 'draft_retention_days' ? html` · הערכה לערך החדש <span class="num" data-estimate>${fmtMb(estimateBytes(r.key, n, d.meter_count))}</span>` : nothing}</div></div>
+            <div class="t2">${tr('{min} עד {max}', { min: range.min, max: range.max })} · ${tr('בשימוש')} <span class="num" data-usage>${d.usage[r.usage] == null ? '-' : fmtMb(d.usage[r.usage]!)}</span>${edited && r.key !== 'draft_retention_days' ? html` · ${tr('הערכה לערך החדש')} <span class="num" data-estimate>${fmtMb(estimateBytes(r.key, n, d.meter_count))}</span>` : nothing}</div></div>
           <div class="fld"><div class="inp ${err ? 'err' : ''}"><input inputmode="numeric" data-retention-input=${r.key} aria-label=${r.label} aria-invalid=${err ? 'true' : 'false'} ?disabled=${!this.editable(r)} .value=${this.values[r.key] ?? ''}
-            @input=${(e: Event) => { this.saved = false; this.values = { ...this.values, [r.key]: (e.target as HTMLInputElement).value }; }} /><span class="mut">${range.unit}</span></div>
+            @input=${(e: Event) => { this.saved = false; this.values = { ...this.values, [r.key]: (e.target as HTMLInputElement).value }; }} /><span class="mut">${UNIT_TEXT[range.unit] ?? range.unit}</span></div>
             ${err ? html`<div class="msg" role="alert" data-retention-error=${r.key}>${err}</div>` : nothing}</div>
         </div>`;
       })}</div>
       ${this.saveError ? html`<div class="alert err" role="alert" style="margin-block-start:12px" data-save-error>${this.saveError}</div>` : nothing}
-      <div class="foot"><span class="mut">נתונים בתוך תקופה של טיוטה פתוחה לא נמחקים.</span><span class="mut">סה״כ בשימוש <span class="num">${fmtMb(total)}</span></span><span class="sp"></span>
-        ${this.saved ? html`<span class="ok" role="status" data-saved>נשמר</span>` : nothing}
-        <sw-button variant="primary" data-retention-save ?disabled=${!hasChange || anyProblem || this.saving} @click=${() => void this.save()}>שמירה</sw-button></div>
+      <div class="foot"><span class="mut">${tr('נתונים בתוך תקופה של טיוטה פתוחה לא נמחקים.')}</span><span class="mut">${tr('סה״כ בשימוש')} <span class="num">${fmtMb(total)}</span></span><span class="sp"></span>
+        ${this.saved ? html`<span class="ok" role="status" data-saved>${tr('נשמר')}</span>` : nothing}
+        <sw-button variant="primary" data-retention-save ?disabled=${!hasChange || anyProblem || this.saving} @click=${() => void this.save()}>${tr('שמירה')}</sw-button></div>
     </div>`;
   }
 }

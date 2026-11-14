@@ -5,6 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
 import { floorBars, sectionLevels, type SiteBuilding, type SiteModel } from '../api/home-site';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { tr } from '../i18n/msg/screens';
 import { PHONE_WIDTH } from '../api/home-screen';
 
 /** What a building / floor press asks the home screen to open: the building view, on one of OUR floors when given. */
@@ -616,15 +617,15 @@ export class HomeSiteView extends LitElement {
 
   private renderTree() {
     const total = this.buildings.reduce((s, b) => s + b.counts.lights_on, 0);
-    return html`<nav aria-label="בניינים וקומות" data-site-tree>
-      <div class="trow all" data-site-tree-all aria-current="true"><sw-icon name="building" size=${15}></sw-icon><span class="nm">כל האתר</span>${this.lit(total)}</div>
+    return html`<nav aria-label=${tr('בניינים וקומות')} data-site-tree>
+      <div class="trow all" data-site-tree-all aria-current="true"><sw-icon name="building" size=${15}></sw-icon><span class="nm">${tr('כל האתר')}</span>${this.lit(total)}</div>
       ${repeat(this.buildings, (b) => b.id, (b) => {
         const open = this.open.has(b.id);
         return html`<div class="gr">
-            <button type="button" class="fold" aria-expanded=${String(open)} aria-label=${open ? `סגור את ${b.name}` : `פתח את קומות ${b.name}`} data-site-tree-fold=${b.id} @click=${() => this.toggle(b.id)}><sw-icon name="chevronDown" size=${14}></sw-icon></button>
+            <button type="button" class="fold" aria-expanded=${String(open)} aria-label=${open ? tr('סגור את {name}', { name: b.name }) : tr('פתח את קומות {name}', { name: b.name })} data-site-tree-fold=${b.id} @click=${() => this.toggle(b.id)}><sw-icon name="chevronDown" size=${14}></sw-icon></button>
             <button type="button" class=${classMap({ trow: true, b: true, shared: b.shared })} data-site-tree-building=${b.id} @click=${() => this.go(b.id)}>
               <sw-icon class="ic" name=${b.shared ? 'sparkle' : 'building'} size=${15}></sw-icon><span class="nm" title=${b.name}>${bidi(b.name)}</span>
-              ${b.alerts.length ? html`<span class="al" aria-label=${`${b.alerts.length} התראות`}>${ltrNum(b.alerts.length)}</span>` : nothing}${this.lit(b.counts.lights_on)}
+              ${b.alerts.length ? html`<span class="al" aria-label=${tr('{n} התראות', { n: b.alerts.length })}>${ltrNum(b.alerts.length)}</span>` : nothing}${this.lit(b.counts.lights_on)}
             </button>
           </div>
           ${open
@@ -632,7 +633,7 @@ export class HomeSiteView extends LitElement {
             : nothing}`;
       })}
       ${this.model.unassigned.length
-        ? html`<div class="loose" data-site-unassigned=${this.model.unassigned.length}><sw-icon name="warning" size=${13}></sw-icon>לא משויך · ${ltrNum(this.model.unassigned.length)} אזורים</div>`
+        ? html`<div class="loose" data-site-unassigned=${this.model.unassigned.length}><sw-icon name="warning" size=${13}></sw-icon>${tr('לא משויך')} · ${tr('{n} אזורים', { n: ltrNum(this.model.unassigned.length) })}</div>`
         : nothing}
     </nav>`;
   }
@@ -647,22 +648,22 @@ export class HomeSiteView extends LitElement {
       <header>
         <h3 role="button" tabindex="0" data-site-card-open=${b.id} @click=${() => this.go(b.id)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), this.go(b.id))}>
           <sw-icon name=${b.shared ? 'sparkle' : 'building'} size=${16}></sw-icon>${bidi(b.name)}</h3>
-        <span class="sub">${ltrNum(b.floors.length)} קומות · ${ltrNum(areas)} אזורים</span>
+        <span class="sub">${tr('{n} קומות', { n: ltrNum(b.floors.length) })} · ${tr('{n} אזורים', { n: ltrNum(areas) })}</span>
       </header>
       <div class="chips">
         ${chip('light', c.lights_on, c.lights, 'on')}${chip('bolt', c.switches_on, c.switches, 'on')}${chip('layers', c.covers_open, c.covers, 'on')}${chip('snow', c.climate_active, c.climate, 'cool')}
       </div>
       ${b.alerts.length
-        ? html`<div class="alerts">${b.alerts.slice(0, 2).map((a) => html`<div class="arow" data-site-alert><sw-icon name="warning" size=${13}></sw-icon>${bidi(a.floor)} · ${bidi(a.area.name)} · אזעקה</div>`)}</div>`
-        : html`<span class="ok"><sw-icon name="check" size=${13}></sw-icon>אין התראות</span>`}
+        ? html`<div class="alerts">${b.alerts.slice(0, 2).map((a) => html`<div class="arow" data-site-alert><sw-icon name="warning" size=${13}></sw-icon>${bidi(a.floor)} · ${bidi(a.area.name)} · ${tr('אזעקה')}</div>`)}</div>`
+        : html`<span class="ok"><sw-icon name="check" size=${13}></sw-icon>${tr('אין התראות')}</span>`}
       <div class="bars" data-site-bars>
-        ${floorBars(b).map((f) => html`<button type="button" class=${classMap({ bar: true, alert: f.alert })} data-site-bar=${f.id} aria-label=${`${f.name}: ${f.on} מתוך ${f.total} דולקות`} @click=${() => this.go(b.id, f.id)}>
+        ${floorBars(b).map((f) => html`<button type="button" class=${classMap({ bar: true, alert: f.alert })} data-site-bar=${f.id} aria-label=${tr('{name}: {on} מתוך {total} דולקות', { name: f.name, on: f.on, total: f.total })} @click=${() => this.go(b.id, f.id)}>
           <span class="nm">${bidi(f.name)}</span><span class="track"><i style=${`inline-size:${Math.round(f.ratio * 100)}%`}></i></span><span class="n">${ltrNum(f.on)}</span>
         </button>`)}
       </div>
       <div class="foot">
-        <button type="button" class="btn" data-site-card-go=${b.id} @click=${() => this.go(b.id)}><sw-icon name=${b.shared ? 'sparkle' : 'building'} size=${14}></sw-icon>${b.shared ? 'פתח משותף' : 'פתח בניין'}</button>
-        ${this.canOff ? html`<button type="button" class="lnk danger" data-site-card-off=${b.id} @click=${() => this.off(b.id)}>כבה הכל ב${b.name}</button>` : nothing}
+        <button type="button" class="btn" data-site-card-go=${b.id} @click=${() => this.go(b.id)}><sw-icon name=${b.shared ? 'sparkle' : 'building'} size=${14}></sw-icon>${b.shared ? tr('פתח משותף') : tr('פתח בניין')}</button>
+        ${this.canOff ? html`<button type="button" class="lnk danger" data-site-card-off=${b.id} @click=${() => this.off(b.id)}>${tr('כבה הכל ב{name}', { name: b.name })}</button>` : nothing}
       </div>
     </section>`;
   }
@@ -670,11 +671,11 @@ export class HomeSiteView extends LitElement {
   private renderAlerts() {
     const all = this.buildings.flatMap((b) => b.alerts.map((a) => ({ b, a })));
     return html`<section class="card" data-site-alerts=${all.length}>
-      <h4><sw-icon name="warning" size=${15}></sw-icon>התראות באתר${all.length ? html` <span class="sub">· ${ltrNum(all.length)}</span>` : nothing}</h4>
+      <h4><sw-icon name="warning" size=${15}></sw-icon>${tr('התראות באתר')}${all.length ? html` <span class="sub">· ${ltrNum(all.length)}</span>` : nothing}</h4>
       <div class="alist">
         ${all.length
           ? all.map(({ b, a }) => html`<button type="button" class="lnk" @click=${() => this.go(b.id)}><span class="code">${bidi(b.name)}</span> · ${bidi(a.floor)} · ${bidi(a.area.name)}</button>`)
-          : html`<span class="ok"><sw-icon name="check" size=${13}></sw-icon>אין התראות באתר</span>`}
+          : html`<span class="ok"><sw-icon name="check" size=${13}></sw-icon>${tr('אין התראות באתר')}</span>`}
       </div>
     </section>`;
   }
@@ -684,8 +685,8 @@ export class HomeSiteView extends LitElement {
   private renderSection() {
     const levels = sectionLevels(this.buildings);
     const ground = levels.findIndex((l) => l < 0);
-    return html`<section class="card" data-site-section aria-label="חתך האתר">
-      <h4><sw-icon name="layers" size=${15}></sw-icon>חתך האתר</h4>
+    return html`<section class="card" data-site-section aria-label=${tr('חתך האתר')}>
+      <h4><sw-icon name="layers" size=${15}></sw-icon>${tr('חתך האתר')}</h4>
       <div class="xs" style=${`--bn:${this.buildings.length}`}>
         ${this.buildings.map((b) => {
           const bars = new Map(floorBars(b).map((x) => [b.floors.find((f) => f.id === x.id)!.level, x]));
