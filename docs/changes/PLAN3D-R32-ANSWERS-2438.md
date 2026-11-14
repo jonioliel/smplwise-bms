@@ -59,7 +59,10 @@ Run locally (workstation, `--workers=1`):
   each file alone passes.)
 - backend (`pytest -p no:xdist`): `test_plan_view_settings.py`, `test_map3d_r28_settings_2433.py`, `test_user_prefs.py` - 74 passed.
 
-Runner: see the commits after this note (pixel baselines refreshed with `-u`, entry check queued).
+Runner (`run_smart.py preview ... --update-snapshots=changed --workers=1 --machine runner` @ 35b971e2f): evidence-replay-3d,
+pixel-plan-wizard-2433, pixel-plan-wizard-2434, pixel-plan3d-r28-ui, pixel-walk-touch, all projects - 69 passed, 39 skipped (per-project
+skips), 0 failed; 14 baselines rewritten and reviewed: the 12 level-3 replay shots (walls cut low at 1.25 m, the Calacatta marble) and
+the wizard's style step (six kits) at 1440 / 1024. R28 pills / stack / room card and the walk baselines were unchanged.
 
 NOT_RUN locally: pixel / WebGL specs (runner only), the full suites, a real GPU look at the Calacatta / travertine floors and the bars at
 the real lab floors, a real weak device (the reflection drop is driven by the existing frame probe; the GPU class by `detectGpuClass`).
