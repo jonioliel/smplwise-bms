@@ -14,6 +14,7 @@ import { elecCss } from './styles';
 import '../components/sw-sheet';
 import { billsTable } from './elec-bills-table';
 import { go, href, route } from './elec-routes';
+import { tr } from '../i18n/msg/electricity';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 interface Form {
@@ -94,9 +95,9 @@ export class ElecCustomersPage extends ElecBase {
 
   private validate(): boolean {
     const e: Record<string, string> = {};
-    if (!this.form.name.trim()) e.name = 'צריך לכתוב שם ללקוח';
-    if (this.form.email && !EMAIL.test(this.form.email)) e.email = 'כתובת דוא״ל לא תקינה';
-    if (!/^\d{1,9}$/.test(this.form.customer_number)) e.customer_number = 'מספר לקוח הוא ספרות בלבד';
+    if (!this.form.name.trim()) e.name = tr('צריך לכתוב שם ללקוח');
+    if (this.form.email && !EMAIL.test(this.form.email)) e.email = tr('כתובת דוא״ל לא תקינה');
+    if (!/^\d{1,9}$/.test(this.form.customer_number)) e.customer_number = tr('מספר לקוח הוא ספרות בלבד');
     this.errs = e;
     return !Object.keys(e).length;
   }
@@ -154,20 +155,20 @@ export class ElecCustomersPage extends ElecBase {
   private renderCard() {
     const perms = energyAccess();
     const c = this.card;
-    return html`<sw-sheet open wide .heading=${c ? 'כרטיס לקוח' : 'לקוח חדש'} data-customer-card @close=${() => this.close()}>
+    return html`<sw-sheet open wide .heading=${c ? tr('כרטיס לקוח') : tr('לקוח חדש')} data-customer-card @close=${() => this.close()}>
         <div class="col" style="gap:14px">
-        ${this.cardSt === 'loading' ? skeleton(4) : this.cardSt === 'error' ? stateBox('error', 'warning', 'לא ניתן לטעון את הלקוח', { label: 'נסה שוב', run: () => void this.loadCard(this.segments[0]) }) : html`
-          <div class="form">${this.field('name', 'שם הלקוח', { wide: true })}${this.field('customer_number', 'מספר לקוח', { ltr: true })}${this.field('tax_id', 'ח.פ. / ע.מ. (לא חובה)', { ltr: true, ph: 'לא חובה' })}
-            ${this.field('address', 'כתובת למשלוח החיוב', { wide: true })}${this.field('phone', 'טלפון', { ltr: true })}${this.field('email', 'דוא״ל', { ltr: true })}${this.field('notes', 'הערות', { wide: true, ph: 'לא חובה', area: true })}</div>
-          ${c ? html`<b class="h3">חשבונות</b>
-            <div class="list" data-customer-accounts>${(c.accounts ?? []).map((a) => html`<a class="li" href=${href.account(a.id)}><div class="grow"><div class="t1">${a.name}</div></div></a>`)}${c.accounts?.length ? nothing : html`<div class="mut">אין חשבונות ללקוח</div>`}</div>
-            ${c.bills?.length ? html`<b class="h3">חיובים אחרונים</b>${billsTable(c.bills.slice(0, 4), { phone: true })}` : nothing}` : nothing}
+        ${this.cardSt === 'loading' ? skeleton(4) : this.cardSt === 'error' ? stateBox('error', 'warning', tr('לא ניתן לטעון את הלקוח'), { label: tr('נסה שוב'), run: () => void this.loadCard(this.segments[0]) }) : html`
+          <div class="form">${this.field('name', tr('שם הלקוח'), { wide: true })}${this.field('customer_number', tr('מספר לקוח'), { ltr: true })}${this.field('tax_id', tr('ח.פ. / ע.מ. (לא חובה)'), { ltr: true, ph: tr('לא חובה') })}
+            ${this.field('address', tr('כתובת למשלוח החיוב'), { wide: true })}${this.field('phone', tr('טלפון'), { ltr: true })}${this.field('email', tr('דוא״ל'), { ltr: true })}${this.field('notes', tr('הערות'), { wide: true, ph: tr('לא חובה'), area: true })}</div>
+          ${c ? html`<b class="h3">${tr('חשבונות')}</b>
+            <div class="list" data-customer-accounts>${(c.accounts ?? []).map((a) => html`<a class="li" href=${href.account(a.id)}><div class="grow"><div class="t1">${a.name}</div></div></a>`)}${c.accounts?.length ? nothing : html`<div class="mut">${tr('אין חשבונות ללקוח')}</div>`}</div>
+            ${c.bills?.length ? html`<b class="h3">${tr('חיובים אחרונים')}</b>${billsTable(c.bills.slice(0, 4), { phone: true })}` : nothing}` : nothing}
           ${this.error ? alertBox('err', this.error) : nothing}
-          ${perms.manage ? html`<div class="row"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button><span class="sp"></span>${c ? html`<sw-button variant="danger" data-delete @click=${() => (this.confirmDel = true)}>מחיקת לקוח</sw-button>` : nothing}</div>` : nothing}`}
-        <elec-dialog heading="מחיקת לקוח" ?open=${this.confirmDel} data-dialog="delete-customer" @close=${() => (this.confirmDel = false)}>
-          <div>הלקוח יימחק. חיובים שהונפקו שומרים עותק של פרטיו.</div>
-          <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.removeCustomer()}>מחיקה</sw-button>
-          <sw-button slot="actions" @click=${() => (this.confirmDel = false)}>ביטול</sw-button>
+          ${perms.manage ? html`<div class="row"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${tr('שמירה')}</sw-button><span class="sp"></span>${c ? html`<sw-button variant="danger" data-delete @click=${() => (this.confirmDel = true)}>${tr('מחיקת לקוח')}</sw-button>` : nothing}</div>` : nothing}`}
+        <elec-dialog heading=${tr('מחיקת לקוח')} ?open=${this.confirmDel} data-dialog="delete-customer" @close=${() => (this.confirmDel = false)}>
+          <div>${tr('הלקוח יימחק. חיובים שהונפקו שומרים עותק של פרטיו.')}</div>
+          <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.removeCustomer()}>${tr('מחיקה')}</sw-button>
+          <sw-button slot="actions" @click=${() => (this.confirmDel = false)}>${tr('ביטול')}</sw-button>
         </elec-dialog>
         </div>
       </sw-sheet>`;
@@ -175,21 +176,21 @@ export class ElecCustomersPage extends ElecBase {
 
   render() {
     const perms = energyAccess();
-    if (!perms.bills) return html`<div class="page" data-elec="customers" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה ללקוחות')}</div>`;
+    if (!perms.bills) return html`<div class="page" data-elec="customers" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה ללקוחות'))}</div>`;
     const q = this.q.trim();
     const list = this.list.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));
     let body;
     if (this.st === 'loading') body = skeleton(5);
-    else if (this.st === 'error') body = stateBox('error', 'warning', 'לא ניתן לטעון את הלקוחות', { label: 'נסה שוב', run: () => void this.loadList() });
-    else if (this.st === 'empty') body = stateBox('empty', 'user', 'אין לקוחות עדיין', perms.manage ? { label: '+ לקוח חדש', primary: true, run: () => go(`${route.customers()}/new`) } : undefined);
-    else if (!list.length) body = stateBox('empty', 'search', 'לא נמצאו לקוחות');
+    else if (this.st === 'error') body = stateBox('error', 'warning', tr('לא ניתן לטעון את הלקוחות'), { label: tr('נסה שוב'), run: () => void this.loadList() });
+    else if (this.st === 'empty') body = stateBox('empty', 'user', tr('אין לקוחות עדיין'), perms.manage ? { label: tr('+ לקוח חדש'), primary: true, run: () => go(`${route.customers()}/new`) } : undefined);
+    else if (!list.length) body = stateBox('empty', 'search', tr('לא נמצאו לקוחות'));
     else
       body = html`<div class="grid-cards" data-elec-list>${list.map((c) => html`<div class="card" data-customer-row=${c.id}>
-        <div class="row" style="flex-wrap:nowrap"><div class="chip c-acc nodot" style="inline-size:36px;block-size:36px;justify-content:center;padding:0" aria-hidden="true">${c.name.slice(0, 2)}</div><div style="min-inline-size:0"><a class="rowlink h3" href=${href.customer(c.id)}>${c.name}</a><div class="mut">מספר לקוח ${n(c.customer_number)}</div></div></div>
-        <dl class="kv" style="margin-block-start:10px"><dt>חשבונות</dt><dd>${c.account_count}</dd>${c.phone ? html`<dt>טלפון</dt><dd>${n(c.phone)}</dd>` : nothing}${c.email ? html`<dt>דוא״ל</dt><dd>${n(c.email)}</dd>` : nothing}</dl></div>`)}</div>`;
+        <div class="row" style="flex-wrap:nowrap"><div class="chip c-acc nodot" style="inline-size:36px;block-size:36px;justify-content:center;padding:0" aria-hidden="true">${c.name.slice(0, 2)}</div><div style="min-inline-size:0"><a class="rowlink h3" href=${href.customer(c.id)}>${c.name}</a><div class="mut">${tr('מספר לקוח')} ${n(c.customer_number)}</div></div></div>
+        <dl class="kv" style="margin-block-start:10px"><dt>${tr('חשבונות')}</dt><dd>${c.account_count}</dd>${c.phone ? html`<dt>${tr('טלפון')}</dt><dd>${n(c.phone)}</dd>` : nothing}${c.email ? html`<dt>${tr('דוא״ל')}</dt><dd>${n(c.email)}</dd>` : nothing}</dl></div>`)}</div>`;
     return html`<div class="page" data-elec="customers" data-state=${this.st}>
-      <div class="row"><input type="search" data-search aria-label="חיפוש לקוח" placeholder="חיפוש לקוח" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /><span class="sp"></span>
-        ${perms.manage ? html`<a class="btn pri ${this.phone ? 'sm' : ''}" data-new-customer href=${`#${route.customers()}/new`}>+ לקוח חדש</a>` : nothing}</div>
+      <div class="row"><input type="search" data-search aria-label=${tr('חיפוש לקוח')} placeholder=${tr('חיפוש לקוח')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /><span class="sp"></span>
+        ${perms.manage ? html`<a class="btn pri ${this.phone ? 'sm' : ''}" data-new-customer href=${`#${route.customers()}/new`}>${tr('+ לקוח חדש')}</a>` : nothing}</div>
       ${body}
       ${this.segments[0] ? this.renderCard() : nothing}
     </div>`;

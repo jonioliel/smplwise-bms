@@ -13,13 +13,14 @@ import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 import { getReadingLog, type ReadingLog } from '../api/electricity-readings';
 import type { OpenDialogDetail, ReadingsDialog } from './meter-readings';
+import { tr } from '../i18n/msg/electricity';
 
-export const STATUS_LABEL: Record<MeterStatus, string> = { reporting: 'מדווח', stale: 'לא מדווח', paused: 'מושהה' };
+export const STATUS_LABEL: Record<MeterStatus, string> = { reporting: tr('מדווח'), stale: tr('לא מדווח'), paused: tr('מושהה') };
 export const STATUS_CLASS: Record<MeterStatus, string> = { reporting: 'c-ok', stale: 'c-warn', paused: 'c-mut' };
 
 type Range = 'hours' | 'days' | 'months';
-const RANGE_LABEL: Record<Range, string> = { hours: '24 שעות', days: '30 ימים', months: '12 חודשים' };
-const REASON_LABEL: Record<string, string> = { install: 'התקנה', reset: 'איפוס', replace: 'החלפת מונה', source_change: 'שינוי מקור' };
+const RANGE_LABEL: Record<Range, string> = { hours: tr('24 שעות'), days: tr('30 ימים'), months: tr('12 חודשים') };
+const REASON_LABEL: Record<string, string> = { install: tr('התקנה'), reset: tr('איפוס'), replace: tr('החלפת מונה'), source_change: tr('שינוי מקור') };
 
 /** A bar chart of kWh: the oldest bar at the start side (right in RTL). Data-viz rules (MEDIA-polish): thin bars (at most 24 px), the
  * latest period in the accent and the rest in the soft tint, a value only on the latest and the highest bar (every value is in the
@@ -28,7 +29,7 @@ export function barChart(data: { label: string; value: number }[], ariaLabel: st
   const W = 640;
   const H = 170;
   const pad = 26;
-  if (!data.length) return html`<div class="mut">אין נתונים לתקופה</div>`;
+  if (!data.length) return html`<div class="mut">${tr('אין נתונים לתקופה')}</div>`;
   const max = Math.max(...data.map((d) => d.value), 1) * 1.15;
   const bw = (W - pad * 2) / data.length;
   const barW = Math.min(bw * 0.64, 24);
@@ -297,7 +298,7 @@ export class ElecMeterCard extends LitElement {
       await this.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'revision_conflict') {
-        this.nameError = 'מישהו אחר שינה את המונה בינתיים. הנתונים רועננו, בדקו את השם ושמרו שוב.';
+        this.nameError = tr('מישהו אחר שינה את המונה בינתיים. הנתונים רועננו, בדקו את השם ושמרו שוב.');
         await this.refresh();
       } else {
         this.nameError = describeError(err);
@@ -329,8 +330,8 @@ export class ElecMeterCard extends LitElement {
     const fin = Number(this.finalReading);
     const start = Number(this.startReading);
     if (!d || this.busy) return;
-    if (this.finalReading.trim() === '' || !Number.isFinite(fin) || fin < 0) return void (this.replaceError = 'צריך להזין קריאה סופית תקינה');
-    if (this.startReading.trim() === '' || !Number.isFinite(start) || start < 0) return void (this.replaceError = 'צריך להזין קריאת התחלה תקינה');
+    if (this.finalReading.trim() === '' || !Number.isFinite(fin) || fin < 0) return void (this.replaceError = tr('צריך להזין קריאה סופית תקינה'));
+    if (this.startReading.trim() === '' || !Number.isFinite(start) || start < 0) return void (this.replaceError = tr('צריך להזין קריאת התחלה תקינה'));
     this.busy = true;
     this.replaceError = '';
     try {
@@ -349,27 +350,27 @@ export class ElecMeterCard extends LitElement {
     return html`<div class="body" data-meter-card=${d.id}>
       <div class="row"><span class="chip ${STATUS_CLASS[d.status]}" data-meter-status=${d.status}>${STATUS_LABEL[d.status]}</span></div>
       <dl class="kv">
-        <dt>אזור</dt><dd>${d.area_name ?? '-'}${d.floor_name ? ` · ${d.floor_name}` : ''}</dd>
-        <dt>קריאה נוכחית</dt><dd><span class="num">${fmtKwh(d.reading_kwh)}</span> <span class="mut">קוט״ש</span></dd>
-        <dt>דיווח אחרון</dt><dd><span class="num">${fmtDateTime(d.last_report_at)}</span></dd>
-        <dt>יחידה</dt><dd>קוט״ש · מונה מצטבר</dd>
-        <dt>בחשבונות</dt><dd>${d.accounts.length ? d.accounts.join(', ') : html`<span class="mut">-</span>`}</dd>
+        <dt>${tr('אזור')}</dt><dd>${d.area_name ?? '-'}${d.floor_name ? ` · ${d.floor_name}` : ''}</dd>
+        <dt>${tr('קריאה נוכחית')}</dt><dd><span class="num">${fmtKwh(d.reading_kwh)}</span> <span class="mut">${tr('קוט״ש')}</span></dd>
+        <dt>${tr('דיווח אחרון')}</dt><dd><span class="num">${fmtDateTime(d.last_report_at)}</span></dd>
+        <dt>${tr('יחידה')}</dt><dd>${tr('קוט״ש')} · ${tr('מונה מצטבר')}</dd>
+        <dt>${tr('בחשבונות')}</dt><dd>${d.accounts.length ? d.accounts.join(', ') : html`<span class="mut">-</span>`}</dd>
       </dl>
-      <div class="row"><h3>צריכה</h3><span class="sp"></span>
-        <div class="seg" role="group" aria-label="טווח">${(['hours', 'days', 'months'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => { this.range = r; void this.loadSeries(); }}>${RANGE_LABEL[r]}</button>`)}</div></div>
-      ${this.chartError ? html`<div class="alert err" role="alert">לא ניתן לטעון את גרף הצריכה</div>` : barChart(data, `גרף צריכה, ${RANGE_LABEL[this.range]}`)}
-      <h3>תקופות מונה</h3>
+      <div class="row"><h3>${tr('צריכה')}</h3><span class="sp"></span>
+        <div class="seg" role="group" aria-label=${tr('טווח')}>${(['hours', 'days', 'months'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => { this.range = r; void this.loadSeries(); }}>${RANGE_LABEL[r]}</button>`)}</div></div>
+      ${this.chartError ? html`<div class="alert err" role="alert">${tr('לא ניתן לטעון את גרף הצריכה')}</div>` : barChart(data, tr('גרף צריכה, {range}', { range: RANGE_LABEL[this.range] }))}
+      <h3>${tr('תקופות מונה')}</h3>
       <div class="list" data-epochs>${d.epochs.map((e) => html`<div class="li"><div class="grow"><div class="t1">${REASON_LABEL[e.reason] ?? e.reason} · <span class="num">${fmtDate(e.started_at)}</span></div>
-        <div class="t2 wrap">קריאת התחלה <span class="num">${fmtKwh(e.start_reading_kwh)}</span>${e.ended_at ? html` · עד <span class="num">${fmtDate(e.ended_at)}</span>` : ''}${e.note ? ` · ${e.note}` : ''}</div></div>${e.ended_at ? nothing : html`<span class="chip acc nodot">פעיל</span>`}</div>`)}</div>
+        <div class="t2 wrap">${tr('קריאת התחלה')} <span class="num">${fmtKwh(e.start_reading_kwh)}</span>${e.ended_at ? html` · ${tr('עד')} <span class="num">${fmtDate(e.ended_at)}</span>` : ''}${e.note ? ` · ${e.note}` : ''}</div></div>${e.ended_at ? nothing : html`<span class="chip acc nodot">${tr('פעיל')}</span>`}</div>`)}</div>
       <elec-meter-readings .log=${this.log} error=${this.logError} ?canManage=${this.canManage} @open-dialog=${(e: CustomEvent<OpenDialogDetail>) => this.openReadingsDialog(e)}></elec-meter-readings>
       ${this.actionError ? html`<div class="alert err" role="alert" data-meter-action-error>${this.actionError}</div>` : nothing}
       ${this.canManage
         ? html`<div class="actions">
-            <sw-button data-meter-rename @click=${() => this.openRename()}>שינוי שם</sw-button>
-            <sw-button data-meter-replace @click=${() => this.openReplace()}>החלפת מונה</sw-button>
-            <sw-button data-meter-pause ?disabled=${this.busy} @click=${() => void this.toggleStatus()}>${d.status === 'paused' ? 'חידוש' : 'השהיה'}</sw-button>
+            <sw-button data-meter-rename @click=${() => this.openRename()}>${tr('שינוי שם')}</sw-button>
+            <sw-button data-meter-replace @click=${() => this.openReplace()}>${tr('החלפת מונה')}</sw-button>
+            <sw-button data-meter-pause ?disabled=${this.busy} @click=${() => void this.toggleStatus()}>${d.status === 'paused' ? tr('חידוש') : tr('השהיה')}</sw-button>
             <span class="sp"></span>
-            <sw-button variant="danger" data-meter-remove @click=${() => { this.actionError = ''; this.dlg = 'remove'; }}>הסרה</sw-button>
+            <sw-button variant="danger" data-meter-remove @click=${() => { this.actionError = ''; this.dlg = 'remove'; }}>${tr('הסרה')}</sw-button>
           </div>`
         : nothing}
     </div>`;
@@ -381,22 +382,22 @@ export class ElecMeterCard extends LitElement {
       <!-- a dialog opened from the card sits above the drawer's top layer only while the drawer steps aside -->
       <sw-drawer ?open=${!this.dlg} modal heading=${d ? meterNames(d).primary : ''} subheading=${d ? meterNames(d).secondary : ''} data-meter-drawer @close=${() => { if (!this.dlg) this.fire('close'); }}>
         ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
-        ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading="לא ניתן לטעון את המונה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
+        ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${tr('לא ניתן לטעון את המונה')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel>` : nothing}
         ${this.phase === 'ready' && d ? this.renderBody(d) : nothing}
       </sw-drawer>
-      <sw-dialog ?open=${this.dlg === 'remove'} heading="הסרת המונה" data-meter-remove-dialog @close=${() => (this.dlg = '')}>
-        <div>המונה יוסר מהרשימה. הנתונים שנאספו יישמרו.</div>
+      <sw-dialog ?open=${this.dlg === 'remove'} heading=${tr('הסרת המונה')} data-meter-remove-dialog @close=${() => (this.dlg = '')}>
+        <div>${tr('המונה יוסר מהרשימה. הנתונים שנאספו יישמרו.')}</div>
         ${this.actionError && this.dlg === 'remove' ? html`<div class="alert err" role="alert">${this.actionError}</div>` : nothing}
-        <sw-button slot="footer" variant="danger" data-meter-remove-confirm ?disabled=${this.busy} @click=${() => void this.confirmRemove()}>הסרה</sw-button>
-        <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
+        <sw-button slot="footer" variant="danger" data-meter-remove-confirm ?disabled=${this.busy} @click=${() => void this.confirmRemove()}>${tr('הסרה')}</sw-button>
+        <sw-button slot="footer" @click=${() => (this.dlg = '')}>${tr('ביטול')}</sw-button>
       </sw-dialog>
-      <sw-dialog ?open=${this.dlg === 'rename'} heading="שינוי שם המונה" data-meter-rename-dialog @close=${() => (this.dlg = '')}>
+      <sw-dialog ?open=${this.dlg === 'rename'} heading=${tr('שינוי שם המונה')} data-meter-rename-dialog @close=${() => (this.dlg = '')}>
         ${(() => {
           const chk = checkMeterName(this.newName, this.otherNames);
           const same = chk.name === this.detail?.name; // keeping the current name is never a collision (an old duplicate may exist)
           if (same) chk.duplicate = false;
           return html`<div class="fld">
-            <label for="rn">שם המונה</label>
+            <label for="rn">${tr('שם המונה')}</label>
             <div class="inp ${this.nameError ? 'err' : ''}"><input id="rn" data-rename-input autocomplete="off" aria-invalid=${this.nameError ? 'true' : 'false'} aria-describedby="rn-msg" .value=${this.newName}
               @input=${(e: Event) => { this.newName = (e.target as HTMLInputElement).value; this.nameError = ''; }}
               @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void this.rename(); } }} /></div>
@@ -407,18 +408,18 @@ export class ElecMeterCard extends LitElement {
             </div>
           </div>`;
         })()}
-        <sw-button slot="footer" variant="primary" data-rename-save ?disabled=${this.busy || (checkMeterName(this.newName, this.otherNames).duplicate && this.newName.trim() !== this.detail?.name)} @click=${() => void this.rename()}>שמירה</sw-button>
-        <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
+        <sw-button slot="footer" variant="primary" data-rename-save ?disabled=${this.busy || (checkMeterName(this.newName, this.otherNames).duplicate && this.newName.trim() !== this.detail?.name)} @click=${() => void this.rename()}>${tr('שמירה')}</sw-button>
+        <sw-button slot="footer" @click=${() => (this.dlg = '')}>${tr('ביטול')}</sw-button>
       </sw-dialog>
-      <sw-dialog ?open=${this.dlg === 'replace'} heading="החלפת מונה" data-meter-replace-dialog @close=${() => (this.dlg = '')}>
+      <sw-dialog ?open=${this.dlg === 'replace'} heading=${tr('החלפת מונה')} data-meter-replace-dialog @close=${() => (this.dlg = '')}>
         <div class="form">
-          <div class="fld"><label for="fr">קריאה סופית של המונה הישן</label><div class="inp ${this.replaceError && !this.finalReading ? 'err' : ''}"><input id="fr" data-replace-final inputmode="decimal" .value=${this.finalReading} @input=${(e: Event) => (this.finalReading = (e.target as HTMLInputElement).value)} /><span class="mut">קוט״ש</span></div></div>
-          <div class="fld"><label for="sr">קריאת התחלה של המונה החדש</label><div class="inp"><input id="sr" data-replace-start inputmode="decimal" .value=${this.startReading} @input=${(e: Event) => (this.startReading = (e.target as HTMLInputElement).value)} /><span class="mut">קוט״ש</span></div></div>
-          <div class="fld wide"><label for="nt">הערה (לא חובה)</label><div class="inp"><input id="nt" data-replace-note .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></div></div>
+          <div class="fld"><label for="fr">${tr('קריאה סופית של המונה הישן')}</label><div class="inp ${this.replaceError && !this.finalReading ? 'err' : ''}"><input id="fr" data-replace-final inputmode="decimal" .value=${this.finalReading} @input=${(e: Event) => (this.finalReading = (e.target as HTMLInputElement).value)} /><span class="mut">${tr('קוט״ש')}</span></div></div>
+          <div class="fld"><label for="sr">${tr('קריאת התחלה של המונה החדש')}</label><div class="inp"><input id="sr" data-replace-start inputmode="decimal" .value=${this.startReading} @input=${(e: Event) => (this.startReading = (e.target as HTMLInputElement).value)} /><span class="mut">${tr('קוט״ש')}</span></div></div>
+          <div class="fld wide"><label for="nt">${tr('הערה (לא חובה)')}</label><div class="inp"><input id="nt" data-replace-note .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></div></div>
           ${this.replaceError ? html`<div class="alert err wide" role="alert" data-replace-error>${this.replaceError}</div>` : nothing}
         </div>
-        <sw-button slot="footer" variant="primary" data-replace-save ?disabled=${this.busy} @click=${() => void this.replace()}>החלפה</sw-button>
-        <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
+        <sw-button slot="footer" variant="primary" data-replace-save ?disabled=${this.busy} @click=${() => void this.replace()}>${tr('החלפה')}</sw-button>
+        <sw-button slot="footer" @click=${() => (this.dlg = '')}>${tr('ביטול')}</sw-button>
       </sw-dialog>
       ${this.dlg === 'reading' || this.dlg === 'calibrate' || this.dlg === 'undo-reading' || this.dlg === 'undo-calibration'
         ? html`<elec-reading-dialogs .meterId=${this.meterId} .log=${this.log} .kind=${this.dlg} .targetId=${this.dlgDetail?.id ?? ''} .presetFactor=${this.dlgDetail?.factor ?? ''}

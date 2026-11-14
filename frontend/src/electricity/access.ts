@@ -11,6 +11,7 @@
  * hash route, or `persona` in localStorage `sw.demo.electricity` (`view` | `bills_only` | `full`, the billing mock's control).
  */
 import { canAnywhere, isApi, onSession } from '../api/session';
+import { tr } from '../i18n/msg/electricity';
 
 export interface EnergyAccess {
   view: boolean;
@@ -24,9 +25,9 @@ export type EnergyPermission = (typeof ENERGY_PERMISSIONS)[number];
 
 /** Hebrew labels of the electricity permissions: the fallback while the server's role catalogue carries none of its own. */
 export const ENERGY_PERMISSION_LABELS: Record<EnergyPermission, string> = {
-  'energy.view': 'צפייה במונים ובצריכה',
-  'energy.bills': 'חיובים: סכומים, לקוחות, הפקה וביטול',
-  'energy.manage': 'ניהול מונים, חשבונות, לקוחות ומחירים',
+  'energy.view': tr('צפייה במונים ובצריכה'),
+  'energy.bills': tr('חיובים: סכומים, לקוחות, הפקה וביטול'),
+  'energy.manage': tr('ניהול מונים, חשבונות, לקוחות ומחירים'),
 };
 
 /** The label of any permission id when it is an energy one (undefined otherwise), for label lookups keyed by a plain string. */

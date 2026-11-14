@@ -8,6 +8,7 @@
  *           operand := meter | '(' expr ')'         numbers are decimals >= 0, a percentage is a number with '%' (30% = 0.30)
  * Linear only: a meter is multiplied or divided by a constant, never by another meter.
  */
+import { tr } from '../i18n/msg/electricity';
 export type FormulaAst = { m: string } | { n: string } | { op: '+' | '-' | '*' | '/'; args: [FormulaAst, FormulaAst] } | { neg: FormulaAst };
 
 export type Op = '+' | '-' | '*' | '/' | '(' | ')';
@@ -22,19 +23,19 @@ export interface Issue {
 }
 
 export const ISSUE_TEXT: Record<IssueCode, string> = {
-  empty: 'הנוסחה ריקה. הוסיפו לפחות מונה אחד.',
-  paren_open: 'חסר סוגר. כל סוגר שנפתח צריך להיסגר.',
-  paren_close: 'יש סוגר סוגר בלי סוגר פותח.',
-  meter_times_meter: 'אי אפשר להכפיל מונה במונה. אפשר להכפיל מונה במספר או באחוז.',
-  divide_by_meter: 'אי אפשר לחלק במונה. אפשר לחלק במספר.',
-  dangling: 'הנוסחה לא הושלמה. אחרי פעולה צריך מונה.',
-  missing_operand: 'חסר מונה בנוסחה.',
-  number_alone: 'מספר או אחוז צריכים להיות מוכפלים במונה.',
-  number_times_number: 'אי אפשר להכפיל מספר במספר. הכפילו מונה.',
-  unknown_meter: 'המונה לא נמצא.',
-  bad_char: 'תו לא מוכר בנוסחה.',
-  bad_number: 'המספר אינו תקין.',
-  unexpected: 'הנוסחה אינה תקינה.',
+  empty: tr('הנוסחה ריקה. הוסיפו לפחות מונה אחד.'),
+  paren_open: tr('חסר סוגר. כל סוגר שנפתח צריך להיסגר.'),
+  paren_close: tr('יש סוגר סוגר בלי סוגר פותח.'),
+  meter_times_meter: tr('אי אפשר להכפיל מונה במונה. אפשר להכפיל מונה במספר או באחוז.'),
+  divide_by_meter: tr('אי אפשר לחלק במונה. אפשר לחלק במספר.'),
+  dangling: tr('הנוסחה לא הושלמה. אחרי פעולה צריך מונה.'),
+  missing_operand: tr('חסר מונה בנוסחה.'),
+  number_alone: tr('מספר או אחוז צריכים להיות מוכפלים במונה.'),
+  number_times_number: tr('אי אפשר להכפיל מספר במספר. הכפילו מונה.'),
+  unknown_meter: tr('המונה לא נמצא.'),
+  bad_char: tr('תו לא מוכר בנוסחה.'),
+  bad_number: tr('המספר אינו תקין.'),
+  unexpected: tr('הנוסחה אינה תקינה.'),
 };
 
 export interface ParseResult {
@@ -143,7 +144,7 @@ export function parseTokens(toks: Tok[]): ParseResult {
   const ast = expr();
   if (ast && i < toks.length && !issues.length) issues.push(issue(isOp(toks[i], ')') ? 'paren_close' : 'unexpected', i));
   const warnings: string[] = [];
-  if (meterIds.some((m, idx) => meterIds.indexOf(m) !== idx)) warnings.push('המונה מופיע פעמיים בנוסחה.');
+  if (meterIds.some((m, idx) => meterIds.indexOf(m) !== idx)) warnings.push(tr('המונה מופיע פעמיים בנוסחה.'));
   return { ast: issues.length ? null : ast, issues, warnings, meterIds: [...new Set(meterIds)] };
 }
 
@@ -171,13 +172,13 @@ export function textToTokens(text: string, idOf: (name: string) => string | null
     if (c === '[') {
       const end = text.indexOf(']', i);
       if (end < 0) {
-        issues.push({ code: 'unknown_meter', at: toks.length, message: 'חסר סוגר מרובע ] אחרי שם המונה.' });
+        issues.push({ code: 'unknown_meter', at: toks.length, message: tr('חסר סוגר מרובע ] אחרי שם המונה.') });
         break;
       }
       const name = text.slice(i + 1, end).trim();
       const id = idOf(name);
       if (id) toks.push({ t: 'm', id });
-      else issues.push({ code: 'unknown_meter', at: toks.length, message: `המונה [${name}] לא נמצא. הוסיפו אותו בשלב 1.` });
+      else issues.push({ code: 'unknown_meter', at: toks.length, message: tr('המונה [{name}] לא נמצא. הוסיפו אותו בשלב 1.', { name }) });
       i = end + 1;
       continue;
     }
@@ -294,10 +295,10 @@ export function factorLabel(k: number): string {
 
 export type PresetId = 'sum' | 'mainsub' | 'pct' | 'custom';
 export const PRESETS: { id: PresetId; label: string; hint: string }[] = [
-  { id: 'sum', label: 'סכום', hint: 'כל המונים יחד' },
-  { id: 'mainsub', label: 'ראשי פחות משנה', hint: 'מונה ראשי פחות מוני משנה' },
-  { id: 'pct', label: 'חלק באחוזים', hint: 'אחוז מתוך מונה' },
-  { id: 'custom', label: 'נוסחה חופשית', hint: 'מונים, פעולות ומספרים' },
+  { id: 'sum', label: tr('סכום'), hint: tr('כל המונים יחד') },
+  { id: 'mainsub', label: tr('ראשי פחות משנה'), hint: tr('מונה ראשי פחות מוני משנה') },
+  { id: 'pct', label: tr('חלק באחוזים'), hint: tr('אחוז מתוך מונה') },
+  { id: 'custom', label: tr('נוסחה חופשית'), hint: tr('מונים, פעולות ומספרים') },
 ];
 
 export function presetTokens(preset: PresetId, ids: string[], opts: { main?: string; pct?: string } = {}): Tok[] {

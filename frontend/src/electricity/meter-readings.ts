@@ -22,6 +22,7 @@ import { fmtDate, fmtDateTime, fmtReading, fmtSigned } from './format';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/electricity';
 
 export type ReadingsDialog = '' | 'reading' | 'calibrate' | 'undo-reading' | 'undo-calibration';
 export interface OpenDialogDetail {
@@ -33,9 +34,9 @@ export interface OpenDialogDetail {
 }
 
 const UNITS: { id: ReadingUnit; label: string }[] = [
-  { id: 'kWh', label: 'קוט״ש' },
-  { id: 'Wh', label: 'וואט־שעה' },
-  { id: 'MWh', label: 'מגוואט־שעה' },
+  { id: 'kWh', label: tr('קוט״ש') },
+  { id: 'Wh', label: tr('וואט־שעה') },
+  { id: 'MWh', label: tr('מגוואט־שעה') },
 ];
 
 const sectionCss = css`
@@ -102,51 +103,51 @@ export class ElecMeterReadings extends LitElement {
 
   private calLine(l: ReadingLog) {
     const c = l.calibration;
-    if (c.identity) return html`<div class="cal" data-calibration="none">ללא כיול: הקריאות כפי שהמונה מדווח</div>`;
-    return html`<div class="cal" data-calibration=${c.calibration_id ?? ''}>כיול מ-<span class="num">${fmtDate(c.effective_date)}</span> · מקדם <span class="num">${c.factor}</span>
-      · הפרש <span class="num ltr">${fmtSigned(c.offset_kwh)}</span> קוט״ש</div>`;
+    if (c.identity) return html`<div class="cal" data-calibration="none">${tr('ללא כיול: הקריאות כפי שהמונה מדווח')}</div>`;
+    return html`<div class="cal" data-calibration=${c.calibration_id ?? ''}>${tr('כיול מ-')}<span class="num">${fmtDate(c.effective_date)}</span> · ${tr('מקדם')} <span class="num">${c.factor}</span>
+      · ${tr('הפרש')} <span class="num ltr">${fmtSigned(c.offset_kwh)}</span> ${tr('קוט״ש')}</div>`;
   }
 
   private reading(r: ManualReading) {
-    const dev = r.deviation_kwh == null ? 'אין ערך מערכת לזמן הזה' : html`מהמערכת <span class="num ltr">${fmtSigned(r.deviation_kwh)}</span>`;
+    const dev = r.deviation_kwh == null ? tr('אין ערך מערכת לזמן הזה') : html`${tr('מהמערכת')} <span class="num ltr">${fmtSigned(r.deviation_kwh)}</span>`;
     return html`<div class="li ${r.voided_at ? 'dis' : ''}" data-reading=${r.id ?? ''}>
       <div class="grow">
-        <div class="t1"><span class="num">${fmtReading(r.value_kwh)}</span> קוט״ש · <span class="num">${fmtDateTime(r.read_at)}</span></div>
-        <div class="t2 wrap">${dev}${r.created_by_name ? ` · ${r.created_by_name}` : ''}${r.note ? ` · ${r.note}` : ''}${r.voided_at ? html` · <b>בוטלה</b>${r.voided_by_name ? ` (${r.voided_by_name})` : ''}` : ''}</div>
+        <div class="t1"><span class="num">${fmtReading(r.value_kwh)}</span> ${tr('קוט״ש')} · <span class="num">${fmtDateTime(r.read_at)}</span></div>
+        <div class="t2 wrap">${dev}${r.created_by_name ? ` · ${r.created_by_name}` : ''}${r.note ? ` · ${r.note}` : ''}${r.voided_at ? html` · <b>${tr('בוטלה')}</b>${r.voided_by_name ? ` (${r.voided_by_name})` : ''}` : ''}</div>
       </div>
       <span class="chip nodot ${r.effect === 'allocation' ? 'c-acc' : 'c-mut'}" data-effect=${r.effect_reason} title=${r.message}>${EFFECT_LABEL[r.effect_reason]}</span>
-      ${this.canManage && r.can_undo && r.id ? html`<sw-button size="sm" variant="ghost" data-reading-undo=${r.id} @click=${() => this.open({ kind: 'undo-reading', id: r.id! })}>ביטול</sw-button>` : nothing}
+      ${this.canManage && r.can_undo && r.id ? html`<sw-button size="sm" variant="ghost" data-reading-undo=${r.id} @click=${() => this.open({ kind: 'undo-reading', id: r.id! })}>${tr('ביטול')}</sw-button>` : nothing}
     </div>`;
   }
 
   private calibration(c: Calibration) {
     return html`<div class="li ${c.voided_at ? 'dis' : ''}" data-cal=${c.id ?? ''}>
       <div class="grow">
-        <div class="t1">מ-<span class="num">${fmtDate(c.effective_date)}</span> · מקדם <span class="num">${c.factor}</span> · הפרש <span class="num ltr">${fmtSigned(c.offset_kwh)}</span></div>
-        <div class="t2 wrap">${c.created_by_name ?? ''}${c.note ? ` · ${c.note}` : ''}${c.voided_at ? html` · <b>בוטל</b>` : ''}</div>
+        <div class="t1">${tr('מ-')}<span class="num">${fmtDate(c.effective_date)}</span> · ${tr('מקדם')} <span class="num">${c.factor}</span> · ${tr('הפרש')} <span class="num ltr">${fmtSigned(c.offset_kwh)}</span></div>
+        <div class="t2 wrap">${c.created_by_name ?? ''}${c.note ? ` · ${c.note}` : ''}${c.voided_at ? html` · <b>${tr('בוטל')}</b>` : ''}</div>
       </div>
-      ${c.in_force ? html`<span class="chip nodot c-acc">בתוקף</span>` : nothing}
-      ${this.canManage && c.can_undo && c.id ? html`<sw-button size="sm" variant="ghost" data-cal-undo=${c.id} @click=${() => this.open({ kind: 'undo-calibration', id: c.id! })}>ביטול</sw-button>` : nothing}
+      ${c.in_force ? html`<span class="chip nodot c-acc">${tr('בתוקף')}</span>` : nothing}
+      ${this.canManage && c.can_undo && c.id ? html`<sw-button size="sm" variant="ghost" data-cal-undo=${c.id} @click=${() => this.open({ kind: 'undo-calibration', id: c.id! })}>${tr('ביטול')}</sw-button>` : nothing}
     </div>`;
   }
 
   render() {
     const l = this.log;
     return html`<div class="rd" data-readings>
-      <div class="row"><h3>קריאות ידניות וכיול</h3><span class="sp"></span>
+      <div class="row"><h3>${tr('קריאות ידניות וכיול')}</h3><span class="sp"></span>
         ${this.canManage && l
-          ? html`<div class="acts"><sw-button size="sm" data-reading-add @click=${() => this.open({ kind: 'reading' })}>קריאה ידנית</sw-button>
-              <sw-button size="sm" data-calibrate @click=${() => this.open({ kind: 'calibrate' })}>כיול</sw-button></div>`
+          ? html`<div class="acts"><sw-button size="sm" data-reading-add @click=${() => this.open({ kind: 'reading' })}>${tr('קריאה ידנית')}</sw-button>
+              <sw-button size="sm" data-calibrate @click=${() => this.open({ kind: 'calibrate' })}>${tr('כיול')}</sw-button></div>`
           : nothing}</div>
       ${this.error ? html`<div class="alert err" role="alert" data-readings-error>${this.error}</div>` : nothing}
       ${l
         ? html`${this.calLine(l)}
             ${this.canManage && l.suggestion
-              ? html`<div class="alert info sug" data-suggestion><div>לפי שתי קריאות ההשוואה: מקדם <span class="num">${l.suggestion.factor}</span></div><span class="sp"></span>
-                  <sw-button size="sm" data-suggestion-apply @click=${() => this.open({ kind: 'calibrate', factor: l.suggestion!.factor, anchor: l.suggestion!.anchor_reading_id })}>כיול לפי ההצעה</sw-button></div>`
+              ? html`<div class="alert info sug" data-suggestion><div>${tr('לפי שתי קריאות ההשוואה: מקדם')} <span class="num">${l.suggestion.factor}</span></div><span class="sp"></span>
+                  <sw-button size="sm" data-suggestion-apply @click=${() => this.open({ kind: 'calibrate', factor: l.suggestion!.factor, anchor: l.suggestion!.anchor_reading_id })}>${tr('כיול לפי ההצעה')}</sw-button></div>`
               : nothing}
-            ${l.items.length ? html`<div class="list" data-reading-list>${l.items.map((r) => this.reading(r))}</div>` : html`<div class="mut" data-reading-empty>אין קריאות ידניות</div>`}
-            ${l.calibrations.length ? html`<h4>כיולים</h4><div class="list" data-cal-list>${l.calibrations.map((c) => this.calibration(c))}</div>` : nothing}`
+            ${l.items.length ? html`<div class="list" data-reading-list>${l.items.map((r) => this.reading(r))}</div>` : html`<div class="mut" data-reading-empty>${tr('אין קריאות ידניות')}</div>`}
+            ${l.calibrations.length ? html`<h4>${tr('כיולים')}</h4><div class="list" data-cal-list>${l.calibrations.map((c) => this.calibration(c))}</div>` : nothing}`
         : this.error
           ? nothing
           : html`<div class="skl" style="inline-size:60%"></div>`}
@@ -286,10 +287,10 @@ export class ElecReadingDialogs extends LitElement {
   private readingBody(dry: boolean) {
     const errs: Record<string, string> = {};
     const iso = localInputToIso(this.when);
-    if (!iso) errs.when = 'צריך לבחור תאריך ושעה';
-    else if (Date.parse(iso) > Date.now() + 300_000) errs.when = 'זמן הקריאה בעתיד';
+    if (!iso) errs.when = tr('צריך לבחור תאריך ושעה');
+    else if (Date.parse(iso) > Date.now() + 300_000) errs.when = tr('זמן הקריאה בעתיד');
     const v = parseReading(this.value);
-    if (v == null) errs.value = 'צריך להזין מספר תקין';
+    if (v == null) errs.value = tr('צריך להזין מספר תקין');
     if (!dry) this.fieldErrors = errs;
     if (Object.keys(errs).length || !iso || v == null) return null;
     return { read_at: iso, value: v, unit: this.unit, ...(this.note.trim() ? { note: this.note.trim() } : {}), dry_run: dry };
@@ -297,15 +298,15 @@ export class ElecReadingDialogs extends LitElement {
 
   private calibrationBody(dry: boolean) {
     const errs: Record<string, string> = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.date)) errs.date = 'צריך לבחור תאריך';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.date)) errs.date = tr('צריך לבחור תאריך');
     const f = parseFactor(this.factor);
-    if (f == null) errs.factor = 'מקדם בין 0.5 ל-2';
+    if (f == null) errs.factor = tr('מקדם בין 0.5 ל-2');
     let off: string | null = '0';
     if (this.mode === 'offset') {
       const t = this.offset.trim().replace(',', '.');
       off = /^[-−]?\d+(\.\d+)?$/.test(t) ? t.replace('−', '-') : null;
-      if (off == null) errs.offset = 'צריך להזין מספר תקין';
-    } else if (!this.anchor) errs.anchor = 'צריך לבחור קריאה';
+      if (off == null) errs.offset = tr('צריך להזין מספר תקין');
+    } else if (!this.anchor) errs.anchor = tr('צריך לבחור קריאה');
     if (!dry) this.fieldErrors = errs;
     if (Object.keys(errs).length || f == null) return null;
     return {
@@ -387,8 +388,8 @@ export class ElecReadingDialogs extends LitElement {
     if (!p) return nothing;
     return html`<div class="pv" data-reading-preview=${p.effect_reason}>
       <dl class="kv">
-        <dt>המערכת באותו זמן</dt><dd>${p.system_kwh == null ? 'אין ערך' : html`<span class="num">${fmtReading(p.system_kwh)}</span> קוט״ש`}</dd>
-        ${p.deviation_kwh == null ? nothing : html`<dt>הפרש</dt><dd><span class="num ltr">${fmtSigned(p.deviation_kwh)}</span> קוט״ש</dd>`}
+        <dt>${tr('המערכת באותו זמן')}</dt><dd>${p.system_kwh == null ? tr('אין ערך') : html`<span class="num">${fmtReading(p.system_kwh)}</span> ${tr('קוט״ש')}`}</dd>
+        ${p.deviation_kwh == null ? nothing : html`<dt>${tr('הפרש')}</dt><dd><span class="num ltr">${fmtSigned(p.deviation_kwh)}</span> ${tr('קוט״ש')}</dd>`}
       </dl>
       <div data-preview-message>${p.message}</div>
     </div>`;
@@ -402,22 +403,22 @@ export class ElecReadingDialogs extends LitElement {
         this.schedule();
       }
     };
-    return html`<sw-dialog open heading="קריאה ידנית" data-reading-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
+    return html`<sw-dialog open heading=${tr('קריאה ידנית')} data-reading-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       <div class="form">
-        <div class="fld"><label for="rw">תאריך ושעה</label>
+        <div class="fld"><label for="rw">${tr('תאריך ושעה')}</label>
           <div class="inp ${this.fieldErrors.when ? 'err' : ''}"><input id="rw" type="datetime-local" lang=${dateInputLang()} data-reading-when max=${isoToLocalInput(new Date())} .value=${this.when} @input=${(e: Event) => set('when', (e.target as HTMLInputElement).value)} /></div>
           ${this.fieldMsg('when')}</div>
-        <div class="fld"><label for="rv">קריאת המונה</label>
+        <div class="fld"><label for="rv">${tr('קריאת המונה')}</label>
           <div class="inp ${this.fieldErrors.value ? 'err' : ''}"><input id="rv" data-reading-value inputmode="decimal" autocomplete="off" dir="ltr" .value=${this.value} @input=${(e: Event) => set('value', (e.target as HTMLInputElement).value)} />
-            <select data-reading-unit aria-label="יחידה" @change=${(e: Event) => { this.unit = (e.target as HTMLSelectElement).value as ReadingUnit; this.schedule(); }}>
+            <select data-reading-unit aria-label=${tr('יחידה')} @change=${(e: Event) => { this.unit = (e.target as HTMLSelectElement).value as ReadingUnit; this.schedule(); }}>
               ${UNITS.map((u) => html`<option value=${u.id} ?selected=${u.id === this.unit}>${u.label}</option>`)}</select></div>
           ${this.fieldMsg('value')}</div>
-        <div class="fld wide"><label for="rn">הערה (לא חובה)</label><div class="inp"><input id="rn" data-reading-note maxlength="500" .value=${this.note} @input=${(e: Event) => set('note', (e.target as HTMLInputElement).value)} /></div></div>
+        <div class="fld wide"><label for="rn">${tr('הערה (לא חובה)')}</label><div class="inp"><input id="rn" data-reading-note maxlength="500" .value=${this.note} @input=${(e: Event) => set('note', (e.target as HTMLInputElement).value)} /></div></div>
         <div class="wide">${this.readingPreview()}</div>
         ${this.error ? html`<div class="alert err wide" role="alert" data-dialog-error>${this.error}</div>` : nothing}
       </div>
-      <sw-button slot="footer" variant="primary" data-reading-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button>
-      <sw-button slot="footer" @click=${() => this.close()}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" data-reading-save ?disabled=${this.busy} @click=${() => void this.save()}>${tr('שמירה')}</sw-button>
+      <sw-button slot="footer" @click=${() => this.close()}>${tr('ביטול')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -430,37 +431,37 @@ export class ElecReadingDialogs extends LitElement {
       this.fieldErrors = { ...this.fieldErrors, [k]: '' };
       this.schedule();
     };
-    return html`<sw-dialog open heading="כיול מונה" data-calibrate-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
+    return html`<sw-dialog open heading=${tr('כיול מונה')} data-calibrate-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       <div class="form">
-        <div class="hint wide">מהתאריך: קריאה פיזית = מקדם × מונה המערכת + הפרש. חיובים שהופקו לא משתנים.</div>
-        <div class="fld"><label for="cd">בתוקף מ-</label>
+        <div class="hint wide">${tr('מהתאריך: קריאה פיזית = מקדם × מונה המערכת + הפרש. חיובים שהופקו לא משתנים.')}</div>
+        <div class="fld"><label for="cd">${tr('בתוקף מ-')}</label>
           <div class="inp ${this.fieldErrors.date ? 'err' : ''}"><input id="cd" type="date" lang=${dateInputLang()} data-cal-date min=${first} .value=${this.date} @input=${(e: Event) => set('date', (e.target as HTMLInputElement).value)} /></div>
           ${this.fieldMsg('date')}</div>
-        <div class="fld"><label for="cf">מקדם</label>
+        <div class="fld"><label for="cf">${tr('מקדם')}</label>
           <div class="inp ${this.fieldErrors.factor ? 'err' : ''}"><input id="cf" data-cal-factor inputmode="decimal" dir="ltr" .value=${this.factor} @input=${(e: Event) => set('factor', (e.target as HTMLInputElement).value)} /></div>
           ${this.fieldMsg('factor')}</div>
-        <div class="fld wide"><span class="lbl">הפרש</span>
-          <div class="seg" role="group" aria-label="הפרש">
-            <button type="button" data-cal-mode="anchor" aria-pressed=${this.mode === 'anchor' ? 'true' : 'false'} ?disabled=${!anchors.length} @click=${() => { this.mode = 'anchor'; this.schedule(); }}>לפי קריאה ידנית</button>
-            <button type="button" data-cal-mode="offset" aria-pressed=${this.mode === 'offset' ? 'true' : 'false'} @click=${() => { this.mode = 'offset'; this.schedule(); }}>הזנה ידנית</button></div></div>
+        <div class="fld wide"><span class="lbl">${tr('הפרש')}</span>
+          <div class="seg" role="group" aria-label=${tr('הפרש')}>
+            <button type="button" data-cal-mode="anchor" aria-pressed=${this.mode === 'anchor' ? 'true' : 'false'} ?disabled=${!anchors.length} @click=${() => { this.mode = 'anchor'; this.schedule(); }}>${tr('לפי קריאה ידנית')}</button>
+            <button type="button" data-cal-mode="offset" aria-pressed=${this.mode === 'offset' ? 'true' : 'false'} @click=${() => { this.mode = 'offset'; this.schedule(); }}>${tr('הזנה ידנית')}</button></div></div>
         ${this.mode === 'anchor'
-          ? html`<div class="fld wide"><label for="ca">קריאה</label>
+          ? html`<div class="fld wide"><label for="ca">${tr('קריאה')}</label>
               <div class="inp ${this.fieldErrors.anchor ? 'err' : ''}"><select id="ca" data-cal-anchor @change=${(e: Event) => set('anchor', (e.target as HTMLSelectElement).value)}>
-                ${anchors.map((r) => html`<option value=${r.id!} ?selected=${r.id === this.anchor}>${fmtDateTime(r.read_at)} · ${fmtReading(r.value_kwh)} קוט״ש</option>`)}</select></div>
+                ${anchors.map((r) => html`<option value=${r.id!} ?selected=${r.id === this.anchor}>${fmtDateTime(r.read_at)} · ${fmtReading(r.value_kwh)} ${tr('קוט״ש')}</option>`)}</select></div>
               ${this.fieldMsg('anchor')}</div>`
-          : html`<div class="fld wide"><label for="co">הפרש (קוט״ש)</label>
+          : html`<div class="fld wide"><label for="co">${tr('הפרש (קוט״ש)')}</label>
               <div class="inp ${this.fieldErrors.offset ? 'err' : ''}"><input id="co" data-cal-offset inputmode="decimal" dir="ltr" .value=${this.offset} @input=${(e: Event) => set('offset', (e.target as HTMLInputElement).value)} /></div>
               ${this.fieldMsg('offset')}</div>`}
-        <div class="fld wide"><label for="cn">הערה (לא חובה)</label><div class="inp"><input id="cn" data-cal-note maxlength="500" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></div></div>
+        <div class="fld wide"><label for="cn">${tr('הערה (לא חובה)')}</label><div class="inp"><input id="cn" data-cal-note maxlength="500" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></div></div>
         ${this.previewError
           ? html`<div class="alert warn wide" role="status" data-cal-preview="error">${this.previewError}</div>`
           : p
-            ? html`<div class="pv wide" data-cal-preview><div>מ-<span class="num">${fmtDate(p.effective_date)}</span>: מקדם <span class="num">${p.factor}</span>, הפרש <span class="num ltr">${fmtSigned(p.offset_kwh)}</span> קוט״ש</div></div>`
+            ? html`<div class="pv wide" data-cal-preview><div>${tr('מ-')}<span class="num">${fmtDate(p.effective_date)}</span>: ${tr('מקדם')} <span class="num">${p.factor}</span>, ${tr('הפרש')} <span class="num ltr">${fmtSigned(p.offset_kwh)}</span> ${tr('קוט״ש')}</div></div>`
             : nothing}
         ${this.error ? html`<div class="alert err wide" role="alert" data-dialog-error>${this.error}</div>` : nothing}
       </div>
-      <sw-button slot="footer" variant="primary" data-cal-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button>
-      <sw-button slot="footer" @click=${() => this.close()}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" data-cal-save ?disabled=${this.busy} @click=${() => void this.save()}>${tr('שמירה')}</sw-button>
+      <sw-button slot="footer" @click=${() => this.close()}>${tr('ביטול')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -468,15 +469,15 @@ export class ElecReadingDialogs extends LitElement {
     const isReading = this.kind === 'undo-reading';
     const r = isReading ? this.log?.items.find((x) => x.id === this.targetId) : undefined;
     const c = !isReading ? this.log?.calibrations.find((x) => x.id === this.targetId) : undefined;
-    const what = r ? html`הקריאה <span class="num">${fmtReading(r.value_kwh)}</span> קוט״ש מ-<span class="num">${fmtDateTime(r.read_at)}</span>` : c ? html`הכיול מ-<span class="num">${fmtDate(c.effective_date)}</span>` : '';
-    return html`<sw-dialog open heading=${isReading ? 'ביטול קריאה ידנית' : 'ביטול כיול'} data-undo-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
+    const what = r ? html`${tr('הקריאה')} <span class="num">${fmtReading(r.value_kwh)}</span> ${tr('קוט״ש מ-')}<span class="num">${fmtDateTime(r.read_at)}</span>` : c ? html`${tr('הכיול מ-')}<span class="num">${fmtDate(c.effective_date)}</span>` : '';
+    return html`<sw-dialog open heading=${isReading ? tr('ביטול קריאה ידנית') : tr('ביטול כיול')} data-undo-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       <div class="form">
-        <div class="wide">${what} תבוטל ותישאר ברשימה כמבוטלת.</div>
-        <div class="fld wide"><label for="ur">סיבה (לא חובה)</label><div class="inp"><input id="ur" data-undo-reason maxlength="300" .value=${this.reason} @input=${(e: Event) => (this.reason = (e.target as HTMLInputElement).value)} /></div></div>
+        <div class="wide">${what} ${tr('תבוטל ותישאר ברשימה כמבוטלת.')}</div>
+        <div class="fld wide"><label for="ur">${tr('סיבה (לא חובה)')}</label><div class="inp"><input id="ur" data-undo-reason maxlength="300" .value=${this.reason} @input=${(e: Event) => (this.reason = (e.target as HTMLInputElement).value)} /></div></div>
         ${this.error ? html`<div class="alert err wide" role="alert" data-dialog-error>${this.error}</div>` : nothing}
       </div>
-      <sw-button slot="footer" variant="danger" data-undo-confirm ?disabled=${this.busy} @click=${() => void this.undo()}>ביטול ${isReading ? 'הקריאה' : 'הכיול'}</sw-button>
-      <sw-button slot="footer" @click=${() => this.close()}>חזרה</sw-button>
+      <sw-button slot="footer" variant="danger" data-undo-confirm ?disabled=${this.busy} @click=${() => void this.undo()}>${isReading ? tr('ביטול הקריאה') : tr('ביטול הכיול')}</sw-button>
+      <sw-button slot="footer" @click=${() => this.close()}>${tr('חזרה')}</sw-button>
     </sw-dialog>`;
   }
 

@@ -16,6 +16,7 @@ import './elec-ui';
 import { alertBox, n } from './elec-ui';
 import { f2, fmtDate } from './elec-format';
 import { PRESETS, detectPreset, parseTokens, presetTokens, sentence, textToTokens, tokensToText, type Issue, type PresetId, type Tok, type Op } from './elec-formula';
+import { tr } from '../i18n/msg/electricity';
 
 export interface FormulaChange {
   tokens: Tok[];
@@ -214,7 +215,7 @@ export class ElecFormulaEditor extends LitElement {
       const last = this.lastOf(t.id);
       return html`<button type="button" class=${cls} data-tok="meter" aria-pressed=${this.selected === i} @click=${click}>${this.nameOf(t.id)}${last !== null ? html`<small class="num">${f2(last)}</small>` : nothing}</button>`;
     }
-    if (t.t === 'op') return html`<button type="button" class=${cls} data-tok="op" aria-pressed=${this.selected === i} aria-label=${t.v === '*' ? 'כפל' : t.v === '-' ? 'מינוס' : t.v === '+' ? 'פלוס' : t.v === '/' ? 'חילוק' : t.v} @click=${click}>${t.v === '*' ? '×' : t.v === '-' ? '−' : t.v === '/' ? '÷' : t.v}</button>`;
+    if (t.t === 'op') return html`<button type="button" class=${cls} data-tok="op" aria-pressed=${this.selected === i} aria-label=${t.v === '*' ? tr('כפל') : t.v === '-' ? tr('מינוס') : t.v === '+' ? tr('פלוס') : t.v === '/' ? tr('חילוק') : t.v} @click=${click}>${t.v === '*' ? '×' : t.v === '-' ? '−' : t.v === '/' ? '÷' : t.v}</button>`;
     return html`<button type="button" class=${cls} data-tok="num" aria-pressed=${this.selected === i} @click=${click}><span class="num">${t.v}${t.pct ? '%' : ''}</span></button>`;
   }
 
@@ -229,59 +230,59 @@ export class ElecFormulaEditor extends LitElement {
     const sent = this.tokens.length ? sentence(this.tokens, this.nameOf) : '';
     const dup = r.warnings;
     return html`<div data-elec="formula-editor" data-formula-state=${wrongErr ? 'error' : ok ? 'ok' : 'pending'} data-preset=${this.preset}>
-      <div class="presets" role="group" aria-label="תבנית נוסחה">
+      <div class="presets" role="group" aria-label=${tr('תבנית נוסחה')}>
         ${PRESETS.map((p) => html`<button type="button" class="preset" data-preset-btn=${p.id} aria-pressed=${this.preset === p.id} @click=${() => this.applyPreset(p.id)}><b>${p.label}</b><span>${p.hint}</span></button>`)}
       </div>
       ${this.preset === 'mainsub' || this.preset === 'pct'
         ? html`<div class="row">
-            <div class="fld" style="min-inline-size:200px"><label for="main">${this.preset === 'pct' ? 'מונה' : 'מונה ראשי'}</label>
+            <div class="fld" style="min-inline-size:200px"><label for="main">${this.preset === 'pct' ? tr('מונה') : tr('מונה ראשי')}</label>
               <select id="main" data-preset-main @change=${(e: Event) => { this.mainId = (e.target as HTMLSelectElement).value; this.applyPreset(this.preset); }}>
                 ${this.meters.map((m) => html`<option value=${m.id} ?selected=${m.id === this.mainId}>${m.name}</option>`)}
               </select></div>
             ${this.preset === 'pct'
-              ? html`<div class="fld" style="inline-size:120px"><label for="pct">אחוז</label><input id="pct" class="ltr" data-preset-pct inputmode="decimal" .value=${this.pctVal} @input=${(e: Event) => { this.pctVal = (e.target as HTMLInputElement).value; if (Number(this.pctVal) > 0) this.applyPreset('pct'); }} /></div>`
+              ? html`<div class="fld" style="inline-size:120px"><label for="pct">${tr('אחוז')}</label><input id="pct" class="ltr" data-preset-pct inputmode="decimal" .value=${this.pctVal} @input=${(e: Event) => { this.pctVal = (e.target as HTMLInputElement).value; if (Number(this.pctVal) > 0) this.applyPreset('pct'); }} /></div>`
               : nothing}
           </div>`
         : nothing}
-      <div class="row"><b class="h3">הנוסחה</b><span class="sp"></span>
-        <div class="seg" role="group" aria-label="מצב עריכה">
-          <button type="button" data-mode="builder" aria-pressed=${this.mode === 'builder'} @click=${() => this.setMode('builder')}>בונה</button>
-          <button type="button" data-mode="text" aria-pressed=${this.mode === 'text'} @click=${() => this.setMode('text')}>טקסט</button>
+      <div class="row"><b class="h3">${tr('הנוסחה')}</b><span class="sp"></span>
+        <div class="seg" role="group" aria-label=${tr('מצב עריכה')}>
+          <button type="button" data-mode="builder" aria-pressed=${this.mode === 'builder'} @click=${() => this.setMode('builder')}>${tr('בונה')}</button>
+          <button type="button" data-mode="text" aria-pressed=${this.mode === 'text'} @click=${() => this.setMode('text')}>${tr('טקסט')}</button>
         </div>
       </div>
       ${this.mode === 'text'
-        ? html`<textarea class="code ${this.textIssues.length ? 'err' : ''}" data-text aria-label="נוסחה בטקסט" dir="ltr" spellcheck="false" .value=${this.text} @input=${this.onText}></textarea>
-            <div class="mut">שמות מונים בסוגריים מרובעים. פעולות: + − × ( ) ומספרים או אחוזים.</div>`
+        ? html`<textarea class="code ${this.textIssues.length ? 'err' : ''}" data-text aria-label=${tr('נוסחה בטקסט')} dir="ltr" spellcheck="false" .value=${this.text} @input=${this.onText}></textarea>
+            <div class="mut">${tr('שמות מונים בסוגריים מרובעים. פעולות: + − × ( ) ומספרים או אחוזים.')}</div>`
         : html`<div class="expr ${issues.length || negative ? 'err' : ''}" data-expr>
-              ${this.tokens.length ? this.tokens.map((t, i) => this.tok(t, i, bad)) : html`<span class="mut">הוסיפו מונה או בחרו תבנית</span>`}
+              ${this.tokens.length ? this.tokens.map((t, i) => this.tok(t, i, bad)) : html`<span class="mut">${tr('הוסיפו מונה או בחרו תבנית')}</span>`}
             </div>
             <div class="pal">
-              <button type="button" class="btn" data-add-meter aria-expanded=${this.menu} aria-haspopup="listbox" @click=${() => (this.menu = !this.menu)}>+ מונה ▾</button>
-              ${(['+', '-', '*'] as Op[]).map((v) => html`<button type="button" class="btn" data-op=${v} aria-label=${v === '+' ? 'פלוס' : v === '-' ? 'מינוס' : 'כפל'} @click=${() => this.addOp(v)}>${v === '*' ? '×' : v === '-' ? '−' : v}</button>`)}
-              <button type="button" class="btn" data-op="percent" aria-label="אחוז" @click=${() => this.togglePercent()}>%</button>
-              <button type="button" class="btn" data-op="(" aria-label="סוגר פותח" @click=${() => this.addOp('(')}>(</button>
-              <button type="button" class="btn" data-op=")" aria-label="סוגר סוגר" @click=${() => this.addOp(')')}>)</button>
-              <sw-button data-number-btn @click=${() => this.dispatchEvent(new CustomEvent('number-request', { bubbles: true, composed: true }))}>מספר</sw-button>
+              <button type="button" class="btn" data-add-meter aria-expanded=${this.menu} aria-haspopup="listbox" @click=${() => (this.menu = !this.menu)}>${tr('+ מונה')} ▾</button>
+              ${(['+', '-', '*'] as Op[]).map((v) => html`<button type="button" class="btn" data-op=${v} aria-label=${v === '+' ? tr('פלוס') : v === '-' ? tr('מינוס') : tr('כפל')} @click=${() => this.addOp(v)}>${v === '*' ? '×' : v === '-' ? '−' : v}</button>`)}
+              <button type="button" class="btn" data-op="percent" aria-label=${tr('אחוז')} @click=${() => this.togglePercent()}>%</button>
+              <button type="button" class="btn" data-op="(" aria-label=${tr('סוגר פותח')} @click=${() => this.addOp('(')}>(</button>
+              <button type="button" class="btn" data-op=")" aria-label=${tr('סוגר סוגר')} @click=${() => this.addOp(')')}>)</button>
+              <sw-button data-number-btn @click=${() => this.dispatchEvent(new CustomEvent('number-request', { bubbles: true, composed: true }))}>${tr('מספר')}</sw-button>
               <span class="sp"></span>
-              <sw-button variant="ghost" data-backspace @click=${() => this.backspace()}>⌫ מחיקה</sw-button>
+              <sw-button variant="ghost" data-backspace @click=${() => this.backspace()}>⌫ ${tr('מחיקה')}</sw-button>
             </div>
             ${this.menu ? html`<div class="menu" role="listbox" data-meter-menu>${this.meters.map((m) => html`<button type="button" role="option" data-meter-option=${m.id} @click=${() => this.addMeter(m.id)}><span>${m.name}</span>${m.last_period_kwh !== null ? html`<span class="mut num">${f2(m.last_period_kwh)}</span>` : nothing}</button>`)}</div>` : nothing}`}
       ${sent ? html`<div class="mut" data-sentence>${sent}</div>` : nothing}
       ${issues.map((m) => alertBox('err', m))}
       ${dup.map((m) => alertBox('warn', m))}
-      ${negative && pv ? alertBox('err', html`התוצאה שלילית בתקופה האחרונה (${n(f2(pv.result_kwh ?? 0))} קוט״ש). בדקו את הסימנים בנוסחה.`) : nothing}
+      ${negative && pv ? alertBox('err', html`${tr('התוצאה שלילית בתקופה האחרונה')} (${n(f2(pv.result_kwh ?? 0))} ${tr('קוט״ש')}). ${tr('בדקו את הסימנים בנוסחה.')}`) : nothing}
       ${this.previewErr ? alertBox('err', this.previewErr) : nothing}
-      ${ok ? alertBox('ok', 'הנוסחה תקינה') : nothing}
+      ${ok ? alertBox('ok', tr('הנוסחה תקינה')) : nothing}
       ${pv && !issues.length ? this.renderPreview(pv) : nothing}
     </div>`;
   }
 
   private renderPreview(pv: FormulaPreview) {
     return html`<div class="card soft" data-formula-preview>
-      <div class="hd"><b class="h3">בדיקה על ${pv.period_from ? `${fmtDate(pv.period_from)} - ${fmtDate(pv.period_to)}` : 'התקופה האחרונה'}</b></div>
-      <div class="scrollx"><table class="t"><thead><tr><th>מונה</th><th class="num">צריכה (קוט״ש)</th></tr></thead>
+      <div class="hd"><b class="h3">${tr('בדיקה על {period}', { period: pv.period_from ? `${fmtDate(pv.period_from)} - ${fmtDate(pv.period_to)}` : tr('התקופה האחרונה') })}</b></div>
+      <div class="scrollx"><table class="t"><thead><tr><th>${tr('מונה')}</th><th class="num">${tr('צריכה (קוט״ש)')}</th></tr></thead>
         <tbody>${pv.rows.map((r) => html`<tr><td>${r.name}</td><td class="num">${f2(r.kwh)}</td></tr>`)}</tbody>
-        <tfoot><tr><td>צריכת החשבון</td><td class="num ${pv.negative ? 'bad' : ''}" data-formula-result>${f2(pv.result_kwh ?? 0)}</td></tr></tfoot></table></div>
+        <tfoot><tr><td>${tr('צריכת החשבון')}</td><td class="num ${pv.negative ? 'bad' : ''}" data-formula-result>${f2(pv.result_kwh ?? 0)}</td></tr></tfoot></table></div>
     </div>`;
   }
 }
