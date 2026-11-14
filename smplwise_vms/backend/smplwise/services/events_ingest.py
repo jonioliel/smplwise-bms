@@ -454,6 +454,37 @@ def record_gap(conn: sqlite3.Connection, started: dt.datetime, ended: dt.datetim
     return row_to_event(conn.execute("SELECT * FROM events WHERE dedup_key = ?", (key,)).fetchone())
 
 
+_GAP_FAILED: set[str] = set()  # recorders whose last gap write failed (the traceback is logged once per failure streak)
+
+
+def close_gap(db: Database | None, disconnected_since: float | None, reason: str, recorder_id: str, what: str) -> bool:
+    """BACKEND-SAFETY-2435 (review 03 F02): record the coverage gap of a reconnect, for the vendor loops (Provision-ISR,
+    Frigate). True when the caller may clear `disconnected_since`: the gap was written and published, or it was too short
+    (or there is no database) to record. False when the write failed: logged, never raised, so the listener thread keeps
+    running and the next successful round retries the same gap (its dedup key is the start, so it is written once)."""
+    if disconnected_since is None:
+        return True
+    if time.time() - disconnected_since < GAP_AFTER_S or db is None:
+        return True
+    since, until = dt.datetime.fromtimestamp(disconnected_since, UTC), dt.datetime.now(UTC)
+
+    def _gap() -> dict[str, Any]:
+        with db.connection() as conn:
+            return record_gap(conn, since, until, reason, recorder_id=recorder_id)
+
+    try:
+        publish(retry_locked(_gap, what=what))
+    except Exception:  # noqa: BLE001 - a failed gap write never ends the listener
+        if recorder_id in _GAP_FAILED:
+            log.warning("%s (%s) still not recorded; retrying on the next round", what, recorder_id)
+        else:
+            _GAP_FAILED.add(recorder_id)
+            log.warning("%s (%s) could not be recorded; retrying on the next round", what, recorder_id, exc_info=True)
+        return False
+    _GAP_FAILED.discard(recorder_id)
+    return True
+
+
 class AlertStreamListener:
     """Two background threads: the reader (connect → read documents → queue; back-off on failure) and the writer
     (queue → store → publish). The bounded QUEUE between them is the backpressure: a slow database never stalls the
