@@ -41,10 +41,6 @@ log = logging.getLogger("smplwise.generator")
 FOLD_S = 900
 MUTE_MAX_H = 24 * 7
 ROUTABLE_ROLES = ("operator", "site_admin", "system_admin")  # viewers and kiosks are refused (they hold no generator.view)
-# CR-RECIPIENTS-2436 (review 04:F02): today's role resolution, kept on purpose until owner decision O1 - user bindings only (a role held through a
-# group does not count) and `expires_at` is not looked at; inactive users drop out at the generator.view check below. O1 (a) = `{}` (the shared
-# defaults of services/notify_recipients.expand, as for the elevator, temperature and water alerts).
-ROLE_EXPANSION: dict[str, bool] = {"role_via_groups": False, "role_expiry": False, "active_only": False}
 CHANNELS = ("push", "app", "email", "whatsapp")  # NOTIFWA: whatsapp mirrors onto the CR-018 policy like the others (it sends only while its master switch is on)
 CHANNELS_RESERVED = ("ha_mobile",)
 SEVERITY_CHANNELS = ("push", "app", "email")  # the per-severity defaults never carry WhatsApp: it is an external, budget-limited channel chosen per alert type (NOTIFWA)
@@ -803,8 +799,10 @@ def quiet_mode_of(conn: sqlite3.Connection, n: dict[str, Any]) -> str:
 
 def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     """The `generator` recipient rule of services/notify.recipients_for: the routing of the notification's device and alert type - the type's own
-    recipients, else the default of the severity the alert fired with. Roles are resolved against the CURRENT bindings; the caller intersects the
-    result with visibility (generator.view at installation scope), so role AND scope both apply. Nothing chosen = no recipients (routing starts empty)."""
+    recipients, else the default of the severity the alert fired with. Roles are resolved by the shared expansion (services/notify_recipients.expand,
+    as for the elevator, temperature and water alerts): live bindings only (not revoked, `allow`, not expired), held directly or through a group,
+    active users only (OWNER-R32-BACKEND-2438, owner decision O1 (a), review 04:F02). The caller intersects the result with visibility
+    (generator.view at installation scope), so role AND scope both apply. Nothing chosen = no recipients (routing starts empty)."""
     key, _dev = _split_source(str(n.get("source") or ""))
     if not key or key not in cat.TYPE_BY_KEY:
         return []
@@ -813,7 +811,7 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
         return []
     rec = {"users": eff["recipients"]["users"], "roles": eff["recipients"]["roles"]}  # a generator choice names no groups
     ok = []
-    for uid in notify_recipients.expand(conn, rec, ROUTABLE_ROLES, **ROLE_EXPANSION):
+    for uid in notify_recipients.expand(conn, rec, ROUTABLE_ROLES):
         p = principal_of(conn, uid)
         if p is not None and authorize(conn, p, "generator.view", INSTALLATION).allowed:
             ok.append(uid)
