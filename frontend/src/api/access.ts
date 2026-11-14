@@ -2,7 +2,7 @@
  * Users from Home Assistant, VMS groups, role bindings, effective-permission preview and the RBAC audit
  * trail (chapters 8/40). Identity is Home Assistant's; assignments live only inside SMPLWISE.
  */
-import { del, get, patch, post, put } from './client';
+import { del, get, patch, path, post, put, query } from './client';
 import { ltrIsolate } from '../i18n/bidi';
 import { dayTimeText } from './day-format';
 
@@ -187,17 +187,17 @@ export const listRoles = () => get<RolesResponse>('access/roles');
 export const listBindings = () => get<{ bindings: AccessBinding[]; revision: number }>('access/bindings');
 export const createBinding = (body: { subject_kind: 'user' | 'group'; subject_id: string; role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; expires_at?: string | null }) =>
   post<AccessBinding & { revision: number }>('access/bindings', body);
-export const revokeBinding = (id: string) => del(`access/bindings/${id}`);
+export const revokeBinding = (id: string) => del(path`access/bindings/${id}`);
 export const listGroups = () => get<GroupsResponse>('access/groups');
 export const createGroup = (name: string) => post<AccessGroup>('access/groups', { name });
-export const renameGroup = (id: string, name: string, revision: number) => patch<AccessGroup>(`access/groups/${id}`, { name, revision });
-export const deleteGroup = (id: string, revision?: number) => del(`access/groups/${id}${revision ? `?revision=${revision}` : ''}`);
-export const setGroupMembers = (id: string, userIds: string[], revision: number) => put<AccessGroup>(`access/groups/${id}/members`, { user_ids: userIds, revision });
+export const renameGroup = (id: string, name: string, revision: number) => patch<AccessGroup>(path`access/groups/${id}`, { name, revision });
+export const deleteGroup = (id: string, revision?: number) => del(path`access/groups/${id}` + query({ revision: revision || undefined }));
+export const setGroupMembers = (id: string, userIds: string[], revision: number) => put<AccessGroup>(path`access/groups/${id}/members`, { user_ids: userIds, revision });
 export const bindGroup = (id: string, body: { role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; revision: number }) =>
-  post<{ binding_id: string; revision: number; group: AccessGroup }>(`access/groups/${id}/bindings`, body);
-export const unbindGroup = (id: string, bindingId: string, revision: number) => del(`access/groups/${id}/bindings/${bindingId}?revision=${revision}`);
+  post<{ binding_id: string; revision: number; group: AccessGroup }>(path`access/groups/${id}/bindings`, body);
+export const unbindGroup = (id: string, bindingId: string, revision: number) => del(path`access/groups/${id}/bindings/${bindingId}` + query({ revision }));
 export const groupImpact = (id: string, body: { op: 'bind' | 'unbind' | 'members'; role_id?: string; scope_type?: string; scope_id?: string; effect?: 'allow' | 'deny'; binding_id?: string; user_ids?: string[] }) =>
-  post<GroupImpact>(`access/groups/${id}/impact`, body);
+  post<GroupImpact>(path`access/groups/${id}/impact`, body);
 export const previewAccess = (body: { user_id: string; scope_type?: string; scope_id?: string }) => post<PreviewResponse>('access/preview', body);
 export const listAudit = (opts: { prefix?: string; actor?: string; resourceId?: string; limit?: number } = {}) => {
   const q = new URLSearchParams();
@@ -244,8 +244,8 @@ export function fmtWhen(iso: string | null | undefined): string {
 }
 
 export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles', body);
-export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleInfo & { impact: RoleImpact }>(`access/roles/${id}`, body);
-export const deleteRole = (id: string) => del(`access/roles/${id}`);
+export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleInfo & { impact: RoleImpact }>(path`access/roles/${id}`, body);
+export const deleteRole = (id: string) => del(path`access/roles/${id}`);
 export const previewRole = (body: { role_id?: string | null; permissions: string[]; sensitive: string[] }) => post<RoleImpact>('access/roles/preview', body);
 export const getDelegation = () => get<{ delegable_roles: string[]; default: string[]; rules: string[]; blocked: Record<string, string>; revision: number }>('access/delegation');
 export const setDelegation = (roles: string[]) => put<{ delegable_roles: string[]; revision: number }>('access/delegation', { delegable_roles: roles });

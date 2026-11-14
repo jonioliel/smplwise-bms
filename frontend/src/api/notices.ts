@@ -5,8 +5,9 @@
 import { api, del, get, patch, post, put } from './client';
 import type { Display, Tv2Defaults, TvDefaults } from '../notice-tv/tv-logic';
 import type { TvFitDefaults } from '../notices/display-fit-model';
+import type { Severity } from './types';
 
-export type Severity = 'info' | 'alert' | 'critical';
+export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
 export type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
 
 export interface Audience {

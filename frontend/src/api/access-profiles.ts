@@ -4,7 +4,7 @@
  * preview (the server keeps the review), and applies that review with the command envelope and `confirmed: true` - which only the
  * confirmation dialog sends. Nothing here retries, queues or runs by itself.
  */
-import { get, post } from './client';
+import { get, post, query } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
 
@@ -220,8 +220,8 @@ export const postApply = (reviewId: string) =>
     expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
   });
 export const postCheck = (reviewId: string) => post<CheckReply>(`${BASE}/reviews/${encodeURIComponent(reviewId)}/check`);
-export const getVersions = (offset = 0, limit = 20) => get<{ fetched_at: string | null; versions: VersionsPage }>(`${BASE}/versions?offset=${offset}&limit=${limit}`);
-export const getCompare = (before: number, after: number) => get<{ compare: CompareReply }>(`${BASE}/compare?before=${before}&after=${after}`);
+export const getVersions = (offset = 0, limit = 20) => get<{ fetched_at: string | null; versions: VersionsPage }>(`${BASE}/versions` + query({ offset, limit }));
+export const getCompare = (before: number, after: number) => get<{ compare: CompareReply }>(`${BASE}/compare` + query({ before, after }));
 export const getRollbackDraft = (revision: number) => get<RollbackDraft>(`${BASE}/versions/${revision}/draft`);
 export function getSuggestions(userId: string, fields: readonly string[]) {
   const qs = new URLSearchParams({ user_id: userId });

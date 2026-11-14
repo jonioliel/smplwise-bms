@@ -25,16 +25,17 @@ import { isApi } from './session';
 import type { PushSupport } from '../pwa/push';
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: a ticket / RFQ row offers no "open" while the module is off
 import { navTt } from '../i18n/nav-labels'; // CR-038 (spec 13.4 names this file): the `tickets` category's label is the module's configured name (CR-NAV-LABELS-2436: not the whole tickets catalogue)
+import type { Severity, Weekday } from './types';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
-export type Severity = 'info' | 'alert' | 'critical';
+export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
 export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets' | 'maintenance' | 'building'; // building: NOTICEPUSH-295 (the notice board); tickets: CR-038; maintenance: CR-MAINT215 (owner answer 24.10 q20)
 /** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on). Reserved (enum value only): ha_mobile (Companion step). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
 export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator' | 'temperature' | 'maintenance' | 'notice'; // notice: NOTICEPUSH-295; maintenance: CR-MAINT215; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
-export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
+export type { Weekday } from './types'; // CR-API-PATHS-2439 (07:F21): one definition (the same seven values)
 
 export interface Delivery {
   id: string;
