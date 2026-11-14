@@ -391,6 +391,65 @@ def test_history_from_readings_marks_partial_and_skips_missing(w):
     assert h["previous"][0]["kwh"] is not None  # leading periods without any data are dropped
 
 
+
+def _history_per_period(conn, provider, account, past: int, money: bool, now: dt.datetime) -> dict:
+    """The account history as it was read before CR-BILL-LEDGER-B (code review 04:F26): one bill lookup per period, through the
+    per-period path of period_kwh. The oracle for the batched reading."""
+    from smplwise.services import energy_formula as fx
+    from smplwise.services import energy_periods as per
+
+    cycle = eb.cycle_of(account)
+    today = per.local_date(now, account["timezone"])
+    ref = per.period_containing(cycle, max(today, cycle.first_start))
+    comp = fx.compile_formula(json.loads(account["formula_json"]), known=eb.meter_names(provider).keys())
+    rows = []
+    for p in per.previous_like(ref, cycle, past):
+        if p.end > today:
+            continue
+        entry = eb.period_kwh(conn, provider, account, p, comp)
+        b = conn.execute("SELECT * FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state != 'void' ORDER BY revision DESC LIMIT 1",
+                         (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
+        entry["bill"] = eb.bill_summary(conn, b, money) if b is not None else None
+        rows.append(entry)
+    while rows and rows[0]["kwh"] is None and rows[0]["bill"] is None:
+        rows.pop(0)
+    latest = per.Period(dt.date.fromisoformat(rows[-1]["from"]), dt.date.fromisoformat(rows[-1]["to"]) + dt.timedelta(days=1))
+    previous = [eb.period_kwh(conn, provider, account, q, comp) for q in per.previous_like(latest, cycle, eb.HISTORY_PERIODS)]
+    while previous and previous[0]["kwh"] is None:
+        previous.pop(0)
+    ly = eb.period_kwh(conn, provider, account, per.same_period_last_year(latest), comp)
+    return {"periods": rows, "comparison": {"current": {"from": latest.start.isoformat(), "to": latest.last_day.isoformat(), "kwh": rows[-1]["kwh"]},
+                                            "previous": previous, "same_period_last_year": ly if ly["kwh"] is not None else None}}
+
+
+@pytest.mark.parametrize("money", [True, False])
+def test_account_history_reads_the_bills_once_and_equals_the_per_period_reading(w, money):
+    """Code review 04:F26: the account page's history looked up the bill of every period separately (twice: the sealed kWh and the bill
+    shown), plus 13 lookups for the comparison. It now reads the account's bills once per list; the answer is the same."""
+    golden_readings(w)
+    s = setup_billing(w)
+    aid = s["account"]["id"]
+    sep = issue(w, draft(w, aid, SEPT).json()).json()
+    corr = w.c.post(f"{API}/bills/{sep['id']}/correct", json={"client_request_id": rid()}).json()
+    issue(w, corr)  # September: the original is void, revision 2 is the sealed bill
+    w.clock.at = utc(2026, 11, 2, 9)
+    draft(w, aid, {"from": "2026-10-01", "to": "2026-10-31"})  # October: a draft is the bill shown, never the measured kWh
+    with w.db.connection(mode="read") as conn:
+        acc = eb.get_account(conn, aid)
+        trace: list[str] = []
+        conn.set_trace_callback(trace.append)
+        got = eb.account_history(conn, w.r, acc, 24, money, now=w.clock.at)
+        conn.set_trace_callback(None)
+        want = _history_per_period(conn, w.r, acc, 24, money, w.clock.at)
+    assert got == want
+    by_from = {r["from"]: r for r in got["periods"]}
+    assert by_from["2026-09-01"]["bill"]["revision"] == 2 and by_from["2026-09-01"]["source"] == "bill"
+    assert by_from["2026-10-01"]["bill"]["state"] == "draft" and by_from["2026-10-01"]["source"] == "readings"
+    assert ("total" in by_from["2026-09-01"]["bill"]) is money
+    bill_reads = [q for q in trace if "FROM energy_bills" in q]
+    assert len(bill_reads) == 2, bill_reads  # the periods once, the comparison once (was 2 per period + 13)
+
+
 # ---------------------------------------------------------------- permissions and money hiding
 
 def test_view_only_user_sees_no_money_and_every_bill_route_is_403_audited(w):

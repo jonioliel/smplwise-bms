@@ -6,6 +6,7 @@ Fake mirror states and store samples only; no infrastructure, no device."""
 from __future__ import annotations
 
 import datetime as dt
+import json
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -318,6 +319,52 @@ def test_shared_settings_read_reports_the_electricity_values(app):
     s = r.json()
     assert s["vat"]["current"]["rate_percent"] == "18" and s["payment_terms"]["mode"] == "net_days" and s["edit_link"] == "#/system/infra"
     assert s["retention"] == {"draft_days": 30, "bill_years": 7}
+
+
+
+def test_account_history_reads_the_bills_once_and_equals_the_per_period_reading(app):
+    """Code review 04:F26: one bill lookup per period (twice: the sealed m3 and the bill shown) became one read of the account's bills."""
+    from smplwise.services import energy_formula as fx
+    from smplwise.services import energy_periods as per
+
+    c, settings = app
+    ids = setup_billing(c, settings)
+    acc = account(c, ids, "דירה 12", {"m": ids["apt"]})
+    b = bill(c, acc["id"])
+    issued = c.post(f"{API}/bills/{b['id']}/issue", json={"row_version": b["row_version"], "client_request_id": "issue-00001"}).json()
+    corr = c.post(f"{API}/bills/{issued['id']}/correct", json={"client_request_id": "correct-0001"}).json()
+    assert corr["state"] == "draft" and corr["revision"] == 2  # September: the sealed original and an open correction
+    db = Database(settings.db_path)
+    with db.connection(mode="read") as conn:
+        row = wb.get_account(conn, acc["id"])
+        provider = wb.provider_for(conn, settings)
+        trace: list[str] = []
+        conn.set_trace_callback(trace.append)
+        got = wb.account_history(conn, provider, row, 24, True)
+        conn.set_trace_callback(None)
+        # the oracle: the per-period reading as it was before CR-BILL-LEDGER-B
+        cycle = eb.cycle_of(row)
+        today = per.local_date(NOW, row["timezone"])
+        ref = per.period_containing(cycle, max(today, cycle.first_start))
+        comp = fx.compile_formula(json.loads(row["formula_json"]), known=eb.meter_names(provider).keys())
+        want = []
+        for p in per.previous_like(ref, cycle, 24) + [ref]:
+            if p.start > today:
+                continue
+            entry = wb.period_m3(conn, provider, row, p, comp)
+            if p.end > today:
+                entry["status"] = "open"
+            bb = conn.execute("SELECT * FROM water_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state != 'void' ORDER BY revision DESC LIMIT 1",
+                              (row["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
+            entry["bill"] = wb.bill_summary(conn, bb, True) if bb is not None else None
+            want.append(entry)
+        while want and want[0]["m3"] is None and want[0]["bill"] is None:
+            want.pop(0)
+    assert got == {"periods": want}
+    sep = next(r for r in got["periods"] if r["from"] == "2026-09-01")
+    assert (sep["m3"], sep["source"], sep["bill"]["revision"], sep["bill"]["state"]) == ("36.000", "bill", 2, "draft")
+    bill_reads = [q for q in trace if "FROM water_bills" in q]
+    assert len(bill_reads) == 1, bill_reads  # was 2 per period
 
 
 # ---------------------------------------------------------------- automatic generation
