@@ -7,6 +7,7 @@ import {
   ACTIVE_ITEMS, AREA_ITEM_LABEL, AREA_ITEMS, CLIMATE_DISPLAYS, CLIMATE_DISPLAY_LABEL, CLIMATE_MODES, CLIMATE_MODE_LABEL, FLOOR_ITEM_LABEL, FLOOR_ITEMS, moveItem, ROW_MAX_PHONE,
   type AreaItem, type AreaRow, type ClimateDisplay, type ClimateMode, type FloorItem, type FloorRow,
 } from '../api/area-row';
+import { tr } from '../i18n/msg/devices';
 
 export interface AreaRowChange {
   area: AreaRow;
@@ -175,51 +176,51 @@ export class AreaRowEditor extends LitElement {
     if (!this.area || !this.floor) return nothing;
     const dis = this.disabled;
     return html`
-      <div class="hd" id="are-area">מה מוצג ליד שם האזור</div>
+      <div class="hd" id="are-area">${tr('מה מוצג ליד שם האזור')}</div>
       <ul aria-labelledby="are-area" data-area-row-items>
         ${this.order(this.area.items, AREA_ITEMS).map((id) => {
           const on = this.area.items.includes(id);
           const i = this.area.items.indexOf(id);
           const cut = on && i === ROW_MAX_PHONE && this.area.items.length > ROW_MAX_PHONE;
-          return html`${cut ? html`<li class="cut" data-phone-cut role="presentation">בטלפון: רק הפריטים שמעל הקו</li>` : nothing}<li class=${on ? '' : 'off'} data-area-item=${id}>
+          return html`${cut ? html`<li class="cut" data-phone-cut role="presentation">${tr('בטלפון: רק הפריטים שמעל הקו')}</li>` : nothing}<li class=${on ? '' : 'off'} data-area-item=${id}>
             <label><input type="checkbox" data-area-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleArea(id, (e.target as HTMLInputElement).checked)} />${AREA_ITEM_LABEL[id]}</label>
             ${on && ACTIVE_ITEMS.includes(id)
-              ? html`<label class="only"><input type="checkbox" data-area-item-only=${id} .checked=${this.area.only_active.includes(id)} ?disabled=${dis} @change=${(e: Event) => this.toggleOnly(id, (e.target as HTMLInputElement).checked)} />${id === 'openings' || id === 'locks' ? 'רק כשפתוח' : 'רק כשפעיל'}</label>`
+              ? html`<label class="only"><input type="checkbox" data-area-item-only=${id} .checked=${this.area.only_active.includes(id)} ?disabled=${dis} @change=${(e: Event) => this.toggleOnly(id, (e.target as HTMLInputElement).checked)} />${id === 'openings' || id === 'locks' ? tr('רק כשפתוח') : tr('רק כשפעיל')}</label>`
               : nothing}
             ${on
-              ? html`<button type="button" class="ib" data-area-item-earlier=${id} aria-label=${`הקדם: ${AREA_ITEM_LABEL[id]}`} ?disabled=${dis || i === 0} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, -1) }, this.floor)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
-                <button type="button" class="ib" data-area-item-later=${id} aria-label=${`אחר: ${AREA_ITEM_LABEL[id]}`} ?disabled=${dis || i === this.area.items.length - 1} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, 1) }, this.floor)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`
+              ? html`<button type="button" class="ib" data-area-item-earlier=${id} aria-label=${tr('הקדם: {name}', { name: AREA_ITEM_LABEL[id] })} ?disabled=${dis || i === 0} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, -1) }, this.floor)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
+                <button type="button" class="ib" data-area-item-later=${id} aria-label=${tr('אחר: {name}', { name: AREA_ITEM_LABEL[id] })} ?disabled=${dis || i === this.area.items.length - 1} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, 1) }, this.floor)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`
               : nothing}
           </li>`;
         })}
       </ul>
       <div class="row">
-        <label for="are-climate">המזגן מציג</label>
+        <label for="are-climate">${tr('המזגן מציג')}</label>
         <select id="are-climate" data-area-climate ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate: (e.target as HTMLSelectElement).value as ClimateDisplay }, this.floor)}>
           ${CLIMATE_DISPLAYS.map((d) => html`<option value=${d} ?selected=${this.area.climate === d}>${CLIMATE_DISPLAY_LABEL[d]}</option>`)}
         </select>
       </div>
       <div class="row">
-        <label for="are-cmode">כמה מזגנים באזור</label>
+        <label for="are-cmode">${tr('כמה מזגנים באזור')}</label>
         <select id="are-cmode" data-area-climate-mode ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, climate_mode: (e.target as HTMLSelectElement).value as ClimateMode }, this.floor)}>
           ${CLIMATE_MODES.map((m) => html`<option value=${m} ?selected=${this.area.climate_mode === m}>${CLIMATE_MODE_LABEL[m]}</option>`)}
         </select>
       </div>
       ${this.area.climate_mode === 'lead' && this.multi?.length
-        ? html`<ul aria-label="המזגן המוביל" data-climate-leads>
+        ? html`<ul aria-label=${tr('המזגן המוביל')} data-climate-leads>
             ${this.multi.map((a) => html`<li data-climate-lead-area=${a.area_id}>
               <label for=${`lead-${a.area_id}`} style="flex:1">${a.name}</label>
               <select id=${`lead-${a.area_id}`} data-climate-lead=${a.area_id} ?disabled=${dis} @change=${(e: Event) => this.setLead(a.area_id, (e.target as HTMLSelectElement).value)}>
-                <option value="" ?selected=${!this.area.climate_lead[a.area_id]}>הפועל הראשון</option>
+                <option value="" ?selected=${!this.area.climate_lead[a.area_id]}>${tr('הפועל הראשון')}</option>
                 ${a.climate.map((c) => html`<option value=${c.entity_id} ?selected=${this.area.climate_lead[a.area_id] === c.entity_id}>${c.name}</option>`)}
               </select>
             </li>`)}
           </ul>`
         : nothing}
       <div class="row">
-        <label><input type="checkbox" data-area-show-empty .checked=${this.area.show_empty} ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, show_empty: (e.target as HTMLInputElement).checked }, this.floor)} /> הצג גם מונים שערכם אפס</label>
+        <label><input type="checkbox" data-area-show-empty .checked=${this.area.show_empty} ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, show_empty: (e.target as HTMLInputElement).checked }, this.floor)} /> ${tr('הצג גם מונים שערכם אפס')}</label>
       </div>
-      <div class="hd" id="are-floor">בכותרת הקומה</div>
+      <div class="hd" id="are-floor">${tr('בכותרת הקומה')}</div>
       <ul aria-labelledby="are-floor" data-floor-row-items>
         ${this.order(this.floor.items, FLOOR_ITEMS).map((id) => {
           const on = this.floor.items.includes(id);
@@ -227,8 +228,8 @@ export class AreaRowEditor extends LitElement {
           return html`<li class=${on ? '' : 'off'} data-floor-item=${id}>
             <label><input type="checkbox" data-floor-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleFloor(id, (e.target as HTMLInputElement).checked)} />${FLOOR_ITEM_LABEL[id]}</label>
             ${on
-              ? html`<button type="button" class="ib" data-floor-item-earlier=${id} aria-label=${`הקדם: ${FLOOR_ITEM_LABEL[id]}`} ?disabled=${dis || i === 0} @click=${() => this.emit(this.area, { items: moveItem(this.floor.items, id, -1) })}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
-                <button type="button" class="ib" data-floor-item-later=${id} aria-label=${`אחר: ${FLOOR_ITEM_LABEL[id]}`} ?disabled=${dis || i === this.floor.items.length - 1} @click=${() => this.emit(this.area, { items: moveItem(this.floor.items, id, 1) })}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`
+              ? html`<button type="button" class="ib" data-floor-item-earlier=${id} aria-label=${tr('הקדם: {name}', { name: FLOOR_ITEM_LABEL[id] })} ?disabled=${dis || i === 0} @click=${() => this.emit(this.area, { items: moveItem(this.floor.items, id, -1) })}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
+                <button type="button" class="ib" data-floor-item-later=${id} aria-label=${tr('אחר: {name}', { name: FLOOR_ITEM_LABEL[id] })} ?disabled=${dis || i === this.floor.items.length - 1} @click=${() => this.emit(this.area, { items: moveItem(this.floor.items, id, 1) })}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`
               : nothing}
           </li>`;
         })}

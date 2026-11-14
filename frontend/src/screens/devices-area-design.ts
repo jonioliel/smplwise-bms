@@ -1,5 +1,6 @@
 import type { BulkKind } from '../api/device-bulk';
 import type { CardId, DeviceRow } from '../api/devices';
+import { tr } from '../i18n/msg/devices';
 
 /**
  * The area screen's redesign (owner decisions 2026-09-30; mockup docs/design/mockups/home/index.html): the two directions
@@ -11,7 +12,7 @@ import type { CardId, DeviceRow } from '../api/devices';
  * after the other, its title at the side, the sensors beside them). */
 export type AreaDesign = 'tiles' | 'sections';
 export const AREA_DESIGNS: AreaDesign[] = ['tiles', 'sections'];
-export const AREA_DESIGN_LABEL: Record<AreaDesign, string> = { tiles: 'אריחים צפופים', sections: 'מקטעים ברצף' };
+export const AREA_DESIGN_LABEL: Record<AreaDesign, string> = { tiles: tr('אריחים צפופים'), sections: tr('מקטעים ברצף') };
 /** A user's own choice (this browser only) - honoured only for a holder of `screen.personalize`. */
 export const AREA_DESIGN_KEY = 'sw.area.design';
 export const PERSONALIZE_PERMISSION = 'screen.personalize';
@@ -31,7 +32,7 @@ export function resolveAreaDesign(installation: unknown, personal: unknown, mayP
 
 export type BulkLook = 'icon' | 'text' | 'both';
 export const BULK_LOOKS: BulkLook[] = ['icon', 'text', 'both'];
-export const BULK_LOOK_LABEL: Record<BulkLook, string> = { icon: 'אייקון בלבד', text: 'טקסט בלבד', both: 'אייקון וטקסט' };
+export const BULK_LOOK_LABEL: Record<BulkLook, string> = { icon: tr('אייקון בלבד'), text: tr('טקסט בלבד'), both: tr('אייקון וטקסט') };
 
 export interface SectionBulkAction {
   kind: BulkKind;
@@ -51,18 +52,18 @@ export interface SectionBulkAction {
  * means - which mode, which set point - is not one thing); covers already have open / close. */
 export const SECTION_BULK: Partial<Record<CardId, SectionBulkAction[]>> = {
   lighting: [
-    { kind: 'lights_on', label: 'הדלק הכל', icon: 'bolt', turnsOn: 'light' },
-    { kind: 'lights_off', label: 'כבה הכל', icon: 'power' },
+    { kind: 'lights_on', label: tr('הדלק הכל'), icon: 'bolt', turnsOn: 'light' },
+    { kind: 'lights_off', label: tr('כבה הכל'), icon: 'power' },
   ],
   switches: [
-    { kind: 'switches_on', label: 'הדלק הכל', icon: 'bolt', turnsOn: 'switch' },
-    { kind: 'switches_off', label: 'כבה הכל', icon: 'power' },
+    { kind: 'switches_on', label: tr('הדלק הכל'), icon: 'bolt', turnsOn: 'switch' },
+    { kind: 'switches_off', label: tr('כבה הכל'), icon: 'power' },
   ],
   covers: [
-    { kind: 'covers_open', label: 'פתח', icon: 'arrowUp' },
-    { kind: 'covers_close', label: 'סגור', icon: 'arrowDown' },
+    { kind: 'covers_open', label: tr('פתח'), icon: 'arrowUp' },
+    { kind: 'covers_close', label: tr('סגור'), icon: 'arrowDown' },
   ],
-  climate: [{ kind: 'climate_off', label: 'כבה הכל', icon: 'power' }],
+  climate: [{ kind: 'climate_off', label: tr('כבה הכל'), icon: 'power' }],
 };
 
 /** Whether a section's bulk button is drawn for these rows (the section's own devices). The "off" / cover buttons keep their

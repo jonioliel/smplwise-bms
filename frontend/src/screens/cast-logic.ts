@@ -3,6 +3,7 @@
  * network (unit-tested by tests/unit-cast-logic.spec.ts). Operator copy never names the technology or the platform; the settings screens may.
  */
 import { t } from '../i18n/he';
+import { tr } from '../i18n/msg/devices';
 import type { CastBlocked, CastSession, CastTarget, CastTargetState } from '../api/cast';
 
 export const BLOCKED_TEXT: Record<CastBlocked, string> = {
@@ -35,17 +36,17 @@ export function notReadyText(_reason: string | null | undefined, admin: boolean)
 
 /** The server's own Hebrew message when it sent one; these cover the codes of a 200 "refused" answer, which carries a code and no message. */
 const REFUSED_TEXT: Record<string, string> = {
-  cast_unsupported: 'המסך הזה לא יכול לקבל שידור.',
-  unavailable: 'המסך לא זמין.',
-  rate_limited: 'רגע, השידור הקודם למסך הזה עוד מתחיל.',
-  bridge_outdated: 'השידור לא זמין: נדרש עדכון של רכיב החיבור.',
-  bridge_not_paired: 'רכיב החיבור לא צומד.',
+  cast_unsupported: tr('המסך הזה לא יכול לקבל שידור.'),
+  unavailable: tr('המסך לא זמין.'),
+  rate_limited: tr('רגע, השידור הקודם למסך הזה עוד מתחיל.'),
+  bridge_outdated: tr('השידור לא זמין: נדרש עדכון של רכיב החיבור.'),
+  bridge_not_paired: tr('רכיב החיבור לא צומד.'),
 };
 
 /** A "refused" start / switch (HTTP 200, `error` = the code the bridge or the screen answered). */
 export function refusedText(code: string | null | undefined): string {
   const c = (code ?? '').replace(/^refused:/, '');
-  return REFUSED_TEXT[c] ?? 'המסך סירב לשידור. אפשר לנסות שוב או לבחור מסך אחר.';
+  return REFUSED_TEXT[c] ?? tr('המסך סירב לשידור. אפשר לנסות שוב או לבחור מסך אחר.');
 }
 
 // ---------------------------------------------------------------------------------------------- time
@@ -194,23 +195,23 @@ export function pickerPresentation(opts: { phone: boolean; ddPhone: string | nul
 export const CAST_MINUTES = [5, 10, 15, 30, 45, 60, 90, 120, 240];
 
 /** The per-screen cast-method words of the administrator's table (technology names are allowed in the settings). */
-export const SCREEN_METHOD_LABEL: Record<string, string> = { auto: 'אוטומטי', cast_hls: 'Google Cast', none: 'ללא שידור' };
+export const SCREEN_METHOD_LABEL: Record<string, string> = { auto: tr('אוטומטי'), cast_hls: 'Google Cast', none: tr('ללא שידור') };
 
-export const BLOCKED_DISPLAY_LABEL: Record<string, string> = { grey_reason: 'אפור עם הסיבה', hide: 'הסתרה', grey_admin: 'אפור למנהל בלבד' };
+export const BLOCKED_DISPLAY_LABEL: Record<string, string> = { grey_reason: tr('אפור עם הסיבה'), hide: tr('הסתרה'), grey_admin: tr('אפור למנהל בלבד') };
 
 export const ORIGIN_REASON_TEXT: Record<string, string> = {
-  relay_off: 'אפשרות ה־relay כבויה בהגדרות התוסף (cast_relay)',
-  origin_missing: 'כתובת המקור לא הוגדרה',
-  unreachable: 'השרת לא הצליח להגיע לכתובת המקור',
-  not_this_relay: 'הכתובת עונה, אבל לא מה־relay הזה',
+  relay_off: tr('אפשרות ה־relay כבויה בהגדרות התוסף (cast_relay)'),
+  origin_missing: tr('כתובת המקור לא הוגדרה'),
+  unreachable: tr('השרת לא הצליח להגיע לכתובת המקור'),
+  not_this_relay: tr('הכתובת עונה, אבל לא מה־relay הזה'),
 };
 
 /** The settings screens keep the exact reasons (technical names allowed there). */
 export const NOT_READY_ADMIN_TEXT: Record<string, string> = {
-  relay_off: 'ה־relay כבוי: הפעילו את האפשרות cast_relay בהגדרות התוסף ומפו פורט מארח ל־18092',
-  disabled: 'השידור למסכים כבוי',
-  origin_missing: 'כתובת המקור (http://כתובת-LAN:פורט) לא הוגדרה',
-  origin_unverified: 'כתובת המקור טרם נבדקה: לחצו "בדוק"',
-  bridge_not_paired: 'גשר Arx לא מצומד',
-  bridge_outdated: 'גשר Arx ישן: נדרשת גרסה 0.7.0 ומעלה',
+  relay_off: tr('ה־relay כבוי: הפעילו את האפשרות cast_relay בהגדרות התוסף ומפו פורט מארח ל־18092'),
+  disabled: tr('השידור למסכים כבוי'),
+  origin_missing: tr('כתובת המקור (http://כתובת-LAN:פורט) לא הוגדרה'),
+  origin_unverified: tr('כתובת המקור טרם נבדקה: לחצו "בדוק"'),
+  bridge_not_paired: tr('גשר Arx לא מצומד'),
+  bridge_outdated: tr('גשר Arx ישן: נדרשת גרסה 0.7.0 ומעלה'),
 };

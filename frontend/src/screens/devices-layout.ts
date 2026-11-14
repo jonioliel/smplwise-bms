@@ -16,6 +16,7 @@ import type { CameraSource } from '../api/camera-card';
 import { LAYOUT_ROLE_IDS, type LayoutRoleId } from '../styles/devices-palettes';
 import { BULK_LOOK_LABEL, BULK_LOOKS, SECTION_BULK, type BulkLook } from './devices-area-design';
 import { getEntityPool, type PoolEntity } from '../api/devices';
+import { tr } from '../i18n/msg/devices';
 import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType, libraryTypes, newCardKey, nextTitle, type AreaEntity, type PickEntity } from './devices-layout-cards';
 
 /**
@@ -62,12 +63,12 @@ export type LayoutIcon = (typeof LAYOUT_ICONS)[number];
 export const LAYOUT_ROLES = ['accent', 'warm', 'cool', 'success', 'warning', 'danger', 'neutral'] as const satisfies readonly LayoutRoleId[];
 
 const ICON_HE: Record<LayoutIcon, string> = {
-  light: 'תאורה', bolt: 'חשמל', activity: 'מיזוג', layers: 'תריסים', shield: 'אבטחה', play: 'מסכים', sensor: 'חיישן', home: 'בית',
-  building: 'מבנה', floor: 'קומה', stairs: 'מדרגות', elevator: 'מעלית', lock: 'מנעול', door: 'דלת', camera: 'מצלמה', eye: 'צפייה',
-  bell: 'פעמון', clock: 'שעון', calendar: 'לוח שנה', wifi: 'רשת', volume: 'שמע', users: 'אנשים', map: 'מפה', grid: 'אריחים',
-  dashboard: 'לוח מחוונים', star: 'כוכב', sparkle: 'ניצוץ', cube: 'קובייה', hand: 'יד', info: 'מידע',
+  light: tr('תאורה'), bolt: tr('חשמל'), activity: tr('מיזוג'), layers: tr('תריסים'), shield: tr('אבטחה'), play: tr('מסכים'), sensor: tr('חיישן'), home: tr('בית'),
+  building: tr('מבנה'), floor: tr('קומה'), stairs: tr('מדרגות'), elevator: tr('מעלית'), lock: tr('מנעול'), door: tr('דלת'), camera: tr('מצלמה'), eye: tr('צפייה'),
+  bell: tr('פעמון'), clock: tr('שעון'), calendar: tr('לוח שנה'), wifi: tr('רשת'), volume: tr('שמע'), users: tr('אנשים'), map: tr('מפה'), grid: tr('אריחים'),
+  dashboard: tr('לוח מחוונים'), star: tr('כוכב'), sparkle: tr('ניצוץ'), cube: tr('קובייה'), hand: tr('יד'), info: tr('מידע'),
 };
-export const ROLE_HE: Record<LayoutRoleId, string> = { accent: 'הדגשה', warm: 'חם', cool: 'קריר', success: 'הצלחה', warning: 'אזהרה', danger: 'סכנה', neutral: 'ניטרלי' };
+export const ROLE_HE: Record<LayoutRoleId, string> = { accent: tr('הדגשה'), warm: tr('חם'), cool: tr('קריר'), success: tr('הצלחה'), warning: tr('אזהרה'), danger: tr('סכנה'), neutral: tr('ניטרלי') };
 
 export type TileSize = 's' | 'm' | 'l';
 
@@ -92,7 +93,7 @@ export interface TileEntry {
 export const TILE_COLS: Record<string, number> = { lighting: 2, switches: 2, climate: 2, heating: 2, covers: 2, security: 2, media: 2, sensors: 2 };
 /** The layout schema this editor writes (1 = 6b; 2 = 6c, device tiles). routers/device_layouts.py LAYOUT_VERSION. */
 export const LAYOUT_VERSION = 2;
-export const SIZE_HE: Record<TileSize, string> = { s: 'קטן', m: 'רגיל', l: 'גדול' };
+export const SIZE_HE: Record<TileSize, string> = { s: tr('קטן'), m: tr('רגיל'), l: tr('גדול') };
 
 export interface LayoutItem {
   x: number;
@@ -476,7 +477,7 @@ export class DevicesLayoutController implements ReactiveController {
 
   hostConnected() {
     if (this.opts.scope === 'area') {
-      this.offScreenEdit = registerScreenEdit({ id: 'devices-layout', label: 'עריכת פריסה', icon: 'edit', can: () => this.canEdit && !this.editing && !phoneRestricted('layout_editor'), run: () => void this.enter() }); // hidden on a phone with the option "הסתרת עורך פריסת האזור בנייד" (UX guard, not security)
+      this.offScreenEdit = registerScreenEdit({ id: 'devices-layout', label: tr('עריכת פריסה'), icon: 'edit', can: () => this.canEdit && !this.editing && !phoneRestricted('layout_editor'), run: () => void this.enter() }); // hidden on a phone with the option "הסתרת עורך פריסת האזור בנייד" (UX guard, not security)
     }
     try {
       this.mq = window.matchMedia(PHONE_MQ);
@@ -590,7 +591,7 @@ export class DevicesLayoutController implements ReactiveController {
   /** The title of a custom card as the editor names it (its own, else its type's). */
   customTitle(key: string): string {
     const it = this.desktopLayout()?.items[key] ?? this.draft?.items[key];
-    return it?.title ?? (it?.custom ? (CARD_TYPES[it.custom.type as keyof typeof CARD_TYPES]?.label ?? 'כרטיס') : 'כרטיס');
+    return it?.title ?? (it?.custom ? (CARD_TYPES[it.custom.type as keyof typeof CARD_TYPES]?.label ?? tr('כרטיס')) : tr('כרטיס'));
   }
 
   // -------------------------------------------------------------------------------------------- card library (v 3)
@@ -714,14 +715,14 @@ export class DevicesLayoutController implements ReactiveController {
     this.draft = { ...this.draft, items };
     this.selected = null;
     if (this.tileCard === key) this.leaveTiles();
-    this.live = `הכרטיס "${label}" נמחק. ההתקנים שבו חזרו למאגר ההתקנים הלא ממוקמים.`;
+    this.live = tr('הכרטיס "{label}" נמחק. ההתקנים שבו חזרו למאגר ההתקנים הלא ממוקמים.', { label });
     this.update();
   }
 
   undoRemove() {
     if (!this.undo || !this.draft) return;
     this.draft = { ...this.draft, items: this.undo.snapshot };
-    this.live = `הכרטיס "${this.undo.label}" חזר.`;
+    this.live = tr('הכרטיס "{label}" חזר.', { label: this.undo.label });
     this.undo = null;
     this.update();
   }
@@ -750,7 +751,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.libOpen = false;
     this.selected = key;
     this.entFilter = '';
-    this.live = `נוסף כרטיס "${item.title}" עם ${entities.length} התקנים.`;
+    this.live = tr('נוסף כרטיס "{title}" עם {n} התקנים.', { title: String(item.title), n: entities.length });
     this.update();
   }
 
@@ -795,7 +796,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.draft = { ...this.draft, items: { ...this.draft.items, [key]: item } };
     this.undo = null;
     this.selected = key;
-    this.live = `נוסף כרטיס מצלמה${name ? `: ${name}` : ''}.`;
+    this.live = name ? tr('נוסף כרטיס מצלמה: {name}.', { name }) : tr('נוסף כרטיס מצלמה.');
     this.update();
   }
 
@@ -806,11 +807,11 @@ export class DevicesLayoutController implements ReactiveController {
       this.camPick = null;
       this.update();
     };
-    return html`<sw-dialog open data-layout-camera-pick="open" heading=${this.camPick.key ? 'בחירת מצלמה אחרת' : 'הוספת מצלמה'} subheading="ערוץ של ה־NVR או מצלמה של המערכת" @close=${close}>
+    return html`<sw-dialog open data-layout-camera-pick="open" heading=${this.camPick.key ? tr('בחירת מצלמה אחרת') : tr('הוספת מצלמה')} subheading=${tr('ערוץ של ה־NVR או מצלמה של המערכת')} @close=${close}>
       <div style="padding:0 16px 12px">
         <devices-camera-picker .value=${this.camPick.key ? (this.cameraOfDraft(this.camPick.key) ?? null) : null} @camera-picked=${(e: CustomEvent<{ source: CameraSource; name: string }>) => this.onCameraPicked(e.detail.source, e.detail.name)}></devices-camera-picker>
       </div>
-      <div class="lay-dlg-acts"><sw-button data-layout-camera-pick-close @click=${close}>ביטול</sw-button></div>
+      <div class="lay-dlg-acts"><sw-button data-layout-camera-pick-close @click=${close}>${tr('ביטול')}</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -829,7 +830,7 @@ export class DevicesLayoutController implements ReactiveController {
       this.endTileDrag();
       this.tileCard = null;
       this.tileSel = null;
-      this.note = `בכרטיס "${label}" כבר אין התקנים, ולכן חזרנו לכל הכרטיסים.`;
+      this.note = tr('בכרטיס "{label}" כבר אין התקנים, ולכן חזרנו לכל הכרטיסים.', { label });
       this.live = this.note;
     }
     const layout = this.editing ? this.draft : this.viewerLayout(this.viewVariant());
@@ -918,7 +919,7 @@ export class DevicesLayoutController implements ReactiveController {
     }
     const sel = this.selected === key;
     const label = this.labelOf(key);
-    const pos = `${label}: ${it.w} × ${it.h} · עמודה ${it.x + 1}, שורה ${it.y + 1}${it.hidden ? ' · מוסתר' : ''}`;
+    const pos = `${label}: ${it.w} × ${it.h} · ${tr('עמודה {col}, שורה {row}', { col: it.x + 1, row: it.y + 1 })}${it.hidden ? ` · ${tr('מוסתר')}` : ''}`;
     return html`<div
       class=${classMap({ 'lay-item': true, 'lay-edit': true, 'lay-sel': sel, 'lay-hidden': it.hidden, 'lay-drag': this.drag?.key === key && this.drag.started })}
       data-lay-key=${key}
@@ -937,8 +938,8 @@ export class DevicesLayoutController implements ReactiveController {
       @pointercancel=${(e: PointerEvent) => this.onUp(e, true)}
       @keydown=${(e: KeyboardEvent) => this.onKey(e, key)}
       @focus=${() => this.select(key, false)}
-    >${content}<span class="lay-hd" data-lay-handle aria-hidden="true"><sw-icon name="move" size=${11}></sw-icon>${label} · ${it.w} × ${it.h}${it.hidden ? ' · מוסתר' : ''}</span><span class="lay-rz" data-lay-resize aria-hidden="true"></span>${this.canArrange(key)
-      ? html`<button type="button" class="lay-tbtn" data-lay-tiles-enter=${key} aria-label=${`סידור התקנים: ${label}`} @click=${(e: Event) => { e.stopPropagation(); this.enterTiles(key); }}><sw-icon name="grid" size=${12}></sw-icon>סידור התקנים${arranged(it) ? ' ✓' : ''}</button>`
+    >${content}<span class="lay-hd" data-lay-handle aria-hidden="true"><sw-icon name="move" size=${11}></sw-icon>${label} · ${it.w} × ${it.h}${it.hidden ? ` · ${tr('מוסתר')}` : ''}</span><span class="lay-rz" data-lay-resize aria-hidden="true"></span>${this.canArrange(key)
+      ? html`<button type="button" class="lay-tbtn" data-lay-tiles-enter=${key} aria-label=${tr('סידור התקנים: {label}', { label })} @click=${(e: Event) => { e.stopPropagation(); this.enterTiles(key); }}><sw-icon name="grid" size=${12}></sw-icon>${tr('סידור התקנים')}${arranged(it) ? ' ✓' : ''}</button>`
       : nothing}</div>`;
   }
 
@@ -974,7 +975,7 @@ export class DevicesLayoutController implements ReactiveController {
 
   private spanHe(key: string, span: number): string {
     const cols = this.tileCols(key);
-    return span >= cols ? 'רוחב מלא' : cols === 2 ? 'חצי רוחב' : `${span} מתוך ${cols} עמודות`;
+    return span >= cols ? tr('רוחב מלא') : cols === 2 ? tr('חצי רוחב') : tr('{span} מתוך {cols} עמודות', { span, cols });
   }
 
   /** The draft's tiles of a card, in order (the editor's working list). */
@@ -1013,7 +1014,7 @@ export class DevicesLayoutController implements ReactiveController {
     }
     const sel = this.tileSel === x.id;
     const name = t.title ?? this.tileName(key, x.id);
-    const label = `${name}: מקום ${index + 1} מתוך ${count} · ${this.spanHe(key, t.span)} · גודל ${SIZE_HE[t.size]}${t.hidden ? ' · מוסתר' : ''}`;
+    const label = `${name}: ${tr('מקום {n} מתוך {count}', { n: index + 1, count })} · ${this.spanHe(key, t.span)} · ${tr('גודל {size}', { size: SIZE_HE[t.size] })}${t.hidden ? ` · ${tr('מוסתר')}` : ''}`;
     return html`<div
       class=${classMap({ 'lay-tile': true, 'lay-tedit': true, 'lay-tsel': sel, 'lay-hidden': t.hidden, 'lay-drag': this.tdrag?.id === x.id && this.tdrag.started })}
       data-lay-tile=${x.id}
@@ -1028,7 +1029,7 @@ export class DevicesLayoutController implements ReactiveController {
       @pointerdown=${(e: PointerEvent) => this.onTDown(e, key, x.id)}
       @keydown=${(e: KeyboardEvent) => this.onTKey(e, key, x.id)}
       @focus=${() => this.selectTile(x.id, false)}
-    >${content}<span class="lay-thd" data-lay-thandle aria-hidden="true"><sw-icon name="move" size=${10}></sw-icon>${index + 1}${t.hidden ? ' · מוסתר' : ''}${t.span >= this.tileCols(key) && this.tileCols(key) > 1 ? ' · רוחב מלא' : ''}</span></div>`;
+    >${content}<span class="lay-thd" data-lay-thandle aria-hidden="true"><sw-icon name="move" size=${10}></sw-icon>${index + 1}${t.hidden ? ` · ${tr('מוסתר')}` : ''}${t.span >= this.tileCols(key) && this.tileCols(key) > 1 ? ` · ${tr('רוחב מלא')}` : ''}</span></div>`;
   }
 
   /** "סידור התקנים": this card alone, its tiles editable. */
@@ -1037,7 +1038,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.tileCard = key;
     this.tileSel = null;
     this.selected = key;
-    this.live = `סידור התקנים: ${this.labelOf(key)}`;
+    this.live = tr('סידור התקנים: {label}', { label: this.labelOf(key) });
     this.update();
   }
 
@@ -1063,7 +1064,7 @@ export class DevicesLayoutController implements ReactiveController {
     const i = list.findIndex((x) => x.id === id);
     if (i < 0) return;
     const t = list[i].t;
-    this.live = `${t.title ?? this.tileName(key, id)}: מקום ${i + 1} מתוך ${list.length}, ${this.spanHe(key, t.span)}, גודל ${SIZE_HE[t.size]}${t.hidden ? ', מוסתר' : ''}`;
+    this.live = `${t.title ?? this.tileName(key, id)}: ${tr('מקום {n} מתוך {count}', { n: i + 1, count: list.length })}, ${this.spanHe(key, t.span)}, ${tr('גודל {size}', { size: SIZE_HE[t.size] })}${t.hidden ? `, ${tr('מוסתר')}` : ''}`;
   }
 
   /** Rewrites a card's arrangement from its working list: orders 0..n-1, spans inside the card, and the hidden tiles
@@ -1105,7 +1106,7 @@ export class DevicesLayoutController implements ReactiveController {
   resetTiles(key: string) {
     this.patch(key, { tiles: {} });
     this.tileSel = null;
-    this.live = `${this.labelOf(key)}: הסדר האוטומטי`;
+    this.live = `${this.labelOf(key)}: ${tr('הסדר האוטומטי')}`;
     this.update();
   }
 
@@ -1308,10 +1309,10 @@ export class DevicesLayoutController implements ReactiveController {
       }
       const phone = this.variant === 'phone';
       this.close();
-      this.note = !storeLayout ? 'השינויים נשמרו לכל המשתמשים.' : phone ? 'פריסת הטלפון נשמרה לכל המשתמשים.' : 'הפריסה נשמרה לכל המשתמשים.';
+      this.note = !storeLayout ? tr('השינויים נשמרו לכל המשתמשים.') : phone ? tr('פריסת הטלפון נשמרה לכל המשתמשים.') : tr('הפריסה נשמרה לכל המשתמשים.');
     } catch (err) {
       this.conflict = err instanceof ApiError && err.status === 409;
-      this.error = this.conflict ? 'מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש וערכו שוב.' : describeError(err);
+      this.error = this.conflict ? tr('מישהו אחר שמר את הפריסה בינתיים. טענו אותה מחדש וערכו שוב.') : describeError(err);
     } finally {
       this.busy = false;
       this.update();
@@ -1332,7 +1333,7 @@ export class DevicesLayoutController implements ReactiveController {
     try {
       this.record = await resetLayout(this.opts.scope, this.opts.id(), 'all', this.record?.desktop?.revision);
       this.close();
-      this.note = 'הפריסה חזרה לברירת המחדל האוטומטית.';
+      this.note = tr('הפריסה חזרה לברירת המחדל האוטומטית.');
     } catch (err) {
       this.confirm = null;
       this.error = describeError(err);
@@ -1352,10 +1353,10 @@ export class DevicesLayoutController implements ReactiveController {
       this.draft = desk ? complete(derivePhone(desk, this.gridKeys()), this.gridKeys(), this.opts.defaultH) : null;
       if (!this.draft) {
         this.close();
-        this.note = 'פריסת הטלפון אוטומטית.';
+        this.note = tr('פריסת הטלפון אוטומטית.');
       } else {
         this.base = JSON.stringify(this.draft);
-        this.note = 'פריסת הטלפון חזרה להיות אוטומטית (לפי סדר המחשב).';
+        this.note = tr('פריסת הטלפון חזרה להיות אוטומטית (לפי סדר המחשב).');
       }
     } catch (err) {
       this.error = describeError(err);
@@ -1372,7 +1373,7 @@ export class DevicesLayoutController implements ReactiveController {
       const r = await copyLayoutToAllAreas(this.opts.id(), this.record?.desktop?.revision ?? 0);
       this.record = r.source;
       this.confirm = null;
-      this.note = `הפריסה הועתקה ל־${r.copied_to} אזורים.`;
+      this.note = tr('הפריסה הועתקה ל־{n} אזורים.', { n: r.copied_to });
     } catch (err) {
       this.confirm = null;
       this.error = describeError(err);
@@ -1395,7 +1396,7 @@ export class DevicesLayoutController implements ReactiveController {
 
   private announce(key: string) {
     const it = this.draft?.items[key];
-    if (it) this.live = `${this.labelOf(key)}: עמודה ${it.x + 1}, שורה ${it.y + 1}, רוחב ${it.w}, גובה ${it.h}`;
+    if (it) this.live = `${this.labelOf(key)}: ${tr('עמודה {col}, שורה {row}, רוחב {w}, גובה {h}', { col: it.x + 1, row: it.y + 1, w: it.w, h: it.h })}`;
   }
 
   private peers(key: string): string[] {
@@ -1536,30 +1537,30 @@ export class DevicesLayoutController implements ReactiveController {
     const stored = this.record?.[this.variant] ?? null;
     const dirty = this.dirty;
     const areaScope = this.opts.scope === 'area';
-    return html`<div class="lay-bar" data-layout-bar ?data-tiles=${!!this.tileCard} role="toolbar" aria-label="עריכת פריסה">
-        <span class="what"><sw-icon name="edit" size=${15}></sw-icon>מצב עריכה</span>
-        <span class="where">${this.opts.screenName()} · ${this.variant === 'phone' ? 'פריסת טלפון' : 'פריסת מחשב'}${this.variant === 'phone' && !this.record?.phone ? ' (אוטומטית עד שתישמר)' : ''}</span>
-        <span class="lay-seg" role="group" aria-label="פריסה">
-          <button type="button" data-layout-variant="desktop" aria-pressed=${String(this.variant === 'desktop')} ?disabled=${dirty && this.variant !== 'desktop'} title=${dirty ? 'שמרו או בטלו קודם' : ''} @click=${() => this.switchVariant('desktop')}>מחשב</button>
-          <button type="button" data-layout-variant="phone" aria-pressed=${String(this.variant === 'phone')} ?disabled=${dirty && this.variant !== 'phone'} title=${dirty ? 'שמרו או בטלו קודם' : ''} @click=${() => this.switchVariant('phone')}>טלפון</button>
+    return html`<div class="lay-bar" data-layout-bar ?data-tiles=${!!this.tileCard} role="toolbar" aria-label=${tr('עריכת פריסה')}>
+        <span class="what"><sw-icon name="edit" size=${15}></sw-icon>${tr('מצב עריכה')}</span>
+        <span class="where">${this.opts.screenName()} · ${this.variant === 'phone' ? tr('פריסת טלפון') : tr('פריסת מחשב')}${this.variant === 'phone' && !this.record?.phone ? ` (${tr('אוטומטית עד שתישמר')})` : ''}</span>
+        <span class="lay-seg" role="group" aria-label=${tr('פריסה')}>
+          <button type="button" data-layout-variant="desktop" aria-pressed=${String(this.variant === 'desktop')} ?disabled=${dirty && this.variant !== 'desktop'} title=${dirty ? tr('שמרו או בטלו קודם') : ''} @click=${() => this.switchVariant('desktop')}>${tr('מחשב')}</button>
+          <button type="button" data-layout-variant="phone" aria-pressed=${String(this.variant === 'phone')} ?disabled=${dirty && this.variant !== 'phone'} title=${dirty ? tr('שמרו או בטלו קודם') : ''} @click=${() => this.switchVariant('phone')}>${tr('טלפון')}</button>
         </span>
         <span class="acts">
           ${this.opts.barExtra?.() ?? nothing}
-          <sw-button size="sm" data-layout-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${dirty ? 'בטל' : 'סיום עריכה'}</sw-button>
-          ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>חזור לאוטומטי</sw-button>` : nothing}
-          <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>אפס לברירת מחדל</sw-button>
-          ${areaScope ? html`<sw-button size="sm" icon="layers" data-layout-copy ?disabled=${this.busy || dirty || !this.record?.desktop} title=${dirty ? 'שמרו קודם' : !this.record?.desktop ? 'אין עדיין פריסה שמורה להעתקה' : ''} @click=${() => this.ask('copy')}>העתק לכל האזורים</sw-button>` : nothing}
-          ${areaScope && this.variant === 'desktop' ? html`<sw-button size="sm" icon="plus" data-layout-add-card ?disabled=${this.busy} @click=${() => { this.openLibrary(); }}>הוסף כרטיס</sw-button>` : nothing}
-          <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && (!!stored || !!this.opts.extras))} @click=${() => void this.save()}>שמור</sw-button>
+          <sw-button size="sm" data-layout-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${dirty ? tr('בטל') : tr('סיום עריכה')}</sw-button>
+          ${this.variant === 'phone' ? html`<sw-button size="sm" data-layout-phone-auto ?disabled=${this.busy || (!this.record?.phone && !dirty)} @click=${() => void this.phoneAuto()}>${tr('חזור לאוטומטי')}</sw-button>` : nothing}
+          <sw-button size="sm" data-layout-reset ?disabled=${this.busy || (!this.record?.desktop && !this.record?.phone)} @click=${() => this.ask('reset')}>${tr('אפס לברירת מחדל')}</sw-button>
+          ${areaScope ? html`<sw-button size="sm" icon="layers" data-layout-copy ?disabled=${this.busy || dirty || !this.record?.desktop} title=${dirty ? tr('שמרו קודם') : !this.record?.desktop ? tr('אין עדיין פריסה שמורה להעתקה') : ''} @click=${() => this.ask('copy')}>${tr('העתק לכל האזורים')}</sw-button>` : nothing}
+          ${areaScope && this.variant === 'desktop' ? html`<sw-button size="sm" icon="plus" data-layout-add-card ?disabled=${this.busy} @click=${() => { this.openLibrary(); }}>${tr('הוסף כרטיס')}</sw-button>` : nothing}
+          <sw-button size="sm" variant="primary" icon="check" data-layout-save ?disabled=${this.busy || (!dirty && (!!stored || !!this.opts.extras))} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
         </span>
-        ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>טען מחדש</sw-button>` : nothing}</span>` : nothing}
+        ${this.error ? html`<span class="lay-msg err" role="alert" data-layout-error>${this.error}${this.conflict ? html` <sw-button size="sm" variant="ghost" data-layout-reload @click=${() => void this.reloadAfterConflict()}>${tr('טען מחדש')}</sw-button>` : nothing}</span>` : nothing}
         ${this.note ? html`<span class="lay-msg" role="status">${this.note}</span>` : nothing}
-        ${this.undo ? html`<span class="lay-msg" role="status" data-layout-undo-msg>הכרטיס "${this.undo.label}" נמחק · ההתקנים חזרו למאגר <button type="button" class="lay-undo" data-layout-undo @click=${() => this.undoRemove()}>בטל מחיקה</button></span>` : nothing}
+        ${this.undo ? html`<span class="lay-msg" role="status" data-layout-undo-msg>${tr('הכרטיס "{label}" נמחק · ההתקנים חזרו למאגר', { label: this.undo.label })} <button type="button" class="lay-undo" data-layout-undo @click=${() => this.undoRemove()}>${tr('בטל מחיקה')}</button></span>` : nothing}
         ${this.tileCard
-          ? html`<nav class="lay-crumb" data-layout-tiles-crumb aria-label="מיקום בעורך">
-              <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><sw-icon name="chevronBack" size=${16} aria-hidden="true"></sw-icon>כל הכרטיסים</button>
+          ? html`<nav class="lay-crumb" data-layout-tiles-crumb aria-label=${tr('מיקום בעורך')}>
+              <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><sw-icon name="chevronBack" size=${16} aria-hidden="true"></sw-icon>${tr('כל הכרטיסים')}</button>
               <sw-icon class="sep" name="chevron" size=${14} aria-hidden="true"></sw-icon>
-              <span class="here" aria-current="page">${this.labelOf(this.tileCard)} · סידור התקנים</span>
+              <span class="here" aria-current="page">${this.labelOf(this.tileCard)} · ${tr('סידור התקנים')}</span>
             </nav>`
           : nothing}
         <span class="lay-live" aria-live="polite" data-layout-live>${this.live}</span>
@@ -1580,13 +1581,13 @@ export class DevicesLayoutController implements ReactiveController {
       this.confirm = null;
       this.update();
     };
-    return html`<sw-dialog open data-layout-confirm=${this.confirm} heading=${copy ? 'להעתיק את הפריסה לכל האזורים?' : 'לאפס את הפריסה?'} @close=${close}>
+    return html`<sw-dialog open data-layout-confirm=${this.confirm} heading=${copy ? tr('להעתיק את הפריסה לכל האזורים?') : tr('לאפס את הפריסה?')} @close=${close}>
       <div>${copy
-        ? 'הפריסה השמורה של האזור הזה (מחשב, וטלפון אם נשמרה) תחליף את הפריסה של כל שאר האזורים, גם אם נערכה בהם פריסה משלהם. הפעולה נרשמת ביומן.'
-        : 'הפריסה השמורה (מחשב וטלפון) תימחק לכל המשתמשים, והמסך יחזור לסידור האוטומטי. הפעולה נרשמת ביומן.'}</div>
+        ? tr('הפריסה השמורה של האזור הזה (מחשב, וטלפון אם נשמרה) תחליף את הפריסה של כל שאר האזורים, גם אם נערכה בהם פריסה משלהם. הפעולה נרשמת ביומן.')
+        : tr('הפריסה השמורה (מחשב וטלפון) תימחק לכל המשתמשים, והמסך יחזור לסידור האוטומטי. הפעולה נרשמת ביומן.')}</div>
       <div class="lay-dlg-acts">
-        <sw-button data-layout-confirm-cancel autofocus @click=${close}>ביטול</sw-button>
-        <sw-button variant=${copy ? 'primary' : 'danger'} data-layout-confirm-ok ?disabled=${this.busy} @click=${() => void (copy ? this.copyToAll() : this.reset())}>${copy ? 'העתק לכל האזורים' : 'אפס'}</sw-button>
+        <sw-button data-layout-confirm-cancel autofocus @click=${close}>${tr('ביטול')}</sw-button>
+        <sw-button variant=${copy ? 'primary' : 'danger'} data-layout-confirm-ok ?disabled=${this.busy} @click=${() => void (copy ? this.copyToAll() : this.reset())}>${copy ? tr('העתק לכל האזורים') : tr('אפס')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -1601,14 +1602,14 @@ export class DevicesLayoutController implements ReactiveController {
    */
   private renderEntities(key: string, it: LayoutItem): TemplateResult | typeof nothing {
     const custom = key.startsWith('card:c-') ? this.customOf(key) : undefined;
-    if (custom && this.variant !== 'desktop') return html`<div class="lay-hint" data-layout-picker-desktop-only>בחירת ההתקנים של כרטיס נערכת בפריסת המחשב.</div>`;
+    if (custom && this.variant !== 'desktop') return html`<div class="lay-hint" data-layout-picker-desktop-only>${tr('בחירת ההתקנים של כרטיס נערכת בפריסת המחשב.')}</div>`;
     let list: PickEntity[];
     let selected: Set<string>;
     let apply: (next: Set<string>) => void;
     if (custom) {
       list = this.pickAll ? this.systemList() : (this.opts.pool?.() ?? []).map((e) => ({ id: e.id, name: e.name, group: CARD_TYPES[e.card as keyof typeof CARD_TYPES]?.label ?? '' }));
       // devices the card lists that are not in the list on screen stay listed (a device of another area picked earlier)
-      list = [...list, ...custom.entities.filter((id) => !list.some((e) => e.id === id)).map((id) => ({ id, name: id, group: 'מחוץ לרשימה' }))];
+      list = [...list, ...custom.entities.filter((id) => !list.some((e) => e.id === id)).map((id) => ({ id, name: id, group: tr('מחוץ לרשימה') }))];
       selected = new Set(custom.entities);
       apply = (next) => this.patch(key, { custom: { ...custom, entities: [...next].sort() } });
     } else {
@@ -1627,11 +1628,11 @@ export class DevicesLayoutController implements ReactiveController {
     if (!list.length && !custom) return nothing;
     return this.pickerUi({
       kind: 'ent',
-      label: custom ? 'התקנים בכרטיס' : 'ישויות מוצגות בכרטיס',
+      label: custom ? tr('התקנים בכרטיס') : tr('ישויות מוצגות בכרטיס'),
       list,
       selected,
       apply,
-      hint: custom ? undefined : 'ישות מוסתרת עדיין נספרת במונים של הכרטיס.',
+      hint: custom ? undefined : tr('ישות מוסתרת עדיין נספרת במונים של הכרטיס.'),
       // a custom card may list any device of the installation, not only the area's own
       allSystem: custom ? { on: this.pickAll, toggle: (v) => this.setPickAll(v, () => this.systemList()) } : undefined,
     });
@@ -1642,8 +1643,8 @@ export class DevicesLayoutController implements ReactiveController {
   private renderQuality(key: string, it: LayoutItem): TemplateResult | typeof nothing {
     if (!key.startsWith('camera:') || this.variant !== 'desktop') return nothing;
     const cur = isCardQuality(it.profile) ? it.profile : 'auto';
-    return html`<div class="lay-f"><span class="lbl">איכות הזרם</span>
-      <span class="lay-seg" role="group" aria-label="איכות הזרם">
+    return html`<div class="lay-f"><span class="lbl">${tr('איכות הזרם')}</span>
+      <span class="lay-seg" role="group" aria-label=${tr('איכות הזרם')}>
         ${CARD_QUALITIES.map((q) => html`<button type="button" data-layout-quality=${q} aria-pressed=${String(cur === q)} @click=${() => this.patch(key, { profile: q === 'auto' ? undefined : q })}>${CARD_QUALITY_LABEL[q]}</button>`)}
       </span></div>`;
   }
@@ -1654,8 +1655,8 @@ export class DevicesLayoutController implements ReactiveController {
     if (this.opts.scope !== 'area' || this.variant !== 'desktop' || !key.startsWith('card:') || key.startsWith('card:c-')) return nothing;
     if (!SECTION_BULK[key.slice(5) as keyof typeof SECTION_BULK]) return nothing;
     const cur = it.bulk_look ?? 'both';
-    return html`<div class="lay-f"><span class="lbl">כפתור "כבה הכל" בקטע</span>
-      <span class="lay-seg" role="group" aria-label="מראה כפתור הכיבוי">
+    return html`<div class="lay-f"><span class="lbl">${tr('כפתור "כבה הכל" בקטע')}</span>
+      <span class="lay-seg" role="group" aria-label=${tr('מראה כפתור הכיבוי')}>
         ${BULK_LOOKS.map((l) => html`<button type="button" data-layout-bulk-look=${l} aria-pressed=${String(cur === l)} @click=${() => this.patch(key, { bulk_look: l === 'both' ? undefined : l })}>${BULK_LOOK_LABEL[l]}</button>`)}
       </span></div>`;
   }
@@ -1687,7 +1688,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.draft = { ...this.draft, items: { ...this.draft.items, [copyKey]: copy } };
     this.undo = null;
     this.selected = copyKey;
-    this.live = `הכרטיס "${base}" שוכפל: "${title}".`;
+    this.live = tr('הכרטיס "{base}" שוכפל: "{title}".', { base, title });
     this.update();
   }
 
@@ -1704,18 +1705,18 @@ export class DevicesLayoutController implements ReactiveController {
     const sensors = base.filter((e) => e.sensor !== false);
     return this.pickerUi({
       kind: 'main',
-      label: 'חיישנים ראשיים',
+      label: tr('חיישנים ראשיים'),
       list: sensors,
       selected: new Set(own),
       apply: (next) => this.patch(key, { main: sensors.filter((e) => next.has(e.id)).map((e) => e.id).concat(own.filter((id) => next.has(id) && !sensors.some((e) => e.id === id))) }),
-      hint: own.length ? 'בחירה ידנית מחליפה את הבחירה האוטומטית (טמפרטורה, לחות, תנועה, דלת - כשקיימים באזור).' : 'ללא בחירה: טמפרטורה, לחות, תנועה ודלת מוצגים אוטומטית, רק אם קיימים באזור.',
+      hint: own.length ? tr('בחירה ידנית מחליפה את הבחירה האוטומטית (טמפרטורה, לחות, תנועה, דלת - כשקיימים באזור).') : tr('ללא בחירה: טמפרטורה, לחות, תנועה ודלת מוצגים אוטומטית, רק אם קיימים באזור.'),
       allSystem: { on: this.pickAll, toggle: (v) => this.setPickAll(v, () => this.systemList()) },
     });
   }
 
   /** The whole installation's devices for the pickers (read once, system.configure): area name as the group. */
   private systemList(): (PickEntity & { sensor?: boolean })[] {
-    return (this.allPool ?? []).map((e) => ({ id: e.entity_id, name: e.name, group: e.area_name ?? 'ללא אזור', sensor: e.card === 'sensors' || (e.card === 'security' && e.domain === 'binary_sensor') }));
+    return (this.allPool ?? []).map((e) => ({ id: e.entity_id, name: e.name, group: e.area_name ?? tr('ללא אזור'), sensor: e.card === 'sensors' || (e.card === 'security' && e.domain === 'binary_sensor') }));
   }
 
   private setPickAll(on: boolean, _list: () => PickEntity[]) {
@@ -1758,16 +1759,16 @@ export class DevicesLayoutController implements ReactiveController {
       const on = ids.filter((id) => selected.has(id)).length;
       return html`<label class="lay-check lay-ghead"><input type="checkbox" data-layout-ent-group=${label} .checked=${on === ids.length} .indeterminate=${on > 0 && on < ids.length} @change=${(ev: Event) => apply(bulkSelect(selected, ids, (ev.target as HTMLInputElement).checked ? 'all' : 'none'))} /><span>${label}</span><span class="cnt">${on}/${ids.length}</span></label>`;
     };
-    return html`<div class="lay-f lay-picker" ?data-layout-picker=${kind === 'ent'} ?data-layout-main-picker=${kind === 'main'}><span class="lbl" data-layout-ent-count>${m.label} (${chosen} מתוך ${list.length})</span>
+    return html`<div class="lay-f lay-picker" ?data-layout-picker=${kind === 'ent'} ?data-layout-main-picker=${kind === 'main'}><span class="lbl" data-layout-ent-count>${m.label} (${tr('{chosen} מתוך {total}', { chosen, total: list.length })})</span>
       <div class="lay-ptool">
-        <input type="search" data-layout-ent-filter placeholder="חיפוש התקן" aria-label="חיפוש התקן" .value=${filterText} @input=${(ev: Event) => setFilter((ev.target as HTMLInputElement).value)} />
-        <div class="lay-pbtns" role="group" aria-label=${filtered ? `פעולות על ${scope.length} תוצאות` : 'פעולות על כל ההתקנים'}>
-          <button type="button" data-layout-ent-all ?disabled=${!scope.length} @click=${() => act('all')}>בחר הכל</button>
-          <button type="button" data-layout-ent-none ?disabled=${!scope.length} @click=${() => act('none')}>הסר הכל</button>
-          <button type="button" data-layout-ent-invert ?disabled=${!scope.length} @click=${() => act('invert')}>הפוך בחירה</button>
+        <input type="search" data-layout-ent-filter placeholder=${tr('חיפוש התקן')} aria-label=${tr('חיפוש התקן')} .value=${filterText} @input=${(ev: Event) => setFilter((ev.target as HTMLInputElement).value)} />
+        <div class="lay-pbtns" role="group" aria-label=${filtered ? tr('פעולות על {n} תוצאות', { n: scope.length }) : tr('פעולות על כל ההתקנים')}>
+          <button type="button" data-layout-ent-all ?disabled=${!scope.length} @click=${() => act('all')}>${tr('בחר הכל')}</button>
+          <button type="button" data-layout-ent-none ?disabled=${!scope.length} @click=${() => act('none')}>${tr('הסר הכל')}</button>
+          <button type="button" data-layout-ent-invert ?disabled=${!scope.length} @click=${() => act('invert')}>${tr('הפוך בחירה')}</button>
         </div>
-        ${filtered ? html`<span class="lay-hint" data-layout-ent-scope>הפעולות חלות על ${scope.length} התוצאות בלבד.</span>` : nothing}
-        ${m.allSystem ? html`<label class="lay-check"><input type="checkbox" data-layout-all-system .checked=${m.allSystem.on} @change=${(ev: Event) => m.allSystem!.toggle((ev.target as HTMLInputElement).checked)} />הצג התקנים מכל המערכת${m.allSystem.on && this.allPool === null ? ' (טוען…)' : ''}</label>` : nothing}
+        ${filtered ? html`<span class="lay-hint" data-layout-ent-scope>${tr('הפעולות חלות על {n} התוצאות בלבד.', { n: scope.length })}</span>` : nothing}
+        ${m.allSystem ? html`<label class="lay-check"><input type="checkbox" data-layout-all-system .checked=${m.allSystem.on} @change=${(ev: Event) => m.allSystem!.toggle((ev.target as HTMLInputElement).checked)} />${tr('הצג התקנים מכל המערכת')}${m.allSystem.on && this.allPool === null ? ` (${tr('טוען…')})` : ''}</label>` : nothing}
       </div>
       <div class="lay-ents" data-layout-entities>
         ${groups.length
@@ -1775,7 +1776,7 @@ export class DevicesLayoutController implements ReactiveController {
               ${g.label ? groupBox(g.label, g.items.map((e) => e.id)) : nothing}
               ${g.items.map((e) => html`<label class="lay-check"><input type="checkbox" data-layout-entity=${e.id} .checked=${selected.has(e.id)} @change=${(ev: Event) => toggle(e.id, (ev.target as HTMLInputElement).checked)} />${e.name}</label>`)}
             </div>`)
-          : html`<span class="lay-hint" data-layout-ent-none-found>${list.length ? 'לא נמצאו התקנים.' : 'אין התקנים באזור.'}</span>`}
+          : html`<span class="lay-hint" data-layout-ent-none-found>${list.length ? tr('לא נמצאו התקנים.') : tr('אין התקנים באזור.')}</span>`}
       </div>
       ${m.hint ? html`<span class="lay-hint">${m.hint}</span>` : nothing}</div>`;
   }
@@ -1792,19 +1793,19 @@ export class DevicesLayoutController implements ReactiveController {
       this.libOpen = false;
       this.update();
     };
-    return html`<sw-dialog open data-layout-library="open" heading="הוספת כרטיס" subheading=${free ? `${free} התקנים לא ממוקמים באף כרטיס` : 'בחרו סוג כרטיס'} @close=${close}>
+    return html`<sw-dialog open data-layout-library="open" heading=${tr('הוספת כרטיס')} subheading=${free ? tr('{n} התקנים לא ממוקמים באף כרטיס', { n: free }) : tr('בחרו סוג כרטיס')} @close=${close}>
       <div class="lay-lib">
-        <label class="lay-check lay-libAll"><input type="checkbox" data-layout-library-all .checked=${this.libAll} @change=${(ev: Event) => { this.libAll = (ev.target as HTMLInputElement).checked; this.update(); }} />הצג את כל סוגי הכרטיסים</label>
+        <label class="lay-check lay-libAll"><input type="checkbox" data-layout-library-all .checked=${this.libAll} @change=${(ev: Event) => { this.libAll = (ev.target as HTMLInputElement).checked; this.update(); }} />${tr('הצג את כל סוגי הכרטיסים')}</label>
         <div class="lay-libList" role="list">
           ${types.map(({ type, count, sample }) => html`<button type="button" role="listitem" class="lay-libItem" data-layout-add=${type.id} @click=${() => this.addCard(type.id)}>
             <span class="lay-libIcon"><sw-icon .name=${type.icon} size=${20}></sw-icon></span>
             <span class="lay-libTxt"><b>${type.label}</b><span>${type.desc}</span>
-              <span class="lay-libPrev" aria-hidden="true">${type.id === 'free' ? (free ? `${free} התקנים לא ממוקמים` : 'כרטיס ריק') : sample.length ? sample.join(' · ') : 'אין באזור התקן מהסוג הזה'}</span></span>
+              <span class="lay-libPrev" aria-hidden="true">${type.id === 'free' ? (free ? tr('{n} התקנים לא ממוקמים', { n: free }) : tr('כרטיס ריק')) : sample.length ? sample.join(' · ') : tr('אין באזור התקן מהסוג הזה')}</span></span>
             <span class="lay-libCnt">${type.id === 'free' ? free : count}</span>
           </button>`)}
         </div>
       </div>
-      <div class="lay-dlg-acts"><sw-button data-layout-library-close @click=${close}>סגור</sw-button></div>
+      <div class="lay-dlg-acts"><sw-button data-layout-library-close @click=${close}>${tr('סגור')}</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -1815,16 +1816,16 @@ export class DevicesLayoutController implements ReactiveController {
     const key = this.selected;
     const it = key ? this.draft.items[key] : null;
     if (!key || !it) {
-      return html`<aside class="lay-panel" data-layout-panel="none" aria-label="מאפייני הכרטיס">
-        <div class="ph">מאפייני הכרטיס</div>
-        <div class="lay-hint">בחרו כרטיס כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו כרטיס כדי להזיז אותו והידית בפינה משנה את גודלו, בקפיצות של עמודה ו־8 פיקסלים. במקלדת: Tab לכרטיס, חיצים מזיזים, Shift עם חיצים משנה גודל.</div>
-        ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-add-card-panel @click=${() => { this.openLibrary(); }}>הוסף כרטיס…</button>` : nothing}
+      return html`<aside class="lay-panel" data-layout-panel="none" aria-label=${tr('מאפייני הכרטיס')}>
+        <div class="ph">${tr('מאפייני הכרטיס')}</div>
+        <div class="lay-hint">${tr('בחרו כרטיס כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו כרטיס כדי להזיז אותו והידית בפינה משנה את גודלו, בקפיצות של עמודה ו־8 פיקסלים. במקלדת: Tab לכרטיס, חיצים מזיזים, Shift עם חיצים משנה גודל.')}</div>
+        ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-add-card-panel @click=${() => { this.openLibrary(); }}>${tr('הוסף כרטיס…')}</button>` : nothing}
       </aside>`;
     }
     const label = this.labelOf(key);
     // attribute NAMES cannot be bound in a Lit template: one swatch template per field
     const swatch = (field: 'bg' | 'border', r: LayoutRoleId | null) => {
-      const name = r ? ROLE_HE[r] : 'ללא';
+      const name = r ? ROLE_HE[r] : tr('ללא');
       const on = String(it[field] === r);
       const click = () => this.patch(key, field === 'bg' ? { bg: r } : { border: r });
       return field === 'bg'
@@ -1841,56 +1842,56 @@ export class DevicesLayoutController implements ReactiveController {
     const desk = this.opts.scope === 'area' && this.variant === 'desktop';
     // DEVICES-POLISH-2331: four groups divided by a hairline - look, size and place, content, card actions - instead of one flat
     // column of fields; every field, its attribute and its order inside its group are unchanged
-    return html`<aside class="lay-panel" data-layout-panel=${key} aria-label=${`מאפייני הכרטיס: ${label}`}>
-      <div class="ph">מאפייני הכרטיס<span class="chip">${label}</span></div>
+    return html`<aside class="lay-panel" data-layout-panel=${key} aria-label=${tr('מאפייני הכרטיס: {label}', { label })}>
+      <div class="ph">${tr('מאפייני הכרטיס')}<span class="chip">${label}</span></div>
       <div class="lay-grp" data-layout-section="look">
-      <div class="lay-f"><label for="lay-title">כותרת</label>
+      <div class="lay-f"><label for="lay-title">${tr('כותרת')}</label>
         <input id="lay-title" type="text" maxlength="60" data-layout-title .value=${it.title ?? ''} placeholder=${label} @input=${(e: Event) => this.patch(key, { title: (e.target as HTMLInputElement).value.trim() ? (e.target as HTMLInputElement).value : null })} /></div>
-      <div class="lay-f"><label for="lay-icon">אייקון</label>
+      <div class="lay-f"><label for="lay-icon">${tr('אייקון')}</label>
         <select id="lay-icon" data-layout-icon @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.patch(key, { icon: v ? (v as LayoutIcon) : null }); }}>
-          <option value="" ?selected=${!it.icon}>ברירת המחדל</option>
+          <option value="" ?selected=${!it.icon}>${tr('ברירת המחדל')}</option>
           ${LAYOUT_ICONS.map((i) => html`<option value=${i} ?selected=${it.icon === i}>${ICON_HE[i]}</option>`)}
         </select></div>
-      <div class="lay-f"><span class="lbl">גודל טקסט</span>
-        <span class="lay-seg" role="group" aria-label="גודל טקסט">
-          ${(['sm', 'md', 'lg'] as const).map((t) => html`<button type="button" data-layout-text=${t} aria-pressed=${String(it.text === t)} @click=${() => this.patch(key, { text: t })}>${t === 'sm' ? 'קטן' : t === 'md' ? 'רגיל' : 'גדול'}</button>`)}
+      <div class="lay-f"><span class="lbl">${tr('גודל טקסט')}</span>
+        <span class="lay-seg" role="group" aria-label=${tr('גודל טקסט')}>
+          ${(['sm', 'md', 'lg'] as const).map((t) => html`<button type="button" data-layout-text=${t} aria-pressed=${String(it.text === t)} @click=${() => this.patch(key, { text: t })}>${t === 'sm' ? tr('קטן') : t === 'md' ? tr('רגיל') : tr('גדול')}</button>`)}
         </span></div>
-      ${roleRow('bg', 'צבע רקע (מתוך ערכת הצבעים)')}
-      ${roleRow('border', 'צבע מסגרת')}
-      <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות ‹ חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה.</div>
+      ${roleRow('bg', tr('צבע רקע (מתוך ערכת הצבעים)'))}
+      ${roleRow('border', tr('צבע מסגרת'))}
+      <div class="lay-hint">${tr('הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות ‹ חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה.')}</div>
       </div>
       <div class="lay-grp" data-layout-section="place">
       <div class="lay-row2">
-        <div class="lay-f"><label for="lay-w">רוחב (עמודות מתוך ${this.draft.cols})</label><input id="lay-w" type="number" min="1" max=${this.draft.cols} data-layout-w .value=${String(it.w)} @change=${(e: Event) => this.patch(key, { w: Number((e.target as HTMLInputElement).value) || it.w })} /></div>
-        <div class="lay-f"><label for="lay-h">גובה מינימלי (שורות של 8 פיקסלים)</label><input id="lay-h" type="number" min="2" max="400" data-layout-h .value=${String(it.h)} @change=${(e: Event) => this.patch(key, { h: Number((e.target as HTMLInputElement).value) || it.h })} /></div>
+        <div class="lay-f"><label for="lay-w">${tr('רוחב (עמודות מתוך {cols})', { cols: this.draft.cols })}</label><input id="lay-w" type="number" min="1" max=${this.draft.cols} data-layout-w .value=${String(it.w)} @change=${(e: Event) => this.patch(key, { w: Number((e.target as HTMLInputElement).value) || it.w })} /></div>
+        <div class="lay-f"><label for="lay-h">${tr('גובה מינימלי (שורות של 8 פיקסלים)')}</label><input id="lay-h" type="number" min="2" max="400" data-layout-h .value=${String(it.h)} @change=${(e: Event) => this.patch(key, { h: Number((e.target as HTMLInputElement).value) || it.h })} /></div>
       </div>
-      <div class="lay-f"><span class="lbl">הזזה ושינוי גודל</span>
+      <div class="lay-f"><span class="lbl">${tr('הזזה ושינוי גודל')}</span>
         <div class="lay-nudge">
-          ${nudge(ic('arrowUp'), 'הזז למעלה', { y: it.y - 1 }, 'up')}
-          ${nudge(ic('arrowDown'), 'הזז למטה', { y: it.y + 1 }, 'down')}
-          ${nudge(ic('chevronBack'), 'הזז לתחילת השורה', { x: it.x - 1 }, 'start')}
-          ${nudge(ic('chevron'), 'הזז לסוף השורה', { x: it.x + 1 }, 'end')}
-          ${nudge('רחב +', 'הרחב בעמודה', { w: it.w + 1 }, 'wider')}
-          ${nudge('רחב −', 'הצר בעמודה', { w: it.w - 1 }, 'narrower')}
-          ${nudge('גובה +', 'הגבה ב־8 פיקסלים', { h: it.h + 1 }, 'taller')}
-          ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
+          ${nudge(ic('arrowUp'), tr('הזז למעלה'), { y: it.y - 1 }, 'up')}
+          ${nudge(ic('arrowDown'), tr('הזז למטה'), { y: it.y + 1 }, 'down')}
+          ${nudge(ic('chevronBack'), tr('הזז לתחילת השורה'), { x: it.x - 1 }, 'start')}
+          ${nudge(ic('chevron'), tr('הזז לסוף השורה'), { x: it.x + 1 }, 'end')}
+          ${nudge(tr('רחב +'), tr('הרחב בעמודה'), { w: it.w + 1 }, 'wider')}
+          ${nudge(tr('רחב −'), tr('הצר בעמודה'), { w: it.w - 1 }, 'narrower')}
+          ${nudge(tr('גובה +'), tr('הגבה ב־8 פיקסלים'), { h: it.h + 1 }, 'taller')}
+          ${nudge(tr('גובה −'), tr('הנמך ב־8 פיקסלים'), { h: it.h - 1 }, 'shorter')}
         </div></div>
-      <div class="lay-hint">הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
+      <div class="lay-hint">${tr('הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.')}</div>
       </div>
       <div class="lay-grp" data-layout-section="content">
       ${this.renderBulkLook(key, it)}
       ${this.renderQuality(key, it)}
       ${this.renderEntities(key, it)}
       ${this.renderMainPicker(key, it)}
-      ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}
-      <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
+      ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>${tr('סידור התקנים בכרטיס')}${arranged(it) ? ` (${tr('מסודר')})` : ''}…</button>` : nothing}
+      <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />${tr('מוסתר לכולם')}</label>
       </div>
       ${(key.startsWith('camera:') && this.variant === 'desktop') || desk
         ? html`<div class="lay-grp" data-layout-section="actions">
-            ${key.startsWith('camera:') && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-camera-change @click=${() => { this.camPick = { key }; this.update(); }}>בחר מצלמה אחרת…</button>` : nothing}
-            ${desk ? html`<button type="button" class="btn" data-layout-duplicate-card @click=${() => this.duplicateCard(key)}>שכפל כרטיס</button>` : nothing}
+            ${key.startsWith('camera:') && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-camera-change @click=${() => { this.camPick = { key }; this.update(); }}>${tr('בחר מצלמה אחרת…')}</button>` : nothing}
+            ${desk ? html`<button type="button" class="btn" data-layout-duplicate-card @click=${() => this.duplicateCard(key)}>${tr('שכפל כרטיס')}</button>` : nothing}
             ${desk
-              ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
+              ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>${tr('מחק כרטיס')}</button><div class="lay-hint">${tr('מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.')}</div>`
               : nothing}
           </div>`
         : nothing}
@@ -1903,38 +1904,38 @@ export class DevicesLayoutController implements ReactiveController {
     const list = this.tileList(key);
     const cols = this.tileCols(key);
     const isArranged = arranged(this.draft?.items[key]);
-    const reset = html`<button type="button" class="btn" data-layout-tiles-reset ?disabled=${!isArranged} @click=${() => this.resetTiles(key)}>אפס סידור</button>`;
+    const reset = html`<button type="button" class="btn" data-layout-tiles-reset ?disabled=${!isArranged} @click=${() => this.resetTiles(key)}>${tr('אפס סידור')}</button>`;
     const i = this.tileSel ? list.findIndex((x) => x.id === this.tileSel) : -1;
     if (i < 0) {
-      return html`<aside class="lay-panel" data-layout-panel=${`tiles:${key}`} aria-label=${`סידור התקנים: ${label}`}>
-        <div class="ph">סידור התקנים<span class="chip">${label}</span></div>
-        <div class="lay-hint">בחרו התקן כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו התקן כדי לשנות את מקומו בכרטיס. במקלדת: Tab להתקן, חיצים מזיזים אותו לפני או אחרי, Shift עם חיצים משנה את רוחבו, H מסתיר או מחזיר אותו.</div>
+      return html`<aside class="lay-panel" data-layout-panel=${`tiles:${key}`} aria-label=${tr('סידור התקנים: {label}', { label })}>
+        <div class="ph">${tr('סידור התקנים')}<span class="chip">${label}</span></div>
+        <div class="lay-hint">${tr('בחרו התקן כדי לערוך אותו (בטלפון: לחיצה ארוכה). גררו התקן כדי לשנות את מקומו בכרטיס. במקלדת: Tab להתקן, חיצים מזיזים אותו לפני או אחרי, Shift עם חיצים משנה את רוחבו, H מסתיר או מחזיר אותו.')}</div>
         <div class="lay-tacts">${reset}</div>
-        <div class="lay-hint">"אפס סידור" מחזיר את הסדר האוטומטי של הכרטיס. התקנים מוסתרים נשארים מוסתרים - מחזירים אותם כאן או ברשימת "ישויות מוצגות" של הכרטיס.</div>
+        <div class="lay-hint">${tr('"אפס סידור" מחזיר את הסדר האוטומטי של הכרטיס. התקנים מוסתרים נשארים מוסתרים - מחזירים אותם כאן או ברשימת "ישויות מוצגות" של הכרטיס.')}</div>
       </aside>`;
     }
     const { id, t } = list[i];
     const name = this.tileName(key, id);
-    return html`<aside class="lay-panel" data-layout-panel=${`tile:${id}`} aria-label=${`מאפייני ההתקן: ${t.title ?? name}`}>
-      <div class="ph">מאפייני ההתקן<span class="chip">${t.title ?? name}</span></div>
-      <div class="lay-f"><label for="lay-ttitle">כותרת</label>
+    return html`<aside class="lay-panel" data-layout-panel=${`tile:${id}`} aria-label=${tr('מאפייני ההתקן: {name}', { name: t.title ?? name })}>
+      <div class="ph">${tr('מאפייני ההתקן')}<span class="chip">${t.title ?? name}</span></div>
+      <div class="lay-f"><label for="lay-ttitle">${tr('כותרת')}</label>
         <input id="lay-ttitle" type="text" maxlength="60" data-layout-tile-title .value=${t.title ?? ''} placeholder=${name} @input=${(e: Event) => { const v = (e.target as HTMLInputElement).value; this.patchTile(key, id, { title: v.trim() ? v : null }); }} /></div>
-      <div class="lay-f"><span class="lbl">רוחב בכרטיס</span>
-        <span class="lay-seg" role="group" aria-label="רוחב בכרטיס">
+      <div class="lay-f"><span class="lbl">${tr('רוחב בכרטיס')}</span>
+        <span class="lay-seg" role="group" aria-label=${tr('רוחב בכרטיס')}>
           ${Array.from({ length: cols }, (_, k) => k + 1).map((s) => html`<button type="button" data-layout-tile-span=${s} aria-pressed=${String(t.span === s)} @click=${() => this.patchTile(key, id, { span: s })}>${this.spanHe(key, s)}</button>`)}
         </span></div>
-      <div class="lay-f"><span class="lbl">גודל</span>
-        <span class="lay-seg" role="group" aria-label="גודל">
+      <div class="lay-f"><span class="lbl">${tr('גודל')}</span>
+        <span class="lay-seg" role="group" aria-label=${tr('גודל')}>
           ${(['s', 'm', 'l'] as const).map((z) => html`<button type="button" data-layout-tile-size=${z} aria-pressed=${String(t.size === z)} @click=${() => this.patchTile(key, id, { size: z })}>${SIZE_HE[z]}</button>`)}
         </span></div>
-      <div class="lay-f"><span class="lbl">מקום בכרטיס: ${i + 1} מתוך ${list.length}</span>
+      <div class="lay-f"><span class="lbl">${tr('מקום בכרטיס: {n} מתוך {count}', { n: i + 1, count: list.length })}</span>
         <div class="lay-nudge">
-          <button type="button" data-layout-tile-move="first" ?disabled=${i === 0} @click=${() => this.moveTile(key, id, 0)}>ראשון</button>
-          <button type="button" data-layout-tile-move="earlier" ?disabled=${i === 0} @click=${() => this.moveTile(key, id, i - 1)}>הקדם</button>
-          <button type="button" data-layout-tile-move="later" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, i + 1)}>אחר</button>
-          <button type="button" data-layout-tile-move="last" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, list.length - 1)}>אחרון</button>
+          <button type="button" data-layout-tile-move="first" ?disabled=${i === 0} @click=${() => this.moveTile(key, id, 0)}>${tr('ראשון')}</button>
+          <button type="button" data-layout-tile-move="earlier" ?disabled=${i === 0} @click=${() => this.moveTile(key, id, i - 1)}>${tr('הקדם')}</button>
+          <button type="button" data-layout-tile-move="later" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, i + 1)}>${tr('אחר')}</button>
+          <button type="button" data-layout-tile-move="last" ?disabled=${i === list.length - 1} @click=${() => this.moveTile(key, id, list.length - 1)}>${tr('אחרון')}</button>
         </div></div>
-      <label class="lay-check"><input type="checkbox" data-layout-tile-hidden .checked=${t.hidden} @change=${(e: Event) => this.patchTile(key, id, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר (עדיין נספר במונים של הכרטיס)</label>
+      <label class="lay-check"><input type="checkbox" data-layout-tile-hidden .checked=${t.hidden} @change=${(e: Event) => this.patchTile(key, id, { hidden: (e.target as HTMLInputElement).checked })} />${tr('מוסתר (עדיין נספר במונים של הכרטיס)')}</label>
       <div class="lay-tacts">${reset}</div>
     </aside>`;
   }

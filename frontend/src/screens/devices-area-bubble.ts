@@ -15,6 +15,8 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { deg, EQUIPMENT_DOMAINS, rowLabel, type DeviceControls } from './devices-controls';
 import { hueOf } from '../design/skin';
 import { navigate } from '../router';
+import { tr } from '../i18n/msg/devices';
+import { t } from '../i18n/he';
 
 /**
  * The area screen in the Bubble skin (phase C, owner 2026-10-02; the approved board docs/design/mockups/bubble-taste/area.html):
@@ -467,7 +469,7 @@ function stateOf(h: BubbleAreaHost, r: DeviceRow, base: string): string {
 }
 
 function sensorValue(r: DeviceRow): string {
-  if (unavailableOf(r)) return 'לא זמין';
+  if (unavailableOf(r)) return tr('לא זמין');
   if (r.domain === 'sensor' && r.value !== null && r.value !== undefined) return `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? (r.unit.startsWith('°') || r.unit === '%' ? r.unit : ` ${r.unit}`) : ''}`;
   if (r.domain === 'sensor') return r.state ?? '—';
   return rowLabel(r);
@@ -505,8 +507,8 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
     const dimmable = isDimmable(r) && r.brightness_pct !== null && r.brightness_pct !== undefined;
     const pct = ctl.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 0;
-    const label = on ? (dimmable ? `דולק · ${ltrNum(Math.round(pct))}%` : r.domain === 'light' ? 'דולק' : 'פועל') : unavailable ? 'לא זמין' : 'כבוי';
-    const alarm = r.alarm_managed ? html`<button slot="subs" type="button" class="chip" aria-label=${r.managed_label ?? 'נשלט ממסך האזעקה'} data-alarm-managed @click=${() => navigate('/security/alarm')}><sw-icon name="shield" size=${14}></sw-icon></button>` : nothing;
+    const label = on ? (dimmable ? `${tr('דולק')} · ${ltrNum(Math.round(pct))}%` : r.domain === 'light' ? tr('דולק') : tr('פועל')) : unavailable ? tr('לא זמין') : tr('כבוי');
+    const alarm = r.alarm_managed ? html`<button slot="subs" type="button" class="chip" aria-label=${r.managed_label ?? tr('נשלט ממסך האזעקה')} data-alarm-managed @click=${() => navigate('/security/alarm')}><sw-icon name="shield" size=${14}></sw-icon></button>` : nothing;
     if (dimmable) {
       return html`<sw-pill variant="slider" icon="light" .label=${bidi(r.name)} .state=${stateOf(h, r, label)} .value=${Math.max(0, Math.min(1, pct / 100))} ?on=${on} .hue=${hue} ?unavailable=${unavailable} ?readonly=${!r.can_control}
         data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)}
@@ -526,15 +528,15 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
     const shown = ctl.coverShown(r);
     const draft = ctl.coverDraft(r);
     const moving = ctl.coverMoving(r);
-    const posLabel = hasPos && !unavailable ? `${r.state === 'opening' ? 'נפתח…' : r.state === 'closing' ? 'נסגר…' : shown > 0 ? 'פתוח' : 'סגור'} · ${ltrNum(Math.round(shown))}%` : rowLabel(r);
+    const posLabel = hasPos && !unavailable ? `${r.state === 'opening' ? tr('נפתח…') : r.state === 'closing' ? tr('נסגר…') : shown > 0 ? tr('פתוח') : t('deviceCard.valveClosed')} · ${ltrNum(Math.round(shown))}%` : rowLabel(r);
     const subs = can
-      ? html`<button slot="subs" type="button" class=${classMap({ sb: true, armed: ctl.coverArmed(r, 'open') })} aria-label=${ctl.coverArmed(r, 'open') ? 'לאשר פתיחה?' : 'פתח'} ?disabled=${moving} data-control="open" @click=${() => ctl.coverMove(r, 'open')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
-          <button slot="subs" type="button" class="sb" aria-label="עצור" data-control="stop" @click=${() => ctl.coverMove(r, 'stop')}><sw-icon name="pause" size=${18}></sw-icon></button>
-          <button slot="subs" type="button" class=${classMap({ sb: true, armed: ctl.coverArmed(r, 'close') })} aria-label=${ctl.coverArmed(r, 'close') ? 'לאשר סגירה?' : 'סגור'} ?disabled=${moving} data-control="close" @click=${() => ctl.coverMove(r, 'close')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
-          ${draft !== undefined ? html`<button slot="subs" type="button" class="chip armed" data-control="position-confirm" @click=${() => ctl.coverConfirm(r)}>${`לאשר ${ltrNum(draft)}%?`}</button>` : nothing}`
+      ? html`<button slot="subs" type="button" class=${classMap({ sb: true, armed: ctl.coverArmed(r, 'open') })} aria-label=${ctl.coverArmed(r, 'open') ? tr('לאשר פתיחה?') : tr('פתח')} ?disabled=${moving} data-control="open" @click=${() => ctl.coverMove(r, 'open')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+          <button slot="subs" type="button" class="sb" aria-label=${tr('עצור')} data-control="stop" @click=${() => ctl.coverMove(r, 'stop')}><sw-icon name="pause" size=${18}></sw-icon></button>
+          <button slot="subs" type="button" class=${classMap({ sb: true, armed: ctl.coverArmed(r, 'close') })} aria-label=${ctl.coverArmed(r, 'close') ? tr('לאשר סגירה?') : tr('סגור')} ?disabled=${moving} data-control="close" @click=${() => ctl.coverMove(r, 'close')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+          ${draft !== undefined ? html`<button slot="subs" type="button" class="chip armed" data-control="position-confirm" @click=${() => ctl.coverConfirm(r)}>${tr('לאשר {n}%?', { n: ltrNum(draft) })}</button>` : nothing}`
       : nothing;
     const armedAny = ctl.coverArmed(r, 'open') || ctl.coverArmed(r, 'close');
-    return html`<sw-pill variant=${hasPos && can ? 'slider' : 'plain'} icon="layers" .label=${bidi(r.name)} .state=${stateOf(h, r, armedAny ? 'לחיצה נוספת מאשרת' : posLabel)} .value=${Math.max(0, Math.min(1, shown / 100))} ?on=${hasPos && shown > 0 && !unavailable} fill-color="var(--sw-accent-soft)" keep-text .hue=${hue} ?unavailable=${unavailable}
+    return html`<sw-pill variant=${hasPos && can ? 'slider' : 'plain'} icon="layers" .label=${bidi(r.name)} .state=${stateOf(h, r, armedAny ? tr('לחיצה נוספת מאשרת') : posLabel)} .value=${Math.max(0, Math.min(1, shown / 100))} ?on=${hasPos && shown > 0 && !unavailable} fill-color="var(--sw-accent-soft)" keep-text .hue=${hue} ?unavailable=${unavailable}
       data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} data-door-class="false" title=${entityLabel(r)}
       @toggle=${() => (hasPos && can ? ctl.coverStage(r, shown > 0 ? 0 : 100) : open())} @change=${(e: CustomEvent<{ value: number }>) => can && ctl.coverStage(r, Math.round(e.detail.value * 100))} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
   }
@@ -545,11 +547,11 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
       const mode = ctl.live<string>(r.entity_id, 'mode') ?? r.hvac_mode ?? '';
       const active = r.active && !unavailable && mode !== 'off';
       const heat = r.hvac_action === 'heating' || mode === 'heat' || r.climate_kind === 'heating';
-      const state = unavailable ? 'לא זמין' : `${HVAC_HE[mode] ?? mode ?? ''}${r.hvac_action && HVAC_ACTION_HE[r.hvac_action] && r.hvac_action !== mode ? ` · ${HVAC_ACTION_HE[r.hvac_action]}` : ''}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · בחדר ${deg(r.current_temperature)}` : ''}`;
+      const state = unavailable ? tr('לא זמין') : `${HVAC_HE[mode] ?? mode ?? ''}${r.hvac_action && HVAC_ACTION_HE[r.hvac_action] && r.hvac_action !== mode ? ` · ${HVAC_ACTION_HE[r.hvac_action]}` : ''}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${tr('בחדר {t}', { t: deg(r.current_temperature) })}` : ''}`;
       const subs = can && target !== null && target !== undefined
-        ? html`<button slot="subs" type="button" class="sb" aria-label="הנמך" data-control="temp-down" ?disabled=${target <= min} @click=${() => ctl.climateTemp(r, target - step)}><sw-icon name="minus" size=${18}></sw-icon></button>
-            <button slot="subs" type="button" class="chip" aria-label=${`יעד ${deg(target)}`} data-control="temp-value" @click=${open}>${deg(target)}</button>
-            <button slot="subs" type="button" class="sb" aria-label="הגבה" data-control="temp-up" ?disabled=${target >= max} @click=${() => ctl.climateTemp(r, target + step)}><sw-icon name="plus" size=${18}></sw-icon></button>`
+        ? html`<button slot="subs" type="button" class="sb" aria-label=${tr('הנמך')} data-control="temp-down" ?disabled=${target <= min} @click=${() => ctl.climateTemp(r, target - step)}><sw-icon name="minus" size=${18}></sw-icon></button>
+            <button slot="subs" type="button" class="chip" aria-label=${tr('יעד {t}', { t: deg(target) })} data-control="temp-value" @click=${open}>${deg(target)}</button>
+            <button slot="subs" type="button" class="sb" aria-label=${tr('הגבה')} data-control="temp-up" ?disabled=${target >= max} @click=${() => ctl.climateTemp(r, target + step)}><sw-icon name="plus" size=${18}></sw-icon></button>`
         : nothing;
       return html`<sw-pill variant="plain" .icon=${heat ? 'flame' : 'snow'} .label=${bidi(r.name)} .state=${stateOf(h, r, state)} ?on=${active} fill-color=${heat ? 'var(--sw-heat)' : 'var(--sw-cool)'} .hue=${hue} ?unavailable=${unavailable}
         data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
@@ -564,7 +566,7 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
   }
   if (card === 'security') {
     const icon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'door';
-    const state = unavailable ? 'לא זמין' : r.kind === 'lock' ? (r.locked ? 'נעול' : rowLabel(r)) : r.kind === 'camera' ? 'מצלמת התקן' : rowLabel(r);
+    const state = unavailable ? tr('לא זמין') : r.kind === 'lock' ? (r.locked ? tr('נעול') : rowLabel(r)) : r.kind === 'camera' ? tr('מצלמת התקן') : rowLabel(r);
     const go = r.kind === 'alarm' ? () => navigate('/security/alarm') : open;
     return html`<sw-pill variant="plain" .icon=${icon} .label=${bidi(r.name)} .state=${state} .hue=${hue} ?on=${r.kind === 'alarm' ? r.state === 'triggered' : r.kind === 'binary_sensor' ? r.state === 'on' : false} fill-color="var(--sw-warning-soft)" keep-text ?unavailable=${unavailable}
       data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-kind=${r.kind ?? ''} title=${entityLabel(r)} @activate=${go} @icon-click=${go}>${h.assignButton(r)}</sw-pill>`;
@@ -573,11 +575,11 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
     const playing = (ctl.live<string>(r.entity_id, 'playpause') ?? r.state) === 'playing';
     const muted = ctl.live<boolean>(r.entity_id, 'mute') ?? Boolean(r.muted);
-    const state = unavailable ? 'לא זמין' : [rowLabel(r), r.media_title, r.source].filter(Boolean).join(' · ');
+    const state = unavailable ? tr('לא זמין') : [rowLabel(r), r.media_title, r.source].filter(Boolean).join(' · ');
     const subs = can
-      ? html`<button slot="subs" type="button" class=${classMap({ sb: true, dark: playing })} aria-label=${playing ? 'השהה' : 'נגן'} data-control="playpause" @click=${() => ctl.mediaPlayPause(r)}><sw-icon .name=${playing ? 'pause' : 'play'} size=${18}></sw-icon></button>
-          <button slot="subs" type="button" class=${classMap({ sb: true, on: muted })} aria-label=${muted ? 'בטל השתקה' : 'השתקה'} data-control="mute" @click=${() => ctl.mediaMute(r)}><sw-icon name="volume" size=${18}></sw-icon></button>
-          <button slot="subs" type="button" class=${classMap({ sb: true, on })} role="switch" aria-checked=${String(on)} aria-label=${on ? 'כבה' : 'הדלק'} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon></button>`
+      ? html`<button slot="subs" type="button" class=${classMap({ sb: true, dark: playing })} aria-label=${playing ? tr('השהה') : tr('נגן')} data-control="playpause" @click=${() => ctl.mediaPlayPause(r)}><sw-icon .name=${playing ? 'pause' : 'play'} size=${18}></sw-icon></button>
+          <button slot="subs" type="button" class=${classMap({ sb: true, on: muted })} aria-label=${muted ? tr('בטל השתקה') : tr('השתקה')} data-control="mute" @click=${() => ctl.mediaMute(r)}><sw-icon name="volume" size=${18}></sw-icon></button>
+          <button slot="subs" type="button" class=${classMap({ sb: true, on })} role="switch" aria-checked=${String(on)} aria-label=${on ? tr('כבה') : tr('הדלק')} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon></button>`
       : nothing;
     return html`<sw-pill variant="plain" icon="play" .label=${bidi(r.name)} .state=${stateOf(h, r, state)} ?on=${playing && !unavailable} fill-color="var(--sw-lit)" .hue=${hue} ?unavailable=${unavailable}
       data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
@@ -600,7 +602,7 @@ export function renderBubbleSep(opts: { id: CardId; icon: IconName; label: strin
   const fold = opts.fold;
   return html`<div class="bsep" data-bubble-section=${opts.id}>
     ${fold
-      ? html`<button type="button" class="bt fold" aria-expanded=${String(fold.open)} aria-label=${`${fold.open ? 'כווץ' : 'הרחב'} ${opts.label}`} @click=${fold.toggle}><sw-icon name="chevronDown" size=${16}></sw-icon><sw-icon .name=${opts.icon} size=${18}></sw-icon><span>${opts.label}</span></button>`
+      ? html`<button type="button" class="bt fold" aria-expanded=${String(fold.open)} aria-label=${fold.open ? tr('כווץ {name}', { name: opts.label }) : tr('הרחב {name}', { name: opts.label })} @click=${fold.toggle}><sw-icon name="chevronDown" size=${16}></sw-icon><sw-icon .name=${opts.icon} size=${18}></sw-icon><span>${opts.label}</span></button>`
       : html`<sw-icon .name=${opts.icon} size=${18}></sw-icon><span class="bt">${opts.label}</span>`}
     ${opts.count ? html`<span class="bn">${opts.count}</span>` : nothing}
     <span class="rule"></span>
@@ -616,7 +618,7 @@ function status(h: BubbleAreaHost, r: DeviceRow) {
 }
 
 function facts(r: DeviceRow, extra: { k: string; v: string }[] = []) {
-  const all = [...extra, ...(r.last_changed ? [{ k: 'שינוי אחרון', v: fmtTime(r.last_changed) }] : [])];
+  const all = [...extra, ...(r.last_changed ? [{ k: tr('שינוי אחרון'), v: fmtTime(r.last_changed) }] : [])];
   if (!all.length) return nothing;
   return html`<div class="kv">${all.map((f) => html`<div><span class="k">${f.k}</span><div class=${classMap({ v: true, sm: f.v.length > 12 })}>${f.v}</div></div>`)}</div>`;
 }
@@ -631,7 +633,7 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
   const can = r.can_control && !unavailable;
   if (card === 'switches' && EQUIPMENT_DOMAINS.has(r.domain)) {
     // CARD1: state only - the activity window's equipment card holds the controls (long press on the pill)
-    return html`${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
+    return html`${status(h, r)}${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }])}`;
   }
   if (card === 'lighting' || card === 'switches') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
@@ -639,15 +641,15 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
     const pct = ctl.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 0;
     // BV1: the slider follows the `slider` look dial (a pill, or a tall vertical slider) - bubble-sliders decides, the commands are the same
     const sliders: SheetSlider[] = dimmable
-      ? [{ key: 'brightness', icon: 'light', label: 'בהירות', state: on ? `${ltrNum(Math.round(pct))}%` : 'כבוי', value: pct / 100, on, unavailable: !can, onToggle: (v) => can && ctl.power(r, v), onInput: (v) => can && ctl.brightness(r, Math.round(v * 100)) }]
+      ? [{ key: 'brightness', icon: 'light', label: tr('בהירות'), state: on ? `${ltrNum(Math.round(pct))}%` : tr('כבוי'), value: pct / 100, on, unavailable: !can, onToggle: (v) => can && ctl.power(r, v), onInput: (v) => can && ctl.brightness(r, Math.round(v * 100)) }]
       : [];
     return html`${sliders.length ? html`<bubble-sliders .items=${sliders}></bubble-sliders>` : nothing}
-      ${can ? html`<div class="brow"><button type="button" class=${classMap({ bbtn: true, primary: !on })} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? 'כבה' : 'הדלק'}</button></div>` : nothing}
+      ${can ? html`<div class="brow"><button type="button" class=${classMap({ bbtn: true, primary: !on })} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? tr('כבה') : tr('הדלק')}</button></div>` : nothing}
       ${status(h, r)}
-      ${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
+      ${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }])}`;
   }
   if (card === 'covers') {
-    if (r.door_class || !can) return html`${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }, ...(r.door_class ? [{ k: 'סוג', v: 'דלת / שער' }] : [])])}`;
+    if (r.door_class || !can) return html`${status(h, r)}${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }, ...(r.door_class ? [{ k: tr('סוג'), v: tr('דלת / שער') }] : [])])}`;
     const axis = (ax: 'position' | 'tilt', label: string, has: boolean) => {
       if (!has) return nothing;
       const shown = ctl.coverShown(r, ax);
@@ -655,20 +657,20 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
       const moving = ctl.coverMoving(r, ax);
       // BV1: the axis slider follows the `slider` look dial (bubble-sliders: a pill, or a vertical slider); its confirm chip travels with it
       const slider: SheetSlider = {
-        key: ax === 'tilt' ? 'tilt-position' : 'position', icon: ax === 'tilt' ? 'move' : 'layers', label: ax === 'tilt' ? 'הטיה' : 'מיקום',
-        state: `${ltrNum(Math.round(shown))}%${draft !== undefined ? ' · טרם נשלח' : ''}`, value: shown / 100, on: shown > 0, fillColor: 'var(--sw-accent-soft)', keepText: true,
+        key: ax === 'tilt' ? 'tilt-position' : 'position', icon: ax === 'tilt' ? 'move' : 'layers', label: ax === 'tilt' ? tr('הטיה') : tr('מיקום'),
+        state: `${ltrNum(Math.round(shown))}%${draft !== undefined ? ` · ${tr('טרם נשלח')}` : ''}`, value: shown / 100, on: shown > 0, fillColor: 'var(--sw-accent-soft)', keepText: true,
         onToggle: () => ctl.coverStage(r, shown > 0 ? 0 : 100, ax), onChange: (v) => ctl.coverStage(r, Math.round(v * 100), ax),
-        subs: draft !== undefined ? html`<button slot="subs" type="button" class="chip armed" data-control=${ax === 'tilt' ? 'tilt-position-confirm' : 'position-confirm'} @click=${() => ctl.coverConfirm(r, ax)}>${`לאשר ${ltrNum(draft)}%?`}</button>` : nothing,
+        subs: draft !== undefined ? html`<button slot="subs" type="button" class="chip armed" data-control=${ax === 'tilt' ? 'tilt-position-confirm' : 'position-confirm'} @click=${() => ctl.coverConfirm(r, ax)}>${tr('לאשר {n}%?', { n: ltrNum(draft) })}</button>` : nothing,
       };
       return html`<div class="bsh">${label}</div>
         <bubble-sliders .items=${[slider]}></bubble-sliders>
         <div class="brow" data-control=${ax === 'tilt' ? 'cover-tilt' : 'cover'}>
-          <button type="button" class=${classMap({ bbtn: true, primary: ctl.coverArmed(r, 'open', ax) })} ?disabled=${moving} data-control=${ax === 'tilt' ? 'open-tilt' : 'open'} @click=${() => ctl.coverMove(r, 'open', ax)}><sw-icon name="arrowUp" size=${18}></sw-icon>${ctl.coverArmed(r, 'open', ax) ? 'לאשר פתיחה?' : 'פתיחה'}</button>
-          <button type="button" class="bbtn" data-control=${ax === 'tilt' ? 'stop-tilt' : 'stop'} @click=${() => ctl.coverMove(r, 'stop', ax)}><sw-icon name="pause" size=${18}></sw-icon>עצירה</button>
-          <button type="button" class=${classMap({ bbtn: true, primary: ctl.coverArmed(r, 'close', ax) })} ?disabled=${moving} data-control=${ax === 'tilt' ? 'close-tilt' : 'close'} @click=${() => ctl.coverMove(r, 'close', ax)}><sw-icon name="arrowDown" size=${18}></sw-icon>${ctl.coverArmed(r, 'close', ax) ? 'לאשר סגירה?' : 'סגירה'}</button>
+          <button type="button" class=${classMap({ bbtn: true, primary: ctl.coverArmed(r, 'open', ax) })} ?disabled=${moving} data-control=${ax === 'tilt' ? 'open-tilt' : 'open'} @click=${() => ctl.coverMove(r, 'open', ax)}><sw-icon name="arrowUp" size=${18}></sw-icon>${ctl.coverArmed(r, 'open', ax) ? tr('לאשר פתיחה?') : tr('פתיחה')}</button>
+          <button type="button" class="bbtn" data-control=${ax === 'tilt' ? 'stop-tilt' : 'stop'} @click=${() => ctl.coverMove(r, 'stop', ax)}><sw-icon name="pause" size=${18}></sw-icon>${tr('עצירה')}</button>
+          <button type="button" class=${classMap({ bbtn: true, primary: ctl.coverArmed(r, 'close', ax) })} ?disabled=${moving} data-control=${ax === 'tilt' ? 'close-tilt' : 'close'} @click=${() => ctl.coverMove(r, 'close', ax)}><sw-icon name="arrowDown" size=${18}></sw-icon>${ctl.coverArmed(r, 'close', ax) ? tr('לאשר סגירה?') : tr('סגירה')}</button>
         </div>`;
     };
-    return html`${axis('position', 'מיקום', true)}${axis('tilt', 'הטיה', r.tilt !== null && r.tilt !== undefined)}${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
+    return html`${axis('position', tr('מיקום'), true)}${axis('tilt', tr('הטיה'), r.tilt !== null && r.tilt !== undefined)}${status(h, r)}${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }])}`;
   }
   if (card === 'climate' || card === 'heating') {
     if (r.domain === 'climate') {
@@ -680,50 +682,50 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
       const preset = ctl.live<string>(r.entity_id, 'preset') ?? r.preset_mode ?? '';
       const swing = ctl.live<string>(r.entity_id, 'swing') ?? r.swing_mode ?? '';
       const hum = ctl.live<number>(r.entity_id, 'humidity') ?? r.target_humidity;
-      const sub = [r.current_temperature !== null && r.current_temperature !== undefined ? `בחדר ${deg(r.current_temperature)}` : '', r.current_humidity !== null && r.current_humidity !== undefined ? `לחות ${ltrNum(r.current_humidity)}%` : ''].filter(Boolean).join(' · ');
+      const sub = [r.current_temperature !== null && r.current_temperature !== undefined ? tr('בחדר {t}', { t: deg(r.current_temperature) }) : '', r.current_humidity !== null && r.current_humidity !== undefined ? tr('לחות {n}%', { n: ltrNum(r.current_humidity) }) : ''].filter(Boolean).join(' · ');
       return html`${target !== null && target !== undefined
           ? html`<div class="target" data-control="climate">
-              <button type="button" class="sb" aria-label="הנמך" data-control="temp-down" ?disabled=${!can || target <= min} @click=${() => ctl.climateTemp(r, target - step)}><sw-icon name="minus" size=${22}></sw-icon></button>
-              <div class="tv"><span class="l">יעד</span><div class="n" data-control="temp-value">${deg(target)}</div>${sub ? html`<span class="l">${sub}</span>` : nothing}</div>
-              <button type="button" class="sb" aria-label="הגבה" data-control="temp-up" ?disabled=${!can || target >= max} @click=${() => ctl.climateTemp(r, target + step)}><sw-icon name="plus" size=${22}></sw-icon></button>
+              <button type="button" class="sb" aria-label=${tr('הנמך')} data-control="temp-down" ?disabled=${!can || target <= min} @click=${() => ctl.climateTemp(r, target - step)}><sw-icon name="minus" size=${22}></sw-icon></button>
+              <div class="tv"><span class="l">${tr('יעד')}</span><div class="n" data-control="temp-value">${deg(target)}</div>${sub ? html`<span class="l">${sub}</span>` : nothing}</div>
+              <button type="button" class="sb" aria-label=${tr('הגבה')} data-control="temp-up" ?disabled=${!can || target >= max} @click=${() => ctl.climateTemp(r, target + step)}><sw-icon name="plus" size=${22}></sw-icon></button>
             </div>`
           : nothing}
-        ${modes.length && can ? html`<div class="bsh">מצב</div>${chips(modes, mode, (m) => HVAC_HE[m] ?? m, (m) => ctl.climateMode(r, m), 'mode')}` : nothing}
-        ${r.fan_modes?.length && can ? html`<div class="bsh">מאוורר</div>${chips(r.fan_modes, fan, (m) => m, (m) => ctl.climateChoice(r, 'fan', m), 'fan-mode')}` : nothing}
-        ${r.preset_modes?.length && can ? html`<div class="bsh">מצב מוגדר</div>${chips(r.preset_modes, preset, (m) => m, (m) => ctl.climateChoice(r, 'preset', m), 'preset-mode')}` : nothing}
-        ${r.swing_modes?.length && can ? html`<div class="bsh">נדנוד</div>${chips(r.swing_modes, swing, (m) => m, (m) => ctl.climateChoice(r, 'swing', m), 'swing-mode')}` : nothing}
+        ${modes.length && can ? html`<div class="bsh">${tr('מצב')}</div>${chips(modes, mode, (m) => HVAC_HE[m] ?? m, (m) => ctl.climateMode(r, m), 'mode')}` : nothing}
+        ${r.fan_modes?.length && can ? html`<div class="bsh">${tr('מאוורר')}</div>${chips(r.fan_modes, fan, (m) => m, (m) => ctl.climateChoice(r, 'fan', m), 'fan-mode')}` : nothing}
+        ${r.preset_modes?.length && can ? html`<div class="bsh">${tr('מצב מוגדר')}</div>${chips(r.preset_modes, preset, (m) => m, (m) => ctl.climateChoice(r, 'preset', m), 'preset-mode')}` : nothing}
+        ${r.swing_modes?.length && can ? html`<div class="bsh">${tr('נדנוד')}</div>${chips(r.swing_modes, swing, (m) => m, (m) => ctl.climateChoice(r, 'swing', m), 'swing-mode')}` : nothing}
         ${hum !== null && hum !== undefined && can
-          ? html`<div class="bsh">לחות יעד</div><div class="brow" data-control="humidity">
-              <button type="button" class="sb" aria-label="הפחת לחות יעד" data-control="humidity-down" @click=${() => ctl.humidity(r, hum - 5)}><sw-icon name="minus" size=${18}></sw-icon></button>
+          ? html`<div class="bsh">${tr('לחות יעד')}</div><div class="brow" data-control="humidity">
+              <button type="button" class="sb" aria-label=${tr('הפחת לחות יעד')} data-control="humidity-down" @click=${() => ctl.humidity(r, hum - 5)}><sw-icon name="minus" size=${18}></sw-icon></button>
               <span class="chip plain" data-control="humidity-value">${ltrNum(hum)}%</span>
-              <button type="button" class="sb" aria-label="הגבר לחות יעד" data-control="humidity-up" @click=${() => ctl.humidity(r, hum + 5)}><sw-icon name="plus" size=${18}></sw-icon></button>
+              <button type="button" class="sb" aria-label=${tr('הגבר לחות יעד')} data-control="humidity-up" @click=${() => ctl.humidity(r, hum + 5)}><sw-icon name="plus" size=${18}></sw-icon></button>
             </div>`
           : nothing}
         ${status(h, r)}
-        ${facts(r, [{ k: 'מצב', v: rowLabel(r) }, ...(r.hvac_action ? [{ k: 'עכשיו', v: HVAC_ACTION_HE[r.hvac_action] ?? r.hvac_action }] : [])])}`;
+        ${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }, ...(r.hvac_action ? [{ k: tr('עכשיו'), v: HVAC_ACTION_HE[r.hvac_action] ?? r.hvac_action }] : [])])}`;
     }
     if (r.domain === 'fan') {
       const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
       const pct = ctl.live<number>(r.entity_id, 'percentage') ?? r.percentage;
       const fanSliders: SheetSlider[] = pct !== null && pct !== undefined
-        ? [{ key: 'percentage', icon: 'fan', label: 'עוצמה', state: on ? `${ltrNum(Math.round(pct))}%` : 'כבוי', value: pct / 100, on, fillColor: 'var(--sw-accent-soft)', keepText: true, unavailable: !can, onToggle: (v) => can && ctl.power(r, v), onInput: (v) => can && ctl.fanPercentage(r, Math.round(v * 100)) }]
+        ? [{ key: 'percentage', icon: 'fan', label: tr('עוצמה'), state: on ? `${ltrNum(Math.round(pct))}%` : tr('כבוי'), value: pct / 100, on, fillColor: 'var(--sw-accent-soft)', keepText: true, unavailable: !can, onToggle: (v) => can && ctl.power(r, v), onInput: (v) => can && ctl.fanPercentage(r, Math.round(v * 100)) }]
         : [];
       return html`${fanSliders.length ? html`<bubble-sliders .items=${fanSliders}></bubble-sliders>` : nothing}
-        ${can ? html`<div class="brow"><button type="button" class=${classMap({ bbtn: true, primary: !on })} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? 'כבה' : 'הדלק'}</button></div>` : nothing}
-        ${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
+        ${can ? html`<div class="brow"><button type="button" class=${classMap({ bbtn: true, primary: !on })} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? tr('כבה') : tr('הדלק')}</button></div>` : nothing}
+        ${status(h, r)}${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }])}`;
     }
     // a humidifier
     const modeH = ctl.live<string>(r.entity_id, 'mode') ?? r.mode ?? '';
     const humH = ctl.live<number>(r.entity_id, 'humidity') ?? r.target_humidity;
-    return html`${r.available_modes?.length && can ? html`<div class="bsh">מצב</div>${chips(r.available_modes, modeH, (m) => m, (m) => ctl.climateChoice(r, 'hmode', m), 'mode')}` : nothing}
+    return html`${r.available_modes?.length && can ? html`<div class="bsh">${tr('מצב')}</div>${chips(r.available_modes, modeH, (m) => m, (m) => ctl.climateChoice(r, 'hmode', m), 'mode')}` : nothing}
       ${humH !== null && humH !== undefined && can
-        ? html`<div class="bsh">לחות יעד</div><div class="brow" data-control="humidifier">
-            <button type="button" class="sb" aria-label="הפחת לחות יעד" data-control="humidity-down" @click=${() => ctl.humidity(r, humH - 5)}><sw-icon name="minus" size=${18}></sw-icon></button>
+        ? html`<div class="bsh">${tr('לחות יעד')}</div><div class="brow" data-control="humidifier">
+            <button type="button" class="sb" aria-label=${tr('הפחת לחות יעד')} data-control="humidity-down" @click=${() => ctl.humidity(r, humH - 5)}><sw-icon name="minus" size=${18}></sw-icon></button>
             <span class="chip plain" data-control="humidity-value">${ltrNum(humH)}%</span>
-            <button type="button" class="sb" aria-label="הגבר לחות יעד" data-control="humidity-up" @click=${() => ctl.humidity(r, humH + 5)}><sw-icon name="plus" size=${18}></sw-icon></button>
+            <button type="button" class="sb" aria-label=${tr('הגבר לחות יעד')} data-control="humidity-up" @click=${() => ctl.humidity(r, humH + 5)}><sw-icon name="plus" size=${18}></sw-icon></button>
           </div>`
         : nothing}
-      ${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }, ...(r.current_humidity !== null && r.current_humidity !== undefined ? [{ k: 'לחות', v: `${ltrNum(r.current_humidity)}%` }] : [])])}`;
+      ${status(h, r)}${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }, ...(r.current_humidity !== null && r.current_humidity !== undefined ? [{ k: tr('לחות'), v: `${ltrNum(r.current_humidity)}%` }] : [])])}`;
   }
   if (card === 'media') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
@@ -731,17 +733,17 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
     const muted = ctl.live<boolean>(r.entity_id, 'mute') ?? Boolean(r.muted);
     return html`${can
         ? html`<div class="brow" data-control="media">
-            <button type="button" class="bbtn primary" data-control="playpause" @click=${() => ctl.mediaPlayPause(r)}><sw-icon .name=${playing ? 'pause' : 'play'} size=${18}></sw-icon>${playing ? 'השהה' : 'נגן'}</button>
-            <button type="button" class=${classMap({ bbtn: true, primary: muted })} data-control="mute" @click=${() => ctl.mediaMute(r)}><sw-icon name="volume" size=${18}></sw-icon>${muted ? 'בטל השתקה' : 'השתק'}</button>
-            <button type="button" class="bbtn" data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? 'כבה' : 'הדלק'}</button>
+            <button type="button" class="bbtn primary" data-control="playpause" @click=${() => ctl.mediaPlayPause(r)}><sw-icon .name=${playing ? 'pause' : 'play'} size=${18}></sw-icon>${playing ? tr('השהה') : tr('נגן')}</button>
+            <button type="button" class=${classMap({ bbtn: true, primary: muted })} data-control="mute" @click=${() => ctl.mediaMute(r)}><sw-icon name="volume" size=${18}></sw-icon>${muted ? tr('בטל השתקה') : tr('השתק')}</button>
+            <button type="button" class="bbtn" data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? tr('כבה') : tr('הדלק')}</button>
           </div>`
         : nothing}
       ${status(h, r)}
-      ${facts(r, [{ k: 'מצב', v: rowLabel(r) }, ...(r.media_title ? [{ k: 'מתנגן', v: r.media_title }] : []), ...(r.source ? [{ k: 'מקור', v: r.source }] : []), ...(r.volume_pct !== null && r.volume_pct !== undefined ? [{ k: 'עוצמה', v: `${ltrNum(r.volume_pct)}%${r.muted ? ' · מושתק' : ''}` }] : [])])}`;
+      ${facts(r, [{ k: tr('מצב'), v: rowLabel(r) }, ...(r.media_title ? [{ k: tr('מתנגן'), v: r.media_title }] : []), ...(r.source ? [{ k: tr('מקור'), v: r.source }] : []), ...(r.volume_pct !== null && r.volume_pct !== undefined ? [{ k: tr('עוצמה'), v: `${ltrNum(r.volume_pct)}%${r.muted ? ` · ${tr('מושתק')}` : ''}` }] : [])])}`;
   }
   if (card === 'security') {
-    const state = unavailable ? 'לא זמין' : r.kind === 'alarm' ? (ALARM_HE[r.state ?? ''] ?? r.state ?? '') : r.kind === 'lock' ? (r.locked ? 'נעול' : rowLabel(r)) : r.kind === 'camera' ? 'מצלמת התקן' : rowLabel(r);
-    return html`${facts(r, [{ k: 'מצב', v: state }])}`;
+    const state = unavailable ? tr('לא זמין') : r.kind === 'alarm' ? (ALARM_HE[r.state ?? ''] ?? r.state ?? '') : r.kind === 'lock' ? (r.locked ? tr('נעול') : rowLabel(r)) : r.kind === 'camera' ? tr('מצלמת התקן') : rowLabel(r);
+    return html`${facts(r, [{ k: tr('מצב'), v: state }])}`;
   }
-  return html`${facts(r, [{ k: 'ערך', v: sensorValue(r) }])}`;
+  return html`${facts(r, [{ k: tr('ערך'), v: sensorValue(r) }])}`;
 }

@@ -23,6 +23,7 @@ import { activeOf } from '../api/device-commands';
 import { lockAllQuestion, skippedText, splitLockAll } from './door-path-logic';
 import { runCommand, type CommandPhase } from '../api/device-commands';
 import { timeText, dayMonthText, dayTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/devices';
 
 /** Which rows a segment shows: `active` = the tile's counted state (lit, on, open, running, playing, locked, armed). */
 export type ItemsFilter = 'all' | 'active' | 'inactive' | 'unavailable';
@@ -45,17 +46,20 @@ interface KindMeta {
 
 /** Owner 2026-09-29: the tiles' panel wording per kind (the segmented filter: הכול / פעילים|פתוחים|לא נעולים / כבויים|סגורים|נעולים / לא זמינים). */
 export const KIND_META: Record<TileKind, KindMeta> = {
-  lights: { noun: 'גופי תאורה', icon: 'light', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'lights_on', off: 'lights_off', onLabel: 'הדלק את כל התאורה', offLabel: 'כבה את כל התאורה' }, emptyHint: 'גופי תאורה המשויכים לאזורים יופיעו כאן.' },
-  switches: { noun: 'מתגים', icon: 'bolt', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'switches_on', off: 'switches_off', onLabel: 'הדלק את כל המתגים', offLabel: 'כבה את כל המתגים' }, emptyHint: 'מתגים ודגלים המשויכים לאזורים יופיעו כאן.' },
-  covers: { noun: 'תריסים', icon: 'layers', active: 'פתוחים', inactive: 'סגורים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { open: 'covers_open', close: 'covers_close', openLabel: 'פתח את כל התריסים', closeLabel: 'סגור את כל התריסים' }, emptyHint: 'תריסים, וילונות ושערים המשויכים לאזורים יופיעו כאן.' },
-  climate: { noun: 'התקני מיזוג', icon: 'activity', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'מזגנים, תרמוסטטים, מאווררים ומייבשים יופיעו כאן.' },
-  heating: { noun: 'התקני חימום', icon: 'activity', active: 'פעילים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי יופיעו כאן.' },
-  media: { noun: 'מסכים ונגנים', icon: 'play', active: 'דולקים', inactive: 'כבויים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'screens_on', off: 'screens_off', onLabel: 'הדלק את כל המסכים', offLabel: 'כבה את כל המסכים' }, emptyHint: 'טלוויזיות, מקרנים ורמקולים יופיעו כאן.' },
-  locks: { noun: 'מנעולים', icon: 'lock', active: 'נעולים', inactive: 'לא נעולים', unavailable: 'לא זמינים', order: ['all', 'inactive', 'active', 'unavailable'], emptyHint: 'מנעולים המשויכים לאזורים יופיעו כאן.' },
-  alarm: { noun: 'לוחות אזעקה', icon: 'shield', active: 'דרוכים', inactive: 'מנוטרלים', unavailable: 'לא זמינים', order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: 'לוח אזעקה המשויך לאזור יופיע כאן.' },
+  lights: { noun: tr('גופי תאורה'), icon: 'light', active: tr('דולקים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'lights_on', off: 'lights_off', onLabel: tr('הדלק את כל התאורה'), offLabel: tr('כבה את כל התאורה') }, emptyHint: tr('גופי תאורה המשויכים לאזורים יופיעו כאן.') },
+  switches: { noun: tr('מתגים'), icon: 'bolt', active: tr('פעילים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'switches_on', off: 'switches_off', onLabel: tr('הדלק את כל המתגים'), offLabel: tr('כבה את כל המתגים') }, emptyHint: tr('מתגים ודגלים המשויכים לאזורים יופיעו כאן.') },
+  covers: { noun: tr('תריסים'), icon: 'layers', active: tr('פתוחים'), inactive: tr('סגורים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { open: 'covers_open', close: 'covers_close', openLabel: tr('פתח את כל התריסים'), closeLabel: tr('סגור את כל התריסים') }, emptyHint: tr('תריסים, וילונות ושערים המשויכים לאזורים יופיעו כאן.') },
+  climate: { noun: tr('התקני מיזוג'), icon: 'activity', active: tr('פעילים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: tr('מזגנים, תרמוסטטים, מאווררים ומייבשים יופיעו כאן.') },
+  heating: { noun: tr('התקני חימום'), icon: 'activity', active: tr('פעילים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: tr('תרמוסטטים, משאבות חום וחימום תת־רצפתי יופיעו כאן.') },
+  media: { noun: tr('מסכים ונגנים'), icon: 'play', active: tr('דולקים'), inactive: tr('כבויים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], master: { on: 'screens_on', off: 'screens_off', onLabel: tr('הדלק את כל המסכים'), offLabel: tr('כבה את כל המסכים') }, emptyHint: tr('טלוויזיות, מקרנים ורמקולים יופיעו כאן.') },
+  locks: { noun: tr('מנעולים'), icon: 'lock', active: tr('נעולים'), inactive: tr('לא נעולים'), unavailable: tr('לא זמינים'), order: ['all', 'inactive', 'active', 'unavailable'], emptyHint: tr('מנעולים המשויכים לאזורים יופיעו כאן.') },
+  alarm: { noun: tr('לוחות אזעקה'), icon: 'shield', active: tr('דרוכים'), inactive: tr('מנוטרלים'), unavailable: tr('לא זמינים'), order: ['all', 'active', 'inactive', 'unavailable'], emptyHint: tr('לוח אזעקה המשויך לאזור יופיע כאן.') },
 };
 
-export const SCOPE_WORD: Record<ItemsScope, string> = { building: 'במבנה', floor: 'בקומה', area: 'באזור' };
+export const SCOPE_WORD: Record<ItemsScope, string> = { building: tr('במבנה'), floor: tr('בקומה'), area: tr('באזור') };
+/** "בקומה {name}" / "באזור {name}" as one text: the English word order needs the name inside the phrase. */
+const scopeWhere = (scope: ItemsScope, name: string): string =>
+  scope === 'floor' ? tr('בקומה {name}', { name }) : scope === 'area' ? tr('באזור {name}', { name }) : `${SCOPE_WORD[scope]} ${name}`;
 
 function rowState(r: DeviceRow): Exclude<ItemsFilter, 'all'> {
   if (!r.available || r.state === 'unavailable' || r.state === null) return 'unavailable';
@@ -65,13 +69,13 @@ function rowState(r: DeviceRow): Exclude<ItemsFilter, 'all'> {
 
 /** Why a row the user can see has no control (shown on hover and on tap). '' = it has controls. */
 export function readOnlyReason(r: DeviceItem, kind: TileKind, demo: boolean): string {
-  if (kind === 'alarm') return 'דריכה וניטרול נעשים במסך האזעקה';
-  if (r.alarm_managed) return r.managed_label ?? 'נשלט ממסך האזעקה';
-  if (demo) return 'נתוני הדגמה - אין שליטה בהתקנים';
-  if (rowState(r) === 'unavailable') return 'ההתקן לא זמין כרגע';
-  if (r.door_class) return 'דלת / שער - תנועה של מעבר, לקריאה בלבד כאן';
-  if (!r.can_control) return kind === 'locks' ? 'שליטה במנעולים דורשת הרשאת שליטה בישויות' : 'אין לך הרשאת שליטה בהתקן הזה';
-  if (r.domain === 'humidifier' && !(r.available_modes?.length || (r.target_humidity !== null && r.target_humidity !== undefined))) return 'המייבש אינו מדווח על מצבים או יעד לחות';
+  if (kind === 'alarm') return tr('דריכה וניטרול נעשים במסך האזעקה');
+  if (r.alarm_managed) return r.managed_label ?? tr('נשלט ממסך האזעקה');
+  if (demo) return tr('נתוני הדגמה - אין שליטה בהתקנים');
+  if (rowState(r) === 'unavailable') return tr('ההתקן לא זמין כרגע');
+  if (r.door_class) return tr('דלת / שער - תנועה של מעבר, לקריאה בלבד כאן');
+  if (!r.can_control) return kind === 'locks' ? tr('שליטה במנעולים דורשת הרשאת שליטה בישויות') : tr('אין לך הרשאת שליטה בהתקן הזה');
+  if (r.domain === 'humidifier' && !(r.available_modes?.length || (r.target_humidity !== null && r.target_humidity !== undefined))) return tr('המייבש אינו מדווח על מצבים או יעד לחות');
   return '';
 }
 
@@ -137,7 +141,7 @@ export function changedAt(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const time = timeText(d);
-  return d.toDateString() === now.toDateString() ? `השתנה ב־${time}` : `השתנה ב־${dayMonthText(d)} ${time}`;
+  return d.toDateString() === now.toDateString() ? tr('השתנה ב־{time}', { time }) : tr('השתנה ב־{date} {time}', { date: dayMonthText(d), time });
 }
 
 /** How long the panel waits before refetching (review M4: pushes about listed rows patch them in place; a refetch is
@@ -199,7 +203,7 @@ export class DevicesTilesPanel extends LitElement {
   @property() kind: TileKind = 'lights';
   @property() scope: ItemsScope = 'building';
   @property() scopeId = '';
-  @property() scopeName = 'המבנה';
+  @property() scopeName = tr('המבנה');
   @property() filter: ItemsFilter = 'all';
   /** SWITCH-LIGHT-DIMMER-2331 (the synoptic floor lights popup): only these home-system areas of the scope (one of our floors stands for a
    * set of areas, services/xs-model matchFloors) - the rows, the counts and every bulk action (`only`) keep to them. null = the whole scope. */
@@ -648,7 +652,7 @@ export class DevicesTilesPanel extends LitElement {
       this.error = '';
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) this.notFound = true;
-      else this.error = err instanceof ApiError && err.status === 403 ? 'אין לך הרשאת צפייה בחשמל והתקנים.' : describeError(err);
+      else this.error = err instanceof ApiError && err.status === 403 ? tr('אין לך הרשאת צפייה בחשמל והתקנים.') : describeError(err);
     } finally {
       this.loading = false;
       if (this.again) {
@@ -693,13 +697,13 @@ export class DevicesTilesPanel extends LitElement {
 
   /** "במבנה", or inside one building of a multi-building site "ב<building>" (the server's own name once the list loaded). */
   private buildingWord(): string {
-    return this.building && this.data?.name ? `ב${this.data.name}` : 'במבנה';
+    return this.building && this.data?.name ? tr('ב{name}', { name: this.data.name }) : tr('במבנה');
   }
 
   private heading(): string {
     if (this.headingText) return this.headingText;
     const m = KIND_META[this.kind];
-    const where = this.scope === 'building' ? this.buildingWord() : `${SCOPE_WORD[this.scope]} ${this.data?.name ?? this.scopeName}`;
+    const where = this.scope === 'building' ? this.buildingWord() : scopeWhere(this.scope, this.data?.name ?? this.scopeName);
     return `${m.noun} ${where}`;
   }
 
@@ -719,16 +723,16 @@ export class DevicesTilesPanel extends LitElement {
 
   private renderBody() {
     const m = KIND_META[this.kind];
-    if (this.notFound) return html`<sw-state-panel icon="grid" data-panel-state="not_found" state="empty" heading="הקומה או האזור לא נמצאו" hint="ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך."></sw-state-panel>`;
+    if (this.notFound) return html`<sw-state-panel icon="grid" data-panel-state="not_found" state="empty" heading=${tr('הקומה או האזור לא נמצאו')} hint=${tr('ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך.')}></sw-state-panel>`;
     if (!this.data) {
       return this.error
-        ? html`<sw-state-panel data-panel-state="error" state="error" heading="לא ניתן לטעון את הרשימה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
+        ? html`<sw-state-panel data-panel-state="error" state="error" heading=${tr('לא ניתן לטעון את הרשימה')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`;
     }
     const d = this.view()!;
     const c = d.counts;
     const n: Record<ItemsFilter, number> = { all: c.total, active: c.active, inactive: c.inactive, unavailable: c.unavailable };
-    const label: Record<ItemsFilter, string> = { all: 'הכול', active: m.active, inactive: m.inactive, unavailable: m.unavailable };
+    const label: Record<ItemsFilter, string> = { all: tr('הכול'), active: m.active, inactive: m.inactive, unavailable: m.unavailable };
     const q = this.q.trim().toLowerCase();
     const match = (r: DeviceItem) => (this.filter === 'all' || rowState(r) === this.filter) && (!q || `${r.name} ${r.area_name} ${r.floor_name ?? ''} ${r.entity_id}`.toLowerCase().includes(q));
     const floors = d.floors
@@ -738,20 +742,20 @@ export class DevicesTilesPanel extends LitElement {
     const shown = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
     const narrowed = this.filter !== 'all' || !!q || !!this.areaFilter;
     return html`<div class="top">
-        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ‹</a>` : nothing}
+        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>${tr('פתח במסך האזעקה')} ‹</a>` : nothing}
         <div class="ctlbar">
-          <div class="seg" role="group" aria-label="סינון">
+          <div class="seg" role="group" aria-label=${tr('סינון')}>
             ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
           </div>
           ${bulkOk && this.bulkHold ? this.renderHeld() : bulkOk ? this.renderMaster(shown, narrowed, this.headingText ? this.scopeName : d.name) : this.pairedMaster && m.master && 'on' in m.master ? this.renderPairedOff() : nothing}
           ${this.kind === 'locks' ? this.renderLockAllButton(shown) : nothing}
         </div>
-        <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${`חיפוש ב${m.noun}…`} aria-label=${`חיפוש ב${m.noun}`} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
+        <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${tr('חיפוש ב{noun}…', { noun: m.noun })} aria-label=${tr('חיפוש ב{noun}', { noun: m.noun })} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       </div>
       ${!c.total
-        ? html`<sw-state-panel icon="grid" data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? this.buildingWord() : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
+        ? html`<sw-state-panel icon="grid" data-panel-state="empty" state="empty" heading=${tr('אין {noun} {where}', { noun: m.noun, where: this.scope === 'building' ? this.buildingWord() : scopeWhere(this.scope, d.name) })} hint=${d.scoped ? tr('רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.') : m.emptyHint}></sw-state-panel>`
         : !floors.length
-          ? html`<sw-state-panel icon="filter" data-panel-state="no_match" state="empty" heading="אין פריטים שמתאימים לסינון" hint=${q ? 'נסו חיפוש אחר, או בחרו "הכול".' : 'בחרו "הכול" כדי לראות את כל הפריטים.'}></sw-state-panel>`
+          ? html`<sw-state-panel icon="filter" data-panel-state="no_match" state="empty" heading=${tr('אין פריטים שמתאימים לסינון')} hint=${q ? tr('נסו חיפוש אחר, או בחרו "הכול".') : tr('בחרו "הכול" כדי לראות את כל הפריטים.')}></sw-state-panel>`
           : repeat(
               floors,
               (f) => f.floor_id,
@@ -767,7 +771,7 @@ export class DevicesTilesPanel extends LitElement {
                 )}
               </section>`,
             )}
-      ${d.truncated ? html`<div class="note" data-panel-truncated>מוצגים 500 פריטים מתוך ${ltrNum(c.total)}; צמצמו בעזרת הסינון, החיפוש או קומה אחת.</div>` : nothing}
+      ${d.truncated ? html`<div class="note" data-panel-truncated>${tr('מוצגים 500 פריטים מתוך {total}; צמצמו בעזרת הסינון, החיפוש או קומה אחת.', { total: ltrNum(c.total) })}</div>` : nothing}
       ${bulkOk ? html`<devices-bulk-dialog .building=${this.building} @bulk-done=${() => this.changed()}></devices-bulk-dialog>` : nothing}
       ${this.kind === 'locks' ? html`${this.renderUnlockDialog()}${this.renderLockAllDialog()}` : nothing}`;
   }
@@ -785,7 +789,7 @@ export class DevicesTilesPanel extends LitElement {
     const avail = shown.filter((r) => rowState(r) !== 'unavailable' && r.can_control && !r.bulk_excluded);
     const on = avail.filter((r) => rowState(r) === 'active').length;
     // owner 2026-09-30: nothing about eligibility on the screen - the reason lives in the disabled button's tooltip only
-    const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות ‹ חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות ‹ חשמל';
+    const none = this.kind === 'switches' ? tr('כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות ‹ חשמל והתקנים') : tr('אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות ‹ חשמל');
     const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only, ...(this.kind === 'lights' && this.switches === 'all' ? { switches: 'all' as const } : {}) });
     if ('open' in master) {
       return html`<div class="master-group" data-panel-master="covers">
@@ -797,14 +801,14 @@ export class DevicesTilesPanel extends LitElement {
       // SWITCH-LIGHT-DIMMER-2331: the floor lights popup - two labelled actions; each opens the same confirmation (the count, then the result per device)
       const off = avail.length - on;
       return html`<div class="master-group paired" data-panel-master=${this.kind} data-paired>
-        <sw-button size="sm" icon="power" data-master=${master.on} ?disabled=${!avail.length || !off} title=${avail.length ? master.onLabel : none} @click=${() => ask(master.on)}>הדלק הכל</sw-button>
-        <sw-button size="sm" icon="power" variant="ghost" data-master=${master.off} ?disabled=${!avail.length || !on} title=${avail.length ? master.offLabel : none} @click=${() => ask(master.off)}>כבה הכל</sw-button>
+        <sw-button size="sm" icon="power" data-master=${master.on} ?disabled=${!avail.length || !off} title=${avail.length ? master.onLabel : none} @click=${() => ask(master.on)}>${tr('הדלק הכל')}</sw-button>
+        <sw-button size="sm" icon="power" variant="ghost" data-master=${master.off} ?disabled=${!avail.length || !on} title=${avail.length ? master.offLabel : none} @click=${() => ask(master.off)}>${tr('כבה הכל')}</sw-button>
       </div>`;
     }
     const state = on === 0 ? 'off' : on === avail.length ? 'on' : 'mixed';
     const words = !avail.length ? none : on ? master.offLabel : master.onLabel;
     return html`<button type="button" class="master" data-panel-master=${this.kind} data-master=${on ? master.off : master.on} data-state=${state} aria-pressed=${String(on > 0)}
-      aria-label=${state === 'mixed' ? `${words} (${on} מתוך ${avail.length} פעילים)` : words} title=${words} ?disabled=${!avail.length} @click=${() => ask(on ? master.off : master.on)}>
+      aria-label=${state === 'mixed' ? `${words} (${tr('{on} מתוך {total} פעילים', { on, total: avail.length })})` : words} title=${words} ?disabled=${!avail.length} @click=${() => ask(on ? master.off : master.on)}>
       <sw-icon name="power" size=${20}></sw-icon>${state === 'mixed' ? html`<span class="badge" data-master-badge aria-hidden="true">${ltrNum(on)}</span>` : nothing}
     </button>`;
   }
@@ -819,10 +823,10 @@ export class DevicesTilesPanel extends LitElement {
   /** SWITCH-LIGHT-DIMMER-2331: the two labelled actions without bulk control here (the demo, or no devices.control_bulk in this scope):
    * shown disabled, the reason in the tooltip - the popup looks the same for everyone, nothing is offered that the server would refuse. */
   private renderPairedOff() {
-    const why = !isApi() ? 'נתוני הדגמה - אין שליטה בהתקנים' : 'אין לך הרשאה לפעולות מרוכזות בהיקף הזה';
+    const why = !isApi() ? tr('נתוני הדגמה - אין שליטה בהתקנים') : tr('אין לך הרשאה לפעולות מרוכזות בהיקף הזה');
     return html`<div class="master-group paired" data-panel-master=${this.kind} data-paired data-paired-off>
-      <sw-button size="sm" icon="power" disabled title=${why} data-master="lights_on">הדלק הכל</sw-button>
-      <sw-button size="sm" icon="power" variant="ghost" disabled title=${why} data-master="lights_off">כבה הכל</sw-button>
+      <sw-button size="sm" icon="power" disabled title=${why} data-master="lights_on">${tr('הדלק הכל')}</sw-button>
+      <sw-button size="sm" icon="power" variant="ghost" disabled title=${why} data-master="lights_off">${tr('כבה הכל')}</sw-button>
     </div>`;
   }
 
@@ -841,8 +845,8 @@ export class DevicesTilesPanel extends LitElement {
     const mine = shown.filter((r) => r.can_control && rowState(r) !== 'unavailable');
     if (!isApi() || !mine.length) return nothing;
     const { sendable: open, skipped } = splitLockAll(mine); // CR-033 D6: a WisKey door is never sent lock.lock
-    const words = 'נעל את כל המנעולים';
-    return html`<button type="button" class="master" data-panel-master="locks" data-master="lock_all" aria-label=${open.length ? `${words} (${open.length} לא נעולים)` : `${words} - כולם נעולים`} title=${words} ?disabled=${!open.length && !skipped.length}
+    const words = tr('נעל את כל המנעולים');
+    return html`<button type="button" class="master" data-panel-master="locks" data-master="lock_all" aria-label=${open.length ? `${words} (${tr('{n} לא נעולים', { n: open.length })})` : `${words} - ${tr('כולם נעולים')}`} title=${words} ?disabled=${!open.length && !skipped.length}
       @click=${() => (this.lockAll = { rows: open, skipped, step: 'confirm', out: {} })}>
       <sw-icon name="lock" size=${20}></sw-icon>${open.length ? html`<span class="badge" aria-hidden="true">${ltrNum(open.length)}</span>` : nothing}
     </button>`;
@@ -858,7 +862,7 @@ export class DevicesTilesPanel extends LitElement {
       await runCommand(key, 'lock', r.entity_id, 'lock.lock', {}, 'locked', (s) => {
         this.ctl.setCmd(key, s);
         if (this.lockAll) this.lockAll = { ...this.lockAll, out: { ...this.lockAll.out, [r.entity_id]: s.phase } };
-      }, { label: 'נעילה', building: this.building });
+      }, { label: tr('נעילה'), building: this.building });
     }
     if (this.lockAll) this.lockAll = { ...this.lockAll, step: 'done' };
     this.changed();
@@ -867,19 +871,19 @@ export class DevicesTilesPanel extends LitElement {
   private renderLockAllDialog() {
     const la = this.lockAll;
     if (!la) return html`<sw-dialog data-lock-all-dialog="closed"></sw-dialog>`;
-    const word: Record<CommandPhase, string> = { pending: 'ממתין לאישור', confirmed: 'ננעל', sent: 'נשלח', rolled_back: 'לא ננעל' };
+    const word: Record<CommandPhase, string> = { pending: tr('ממתין לאישור'), confirmed: tr('ננעל'), sent: tr('נשלח'), rolled_back: tr('לא ננעל') };
     const done = Object.values(la.out).filter((x) => x === 'confirmed').length;
-    return html`<sw-dialog open ?locked=${la.step === 'running'} data-lock-all-dialog=${la.step} heading="נעילת מנעולים" subheading="כל מנעול ננעל בפעולה נפרדת, אחד אחרי השני" @close=${() => la.step !== 'running' && (this.lockAll = null)}>
-      <div class="unlock-what" data-lock-all-question>${la.step === 'confirm' ? lockAllQuestion(la.rows.length, la.skipped.length) : `ננעלו ${done} מתוך ${la.rows.length}`}</div>
-      ${la.skipped.length ? html`<div class="unlock-what" data-lock-all-skipped role="note">${skippedText(la.skipped.length)}<ul class="la-list">${la.skipped.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome="not_relevant">${bidi(r.name)} <span class="note">· ${bidi(r.area_name)} · לא רלוונטי</span></li>`)}</ul></div>` : nothing}
-      <details ?open=${la.step !== 'confirm'}><summary>רשימת המנעולים</summary>
+    return html`<sw-dialog open ?locked=${la.step === 'running'} data-lock-all-dialog=${la.step} heading=${tr('נעילת מנעולים')} subheading=${tr('כל מנעול ננעל בפעולה נפרדת, אחד אחרי השני')} @close=${() => la.step !== 'running' && (this.lockAll = null)}>
+      <div class="unlock-what" data-lock-all-question>${la.step === 'confirm' ? lockAllQuestion(la.rows.length, la.skipped.length) : tr('ננעלו {done} מתוך {total}', { done, total: la.rows.length })}</div>
+      ${la.skipped.length ? html`<div class="unlock-what" data-lock-all-skipped role="note">${skippedText(la.skipped.length)}<ul class="la-list">${la.skipped.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome="not_relevant">${bidi(r.name)} <span class="note">· ${bidi(r.area_name)} · ${tr('לא רלוונטי')}</span></li>`)}</ul></div>` : nothing}
+      <details ?open=${la.step !== 'confirm'}><summary>${tr('רשימת המנעולים')}</summary>
         <ul class="la-list">${la.rows.map((r) => html`<li data-lock-all-item=${r.entity_id} data-outcome=${la.out[r.entity_id] ?? ''}>${bidi(r.name)} <span class="note">· ${bidi(r.area_name)}${la.out[r.entity_id] ? ` · ${word[la.out[r.entity_id]]}` : ''}</span></li>`)}</ul>
       </details>
       <div class="unlock-actions">
         ${la.step === 'confirm'
-          ? html`<sw-button data-lock-all-cancel autofocus @click=${() => (this.lockAll = null)}>ביטול</sw-button>
-              ${la.rows.length ? html`<sw-button data-lock-all-confirm variant="primary" icon="lock" @click=${() => void this.runLockAll()}>נעל (${ltrNum(la.rows.length)})</sw-button>` : nothing}`
-          : html`<sw-button data-lock-all-close ?disabled=${la.step === 'running'} @click=${() => (this.lockAll = null)}>סגור</sw-button>`}
+          ? html`<sw-button data-lock-all-cancel autofocus @click=${() => (this.lockAll = null)}>${tr('ביטול')}</sw-button>
+              ${la.rows.length ? html`<sw-button data-lock-all-confirm variant="primary" icon="lock" @click=${() => void this.runLockAll()}>${tr('נעל ({n})', { n: ltrNum(la.rows.length) })}</sw-button>` : nothing}`
+          : html`<sw-button data-lock-all-close ?disabled=${la.step === 'running'} @click=${() => (this.lockAll = null)}>${tr('סגור')}</sw-button>`}
       </div>
     </sw-dialog>`;
   }
@@ -893,7 +897,7 @@ export class DevicesTilesPanel extends LitElement {
     const on = st === 'active' && this.kind !== 'locks' && this.kind !== 'alarm';
     const m = KIND_META[this.kind];
     const icon: IconName = this.kind === 'locks' ? (r.locked ? 'lock' : 'unlock') : m.icon;
-    const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? 'לא זמין' : (ALARM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע')) : this.kind === 'locks' ? (st === 'unavailable' ? 'לא זמין' : r.locked ? 'נעול' : r.state === 'unlocked' ? 'לא נעול' : (r.state ?? 'לא ידוע')) : (this.kind === 'climate' || this.kind === 'heating') && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${ltrNum(r.target_temperature)}°` : ''}` : rowLabel(r);
+    const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? tr('לא זמין') : (ALARM_HE[r.state ?? ''] ?? r.state ?? tr('לא ידוע'))) : this.kind === 'locks' ? (st === 'unavailable' ? tr('לא זמין') : r.locked ? tr('נעול') : r.state === 'unlocked' ? tr('לא נעול') : (r.state ?? tr('לא ידוע'))) : (this.kind === 'climate' || this.kind === 'heating') && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · ${tr('יעד {temp}°', { temp: ltrNum(r.target_temperature) })}` : ''}` : rowLabel(r);
     const toggleKinds = this.kind === 'lights' || this.kind === 'switches';
     const dimmable = this.kind === 'lights' && isDimmable(r) && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
     return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPendingVisible(r.entity_id) })}
@@ -907,7 +911,7 @@ export class DevicesTilesPanel extends LitElement {
         ${controllable && toggleKinds ? this.ctl.renderPowerToggle(r) : nothing}
         ${controllable && this.kind === 'locks' ? this.ctl.renderLockControls(r, (row) => (this.unlocking = row as DeviceItem)) : nothing}
         ${!controllable
-          ? html`<button type="button" class="ro" data-readonly title=${reason} aria-expanded=${String(this.why === r.entity_id)} aria-label=${`לקריאה בלבד: ${reason}`} @click=${() => (this.why = this.why === r.entity_id ? null : r.entity_id)}><sw-icon name="info" size=${12}></sw-icon>לקריאה בלבד</button>`
+          ? html`<button type="button" class="ro" data-readonly title=${reason} aria-expanded=${String(this.why === r.entity_id)} aria-label=${tr('לקריאה בלבד: {reason}', { reason })} @click=${() => (this.why = this.why === r.entity_id ? null : r.entity_id)}><sw-icon name="info" size=${12}></sw-icon>${tr('לקריאה בלבד')}</button>`
           : nothing}
       </div>
       ${!controllable && this.why === r.entity_id ? html`<div class="why" data-readonly-why role="note">${reason}</div>` : nothing}
@@ -924,15 +928,15 @@ export class DevicesTilesPanel extends LitElement {
   private renderUnlockDialog() {
     const r = this.unlocking;
     if (!r) return html`<sw-dialog data-unlock-dialog="closed"></sw-dialog>`;
-    return html`<sw-dialog open data-unlock-dialog="open" heading="פתיחת מנעול" subheading=${`${r.name} · ${r.area_name}`} @close=${() => (this.unlocking = null)}>
-      <div class="unlock-what">לפתוח את <b>${bidi(r.name)}</b> (${bidi(r.area_name)})? הדלת תישאר לא נעולה עד שתינעל שוב.</div>
+    return html`<sw-dialog open data-unlock-dialog="open" heading=${tr('פתיחת מנעול')} subheading=${`${r.name} · ${r.area_name}`} @close=${() => (this.unlocking = null)}>
+      <div class="unlock-what">${tr('לפתוח את')} <b>${bidi(r.name)}</b> (${bidi(r.area_name)})? ${tr('הדלת תישאר לא נעולה עד שתינעל שוב.')}</div>
       <div class="unlock-actions">
-        <sw-button data-unlock-cancel autofocus @click=${() => (this.unlocking = null)}>ביטול</sw-button>
+        <sw-button data-unlock-cancel autofocus @click=${() => (this.unlocking = null)}>${tr('ביטול')}</sw-button>
         <sw-button data-unlock-confirm variant="danger" icon="unlock" @click=${() => {
           const row = this.unlocking;
           this.unlocking = null;
           if (row) this.ctl.runUnlock(row);
-        }}>פתח את המנעול</sw-button>
+        }}>${tr('פתח את המנעול')}</sw-button>
       </div>
     </sw-dialog>`;
   }

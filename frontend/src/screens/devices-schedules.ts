@@ -23,6 +23,7 @@ import type { ItemKind } from '../api/automations';
 import { SEGMENTS, itemPath } from './automations-logic';
 import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
+import { tr } from '../i18n/msg/devices';
 import { onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { DEMO_SUN } from '../api/schedules-mock';
@@ -98,7 +99,7 @@ interface Note {
 }
 
 const VIEW_ICON: Record<ListView, AutomationIconName> = { rows: 'rows', cards: 'grid', table: 'list', week: 'calendar' };
-const VIEW_LABEL: Record<ListView, () => string> = { rows: () => pl('rows'), cards: () => 'כרטיסים', table: () => 'טבלה', week: () => 'שבוע' };
+const VIEW_LABEL: Record<ListView, () => string> = { rows: () => pl('rows'), cards: () => tr('כרטיסים'), table: () => tr('טבלה'), week: () => tr('שבוע') };
 const VIEWS: ListView[] = ['rows', 'cards', 'table', 'week'];
 
 /** POLISH-295: the minutes since local midnight of an instant, as a share of the day (the "today" timeline). */
@@ -1200,7 +1201,7 @@ export class DevicesSchedules extends LitElement {
     window.addEventListener('pointerdown', this.onOutside, true);
     window.addEventListener('keydown', this.onKey);
     // the trash is in the user menu, as on the automations screen (screen-edit.ts)
-    this.offEdit = registerScreenEdit({ id: 'schedules-trash', label: 'סל מחזור', icon: 'trash', can: () => screenState(this.status).kind === 'ready' && this.sub !== 'trash', run: () => this.go('trash') });
+    this.offEdit = registerScreenEdit({ id: 'schedules-trash', label: tr('סל מחזור'), icon: 'trash', can: () => screenState(this.status).kind === 'ready' && this.sub !== 'trash', run: () => this.go('trash') });
     const stored = readStored<Partial<ListFilters>>(FILTERS_KEY);
     // POLISH-295: the choice is written as JSON (writeStored); reading it raw never matched, so the browser's view was never remembered
     const storedView = parseView(readStored<string>(VIEW_KEY)) ?? parseView(store()?.getItem(VIEW_KEY) ?? null);
@@ -1476,7 +1477,7 @@ export class DevicesSchedules extends LitElement {
     this.items = (this.items ?? []).filter((s) => s.id !== scheduleId);
     if (this.sub === scheduleId) this.go('');
     void this.refreshStatusOnly();
-    this.say(`"${name}" נמחק`, 'ok', { label: 'שחזור', run: () => void this.restore(trashId) });
+    this.say(tr('"{name}" נמחק', { name }), 'ok', { label: tr('שחזור'), run: () => void this.restore(trashId) });
   };
 
   private onCopied = (e: CustomEvent<{ schedule: Schedule }>) => {
@@ -1491,7 +1492,7 @@ export class DevicesSchedules extends LitElement {
   private async restore(trashId: string, item?: TrashItem) {
     try {
       const r = await restoreFromTrash(trashId);
-      this.say(`"${r.schedule.display_name}" שוחזר`, 'ok', { label: 'פתיחה', run: () => this.go(r.schedule.id) });
+      this.say(tr('"{name}" שוחזר', { name: r.schedule.display_name }), 'ok', { label: tr('פתיחה'), run: () => this.go(r.schedule.id) });
       await this.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'lowering_confirmation_required' && item) {
@@ -1513,7 +1514,7 @@ export class DevicesSchedules extends LitElement {
     try {
       const r = await restoreFromTrash(item.trash_id, { confirm_lowering: true, alarm_code: e.detail?.alarm_code ?? null });
       this.trashLowering = null;
-      this.say(`"${r.schedule.display_name}" שוחזר`, 'ok', { label: 'פתיחה', run: () => this.go(r.schedule.id) });
+      this.say(tr('"{name}" שוחזר', { name: r.schedule.display_name }), 'ok', { label: tr('פתיחה'), run: () => this.go(r.schedule.id) });
       await this.refresh();
     } catch (err) {
       this.trashLowering = null;
@@ -1560,7 +1561,7 @@ export class DevicesSchedules extends LitElement {
     const eligible = togglable(picked).filter((s) => (op === 'disable' ? s.enabled : !s.enabled)).filter((s) => op === 'disable' || !s.lowering);
     const skippedLowering = op === 'enable' ? picked.filter((s) => s.lowering && !s.enabled).length : 0;
     if (!eligible.length) {
-      this.say(skippedLowering ? 'תזמונים שפותחים או מנטרלים מופעלים אחד־אחד' : 'אין בבחירה תזמונים לשינוי', 'error');
+      this.say(skippedLowering ? tr('תזמונים שפותחים או מנטרלים מופעלים אחד־אחד') : tr('אין בבחירה תזמונים לשינוי'), 'error');
       return;
     }
     this.busy = true;
@@ -1568,8 +1569,8 @@ export class DevicesSchedules extends LitElement {
       const r = await bulkSchedules(op, eligible.map((s) => s.id));
       const ok = r.results.filter((x) => x.ok).length;
       const bad = r.results.length - ok;
-      const verb = op === 'enable' ? 'הופעלו' : 'הושבתו';
-      this.say(bad ? `${verb} ${ok}; ${bad} לא שונו` : `${verb} ${ok}${skippedLowering ? `; ${skippedLowering} מופעלים אחד־אחד` : ''}`, bad ? 'error' : 'ok');
+      const done = op === 'enable' ? tr('הופעלו {n}', { n: ok }) : tr('הושבתו {n}', { n: ok });
+      this.say(bad ? `${done}; ${tr('{n} לא שונו', { n: bad })}` : `${done}${skippedLowering ? `; ${tr('{n} מופעלים אחד־אחד', { n: skippedLowering })}` : ''}`, bad ? 'error' : 'ok');
       this.selected = new Set();
     } catch (err) {
       this.say(scheduleErrorText(err), 'error');
@@ -1584,7 +1585,7 @@ export class DevicesSchedules extends LitElement {
     this.busy = true;
     try {
       await acknowledgeScheduleIssue(scheduleId, issue, undo);
-      this.say(undo ? 'האזהרה הוחזרה' : 'סומן כתקין');
+      this.say(undo ? tr('האזהרה הוחזרה') : tr('סומן כתקין'));
     } catch (err) {
       this.say(scheduleErrorText(err), 'error');
     } finally {
@@ -1601,7 +1602,7 @@ export class DevicesSchedules extends LitElement {
     try {
       const r = await bulkSchedules('disable', picked.map((s) => s.id));
       const ok = r.results.filter((x) => x.ok).length;
-      this.say(`הושבתו ${ok}`, ok === r.results.length ? 'ok' : 'error');
+      this.say(tr('הושבתו {n}', { n: ok }), ok === r.results.length ? 'ok' : 'error');
       this.reviewSel = new Set();
     } catch (err) {
       this.say(scheduleErrorText(err), 'error');
@@ -1619,7 +1620,7 @@ export class DevicesSchedules extends LitElement {
     try {
       await purgeTrash(item.trash_id);
       this.purging = null;
-      this.say(`"${item.name || 'תזמון ללא שם'}" נמחק לצמיתות`);
+      this.say(tr('"{name}" נמחק לצמיתות', { name: item.name || tr('תזמון ללא שם') }));
     } catch (err) {
       this.purging = null;
       this.say(scheduleErrorText(err), 'error');
@@ -1655,8 +1656,8 @@ export class DevicesSchedules extends LitElement {
     const sc = stateCounts(all);
     // POLISH-295: "דורשים בדיקה" is a quiet chip beside the state filter (an administrator's), not a banner across the screen
     const attention = scr.admin ? this.status?.counts.attention ?? 0 : 0;
-    const rooms = tools && floors.length ? html`<div class="rooms" role="group" aria-label="קומות">
-          <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
+    const rooms = tools && floors.length ? html`<div class="rooms" role="group" aria-label=${tr('קומות')}>
+          <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>${tr('הכל')}</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
         </div>` : nothing;
     return html`${!this.phone ? html`<div class="dh-row hdact" slot="actions">${rooms}${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
@@ -1664,13 +1665,13 @@ export class DevicesSchedules extends LitElement {
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
-        ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
         ${attention ? html`<button type="button" class="rc attn" data-open-review data-sched-attention @click=${() => this.go('review')}><i class="wdot" aria-hidden="true"></i>${pl('review')}<small>${attention}</small></button>` : nothing}
-        ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-label="סינון" title="סינון" aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">סינון</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
+        ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-label=${tr('סינון')} title=${tr('סינון')} aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">${tr('סינון')}</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
         ${all.length && this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
-        ${all.length ? html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-filter="q" placeholder=${this.phone ? 'חיפוש' : 'חיפוש תזמון, התקן או תג'} .value=${live(f.q)} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>` : nothing}
-        ${manage ? html`<button type="button" class="btn primary newbtn" data-new-schedule ?disabled=${scr.readOnly} title=${scr.readOnly ? scr.readOnlyText : ''} @click=${() => this.newSchedule()}>${aIcon('plus')}<span class="lbl">חדש</span></button>` : nothing}
+        ${all.length ? html`<label class="search">${aIcon('search')}<span class="sr-only">${tr('חיפוש')}</span><input type="search" data-filter="q" placeholder=${this.phone ? tr('חיפוש') : tr('חיפוש תזמון, התקן או תג')} .value=${live(f.q)} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>` : nothing}
+        ${manage ? html`<button type="button" class="btn primary newbtn" data-new-schedule ?disabled=${scr.readOnly} title=${scr.readOnly ? scr.readOnlyText : ''} @click=${() => this.newSchedule()}>${aIcon('plus')}<span class="lbl">${tr('חדש')}</span></button>` : nothing}
         ${all.length && this.filtersOpen ? this.renderMoreFilters(all) : nothing}
       </div>` : nothing}
     </header>`;
@@ -1678,7 +1679,7 @@ export class DevicesSchedules extends LitElement {
 
   /** Cards · table · week: the view switch sits where the media pages keep their floor menu (the end of the title row). */
   private viewSwitch(): TemplateResult {
-    return html`<div class="seg sm views" role="group" aria-label="תצוגה">${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+    return html`<div class="seg sm views" role="group" aria-label=${tr('תצוגה')}>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
   }
 
   /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */
@@ -1686,8 +1687,8 @@ export class DevicesSchedules extends LitElement {
     const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
     if (!others.length) return nothing;
     const n = this.status?.counts.visible;
-    return html`<div class="seg kinds" role="tablist" aria-label="קברניט" data-kavarnit-segments @keydown=${tablistKeydown}>
-      <button type="button" role="tab" aria-selected="true" data-segment="schedules">תזמונים${n === undefined ? nothing : html` <small>${n}</small>`}</button>
+    return html`<div class="seg kinds" role="tablist" aria-label=${tr('קברניט')} data-kavarnit-segments @keydown=${tablistKeydown}>
+      <button type="button" role="tab" aria-selected="true" data-segment="schedules">${tr('תזמונים')}${n === undefined ? nothing : html` <small>${n}</small>`}</button>
       ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
     </div>`;
   }
@@ -1707,16 +1708,16 @@ export class DevicesSchedules extends LitElement {
     const anyCond = items.some((s) => s.conditions.items.length);
     const opts = (all: string, list: { value: string; label: string }[]): DropdownItem[] => [{ id: '', label: all }, ...list.map((o) => ({ id: o.value, label: o.label }))];
     return html`<div class="more" data-sched-filters>
-      ${areas.length > 1 ? this.dd('area', 'כל האזורים', f.area, opts('כל האזורים', areas), (v) => this.setFilter({ area: v })) : nothing}
-      <span class="days" role="group" aria-label="ימים">${DAY_ORDER.map((d) => html`<button type="button" class="rc day" data-day-filter=${d} aria-pressed=${String(f.day === d)} aria-label=${`יום ${DAY_SHORT[d]}`} @click=${() => this.setFilter({ day: f.day === d ? '' : (d as DayId) })}>${DAY_SHORT[d]}</button>`)}</span>
-      ${sensor || anyPreset ? html`<button type="button" class="rc" data-chip-preset="only_holy_days" aria-pressed=${String(f.preset === 'only_holy_days')} @click=${() => this.setFilter({ preset: f.preset === 'only_holy_days' ? '' : 'only_holy_days' })}>רק בשבת ובחג</button><button type="button" class="rc" data-chip-preset="not_holy_days" aria-pressed=${String(f.preset === 'not_holy_days')} @click=${() => this.setFilter({ preset: f.preset === 'not_holy_days' ? '' : 'not_holy_days' })}>לא בשבת ובחג</button>` : nothing}
-      ${anyCond ? html`<button type="button" class="rc" data-chip-has-cond aria-pressed=${String(f.hasConditions)} @click=${() => this.setFilter({ hasConditions: !f.hasConditions })}>עם תנאי</button>` : nothing}
-      ${conds.length > 1 ? this.dd('condition', 'כל התנאים', f.condition, opts('כל התנאים', conds), (v) => this.setFilter({ condition: v })) : nothing}
+      ${areas.length > 1 ? this.dd('area', tr('כל האזורים'), f.area, opts(tr('כל האזורים'), areas), (v) => this.setFilter({ area: v })) : nothing}
+      <span class="days" role="group" aria-label=${tr('ימים')}>${DAY_ORDER.map((d) => html`<button type="button" class="rc day" data-day-filter=${d} aria-pressed=${String(f.day === d)} aria-label=${tr('יום {day}', { day: DAY_SHORT[d] })} @click=${() => this.setFilter({ day: f.day === d ? '' : (d as DayId) })}>${DAY_SHORT[d]}</button>`)}</span>
+      ${sensor || anyPreset ? html`<button type="button" class="rc" data-chip-preset="only_holy_days" aria-pressed=${String(f.preset === 'only_holy_days')} @click=${() => this.setFilter({ preset: f.preset === 'only_holy_days' ? '' : 'only_holy_days' })}>${tr('רק בשבת ובחג')}</button><button type="button" class="rc" data-chip-preset="not_holy_days" aria-pressed=${String(f.preset === 'not_holy_days')} @click=${() => this.setFilter({ preset: f.preset === 'not_holy_days' ? '' : 'not_holy_days' })}>${tr('לא בשבת ובחג')}</button>` : nothing}
+      ${anyCond ? html`<button type="button" class="rc" data-chip-has-cond aria-pressed=${String(f.hasConditions)} @click=${() => this.setFilter({ hasConditions: !f.hasConditions })}>${tr('עם תנאי')}</button>` : nothing}
+      ${conds.length > 1 ? this.dd('condition', tr('כל התנאים'), f.condition, opts(tr('כל התנאים'), conds), (v) => this.setFilter({ condition: v })) : nothing}
       ${tags.length ? html`<span class="sep" aria-hidden="true"></span>${tags.map((t) => html`<button type="button" class="rc" data-chip-tag=${t.value} aria-pressed=${String(f.tag === t.value)} @click=${() => this.setFilter({ tag: f.tag === t.value ? '' : t.value })}>${bidi(t.label)}</button>`)}` : nothing}
       <span class="sep" aria-hidden="true"></span>
-      ${this.dd('group', 'ללא קיבוץ', f.group, [{ id: '', label: 'ללא קיבוץ' }, { id: 'area', label: 'לפי אזור' }, { id: 'floor', label: 'לפי קומה' }, { id: 'tag', label: 'לפי תג' }, { id: 'state', label: 'לפי מצב' }], (v) => this.setFilter({ group: v as ListGroup }))}
-      ${this.dd('sort', 'מיון: הרצה הבאה', f.sort, [{ id: 'next_run', label: 'מיון: הרצה הבאה' }, { id: 'name', label: 'מיון: שם' }, { id: 'order', label: 'מיון: סדר ידני' }, { id: 'updated', label: 'מיון: עודכן לאחרונה' }], (v) => this.setFilter({ sort: (v || 'next_run') as ListSort }))}
-      ${activeFilterCount(f) ? html`<button type="button" class="btn sm quiet" data-clear-filters @click=${() => this.clearFilters()}>נקה סינון</button>` : nothing}
+      ${this.dd('group', tr('ללא קיבוץ'), f.group, [{ id: '', label: tr('ללא קיבוץ') }, { id: 'area', label: tr('לפי אזור') }, { id: 'floor', label: tr('לפי קומה') }, { id: 'tag', label: tr('לפי תג') }, { id: 'state', label: tr('לפי מצב') }], (v) => this.setFilter({ group: v as ListGroup }))}
+      ${this.dd('sort', tr('מיון: הרצה הבאה'), f.sort, [{ id: 'next_run', label: tr('מיון: הרצה הבאה') }, { id: 'name', label: tr('מיון: שם') }, { id: 'order', label: tr('מיון: סדר ידני') }, { id: 'updated', label: tr('מיון: עודכן לאחרונה') }], (v) => this.setFilter({ sort: (v || 'next_run') as ListSort }))}
+      ${activeFilterCount(f) ? html`<button type="button" class="btn sm quiet" data-clear-filters @click=${() => this.clearFilters()}>${tr('נקה סינון')}</button>` : nothing}
     </div>`;
   }
 
@@ -1737,7 +1738,7 @@ export class DevicesSchedules extends LitElement {
     const blocked = st.readOnly && !!this.status?.can.manage;
     if (!st.stale && !blocked) return nothing;
     return html`<div class="stack">
-      ${st.stale ? html`<div class="banner warn" role="status" data-sched-stale>${aIcon('wifiOff')}<div>${STALE_TEXT}</div><button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh(true)}>${aIcon('refresh')}נסו שוב</button></div>` : nothing}
+      ${st.stale ? html`<div class="banner warn" role="status" data-sched-stale>${aIcon('wifiOff')}<div>${STALE_TEXT}</div><button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh(true)}>${aIcon('refresh')}${tr('נסו שוב')}</button></div>` : nothing}
       ${blocked ? html`<div class="banner info" role="status" data-sched-readonly>${aIcon('lock')}<div>${st.readOnlyText}</div></div>` : nothing}
     </div>`;
   }
@@ -1750,15 +1751,15 @@ export class DevicesSchedules extends LitElement {
     const now = dayShare(new Date());
     const next = ups[0];
     const hours = [0, 6, 12, 18, 24];
-    return html`<div class="upnext glass" data-sched-upnext role="group" aria-label="ההרצות הבאות היום">
-      <b>היום</b>
+    return html`<div class="upnext glass" data-sched-upnext role="group" aria-label=${tr('ההרצות הבאות היום')}>
+      <b>${tr('היום')}</b>
       <div class="tl">
         <span class="track" aria-hidden="true"><span class="past" style=${`inline-size:${(now * 100).toFixed(2)}%`}></span></span>
         <span class="now" aria-hidden="true" style=${`left:${(now * 100).toFixed(2)}%`}></span>
         ${hours.map((h) => html`<span class=${`hr${h === 0 ? ' h0' : h === 24 ? ' h24' : ''}`} aria-hidden="true" style=${`left:${(h / 24) * 100}%`}>${String(h).padStart(2, '0')}</span>`)}
-        ${ups.map((u) => html`<span class=${`tdot${u === next ? ' nx' : ''}`} aria-hidden="true" data-upcoming=${u.scheduleId} style=${`left:${(dayShare(new Date(u.at)) * 100).toFixed(2)}%;--c:${toneColor(u.tone)}`} title=${`${u.time} · ${u.name}${u.conditional ? ' · בתנאי' : ''}`}></span>`)}
+        ${ups.map((u) => html`<span class=${`tdot${u === next ? ' nx' : ''}`} aria-hidden="true" data-upcoming=${u.scheduleId} style=${`left:${(dayShare(new Date(u.at)) * 100).toFixed(2)}%;--c:${toneColor(u.tone)}`} title=${`${u.time} · ${u.name}${u.conditional ? ` · ${tr('בתנאי')}` : ''}`}></span>`)}
       </div>
-      <a class="up" href=${this.href(next.scheduleId)} data-upcoming-next=${next.scheduleId}><time class="n">${next.time}</time><span class="nm">${bidi(next.name)}</span>${next.conditional ? html`<span class="what">· בתנאי</span>` : nothing}</a>
+      <a class="up" href=${this.href(next.scheduleId)} data-upcoming-next=${next.scheduleId}><time class="n">${next.time}</time><span class="nm">${bidi(next.name)}</span>${next.conditional ? html`<span class="what">· ${tr('בתנאי')}</span>` : nothing}</a>
     </div>`;
   }
 
@@ -1766,25 +1767,25 @@ export class DevicesSchedules extends LitElement {
 
   private stateChip(s: Schedule) {
     if (s.state === 'triggered') return html`<span class="chip ok" data-state-chip="triggered">${STATE_LABEL.triggered}</span>`;
-    if (s.state === 'completed') return html`<span class="chip" data-state-chip="completed">הסתיים</span>`;
+    if (s.state === 'completed') return html`<span class="chip" data-state-chip="completed">${tr('הסתיים')}</span>`;
     if (s.enabled && s.state === 'unavailable') return html`<span class="chip" data-state-chip="unavailable">${STATE_LABEL.unavailable}</span>`;
     return nothing;
   }
 
   private switchOf(s: Schedule): TemplateResult {
-    if (!s.can.toggle) return html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-card-state>${s.enabled ? 'פעיל' : 'מושבת'}</span>`;
-    return html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label=${`${s.enabled ? 'השבתה' : 'הפעלה'} · ${s.display_name}`} data-toggle=${s.id} ?disabled=${this.busy} @click=${() => this.toggle(s, !s.enabled)}></button>`;
+    if (!s.can.toggle) return html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-card-state>${s.enabled ? tr('פעיל') : tr('מושבת')}</span>`;
+    return html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label=${`${s.enabled ? tr('השבתה') : tr('הפעלה')} · ${s.display_name}`} data-toggle=${s.id} ?disabled=${this.busy} @click=${() => this.toggle(s, !s.enabled)}></button>`;
   }
 
   private menu(s: Schedule): TemplateResult {
     const row = (action: 'run' | 'edit' | 'copy' | 'delete', icon: AutomationIconName, label: string, show: boolean, cls = '') =>
       show ? html`<button type="button" role="menuitem" class=${cls} data-card-action=${action} @click=${() => this.menuAct(s, action)}>${aIcon(icon)}${label}</button>` : nothing;
-    return html`<div class="pop" role="menu" aria-label=${`פעולות · ${s.display_name}`}>
-      ${row('edit', 'edit', 'עריכה', s.can.edit)}
-      ${row('run', 'play', 'הרץ עכשיו', s.can.run)}
-      ${row('copy', 'copy', 'שכפול', s.can.copy)}
+    return html`<div class="pop" role="menu" aria-label=${`${tr('פעולות')} · ${s.display_name}`}>
+      ${row('edit', 'edit', tr('עריכה'), s.can.edit)}
+      ${row('run', 'play', tr('הרץ עכשיו'), s.can.run)}
+      ${row('copy', 'copy', tr('שכפול'), s.can.copy)}
       ${s.can.delete ? html`<hr />` : nothing}
-      ${row('delete', 'trash', 'מחיקה', s.can.delete, 'dz')}
+      ${row('delete', 'trash', tr('מחיקה'), s.can.delete, 'dz')}
     </div>`;
   }
 
@@ -1796,14 +1797,14 @@ export class DevicesSchedules extends LitElement {
     const open = this.menuFor === s.id;
     return html`<article class=${`acard ${s.enabled ? 'on' : 'off'}`} data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)} ?data-menu=${open} aria-label=${s.display_name}>
       <header>
-        <label class="pick" title="בחירה"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label>
+        <label class="pick" title=${tr('בחירה')}><input type="checkbox" data-select=${s.id} aria-label=${tr('בחירת {name}', { name: s.display_name })} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label>
         <div class="ttl">
           <h3><a class="name" href=${this.href(s.id)} data-card-open>${bidi(s.display_name)}</a></h3>
           <div class="where">${aIcon('layers')}${floor ? html`<b>${bidi(floor)}</b>` : nothing}<span class="ar">${bidi(devicesLine(s))}</span></div>
         </div>
         <div class="ctl">
           ${this.switchOf(s)}
-          ${hasMenu ? html`<button type="button" class="more-btn" aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${`עוד · ${s.display_name}`} data-card-menu @click=${() => (this.menuFor = open ? '' : s.id)}>${aIcon('dots')}</button>` : nothing}
+          ${hasMenu ? html`<button type="button" class="more-btn" aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${`${tr('עוד')} · ${s.display_name}`} data-card-menu @click=${() => (this.menuFor = open ? '' : s.id)}>${aIcon('dots')}</button>` : nothing}
         </div>
         ${open ? this.menu(s) : nothing}
       </header>
@@ -1813,12 +1814,12 @@ export class DevicesSchedules extends LitElement {
         ${period ? html`<span class="chip info" data-period>${aIcon('calendar')}${period}</span>` : nothing}
         <schedule-condition-chip .conditions=${s.conditions}></schedule-condition-chip>
         <sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>
-        ${s.slots.some((sl) => sl.actions.some((a) => a.invalid)) ? html`<span class="chip warn" data-invalid title=${s.slots.flatMap((sl) => sl.actions).find((a) => a.invalid)?.invalid?.message ?? ''}>${aIcon('warning')}פעולה לא תקפה</span>` : nothing}
-        ${s.slots.some((sl) => sl.actions.some((a) => a.blocked)) ? html`<span class="chip warn" data-script-blocked title=${s.slots.flatMap((sl) => sl.actions).find((a) => a.blocked)?.blocked?.message ?? ''}>${aIcon('lock')}סקריפט לא מאושר</span>` : nothing}
+        ${s.slots.some((sl) => sl.actions.some((a) => a.invalid)) ? html`<span class="chip warn" data-invalid title=${s.slots.flatMap((sl) => sl.actions).find((a) => a.invalid)?.invalid?.message ?? ''}>${aIcon('warning')}${tr('פעולה לא תקפה')}</span>` : nothing}
+        ${s.slots.some((sl) => sl.actions.some((a) => a.blocked)) ? html`<span class="chip warn" data-script-blocked title=${s.slots.flatMap((sl) => sl.actions).find((a) => a.blocked)?.blocked?.message ?? ''}>${aIcon('lock')}${tr('סקריפט לא מאושר')}</span>` : nothing}
         ${this.stateChip(s)}
       </div>
       <footer>
-        <span class="run" data-card-run><i class=${`dot ${s.enabled && s.next_run ? 'ok' : ''}`}></i>הרצה הבאה <b data-next-run>${nextRunText(s)}</b></span>
+        <span class="run" data-card-run><i class=${`dot ${s.enabled && s.next_run ? 'ok' : ''}`}></i>${tr('הרצה הבאה')} <b data-next-run>${nextRunText(s)}</b></span>
       </footer>
     </article>`;
   }
@@ -1828,21 +1829,21 @@ export class DevicesSchedules extends LitElement {
   private renderRow(s: Schedule) {
     const shown = s.slots.slice(0, 3);
     return html`<div class=${`tr${s.enabled ? '' : ' off'}`} data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)}>
-      <span class="csel"><label class="pick"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>
+      <span class="csel"><label class="pick"><input type="checkbox" data-select=${s.id} aria-label=${tr('בחירת {name}', { name: s.display_name })} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>
       <span class="cname" style="min-inline-size:0"><a class="name" href=${this.href(s.id)}>${bidi(s.display_name)}</a><div class="sub">${bidi(devicesLine(s))}</div>${s.sensitive || s.lowering ? html`<sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>` : nothing}</span>
       <span class="cdays"><sw-day-chips .days=${s.days} compact></sw-day-chips></span>
-      <span class="cslots slotrows">${shown.map((sl) => html`<span class="sr"><span class="w">${windowText(sl)}</span><span class="a">${slotChips(sl, s).map((c) => html`<span class="ac" style=${`--c:${toneColor(c.tone)}`} title=${c.devices.join(', ')}>${c.label}${c.devices.length > 1 ? ` · ${c.devices.length}` : ''}</span>`)}</span></span>`)}${s.slots.length > shown.length ? html`<button type="button" class="linkbtn" @click=${() => this.go(s.id)}>ועוד ${s.slots.length - shown.length} משבצות</button>` : nothing}</span>
+      <span class="cslots slotrows">${shown.map((sl) => html`<span class="sr"><span class="w">${windowText(sl)}</span><span class="a">${slotChips(sl, s).map((c) => html`<span class="ac" style=${`--c:${toneColor(c.tone)}`} title=${c.devices.join(', ')}>${c.label}${c.devices.length > 1 ? ` · ${c.devices.length}` : ''}</span>`)}</span></span>`)}${s.slots.length > shown.length ? html`<button type="button" class="linkbtn" @click=${() => this.go(s.id)}>${tr('ועוד {n} משבצות', { n: s.slots.length - shown.length })}</button>` : nothing}</span>
       <span class="ccond"><schedule-condition-chip .conditions=${s.conditions} compact></schedule-condition-chip></span>
       <span class="cnext"><b data-next-run>${nextRunText(s)}</b></span>
       <span class="ctog">${this.switchOf(s)}</span>
-      <span class="cops ops">${s.can.run ? html`<button type="button" class="rb sm" aria-label=${`הרץ עכשיו · ${s.display_name}`} title="הרץ עכשיו" data-run=${s.id} @click=${() => this.actionsHost?.run(s)}>${aIcon('play')}</button>` : nothing}${s.can.edit ? html`<button type="button" class="rb sm" aria-label=${`עריכה · ${s.display_name}`} title="עריכה" data-edit=${s.id} @click=${() => navigate(`${BASE}/${s.id}/edit`)}>${aIcon('edit')}</button>` : nothing}</span>
+      <span class="cops ops">${s.can.run ? html`<button type="button" class="rb sm" aria-label=${`${tr('הרץ עכשיו')} · ${s.display_name}`} title=${tr('הרץ עכשיו')} data-run=${s.id} @click=${() => this.actionsHost?.run(s)}>${aIcon('play')}</button>` : nothing}${s.can.edit ? html`<button type="button" class="rb sm" aria-label=${`${tr('עריכה')} · ${s.display_name}`} title=${tr('עריכה')} data-edit=${s.id} @click=${() => navigate(`${BASE}/${s.id}/edit`)}>${aIcon('edit')}</button>` : nothing}</span>
     </div>`;
   }
 
   private renderTable(rows: Schedule[]) {
     const all = rows.length > 0 && rows.every((s) => this.selected.has(s.id));
     return html`<div class="tbl glass" data-sched-table>
-      <div class="tr h"><span><label class="pick"><input type="checkbox" aria-label="בחירת הכול" data-select-all .checked=${all} @change=${(e: Event) => (this.selected = (e.target as HTMLInputElement).checked ? new Set([...this.selected, ...rows.map((s) => s.id)]) : new Set([...this.selected].filter((id) => !rows.some((s) => s.id === id))))} /></label></span><span>שם</span><span class="cdays">ימים</span><span>משעה · פעולה</span><span>תנאי</span><span>הרצה הבאה</span><span>פעיל</span><span></span></div>
+      <div class="tr h"><span><label class="pick"><input type="checkbox" aria-label=${tr('בחירת הכול')} data-select-all .checked=${all} @change=${(e: Event) => (this.selected = (e.target as HTMLInputElement).checked ? new Set([...this.selected, ...rows.map((s) => s.id)]) : new Set([...this.selected].filter((id) => !rows.some((s) => s.id === id))))} /></label></span><span>${tr('שם')}</span><span class="cdays">${tr('ימים')}</span><span>${tr('משעה')} · ${tr('פעולה')}</span><span>${tr('תנאי')}</span><span>${tr('הרצה הבאה')}</span><span>${tr('פעיל')}</span><span></span></div>
       ${repeat(rows, (s) => s.id, (s) => this.renderRow(s))}
     </div>`;
   }
@@ -1852,8 +1853,8 @@ export class DevicesSchedules extends LitElement {
   /** Why a row's next run is amber: a device that is not there, an action no longer valid, a script not approved. */
   private rowIssue(s: Schedule): string {
     if (s.enabled && s.state === 'unavailable') return STATE_LABEL.unavailable;
-    if (s.slots.some((sl) => sl.actions.some((a) => a.invalid))) return 'פעולה לא תקפה';
-    if (s.slots.some((sl) => sl.actions.some((a) => a.blocked))) return 'סקריפט לא מאושר';
+    if (s.slots.some((sl) => sl.actions.some((a) => a.invalid))) return tr('פעולה לא תקפה');
+    if (s.slots.some((sl) => sl.actions.some((a) => a.blocked))) return tr('סקריפט לא מאושר');
     return '';
   }
 
@@ -1866,19 +1867,19 @@ export class DevicesSchedules extends LitElement {
     const issue = this.rowIssue(s);
     const sun = isApi() ? null : DEMO_SUN;
     return html`<div class=${`lr${s.enabled ? '' : ' off'}`} role="row" data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)} ?data-menu=${open}>
-      ${picking ? html`<span class="lsel" role="cell"><label class="pick" title="בחירה"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>` : nothing}
+      ${picking ? html`<span class="lsel" role="cell"><label class="pick" title=${tr('בחירה')}><input type="checkbox" data-select=${s.id} aria-label=${tr('בחירת {name}', { name: s.display_name })} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>` : nothing}
       <span class="ltog" role="cell">${this.switchOf(s)}</span>
       <span class="lname" role="cell"><a class="name" href=${this.href(s.id)} data-row-open>${bidi(s.display_name)}</a><span class="sub">${floor ? html`<b>${bidi(floor)}</b> · ` : nothing}${bidi(devicesLine(s))}</span></span>
       <span class="ldays" role="cell"><sw-day-chips .days=${s.days} compact></sw-day-chips></span>
       <span class="lbar" role="cell"><sw-schedule-bar compact .slots=${s.slots} .sun=${sun}></sw-schedule-bar></span>
       <span class=${`lnext${issue ? ' warn' : ''}`} role="cell" data-row-next title=${issue}>${issue ? html`${aIcon('warning')}${issue}` : html`<i class=${`dot ${s.enabled && s.next_run ? 'ok' : ''}`}></i><b data-next-run>${nextRunText(s)}</b>`}</span>
-      <span class="lops" role="cell">${hasMenu ? html`<button type="button" class="more-btn" aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${`עוד · ${s.display_name}`} data-card-menu @click=${() => (this.menuFor = open ? '' : s.id)}>${aIcon('dots')}</button>` : nothing}${open ? this.menu(s) : nothing}</span>
+      <span class="lops" role="cell">${hasMenu ? html`<button type="button" class="more-btn" aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${`${tr('עוד')} · ${s.display_name}`} data-card-menu @click=${() => (this.menuFor = open ? '' : s.id)}>${aIcon('dots')}</button>` : nothing}${open ? this.menu(s) : nothing}</span>
     </div>`;
   }
 
   private renderRows(items: Schedule[]) {
     const picking = this.selecting || this.selected.size > 0;
-    return html`<div class=${`rlist glass${picking ? ' picking' : ''}`} role="table" aria-label="תזמונים" data-sched-rows>${repeat(items, (s) => s.id, (s) => this.renderSchedRow(s, picking))}</div>`;
+    return html`<div class=${`rlist glass${picking ? ' picking' : ''}`} role="table" aria-label=${tr('תזמונים')} data-sched-rows>${repeat(items, (s) => s.id, (s) => this.renderSchedRow(s, picking))}</div>`;
   }
 
   private renderList(rows: Schedule[]) {
@@ -1902,55 +1903,55 @@ export class DevicesSchedules extends LitElement {
   private renderBulk() {
     const n = this.selected.size;
     if (this.selecting && !n && this.view !== 'week') {
-      return html`<div class="editbar bulk" role="region" aria-label=${pl('select')} data-bulk-bar="empty"><span class="t">${aIcon('check')}0 נבחרו</span><span class="grow"></span><button type="button" class="btn sm quiet" data-select-done @click=${() => (this.selecting = false)}>${pl('selectDone')}</button></div>`;
+      return html`<div class="editbar bulk" role="region" aria-label=${pl('select')} data-bulk-bar="empty"><span class="t">${aIcon('check')}${tr('{n} נבחרו', { n: 0 })}</span><span class="grow"></span><button type="button" class="btn sm quiet" data-select-done @click=${() => (this.selecting = false)}>${pl('selectDone')}</button></div>`;
     }
     if (!n || this.view === 'week') return nothing;
     const can = !!this.status?.can.manage && !!this.status?.writable;
-    return html`<div class="editbar bulk" role="region" aria-label="פעולות על הבחירה" data-bulk-bar>
-      <span class="t">${aIcon('check')}${n} נבחרו</span>
+    return html`<div class="editbar bulk" role="region" aria-label=${tr('פעולות על הבחירה')} data-bulk-bar>
+      <span class="t">${aIcon('check')}${tr('{n} נבחרו', { n })}</span>
       <span class="grow"></span>
-      ${can ? html`<button type="button" class="btn sm" data-bulk-enable ?disabled=${this.busy} @click=${() => void this.bulk('enable')}>${aIcon('play')}הפעלה</button><button type="button" class="btn sm" data-bulk-disable ?disabled=${this.busy} @click=${() => void this.bulk('disable')}>${aIcon('stop')}השבתה</button>` : nothing}
-      <button type="button" class="btn sm quiet" data-bulk-clear @click=${() => { this.selected = new Set(); this.selecting = false; }}>ביטול בחירה</button>
+      ${can ? html`<button type="button" class="btn sm" data-bulk-enable ?disabled=${this.busy} @click=${() => void this.bulk('enable')}>${aIcon('play')}${tr('הפעלה')}</button><button type="button" class="btn sm" data-bulk-disable ?disabled=${this.busy} @click=${() => void this.bulk('disable')}>${aIcon('stop')}${tr('השבתה')}</button>` : nothing}
+      <button type="button" class="btn sm quiet" data-bulk-clear @click=${() => { this.selected = new Set(); this.selecting = false; }}>${tr('ביטול בחירה')}</button>
     </div>`;
   }
 
   // ---------------------------------------------------------------------------- render: the sub-views
 
   private renderTrash() {
-    if (this.subError) return this.stateBox('warning', this.subError, 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => void this.loadTrash()}>${aIcon('refresh')}נסו שוב</button>`);
+    if (this.subError) return this.stateBox('warning', this.subError, 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => void this.loadTrash()}>${aIcon('refresh')}${tr('נסו שוב')}</button>`);
     if (this.trash === null) return this.skeleton();
-    if (!this.trash.length) return this.stateBox('trash', 'סל המחזור ריק', 'trash-empty');
+    if (!this.trash.length) return this.stateBox('trash', tr('סל המחזור ריק'), 'trash-empty');
     const canPurge = !!this.status?.can.configure && !!this.status?.can.manage;
     return html`<div class="rows" data-sched-trash>${this.trash.map(
       (t) => html`<div class="li glass" data-trash-item=${t.trash_id}>
-        <div><div class="t">${bidi(t.name || 'תזמון ללא שם')}</div><div class="d">${t.entities.map((e) => e.name).join(' · ')}</div><div class="d">${deletedText(t.deleted_at)}${t.deleted_by ? ` · ${t.deleted_by.display_name}` : ''} · ${keptText(t.expires_at)}</div></div>
+        <div><div class="t">${bidi(t.name || tr('תזמון ללא שם'))}</div><div class="d">${t.entities.map((e) => e.name).join(' · ')}</div><div class="d">${deletedText(t.deleted_at)}${t.deleted_by ? ` · ${t.deleted_by.display_name}` : ''} · ${keptText(t.expires_at)}</div></div>
         <div class="lops">${t.sensitive ? html`<sw-schedule-markers .sensitive=${true}></sw-schedule-markers>` : nothing}
-          <button type="button" class="btn sm primary" data-restore=${t.trash_id} ?disabled=${!t.can_restore} title=${t.can_restore ? '' : 'אין הרשאה לשחזר תזמון זה'} @click=${() => void this.restore(t.trash_id, t)}>${aIcon('restore')}שחזור</button>
-          ${canPurge ? html`<button type="button" class="rb sm" aria-label="מחיקה לצמיתות" title="מחיקה לצמיתות" data-purge=${t.trash_id} @click=${() => (this.purging = t)}>${aIcon('trash')}</button>` : nothing}</div>
+          <button type="button" class="btn sm primary" data-restore=${t.trash_id} ?disabled=${!t.can_restore} title=${t.can_restore ? '' : tr('אין הרשאה לשחזר תזמון זה')} @click=${() => void this.restore(t.trash_id, t)}>${aIcon('restore')}${tr('שחזור')}</button>
+          ${canPurge ? html`<button type="button" class="rb sm" aria-label=${tr('מחיקה לצמיתות')} title=${tr('מחיקה לצמיתות')} data-purge=${t.trash_id} @click=${() => (this.purging = t)}>${aIcon('trash')}</button>` : nothing}</div>
       </div>`,
     )}</div>`;
   }
 
   private renderReview() {
-    if (this.subError) return this.stateBox('warning', this.subError, 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => void this.loadReview()}>${aIcon('refresh')}נסו שוב</button>`);
+    if (this.subError) return this.stateBox('warning', this.subError, 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => void this.loadReview()}>${aIcon('refresh')}${tr('נסו שוב')}</button>`);
     if (this.review === null) return this.skeleton();
-    if (!this.review.length) return this.stateBox('check', 'אין תזמונים הדורשים בדיקה', 'review-empty');
+    if (!this.review.length) return this.stateBox('check', tr('אין תזמונים הדורשים בדיקה'), 'review-empty');
     const n = this.reviewSel.size;
     const canAck = !!this.status?.can.acknowledge;
     return html`<div class="rows" data-sched-review>${this.review.map(
       (r) => html`<div class="li glass" data-review-item=${r.schedule.id}>
         <div style="display:flex;gap:10px;align-items:flex-start;min-inline-size:0">
-          <label class="pick"><input type="checkbox" data-review-select=${r.schedule.id} aria-label=${`בחירת ${r.schedule.display_name}`} ?disabled=${!r.schedule.enabled || !r.schedule.can.toggle} .checked=${this.reviewSel.has(r.schedule.id)} @change=${(e: Event) => { const next = new Set(this.reviewSel); if ((e.target as HTMLInputElement).checked) next.add(r.schedule.id); else next.delete(r.schedule.id); this.reviewSel = next; }} /></label>
+          <label class="pick"><input type="checkbox" data-review-select=${r.schedule.id} aria-label=${tr('בחירת {name}', { name: r.schedule.display_name })} ?disabled=${!r.schedule.enabled || !r.schedule.can.toggle} .checked=${this.reviewSel.has(r.schedule.id)} @change=${(e: Event) => { const next = new Set(this.reviewSel); if ((e.target as HTMLInputElement).checked) next.add(r.schedule.id); else next.delete(r.schedule.id); this.reviewSel = next; }} /></label>
           <div style="min-inline-size:0"><div class="t"><a class="name" href=${this.href(r.schedule.id)}>${bidi(r.schedule.display_name)}</a></div><div class="d">${devicesLine(r.schedule)}${r.schedule.owner ? ` · ${r.schedule.owner.display_name}` : ''}</div>
           <div class="issues">${r.issues.map((i) => {
             const ackable = canAck && (ACKABLE_ISSUES as string[]).includes(i);
-            return html`<span class="iss"><span class="chip warn" data-issue=${i}>${REVIEW_LABEL[i]}</span>${ackable ? html`<button type="button" class="linkbtn" data-ack=${i} ?disabled=${this.busy} @click=${() => void this.ack(r.schedule.id, i as AckableIssue, false)}>אשר כתקין</button>` : nothing}</span>`;
-          })}${(r.acknowledged ?? []).map((a) => html`<span class="iss"><span class="chip acked" data-acked=${a.issue} title=${`${REVIEW_LABEL[a.issue]} · אושר${a.by?.display_name ? ` על ידי ${a.by.display_name}` : ''}`}>${aIcon('check')}אושר</span>${canAck ? html`<button type="button" class="linkbtn" data-unack=${a.issue} ?disabled=${this.busy} @click=${() => void this.ack(r.schedule.id, a.issue, true)}>בטל אישור</button>` : nothing}</span>`)}</div></div>
+            return html`<span class="iss"><span class="chip warn" data-issue=${i}>${REVIEW_LABEL[i]}</span>${ackable ? html`<button type="button" class="linkbtn" data-ack=${i} ?disabled=${this.busy} @click=${() => void this.ack(r.schedule.id, i as AckableIssue, false)}>${tr('אשר כתקין')}</button>` : nothing}</span>`;
+          })}${(r.acknowledged ?? []).map((a) => html`<span class="iss"><span class="chip acked" data-acked=${a.issue} title=${`${REVIEW_LABEL[a.issue]} · ${a.by?.display_name ? tr('אושר על ידי {name}', { name: a.by.display_name }) : tr('אושר')}`}>${aIcon('check')}${tr('אושר')}</span>${canAck ? html`<button type="button" class="linkbtn" data-unack=${a.issue} ?disabled=${this.busy} @click=${() => void this.ack(r.schedule.id, a.issue, true)}>${tr('בטל אישור')}</button>` : nothing}</span>`)}</div></div>
         </div>
-        <div class="lops"><span class=${r.schedule.enabled ? 'chip ok' : 'chip'}>${r.schedule.enabled ? 'פעיל' : 'מושבת'}</span></div>
+        <div class="lops"><span class=${r.schedule.enabled ? 'chip ok' : 'chip'}>${r.schedule.enabled ? tr('פעיל') : tr('מושבת')}</span></div>
       </div>`,
     )}</div>
-    ${n ? html`<div class="editbar bulk" data-bulk-bar="review"><span class="t">${aIcon('check')}${n} נבחרו</span><span class="grow"></span><button type="button" class="btn sm" data-review-disable ?disabled=${this.busy} @click=${() => void this.bulkReview()}>${aIcon('stop')}השבתת הנבחרים</button></div>` : nothing}`;
+    ${n ? html`<div class="editbar bulk" data-bulk-bar="review"><span class="t">${aIcon('check')}${tr('{n} נבחרו', { n })}</span><span class="grow"></span><button type="button" class="btn sm" data-review-disable ?disabled=${this.busy} @click=${() => void this.bulkReview()}>${aIcon('stop')}${tr('השבתת הנבחרים')}</button></div>` : nothing}`;
   }
 
   // ---------------------------------------------------------------------------- render
@@ -1961,9 +1962,9 @@ export class DevicesSchedules extends LitElement {
     const manage = !!this.status?.can.manage;
     let content: TemplateResult;
     if (!all.length) {
-      content = this.stateBox('calendar', 'אין עדיין תזמונים', 'empty', manage && !st.readOnly ? html`<button type="button" class="btn primary" data-new-schedule @click=${() => this.newSchedule()}>${aIcon('plus')}תזמון חדש</button>` : undefined);
+      content = this.stateBox('calendar', tr('אין עדיין תזמונים'), 'empty', manage && !st.readOnly ? html`<button type="button" class="btn primary" data-new-schedule @click=${() => this.newSchedule()}>${aIcon('plus')}${tr('תזמון חדש')}</button>` : undefined);
     } else if (!rows.length) {
-      content = this.stateBox('search', 'לא נמצאו תזמונים', 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.clearFilters()}>נקה סינון</button>`);
+      content = this.stateBox('search', tr('לא נמצאו תזמונים'), 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.clearFilters()}>${tr('נקה סינון')}</button>`);
     } else {
       content = html`${this.view !== 'week' ? this.renderUpcoming(all) : nothing}${this.renderList(rows)}`;
     }
@@ -1971,18 +1972,18 @@ export class DevicesSchedules extends LitElement {
   }
 
   private renderBody(st: ReturnType<typeof screenState>) {
-    const settings = st.admin ? html`<button type="button" class="btn sm" data-open-settings @click=${() => navigate('/system/schedules')}>${aIcon('settings')}הגדרות התזמונים</button>` : undefined;
+    const settings = st.admin ? html`<button type="button" class="btn sm" data-open-settings @click=${() => navigate('/system/schedules')}>${aIcon('settings')}${tr('הגדרות התזמונים')}</button>` : undefined;
     switch (st.kind) {
       case 'loading':
         return this.skeleton();
       case 'error':
-        return this.stateBox('warning', 'לא ניתן לטעון את הרשימה', 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => { this.failed = ''; this.items = null; void this.load(); }}>${aIcon('refresh')}נסו שוב</button>`);
+        return this.stateBox('warning', tr('לא ניתן לטעון את הרשימה'), 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => { this.failed = ''; this.items = null; void this.load(); }}>${aIcon('refresh')}${tr('נסו שוב')}</button>`);
       case 'no_view':
-        return this.stateBox('lock', 'אין הרשאה לצפות בתזמונים', 'no_permission');
+        return this.stateBox('lock', tr('אין הרשאה לצפות בתזמונים'), 'no_permission');
       case 'feature_disabled':
-        return this.stateBox('settings', 'התזמונים כבויים', 'feature_disabled', settings);
+        return this.stateBox('settings', tr('התזמונים כבויים'), 'feature_disabled', settings);
       case 'missing':
-        return st.admin ? this.stateBox('settings', 'רכיב התזמונים אינו מחובר', 'missing_admin', settings) : this.stateBox('calendar', 'אין תזמונים להצגה', 'missing');
+        return st.admin ? this.stateBox('settings', tr('רכיב התזמונים אינו מחובר'), 'missing_admin', settings) : this.stateBox('calendar', tr('אין תזמונים להצגה'), 'missing');
       default:
         return this.sub === 'trash' ? this.renderTrash() : this.sub === 'review' ? this.renderReview() : this.renderReady(st);
     }
@@ -1994,7 +1995,7 @@ export class DevicesSchedules extends LitElement {
     const scr = listFailed ? { ...st, kind: 'error' as const } : st.kind === 'ready' && this.items === null ? { ...st, kind: 'loading' as const } : st;
     const sub = this.sub;
     const drawerId = sub && sub !== 'trash' && sub !== 'review' ? sub : '';
-    const title = sub === 'trash' ? 'סל מחזור' : sub === 'review' ? 'תזמונים לבדיקה' : 'תזמונים';
+    const title = sub === 'trash' ? tr('סל מחזור') : sub === 'review' ? tr('תזמונים לבדיקה') : tr('תזמונים');
     return html`<sw-page class="page" heading=${title} backHref=${sub === 'trash' || sub === 'review' ? BASE : ''} data-sched-title data-screen="devices-schedules" data-sched-screen=${scr.kind}>
         ${this.header(scr)}
         ${this.renderBody(scr)}
@@ -2006,10 +2007,10 @@ export class DevicesSchedules extends LitElement {
         ? html`<schedule-create-dialog .open=${true} @close=${() => (this.createOpen = false)} @created=${(e: CustomEvent<{ id: string }>) => { this.createOpen = false; void this.refresh(); this.go(e.detail.id); }}></schedule-create-dialog>`
         : nothing}
       ${this.trashLowering
-        ? html`<schedule-lowering-dialog .open=${true} .summary=${{ entities: this.trashLowering.entities.filter((e) => e.sensitive).map((e) => e.name), times: [], text: `השחזור יחזיר תזמון שפותח או מנטרל ${this.trashLowering.entities.filter((e) => e.sensitive).map((e) => e.name).join(', ')} גם כשאיש אינו נמצא במקום.` }} .needsCode=${false} @confirm=${(e: CustomEvent<{ alarm_code: string | null }>) => void this.confirmTrashLowering(e)} @close=${() => (this.trashLowering = null)}></schedule-lowering-dialog>`
+        ? html`<schedule-lowering-dialog .open=${true} .summary=${{ entities: this.trashLowering.entities.filter((e) => e.sensitive).map((e) => e.name), times: [], text: tr('השחזור יחזיר תזמון שפותח או מנטרל {names} גם כשאיש אינו נמצא במקום.', { names: this.trashLowering.entities.filter((e) => e.sensitive).map((e) => e.name).join(', ') }) }} .needsCode=${false} @confirm=${(e: CustomEvent<{ alarm_code: string | null }>) => void this.confirmTrashLowering(e)} @close=${() => (this.trashLowering = null)}></schedule-lowering-dialog>`
         : nothing}
       ${this.purging
-        ? html`<sw-dialog open heading=${`למחוק לצמיתות את "${this.purging.name || 'תזמון ללא שם'}"?`} data-dialog="purge" @close=${() => (this.purging = null)}><div class="dlgform"><p>אי אפשר יהיה לשחזר אותו.</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.purging = null)}>ביטול</button><button type="button" class="btn danger" data-purge-confirm @click=${() => void this.doPurge()}>מחיקה</button></div></div></sw-dialog>`
+        ? html`<sw-dialog open heading=${tr('למחוק לצמיתות את "{name}"?', { name: this.purging.name || tr('תזמון ללא שם') })} data-dialog="purge" @close=${() => (this.purging = null)}><div class="dlgform"><p>${tr('אי אפשר יהיה לשחזר אותו.')}</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.purging = null)}>${tr('ביטול')}</button><button type="button" class="btn danger" data-purge-confirm @click=${() => void this.doPurge()}>${tr('מחיקה')}</button></div></div></sw-dialog>`
         : nothing}
       <schedule-actions .status=${this.status} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @result=${this.onResult}></schedule-actions>
       ${this.note ? html`<div class=${`toast${this.note.tone === 'error' ? ' bad' : ''}`} popover="manual" role="status" data-sched-note>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}${this.note.text}${this.note.action ? html`<button type="button" class="btn sm" data-note-action @click=${() => { const a = this.note?.action; this.note = null; a?.run(); }}>${this.note.action.label}</button>` : nothing}</div>` : nothing}`;

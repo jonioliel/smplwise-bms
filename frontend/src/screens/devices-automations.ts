@@ -27,6 +27,7 @@ import { scenariosStatus, type ScenariosStatus } from '../api/scenarios';
 import { sct } from '../i18n/scenarios';
 import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
+import { tr } from '../i18n/msg/devices';
 import { onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import {
@@ -54,7 +55,7 @@ const VIEW_KEY = 'sw.automations.view';
 type AutoView = AutomationsView;
 const VIEWS: AutoView[] = ['rows', 'cards'];
 const VIEW_ICON: Record<AutoView, 'rows' | 'grid'> = { rows: 'rows', cards: 'grid' };
-const VIEW_LABEL: Record<AutoView, () => string> = { rows: () => pl('rows'), cards: () => 'כרטיסים' };
+const VIEW_LABEL: Record<AutoView, () => string> = { rows: () => pl('rows'), cards: () => tr('כרטיסים') };
 const parseView = (v: unknown): AutoView | null => (v === 'rows' || v === 'cards' ? v : null);
 /** The stored choice, read as JSON (the way it is written) or raw (the first POLISH-295 build wrote it raw); null when none. */
 function readView(): AutoView | null {
@@ -426,7 +427,7 @@ export class DevicesAutomations extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhone);
     window.addEventListener('resize', this.onResize);
     this.addEventListener('scroll', this.onScroll, { passive: true });
-    this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
+    this.offEdit = registerScreenEdit({ id: 'automations-trash', label: tr('סל מחזור'), icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
     this.offRoute = onRouteChange((r) => this.onRoute(r));
     // POLISH2-295: the installation's default view (when this browser has not chosen) and the rows per page
     const storedView = readView();
@@ -712,12 +713,12 @@ export class DevicesAutomations extends LitElement {
     this.go(itemPath(this.route.segment));
     void this.loadList();
     void this.refreshStatus();
-    this.say(`"${name}" נמחק`, 'ok', { label: 'שחזור', run: () => void this.undoDelete(trash_id, name) });
+    this.say(tr('"{name}" נמחק', { name }), 'ok', { label: tr('שחזור'), run: () => void this.undoDelete(trash_id, name) });
   };
   private async undoDelete(trashId: string, name: string) {
     try {
       await autoApi().restoreTrash(trashId, { client_request_id: `undo-${trashId}-${Date.now()}` });
-      this.say(`"${name}" שוחזר`);
+      this.say(tr('"{name}" שוחזר', { name }));
       await this.loadList();
     } catch (err) {
       this.say(mapAutomationError(err).message, 'error');
@@ -726,7 +727,7 @@ export class DevicesAutomations extends LitElement {
   private onCopied = (e: CustomEvent<{ item: ItemDetail }>) => {
     void this.loadList();
     this.go(itemPath(segmentOfKind(e.detail.item.kind).id, e.detail.item.id));
-    this.say('שוכפל');
+    this.say(tr('שוכפל'));
   };
   private onChanged = () => {
     void this.loadList();
@@ -763,7 +764,7 @@ export class DevicesAutomations extends LitElement {
     void this.loadList();
     void this.refreshStatus();
     replaceRoute(this.editorExit(kind, status === 'ok' ? id : ''), filtersToParams(this.filters));
-    this.say(status === 'not_loaded' ? 'נשמר, אך עדיין לא נטען' : 'נשמר', status === 'not_loaded' ? 'error' : 'ok');
+    this.say(status === 'not_loaded' ? tr('נשמר, אך עדיין לא נטען') : tr('נשמר'), status === 'not_loaded' ? 'error' : 'ok');
   };
   private onEditorCancel = (kind: ItemKind, id: string) => {
     replaceRoute(this.editorExit(kind, id), filtersToParams(this.filters));
@@ -774,7 +775,7 @@ export class DevicesAutomations extends LitElement {
     replaceRoute(itemPath(segmentOfKind(kind).id), filtersToParams(this.filters));
     void this.loadList();
     void this.refreshStatus();
-    this.say(name ? `"${name}" נמחק` : 'נמחק', 'ok', { label: 'שחזור', run: () => void this.undoDelete(trash_id, name) });
+    this.say(name ? tr('"{name}" נמחק', { name }) : tr('נמחק'), 'ok', { label: tr('שחזור'), run: () => void this.undoDelete(trash_id, name) });
   };
 
   /** The editor of the route `.../<id>/edit` or `.../new/edit` (S4's sheets, mounted by tag over the list; keyed so another item is a fresh editor). */
@@ -819,20 +820,20 @@ export class DevicesAutomations extends LitElement {
     const sv = this.scenView;
     // POLISH2-295: rows · cards, where the schedules keep their view switch (the end of the title row; on a phone, in the toolbar)
     const showViews = tools && !sv && def.kind === 'automation' && all.length > 0;
-    const rooms = tools && floors.length && !sv ? html`<div class="rooms" role="group" aria-label="קומות">
-          <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
+    const rooms = tools && floors.length && !sv ? html`<div class="rooms" role="group" aria-label=${tr('קומות')}>
+          <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>${tr('הכל')}</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.id)} data-floor=${x.id} @click=${() => this.setFilter({ floor: x.id })}>${bidi(x.name)}</button>`)}
         </div>` : nothing;
     return html`${!this.phone ? html`<div class="dh-row hdact" slot="actions">${rooms}${showViews ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
     <header class="dh" data-auto-header>
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
-        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג" @keydown=${tablistKeydown}>${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
-        ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
-        ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
+        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label=${tr('סוג')} @keydown=${tablistKeydown}>${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>${tr('תזמונים')}${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
+        ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}${tr('סינון')}${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
         ${showViews && this.phone ? this.viewToggle() : nothing}
-        ${sv ? (this.scen?.can.manage ? html`<button type="button" class="btn primary newbtn" data-scen-new @click=${() => navigate('/devices/automations/scenarios/new')}>${aIcon('plus')}${sct('new')}</button>` : nothing) : html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-search placeholder=${this.phone ? 'חיפוש' : def.searchLabel} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>
+        ${sv ? (this.scen?.can.manage ? html`<button type="button" class="btn primary newbtn" data-scen-new @click=${() => navigate('/devices/automations/scenarios/new')}>${aIcon('plus')}${sct('new')}</button>` : nothing) : html`<label class="search">${aIcon('search')}<span class="sr-only">${tr('חיפוש')}</span><input type="search" data-search placeholder=${this.phone ? tr('חיפוש') : def.searchLabel} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>
         ${nb.shown ? html`<button type="button" class="btn primary newbtn" data-auto-new ?disabled=${nb.disabled} title=${nb.reason} @click=${() => this.newItem()}>${aIcon(seg === 'scenes' ? 'camera' : 'plus')}${def.newLabel}</button>` : nothing}`}
       </div>` : nothing}
     </header>`;
@@ -840,7 +841,7 @@ export class DevicesAutomations extends LitElement {
 
   /** POLISH2-295: rows · cards (the cards carry the explanatory sentence); the same segmented icons as the schedules' view switch. */
   private viewSwitch(): TemplateResult {
-    return html`<div class="seg sm views" role="group" aria-label="תצוגה" data-auto-views>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+    return html`<div class="seg sm views" role="group" aria-label=${tr('תצוגה')} data-auto-views>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
   }
 
   /** On a phone one button in the toolbar row (it shows the other view's icon) - the segmented switch would add a row to a screen
@@ -861,7 +862,7 @@ export class DevicesAutomations extends LitElement {
   /** DEVICES-POLISH-2331: the loading state in the shape of what it waits for - rows for the automations' rows view (the default),
    * cards for the cards view and for the other kinds' panels - so the list lands without a jump. */
   private skeleton(): TemplateResult {
-    const label = html`<span class="sr-only">טוען…</span>`;
+    const label = html`<span class="sr-only">${tr('טוען…')}</span>`;
     if (this.view === 'rows' && !this.scenView && this.segment() === 'automations') {
       const row = (w: number) => html`<div class="skl-row"><span class="skl"></span><span class="skl" style=${`inline-size:${w}%`}></span><span class="skl" style="inline-size:80%"></span><span class="skl" style="inline-size:60%"></span></div>`;
       return html`<div data-auto-state="loading" aria-busy="true">${label}<div class="rlist glass skl-rows">${[62, 48, 70, 55, 40, 66, 52, 45].slice(0, this.phone ? 6 : 8).map(row)}</div></div>`;
@@ -877,26 +878,26 @@ export class DevicesAutomations extends LitElement {
   private bannerRow(seg: Segment): TemplateResult | typeof nothing {
     const list = banners(this.status, segmentOf(seg).kind);
     if (!list.length) return nothing;
-    return html`<div class="stack">${list.map((b) => html`<div class=${`banner ${b.tone}`} role=${b.tone === 'bad' ? 'alert' : 'status'} data-auto-banner=${b.id}>${aIcon(b.id === 'offline' ? 'wifiOff' : b.id === 'delegation_off' ? 'info' : b.tone === 'info' ? 'info' : 'warning')}<div>${b.title ? html`<b>${b.title}</b><small>${b.text}</small>` : b.text}</div>${b.retry ? html`<button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh()}>${aIcon('refresh')}נסו שוב</button>` : nothing}</div>`)}</div>`;
+    return html`<div class="stack">${list.map((b) => html`<div class=${`banner ${b.tone}`} role=${b.tone === 'bad' ? 'alert' : 'status'} data-auto-banner=${b.id}>${aIcon(b.id === 'offline' ? 'wifiOff' : b.id === 'delegation_off' ? 'info' : b.tone === 'info' ? 'info' : 'warning')}<div>${b.title ? html`<b>${b.title}</b><small>${b.text}</small>` : b.text}</div>${b.retry ? html`<button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh()}>${aIcon('refresh')}${tr('נסו שוב')}</button>` : nothing}</div>`)}</div>`;
   }
 
   private body(seg: Segment): TemplateResult | typeof nothing {
     const sk = screenKind(this.status, { failed: !!this.failed, noPermission: this.noPerm, loading: this.items === null });
-    const settings = this.status?.can.configure ? html`<a class="btn sm" href="#/system/automations" data-open-settings>הגדרות האוטומציות</a>` : undefined;
+    const settings = this.status?.can.configure ? html`<a class="btn sm" href="#/system/automations" data-open-settings>${tr('הגדרות האוטומציות')}</a>` : undefined;
     if (sk === 'loading') return this.skeleton();
-    if (sk === 'error') return this.stateBox('warning', 'לא ניתן לטעון את הרשימה', 'error', html`<button type="button" class="btn sm" data-auto-retry @click=${() => { this.failed = ''; this.items = null; void this.load(); }}>${aIcon('refresh')}נסו שוב</button>`);
-    if (sk === 'no_permission') return this.stateBox('lock', 'אין הרשאה לצפות באוטומציות', 'no_permission');
-    if (sk === 'feature_disabled') return this.stateBox('settings', 'האוטומציות כבויות', 'feature_disabled', settings);
-    if (sk === 'not_configured') return this.stateBox('settings', 'האוטומציות עדיין לא הוגדרו', 'not_configured', settings);
+    if (sk === 'error') return this.stateBox('warning', tr('לא ניתן לטעון את הרשימה'), 'error', html`<button type="button" class="btn sm" data-auto-retry @click=${() => { this.failed = ''; this.items = null; void this.load(); }}>${aIcon('refresh')}${tr('נסו שוב')}</button>`);
+    if (sk === 'no_permission') return this.stateBox('lock', tr('אין הרשאה לצפות באוטומציות'), 'no_permission');
+    if (sk === 'feature_disabled') return this.stateBox('settings', tr('האוטומציות כבויות'), 'feature_disabled', settings);
+    if (sk === 'not_configured') return this.stateBox('settings', tr('האוטומציות עדיין לא הוגדרו'), 'not_configured', settings);
     const def = segmentOf(seg);
     const all = this.segItems(seg);
     const rows = applyFilters(this.items ?? [], this.filters, def.kind).filter((i) => !(def.kind === 'scene' && i.hidden));
     const nb = newButton(this.status, def.kind);
     let content: TemplateResult;
     if (!all.length) {
-      content = this.stateBox(seg === 'scenes' ? 'sparkle' : seg === 'scripts' ? 'script' : 'bolt', seg === 'scenes' ? 'אין עדיין סצנות' : seg === 'scripts' ? 'אין עדיין סקריפטים' : 'אין עדיין אוטומציות', 'empty', nb.shown && !nb.disabled ? html`<button type="button" class="btn primary" data-auto-new-empty @click=${() => this.newItem()}>${aIcon('plus')}${def.newLabel}</button>` : undefined);
+      content = this.stateBox(seg === 'scenes' ? 'sparkle' : seg === 'scripts' ? 'script' : 'bolt', seg === 'scenes' ? tr('אין עדיין סצנות') : seg === 'scripts' ? tr('אין עדיין סקריפטים') : tr('אין עדיין אוטומציות'), 'empty', nb.shown && !nb.disabled ? html`<button type="button" class="btn primary" data-auto-new-empty @click=${() => this.newItem()}>${aIcon('plus')}${def.newLabel}</button>` : undefined);
     } else if (!rows.length) {
-      content = this.stateBox('search', seg === 'scenes' ? 'לא נמצאו סצנות' : seg === 'scripts' ? 'לא נמצאו סקריפטים' : 'לא נמצאו אוטומציות', 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => { this.filters = { ...NO_FILTERS }; this.syncUrl(); }}>נקה סינון</button>`);
+      content = this.stateBox('search', seg === 'scenes' ? tr('לא נמצאו סצנות') : seg === 'scripts' ? tr('לא נמצאו סקריפטים') : tr('לא נמצאו אוטומציות'), 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => { this.filters = { ...NO_FILTERS }; this.syncUrl(); }}>${tr('נקה סינון')}</button>`);
     } else if (seg === 'scenes') {
       content = html`<scenes-panel .items=${rows} .hiddenItems=${hiddenScenes(this.items ?? [])} .status=${this.status} .now=${this.now} .sceneId=${this.route.segment === 'scenes' ? this.route.id : ''} @result=${this.onResult} @changed=${this.onChanged}
         @open-scene=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scenes', e.detail.id))} @close-scene=${() => this.go(itemPath('scenes'))}></scenes-panel>`;
@@ -941,12 +942,12 @@ export class DevicesAutomations extends LitElement {
   private dialogs(): TemplateResult | typeof nothing {
     if (this.confirm) {
       const c = this.confirm;
-      return html`<sw-dialog open heading="להפעיל?" data-dialog="enable" @close=${() => (this.confirm = null)}><div class="dlgform">${confirmLine(c.item) ? html`<p>${confirmLine(c.item)}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>ביטול</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.toggle(c.item, true, true)}>הפעל</button></div></div></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('להפעיל?')} data-dialog="enable" @close=${() => (this.confirm = null)}><div class="dlgform">${confirmLine(c.item) ? html`<p>${confirmLine(c.item)}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.toggle(c.item, true, true)}>${tr('הפעל')}</button></div></div></sw-dialog>`;
     }
     if (this.whenOpen) {
-      return html`<sw-dialog open heading="מתי?" data-dialog="when" @close=${() => (this.whenOpen = false)}><div class="when">
-        <button type="button" class="btn" data-when="time" @click=${() => { this.whenOpen = false; navigate('/devices/schedules/new/edit'); }}>${aIcon('calendar')}בשעות קבועות</button>
-        <button type="button" class="btn" data-when="event" @click=${() => { this.whenOpen = false; const n = newPath('automation'); navigate(n.path, n.params); }}>${aIcon('bolt')}כשמשהו קורה</button></div></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('מתי?')} data-dialog="when" @close=${() => (this.whenOpen = false)}><div class="when">
+        <button type="button" class="btn" data-when="time" @click=${() => { this.whenOpen = false; navigate('/devices/schedules/new/edit'); }}>${aIcon('calendar')}${tr('בשעות קבועות')}</button>
+        <button type="button" class="btn" data-when="event" @click=${() => { this.whenOpen = false; const n = newPath('automation'); navigate(n.path, n.params); }}>${aIcon('bolt')}${tr('כשמשהו קורה')}</button></div></sw-dialog>`;
     }
     return nothing;
   }

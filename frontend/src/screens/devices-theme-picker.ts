@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { DEVICE_PALETTES, LAYOUT_ROLE_IDS } from '../styles/devices-palettes';
 import type { DevicesScheme } from './devices-style';
+import { tr } from '../i18n/msg/devices';
 
 export interface DevicesPick {
   key: 'devices.theme' | 'devices.scheme';
@@ -156,8 +157,8 @@ export class DevicesThemePicker extends LitElement {
   }
 
   render() {
-    return html`<div class="lbl">ערכת צבעים<span class="muted">הצבעים של אזור החשמל וההתקנים בסגנון זכוכית, בהיר וכהה, וצבעי הכרטיסים שנבחרים בעורך הפריסה (לפי תפקיד: הדגשה, חם, קריר ...) - בשני הסגנונות.</span></div>
-      <div class="themes" role="group" aria-label="ערכת צבעים" data-devices-themes>
+    return html`<div class="lbl">${tr('ערכת צבעים')}<span class="muted">${tr('הצבעים של אזור החשמל וההתקנים בסגנון זכוכית, בהיר וכהה, וצבעי הכרטיסים שנבחרים בעורך הפריסה (לפי תפקיד: הדגשה, חם, קריר ...) - בשני הסגנונות.')}</span></div>
+      <div class="themes" role="group" aria-label=${tr('ערכת צבעים')} data-devices-themes>
         ${DEVICE_PALETTES.map((p) => {
           const box = (s: typeof p.light) => html`<span class="prev" style=${styleMap({ background: s.preview.backdrop })}>
             <i style=${styleMap({ background: s.preview.surface })}></i>
@@ -172,11 +173,11 @@ export class DevicesThemePicker extends LitElement {
         })}
       </div>
       <div class="scheme">
-        <span class="lbl">בהיר או כהה<span class="muted">ברירת המחדל בהיר, כמו שאר המערכת. "לפי המכשיר" עובר לכהה רק במכשיר שמוגדר כהה. חל על סגנון הזכוכית.</span></span>
+        <span class="lbl">${tr('בהיר או כהה')}<span class="muted">${tr('ברירת המחדל בהיר, כמו שאר המערכת. "לפי המכשיר" עובר לכהה רק במכשיר שמוגדר כהה. חל על סגנון הזכוכית.')}</span></span>
         <select data-set-devices-scheme ?disabled=${this.disabled} @change=${(e: Event) => this.pick('devices.scheme', (e.target as HTMLSelectElement).value)}>
-          <option value="light" ?selected=${this.scheme === 'light'}>בהיר</option>
-          <option value="dark" ?selected=${this.scheme === 'dark'}>כהה</option>
-          <option value="auto" ?selected=${this.scheme === 'auto'}>לפי המכשיר</option>
+          <option value="light" ?selected=${this.scheme === 'light'}>${tr('בהיר')}</option>
+          <option value="dark" ?selected=${this.scheme === 'dark'}>${tr('כהה')}</option>
+          <option value="auto" ?selected=${this.scheme === 'auto'}>${tr('לפי המכשיר')}</option>
         </select>
       </div>`;
   }
