@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // CR-036 slice S6 - the native stations and doors screen ("תחנות ודלתות") behind the real shell, against a MOCKED backend
 // (tests/wiskey-stations-mocks.ts: invented stations, drawn stills, recorded writes; no WisKey, no Home Assistant, no station).
@@ -33,6 +34,7 @@ const inDrawer = (page: Page, sel: string) => page.locator(`${SCREEN} sw-drawer[
 const phone = (info: { project: { name: string } }) => info.project.name === 'mobile';
 
 test.describe('wiskey-stations: which screen the area shows', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('the embedded panel stays the default; the native screen appears only when access.ui.stations says smplwise', async ({ page }) => {
@@ -59,6 +61,7 @@ test.describe('wiskey-stations: which screen the area shows', () => {
 });
 
 test.describe('wiskey-stations: the station cards', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('an administrator sees six stations as cards with their state, call hint, doors and technical row', async ({ page }) => {
@@ -148,6 +151,7 @@ test.describe('wiskey-stations: the station cards', () => {
 });
 
 test.describe('wiskey-stations: filters, search, views, places', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('the filters, the search and the place tree narrow the cards; the counts stay', async ({ page }, info) => {
@@ -288,6 +292,7 @@ test.describe('wiskey-stations: filters, search, views, places', () => {
 });
 
 test.describe('wiskey-stations: the drawer', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('a station opens in a drawer with its call, doors, announcement and technical sections; Escape closes it; the address follows', async ({ page }) => {
@@ -366,6 +371,7 @@ test.describe('wiskey-stations: the drawer', () => {
 });
 
 test.describe('wiskey-stations: opening a door', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('one button, one confirmation sentence, ONE request that carries the confirmation; the result says "sent", never "opened"', async ({ page }) => {
@@ -446,6 +452,7 @@ test.describe('wiskey-stations: opening a door', () => {
 });
 
 test.describe('wiskey-stations: calls', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('answering takes two taps: the first arms the button, the second sends once', async ({ page }) => {
@@ -512,6 +519,7 @@ test.describe('wiskey-stations: calls', () => {
 });
 
 test.describe('wiskey-stations: announcements', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('to one station: the text and a quick phrase, one request, "sent - playback not verified"', async ({ page }) => {
@@ -626,6 +634,7 @@ test.describe('wiskey-stations: announcements', () => {
 });
 
 test.describe('wiskey-stations: states', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('loading says so while the stations are read', async ({ page }) => {
@@ -689,6 +698,7 @@ test.describe('wiskey-stations: states', () => {
 });
 
 test.describe('wiskey-stations: the administrator\'s decisions', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('access.call_hint = call hides the hint from who may not act on calls; access.talk_button = hidden removes the talk link', async ({ page }) => {
@@ -715,6 +725,7 @@ test.describe('wiskey-stations: the administrator\'s decisions', () => {
 });
 
 test.describe('wiskey-stations: hygiene', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('no platform name on the operator screen, the drawer or the dialogs, and the browser talks only to Arx', async ({ page }) => {

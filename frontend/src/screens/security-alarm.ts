@@ -931,6 +931,34 @@ export class SecurityAlarm extends LitElement {
         min-inline-size: 0;
       }
     }
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls): from 1024 px the page takes the screen's height, the state
+       panel is a little denser, and the sensors (the one list that grows with the installation) take the room left and scroll inside
+       their own region; the state, the arm keys and the filters never leave the screen */
+    @media (min-width: 1024px) {
+      sw-page {
+        block-size: 100%;
+      }
+      .hero {
+        padding: 14px 20px;
+        gap: 10px 20px;
+      }
+      .ready {
+        padding: 8px 12px;
+        font-size: var(--sw-fs-sm);
+      }
+      .ready ul {
+        margin-block-start: 2px;
+      }
+      .areas {
+        flex: 1 1 0;
+        min-block-size: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        /* room for the cards' shadow and focus ring inside the scroller */
+        padding: 2px 4px 6px;
+        margin-inline: -4px;
+      }
+    }
     /* the bubble skin: the list and its rows are flat layers, the view switch a pill track */
     :host([data-skin='bubble']) .zlist {
       border-color: transparent;

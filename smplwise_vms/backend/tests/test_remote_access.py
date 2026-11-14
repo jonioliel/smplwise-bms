@@ -553,6 +553,9 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      # TKSECRETS2: the in-app secrets store is local-only (remote_channel.BLOCKED_ON_REMOTE; the list here had missed it on the base)
                      ("GET", "/api/v1/system/secrets"), ("PUT", "/api/v1/system/secrets/{name}"), ("DELETE", "/api/v1/system/secrets/{name}"),
                      ("POST", "/api/v1/system/secrets/{name}/test"),
+                     # HEALTH-GO2RTC-FOLLOWUP-2431: the video service list and choice (the address every live / playback path uses) - local sessions only
+                     ("GET", "/api/v1/system/video-services"), ("PUT", "/api/v1/system/video-services/selection"),
+                     ("DELETE", "/api/v1/system/video-services/selection"),
                      # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) - local sessions only
                      ("GET", "/api/v1/identity/service-identity"), ("PUT", "/api/v1/identity/service-identity"),
                      # SVCIDENT3: the runnable switch is local-only too (prefix-blocked in remote_channel; the remote 404 is asserted in test_service_identity_runnable.py)

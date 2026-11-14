@@ -29,6 +29,9 @@ DEFAULTS: dict[str, str] = {
     # remote-policy hint and the "מנגן דרך MSE" line). "false" (default) keeps the screen clean - the badge stays and carries the same
     # text as its tooltip; "true" shows them (an installer chasing a transport problem).
     "media.video_notices": "false",
+    # HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11, answer 1): how long the video service must stay unreachable before the administrators'
+    # notice (system.health "video_service") - minutes, one of services/video_services.NOTICE_AFTER_CHOICES; 15 by default
+    "media.video_notice_after_min": "15",
     # LIVE-H265-2341: a camera stream in H.265 that this browser cannot decode (Chrome / Edge over WebRTC). auto = the other profile
     # when it is H.264, else an H.264 variant go2rtc transcodes (smplwise_ namespace), else the message; sub = only the other profile;
     # transcode = only the transcoded variant; off = the stream as it is. The recorder's own encoding is never changed (services/live_codec.py).
@@ -534,7 +537,7 @@ DEFAULTS: dict[str, str] = {
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
-INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 # BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
 # Keep in step with FROZEN_SKINS / FROZEN_FALLBACK_SKIN in frontend/src/design/skins/index.ts. Unfreeze = empty FROZEN_SKINS.
 FROZEN_SKINS = ("bubble",)

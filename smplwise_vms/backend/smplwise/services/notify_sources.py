@@ -314,7 +314,8 @@ def tick(db: Database, settings: Settings, now: dt.datetime | None = None) -> di
 
 # summary() item ids that mean the system itself is unwell (CR section 5). The NVR has its own source; these are `system.health`.
 HEALTH_ITEMS = {"ha": "תשתית המערכת מנותקת", "go2rtc": "שירות הווידאו לא מסתנכרן", "discovery": "גילוי המצלמות נכשל", "thumbnails": "תמונות האירועים אינן נוצרות",
-                # HEALTH-GO2RTC-2430: the video service did not answer for the policy's after_s (5 minutes); resolved when it answers again
+                # HEALTH-GO2RTC-2430: the video service did not answer for the administrator's delay (HEALTH-GO2RTC-FOLLOWUP-2431:
+                # media.video_notice_after_min, 15 minutes by default - not the policy's after_s); resolved when it answers again
                 "video_service": "שירות הווידאו לא זמין"}
 
 
@@ -337,7 +338,7 @@ def health_tick(conn: sqlite3.Connection, summary: dict[str, Any], backups: dict
     items = {i["id"]: i for i in summary.get("items", [])}
     res: dict[str, dict[str, int]] = {}
 
-    def run(source: str, conds: list[tuple[notify.Signal, bool]]) -> None:
+    def run(source: str, conds: list[tuple[notify.Signal, bool]], holds: dict[str, int] | None = None) -> None:
         hold = int((get_policy(conn, source) or {}).get("after_s") or 0)
         due: dict[str, notify.Signal] = {}
         active: set[str] = set()
@@ -345,13 +346,19 @@ def health_tick(conn: sqlite3.Connection, summary: dict[str, Any], backups: dict
             key = notify.dedupe_key_of(sig)
             if on:
                 active.add(key)
-            if held(key, on, hold, ts):
+            if held(key, on, (holds or {}).get(sig.subject_id, hold), ts):
                 due[key] = sig
         res[source] = reconcile(conn, source, due, active, now)
 
     nvr = items.get("nvr")
     run("nvr.offline", [(notify.Signal("nvr.offline", "system", "nvr", params={"name": "המקליט"}), bool(nvr and nvr["status"] == "error"))])
-    run("system.health", [(notify.Signal("system.health", "system", iid, params={"name": text}), bool(items.get(iid) and items[iid]["status"] in ("warn", "error"))) for iid, text in HEALTH_ITEMS.items()])
+    # HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11): the video service item waits the ADMINISTRATOR's delay (media.video_notice_after_min, 15 min by
+    # default) instead of the policy's after_s, and its text lists the video services last found (services/video_services, cache only)
+    from . import video_services
+
+    texts = {**HEALTH_ITEMS, "video_service": HEALTH_ITEMS["video_service"] + video_services.notice_suffix()}
+    run("system.health", [(notify.Signal("system.health", "system", iid, params={"name": text}), bool(items.get(iid) and items[iid]["status"] in ("warn", "error"))) for iid, text in texts.items()],
+        holds={"video_service": video_services.notice_after_min(conn) * 60})
     stale = False
     text = "הגיבוי האחרון ישן מיומיים"
     if backups.get("known"):

@@ -230,13 +230,13 @@ export class LiveOverview extends LitElement {
               </sw-card>`
             : nothing}
           <sw-card heading="אתרים ומבנים" subheading=${sites.length ? `${sites.length} אתרים · ${floors.length} קומות` : 'עדיין לא הוגדרו אתרים'}>
-            ${sites.map((s) => {
+            <div class="hgrid">${sites.map((s) => {
               const fl = (s.buildings ?? []).flatMap((b) => b.floors ?? []);
               const plans = fl.filter((f) => f.has_plan).length;
               const placed = fl.reduce((n, f) => n + f.camera_count, 0);
               return html`<div class="hrow link" role="link" tabindex="0" @click=${() => navigate('/explore/sites')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/explore/sites'); } }}><span>${s.name}<div class="muted">${(s.buildings ?? []).length} מבנים · ${fl.length} קומות · ${placed} מצלמות מוצבות · ${plans}/${fl.length} תוכניות</div></span><span class="status"><i style=${`--c:${fl.length && plans === fl.length ? 'var(--sw-live)' : 'var(--sw-stale)'}`}></i>${fl.length && plans === fl.length ? 'תוכניות מפורסמות' : 'חסרות תוכניות'}</span></div>`;
             })}
-            ${this.recorder ? html`<div class="hrow"><span>NVR · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${online}/${cams.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? 'מחובר' : `${cams.length - online} מנותקות`}</span></div>` : nothing}
+            ${this.recorder ? html`<div class="hrow"><span>NVR · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${online}/${cams.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? 'מחובר' : `${cams.length - online} מנותקות`}</span></div>` : nothing}</div>
           </sw-card>
         </div>
         <div class="row3">
@@ -619,6 +619,24 @@ export class LiveOverview extends LitElement {
     .spot:last-child {
       margin-block-end: 0;
     }
+    /* NOSCROLL-1366-2437: the health rows sit in a grid; on a short desktop (1366x768 class) they take two columns, so the row of
+       health / storage gives the last row (events, attention) the room it needs and the page does not scroll. From 1280 px only:
+       at 1024x768 the half-width cells and the lower floor squeezed the attention card below one item (entry check 2026-11-12) */
+    .hgrid {
+      display: grid;
+      gap: 5px;
+    }
+    .hgrid > .hrow {
+      margin-block-end: 0;
+    }
+    @media (min-width: 1280px) and (max-height: 860px) {
+      .hgrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .row3 {
+        min-block-size: 160px;
+      }
+    }
     .hrow > span:first-child,
     .spot .t,
     .ev .txt b {
@@ -813,8 +831,8 @@ export class LiveOverview extends LitElement {
             </div>
           </sw-card>
           <sw-card heading="בריאות האתרים">
-            ${demoSites.map((s) => html`<div class="hrow"><span>${s.name}<div class="muted">${s.online}/${s.cameras} מצלמות · ${s.alerts} התראות</div></span><span class="status"><i style="--c:${s.health === 'live' ? 'var(--sw-live)' : s.health === 'offline' ? 'var(--sw-danger)' : 'var(--sw-stale)'}"></i>${s.health === 'live' ? 'מחובר' : s.health === 'offline' ? 'מנותק' : 'חלקי'}</span></div>`)}
-            ${demoHealth.slice(0, 2).map((h) => html`<div class="hrow"><span>${h.name}<div class="muted">${h.detail}</div></span><span class="status"><i style="--c:${h.state === 'live' ? 'var(--sw-live)' : 'var(--sw-stale)'}"></i>${h.state === 'live' ? 'מחובר' : 'לא רענן'}</span></div>`)}
+            <div class="hgrid">${demoSites.map((s) => html`<div class="hrow"><span>${s.name}<div class="muted">${s.online}/${s.cameras} מצלמות · ${s.alerts} התראות</div></span><span class="status"><i style="--c:${s.health === 'live' ? 'var(--sw-live)' : s.health === 'offline' ? 'var(--sw-danger)' : 'var(--sw-stale)'}"></i>${s.health === 'live' ? 'מחובר' : s.health === 'offline' ? 'מנותק' : 'חלקי'}</span></div>`)}
+            ${demoHealth.slice(0, 2).map((h) => html`<div class="hrow"><span>${h.name}<div class="muted">${h.detail}</div></span><span class="status"><i style="--c:${h.state === 'live' ? 'var(--sw-live)' : 'var(--sw-stale)'}"></i>${h.state === 'live' ? 'מחובר' : 'לא רענן'}</span></div>`)}</div>
           </sw-card>
         </div>
         <div class="row3">

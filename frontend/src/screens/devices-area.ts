@@ -12,6 +12,7 @@ import '../components/sw-state-panel';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-dialog';
+import '../components/sw-pager';
 import './devices-media-card';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
@@ -56,6 +57,9 @@ const COVER_CLASS_ICON: Record<string, IconName> = { door: 'lock', garage: 'lock
 /** CR-007 slice 4: the sensors card grouped by device class, compact (services/devices.py SENSOR_GROUP_CLASSES). */
 const SENSOR_GROUP_LABELS: Record<string, string> = { temperature: 'טמפרטורה', humidity: 'לחות', power: 'חשמל / אנרגיה', illuminance: 'תאורה סביבתית', co2: 'CO2', battery: 'סוללה', other: 'אחר' };
 const SENSOR_GROUP_ORDER = ['temperature', 'humidity', 'power', 'illuminance', 'co2', 'battery'];
+
+/** NOSCROLL-1366-2437: from this size (outside the layout editor) the area's cards region never scrolls; it pages (measureBands). */
+const BANDS_MQ = '(min-width: 1024px) and (min-height: 560px)';
 
 /** The cards whose devices are two-up tiles (the others are full-width rows). */
 const TILE_CARDS = new Set<CardId>(['lighting', 'switches', 'sensors']);
@@ -421,6 +425,30 @@ const AREA_DESIGN = css`
     flex-wrap: wrap;
     max-inline-size: 100%;
   }
+  /* NOSCROLL-1366-2437: the cards region (measureBands). Below BANDS_MQ, and in the layout editor, it is transparent and the page scrolls
+     as before. From there the page takes the screen's height and the region the room left under the header; it clips (a card's
+     shadow keeps 12 px of room), the grid moves up to the page's first card, and the cards of the other pages are hidden. */
+  .fitbox {
+    display: contents;
+  }
+  @media (min-width: 1024px) and (min-height: 560px) {
+    :host([data-pages]) sw-page {
+      block-size: 100%;
+    }
+    :host([data-pages]) .fitbox {
+      display: block;
+      flex: 1 1 auto;
+      min-block-size: 0;
+      overflow: clip;
+      overflow-clip-margin: 12px;
+    }
+    :host([data-pages]) .fitbox > .grid {
+      transform: translateY(calc(-1 * var(--band-y, 0px)));
+    }
+    :host([data-pages]) .fitbox > .grid > [data-band-off] {
+      visibility: hidden;
+    }
+  }
   /* FIXTURE-SPECS-2405: the fit steps (measureFit) - only while the automatic layout would make the page scroll on a desktop-width
      screen; the look is the same, the air between and inside the cards is what gives. Step 1: */
   :host([data-fit='1']) sw-page,
@@ -664,6 +692,13 @@ export class DevicesArea extends LitElement {
   @state() private fit: 0 | 1 | 2 = 0;
   private fitKey = '';
   private fitRaf = 0;
+  /** NOSCROLL-1366-2437: the pages of the cards region on a desktop (measureBands): the current page (0-based) and how many there are */
+  @state() private bandPage = 0;
+  @state() private bandCount = 1;
+  private bandRo?: ResizeObserver;
+  private bandObserved: HTMLElement | null = null;
+  private bandMq = window.matchMedia(BANDS_MQ);
+  private onBandMq = () => this.requestUpdate();
   @state() private error = '';
   @state() private forbidden = false;
   @state() private notFound = false;
@@ -757,6 +792,8 @@ export class DevicesArea extends LitElement {
 
   protected updated() {
     if (this.getAttribute('data-fit') !== String(this.fit)) this.setAttribute('data-fit', String(this.fit));
+    this.toggleAttribute('data-pages', this.bandsOn());
+    this.watchBands();
     if (!this.fitRaf) this.fitRaf = window.requestAnimationFrame(this.measureFit);
     // the layout arrives after the area: fetch what its custom cards / main strips list that is not this area's own
     const d = this.detail;
@@ -781,6 +818,7 @@ export class DevicesArea extends LitElement {
     const eligible = window.innerWidth >= FIT_MIN_WIDTH && !this.phone && !this.lay.editing && !this.lay.gridOn('cards');
     if (!eligible) {
       if (this.fit !== 0) this.fit = 0;
+      else this.measureBands(); // NOSCROLL-1366-2437: an owner-arranged grid is not packed, but it pages like the automatic one
       return;
     }
     const key = [window.innerWidth, window.innerHeight, this.areaId, this.design, this.entityIds.size].join('|');
@@ -792,8 +830,86 @@ export class DevicesArea extends LitElement {
       }
     }
     const sc = scrollParentOf(this);
-    if (sc && sc.scrollHeight - sc.clientHeight > 1 && this.fit < 2) this.fit = (this.fit + 1) as 1 | 2;
+    // NOSCROLL-1366-2437: while the cards region pages, the page area no longer scrolls - the region's own overflow is what is packed
+    const box = this.bandsOn() ? this.renderRoot.querySelector<HTMLElement>('.fitbox') : null;
+    const grid = box?.querySelector<HTMLElement>(':scope > .grid');
+    const inner = box && grid ? grid.offsetHeight - box.clientHeight : 0;
+    if (((sc && sc.scrollHeight - sc.clientHeight > 1) || inner > 1) && this.fit < 2) {
+      this.fit = (this.fit + 1) as 1 | 2;
+      return;
+    }
+    this.measureBands();
   };
+
+  /** NOSCROLL-1366-2437: the cards region pages (a desktop window, not the layout editor). */
+  private bandsOn(): boolean {
+    return this.bandMq.matches && !this.phone && !this.lay.editing;
+  }
+
+  /** The region is measured again whenever it or its grid change size (a card that grew, a window resize). */
+  private watchBands() {
+    const box = this.renderRoot.querySelector<HTMLElement>('.fitbox');
+    if (box === this.bandObserved || typeof ResizeObserver === 'undefined') return;
+    this.bandRo?.disconnect();
+    this.bandObserved = box;
+    if (!box) return;
+    this.bandRo ??= new ResizeObserver(() => {
+      if (!this.fitRaf) this.fitRaf = window.requestAnimationFrame(this.measureFit);
+    });
+    this.bandRo.observe(box);
+    const grid = box.querySelector<HTMLElement>(':scope > .grid');
+    if (grid) this.bandRo.observe(grid);
+  }
+
+  /**
+   * NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; design audit round 30 #5: this screen scrolled the page by 232 px at
+   * 1366x768 and 100 px at 1440x900 after both packing steps). From BANDS_MQ the cards region takes the height left under the header
+   * and never scrolls: when the cards are taller than it, they are split into pages by their own geometry. Page 1 holds every card that
+   * ends inside the region; the next page starts at the highest card not shown yet and holds every remaining card that ends within one
+   * region's height from there; and so on. A page shows only its own cards (the others are hidden, so nothing is cut in half or shown
+   * twice) and the grid is moved up to the page's first card. The grid itself - both automatic directions and an owner-arranged layout -
+   * is not changed. A card taller than the region is a page of its own (its bottom is clipped).
+   */
+  private measureBands() {
+    const box = this.renderRoot.querySelector<HTMLElement>('.fitbox');
+    const grid = box?.querySelector<HTMLElement>(':scope > .grid');
+    const items = grid ? ([...grid.children] as HTMLElement[]) : [];
+    const clear = () => {
+      for (const el of items) el.removeAttribute('data-band-off');
+      grid?.style.removeProperty('--band-y');
+      if (this.bandCount !== 1) this.bandCount = 1;
+      if (this.bandPage !== 0) this.bandPage = 0;
+    };
+    if (!box || !grid || !this.bandsOn()) return clear();
+    const h = box.clientHeight;
+    const g0 = grid.getBoundingClientRect().top;
+    const geo = items
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .filter((x) => x.r.height > 0)
+      .map((x) => ({ el: x.el, top: x.r.top - g0, bottom: x.r.bottom - g0 }));
+    if (!geo.length || Math.max(...geo.map((x) => x.bottom)) <= h + 0.5) return clear();
+    const pages: { y: number; els: Set<HTMLElement> }[] = [];
+    let rest = [...geo].sort((a, b) => a.top - b.top);
+    while (rest.length) {
+      const y = rest[0].top;
+      let mine = rest.filter((x) => x.bottom - y <= h + 0.5);
+      if (!mine.length) mine = [rest[0]];
+      pages.push({ y, els: new Set(mine.map((x) => x.el)) });
+      rest = rest.filter((x) => !mine.includes(x));
+    }
+    const at = Math.min(this.bandPage, pages.length - 1);
+    const page = pages[at];
+    for (const x of geo) x.el.toggleAttribute('data-band-off', !page.els.has(x.el));
+    // the first page is never moved: the cards keep their place, only the ones that do not fit are hidden
+    grid.style.setProperty('--band-y', `${at === 0 ? 0 : page.y}px`);
+    if (this.bandCount !== pages.length) this.bandCount = pages.length;
+    if (this.bandPage !== at) this.bandPage = at;
+  }
+
+  private goBand(page: number) {
+    this.bandPage = Math.max(0, Math.min(page - 1, this.bandCount - 1));
+    if (!this.fitRaf) this.fitRaf = window.requestAnimationFrame(this.measureFit);
+  }
 
   private onFitResize = () => {
     this.requestUpdate();
@@ -1191,6 +1307,7 @@ export class DevicesArea extends LitElement {
       this.phoneMq = null;
     }
     window.addEventListener('resize', this.onFitResize);
+    this.bandMq.addEventListener('change', this.onBandMq);
     if (!isApi()) return;
     if (!canAnywhere('devices.read')) {
       this.forbidden = true;
@@ -1228,6 +1345,10 @@ export class DevicesArea extends LitElement {
     this.presenceTimer = 0;
     this.phoneMq?.removeEventListener('change', this.onPhone);
     window.removeEventListener('resize', this.onFitResize);
+    this.bandMq.removeEventListener('change', this.onBandMq);
+    this.bandRo?.disconnect();
+    this.bandRo = undefined;
+    this.bandObserved = null;
     if (this.fitRaf) window.cancelAnimationFrame(this.fitRaf);
     this.fitRaf = 0;
   }
@@ -1455,6 +1576,7 @@ export class DevicesArea extends LitElement {
     return html`<sw-page heading=${bubble || d.area.area_id !== 'unassigned' ? '' : bidi(d.area.name)} subheading=${bubble ? '' : sub} wide @bulk-request=${this.onBulkRequest}>
       <devices-area-nav slot="crumbs" .areaId=${d.area.area_id} .areaName=${d.area.name} .floorName=${floorName} .areas=${d.floor_areas}></devices-area-nav>
       <div slot="actions">
+        ${this.bandCount > 1 && this.bandsOn() ? html`<sw-pager data-area-pager .page=${this.bandPage + 1} .pages=${this.bandCount} @page-change=${(e: CustomEvent<{ page: number }>) => this.goBand(e.detail.page)}></sw-pager>` : nothing}
         ${d.area.map ? html`<sw-button size="sm" variant="ghost" icon="map" data-show-on-map @click=${() => { location.hash = mapHrefForArea(d.area.map) ?? location.hash; }}>הצג על המפה</sw-button>` : nothing}
         ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" mapHref=${mapHrefForArea(d.area.map) ?? ''} data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm && !bubble ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
@@ -1472,11 +1594,11 @@ export class DevicesArea extends LitElement {
         : arrangingCustom
         ? this.lay.stage(arrangingCustom, this.renderCustomCard(arrangingCustom))
         : ordered.length || customKeys.length || cameraKeys.length || (this.lay.editing && withDevices.length > 0)
-        ? html`<div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
+        ? html`<div class="fitbox" data-area-cards><div class=${classMap({ grid: true, 'lay-grid': this.lay.gridOn('cards') })} data-lay-grid="cards" data-lay-cols=${this.lay.gridCols('cards')} ?data-lay-phone-preview=${this.lay.phonePreview('cards')}>
             ${repeat(ordered, (c) => c.id, (c) => this.lay.wrap(`card:${c.id}`, this.renderCard(c)))}
             ${repeat(customKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCustomCard(k)))}
             ${repeat(cameraKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCameraCard(k)))}
-          </div>`
+          </div></div>`
         : html`<sw-state-panel icon="home" data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="התקנים שישויכו לאזור יופיעו כאן."></sw-state-panel>`}
       ${anyControllable ? nothing : html`<div class="note" data-readonly-note>תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.</div>`}
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}

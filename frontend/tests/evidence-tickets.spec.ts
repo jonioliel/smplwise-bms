@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url, type TicketsMock, type TicketsMockOptions } from './tickets-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // CR-038 slice 1 evidence: the tickets screens from the REAL build against the mock layer (fake data), desktop 1440 and phone 390, light and
 // dark, the classic and domus skins (the five-skin sweep is layout-tickets.spec.ts). Also asserts behaviour: the area follows the module
@@ -29,6 +30,7 @@ async function shot(page: Page, name: string, scheme: 'light' | 'dark' = 'light'
 }
 
 test.describe('tickets evidence', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
   test.beforeEach(async ({ page }, info) => {
     test.skip(info.project.name === 'tablet', 'desktop 1440 and phone 390');

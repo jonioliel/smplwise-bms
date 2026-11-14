@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
@@ -74,6 +74,8 @@ class SettingsPatch(BaseModel):
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=128, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
+    # HEALTH-GO2RTC-FOLLOWUP-2431: minutes before the "video service unavailable" administrators' notice (1 / 5 / 15 / 30 / 60)
+    media_video_notice_after_min: Literal[1, 5, 15, 30, 60] | None = Field(default=None, alias="media.video_notice_after_min")
     media_h265_policy: str | None = Field(default=None, pattern="^(auto|sub|transcode|off)$", alias="media.h265_policy")  # LIVE-H265-2341
     media_h265_max_transcodes: int | None = Field(default=None, ge=0, le=16, alias="media.h265_max_transcodes")
     nvr_batch_on_refusal: str | None = Field(default=None, pattern="^(skip|stop)$", alias="nvr.batch_on_refusal")  # CAM-H264-VERIFY-2361

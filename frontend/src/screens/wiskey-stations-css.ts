@@ -820,6 +820,11 @@ export const stationsCss = css`
       scrollbar-width: thin;
     }
     /* the ringing card's pulse (5 px) and the cards' shadows stay inside the scrolling box: the box keeps that much room around them */
+    /* NOSCROLL-1366-2437: the cards view is paged to what fits (the screen measures whole rows; the pager sits at the end of the chips
+       row), so the box no longer scrolls; overflow stays a fallback for a window too short for one row */
+    .chips .pager {
+      margin-inline-start: auto;
+    }
     .main > .grid {
       grid-auto-rows: max-content;
       align-content: start;

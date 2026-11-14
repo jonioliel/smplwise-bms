@@ -13,6 +13,7 @@ import '../components/sw-dialog';
 import '../components/sw-scene';
 import { snapshotUrl } from '../api/media';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
 import '../components/camera-image-health-card';
 import { cameraImageHealth, setCameraReference, type ImageCamera, type ImageHealth, type ImageKind } from '../api/camera-image-health';
 import { cit } from '../i18n/camera-image-health';
@@ -87,6 +88,16 @@ export class SystemDevices extends LitElement {
     this.phone = this.phoneMq.matches;
     this.narrow = this.narrowMq.matches;
   };
+  /** NOSCROLL-1366-2437 (owner rule: a control screen never scrolls): from 1024 px the camera table fills the room under the filters and
+   *  shows as many rows as fit; the rest are on the next pages (sw-pager). 0 = every row (below 1024 px the page scrolls as before). */
+  @state() private page = 1;
+  private visibleCount = 0;
+  private fitCount = -1;
+  @state() private perPage = 0;
+  private deskMq = window.matchMedia('(min-width: 1024px)');
+  private fitObs: ResizeObserver | null = null;
+  private fitRaf = 0;
+  private onDesk = () => this.scheduleFit();
 
   static styles = [css`
     .filters {
@@ -209,6 +220,32 @@ export class SystemDevices extends LitElement {
     .filters sw-field {
       inline-size: 200px;
     }
+    .pagerow {
+      display: flex;
+      justify-content: center;
+      padding-block-start: 8px;
+    }
+    /* NOSCROLL-1366-2437: from 1024 px the page takes the screen's height, the table stage takes what is left under the filters and
+       pages its rows (fit() above); the recorder card stays one compact row under it */
+    @media (min-width: 1024px) {
+      sw-page {
+        block-size: 100%;
+      }
+      .stage {
+        flex: 1 1 0;
+        min-block-size: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .stage > sw-table {
+        flex: 0 1 auto;
+        min-block-size: 0;
+        overflow: hidden;
+      }
+      .nvr {
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      }
+    }
     /* POLISH4-WP2 (D11): the phone. A row is a card (sw-table stacks the cells); this screen keeps the camera, its state, the picture
        check and when it was last seen on the card - FPS, rate, stream and the network bars move to the drawer, so a camera reads in
        one glance instead of a nine-line column. The search takes the full row under the chips. */
@@ -239,13 +276,58 @@ export class SystemDevices extends LitElement {
     this.offlineFirst = params.get('sort') === 'offline';
     this.phoneMq.addEventListener('change', this.onPhone);
     this.narrowMq.addEventListener('change', this.onPhone);
+    this.deskMq.addEventListener('change', this.onDesk);
     void this.reload();
   }
 
   disconnectedCallback() {
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.narrowMq.removeEventListener('change', this.onPhone);
+    this.deskMq.removeEventListener('change', this.onDesk);
+    this.fitObs?.disconnect();
+    this.fitObs = null;
+    cancelAnimationFrame(this.fitRaf);
     super.disconnectedCallback();
+  }
+
+  protected updated() {
+    const stage = this.renderRoot.querySelector<HTMLElement>('.stage');
+    if (stage && !this.fitObs && typeof ResizeObserver !== 'undefined') {
+      // the stage's box follows the viewport on a desktop (flex: 1 under a full-height page), not the rows it shows: no measure loop
+      this.fitObs = new ResizeObserver(() => this.scheduleFit());
+      this.fitObs.observe(stage);
+    }
+    // a filter, a search or a sync changes how many rows there are: measure again (a measure changes nothing when the count holds)
+    if (this.visibleCount !== this.fitCount) {
+      this.fitCount = this.visibleCount;
+      this.scheduleFit();
+    }
+  }
+
+  private scheduleFit() {
+    cancelAnimationFrame(this.fitRaf);
+    this.fitRaf = requestAnimationFrame(() => this.fit());
+  }
+
+  /** How many table rows fit in the stage (measured on the rendered table: header and one body row). */
+  private fit() {
+    if (!this.deskMq.matches) {
+      if (this.perPage) this.perPage = 0;
+      return;
+    }
+    const stage = this.renderRoot.querySelector<HTMLElement>('.stage');
+    const table = stage?.querySelector('sw-table');
+    const root = table?.shadowRoot;
+    const head = root?.querySelector<HTMLElement>('thead');
+    const row = root?.querySelector<HTMLElement>('tbody tr');
+    if (!stage || !head || !row || !row.offsetHeight) return;
+    const pager = 44; // the pager row (34 px buttons + its gap), reserved whenever rows are paged
+    const room = stage.clientHeight - head.offsetHeight - 2;
+    const all = Math.floor(room / row.offsetHeight);
+    const n = Math.max(3, Math.floor((room - pager) / row.offsetHeight));
+    const total = this.visibleCount;
+    const next = total <= all ? 0 : n;
+    if (next !== this.perPage) this.perPage = next;
   }
 
   private async reload() {
@@ -404,7 +486,11 @@ export class SystemDevices extends LitElement {
     const kind = this.imageFilter;
     const picked = all.filter((c) => (this.filter === 'all' ? true : this.filter === 'online' ? c.state === 'live' : this.filter === 'offline' ? c.state === 'offline' : c.state === 'stale' || c.state === 'forbidden' || c.state === 'unknown'))
       .filter((c) => !kind || (this.imageOf(c.id)?.issues ?? []).includes(kind));
-    const rows = this.offlineFirst ? [...picked].sort((a, b) => Number(b.state === 'offline') - Number(a.state === 'offline')) : picked;
+    const sorted = this.offlineFirst ? [...picked].sort((a, b) => Number(b.state === 'offline') - Number(a.state === 'offline')) : picked;
+    this.visibleCount = sorted.length;
+    const pages = this.perPage ? Math.max(1, Math.ceil(sorted.length / this.perPage)) : 1;
+    const page = Math.min(this.page, pages);
+    const rows = this.perPage ? sorted.slice((page - 1) * this.perPage, page * this.perPage) : sorted;
     const cam = all.find((c) => c.id === this.selected);
     const api = !!this.cameras;
     return html`
@@ -431,7 +517,8 @@ export class SystemDevices extends LitElement {
               : html`<sw-state-panel state="loading" heading="טוען מצלמות…" data-cam-loading></sw-state-panel>`
             : api && !all.length
             ? html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות רשומות" hint="הגדירו את פרטי ה־NVR בהגדרות ‹ חיבורים ולחצו 'סנכרון מה־NVR', או רשמו ערוץ ידנית."></sw-state-panel>`
-            : html`<sw-table focus-rows .columns=${this.shownColumns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.alias = all.find((c) => c.id === e.detail.id)?.api?.alias ?? ''; }}></sw-table>`}
+            : html`<sw-table focus-rows .columns=${this.shownColumns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.alias = all.find((c) => c.id === e.detail.id)?.api?.alias ?? ''; }}></sw-table>
+              ${pages > 1 ? html`<div class="pagerow"><sw-pager data-health-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.page = e.detail.page)}></sw-pager></div>` : nothing}`}
           ${cam
             ? html`<sw-drawer open heading=${cam.name} subheading=${cam.sub} @close=${() => (this.selected = null)}>
                 <sw-field label="כינוי מקומי" hint="שינוי כינוי אינו משנה OSD; שם ה־NVR נשמר בנפרד"><input .value=${api ? this.alias : cam.name} ?disabled=${!api || !this.canSync} @input=${(e: Event) => (this.alias = (e.target as HTMLInputElement).value)} /></sw-field>
