@@ -20,21 +20,20 @@ threshold is an installation setting (`explain_*` in services/temperature.py INS
 Pure core first (`explain`, driven by the unit tests with synthetic series), the loader after."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 import sqlite3
 import statistics
 from typing import Any
 
 from . import temperature as t
-from .timeutil import iso_utc, parse_utc
+from .timeutil import iso_from_epoch, parse_utc
 
 NEIGHBORS_MAX = 12
 EXPLAIN_KINDS = ("high", "low")
 
 
 def _iso(ts: float | None) -> str | None:
-    return iso_utc(dt.datetime.fromtimestamp(int(ts), dt.timezone.utc)) if ts is not None else None
+    return iso_from_epoch(int(ts)) if ts is not None else None
 
 
 def _overlap(a: float, b: float, lo: float, hi: float) -> float:

@@ -29,8 +29,8 @@ def _cal(ref: str) -> str:
     return f"{API}/calendars/{quote(ref, safe='')}"
 
 
-def _iso(t: dt.datetime) -> str:
-    return t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+from ..timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse_when(w: Any, tz: str) -> tuple[dt.datetime, bool] | None:

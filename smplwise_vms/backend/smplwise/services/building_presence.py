@@ -178,8 +178,8 @@ def _rows(conn: sqlite3.Connection, ids: list[str]) -> dict[str, sqlite3.Row]:
     return out
 
 
-def _iso(d: dt.datetime) -> str:
-    return d.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def overrides(conn: sqlite3.Connection) -> dict[str, str]:

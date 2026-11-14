@@ -150,8 +150,8 @@ def _clean_name(name: Any, fallback: str = "Guest") -> str:
     return (str(name or "").strip()[:NAME_MAX]).strip() or fallback
 
 
-def _iso_z(moment: datetime) -> str:
-    return moment.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso_z = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def default_validity(at: datetime | None = None) -> tuple[str, str]:

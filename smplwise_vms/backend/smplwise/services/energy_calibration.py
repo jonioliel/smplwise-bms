@@ -29,7 +29,7 @@ from zoneinfo import ZoneInfo
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict
 from . import energy_store as st
-from .timeutil import parse_utc
+from .timeutil import iso_from_epoch_or_none, parse_utc
 
 UTC = dt.timezone.utc
 UNDO_WINDOW_S = 24 * 3600
@@ -271,8 +271,7 @@ def raw_reading_at(store: st.EnergyStore, meter_id: str, ts: int) -> tuple[int |
     return None, exact
 
 
-def _iso(ts: int | None) -> str | None:
-    return None if ts is None else dt.datetime.fromtimestamp(ts, UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_from_epoch_or_none  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _kwh(wh: int | None) -> float | None:

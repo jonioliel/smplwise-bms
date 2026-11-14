@@ -23,7 +23,6 @@ import logging
 import sqlite3
 import time
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 log = logging.getLogger("smplwise.intercom_write_journal")
@@ -39,8 +38,8 @@ class JournalUnavailable(Exception):
     """The intent could not be recorded: the write is not sent (fail closed)."""
 
 
-def _iso(ts: float) -> str:
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_from_epoch
+_iso = iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 class WriteJournal:

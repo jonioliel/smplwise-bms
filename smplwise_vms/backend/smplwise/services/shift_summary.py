@@ -15,11 +15,10 @@ import datetime as dt
 import sqlite3
 from typing import Any
 
-from ..db import get_setting
 from ..rbac import Principal, permissions_anywhere
 from . import shift_text as tx
 from .notify_visibility import Reach
-from .timeutil import iso_utc, parse_utc, zone
+from .timeutil import iso_from_epoch, parse_utc, site_zone
 
 MAX_HOURS = 72  # a custom window is at most this long (the notification and event rows are not kept forever)
 PRESETS = {"8h": 8 * 3600, "12h": 12 * 3600, "24h": 24 * 3600}
@@ -76,8 +75,7 @@ def parse_window(rng: str, start: str | None, end: str | None, now_ts: float) ->
     return lo, hi
 
 
-def _iso(ts: float) -> str:
-    return iso_utc(dt.datetime.fromtimestamp(ts, dt.timezone.utc))
+_iso = iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _ts(value: str) -> float:
@@ -295,7 +293,7 @@ def generator(conn: sqlite3.Connection, reach: Reach, lo: int, hi: int) -> dict[
 
 def build(conn: sqlite3.Connection, principal: Principal, lo: int, hi: int) -> dict[str, Any]:
     """The structured summary of [lo, hi) for this reader plus the rendered Hebrew text."""
-    tz = zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+    tz = site_zone(conn)
     reach = Reach(conn, principal)
     runners = {
         "tickets": lambda: tickets(conn, principal, lo, hi),

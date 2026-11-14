@@ -24,7 +24,6 @@ While the infrastructure session is disconnected nothing is recorded and nothing
 `learn`) runs hourly per unit; the janitor (hourly, main.janitor_tick) prunes the history. Nothing is ever sent to a device."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 import logging
 import os
@@ -38,7 +37,7 @@ from . import notify
 from . import temperature as t
 from . import temperature_defrost as learner
 from . import temperature_vendor_reports  # noqa: F401 - registers the vendor-report provider `temperature` (TEMPVENDOR-295) at startup, before any queued report is sent
-from .timeutil import iso_utc, parse_utc
+from .timeutil import iso_from_epoch, parse_utc
 
 log = logging.getLogger("smplwise.temperature")
 
@@ -58,8 +57,7 @@ def reset() -> None:
     _LAST["insights"] = {}
 
 
-def _iso(ts: float) -> str:
-    return iso_utc(dt.datetime.fromtimestamp(ts, dt.timezone.utc).replace(microsecond=0))
+_iso = iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _ts(iso: str | None) -> float | None:

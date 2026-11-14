@@ -28,7 +28,7 @@ from typing import Any
 from ..db import new_id
 from . import generator_catalog as cat
 from . import generator_core as core
-from .timeutil import iso_utc
+from .timeutil import iso_from_epoch
 
 # key -> (type, default, min, max). type: int | float | bool
 LOG_SPECS: dict[str, tuple[str, Any, float | None, float | None]] = {
@@ -326,7 +326,7 @@ def prune(conn: sqlite3.Connection, now_ts: float) -> dict[str, int]:
 # ---------------------------------------------------------------- reading the log
 
 def _iso(ts: int | float | None) -> str | None:
-    return iso_utc(dt.datetime.fromtimestamp(int(ts), dt.timezone.utc)) if ts is not None else None
+    return iso_from_epoch(int(ts)) if ts is not None else None
 
 
 def run_out(r: sqlite3.Row | dict[str, Any], now_ts: int, cfg: dict[str, Any]) -> dict[str, Any]:

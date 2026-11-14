@@ -106,8 +106,8 @@ def now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)  # tests move the clock here
 
 
-def _iso(t: dt.datetime | None) -> str | None:
-    return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z") if t else None
+from .timeutil import iso_or_none
+_iso = iso_or_none  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse(text: str | None) -> dt.datetime | None:

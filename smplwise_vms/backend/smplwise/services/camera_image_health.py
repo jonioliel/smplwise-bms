@@ -654,8 +654,8 @@ def tick(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, int]:
 
 # ---------------------------------------------------------------- the screen
 
-def _iso(ts: float | None) -> str | None:
-    return None if ts is None else dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_from_epoch_or_none
+_iso = iso_from_epoch_or_none  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def view(conn: sqlite3.Connection, visible: set[str] | None, now_ts: float | None = None) -> dict[str, Any]:

@@ -16,14 +16,14 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from ..db import get_setting, new_id, now_iso
+from ..db import new_id, now_iso
 from ..errors import ApiError, conflict
 from ..rbac import Principal
 from . import energy_counter as ec
 from . import energy_store as st
 from . import ha_scope
 from . import water_settings as ws
-from .timeutil import zone
+from .timeutil import site_zone
 
 FILE_NAME = "water.db"
 # CR-WATER78 4.5: noise = a drop under 10 % AND under 20 L; a drop to <= 10 % or <= 20 L is a reset; cap = max_flow x hours x 1.5 + 20 L
@@ -187,8 +187,7 @@ def store_for(settings: Any) -> st.EnergyStore:
     return st.store_at(Path(settings.data_dir) / FILE_NAME, WATER_PROFILE)
 
 
-def tz_of(conn: sqlite3.Connection):
-    return zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+tz_of = site_zone  # CR-TIMEUTIL-2436 (04:F15): the installation's zone, same rule
 
 
 def interval_floor(conn: sqlite3.Connection, now: int) -> int:

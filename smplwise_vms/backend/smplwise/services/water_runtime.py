@@ -41,7 +41,7 @@ from . import notify
 from . import water_alerts as wa
 from . import water_meters as wm
 from . import water_settings as ws
-from .timeutil import iso_utc, parse_utc
+from .timeutil import iso_from_epoch, parse_utc
 
 log = logging.getLogger("smplwise.water")
 
@@ -66,7 +66,7 @@ def reset() -> None:
 
 
 def _iso(ts: float) -> str:
-    return iso_utc(dt.datetime.fromtimestamp(int(ts), dt.timezone.utc))
+    return iso_from_epoch(int(ts))
 
 
 def _ts(iso: str | None) -> float | None:

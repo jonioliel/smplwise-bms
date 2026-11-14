@@ -28,6 +28,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from ...db import get_setting
+from ..timeutil import DEFAULT_ZONE, site_zone
 
 log = logging.getLogger(__name__)
 
@@ -50,9 +51,9 @@ CONDITION_EN = {k: k.replace("-", " ").replace("partlycloudy", "partly cloudy") 
 
 def installation_tz(conn) -> ZoneInfo:
     try:
-        return ZoneInfo(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
-    except Exception:  # noqa: BLE001 - an unknown zone falls back to the product default
-        return ZoneInfo("Asia/Jerusalem")
+        return site_zone(conn)
+    except Exception:  # noqa: BLE001 - an unreadable setting falls back to the product default (an unknown name already does)
+        return ZoneInfo(DEFAULT_ZONE)
 
 
 def _coords(conn) -> tuple[float, float] | None:

@@ -262,8 +262,8 @@ def _hour(moment: dt.datetime) -> str:
     return moment.astimezone(UTC).strftime("%Y-%m-%dT%H")
 
 
-def _iso(moment: dt.datetime) -> str:
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+from .timeutil import iso_utc_ms
+_iso = iso_utc_ms  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse(value: str) -> dt.datetime:

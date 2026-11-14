@@ -22,11 +22,11 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import Database, get_setting
+from ..db import Database
 from . import energy_meters as meters
 from . import energy_settings as es
 from . import energy_store as st
-from .timeutil import zone
+from .timeutil import site_zone
 
 log = logging.getLogger("smplwise.energy")
 
@@ -56,7 +56,7 @@ def tick(db: Database, settings: Settings, now: float | None = None, *, require_
             ).fetchall()
         except sqlite3.OperationalError:  # before the migration
             return {"skipped": "no_schema", "samples": 0}
-        tz = zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+        tz = site_zone(conn)
     if not rows:
         return {"samples": 0}
     samples: list[st.Sample] = []
@@ -155,7 +155,7 @@ def retention(db: Database, settings: Settings, now: float | None = None) -> dic
         except sqlite3.OperationalError:
             return {"skipped": "no_schema"}
         vals = es.values(conn)
-        tz = zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+        tz = site_zone(conn)
         keeps = _draft_keeps(conn, tz)
     raw_before = t - int(vals["energy.raw_retention_days"]) * 86400
     intervals_before = t - int(int(vals["energy.interval_retention_months"]) * es.DAYS_PER_MONTH * 86400)
@@ -180,7 +180,7 @@ def janitor(db: Database, settings: Settings, now: float | None = None) -> dict[
     out = retention(db, settings, t)
     try:
         with db.connection(mode="read", label="energy.janitor.tz") as conn:
-            tz = zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+            tz = site_zone(conn)
         hour = dt.datetime.fromtimestamp(t, dt.timezone.utc).astimezone(tz).hour
         if 2 <= hour < 5 and t - _LAST["vacuum"] >= VACUUM_EVERY_S:
             _LAST["vacuum"] = t
