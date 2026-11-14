@@ -29,7 +29,6 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
-from ..audit import audit
 from ..db import Database, new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from . import bill_ledger as bl
@@ -55,7 +54,9 @@ STATE_HE = eb.STATE_HE
 # CR-BILL-LEDGER-A-2436: the sealed-bill lifecycle shared with electricity (services/bill_ledger.py); every name is a constant, never input
 KIND = bl.BillKind(name="water", table="water_bills", events_table="water_bill_events", quantity="m3", resource_type="water_bill",
                    audit_prefix="infra.water.", state_he=STATE_HE, issued_states=ISSUED_STATES, correction_columns="id",
-                   number_tables=("energy_bill_numbers", "energy_bills", "water_bills"), account_table=None)
+                   number_tables=("energy_bill_numbers", "energy_bills", "water_bills"), account_table=None,
+                   accounts_table="water_accounts", runs_table="water_auto_runs", account_resource_type="water_account", log_word="water ",
+                   pdf_column=None)
 HISTORY_PERIODS = 12
 AUTO_MAX_PER_ACCOUNT = 24
 AUTO_RETRY = dt.timedelta(hours=6)
@@ -518,34 +519,16 @@ def _totals(lines: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM water_bills WHERE account_id = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC, issued_at DESC LIMIT 1",
-                        (aid, start.isoformat())).fetchone()
+    return bl.prev_bill(KIND, conn, aid, start)
 
 
 def _carried_from(conn: sqlite3.Connection, aid: str, period: per.Period, w_start: dt.datetime) -> dict[str, dt.datetime]:
-    prev = _prev_bill(conn, aid, period.start)
-    out: dict[str, dt.datetime] = {}
-    if prev:
-        for m in json.loads(prev["snapshot_json"]).get("meters") or []:
-            at = _parse_iso((m.get("end") or {}).get("at"))
-            if at is not None and at < w_start:
-                out[m["meter_id"]] = at
-    return out
+    return bl.carried_from(KIND, conn, aid, period, w_start)
 
 
 def _end_caps(conn: sqlite3.Connection, aid: str, period: per.Period, replaces: sqlite3.Row | None, w_end: dt.datetime) -> dict[str, dt.datetime]:
     """A correction of a bill that already has a successor keeps the original's per-meter end points (never billed twice)."""
-    if replaces is None:
-        return {}
-    if not conn.execute("SELECT 1 FROM water_bills WHERE account_id = ? AND period_start = ? AND state IN ('issued','sent','paid') LIMIT 1",
-                        (aid, period.end.isoformat())).fetchone():
-        return {}
-    out: dict[str, dt.datetime] = {}
-    for m in json.loads(replaces["snapshot_json"]).get("meters") or []:
-        at = _parse_iso((m.get("end") or {}).get("at"))
-        if at is not None and at < w_end:
-            out[m["meter_id"]] = at
-    return out
+    return bl.end_caps(KIND, conn, aid, period, replaces, w_end)
 
 
 def _reading(v: Decimal | None) -> str | None:
@@ -699,11 +682,16 @@ def account_status(conn: sqlite3.Connection, provider: WaterReadings, acc: sqlit
     return out
 
 
-def period_m3(conn: sqlite3.Connection, provider: WaterReadings, account: sqlite3.Row, p: per.Period, comp: fx.Compiled) -> dict[str, Any]:
-    """m3 of one period: from an issued bill of exactly that period, else from the store with the formula; missing stays null."""
+def period_m3(conn: sqlite3.Connection, provider: WaterReadings, account: sqlite3.Row, p: per.Period, comp: fx.Compiled,
+              sealed: dict[tuple[str, str], sqlite3.Row] | None = None) -> dict[str, Any]:
+    """m3 of one period: from an issued bill of exactly that period, else from the store with the formula; missing stays null.
+    `sealed`: the sealed bills already read for a list of periods (bill_ledger.period_bills, code review 04:F26)."""
     base = {"from": p.start.isoformat(), "to": p.last_day.isoformat()}
-    row = conn.execute("SELECT m3 FROM water_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC LIMIT 1",
-                       (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
+    if sealed is not None:
+        row = sealed.get((p.start.isoformat(), p.end.isoformat()))
+    else:
+        row = conn.execute("SELECT m3 FROM water_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC LIMIT 1",
+                           (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
     if row and row["m3"] is not None:
         return {**base, "m3": row["m3"], "status": "measured", "source": "bill"}
     a, b = per.utc_window(p, account["timezone"])
@@ -736,14 +724,13 @@ def account_history(conn: sqlite3.Connection, provider: WaterReadings, account: 
     except (fx.FormulaError, ValueError):
         return {"periods": []}
     rows: list[dict[str, Any]] = []
-    for p in per.previous_like(ref, cycle, past) + [ref]:
-        if p.start > today:
-            continue
-        entry = period_m3(conn, provider, account, p, comp)
+    started = [p for p in per.previous_like(ref, cycle, past) + [ref] if p.start <= today]
+    sealed, shown = bl.period_bills(KIND, conn, account["id"], started)  # one read of the account's bills, not two per period (04:F26)
+    for p in started:
+        entry = period_m3(conn, provider, account, p, comp, sealed)
         if p.end > today:
             entry["status"] = "open"
-        b = conn.execute("SELECT * FROM water_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state != 'void' ORDER BY revision DESC LIMIT 1",
-                         (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
+        b = shown.get((p.start.isoformat(), p.end.isoformat()))
         entry["bill"] = bill_summary(conn, b, money) if b is not None else None
         rows.append(entry)
     while rows and rows[0]["m3"] is None and rows[0]["bill"] is None:
@@ -807,46 +794,17 @@ def overlap_error(r: sqlite3.Row) -> ApiError:
 
 
 def by_create_request(conn: sqlite3.Connection, client_request_id: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM water_bills WHERE create_request_id = ?", (client_request_id,)).fetchone()
+    return bl.by_create_request(KIND, conn, client_request_id)
 
 
 def insert_draft(conn: sqlite3.Connection, account: sqlite3.Row, p: per.Period, comp: Computed, *, actor: Any | None, origin: str,
                  request_id: str | None, client_request_id: str | None, replaces: sqlite3.Row | None = None) -> str:
-    if replaces is None:
-        hit = overlapping(conn, account["id"], p)
-        if hit:
-            raise overlap_error(hit)
-    dup = conn.execute("SELECT id FROM water_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state = 'draft'",
-                       (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
-    if dup:
-        raise conflict("draft_exists", "כבר קיימת טיוטה לתקופה זו.", bill_id=dup["id"])
-    bid = new_id()
-    snap = comp.snapshot
-    snap["bill"]["id"] = bid
-    now = now_iso()
-    conn.execute(
-        """INSERT INTO water_bills(id, account_id, customer_id, revision, replaces_bill_id, period_start, period_end, state, origin, m3, total,
-             snapshot_json, create_request_id, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (bid, account["id"], account["customer_id"], snap["bill"]["revision"], replaces["id"] if replaces is not None else None, p.start.isoformat(),
-         p.end.isoformat(), origin, comp.m3, comp.total, json.dumps(snap, ensure_ascii=False), client_request_id, getattr(actor, "user_id", None), now, now))
-    action = "correct" if replaces is not None else ("auto_draft" if origin == "auto" and actor is None else "draft")
-    _event(conn, bid, action, actor, {"replaces": replaces["number"]} if replaces is not None else None)
-    _audit(conn, actor, f"bill.{action}", bid, request_id, {"account_id": account["id"], "period": p.as_api()})
-    return bid
+    return bl.insert_draft(KIND, conn, account, p, comp, actor=actor, origin=origin, request_id=request_id, client_request_id=client_request_id,
+                           replaces=replaces)
 
 
 def store_recalculated(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, actor: Any | None, request_id: str | None, row_version: int) -> None:
-    cur = get_bill(conn, bill["id"])
-    if cur["state"] != "draft":
-        raise conflict("bill_not_draft", "החיוב אינו טיוטה.", state=cur["state"])
-    if cur["row_version"] != row_version:
-        raise conflict("revision_conflict", "החיוב שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=cur["row_version"])
-    snap = comp.snapshot
-    snap["bill"]["id"] = bill["id"]
-    conn.execute("UPDATE water_bills SET m3 = ?, total = ?, snapshot_json = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                 (comp.m3, comp.total, json.dumps(snap, ensure_ascii=False), now_iso(), bill["id"]))
-    _event(conn, bill["id"], "recalculate", actor)
-    _audit(conn, actor, "bill.recalculate", bill["id"], request_id)
+    bl.store_recalculated(KIND, conn, bill, comp, actor, request_id, row_version)
 
 
 def recompute_drafts(conn: sqlite3.Connection, provider: WaterReadings, tid: str, actor: Any | None, request_id: str | None) -> dict[str, Any]:
@@ -869,14 +827,7 @@ def recompute_drafts(conn: sqlite3.Connection, provider: WaterReadings, tid: str
 
 
 def delete_draft(conn: sqlite3.Connection, bid: str, row_version: int, actor: Any, request_id: str | None) -> None:
-    row = get_bill(conn, bid)
-    if row["state"] != "draft":
-        raise conflict("bill_not_draft", "אפשר למחוק רק טיוטה.", state=row["state"])
-    if row["row_version"] != row_version:
-        raise conflict("revision_conflict", "החיוב שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=row["row_version"])
-    conn.execute("DELETE FROM water_bills WHERE id = ?", (bid,))
-    conn.execute("DELETE FROM water_bill_events WHERE bill_id = ?", (bid,))
-    _audit(conn, actor, "bill.delete", bid, request_id, {"account_id": row["account_id"]})
+    bl.delete_draft(KIND, conn, bid, row_version, actor, request_id)
 
 
 def number_for(conn: sqlite3.Connection, bill: sqlite3.Row, customer_number: str) -> tuple[str, str, int]:
@@ -915,119 +866,38 @@ def check_correctable(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
 
 # ====================================================================== automatic generation and retention (the shared keys)
 
-@dataclass
-class AutoOutcome:
-    created: int = 0
-    issued: int = 0
-    failed: int = 0
-    skipped: int = 0
+AutoOutcome = bl.AutoOutcome  # created / issued / failed / skipped of one pass (shared with electricity)
 
 
 def _due_periods(conn: sqlite3.Connection, acc: sqlite3.Row, now: dt.datetime, delay: dt.timedelta) -> list[per.Period]:
-    tz = acc["timezone"]
-    created_local = per.local_date(_parse_iso(acc["created_at"]) or now, tz)
-    out: list[per.Period] = []
-    for p in per.regular_periods(eb.cycle_of(acc), per.local_date(now, tz)):
-        if p.end <= created_local or per.local_midnight_utc(p.end, tz) + delay > now:
-            continue
-        run = conn.execute("SELECT status, next_attempt_at FROM water_auto_runs WHERE account_id = ? AND period_start = ? AND period_end = ?",
-                           (acc["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
-        if run is not None and not (run["status"] == "failed" and (run["next_attempt_at"] or "") <= _iso(now)):
-            continue
-        out.append(p)
-        if len(out) >= AUTO_MAX_PER_ACCOUNT:
-            break
-    return out
+    return bl.due_periods(KIND, conn, acc, now, delay, AUTO_MAX_PER_ACCOUNT)
 
 
 def _record_run(conn: sqlite3.Connection, acc_id: str, p: per.Period, status: str, bill_id: str | None, error: str | None, now: dt.datetime) -> None:
-    conn.execute(
-        """INSERT INTO water_auto_runs(account_id, period_start, period_end, status, bill_id, error_code, attempts, next_attempt_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-           ON CONFLICT(account_id, period_start, period_end) DO UPDATE SET status = excluded.status, bill_id = excluded.bill_id, error_code = excluded.error_code,
-             attempts = water_auto_runs.attempts + 1, next_attempt_at = excluded.next_attempt_at, updated_at = excluded.updated_at""",
-        (acc_id, p.start.isoformat(), p.end.isoformat(), status, bill_id, error, _iso(now + AUTO_RETRY) if status == "failed" else None, now_iso(), now_iso()))
+    bl.record_run(KIND, conn, acc_id, p, status, bill_id, error, now, AUTO_RETRY)
 
 
 def auto_generate(db: Database, settings: Any, now: dt.datetime | None = None) -> AutoOutcome:
-    """One pass (the electricity rule): idempotent per (account, period); the computation before the write lock; nothing while the module is off."""
+    """One pass (the electricity rule, services/bill_ledger.auto_generate): idempotent per (account, period); the computation before the
+    write lock; nothing while the module is off. The names below are looked up when the pass calls them (test seams)."""
     now = now or now_utc()
-    out = AutoOutcome()
-    with db.connection(mode="read", label="water.auto.scan") as rconn:
-        if not ws.enabled(rconn):
-            return out
-        delay = dt.timedelta(hours=int(read_settings(rconn)["auto"]["delay_hours"]))
-        accounts = rconn.execute("SELECT * FROM water_accounts WHERE deleted_at IS NULL AND status = 'active' AND auto_mode != 'off' ORDER BY created_at").fetchall()
-        work = [(acc, _due_periods(rconn, acc, now, delay)) for acc in accounts]
-    for acc, periods in work:
-        for p in periods:
-            try:
-                with db.connection(mode="read", label="water.auto.compute") as rconn:
-                    if rconn.execute("SELECT 1 FROM water_bills WHERE account_id = ? AND period_start < ? AND period_end > ? AND state != 'void' LIMIT 1",
-                                     (acc["id"], p.end.isoformat(), p.start.isoformat())).fetchone():
-                        comp, error = None, "exists"
-                    else:
-                        comp, error = compute(rconn, provider_for(rconn, settings), acc, p, origin="auto", now=now), None
-            except ApiError as e:
-                comp, error = None, e.code
-            except Exception:  # noqa: BLE001 - one account never stops the others
-                log.warning("automatic water bill computation failed", exc_info=True)
-                comp, error = None, "internal"
-            with db.connection(label="water.auto.write") as conn:
-                run = conn.execute("SELECT status, next_attempt_at FROM water_auto_runs WHERE account_id = ? AND period_start = ? AND period_end = ?",
-                                   (acc["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
-                if run is not None and not (run["status"] == "failed" and (run["next_attempt_at"] or "") <= _iso(now)):
-                    continue
-                if error == "exists":
-                    _record_run(conn, acc["id"], p, "skipped", None, None, now)
-                    out.skipped += 1
-                    continue
-                if comp is None:
-                    _record_run(conn, acc["id"], p, "failed", None, error, now)
-                    audit(conn, actor=None, action="infra.water.bill.auto_failed", decision="allowed", resource_type="water_account", resource_id=acc["id"],
-                          details={"period": p.as_api(), "error": error})
-                    out.failed += 1
-                    continue
-                cur = conn.execute("SELECT * FROM water_accounts WHERE id = ? AND deleted_at IS NULL", (acc["id"],)).fetchone()
-                if cur is None or cur["revision"] != acc["revision"]:
-                    continue
-                try:
-                    bid = insert_draft(conn, cur, p, comp, actor=None, origin="auto", request_id=None, client_request_id=None)
-                except ApiError as e:
-                    _record_run(conn, acc["id"], p, "skipped" if e.code in ("draft_exists", "period_overlap") else "failed", None, e.code, now)
-                    out.skipped += 1
-                    continue
-                status = "created"
-                if cur["auto_mode"] == "issue":
-                    try:
-                        seal(conn, get_bill(conn, bid), comp, actor=None, issue_date=per.local_date(now, cur["timezone"]), request_id=None, client_request_id=None)
-                        status = "issued"
-                        out.issued += 1
-                    except ApiError as e:
-                        log.warning("automatic water issue refused: %s", e.code)
-                _record_run(conn, acc["id"], p, status, bid, None, now)
-                out.created += 1
-    return out
+    return bl.auto_generate(KIND, db, now, bl.AutoHooks(
+        log=log,
+        read_settings=lambda c: read_settings(c),
+        provider=lambda c: provider_for(c, settings),
+        compute=lambda c, prov, acc, p, at: compute(c, prov, acc, p, origin="auto", now=at),
+        insert_draft=lambda *a, **k: insert_draft(*a, **k),
+        seal=lambda *a, **k: seal(*a, **k),
+        get_bill=lambda c, bid: get_bill(c, bid),
+        max_per_account=AUTO_MAX_PER_ACCOUNT,
+        retry=AUTO_RETRY,
+        enabled=lambda c: ws.enabled(c),
+    ))
 
 
 def retention(db: Database, now: dt.datetime | None = None) -> dict[str, int]:
     """The SHARED retention keys (energy.draft_retention_days, energy.bill_retention_years); the number ledger and the run rows stay."""
-    now = now or now_utc()
-    with db.connection(label="water.billing.retention") as conn:
-        days = eb._int_setting(conn, "energy.draft_retention_days", 30, 7, 365)
-        years = eb._int_setting(conn, "energy.bill_retention_years", 7, 1, 15)
-        draft_cut = _iso(now - dt.timedelta(days=days))
-        today = per.local_date(now, "UTC")
-        bill_cut = today.replace(year=today.year - years, day=1).isoformat()
-        drafts = [r[0] for r in conn.execute("SELECT id FROM water_bills WHERE state = 'draft' AND updated_at < ?", (draft_cut,)).fetchall()]
-        old = [r[0] for r in conn.execute("SELECT id FROM water_bills WHERE state != 'draft' AND period_end < ?", (bill_cut,)).fetchall()]
-        for bid in drafts + old:
-            conn.execute("DELETE FROM water_bill_events WHERE bill_id = ?", (bid,))
-            conn.execute("DELETE FROM water_bills WHERE id = ?", (bid,))
-        if drafts or old:
-            audit(conn, actor=None, action="infra.water.bill.retention", decision="allowed", resource_type="water_bill", resource_id="*",
-                  details={"drafts": len(drafts), "bills": len(old)})
-    return {"drafts": len(drafts), "bills": len(old)}
+    return bl.retention(KIND, db, now or now_utc())
 
 
 _LAST: dict[str, float] = {}

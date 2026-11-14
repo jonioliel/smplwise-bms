@@ -51,7 +51,9 @@ STATE_HE = {"draft": "טיוטה", "issued": "הונפק", "sent": "נשלח", "
 # CR-BILL-LEDGER-A-2436: the sealed-bill lifecycle shared with water (services/bill_ledger.py); every name is a constant, never input
 KIND = bl.BillKind(name="energy", table="energy_bills", events_table="energy_bill_events", quantity="kwh", resource_type="energy_bill",
                    audit_prefix="energy.", state_he=STATE_HE, issued_states=ISSUED_STATES, correction_columns="*",
-                   number_tables=("energy_bill_numbers", "energy_bills"), account_table="energy_accounts")
+                   number_tables=("energy_bill_numbers", "energy_bills"), account_table="energy_accounts",
+                   accounts_table="energy_accounts", runs_table="energy_auto_runs", account_resource_type="energy_account", log_word="",
+                   pdf_column="pdf_path")
 
 
 def now_utc() -> dt.datetime:
@@ -749,39 +751,17 @@ class ComputeError(ApiError):
 
 
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
-    return conn.execute(
-        "SELECT * FROM energy_bills WHERE account_id = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC, issued_at DESC LIMIT 1",
-        (aid, start.isoformat()),
-    ).fetchone()
+    return bl.prev_bill(KIND, conn, aid, start)
 
 
 def _carried_from(conn: sqlite3.Connection, aid: str, period: per.Period, w_start: dt.datetime) -> dict[str, dt.datetime]:
-    prev = _prev_bill(conn, aid, period.start)
-    if not prev:
-        return {}
-    out: dict[str, dt.datetime] = {}
-    for m in json.loads(prev["snapshot_json"]).get("meters") or []:
-        at = _parse_iso((m.get("end") or {}).get("at"))
-        if at is not None and at < w_start:
-            out[m["meter_id"]] = at
-    return out
+    return bl.carried_from(KIND, conn, aid, period, w_start)
 
 
 def _end_caps(conn: sqlite3.Connection, aid: str, period: per.Period, replaces: sqlite3.Row | None, w_end: dt.datetime) -> dict[str, dt.datetime]:
     """A correction of a bill that already has a successor keeps the original's per-meter end points, so the energy the
     successor carried is never billed twice."""
-    if replaces is None:
-        return {}
-    succ = conn.execute("SELECT 1 FROM energy_bills WHERE account_id = ? AND period_start = ? AND state IN ('issued','sent','paid') LIMIT 1",
-                        (aid, period.end.isoformat())).fetchone()
-    if not succ:
-        return {}
-    out: dict[str, dt.datetime] = {}
-    for m in json.loads(replaces["snapshot_json"]).get("meters") or []:
-        at = _parse_iso((m.get("end") or {}).get("at"))
-        if at is not None and at < w_end:
-            out[m["meter_id"]] = at
-    return out
+    return bl.end_caps(KIND, conn, aid, period, replaces, w_end)
 
 
 def _opening_notes(mid: str, name: str, w: MeterWindow, start_kind: str, cons: Decimal, tz: str) -> list[dict[str, Any]]:
@@ -1119,15 +1099,20 @@ def compute_tou(conn: sqlite3.Connection, provider: BillingReadings, period: per
     return TouPart(windows, lines, notes, snap)
 
 
-def period_kwh(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, p: per.Period, comp: fx.Compiled) -> dict[str, Any]:
+def period_kwh(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, p: per.Period, comp: fx.Compiled,
+               sealed: dict[tuple[str, str], sqlite3.Row] | None = None) -> dict[str, Any]:
     """kWh of the account in one period: from an issued bill of exactly that period when there is one, else from the readings
     store (raw readings / quarter-hour buckets / daily totals, allocated by time) with the account formula. Missing data stays
-    null - never invented; partial coverage is 'partial'."""
+    null - never invented; partial coverage is 'partial'. `sealed`: the sealed bills already read for a list of periods
+    (bill_ledger.period_bills, code review 04:F26); without it the one period is looked up."""
     tz = account["timezone"]
-    row = conn.execute(
-        "SELECT kwh FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC LIMIT 1",
-        (account["id"], p.start.isoformat(), p.end.isoformat()),
-    ).fetchone()
+    if sealed is not None:
+        row = sealed.get((p.start.isoformat(), p.end.isoformat()))
+    else:
+        row = conn.execute(
+            "SELECT kwh FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC LIMIT 1",
+            (account["id"], p.start.isoformat(), p.end.isoformat()),
+        ).fetchone()
     base = {"from": p.start.isoformat(), "to": p.last_day.isoformat()}
     if row and row["kwh"] is not None:
         return {**base, "kwh": row["kwh"], "status": "measured", "source": "bill"}
@@ -1160,11 +1145,14 @@ def compute_history(conn: sqlite3.Connection, provider: BillingReadings, account
         cycle = cycle_of(account)
     except (TypeError, ValueError):
         cycle = None
-    previous = [period_kwh(conn, provider, account, p, comp) for p in per.previous_like(period, cycle, HISTORY_PERIODS)]
+    wanted = per.previous_like(period, cycle, HISTORY_PERIODS)
+    ly_period = per.same_period_last_year(period)
+    sealed, _shown = bl.period_bills(KIND, conn, account["id"], [*wanted, ly_period])  # one read for the 13 periods (04:F26)
+    previous = [period_kwh(conn, provider, account, p, comp, sealed) for p in wanted]
     # trim leading entries that have no data at all (before the account / the meters existed)
     while previous and previous[0]["kwh"] is None:
         previous.pop(0)
-    last_year = period_kwh(conn, provider, account, per.same_period_last_year(period), comp)
+    last_year = period_kwh(conn, provider, account, ly_period, comp, sealed)
     return {"current": {"from": period.start.isoformat(), "to": period.last_day.isoformat(), "kwh": current_kwh},
             "previous": previous, "same_period_last_year": last_year if last_year["kwh"] is not None else None}
 
@@ -1186,12 +1174,11 @@ def account_history(conn: sqlite3.Connection, provider: BillingReadings, account
     except (fx.FormulaError, ValueError):
         return out
     rows: list[dict[str, Any]] = []
-    for p in per.previous_like(ref, cycle, past):
-        if p.end > today:
-            continue  # only ended periods
-        entry = period_kwh(conn, provider, account, p, comp)
-        b = conn.execute("SELECT * FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state != 'void' ORDER BY revision DESC LIMIT 1",
-                         (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
+    ended = [p for p in per.previous_like(ref, cycle, past) if p.end <= today]  # only ended periods
+    sealed, shown = bl.period_bills(KIND, conn, account["id"], ended)  # one read of the account's bills, not two per period (04:F26)
+    for p in ended:
+        entry = period_kwh(conn, provider, account, p, comp, sealed)
+        b = shown.get((p.start.isoformat(), p.end.isoformat()))
         entry["bill"] = bill_summary(conn, b, money) if b is not None else None
         rows.append(entry)
     while rows and rows[0]["kwh"] is None and rows[0]["bill"] is None:
@@ -1327,59 +1314,20 @@ def _overlap_error(r: sqlite3.Row) -> ApiError:
 def insert_draft(conn: sqlite3.Connection, account: sqlite3.Row, p: per.Period, comp: Computed, *, actor: Any | None, origin: str,
                  request_id: str | None, client_request_id: str | None, replaces: sqlite3.Row | None = None) -> str:
     """The write half of "create a draft" (inside the caller's write transaction; the computation was done before)."""
-    if replaces is None:
-        hit = _overlapping(conn, account["id"], p)
-        if hit:
-            raise _overlap_error(hit)
-    dup = conn.execute("SELECT id FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state = 'draft'",
-                       (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
-    if dup:
-        raise conflict("draft_exists", "כבר קיימת טיוטה לתקופה זו.", bill_id=dup["id"])
-    bid = new_id()
-    snap = comp.snapshot
-    snap["bill"]["id"] = bid
-    now = now_iso()
-    conn.execute(
-        """INSERT INTO energy_bills(id, account_id, customer_id, revision, replaces_bill_id, period_start, period_end, state, origin, kwh, total,
-             snapshot_json, create_request_id, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (bid, account["id"], account["customer_id"], snap["bill"]["revision"], replaces["id"] if replaces is not None else None,
-         p.start.isoformat(), p.end.isoformat(), origin, comp.kwh, comp.total, json.dumps(snap, ensure_ascii=False), client_request_id,
-         getattr(actor, "user_id", None), now, now),
-    )
-    action = "correct" if replaces is not None else ("auto_draft" if origin == "auto" and actor is None else "draft")
-    _event(conn, bid, action, actor, {"replaces": replaces["number"]} if replaces is not None else None)
-    _audit(conn, actor, f"energy.bill.{action}", "energy_bill", bid, request_id, {"account_id": account["id"], "period": p.as_api()})
-    return bid
+    return bl.insert_draft(KIND, conn, account, p, comp, actor=actor, origin=origin, request_id=request_id, client_request_id=client_request_id,
+                           replaces=replaces)
 
 
 def by_create_request(conn: sqlite3.Connection, client_request_id: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM energy_bills WHERE create_request_id = ?", (client_request_id,)).fetchone()
+    return bl.by_create_request(KIND, conn, client_request_id)
 
 
 def store_recalculated(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, actor: Any | None, request_id: str | None, row_version: int) -> None:
-    cur = get_bill(conn, bill["id"])
-    if cur["state"] != "draft":
-        raise conflict("bill_not_draft", "החיוב אינו טיוטה.", state=cur["state"])
-    if cur["row_version"] != row_version:
-        raise conflict("revision_conflict", "החיוב שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=cur["row_version"])
-    snap = comp.snapshot
-    snap["bill"]["id"] = bill["id"]
-    conn.execute("UPDATE energy_bills SET kwh = ?, total = ?, snapshot_json = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                 (comp.kwh, comp.total, json.dumps(snap, ensure_ascii=False), now_iso(), bill["id"]))
-    _event(conn, bill["id"], "recalculate", actor)
-    _audit(conn, actor, "energy.bill.recalculate", "energy_bill", bill["id"], request_id)
+    bl.store_recalculated(KIND, conn, bill, comp, actor, request_id, row_version)
 
 
 def delete_draft(conn: sqlite3.Connection, bid: str, row_version: int, actor: Any, request_id: str | None) -> None:
-    row = get_bill(conn, bid)
-    if row["state"] != "draft":
-        raise conflict("bill_not_draft", "אפשר למחוק רק טיוטה.", state=row["state"])
-    if row["row_version"] != row_version:
-        raise conflict("revision_conflict", "החיוב שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=row["row_version"])
-    conn.execute("DELETE FROM energy_bills WHERE id = ?", (bid,))
-    conn.execute("DELETE FROM energy_bill_events WHERE bill_id = ?", (bid,))
-    _audit(conn, actor, "energy.bill.delete", "energy_bill", bid, request_id, {"account_id": row["account_id"]})
+    bl.delete_draft(KIND, conn, bid, row_version, actor, request_id)
 
 
 # ====================================================================== numbering and issue
@@ -1425,110 +1373,42 @@ def check_correctable(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
 
 # ====================================================================== automatic generation (owner round 2)
 
-@dataclass
-class AutoOutcome:
-    created: int = 0
-    issued: int = 0
-    failed: int = 0
-    skipped: int = 0
+AutoOutcome = bl.AutoOutcome  # created / issued / failed / skipped of one pass (shared with water)
 
 
 def _due_periods(conn: sqlite3.Connection, acc: sqlite3.Row, now: dt.datetime, delay: dt.timedelta) -> list[per.Period]:
-    tz = acc["timezone"]
-    c = cycle_of(acc)
-    created_local = per.local_date(_parse_iso(acc["created_at"]) or now, tz)
-    out: list[per.Period] = []
-    for p in per.regular_periods(c, per.local_date(now, tz)):
-        if p.end <= created_local:
-            continue  # periods that ended before the account existed are never generated automatically
-        if per.local_midnight_utc(p.end, tz) + delay > now:
-            continue
-        run = conn.execute("SELECT status, next_attempt_at FROM energy_auto_runs WHERE account_id = ? AND period_start = ? AND period_end = ?",
-                           (acc["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
-        if run is not None and not (run["status"] == "failed" and (run["next_attempt_at"] or "") <= _iso(now)):
-            continue
-        out.append(p)
-        if len(out) >= AUTO_MAX_PER_ACCOUNT:
-            break
-    return out
+    return bl.due_periods(KIND, conn, acc, now, delay, AUTO_MAX_PER_ACCOUNT)
 
 
 def _record_run(conn: sqlite3.Connection, acc_id: str, p: per.Period, status: str, bill_id: str | None, error: str | None, now: dt.datetime) -> None:
-    nxt = _iso(now + AUTO_RETRY) if status == "failed" else None
-    conn.execute(
-        """INSERT INTO energy_auto_runs(account_id, period_start, period_end, status, bill_id, error_code, attempts, next_attempt_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-           ON CONFLICT(account_id, period_start, period_end) DO UPDATE SET status = excluded.status, bill_id = excluded.bill_id,
-             error_code = excluded.error_code, attempts = energy_auto_runs.attempts + 1, next_attempt_at = excluded.next_attempt_at, updated_at = excluded.updated_at""",
-        (acc_id, p.start.isoformat(), p.end.isoformat(), status, bill_id, error, nxt, now_iso(), now_iso()),
-    )
+    bl.record_run(KIND, conn, acc_id, p, status, bill_id, error, now, AUTO_RETRY)
+
+
+def _draft_ready(conn: sqlite3.Connection, bid: str, start: dt.date, end: dt.date) -> None:
+    """ELECBILL77: a draft is waiting for review - told once, in the pass's transaction (never for an auto-issued bill)."""
+    from . import energy_notify
+
+    energy_notify.draft_ready(conn, bid, start, end)
 
 
 def auto_generate(db: Database, provider: BillingReadings | None = None, now: dt.datetime | None = None, settings: Any = None) -> AutoOutcome:
-    """One pass of the automatic generation. Idempotent: the (account, period) run row is written in the same transaction
-    as the draft, and the write re-checks it, so a second process, a double tick or a restart in the middle never makes a
-    second bill. The computation runs before the write lock."""
+    """One pass of the automatic generation (services/bill_ledger.auto_generate). Idempotent: the (account, period) run row is written in
+    the same transaction as the draft, and the write re-checks it, so a second process, a double tick or a restart in the middle never
+    makes a second bill. The computation runs before the write lock. The names below are looked up when the pass calls them (test seams)."""
     fixed = provider
     now = now or now_utc()
-    out = AutoOutcome()
-    with db.connection(mode="read", label="energy.auto.scan") as rconn:
-        delay = dt.timedelta(hours=int(read_settings(rconn)["auto"]["delay_hours"]))
-        accounts = rconn.execute("SELECT * FROM energy_accounts WHERE deleted_at IS NULL AND status = 'active' AND auto_mode != 'off' ORDER BY created_at").fetchall()
-        work = [(acc, _due_periods(rconn, acc, now, delay)) for acc in accounts]
-    for acc, periods in work:
-        for p in periods:
-            try:
-                with db.connection(mode="read", label="energy.auto.compute") as rconn:
-                    if rconn.execute("SELECT 1 FROM energy_bills WHERE account_id = ? AND period_start < ? AND period_end > ? AND state != 'void' LIMIT 1",
-                                     (acc["id"], p.end.isoformat(), p.start.isoformat())).fetchone():
-                        comp, error = None, "exists"
-                    else:
-                        provider = fixed or get_provider(rconn, settings)
-                        comp, error = compute(rconn, provider, acc, p, origin="auto", now=now), None
-            except ApiError as e:
-                comp, error = None, e.code
-            except Exception:  # noqa: BLE001 - one account never stops the others
-                log.warning("automatic bill computation failed", exc_info=True)
-                comp, error = None, "internal"
-            with db.connection(label="energy.auto.write") as conn:
-                run = conn.execute("SELECT status, next_attempt_at FROM energy_auto_runs WHERE account_id = ? AND period_start = ? AND period_end = ?",
-                                   (acc["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
-                if run is not None and not (run["status"] == "failed" and (run["next_attempt_at"] or "") <= _iso(now)):
-                    continue  # another pass got here first
-                if error == "exists":
-                    _record_run(conn, acc["id"], p, "skipped", None, None, now)
-                    out.skipped += 1
-                    continue
-                if comp is None:
-                    _record_run(conn, acc["id"], p, "failed", None, error, now)
-                    _audit(conn, None, "energy.bill.auto_failed", "energy_account", acc["id"], None, {"period": p.as_api(), "error": error})
-                    out.failed += 1
-                    continue
-                cur = conn.execute("SELECT * FROM energy_accounts WHERE id = ? AND deleted_at IS NULL", (acc["id"],)).fetchone()
-                if cur is None or cur["revision"] != acc["revision"]:
-                    continue  # changed meanwhile: the next pass computes it again
-                try:
-                    bid = insert_draft(conn, cur, p, comp, actor=None, origin="auto", request_id=None, client_request_id=None)
-                except ApiError as e:
-                    _record_run(conn, acc["id"], p, "skipped" if e.code in ("draft_exists", "period_overlap") else "failed", None, e.code, now)
-                    out.skipped += 1
-                    continue
-                status = "created"
-                if cur["auto_mode"] == "issue":
-                    bill = get_bill(conn, bid)
-                    try:
-                        seal(conn, bill, comp, actor=None, issue_date=per.local_date(now, cur["timezone"]), request_id=None, client_request_id=None)
-                        status = "issued"
-                        out.issued += 1
-                    except ApiError as e:
-                        log.warning("automatic issue refused: %s", e.code)
-                if status == "created":  # ELECBILL77: a draft is waiting for review - told once, in this transaction (never for an auto-issued bill)
-                    from . import energy_notify
-
-                    energy_notify.draft_ready(conn, bid, p.start, p.end)
-                _record_run(conn, acc["id"], p, status, bid, None, now)
-                out.created += 1
-    return out
+    return bl.auto_generate(KIND, db, now, bl.AutoHooks(
+        log=log,
+        read_settings=lambda c: read_settings(c),
+        provider=lambda c: fixed or get_provider(c, settings),
+        compute=lambda c, prov, acc, p, at: compute(c, prov, acc, p, origin="auto", now=at),
+        insert_draft=lambda *a, **k: insert_draft(*a, **k),
+        seal=lambda *a, **k: seal(*a, **k),
+        get_bill=lambda c, bid: get_bill(c, bid),
+        max_per_account=AUTO_MAX_PER_ACCOUNT,
+        retry=AUTO_RETRY,
+        draft_ready=lambda c, bid, start, end: _draft_ready(c, bid, start, end),
+    ))
 
 
 _LAST_AUTO: dict[str, float] = {}
@@ -1553,28 +1433,7 @@ def retention(db: Database, data_dir: Path | None, now: dt.datetime | None = Non
     `energy.bill_retention_years` (7) ago are deleted with their events and stored PDFs (keys owned by the meters branch's
     settings registry; read here with their defaults). The ledger of used numbers and the automatic-run rows stay, so a
     number is never reused and an old period is never generated again."""
-    now = now or now_utc()
-    with db.connection(label="energy.billing.retention") as conn:
-        days = _int_setting(conn, "energy.draft_retention_days", 30, 7, 365)
-        years = _int_setting(conn, "energy.bill_retention_years", 7, 1, 15)
-        draft_cut = _iso(now - dt.timedelta(days=days))
-        bill_cut = per.local_date(now, "UTC").replace(year=per.local_date(now, "UTC").year - years, day=1).isoformat()
-        drafts = [r["id"] for r in conn.execute("SELECT id FROM energy_bills WHERE state = 'draft' AND updated_at < ?", (draft_cut,)).fetchall()]
-        old = conn.execute("SELECT id, pdf_path FROM energy_bills WHERE state != 'draft' AND period_end < ?", (bill_cut,)).fetchall()
-        ids = drafts + [r["id"] for r in old]
-        for bid in ids:
-            conn.execute("DELETE FROM energy_bill_events WHERE bill_id = ?", (bid,))
-            conn.execute("DELETE FROM energy_bills WHERE id = ?", (bid,))
-        if ids:
-            _audit(conn, None, "energy.bill.retention", "energy_bill", "*", None, {"drafts": len(drafts), "bills": len(old)})
-    if data_dir is not None:
-        for r in old:
-            if r["pdf_path"]:
-                try:
-                    (data_dir / r["pdf_path"]).unlink(missing_ok=True)
-                except OSError:
-                    pass
-    return {"drafts": len(drafts), "bills": len(old)}
+    return bl.retention(KIND, db, now or now_utc(), data_dir)
 
 
 def janitor(db: Database, settings: Any = None) -> AutoOutcome | None:
