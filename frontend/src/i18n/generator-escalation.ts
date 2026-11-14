@@ -6,6 +6,7 @@
  * columns are an INITIAL translation and need a native review (dev-marked). `{n}` is filled with the critical delay in minutes.
  * Operator words only: the home platform is never named.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'איך התראה קריטית מסלימה',
   sub: 'כך זה עובד היום',
@@ -61,8 +62,7 @@ export type GescKey = Key;
 export type GescLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function gescLang(): GescLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<GescLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -71,10 +71,12 @@ export const GESC_DEV_MARKED: readonly GescLang[] = ['ar', 'ru'];
 
 export function gesc(key: Key, vars?: Record<string, string | number>, lang: GescLang = gescLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The body sentences in reading order (the title and subtitle are separate). */
 export const GESC_BODY: readonly Key[] = ['who', 'critical', 'steps', 'other', 'stops', 'where', 'perm'];
 export const GESC_KEYS = Object.keys(he) as Key[];
 export const GESC_TABLES = TABLES;
+
+registerCatalogue('i18n/generator-escalation', { he, en, ar, ru }, GESC_DEV_MARKED);

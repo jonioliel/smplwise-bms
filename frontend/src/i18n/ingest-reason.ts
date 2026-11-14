@@ -1,6 +1,7 @@
 /** UXFIX-RTL (finding 6): the events banner used to print the ingest's internal code ("מנותק (nvr_not_configured)"). The codes map to plain
  * sentences in four languages; the code itself stays in a tooltip for support. Codes come from services/events_ingest.py: `nvr_not_configured`,
  * `disconnected`, `http_<status>`, and the exception class name of a failed connection (ConnectError, ReadTimeout, ...). */
+import { docLang, registerCatalogue } from './core';
 
 export type IngestLang = 'he' | 'en' | 'ar' | 'ru';
 export type IngestReasonKey = 'notConfigured' | 'rejected' | 'notFound' | 'serverError' | 'timeout' | 'unreachable' | 'disconnected' | 'unknown';
@@ -67,8 +68,7 @@ export function ingestReasonKey(code: string | null | undefined): IngestReasonKe
 }
 
 export function ingestLang(): IngestLang {
-  const l = (typeof document !== 'undefined' ? document.documentElement.lang : '').toLowerCase().slice(0, 2);
-  return l === 'en' || l === 'ar' || l === 'ru' ? l : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** The plain sentence for an ingest `last_error` code. Never returns the code itself. */
@@ -77,3 +77,5 @@ export function ingestReason(code: string | null | undefined, lang: IngestLang =
 }
 
 export const INGEST_REASON_TEXT = TEXT;
+
+registerCatalogue('i18n/ingest-reason', TEXT);

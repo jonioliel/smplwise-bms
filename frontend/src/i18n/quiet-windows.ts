@@ -2,6 +2,7 @@
  * CR-QUIET103 + APP-SERVER-LEFTOVERS-2380: the words of the quiet-window settings card (הגדרות › התראות › חלון שקט). Hebrew first; English
  * follows the document language (a missing key falls back to the Hebrew). `{x}` placeholders are filled by `qwt(key, { x })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'חלון שקט לקומה או לאזור',
   sub: 'כפתור אחד בכותרת הקומה או האזור משהה התראות מידע לזמן קצוב. התראות קריטיות ובטיחות לא מושהות לעולם.',
@@ -52,14 +53,15 @@ export type QwtKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
 
 export function qwtLang(): 'he' | 'en' {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function qwt(key: Key, vars?: Record<string, string | number>, lang: 'he' | 'en' = qwtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const QWT_KEYS = Object.keys(he) as Key[];
 export const QWT_TABLES = TABLES;
+
+registerCatalogue('i18n/quiet-windows', { he, en });

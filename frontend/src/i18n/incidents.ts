@@ -3,6 +3,7 @@
  * Hebrew first; English follows the document language (a missing key falls back to the Hebrew). `{n}` placeholders are filled by
  * `it(key, { n })`. Operator screens never name the home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'אירוע חי',
   pageTitle: 'אירוע חי',
@@ -215,16 +216,17 @@ export type ItKey = Key;
 export type ItLang = 'he' | 'en';
 
 export function itLang(): ItLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 const TABLES: Record<ItLang, Partial<Record<Key, string>>> = { he, en };
 
 export function it(key: Key, vars?: Record<string, string | number>, lang: ItLang = itLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const IT_KEYS = Object.keys(he) as Key[];
 export const IT_TABLES = TABLES;
+
+registerCatalogue('i18n/incidents', { he, en });

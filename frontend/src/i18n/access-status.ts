@@ -2,6 +2,7 @@
 // Hebrew is the product language; the English column is used when the document language is English (the announce.ts precedent: a key
 // missing from the English column falls back to the Hebrew). A Settings page keeps the technical truth (UI_COPY_RULES): it names the
 // integration ("WisKey") and shows the command that feeds a card as a muted subtitle - an operator screen never does either.
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'בקרת כניסה',
   segStatus: 'מצב מערכת',
@@ -405,13 +406,13 @@ const en: Partial<Record<StKey, string>> = {
 };
 
 export function stLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function st(key: StKey, vars?: Record<string, string | number>): string {
   const raw = (stLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The text of a key built at run time (`sync_<word>`, `alert_<kind>`...), or `undefined` when there is none. */
@@ -423,3 +424,5 @@ export function stMaybe(key: string, vars?: Record<string, string | number>): st
 export function stDynamic(key: string, fallback: StKey, vars?: Record<string, string | number>): string {
   return stMaybe(key, vars) ?? st(fallback, vars);
 }
+
+registerCatalogue('i18n/access-status', { he, en });

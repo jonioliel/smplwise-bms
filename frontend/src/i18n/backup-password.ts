@@ -4,6 +4,7 @@
  * Russian columns follow the document language (a missing key falls back to the Hebrew). The Arabic and Russian columns are an
  * INITIAL translation and need a native review (dev-marked). `{n}` placeholders are filled by `bpt(key, { n })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   createLabel: 'סיסמת גיבוי',
   createHint: 'מצפינה את סיסמאות החשבונות המקומיים בתוך הגיבוי. בלי סיסמה הן לא נכללות בגיבוי. שמרו אותה במקום בטוח: בלעדיה אי אפשר לשחזר אותן.',
@@ -99,8 +100,7 @@ export type BptKey = Key;
 export type BptLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function bptLang(): BptLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<BptLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -109,8 +109,10 @@ export const BPT_DEV_MARKED: readonly BptLang[] = ['ar', 'ru'];
 
 export function bpt(key: Key, vars?: Record<string, string | number>, lang: BptLang = bptLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const BPT_KEYS = Object.keys(he) as Key[];
 export const BPT_TABLES = TABLES;
+
+registerCatalogue('i18n/backup-password', { he, en, ar, ru }, BPT_DEV_MARKED);

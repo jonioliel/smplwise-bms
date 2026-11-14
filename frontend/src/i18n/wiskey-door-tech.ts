@@ -5,6 +5,7 @@
  * One deliberate exception to the "no platform name" copy rule, by the task's own wording: a refusal reads "WisKey סירב: <reason>"
  * (an administrator-only block; the operator screens are unchanged).
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   title: 'שינויים טכניים',
   open: 'ניהול טכני של הדלתות',
@@ -358,8 +359,10 @@ const en: DoorTechText = {
 };
 
 export function dtt(): DoorTechText {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export const heDoorTechText: DoorTechText = he;
 export const enDoorTechText: DoorTechText = en;
+
+registerCatalogue('i18n/wiskey-door-tech', { he, en });

@@ -3,6 +3,7 @@
  * the notes of the announcement dialogs. Hebrew (the product language) and English, switched by the document's `lang` like
  * i18n/wiskey-station-listen.ts. UI_COPY_RULES: no platform names, no internal codes, short words. `{x}` placeholders filled by `fill`.
  */
+import { docLang, fill as coreFill, registerCatalogue } from './core';
 const he = {
   setting: {
     engine: 'מנוע הקראה קבוע',
@@ -57,12 +58,14 @@ const en: TtsDefaultText = {
 };
 
 export function ttt(): TtsDefaultText {
-  return (globalThis.document?.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
+  return coreFill(template, values);
 }
 
 export const heTtsDefaultText: TtsDefaultText = he;
 export const enTtsDefaultText: TtsDefaultText = en;
+
+registerCatalogue('i18n/tts-default', { he, en });

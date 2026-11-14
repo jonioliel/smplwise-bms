@@ -1,6 +1,7 @@
 // CR-036 S12: the strings of the parity segment ("בדיקת התאמה") of the Settings page "בקרת כניסה" and of the stations-screen display
 // card of "מתגי מסכי כניסה". Hebrew is the product language; the English column is used when the document language is English (a key
 // missing there falls back to the Hebrew). A Settings page may name the integration; no internal code is shown as text.
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'השוואה למסכי האינטרקום',
   sub: 'לכל מסך: כמה רשומות יש באינטרקום, כמה מוצגות ב־Arx, ואם ההבדל נובע מההרשאות. מספרים בלבד - בלי שמות.',
@@ -132,13 +133,13 @@ const en: Partial<Record<PtKey, string>> = {
 };
 
 export function ptLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function pt(key: PtKey, vars?: Record<string, string | number>): string {
   const raw = (ptLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`out_<outcome>`, `why_<rule>`...), or the fallback when there is none. */
@@ -147,3 +148,5 @@ export function ptDynamic(key: string, fallback: PtKey, vars?: Record<string, st
 }
 
 export const PARITY_HE = he;
+
+registerCatalogue('i18n/access-parity', { he, en });

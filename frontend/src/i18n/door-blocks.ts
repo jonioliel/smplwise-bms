@@ -2,6 +2,7 @@
 // entity). Hebrew is the product language; the English column is used when the document language is English (a key missing there falls
 // back to the Hebrew). A Settings page may name the integration; no internal code is shown as text. The server's own sentences (what a
 // guard does to an item, why a door item stays refused) arrive in the data and are shown as they are.
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'חסימות פתיחת דלתות',
   sub: 'כל עוד יש דלת אינטרקום, התקן וירטואלי (תבנית) שלא ניתן להוכיח שאינו דלת נחסם, וכך גם פריט שמשתמש בו. מנהל מערכת יכול לשחרר התקן אחד ולהחזיר אותו לחסימה. כל שינוי נרשם ביומן.',
@@ -87,13 +88,13 @@ const en: Partial<Record<BtKey, string>> = {
 };
 
 export function btLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function bt(key: BtKey, vars?: Record<string, string | number>): string {
   const raw = (btLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`d_<domain>`), or the fallback when there is none. */
@@ -102,3 +103,5 @@ export function btDynamic(key: string, fallback: BtKey, vars?: Record<string, st
 }
 
 export const DOOR_BLOCKS_HE = he;
+
+registerCatalogue('i18n/door-blocks', { he, en });

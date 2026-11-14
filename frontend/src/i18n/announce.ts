@@ -2,6 +2,7 @@
 // the column; keys are the same in all of them. No product names of the infrastructure appear here (UI_COPY_RULES). ANNOUNCE-295 (stage A): the announce
 // screen, the templates editor, the engine selector and the quiet-hours modes. The Russian and Arabic columns are an initial, unreviewed translation
 // (ANNOUNCE_DEV_MARKED), like the other tables that carry them. Arabic is screen text only: announcements are SPOKEN in Hebrew, English or Russian.
+import { docLang, registerCatalogue } from './core';
 const he = {
   tab: 'הכרזות קוליות',
   sub: 'דיבור ברמקולים לפי חדר או רמקול',
@@ -521,8 +522,7 @@ export const ANNOUNCE_DEV_MARKED: readonly AnnounceUiLang[] = ['ar', 'ru'];
 export const ANNOUNCE_TABLES: Record<AnnounceUiLang, AnnounceText> = { he, en, ar, ru };
 
 export function announceUiLang(): AnnounceUiLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 /** The SPOKEN language that goes with the screen (the test button, the default of the announce form): Arabic is screen text only, so it speaks Hebrew. */
 export function announceLang(): 'he' | 'en' | 'ru' {
@@ -532,3 +532,5 @@ export function announceLang(): 'he' | 'en' | 'ru' {
 export function announceText(lang: AnnounceUiLang = announceUiLang()): AnnounceText {
   return ANNOUNCE_TABLES[lang];
 }
+
+registerCatalogue('i18n/announce', { he, en, ar, ru }, ANNOUNCE_DEV_MARKED);

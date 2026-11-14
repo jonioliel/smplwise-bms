@@ -4,6 +4,7 @@
  * key falls back to the Hebrew). The sign-in page never names the home platform (UI_COPY_RULES: "משתמש תשתית המערכת"); only the
  * settings tab may say "Home Assistant". `{name}` placeholders are filled by `lit(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   modeLocal: 'משתמש Arx',
   modeInfra: 'משתמש תשתית המערכת',
@@ -332,12 +333,14 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export function litLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function lit(key: Key, vars?: Record<string, string | number>, lang: 'he' | 'en' = litLang()): string {
   const text = (lang === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  return fill(text, vars);
 }
 
 export type LocalIdentityKey = Key;
+
+registerCatalogue('i18n/local-identity', { he, en });

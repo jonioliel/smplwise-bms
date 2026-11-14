@@ -4,6 +4,7 @@
  * report can be read and downloaded in either language, so the preview speaks the report's language, not the page's). `{x}` placeholders
  * are filled by `ix(key, { x }, lang)`. Operator screens never name the home platform and carry no hint paragraphs.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   // navigation
   crumbArea: 'ניהול שירות',
@@ -495,11 +496,12 @@ export const IX_KEYS = Object.keys(he) as IxKey[];
 
 /** The page language (the document's `lang`); the report preview passes the report's own language instead. */
 export function ixLang(): IxLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function ix(key: IxKey, vars?: Record<string, string | number>, lang: IxLang = ixLang()): string {
   const raw = IX_TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/insights', { he, en });

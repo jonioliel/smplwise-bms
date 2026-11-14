@@ -6,6 +6,7 @@
  * `mt(key, { name: ... })`; the two curly-brace words of the TEMPLATES themselves ({name}, {organization}) are literal text in the
  * strings that mention them (they are only replaced when a variable of that name is passed).
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   'segment': 'הודעות',
   'segments_label': 'הודעות',
@@ -151,12 +152,12 @@ const en: Partial<Record<MessagingKey, string>> = {
 };
 
 export function messagingLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function mt(key: MessagingKey, vars?: Record<string, string | number>): string {
   const text: string = (messagingLang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  return fill(text, vars);
 }
 
 const ERROR_KEYS: ReadonlySet<string> = new Set(Object.keys(he).filter((k) => k.startsWith('err.')).map((k) => k.slice(4)));
@@ -168,3 +169,5 @@ export function problemText(code: string): string {
 
 /** Every key, for the test that none is missing (tests/unit-messaging-strings.spec.ts reads the sources). */
 export const MESSAGING_KEYS = Object.keys(he) as MessagingKey[];
+
+registerCatalogue('i18n/access-messaging', { he, en });

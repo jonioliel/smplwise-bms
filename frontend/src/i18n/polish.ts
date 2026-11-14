@@ -3,6 +3,7 @@
  * their settings. Hebrew first; English, Arabic and Russian follow the document language. The Arabic and Russian columns are an INITIAL
  * translation and need a native review.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   prev: 'הקודם',
   next: 'הבא',
@@ -115,8 +116,7 @@ const ru: Record<Key, string> = {
 export type PlLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function plLang(): PlLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<PlLang, Record<Key, string>> = { he, en, ar, ru };
@@ -132,3 +132,5 @@ export function pl(key: Key, vars: Record<string, string | number> = {}, lang: P
 
 export const PL_KEYS = Object.keys(he) as Key[];
 export const PL_TABLES = TABLES;
+
+registerCatalogue('i18n/polish', { he, en, ar, ru }, PL_DEV_MARKED);

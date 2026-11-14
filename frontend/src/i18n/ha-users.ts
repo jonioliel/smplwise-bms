@@ -4,6 +4,7 @@
  * administrator token is saved in הגדרות › חיבורים › סודות (the secrets store), never in the add-on options. Hebrew first; English is used
  * when the document language is English (a missing key falls back to Hebrew). `{name}` placeholders are filled by `ht(key, vars)`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'משתמשי מערכת הבית',
   title: 'משתמשי מערכת הבית',
@@ -149,12 +150,14 @@ const en: Partial<Record<keyof typeof he, string>> = {
 export type HaUsersTextKey = keyof typeof he;
 
 function lang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function ht(key: HaUsersTextKey, vars?: Record<string, string | number>): string {
   const raw = (lang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const HA_USERS_TEXT_KEYS = Object.keys(he) as HaUsersTextKey[];
+
+registerCatalogue('i18n/ha-users', { he, en });

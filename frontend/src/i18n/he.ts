@@ -1,5 +1,6 @@
 // Hebrew UI strings. Keys are stable English identifiers; i18n/en.ts carries the English of the sections that have one (CARD1 onward).
 import { en } from './en';
+import { docLang, fill, registerCatalogue } from './core';
 
 export const he = {
   app: {
@@ -1156,7 +1157,7 @@ function lookup(dict: unknown, key: string): string | undefined {
 
 /** CARD1: `<html lang="en">` picks the English catalogue (i18n/en.ts) where it has the key; everything else stays Hebrew. */
 export function uiLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function t(key: I18nKey): string {
@@ -1169,5 +1170,7 @@ export function t(key: I18nKey): string {
 
 /** `t` with `{name}` placeholders filled in. */
 export function tf(key: I18nKey, vars: Record<string, string | number>): string {
-  return t(key).replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+  return fill(t(key), vars);
 }
+
+registerCatalogue('i18n/he', { he, en });

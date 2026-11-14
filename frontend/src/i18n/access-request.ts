@@ -6,6 +6,7 @@
  * `{name}` placeholders are filled by `rt(key, { name })`.
  */
 import { xtLang, type XtLang } from './access-external';
+import { fill, registerCatalogue } from './core';
 
 const he = {
   newBtn: 'בקשת גישה',
@@ -547,5 +548,7 @@ export const RT_TABLES = TABLES;
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function rt(key: RtKey, vars?: Record<string, string | number>, lang: XtLang = xtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/access-request', { he, en, ar, ru }, RT_DEV_MARKED);

@@ -2,6 +2,7 @@
 // access-events.ts / access-status.ts precedent) so he.ts is not touched. Hebrew is the product language; the English column is used
 // when the document language is English, and a key missing there falls back to the Hebrew. An operator screen: no platform names, no
 // hint paragraphs, no internal codes (UI_COPY_RULES).
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'לוחות זמנים',
   doorsOne: 'דלת אחת',
@@ -135,16 +136,18 @@ const en: Partial<Record<SchKey, string>> = {
 };
 
 export function schLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function sch(key: SchKey, vars?: Record<string, string | number>): string {
   const raw = (schLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The text of a key built at run time (`st_<state>`, `job_<status>`...), or the fallback key's when there is none. */
 export function schDynamic(key: string, fallback: SchKey, vars?: Record<string, string | number>): string {
   return key in he ? sch(key as SchKey, vars) : sch(fallback, vars);
 }
+
+registerCatalogue('i18n/access-schedules', { he, en });

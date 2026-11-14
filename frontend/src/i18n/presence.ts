@@ -4,6 +4,7 @@
  * to the Hebrew until a native translation exists). `{x}` placeholders are filled by `pt(key, { x })`. Operator screens never name the
  * home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'מי במבנה',
   title: 'מי במבנה',
@@ -144,17 +145,18 @@ const en: Partial<Record<Key, string>> = {
 
 export type PtLang = 'he' | 'en';
 export function ptLang(): PtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 const TABLES: Record<PtLang, Partial<Record<Key, string>>> = { he, en };
 
 export function pt(key: Key, vars?: Record<string, string | number>, lang: PtLang = ptLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export type PtKey = Key;
 export const PT_KEYS = Object.keys(he) as Key[];
 export const PT_TABLES = TABLES;
+
+registerCatalogue('i18n/presence', { he, en });

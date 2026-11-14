@@ -5,6 +5,7 @@
  * (dev-marked). No home-platform name and no internal key on the face: the platform is "תשתית המערכת"; closed codes show only in the
  * small details line.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'התקנה ועדכון של רכיב בקרת הכניסה',
   lead: 'מנהל מערכת מתקין ומעדכן את הרכיב מכאן, אחרי בדיקת גיבוי מלא. התקנה בעליית התוסף רק אם הופעלה כאן, ואין שדרוג לאחור.',
@@ -319,18 +320,14 @@ export type WmKey = Key;
 export type WmLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function wmLang(): WmLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  if (l.startsWith('en')) return 'en';
-  if (l.startsWith('ar')) return 'ar';
-  if (l.startsWith('ru')) return 'ru';
-  return 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 export const WM_DEV_MARKED: readonly WmLang[] = ['ar', 'ru'];
 
 export function wmt(key: Key, vars?: Record<string, string | number>, lang: WmLang = wmLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A word for a closed key family (`own_`, `plan_`, `step_`, `job_`, `chk_`, `code_`), or null when the code has none. */
@@ -342,3 +339,5 @@ export function wmtOf(prefix: 'own_' | 'plan_' | 'step_' | 'job_' | 'chk_' | 'co
 
 export const WM_KEYS = Object.keys(he) as Key[];
 export const WM_TABLES = TABLES;
+
+registerCatalogue('i18n/wiskey-managed', { he, en, ar, ru }, WM_DEV_MARKED);

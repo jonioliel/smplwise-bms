@@ -6,6 +6,7 @@
  * not find); "קיר מסך" (curtain wall) is its alias in the drawing chip's tooltip and accessible name.
  */
 import type { GlassTint, PanelOperation } from '../map/glass-wall';
+import { docLang, registerCatalogue } from './core';
 
 const he = {
   kind: 'קיר זכוכית',
@@ -100,8 +101,7 @@ const en: Record<Key, string> = {
 export const PLAN_GLASS_STRINGS = { he, en } as const;
 
 export function glassLang(): 'he' | 'en' {
-  const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';
-  return lang.toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function glassT(key: Key, lang: 'he' | 'en' = glassLang()): string {
@@ -110,3 +110,5 @@ export function glassT(key: Key, lang: 'he' | 'en' = glassLang()): string {
 
 export const tintLabel = (t: GlassTint, lang?: 'he' | 'en'): string => glassT(`tint_${t}` as Key, lang);
 export const operationLabel = (o: PanelOperation, lang?: 'he' | 'en'): string => glassT(`op_${o}` as Key, lang);
+
+registerCatalogue('i18n/plan-glass', { he, en });

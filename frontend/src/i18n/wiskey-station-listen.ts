@@ -3,6 +3,7 @@
  * document's `lang` like i18n/wiskey-station-media.ts. UI_COPY_RULES: an operator screen never names the platform or a protocol and never
  * shows an internal code; short words, no explanatory paragraphs.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   setting: {
     label: 'האזנה לעמדה',
@@ -81,8 +82,10 @@ const en: StationListenText = {
 };
 
 export function slt(): StationListenText {
-  return (document.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export const heStationListenText: StationListenText = he;
 export const enStationListenText: StationListenText = en;
+
+registerCatalogue('i18n/wiskey-station-listen', { he, en });

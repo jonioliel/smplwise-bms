@@ -3,6 +3,7 @@
  * other widgets keep drawing. Hebrew first; English, Arabic and Russian follow the document language (a missing key falls back to the
  * Hebrew). The Arabic and Russian columns are an INITIAL translation and need a native review (dev-marked).
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   failed: 'לא ניתן לטעון את הנתונים',
   retry: 'נסו שוב',
@@ -28,8 +29,7 @@ export type HwfKey = Key;
 export type HwfLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function hwfLang(): HwfLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<HwfLang, Record<Key, string>> = { he, en, ar, ru };
@@ -42,3 +42,5 @@ export function hwf(key: Key, lang: HwfLang = hwfLang()): string {
 
 export const HWF_KEYS = Object.keys(he) as Key[];
 export const HWF_TABLES = TABLES;
+
+registerCatalogue('i18n/home-widget-failure', { he, en, ar, ru }, HWF_DEV_MARKED);

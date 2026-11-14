@@ -5,6 +5,7 @@
  * configured name (D33), so no text here names that module. Hebrew first; the English column is used when the document language is
  * English (a missing key falls back to the Hebrew). `{name}` placeholders are filled by `wt(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'ערוץ ההודעות',
   title: 'ערוץ ההודעות',
@@ -144,12 +145,14 @@ const en: Partial<Record<keyof typeof he, string>> = {
 export type WaTextKey = keyof typeof he;
 
 function lang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function wt(key: WaTextKey, vars?: Record<string, string | number>): string {
   const raw = (lang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const WA_TEXT_KEYS = Object.keys(he) as WaTextKey[];
+
+registerCatalogue('i18n/messaging-accounts', { he, en });

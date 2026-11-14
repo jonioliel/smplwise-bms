@@ -5,6 +5,7 @@
  * Russian columns follow the document language (a missing key falls back to the Hebrew). The Arabic and Russian columns are an INITIAL
  * translation and need a native review. No explanatory paragraphs (clean operator screens): labels and units only.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   title: 'דוחות לספקים',
   toContacts: 'שליחת דוחות לאנשי קשר חיצוניים',
@@ -67,8 +68,7 @@ export type VrtKey = Key;
 export type VrtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function vrtLang(): VrtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 export const VRT_TABLES: Record<VrtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -77,3 +77,5 @@ export const VRT_KEYS = Object.keys(he) as Key[];
 export function vrt(key: Key, lang: VrtLang = vrtLang()): string {
   return VRT_TABLES[lang][key] ?? he[key] ?? key;
 }
+
+registerCatalogue('i18n/vendor-reports', { he, en, ar, ru });

@@ -4,6 +4,7 @@
  * תשתיות › תחזוקה ובקרה). Hebrew first; English follows the document language; Arabic and Russian fall back to the Hebrew until a
  * translation is reviewed. `{x}` placeholders are filled by `mt(key, { x })`. Operator screens never name the home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   // the section label is written ONCE (lead 2026-10-23: the owner is reorganising the service-management area - a one-line change)
   section: 'תחזוקה ובקרה',
@@ -720,8 +721,7 @@ export type MtKey = Key;
 export type MtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function mtLang(): MtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** Arabic and Russian: the Hebrew until a reviewed translation lands (a missing key always falls back to the Hebrew). */
@@ -729,8 +729,10 @@ const TABLES: Record<MtLang, Partial<Record<Key, string>>> = { he, en, ar: {}, r
 
 export function mt(key: Key, vars?: Record<string, string | number>, lang: MtLang = mtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const MT_KEYS = Object.keys(he) as Key[];
 export const MT_TABLES = TABLES;
+
+registerCatalogue('i18n/maintenance', { he, en });

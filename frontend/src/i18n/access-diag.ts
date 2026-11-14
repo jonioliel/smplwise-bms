@@ -2,6 +2,7 @@
  * WISKEY-ACCESS-DIAG-2400: the words of the "אבחון הרשאות" screen (Hebrew; the operator UI's language). Short operator texts. The source of
  * the answers is "מערכת בקרת הכניסה"; the embedded panel is "חלון האינטרקום" (no platform name anywhere).
  */
+import { fill, registerCatalogue } from './core';
 export const DIAG_HE = {
   title: 'אבחון הרשאות',
   sub: 'למה דלת נפתחה או לא נפתחה, מי מאבד גישה בקרוב, ומה דורש סקירה',
@@ -254,10 +255,12 @@ export type DiagKey = keyof typeof DIAG_HE;
 
 /** A text with `{name}` slots filled. */
 export function dt(key: DiagKey, vars: Record<string, string | number> = {}): string {
-  return (DIAG_HE[key] as string).replace(/\{(\w+)\}/g, (_m, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
+  return fill((DIAG_HE[key] as string), vars);
 }
 
 /** A dynamic key (`r_<reason>`, `st_<state>` ...) with a fallback for a value this table does not know. */
 export function dtDyn(key: string, fallback: DiagKey, vars: Record<string, string | number> = {}): string {
   return Object.prototype.hasOwnProperty.call(DIAG_HE, key) ? dt(key as DiagKey, vars) : dt(fallback, vars);
 }
+
+registerCatalogue('i18n/access-diag', { he: DIAG_HE });

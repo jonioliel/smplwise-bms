@@ -4,6 +4,7 @@
  * No platform words (owner rule): the sources are "ישויות" / "entities" of the system, never named after the platform they come from.
  */
 import { ntLang } from './notices';
+import { fill, registerCatalogue } from './core';
 
 const he = {
   orderHint: 'הסדר ברשימה הוא סדר הסמלים בלוח וגם סדר העדיפות: כשאין מקום בשורה, מוסתר קודם סמל תקין שנמצא נמוך ברשימה. תקלה נשארת עד הסוף.',
@@ -64,5 +65,7 @@ const TABLES: Record<'he' | 'en', Record<Key, string>> = { he, en };
 
 export function nc(key: Key, vars?: Record<string, string | number>, lang: 'he' | 'en' = ntLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/notice-chips', { he, en });

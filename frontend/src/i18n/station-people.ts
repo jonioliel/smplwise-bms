@@ -3,6 +3,7 @@
  * and the editor's PIN check. Hebrew; one flat dictionary with a lookup (the pattern of i18n/access-people.ts): an unknown key answers
  * the key itself. No platform name and no internal code reaches a string a person reads. `{name}` placeholders: `st(key, { name })`.
  */
+import { fill, registerCatalogue } from './core';
 const he = {
   open: 'בעמדות בלבד',
   title: 'משתמשים שנמצאים רק בעמדות',
@@ -117,7 +118,7 @@ export type StationPeopleKey = keyof typeof he;
 
 export function st(key: StationPeopleKey, vars?: Record<string, string | number>): string {
   const text: string = he[key] ?? key;
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  return fill(text, vars);
 }
 
 /** A run-time key (`imp_<code>`) or the fallback. */
@@ -126,3 +127,5 @@ export function stDynamic(key: string, fallback: StationPeopleKey): string {
 }
 
 export const STATION_PEOPLE_STRINGS: Readonly<Record<string, string>> = he;
+
+registerCatalogue('i18n/station-people', { he });

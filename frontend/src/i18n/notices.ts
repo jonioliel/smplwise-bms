@@ -3,6 +3,7 @@
  * Hebrew first; English follows the document language (a missing key falls back to the Hebrew). `{x}` placeholders are filled by
  * `nt(key, { x })`. Operator screens never name the home platform. The TV page has its own few strings (src/notice-tv/tv-logic.ts).
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'לוח הודעות',
   subtitle: '{n} פעילות · הודעות לבניין',
@@ -539,13 +540,14 @@ export type NtKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
 
 export function ntLang(): 'he' | 'en' {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function nt(key: Key, vars?: Record<string, string | number>, lang: 'he' | 'en' = ntLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const NT_KEYS = Object.keys(he) as Key[];
+
+registerCatalogue('i18n/notices', { he, en });

@@ -2,6 +2,7 @@
 // module (the access-schedules.ts precedent). Hebrew is the product language; English is used when the document language is English,
 // and a key missing there falls back to the Hebrew. No platform names except the integration's own name where its refusal is quoted
 // ("WisKey סירב: ..."), as the owner asked.
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   manageTitle: 'ניהול ספריית לוחות הזמנים',
   manageOpen: 'ניהול הספרייה',
@@ -171,12 +172,12 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export function sedLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function sed(key: Key, vars?: Record<string, string | number>): string {
   const raw = (sedLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const DAY_NAMES: Record<string, string> = { Sunday: 'ראשון', Monday: 'שני', Tuesday: 'שלישי', Wednesday: 'רביעי', Thursday: 'חמישי', Friday: 'שישי', Saturday: 'שבת' };
@@ -244,3 +245,5 @@ export const REASONS: Record<string, string> = {
 };
 
 export const reasonOf = (code: string | null | undefined): string => (code && REASONS[code]) || code || '';
+
+registerCatalogue('i18n/schedule-editor', { he, en });

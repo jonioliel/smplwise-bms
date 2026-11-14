@@ -3,6 +3,8 @@
  * the "מצב WisKey" card and the stations screen's link. One file so the components and the unit spec read the same words. Operator copy:
  * the station panel is "חלון האינטרקום" here too, and no platform name appears.
  */
+import { registerCatalogue } from './core';
+
 export const tt = {
   title: 'התנגשויות והתראות עמדות',
   subtitle: 'מה שמסומן באדום במצב המערכת: התנגשויות סנכרון של אנשים, מחיקות שממתינות לבדיקה והתראות עמדות. כל החלטה עוברת בדיקה ואישור.',
@@ -144,3 +146,5 @@ export const tt = {
 export function fill(s: string, values: Record<string, string | number>): string {
   return s.replace(/\{(\w+)\}/g, (_, k) => String(values[k] ?? ''));
 }
+
+registerCatalogue('i18n/wiskey-triage', { he: tt });

@@ -7,6 +7,7 @@
  *
  * `{name}` placeholders are filled by `wt(key, { name: ... })`.
  */
+import { fill, registerCatalogue } from './core';
 const he = {
   // ---- the actions of a person's page
   'actions.open': 'פעולות',
@@ -141,8 +142,10 @@ export type WritesKey = keyof typeof he;
 
 export function wt(key: WritesKey, vars?: Record<string, string | number>): string {
   const text: string = he[key] ?? key;
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  return fill(text, vars);
 }
 
 /** Every key, for the test that no key is unused or missing (tests/unit-people-writes-logic.spec.ts reads the sources). */
 export const WRITES_KEYS = Object.keys(he) as WritesKey[];
+
+registerCatalogue('i18n/access-writes', { he });

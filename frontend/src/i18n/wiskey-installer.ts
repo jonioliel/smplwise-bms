@@ -2,6 +2,8 @@
  * WISKEY-INSTALLER-NATIVE-2400: the words of הגדרות › התקנה ותחזוקת מערכת האינטרקום. Hebrew only (the product's language);
  * `{name}` placeholders are filled by `fill`. Never the words "Home Assistant" (owner rule): the host is "השרת".
  */
+import { fill as coreFill, registerCatalogue } from './core';
+
 export const installerText = {
   title: 'התקנה ותחזוקת מערכת האינטרקום',
   sub: 'כלי המתקין של WisKey - שעון, הגדרות טכניות של עמדות, הוספה והסרה של עמדות ותצורת המערכת. כל שינוי נשלח רק אחרי אישור, ונרשם ביומן.',
@@ -87,7 +89,7 @@ export const installerText = {
 export type InstallerText = typeof installerText;
 
 export function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, k: string) => (k in values ? String(values[k]) : `{${k}}`));
+  return coreFill(template, values);
 }
 
 export const technicalText = {
@@ -304,3 +306,5 @@ export const platformText = {
   imported: 'התצורה יובאה ({n} עמדות).',
   saved: 'נשמר.',
 };
+
+registerCatalogue('i18n/wiskey-installer', { he: { installer: installerText, technical: technicalText, lifecycle: lifecycleText, platform: platformText } });

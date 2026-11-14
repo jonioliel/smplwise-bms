@@ -3,6 +3,7 @@
  * screen). Operator texts never name a platform or a vendor, and never claim what was not verified: a save is "saved in the access
  * control system", the stations "will be synced" - never "the doors were updated". `{name}` placeholders are filled by `pft(key, vars)`.
  */
+import { fill, registerCatalogue } from './core';
 const he = {
   title: 'קבוצות ושדות',
   sub: 'קבוצות האנשים (ואילו עמדות כל קבוצה פותחת) ושדות הפרופיל. כל שינוי עובר תצוגה מקדימה של ההשפעה ואישור לפני שמירה.',
@@ -220,10 +221,12 @@ export const PF_HE: Record<PfKey, string> = he;
 /** The text of `key` with `{name}` placeholders filled. */
 export function pft(key: PfKey, vars?: Record<string, string | number>): string {
   const raw = he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`type_<t>`, `p_<code>`, `e_<code>`, `versionAction_<a>`...), or the fallback. */
 export function pftDynamic(key: string, fallback: PfKey, vars?: Record<string, string | number>): string {
   return key in he ? pft(key as PfKey, vars) : pft(fallback, vars);
 }
+
+registerCatalogue('i18n/wiskey-profiles', { he });

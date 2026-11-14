@@ -5,6 +5,7 @@
  * never shows an internal code; the area is "בקרת כניסה" and the iframe fallback is "חלון האינטרקום" / "הלוח הקלאסי".
  * Placeholders are `{name}`; plural forms are separate keys (see `plural()` in screens/wiskey-stations-logic.ts).
  */
+import { docLang, fill as coreFill, registerCatalogue } from './core';
 const he = {
   title: 'תחנות ודלתות',
   demo: 'נתוני הדגמה',
@@ -382,13 +383,15 @@ const en: StationsText = {
 
 /** The catalogue in force when a screen renders. */
 export function ws(): StationsText {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 /** Fills `{name}` placeholders. A missing variable keeps its placeholder (visible in review, never blank). */
 export function fill(template: string, vars: Record<string, string | number> = {}): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+  return coreFill(template, vars);
 }
 
 export const heStationsText: StationsText = he;
 export const enStationsText: StationsText = en;
+
+registerCatalogue('i18n/wiskey-stations', { he, en });

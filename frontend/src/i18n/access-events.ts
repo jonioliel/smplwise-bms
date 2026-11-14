@@ -1,6 +1,7 @@
 // CR-036 S8: the entry-log screen's strings ("פעילות", #/wiskey/events). Hebrew is the product language; the English column is used when
 // the document language is English (the announce.ts precedent: a key missing from the English column falls back to the Hebrew).
 // Operator screen: no platform name appears here (UI_COPY_RULES) - the area is "בקרת כניסה", the intercom window is "חלון האינטרקום".
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'פעילות',
   updatedAt: 'עודכן {t}',
@@ -253,13 +254,13 @@ const en: Partial<Record<EvKey, string>> = {
 };
 
 export function evLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function ev(key: EvKey, vars?: Record<string, string | number>): string {
   const raw = (evLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The text of a key built at run time (`type_<kind>`, `identity_<state>`...), or the fallback when there is none. */
@@ -267,3 +268,5 @@ export function evDynamic(prefix: string, kind: string | null | undefined, fallb
   const key = `${prefix}${kind ?? ''}`;
   return key in he ? ev(key as EvKey) : ev(fallback);
 }
+
+registerCatalogue('i18n/access-events', { he, en });

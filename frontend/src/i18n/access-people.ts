@@ -7,6 +7,7 @@
  *
  * `{name}` placeholders are filled by `pt(key, { name: ... })`.
  */
+import { fill, registerCatalogue } from './core';
 const he = {
   // ---- the page
   'page.title': 'אנשים',
@@ -287,7 +288,7 @@ export type PeopleKey = keyof typeof he;
 
 export function pt(key: PeopleKey, vars?: Record<string, string | number>): string {
   const text: string = he[key] ?? key;
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  return fill(text, vars);
 }
 
 const SYNC_ERRORS = new Map<string, PeopleKey>([
@@ -308,3 +309,5 @@ export function syncErrorText(code: string): string {
 
 /** Every key, for the test that no key is unused or missing (tests/unit-people-strings.spec.ts reads the source). */
 export const PEOPLE_KEYS = Object.keys(he) as PeopleKey[];
+
+registerCatalogue('i18n/access-people', { he });

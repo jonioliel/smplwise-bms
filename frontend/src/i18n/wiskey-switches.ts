@@ -5,6 +5,7 @@
  * (dev-marked). No internal key name and no home-platform name on the face; the key is shown only in the small details line.
  * WISKEY-RC7-ADOPT-2331 S1: the `install*` words - the owner's automatic-installation switch, a separate group on the same screen.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'קריאות בקרת כניסה',
   title: 'קריאות בקרת כניסה',
@@ -172,8 +173,7 @@ export type WsKey = Key;
 export type WsLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function wsLang(): WsLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<WsLang, Record<Key, string>> = { he, en, ar, ru };
@@ -182,8 +182,10 @@ export const WS_DEV_MARKED: readonly WsLang[] = ['ar', 'ru'];
 
 export function wst(key: Key, vars?: Record<string, string | number>, lang: WsLang = wsLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const WS_KEYS = Object.keys(he) as Key[];
 export const WS_TABLES = TABLES;
+
+registerCatalogue('i18n/wiskey-switches', { he, en, ar, ru }, WS_DEV_MARKED);

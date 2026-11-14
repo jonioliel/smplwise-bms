@@ -4,6 +4,7 @@
  * Arabic and Russian columns are an INITIAL translation that needs a native review (dev-marked). Operator texts never name the home
  * platform. `{name}` placeholders are filled by `bt(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   open: 'ייבוא וייצוא',
   title: 'ייבוא, ייצוא ושינוי מרוכז',
@@ -590,17 +591,18 @@ export const BT_KEYS = Object.keys(he) as BtKey[];
 export const BT_TABLES = TABLES;
 
 export function btLang(): BtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function bt(key: BtKey, vars?: Record<string, string | number>, lang: BtLang = btLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`code_<code>`, `field_<name>`, `outcome_<outcome>`), or the fallback when there is none. */
 export function btDynamic(key: string, fallback: BtKey, vars?: Record<string, string | number>, lang: BtLang = btLang()): string {
   return key in he ? bt(key as BtKey, vars, lang) : bt(fallback, vars, lang);
 }
+
+registerCatalogue('i18n/bulk-people', { he, en, ar, ru }, BT_DEV_MARKED);

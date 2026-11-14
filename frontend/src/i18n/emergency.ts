@@ -2,6 +2,7 @@
  * CR-EMERG104: the words of the emergency readiness page (a tab of the maintenance section). Hebrew first; English follows the document
  * language; Arabic and Russian fall back to the Hebrew. Operator screens never name the home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'מוכנות לחירום',
   title: 'מוכנות לחירום',
@@ -155,13 +156,12 @@ export const EM_KEYS = Object.keys(he) as EmKey[];
 export const EM_TABLES = { he, en } as const;
 
 export function emLang(): 'he' | 'en' {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function em(key: EmKey, vars?: Record<string, string | number>, lang: 'he' | 'en' = emLang()): string {
   const raw: string = EM_TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** Item titles are Hebrew from the server; English titles by id (the page and the print follow the document language). */
@@ -205,3 +205,5 @@ export const TH_LABEL: Record<string, { he: string; en: string; unit: string }> 
   recorder_stale_s: { he: 'קריאת מקליט ישנה אחרי', en: 'Recorder reading stale after', unit: 's' },
   history_keep_days: { he: 'שמירת היסטוריה', en: 'History kept', unit: 'd' },
 };
+
+registerCatalogue('i18n/emergency', { he, en });

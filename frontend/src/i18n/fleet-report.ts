@@ -4,6 +4,7 @@
  * home platform is "תשתית המערכת", never its product name (UI_COPY_RULES). Hebrew first; the English column is used when the
  * document language is English (a missing key falls back to the Hebrew). `{name}` placeholders are filled by `ft(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'דיווח בריאות',
   title: 'דיווח בריאות',
@@ -171,12 +172,12 @@ const en: Partial<Record<keyof typeof he, string>> = {
 export type FleetTextKey = keyof typeof he;
 
 function lang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function ft(key: FleetTextKey, vars?: Record<string, string | number>): string {
   const raw = (lang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The server's he/en pair (readiness labels) in the document language. */
@@ -185,3 +186,5 @@ export function pickLang(v: { he: string; en: string } | null | undefined): stri
 }
 
 export const FLEET_TEXT_KEYS = Object.keys(he) as FleetTextKey[];
+
+registerCatalogue('i18n/fleet-report', { he, en });

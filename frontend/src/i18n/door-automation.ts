@@ -4,6 +4,7 @@
  * columns are an INITIAL translation and need a native review (dev-marked, like the elevators). `{x}` placeholders are filled by
  * `dat(key, { x })`. The editor is an operator screen: no platform naming, no internal codes, short safe-by-default wording.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'פתיחת דלת',
   sub: 'Arx פותחת את הדלת כשהאוטומציה רצה, רק בתנאים שלמטה',
@@ -339,8 +340,7 @@ export type DatKey = Key;
 export type DatLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function datLang(): DatLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<DatLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -349,7 +349,7 @@ export const DAT_DEV_MARKED: readonly DatLang[] = ['ar', 'ru'];
 
 export function dat(key: Key, vars?: Record<string, string | number>, lang: DatLang = datLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A server reason / gate / outcome code as words; an unknown code falls back to a neutral word, never the code itself. */
@@ -361,3 +361,5 @@ export function datCode(prefix: 'r' | 'g' | 'o', code: string | null | undefined
 
 export const DAT_KEYS = Object.keys(he) as Key[];
 export const DAT_TABLES = TABLES;
+
+registerCatalogue('i18n/door-automation', { he, en, ar, ru }, DAT_DEV_MARKED);

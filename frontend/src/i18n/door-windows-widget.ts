@@ -4,6 +4,7 @@
  * review (dev-marked). `{n}`, `{name}`, `{t}` placeholders are filled by `dwwt(key, { ... })`. Operator words only: the home platform and the
  * intercom platform are never named, and no sentence explains anything (a clean operator card).
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   title: 'דלתות',
   emergency: 'חירום',
@@ -91,8 +92,7 @@ export type DwwtKey = Key;
 export type DwwtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function dwwtLang(): DwwtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<DwwtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -106,3 +106,5 @@ export function dwwt(key: Key, vars: Record<string, string | number> = {}, lang:
 
 export const DWWT_KEYS = Object.keys(he) as Key[];
 export const DWWT_TABLES = TABLES;
+
+registerCatalogue('i18n/door-windows-widget', { he, en, ar, ru }, DWWT_DEV_MARKED);
