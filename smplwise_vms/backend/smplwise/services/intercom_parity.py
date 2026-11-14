@@ -80,7 +80,9 @@ def digest(ids: list[str] | None) -> str | None:
 def principal_of(conn: sqlite3.Connection, user_id: str) -> Principal | None:
     """An active Arx user as a principal (the report's subject when an administrator names one)."""
     row = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if row is None or not row["active"]:
+    from .active_users import has_active_account
+
+    if row is None or not has_active_account(conn, user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
         return None
     return Principal(user_id=row["id"], username=row["username"] or "", display_name=row["display_name"] or "", source="parity")
 

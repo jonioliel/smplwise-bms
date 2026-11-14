@@ -209,8 +209,9 @@ def identity_refusal(conn: sqlite3.Connection, principal: Principal, *, dev_mode
 
     if not door_authority.identity_ok(principal, dev_mode, conn):
         return "identity_unmapped"
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is not None and not user["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule - disabled on either side (services/active_users)
         return "user_inactive"
     if door_authority.is_wall_account(conn, principal.user_id):
         return "wall_account"
@@ -542,7 +543,9 @@ def stale_approvals(conn: sqlite3.Connection, rules: list[RuleDoc]) -> list[str]
             out.append(r.id)
             continue
         user = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (approver,)).fetchone()
-        if user is None or not user["active"]:
+        from .active_users import has_active_account
+
+        if user is None or not has_active_account(conn, approver):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
             out.append(r.id)
             continue
         p = Principal(user["id"], user["username"] or "", user["display_name"] or "", "internal")

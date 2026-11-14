@@ -13,7 +13,9 @@ at all yet (a first request, a test principal): those keep treating "no row" as 
 Callers: services/tickets/store (user_is_active, active_user_ids), services/tickets/store_rfq.active_user_ids (the second-approver
 search of a supplier award), services/tickets/access.Viewer.anywhere, routers/access.active_user_ids (the delegated directory), and since CR-ADMIN-GATE-2438
 (lead decision on question 1 of CR-RBAC-EVAL-2438) rbac itself: authorize() / Evaluator, admin_count, permissions_fingerprint, and
-services/access.camera_scope.
+services/access.camera_scope; since CR-ACTIVE-USER-REST-2438 also routers/me (`active`), services/door_authority,
+door_windows (the window / emergency person rule), door_automation (the armer), emergency/access, access_grants (the recovery actor and
+the approver re-check) and bridge_key_notice (owner contacts).
 """
 from __future__ import annotations
 
@@ -35,6 +37,14 @@ def is_disabled(conn: sqlite3.Connection, user_id: str) -> bool:
     decision (CR-ADMIN-GATE-2438)."""
     row = conn.execute("SELECT (SELECT active FROM users WHERE id = ?), (SELECT is_active FROM ha_users WHERE id = ?)", (user_id, user_id)).fetchone()
     return (row[0] is not None and not row[0]) or (row[1] is not None and not row[1])
+
+
+def has_active_account(conn: sqlite3.Connection, user_id: str) -> bool:
+    """An Arx account (a `users` row) that is active under the one rule: `users.active = 1` and not disabled on the Home Assistant side.
+    For callers that refuse an unknown id (an approver, an armer, an owner contact, a recovery actor): stricter than `user_is_active`,
+    which also accepts a person known only to the Home Assistant directory. CR-ACTIVE-USER-REST-2438."""
+    row = conn.execute("SELECT (SELECT active FROM users WHERE id = ?), (SELECT is_active FROM ha_users WHERE id = ?)", (user_id, user_id)).fetchone()
+    return bool(row[0]) and (row[1] is None or bool(row[1]))
 
 
 def user_is_active(conn: sqlite3.Connection, user_id: str) -> bool:

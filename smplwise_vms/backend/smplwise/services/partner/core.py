@@ -463,7 +463,9 @@ def token_state(row: sqlite3.Row, now: dt.datetime | None = None) -> str:
 
 def token_view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     """A token as lists show it: never the token, never its hash."""
-    creator = conn.execute("SELECT active FROM users WHERE id = ?", (row["created_by"],)).fetchone()
+    from ..active_users import has_active_account
+
+    owner_gone = not has_active_account(conn, row["created_by"])  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
     return {
         "id": row["id"], "client_id": row["client_id"], "label": row["label"], "last4": row["last4"], "scopes": json.loads(row["scopes_json"]),
         "restriction_kind": row["restriction_kind"], "restriction_ids": json.loads(row["restriction_ids_json"]),
@@ -471,7 +473,7 @@ def token_view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         "personal": {**PERSONAL_DEFAULTS, **json.loads(row["personal_json"] or "{}")}, "rate_per_min": row["rate_per_min"], "rate_per_hour": row["rate_per_hour"],
         "created_at": row["created_at"], "expires_at": row["expires_at"], "last_used_at": row["last_used_at"], "last_used_addr": row["last_used_addr"],
         "request_count": row["request_count"], "revoked_at": row["revoked_at"], "revoked_reason": row["revoked_reason"], "state": token_state(row),
-        "predecessor_id": row["predecessor_id"], "owner_gone": creator is None or not creator["active"],
+        "predecessor_id": row["predecessor_id"], "owner_gone": owner_gone,
     }
 
 

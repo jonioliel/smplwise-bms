@@ -1026,9 +1026,9 @@ def policy_refusal(conn, principal: Principal, ha_user: HaUser) -> ApiError | No
     """Why this user may not use the remote channel now, or None."""
     from ..rbac import permissions_anywhere
 
-    ha_row = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
-    vms_row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if (ha_row is not None and not ha_row["is_active"]) or (vms_row is not None and not vms_row["active"]):
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users) - the same two-sided test this function always made, now shared
         return ApiError(403, "remote_user_inactive", INACTIVE_HE)
     from . import wall as wall_service  # CR-030: a wall user does not travel (remote_allowed, default off)
 

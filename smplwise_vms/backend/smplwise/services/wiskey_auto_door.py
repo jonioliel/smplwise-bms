@@ -65,7 +65,9 @@ def _principal(conn: Any, user_id: Any) -> Principal | None:
     if not isinstance(user_id, str) or not user_id:
         return None
     row = conn.execute("SELECT id, username, display_name, source, active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if row is None or not row["active"]:
+    from .active_users import has_active_account
+
+    if row is None or not has_active_account(conn, user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
         return None
     return Principal(user_id=row["id"], username=row["username"] or "", display_name=row["display_name"] or "", source=row["source"] or "")
 

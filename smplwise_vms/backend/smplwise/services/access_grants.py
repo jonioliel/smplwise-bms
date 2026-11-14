@@ -1702,8 +1702,9 @@ def _attach_recovered_person(db: Database, grant_id: str, op_id: str, wiskey_per
         # R6-A5 / R8-A2 (ARX-N04): `is_system_admin` leaves the user's active flag to its caller - checked HERE too, so no future caller
         # can forget it: a disabled (or unknown) Arx user is refused even with a live system_admin binding. This does not authenticate a
         # session (the future route's job) and does not validate the evidence contents (still the caller's duty, see the docstring).
-        user = conn.execute("SELECT active FROM users WHERE id = ?", (actor.user_id,)).fetchone()
-        if user is None or not user["active"]:
+        from .active_users import has_active_account
+
+        if not has_active_account(conn, actor.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule, an Arx account required
             raise ApiError(403, "actor_inactive", "רק מנהל מערכת פעיל יכול לשייך אדם ששוחזר.")
         g = grant_row(conn, grant_id)
         if g is None:
@@ -2244,8 +2245,9 @@ class Worker:
         if link is not None and link["state"] == "wiskey_missing":
             return "wiskey_missing"
         if g["state"] in DECIDED and g.get("approved_by"):
-            u = conn.execute("SELECT active FROM users WHERE id = ?", (g["approved_by"],)).fetchone()
-            if u is None or not u["active"]:
+            from .active_users import has_active_account
+
+            if not has_active_account(conn, g["approved_by"]):  # CR-ACTIVE-USER-REST-2438: the one rule, an Arx account required
                 return "approver_lost_authority"
         return None
 

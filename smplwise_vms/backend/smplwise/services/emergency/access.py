@@ -78,8 +78,9 @@ class Viewer:
     @property
     def held(self) -> frozenset[str]:
         if self._held is None:
-            row = self.conn.execute("SELECT active FROM users WHERE id = ?", (self.uid,)).fetchone()
-            active = row is None or bool(row["active"])
+            from ..active_users import is_disabled
+
+            active = not is_disabled(self.conn, self.uid)  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
             self._held = frozenset(permissions_anywhere(self.conn, self.principal)) if active else frozenset()
         return self._held
 
