@@ -515,4 +515,3 @@ import{a as Z,S as J,e3 as ee,aX as te,r8 as se,r9 as ie,ra as ae,rb as oe,rc as
       padding: 10px 12px;
     }
   `,xe];h([Y()],c.prototype,"cameras",2);h([Y({type:Boolean})],c.prototype,"fromMap",2);h([u()],c.prototype,"count",2);h([u()],c.prototype,"stream",2);h([u()],c.prototype,"liveSet",2);h([u()],c.prototype,"snapBust",2);h([u()],c.prototype,"view",2);h([u()],c.prototype,"cams",2);h([u()],c.prototype,"recorders",2);h([u()],c.prototype,"recorderFilter",2);h([u()],c.prototype,"settings",2);h([u()],c.prototype,"error",2);h([u()],c.prototype,"posterBust",2);h([u()],c.prototype,"canManage",2);h([u()],c.prototype,"editingRows",2);h([u()],c.prototype,"dialogError",2);h([u()],c.prototype,"dialogBusy",2);h([u()],c.prototype,"colsOverride",2);h([u()],c.prototype,"keyHintText",2);h([u()],c.prototype,"box",2);c=h([ke("live-wall")],c);export{c as LiveWall,O as WALL_QUALITY_KEY};
-//# sourceMappingURL=live-wall-CdlXl_Ql.js.map

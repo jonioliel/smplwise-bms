@@ -163,4 +163,3 @@ import{b8 as m,b9 as t,a as g,S as x,ba as k,i as f,bb as y,Y as h,bc as $,R as 
     .empty h2 { font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     .empty .art { background: var(--sw-surface-2); color: var(--sw-text-2); }
   `,E];d([p()],l.prototype,"data",2);d([p()],l.prototype,"error",2);d([p()],l.prototype,"floor",2);d([p()],l.prototype,"kpi",2);d([p()],l.prototype,"query",2);d([p()],l.prototype,"bundle",2);d([p()],l.prototype,"mapError",2);d([p()],l.prototype,"phoneView",2);d([p()],l.prototype,"busy",2);l=d([O("explore-presence")],l);export{l as ExplorePresence,v as PRESENCE_PLACES_HREF,V as PRESENCE_SETTINGS_HREF};
-//# sourceMappingURL=explore-presence-DpgLC5PY.js.map

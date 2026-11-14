@@ -378,4 +378,3 @@ import{C as K,D as W,E as Q,F as M,G as m,a as V,S as Y,b as X,A as c,v as d,t a
       }
     }
   `];f([M({attribute:!1})],g.prototype,"route",2);f([m()],g.prototype,"r",2);f([m()],g.prototype,"module",2);f([m()],g.prototype,"meta",2);f([m()],g.prototype,"data",2);f([m()],g.prototype,"screen",2);f([m()],g.prototype,"failed",2);f([m()],g.prototype,"phone",2);f([m()],g.prototype,"treeHidden",2);f([m()],g.prototype,"filterOpen",2);f([m()],g.prototype,"showClosed",2);f([m()],g.prototype,"drawerUsed",2);f([m()],g.prototype,"now",2);f([m()],g.prototype,"q",2);f([m()],g.prototype,"toast",2);f([m()],g.prototype,"filters",2);f([m()],g.prototype,"compactHeader",2);f([m()],g.prototype,"paged",2);f([m()],g.prototype,"cardPage",2);f([m()],g.prototype,"fit",2);g=f([J("tickets-board")],g);export{g as TicketsBoard};
-//# sourceMappingURL=tickets-board-OCEsHqK1.js.map

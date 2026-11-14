@@ -21,4 +21,3 @@ import{mq as f,mh as s,e as o,A as d,C as b,G as $,H as k}from"./index-k1cto_iv.
                 <span class="muted">${s("emptyDoorsBody",{range:this.rangeText(),place:m(a,this.place)})}</span></div>`:n}
           ${e.doors.some(r=>r.items_more>0)?o`<div class="pad muted more">${s("moreItems",{n:e.doors.reduce((r,p)=>r+p.items_more,0)})}</div>`:d}</div></div>`}render(){const e=this.gone();if(e!==d)return e;const a=this.data?s("subDoors",{range:this.rangeText(),place:m(this.treeNodes(),this.place)}):"";return o`${x("doors",s("doorsTitle"),a)}
       ${this.phase==="loading"?o`<div class="card">${this.skeleton()}</div>`:this.phase==="error"?o`<div class="card">${this.errorBlock()}</div>`:this.data?this.content(this.data):d}`}};c.styles=[L,b];h([$()],c.prototype,"filter",2);h([$()],c.prototype,"open",2);c=h([k("insights-doors")],c);export{c as InsightsDoors};
-//# sourceMappingURL=insights-doors-3IeZs67e.js.map

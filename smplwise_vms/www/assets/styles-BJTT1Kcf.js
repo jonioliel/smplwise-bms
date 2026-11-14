@@ -95,4 +95,3 @@ import{E as r}from"./index-k1cto_iv.js";const a=r`
     .search input { inline-size: 110px; }
   }
 `;export{a as n};
-//# sourceMappingURL=styles-BJTT1Kcf.js.map

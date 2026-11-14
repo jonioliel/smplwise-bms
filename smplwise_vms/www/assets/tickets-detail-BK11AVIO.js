@@ -28,4 +28,3 @@ import{a as h,S as u,b as f,f as m,s as k,j as w,Y as b,fe as g,e as l,p,A as v,
       }
     }
   `];i([C()],s.prototype,"ticketId",2);i([c()],s.prototype,"module",2);i([c()],s.prototype,"failed",2);i([c()],s.prototype,"off",2);s=i([A("tickets-detail")],s);export{s as TicketsDetailPage};
-//# sourceMappingURL=tickets-detail-BK11AVIO.js.map

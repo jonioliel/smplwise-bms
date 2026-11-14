@@ -153,4 +153,3 @@ import{kA as g,kB as x,a as k,S as y,kC as $,kD as z,f5 as E,kE as n,ap as O,Y a
       .body { gap: 12px; }
     }
   `,B];f([U({attribute:!1})],p.prototype,"route",2);f([v()],p.prototype,"access",2);f([v()],p.prototype,"data",2);f([v()],p.prototype,"error",2);f([v()],p.prototype,"historyId",2);f([v()],p.prototype,"editing",2);p=f([q("infra-elevators")],p);export{p as InfraElevators};
-//# sourceMappingURL=infra-elevators-CZ8cle8l.js.map

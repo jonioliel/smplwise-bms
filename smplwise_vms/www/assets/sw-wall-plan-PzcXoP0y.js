@@ -25,4 +25,3 @@ import{xF as I,C6 as P,C7 as M,a as O,_ as R,bc as g,A as h,e as w,E as q,F as p
       min-block-size: 0;
     }
   `;r([p()],o.prototype,"floorId",2);r([p({attribute:!1})],o.prototype,"plan",2);r([p()],o.prototype,"theme",2);r([c()],o.prototype,"bundle",2);r([c()],o.prototype,"geometry",2);r([c()],o.prototype,"catalog3d",2);r([c()],o.prototype,"materials",2);r([c()],o.prototype,"dials",2);r([c()],o.prototype,"site",2);r([c()],o.prototype,"threeReady",2);r([c()],o.prototype,"exhausted",2);r([c()],o.prototype,"real",2);o=r([x("sw-wall-plan")],o);export{o as SwWallPlan};
-//# sourceMappingURL=sw-wall-plan-PzcXoP0y.js.map

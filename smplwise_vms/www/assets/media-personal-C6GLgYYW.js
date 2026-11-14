@@ -228,4 +228,3 @@ import{jb as C,hy as O,j5 as I,jc as _,hb as M,E as G,F as b,G as D,a as N,hd as
       }
     }
   `];f([b({attribute:!1})],c.prototype,"draft",2);f([b({attribute:!1})],c.prototype,"devices",2);f([b()],c.prototype,"scope",2);f([b({attribute:!1})],c.prototype,"floors",2);f([b({type:Boolean})],c.prototype,"simple",2);f([b()],c.prototype,"heading",2);f([D()],c.prototype,"drag",2);f([D()],c.prototype,"dragFloor",2);f([D()],c.prototype,"phoneOpen",2);c=f([J("multimedia-edit-panel")],c);let T=null;async function L(){const e=await Z().layout();return j()?e:{...e,personal:T}}async function _e(e){return j()?(await H({"multimedia.personal":e}),L()):(T=e,L())}export{pe as D,fe as N,ce as S,z as a,he as b,we as c,_e as d,Q as e,ue as f,P as g,ge as h,ye as i,E as j,k,L as l,ae as m,be as n,ve as o,ke as p,me as q,$e as r,xe as s,te as t,W as w};
-//# sourceMappingURL=media-personal-C6GLgYYW.js.map

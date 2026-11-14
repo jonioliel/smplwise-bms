@@ -459,4 +459,3 @@ import{dm as s,E as l}from"./index-k1cto_iv.js";import{l as d}from"./lead-reserv
     /* header dropdown placement 4: the title row keeps the shell's start-edge chip room free (0 everywhere else) */
     ${d}
   `;function h(i,r){const e=i.querySelector(".dh");if(!e)return;const o=e.getBoundingClientRect().top;let a=0;for(const n of e.querySelectorAll(r?":scope > .dh-row > h1, :scope > .dh-row > .flwrap":":scope > .dh-row > *"))a=Math.max(a,n.getBoundingClientRect().bottom-o);const t=`${Math.ceil(a+(r?8:10))}px`;a&&e.style.getPropertyValue("--mm-bar-h")!==t&&e.style.setProperty("--mm-bar-h",t)}export{m as a,h as m};
-//# sourceMappingURL=media-page-BQx7b1Iq.js.map

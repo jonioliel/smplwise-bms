@@ -178,4 +178,3 @@ import{E as m,F as h,G as w,a as x,A as b,e as l,H as v}from"./index-k1cto_iv.js
       }
     }
   `;a([h({type:Boolean,reflect:!0})],s.prototype,"open",2);a([h()],s.prototype,"text",2);a([w()],s.prototype,"notice",2);s=a([v("architect-request-dialog")],s);function C(){let e=document.querySelector("architect-request-dialog");e||(e=document.createElement("architect-request-dialog"),document.body.append(e)),e.open=!0}export{C as o};
-//# sourceMappingURL=architect-request-dialog-Cl_-XIW8.js.map

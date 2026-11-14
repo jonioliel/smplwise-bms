@@ -744,4 +744,3 @@ import{a as y,S as z,i as c,vy as h,qQ as S,vz as u,j as m,Y as p,vA as _,vB as 
       }
     }
   `];n([o()],i.prototype,"report",2);n([o()],i.prototype,"error",2);n([o()],i.prototype,"forbidden",2);n([o()],i.prototype,"busy",2);n([o()],i.prototype,"note",2);n([o()],i.prototype,"kpi",2);n([o()],i.prototype,"pane",2);n([o()],i.prototype,"customer",2);n([o()],i.prototype,"printed",2);n([o()],i.prototype,"handoverNote",2);n([o()],i.prototype,"settingsOpen",2);n([o()],i.prototype,"draft",2);n([o()],i.prototype,"settingsError",2);n([o()],i.prototype,"demoOpen",2);n([o()],i.prototype,"demo",2);n([o()],i.prototype,"demoSet",2);n([o()],i.prototype,"demoError",2);i=n([Y("system-readiness")],i);export{i as SystemReadiness};
-//# sourceMappingURL=system-readiness-CClpDwxp.js.map

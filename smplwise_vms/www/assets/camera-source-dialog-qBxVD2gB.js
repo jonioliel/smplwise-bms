@@ -144,4 +144,3 @@ import{g as T,a7 as $,a8 as _,ac as S,mg as R,E as N,F as h,G as l,a as C,cB as 
       }
     }
   `;n([h({type:Boolean,reflect:!0})],o.prototype,"open",2);n([h()],o.prototype,"mode",2);n([h({attribute:"camera-id"})],o.prototype,"cameraId",2);n([h({attribute:"camera-name"})],o.prototype,"cameraName",2);n([l()],o.prototype,"src",2);n([l()],o.prototype,"choice",2);n([l()],o.prototype,"main",2);n([l()],o.prototype,"sub",2);n([l()],o.prototype,"name",2);n([l()],o.prototype,"area",2);n([l()],o.prototype,"areas",2);n([l()],o.prototype,"loading",2);n([l()],o.prototype,"busy",2);n([l()],o.prototype,"testing",2);n([l()],o.prototype,"test",2);n([l()],o.prototype,"error",2);o=n([A("camera-source-dialog")],o);export{K as a,g as b,a as c,L as g,H as h,D as r,G as s};
-//# sourceMappingURL=camera-source-dialog-qBxVD2gB.js.map

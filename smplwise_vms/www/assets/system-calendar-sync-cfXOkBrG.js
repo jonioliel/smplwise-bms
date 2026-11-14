@@ -208,4 +208,3 @@ import{qc as b,E as P,F as w,G as r,a as L,Y as m,qd as G,A as l,e as s,bR as U,
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
   `];u([w({attribute:!1})],h.prototype,"route",2);u([r()],h.prototype,"conns",2);u([r()],h.prototype,"flags",2);u([r()],h.prototype,"cals",2);u([r()],h.prototype,"s",2);u([r()],h.prototype,"canConfigure",2);u([r()],h.prototype,"error",2);u([r()],h.prototype,"forbidden",2);u([r()],h.prototype,"actionError",2);u([r()],h.prototype,"removing",2);u([r()],h.prototype,"newOpen",2);u([r()],h.prototype,"flagPage",2);u([r()],h.prototype,"toastText",2);u([r()],h.prototype,"compact",2);u([r()],h.prototype,"phone",2);u([r()],h.prototype,"shownProvider",2);u([r()],h.prototype,"dialog",2);h=u([I("system-calendar-sync")],h);export{h as SystemCalendarSync,R as agoText,gt as bindingText};
-//# sourceMappingURL=system-calendar-sync-cfXOkBrG.js.map

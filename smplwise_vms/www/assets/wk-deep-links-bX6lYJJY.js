@@ -132,4 +132,3 @@ import{E as f,F as v,G as m,a as g,ba as b,h6 as k,i as x,be as c,h7 as y,cu as 
       font-weight: var(--sw-fw-semibold);
     }
   `;l([v({reflect:!0})],a.prototype,"place",2);l([v({reflect:!0})],a.prototype,"mode",2);l([m()],a.prototype,"open",2);l([m()],a.prototype,"rev",2);a=l([z("wk-deep-links")],a);
-//# sourceMappingURL=wk-deep-links-bX6lYJJY.js.map

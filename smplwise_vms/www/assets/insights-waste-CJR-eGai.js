@@ -14,4 +14,3 @@ import{mr as g,mh as i,A as l,e as r,C as v,G as u,H as f}from"./index-k1cto_iv.
           ${t.devices.items_more?r`<div class="pad muted more">${i("moreItems",{n:t.devices.items_more})}</div>`:l}</div>
           ${this.filter==="all"||this.filter==="night"?this.night(t):l}</div></div>`}render(){const t=this.gone();if(t!==l)return t;const e=this.data?i("subWaste",{range:this.rangeText(),place:c(this.treeNodes(),this.place)}):"";return r`${k("waste",i("wasteTitle"),e)}
       ${this.phase==="loading"?r`<div class="card">${this.skeleton()}</div>`:this.phase==="error"?r`<div class="card">${this.errorBlock()}</div>`:this.data?this.content(this.data):l}`}};o.styles=[z,v];m([u()],o.prototype,"filter",2);o=m([f("insights-waste")],o);export{o as InsightsWaste};
-//# sourceMappingURL=insights-waste-CJR-eGai.js.map

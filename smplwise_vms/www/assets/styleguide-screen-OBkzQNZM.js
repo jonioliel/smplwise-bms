@@ -248,4 +248,3 @@ import{a as f,_ as h,tm as g,e as a,bB as n,A as c,s5 as b,E as u,G as x,H as y}
       gap: 10px;
     }
   `];v([x()],t.prototype,"demo3d",2);t=v([y("styleguide-screen")],t);export{t as StyleguideScreen};
-//# sourceMappingURL=styleguide-screen-OBkzQNZM.js.map

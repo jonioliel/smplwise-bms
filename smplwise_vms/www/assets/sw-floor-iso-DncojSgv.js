@@ -66,4 +66,3 @@ import{E as y,F as p,a as d,w as h,e as c,A as m,H as x}from"./index-k1cto_iv.js
       stroke-dasharray: 3 3;
     }
   `;n([p({attribute:!1})],r.prototype,"rooms",2);n([p({attribute:!1})],r.prototype,"iso",2);n([p({type:Boolean,reflect:!0})],r.prototype,"selected",2);n([p({type:Boolean,reflect:!0})],r.prototype,"empty",2);n([p({type:Number})],r.prototype,"width",2);r=n([x("sw-floor-iso")],r);
-//# sourceMappingURL=sw-floor-iso-DncojSgv.js.map

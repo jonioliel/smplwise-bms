@@ -1080,4 +1080,3 @@ import{kU as Vt,kV as W,kW as e,kX as g,A as l,kY as J,w as C,kZ as B,e as r,k_ 
       .chips { justify-content: flex-start; }
     }
   `,es];I([k({attribute:!1})],O.prototype,"route",2);I([u()],O.prototype,"access",2);I([u()],O.prototype,"data",2);I([u()],O.prototype,"error",2);I([u()],O.prototype,"editing",2);I([u()],O.prototype,"kpi",2);I([u()],O.prototype,"openId",2);I([u()],O.prototype,"wizard",2);I([u()],O.prototype,"toast",2);I([u()],O.prototype,"report",2);I([u()],O.prototype,"wa",2);I([u()],O.prototype,"floor",2);I([u()],O.prototype,"collapsed",2);I([u()],O.prototype,"page",2);I([u()],O.prototype,"per",2);O=I([G("infra-temperature")],O);export{O as InfraTemperature};
-//# sourceMappingURL=infra-temperature-DtxFzvAk.js.map

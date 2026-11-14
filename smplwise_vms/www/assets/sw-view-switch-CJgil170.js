@@ -48,4 +48,3 @@ import{E as p,F as c,a as v,h9 as w,cu as d,e as u,H as b}from"./index-k1cto_iv.
       }
     }
   `;i([c()],r.prototype,"value",2);i([c({attribute:!1})],r.prototype,"options",2);i([c()],r.prototype,"label",2);r=i([b("sw-view-switch")],r);
-//# sourceMappingURL=sw-view-switch-CJgil170.js.map

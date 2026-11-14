@@ -328,4 +328,3 @@ import{a as A,S as T,ub as y,e as a,i as u,be as w,j as m,uc as B,ud as L,aZ as 
       }
     }
   `,I,j];o([S()],g.prototype,"ruleId",2);g=o([O("investigate-rule-editor")],g);export{g as InvestigateRuleEditor,n as InvestigateRules};
-//# sourceMappingURL=investigate-rules-BlvycD-s.js.map

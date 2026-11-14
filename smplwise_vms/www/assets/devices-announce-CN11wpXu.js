@@ -73,4 +73,3 @@ import{a as S,i as z,be as _,jz as b,Y as m,jy as g,e as i,A as h,E as N,G as o,
     @media (prefers-reduced-motion: reduce) { .chip { transition: none; } .chip:active:not([disabled]) { transform: none; } }
     .err { padding: 8px 12px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface)); color: var(--sw-danger-text, var(--sw-danger)); font-size: var(--sw-fs-sm); }
   `;r([o()],n.prototype,"phase",2);r([o()],n.prototype,"err",2);r([o()],n.prototype,"form",2);r([o()],n.prototype,"room",2);r([o()],n.prototype,"langs",2);r([o()],n.prototype,"texts",2);r([o()],n.prototype,"tpl",2);r([o()],n.prototype,"viaSpeakers",2);r([o()],n.prototype,"viaScreens",2);r([o()],n.prototype,"busy",2);r([o()],n.prototype,"note",2);r([o()],n.prototype,"machine",2);n=r([T("devices-announce")],n);export{n as DevicesAnnounce};
-//# sourceMappingURL=devices-announce-CN11wpXu.js.map

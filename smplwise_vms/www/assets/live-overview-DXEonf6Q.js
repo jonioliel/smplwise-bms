@@ -575,4 +575,3 @@ import{E as I,a as W,S as U,qV as Z,i as O,K as G,f8 as K,g as C,qW as Q,aa as X
       }
     }
   `];v([h()],p.prototype,"cams",2);v([h()],p.prototype,"recorder",2);v([h()],p.prototype,"sites",2);v([h()],p.prototype,"summary",2);v([h()],p.prototype,"summaryDenied",2);v([h()],p.prototype,"recent",2);v([h()],p.prototype,"storage",2);v([h()],p.prototype,"health",2);v([h()],p.prototype,"raw",2);v([h()],p.prototype,"tz",2);v([h()],p.prototype,"now",2);v([h()],p.prototype,"loaded",2);v([h()],p.prototype,"spotFit",2);v([h()],p.prototype,"spotPage",2);v([h()],p.prototype,"loadFailed",2);p=v([ve("live-overview")],p);export{p as LiveOverview};
-//# sourceMappingURL=live-overview-DXEonf6Q.js.map
