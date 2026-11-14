@@ -29,7 +29,6 @@ Audit (ids only): `access.station_permission.{allow,block,inherit,request,approv
 """
 from __future__ import annotations
 
-import inspect
 import json
 import sqlite3
 import uuid
@@ -509,18 +508,6 @@ def refuse(db: Database, principal: Principal, person_id: str, station_id: str, 
 
 
 # ---------------------------------------------------------------- the WisKey write and the read-back (engine port)
-
-def _revocation_pending(engine: Any, person_id: str, revision: int) -> bool | None:
-    """The central sync status; main's port takes the person id, the STATIONSYNC branch adds the read-back revision."""
-    try:
-        params = inspect.signature(engine.revocation_pending).parameters
-        value = engine.revocation_pending(person_id, revision) if len(params) >= 2 else engine.revocation_pending(person_id)
-    except EngineError:
-        return None
-    except Exception:  # noqa: BLE001 - unknown, never "no pending"
-        return None
-    return value if isinstance(value, bool) else None
-
 
 def _revocation_evidence(engine: Any, person_id: str, revision: int) -> str | None:
     """WKV2B-295: the central sync evidence (pending / verified_clean / revoked_unverified) when the engine offers it, else None."""

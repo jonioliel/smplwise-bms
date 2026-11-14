@@ -301,6 +301,8 @@ def check_resources(value: Any) -> dict[str, Any]:
     return value
 
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for SOURCE-CLOUD-EXPORT (BLOCKED,
+# docs/changes/WISKEY-ADOPT-2272.md: when the WhatsApp source exists it calls write_resources; read_resources is its reader).
 def write_resources(value: Any, config_root: Path | str | None = None) -> Path:
     """The PRODUCER side of the exchange (owner28 says the Arx installer writes it): checked, then atomically replaced on the same
     filesystem, directory 0700, file 0600. Arx has NO caller yet: the source of real Cloud accounts and approved templates is not in this
@@ -350,6 +352,7 @@ def _fsync_dir(directory: Path) -> None:
         os.close(fd)
 
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for SOURCE-CLOUD-EXPORT (see write_resources).
 def read_resources(config_root: Path | str | None = None) -> dict[str, Any]:
     return check_resources(read_private_json(manifest_path(config_root).with_name("resources.json")))
 
@@ -1032,11 +1035,6 @@ def read_template_outcome_v3(reply: Any) -> dict[str, Any]:
         if observed is None or observed.utcoffset() is None:
             raise InstallationError("template_outcome_invalid")
     return {"result": result, "pacing_outcome": pacing, "automatic_retry": False}
-
-
-async def send_installed_template_v3(client: InstalledWiskeyClient, template: dict[str, Any]) -> dict[str, Any]:
-    reply = await client.call("whatsapp/template_send_v3", {"schema_version": 3, "template": template})
-    return read_template_outcome_v3(reply)
 
 
 SNAPSHOT_CODES_FALLBACK = frozenset({"snapshot_not_supported", "snapshot_entity_unavailable", "snapshot_unavailable"})

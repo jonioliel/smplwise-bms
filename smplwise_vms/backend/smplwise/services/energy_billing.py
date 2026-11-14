@@ -739,10 +739,6 @@ class Computed:
     end_caps: dict[str, str]
 
 
-class ComputeError(ApiError):
-    pass
-
-
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM energy_bills WHERE account_id = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC, issued_at DESC LIMIT 1",

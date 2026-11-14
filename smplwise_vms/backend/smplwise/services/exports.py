@@ -233,10 +233,6 @@ def check_quota(conn: sqlite3.Connection, principal: Any) -> None:
                        details={"waiting": waiting, "max": MAX_QUEUED_TOTAL})
 
 
-def paused_jobs(conn: sqlite3.Connection) -> int:
-    return conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state = ?", (PAUSED,)).fetchone()[0]
-
-
 UNKNOWN_FILE_BYTES = 64 * MB  # a file the NVR listed without a size counts as the average known size, else this
 PAUSE_BACKOFF_S = (15, 60, 300)  # the n-th pause in a row keeps the job paused at least this long (capped at the last)
 

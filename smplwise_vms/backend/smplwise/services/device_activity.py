@@ -145,10 +145,6 @@ _started_set = False
 STATS = {"stored": 0, "merged": 0, "rate_limited": 0}
 
 
-def is_activity_domain(domain: str) -> bool:
-    return domain in ACTIVITY_DOMAINS
-
-
 def reset() -> None:
     """Test hook: forget the in-memory guards and the source map."""
     global _last_prune, _started_set

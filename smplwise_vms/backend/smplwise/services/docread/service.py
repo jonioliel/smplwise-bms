@@ -57,6 +57,8 @@ def text_reader() -> ports.TextLayerReader:
     return _text_reader_override if _text_reader_override is not None else PdftotextReader()
 
 
+# Built ahead, no caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for CR-OCR119 tier 2 (the OCR reader slice,
+# docs/changes/CR-SUPPLIERDOCS-297.md q53), which installs its reader here.
 def set_ocr_reader(reader: ports.OcrReader | None) -> None:
     """The OCR extension point (tier 2, a later slice): None restores the null reader."""
     global _ocr_reader

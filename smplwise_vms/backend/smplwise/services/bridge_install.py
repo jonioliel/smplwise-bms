@@ -25,7 +25,7 @@ from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from . import bridge_keys as bk
 from . import ha_bridge, ha_client, self_update
-from .wiskey_distribution_digest import digest as distribution_digest, files as distribution_files
+from .wiskey_distribution_digest import digest as distribution_digest
 
 log = logging.getLogger("smplwise.bridge")
 

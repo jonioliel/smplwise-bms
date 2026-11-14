@@ -80,12 +80,6 @@ def latest_missed(conn: sqlite3.Connection, assignment_id: str | None, exclude_i
                            "ORDER BY planned_to DESC, rowid DESC LIMIT 1", (assignment_id, exclude_id)).fetchone())
 
 
-def visits_of_vendor(conn: sqlite3.Connection, vendor_id: str, since: str) -> list[dict[str, Any]]:
-    """Every visit of a vendor company (its technicians included - `vendor_id` is the company) planned since `since` (vendor stats)."""
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_visits WHERE vendor_id = ? AND planned_from >= ? ORDER BY planned_from",
-                                          (vendor_id, since)).fetchall()]
-
-
 def ticket_state(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
     """The status / department / number / assignment of a ticket for the visits logic - never shown to a person (a person's read went
     through access.visible before the visit logic runs)."""

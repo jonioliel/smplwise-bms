@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import html
 import logging
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -105,7 +104,3 @@ class EmailChannel:
             result = SendResult(UNKNOWN, "adapter_error")
         log.info("email send outbox=%s outcome=%s code=%s", msg.outbox_id, result.outcome, result.outcome_code)
         return result
-
-
-def with_subject(msg: OutboundMessage, subject: str) -> OutboundMessage:
-    return replace(msg, subject=subject)

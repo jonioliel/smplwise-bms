@@ -11,7 +11,6 @@ never an endpoint, a host, a key or a credential. An administrator's own "push n
 from __future__ import annotations
 
 import logging
-import shutil
 import threading
 from pathlib import Path
 from typing import Any, Callable
@@ -233,7 +232,3 @@ def _stamp(name: str) -> str:
 
     m = STAMP_RE.search(name)
     return (m.group(1) + m.group(2)) if m else ""
-
-
-def clear_tmp(settings: Settings) -> None:
-    shutil.rmtree(Path(settings.data_dir) / "offbox_tmp", ignore_errors=True)

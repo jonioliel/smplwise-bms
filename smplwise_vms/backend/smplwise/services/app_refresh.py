@@ -187,10 +187,6 @@ def reset_limits() -> None:
     FAILURES_ALL.hits.clear()
 
 
-def failures_blocked(key: str) -> bool:
-    return FAILURES.blocked(key) or FAILURES_ALL.blocked("all")
-
-
 def client_blocked(key: str) -> bool:
     """The per-client tier only (security review F-07: a token of a LIVE family skips the global tier - its per-family bucket bounds it,
     so a storm of garbage from elsewhere never locks every phone out for a minute)."""

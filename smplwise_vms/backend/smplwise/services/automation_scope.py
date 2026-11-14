@@ -119,9 +119,6 @@ class Access:
     def can_read_state(self, entity_id: str) -> bool:
         return self.allowed("entity.state.read", entity_id) or self.allowed("devices.read", entity_id)
 
-    def wide_manage_all(self) -> bool:
-        return all(self.wide(p) for p in (MANAGE,))
-
 
 # ---------------------------------------------------------------- context
 

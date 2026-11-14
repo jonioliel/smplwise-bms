@@ -132,10 +132,6 @@ def tagged_ids(conn: sqlite3.Connection) -> list[str]:
     return [r["entity_id"] for r in conn.execute("SELECT entity_id FROM presence_building_sensors ORDER BY entity_id")]
 
 
-def has_tags(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM presence_building_sensors LIMIT 1").fetchone() is not None
-
-
 def sensor_state(state: str | None, last_changed: str | None, now: dt.datetime, hold_seconds: int, fresh: bool = True) -> tuple[str, dt.datetime | None]:
     """(`occupied` | `clear` | `unknown`, the instant it became clear when `clear`)."""
     if not fresh or state in UNKNOWN_STATES:

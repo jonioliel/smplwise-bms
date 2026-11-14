@@ -660,15 +660,6 @@ def readiness(zones: Iterable[dict[str, Any]]) -> dict[str, Any]:
     return {"ready": not open_ and not faults, "open": open_, "faults": faults}
 
 
-def find_zone(disc: dict[str, Any], zone_entity_id: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    """(panel view, zone view) of a zone - the first panel listing it (a shared zone has one control whichever panel)."""
-    for p in disc["panels"]:
-        for z in p["zones"]:
-            if z["entity_id"] == zone_entity_id:
-                return p, z
-    return None
-
-
 # ---------------------------------------------------------------- the code: never stored, never echoed
 
 CODE_MAX = 32
@@ -695,4 +686,3 @@ def summary_counts(panels: list[dict[str, Any]]) -> dict[str, Any]:
     zones = [z for p in panels for z in p["zones"]]
     return {"panels": len(panels), "zones": len({z["entity_id"] for z in zones}), "open": len({z["entity_id"] for z in zones if z["open"]}),
             "bypassed": len({z["entity_id"] for z in zones if z["bypassed"]}), "faults": len({z["entity_id"] for z in zones if z["fault"]})}
-

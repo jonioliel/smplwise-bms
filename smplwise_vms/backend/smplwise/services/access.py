@@ -146,14 +146,6 @@ def require_camera(conn: sqlite3.Connection, principal: Principal, camera_id: st
     return require(conn, principal, permission, ("camera", camera_id))
 
 
-def floor_cameras(conn: sqlite3.Connection, floor_id: str) -> set[str]:
-    """The cameras anchored on a floor, and those of a shared room it shows (CR-009)."""
-    from .shared_spaces import floor_mirrored
-
-    own = {r[0] for r in conn.execute("SELECT DISTINCT resource_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (floor_id,)).fetchall()}
-    return own | {rid for rtype, rid in floor_mirrored(conn, floor_id) if rtype == "camera"}
-
-
 def camera_reach_floors(conn: sqlite3.Connection, principal: Principal, permission: str = "map.read", scope: CameraScope | None = None) -> set[str]:
     """The floors whose drawing a caller reaches through cameras (floor_reach "cameras", the site tree): each floor a
     camera in their scope is anchored on. A camera in a shared room (CR-009) hangs on the room's home floor AND the

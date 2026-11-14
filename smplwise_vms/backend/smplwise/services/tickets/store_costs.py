@@ -134,10 +134,6 @@ def pending_for_user(conn: sqlite3.Connection, ticket_id: str, user_id: str, sin
         "AND uploaded_by = ? AND created_at >= ? ORDER BY created_at, id", (ticket_id, user_id, since)).fetchall()]
 
 
-def pending_count_for_link(conn: sqlite3.Connection, link_id: str, since: str) -> int:
-    return pending_usage_for_link(conn, link_id, since)[0]
-
-
 def pending_usage_for_link(conn: sqlite3.Connection, link_id: str, since: str) -> tuple[int, int]:
     """(files, bytes) a link holds pending (deep review A5: the quota counts both)."""
     r = conn.execute("SELECT COUNT(*), COALESCE(SUM(bytes), 0) FROM ticket_cost_files WHERE claim_id IS NULL AND link_id = ? AND created_at >= ?",

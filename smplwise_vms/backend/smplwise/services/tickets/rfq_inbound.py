@@ -100,8 +100,3 @@ def _name(conn, v: Mapping[str, Any]) -> str:
 
     c = store_links.contact(conn, v["contact_id"]) or {}
     return "" if c.get("erased_at") else (c.get("display_name") or "")
-
-
-def is_whatsapp(message: Mapping[str, Any]) -> bool:
-    return str(message.get("source_id") or "").startswith(VIA_PREFIX)
-

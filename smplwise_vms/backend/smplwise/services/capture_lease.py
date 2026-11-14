@@ -66,8 +66,6 @@ GO_LIVE_PERMITTED = False  # Fable review 2 (2026-10-21) NO-GO: no bridge lease_
 # Development-mode principals (`source == "dev"`, SW_DEV_USER) never hold a lease (CR 4, review L5); the HTTP tests that drive
 # the route with the dev identity switch this on inside the test only.
 DEV_PRINCIPAL_ALLOWED = False
-MAX_BRIDGE_TEXT = 64  # stage / code strings from a bridge answer (review L1)
-BRIDGE_TEXT = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 LIVE = ("issued", "active")
 STATES = ("issued", "active", "revoked", "expired", "destroyed")
@@ -865,10 +863,6 @@ def mark_acked(conn: sqlite3.Connection, stream_id: str, sequence: int, result: 
                  (now_iso(), result, stream_id, sequence))
 
 
-def count_attempt(conn: sqlite3.Connection, stream_id: str, sequence: int) -> None:
-    conn.execute("UPDATE capture_leases SET revoke_attempts = revoke_attempts + 1 WHERE stream_id = ? AND revoke_sequence = ?", (stream_id, sequence))
-
-
 def expire_due(conn: sqlite3.Connection) -> list[str]:
     """The janitor's expiry: live rows whose `lease_expires_at` passed -> `expired` (nothing is sent: both sides enforce it)."""
     cutoff = iso(now())
@@ -947,11 +941,6 @@ def reenable_after_degraded(conn: sqlite3.Connection) -> int:
     GUARDS.degraded = False
     GUARDS.ledger_busy = False
     return len(rows)
-
-
-def bridge_text(value: Any) -> str | None:
-    """A stage / code string from a bridge answer, bounded (review L1): <= 64 characters of `^[a-z][a-z0-9_]*$`, else None."""
-    return value if isinstance(value, str) and len(value) <= MAX_BRIDGE_TEXT and BRIDGE_TEXT.fullmatch(value) else None
 
 
 def reset_for_tests() -> None:

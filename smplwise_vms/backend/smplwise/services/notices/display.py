@@ -25,7 +25,6 @@ from typing import Any, Callable
 from .. import brand_assets
 from ..ha_user_auth import RateLimiter
 from ..transit import digest as transit_digest
-from . import audience as aud
 from . import info, model, news_sources, slides, sources, store
 
 SLUG_PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
@@ -431,7 +430,3 @@ def preview_transit(conn: sqlite3.Connection, board: dict[str, Any], display: di
     """The digest for a board's own settings, or (the Settings preview) for a draft `display`."""
     disp = display if display is not None else model.load_display(board["display_json"])
     return transit_digest.build(conn, disp.get("transit") or {}, now, sources.installation_tz(conn))
-
-
-def audience_of(n: dict[str, Any]) -> dict[str, Any]:
-    return aud.parse(n.get("audience_json"))

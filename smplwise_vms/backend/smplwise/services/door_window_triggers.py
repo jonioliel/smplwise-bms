@@ -325,10 +325,6 @@ def decide_door(conn: sqlite3.Connection, settings: Any, now: dt.datetime, door:
 
 # ---------------------------------------------------------------- notifications
 
-def _door_label(door: dw.Door | None) -> str:
-    return door.label if door else ""
-
-
 def _notify_simulated(conn: sqlite3.Connection, door: dw.Door, actor: str | None, until_iso: str) -> None:
     from . import notify
 

@@ -369,15 +369,6 @@ def suggestions() -> list[mm.Suggestion]:
     return list(INDEX.suggestions)
 
 
-def rebuild_from(db: Any) -> bool:
-    """One write transaction: rebuild and, when it changed anything a screen shows, tell the open clients."""
-    with db.connection(durable=False) as conn:
-        changed = rebuild(conn)
-    if changed:
-        ha_sync.publish({"type": "media_devices_changed", "reason": "registry"})
-    return changed
-
-
 # ------------------------------------------------------------------------------------------------ scope
 
 
