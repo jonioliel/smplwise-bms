@@ -42,7 +42,7 @@ import { geometryFor } from '../api/geometry';
 import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
 import { stateFactsOf } from '../map/state-facts';
 import { defaultLevelId } from '../map/studio-ops';
-import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, temperatureText, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
+import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
 import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
 import { buildScene, entityMeta, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
@@ -58,6 +58,11 @@ import { STILL_RECIPE_Q2 } from '../map/still-bake';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import { resolveSite, type ResolvedSite } from '../map/sun';
 import { boundItemOf } from '../map/part-select';
+import { groupDescription, pillPrefsOf, summarizeRooms, type PillAnchor, type RoomPill, type RoomSummary } from '../map/room-pills';
+import { DEFAULT_STACK_MODE, STACK_KEY, levelTags, spreadDescription, stackPrefsOf, stackTap, type LevelTag, type StackMode } from '../map/stack-layout';
+import type { RoomOpenDetail, StackLevelDetail } from '../map/room-pill-view';
+import '../components/sw-room-card';
+import type { RoomCardActionDetail, RoomCardBulkDetail, RoomCardClimate, RoomCardLight, RoomCardModel, RoomCardOpening, RoomCardPlace } from '../components/sw-room-card';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
 import '../components/sw-share-members';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
@@ -126,6 +131,18 @@ const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking',
  */
 
 /** A short label for a floor button: the number in the name ("קומה -1" → "-1", "מתנס – קרקע" → "קרקע", else first 4 letters). */
+/** PLAN3D-R28-UI-2433: a cover that is a door (the room card draws a door, not a shutter). */
+const DOOR_COVERS: ReadonlySet<string> = new Set(['door', 'garage', 'garage_door', 'gate']);
+/** PLAN3D-R28-UI-2433: this browser's spread / building choice for "every level" (map/stack-layout.ts STACK_KEY). */
+function readStackMode(): StackMode {
+  try {
+    const v = localStorage.getItem(STACK_KEY);
+    return v === 'closed' || v === 'open' ? v : DEFAULT_STACK_MODE;
+  } catch {
+    return DEFAULT_STACK_MODE;
+  }
+}
+
 function floorShort(name: string): string {
   const num = name.match(/-?\d+/);
   if (num) return num[0];
@@ -180,6 +197,15 @@ export class ExploreFloorMap extends LitElement {
   /** T085: the library's shapes for the object layer, fetched by the bundle's catalog revision. */
   @state() private catalogLookup: CatalogLookup | null = null;
   @state() private levelFilter: string | null = null;
+  /** PLAN3D-R28-UI-2433: the product settings the round 28 3D map reads (room pills, room card, spread levels); null = the defaults. */
+  @state() private r28: Record<string, unknown> | null = null;
+  /** "every level" as built (`closed`) or spread apart (`open`), this browser's last choice; the spread level in focus (first tap). */
+  @state() private stackMode: StackMode = readStackMode();
+  @state() private stackFocus: string | null = null;
+  /** "כבה הכול" / closing a shutter waiting for its confirmation (`map.room_card_confirm` = bulk). */
+  @state() private roomConfirm: RoomCardBulkDetail | null = null;
+  private r28Memo: { key: unknown[]; out: { desc: SceneDescription; pills: RoomPill[]; anchors: RoomPill[]; tags: LevelTag[]; spread: boolean } } | null = null;
+  private roomsMemo: { bundle: MapBundle; layer: RoomStateLayer | null; layers: Set<Layer>; rooms: RoomSummary[] } | null = null;
   /** Plan Studio: the published structure of the shown version (fetched by hash after the bundle). */
   @state() private geometry: GeometryDoc | null = null;
   /** T087: the 2D / 3D toggle. The element's module - and with it the three chunk - is imported on the first switch. */
@@ -492,6 +518,15 @@ export class ExploreFloorMap extends LitElement {
       box-shadow: var(--sw-shadow-1);
       display: flex;
       white-space: nowrap;
+    }
+    /* PLAN3D-R28-UI-2433: the building / spread switch of "every level", inside the level bar after a hairline */
+    .stackswitch {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-inline-start: 8px;
+      padding-inline-start: 8px;
+      border-inline-start: 1px solid var(--sw-border-strong);
     }
     .stage[data-hud-row2] .levelbar {
       inset-block-start: var(--hud-bar-top);
@@ -1771,6 +1806,7 @@ export class ExploreFloorMap extends LitElement {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
           if (this.bundle === b) this.default3d = (s['map.default_view'] === '3d' || this.keep3d()) && !this.view3d;
           this.quality3d = modeFromWire(s['plan.quality']); // auto | full | schematic (map/quality-mode.ts); the viewer's own mode wins in the element
+          this.r28 = s as unknown as Record<string, unknown>; // PLAN3D-R28-UI-2433: the round 28 map settings (room pills, room card, spread levels)
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
           this.liveTransport = effectiveTransport(s);
         })
@@ -2233,6 +2269,202 @@ export class ExploreFloorMap extends LitElement {
     return this.wallPins;
   }
 
+  // ---- PLAN3D-R28-UI-2433 (round 28): the room pills, the room card, the spread levels ----
+
+  /** The level a zone or anchor without one stands on (the floor's default level). */
+  private get fallbackLevel(): string {
+    const b = this.bundle;
+    return this.geometry ? defaultLevelId(this.geometry) : (b?.levels.find((l) => l.is_default)?.id ?? 'L0');
+  }
+
+  /** The anchor as the room summaries read it: the live state and the UI's own state words. */
+  private pillAnchor(a: MapBundle['anchors'][number], states: Record<string, string | null>): PillAnchor {
+    const st = states[a.resource_id] ?? null;
+    return {
+      id: a.id, resource_id: a.resource_id, domain: a.entity?.domain ?? a.resource_id.split('.')[0] ?? '', device_class: a.entity?.device_class ?? null, layer_id: a.layer_id, label: entityName(a), state: st,
+      words: a.entity && st !== null ? stateLabel({ ...a.entity, state: st }) : '', x: a.position.x, y: a.position.y, level_id: a.level_id ?? null,
+    };
+  }
+
+  /** Every room of the floor with what its devices say (map/room-pills.ts). Memoised on the bundle (a push replaces it), the state
+   * layer and the layer switches. Empty in demo mode, without zones, or with the room names layer off. */
+  private get roomSummaries(): RoomSummary[] {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !this.layers.has('zones') || !b.zones.length) return [];
+    const layer = this.roomStateLayer;
+    const m = this.roomsMemo;
+    if (m && m.bundle === b && m.layer === layer && m.layers === this.layers) return m.rooms;
+    const states = this.entityStates3d;
+    const anchors = b.anchors.filter((a) => a.resource_type === 'ha_entity' && this.anchorShown(a)).map((a) => this.pillAnchor(a, states));
+    const fb = this.fallbackLevel;
+    const rooms = summarizeRooms(b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })), anchors, layer, (id) => id ?? fb);
+    this.roomsMemo = { bundle: b, layer, layers: this.layers, rooms };
+    return rooms;
+  }
+
+  /** "every level" with more than one level, in 3D and not walking: the spread / building view applies. */
+  private get stackShown(): boolean {
+    return this.levelFilter === null && (this.bundle?.levels.length ?? 0) > 1 && !this.walk3d;
+  }
+
+  /** The 3D inputs of round 28 from the built description: spread (or not), the rooms' names / readings taken over by their
+   * pills, the pills, their anchor points (also in the per-device mode: the room card centres on them), the level tags. */
+  private r28View(desc: SceneDescription, b: MapBundle) {
+    const prefs = pillPrefsOf(this.r28);
+    const rooms = this.roomSummaries;
+    const spread = this.stackShown && this.stackMode === 'open';
+    const key = [desc, rooms, prefs.mode, prefs.quiet, spread, this.stackFocus, this.stackShown, b.levels];
+    const m = this.r28Memo;
+    if (m && m.key.length === key.length && m.key.every((k, i) => k === key[i])) return m.out;
+    const shown = spread ? spreadDescription(desc, this.stackFocus) : desc;
+    const g = groupDescription(shown, rooms, prefs);
+    const anchors = prefs.mode === 'device' ? groupDescription(shown, rooms, { ...prefs, mode: 'room', quiet: 'name' }).pills : g.pills;
+    const fb = this.fallbackLevel;
+    const names = new Map(b.levels.map((l) => [l.id, l.name]));
+    const tags = this.stackShown ? levelTags(spread ? spreadDescription(desc, null) : desc, names, rooms, spread ? this.stackFocus : null, (id) => id ?? fb) : [];
+    const out = { desc: g.desc, pills: g.pills, anchors, tags, spread };
+    this.r28Memo = { key, out };
+    return out;
+  }
+
+  private setStackMode(mode: StackMode): void {
+    this.stackMode = mode;
+    this.stackFocus = null;
+    try {
+      localStorage.setItem(STACK_KEY, mode);
+    } catch {
+      /* storage blocked: the choice holds for the page */
+    }
+  }
+
+  /** A level tag of the spread building: the first tap focuses (two_tap), the second / "פתח את הקומה" / one_tap enters it. */
+  private onStackLevel(d: StackLevelDetail): void {
+    const r = d.enter ? { focus: null, enter: d.id } : stackTap(stackPrefsOf(this.r28).pick, this.stackFocus, d.id);
+    if (r.enter) {
+      this.stackFocus = null;
+      this.levelFilter = r.enter;
+      return;
+    }
+    if (this.stackMode !== 'open') this.stackMode = 'open'; // a tag of the building focuses its level in the spread view
+    this.stackFocus = r.focus;
+  }
+
+  /** The spread / building switch beside the level chips (3D, every level, more than one level). */
+  private renderStackSwitch() {
+    if (!this.shows3d || !this.stackShown) return nothing;
+    const open = this.stackMode === 'open';
+    return html`<span class="stackswitch" role="group" aria-label="פריסת המפלסים" data-stack-switch>
+      <sw-chip icon="cube" data-stack-mode="closed" ?selected=${!open} @click=${() => this.setStackMode('closed')}>בניין</sw-chip>
+      <sw-chip icon="layers" data-stack-mode="open" ?selected=${open} @click=${() => this.setStackMode('open')}>פרוס</sw-chip>
+    </span>`;
+  }
+
+  /** Where the room card stands: a sheet on a phone (and on a tablet with `sheet_tablet`), else the setting's side panel / corner card. */
+  private roomCardPlace(): RoomCardPlace {
+    const w = (this.renderRoot as ShadowRoot).querySelector<HTMLElement>('[data-stage]')?.clientWidth ?? window.innerWidth;
+    const set = this.r28?.['map.room_card_place'];
+    if (w <= 700) return 'sheet';
+    if (set === 'sheet_tablet' && w <= 1100) return 'sheet';
+    return set === 'float' ? 'float' : 'side';
+  }
+
+  /** The stage edges the room card covers (the 3D centres the room in the rest). */
+  private roomCardInset(place: RoomCardPlace): { left: number; right: number; top: number; bottom: number } {
+    const st = (this.renderRoot as ShadowRoot).querySelector<HTMLElement>('[data-stage]');
+    const w = st?.clientWidth ?? window.innerWidth;
+    const h = st?.clientHeight ?? window.innerHeight;
+    if (place === 'sheet') return { left: 0, right: 0, top: 0, bottom: Math.round(h * 0.47) };
+    const card = Math.min(place === 'float' ? 320 : 360, w - 24) + 24;
+    return { left: card, right: 0, top: 0, bottom: 0 }; // the card stands at the inline end: the left of an RTL page
+  }
+
+  /** The room card's model (sw-room-card) for a room: its lights, its climate, its doors / windows / shutters, its cameras. */
+  private roomCardModel(z: MapBundle['zones'][number], b: MapBundle): RoomCardModel {
+    const fb = this.fallbackLevel;
+    const level = z.level_id ?? fb;
+    const states = this.entityStates3d;
+    const inside = b.anchors.filter((a) => (a.level_id ?? fb) === level && this.anchorShown(a) && pointInPolygon(a.position, z.polygon));
+    const st = this.roomStateLayer?.rooms[z.id];
+    const sum = this.roomSummaries.find((r) => r.id === z.id);
+    const lights: RoomCardLight[] = [];
+    const openings: RoomCardOpening[] = [];
+    let climate: RoomCardClimate | null = null;
+    const specOf = (e: HaEntity | null | undefined, ...ends: string[]): HaActionSpec | null => {
+      for (const end of ends) {
+        const x = e?.actions?.find((s) => s.id.endsWith(end));
+        if (x) return x;
+      }
+      return null;
+    };
+    for (const a of inside) {
+      if (a.resource_type !== 'ha_entity') continue;
+      const e = a.entity;
+      const state = states[a.resource_id] ?? null;
+      const ent = { id: a.resource_id, domain: e?.domain ?? a.resource_id.split('.')[0] ?? '', device_class: e?.device_class ?? null, layer_id: a.layer_id };
+      const words = e && state !== null ? stateLabel({ ...e, state }) : 'לא ידוע';
+      if (isLightEntity(ent)) {
+        const on = state === 'on' ? true : state === 'off' ? false : null;
+        const spec = on === null ? null : specOf(e, on ? '.turn_off' : '.turn_on', '.toggle');
+        lights.push({ entityId: a.resource_id, label: entityName(a), on, spec, forbidden: spec?.granted === false });
+      } else if (isOpeningEntity(ent) || ent.domain === 'cover') {
+        const spec = ent.domain === 'lock' ? specOf(e, state === 'locked' ? '.unlock' : '.lock') : ent.domain === 'cover' ? specOf(e, state === 'closed' ? '.open_cover' : '.close_cover') : null;
+        const icon = ent.domain === 'lock' ? 'lock' : ent.device_class === 'window' ? 'grid' : ent.domain === 'cover' && !DOOR_COVERS.has(ent.device_class ?? '') ? 'menu' : 'door';
+        const open = ent.domain === 'lock' ? state === 'unlocked' || state === 'open' : state === 'on' || state === 'open';
+        openings.push({ entityId: a.resource_id, label: entityName(a), words, open, icon, spec, forbidden: spec?.granted === false });
+      } else if (!climate && ent.domain === 'climate' && e) {
+        const at = (e.attributes ?? {}) as Record<string, unknown>;
+        const n = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+        const spec = specOf(e, '.set_temperature');
+        climate = { entityId: a.resource_id, now: n(at.current_temperature), target: n(at.temperature), step: n(at.target_temp_step) || 0.5, min: n(at.min_temp) ?? 5, max: n(at.max_temp) ?? 35, spec: spec?.granted === false ? null : spec, words };
+      }
+    }
+    if (!climate && st && st.temperature !== null) climate = { entityId: null, now: st.temperature, target: null, step: 1, min: 0, max: 0, spec: null, words: '' };
+    const cameras = inside.filter((a) => a.resource_type === 'camera' && a.camera && cameraState(a) !== 'forbidden').map((a) => ({ id: a.camera!.id, label: entityName(a) }));
+    const levelName = b.levels.length > 1 ? b.levels.find((l) => l.id === level)?.name ?? b.floorName : b.floorName;
+    return {
+      id: z.id, name: z.name, levelName, presence: !!st?.presence, quietMin: st && !st.presence && st.presenceAge !== null ? Math.round(st.presenceAge / 60) : null, open: sum?.open ?? st?.openings.length ?? 0,
+      lights, climate, openings, cameras, areaHref: z.area_id ? `#/devices/areas/${encodeURIComponent(z.area_id)}` : null,
+      busy: this.action?.busy ? this.action.entityId : null, stale: this.screenState === 'stale',
+    };
+  }
+
+  /** A control of the room card: the floor map's own path (trigger: the sensitive-action confirmation, permission, audit). With
+   * `map.room_card_confirm` = bulk, closing a shutter asks first too. */
+  private onRoomAction(d: RoomCardActionDetail): void {
+    if (d.args) for (const [k, v] of Object.entries(d.args)) this.actionArgs = { ...this.actionArgs, [`${d.spec.id}:${k}`]: String(v) };
+    if (!d.spec.sensitive && this.r28?.['map.room_card_confirm'] === 'bulk' && d.spec.id.endsWith('.close_cover')) {
+      this.roomConfirm = { label: d.spec.label, items: [{ entityId: d.entityId, spec: d.spec }] };
+      return;
+    }
+    this.trigger(d.entityId, d.spec);
+  }
+
+  /** "כבה הכול": at once (the recommended rule: lights never ask), or after a confirmation with `map.room_card_confirm` = bulk. */
+  private onRoomBulk(d: RoomCardBulkDetail): void {
+    if (this.r28?.['map.room_card_confirm'] === 'bulk') {
+      this.roomConfirm = d;
+      return;
+    }
+    void this.runBulk(d);
+  }
+
+  private async runBulk(d: RoomCardBulkDetail): Promise<void> {
+    this.roomConfirm = null;
+    for (const it of d.items) {
+      if (it.spec.sensitive) continue; // a sensitive action never rides in a batch: it has its own confirmation
+      await this.send(it.entityId, it.spec, true);
+    }
+  }
+
+  private renderRoomConfirm() {
+    const c = this.roomConfirm;
+    if (!c) return nothing;
+    return html`<sw-dialog open heading=${`${c.label}?`} subheading=${c.items.length > 1 ? `${c.items.length} התקנים` : ''} @close=${() => (this.roomConfirm = null)} data-room-confirm>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה תבוצע בזהות שלך ותירשם באודיט.</div>
+      <div slot="footer"><sw-button variant="primary" @click=${() => this.runBulk(c)}>${c.label}</sw-button><sw-button variant="ghost" @click=${() => (this.roomConfirm = null)}>${t('actions.cancel')}</sw-button></div>
+    </sw-dialog>`;
+  }
+
   private render3d(b: MapBundle) {
     // CR-029 S3: the stills instead of the live 3D - a wall display set to stills, no WebGL, or the live ladder exhausted.
     // CR-029 S5-B: a wall display's live / stills, quality and idle time are this browser's pins over the installation's dials; an
@@ -2247,14 +2479,22 @@ export class ExploreFloorMap extends LitElement {
     if (mode === 'stills') return renderStills(b, level, this.roomStateLayer, this.viewDials, new Date(), { autoBand: wall, site: this.stillsSite });
     const s = this.scene3d();
     if (!s) return nothing;
+    const r = this.r28View(s.desc, b);
+    const zone = this.selectedZoneId && !this.multi && !this.embedded ? r.anchors.find((p) => p.id === this.selectedZoneId) : undefined;
+    const place = zone ? this.roomCardPlace() : 'side';
+    const focus = zone ? { id: zone.id, pos: zone.pos, extent: zone.extent, inset: this.roomCardInset(place) } : null;
+    const stackPrefs = stackPrefsOf(this.r28);
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .frameKey=${b.floorId} .cameras=${s.cameras} .labels=${s.labels}
+    return html`<sw-plan-3d data-floor-3d .description=${r.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .frameKey=${r.spread ? `${b.floorId}|spread|${this.stackFocus ?? ''}` : b.floorId} .cameras=${s.cameras} .labels=${s.labels}
+      .roomPills=${r.pills} .pillPrefs=${pillPrefsOf(this.r28)} .pillsHidden=${this.stackShown && !(r.spread && this.stackFocus)} .levelTags=${r.tags} .focusRoom=${focus} .stackDark=${r.spread && stackPrefs.backdrop === 'dark'}
+      @room-open=${(e: CustomEvent<RoomOpenDetail>) => { this.close(); this.focusedObjectId = null; this.selectedZoneId = e.detail.id; }}
+      @stack-level=${(e: CustomEvent<StackLevelDetail>) => this.onStackLevel(e.detail)}
       .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}
       @hud-corner=${(e: CustomEvent<HudCornerDetail>) => { this.corner3d = e.detail.corner; }}
-      .walkable=${true} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
+      .walkable=${!r.spread} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
       @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) { this.real3d = e.detail.on; this.sceneDue = true; } }}
       .stillsAvailable=${stills} @stills-fallback=${() => { this.stillsFallback = true; }}
       .idleS=${wall ? plan.idleS : 0} .changeKey=${wall ? this.planChangeKeyOf(b) : ''} .qualityForce=${wall ? plan.quality : null}
@@ -2971,23 +3211,18 @@ export class ExploreFloorMap extends LitElement {
     this.close();
   }
 
-  /** K88: the selected room's card - its name and, when the room is linked to an area, the way to that area. */
+  /** K88 / PLAN3D-R28-UI-2433 (round 28, room.html): the selected room's card - the whole room: camera, lights, climate, doors /
+   * windows / shutters, and the way to its area (map/sw-room-card.ts). */
   private renderRoomCard() {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !this.selectedZoneId || this.multi || this.embedded) return nothing;
     const z = b.zones.find((x) => x.id === this.selectedZoneId);
     if (!z || z.shared) return nothing; // a shared room shows its members card instead
-    const st = this.roomStateLayer?.rooms[z.id];
-    const bits: string[] = [];
-    if (st?.lit) bits.push('תאורה דלוקה');
-    if (st?.presence) bits.push('נוכחות');
-    if (st?.openings.length) bits.push(`${st.openings.length} פתחים פתוחים`);
-    if (st && st.temperature !== null && st.temperature !== undefined) bits.push(temperatureText(st.temperature) ?? '');
-    return html`<div class="roomcard" data-room-card data-zone-id=${z.id}>
-      <div class="rc-head"><strong>${bidi(z.name || 'חדר')}</strong><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => (this.selectedZoneId = null)}></sw-button></div>
-      ${bits.filter(Boolean).length ? html`<div class="rc-sub">${bits.filter(Boolean).join(' · ')}</div>` : nothing}
-      ${z.area_id ? html`<a class="rc-open" data-room-open-area href=${`#/devices/areas/${encodeURIComponent(z.area_id)}`}>פתח אזור<sw-icon name="chevron" size=${12}></sw-icon></a>` : nothing}
-    </div>`;
+    const camera = this.r28?.['map.room_card_camera'];
+    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} place=${this.roomCardPlace()} camera=${camera === 'live' || camera === 'none' ? camera : 'snapshot'}
+      @room-card-action=${(e: CustomEvent<RoomCardActionDetail>) => this.onRoomAction(e.detail)} @room-card-bulk=${(e: CustomEvent<RoomCardBulkDetail>) => this.onRoomBulk(e.detail)}
+      @room-card-close=${() => (this.selectedZoneId = null)} @room-card-camera=${(e: CustomEvent<{ id: string }>) => navigate(`/live/cameras/${e.detail.id}`)}
+      @room-card-recordings=${(e: CustomEvent<{ id: string }>) => navigate('/investigate/playback', { camera: e.detail.id, from: 'map' })}></sw-room-card>`;
   }
 
   /** K88 3D round 2: the building's floors beside the 3D view with state dots (lit · presence · open); a tap switches
@@ -3231,7 +3466,7 @@ export class ExploreFloorMap extends LitElement {
       ${this.threeState === 'loading' ? html`<div class="cover" data-3d-loading><sw-state-panel state="loading" hint="טוען תלת-ממד…"></sw-state-panel></div>` : nothing}
       ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading="תלת-ממד לא נטען" hint=${this.threeError}></sw-state-panel></div>` : nothing}
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-      ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => (this.levelFilter = id))}</div>` : nothing}
+      ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => { this.levelFilter = id; this.stackFocus = null; })}${this.renderStackSwitch()}</div>` : nothing}
       ${b.source === 'api' && this.buildingFloors.length > 1 && !this.shows3d
         ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
             ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
@@ -3255,6 +3490,7 @@ export class ExploreFloorMap extends LitElement {
       </div>`}
       ${this.renderCard()}
       ${this.renderConfirm()}
+      ${this.renderRoomConfirm()}
       ${this.ticketFor ? html`<ticket-map-create open .element=${this.ticketFor} @close=${() => (this.ticketFor = null)}></ticket-map-create>` : nothing}
     `;
   }

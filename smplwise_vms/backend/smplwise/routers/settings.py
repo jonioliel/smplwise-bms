@@ -168,6 +168,14 @@ class SettingsPatch(BaseModel):
     map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")
     map_default_floor: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.\-]*$", alias="map.default_floor")  # "" or an existing floor id (checked in the handler)
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
+    map_room_pills: str | None = Field(default=None, pattern="^(room|room_always|device)$", alias="map.room_pills")  # PLAN3D-R28-UI-2433
+    map_room_pill_tap: str | None = Field(default=None, pattern="^(popover|card)$", alias="map.room_pill_tap")
+    map_room_pill_quiet: str | None = Field(default=None, pattern="^(name|hide|bubble)$", alias="map.room_pill_quiet")
+    map_room_card_place: str | None = Field(default=None, pattern="^(side|float|sheet_tablet)$", alias="map.room_card_place")
+    map_room_card_confirm: str | None = Field(default=None, pattern="^(system|bulk)$", alias="map.room_card_confirm")
+    map_room_card_camera: str | None = Field(default=None, pattern="^(snapshot|live|none)$", alias="map.room_card_camera")
+    map_stack_backdrop: str | None = Field(default=None, pattern="^(theme|dark)$", alias="map.stack_backdrop")
+    map_stack_pick: str | None = Field(default=None, pattern="^(two_tap|one_tap)$", alias="map.stack_pick")
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_camsuggest_distance: str | None = Field(default=None, pattern="^([1-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_distance")  # CAMSUGGEST138-295: 1-100 % of the plan width
     plan_camsuggest_fov: str | None = Field(default=None, pattern="^([0-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_fov")  # 0-100 %
