@@ -39,6 +39,7 @@ from . import insights_access as access
 from . import insights_common as ic
 from . import messaging_accounts as ma
 from . import messaging_runtime as mr
+from .janitors import Every
 from .timeutil import iso_utc
 
 log = logging.getLogger("smplwise.insights.delivery")
@@ -52,7 +53,7 @@ MAX_ATTEMPTS = 4
 PER_PASS = 5
 THROTTLE_S = 55.0
 _HHMM = (0, 23, 0, 59)
-_last_pass = 0.0
+_PASS = Every(THROTTLE_S, clock=time.time)  # CR-JANITOR-REGISTRY-2438: the shared throttle on the wall clock (callers pass now_ts)
 
 DEFAULTS: dict[str, Any] = {"enabled": False, "dom": 1, "at": "08:00", "lang": "he", "email": False, "whatsapp": False, "users": [],
                             "enabled_at": None, "enabled_by": None}
@@ -477,11 +478,9 @@ def process(db: Database, now_ts: float | None = None, store: Any = None) -> dic
 
 def janitor(db: Database, settings: Any = None, now_ts: float | None = None) -> dict[str, int] | None:
     """main.janitor_tick (every 30 s): self-throttled to once a minute; a read first so a quiet installation takes no write lock."""
-    global _last_pass
     t = float(now_ts if now_ts is not None else time.time())
-    if t - _last_pass < THROTTLE_S:
+    if not _PASS.due(t):
         return None
-    _last_pass = t
     with db.connection(mode="read", label="insights.delivery.peek") as conn:
         try:
             busy = load(conn)["enabled"] or conn.execute("SELECT 1 FROM insights_report_sends WHERE status IN ('queued','held','retry') LIMIT 1").fetchone() is not None
@@ -505,6 +504,5 @@ def janitor(db: Database, settings: Any = None, now_ts: float | None = None) -> 
 
 
 def reset() -> None:
-    global _last_pass
-    _last_pass = 0.0
+    _PASS.reset()
 
