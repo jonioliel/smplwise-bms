@@ -34,6 +34,7 @@ import time
 from typing import Any
 
 from ..db import Database, get_setting, now_iso, set_setting
+from .janitors import Every
 from .timeutil import iso_utc, parse_utc
 
 log = logging.getLogger("smplwise.device_activity")
@@ -140,7 +141,7 @@ _lock = threading.Lock()
 _entity_marks: dict[str, collections.deque] = {}
 _global_marks: collections.deque = collections.deque()
 _sources: "collections.OrderedDict[str, tuple[str, str, str, float]]" = collections.OrderedDict()  # context id -> (type, entity id, name, monotonic)
-_last_prune = 0.0
+_PRUNE = Every(PRUNE_EVERY_S)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was the module global _last_prune)
 _started_set = False
 STATS = {"stored": 0, "merged": 0, "rate_limited": 0}
 
@@ -151,13 +152,13 @@ def is_activity_domain(domain: str) -> bool:
 
 def reset() -> None:
     """Test hook: forget the in-memory guards and the source map."""
-    global _last_prune, _started_set
+    global _started_set
     with _lock:
         _started_set = False
         _entity_marks.clear()
         _global_marks.clear()
         _sources.clear()
-        _last_prune = 0.0
+        _PRUNE.reset()
         STATS.update(stored=0, merged=0, rate_limited=0)
 
 
@@ -511,11 +512,10 @@ def prune(conn: sqlite3.Connection, days: int | None = None, *, max_rows: int = 
 
 def prune_db(db: Database, *, force: bool = False) -> dict[str, int] | None:
     """The janitor's call (every 30 s): does the work at most every PRUNE_EVERY_S."""
-    global _last_prune
-    now = time.monotonic()
-    if not force and now - _last_prune < PRUNE_EVERY_S:
+    if force:
+        _PRUNE.mark()
+    elif not _PRUNE.due():
         return None
-    _last_prune = now
     with db.connection() as conn:
         return prune(conn)
 

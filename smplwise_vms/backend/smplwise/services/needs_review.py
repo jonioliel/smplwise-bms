@@ -26,8 +26,6 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-import threading
-import time
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -35,6 +33,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from . import access_grants as ag
+from .janitors import Every
 
 log = logging.getLogger(__name__)
 
@@ -237,18 +236,13 @@ def remind_if_due(conn: sqlite3.Connection, at: datetime | None = None) -> str |
     return res.id if res.action == "created" else None
 
 
-_last_check = 0.0
-_check_lock = threading.Lock()
+_CHECK = Every(_CHECK_EVERY_S)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was a locked module global)
 
 
 def janitor(db: Any) -> None:
     """The janitor's hook (every 30 s): at most one check an hour in this process; never raises."""
-    global _last_check
-    with _check_lock:
-        mono = time.monotonic()
-        if _last_check and mono - _last_check < _CHECK_EVERY_S:
-            return
-        _last_check = mono
+    if not _CHECK.due():
+        return
     try:
         with db.connection(label="needs_review.reminder") as conn:
             remind_if_due(conn)
@@ -257,5 +251,4 @@ def janitor(db: Any) -> None:
 
 
 def reset_for_tests() -> None:
-    global _last_check
-    _last_check = 0.0
+    _CHECK.reset()

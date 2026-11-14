@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 
 from ...audit import audit
 from ...db import Database
+from ..janitors import Every
 from . import attendees as att
 from . import model
 from .calendars import new_id
@@ -489,20 +490,16 @@ def reset_erase_after(conn: sqlite3.Connection, root_id: str, now: dt.datetime) 
     conn.execute("UPDATE cal_attendees SET erase_after = ? WHERE event_id = ? AND kind = 'guest' AND erased_at IS NULL", (att._erase_after(conn, root_id, now), root_id))
 
 
-_last_erase = 0.0
+_ERASE = Every(3000)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was the module global _last_erase)
 
 
 def tick(db: Database, data_dir: Any) -> None:
     """Every janitor pass (~30 s): the due notices; hourly: the guest-contact retention."""
-    global _last_erase
-    import time  # noqa: PLC0415
-
     try:
         dispatch(db, data_dir)
     except Exception:  # noqa: BLE001 - never stops the janitor tick
         log.warning("calendar attendee notices failed", exc_info=True)
-    if not _last_erase or time.monotonic() - _last_erase > 3000:
-        _last_erase = time.monotonic()
+    if _ERASE.due():
         try:
             erase_due(db)
         except Exception:  # noqa: BLE001

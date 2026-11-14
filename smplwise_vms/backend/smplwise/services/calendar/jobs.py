@@ -10,6 +10,7 @@ import logging
 
 from ...audit import audit
 from ...db import Database, get_setting
+from ..janitors import Every
 from . import decisions, guests, model, occ
 
 log = logging.getLogger(__name__)
@@ -40,17 +41,13 @@ def run(db: Database, now: dt.datetime | None = None) -> dict[str, int]:
     return out
 
 
-_last_tick = 0.0
+_TICK = Every(3000)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was the module global _last_tick)
 
 
 def tick(db: Database) -> None:
     """At most once per 50 minutes per process (the pattern of services/pending_retention)."""
-    global _last_tick
-    import time  # noqa: PLC0415
-
-    if time.monotonic() - _last_tick < 3000 and _last_tick:
+    if not _TICK.due():
         return
-    _last_tick = time.monotonic()
     try:
         run(db)
     except Exception:  # noqa: BLE001 - housekeeping never stops the janitor tick
@@ -81,17 +78,13 @@ def sync_run(db: Database, data_dir, now: dt.datetime | None = None) -> dict:
     return engine.run_due_db(db, data_dir, now)  # CALCONNECT-2330: no write lock is held while a provider is asked
 
 
-_last_sync_tick = 0.0
+_SYNC_TICK = Every(55)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was the module global _last_sync_tick)
 
 
 def sync_tick(db: Database, data_dir) -> None:
     """At most once per minute per process; the connections' own `next_sync_at` (poll_min, jitter, back-off) decides who is due."""
-    global _last_sync_tick
-    import time  # noqa: PLC0415
-
-    if _last_sync_tick and time.monotonic() - _last_sync_tick < 55:
+    if not _SYNC_TICK.due():
         return
-    _last_sync_tick = time.monotonic()
     try:
         sync_run(db, data_dir)
     except Exception:  # noqa: BLE001 - housekeeping never stops the janitor tick

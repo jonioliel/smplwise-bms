@@ -71,7 +71,7 @@ def test_the_worker_interval_is_a_setting(mw):
     setting(mw, **{"maintenance.reminder_check_minutes": "2"})
     reminders.reset_for_tests()
     reminders.janitor(mw.db)
-    assert reminders._every_s == 120.0
+    assert reminders._CHECK.seconds == 120.0  # CR-JANITOR-REGISTRY-2438: the shared throttle object (was _every_s)
 
 
 def test_the_reminder_log_lists_reminders_and_requests_and_follows_visibility(mw):

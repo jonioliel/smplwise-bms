@@ -28,374 +28,16 @@ from .routers import access, access_control, wiskey_relay_map as wiskey_relay_ma
 log = logging.getLogger("smplwise")
 
 
-def _janitor_step(name: str, fn, *args) -> None:
-    """BACKEND-SAFETY-2435: run one housekeeping step; a failure is logged and the pass goes on to the next step."""
-    try:
-        fn(*args)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("%s janitor failed", name, exc_info=True)
-
-
 def janitor_tick(db: Database, settings: Settings) -> None:
     """One housekeeping pass (every 30 s): idle playback sessions, orphan relay streams, empty playback groups,
-    export retention, event / thumbnail / audit / HA-history pruning. A plain function so a test runs it end to
-    end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune. Every step is
-    guarded (BACKEND-SAFETY-2435): one failing step is logged and the later ones still run. Two failures still end the
-    pass on purpose: a demo state that cannot be read (housekeeping must not touch a demo that may be running) and
-    settings that cannot be read (no retention step runs on guessed values)."""
-    from . import audit as audit_mod
-    from .routers.settings import read_settings
-    from .services import demo_mode, events_derive, exports as ex, ha_history, playback as pb, playback_groups as pg, thumbnails
+    export retention, event / thumbnail / audit / HA-history pruning and every module's own retention. A plain function so a
+    test runs it end to end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune.
+    The steps, their order, arguments and warnings are the registry `services/janitors.py` (CR-JANITOR-REGISTRY-2438); every
+    step is guarded (BACKEND-SAFETY-2435) except the three that never were (NVR storage warm-up, manual-recording stop, WAL
+    checkpoint). Two failures end the pass on purpose: a demo state that cannot be read and settings that cannot be read."""
+    from .services import janitors
 
-    try:
-        if demo_mode.tick(db, settings):  # CR-READY96: a running demo ends here when its time is up; while one runs the real installation's housekeeping waits
-            return
-    except Exception:  # noqa: BLE001
-        log.warning("demo janitor failed; housekeeping pass skipped", exc_info=True)
-        return
-    try:
-        with db.connection() as conn:
-            s = read_settings(conn)
-    except Exception:  # noqa: BLE001
-        log.warning("janitor could not read settings; housekeeping pass skipped", exc_info=True)
-        return
-    _janitor_step("playback idle", pb.expire_idle, settings, s["playback.lease_s"])
-    _janitor_step("playback orphans", pb.sweep_orphans, settings)
-    _janitor_step("playback groups", pg.expire_empty)
-    _janitor_step("exports retention", ex.retention_sweep, db, settings, s["exports.retention_days"])
-    _janitor_step("events prune", events_derive.prune, db, s["events.retention_days"])
-    _janitor_step("thumbnails prune", thumbnails.prune, settings, s["events.retention_days"])
-    _janitor_step("audit prune", audit_mod.prune_db, db, s["audit.retention_days"])
-    from .services import ha_user_auth
-
-    _janitor_step("refusal summaries", ha_user_auth.flush_refusal_summaries, db)  # counted-but-quiet throttled refusals: the end-of-window summary rows
-    _janitor_step("ha history prune", ha_history.prune_db, db)
-    from .services import device_activity
-
-    _janitor_step("device activity prune", device_activity.prune_db, db)  # DEVHIST: retention + size caps (itself throttled to every 15 min)
-    from .services import push as push_svc
-
-    _janitor_step("push prune", push_svc.prune, db)  # CR-008 P3: push subscriptions whose browser has not synced for months
-    try:  # CR-LIVEEVENT100: closed incidents past incidents.retention_days (an open incident is never pruned)
-        from .services import incidents as incidents_svc
-
-        incidents_svc.prune_db(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("incidents janitor failed", exc_info=True)
-    try:  # CR-014: expired schedule trash, runs past their retention, settled ops, due derived runs (no Home Assistant call)
-        from .services import schedules as schedules_svc
-
-        schedules_svc.janitor(db, s)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("schedules janitor failed", exc_info=True)
-    try:  # CR-017: expired automation trash, runs and ops past their retention (no Home Assistant call)
-        from .services import automations as automations_svc
-
-        automations_svc.janitor(db, s)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("automations janitor failed", exc_info=True)
-    try:  # CR-015: media devices deleted for 30 days, their layout keys, old command rows (no Home Assistant call)
-        from .services import media_store
-
-        media_store.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("media janitor failed", exc_info=True)
-    try:  # MU2: announcement log rows older than 90 days
-        from .services import announcements as announcements_svc
-
-        with db.connection(label="announce.prune") as conn:
-            announcements_svc.prune(conn)
-        announcements_svc.release_queued(db, settings)  # ANNOUNCE-295: announcements held in the quiet hours are spoken once the window ended
-    except Exception:  # noqa: BLE001
-        log.warning("announcements janitor failed", exc_info=True)
-    try:  # CR-023 P2: automatic electricity bills at the end of each period (throttled to every 5 minutes; idempotent)
-        from .services import energy_billing
-
-        energy_billing.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("energy billing janitor failed", exc_info=True)
-    try:  # CR-QUIET103: stamp quiet windows whose end instant has passed (the dispatch decides by the clock, not by this sweep; no device call)
-        from .services import quiet_windows
-
-        quiet_windows.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("quiet windows janitor failed", exc_info=True)
-    try:  # NEEDSREVIEW (2.8.0): the yearly "needs review" reminder (January, once, throttled to an hourly check; never a door-system call)
-        from .services import needs_review
-
-        needs_review.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("needs-review janitor failed", exc_info=True)
-    try:  # SECFIX2-295 / PUB-03: erase undecided vendor-typed technicians past access.external.pending_retention_days (default 90, owner 2026-10-21; a saved 0 = off)
-        from .services import pending_retention
-
-        pending_retention.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("pending retention janitor failed", exc_info=True)
-    try:  # IDENT146: purge local accounts disabled / deleted for privacy.local_purge_days (default 30; the switch privacy.local_purge is off by default)
-        from .services import local_privacy
-
-        local_privacy.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("local privacy janitor failed", exc_info=True)
-    try:  # ZONECOUNT107 / REL2140 M-2: people-count samples - all deleted while the switch is off, retention while on (read-gated)
-        from .services import zone_counts
-
-        zone_counts.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("zone count janitor failed", exc_info=True)
-    try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
-        from .services import ha_camera_streams
-
-        ha_camera_streams.reconcile(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("ha live reconcile failed", exc_info=True)
-    try:  # CAMERA-STREAM-SOURCES-2410: delete `smplwise_cam_` streams no manual source wants (throttled; nothing outside that shape)
-        from .services import camera_sources
-
-        camera_sources.reconcile(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("camera sources reconcile failed", exc_info=True)
-    try:  # CR-023: electricity retention (hourly inside; energy.db only, its own gate)
-        from .services import energy_sampler
-
-        energy_sampler.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("energy janitor failed", exc_info=True)
-    try:  # CR-WATER78: water retention (hourly inside; water.db only, its own gate; nothing while the module is off)
-        from .services import water_sampler
-
-        water_sampler.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("water janitor failed", exc_info=True)
-    try:  # CR-WATER78 slice 2: the leak evaluator, once per closed 15-minute bucket (water.db read-only; nothing while the module is off; never a device action)
-        from .services import water_runtime
-
-        water_runtime.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("water alerts evaluator failed", exc_info=True)
-    try:  # CR-WATER78 slice 3: automatic water bills at the end of each period (every 5 min inside) and bill retention (the shared keys)
-        from .services import water_billing
-
-        water_billing.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("water billing janitor failed", exc_info=True)
-    try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
-        from .services import generator_runtime
-
-        generator_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("generator janitor failed", exc_info=True)
-    try:  # CR-INSIGHT215 slice 3: the scheduled monthly building report (OFF until set up and enabled; self-throttled to once a minute)
-        from .services import insights_delivery
-
-        insights_delivery.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("insights delivery janitor failed", exc_info=True)
-    try:  # CR-INFRA-ELEVATORS 2.8.0: the elevators' state history past its retention (hourly inside; no Home Assistant call)
-        from .services import elevators_runtime
-
-        elevators_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("elevators janitor failed", exc_info=True)
-    try:  # CR-INFRA-TEMPERATURE 2.9.1: the temperature history and alert log past their retention (hourly inside; no Home Assistant call)
-        from .services import temperature_runtime
-
-        temperature_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("temperature janitor failed", exc_info=True)
-    try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
-        from .services import update_runs
-
-        update_runs.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("update runs janitor failed", exc_info=True)
-    try:  # CR-028: casts past their time end (one stop, the restore rule), casts whose screen vanished end, "not confirmed" after 15 s
-        from .services import cast_sessions
-
-        cast_sessions.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("cast janitor failed", exc_info=True)
-    try:  # CR-027: the phone app's presence event log past its retention, expired app push messages, revoked device rows
-        from .services import presence as presence_svc
-
-        presence_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("presence janitor failed", exc_info=True)
-    try:  # PRESENCE-2280: building-presence transitions (only while the master switch is on) and their retention
-        from .services import building_presence_history as bph
-
-        bph.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("building presence history failed", exc_info=True)
-    try:  # PARTNERAPI113-295: token expiry / creator-gone notices, purge of ended tokens, the delivery log and old outbox rows
-        from .services.partner import core as partner_core, webhooks as partner_webhooks
-
-        with db.connection(label="partner.janitor") as conn:
-            partner_core.janitor(conn)
-            partner_webhooks.janitor(conn)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("partner janitor failed", exc_info=True)
-    try:  # APPREFRESH-295: expired app access tokens, families that ran out, ended families past their audit keep
-        from .services import app_refresh as app_refresh_svc
-
-        app_refresh_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("app refresh janitor failed", exc_info=True)
-    try:  # SESSIONEXCH2-295: lapsed codes, web sessions past expiry or whose family ended (the sweep for a missed fan-out)
-        from .services import app_session as app_session_svc
-
-        app_session_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("app session janitor failed", exc_info=True)
-    try:  # TFA2: expired second-factor lockout rows
-        from .services import second_factor as second_factor_svc
-
-        second_factor_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("second factor janitor failed", exc_info=True)
-    try:  # SEC3 (review L4): the sign-in rate counters and expired block-counter rows
-        from .services import ha_user_auth as hua_svc
-
-        hua_svc.flush_limiter(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("rate limiter flush failed", exc_info=True)
-    try:  # USR2: the local identities' tiers (written behind), expired pending second steps, old link and session rows
-        from .services import local_identity as local_identity_svc
-
-        local_identity_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("local identity janitor failed", exc_info=True)
-    try:  # USR2-P2B: self-service reset code rows an hour past expiry, send-counter rows past 24 h
-        from .services import local_reset as local_reset_svc
-
-        local_reset_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("local reset janitor failed", exc_info=True)
-    try:
-        from .services import alarm_codes as alarm_codes_svc
-
-        alarm_codes_svc.janitor(db)
-    except Exception:  # noqa: BLE001
-        log.warning("alarm code counter janitor failed", exc_info=True)
-    try:  # CR-038: the tickets module's housekeeping (hourly inside; the request-idempotency rows after 24 h)
-        from .services.tickets import retention as tickets_retention
-
-        tickets_retention.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("tickets janitor failed", exc_info=True)
-    try:  # CR-038 S4: the public listener's counters and switch, codes / sessions / redeem ids / access rows past retention, unused keys
-        from .services.tickets.public_runtime import RUNTIME as tickets_public
-
-        tickets_public.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others (W15)
-        log.warning("tickets public janitor failed", exc_info=True)
-    try:  # CR-038 S9: the claim window's end, pending invoice files after 24 h, claims past their own retention (every 10 min inside)
-        from .services.tickets import costs_retention
-        from .services.tickets.public_runtime import RUNTIME as tickets_runtime
-
-        if tickets_runtime.data_dir is not None:
-            costs_retention.janitor(db, tickets_runtime.attachments_root())
-    except Exception:  # noqa: BLE001
-        log.warning("tickets cost janitor failed", exc_info=True)
-    try:  # CR-MAINT215: reminders before a due date / an expiry and requests on schedule (every 15 min inside; nothing while the module is off)
-        from .services.maintenance import reminders as maintenance_reminders
-
-        maintenance_reminders.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("maintenance janitor failed", exc_info=True)
-    try:  # SUPPLIERDOCS-297: document-reading drafts past their retention, and those of removed files (hourly inside)
-        from .services.docread import service as docread_service
-
-        docread_service.janitor(db)
-    except Exception:  # noqa: BLE001
-        log.warning("docread janitor failed", exc_info=True)
-    try:  # CR-EMERG104: the readiness history (a row only when the verdict or an item changed, or once a day); nothing while the module is off
-        from .services.emergency import service as emergency_service
-
-        emergency_service.janitor(db, settings)
-    except Exception:  # noqa: BLE001
-        log.warning("emergency readiness history failed", exc_info=True)
-    try:  # CR-NOTICE106: archived / expired notices past `notices.retention_days` (soft delete, purge 30 days later) - hourly
-        from .services.notices import store as notices_store
-
-        notices_store.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("notices janitor failed", exc_info=True)
-    try:  # CALENDARS-298: guest personal data past its retention is erased (always); expiry / done / the nightly cache roll while the module is on
-        from .services.calendar import jobs as calendar_jobs
-
-        calendar_jobs.tick(db)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar janitor failed", exc_info=True)
-    try:  # CALENDARS-298 phase 2: due external-calendar syncs (polling, at most once a minute per process; nothing while the module or sync is off)
-        from .services.calendar import jobs as calendar_jobs
-
-        calendar_jobs.sync_tick(db, settings.data_dir)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar sync tick failed", exc_info=True)
-    try:  # CAL-GRID-EDIT-2343: held-back cancel / move notices whose undo window passed
-        from .services.calendar import jobs as calendar_jobs
-
-        calendar_jobs.notice_tick(db)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar notice tick failed", exc_info=True)
-    try:  # CAL-ATTENDEES-2343: due attendee notices (in-app / the guests' messaging channel; a cancel waits the undo window); guest-contact retention hourly
-        from .services.calendar import attendee_notices
-
-        attendee_notices.tick(db, settings.data_dir)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar attendee notices tick failed", exc_info=True)
-    try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
-        from .services import messaging_runtime
-
-        messaging_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("messaging ledger janitor failed", exc_info=True)
-    try:  # WA-CONSENT-LINK: unanswered consent requests expire (held messages dropped, senders told), approved ones are released
-        from .services import intercom_consent
-
-        intercom_consent.tick(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("intercom consent janitor failed", exc_info=True)
-    try:  # WKR5-295: the WisKey people-write lineage keeps ENDED operations 30 days (open unknowns never purged); hourly inside; no-op uninstalled
-        from .services import wiskey_direct_join
-
-        wiskey_direct_join.janitor()
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("wiskey lineage janitor failed", exc_info=True)
-    try:  # WISKEY-ADOPT-2272: WisKey's automatic installation (registry sync / re-announce) - hourly inside; `off` unless wiskey.auto_install = on
-        from .services import wiskey_auto_install
-
-        wiskey_auto_install.reconcile_due(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("wiskey installation reconcile failed", exc_info=True)
-    try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
-        from .services.tickets.messaging import RUNTIME as tickets_messaging
-
-        tickets_messaging.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("tickets messaging janitor failed", exc_info=True)
-    from .services import storage
-
-    if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
-        storage.warm(db, settings)  # non-blocking; keeps the storage report warm between opens
-        from .services import nvr_write
-
-        nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
-        try:  # CR-020 S2: stream changes left pending (crash, busy database, unknown device answer) - settled by a read, never a write
-            from .services import nvr_settings
-
-            nvr_settings.settle_pending(db, settings)
-        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-            log.warning("nvr stream janitor failed", exc_info=True)
-        try:  # CR-020 S2C: a multi-camera batch whose runner is gone (stale heartbeat) ends `interrupted` - never resumed
-            from .services import nvr_batch
-
-            nvr_batch.recover_batches(db, settings)
-        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-            log.warning("nvr batch recovery failed", exc_info=True)
-    db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
+    janitors.run_pass(db, settings)
 
 
 def warm_route_tables(app: FastAPI) -> int:
@@ -1053,7 +695,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import exports as ex
         from .services import playback as pb
         from .services import playback_groups as pg
-        from .routers.settings import read_settings
+        from .services.settings_store import setting_value  # CR-JANITOR-REGISTRY-2438 (05:P1-03): the zone is one key, not 261
 
         def _instance() -> str:
             from .db import get_setting, set_setting
@@ -1083,7 +725,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         def _tz() -> str:
             with app.state.db.connection(mode="read") as conn:  # never takes the write lock
-                return read_settings(conn)["time.zone"]
+                return setting_value(conn, "time.zone")  # per NVR alert (events_ingest): one key, as read_settings()["time.zone"]
 
         async def discover(reason: str) -> None:
             await run_in_threadpool(autosync.run_once, app.state.db, settings, reason)
@@ -1104,7 +746,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         row = conn.execute("SELECT time_zone FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
                     except Exception:  # noqa: BLE001 - a database before 0055
                         row = None
-                    return (row["time_zone"] if row and row["time_zone"] else None) or read_settings(conn)["time.zone"]
+                    return (row["time_zone"] if row and row["time_zone"] else None) or setting_value(conn, "time.zone")
             return getter
 
         app.state.tz_of = _tz_of  # CR-024: a recorder enabled while running starts its alert stream with its own zone

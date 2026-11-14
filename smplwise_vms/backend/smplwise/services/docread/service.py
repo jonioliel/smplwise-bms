@@ -24,6 +24,7 @@ from typing import Any, Callable
 from ...audit import audit
 from ...db import Database, get_setting, new_id
 from ...errors import ApiError
+from ..janitors import Every
 from ..maintenance import access as maccess
 from ..maintenance import service as msvc
 from ..maintenance.access import MANAGE, Viewer
@@ -313,17 +314,13 @@ def purge(conn: sqlite3.Connection, at: datetime | None = None) -> int:
     return cur.rowcount or 0
 
 
-_JANITOR_LOCK = threading.Lock()
-_last_janitor = 0.0
 JANITOR_EVERY_S = 3600.0
+_JANITOR = Every(JANITOR_EVERY_S)  # CR-JANITOR-REGISTRY-2438: the shared throttle (was a locked module global)
 
 
 def janitor(db: Database, clock: Callable[[], float] = time.monotonic) -> int:
     """Hourly from the housekeeping loop (main.py). Runs whatever the switch says: turning the feature off must not keep drafts alive."""
-    global _last_janitor
-    with _JANITOR_LOCK:
-        if _last_janitor and clock() - _last_janitor < JANITOR_EVERY_S:
-            return 0
-        _last_janitor = clock()
+    if not _JANITOR.due(clock()):
+        return 0
     with db.connection() as conn:
         return purge(conn)
