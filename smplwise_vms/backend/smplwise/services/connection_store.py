@@ -39,6 +39,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..config import DEV_NVR_PLACEHOLDER, Settings
 from ..db import get_setting, now_iso, set_setting
+from . import secret_files
 from .recorders.registry import DEFAULT_RECORDER, DEFAULT_VENDOR, NO_NVR
 
 log = logging.getLogger("smplwise.connection_store")
@@ -60,88 +61,12 @@ def key_path(settings: Settings) -> Path:
     return settings.data_dir / "keys" / KEY_NAME
 
 
-_POSIX = os.name == "posix"
-
-
-def _tighten(p: Path) -> None:
-    """Review F13: the key file is readable by its owner only - a looser mode found on disk (a copy, a restore by hand) is
-    put back to 0600. POSIX only; best effort, never raises."""
-    if not _POSIX:
-        return
-    try:
-        if os.stat(p).st_mode & 0o077:
-            os.chmod(p, 0o600)
-    except OSError:
-        pass
-
-
-def _fsync_dir(d: Path) -> None:
-    """Review F13: the new directory entry of the key reaches the disk too (POSIX; best effort)."""
-    if not _POSIX:
-        return
-    try:
-        fd = os.open(str(d), os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(fd)
-    except OSError:
-        pass
-    finally:
-        os.close(fd)
-
-
 def _load_or_create_key(settings: Settings, create: bool, path: Path | None = None) -> bytes | None:
-    """The 32-byte key at `path` (default: the connection key), created at random on first use when `create`."""
-    p = path or key_path(settings)
-    with _key_lock:
-        if p.exists():
-            _tighten(p)
-            raw = p.read_bytes()
-            if len(raw) != 32:
-                raise SecretError("the connection key file is damaged")
-            return raw
-        if not create:
-            return None
-        d = p.parent
-        d.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(d, 0o700)
-        except OSError:
-            pass
-        key = secrets.token_bytes(32)
-        # written to a temporary file (0600, binary), flushed, then hard-linked into place: a crash never leaves a half
-        # key, and of two processes creating it at once the second finds the first one's file and uses it
-        tmp = p.with_name(f".{p.name}.{secrets.token_hex(4)}.tmp")
-        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
-        try:
-            os.write(fd, key)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        try:
-            try:
-                os.link(tmp, p)  # fails when the file exists: never overwrites a key another process just created
-            except FileExistsError:
-                return _read_key(p)
-            except (OSError, NotImplementedError):  # a file system without hard links
-                if p.exists():
-                    return _read_key(p)
-                os.replace(tmp, p)
-            _fsync_dir(d)
-            return key
-        finally:
-            try:
-                tmp.unlink()
-            except OSError:
-                pass
-
-
-def _read_key(p: Path) -> bytes:
-    raw = p.read_bytes()
-    if len(raw) != 32:
-        raise SecretError("the connection key file is damaged")
-    return raw
+    """The 32-byte key at `path` (default: the connection key), created at random on first use when `create`.
+    CR-SECRET-FILES-2438: the shared sequence of services/secret_files (temporary file hard-linked into place, so the loser
+    of a creation race reads the winner's key; a loose mode is tightened on read; the directory entry is flushed)."""
+    return secret_files.load_or_create_key(path or key_path(settings), _key_lock, 32, create=create,
+                                           damaged=lambda: SecretError("the connection key file is damaged"))
 
 
 def _aad(recorder_id: str, field: str) -> bytes:

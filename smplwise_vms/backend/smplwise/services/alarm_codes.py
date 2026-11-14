@@ -21,7 +21,6 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import secrets
 import sqlite3
 import threading
@@ -34,6 +33,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..config import Settings
 from ..db import now_iso
+from . import secret_files
 
 KEY_NAME = "alarm-codes.key"
 POLICIES = ("no_code", "code_required")
@@ -54,33 +54,11 @@ def key_path(settings: Settings) -> Path:
 
 
 def _load_or_create_key(settings: Settings, create: bool) -> bytes | None:
-    p = key_path(settings)
-    with _key_lock:
-        if p.exists():
-            raw = p.read_bytes()
-            if len(raw) != 32:
-                raise CodeError("alarm code key file is damaged")
-            return raw
-        if not create:
-            return None
-        d = p.parent
-        d.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(d, 0o700)
-        except OSError:
-            pass
-        key = secrets.token_bytes(32)
-        # review L1: written to a temporary file (0600, binary - on Windows a text-mode descriptor turned a 0x0A byte of
-        # the key into CR LF), flushed to disk, then renamed into place, so a crash never leaves a half-written key
-        tmp = p.with_name(f".{KEY_NAME}.{secrets.token_hex(4)}.tmp")
-        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
-        try:
-            os.write(fd, key)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        os.replace(tmp, p)
-        return key
+    # review L1 + CR-SECRET-FILES-2438: services/secret_files writes the key (0600, binary - on Windows a text-mode descriptor
+    # turned a 0x0A byte of the key into CR LF) to a temporary file, flushes it, then links it into place, so a crash never
+    # leaves a half-written key or a stray temporary file
+    return secret_files.load_or_create_key(key_path(settings), _key_lock, 32, create=create,
+                                           damaged=lambda: CodeError("alarm code key file is damaged"))
 
 
 # ---------------------------------------------------------------- panel codes (encrypted at rest)

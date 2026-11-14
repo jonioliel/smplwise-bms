@@ -13,7 +13,6 @@ import base64
 import datetime as dt
 import hashlib
 import json
-import os
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -23,6 +22,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from ..config import Settings
+from . import secret_files
 
 ALG = "Ed25519"
 SIG_NAME = "manifest.sig.json"
@@ -68,21 +68,10 @@ def load_keyring(settings: Settings) -> dict[str, Any]:
 
 
 def _save_keyring(settings: Settings, ring: dict[str, Any]) -> None:
-    d = keys_dir(settings)
-    d.mkdir(parents=True, exist_ok=True)
-    try:
-        os.chmod(d, 0o700)
-    except OSError:
-        pass
-    _ring_path(settings).write_text(json.dumps(ring, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _write_private(path: Path, pem: bytes) -> None:
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        os.write(fd, pem)
-    finally:
-        os.close(fd)
+    """CR-SECRET-FILES-2438 (04:F09): through a flushed temporary file renamed into place - a crash in the middle used to
+    leave a damaged keyring, which `load_keyring` answers with an empty ring and so a new signing identity. The keyring
+    holds public halves only and keeps the mode `write_text` gave it (0666 less the umask) in the 0700 keys directory."""
+    secret_files.write_private(_ring_path(settings), json.dumps(ring, ensure_ascii=False, indent=2).encode("utf-8"), mode=0o666)
 
 
 def _generate(settings: Settings, ring: dict[str, Any]) -> tuple[str, ed25519.Ed25519PrivateKey]:
@@ -91,7 +80,8 @@ def _generate(settings: Settings, ring: dict[str, Any]) -> tuple[str, ed25519.Ed
     kid = kid_of(pub_raw)
     d = keys_dir(settings)
     d.mkdir(parents=True, exist_ok=True)
-    _write_private(d / f"{kid}.key", priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    # the private half (0600) is in place and flushed before the keyring names it: a crash in between leaves an unused key file
+    secret_files.write_private(d / f"{kid}.key", priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     now = _now()
     for k in ring["keys"]:
         if k.get("kid") == ring.get("active") and not k.get("retired_at"):

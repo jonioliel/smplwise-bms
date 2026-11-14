@@ -20,7 +20,7 @@ from test_nvr_connection import API, CANARY, GOOD, NVR_ADDR, NVR_HOST, OTHER, au
 from smplwise import capabilities
 from smplwise.db import Database, get_setting
 from smplwise.main import create_app
-from smplwise.services import addon_restart, backup, connection_probe, connection_store
+from smplwise.services import addon_restart, backup, connection_probe, connection_store, secret_files
 from smplwise.services.recorders import registry
 
 
@@ -347,8 +347,9 @@ def test_f11_the_legacy_connection_file_is_wiped_and_deleted(settings, fake, cap
 
 def test_f13_a_loose_key_file_mode_is_tightened_and_the_directory_is_flushed(settings, monkeypatch):
     synced: list[str] = []
-    monkeypatch.setattr(connection_store, "_POSIX", True)
-    monkeypatch.setattr(connection_store, "_fsync_dir", lambda d: synced.append(d.name))
+    # CR-SECRET-FILES-2438: the mode check and the directory flush live in services/secret_files now
+    monkeypatch.setattr(secret_files, "_POSIX", True)
+    monkeypatch.setattr(secret_files, "fsync_dir", lambda d: synced.append(d.name))
     blob = connection_store.encrypt(settings, "nvr-1", "password", CANARY)
     assert synced == ["keys"], "the new key's directory entry is flushed"
     p = connection_store.key_path(settings)
