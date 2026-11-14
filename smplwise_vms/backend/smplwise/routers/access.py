@@ -20,6 +20,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
+from ..rbac import Evaluator, admin_count as rbac_admin_count
 from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, LOCAL_ID_PREFIX, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_name, role_permissions, scope_name
 from ..remote_channel import is_remote
 from ..services import ha_client, revocation
@@ -777,16 +778,17 @@ def assign_scopes(conn: sqlite3.Connection, principal: Principal) -> list[dict[s
     """Every scope node where the actor holds rbac.assign (installation, sites, buildings, floors), with the path name
     the screens show - what a delegated administrator's scope picker offers."""
     out: list[dict[str, str]] = []
-    if authorize(conn, principal, "rbac.assign", INSTALLATION).allowed:
+    ev = Evaluator(conn, principal)  # CR-ADMIN-GATE-2438 (02:P1-5): one bindings read for every node of the picker, not one per node
+    if ev.authorize("rbac.assign", INSTALLATION).allowed:
         out.append({"type": "installation", "id": "*", "name": "כל ההתקנה"})
     for s in conn.execute("SELECT id, name FROM sites WHERE deleted_at IS NULL ORDER BY sort_order, name").fetchall():
-        if authorize(conn, principal, "rbac.assign", ("site", s["id"])).allowed:
+        if ev.authorize("rbac.assign", ("site", s["id"])).allowed:
             out.append({"type": "site", "id": s["id"], "name": f"אתר · {s['name']}"})
         for b in conn.execute("SELECT id, name FROM buildings WHERE site_id = ? AND deleted_at IS NULL ORDER BY sort_order, name", (s["id"],)).fetchall():
-            if authorize(conn, principal, "rbac.assign", ("building", b["id"])).allowed:
+            if ev.authorize("rbac.assign", ("building", b["id"])).allowed:
                 out.append({"type": "building", "id": b["id"], "name": f"{s['name']} · {b['name']}"})
             for f in conn.execute("SELECT id, name FROM floors WHERE building_id = ? AND deleted_at IS NULL ORDER BY sort_order, level, name", (b["id"],)).fetchall():
-                if authorize(conn, principal, "rbac.assign", ("floor", f["id"])).allowed:
+                if ev.authorize("rbac.assign", ("floor", f["id"])).allowed:
                     out.append({"type": "floor", "id": f["id"], "name": f"{s['name']} · {b['name']} · {f['name']}"})
     # T055: the cameras the actor may bind at camera scope - the camera picker of the bindings editor
     from ..services.access import camera_scope
@@ -800,7 +802,7 @@ def assign_scopes(conn: sqlite3.Connection, principal: Principal) -> list[dict[s
     from ..services import intercom_doors
 
     for station_id in intercom_doors.known_station_ids(conn):
-        if authorize(conn, principal, "rbac.assign", (STATION, station_id)).allowed:
+        if ev.authorize("rbac.assign", (STATION, station_id)).allowed:
             out.append({"type": STATION, "id": station_id, "name": scope_name(conn, STATION, station_id)})
     return out
 
@@ -855,12 +857,9 @@ def _group_members(conn: sqlite3.Connection, group_id: str) -> list[str]:
 
 def admin_count(conn: sqlite3.Connection) -> int:
     """Active users who hold rbac.roles.manage installation-wide right now - allow and deny bindings, direct and through
-    groups, all counted by authorize() itself (security review T082, M3: counting allow bindings alone missed denies)."""
-    n = 0
-    for u in conn.execute("SELECT id, username, display_name, source FROM users WHERE active = 1").fetchall():
-        if authorize(conn, Principal(u["id"], u["username"], u["display_name"], u["source"]), "rbac.roles.manage", INSTALLATION).allowed:
-            n += 1
-    return n
+    groups (security review T082, M3: counting allow bindings alone missed denies). CR-ADMIN-GATE-2438: the one definition
+    lives in rbac.admin_count (lead decision L5); this name stays for its importers (routers/ha_users, the tests)."""
+    return rbac_admin_count(conn)
 
 
 @contextmanager

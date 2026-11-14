@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, require_system_admin
 from ..services import access_visitors as av
 
 router = APIRouter()
@@ -80,11 +80,7 @@ class VisitorSettingsIn(BaseModel):
 
 
 def _admin_or_403(conn: sqlite3.Connection, principal: Principal, request: Request, action: str) -> None:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action=action, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request))
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו.")
+    require_system_admin(conn, principal, action=action, request_id=_rid(request), text="רק מנהל מערכת יכול לשנות הגדרה זו.")
 
 
 @router.get("/access/visitors/settings")

@@ -23,7 +23,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..db import set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, require_system_admin
 from ..services import access_station_permissions as sp
 
 router = APIRouter()
@@ -57,11 +57,7 @@ class SettingsIn(BaseModel):
 
 
 def _admin_only(conn: sqlite3.Connection, principal: Principal, request: Request, action: str, keys: list[str]) -> None:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action=action, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request), details={"keys": keys})
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לטפל בהגדרה זו.")
+    require_system_admin(conn, principal, action=action, request_id=_rid(request), details={"keys": keys}, text="רק מנהל מערכת יכול לטפל בהגדרה זו.")
 
 
 @router.get(f"{_BASE}/settings")

@@ -58,7 +58,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..db import set_setting
 from ..errors import ApiError, forbidden
-from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require, require_system_admin
 from ..services import access_external as ax
 from ..services import access_grants as ag
 from ..services import access_request as ar
@@ -295,11 +295,8 @@ def push_name(request: Request, link_id: str = Path(..., pattern=_ID), principal
 
 @router.get("/access-grants/settings")
 def get_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action="settings.read", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request), details={"keys": list(ag.KEYS)})
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצפות בהגדרה זו.")
+    require_system_admin(conn, principal, action="settings.read", request_id=_rid(request), details={"keys": list(ag.KEYS)},
+                         text="רק מנהל מערכת יכול לצפות בהגדרה זו.")
     return {**ag.settings_view(conn), **ax.settings_view(conn)}
 
 
@@ -309,11 +306,7 @@ def get_readiness(request: Request, principal: Principal = Depends(current_princ
     place and which are missing, in plain Hebrew. Sends nothing to WisKey, WhatsApp or a station; changes nothing."""
     from ..services import access_readiness
 
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action="access.grant.readiness", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request))
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצפות בבדיקת המוכנות.")
+    require_system_admin(conn, principal, action="access.grant.readiness", request_id=_rid(request), text="רק מנהל מערכת יכול לצפות בבדיקת המוכנות.")
     return access_readiness.readiness(conn, _db(request))
 
 
@@ -325,10 +318,9 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         changes = {k: v for k, v in body.model_dump().items() if v is not None}
         if not changes:
             raise ApiError(422, "validation", "לא נשלחה הגדרה לשינוי.")
-        if not is_system_admin(conn, principal.user_id):
-            audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-                  request_id=_rid(request), details={"keys": sorted(changes)})
-            raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו.")
+        # system.configure was required above, before the empty-body check (that order is kept)
+        require_system_admin(conn, principal, action="settings.changed", request_id=_rid(request), details={"keys": sorted(changes)},
+                             text="רק מנהל מערכת יכול לשנות הגדרה זו.", configure_checked=True)
         for name, key in (("external_grants", ag.FLAG_KEY), ("cards", ag.CARDS_KEY)):
             if changes.get(name) == "on" and not ag.go_live_permitted():
                 audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),

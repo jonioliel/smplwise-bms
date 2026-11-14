@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..errors import ApiError, forbidden
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, is_system_admin, require_system_admin
 from ..services import access_grants as ag
 from ..services import access_visitors as av
 from ..services import intercom_authority as ia
@@ -201,11 +201,7 @@ def reconcile(request: Request, invite_id: str = Path(..., pattern=_ID), princip
 @router.put(f"{API}/settings")
 def put_settings(body: SettingsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     with request.app.state.db.connection(label="wiskey_visits.settings") as conn:
-        require(conn, principal, "system.configure", INSTALLATION)
-        if not is_system_admin(conn, principal.user_id):
-            audit(conn, actor=principal, action=wv.AUDIT_SETTINGS, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-                  request_id=_rid(request))
-            raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו.")
+        require_system_admin(conn, principal, action=wv.AUDIT_SETTINGS, request_id=_rid(request), text="רק מנהל מערכת יכול לשנות הגדרה זו.")
         before, after = wv.set_switch(conn, body.push == "on")
         audit(conn, actor=principal, action=wv.AUDIT_SETTINGS, decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"key": wv.SWITCH_KEY, "before": before, "after": after})
