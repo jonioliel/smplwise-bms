@@ -46,11 +46,11 @@ test.describe('I2 (#4, Q3 a): the chosen chip is the Blue Wash pair', () => {
     for (const f of ['screens/automation-drawer.ts', 'screens/system-automations.ts', 'components/notify-css.ts', 'screens/devices-schedules.ts', 'screens/devices-automations.ts']) {
       // DOMUS-DEFAULT-2439: the rule is the shared fragment (styles/chip-selected.ts: the soft field, the deeper ink, the ring)
       const body = ruleOf(f, ".rc[aria-pressed='true']");
-      expect(body, f).toContain('${chipSelected}');
+      expect(body, f).toContain('${chipSelected'); // ruleOf ends at the fragment's own closing brace
       expect(body, f).not.toMatch(/background: var\(--(dv-text|sw-accent)\)/);
     }
     const chip = ruleOf('screens/schedule-create-dialog.ts', ".chip[aria-pressed='true']");
-    expect(chip).toContain('${chipSelected}');
+    expect(chip).toContain('${chipSelected');
     const frag = read('styles/chip-selected.ts');
     expect(frag).toContain('background: var(--sw-chip-on-bg, var(--sw-accent-soft));');
     expect(frag).toContain('color: var(--sw-chip-on-ink, var(--sw-accent-text-strong));');

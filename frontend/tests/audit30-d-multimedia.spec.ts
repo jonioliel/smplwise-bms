@@ -29,7 +29,7 @@ test.describe('AUDIT30-D sources', () => {
   test('D1: the selected room chip is the Blue Wash pair in both copies of the rule, never the black pill', () => {
     for (const f of ['styles/media-page.ts', 'screens/multimedia-screens.ts']) {
       const rule = /\.rc\[aria-pressed='true'\] \{([\s\S]*?)\}/.exec(read(f))?.[1] ?? '';
-      expect(rule, f).toContain('${chipSelected}'); // DOMUS-DEFAULT-2439: the shared fragment (soft field, deeper ink, accent ring)
+      expect(rule, f).toContain('${chipSelected'); // DOMUS-DEFAULT-2439: the shared fragment (soft field, deeper ink, accent ring); the capture ends at the fragment's own brace
       expect(rule, f).not.toContain('--dv-text');
       expect(rule, f).not.toContain('--mm-text-inverse');
       const chip = /\n    \.rc \{([\s\S]*?)\}/.exec(read(f))?.[1] ?? '';
