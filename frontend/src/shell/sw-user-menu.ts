@@ -10,6 +10,8 @@ import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the 
 import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
 import './sw-video-prefs';
+import './sw-lang-prefs';
+import { tr } from '../i18n/msg/shell';
 import './sw-home-personal';
 import { can, canAnywhere, cap } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
@@ -76,6 +78,8 @@ export class SwUserMenu extends LitElement {
   @state() private wiskeyOpen = false;
   /** VIDEO-TRANSPORT-2400: החשבון שלי › וידאו (the viewer's own live transport) */
   @state() private videoOpen = false;
+  /** I18N-EN-SWITCH-2438: the interface language section. */
+  @state() private langOpen = false;
   /** The personal home screen section (screen.personalize) loads only while it is open. */
   @state() private homeOpen = false;
   /** K11: the optional second factor section loads only while it is open. */
@@ -434,6 +438,7 @@ export class SwUserMenu extends LitElement {
     this.sessionsOpen = false;
     this.wiskeyOpen = false;
     this.videoOpen = false;
+    this.langOpen = false;
     this.homeOpen = false;
     this.factorOpen = false;
     this.deviceOpen = false;
@@ -480,13 +485,15 @@ export class SwUserMenu extends LitElement {
     const staff = this.api && !this.gated && ticketsEnabled() && canAnywhere('tickets.view');
     // VIDEO-TRANSPORT-2400: the viewer's own live-video transport - for a user who may watch live video somewhere
     const video = this.api && !this.gated && canAnywhere('video.live') && cap('live_video'); // VIDEO-2403: no live video, no transport choice
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video };
+    // I18N-EN-SWITCH-2438: the interface language - for every signed-in user (stored on the server, so only with a backend)
+    const lang = this.api;
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video, lang };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video || acc.lang;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -562,6 +569,12 @@ export class SwUserMenu extends LitElement {
           ? html`<li><details data-my-home @toggle=${(e: Event) => (this.homeOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="dashboard" size=${18}></sw-icon></span><span class="txt">המסך שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.homeOpen ? html`<sw-home-personal></sw-home-personal>` : nothing}</div>
+            </details></li>`
+          : nothing}
+        ${acc.lang
+          ? html`<li><details data-my-lang @toggle=${(e: Event) => (this.langOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="globe" size=${18}></sw-icon></span><span class="txt">${tr('שפה')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.langOpen ? html`<sw-lang-prefs></sw-lang-prefs>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.video

@@ -1,3 +1,4 @@
+import './i18n/ui-lang-boot'; // I18N-EN-SWITCH-2438: <html lang dir> from the user's language before any module builds text (imports nothing)
 import './design/boot'; // design foundation: the token sheet, the skin sheet and data-skin / data-theme on <html> - before anything renders
 import { bootMobilePolish } from './design/mobile-polish'; // POLISH-PHONE-297: the phone layer (after the skin sheet, before any component)
 bootMobilePolish();
@@ -5,9 +6,11 @@ import './styles/focus-policy'; // mobile audit 2026-09-30: one focus ring for e
 // CR-008: the pre-gate runs first - on the remote channel (`/arx/`) it parks the shell until the Arx sign-in is done.
 import { REMOTE } from './arx/pre-gate';
 import './shell/sw-app';
+import { syncUiLang } from './i18n/ui-lang';
 import { bootRemote } from './arx/boot';
 
 if (REMOTE) void bootRemote();
+void syncUiLang(); // the server's choice wins over this browser's copy (one reload when they differ)
 import './pwa/arx-pwa-prompts'; // CR-008 P3: service worker, install prompt, iOS hint, update notice
 import { installOverflowDebug } from './debug/overflow';
 
