@@ -27,6 +27,7 @@ import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { t as vt } from '../i18n/he';
+import { LongListsController } from '../api/long-lists';
 
 interface Row {
   id: string;
@@ -104,6 +105,11 @@ export class SystemDevices extends LitElement {
   private fitCount = -1;
   @state() private perPage = 0;
   private deskMq = window.matchMedia('(min-width: 1024px)');
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> every row is drawn and the table scrolls inside the stage. */
+  private lists = new LongListsController(this, () => {
+    this.page = 1;
+    this.scheduleFit();
+  });
   private fitObs: ResizeObserver | null = null;
   private fitRaf = 0;
   private onDesk = () => this.scheduleFit();
@@ -255,6 +261,12 @@ export class SystemDevices extends LitElement {
         min-block-size: 0;
         overflow: hidden;
       }
+      /* PAGING-SETTING-2439: the long lists scroll (הגדרות › כללי) - the table scrolls inside the stage, the page stays */
+      :host([data-long-lists='scroll']) .stage > sw-table {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
       .nvr {
         grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       }
@@ -324,7 +336,7 @@ export class SystemDevices extends LitElement {
 
   /** How many table rows fit in the stage (measured on the rendered table: header and one body row). */
   private fit() {
-    if (!this.deskMq.matches) {
+    if (!this.deskMq.matches || !this.lists.paged) {
       if (this.perPage) this.perPage = 0;
       return;
     }
