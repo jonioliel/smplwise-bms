@@ -44,3 +44,16 @@ def until(end):
 def scope(seconds):
     with until(_clock() + float(seconds)):
         yield
+
+
+def _register() -> None:
+    """CR-CORE-HELPERS-2438 (05:P3-04): db.py bounds every write wait by this budget through the module registered here, instead of
+    importing this service inside every BEGIN and every open."""
+    import sys
+
+    from .. import db
+
+    db.set_call_budget(sys.modules[__name__])
+
+
+_register()
