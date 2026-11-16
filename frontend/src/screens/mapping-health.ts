@@ -8,29 +8,24 @@
  * assistant.
  *
  *  - the card on הגדרות › בניינים ומיפוי (registered on <system-mapping>);
- *  - <mapping-health-chip> - a quiet chip in the home's site bar ("3 אזורים חדשים - אשר"), only for a configurer, only with something new.
+ *  - <mapping-health-chip> (CR-HOME-LAZY-2440: in screens/mapping-health-chip.ts, the only part the home screen imports) - a quiet chip in the home's site bar ("3 אזורים חדשים - אשר"), only for a configurer, only with something new.
  *
  * HA-LABELS-SYNC-2351: the card also explains the coverage by the home system's REAL labels (synced read-only by the server): how many
  * areas carry a label, how many are placed by one, where a label points to another building than the name - also before the first apply.
  */
-import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { html, nothing } from 'lit';
 import '../components/sw-button';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { canAnywhere, isApi } from '../api/session';
-import { loadTree } from '../api/catalog';
-import { autoNoticeText, buildPlan, health, itemKey, labelCoverage, labelCoverageText, levelWaiting, resolve, subsetPlan, type Health, type LabelCoverage, type MapItem } from '../api/mapping-engine';
-import { applyMapping, loadMapping, type MappingData } from '../api/mapping';
-import { navigate } from '../router';
+import { isApi } from '../api/session';
+import { autoNoticeText, buildPlan, itemKey, labelCoverage, labelCoverageText, resolve, subsetPlan, type Health, type LabelCoverage, type MapItem } from '../api/mapping-engine';
+import { applyMapping, type MappingData } from '../api/mapping';
 import { SystemMapping } from './system-mapping';
+import { healthOf } from './mapping-health-chip'; // CR-HOME-LAZY-2440: the chip is its own small module (it also defines <mapping-health-chip> here, as before)
 
 const refsOf = (d: MappingData) => d.buildings.map((b) => ({ id: b.id, name: b.name, shared: b.is_shared }));
 
-export function healthOf(d: MappingData): Health {
-  const res = resolve(d.mapItems, d.parsed, { buildings: refsOf(d), settings: d.settings });
-  return health(d.mapItems, res, d.seen, levelWaiting(d.mapItems, res, refsOf(d), d.ourFloors, d.links, d.parsed.levels));
-}
+export { healthOf }; // CR-HOME-LAZY-2440: lives beside the chip (screens/mapping-health-chip), which the home screen imports alone
 
 /** "אשר" (or auto-insert): only the given new names, as their own version. */
 export async function confirmFresh(d: MappingData, items: MapItem[], kind: 'confirm' | 'auto'): Promise<number> {
@@ -123,68 +118,3 @@ function alertError(host: SystemMapping, err: unknown) {
 }
 
 SystemMapping.healthCard = card;
-
-/** The home's site-bar chip: something new since the last apply, for whoever may configure the site. */
-@customElement('mapping-health-chip')
-export class MappingHealthChip extends LitElement {
-  @state() private h: Health | null = null;
-
-  static styles = css`
-    :host {
-      display: contents;
-    }
-    button {
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-block-size: 32px;
-      padding: 0 12px;
-      border-radius: var(--sw-r-pill);
-      border: 0;
-      background: var(--sw-warning-soft);
-      color: var(--sw-warning-text);
-      cursor: pointer;
-      white-space: nowrap;
-      transition: transform 140ms var(--sw-ease-out, ease-out);
-    }
-    button:active {
-      transform: scale(0.97);
-    }
-    b {
-      font-weight: var(--sw-fw-bold);
-    }
-  `;
-
-  connectedCallback() {
-    super.connectedCallback();
-    void this.load();
-  }
-
-  private async load() {
-    if (isApi() && !canAnywhere('site.content.configure')) return;
-    try {
-      const cat = await loadTree();
-      const site = cat.sites[0];
-      if (!site) return;
-      const d = await loadMapping(isApi() ? site.id : 'site1');
-      if (!d.seen) return;
-      this.h = healthOf(d);
-    } catch {
-      this.h = null; // 403 or offline: no chip
-    }
-  }
-
-  render() {
-    const h = this.h;
-    if (!h || !h.fresh.length) return nothing;
-    return html`<button type="button" data-home-mapping-health @click=${() => navigate('/system/diagnostics', { tab: 'buildings' })}><sw-icon name="warning" size=${14}></sw-icon><b>${h.fresh.length}</b> ${h.fresh.length === 1 ? 'אזור חדש' : 'אזורים חדשים'} - ${h.ready.length ? 'אשר' : 'החלט'}</button>`;
-  }
-}
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'mapping-health-chip': MappingHealthChip;
-  }
-}

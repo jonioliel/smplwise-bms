@@ -7,7 +7,7 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
 import { isScrollLocked } from '../components/scroll-lock';
-import './area-quick-sheet'; // AREAPOPUP-297: the area quick-control pop-up (drawer / pop-up / phone sheet)
+// CR-HOME-LAZY-2440: <area-quick-sheet> (AREAPOPUP-297, the area quick-control pop-up) is a chunk of its own now, fetched at the first press (renderQuickSheet)
 import { pressTarget, type Box, type QuickMode } from './area-quick-logic';
 import { elevatorsAccess, refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
 import type { Elevator } from '../api/elevators';
@@ -42,15 +42,16 @@ import { loadTree as loadCatalogTree } from '../api/catalog';
 import type { Floor as PlanFloor } from '../api/types';
 // PERF-HOME-DEVICES-2342: the plan view's map (<explore-floor-map>, with the plan canvas) is a lazy chunk, fetched only when the plan view renders (renderPlanView)
 // GATE2342-A: through the shell's loader (updated()), which upgrades it with its .floorId - an in-place upgrade ran its load() for no floor
-import { loadPendingScreens } from '../shell/lazy-screens';
+// CR-HOME-LAZY-2440: the same loader brings the home's own on-demand parts (shell/lazy-screens HOME_PANELS): the tiles' panel, the area
+// quick sheet, the edit panels and the multi-building site view are no longer imported here - each tag is rendered when first needed
+import { loadPendingScreens, screenDefined, warmHomePanels, whenScreen } from '../shell/lazy-screens';
 import type { DevicesBulkMenu } from './devices-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
 import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevicesPrefs, type DevicesPrefs } from './devices-style';
 import { DevicesLayoutController, titleOf, type LayoutGrid, type MeasuredGrid } from './devices-layout';
-import './devices-tiles-panel';
-import { ITEMS_FILTERS, type ItemsFilter } from './devices-tiles-panel';
+import type { ItemsFilter } from './devices-tiles-panel'; // CR-HOME-LAZY-2440: the type only - the panel's module is a lazy chunk
 import { TILE_KINDS, type ItemsScope, type TileKind } from '../api/devices';
 import { effectiveTileSetting, TileLayoutController } from '../api/tile-layout';
 import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
@@ -68,8 +69,8 @@ import {
 import { looseHint, looseNotice, looseRow, TREE_UNASSIGNED_CSS, type LooseNotice } from './tree-unassigned';
 import { hs } from '../i18n/home-screen';
 import { HOME_SCREEN_CSS } from './home-screen-css';
-import './home-screen-options'; // (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
-import './home-edit-panel';
+// (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
+// CR-HOME-LAZY-2440: <home-screen-options> and <home-edit-panel> arrive with edit mode (?edit=1), not with the entry chunk
 import { HOME_DRAWER_CSS, renderDrawerToggle, renderHomeDrawer, type HomeDrawerTab } from './home-edit-drawer';
 import type { QuickInfo } from './home-widgets';
 import {
@@ -87,12 +88,11 @@ import { xt } from '../i18n/xsection';
 import { fireReport } from '../xsection/fire-store';
 import { navigate } from '../router';
 import { multiBuildingOn } from '../api/mapping';
-import './mapping-all'; // MAPPING-ASSIST-2330: the site bar's health chip
+import './mapping-health-chip'; // MAPPING-ASSIST-2330: the site bar's health chip (CR-HOME-LAZY-2440: the chip alone - the settings page and the assistant stay out of the entry chunk)
 import type { Building, Floor as CatalogFloor } from '../api/types';
 import type { MatchLinks } from '../xsection/xs-model';
 import { demoSite } from './home-site-demo';
-import './home-site-view';
-import './home-site-off';
+// CR-HOME-LAZY-2440: <home-site-view> and <home-site-off> are fetched only on a multi-building site
 import type { SiteGo } from './home-site-view';
 import type { HomeSiteOff, SiteOffBuilding } from './home-site-off';
 import { media } from '../api/media-screens';
@@ -123,6 +123,9 @@ export function scrollParentOf(el: Element): HTMLElement | null {
 }
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
+/** The tiles' panel segments (the same list as screens/devices-tiles-panel ITEMS_FILTERS, whose module is a lazy chunk: CR-HOME-LAZY-2440). */
+const PANEL_FILTERS: readonly ItemsFilter[] = ['all', 'active', 'inactive', 'unavailable'];
+
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', heating: 'heating', media: 'media', locks: 'locks' };
 
 /** BUILDING-SCOPE-CONTROL-2351: the tooltip of the tiles' panel group control at the site level of a multi-building site. */
@@ -136,7 +139,7 @@ export function panelFromParams(p: URLSearchParams): { kind: TileKind; scope: It
   const floor = p.get('floor');
   const area = p.get('area');
   const f = p.get('filter') as ItemsFilter | null;
-  return { kind, scope: area ? 'area' : floor ? 'floor' : 'building', id: area ?? floor ?? '', filter: f && ITEMS_FILTERS.includes(f) ? f : 'all' };
+  return { kind, scope: area ? 'area' : floor ? 'floor' : 'building', id: area ?? floor ?? '', filter: f && PANEL_FILTERS.includes(f) ? f : 'all' };
 }
 
 export function panelParams(kind: TileKind, scope: ItemsScope, id: string, filter: ItemsFilter): URLSearchParams {
@@ -1469,6 +1472,15 @@ export class DevicesBuilding extends LitElement {
   private openSiteOff(kind: BulkKind, building: string = this.level) {
     const site = this.site();
     if (!site) return;
+    if (!this.siteOff?.show) {
+      // CR-HOME-LAZY-2440: pressed before the dialog's chunk landed (it starts with the site's first render) - open it once it is back
+      void whenScreen('home-site-off')
+        .then(() => this.updateComplete)
+        .then(() => {
+          if (this.siteOff?.show) this.openSiteOff(kind, building);
+        });
+      return;
+    }
     const all = this.offBuildings(site.shown);
     if (building !== SITE_LEVEL) {
       const one = all.filter((b) => b.id === building);
@@ -2279,7 +2291,16 @@ export class DevicesBuilding extends LitElement {
     writeCollapsed(next);
   }
 
+  /** CR-HOME-LAZY-2440: the tiles' panel / the area quick sheet were needed once - from then on the (closed) element stays, as it always did. */
+  private panelUsed = false;
+  private quickUsed = false;
+  private panelsWarmed = false;
+
   protected updated() {
+    if (this.tree && !this.panelsWarmed) {
+      this.panelsWarmed = true;
+      warmHomePanels(() => this.requestUpdate()); // idle: the first press on a tile or an area rarely waits for the network
+    }
     loadPendingScreens(this.renderRoot, () => this.requestUpdate(), true); // the plan view's map chunk (not the shell's route: data-shell-ready does not wait for it)
     if (this.treeSheet !== this.treeSheetShown) {
       this.treeSheetShown = this.treeSheet;
@@ -3585,8 +3606,16 @@ export class DevicesBuilding extends LitElement {
       ${this.renderQuickSheet()}
       ${looseNotice(this.looseNote, this.undoLoose, () => this.showLooseNote(null))}
       ${this.xsLightsOf ? this.renderXsLights() : nothing}
-      <devices-tiles-panel .building=${this.ctlBuilding} .bulkHold=${this.atSiteLevel ? SITE_BULK_HOLD : ''} ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
+      ${this.renderTilesPanel()}
     </sw-page>`;
+  }
+
+  /** The tiles' panel of the screen. CR-HOME-LAZY-2440: its module is a chunk of its own - the element is rendered from the first time a
+   * panel is asked for (or once the idle warm-up brought the chunk), and stays from then on; updated() fetches the chunk when needed. */
+  private renderTilesPanel() {
+    if (this.panel) this.panelUsed = true;
+    if (!this.panelUsed && !screenDefined('devices-tiles-panel')) return nothing;
+    return html`<devices-tiles-panel .building=${this.ctlBuilding} .bulkHold=${this.atSiteLevel ? SITE_BULK_HOLD : ''} ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>`;
   }
 
   /** HOME polish (2026-10-10): the loading state is the screen's own shape - the widget band, the summary strip, the tree and two
@@ -4240,6 +4269,9 @@ export class DevicesBuilding extends LitElement {
   /** AREAPOPUP-297: the one quick-control element of the screen (closed = out of the way; the same element serves every area). */
   private renderQuickSheet() {
     const q = this.quick;
+    // CR-HOME-LAZY-2440: a chunk of its own - rendered from the first press (or once the idle warm-up brought it), and stays from then on
+    if (q) this.quickUsed = true;
+    if (!this.quickUsed && !screenDefined('area-quick-sheet')) return nothing;
     const live = q ? (this.findArea(q.area.area_id)?.area ?? q.area) : null; // the tree's fresh counts while it is open
     const it = q ? this.lay.item(`area:${q.area.area_id}`) : undefined;
     return html`<area-quick-sheet data-area-quick=${q?.area.area_id ?? nothing} .area=${live} .floorName=${q?.floorName ?? ''} .presence=${q && this.presenceMayRead() ? areaPresence(this.presenceSnap, q.area.area_id) : null} .icon=${it?.icon ?? 'home'} .mode=${q?.mode ?? 'drawer'} ?open=${!!q}
