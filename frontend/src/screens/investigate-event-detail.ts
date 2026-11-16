@@ -15,6 +15,7 @@ import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
 import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, confirmEventRoute, getCorrelation, getEvent, getEventRoute, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type EventRoute, type RouteConfirmResult, type VmsEvent } from '../api/events';
+import { Latest } from '../api/latest';
 import type { StateKind } from '../components/sw-badge';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -101,6 +102,8 @@ export class InvestigateEventDetail extends LitElement {
    * editor's and the historical map's, remembered per floor in this browser. */
   @state() private planImage = true;
   private pollTimer = 0;
+  /** CR-INV-EVENTS-2440 (06:RACE-4): only the newest event's read is drawn (api/latest.ts). */
+  private reads = new Latest();
   /** T087: the map card's 3D, opened from the event's camera ("מבט מהמצלמה"). Read-only: no actions from the event page. */
   @state() private view3d = false;
   private default3d = false;
@@ -490,6 +493,7 @@ export class InvestigateEventDetail extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.pollTimer);
+    this.reads.cancel();
     void this.stopPlayer();
   }
 
@@ -505,10 +509,16 @@ export class InvestigateEventDetail extends LitElement {
 
   private async load() {
     if (!isApi()) return;
+    // CR-INV-EVENTS-2440 (06:RACE-4): the event of this read. A second event opened while this one is still being read (the
+    // "nearby" list, a route link) must not be overwritten by this one's answer, nor get its player
+    const current = this.reads.begin();
+    const id = this.eventId;
     this.error = '';
     await this.stopPlayer();
+    if (!current()) return;
     try {
-      const ev = await getEvent(this.eventId);
+      const ev = await getEvent(id);
+      if (!current()) return;
       this.ev = ev;
       this.view3d = false; // another event: its map card opens in 2D, the 3D then starts from its own camera
       this.replay = null;
@@ -521,9 +531,15 @@ export class InvestigateEventDetail extends LitElement {
       if (ev.camera_id) void this.play(ev);
       if (ev.thumbnail === 'pending') this.pollThumb(ev.id);
     } catch (err) {
+      if (!current()) return;
       this.error = describeError(err);
       this.ev = null;
     }
+  }
+
+  /** 06:RACE-4: an answer of the fan-out (route, correlation, nearby, the map) belongs to the event it was asked for. */
+  private showing(id: string): boolean {
+    return this.ev?.id === id;
   }
 
   private async loadRoute(id: string) {
@@ -532,12 +548,14 @@ export class InvestigateEventDetail extends LitElement {
     this.routeDone = null;
     this.routeError = '';
     try {
-      this.route = await getEventRoute(id);
+      const route = await getEventRoute(id);
+      if (!this.showing(id)) return;
+      this.route = route;
       if (this.route.suggestions.length && this.routeCases === null) {
         listCases({ status: 'open' }).then((r) => { this.routeCases = r.can_manage ? r.cases : []; if (!r.can_manage) this.routeCases = null; }).catch(() => (this.routeCases = []));
       }
     } catch {
-      this.route = null;
+      if (this.showing(id)) this.route = null;
     }
   }
 
@@ -605,15 +623,18 @@ export class InvestigateEventDetail extends LitElement {
     this.corr = null;
     this.corrError = '';
     try {
-      this.corr = await getCorrelation(id);
+      const corr = await getCorrelation(id);
+      if (this.showing(id)) this.corr = corr;
     } catch (err) {
-      this.corrError = describeError(err);
+      if (this.showing(id)) this.corrError = describeError(err);
     }
   }
 
   private async loadMap(floorId: string) {
+    const evId = this.ev?.id;
     try {
       const b = await loadMap(floorId);
+      if (this.ev?.id !== evId) return; // 06:RACE-4: another event was opened meanwhile - its own map read decides
       this.bundle = b;
       this.restorePlanImage(floorId);
       void productSettings()
@@ -666,9 +687,9 @@ export class InvestigateEventDetail extends LitElement {
       const at = new Date(ev.occurred_at).getTime();
       const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
       const r = await listEvents({ from: iso(at - NEARBY_MS), to: iso(at + NEARBY_MS), limit: 30 });
-      this.nearby = r.events.filter((e) => e.id !== ev.id).slice(0, 6);
+      if (this.showing(ev.id)) this.nearby = r.events.filter((e) => e.id !== ev.id).slice(0, 6);
     } catch {
-      this.nearby = [];
+      if (this.showing(ev.id)) this.nearby = [];
     }
   }
 
@@ -694,7 +715,7 @@ export class InvestigateEventDetail extends LitElement {
       if (this.ev?.id === ev.id) this.session = session;
       else await closePlayback(session.id).catch(() => undefined);
     } catch (err) {
-      this.playerError = describeError(err);
+      if (this.showing(ev.id)) this.playerError = describeError(err);
     }
   }
 
