@@ -47,8 +47,17 @@ Other files changed by both 7 and the train side, merged by git without a confli
 | Commit | What |
 |---|---|
 | f5450a913 | release: 2.43.7 - version, changelog and API inventory (1908 routes, unchanged: header only) |
-| (next) | docs (this document) |
-| (next) | release: 2.43.7 - rebuilt UI (`npm run build:addon` on the runner) |
+| e5adf7d13 | docs (this document, first version) |
+| 32c4a2275 | test(gates): `test_async_routes_no_inline_db.py` - `PENDING` emptied and the strict xfail removed (below) |
+| (next) | release: 2.43.7 - rebuilt UI (`npm run build:addon` on the runner at 32c4a2275, DONE rc=0; tarball sha256 `4948469a...2573d25` checked after the copy) + this document |
+
+### A merge interaction fixed in the train (test only)
+
+`CR-BE-GATES-2436` (in 7) listed `routers/wiskey_lineage.py::resolve` as a known async-route offender with
+`@pytest.mark.xfail(strict=True, reason="... after it merges, empty PENDING and remove this mark")`, waiting for
+`AUTH-REVOKE-GATE-2435` (1). Each branch was GREEN alone; together the test XPASSed, which a strict xfail reports as a failure
+(seen locally at ec1905db2: 1 failed, the other tests of the four files passed). As the test itself says, `PENDING` is now empty
+and the mark removed (and the unused `pytest` import): 4 passed locally at 32c4a2275.
 
 `management/tasks.json` and `test_catalog.json` are not changed; no view regenerated.
 
@@ -62,6 +71,8 @@ lockfile differs).
 |---|---|---|
 | backend: `test_map3d_r28_settings_2433`, `test_video_services_2431`, `test_setting_value_parity`, `test_f3a_acr5_gate_295` (`-p no:xdist`) | ec1905db2 | 36 passed, 0 failed |
 | `npx tsc --noEmit` | ec1905db2 | exit 0 |
+| backend: `test_async_routes_no_inline_db`, `test_authrevoke_2435`, `test_async_routes_hold_no_write_conn`, `test_get_routes_read_conn` | ec1905db2 | 1 failed (the strict xfail above), the rest passed |
+| backend: `test_async_routes_no_inline_db` | 32c4a2275 | 4 passed |
 | `scripts/api_inventory.py` | f5450a913 | 1908 routes (header only changed) |
 | `scripts/release_check.py` | f5450a913 | one version 2.43.7; only `[FAIL] git tag v2.43.7 not yet`; RESULT: ready |
 

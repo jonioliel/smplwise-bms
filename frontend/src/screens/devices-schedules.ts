@@ -833,6 +833,11 @@ export class DevicesSchedules extends LitElement {
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
         --sw-ctl-h-lg: max(44px, var(--sw-touch-desktop, 44px));
       }
+      /* the shared back key of the trash and the review pages (sw-page backHref) is a 44 px target at a phone width too (28x28 in
+         the I18N-EN-SWITCH-2438 entry check, layout-schedules-parity) */
+      sw-page::part(back) {
+        --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px));
+      }
     }
     a.up:focus-visible {
       outline: var(--sw-focus-w) solid var(--dv-focus);

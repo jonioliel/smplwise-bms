@@ -175,7 +175,7 @@ export class SwPage extends LitElement {
           <slot name="crumbs"></slot>
           ${this.heading || this.backHref
             ? html`<div class="titlebar">
-                ${this.backHref ? html`<sw-button class="back" data-page-back variant="ghost" size="sm" iconOnly icon="chevronBack" label=${t('actions.back')} @click=${() => navigate(this.backHref)}></sw-button>` : ''}
+                ${this.backHref ? html`<sw-button class="back" part="back" data-page-back variant="ghost" size="sm" iconOnly icon="chevronBack" label=${t('actions.back')} @click=${() => navigate(this.backHref)}></sw-button>` : ''}
                 <h1>${this.heading}</h1>
               </div>`
             : ''}
