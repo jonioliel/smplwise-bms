@@ -346,7 +346,7 @@ class LeaseWorker:
                 if found:
                     stream_id, sequence = found[0], max(1, found[1])
         except Exception:  # noqa: BLE001
-            pass
+            log.debug("capture lease: the last sequence could not be read for the degraded event", exc_info=True)  # review 04:F27
         with cl.REG.lock:
             refs = list(cl.REG.live)
             cl.REG.live.clear()

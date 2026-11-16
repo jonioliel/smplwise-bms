@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..db import now_iso
+from . import values
 
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
@@ -359,9 +360,7 @@ def render(source: str, params: dict[str, Any]) -> tuple[str, str]:
     return _clip(s.title.format_map(p) or s.label, 80), _clip(body, 180)
 
 
-def _clip(text: str, n: int) -> str:
-    text = " ".join(str(text or "").split())
-    return text if len(text) <= n else text[: n - 1] + "…"
+_clip = values.clip  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): was a word-for-word copy
 
 
 # ---------------------------------------------------------------- the stored policy

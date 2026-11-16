@@ -11,6 +11,8 @@ import json
 import re
 from typing import Any
 
+from ...errors import ServiceInvalid
+
 CONFIG_KEY = "transit.config"
 MAX_STOPS = 4
 LAYOUTS = ("side", "strip", "slide")  # side column / bottom strip / rotating slide (mock-up layouts A / B / C)
@@ -37,12 +39,17 @@ SCREEN_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "layout": "sid
                                    "refresh_s": None, "show_distance": None}  # None = the installation's value
 
 
-class Invalid(ValueError):
-    """A value the API refuses (422); `field` names the offending key."""
+class Invalid(ServiceInvalid):
+    """A value the API refuses (422); `field` names the offending key.
+
+    CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, `field` and `str()`
+    are unchanged (`code` is the base's `validation`, the code its routers already answer)."""
 
     def __init__(self, field: str, message: str) -> None:
-        super().__init__(message)
+        ValueError.__init__(self, message)
+        self.message = message
         self.field = field
+        self.fields = [field] if field else []
 
 
 def _int(v: Any, lo: int, hi: int) -> int | None:

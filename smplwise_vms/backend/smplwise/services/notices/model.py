@@ -7,6 +7,7 @@ import json
 import re
 from typing import Any
 
+from ...errors import ServiceInvalid
 from ..transit import model as transit_model
 
 SEVERITIES = ("info", "alert", "critical")
@@ -180,12 +181,17 @@ CONN_TOTAL_RANGE = (4, 256)
 CONN_PER_ADDRESS_RANGE = (1, 64)
 
 
-class Invalid(ValueError):
-    """A value the API refuses (422); `field` names the offending key."""
+class Invalid(ServiceInvalid):
+    """A value the API refuses (422); `field` names the offending key.
+
+    CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, `field` and `str()`
+    are unchanged (`code` is the base's `validation`, the code its routers already answer)."""
 
     def __init__(self, field: str, message: str) -> None:
-        super().__init__(message)
+        ValueError.__init__(self, message)
+        self.message = message
         self.field = field
+        self.fields = [field] if field else []
 
 
 def parse_iso(value: str | None) -> dt.datetime | None:

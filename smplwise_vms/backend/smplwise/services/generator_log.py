@@ -26,6 +26,7 @@ import sqlite3
 from typing import Any
 
 from ..db import new_id
+from ..errors import ServiceInvalid
 from . import generator_catalog as cat
 from . import generator_core as core
 from .timeutil import iso_from_epoch
@@ -55,10 +56,14 @@ _MAINS_RX = re.compile(r"mains|utility|grid|fail|outage|רשת|הפסקת|נפי
 _MANUAL_RX = re.compile(r"manual|remote|ידני", re.I)
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, the attributes it
+    always had and `str()` are unchanged. The router still builds this endpoint's 422 envelope itself (lead decision L2)."""
+
     def __init__(self, key: str) -> None:
-        super().__init__(key)
+        ValueError.__init__(self, key)
         self.key = key
+        self.fields = [key] if key else []
 
 
 # ---------------------------------------------------------------- settings
