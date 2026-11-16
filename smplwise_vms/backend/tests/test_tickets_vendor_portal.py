@@ -401,13 +401,13 @@ def test_f1_a_managers_mark_is_not_enough_a_code_or_the_person_themself_is(env):
 
 
 def test_f1_the_rule_is_on_by_default_system_configure_audited_and_switchable_from_a_remote_session(env, monkeypatch):
-    from smplwise.routers import tickets_admin
+    from smplwise.routers import tickets_admin_settings
 
     assert settings_put(env, vendor_portal={"require_confirmed_number": "no"}).status_code == 422
     rev = env.c.get(f"{API}/tickets/settings").json()["revision"]
     r = env.c.put(f"{API}/tickets/settings", json={"revision": rev, "vendor_portal": {"require_confirmed_number": False}}, headers=env.h("tom"))
     assert r.status_code == 403
-    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)  # owner 2026-10-17: the portal keys are NOT local-only
+    monkeypatch.setattr(tickets_admin_settings, "is_remote", lambda request: True)  # owner 2026-10-17: the portal keys are NOT local-only
     doc = portal_on(env, require_confirmed_number=False)
     assert doc["vendor_portal"] == {"enabled": True, "closed_months": 2, "require_confirmed_number": False, "rfqs": False,
                                     "technician_requests": False, "start_worker": False}  # + VPORTALRFQ (OFF), + SECFIX2-295 PUB-04 (OFF)
