@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
 import { canAnywhere, isApi } from '../api/session';
+import { PollController } from './poll-controller';
 import { fill, ict } from '../i18n/incoming-calls';
 import { callSeconds, clockText, logLine } from './incoming-call-logic';
 
@@ -69,7 +70,8 @@ export class WkCallHistory extends LitElement {
   @property() zone = '';
   @state() private rows: CallLogRow[] | null = null;
   @state() private next: string | null = null;
-  private timer = 0;
+  /** CR-SHELL-TIMERS-2439 (07:F14): the call log re-read every REFRESH_MS - paused while the page is hidden, never two at once, read once on return. */
+  private poll = new PollController(this);
 
   protected createRenderRoot(): HTMLElement {
     return this;
@@ -83,14 +85,7 @@ export class WkCallHistory extends LitElement {
     super.connectedCallback();
     adoptInto(this.getRootNode());
     this.style.display = 'contents'; // no box of its own: an empty log never takes a gap of the drawer's column
-    this.timer = window.setInterval(() => {
-      if (!document.hidden) void this.load(false);
-    }, REFRESH_MS);
-  }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.clearInterval(this.timer);
+    this.poll.every('calls', REFRESH_MS, () => this.load(false));
   }
 
   protected willUpdate(changed: PropertyValues): void {
