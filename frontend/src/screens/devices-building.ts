@@ -2110,7 +2110,8 @@ export class DevicesBuilding extends LitElement {
     this.drawerOpen = true;
     this.drawerTab = 'home';
     const id = e.detail.id;
-    void this.updateComplete.then(() => requestAnimationFrame(() => {
+    // CR-HOME-LAZY-2440: the panel is a chunk of its own - when this press is what opens the drawer first, wait until it is back in place
+    void this.updateComplete.then(() => whenScreen('home-edit-panel')).then(() => this.updateComplete).then(() => requestAnimationFrame(() => {
       const panel = this.renderRoot.querySelector('home-edit-panel');
       const row = panel?.shadowRoot?.querySelector<HTMLElement>(`[data-home-wrow="${CSS.escape(id)}"]`) ?? panel;
       const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;

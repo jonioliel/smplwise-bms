@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '..', '..', 'docs', 'evidence', 'T007', 'screens');
 
-const SCREENS: { sc: string; route: string; full?: boolean }[] = [
+const SCREENS: { sc: string; route: string; full?: boolean; ready?: string }[] = [
   { sc: 'sc01-overview', route: '/live', full: true },
   { sc: 'sc07-live-wall', route: '/live/wall' },
   { sc: 'sc08-live-camera', route: '/live/cameras/cam-1' },
@@ -40,7 +40,8 @@ const SCREENS: { sc: string; route: string; full?: boolean }[] = [
   { sc: 'sc20-storage', route: '/system/storage', full: true },
   // owner 2026-09-29: the devices building (compact tiles on a phone) and the tiles' panel open (drawer / bottom sheet)
   { sc: 'sc32-devices-building', route: '/devices/building' },
-  { sc: 'sc33-devices-tiles-panel', route: '/devices/building?domain=lights' },
+  // CR-HOME-LAZY-2440: the panel is a chunk of its own now - the shot waits for its rows
+  { sc: 'sc33-devices-tiles-panel', route: '/devices/building?domain=lights', ready: 'devices-building devices-tiles-panel .row[data-entity]' },
   { sc: 'index', route: '/screens', full: true },
 ];
 
@@ -59,6 +60,7 @@ test.describe('all screen skeletons', () => {
   for (const s of SCREENS) {
     test(s.sc, async ({ page }, testInfo) => {
       await open(page, s.route);
+      if (s.ready) await page.locator(s.ready).first().waitFor();
       await page.screenshot({ path: path.join(OUT, `${s.sc}-${testInfo.project.name}.png`), fullPage: !!s.full && testInfo.project.name !== 'mobile' });
       await noHorizontalOverflow(page);
     });
