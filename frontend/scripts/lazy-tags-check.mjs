@@ -154,7 +154,10 @@ for (const [root, c] of groups) {
     for (const tag of uses.get(f) ?? []) {
       if (!defines.has(tag)) continue;
       if (definedIn(tag, eager) || definedIn(tag, c)) continue;
-      const own = [...(lazyEdges.get(f) ?? [])].some((r) => groups.get(r)?.has(defines.get(tag)));
+      // "own": this module starts the defining chunk itself - or a helper it imports directly does it for it (CR-MAP-SHARED-2440:
+      // the floor screens ask map/floor-view-shared.ts `loadPlan3d()`, which holds the one `import('./sw-plan-3d')`). One hop only.
+      const starters = [f, ...(eagerEdges.get(f) ?? [])];
+      const own = starters.some((x) => [...(lazyEdges.get(x) ?? [])].some((r) => groups.get(r)?.has(defines.get(tag))));
       if (!own) findings.push(`lazy ${rel(f)} (group ${rel(root)}) uses <${tag}> defined in ${rel(defines.get(tag))}, outside its group`);
     }
   }
