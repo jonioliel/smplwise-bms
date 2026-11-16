@@ -587,3 +587,79 @@ def test_hardware_required_makes_unavailable_not_count_for_that_sensor_only(worl
     c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["beacon", "battery"], "hardware_required": []}})
     c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": status}, headers=tok)
     assert gate()["blocked"] is False
+
+
+# ---------------------------------------------------------------- CR-W2-FOLLOWUPS-2441: the reads answer while the write lock is held
+
+def test_config_and_people_answer_while_the_write_lock_is_held(world):
+    """GET /presence/config (session and device token) and GET /presence/people used to answer 500 `database_busy` while another
+    connection held the write lock: the lazy push id, the phone's last-seen stamp and the throttled view audit row each waited for
+    it. The id now exists from the start; the two side rows wait briefly and are left for the next poll."""
+    import threading
+
+    from smplwise.db import get_setting
+    from smplwise.services import presence_people as people_svc
+
+    app, c, _ = world
+    db = app.state.db
+    with db.connection(mode="read") as conn:
+        sid = get_setting(conn, "push.server_id")
+        assert sid and sid.startswith("srv_"), "the start-up step created the installation's push id"
+    enable(c)
+    code, reg = register(c, "joni")
+    assert code == 201
+    token, device_id = reg["device_token"], reg["device_id"]
+    assert reg["server_id"] == sid
+    people_svc.reset()
+
+    def people_rows() -> int:
+        with db.connection(mode="read") as conn:
+            return conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'presence.people.view' AND decision = 'allowed'").fetchone()[0]
+
+    OLD_STAMP = "2000-01-01T00:00:00Z"
+
+    def last_seen() -> str:
+        with db.connection(mode="read") as conn:
+            return conn.execute("SELECT last_seen_at FROM mobile_devices WHERE id = ?", (device_id,)).fetchone()[0]
+
+    with db.connection() as conn:
+        conn.execute("UPDATE mobile_devices SET last_seen_at = ? WHERE id = ?", (OLD_STAMP, device_id))
+    held, release = threading.Event(), threading.Event()
+
+    def writer():
+        with db.connection(label="test holder") as conn:  # BEGIN IMMEDIATE: holds the write lock until released
+            conn.execute("INSERT INTO settings(key, value) VALUES ('presence_hold', '1')")
+            held.set()
+            release.wait(120)
+
+    th = threading.Thread(target=writer, daemon=True)
+    th.start()
+    assert held.wait(30)
+    try:
+        r = c.get(f"{API}/presence/config", headers=as_user("joni"))
+        assert r.status_code == 200 and r.json()["server_id"] == sid, r.text
+        r = c.get(f"{API}/presence/config", headers=bearer(token))
+        assert r.status_code == 200 and r.json()["server_id"] == sid and r.json()["device"]["device_id"] == device_id, r.text
+        r = c.get(f"{API}/presence/people", headers=as_user("joni"))
+        assert r.status_code == 200 and "totals" in r.json(), r.text
+    finally:
+        release.set()
+        th.join(30)
+    assert people_rows() == 0 and last_seen() == OLD_STAMP  # nothing was written behind the holder's back
+    # the next poll records what the busy lock left out: the view row (the throttle was not started) and the phone's stamp
+    assert c.get(f"{API}/presence/people", headers=as_user("joni")).status_code == 200
+    assert people_rows() == 1
+    assert c.get(f"{API}/presence/people", headers=as_user("joni")).status_code == 200
+    assert people_rows() == 1  # one row per viewer per AUDIT_EVERY_S, as before
+    assert c.get(f"{API}/presence/config", headers=bearer(token)).status_code == 200
+    assert last_seen() > OLD_STAMP
+    people_svc.reset()
+
+
+def test_the_push_id_is_still_created_by_the_first_read_when_it_is_missing(world):
+    app, c, _ = world
+    with app.state.db.connection() as conn:
+        conn.execute("DELETE FROM settings WHERE key = 'push.server_id'")
+    r = c.get(f"{API}/presence/config", headers=as_user("joni"))
+    assert r.status_code == 200 and r.json()["server_id"].startswith("srv_")
+    assert c.get(f"{API}/presence/config", headers=as_user("joni")).json()["server_id"] == r.json()["server_id"]
