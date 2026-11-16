@@ -48,6 +48,7 @@ from urllib.parse import urlparse
 from ..config import Settings
 from ..errors import ApiError, unauthenticated
 from ..rbac import Principal
+from . import redact
 from .session_cache import attach_if_live, take_queued
 from .tickets import ratelimit as _ratelimit
 
@@ -145,15 +146,7 @@ def public_id(chain: str) -> str:
 
 def mask_address(ip: str) -> str:
     """An address for the sessions list: IPv4 to its /24, IPv6 to its /48; anything else is dropped."""
-    import ipaddress
-
-    try:
-        addr = ipaddress.ip_address((ip or "").strip())
-    except ValueError:
-        return ""
-    if addr.version == 4:
-        return str(ipaddress.ip_network(f"{addr}/24", strict=False))
-    return str(ipaddress.ip_network(f"{addr}/48", strict=False))
+    return redact.ip_network(ip)
 
 
 def agent_family(ua: str) -> str:

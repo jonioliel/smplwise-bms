@@ -31,6 +31,7 @@ from ..errors import ApiError
 from ..rbac import Principal, is_system_admin
 from . import intercom_authority as ia
 from . import intercom_writes as iw
+from . import redact
 from .access_grant_engine import EngineError, plan_overrides
 from .bulk_people_engine import BulkEngine, BulkPerson, WiskeyBulkEngine
 
@@ -559,8 +560,7 @@ def _visible(auth: ia.Authority, person: BulkPerson | None) -> bool:
 
 
 def _mask_phone(value: Any) -> str | None:
-    digits = re.sub(r"[^0-9]", "", value) if isinstance(value, str) else ""
-    return f"{MASK}{digits[-2:]}" if len(digits) >= 2 else None
+    return redact.phone_tail2_dots(re.sub(r"[^0-9]", "", value)) if isinstance(value, str) else None
 
 
 def diff_view(auth: ia.Authority, person: BulkPerson | None, data: dict[str, Any]) -> list[dict[str, Any]]:

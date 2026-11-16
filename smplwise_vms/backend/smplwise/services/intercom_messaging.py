@@ -43,6 +43,7 @@ from zoneinfo import ZoneInfo
 from ..db import Database, get_setting, set_setting
 from ..errors import ApiError
 from . import intercom_authority as ia
+from . import redact
 from .timeutil import DEFAULT_ZONE, iso_utc, site_zone
 
 log = logging.getLogger("smplwise.intercom")
@@ -583,10 +584,7 @@ def may_message(auth: ia.Authority, person: dict[str, Any]) -> bool:
 def mask_phone(phone: str | None) -> str | None:
     """Everything but the last two digits hidden - the most a sender ever sees without opening the person's page. A fixed width
     (review F10): the mask does not tell the length of the number, or whether it is international."""
-    digits = re.sub(r"\D", "", phone or "")
-    if len(digits) < 4:
-        return None
-    return "•" * 6 + digits[-2:]
+    return redact.phone_tail2_bullets(phone)
 
 
 # ---------------------------------------------------------------- the phone hash (review F3 / F6)

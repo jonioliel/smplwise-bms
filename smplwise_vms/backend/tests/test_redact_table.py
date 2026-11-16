@@ -121,3 +121,71 @@ def test_owner_phone_tail4_bullets(digits, expected):
 @pytest.mark.parametrize("ip,expected", IP_NETWORK)
 def test_owner_ip_network(ip, expected):
     assert ha_user_auth.mask_address(ip) == expected
+
+
+# ================================================================ the shared functions (services/redact.py) answer the same rows
+
+from smplwise.services import redact  # noqa: E402
+
+
+@pytest.mark.parametrize("url,expected", URL_USERINFO)
+def test_redact_url_userinfo(url, expected):
+    assert redact.url_userinfo(url) == expected
+
+
+@pytest.mark.parametrize("url,expected", URL_SCHEME_ONLY)
+def test_redact_url_scheme_only(url, expected):
+    assert redact.url_scheme_only(url) == expected
+
+
+def test_redact_url_host():
+    assert redact.url_host("rtsp://u:p@192.0.2.7:554/Streaming/Channels/101") == "rtsp://***/Streaming/Channels/101"
+    assert redact.url_host("a rtsp://h1/x b rtsp://h2/y") == "a rtsp://***/x b rtsp://h2/y"  # the first only
+    assert redact.url_host("no-scheme") == "no-scheme"
+
+
+@pytest.mark.parametrize("text,url,settings,expected", FFMPEG_TEXT)
+def test_redact_text_without(text, url, settings, expected):
+    assert redact.text_without(text, url, (settings.nvr_password, settings.nvr_user, settings.nvr_host)) == expected
+
+
+@pytest.mark.parametrize("text,secrets,expected", SECRET_TEXT)
+def test_redact_secrets_in_text(text, secrets, expected):
+    assert redact.secrets_in_text(text, *secrets) == expected
+
+
+@pytest.mark.parametrize("digits,expected", PHONE_TAIL2_DOTS + [(None, None)])
+def test_redact_phone_tail2_dots(digits, expected):
+    assert redact.phone_tail2_dots(digits) == expected
+
+
+@pytest.mark.parametrize("phone,expected", PHONE_TAIL2_BULLETS)
+def test_redact_phone_tail2_bullets(phone, expected):
+    assert redact.phone_tail2_bullets(phone) == expected
+
+
+@pytest.mark.parametrize("digits,expected", PHONE_TAIL4_BULLETS)
+def test_redact_phone_tail4_bullets(digits, expected):
+    assert redact.phone_tail4_bullets(digits) == expected
+
+
+@pytest.mark.parametrize("ip,expected", IP_NETWORK)
+def test_redact_ip_network(ip, expected):
+    assert redact.ip_network(ip) == expected
+
+
+def test_the_phone_variants_really_differ():
+    """The reason they are not one function: the same number leaves in three different forms."""
+    n = "972500000031"
+    assert len({redact.phone_tail2_dots(n), redact.phone_tail2_bullets(n), redact.phone_tail4_bullets(n)}) == 3
+    assert redact.phone_tail2_dots("12") == "····12" and redact.phone_tail2_bullets("12") is None
+
+
+def test_redact_imports_nothing_from_the_product():
+    import ast
+    import pathlib
+
+    tree = ast.parse(pathlib.Path(redact.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            assert node.level == 0 and not (node.module or "").startswith("smplwise"), ast.dump(node)
