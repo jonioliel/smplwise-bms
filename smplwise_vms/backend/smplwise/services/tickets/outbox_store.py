@@ -193,6 +193,22 @@ class SqliteOutboxStore:
                                 "ORDER BY priority, not_before, created_at, id").fetchall()
         return [from_db(r) for r in rows]
 
+    def open_rows_where(self, *, assignment_id: str | None = None, link_id: str | None = None, contact_id: str | None = None,
+                        ticket_id: str | None = None, use_key: str | None = None) -> list[OutboxRow]:
+        """CR-TK-OUTBOX-FILTER (01:F-16): the rows of open_rows(), in its order, that match every filter given (None = not filtered) -
+        the filter runs in SQL, so a caller that wants one assignment / link / contact / ticket / use no longer reads and decodes the
+        whole open queue. The column names are the fixed ones below; every value is bound."""
+        where, args = [], []
+        for column, value in (("assignment_id", assignment_id), ("link_id", link_id), ("contact_id", contact_id),
+                              ("ticket_id", ticket_id), ("use_key", use_key)):
+            if value is not None:
+                where.append(f" AND {column} = ?")
+                args.append(value)
+        with self._io.read() as conn:
+            rows = conn.execute(f"SELECT * FROM ticket_outbox WHERE {QUEUE_INDEX_WHERE} AND state IN ('queued', 'held'){''.join(where)} "  # noqa: S608 - fixed names
+                                "ORDER BY priority, not_before, created_at, id", args).fetchall()
+        return [from_db(r) for r in rows]
+
     def in_state(self, state: str) -> list[OutboxRow]:
         # F-02: a state the queue index covers carries the index's own predicate (same rows); any other state reads as before
         where = f"{QUEUE_INDEX_WHERE} AND state = ?" if state in QUEUE_INDEX_STATES else "state = ?"

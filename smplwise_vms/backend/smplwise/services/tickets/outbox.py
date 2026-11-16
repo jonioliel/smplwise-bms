@@ -141,6 +141,10 @@ class OutboxStore(Protocol):
 
     def open_rows(self) -> list[OutboxRow]: ...  # queued + held, ordered by (priority, not_before, created_at)
 
+    def open_rows_where(self, *, assignment_id: str | None = None, link_id: str | None = None, contact_id: str | None = None,
+                        ticket_id: str | None = None, use_key: str | None = None) -> list[OutboxRow]: ...
+    # CR-TK-OUTBOX-FILTER (01:F-16): the rows of open_rows(), in its order, that match EVERY filter given (None = not filtered)
+
     def in_state(self, state: str) -> list[OutboxRow]: ...
 
     def by_idempotency_key(self, key: str) -> OutboxRow | None: ...
@@ -295,6 +299,12 @@ class MemoryOutboxStore:
     def open_rows(self) -> list[OutboxRow]:
         return sorted((r for r in self.rows.values() if r.state in OPEN_STATES), key=lambda r: (r.priority, r.not_before, r.created_at, r.id))
 
+    def open_rows_where(self, *, assignment_id: str | None = None, link_id: str | None = None, contact_id: str | None = None,
+                        ticket_id: str | None = None, use_key: str | None = None) -> list[OutboxRow]:
+        wanted = {k: v for k, v in (("assignment_id", assignment_id), ("link_id", link_id), ("contact_id", contact_id),
+                                    ("ticket_id", ticket_id), ("use_key", use_key)) if v is not None}
+        return [r for r in self.open_rows() if all(getattr(r, k) == v for k, v in wanted.items())]
+
     def in_state(self, state: str) -> list[OutboxRow]:
         return [r for r in self.rows.values() if r.state == state]
 
@@ -423,7 +433,8 @@ class Outbox:
             raise OutboxError("code_invalid")  # TKNOTIFOTP: the number check goes to the number itself - WhatsApp only, never a fallback
         if purpose in REPORT_PURPOSES:
             # CR-VENDORQ-294: a report names its module and row, goes to a contact by WhatsApp, carries no link / code / ticket / RFQ
-            if not source_module or not source_id or not contact_id or channel not in REPORT_CHANNELS or link_id or code or code_id or ticket_id                     or rfq_id or assignment_id:
+            if (not source_module or not source_id or not contact_id or channel not in REPORT_CHANNELS or link_id or code or code_id or ticket_id
+                    or rfq_id or assignment_id):
                 raise OutboxError("report_invalid")
         elif source_module or source_id or document_id or use_key:
             raise OutboxError("source_not_allowed")
@@ -458,8 +469,8 @@ class Outbox:
                 source_module=source_module, source_id=source_id, document_id=document_id,
                 reply_nonce=self.p.new_nonce() if channel == "whatsapp" and purpose in REPLY_PURPOSES else None)
             if assignment_id:
-                for old in self.p.store.open_rows():
-                    if old.assignment_id == assignment_id and old.purpose == purpose:
+                for old in self.p.store.open_rows_where(assignment_id=assignment_id):  # F-16: the assignment's rows, not the whole queue
+                    if old.purpose == purpose:
                         self._set(old, state="superseded", now=now, outcome_code="superseded")
                         self.p.secrets.drop(old.id)
                         self.p.hooks.cancelled(old, "superseded")
@@ -511,13 +522,8 @@ class Outbox:
         wanted = set(purposes) if purposes is not None else None
         out = []
         with self._lock:
-            for row in self.p.store.open_rows():
-                if link_id is not None and row.link_id != link_id:
-                    continue
-                if contact_id is not None and row.contact_id != contact_id:
-                    continue
-                if ticket_id is not None and row.ticket_id != ticket_id:
-                    continue
+            # F-16: the store filters by link / contact / ticket (the same rows, in the same order)
+            for row in self.p.store.open_rows_where(link_id=link_id, contact_id=contact_id, ticket_id=ticket_id):
                 if wanted is not None and row.purpose not in wanted:
                     continue
                 out.append(self._cancel(row, reason, now))
@@ -525,8 +531,8 @@ class Outbox:
 
     def open_count(self, use_key: str, department_id: str | None = None) -> int:
         """The count the account screen shows before a use moves ("3 הודעות ממתינות יישלחו מהחשבון החדש", 9.9.3)."""
-        return sum(1 for r in self.p.store.open_rows()
-                   if r.use_key == use_key and (department_id is None or r.department_id == department_id))
+        return sum(1 for r in self.p.store.open_rows_where(use_key=use_key)  # F-16: the use's rows, not the whole queue
+                   if department_id is None or r.department_id == department_id)
 
     def recover_after_restart(self, now: dt.datetime) -> list[OutboxRow]:
         """A row still `sending` when the process starts may have left: it becomes `unknown` (and counts in the ledger)."""
