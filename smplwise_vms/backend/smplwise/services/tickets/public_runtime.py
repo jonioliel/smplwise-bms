@@ -25,6 +25,7 @@ from typing import Any
 
 from ...db import Database, get_setting
 from . import links, settings_doc, store_links
+from . import store
 from .codes import CodeEngine
 from .image_intake import StorageMeter
 from .keyring import KEYS
@@ -73,12 +74,12 @@ class Runtime:
                 if settings_doc.pin_legacy_prefix(conn):
                     log.info("tickets public path prefix pinned to /t (existing address without a path)")
         except Exception:  # noqa: BLE001 - a database before the migrations: nothing to pin yet
-            pass
+            log.debug("tickets public path prefix was not pinned", exc_info=True)  # CR-TK-EXCEPT-LOG (01:F-11)
         try:  # the module is already on (an installation from before slice 4, a restart): its key exists or is minted now (W12)
             if _module_on(db) and KEYS.ensure() is None:
                 log.error("tickets module key is %s and rows depend on a key: restore secrets/ from the backup", KEYS.status().get("state"))
         except Exception:  # noqa: BLE001 - a database before the tickets migrations: nothing to key yet
-            pass
+            log.debug("tickets module key was not checked at configure", exc_info=True)  # CR-TK-EXCEPT-LOG (01:F-11)
 
     def attachments_root(self) -> Path:
         root = (self.data_dir or Path(".")) / "tickets"
@@ -188,8 +189,8 @@ class Runtime:
             try:  # VPORTAL: the portal switch follows the setting within one tick even without the settings route
                 with db.connection(mode="read", label="tickets.portal.switch") as conn:
                     self.set_portal(settings_doc.read(conn))
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:  # noqa: BLE001 - the switch keeps its last value until the next tick
+                log.debug("vendor portal switch was not refreshed", exc_info=True)  # CR-TK-EXCEPT-LOG (01:F-11)
         now = time.monotonic()
         if force or now - self._retention_at >= RETENTION_EVERY_S:
             self._retention_at = now
@@ -201,8 +202,9 @@ class Runtime:
                     from . import store_rfq
 
                     store_rfq.prune_codes(conn, _iso(stamp - dt.timedelta(days=CODES_KEEP_DAYS)))
-                except Exception:  # noqa: BLE001 - a database before 0089
-                    pass
+                except Exception as exc:  # noqa: BLE001 - a database before 0089 is silent; any other failure is logged, the janitor goes on
+                    if not store.table_missing(exc):
+                        log.warning("RFQ code retention failed: %s", type(exc).__name__)  # CR-TK-EXCEPT-LOG (01:F-11)
                 from . import vendor_portal  # VPORTAL: portal code rows (2 days) and ended sessions
 
                 vendor_portal.prune(conn, stamp)
@@ -309,7 +311,8 @@ def code_policy_reader(db: Database, *, every_s: float = 30.0):
         try:
             with db.connection(mode="read", label="tickets.public.code_policy") as conn:
                 pol = CodePolicy.from_settings(settings_doc.read(conn).get("code"))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 - the last good policy stays in force
+            log.debug("the code policy was not refreshed", exc_info=True)  # CR-TK-EXCEPT-LOG (01:F-11)
             return state["policy"]
         with lock:
             state["policy"] = pol

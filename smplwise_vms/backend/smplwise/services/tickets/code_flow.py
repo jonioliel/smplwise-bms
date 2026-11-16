@@ -135,7 +135,8 @@ def channel_still_allowed(conn, contact: dict[str, Any], channel: str, *, link_s
     different channel from the link's is all D6 asks)."""
     try:
         whatsapp_ok, email_ok = dispatch.code_ready(conn, contact)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a dispatcher that cannot answer carries no code (CR-TK-EXCEPT-LOG (01:F-11): now logged)
+        log.warning("code channel re-check failed (%s)", type(exc).__name__)
         return False
     if channel == "whatsapp":
         return bool(whatsapp_ok) and bool(contact.get("phone_e164"))
