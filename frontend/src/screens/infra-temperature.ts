@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-tabs';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listUnits, type ReportParams, type TempUnit, type UnitsResponse } from '../api/temperature';
@@ -70,6 +71,14 @@ export class InfraTemperature extends LitElement {
   private pressTimer?: number;
   private pressed = false;
   private opener: HTMLElement | null = null;
+  /** NOSCROLL-1366-2437: on a desktop (>= 1101 px) the unit cards are pages that fit the screen instead of a page scroll. `per` = cards on a
+   * page (0 = not measured yet: every card is drawn, then the fit loop takes whole rows away until nothing overflows). */
+  @state() private page = 1;
+  @state() private per = 0;
+  private desk = window.matchMedia('(min-width: 1101px)');
+  private onDesk = () => this.refit();
+  private fitObserver?: ResizeObserver;
+  private contentObserver?: ResizeObserver;
 
   static styles = [tempCss, leadReserveStyles, css`
     :host {
@@ -216,6 +225,22 @@ export class InfraTemperature extends LitElement {
       .ghead:hover { background: var(--sw-surface-2); }
       .add:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
     }
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30: 76 px over at 1366x768): from 1101 px (a desktop; the 1024 px tablet keeps the page as it was) the screen keeps
+       its box (the shell gives it the room under the tabs) and the unit cards are pages (the pager sits beside "יומן התראות"); a short window
+       (<= 820 px high) draws the counters and the cards a step denser, so two rows of cards fit at 1366x768. Tablet and phone unchanged. */
+    @media (min-width: 1101px) {
+      :host { gap: 12px; }
+      .grid { gap: 14px; }
+    }
+    @media (min-width: 1101px) and (max-height: 820px) {
+      :host { padding-block: 10px 16px; }
+      .kpi { padding: 8px 14px; gap: 12px; }
+      .kpi b { font-size: var(--sw-fs-3xl); }
+      .kpi .dot { inline-size: 16px; block-size: 16px; }
+      .ucard { padding: 14px 16px; gap: 8px; }
+      .ucard .spark { block-size: 44px; }
+      .umeta { gap: 4px; }
+    }
     @media (max-width: 600px) {
       /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis */
       .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
@@ -231,6 +256,19 @@ export class InfraTemperature extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.desk.addEventListener('change', this.onDesk);
+    if (typeof ResizeObserver !== 'undefined') {
+      let w = 0;
+      let h = 0;
+      this.fitObserver = new ResizeObserver(([e]) => {
+        const r = e.contentRect;
+        if (Math.abs(r.width - w) < 2 && Math.abs(r.height - h) < 2) return;
+        w = r.width;
+        h = r.height;
+        this.refit();
+      });
+      this.fitObserver.observe(this);
+    }
     this.stop = onTemperatureAccess((a) => {
       this.access = a;
       if (!a.manage) this.editing = false;
@@ -243,6 +281,9 @@ export class InfraTemperature extends LitElement {
   }
 
   disconnectedCallback() {
+    this.desk.removeEventListener('change', this.onDesk);
+    this.fitObserver?.disconnect();
+    this.contentObserver?.disconnect();
     window.clearInterval(this.timer);
     this.stop?.();
     this.offScreenEdit?.();
@@ -253,10 +294,48 @@ export class InfraTemperature extends LitElement {
     return this.route?.segments[2] === 'log';
   }
 
+  /** NOSCROLL-1366-2437: measure again from every card drawn (a resize, a filter, new units). */
+  private refit() {
+    this.per = 0;
+  }
+
+  /** The fit loop (desktop only): while the screen is taller than its box, one row of cards fewer per page (never below one row). */
+  protected updated() {
+    if (!this.desk.matches || this.isLog() || !this.data?.units.length) return;
+    // the cards settle after this update (fonts, the gauges): check now, on the next frame, and whenever the cards' box changes size
+    this.fitCheck();
+    requestAnimationFrame(() => this.fitCheck());
+    if (typeof ResizeObserver !== 'undefined') {
+      this.contentObserver ??= new ResizeObserver(() => this.fitCheck());
+      this.contentObserver.disconnect();
+      for (const el of this.renderRoot.querySelectorAll('[data-temp-grid], [data-temp-groups]')) this.contentObserver.observe(el);
+    }
+  }
+
+  private fitCheck() {
+    if (!this.desk.matches || this.isLog() || !this.data?.units.length) return;
+    const grid = this.renderRoot.querySelector<HTMLElement>('[data-temp-grid]');
+    if (!grid) return;
+    const cols = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length);
+    const shownN = this.renderRoot.querySelectorAll('[data-temp-unit]').length;
+    // the entry cascade moves the cards 10 px down while it plays: measure when it is over
+    const moving = [...this.renderRoot.querySelectorAll<HTMLElement>('.ucard')].flatMap((el) => el.getAnimations()).filter((a) => a.playState === 'running');
+    if (moving.length) {
+      void Promise.all(moving.map((a) => a.finished.catch(() => undefined))).then(() => this.fitCheck());
+      return;
+    }
+    if (this.scrollHeight - this.clientHeight > 1 && shownN > cols) {
+      const per = Math.max(cols, (Math.ceil(shownN / cols) - 1) * cols);
+      if (per !== this.per) this.per = per;
+    }
+  }
+
   private async load() {
     if (!this.access.view) return;
     try {
+      const before = this.data?.units.map((u) => u.id).join() ?? '';
       this.data = await listUnits(true);
+      if (this.data.units.map((u) => u.id).join() !== before) this.refit();
       this.error = '';
       applyInfraTemperature(this.data.units.length > 0 || this.access.manage);
       const q = this.route?.params.get('unit');
@@ -325,7 +404,7 @@ export class InfraTemperature extends LitElement {
   private kpis(list: TempUnit[], stale: boolean) {
     const k = kpisOf(list, stale);
     const cell = (id: KpiKey, look: string, value: number, key: TtKey) => html`<button type="button" class="kpi" data-k=${id} data-look=${look} data-temp-kpi=${id} ?data-nz=${value > 0}
-      aria-pressed=${String(this.kpi === id)} @click=${() => { this.kpi = this.kpi === id ? null : id; }}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${tt(key)}</span></div></button>`;
+      aria-pressed=${String(this.kpi === id)} @click=${() => { this.kpi = this.kpi === id ? null : id; this.page = 1; this.refit(); }}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${tt(key)}</span></div></button>`;
     return html`<div class="kpis" role="group" aria-label=${tt('title')}>
       ${cell('total', '', k.total, 'kpiTotal')}${cell('ok', 'ok', k.ok, 'kpiOk')}${cell('warning', 'warn', k.warning, 'kpiWarn')}${cell('alarm', 'alarm', k.alarm, 'kpiAlarm')}
       ${cell('door', '', k.door, 'kpiDoor')}${cell('offline', 'off', k.offline, 'kpiOff')}${k.health ? cell('health', '', k.health, 'kpiHealth') : nothing}
@@ -335,6 +414,7 @@ export class InfraTemperature extends LitElement {
   private toggleGroup(key: string) {
     const id = key || '-';
     this.collapsed = this.collapsed.includes(id) ? this.collapsed.filter((x) => x !== id) : [...this.collapsed, id];
+    this.refit();
     try {
       localStorage.setItem(COLLAPSED_KEY, JSON.stringify(this.collapsed));
     } catch {
@@ -343,29 +423,61 @@ export class InfraTemperature extends LitElement {
   }
 
   /** Idea 7: the cards under collapsible area headers (floor and the worst state in the header), or one flat grid. */
+  private isGrouped(shown: TempUnit[]): boolean {
+    return this.data?.grouping !== 'none' && (groupUnits(shown, this.floor).length >= 2 || !!this.floor);
+  }
+
+  /** The cards in reading order (folded groups give none), the source of the pages. */
+  private ordered(shown: TempUnit[]): TempUnit[] {
+    if (!this.isGrouped(shown)) return this.floor ? groupUnits(shown, this.floor).flatMap((g) => g.units) : shown;
+    return groupUnits(shown, this.floor).filter((g) => !this.collapsed.includes(g.key || '-')).flatMap((g) => g.units);
+  }
+
+  private pagesOf(shown: TempUnit[]): number {
+    const n = this.ordered(shown).length;
+    return this.desk.matches && this.per > 0 ? Math.max(1, Math.ceil(n / this.per)) : 1;
+  }
+
+  private pageNo(shown: TempUnit[]): number {
+    return Math.min(this.page, this.pagesOf(shown));
+  }
+
   private cards(shown: TempUnit[], stale: boolean, now: number, lang: string, addCard: unknown) {
-    const grouped = this.data?.grouping !== 'none';
-    const groups = groupUnits(shown, this.floor);
-    if (!grouped || (groups.length < 2 && !this.floor)) {
-      return html`<div class="grid" data-temp-grid>${(this.floor ? groups.flatMap((g) => g.units) : shown).map((u) => this.card(u, stale, now, lang))}${addCard}</div>`;
+    const list = this.ordered(shown);
+    const pages = this.pagesOf(shown);
+    const at = this.pageNo(shown);
+    const page = pages > 1 ? list.slice((at - 1) * this.per, at * this.per) : list;
+    if (at < pages) addCard = nothing;
+    const all = groupUnits(shown, this.floor);
+    if (!this.isGrouped(shown)) {
+      return html`<div class="grid" data-temp-grid>${page.map((u) => this.card(u, stale, now, lang))}${addCard}</div>`;
     }
-    return html`<div class="groups" data-temp-groups>${groups.map((g) => {
+    const onPage = new Set(page.map((u) => u.id));
+    return html`<div class="groups" data-temp-groups>${all.map((g) => {
       const open = !this.collapsed.includes(g.key || '-');
+      const here = g.units.filter((u) => onPage.has(u.id));
+      // NOSCROLL-1366-2437: a page shows the groups that have cards on it; a folded group's header stays on the first page
+      if (open ? !here.length : this.pageNo(shown) !== 1) return nothing;
       return html`<section class="group" data-temp-group=${g.key || '-'}>
         <button type="button" class="ghead" aria-expanded=${String(open)} data-look=${groupLook(g, stale)} data-temp-group-toggle=${g.key || '-'}
           aria-label=${tt(open ? 'groupCollapse' : 'groupExpand', { name: g.name })} @click=${() => this.toggleGroup(g.key)}>
           <span class="dot" aria-hidden="true"></span><h2>${g.name}</h2><small>${[g.floor, tt('groupCount', { n: g.units.length })].filter(Boolean).join(' · ')}</small>
           <sw-icon class="chev" name="chevronDown" size="16"></sw-icon></button>
-        ${open ? html`<div class="grid" data-temp-grid>${g.units.map((u) => this.card(u, stale, now, lang))}</div>` : nothing}</section>`;
+        ${open ? html`<div class="grid" data-temp-grid>${here.map((u) => this.card(u, stale, now, lang))}</div>` : nothing}</section>`;
     })}${addCard ? html`<div class="grid">${addCard}</div>` : nothing}</div>`;
+  }
+
+  private pager(shown: TempUnit[]) {
+    const pages = this.pagesOf(shown);
+    return pages > 1 ? html`<sw-pager data-temp-pager .page=${this.pageNo(shown)} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => { this.page = e.detail.page; }}></sw-pager>` : nothing;
   }
 
   private floorBar(list: TempUnit[]) {
     const floors = floorsOf(list);
     if (floors.length < 2 || this.data?.grouping === 'none') return nothing;
     return html`<div class="floors" role="group" aria-label=${tt('floorFilter')} data-temp-floors>
-      <button type="button" aria-pressed=${String(this.floor === null)} data-temp-floor="" @click=${() => { this.floor = null; }}>${tt('allFloors')}</button>
-      ${floors.map((f) => html`<button type="button" aria-pressed=${String(this.floor === f.id)} data-temp-floor=${f.id} @click=${() => { this.floor = this.floor === f.id ? null : f.id; }}>${f.name}</button>`)}</div>`;
+      <button type="button" aria-pressed=${String(this.floor === null)} data-temp-floor="" @click=${() => { this.floor = null; this.page = 1; this.refit(); }}>${tt('allFloors')}</button>
+      ${floors.map((f) => html`<button type="button" aria-pressed=${String(this.floor === f.id)} data-temp-floor=${f.id} @click=${() => { this.floor = this.floor === f.id ? null : f.id; this.page = 1; this.refit(); }}>${f.name}</button>`)}</div>`;
   }
 
   private card(u: TempUnit, stale: boolean, now: number, lang: string) {
@@ -434,6 +546,7 @@ export class InfraTemperature extends LitElement {
     const top = html`<div class="top lead-head"><div><h1>${tt('title')}</h1><p class="sub" data-temp-sub>${stale ? tt('subtitleStale') : tt('subtitle', { n: list.length, d: withDoor })}</p></div><span class="sp"></span>
       <div class="meta">
         ${aff.doneButton ? html`<span class="editbanner"><sw-icon name="edit" size="14"></sw-icon>${tt('editBanner')}</span>` : nothing}
+        ${this.pager(list.filter((u) => matchesKpi(u, this.kpi, stale)))}
         ${list.length ? html`<a class="btn" href=${`${TEMPERATURE_HREF}/log`} data-temp-log><sw-icon name="list" size="16"></sw-icon>${tt('alertLog')}</a>` : nothing}
         ${aff.newButton ? html`<button type="button" class="btn pri" data-temp-new @click=${() => { this.wizard = ''; }}><sw-icon name="plus" size="16"></sw-icon>${tt('newUnit')}</button>` : nothing}
         ${aff.doneButton ? html`<button type="button" class="btn" data-temp-edit-done @click=${() => { this.editing = false; }}><sw-icon name="check" size="16"></sw-icon>${tt('editDone')}</button>` : nothing}

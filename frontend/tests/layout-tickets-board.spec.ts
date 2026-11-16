@@ -48,7 +48,8 @@ test.describe('tickets board layout guard', () => {
         for (const s of SCREENS) {
           await page.unrouteAll({ behavior: 'ignoreErrors' });
           await installBoardMock(page, s.mock ?? {});
-          await page.setViewportSize({ width: 1440, height: 900 });
+          // NOSCROLL-1366-2437: the board pages its groups from 1024 px; the prep step (the closed toggle, the filter) needs them on one page
+          await page.setViewportSize({ width: 1440, height: 2400 });
           await page.goto('about:blank');
           await page.goto(url(s.hash, skin, theme));
           await page.waitForSelector(s.wait, { timeout: 20_000 });

@@ -1,5 +1,37 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.6 (pilot) - 3D map: one pill per room and the room card; no demo when the server is briefly unavailable
+
+### חדש - New
+- מפת התלת־ממד: תווית אחת לכל חדר (מה פתוח, נוכחות, אורות דולקים, טמפרטורה) במקום תווית לכל מכשיר; המכשירים מוצגים אחד־אחד כשמתקרבים לחדר. לחיצה על התווית פותחת חלון פרטים קטן, וממנו את כרטיס החדר. - 3D map: one pill per room (what is open, presence, lights on, temperature) instead of one per device; devices are shown one by one when you come close to a room. A tap on the pill opens a small detail popover, and from it the room card.
+- מפת התלת־ממד: כרטיס חדר - מצלמה (תמונה מתעדכנת כל 5 שניות, וידאו חי בלחיצה), אורות עם "כבה הכול", אקלים, דלתות, חלונות ותריסים. בשולחן העבודה ובטאבלט הכרטיס נפתח בפאנל צד והחדר עובר למרכז; בטלפון כגיליון תחתון. דלתות, שערים והאזעקה מבקשים אישור לפני פעולה; בלי הרשאה מוצג "אין הרשאה". - 3D map: the room card - camera (a still refreshed every 5 seconds, live video on a tap), lights with "turn all off", climate, doors, windows and shutters. On desktop and tablet it opens in a side panel and the room moves to the centre; on a phone as a bottom sheet. Doors, gates and the alarm ask for confirmation first; without a permission it shows "no permission".
+- מפת התלת־ממד: מתג "בניין / פרוס" ליד בחירת הקומות - "פרוס" מרחיק את הקומות זו מזו עם תווית וסיכום לכל קומה; לחיצה ראשונה מגדילה קומה, לחיצה שנייה נכנסת אליה. - 3D map: a "building / spread" switch beside the level chips - "spread" moves the levels apart with a tag and a summary per level; a first tap enlarges a level, a second tap enters it.
+- הגדרות › מפה › "המפה בתלת־ממד": שמונה הגדרות חדשות לכל הבחירות האלה (תווית לחדר או למכשיר, מה קורה בלחיצה, חדר שקט, מיקום הכרטיס, מה מבקש אישור, המצלמה בכרטיס, רקע התצוגה הפרוסה, בחירת קומה). ברירות המחדל הן המתוארות למעלה. - Settings › Map › "3D map": eight new settings for all of these choices (pill per room or per device, what a tap does, a quiet room, where the card opens, what asks for confirmation, the camera in the card, the spread view backdrop, picking a level). The defaults are the ones described above.
+
+### שופר - Improved
+- כשהשרת לא זמין לרגע (למשל בזמן הפעלה מחדש של התוסף) המסך לא עובר יותר למצב הדגמה עם נתונים מדומים: מוצג "אין חיבור לשרת", "מנסה להתחבר שוב…" וכפתור "נסה עכשיו", וכל הפעולות כבויות עד שהשרת עונה. - When the server is briefly unavailable (for example while the add-on restarts) the screen no longer switches to the demo with made-up data: it shows "no connection to the server", "trying to reconnect…" and a "try now" button, and every action stays off until the server answers.
+- חיבור ההרשאות וההתראות החיות מתחדש לבד אחרי שינה של טלפון או ניתוק שקט, וגם כשחוזרים ללשונית. - The live permissions and notifications connection reconnects by itself after a phone sleep or a silent disconnect, and when you return to the tab.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
+## 2.43.5 (pilot) - Control screens that fit without scrolling; a camera change that never writes to the wrong camera; choosing the video service
+
+### חדש - New
+- וידאו: בהגדרות › וידאו ומדיה מוצגים שירותי go2rtc שנמצאו במערכת (מצב, גרסה, האם עונה), ומנהל יכול לבחור באיזה מהם Arx משתמש; הבחירה נשמרת וגוברת על הכתובת שבהגדרות התוסף. Arx עדיין כותב רק זרמים משלו (smplwise_), והרשימה זמינה רק מהרשת המקומית, לא בגישה מרחוק. - Video: Settings › Video and media lists the go2rtc services found on the system (state, version, whether it answers), and an administrator can choose which one Arx uses; the choice is stored and takes precedence over the address in the add-on options. Arx still writes only its own streams (smplwise_), and the list is available only on the local network, not over remote access.
+- וידאו: הגדרת מנהל "התראה על שירות וידאו לא זמין" - אחרי 1 / 5 / 15 / 30 / 60 דקות; ברירת המחדל עכשיו 15 דקות (קודם 5). - Video: an administrator setting "notice when the video service is unavailable" - after 1 / 5 / 15 / 30 / 60 minutes; the default is now 15 minutes (was 5).
+
+### שופר - Improved
+- שלושה עשר מסכי בקרה נכנסים במסך 1366x768 ו־1440x900 בלי גלילה: מצלמה בודדת, בריאות מצלמות, אזעקה, סקירה חיה, גנרטור, טמפרטורות, אזור, פניות (לוח ושלי), מולטימדיה (מסכים, נגנים, קבוצות) ועמדות WisKey. כרטיסים רבים מוצגים בעמודים במקום גלילה; טאבלט וטלפון לא השתנו. - Thirteen control screens fit 1366x768 and 1440x900 without scrolling: single camera, camera health, alarm, live overview, generator, temperatures, area, tickets (board and mine), multimedia (screens, players, groups) and WisKey stations. Many cards are shown in pages instead of scrolling; tablet and phone are unchanged.
+
+### תוקן - Fixed
+- מצלמה בודדת: מעבר למצלמה אחרת בלי לצאת מהמסך מאפס את הטיוטות (רשת תנועה, לוח זמנים, כללים חכמים, שינוי שם); טיוטה שצוירה על מצלמה אחת לא תיכתב יותר להקלטה של מצלמה אחרת, ותשובה מאוחרת של המצלמה הקודמת לא מוצגת על החדשה. - Single camera: switching to another camera without leaving the screen resets the drafts (motion grid, schedule, smart rules, rename); a draft drawn on one camera is no longer written to the recorder for another camera, and a late answer for the previous camera is not shown on the new one.
+- מצלמה בודדת: בדיקת ההקלטה הידנית (כל 15 שניות) נעצרת כשיוצאים מהמסך. - Single camera: the manual-recording check (every 15 seconds) stops when the screen is left.
+- וידאו: ניסיון חוזר לשירות וידאו שלא עונה מחושב נכון גם כשתשובה מגיעה מיד אחרי כישלון (במחשבי Windows זה נראה כ"אין תשובה" והבדיקה חזרה אחרי 10 שניות במקום 60). - Video: the retry towards a video service that does not answer is counted correctly even when an answer arrives right after a failure (on Windows clocks it looked like "no answer" and the check came back after 10 s instead of 60).
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. שירות הווידאו שבשימוש לא משתנה עד שמנהל בוחר אחר. - No new migration, no bridge update and no home-system restart. The video service in use does not change until an administrator chooses another.
+
 ## 2.43.4 (pilot) - Home interface: the alarm in the house log, tickets from the water and systems screens; video stream sync that leaves streams alone
 
 ### חדש - New

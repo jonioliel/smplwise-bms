@@ -188,6 +188,8 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/messaging/whatsapp/test",)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/key/rotate",)
 # TKSECRETS2: the in-app secrets store (values written, the go2rtc / WisKey tests) - local sessions only
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/secrets",)
+# HEALTH-GO2RTC-FOLLOWUP-2431: the video service list and choice (the address every live / playback path uses) - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/video-services",)
 # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) is configured and inspected from local sessions only
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/identity/service-identity",)
 # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key and its rotation are administered from local sessions only

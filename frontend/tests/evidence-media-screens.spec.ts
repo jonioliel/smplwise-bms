@@ -6,6 +6,7 @@ import { ApiError } from '../src/api/client';
 import { resetMediaMock, type MediaMockStore } from '../src/api/media-screens-mock';
 import { mediaAdmin, resetMediaAdminDemo } from '../src/api/media-admin';
 import type { MediaDevice } from '../src/api/media-screens';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // CR-015 S2: the multimedia screens page ("מולטימדיה › מסכים"), its card, the layout editor (installation layout and the
 // personal override), the floor "כבה מסכים" confirmation and the settings page "הגדרות › מולטימדיה". Static preview + a MOCKED
@@ -179,7 +180,8 @@ async function install(page: Page, st: St) {
 const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
 async function open(page: Page, hash: string, size: Size = '1440') {
-  await page.setViewportSize(SIZES[size]);
+  // NOSCROLL-1366-2437: every screen card of the mock on one page at the desktop size (the evidence shot stays 1440x900)
+  await page.setViewportSize(size === '1440' ? { width: 1440, height: 2400 } : SIZES[size]);
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
@@ -193,13 +195,14 @@ async function shot(page: Page, name: string, size: Size) {
   // emulates a Pixel 7 (deviceScaleFactor 2.625); a device-scale capture of the 1440 glass page is 3780x2363 and took ~4.4 s
   // (~0.5 s on desktop), so the view-only test (four loads, three shots) ran past the 60 s test timeout on a loaded
   // workstation (GT2). It also overwrote the committed evidence with images of another size.
-  await page.screenshot({ path: path.join(OUT, `${name}-${size}.png`), scale: 'css' });
+  await page.screenshot({ path: path.join(OUT, `${name}-${size}.png`), scale: 'css', clip: { x: 0, y: 0, ...SIZES[size] } });
 }
 
 const page$ = (page: Page) => page.locator('sw-app multimedia-screens');
 const cards = (page: Page) => page.locator('sw-app multimedia-screens media-screen-card');
 
 test.describe('multimedia screens (mocked backend)', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   let st: St;
 
   test.beforeEach(async ({ page }) => {

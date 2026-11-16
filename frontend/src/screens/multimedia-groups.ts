@@ -6,6 +6,8 @@ import '../components/media-group-dialog';
 import '../components/media-preset-editor';
 import '../components/sw-dialog';
 import '../components/sw-button';
+import '../components/sw-pager';
+import { PageFit } from './multimedia-page-fit';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import type { MediaPresetEditor } from '../components/media-preset-editor';
 import { draftOf } from '../components/media-preset-editor';
@@ -80,6 +82,8 @@ export class MultimediaGroups extends LitElement {
   @query('media-preset-editor') private editor?: MediaPresetEditor;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
+  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private offRoute: (() => void) | null = null;
   private offEdit: (() => void) | null = null;
@@ -529,6 +533,47 @@ export class MultimediaGroups extends LitElement {
         text-decoration: underline;
       }
     }
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, 960 px at 1366x768). Below 1024 px wide - or
+       on a window too short for the header and a row of cards - the region is transparent and the page scrolls as before. From
+       1024 x 560 (outside the editor) the page takes the screen's height and the cards region never scrolls: the cards that fit are
+       page 1, the rest are on the next pages (the pager in the title row). */
+    .scr {
+      display: contents;
+    }
+    @media (min-width: 1024px) and (min-height: 560px) {
+      :host([data-fit]) {
+        overflow: hidden;
+      }
+      :host([data-fit]) .page {
+        block-size: 100%;
+        min-block-size: 0;
+        padding-block-end: 0;
+        gap: var(--sw-s-4);
+      }
+      :host([data-fit]) .scr {
+        display: block;
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow: hidden;
+        margin-inline: -36px;
+        padding: var(--sw-s-1) 36px var(--sw-s-5);
+      }
+      :host([data-fit]) .groups {
+        gap: var(--sw-s-5);
+      }
+      /* the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
+      :host([data-fit]) [data-off] {
+        display: none !important;
+      }
+      /* a group of many rooms keeps one card's height on a page: its room rows (the long part) scroll inside the card, the half row at
+         the edge says there is more */
+      :host([data-fit]) .gcard .members {
+        max-block-size: 160px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+    }
     @media (min-width: 768px) and (max-width: 1099px) {
       .ggrid {
         grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
@@ -954,7 +999,7 @@ export class MultimediaGroups extends LitElement {
   }
 
   /** A live group, a static group or a helper shortcut. */
-  private groupCard(g: MediaGroup, type: 'live' | 'static' | 'helper'): TemplateResult {
+  private groupCard(g: MediaGroup, type: 'live' | 'static' | 'helper', off = false): TemplateResult {
     const leader = this.dev(g.leader_key);
     const v = leader ? playerView(leader) : null;
     const lit = !!v?.rgb && (v.playing || v.paused);
@@ -972,7 +1017,7 @@ export class MultimediaGroups extends LitElement {
       : nothing;
     const showRows = !this.phone || this.byRoom === g.leader_key;
     const toggle = this.phone ? html`<button type="button" class="lnk" data-by-room=${g.leader_key} aria-expanded=${String(this.byRoom === g.leader_key)} @click=${() => (this.byRoom = this.byRoom === g.leader_key ? '' : g.leader_key)}>לפי חדר${mIcon('chevronDown')}</button>` : nothing;
-    return html`<article class=${classMap({ gcard: true, glass: true, lit })} style=${lit ? `--art:${v!.rgb}` : ''} aria-label=${`קבוצה · ${title}`} data-group-card=${g.leader_key} data-group-type=${type}>
+    return html`<article data-fit-item ?data-off=${off} class=${classMap({ gcard: true, glass: true, lit })} style=${lit ? `--art:${v!.rgb}` : ''} aria-label=${`קבוצה · ${title}`} data-group-card=${g.leader_key} data-group-type=${type}>
       <span class="gbox" aria-hidden="true">${lit && v ? html`<div class="art" style=${`--a1:${v.a1};--a2:${v.a2}`}>${v.artwork ? html`<img src=${artworkUrl(v.artwork)} alt="" />` : nothing}</div>` : nothing}</span>
       <header class="gh"><span class="gi">${mIcon('group')}</span><div class="tx"><b>${nameText(bidi(title))}</b><small>${sub}</small></div>
         ${helperToggle}${type === 'live' && this.canGroup ? html`<button type="button" class="btn sm quiet" data-ungroup=${g.leader_key} @click=${() => void this.ungroup(g)}>${mIcon('unlink')}פרק</button>` : nothing}</header>
@@ -982,7 +1027,7 @@ export class MultimediaGroups extends LitElement {
     </article>`;
   }
 
-  private presetCard(p: GroupPreset): TemplateResult {
+  private presetCard(p: GroupPreset, off = false): TemplateResult {
     const rooms = presetRooms(p, this.devices);
     const floors = presetFloors(p, this.devices);
     const run = this.runs.get(p.id);
@@ -1007,7 +1052,7 @@ export class MultimediaGroups extends LitElement {
     const ed = this.editing
       ? html`<span class="ecard"><button type="button" data-preset-edit=${p.id} aria-label=${`ערוך · ${p.name}`} @click=${() => this.editor?.show(draftOf(p))}>${mIcon('edit')}</button><button type="button" data-preset-delete=${p.id} aria-label=${`מחק · ${p.name}`} @click=${() => { this.actionError = ''; this.deleting = p; }}>${mIcon('trash')}</button></span>`
       : nothing;
-    return html`<article class=${classMap({ gcard: true, glass: true, editing: this.editing })} aria-label=${`קבוצה שמורה · ${p.name}`} data-preset=${p.id}>${ed}
+    return html`<article data-fit-item ?data-off=${off} class=${classMap({ gcard: true, glass: true, editing: this.editing })} aria-label=${`קבוצה שמורה · ${p.name}`} data-preset=${p.id}>${ed}
       <header class="gh"><span class="gi src">${mIcon('star')}</span><div class="tx"><b>${nameText(bidi(p.name))}</b><small>${leader ? html`מוביל: ${nameText(bidi(leader.room))}` : nothing}</small></div></header>
       <div class="roomchips">${chips}</div>
       <div class="gfoot">${foot}<span class="grow"></span>${act}</div>
@@ -1019,7 +1064,7 @@ export class MultimediaGroups extends LitElement {
     const n = this.presets.length;
     const sub = [live.length ? html`${live.length === 1 ? html`<em>קבוצה אחת</em> פועלת` : html`<em><span class="n">${live.length}</span></em> קבוצות פועלות`}` : null, n ? html`<span class="n">${n}</span> שמורות` : null].filter(Boolean);
     return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
-      <div class="dh-row"><h1>קבוצות</h1><span class="grow"></span></div>
+      <div class="dh-row"><h1>קבוצות</h1><span class="grow"></span>${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</div>
       ${this.phase === 'ready' && !this.editing && sub.length ? html`<div class="dh-det"><span class="amb">${sub.map((s, i) => html`${i ? ' · ' : ''}${s}`)}</span></div>` : nothing}
     </header>`;
   }
@@ -1047,12 +1092,24 @@ export class MultimediaGroups extends LitElement {
     const { live, static: stat, helpers } = splitGroups(this.groups, this.devices);
     const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.<button type="button" class="btn sm" @click=${() => void this.load()}>נסה שוב</button></div>` : nothing;
     const newBtn = this.canEdit && !this.editing ? html`<button type="button" class="btn sm quiet" data-preset-new @click=${() => this.editor?.show(draftOf(null))}>${mIcon('plus')}קבוצה חדשה</button>` : nothing;
-    const liveSec = html`<section class="fsec" data-section="live"><header class="sh"><div><h2>פועלות עכשיו</h2>${live.length ? html`<small>${plural(live.length, 'קבוצה אחת', 'קבוצות')}</small>` : nothing}</div></header>
-      ${live.length ? html`<div class="ggrid">${live.map((g) => this.groupCard(g, 'live'))}</div>` : this.stateBox('group', 'אין קבוצה פעילה', undefined, true)}</section>`;
     const statics = [...stat.map((g) => ({ g, t: 'static' as const })), ...helpers.map((g) => ({ g, t: 'helper' as const }))];
-    const staticSec = statics.length ? html`<section class="fsec" data-section="static"><header class="sh"><div><h2>קבוצות קבועות</h2><small>${plural(statics.length, 'קבוצה אחת', 'קבוצות')}</small></div></header><div class="ggrid">${statics.map((x) => this.groupCard(x.g, x.t))}</div></section>` : nothing;
-    const savedSec = html`<section class="fsec" data-section="saved"><header class="sh"><div><h2>קבוצות שמורות</h2><small><span class="n">${this.presets.length}</span> שמורות</small></div><span class="grow"></span>${newBtn}</header>
-      ${this.presets.length ? html`<div class="ggrid">${this.presets.map((p) => this.presetCard(p))}</div>` : this.stateBox('group', 'אין קבוצות שמורות', undefined, true)}</section>`;
+    // NOSCROLL-1366-2437: the cards of the three sections in reading order are paged together on a desktop; a section shows its cards of
+    // this page, an empty section's notice shows on the first page (live) or the last page (saved)
+    this.fit.sync(live.length + statics.length + this.presets.length, `${live.map((g) => g.leader_key).join(',')}|${statics.map((x) => x.g.leader_key).join(',')}|${this.presets.map((p) => p.id).join(',')}|${this.phone}`);
+    const first = this.fit.page === 1;
+    const last = this.fit.page === this.fit.pages;
+    // the cards of the other pages are drawn out of the layout ([data-off]); so is a section with nothing on this page
+    const liveOff = (i: number) => !this.fit.shows(i);
+    const staticOff = (i: number) => !this.fit.shows(live.length + i);
+    const savedOff = (i: number) => !this.fit.shows(live.length + statics.length + i);
+    const liveNone = live.length ? live.every((_, i) => liveOff(i)) : !first;
+    const staticNone = statics.every((_, i) => staticOff(i));
+    const savedNone = this.presets.length ? this.presets.every((_, i) => savedOff(i)) : !last;
+    const liveSec = html`<section class="fsec" ?data-off=${liveNone} data-section="live"><header class="sh"><div><h2>פועלות עכשיו</h2>${live.length ? html`<small>${plural(live.length, 'קבוצה אחת', 'קבוצות')}</small>` : nothing}</div></header>
+      ${live.length ? html`<div class="ggrid">${live.map((g, i) => this.groupCard(g, 'live', liveOff(i)))}</div>` : this.stateBox('group', 'אין קבוצה פעילה', undefined, true)}</section>`;
+    const staticSec = statics.length ? html`<section class="fsec" ?data-off=${staticNone} data-section="static"><header class="sh"><div><h2>קבוצות קבועות</h2><small>${plural(statics.length, 'קבוצה אחת', 'קבוצות')}</small></div></header><div class="ggrid">${statics.map((x, i) => this.groupCard(x.g, x.t, staticOff(i)))}</div></section>` : nothing;
+    const savedSec = html`<section class="fsec" ?data-off=${savedNone} data-section="saved"><header class="sh"><div><h2>קבוצות שמורות</h2><small><span class="n">${this.presets.length}</span> שמורות</small></div><span class="grow"></span>${newBtn}</header>
+      ${this.presets.length ? html`<div class="ggrid">${this.presets.map((p, i) => this.presetCard(p, savedOff(i)))}</div>` : this.stateBox('group', 'אין קבוצות שמורות', undefined, true)}</section>`;
     return html`${stale}${this.editing ? this.editBar() : nothing}<div class="groups" data-mm-state="ready">${liveSec}${staticSec}${savedSec}</div>`;
   }
 
@@ -1067,8 +1124,13 @@ export class MultimediaGroups extends LitElement {
       </div></sw-dialog>`;
   }
 
+  protected willUpdate() {
+    this.toggleAttribute('data-fit', this.fit.on);
+  }
+
   render() {
-    return html`<div class="page" data-screen="multimedia-groups">${this.header()}${this.body()}</div>
+    const body = this.body(); // first: it tells the pager in the header how many cards there are
+    return html`<div class="page" data-screen="multimedia-groups">${this.header()}${this.editing ? body : html`<div class="scr" data-mm-region>${body}</div>`}</div>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     <media-preset-editor .devices=${this.devices} @preset-saved=${() => { this.say('נשמר'); void this.load(); }} @preset-stale=${() => void this.load()}></media-preset-editor>
     ${this.deleteDialog()}

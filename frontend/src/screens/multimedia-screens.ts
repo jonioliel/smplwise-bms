@@ -8,6 +8,8 @@ import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/media-screen-card';
 import '../components/media-bulk-dialog';
+import '../components/sw-pager';
+import { PageFit } from './multimedia-page-fit';
 import './multimedia-edit-panel';
 import type { MediaBulkDialog } from '../components/media-bulk-dialog';
 import { ApiError, describeError } from '../api/client';
@@ -95,6 +97,8 @@ export class MultimediaScreens extends LitElement {
   private pushedRemote = false;
   private loading = false;
   private homeFloorsLoaded = false;
+  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
 
   static styles = [mediaGlassStyles, leadReserveStyles, liftedReset, css`
     :host {
@@ -568,6 +572,40 @@ export class MultimediaScreens extends LitElement {
         grid-column: auto;
       }
     }
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, 549 px at 1366x768). Below 1024 px wide - or on a
+       window too short for the header and a row of cards - the region is transparent and the page scrolls as before. From 1024 x 560
+       (outside the layout editor) the page takes the screen's height, the header stays and the cards region never scrolls: the cards
+       that fit are page 1, the rest are on the next pages (the pager in the filter row). */
+    .scr {
+      display: contents;
+    }
+    @media (min-width: 1024px) and (min-height: 560px) {
+      :host([data-fit]) {
+        overflow: hidden;
+      }
+      :host([data-fit]) .page {
+        block-size: 100%;
+        min-block-size: 0;
+        padding-block-end: 0;
+        gap: var(--sw-s-4);
+      }
+      :host([data-fit]) .scr {
+        display: block;
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow: hidden;
+        /* the region spans the page's side padding, so a card's shadow and focus ring are never cut at the sides */
+        margin-inline: -36px;
+        padding: var(--sw-s-1) 36px var(--sw-s-5);
+      }
+      :host([data-fit]) .groups {
+        gap: var(--sw-s-5);
+      }
+      /* the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
+      :host([data-fit]) [data-off] {
+        display: none !important;
+      }
+    }
   `];
 
   connectedCallback() {
@@ -900,16 +938,19 @@ export class MultimediaScreens extends LitElement {
     </span>`;
   }
 
-  private card(d: MediaDevice, size: Size, index: number, count: number): TemplateResult {
+  private card(d: MediaDevice, size: Size, index: number, count: number, paged = false): TemplateResult {
     const edit = this.editing && !!this.draft;
     const off = edit && !cardOf(this.draft!, d.key).on;
-    return html`<media-screen-card class=${classMap({ l: size === 'l' })} data-screen-card=${d.key} .device=${d} .size=${size} ?compact=${this.phone} ?editing=${edit} ?data-dimmed=${off}
+    return html`<media-screen-card class=${classMap({ l: size === 'l' })} data-fit-item ?data-off=${paged} data-screen-card=${d.key} .device=${d} .size=${size} ?compact=${this.phone} ?editing=${edit} ?data-dimmed=${off}
       @open-remote=${(e: CustomEvent<{ key: string }>) => this.openRemote(e.detail.key)} @media-changed=${() => this.scheduleRefresh(isApi() ? 700 : 30)}>${edit ? this.chips(d, index, count, size) : nothing}</media-screen-card>`;
   }
 
   /** `only`: the page shows this one group - its heading would repeat the filter chip (or, for the no-floor bucket of an installation without floors, say "ללא שיוך" about screens that do have a room), so it is left out. */
-  private group(g: CardGroup, only = false): TemplateResult {
+  private group(g: CardGroup, only = false, offset = 0): TemplateResult {
     const all = g.items.map((i) => i.device);
+    // NOSCROLL-1366-2437: the cards of the other pages are drawn out of the layout ([data-off]); so is a group with none on this page
+    const off = (idx: number) => !this.fit.shows(offset + idx);
+    const none = g.items.every((_, idx) => off(idx));
     const counts = countsOf(all);
     const target = this.editing ? null : this.floorOfGroup(g);
     const sameScope = this.devices.filter((d) => (target?.scope === 'area' ? (d.area_id ?? '') === target.id : target ? (d.floor_id ?? NO_FLOOR) === target.id : false));
@@ -921,11 +962,11 @@ export class MultimediaScreens extends LitElement {
       : html`<h2><button type="button" class="shlink" data-group-open=${g.id} @click=${() => this.setFilters(target.scope === 'area' ? { area: g.id } : { floor: g.id, area: '' })}>${bidi(g.label)}${mIcon('chevronBack')}</button></h2>`;
     const lit = all.filter((d) => isLit(d.live)).length;
     if (only && !this.editing && (g.id === 'none' || g.id === NO_FLOOR) && !offBtn) {
-      return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}><div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length))}</div></section>`;
+      return html`<section class="fsec" ?data-off=${none} aria-label=${g.label} data-group=${g.id}><div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length, off(idx)))}</div></section>`;
     }
-    return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}>
+    return html`<section class="fsec" ?data-off=${none} aria-label=${g.label} data-group=${g.id}>
       <header class="sh"><div>${title}<small><span class="n">${counts.total}</span> ${counts.total === 1 ? 'מסך' : 'מסכים'}${lit ? html` · <em><span class="n">${lit}</span></em> פועלים` : nothing}</small></div><span class="grow"></span>${offBtn}</header>
-      <div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length))}</div>
+      <div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length, off(idx)))}</div>
     </section>`;
   }
 
@@ -954,6 +995,7 @@ export class MultimediaScreens extends LitElement {
       ${tools ? html`<div class="dh-det">
         <span class="amb"><em><span class="n">${c.on}</span></em> פועלים מתוך <span class="n">${c.total}</span>${c.un ? html` · <span class="n">${c.un}</span> לא זמין` : nothing}</span>
         <span class="grow"></span>
+        ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
         <div class="seg sm" role="radiogroup" aria-label="סינון לפי מצב">${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilters({ state: s.id as StateFilter })}>${s.label}${s.id === 'on' ? html` <small>${c.on}</small>` : s.id === 'un' && c.un ? html` <small>${c.un}</small>` : nothing}</button>`)}</div>
         <label class="search">${mIcon('search')}<span class="vh">חיפוש מסך</span><input type="search" data-search placeholder="חיפוש מסך או חדר" .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
       </div>` : nothing}
@@ -1048,16 +1090,24 @@ export class MultimediaScreens extends LitElement {
     if (!groups.length) {
       return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו מסכים', filtersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
     }
-    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g) => this.group(g, groups.length === 1))}</div>`;
+    let offset = 0;
+    const offsets = groups.map((g) => ((offset += g.items.length), offset - g.items.length));
+    this.fit.sync(offset, `${groups.map((g) => `${g.id}:${g.items.map((i) => `${i.device.key}/${i.size}`).join(',')}`).join('|')}|${this.phone}`);
+    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g, gi) => this.group(g, groups.length === 1, offsets[gi]))}</div>`;
+  }
+
+  protected willUpdate() {
+    this.toggleAttribute('data-fit', this.fit.on);
   }
 
   render() {
+    const body = this.body(); // first: it tells the pager in the header how many cards there are
     return html`<div class="page" data-screen="multimedia">
       ${this.header()}
       ${this.editing && this.draft
         ? html`<div class="editing-stack">${this.editBar()}</div>
-          <div class="edit-layout"><multimedia-edit-panel class="edit-side" .draft=${this.draft} .devices=${this.devices} .scope=${this.scope} .floors=${floorsOf(this.devices, this.draft)} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${this.body()}</div></div>`
-        : this.body()}
+          <div class="edit-layout"><multimedia-edit-panel class="edit-side" .draft=${this.draft} .devices=${this.devices} .scope=${this.scope} .floors=${floorsOf(this.devices, this.draft)} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${body}</div></div>`
+        : html`<div class="scr" data-mm-region>${body}</div>`}
     </div>
     <media-bulk-dialog @bulk-done=${() => void this.load()}></media-bulk-dialog>
     ${this.confirmDialog()}

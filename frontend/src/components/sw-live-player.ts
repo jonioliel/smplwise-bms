@@ -2,8 +2,9 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
-import { can, cap, isApi } from '../api/session';
+import { can, cap, isApi, onRemote } from '../api/session';
 import { frameSaysDown, isDownState, videoService, VIDEO_SERVICE_DOWN_HE, VIDEO_SERVICE_HINT_ADMIN, VIDEO_SERVICE_HINT_OTHER } from '../api/video-service';
+import './sw-video-service-picker';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mainFirst, mseFirst, noteSubDown, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, subDown, subFallbackStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type SubFallbackReason, type VideoStep } from '../api/video-policy';
@@ -312,6 +313,12 @@ export class SwLivePlayer extends LitElement {
     .center .hint {
       font-size: var(--sw-fs-2xs);
       opacity: 0.75;
+    }
+    /* HEALTH-GO2RTC-FOLLOWUP-2431: the administrator's choice of video service inside the "video service unavailable" notice */
+    .center sw-video-service-picker {
+      inline-size: min(340px, 100%);
+      text-align: start;
+      color: var(--sw-on-video);
     }
     /* WARMUP-POLISH-2421: the viewer's retry when the video server does not answer */
     .center .again {
@@ -1705,7 +1712,7 @@ export class SwLivePlayer extends LitElement {
       ${this.stillNotice ? nothing : this.status === 'error' && this.capped
         ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
         : this.status === 'error'
-          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>נסה שוב</button>` : nothing}</div></div>`
+          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.serviceDown && !this.compact && can('system.configure') && !onRemote() ? html`<sw-video-service-picker compact data-video-service-picker></sw-video-service-picker>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>נסה שוב</button>` : nothing}</div></div>`
           : nothing}
       ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>` : nothing}
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}

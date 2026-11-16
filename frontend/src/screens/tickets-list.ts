@@ -10,6 +10,8 @@ import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (
 import '../tickets/intake-queue'; // CR-INTAKE99: free-text requests waiting for approval (a chip only while the caller may handle them and one waits)
 import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top of "שלי" (owner decision, question 4 b)
+import '../components/sw-pager';
+import { PAGED_MQ, gridCols, packPages, rowGap } from './tickets-pages';
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
@@ -85,6 +87,26 @@ export class TicketsList extends LitElement {
   @state() private view: BoardView = 'cards'; // CR-038 S6b (D24): cards | table, the user's tickets.board.view
   /** TKCAL: the weekly calendar mode (per tab; the cards / table preference above is the server's) */
   @state() private cal = calendarWanted();
+  /** NOSCROLL-1366-2437: on a desktop the cards are cut into pages that fit the room under the numbers (whole rows, measured); the pager sits
+   *  on the toolbar row. `fit` = the measured room / columns / row height (null until measured: everything is drawn once and measured). */
+  @state() private paged = window.matchMedia(PAGED_MQ).matches;
+  @state() private cardPage = 1;
+  @state() private fit: { room: number; cols: number; rowH: number; gap: number } | null = null;
+  private pagedMq = window.matchMedia(PAGED_MQ);
+  private onPaged = () => {
+    this.paged = this.pagedMq.matches;
+    this.fit = null;
+    this.rowMax = 0;
+    this.cardH.clear();
+  };
+  private rowMax = 0;
+  /** the tallest each card was seen (by request id): a row of the pages is as tall as its tallest card */
+  private cardH = new Map<string, number>();
+  private fitObserver: ResizeObserver | null = null;
+  private fitBox: Element | null = null;
+  /** the pages of the current render (counted in render() before the toolbar is drawn) */
+  private pageCount = 1;
+  private pageKey = '';
   /** TKUI4: the page frame's counts (scope, state, department) and the filter row over the held cards */
   @state() private counts: ListCounts = NO_COUNTS;
   @state() private filterOpen = false;
@@ -172,6 +194,27 @@ export class TicketsList extends LitElement {
         padding-inline: 24px;
       }
     }
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the cards view is paged - the
+       numbers stay, the cards take the room left (.pgbox: its height is set by the layout, never by the cards) and show the rows that fit;
+       the pager is on the toolbar row. The region keeps overflow: auto only as the fallback of a window shorter than one row of cards. */
+    .lpager {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: none;
+    }
+    @media (min-width: 1024px) {
+      .scr.paged {
+        padding-block-end: 20px;
+      }
+      .scr.paged > .pgbox {
+        flex: 1 1 0;
+        min-block-size: 0;
+      }
+      .pgbox > .cgrid {
+        align-content: start;
+      }
+    }
     .flt {
       position: fixed;
       inset-block-end: 24px;
@@ -212,6 +255,7 @@ export class TicketsList extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    this.pagedMq.addEventListener('change', this.onPaged);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
@@ -222,12 +266,27 @@ export class TicketsList extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    this.pagedMq.removeEventListener('change', this.onPaged);
+    this.fitObserver?.disconnect();
+    this.fitObserver = null;
+    this.fitBox = null;
     this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     window.clearInterval(this.clock);
     this.live.stop();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.toastTimer);
+  }
+
+  /** NOSCROLL-1366-2437: the pages of cards (hidden when one page holds them) and, on the last page, "load more" of the server's next page. */
+  private pagerRow(): TemplateResult | typeof nothing {
+    const at = Math.min(Math.max(1, this.cardPage), this.pageCount);
+    const more = !!this.next && at === this.pageCount;
+    if (this.pageCount <= 1 && !more) return nothing;
+    return html`<span class="lpager">
+      ${more ? html`<button type="button" class="btn sm" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.loadPage(true)}>${tt('loadMore')}</button>` : nothing}
+      ${this.pageCount > 1 ? html`<sw-pager data-tickets-pager .page=${at} .pages=${this.pageCount} @page-change=${(e: CustomEvent<{ page: number }>) => (this.cardPage = e.detail.page)}></sw-pager>` : nothing}
+    </span>`;
   }
 
   /** TKUI4: the large title compacts while the page scrolls (the schedules page's rule: a layer over the title row, never a change of height) */
@@ -240,6 +299,49 @@ export class TicketsList extends LitElement {
 
   protected updated(): void {
     measureHeaderBar(this.renderRoot, this.phone);
+    this.watchFit();
+  }
+
+  /** The cards are paged: a desktop, the cards view (not the calendar, not the table), the list drawn. */
+  private pagedCards(): boolean {
+    return this.paged && this.view !== 'table' && !this.cal && this.screen === 'ready';
+  }
+
+  /** Observe the pages box (its height is the room the layout leaves it, not its content) and measure after every draw. */
+  private watchFit() {
+    const box = this.pagedCards() ? this.renderRoot.querySelector('[data-tickets-pages]') : null;
+    if (box !== this.fitBox) {
+      this.fitObserver?.disconnect();
+      this.fitObserver = null;
+      this.fitBox = box;
+      if (box && typeof ResizeObserver !== 'undefined') {
+        this.fitObserver = new ResizeObserver(() => this.measureFit());
+        this.fitObserver.observe(box);
+      }
+    }
+    if (box) this.measureFit();
+  }
+
+  private measureFit() {
+    const box = this.fitBox as HTMLElement | null;
+    if (!box || !box.isConnected) return;
+    const grid = box.querySelector('[data-tickets-grid]');
+    const cards = grid ? [...grid.querySelectorAll<HTMLElement>(':scope > ticket-card')] : [];
+    if (!grid || !cards.length) return;
+    // a row is as tall as its tallest card; the tallest card seen so far keeps every page inside the room (it only grows: no loop)
+    this.rowMax = Math.max(this.rowMax, ...cards.map((c) => c.offsetHeight));
+    let grew = false;
+    for (const c of cards) {
+      const id = (c as unknown as { item?: { id?: string } }).item?.id;
+      if (id && c.offsetHeight > (this.cardH.get(id) ?? 0)) {
+        this.cardH.set(id, c.offsetHeight);
+        grew = true;
+      }
+    }
+    if (grew && this.fit) this.fit = { ...this.fit };
+    const next = { room: box.clientHeight, cols: gridCols(grid), rowH: this.rowMax, gap: rowGap(grid) };
+    const f = this.fit;
+    if (!f || f.room !== next.room || f.cols !== next.cols || f.rowH !== next.rowH || f.gap !== next.gap) this.fit = next;
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
@@ -253,7 +355,14 @@ export class TicketsList extends LitElement {
         this.pendingQ = null;
       }
       if (this.screen === 'ready' || this.screen === 'error') this.reloadIfNeeded();
+      // a new scope or filter starts at the first page of cards (opening a request - the drawer's address - keeps the page)
+      const key = `${this.r.scope}|${JSON.stringify(this.r.filters)}`;
+      if (key !== this.pageKey) {
+        this.pageKey = key;
+        this.cardPage = 1;
+      }
     }
+    if ((changed as Map<PropertyKey, unknown>).has('filters')) this.cardPage = 1; // a private state: not in PropertyValues<this>
   }
 
   // ---------------------------------------------------------------- data
@@ -528,6 +637,7 @@ export class TicketsList extends LitElement {
           <tickets-intake-chip @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-intake-chip>
           ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         </span>
+        ${this.pagedCards() ? this.pagerRow() : nothing}
         ${this.phone ? panel : nothing}
       </div>` : nothing}
     </header>`;
@@ -581,18 +691,30 @@ export class TicketsList extends LitElement {
       return html`<tickets-calendar .items=${shown} .now=${this.now} .hrefOf=${(id: string) => this.hrefOf(id)} .roleOf=${(t: TicketItem) => roleFor(t, this.meta)}
         .hasMore=${!!this.next} .loadingMore=${this.loadingMore} .openId=${this.r.ticketId} @cal-load-more=${() => void this.loadPage(true)}></tickets-calendar>`;
     }
-    return html`<div class="cgrid" data-tickets-grid>${repeat(shown, (t) => t.id, (t) => html`<ticket-card .item=${t} .role=${roleFor(t, this.meta)} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`)}</div>
+    const grid = (list: readonly CardItem[]) => html`<div class="cgrid" data-tickets-grid>${repeat(list, (t) => t.id, (t) => html`<ticket-card .item=${t} .role=${roleFor(t, this.meta)} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`)}</div>`;
+    if (this.pagedCards()) {
+      // NOSCROLL-1366-2437: the page of cards that fits; "load more" moves onto the toolbar row beside the pager
+      const f = this.fit;
+      const pages = f ? packPages([{ id: 'list', head: false, groups: [{ key: 'all', sub: false, items: shown, cols: f.cols, rowH: f.rowH, gap: f.gap, heightOf: (t) => this.cardH.get(t.id) }] }], { room: f.room, headH: 0, subH: 0, secGap: 0, inGap: 0, blkGap: 0 }) : [];
+      this.pageCount = Math.max(1, pages.length);
+      const at = Math.min(Math.max(1, this.cardPage), this.pageCount);
+      const list = f ? pages[at - 1]?.[0]?.groups[0]?.items ?? [] : shown;
+      return html`<div class="pgbox" data-tickets-pages data-page=${at} data-pages=${this.pageCount}>${grid(list)}</div>`;
+    }
+    return html`${grid(shown)}
       ${this.next ? html`<div class="more"><button type="button" class="btn" data-load-more ?disabled=${this.loadingMore} @click=${() => void this.loadPage(true)}>${tt('loadMore')}</button></div>` : nothing}`;
   }
 
   render() {
     const ui = this.module?.ui;
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
+    this.pageCount = 1;
+    const body = this.body(); // first: it counts the pages the toolbar's pager shows
     return html`<div class="page" data-screen="tickets-list" data-scope=${this.r.scope}>
       ${this.header()}
-      <div class=${`scr${this.view === 'table' && !this.cal && this.screen === 'ready' ? ' fill' : ''}`} data-tickets-scroll>
+      <div class=${`scr${this.view === 'table' && !this.cal && this.screen === 'ready' ? ' fill' : ''}${this.pagedCards() ? ' paged' : ''}`} data-tickets-scroll>
         ${this.r.scope === 'mine' && this.screen === 'ready' ? html`<tickets-my-numbers .module=${this.module} .manager=${!!this.meta?.can.manage} .source=${this.items}></tickets-my-numbers>` : nothing}
-        ${this.body()}
+        ${body}
       </div>
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}

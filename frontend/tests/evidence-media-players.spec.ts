@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { ADMIN, EDITOR, OPERATOR, SIZES, VIEW_ONLY, fresh, groupsPage, hashOf, install, open, pcards, playersPage, sectionIds, shot, type St } from './media-players-harness';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // CR-016 S2: the players page ("מולטימדיה › נגנים ורמקולים"), its card, the floor "עצור מוזיקה" confirmation, the layout editor of the tab and
 // the groups page ("קבוצות": live groups, static groups, saved groups, the editor), in demo / mock mode: a MOCKED backend (page.route on
@@ -22,6 +23,7 @@ async function openMenuAction(page: Page, id: string) {
 }
 
 test.describe('players page (mocked backend)', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   let st: St;
   test.beforeEach(async ({ page }) => {
     st = fresh(ADMIN);
@@ -395,6 +397,7 @@ test.describe('players page (mocked backend)', () => {
 });
 
 test.describe('groups page (mocked backend)', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   let st: St;
   test.beforeEach(async ({ page }) => {
     st = fresh(ADMIN);

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { installDtMock, newDtMock, type DtMock } from './wiskey-door-tech-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // WISKEY-DOOR-TECH-2390 - door technical writes in the stations drawer ("הגדרות דלת" -> "ניהול טכני של הדלתות"), behind the real
 // shell, against a MOCKED backend (tests/wiskey-stations-mocks.ts + tests/wiskey-door-tech-mocks.ts: invented stations, no station, no
@@ -62,6 +63,7 @@ const dialogText = (page: Page) => inDt(page, 'sw-dialog[data-wk-dt-dialog]').ev
 });
 
 test.describe('door technical writes', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.beforeEach(({}, info) => test.skip(info.project.name === 'tablet', 'desktop and phone only'));
 

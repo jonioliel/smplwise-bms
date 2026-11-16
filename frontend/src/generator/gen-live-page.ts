@@ -193,9 +193,10 @@ export class GenLivePage extends LitElement {
         <div class="card hero-card ${stale ? 'stale' : ''}" data-card="flow"><div class="hd"><span class="h3">${G.live.flowTitle}</span><div class="sp"></div>${chip}</div>${flowSvg(plan, { id: 'live', vertical: this.phone, name: d.name, still: window.matchMedia('(prefers-reduced-motion: reduce)').matches })}</div>
         ${this.engineCard(plan.engine, stale)}
       </div>
-      ${modeSwitch}
-      ${this.view === 'gauges' ? dials : charts}
-      ${table ? this.phaseCard(table, stale, plan.engine === 'running') : nothing}
+      <div class="lower ${table ? '' : 'one'}" data-gen-lower>
+        <div class="meters">${modeSwitch}${this.view === 'gauges' ? dials : charts}</div>
+        ${table ? this.phaseCard(table, stale, plan.engine === 'running') : nothing}
+      </div>
     </div>`;
   }
 }
