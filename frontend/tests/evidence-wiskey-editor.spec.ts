@@ -61,6 +61,9 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
   const rows = (page: Page) => page.locator(`${SCREEN} sw-table[data-wiskey-people-table] tbody tr`);
   const editor = (page: Page) => page.locator(EDITOR);
   const field = (page: Page, name: string) => editor(page).locator(`[data-wiskey-editor-${name}]`);
+  // DIALOG-DRAWER-ONE-2439: the editor is the shared sw-dialog (xl) - its ✕ is the dialog's own round close button
+  // (data-dialog-close), no longer the editor's data-wiskey-editor-cancel
+  const closeX = (page: Page) => editor(page).locator('sw-dialog[xl] [data-dialog-close]');
 
   async function openPeople(page: Page) {
     await page.goto(`/?design=a${HREF}`);
@@ -247,7 +250,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect(await domHolds(page, PIN)).toBe(false);
     expect(await domHolds(page, CARD)).toBe(false);
     await page.screenshot({ path: testInfo.outputPath('wiskey-editor-edit-form.png'), fullPage: true });
-    await field(page, 'cancel').click();
+    await closeX(page).click();
     await expect(editor(page)).toHaveCount(0);
   });
 
@@ -408,7 +411,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await field(page, 'pin-hide').click();
     await expect(field(page, 'pin-reveal')).toHaveCount(0);
     expect(await clearTextHolds(page, second)).toBe(false);
-    await field(page, 'cancel').click();
+    await closeX(page).click();
     await field(page, 'close-discard').click();
     await expect(editor(page)).toHaveCount(0);
     expect(await domHolds(page, second)).toBe(false); // closing drops the draft, password fields included
@@ -490,7 +493,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       expect((await control.post('/mode', { data: { people: 'accept' } })).status()).toBe(200);
     }
     // an unknown outcome on a NEW person says to look the employee number up in the directory
-    await field(page, 'cancel').click();
+    await closeX(page).click();
     await field(page, 'close-discard').click();
     await expect(editor(page)).toHaveCount(0);
   });

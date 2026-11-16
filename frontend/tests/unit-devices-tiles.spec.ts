@@ -175,7 +175,7 @@ test.describe('overview tiles (demo data)', () => {
     expect(await focusInside(page, 'sw-kpi')).toBe(true);
   });
 
-  test('focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert', async ({ page }) => {
+  test('focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert', async ({ page }, testInfo) => {
     await open(page, '/devices/building');
     const b = page.locator('devices-building');
     await b.locator('sw-kpi[data-tile-kind="covers"] button.hit').click();
@@ -190,8 +190,16 @@ test.describe('overview tiles (demo data)', () => {
       await page.keyboard.press('Shift+Tab');
       expect(await focusInside(page, 'devices-tiles-panel'), `Shift+Tab #${i + 1}`).toBe(true);
     }
-    // a press on the dimmed backdrop closes it
-    await page.mouse.click(10, 10); // the inline end (left in RTL) on a desktop, above the sheet on a phone
+    // a press on the dimmed backdrop closes it (the inline end - left in RTL - on a desktop and a tablet). DIALOG-DRAWER-ONE-2439
+    // (owner round 33, Q-DES-8B a): on a phone the modal drawer is the full screen, so there is no backdrop to press - the round
+    // close button on top closes it there, and a press inside the panel must NOT close it.
+    if (testInfo.project.name === 'mobile') {
+      await page.mouse.click(10, 10);
+      await expect(b.locator('devices-tiles-panel')).toHaveAttribute('open', '');
+      await b.locator('devices-tiles-panel sw-drawer [data-drawer-close]').click();
+    } else {
+      await page.mouse.click(10, 10);
+    }
     await expect(b.locator('devices-tiles-panel')).not.toHaveAttribute('open', '');
   });
 

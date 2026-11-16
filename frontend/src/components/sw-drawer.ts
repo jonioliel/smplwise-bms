@@ -105,33 +105,55 @@ export class SwDrawer extends LitElement {
       display: none;
     }
     /* the entrance: the panel is revealed from its own edge on the drawer curve (apple-design: a surface enters along the edge it is
-       attached to). A clip-path reveal (emil-design-eng: clip-path as a motion tool), not a transform: the panel never leaves its
+       attached to). A mask reveal (see the keyframes: a clip-path would also cut hit-testing), not a transform: the panel never leaves its
        resting place - nothing is ever outside the viewport, a measurement taken mid-way is already the final one, and the panel never
        carries a transform (which would become the containing block of a fixed element inside it). One-shot keyframes (an entrance is
        never reversed; there is no exit animation), not filled forwards: the resting panel has no clip and keeps its shadow.
        Durations are tokens, so reduced motion (css.ts) shows it in place. */
+    /* DIALOG-DRAWER-ONE-2439 r2: a MASK reveal, not clip-path - a clip-path also cuts the clipped part out of hit-testing, so a press on
+       the panel while it was still entering fell through (on a phone sheet it reached the page or the backdrop) and a drag started there
+       was lost. A mask hides the same part while the panel keeps receiving every press at its resting place. The mask lives only in the
+       keyframes: the resting panel carries no mask (a mask would cut its shadow). */
     @keyframes drawer-in-rtl {
       from {
-        clip-path: inset(0 0 0 100%);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: right;
+        mask-size: 0% 100%;
       }
       to {
-        clip-path: inset(0 0 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: right;
+        mask-size: 100% 100%;
       }
     }
     @keyframes drawer-in-ltr {
       from {
-        clip-path: inset(0 100% 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: left;
+        mask-size: 0% 100%;
       }
       to {
-        clip-path: inset(0 0 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: left;
+        mask-size: 100% 100%;
       }
     }
     @keyframes sheet-rise {
       from {
-        clip-path: inset(100% 0 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: bottom;
+        mask-size: 100% 0%;
       }
       to {
-        clip-path: inset(0 0 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: bottom;
+        mask-size: 100% 100%;
       }
     }
     aside.panel,

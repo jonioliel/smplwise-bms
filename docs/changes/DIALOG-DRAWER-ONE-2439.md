@@ -156,6 +156,23 @@ without it); `evidence-camera-card` (fixture-only) - the enlarged camera picture
 assistant was not opened in a browser; left-to-right (English) in a browser; a physical phone; other skins than Domus / classic /
 crystal / bubble for the new spec (tesla, soft, infra are not measured).
 
+## Entry check r2 (2026-11-16): the four failures of the entry check at 3e797aaac
+
+Verdict `~/smplwise-results/entry_pilot-DIALOG-DRAWER-ONE-2439_3e797aaac.md` was RED with 4 failures (each failed its retry too).
+
+| Failure | Cause | Fix |
+|---|---|---|
+| `evidence-tickets-map-internal.spec.ts:220` [mobile] picker replace and cancel | The phone sheet's entrance was a `clip-path` reveal. A clip-path also removes the clipped part from hit-testing, so the press on the plan right after the picker opened (the sheet still rising) fell through to the scrim, which closed the picker; `[data-map-save]` never came. A real fast tap does the same. | **Product.** `sw-dialog` and `sw-drawer` reveal with a mask instead (`mask-size` animated in the keyframes only, the same visible reveal from the same edge): a masked box still receives every press at its resting place. Checked in Chromium: `elementFromPoint` on a clipped point returns the layer below, on a masked point the box. |
+| `evidence-shell.spec.ts:671` [mobile] tab order: drag, save | Same cause: the drag on the order dialog's handle starts right after it opens; the press landed on the scrim under the still-clipped sheet, so no drag happened. | The same mask reveal. |
+| `evidence-wiskey-people-writes.spec.ts:557` [desktop] PIN generation | The editor moved onto the shared `sw-dialog xl`; its own ✕ with `data-wiskey-editor-cancel` is gone (the dialog's round close button replaced it), so the spec waited for a button that no longer exists. | **Spec** (intended design: one close button, the dialog's own). `sw-dialog`'s ✕ now carries `data-dialog-close` (as `sw-drawer`'s carries `data-drawer-close`); `evidence-wiskey-people-writes`, `evidence-wiskey-editor`, `evidence-wiskey-capture` press `sw-dialog[xl] [data-dialog-close]` inside the editor. |
+| `unit-devices-tiles.spec.ts:178` [mobile] focus trap, backdrop press closes | Q-DES-8B a: on a phone the modal drawer is the full screen (it was an 88dvh sheet), so (10,10) is inside the panel - there is no backdrop to press. The trap and inert parts passed. | **Spec** (intended design). On the mobile project the spec now checks that a press inside the full-screen panel does NOT close it and closes it with the round ✕; desktop / tablet keep the backdrop press. |
+
+Workstation (2026-11-16), after `npx tsc --noEmit` (exit 0) and `npm run build`, one worker, own preview port: `evidence-shell.spec.ts:671`,
+`evidence-tickets-map-internal.spec.ts:220`, `unit-devices-tiles.spec.ts:178` on mobile - 3 passed; `evidence-wiskey-people-writes` "PIN
+generation is offered ..." on desktop - 1 passed. NOT_RUN locally: everything else (the entry check runs it); `evidence-wiskey-editor` /
+`evidence-wiskey-capture` (fixture-only, only their selector changed); no pixel run - the resting dialog / drawer is unchanged (the mask
+exists only during the entrance, like the clip-path did), so no baseline was refreshed.
+
 ## Rollback
 
 Revert the branch's commits. No data, migration or setting.

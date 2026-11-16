@@ -157,17 +157,27 @@ export class SwDialog extends LitElement {
       border-block-start: 1px solid var(--sw-menu-border);
     }
     /* phone: the same dialog as a sheet - full width, attached to the bottom edge, rising from it on the drawer curve (apple-design:
-       a sheet enters along the edge it is attached to). The rise is a clip-path reveal from the bottom edge (emil-design-eng: clip-path
-       as a motion tool), not a transform: the box never leaves its resting place, so nothing is ever outside the viewport and a
+       a sheet enters along the edge it is attached to). The rise is a reveal from the bottom edge (a mask, see sheet-rise), not a
+       transform: the box never leaves its resting place, so nothing is ever outside the viewport and a
        measurement taken mid-way is already the final one. One-shot keyframes (an entrance is never reversed; there is no exit
        animation), not filled forwards, so the resting sheet carries no clip and keeps its shadow. The duration is a token, so reduced
        motion (css.ts) shows it in place. */
+    /* DIALOG-DRAWER-ONE-2439 r2: a MASK reveal, not clip-path - a clip-path also cuts the clipped part out of hit-testing, so a tap that
+       landed on the sheet while it was still rising fell through to the scrim and closed the sheet (and a drag started there was lost).
+       A mask hides the same part but the box keeps receiving every press at its resting place. The mask lives only in the keyframes:
+       the resting sheet carries no mask (a mask would cut its shadow). */
     @keyframes sheet-rise {
       from {
-        clip-path: inset(100% 0 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: bottom;
+        mask-size: 100% 0%;
       }
       to {
-        clip-path: inset(0 0 0 0);
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: bottom;
+        mask-size: 100% 100%;
       }
     }
     @media (max-width: 767px) {
@@ -326,7 +336,7 @@ export class SwDialog extends LitElement {
   render() {
     return html`<div class="backdrop" popover="manual" @click=${(e: Event) => e.target === e.currentTarget && this.close()}>
       <div class="box" role="dialog" aria-modal="true" aria-label=${this.heading}>
-        <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button round iconOnly icon="close" label=${t('actions.close')} @click=${this.close}></sw-button></header>
+        <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button round iconOnly icon="close" label=${t('actions.close')} data-dialog-close @click=${this.close}></sw-button></header>
         <div class="body"><slot></slot></div>
         <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${(e: Event) => (this.hasFooter = (e.target as HTMLSlotElement).assignedNodes({ flatten: true }).some((n) => n.nodeType === Node.ELEMENT_NODE))}></slot></footer>
       </div>

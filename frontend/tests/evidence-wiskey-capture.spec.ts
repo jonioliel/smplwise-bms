@@ -57,6 +57,9 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
   const rows = (page: Page) => page.locator(`${SCREEN} sw-table[data-wiskey-people-table] tbody tr`);
   const editor = (page: Page) => page.locator(EDITOR);
   const field = (page: Page, name: string) => editor(page).locator(`[data-wiskey-editor-${name}]`);
+  // DIALOG-DRAWER-ONE-2439: the editor is the shared sw-dialog (xl) - its ✕ is the dialog's own round close button
+  // (data-dialog-close), no longer the editor's data-wiskey-editor-cancel
+  const closeX = (page: Page) => editor(page).locator('sw-dialog[xl] [data-dialog-close]');
   const dialog = (page: Page) => page.locator(DIALOG);
   const cap = (page: Page, name: string) => dialog(page).locator(`[data-wiskey-capture-${name}]`);
   const state = (page: Page) => dialog(page).locator('sw-dialog[data-wiskey-capture]');
@@ -143,7 +146,7 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
     await expect(field(page, 'capture-open').locator('button')).toBeDisabled();
     await expect(field(page, 'capture')).toContainText('יש לשמור תחילה את המשתמש החדש');
-    await field(page, 'cancel').click();
+    await closeX(page).click();
     await expect(editor(page)).toHaveCount(0);
     // an existing person with a modified draft: save or discard first (WisKey editorAction)
     await openEditorFor(page, PERSON);
@@ -217,7 +220,7 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     expect(await domHolds(page, NUMBER)).toBe(false);
     expect(await domHolds(page, 'WXYZ')).toBe(true); // positive control: the masked last four are shown
     await page.screenshot({ path: testInfo.outputPath('wiskey-capture-saved.png'), fullPage: true });
-    await field(page, 'cancel').click();
+    await closeX(page).click();
     await expect(editor(page)).toHaveCount(0);
   });
 
