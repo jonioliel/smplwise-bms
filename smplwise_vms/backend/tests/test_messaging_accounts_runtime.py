@@ -125,10 +125,12 @@ def test_the_main_janitor_runs_the_step():
     # the housekeeping pass is the registry services/janitors.py since CR-JANITOR-REGISTRY-2438: a guarded step with the database
     from smplwise.services import janitors
 
-    src = (dbmod.MIGRATIONS_DIR.parent / "main.py").read_text(encoding="utf-8")
+    from smplwise.routers import ROUTERS, Mount
+
     steps = [s for s in janitors.STEPS if s.target == "services.messaging_runtime:janitor"]
     assert len(steps) == 1 and steps[0].needs == ("db",) and steps[0].failure and steps[0].resolve() is mr.janitor
-    assert 'include_router(messaging_accounts_router.router' in src
+    # CR-MAIN-ROUTERS-TABLE-2440: the include is a row of the routers table
+    assert [e for e in ROUTERS if isinstance(e, Mount) and e.module == "messaging_accounts"] == [Mount("messaging_accounts", "messaging")]
 
 
 # ---------------------------------------------------------------- the module key
