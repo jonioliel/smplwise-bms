@@ -25,7 +25,7 @@ from .recorders import recorder_settings
 from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write, nvr_write_guard
 from ..services.access import require_camera
 from ..services.timeutil import zone
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 NOTIFY_PERMISSION = "nvr.config.events"
@@ -260,7 +260,7 @@ def system_status(request: Request, principal: Principal = Depends(current_princ
     # CR-NVR-GUARD-2438 (owner O2 = b): so do the clock / NTP and OSD settings; disk test and output pulse are operational
     out["can"]["time"] = out["can"]["time"] and out["writes_enabled"]
     out["can"]["osd"] = out["can"]["osd"] and out["writes_enabled"]
-    tz = zone(read_settings(conn)["time.zone"])
+    tz = zone(setting_value(conn, "time.zone"))
     with unlocked(conn):
         client = nvr_write._client(settings)
         try:
@@ -287,7 +287,7 @@ def set_time(body: TimeIn, request: Request, principal: Principal = Depends(curr
     if not body.sync_now and not body.mode:
         raise ApiError(422, "validation", "אין מה לכתוב: סנכרון או מצב.")
     _guard(settings, conn, principal, "time", request, "clock")
-    tz = zone(read_settings(conn)["time.zone"])
+    tz = zone(setting_value(conn, "time.zone"))
     with unlocked(conn):
         if body.sync_now:
             return nvr_system.sync_clock(settings, conn, principal, mode=body.mode, request_id=_rid(request), tz=tz)

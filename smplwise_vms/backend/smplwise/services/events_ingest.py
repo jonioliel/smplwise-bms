@@ -179,6 +179,7 @@ class IngestState:
 
 MAX_PENDING = 256  # alerts waiting for the database; ~8 channels x ~16 kinds x 2 states, far above a healthy backlog of 0-1
 DRAIN_S = 5.0  # at shutdown the writer stores what is still queued for at most this long
+ZONE_CACHE_S = 5.0  # review 05:P1-03: the listener asks for the zone once per this many seconds, not once per alert (the getter opens a connection)
 
 
 def _device_instant(alert: ParsedAlert) -> dt.datetime | None:
@@ -497,6 +498,7 @@ class AlertStreamListener:
         self.db: Database | None = None
         self.settings: Settings | None = None
         self.tz_getter: Callable[[], str] = lambda: "Asia/Jerusalem"
+        self._zone_cache: tuple[Callable[[], str], str, float] | None = None  # (getter, zone, monotonic expiry)
         self.generation = 0  # a writer from an earlier start() ends itself when this moves on
         # CR-024: one listener per recorder; the first recorder's uses the module STATE / QUEUE (the shape /health reads)
         self.recorder_id = recorder_id
@@ -573,6 +575,16 @@ class AlertStreamListener:
 
         return lookup
 
+    def _zone(self) -> str:
+        """The zone the alerts are converted in, asked from `tz_getter` at most once per ZONE_CACHE_S. A replaced getter
+        (start(), a test) is asked at once; a failing getter raises as before and nothing is kept."""
+        getter, cached, now = self.tz_getter, self._zone_cache, time.monotonic()
+        if cached is not None and cached[0] is getter and now < cached[2]:
+            return cached[1]
+        value = getter()
+        self._zone_cache = (getter, value, now + ZONE_CACHE_S)
+        return value
+
     def _handle(self, alert: ParsedAlert, repeats: int = 0) -> None:
         assert self.db
         if alert.is_heartbeat:
@@ -580,7 +592,7 @@ class AlertStreamListener:
             return
         # the zone is read BEFORE the write connection opens: the getter opens its own connection, and doing that
         # while this thread held the write lock blocked every writer for busy_timeout on every alert (0.1.58)
-        tz = self.tz_getter()
+        tz = self._zone()  # a zone saved in the settings reaches the next alert within ZONE_CACHE_S
         from . import rules as rules_svc  # local import: rules depend on correlation which depends on this module
 
         db = self.db

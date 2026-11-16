@@ -20,7 +20,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services import go2rtc as g2, intercom_authority as ia, intercom_sync, wiskey_camera
 from .access_control_base import MAX_STATION_ID, READ, _reader_ro, log
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -77,7 +77,7 @@ def camera_snapshot(
     username, password = wiskey_camera.credentials(conn, settings, station_id)
     source = g2.wiskey_rtsp_url(host, username, password)
     client = g2.Go2rtc(settings)
-    max_age = read_settings(conn)["snapshots.max_age_s"]
+    max_age = setting_value(conn, "snapshots.max_age_s")
     path = _still_path(settings, station_id)
     cached = _read_still(path)
     if cached is not None and time.time() - cached[1] < max_age:

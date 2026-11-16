@@ -164,9 +164,9 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
     if not body.enabled:
         # under remote.policy = flag the user's remote sign-ins end now, their WebSockets with them (CR-008 P2) - unless
         # the administrator default still admits them
-        from .settings import read_settings
+        from ..services.settings_store import setting_value
 
-        if read_settings(conn)["remote.policy"] == "flag" and basis is None:
+        if setting_value(conn, "remote.policy") == "flag" and basis is None:
             dropped = len({s.sign_in() for s in hua.STORE.drop_user(user_id)})
             _close_sockets_from_thread()
             # APPREFRESH-295 F-01: the phone app's saved sign-ins of the user end with the remote access

@@ -239,9 +239,9 @@ def _scene_items(ctx: Any) -> list[dict[str, Any]]:
 @router.get("/home/schedules")
 def scene_schedules(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The schedules the caller may see whose every action runs one scene (the home interface never shows a device schedule)."""
-    from ..routers.settings import read_settings
+    from ..services.settings_store import setting_value
 
-    if read_settings(conn)["schedules.enabled"] != "true":
+    if setting_value(conn, "schedules.enabled") != "true":
         raise _off()
     ctx = _sched_ctx(request, conn, principal)
     from ..services import schedule_view as view

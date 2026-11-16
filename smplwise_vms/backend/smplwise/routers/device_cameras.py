@@ -33,7 +33,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import camera_cards as cc
 from ..services import ha_camera_streams as hls
 from ..services import ha_client, ha_scope
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 STILL_MIN_AGE_S = 10
@@ -94,7 +94,7 @@ def still(request: Request, entity_id: str = Query(..., pattern=cc.HA_CAMERA_RE.
     if entity_id in cc.link_ha_cameras(conn):
         raise ApiError(409, "camera_is_nvr_channel", "המצלמה הזו היא ערוץ של ה־NVR: התמונה שלה מגיעה משם.")
     settings = settings_of(request)
-    max_age = max(STILL_MIN_AGE_S, int(read_settings(conn)["snapshots.max_age_s"]))
+    max_age = max(STILL_MIN_AGE_S, int(setting_value(conn, "snapshots.max_age_s")))
     folder = settings.data_dir / "snapshots"
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"ha-{hashlib.sha256(entity_id.encode()).hexdigest()[:16]}.img"

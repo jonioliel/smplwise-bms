@@ -37,13 +37,13 @@ from ..services import user_events
 from ..services.notify_visibility import MANAGE, Reach
 from ..services.timeutil import iso_utc, parse_utc
 from ._common import rid as _rid
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
 
 def _tz(conn: sqlite3.Connection) -> str:
-    return read_settings(conn)["time.zone"]
+    return setting_value(conn, "time.zone")
 
 
 def _manager(conn: sqlite3.Connection, principal: Principal) -> None:

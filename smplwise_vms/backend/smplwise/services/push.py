@@ -438,9 +438,9 @@ def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | No
 
     now = now or dt.datetime.now(dt.timezone.utc)
     if tz_name is None:
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
 
-        tz_name = read_settings(conn)["time.zone"]
+        tz_name = setting_value(conn, "time.zone")
     camera_id = notice.get("camera_id")
     cam = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (camera_id,)).fetchone() if camera_id else None
     camera_name = (cam["alias"] or cam["name_source"] or f"ערוץ {cam['channel']}") if cam else None

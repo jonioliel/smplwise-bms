@@ -499,12 +499,12 @@ def sound_for(conn: sqlite3.Connection, cfg: dict[str, Any], now: dt.datetime | 
     if not cfg.get("sound", True):
         return "silent", "setting_off"
     try:
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
         from . import notify_settings as nsettings
         from .notify_policy import get_policy
 
         st = nsettings.load(conn)
-        tz = read_settings(conn)["time.zone"]
+        tz = setting_value(conn, "time.zone")
         if nsettings.in_quiet_hours(st["quiet"], now or _now(), tz):
             policy = get_policy(conn, "door.ring") or {}
             severity = policy.get("severity") or "alert"

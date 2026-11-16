@@ -16,6 +16,7 @@ from ..services import recorded_days, recordings
 from ..services.access import camera_allowed, require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -68,7 +69,7 @@ def camera_recorded_days(
     """RECORDED-DAYS-MONTH-2407: the local dates of `month` (YYYY-MM, the installation's zone) on which the camera has any
     recording - the month view of the playback screen. Read-only on the NVR, cached (services/recorded_days.py)."""
     cam = camera_for_playback(conn, principal, camera_id)
-    tz_name = read_settings(conn)["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     with unlocked(conn):
         result = recorded_days.days_in_month(settings_of(request), cam, month, tz_name)
     out = recorded_days.as_dict(result)
