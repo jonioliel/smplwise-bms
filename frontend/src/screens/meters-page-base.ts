@@ -8,6 +8,7 @@ import type { PlaceRow } from './wiskey-stations-logic';
 import { describeError } from '../api/client';
 import { navigate } from '../router';
 import { SkinController } from '../design/skin';
+import { PollController } from '../components/poll-controller';
 
 /**
  * CR-DUP-METERS-2440 (code review 06:DUP-2): the meters page of a metered utility, written once. `screens/electricity/page-meters.ts` and
@@ -205,7 +206,7 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   @state() protected access: A;
   @state() protected notice = '';
   private stopAccess?: () => void;
-  private poll = 0;
+  private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
 
   protected constructor(private readonly cfg: MetersPageConfig<A>) {
     super();
@@ -248,12 +249,11 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
     super.connectedCallback();
     this.stopAccess = this.cfg.onAccess((a) => (this.access = a));
     void this.load(true);
-    this.poll = window.setInterval(() => void this.load(false), POLL_MS);
+    this.poller.every('rows', POLL_MS, () => this.load(false));
   }
 
   disconnectedCallback() {
     this.stopAccess?.();
-    window.clearInterval(this.poll);
     super.disconnectedCallback();
   }
 

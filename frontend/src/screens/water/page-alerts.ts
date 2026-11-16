@@ -15,6 +15,7 @@ import { snoozeLabel, snoozeUntil } from '../../water/billing-format';
 import { wt, wtLang } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { PollController } from '../../components/poll-controller';
 
 const POLL_MS = 60_000;
 const p2 = (n: number) => String(n).padStart(2, '0');
@@ -48,7 +49,7 @@ export class WaterAlertsPage extends LitElement {
   @state() private busy = false;
   @state() private access: WaterAccess = waterAccess();
   private stop?: () => void;
-  private poll = 0;
+  private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
 
   static styles = [waterCss, bubbleChrome];
 
@@ -56,7 +57,7 @@ export class WaterAlertsPage extends LitElement {
     super.connectedCallback();
     this.stop = onWaterAccess((a) => (this.access = a));
     void this.load(true);
-    this.poll = window.setInterval(() => void this.load(false), POLL_MS);
+    this.poller.every('rows', POLL_MS, () => this.load(false));
     void readableAlerts().then((c) => {
       if (c) {
         this.rules = c.rules;
@@ -67,7 +68,6 @@ export class WaterAlertsPage extends LitElement {
 
   disconnectedCallback() {
     this.stop?.();
-    window.clearInterval(this.poll);
     super.disconnectedCallback();
   }
 
