@@ -1,7 +1,6 @@
 import { t } from '../i18n/he';
 import { LitElement, html, css, nothing } from 'lit';
 import { html as shtml, unsafeStatic } from 'lit/static-html.js';
-import './plan-area-links-admin';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -12,15 +11,8 @@ import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import '../components/sw-remote-sessions';
-import '../components/sw-csp-reports';
-import './system-app-signin'; // release/2380-train: the phone app's two sign-in switches (auth/app/settings), system administrators
-import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
-import '../components/camera-image-health-settings'; // CAMHEALTH091: the camera picture check (off by default), its thresholds and recipients
-import '../components/sw-search-access';
 import { sa } from '../i18n/search-access';
 import { parseSearchRoles, searchModeOf } from '../api/search-access';
-import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copies, encryption key, restore drill
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, canAnywhere, isApi, nvrLess, onRemote, session, LOCAL_ONLY_GENERIC } from '../api/session';
@@ -48,39 +40,19 @@ import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup,
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, healthSummary, type HealthReport, type HealthSummary } from '../api/health';
 import { NOTICE_AFTER_CHOICES, noticeAfterLabel, noticeAfterValue } from '../api/video-services';
-import '../components/sw-video-service-picker';
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
 import { setInstallWiskeyView } from '../wiskey/wiskey-prefs';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
 import { GLASS_SCHEMES, devicesPrefsOf, setGlassScheme, type DevicesStyle } from './devices-style';
-import './devices-theme-picker';
-import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
-import './devices-type-admin'; // DEVTYPE (owner 2026-10-09): סוגי התקנים - the fixed type of a switch-wired device
-import './area-row-editor'; // release 0.1.149: הגדרות › חשמל והתקנים › מה מוצג ליד שם האזור
 import type { AreaRowChange } from './area-row-editor';
-import './devices-protected-switches-admin'; // CR-019: הגדרות › חשמל והתקנים › מתגים מוגנים (replaces פעולה קבוצתית)
-import './system-tabs'; // owner 2026-09-30: הגדרות › כללי › לשוניות
 import './system-nav-size'; // UI round 1b: הגדרות › כללי › גודל הניווט
 import './system-design'; // design foundation: הגדרות › כללי › מראה המערכת (skin, light / dark)
 import './system-look'; // Bubble foundation: הגדרות › כללי › מראה (the look dials)
-import './system-plan-view'; // CR-029 ST7 UI: הגדרות › מפה › תצוגה ריאליסטית (plan.view, the person's own dials, the site location)
-import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
-import './mapping-all'; // MAPPING-ASSIST-2330: הגדרות › כללי › בניינים ומיפוי
 import './system-xs-options'; // 2.29.0: הגדרות › כללי › חתך הבניין והמפה הסינופטית
-import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-brand-logos'; // LOGOS-295: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (company logo, size, dark background, tab title)
 import './system-brand-installer'; // WHITELABEL097-295: הגדרות › כללי › מראה המערכת › מיתוג מתקין (default off)
 import './system-brand-colors';// 2.4.4: הגדרות › כללי › צבעי המותג (accent, switch-on colour)
-import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
-import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
-import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
-import './system-call-banner'; // WISKEY-INBOUND-CALLS-2382: who gets the incoming-call banner (off by default)
-import './system-wiskey-pairing'; // WISKEY-PAIRING-2382: הגדרות › מתגי מסכי כניסה › חיבור Arx ל-WisKey + מצב WisKey
-import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
-import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
-import './system-wiskey-validation-card'; // WISKEY-LIVE-VALIDATION-2390: הגדרות › מתגי מסכי כניסה › בדיקת קבלה לעמדות (link to its own route)
-import '../components/sw-fold-cards'; // SETTINGS-INTERCOM-CARDS-2401: הגדרות › מתגי מסכי כניסה as collapsible cards (layout a)
 import type { FoldCard } from '../components/sw-fold-cards';
 import {
   ACCESS_CARDS,
@@ -186,6 +158,29 @@ function tabsFor(layout: AccessLayout): { id: string; label: string }[] {
   const i = TABS.findIndex((x) => x.id === ACCESS_TAB);
   return [...TABS.slice(0, i + 1), { id: VOICE_TAB, label: sct().voiceTab }, ...TABS.slice(i + 1)];
 }
+
+/**
+ * CR-DIAG-TABS-2440 (review 06:BUNDLE-2, the chunk seam of 06:STRUCT-1): the cards that only one tab draws are no longer imported by this
+ * module - opening any settings tab downloaded all of them (35 side-effect imports, a 664 KB chunk). Each tab's cards are a module of
+ * their own (screens/system-diagnostics-<tab>.ts, imports only), fetched when the tab is first opened; the tab's body is drawn once the
+ * chunk landed, so no card is ever upgraded in place (the GATE2342 rule of shell/lazy-screens.ts). "מראה ותצוגה" (general), "גשר Arx"
+ * and "תמיכה" need no chunk: the first page's cards stay static imports of this module.
+ */
+type TabChunk = () => Promise<unknown>;
+const accessCards: TabChunk = () => import('./system-diagnostics-access');
+export const TAB_CHUNKS: Readonly<Record<string, TabChunk>> = {
+  tabs: () => import('./system-diagnostics-tabs'),
+  media: () => import('./system-diagnostics-media'),
+  map: () => import('./system-diagnostics-map'),
+  buildings: () => import('./system-diagnostics-buildings'),
+  [ACCESS_TAB]: accessCards,
+  [VOICE_TAB]: accessCards, // layout b's second tab draws cards of the same set
+  devices: () => import('./system-diagnostics-devices'),
+  remote: () => import('./system-diagnostics-remote'),
+  mobile: () => import('./system-diagnostics-mobile'),
+  health: () => import('./system-diagnostics-health'),
+  backup: () => import('./system-diagnostics-backup'),
+};
 
 /** SC28 — system settings (board 3 screen 23): underline tabs, label / control rows; the media tab is live against the backend. */
 @customElement('system-diagnostics')
@@ -724,7 +719,38 @@ export class SystemDiagnostics extends LitElement {
     return parseAccessLayout(this.settings?.[ACCESS_LAYOUT_KEY]);
   }
 
+  /** CR-DIAG-TABS-2440: each tab's chunk - absent = not asked for yet (or the tab needs none). */
+  private tabChunks = new Map<string, 'loading' | 'ready' | 'failed'>();
+
+  /** Fetch the cards of a tab once; the render that follows draws the tab (or the failure, which "נסו שוב" clears). */
+  private ensureTabChunk(id: string): void {
+    const load = TAB_CHUNKS[id];
+    if (!load || this.tabChunks.has(id)) return;
+    this.tabChunks.set(id, 'loading');
+    void load().then(
+      () => 'ready' as const,
+      (err: unknown) => {
+        console.warn(`settings tab chunk "${id}" failed to load`, err);
+        return 'failed' as const;
+      },
+    ).then((state) => {
+      this.tabChunks.set(id, state);
+      this.requestUpdate();
+    });
+  }
+
+  private retryTabChunk(id: string): void {
+    this.tabChunks.delete(id);
+    this.ensureTabChunk(id);
+    this.requestUpdate();
+  }
+
   protected willUpdate(): void {
+    this.syncAccessTab();
+    this.ensureTabChunk(this.tab); // after the tab settled (a deep link, "הכרזות וקול" folded into its card)
+  }
+
+  private syncAccessTab(): void {
     if (!this.layoutKnown()) return;
     const layout = this.accessLayout();
     if (this.tab === VOICE_TAB && layout !== 'tabs') {
@@ -2192,6 +2218,15 @@ export class SystemDiagnostics extends LitElement {
     </sw-card></div>`;
   }
 
+  /** The open tab's body. CR-DIAG-TABS-2440: a tab with cards of its own waits for their chunk (see TAB_CHUNKS). */
+  private renderTab() {
+    const chunk = TAB_CHUNKS[this.tab] ? this.tabChunks.get(this.tab) : 'ready';
+    if (chunk === 'failed')
+      return html`<div class="sections"><sw-state-panel compact state="error" heading="הלשונית לא נטענה" hint="בדקו את החיבור ונסו שוב" actionLabel="נסו שוב" data-tab-chunk-failed @action=${() => this.retryTabChunk(this.tab)}></sw-state-panel></div>`;
+    if (chunk !== 'ready') return html`<div class="sections" data-tab-chunk-loading><sw-state-panel compact state="loading"></sw-state-panel></div>`;
+    return this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === VOICE_TAB ? this.renderAccessVoice() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport();
+  }
+
   render() {
     const tabs = this.layoutKnown() ? tabsFor(this.accessLayout()) : TABS; // SETTINGS-INTERCOM-CARDS-2401: layout b adds "הכרזות וקול"
     const cur = tabs.find((t) => t.id === this.tab) ?? tabs[0];
@@ -2200,7 +2235,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
         ${this.errorOf('ha') && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('ha')}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === VOICE_TAB ? this.renderAccessVoice() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.renderTab()}
       </sw-page>
     `;
   }
