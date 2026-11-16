@@ -225,6 +225,8 @@ export const devicesThemes = css`
   :host([data-devices-style='glass'][data-devices-own-backdrop]) {
     --dv-page-backdrop: var(--dv-backdrop);
     --dv-page-fill: var(--dv-backdrop);
+    /* DOMUS-DEFAULT-2439: a skin's sheet sheen is drawn for the product's scheme; over this area's own (other) scheme it is left out */
+    --dv-sheet-sheen: linear-gradient(transparent, transparent);
   }
   /* the (own) backdrop rides on the page frame, which grows with the content (the host is only as tall as the view) */
   :host([data-devices-style='glass']) sw-page {

@@ -1311,6 +1311,11 @@ export class DevicesBuilding extends LitElement {
   private editHandled = false;
   private wasEditing = false;
   private fitTimer = 0;
+  /** DOMUS-DEFAULT-2439: the page body's size is watched - a card that grows after this element's last update (a child that renders
+   * later, a font) is measured too. The fit used to be measured only after this element's own updates, so such a late growth of a
+   * pixel or two left a control screen scrolling at the loosest packing (tablet 1024x768, a building of a site, the domus skin). */
+  private fitObs: ResizeObserver | null = null;
+  private fitObserved: Element | null = null;
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
   /** HOME-EDIT-DRAWER-2351: edit mode's drawer (home-edit-drawer.ts) - open or closed (Escape), and its tab. */
@@ -2327,6 +2332,17 @@ export class DevicesBuilding extends LitElement {
       notifyScreenViews(); // the user menu's view choice re-reads the value (and hides itself while the layout editor is open)
     }
     if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+    const body = this.renderRoot.querySelector('.page-body');
+    if (body !== this.fitObserved) {
+      this.fitObs?.disconnect();
+      this.fitObserved = body;
+      if (body) {
+        this.fitObs ??= new ResizeObserver(() => {
+          if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+        });
+        this.fitObs.observe(body);
+      }
+    }
   }
 
   static styles = [devicesStyleTokens, css`
@@ -3393,6 +3409,9 @@ export class DevicesBuilding extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.fitObs?.disconnect();
+    this.fitObs = null;
+    this.fitObserved = null;
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offXs?.();

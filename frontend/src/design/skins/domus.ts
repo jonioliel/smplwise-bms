@@ -194,7 +194,10 @@ const rules = `
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-seg-key, var(--sw-surface-solid)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
 /* domus 9 - floating layers: the dialog and the drawer carry the glass edge over the ladder's top step; a popover is a menu (owner 2026-10-13): fully opaque, no blur */
-:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border: 1px solid var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
+/* DOMUS-DEFAULT-2439: inside a device screen the layer keeps the palette's own solid surface when it has one (--dv-surface-solid): the
+   text there is the palette's, so a dark glass area in a light product drew light text on this skin's light sheet. --dv-sheet-sheen
+   turns the (product-scheme) sheen off on such a screen (styles/devices-themes.ts). Everywhere else both read the skin's values. */
+:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--dv-sheet-sheen, var(--sw-glass-sheen)), var(--dv-surface-solid, var(--sw-surface-solid)); border: 1px solid var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
 /* domus 10 - tables: hairline rows, a soft hover, a quiet caption row, tabular figures; a status badge is a filled pill with its ink ring */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }

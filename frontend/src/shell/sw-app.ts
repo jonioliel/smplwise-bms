@@ -2242,11 +2242,17 @@ export class SwApp extends LitElement {
       this.railObs = null;
       this.observedRail = rail;
       if (rail) {
+        // DOMUS-DEFAULT-2439: the width the rail takes of the shell, not only its box - a skin may float the rail off the edge
+        // (domus: 12 px) and what sits beside it (the user menu, the notification sheet, the banner) starts after that margin too.
+        // The border box is observed: a skin switch changes the border and the margin, not the content box.
         this.railObs = new ResizeObserver(() => {
           const w = rail.offsetWidth;
-          if (w > 0) this.style.setProperty('--sw-rail-w', `${w}px`);
+          if (w <= 0) return;
+          const cs = getComputedStyle(rail);
+          const margin = (parseFloat(cs.marginInlineStart) || 0) + (parseFloat(cs.marginInlineEnd) || 0);
+          this.style.setProperty('--sw-rail-w', `${w + margin}px`);
         });
-        this.railObs.observe(rail);
+        this.railObs.observe(rail, { box: 'border-box' });
       } else this.style.removeProperty('--sw-rail-w');
     }
   }
