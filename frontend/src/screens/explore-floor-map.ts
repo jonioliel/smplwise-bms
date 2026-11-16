@@ -41,8 +41,9 @@ import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
-import { stateEntitiesOf, stateFactsOf } from '../map/state-facts';
-import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateOpening } from '../map/room-state';
+import { stateEntitiesOf } from '../map/state-facts';
+import { FLOOR_LAYER_IDS, LATE_FLOOR_LAYERS, LoadGeneration, RefMemo, restoredLayers, stateFactsMemo, type FloorLayer, type StateFactsMemo } from './floor-map-state';
+import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer } from '../map/room-state';
 import { loadLibrary } from '../api/plan-catalog';
 import { default3dDue, defaultViewIs3d, fallbackLevelId, hoverLabelsOf, isTypingTarget, libraryLookups, loadPlan3d, readPlanImage, sceneZonesOf, stateLampsOf, stateRoomsOf, writePlanImage } from '../map/floor-view-shared';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
@@ -92,7 +93,7 @@ import { it as incText } from '../i18n/incidents';
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
-type Layer = 'cameras' | 'doors' | 'lights' | 'sensors' | 'zones' | 'structure' | 'objects' | 'connectors' | 'states' | 'photo';
+type Layer = FloorLayer; // the ids, the late layers and the stored-list rule live in floor-map-state.ts
 
 const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' | 'wall' | 'grid' | 'stairs' | 'activity' | 'image'; label: () => string }[] = [
   { id: 'cameras', icon: 'camera', label: () => t('floor.cameras') },
@@ -107,7 +108,7 @@ const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' 
   { id: 'photo', icon: 'image', label: () => 'תמונת הקומה' },
 ];
 /** Layers that came after the first stored layer lists: stored as "-<id>" when switched off, so an old list still shows them. */
-const LATE_LAYERS: Layer[] = ['structure', 'objects', 'connectors', 'states', 'photo'];
+const LATE_LAYERS = LATE_FLOOR_LAYERS;
 
 /** One build of the 3D scene with what it was built from (T087): the structure keys compare by identity, the live states
  * by a signature string; the camera list and hover labels are built with it. */
@@ -191,7 +192,7 @@ export class ExploreFloorMap extends LitElement {
   /** TKMAP1: the element a new service request is being opened for (the create form over the map) */
   @state() private ticketFor: MapElementDraft | null = null;
   @state() private anchor: { x: number; y: number } | null = null;
-  @state() private layers = new Set<Layer>(['cameras', 'doors', 'lights', 'sensors', 'zones', 'structure', 'objects', 'connectors', 'states', 'photo']);
+  @state() private layers = new Set<Layer>(FLOOR_LAYER_IDS);
   /** The loaded plan picture under the structure (owner request 2026-09-26). Not an anchor layer: a switch of its own,
    * remembered per floor in this browser like the layers. */
   @state() private planImage = true;
@@ -242,8 +243,17 @@ export class ExploreFloorMap extends LitElement {
   @state() private stateNow = Date.now();
   private fadeTimer = 0;
   /** What the state layer reads from the structure (the openings' gap midpoints, the lamp objects), per document. */
-  private stateFacts: { geometry: GeometryDoc; w: number; h: number; openings: StateOpening[]; lamps: { x: number; y: number; level_id: string; circuit: string | null; entity: string | null }[] } | null = null;
-  private roomStateMemo: { bundle: MapBundle; geometry: GeometryDoc | null; layers: Set<Layer>; now: number; fade: PresenceFade; stale: boolean; layer: RoomStateLayer | null } | null = null;
+  private stateFacts: StateFactsMemo | null = null;
+  private roomStateMemo: { bundle: MapBundle; geometry: GeometryDoc | null; catalog: CatalogLookup | null; layers: Set<Layer>; now: number; fade: PresenceFade; stale: boolean; layer: RoomStateLayer | null } | null = null;
+  /** 06:RACE-1: the shell re-uses this element when only the floor in the address changes; only the latest load writes the screen. */
+  private loads = new LoadGeneration();
+  /** 06:PERF-6: values the render reads several times, kept while what they are computed from is the same object. */
+  private refMemos = new Map<string, RefMemo<unknown>>();
+  private memo<T>(name: string, refs: readonly unknown[], make: () => T): T {
+    let m = this.refMemos.get(name);
+    if (!m) this.refMemos.set(name, (m = new RefMemo<unknown>()));
+    return m.get(refs, make) as T;
+  }
   @state() private pinned = false;
   @state() private panel = false;
   /** Multi-camera selection (T043): anchor ids of the picked cameras while the mode is on. */
@@ -253,6 +263,7 @@ export class ExploreFloorMap extends LitElement {
   /** Owner round 3 (2.6): a jump from the list pans only, unless the viewer asks for a zoom as well. */
   @state() private jumpZoom = (() => { try { return localStorage.getItem('sw.map.jumpzoom') === '1'; } catch { return false; } })();
   private focusZoom = true;
+  private focusZoomTimer = 0;
   /** "Save the selection as a view" dialog (T043) and the view it produced. */
   @state() private saveView: { name: string; cols: number; rows: number; shared: boolean; canShare: boolean; busy: boolean; error: string | null } | null = null;
   @state() private savedView: SavedView | null = null;
@@ -1535,6 +1546,9 @@ export class ExploreFloorMap extends LitElement {
     this.sceneTimer = 0;
     window.clearTimeout(this.fadeTimer);
     this.fadeTimer = 0;
+    window.clearTimeout(this.focusZoomTimer);
+    this.focusZoomTimer = 0;
+    this.focusZoom = true;
     this.stopWs?.();
     this.stopWs = null;
     this.hudRo?.disconnect();
@@ -1629,15 +1643,33 @@ export class ExploreFloorMap extends LitElement {
     if (this.view3d) this.loadOtherBundles();
     if (changed.has('picked') || changed.has('multi')) this.syncPicksRoute();
     if (changed.has('floorId') && changed.get('floorId') !== undefined) {
-      this.selectedId = null;
-      this.anchor = null;
-      this.selectedZoneId = null;
+      this.resetFloorState();
       void this.load();
     } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity') || changed.has('focusObject')) && this.bundle) {
       void this.applyFocus();
     } else if (changed.has('picksParam') && changed.get('picksParam') !== undefined && this.bundle) {
       this.applyPicksParam(); // Back to an address with another selection (the map's own writes match and change nothing)
     }
+  }
+
+  /** 06:DA-1: another floor in the same element. Nothing that names an item of the floor before survives: the open card,
+   * the selected room, the focused object, an action's result line, a rename in progress, a notice - and the picked
+   * cameras (anchor ids of the floor before, which were then mirrored into the new floor's address). The picking mode
+   * itself stays on. An address that carries `picks=` is left alone: applyPicksParam restores its own picks after the load. */
+  private resetFloorState() {
+    this.selectedId = null;
+    this.anchor = null;
+    this.selectedZoneId = null;
+    this.focusedObjectId = null;
+    this.action = null;
+    this.renaming = null;
+    this.notice = '';
+    if (!this.picksParam && this.picked.length) this.picked = [];
+  }
+
+  /** 06:MAP-1 a: a notice belongs to the card it was written on - another selection (or none) starts without it. */
+  protected willUpdate(changed: Map<string, unknown>) {
+    if (changed.has('selectedId') && this.notice) this.notice = '';
   }
 
   // ---- M043: the selection and the view survive a jump to the wall / playback and come back with Back ----
@@ -1754,16 +1786,25 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private async load() {
+    // 06:RACE-1: `stale()` turns true when a newer load started (another floor in the same element). It is asked after every
+    // await: an old answer writes nothing, and an old failure cannot blank the newer floor.
+    const stale = this.loads.begin();
     this.loadError = '';
     try {
       let tree = this.tree ?? (await loadTree());
+      if (stale()) return;
       // a floor created after the tree was cached (a hash navigation to it): read the tree again before redirecting
-      if (isApi() && this.tree && !findFloor(tree, this.floorId)) tree = await loadTree();
+      if (isApi() && this.tree && !findFloor(tree, this.floorId)) {
+        tree = await loadTree();
+        if (stale()) return;
+      }
       this.tree = tree;
       // Links such as the nav entry point at the fixture floor "f0"; with a backend, open the installation's default floor
       // (הגדרות › כללי › מפה › קומת ברירת מחדל) when this user may read it, else their first real floor.
       if (isApi() && !findFloor(tree, this.floorId)) {
-        const first = entryFloor(tree, (await productSettings().catch(() => null))?.['map.default_floor']);
+        const settings = await productSettings().catch(() => null);
+        if (stale()) return;
+        const first = entryFloor(tree, settings?.['map.default_floor']);
         if (first && first.id !== this.floorId) {
           navigate(`/explore/floors/${first.id}`);
           return;
@@ -1780,19 +1821,23 @@ export class ExploreFloorMap extends LitElement {
       this.restorePlanImage();
       this.levelFilter = null;
       const loaded = await loadMap(this.floorId);
+      if (stale()) return;
       // NVR-less mode: cameras left over from an earlier NVR (a restored backup, an NVR removed from the options) are not
       // drawn - their live view and history are not available; entities, rooms, structure and the 3D are unaffected.
       // NVRLESS-CAMERAS-2411 (owner answer "א", 08.11): cameras without a recorder ARE drawn (listCameras() returns only them here).
       if (nvrLess() && cap('cameras_available')) {
         const list = await listCameras().catch(() => ({ cameras: [] as { id: string; standalone?: boolean; recorder_id?: string }[] }));
+        if (stale()) return;
         this.standaloneIds = new Set(list.cameras.filter(isStandaloneRow).map((c) => c.id));
       } else this.standaloneIds = new Set();
       this.bundle = nvrLess() ? { ...loaded, anchors: mapCameraAnchors(loaded.anchors, false, this.standaloneIds) } : loaded;
       const b = this.bundle;
       void productSettings()
         .then((s) => {
-          if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
-          if (this.bundle === b) this.default3d = (defaultViewIs3d(s) || this.keep3d()) && !this.view3d;
+          // the two defaults belong to THIS load. They were guarded by `this.bundle === b`, but every state push replaces the
+          // bundle object, so a push that arrived before the settings silently dropped both (06:RACE-1)
+          if (!stale()) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
+          if (!stale()) this.default3d = (defaultViewIs3d(s) || this.keep3d()) && !this.view3d;
           this.quality3d = modeFromWire(s['plan.quality']); // auto | full | schematic (map/quality-mode.ts); the viewer's own mode wins in the element
           this.r28 = s as unknown as Record<string, unknown>; // PLAN3D-R28-UI-2433: the round 28 map settings (room pills, room card, spread levels)
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
@@ -1826,6 +1871,7 @@ export class ExploreFloorMap extends LitElement {
         void this.restoreView();
       }
     } catch (err) {
+      if (stale()) return; // a newer load owns the screen
       this.loadError = describeError(err);
       this.bundle = null;
     }
@@ -1833,6 +1879,10 @@ export class ExploreFloorMap extends LitElement {
 
   /** Floors of the building this floor belongs to, with a short unique label each (the quick buttons on the map). */
   private get buildingFloors(): { id: string; name: string; short: string; hasPlan: boolean }[] {
+    return this.memo('buildingFloors', [this.tree, this.floorId], () => this.computeBuildingFloors());
+  }
+
+  private computeBuildingFloors(): { id: string; name: string; short: string; hasPlan: boolean }[] {
     if (this.tree?.source !== 'api') return [];
     for (const s of this.tree.sites) {
       for (const b of s.buildings ?? []) {
@@ -1846,6 +1896,10 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private get floors(): { id: string; name: string; cameraCount: number; hasPlan: boolean }[] {
+    return this.memo('floors', [this.tree], () => this.computeFloors());
+  }
+
+  private computeFloors(): { id: string; name: string; cameraCount: number; hasPlan: boolean }[] {
     if (this.tree?.source === 'api') {
       return this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((f) => ({ id: f.id, name: `${b.name} · ${f.name}`, cameraCount: f.camera_count, hasPlan: f.has_plan }))));
     }
@@ -1853,6 +1907,10 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private get markers(): PlanMarker[] {
+    return this.memo('markers', [this.bundle, this.layers, this.levelFilter, this.screenState, this.syncConnected], () => this.computeMarkers());
+  }
+
+  private computeMarkers(): PlanMarker[] {
     const b = this.bundle;
     if (!b) return [];
     const stale = this.screenState === 'stale';
@@ -1888,16 +1946,28 @@ export class ExploreFloorMap extends LitElement {
   /** T085: what the object layer needs from the bundle - bound bodies sit on their live anchors, lamps glow by their
    * circuit's switch or their own entity. */
   private get anchorPositions(): Record<string, AnchorPosition> {
+    return this.memo('anchorPositions', [this.bundle], () => this.computeAnchorPositions());
+  }
+
+  private computeAnchorPositions(): Record<string, AnchorPosition> {
     const out: Record<string, AnchorPosition> = {};
     for (const a of this.bundle?.anchors ?? []) out[`${a.resource_type}:${a.resource_id}`] = { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees };
     return out;
   }
 
   private get circuitStateMap(): Record<string, string | null> {
+    return this.memo('circuitStateMap', [this.bundle], () => this.computeCircuitStateMap());
+  }
+
+  private computeCircuitStateMap(): Record<string, string | null> {
     return Object.fromEntries(Object.entries(this.bundle?.circuitStates ?? {}).map(([id, s]) => [id, s.state]));
   }
 
   private get entityStateMap(): Record<string, string | null> {
+    return this.memo('entityStateMap', [this.bundle], () => this.computeEntityStateMap());
+  }
+
+  private computeEntityStateMap(): Record<string, string | null> {
     const out: Record<string, string | null> = {};
     for (const a of this.bundle?.anchors ?? []) if (a.resource_type === 'ha_entity') out[a.resource_id] = a.entity?.state ?? null;
     return out;
@@ -1909,27 +1979,24 @@ export class ExploreFloorMap extends LitElement {
   private stateFactsFor(b: MapBundle): NonNullable<typeof this.stateFacts> | null {
     const doc = this.geometry;
     if (!doc) return null;
-    const f = this.stateFacts;
-    if (f && f.geometry === doc && f.w === b.width && f.h === b.height) return f;
-    // the facts are built by the shared pure helper (map/state-facts.ts) the historical map's time scrub uses too
-    const { openings, lamps } = stateFactsOf(doc, b.width, b.height, this.catalogLookup);
-    this.stateFacts = { geometry: doc, w: b.width, h: b.height, openings, lamps };
+    // keyed on the library too (06:MAP-1 c): a lamp is a lamp by its library item, and the library can arrive after the structure
+    this.stateFacts = stateFactsMemo(this.stateFacts, doc, b.width, b.height, this.catalogLookup);
     return this.stateFacts;
   }
 
   /** The room state layer of the shown floor for `stateNow` (room-state.ts): the entities of the anchors, the lamp
    * objects and the openings of the structure, the zones as rooms. null when the toggle is off, on a stale screen or
    * without the sync (the pins are dimmed then too), in demo mode, and when the floor has neither zones nor openings.
-   * Memoised by identity on what it reads (the bundle - replaced by every push -, the document, the layer set, the
+   * Memoised by identity on what it reads (the bundle - replaced by every push -, the document, the library, the layer set, the
    * instant, the fade, the stale flag): the getter is asked several times per render and computes once. */
   private get roomStateLayer(): RoomStateLayer | null {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !this.layers.has('states')) return null;
     const stale = this.states3dStale;
     const m = this.roomStateMemo;
-    if (m && m.bundle === b && m.geometry === this.geometry && m.layers === this.layers && m.now === this.stateNow && m.fade === this.presenceFade && m.stale === stale) return m.layer;
+    if (m && m.bundle === b && m.geometry === this.geometry && m.catalog === this.catalogLookup && m.layers === this.layers && m.now === this.stateNow && m.fade === this.presenceFade && m.stale === stale) return m.layer;
     const layer = stale ? null : this.deriveRoomStates(b);
-    this.roomStateMemo = { bundle: b, geometry: this.geometry, layers: this.layers, now: this.stateNow, fade: this.presenceFade, stale, layer };
+    this.roomStateMemo = { bundle: b, geometry: this.geometry, catalog: this.catalogLookup, layers: this.layers, now: this.stateNow, fade: this.presenceFade, stale, layer };
     return layer;
   }
 
@@ -1969,6 +2036,10 @@ export class ExploreFloorMap extends LitElement {
 
   /** The entity states the 3D reads: null (unknown) when stale or when the entity itself is not fresh. */
   private get entityStates3d(): Record<string, string | null> {
+    return this.memo('entityStates3d', [this.bundle, this.states3dStale], () => this.computeEntityStates3d());
+  }
+
+  private computeEntityStates3d(): Record<string, string | null> {
     const stale = this.states3dStale;
     const out: Record<string, string | null> = {};
     for (const a of this.bundle?.anchors ?? []) if (a.resource_type === 'ha_entity') out[a.resource_id] = stale || a.entity?.fresh === false ? null : a.entity?.state ?? null;
@@ -1977,6 +2048,10 @@ export class ExploreFloorMap extends LitElement {
 
   /** The circuit switches the 3D reads: null when stale or when the switch is not fresh (its lamps do not glow). */
   private get circuitStates3d(): Record<string, string | null> {
+    return this.memo('circuitStates3d', [this.bundle, this.states3dStale], () => this.computeCircuitStates3d());
+  }
+
+  private computeCircuitStates3d(): Record<string, string | null> {
     const stale = this.states3dStale;
     return Object.fromEntries(Object.entries(this.bundle?.circuitStates ?? {}).map(([id, c]) => [id, stale || c.fresh === false ? null : c.state]));
   }
@@ -2543,18 +2618,18 @@ export class ExploreFloorMap extends LitElement {
     }
   }
 
+  /** The stored layer set of this floor, or every layer when nothing usable is stored (06:MAP-1 b: before, a floor with no
+   * stored list kept the set of the floor shown before - and the next toggle saved that set under this floor's key). */
   private restoreLayers() {
+    let raw: string | null = null;
     try {
-      const raw = localStorage.getItem(`sw.floor.layers.${this.floorId}`);
-      if (!raw) return;
-      const arr = JSON.parse(raw) as string[];
-      if (!Array.isArray(arr)) return;
-      const next = new Set<Layer>(arr.filter((l): l is Layer => LAYERS.some((x) => x.id === l)));
-      for (const id of LATE_LAYERS) if (!arr.includes(`-${id}`)) next.add(id);
-      this.layers = next;
+      raw = localStorage.getItem(`sw.floor.layers.${this.floorId}`);
     } catch {
-      /* ignore */
+      /* private mode or blocked storage: the defaults */
     }
+    const next = restoredLayers(raw);
+    // the same set stays the same object: the memos keyed on it (markers, room states, the scene) are not thrown away
+    if (next.size !== this.layers.size || [...next].some((l) => !this.layers.has(l))) this.layers = next;
   }
 
   /** The plan picture switch, per floor in this browser (key apart from the layer list: it is not an anchor layer). */
@@ -2658,7 +2733,9 @@ export class ExploreFloorMap extends LitElement {
     this.focusZoom = this.jumpZoom;
     await this.applyFocus();
     // the focus properties re-trigger applyFocus on the next update: keep the choice for that pass, then back to the default
-    window.setTimeout(() => (this.focusZoom = true), 900);
+    // one timer (06:TIMER-1): a second jump inside the window restarts it instead of being cut short by the first one's
+    window.clearTimeout(this.focusZoomTimer);
+    this.focusZoomTimer = window.setTimeout(() => { this.focusZoomTimer = 0; this.focusZoom = true; }, 900);
   }
 
   private setJumpZoom(on: boolean) {
@@ -3115,6 +3192,7 @@ export class ExploreFloorMap extends LitElement {
           : html`<dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>`}
         <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
       </dl>
+      ${this.notice ? html`<div class="note" data-notice role="status">${this.notice}</div>` : nothing}
       ${recorderOff ? nothing : html`<div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? (standalone ? standaloneMapNote('offline') : 'המצלמה מנותקת לפי ה־NVR.') : standalone ? standaloneMapNote('still') : 'תמונה: צילום מה־NVR (מתרענן).'}</div>`}
     `;
   }
