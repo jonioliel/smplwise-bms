@@ -15,6 +15,7 @@ import { mapLine, nearestElement, pickerElements, pickOf, type PickerElement } f
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { MAP_TEXT } from './map-text';
+import { MAP_PICK_HEX } from '../styles/status-palette';
 
 export { MAP_TEXT };
 
@@ -224,7 +225,7 @@ export class TicketMapPicker extends LitElement {
   private stage(): TemplateResult {
     const b = this.bundle!;
     const r = Math.max(b.width, b.height) * 0.011;
-    const color = (e: PickerElement) => (e.type === 'camera' ? '#2f6bff' : e.type === 'ha_entity' ? '#16a34a' : '#7b8794');
+    const color = (e: PickerElement) => (e.type === 'camera' ? MAP_PICK_HEX.camera : e.type === 'ha_entity' ? MAP_PICK_HEX.entity : MAP_PICK_HEX.other);
     return html`<div class="stage" data-map-stage style=${`aspect-ratio:${b.width} / ${b.height}`} @click=${this.onStageClick}>
       ${b.imageUrl ? html`<img src=${b.imageUrl} alt="" />` : b.planSvg ? html`<svg viewBox=${`0 0 ${b.width} ${b.height}`} aria-hidden="true">${b.planSvg}</svg>` : nothing}
       <svg viewBox=${`0 0 ${b.width} ${b.height}`} preserveAspectRatio="none" aria-hidden="true">
@@ -233,8 +234,8 @@ export class TicketMapPicker extends LitElement {
           const cx = e.x * b.width;
           const cy = e.y * b.height;
           return html`<g class="dot" data-pick-dot=${e.key}>
-            ${on ? html`<circle cx=${cx} cy=${cy} r=${r * 2.2} fill="#e0443c" fill-opacity="0.18" stroke="#e0443c" stroke-width=${r * 0.35}></circle>` : nothing}
-            <circle cx=${cx} cy=${cy} r=${r} fill=${on ? '#e0443c' : color(e)} stroke="#fff" stroke-width=${r * 0.3}></circle></g>`;
+            ${on ? html`<circle cx=${cx} cy=${cy} r=${r * 2.2} fill=${MAP_PICK_HEX.chosen} fill-opacity="0.18" stroke=${MAP_PICK_HEX.chosen} stroke-width=${r * 0.35}></circle>` : nothing}
+            <circle cx=${cx} cy=${cy} r=${r} fill=${on ? MAP_PICK_HEX.chosen : color(e)} stroke=${MAP_PICK_HEX.ring} stroke-width=${r * 0.3}></circle></g>`;
         })}
       </svg>
     </div>`;

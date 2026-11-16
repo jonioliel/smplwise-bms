@@ -1,5 +1,5 @@
-import { html, type TemplateResult } from 'lit';
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import type { TemplateResult } from 'lit';
+import { iconSvg } from './icon-paths';
 
 /**
  * CR-018: the pictograms of the notification surfaces (the approved mockup's set: the stroke style of sw-icon, 24x24, round caps, neutral
@@ -64,5 +64,5 @@ export const NOTIFY_ICONS: Record<string, string> = {
 
 /** One pictogram as an inline SVG (`class="ic"`); an unknown name draws the bell. */
 export function nIcon(name: string, size?: number): TemplateResult {
-  return html`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style=${size ? `font-size:${size}px` : ''}>${unsafeSVG(NOTIFY_ICONS[name] ?? NOTIFY_ICONS.bell)}</svg>`;
+  return iconSvg(NOTIFY_ICONS[name] ?? NOTIFY_ICONS.bell, 'ic', size ? `font-size:${size}px` : ''); // CR-ICONS-PALETTE-2440: the one wrapper
 }

@@ -1,7 +1,7 @@
 // HOME-SIMPLE-2420: the home interface's own icon set - drawn for Arx in the round-25 mockup (24 grid, 1.75 stroke), copied as is.
 // Static SVG markup only (no data ever goes in here), rendered through unsafeSVG.
-import { html, type TemplateResult } from 'lit';
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import type { TemplateResult } from 'lit';
+import { iconSvg } from '../components/icon-paths';
 
 const P: Record<string, string> = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-6h4v6"/>',
@@ -90,7 +90,9 @@ Object.assign(P, {
 export type HomeIcon = keyof typeof P;
 
 export function hi(name: string, cls = ''): TemplateResult {
-  return html`<svg class=${'hi' + (cls ? ' ' + cls : '')} viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(P[name] ?? '')}</svg>`;
+  return iconSvg(P[name] ?? '', 'hi' + (cls ? ' ' + cls : '')); // CR-ICONS-PALETTE-2440: the one wrapper (components/icon-paths.ts)
 }
 
 export const hasIcon = (name: string): boolean => name in P;
+/** The path table (read-only; for the registry spec). */
+export const HOME_ICON_PATHS: Readonly<Record<string, string>> = P;

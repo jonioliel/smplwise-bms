@@ -1,5 +1,5 @@
-import { svg, type TemplateResult } from 'lit';
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import type { TemplateResult } from 'lit';
+import { iconSvg } from './icon-paths';
 import type { Block } from '../api/automations';
 
 /**
@@ -75,11 +75,13 @@ const ICONS = {
 } as const;
 
 export type AutomationIconName = keyof typeof ICONS;
+/** The path table (read-only; for the registry spec). */
+export const AUTOMATION_ICON_PATHS: Readonly<Record<AutomationIconName, string>> = ICONS;
 
 /** An inline icon; its size is the `font-size` of the place it sits in (or `size` px). */
 export function aIcon(name: AutomationIconName, size?: number, cls = ''): TemplateResult {
-  // the path strings above are static, trusted markup of this file (never user data), hence unsafeSVG
-  return svg`<svg class=${cls ? `ic ${cls}` : 'ic'} viewBox="0 0 24 24" aria-hidden="true" style=${size ? `font-size:${size}px` : ''}>${unsafeSVG(ICONS[name])}</svg>`;
+  // the path strings above are static, trusted markup of this file (never user data); CR-ICONS-PALETTE-2440: the one wrapper (icon-paths.ts)
+  return iconSvg(ICONS[name], cls ? `ic ${cls}` : 'ic', size ? `font-size:${size}px` : '');
 }
 
 const DOMAIN_ICON: Record<string, AutomationIconName> = {
