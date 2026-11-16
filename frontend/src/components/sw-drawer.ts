@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import { t } from '../i18n/he';
 import { lockScrollChain } from './scroll-lock';
+import { deepActive, isTopLayer, pushLayer, removeLayer, restoreFocus, takesEscape } from './modal-stack';
 
 const FOCUSABLE = 'button, a[href], input, select, textarea, [tabindex]';
 
@@ -27,13 +28,6 @@ export function deepFocusables(root: Node): HTMLElement[] {
   };
   visit(root);
   return out;
-}
-
-/** The element that really holds focus (through shadow roots). */
-function deepActive(): HTMLElement | null {
-  let a: Element | null = document.activeElement;
-  while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
-  return a as HTMLElement | null;
 }
 
 /**
@@ -348,16 +342,18 @@ export class SwDrawer extends LitElement {
         dlg.setAttribute('open', '');
       }
       this.lockScroll();
+      pushLayer(this); // CR-MODAL-STACK-2441: the modal drawer is a layer of the shared stack while it is open
       // Escape is caught at the document (capture), wherever focus is - even outside the <dialog> after a re-render
       document.addEventListener('keydown', this.onKeyCapture, true);
       requestAnimationFrame(() => this.focusEdge('start'));
     } else if (!this.open && dlg.open) {
       dlg.close();
       this.unlockScroll();
+      removeLayer(this);
       document.removeEventListener('keydown', this.onKeyCapture, true);
       const back = this.opener;
       this.opener = null;
-      if (back?.isConnected) back.focus({ preventScroll: true });
+      restoreFocus(back, true);
     }
   }
 
@@ -365,6 +361,7 @@ export class SwDrawer extends LitElement {
     super.disconnectedCallback();
     if (this.dialog?.open) this.dialog.close();
     this.unlockScroll();
+    removeLayer(this);
     document.removeEventListener('keydown', this.onKeyCapture, true);
   }
 
@@ -433,17 +430,21 @@ export class SwDrawer extends LitElement {
   }
 
   /** Escape is handled here, not by the browser's close request (which it may even skip after a prevented one): with a
-   * confirmation open inside, the key is left to that confirmation (review B1); otherwise it closes the drawer. */
+   * confirmation open inside, the key is left to that confirmation (review B1); otherwise it closes the drawer.
+   * CR-MODAL-STACK-2441: the drawer also asks the shared stack - a layer opened above it (an sw-sheet inside the drawer, which the
+   * walk above does not know) takes the key, and the drawer stays. */
   private onKeyCapture = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
     e.preventDefault(); // no native cancel / close for this key
     if (this.nestedDialogOpen()) return;
+    if (!takesEscape(this, e)) return;
     this.close();
   };
 
   private onCancel = (e: Event) => {
     e.preventDefault(); // the dialog closes through `open`, so the opener gets its focus back and `close` is raised
     if (this.nestedDialogOpen()) return;
+    if (!isTopLayer(this)) return;
     this.close();
   };
 

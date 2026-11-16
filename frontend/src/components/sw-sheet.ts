@@ -3,13 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import { deepFocusables } from './sw-drawer';
 import { LookController, type Popup } from '../design/look';
-
-/** The element that really holds focus (through shadow roots). */
-function deepActive(): HTMLElement | null {
-  let a: Element | null = document.activeElement;
-  while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
-  return a as HTMLElement | null;
-}
+import { deepActive, holdsTab, pushLayer, removeLayer, restoreFocus, takesEscape, trapTab } from './modal-stack';
 
 /** Whether `node` sits inside `root` in the composed (flattened) tree: through slots and shadow hosts, not only DOM parents. */
 function insideComposed(node: Node | null, root: Node): boolean {
@@ -48,6 +42,9 @@ const reducedMotion = () => {
  * row under the scrolling body: the actions of a form stay in view however long the form is).
  * POLISH4-WP1 (WKWATER-POLISH-2331 proposal): `solid` - the opaque surface for a sheet that holds a form, so the page's figures do not
  * read through a long form (the same `--sw-surface-solid` the reduced-transparency path draws). Opt-in: every other sheet is unchanged.
+ * CR-MODAL-STACK-2441: an open sheet is a layer of the shared stack (components/modal-stack.ts). It takes Escape and wraps Tab only
+ * while it is the top layer: a confirmation (sw-dialog) opened over the sheet closes alone on Escape, a second press closes the sheet.
+ * An inline sheet takes its turn for Escape the same way and never takes the Tab trap away from a modal layer under it.
  */
 @customElement('sw-sheet')
 export class SwSheet extends LitElement {
@@ -360,11 +357,13 @@ export class SwSheet extends LitElement {
       this.mq = null;
     }
     window.addEventListener('keydown', this.onKey);
+    if (this.open && this.hasUpdated) this.track(true); // taken out of the page and put back while open
   }
 
   disconnectedCallback() {
     this.mq?.removeEventListener('change', this.onMq);
     window.removeEventListener('keydown', this.onKey);
+    this.track(false);
     if (this.open) this.restoreFocus();
     super.disconnectedCallback();
   }
@@ -372,6 +371,7 @@ export class SwSheet extends LitElement {
   private onKey = (e: KeyboardEvent) => {
     if (!this.open) return;
     if (e.key === 'Escape') {
+      if (!takesEscape(this, e)) return; // a layer above this one (a confirmation) takes the key
       e.preventDefault();
       this.close();
       return;
@@ -379,29 +379,21 @@ export class SwSheet extends LitElement {
     if (e.key === 'Tab' && this.layout !== 'inline') this.trapTab(e);
   };
 
+  /** In / out of the shared stack of open layers (components/modal-stack.ts). */
+  private track(open: boolean) {
+    if (open) pushLayer(this, { traps: () => this.layout !== 'inline' });
+    else removeLayer(this);
+  }
+
   /** Tab / Shift+Tab wrap inside the sheet (through shadow roots and slots). */
   private trapTab(e: KeyboardEvent) {
     const sheet = this.renderRoot.querySelector('.sheet');
     if (!sheet) return;
+    // a layer opened above this one (a confirmation) keeps Tab for itself
+    if (!holdsTab(this)) return;
     const all = deepFocusables(sheet).filter((el) => !el.classList.contains('grab'));
-    if (!all.length) {
-      e.preventDefault();
-      return;
-    }
     const active = deepActive();
-    const inside = active ? sheet.contains(active) || this.contains(active) : false;
-    const first = all[0];
-    const last = all[all.length - 1];
-    if (!inside) {
-      e.preventDefault();
-      (e.shiftKey ? last : first).focus({ preventScroll: true });
-    } else if (e.shiftKey && active === first) {
-      e.preventDefault();
-      last.focus({ preventScroll: true });
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus({ preventScroll: true });
-    }
+    trapTab(e, all, active, active ? sheet.contains(active) || this.contains(active) : false);
   }
 
   close() {
@@ -413,12 +405,13 @@ export class SwSheet extends LitElement {
   private restoreFocus() {
     const back = this.opener;
     this.opener = null;
-    if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+    restoreFocus(back);
   }
 
   protected updated(changed: Map<string, unknown>) {
     this.setAttribute('data-layout', this.layout);
     if (changed.has('open')) {
+      this.track(this.open);
       if (this.open) {
         const a = deepActive();
         if (a && !this.contains(a) && !this.renderRoot.contains(a)) this.opener = a;
