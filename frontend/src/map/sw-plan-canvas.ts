@@ -9,6 +9,7 @@ import { glassBand, panelStateId } from './glass-wall';
 import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState, objectCandidateLabel } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { segmentMid } from './curve-ops';
+import { dragSession } from './drag-session';
 import { curveT } from '../i18n/plan-curves';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { curveThrough, levelOrDefault, translatePolygon } from './studio-ops';
@@ -1445,9 +1446,6 @@ export class SwPlanCanvas extends LitElement {
       this.dragging = { id: m.id, x: p.x, y: p.y };
     };
     const up = (ev: PointerEvent) => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', up);
       const rect = this.getBoundingClientRect();
       const p = this.toPlan(ev.clientX - rect.left, ev.clientY - rect.top);
       const moved = Math.abs(p.x - m.x) > 0.0005 || Math.abs(p.y - m.y) > 0.0005;
@@ -1456,12 +1454,14 @@ export class SwPlanCanvas extends LitElement {
       // (a plain press selects; without this the background click deselected it right away - R2 evidence)
       if (moved) this.dispatchEvent(new CustomEvent('marker-move', { detail: { id: m.id, x: p.x, y: p.y }, bubbles: true, composed: true }));
       else this.select(m, ev);
-      this.dragMoved = true;
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick();
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', up);
+    // an interrupted gesture changes nothing: the pin stays where it was (the cancel event carries no pointer position)
+    const cancel = () => {
+      this.dragging = null;
+      this.swallowClick();
+    };
+    dragSession(this.viewport, { move, commit: up, cancel });
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -1562,6 +1562,13 @@ export class SwPlanCanvas extends LitElement {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
+  /** Pointer capture delivers the click that follows a drag to the viewport: every click handler ignores it until the
+   * next task (they all return while `dragMoved` is set). */
+  private swallowClick(): void {
+    this.dragMoved = true;
+    setTimeout(() => (this.dragMoved = false), 0);
+  }
+
   private select(m: PlanMarker, e: Event) {
     if (this.dragMoved) return;
     e.stopPropagation();
@@ -1611,19 +1618,18 @@ export class SwPlanCanvas extends LitElement {
       this.zoneDraft = { id: z.id, polygon: poly };
     };
     const up = () => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', up);
       const changed = insert || poly.some((q, i) => q.x !== z.polygon[i].x || q.y !== z.polygon[i].y);
       this.zoneDraft = null;
-      this.dragMoved = true; // swallow the trailing click so the zone stays selected
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick(); // the trailing click must not deselect the zone
       if (changed) this.emitZoneEdit(z, poly);
       else if (!insert) this.dispatchEvent(new CustomEvent('zone-vertex-select', { detail: { id: z.id, index }, bubbles: true, composed: true })); // a press without a move selects the corner (Delete removes it)
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', up);
+    // an interrupted gesture changes nothing: no corner is moved or inserted, the zone keeps its polygon
+    const cancel = () => {
+      this.zoneDraft = null;
+      this.swallowClick();
+    };
+    dragSession(this.viewport, { move, commit: up, cancel });
   }
 
   /** Hotfix 0.1.87: a press on the selected zone's body and a drag move the whole polygon (a live `zoneDraft` while the
@@ -1654,12 +1660,8 @@ export class SwPlanCanvas extends LitElement {
       this.zoneDraft = { id: z.id, polygon: poly };
     };
     const end = () => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', cancel);
       this.zoneDraft = null;
-      this.dragMoved = true; // swallow the trailing click so the zone stays selected
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick(); // the trailing click must not deselect the zone
     };
     const add = e.shiftKey;
     const up = () => {
@@ -1670,9 +1672,7 @@ export class SwPlanCanvas extends LitElement {
       else if (!moved && add) this.dispatchEvent(new CustomEvent('zone-select', { detail: { id: z.id, add: true }, bubbles: true, composed: true }));
     };
     const cancel = () => end(); // an interrupted gesture changes nothing
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', cancel);
+    dragSession(this.viewport, { move, commit: up, cancel });
   }
 
   private removeVertex(z: PlanZone, index: number, e: Event) {
@@ -1890,18 +1890,17 @@ export class SwPlanCanvas extends LitElement {
       this.orienting = { id: m.id, ...compute(ev) };
     };
     const up = (ev: PointerEvent) => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', up);
       const o = compute(ev);
       this.orienting = null;
-      this.dragMoved = true; // the click that follows must not deselect
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick(); // the click that follows must not deselect
       if (o.rotation !== startRotation || o.fov !== startFov) this.dispatchEvent(new CustomEvent('marker-orient', { detail: { id: m.id, ...o }, bubbles: true, composed: true }));
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', up);
+    // an interrupted gesture changes nothing: the camera keeps its direction and field of view
+    const cancel = () => {
+      this.orienting = null;
+      this.swallowClick();
+    };
+    dragSession(this.viewport, { move, commit: up, cancel });
   };
 
   /** Cone radius in plan pixels for a marker (its own fraction of the plan width, else the default illustration). */
@@ -1926,18 +1925,17 @@ export class SwPlanCanvas extends LitElement {
     };
     const move = (ev: PointerEvent) => (this.shaping = { id: m.id, radius: compute(ev) });
     const up = (ev: PointerEvent) => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', up);
       const radius = compute(ev);
       this.shaping = null;
-      this.dragMoved = true;
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick();
       if (radius !== start) this.dispatchEvent(new CustomEvent('marker-coverage', { detail: { id: m.id, radius }, bubbles: true, composed: true }));
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', up);
+    // an interrupted gesture changes nothing: the cone keeps its range
+    const cancel = () => {
+      this.shaping = null;
+      this.swallowClick();
+    };
+    dragSession(this.viewport, { move, commit: up, cancel });
   };
 
   /** Drag a vertex of the coverage polygon (normalized plan space); emits `marker-coverage` {id, polygon}. */
@@ -1969,18 +1967,17 @@ export class SwPlanCanvas extends LitElement {
       this.shaping = { id: m.id, polygon: compute(ev) };
     };
     const up = (ev: PointerEvent) => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', up);
       const polygon = compute(ev);
       this.shaping = null;
-      this.dragMoved = true;
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick();
       if (moved) this.dispatchEvent(new CustomEvent('marker-coverage', { detail: { id: m.id, polygon }, bubbles: true, composed: true }));
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', up);
+    // an interrupted gesture changes nothing: the coverage keeps its polygon
+    const cancel = () => {
+      this.shaping = null;
+      this.swallowClick();
+    };
+    dragSession(this.viewport, { move, commit: up, cancel });
   };
 
   /** A midpoint handle adds a vertex there; a double click on a vertex removes it (never below 3). */
@@ -2408,13 +2405,9 @@ export class SwPlanCanvas extends LitElement {
       emit('geom-drag-move', detail(p));
     };
     const end = () => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', cancel);
       this.geomDragAt = null;
       this.geomPress = false;
-      this.dragMoved = true; // pointer capture sends the trailing click to the viewport: swallow it
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick();
     };
     const add = e.shiftKey;
     const up = () => {
@@ -2428,9 +2421,7 @@ export class SwPlanCanvas extends LitElement {
       end();
       if (moved) emit('geom-drag-cancel', detail(last)); // an interrupted gesture changes nothing
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', cancel);
+    dragSession(this.viewport, { move, commit: up, cancel });
   }
 
   /** Invisible wide strokes to pick an item, and the selected wall's corner handles (the closing corner of an outline is
@@ -2605,21 +2596,15 @@ export class SwPlanCanvas extends LitElement {
       this.candDrag = { x: p.x, y: p.y };
     };
     const end = () => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', up);
-      this.viewport.removeEventListener('pointercancel', cancel);
       this.candDrag = null;
-      this.dragMoved = true;
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick();
     };
     const up = () => {
       end();
       if (moved) this.dispatchEvent(new CustomEvent('candidate-drag', { detail: { id, index, x: +last.x.toFixed(5), y: +last.y.toFixed(5) }, bubbles: true, composed: true }));
     };
     const cancel = () => end();
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', up);
-    this.viewport.addEventListener('pointercancel', cancel);
+    dragSession(this.viewport, { move, commit: up, cancel });
   }
 
   /** Wide invisible strokes over the candidates (a click toggles, hovering shows the score) and, on desktop, the end
@@ -2727,16 +2712,12 @@ export class SwPlanCanvas extends LitElement {
       send('move', ev);
     };
     const end = (ev: PointerEvent) => {
-      this.viewport.removeEventListener('pointermove', move);
-      this.viewport.removeEventListener('pointerup', end);
-      this.viewport.removeEventListener('pointercancel', end);
       if (moved) send('end', ev);
-      this.dragMoved = true;
-      setTimeout(() => (this.dragMoved = false), 0);
+      this.swallowClick();
     };
-    this.viewport.addEventListener('pointermove', move);
-    this.viewport.addEventListener('pointerup', end);
-    this.viewport.addEventListener('pointercancel', end);
+    // an interrupted gesture sends no 'end': the cancel event's position is not the pointer's and must not become the width
+    const cancel = () => this.swallowClick();
+    dragSession(this.viewport, { move, commit: end, cancel });
   }
 
   /** The wall being drawn, the rubber band to the snapped cursor, and the snap dot. */
