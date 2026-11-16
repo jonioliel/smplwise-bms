@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+from ...errors import ServiceInvalid
+
 KINDS = ("certificate", "preventive", "round", "vendor_document")
 CATEGORIES = ("elevator", "generator", "fire", "kitchen_hood", "electrical", "pumps", "hvac", "water", "safety", "other")
 DOC_TYPES = ("insurance", "electrician_license", "work_at_height", "other")
@@ -36,13 +38,17 @@ KEY_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-class Invalid(ValueError):
-    """A field problem: `field` and a short code (the router turns it into the 422 envelope)."""
+class Invalid(ServiceInvalid):
+    """A field problem: `field` and a short code (the router turns it into the 422 envelope).
+
+    CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, `field`, `code` and
+    `str()` are unchanged."""
 
     def __init__(self, field: str, code: str) -> None:
-        super().__init__(f"{field}: {code}")
+        ValueError.__init__(self, f"{field}: {code}")
         self.field = field
         self.code = code
+        self.fields = [field] if field else []
 
 
 # ---------------------------------------------------------------- text and dates

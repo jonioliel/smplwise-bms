@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from ...errors import ServiceInvalid
+
 STATUSES = ("green", "amber", "red", "unknown", "not_applicable")
 VERDICTS = ("ready", "ready_with_gaps", "not_ready")
 SLOTS = ("fire_certificate", "extinguishers", "hydrants_sprinklers", "emergency_lighting", "evacuation_round", "elevator_inspection")
@@ -58,11 +60,15 @@ ORDER_DOWN = (("fuel_green_pct", "fuel_amber_pct"), ("cameras_green_pct", "camer
 THRESHOLDS_VERSION = 1
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, the attributes it
+    always had and `str()` are unchanged. The router still builds this endpoint's 422 envelope itself (lead decision L2)."""
+
     def __init__(self, field: str, code: str) -> None:
-        super().__init__(f"{field}: {code}")
+        ValueError.__init__(self, f"{field}: {code}")
         self.field = field
         self.code = code
+        self.fields = [field] if field else []
 
 
 def default_thresholds() -> dict[str, float]:

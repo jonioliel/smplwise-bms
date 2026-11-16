@@ -22,6 +22,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..db import get_setting, set_setting
+from ..errors import ServiceInvalid
 from ..rbac import INSTALLATION, Principal, require
 from . import ha_scope
 from .timeutil import iso_from_epoch, parse_utc
@@ -60,9 +61,12 @@ WASTE_DOMAINS = ("light", "climate", "fan", "switch")
 SECTIONS = ("summary", "tickets", "energy", "elevators", "generator", "temperature", "doors", "cameras", "waste")
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, the attributes it
+    always had and `str()` are unchanged. The router still builds this endpoint's 422 envelope itself (lead decision L2)."""
+
     def __init__(self, fields: list[str]):
-        super().__init__(",".join(fields))
+        ValueError.__init__(self, ",".join(fields))
         self.fields = fields
 
 

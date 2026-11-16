@@ -20,6 +20,7 @@ import sqlite3
 from typing import Any
 
 from ...db import now_iso
+from .. import values
 from . import audience as aud
 from . import model, store
 
@@ -50,9 +51,7 @@ def effective(conn: sqlite3.Connection, severity: str, explicit: bool | None) ->
     return default_push(store.settings(conn)["push_default"], severity)
 
 
-def _clip(text: str, n: int) -> str:
-    text = " ".join(str(text or "").split())
-    return text if len(text) <= n else text[: n - 1] + "…"
+_clip = values.clip  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): was a word-for-word copy
 
 
 def send(conn: sqlite3.Connection, notice: dict[str, Any], actor_id: str | None, *, explicit: bool | None) -> dict[str, Any]:

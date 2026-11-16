@@ -9,6 +9,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ...db import get_setting
+from ...errors import ServiceInvalid
 
 PERM_VIEW, PERM_BOOK, PERM_BOOK_FOR_OTHERS, PERM_MANAGE = "calendar.view", "calendar.book", "calendar.book_for_others", "calendar.manage"
 PERM_MAINTENANCE, PERM_GUESTS, PERM_CONFIGURE, PERM_CONNECT = "calendar.maintenance", "calendar.guests", "calendar.configure", "calendar.connect"
@@ -98,11 +99,16 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
 }
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-SMALL-UNIFY-2440 (T7, review 04:F16): on the common base `errors.ServiceInvalid`; the constructor, the attributes it
+    always had and `str()` are unchanged. The router still builds this endpoint's 422 envelope itself (lead decision L2)."""
+
     def __init__(self, message: str, field: str = "", code: str = "validation") -> None:
-        super().__init__(message)
+        ValueError.__init__(self, message)
+        self.message = message
         self.field = field
         self.code = code
+        self.fields = [field] if field else []
 
 
 def _int(v: Any, field: str, lo: int, hi: int) -> int:
