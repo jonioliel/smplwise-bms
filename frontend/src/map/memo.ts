@@ -13,3 +13,21 @@
 export function sameRefs(a: readonly unknown[] | null | undefined, b: readonly unknown[]): boolean {
   return !!a && a.length === b.length && a.every((k, i) => k === b[i]);
 }
+
+/**
+ * CR-INV-PLAYBACK-2440 (review 06:PERF-1, 06:PERF-2): a few identity memos for one element, by name. A render-time list that is handed
+ * to a child (`.segments`, `.events`) must be the SAME array while what it is built from did not change - a fresh array per render
+ * makes the child see a changed property every tick of a playing clock. `get(slot, refs, make)` returns the value made for `slot`
+ * the last time unless one of `refs` changed (compared with `===`, see `sameRefs`).
+ */
+export class RefMemo {
+  private slots = new Map<string, { refs: readonly unknown[]; value: unknown }>();
+
+  get<T>(slot: string, refs: readonly unknown[], make: () => T): T {
+    const hit = this.slots.get(slot);
+    if (hit && sameRefs(hit.refs, refs)) return hit.value as T;
+    const value = make();
+    this.slots.set(slot, { refs, value });
+    return value;
+  }
+}

@@ -74,16 +74,39 @@ export function playbackWsUrl(session: PlaybackSession): string {
   return u.toString();
 }
 
+/**
+ * CR-INV-PLAYBACK-2440 (review 06:PERF-1): one formatter per zone. `minuteInZone` runs for every segment, event marker and bookmark of
+ * a day and twice a second for the playing cursor; building an `Intl.DateTimeFormat` each time was the cost. The formatters are
+ * immutable, so they are kept; an unknown zone still throws where it did (nothing is cached for it).
+ */
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+const minuteFormats = new Map<string, Intl.DateTimeFormat>();
+function zoneFormat(cache: Map<string, Intl.DateTimeFormat>, timeZone: string, make: () => Intl.DateTimeFormat): Intl.DateTimeFormat {
+  let f = cache.get(timeZone);
+  if (!f) {
+    f = make();
+    cache.set(timeZone, f);
+  }
+  return f;
+}
+
+/** CR-INV-PLAYBACK-2440 (review 06:PLAY-2): a seek that the server answers with "this session is over / not found" is tried once
+ * more as a new session - only when there was a session to lose, and only once (a create that itself answers `not_found` used to
+ * be tried again without end). */
+export function retryLostSession(code: string | undefined, hadSession: boolean, retried: boolean): boolean {
+  return (code === 'session_over' || code === 'not_found') && hadSession && !retried;
+}
+
 /** Local calendar date (YYYY-MM-DD) of an instant in a zone. */
 export function dateInZone(at: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
+  const parts = zoneFormat(dayFormats, timeZone, () => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })).formatToParts(at);
   const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${g('year')}-${g('month')}-${g('day')}`;
 }
 
 /** Minute of the local day (0..1439, fractional) for an instant, in a zone. */
 export function minuteInZone(at: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(at);
+  const parts = zoneFormat(minuteFormats, timeZone, () => new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })).formatToParts(at);
   const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
   return g('hour') * 60 + g('minute') + g('second') / 60;
 }

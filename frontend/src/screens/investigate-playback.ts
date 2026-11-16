@@ -31,7 +31,9 @@ import { onPlaybackDisplay, showPlaybackItem } from '../api/playback-display';
 import { navigate } from '../router';
 import { describeError, ApiError } from '../api/client';
 import { closeGroup, closePlayback, createGroup, createPlayback, dateInZone, frameUrl, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekGroup, seekPlayback, type PlaybackGroup, type PlaybackSession, type RecordingsResponse } from '../api/recordings';
-import { recordedDays, reportGroupSync, type SyncStats } from '../api/recordings';
+import { recordedDays, reportGroupSync, retryLostSession, type SyncStats } from '../api/recordings';
+import { Latest } from '../api/latest';
+import { RefMemo } from '../map/memo';
 import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
 import type { TimelineBookmark, TimelineEvent } from '../components/sw-timeline';
@@ -167,6 +169,13 @@ export class InvestigatePlayback extends LitElement {
   @state() private exportBusy = false;
   @state() private exportError = '';
   private ticker: number | undefined;
+  /** CR-INV-PLAYBACK-2440 (06:RACE-5): the camera selectCamera / init last applied - `updated()` saw their own assignment of `cameraId`
+   * as a route change and selected the camera a second time (a second endSession, the day read twice). */
+  private appliedCamera = '';
+  /** 06:RACE-5: the day's reads (recordings, events, bookmarks) - only the newest one's answer is drawn. */
+  private recReads = new Latest();
+  /** 06:PERF-1: the timeline's three lists keep their identity while the day's data is the same (the cursor moves twice a second). */
+  private memo = new RefMemo();
   private stopDisplay?: () => void;
   /** 2.0.0 stall detection (api/playback-stall.ts): sampled every tick; options from playback.stall_s / playback.auto_resume_attempts. */
   private stall = new StallWatch(stallOptionsFromSettings({}));
@@ -626,8 +635,8 @@ export class InvestigatePlayback extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
-    if (isApi() && changed.has('cameraId') && changed.get('cameraId') !== undefined && this.cams) {
-      void this.selectCamera(this.cameraId, true);
+    if (isApi() && changed.has('cameraId') && changed.get('cameraId') !== undefined && this.cams && this.cameraId !== this.appliedCamera) {
+      void this.selectCamera(this.cameraId, true); // the address named another camera (not the one this screen just applied itself)
     }
   }
 
@@ -665,6 +674,7 @@ export class InvestigatePlayback extends LitElement {
       this.date = dateInZone(validAt ? at! : new Date(), this.tz);
       if (first) {
         this.cameraId = first.id;
+        this.appliedCamera = first.id;
         if (this.extraParam) this.extra = extraFromParam(this.extraParam, first.id, this.cams.map((c) => c.id));
         await this.loadRecordings();
         if (validAt) {
@@ -706,6 +716,7 @@ export class InvestigatePlayback extends LitElement {
     await this.endSession();
     this.frames.dispose();
     this.cameraId = id;
+    this.appliedCamera = id;
     this.extra = this.extra.filter((c) => c !== id);
     this.error = '';
     this.notice = '';
@@ -752,6 +763,7 @@ export class InvestigatePlayback extends LitElement {
 
   private async loadRecordings() {
     if (!this.cameraId || !this.date) return;
+    const current = this.recReads.begin(); // 06:RACE-5: a slower answer for the camera or day that was left is dropped
     this.loadingRec = true;
     this.rec = null;
     try {
@@ -762,6 +774,7 @@ export class InvestigatePlayback extends LitElement {
         cameraEvents(this.cameraId, this.date).catch(() => ({ events: [] as VmsEvent[] })),
         listBookmarks(this.cameraId, this.date).catch(() => ({ bookmarks: [] as Bookmark[] })),
       ]);
+      if (!current()) return;
       this.dayEvents = ev.events;
       this.bookmarks = bm.bookmarks;
       this.activeBookmark = null;
@@ -769,30 +782,33 @@ export class InvestigatePlayback extends LitElement {
       this.rec = rec.r;
       this.error = '';
     } catch (err) {
+      if (!current()) return;
       this.error = describeError(err);
     } finally {
-      this.loadingRec = false;
+      if (current()) this.loadingRec = false;
     }
   }
 
   /** Event markers for the timeline (measured alerts and recording-derived, inferred ones). */
   private get markers(): TimelineEvent[] {
-    return this.dayEvents.map((e) => ({
-      minute: minuteInZone(new Date(e.occurred_at), this.tz),
+    const { dayEvents, tz } = this;
+    return this.memo.get('markers', [dayEvents, tz], () => dayEvents.map((e) => ({
+      minute: minuteInZone(new Date(e.occurred_at), tz),
       kind: markerKind(e.type),
       label: `${EVENT_LABEL[e.type] ?? e.type}${e.confidence === 'inferred' ? ' (מהקלטה)' : ''}${e.count > 1 ? ` ×${e.count}` : ''}`,
-    }));
+    })));
   }
 
   /** Bookmarks of the day as timeline flags (T049). */
   private get bookmarkMarkers(): TimelineBookmark[] {
-    return this.bookmarks.map((b) => ({
+    const { bookmarks, tz } = this;
+    return this.memo.get('bookmarks', [bookmarks, tz], () => bookmarks.map((b) => ({
       id: b.id,
-      minute: minuteInZone(new Date(b.from_at), this.tz),
-      endMinute: minuteInZone(new Date(b.to_at), this.tz),
+      minute: minuteInZone(new Date(b.from_at), tz),
+      endMinute: minuteInZone(new Date(b.to_at), tz),
       label: `תיק „${b.case_title}”${b.note ? ` · ${b.note}` : ''} · ${BOOKMARK_LABEL[b.preservation]}`,
       preservation: b.preservation,
-    }));
+    })));
   }
 
   private async loadBookmarks() {
@@ -811,12 +827,15 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private get segmentsMin(): DemoSegment[] {
-    if (!this.rec) return [];
-    return this.rec.segments.map((s) => {
-      const a = minuteInZone(new Date(s.start_at), this.tz);
-      let b = minuteInZone(new Date(s.end_at), this.tz);
-      if (b < a) b = 1440; // ends at local midnight
-      return { startMin: a, endMin: b, kind: s.kind === 'continuous' ? 'continuous' : 'motion' };
+    const { rec, tz } = this;
+    return this.memo.get('segments', [rec, tz], (): DemoSegment[] => {
+      if (!rec) return [];
+      return rec.segments.map((s) => {
+        const a = minuteInZone(new Date(s.start_at), tz);
+        let b = minuteInZone(new Date(s.end_at), tz);
+        if (b < a) b = 1440; // ends at local midnight
+        return { startMin: a, endMin: b, kind: s.kind === 'continuous' ? 'continuous' : 'motion' };
+      });
     });
   }
 
@@ -836,8 +855,9 @@ export class InvestigatePlayback extends LitElement {
 
   /** Create the session/group at an instant, or seek the existing one (new generation). `auto`: the stall watch's own "resume from
    * here" (2.0.0) - it keeps the watch's attempt count and says nothing in the error line (the picture says "מתחבר מחדש"). */
-  private async startAt(at: Date, opts: { auto?: boolean } = {}): Promise<'ok' | 'no_recording' | 'error' | 'skipped'> {
+  private async startAt(at: Date, opts: { auto?: boolean; retried?: boolean } = {}): Promise<'ok' | 'no_recording' | 'error' | 'skipped'> {
     if (!this.cameraId || this.busy) return 'skipped';
+    const hadSession = !!(this.session || this.group); // 06:PLAY-2: only a session that existed can be "over"
     if (!opts.auto) this.clearStall();
     this.busy = true;
     this.error = '';
@@ -886,11 +906,12 @@ export class InvestigatePlayback extends LitElement {
         const cur = this.currentInstant();
         if (cur) this.cursor = minuteInZone(cur, this.tz); // the cursor goes back to what is actually playing
         return 'error';
-      } else if (err instanceof ApiError && (err.body.code === 'session_over' || err.body.code === 'not_found')) {
+      } else if (err instanceof ApiError && retryLostSession(err.body.code, hadSession, !!opts.retried)) {
+        // the session ended under the seek: once more, as a new session (06:PLAY-2: once - a create that answers the same is an error)
         this.session = null;
         this.group = null;
         this.busy = false;
-        return this.startAt(at, opts);
+        return this.startAt(at, { ...opts, retried: true });
       } else if (!opts.auto) {
         this.error = describeError(err);
       }
@@ -1031,7 +1052,8 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private masterPlayer(): SwLivePlayer | undefined {
-    return this.players().find((p) => p.dataset.camera === this.cameraId) ?? this.players()[0];
+    const players = this.players(); // 06:PERF-1: one query, not two
+    return players.find((p) => p.dataset.camera === this.cameraId) ?? players[0];
   }
 
   private currentInstant(): Date | null {
@@ -1453,6 +1475,7 @@ export class InvestigatePlayback extends LitElement {
     const precision = master?.time_precision ?? 'unknown';
     const pos = this.position ?? instantInZone(this.date, this.cursor, this.tz);
     const masterStatus = this.tileStatus[this.cameraId] ?? '';
+    const mse = this.masterPlayer()?.transport === 'mse'; // 06:PERF-1: asked once per render, not once per speed button
     return html`
       <div class="filters">
         ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
@@ -1487,7 +1510,6 @@ export class InvestigatePlayback extends LitElement {
           <span class="sep"></span>
           ${[0.25, 0.5, 1, 2, 4].map((s) => {
             const supported = (master?.capabilities.supported_speeds ?? [1]).includes(s);
-            const mse = this.masterPlayer()?.transport === 'mse';
             const ok = s === 1 || (!this.groupMode && supported && (s > 1 || mse));
             const why = ok ? (s < 1 ? 'הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק' : '') : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : s > 1 ? 'לא נתמך במסלול הזה: הזרם מגיע מהמקליט בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת' : 'הילוך איטי זמין רק בנתיב MSE';
             return html`<button class="q ${this.speed === s ? 'on' : ''}" data-speed=${s} ?disabled=${!ok} title=${why} @click=${() => this.setSpeed(s)}>${s}×</button>`;
