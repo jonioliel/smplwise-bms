@@ -112,17 +112,22 @@ test('1+2: at level 3 the camera cones are cut by the section plane, like the wa
   expect(desc.parts.filter((p) => p.kind === 'cone').map((p) => p.id)).toEqual(['cam:cam-hall#cone', 'cam:cam-living#cone']);
   await el.locator('[data-preset-iso]').click();
   await expect(el).toHaveAttribute('data-preset', 'iso');
-  // the cut of LOOK_SPEC section 5: 0.6 x the ceiling of the top shown level (the ground floor: 2.8 m) = 1.68 m
+  // the cut (R32 MAP-13, `wall_cut` low = the default): 1.25 m, never above 0.6 x the ceiling of the top shown level (2.8 m ground floor -> 1.68 m, the `mid` cut)
   let c = await cones(el);
   expect(c.map((x) => x.name)).toEqual(['cam:cam-hall#cone', 'cam:cam-living#cone']);
-  expect(c.map((x) => x.planes)).toEqual([[1.68], [1.68]]);
+  expect(c.map((x) => x.planes)).toEqual([[1.25], [1.25]]);
   expect(new Set(c.map((x) => x.mat)).size).toBe(2); // each cone owns its material (the shared accent material is not clipped)
   // the dial off: nothing cut, the cones included
   await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: false }));
   c = await cones(el);
   expect(c.map((x) => x.planes)).toEqual([null, null]);
   await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: true }));
+  expect((await cones(el)).map((x) => x.planes)).toEqual([[1.25], [1.25]]);
+  // the `mid` cut (0.6 x the 2.8 m ceiling = 1.68 m) stays a setting; the cones follow it
+  await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ wallCut: 'mid' }));
   expect((await cones(el)).map((x) => x.planes)).toEqual([[1.68], [1.68]]);
+  await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ wallCut: 'low' }));
+  expect((await cones(el)).map((x) => x.planes)).toEqual([[1.25], [1.25]]);
   // a camera preset never cuts
   await holdHouse(el, desc);
   await el.locator('[data-preset-camera]').selectOption('cam-hall');
@@ -130,18 +135,18 @@ test('1+2: at level 3 the camera cones are cut by the section plane, like the wa
   expect((await cones(el)).map((x) => x.planes)).toEqual([null, null]);
   await el.locator('[data-preset-top]').click();
   await expect(el).toHaveAttribute('data-preset', 'top');
-  expect((await cones(el)).map((x) => x.planes)).toEqual([[1.68], [1.68]]);
+  expect((await cones(el)).map((x) => x.planes)).toEqual([[1.25], [1.25]]);
   // the realistic rung's GTAO normal / depth pass is cut with the walls too (the "wisps": the occlusion of the full-height
   // walls composited over the sky), and lifted with them
   await el.locator('[data-quality-3]').click();
   await expect(el).toHaveAttribute('data-rung', 'realistic');
   await holdHouse(el, desc);
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.postPasses), { timeout: 60000 }).toContain('gtao');
-  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.68]');
+  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.25]');
   await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: false }));
   await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('null');
   await el.evaluate((n) => (n as unknown as Probe).view.setRealSettings({ sectionCut: true }));
-  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.68]');
+  await expect.poll(() => el.evaluate((n) => JSON.stringify((n as unknown as Probe).view.postClip)), { timeout: 120_000 }).toBe('[1.25]');
   // the backdrop (sky, horizon, ground) is kept out of that pass (SkipAoPass: an occlusion halo on the ground along every cut wall top otherwise) and
   // are back for the beauty pass after a drawn frame
   const backdrop = await el.evaluate((n) => {

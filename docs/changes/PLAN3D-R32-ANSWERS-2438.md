@@ -78,3 +78,12 @@ the real lab floors, a real weak device (the reflection drop is driven by the ex
 
 Rollback: revert the branch's commits. The new `plan.view` dials are ignored by an older build; `map.room_card_camera` / `map.stack_backdrop`
 values stay valid choices of the older server except `light` (an older server refuses that value: set it back to `theme` first).
+
+## Entry check fix (RED at 843c6d63c, then merge of main 2.43.6)
+
+`unit-plan-3d-odd.spec.ts:107` (cones vs the section plane at level 3) expected the clip plane at 1.68 m (0.6 x the 2.8 m ceiling).
+Cause: MAP-13 intentionally changed the default cut (`wall_cut` low = 1.25 m); the cone materials follow `sectionCutY` exactly like the
+walls, so they were clipped at 1.25 m - cone clipping is not broken, the spec carried the old number. The spec now expects 1.25 m
+(default) for cones and the GTAO post clip, and also asserts that `wallCut: 'mid'` gives 1.68 m for the cones, so both settings are
+covered. Branch merged with origin/main (2.43.6), no conflicts. Run locally: the spec on the desktop project against a local build
+(3 passed, 3 per-project skips), `tsc --noEmit` clean, `unit-plan3d-r32-answers` 11, `-level3` 7, `-room-glow` 8, `-floor-finish` 5 passed.
