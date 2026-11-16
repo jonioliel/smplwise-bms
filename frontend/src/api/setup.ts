@@ -1,7 +1,7 @@
 /** Setup wizard (T071): GET /setup/state and POST /setup/check/{step} (system.configure). Without a backend (demo mode)
  * the same shapes come from the fixture below: five steps pass, the camera step waits for a placement, and "בדוק שוב"
  * on it finds the camera placed - so the design review sees both an explanation and the "ready" summary. */
-import { get, post } from './client';
+import { get, path, post } from './client';
 import type { InstallationBlock } from './health';
 import { summarizeSetup } from '../shell/setup-hint';
 
@@ -57,7 +57,7 @@ export interface SetupState {
 }
 
 export const setupState = () => get<SetupState>('setup/state');
-export const setupCheck = (step: StepId) => post<SetupState>(`setup/check/${step}`);
+export const setupCheck = (step: StepId) => post<SetupState>(path`setup/check/${step}`);
 
 export const STATUS_TEXT: Record<StepStatus, string> = { done: 'הושלם', todo: 'לביצוע', failed: 'נכשל', skipped: 'ממתין לשלב קודם', not_applicable: 'דילוג' };
 

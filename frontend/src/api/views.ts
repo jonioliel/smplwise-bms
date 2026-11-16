@@ -1,6 +1,6 @@
 /** Saved views (live review F3): a named set of cameras with a cols × rows layout that opens the live wall or the
  * kiosk. Personal views belong to their owner; shared views need rbac.assign and are visible to everyone. */
-import { del, get, post, put } from './client';
+import { del, get, path, post, put } from './client';
 
 export interface SavedView {
   id: string;
@@ -29,8 +29,8 @@ export interface ViewBody {
 
 export const listViews = () => get<{ views: SavedView[]; can_share: boolean; can_manage_all: boolean }>('views');
 export const createView = (body: ViewBody) => post<SavedView>('views', body);
-export const updateView = (id: string, body: ViewBody) => put<SavedView>(`views/${id}`, body);
-export const deleteView = (id: string) => del(`views/${id}`);
+export const updateView = (id: string, body: ViewBody) => put<SavedView>(path`views/${id}`, body);
+export const deleteView = (id: string) => del(path`views/${id}`);
 
 /** Where a view opens: the wall keeps its automatic layout; the kiosk takes cols × rows per page. */
 export const wallHref = (v: SavedView) => `#/live/wall?cameras=${encodeURIComponent(v.cameras.join(','))}`;

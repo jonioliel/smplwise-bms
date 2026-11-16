@@ -327,3 +327,12 @@ export interface FloorMap {
   permissions: { edit: boolean; publish: boolean; import: boolean; structure: boolean };
   cameras: Camera[];
 }
+
+/** CR-API-PATHS-2439 (review 07:F21): the severity of a notification, a notice and a ticket rule - one definition (it was three
+ * identical copies in api/notifications.ts, api/notices.ts, api/tickets.ts, which re-export it). */
+export type Severity = 'info' | 'alert' | 'critical';
+
+/** CR-API-PATHS-2439 (review 07:F21): a weekday key - one definition. The automations' copy ("mon" first) and the notifications' copy
+ * ("sun" first) were the same seven values: a union has no order. The display order is each module's `WEEKDAYS` array (Sunday first
+ * in both), unchanged. api/automations.ts and api/notifications.ts re-export it. */
+export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';

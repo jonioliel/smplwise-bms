@@ -1,4 +1,4 @@
-import { apiResponse, del, get, put, upload } from './client';
+import { apiResponse, del, get, path, put, upload } from './client';
 import { saveBlob } from './download';
 import type { BrandView, LogoVariant } from '../design/brand-logo';
 
@@ -36,9 +36,9 @@ export const putBrand = (body: BrandPatch) => put<BrandFull>('brand', body);
 export function uploadLogo(variant: LogoVariant, file: File): Promise<{ stamp: string; warnings: { code: string; message: string }[]; view: BrandView; files: BrandFull['files'] }> {
   const form = new FormData();
   form.append('file', file, file.name);
-  return upload(`brand/company-logo/${variant}`, form);
+  return upload(path`brand/company-logo/${variant}`, form);
 }
-export const deleteLogo = (variant: LogoVariant) => del(`brand/company-logo/${variant}`) as unknown as Promise<BrandFull>;
+export const deleteLogo = (variant: LogoVariant) => del(path`brand/company-logo/${variant}`) as unknown as Promise<BrandFull>;
 
 /** WHITELABEL097-295: the installer (white-label) profile of GET /brand/white-label. */
 export interface InstallerFull {
@@ -61,9 +61,9 @@ export const putInstaller = (body: InstallerPatch) => put<InstallerFull>('brand/
 export function uploadInstallerLogo(variant: LogoVariant, file: File): Promise<{ stamp: string; warnings: { code: string; message: string }[]; view: InstallerFull }> {
   const form = new FormData();
   form.append('file', file, file.name);
-  return upload(`brand/white-label/logo/${variant}`, form);
+  return upload(path`brand/white-label/logo/${variant}`, form);
 }
-export const deleteInstallerLogo = (variant: LogoVariant) => del(`brand/white-label/logo/${variant}`) as unknown as Promise<InstallerFull>;
+export const deleteInstallerLogo = (variant: LogoVariant) => del(path`brand/white-label/logo/${variant}`) as unknown as Promise<InstallerFull>;
 export function importInstallerPack(file: File): Promise<InstallerFull> {
   const form = new FormData();
   form.append('file', file, file.name);

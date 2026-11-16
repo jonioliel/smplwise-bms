@@ -3,7 +3,7 @@
  * aligned once by its four corners over the plan. The live map draws the "off" image under the room state layer and
  * the "on" image clipped to the lit rooms.
  */
-import { del, get, put, resourceUrl, upload } from './client';
+import { del, get, path, put, resourceUrl, upload } from './client';
 
 export type FloorImageVariant = 'off' | 'on';
 
@@ -37,14 +37,14 @@ export interface FloorImagesInfo {
 
 export const DEFAULT_CORNERS: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
-export const getFloorImages = (floorId: string) => get<FloorImagesInfo>(`floors/${floorId}/images`);
+export const getFloorImages = (floorId: string) => get<FloorImagesInfo>(path`floors/${floorId}/images`);
 export const uploadFloorImage = (floorId: string, variant: FloorImageVariant, file: File) => {
   const form = new FormData();
   form.append('variant', variant);
   form.append('file', file, file.name || `${variant}.png`);
-  return upload<FloorImageRow & { replaced: boolean; layout: FloorImageLayout }>(`floors/${floorId}/images`, form);
+  return upload<FloorImageRow & { replaced: boolean; layout: FloorImageLayout }>(path`floors/${floorId}/images`, form);
 };
-export const deleteFloorImage = (floorId: string, variant: FloorImageVariant) => del(`floors/${floorId}/images/${variant}`);
+export const deleteFloorImage = (floorId: string, variant: FloorImageVariant) => del(path`floors/${floorId}/images/${variant}`);
 export const putFloorImageLayout = (floorId: string, corners: [number, number][], opacity?: number) =>
-  put<FloorImageLayout>(`floors/${floorId}/images/layout`, opacity === undefined ? { corners } : { corners, opacity });
+  put<FloorImageLayout>(path`floors/${floorId}/images/layout`, opacity === undefined ? { corners } : { corners, opacity });
 export const floorImageUrl = (row: FloorImageRow | null) => (row ? resourceUrl(row.url) : null);

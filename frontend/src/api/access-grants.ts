@@ -2,7 +2,7 @@
  * SHAREDID-293: the typed calls of the external-access screen (routers/access_grants.py). The server decides every permission and
  * filters every list; nothing here grants anything. The entry code never appears in any answer (only its delivery state).
  */
-import { apiBlob, get, post, put, del } from './client';
+import { apiBlob, get, post, put, del, query } from './client';
 
 export type GrantState = 'requested' | 'approved' | 'provisioning' | 'active' | 'revoking' | 'ended' | 'revoked' | 'refused' | 'failed' | 'unknown';
 export type CodeState = 'not_needed' | 'pending' | 'queued' | 'sent' | 'not_delivered' | 'unknown';
@@ -389,7 +389,7 @@ export interface RequestReply {
 
 export const grantableDoors = (ticketId?: string | null) => get<GrantableDoors>(`access-grants/grantable-doors${ticketId ? `?ticket_id=${enc(ticketId)}` : ''}`);
 export const listApprovers = (stations: string[], credential: 'pin' | 'none' | 'card') =>
-  get<ApproversReply>(`access-grants/approvers?stations=${enc(stations.join(','))}&credential=${credential}`);
+  get<ApproversReply>('access-grants/approvers' + query({ stations: stations.join(','), credential }));
 export const getNotice = (lang: string) => get<NoticeReply>(`access-grants/notice?lang=${enc(lang)}`);
 export const requestGrant = (body: RequestBody) => post<RequestReply>('access-grants', body);
 

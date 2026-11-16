@@ -27,6 +27,7 @@ import { commandId } from './request-id';
 import { isApi } from './session';
 import type { DayToken, ScheduleDraft } from './schedules';
 import { timeText } from './day-format';
+import type { Weekday } from './types';
 
 // ------------------------------------------------------------------------------------------------ vocabulary and blocks (§2.1)
 
@@ -34,7 +35,7 @@ export type ItemKind = 'automation' | 'script' | 'scene';
 export const ITEM_KINDS: readonly ItemKind[] = ['automation', 'script', 'scene'];
 export type Duration = { hours?: number; minutes?: number; seconds?: number };
 /** HA's weekday tokens (§2.1). */
-export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type { Weekday } from './types'; // CR-API-PATHS-2439 (07:F21): one definition (the same seven values; WEEKDAYS below keeps the order)
 export const WEEKDAYS: readonly Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export type SunRef = 'sunrise' | 'sunset';
 export type Mode = 'single' | 'restart' | 'queued' | 'parallel';

@@ -2,7 +2,7 @@
  * Catalogue data source: the backend when a session exists, otherwise the demo fixtures (static
  * preview / design review). Screens call these helpers instead of touching fixtures directly.
  */
-import { del, get, patch, post, put, upload, api, apiUrl } from './client';
+import { del, get, patch, path, post, put, query, upload, api, apiUrl } from './client';
 import { isApi } from './session';
 import type { Building, Floor, Site, SitesResponse } from './types';
 import { demoBuildings, demoSites } from '../fixtures/catalog';
@@ -61,13 +61,13 @@ export async function loadTree(): Promise<CatalogTree> {
 }
 
 export const createSite = (body: { name: string; address?: string }) => post<Site>('sites', body);
-export const updateSite = (id: string, body: Partial<Pick<Site, 'name' | 'address' | 'sort_order'>>) => patch<Site>(`sites/${id}`, body);
-export const deleteSite = (id: string) => del(`sites/${id}`);
-export const createBuilding = (siteId: string, body: { name: string }) => post<Building>(`sites/${siteId}/buildings`, body);
-export const updateBuilding = (id: string, body: Partial<Pick<Building, 'name' | 'sort_order' | 'is_shared'>>) => patch<Building>(`buildings/${id}`, body);
-export const deleteBuilding = (id: string) => del(`buildings/${id}`);
-export const createFloor = (buildingId: string, body: { name: string; level: number }) => post<Floor>(`buildings/${buildingId}/floors`, body);
-export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'level' | 'sort_order'>>) => patch<Floor>(`floors/${id}`, body);
+export const updateSite = (id: string, body: Partial<Pick<Site, 'name' | 'address' | 'sort_order'>>) => patch<Site>(path`sites/${id}`, body);
+export const deleteSite = (id: string) => del(path`sites/${id}`);
+export const createBuilding = (siteId: string, body: { name: string }) => post<Building>(path`sites/${siteId}/buildings`, body);
+export const updateBuilding = (id: string, body: Partial<Pick<Building, 'name' | 'sort_order' | 'is_shared'>>) => patch<Building>(path`buildings/${id}`, body);
+export const deleteBuilding = (id: string) => del(path`buildings/${id}`);
+export const createFloor = (buildingId: string, body: { name: string; level: number }) => post<Floor>(path`buildings/${buildingId}/floors`, body);
+export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'level' | 'sort_order'>>) => patch<Floor>(path`floors/${id}`, body);
 
 /** SYNOPTIC-HA-2310: the home-system mapping rows, keyed by the platform's id -> our floor (layer 1: one row per platform floor;
  * layer 2: per-area override, `floor_id: null` = taken off every floor by hand). Only rows of floors the caller may read. */
@@ -80,8 +80,8 @@ export interface HomeLinks {
 export type AreaLinkMode = 'include' | 'exclude' | 'auto';
 export const getHomeLinks = () => get<HomeLinks>('home-links');
 /** One floor's edit: its platform floors (whole list) and per-area modes; answers the rows after the change. */
-export const putHomeLink = (floorId: string, body: { ha_floor_ids?: string[]; areas?: Record<string, AreaLinkMode> }) => put<HomeLinks>(`floors/${floorId}/home-link`, body);
-export const deleteFloor = (id: string, force = false) => del(`floors/${id}${force ? '?force=true' : ''}`);
+export const putHomeLink = (floorId: string, body: { ha_floor_ids?: string[]; areas?: Record<string, AreaLinkMode> }) => put<HomeLinks>(path`floors/${floorId}/home-link`, body);
+export const deleteFloor = (id: string, force = false) => del(path`floors/${id}` + query({ force: force || undefined }));
 
 /** R1 (0.1.67): photos of sites and buildings. */
 export function uploadImage(kind: 'site' | 'building', id: string, file: File) {

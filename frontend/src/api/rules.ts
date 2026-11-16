@@ -1,5 +1,5 @@
 /** Alarm rules with a dry run (T052): trigger × scope × window × cooldown → a VMS notification; never a device command. */
-import { del, get, patch, post } from './client';
+import { del, get, patch, path, post } from './client';
 
 export interface RuleTrigger {
   types: string[];
@@ -101,12 +101,12 @@ export const emptyRule = (): RuleBody => ({
 
 export const listRules = () => get<{ rules: Rule[]; types: string[]; sources: string[]; action_kinds: string[]; days: string[] }>('rules');
 export const createRule = (body: RuleBody) => post<Rule>('rules', body);
-export const updateRule = (id: string, body: RuleBody & { revision: number }) => patch<Rule>(`rules/${id}`, body);
-export const deleteRule = (id: string) => del(`rules/${id}`);
+export const updateRule = (id: string, body: RuleBody & { revision: number }) => patch<Rule>(path`rules/${id}`, body);
+export const deleteRule = (id: string) => del(path`rules/${id}`);
 export const dryRunRule = (rule: RuleBody, hours = 24) => post<DryRunResult>('rules/dry-run', { rule, hours });
 export const dryRunStored = (ruleId: string, hours = 24) => post<DryRunResult>('rules/dry-run', { rule_id: ruleId, hours });
 export const listAlerts = (unacked = false) => get<{ alerts: RuleAlert[]; unacked: number }>(`rules/alerts${unacked ? '?unacked=true' : ''}`);
-export const ackAlert = (id: string) => post<RuleAlert>(`rules/alerts/${id}/ack`);
+export const ackAlert = (id: string) => post<RuleAlert>(path`rules/alerts/${id}/ack`);
 
 export const DAY_LABEL: Record<string, string> = { mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳', sun: 'א׳' };
 export const SOURCE_LABEL_RULE: Record<string, string> = { alertstream: 'התראת NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' };

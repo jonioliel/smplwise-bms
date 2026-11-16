@@ -3,7 +3,7 @@
  * synthetic plans when no backend is present.
  */
 import { svg, type SVGTemplateResult } from 'lit';
-import { del, get, patch, post, put, resourceUrl, upload } from './client';
+import { del, get, patch, path, post, put, query, resourceUrl, upload } from './client';
 import { cap, isApi } from './session';
 import { visibleCameras, visibleRecorderGroups } from './camera-visibility';
 import { markStillCameras } from './frigate';
@@ -126,7 +126,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
   if (draft) q.set('draft', 'true');
   if (at) q.set('at', at);
   const qs = q.toString();
-  const m = await get<FloorMap>(`floors/${floorId}/map${qs ? `?${qs}` : ''}`);
+  const m = await get<FloorMap>(path`floors/${floorId}/map` + (qs ? `?${qs}` : ''));
   return {
     source: 'api',
     floorId: m.floor.id,
@@ -175,16 +175,16 @@ export function cameraState(anchor: Anchor, demoFallback?: StateKind): StateKind
 
 // ---- plans ----
 
-export const listAssets = (floorId: string) => get<{ assets: PlanAsset[] }>(`floors/${floorId}/plan-assets`);
+export const listAssets = (floorId: string) => get<{ assets: PlanAsset[] }>(path`floors/${floorId}/plan-assets`);
 export const uploadAsset = (floorId: string, file: File) => {
   const form = new FormData();
   form.append('file', file, file.name);
-  return upload<PlanAsset>(`floors/${floorId}/plan-assets`, form);
+  return upload<PlanAsset>(path`floors/${floorId}/plan-assets`, form);
 };
-export const listVersions = (floorId: string) => get<{ versions: PlanVersion[] }>(`floors/${floorId}/plan-versions`);
+export const listVersions = (floorId: string) => get<{ versions: PlanVersion[] }>(path`floors/${floorId}/plan-versions`);
 export const createVersion = (floorId: string, body: { asset_id: string; page: number; rotation: number; crop?: { x: number; y: number; w: number; h: number } | null; notes?: string }) =>
-  post<PlanVersion>(`floors/${floorId}/plan-versions`, body);
-export const publishVersion = (versionId: string) => post<PlanVersion>(`plan-versions/${versionId}/publish`);
+  post<PlanVersion>(path`floors/${floorId}/plan-versions`, body);
+export const publishVersion = (versionId: string) => post<PlanVersion>(path`plan-versions/${versionId}/publish`);
 
 /** What publishing or restoring a version means: geometry changes against the published one and the fate of every placed item (T038). */
 export interface VersionDiff {
@@ -198,11 +198,11 @@ export interface VersionDiff {
     items: { anchor_id: string; resource_type: 'camera' | 'ha_entity'; resource_id: string; name: string; on_version_id: string; outcome: 'carried' | 'needs_alignment' }[];
   };
 }
-export const versionDiff = (versionId: string, against?: string) => get<VersionDiff>(`plan-versions/${versionId}/diff${against ? `?against=${against}` : ''}`);
+export const versionDiff = (versionId: string, against?: string) => get<VersionDiff>(path`plan-versions/${versionId}/diff` + query({ against }));
 /** Restore an archived version as a new published copy; `revision` and the expected published id make a concurrent change a clear 409. */
 export const rollbackVersion = (versionId: string, revision: number, expectedPublishedId: string | null) =>
-  post<PlanVersion>(`plan-versions/${versionId}/rollback`, { revision, expected_published_id: expectedPublishedId });
-export const deleteVersion = (versionId: string) => del(`plan-versions/${versionId}`);
+  post<PlanVersion>(path`plan-versions/${versionId}/rollback`, { revision, expected_published_id: expectedPublishedId });
+export const deleteVersion = (versionId: string) => del(path`plan-versions/${versionId}`);
 
 /** The name a placed item shows: cameras keep the NVR / alias name; an HA entity shows its manual name first (R3). */
 export function entityName(a: { resource_type: string; label: string | null; camera?: { name: string } | null; entity?: { name: string | null } | null; resource_id: string }): string {
@@ -213,14 +213,14 @@ export function entityName(a: { resource_type: string; label: string | null; cam
 // ---- anchors ----
 
 export const createAnchor = (floorId: string, body: { resource_type: 'camera' | 'ha_entity'; resource_id: string; x: number; y: number; rotation_degrees?: number; field_of_view_degrees?: number | null; layer_id?: string; label?: string | null; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }) =>
-  post<Anchor>(`floors/${floorId}/anchors`, body);
+  post<Anchor>(path`floors/${floorId}/anchors`, body);
 /** `fromFloorId` (CR-009): the anchor belongs to a room another floor owns and is edited on this floor's map - the
  * server maps the position back to the room's home plan. */
 export const updateAnchor = (id: string, body: { revision: number; x?: number; y?: number; rotation_degrees?: number; field_of_view_degrees?: number | null; label?: string | null; coverage_radius?: number | null; coverage_polygon?: [number, number][] | null; label_pos?: string; level_id?: string | null; mount_height_m?: number | null; tilt_deg?: number | null }, fromFloorId?: string) =>
-  patch<Anchor>(`map-anchors/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`, body);
+  patch<Anchor>(path`map-anchors/${id}` + query({ from_floor_id: fromFloorId }), body);
 /** S4: items placed on an earlier plan version - mapped through the crops (`crop`) or re-stamped after a visual check (`accept`). */
-export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<{ mode: string; moved: number; skipped: number; needs_alignment: boolean }>(`floors/${floorId}/anchors/realign`, { mode });
-export const deleteAnchor = (id: string, fromFloorId?: string) => del(`map-anchors/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`);
+export const realignAnchors = (floorId: string, mode: 'crop' | 'accept') => post<{ mode: string; moved: number; skipped: number; needs_alignment: boolean }>(path`floors/${floorId}/anchors/realign`, { mode });
+export const deleteAnchor = (id: string, fromFloorId?: string) => del(path`map-anchors/${id}` + query({ from_floor_id: fromFloorId }));
 
 // ---- cameras ----
 
@@ -235,7 +235,7 @@ export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: stri
   });
 export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
-export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(`cameras/${id}`, body);
+export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(path`cameras/${id}`, body);
 
 /** Plain white plan area (used only where no raster and no synthetic plan exist). */
 export const blankPlan = (w: number, h: number): SVGTemplateResult => svg`<rect x="0" y="0" width=${w} height=${h} fill="var(--sw-map-bg)" />`;
@@ -256,6 +256,6 @@ export interface DxfDetails {
   render: { width: number; height: number; px_per_unit: number; units: string; meters_per_px: number | null; rendered: number; skipped: Record<string, number>; layers: string[]; partial: boolean } | null;
   units_choices: string[];
 }
-export const getDxf = (assetId: string) => get<DxfDetails>(`plan-assets/${assetId}/dxf`);
-export const setDxf = (assetId: string, body: { layers: string[] | null; units: string | null }) => put<DxfDetails>(`plan-assets/${assetId}/dxf`, body);
+export const getDxf = (assetId: string) => get<DxfDetails>(path`plan-assets/${assetId}/dxf`);
+export const setDxf = (assetId: string, body: { layers: string[] | null; units: string | null }) => put<DxfDetails>(path`plan-assets/${assetId}/dxf`, body);
 

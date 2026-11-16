@@ -30,6 +30,41 @@ export function apiUrl(path: string): string {
   return new URL(path.replace(/^\/+/, ''), apiBase()).toString();
 }
 
+/** A value `path` / `query` put into an address. */
+export type PathValue = string | number | boolean;
+
+/**
+ * CR-API-PATHS-2439 (review 07:F15): an API path whose every interpolated value is ONE encoded segment.
+ *
+ *     get(path`cases/${id}/items/${itemId}`)          // cases/0f3a.../items/9b1c...
+ *
+ * `new URL()` normalises `..` and a slash splits a segment, so a raw `${id}` holding `../x` or `a/b` would address another route; here
+ * it stays inside its segment (`..%2Fx`, `a%2Fb`). A server-issued id (hex, `[A-Za-z0-9_.-]`) comes out byte-identical. Only the
+ * interpolated values are encoded - the literal parts are the route, written as they are. Never interpolate a sub-path or a query
+ * string into it (build the query with `query()` and append it).
+ */
+export function path(strings: TemplateStringsArray, ...values: PathValue[]): string {
+  let out = strings[0];
+  for (let i = 0; i < values.length; i++) out += encodeURIComponent(String(values[i])) + strings[i + 1];
+  return out;
+}
+
+/**
+ * CR-API-PATHS-2439 (review 07:F15): `?a=1&b=x` from an object, in its key order, every key and value encoded (the same bytes as
+ * `encodeURIComponent`, not `URLSearchParams`, which writes a space as `+`). `undefined`, `null` and `''` are left out; `false` and `0`
+ * are values (`check=false`, `offset=0`). Nothing to send = `''`.
+ *
+ *     del(path`floors/${id}` + query({ force: force || undefined }))   // floors/x  or  floors/x?force=true
+ */
+export function query(params: Record<string, PathValue | null | undefined>): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+  }
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
 /** Turn a server-relative resource path (e.g. `api/v1/plan-versions/x/image.png`) into an absolute URL. */
 export function resourceUrl(path: string): string {
   return new URL(path.replace(/^\/+/, ''), document.baseURI).toString();

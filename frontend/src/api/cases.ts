@@ -2,7 +2,7 @@
  * Investigation cases (T049): a case links events, recording clips and notes from several cameras. A clip is a
  * bookmark into the NVR until an export job preserves a copy; footage the NVR no longer has is reported as missing.
  */
-import { api, apiUrl, del, get, patch, post } from './client';
+import { api, apiUrl, del, get, patch, path, post, query } from './client';
 
 export type CaseStatus = 'open' | 'in_review' | 'closed';
 export type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
@@ -135,12 +135,12 @@ export function listCases(opts: { status?: CaseStatus; q?: string } = {}) {
   return get<{ cases: Case[]; can_manage: boolean; can_import?: boolean }>(`cases${qs ? `?${qs}` : ''}`);
 }
 export const createCase = (body: { title: string; description?: string; tags?: string[]; status?: CaseStatus }) => post<Case>('cases', body);
-export const getCase = (id: string, check = true) => get<CaseDetail>(`cases/${id}${check ? '' : '?check=false'}`);
-export const updateCase = (id: string, body: { revision: number; title?: string; description?: string; tags?: string[]; status?: CaseStatus }) => patch<Case>(`cases/${id}`, body);
-export const deleteCase = (id: string) => del(`cases/${id}`);
-export const addCaseItem = (id: string, body: NewCaseItem) => post<CaseItem>(`cases/${id}/items`, body);
-export const removeCaseItem = (id: string, itemId: string) => del(`cases/${id}/items/${itemId}`);
-export const preserveCaseItem = (id: string, itemId: string) => post<CaseItem>(`cases/${id}/items/${itemId}/preserve`);
+export const getCase = (id: string, check = true) => get<CaseDetail>(path`cases/${id}` + query({ check: check ? undefined : false }));
+export const updateCase = (id: string, body: { revision: number; title?: string; description?: string; tags?: string[]; status?: CaseStatus }) => patch<Case>(path`cases/${id}`, body);
+export const deleteCase = (id: string) => del(path`cases/${id}`);
+export const addCaseItem = (id: string, body: NewCaseItem) => post<CaseItem>(path`cases/${id}/items`, body);
+export const removeCaseItem = (id: string, itemId: string) => del(path`cases/${id}/items/${itemId}`);
+export const preserveCaseItem = (id: string, itemId: string) => post<CaseItem>(path`cases/${id}/items/${itemId}/preserve`);
 
 /** A bookmark on the playback timeline (T049): an event / clip item of a case, for one camera and local day.
  * `nvr` = the NVR still has to serve it (no copy yet); preserved / preserving follow the export job. */
@@ -261,13 +261,13 @@ export interface CaseIntegrity {
 }
 export const getSigning = () => get<SigningInfo>('evidence/signing');
 export const rotateSigning = () => post<SigningInfo>('evidence/signing/rotate');
-export const createBundle = (id: string) => post<Bundle>(`cases/${id}/bundle`);
-export const listBundles = (id: string) => get<{ bundles: Bundle[] }>(`cases/${id}/bundles`);
-export const bundleUrl = (id: string, name: string) => apiUrl(`cases/${id}/bundles/${name}`);
-export const caseItemFileUrl = (id: string, itemId: string) => apiUrl(`cases/${id}/items/${itemId}/file`);
+export const createBundle = (id: string) => post<Bundle>(path`cases/${id}/bundle`);
+export const listBundles = (id: string) => get<{ bundles: Bundle[] }>(path`cases/${id}/bundles`);
+export const bundleUrl = (id: string, name: string) => apiUrl(path`cases/${id}/bundles/${name}`);
+export const caseItemFileUrl = (id: string, itemId: string) => apiUrl(path`cases/${id}/items/${itemId}/file`);
 /** The ZIP goes as the raw request body (streamed to a temp file on the server, never held in memory there). */
 const zipBody = (file: Blob) => ({ method: 'POST', body: file, headers: { 'Content-Type': 'application/zip' } });
 const named = (path: string, file: File | Blob) => (file instanceof File && file.name ? `${path}?name=${encodeURIComponent(file.name.slice(0, 200))}` : path);
 export const verifyBundle = (file: File | Blob) => api<BundleVerification>(named('cases/bundles/verify', file), zipBody(file));
 export const importBundle = (file: File | Blob) => api<BundleImport>(named('cases/bundles/import', file), zipBody(file));
-export const checkCaseIntegrity = (id: string) => post<CaseIntegrity>(`cases/${id}/integrity`);
+export const checkCaseIntegrity = (id: string) => post<CaseIntegrity>(path`cases/${id}/integrity`);

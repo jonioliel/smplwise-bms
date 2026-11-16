@@ -8,7 +8,7 @@
  * VAT, the business details, payment terms, numbering and retention are the electricity billing settings: read here (`sharedSettings`),
  * edited only in the electricity settings.
  */
-import { del, get, patch, post, put } from './client';
+import { del, get, patch, path, post, put } from './client';
 import { isApi } from './session';
 
 export type BillState = 'draft' | 'issued' | 'sent' | 'paid' | 'void';
@@ -235,7 +235,7 @@ export const waterBilling = {
   void: (b: Bill, reason: string) => post<Bill>(`${W}bills/${b.id}/void`, { reason, row_version: b.row_version }),
   correct: (b: Bill) => post<Bill>(`${W}bills/${b.id}/correct`, { client_request_id: requestId() }),
   // the alert snooze (section 16)
-  snooze: (eventId: string, minutes?: number) => post<{ id: string; snoozed_until: string | null }>(`infra/water/events/${eventId}/snooze`, minutes === undefined ? {} : { minutes }),
-  unsnooze: (eventId: string) => del(`infra/water/events/${eventId}/snooze`),
+  snooze: (eventId: string, minutes?: number) => post<{ id: string; snoozed_until: string | null }>(path`infra/water/events/${eventId}/snooze`, minutes === undefined ? {} : { minutes }),
+  unsnooze: (eventId: string) => del(path`infra/water/events/${eventId}/snooze`),
   saveSnooze: (snooze: SnoozeSettings, rowVersion?: number) => put<{ snooze: SnoozeSettings; row_version: number }>(`infra/water/alerts`, { snooze, row_version: rowVersion }),
 };

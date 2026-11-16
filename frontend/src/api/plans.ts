@@ -3,7 +3,7 @@
  * uploaded plan: text and dimension lines removed, walls and rooms emphasised) and the render mode that
  * decides which picture the map shows. The source image is never modified.
  */
-import { get, patch, post, resourceUrl } from './client';
+import { get, patch, path, post, resourceUrl } from './client';
 import type { PlanVersion } from './types';
 
 export type RoomFill = 'white' | 'tint' | 'none';
@@ -24,9 +24,9 @@ export interface StylizeResult {
 }
 
 export async function stylizeVersion(versionId: string, opts: { strength: 'light' | 'medium' | 'strong'; keep_lines: boolean; room_fill?: RoomFill }): Promise<StylizeResult> {
-  const r = await post<Omit<StylizeResult, 'source_url' | 'stylized_url'> & { source_url: string; stylized_url: string }>(`plan-versions/${versionId}/stylize`, opts);
+  const r = await post<Omit<StylizeResult, 'source_url' | 'stylized_url'> & { source_url: string; stylized_url: string }>(path`plan-versions/${versionId}/stylize`, opts);
   return { ...r, source_url: resourceUrl(r.source_url) + `?v=${Date.now()}`, stylized_url: resourceUrl(r.stylized_url) + `?v=${Date.now()}` };
 }
 
-export const setRenderMode = (versionId: string, render_mode: 'source' | 'stylized') => patch<PlanVersion>(`plan-versions/${versionId}`, { render_mode });
-export const getVersion = (versionId: string) => get<PlanVersion>(`plan-versions/${versionId}`);
+export const setRenderMode = (versionId: string, render_mode: 'source' | 'stylized') => patch<PlanVersion>(path`plan-versions/${versionId}`, { render_mode });
+export const getVersion = (versionId: string) => get<PlanVersion>(path`plan-versions/${versionId}`);
