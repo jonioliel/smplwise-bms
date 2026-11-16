@@ -26,7 +26,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Sequence
 from zoneinfo import ZoneInfo
 
-from ..db import new_id, now_iso
+from ..db import has_table, new_id, now_iso
 from ..errors import ApiError, conflict
 from . import energy_store as st
 from .timeutil import iso_from_epoch_or_none, parse_utc
@@ -148,7 +148,7 @@ def _ts(text: str | None) -> int | None:
 
 def has_tables(conn: sqlite3.Connection) -> bool:
     try:
-        return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'energy_meter_calibrations'").fetchone() is not None
+        return has_table(conn, "energy_meter_calibrations")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
     except sqlite3.Error:
         return False
 

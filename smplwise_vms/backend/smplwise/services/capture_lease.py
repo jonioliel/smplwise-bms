@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
-from ..db import Database, get_setting, now_iso, permission_revision
+from ..db import Database, get_setting, has_table, now_iso, permission_revision
 from ..errors import ApiError
 
 log = logging.getLogger("smplwise.capture_lease")
@@ -918,7 +918,7 @@ def startup_revoke(conn: sqlite3.Connection) -> int:
 
 def tables_present(conn: sqlite3.Connection) -> bool:
     try:
-        return conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('capture_leases', 'capture_lease_stream')").fetchone()[0] == 2
+        return has_table(conn, "capture_leases") and has_table(conn, "capture_lease_stream")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
     except sqlite3.Error:
         return False
 

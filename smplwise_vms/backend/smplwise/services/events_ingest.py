@@ -35,7 +35,7 @@ from typing import Any, Callable
 import httpx
 
 from ..config import Settings
-from ..db import Database, now_iso, retry_locked
+from ..db import Database, has_column, now_iso, retry_locked
 from ..recorder_scope import PRIMARY
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, zone
 from . import xmlsafe
@@ -426,7 +426,7 @@ def store_alert(conn: sqlite3.Connection, alert: ParsedAlert, tz_name: str, came
 
 
 def _has_recorder_column(conn: sqlite3.Connection) -> bool:
-    return any(r[1] == "recorder_id" for r in conn.execute("PRAGMA table_info(events)").fetchall())
+    return has_column(conn, "events", "recorder_id")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
 
 
 def _recorder_clause(conn: sqlite3.Connection, recorder_id: str) -> tuple[str, tuple[Any, ...]]:

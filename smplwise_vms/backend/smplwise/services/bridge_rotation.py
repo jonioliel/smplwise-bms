@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..audit import audit
-from ..db import Database, get_setting, new_id, now_iso
+from ..db import Database, get_setting, has_table, new_id, now_iso
 from . import bridge_keys as bk
 from . import bridge_rotation_peer as peers
 
@@ -672,7 +672,7 @@ def reminder_due(conn: sqlite3.Connection, now: float | None = None) -> bool:
 
 
 def _has_tables(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'bridge_keys'").fetchone() is not None
+    return has_table(conn, "bridge_keys")  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
 
 
 def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = None) -> dict[str, Any]:
