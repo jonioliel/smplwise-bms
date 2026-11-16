@@ -1,13 +1,11 @@
-import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-dropdown';
 import '../components/sw-tabs';
 import './nvr-confirm';
-import { ApiError } from '../api/client';
 import { nvrBatch, type Batch, type EncodingPreview, type PlanItem, type RefusalPolicy } from '../api/nvr-batch';
 import { REFUSAL_HINT, REFUSAL_ITEMS, REFUSAL_LABEL, normalizeRefusal } from './nvr-verify-logic';
 import type { CameraDetail } from '../api/nvr-settings';
@@ -31,7 +29,7 @@ import {
   type PresetScope,
 } from './nvr-h264-preset';
 import { ROLE_HE } from './nvr-cameras-logic';
-import { windowOf } from './nvr-batch-logic';
+import { CHECK, NvrBatchShell, errorShape, nvrBatchShellCss, takeActiveAfterLostAnswer } from './nvr-batch-shell';
 import {
   EMPTY_DRAFT,
   LEAVE,
@@ -66,8 +64,6 @@ type Phase = 'closed' | 'select' | 'settings' | 'preview' | 'confirm';
 const SEL_ROW = 44;
 const PREV_ROW = 60;
 
-const CHECK = html`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
-
 /**
  * CR-020 phase D: "שינוי קידוד לכמה מצלמות" - one encoding change on many (or all) streams of the NVR, e.g. every camera to H.264
  * (owner 2026-10-04). Three steps in one dialog: the streams (a searchable checklist with filters by codec, main / sub, SVC and WebRTC, "select
@@ -83,9 +79,12 @@ const CHECK = html`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="
  * CAM-H264-VERIFY-2361: the preview asks what to do when the NVR refuses one camera ("לדלג ולהמשיך" - the default - or "לעצור את כל
  * ההמרה"), preselected from the installation setting the preview answers; the choice goes with the start (an older server that does not
  * name the setting gets nothing extra and keeps its stop rule).
+ *
+ * CR-DUP-NVR-BATCH-2440: the checklist's look, the windowed list and the lost-answer rule are screens/nvr-batch-shell.ts (shared with the
+ * multi-camera dialog); the styles below are only what this dialog adds to the shell.
  */
 @customElement('nvr-encoding-batch')
-export class NvrEncodingBatch extends LitElement {
+export class NvrEncodingBatch extends NvrBatchShell {
   /** Every stream of the NVR with whether it can be chosen (the screen's `encodingStreams`). */
   @property({ attribute: false }) rows: EncStream[] = [];
   /** The cameras' details (their options feed the form's lists). */
@@ -100,8 +99,6 @@ export class NvrEncodingBatch extends LitElement {
   @state() private busy = false;
   @state() private line = '';
   @state() private confirmModel: ConfirmModel | null = null;
-  @state() private listTop = 0;
-  @state() private viewH = 360;
   /** NVR-H264-BULK-2341: the one-click "המר את כל הזרמים ל־H.264" - its scope and stream role, and whether the open preview came from it. */
   @state() private presetScope: PresetScope = 'all';
   @state() private presetRole: PresetRole = 'both';
@@ -110,327 +107,164 @@ export class NvrEncodingBatch extends LitElement {
   @state() private onRefusal: RefusalPolicy = 'skip';
   @state() private refusalKnown = false;
 
-  static styles = css`
-    :host {
-      display: contents;
-    }
-    .tools {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .tools sw-field.q {
-      flex: 1 1 180px;
-      min-inline-size: 0;
-    }
-    .count {
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-      font-variant-numeric: tabular-nums;
-    }
-    .vl {
-      contain: inline-size;
-      inline-size: 100%;
-      box-sizing: border-box;
-      block-size: clamp(180px, 42dvh, 420px);
-      overflow-y: auto;
-      overflow-x: hidden;
-      overscroll-behavior: contain;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-    }
-    .vl:focus-visible {
-      outline: 2px solid var(--sw-accent);
-      outline-offset: 2px;
-    }
-    .space {
-      box-sizing: border-box;
-      inline-size: 100%;
-    }
-    .sel {
-      all: unset;
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      inline-size: 100%;
-      block-size: 44px;
-      padding-inline: 12px;
-      border-block-end: 1px solid var(--sw-border);
-      cursor: pointer;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text);
-    }
-    .sel:hover:not([aria-disabled='true']) {
-      background: var(--sw-surface-2);
-    }
-    .sel:focus-visible {
-      outline: 2px solid var(--sw-accent);
-      outline-offset: -2px;
-    }
-    .sel[aria-disabled='true'] {
-      cursor: default;
-      color: var(--sw-text-3);
-    }
-    .box {
-      flex: none;
-      inline-size: 20px;
-      block-size: 20px;
-      border-radius: var(--sw-r-2xs);
-      border: 2px solid var(--sw-border-strong);
-      display: grid;
-      place-items: center;
-      color: var(--sw-text-inverse);
-    }
-    .sel[aria-checked='true'] .box {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-    }
-    .sel[aria-disabled='true'] .box {
-      opacity: 0.4;
-    }
-    .nm {
-      flex: 1;
-      min-inline-size: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .meta {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-inline-size: 50%;
-    }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-      font-variant-numeric: tabular-nums;
-    }
-    .form {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
-      gap: 10px 12px;
-    }
-    .form sw-dropdown {
-      inline-size: 100%;
-    }
-    .form input {
-      direction: ltr;
-      text-align: start;
-    }
-    /* the Hebrew "ללא שינוי" placeholder reads right-to-left; a typed number stays left-to-right */
-    .form input:placeholder-shown {
-      direction: rtl;
-    }
-    .msg {
-      margin: 0;
-      padding: 6px 8px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface-2);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
-    }
-    .note {
-      margin: 0;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-    }
-    .sum {
-      margin: 0;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text);
-      font-weight: var(--sw-fw-medium);
-    }
-    .row {
-      box-sizing: border-box;
-      display: grid;
-      align-content: center;
-      gap: 2px;
-      block-size: 60px;
-      padding-inline: 12px;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-      min-inline-size: 0;
-    }
-    .row .nm {
-      flex: none;
-    }
-    .row .ln {
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-xs);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .row .ln.muted {
-      color: var(--sw-text-3);
-    }
-    .adj {
-      color: var(--sw-warning-text, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-    }
-    .arrow,
-    .muted {
-      color: var(--sw-text-3);
-    }
-    /* touch targets (layout guard): the preview's tabs grow their hit area to 44 px (the shared knob), and the text fields are 44 px
-       high in touch layouts, as the multi-camera checklist's search */
-    sw-tabs {
-      --sw-tab-min-h: 44px;
-      /* a flex item of the dialog's scrolling body: never squeezed below its own height (it scrolls sideways, so its automatic minimum is 0) */
-      flex: none;
-    }
-    @media (max-width: 1100px) {
-      sw-field input {
-        min-block-size: 44px;
+  static styles = [
+    nvrBatchShellCss,
+    css`
+      .tools sw-field.q {
+        flex: 1 1 180px;
+        min-inline-size: 0;
       }
-      /* touch layouts: 44 px whatever the desktop touch dial (the bubble skin sizes tab buttons by it; the shell does the same, bubble.ts) */
+      .vl {
+        block-size: clamp(180px, 42dvh, 420px);
+      }
+      .sel[aria-disabled='true'] {
+        color: var(--sw-text-3);
+      }
+      .sel[aria-disabled='true'] .box {
+        opacity: 0.4;
+      }
+      .meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-inline-size: 50%;
+      }
+      .form {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+        gap: 10px 12px;
+      }
+      .form sw-dropdown {
+        inline-size: 100%;
+      }
+      .form input {
+        direction: ltr;
+        text-align: start;
+      }
+      /* the Hebrew "ללא שינוי" placeholder reads right-to-left; a typed number stays left-to-right */
+      .form input:placeholder-shown {
+        direction: rtl;
+      }
+      .note {
+        margin: 0;
+        font-size: var(--sw-fs-sm);
+        color: var(--sw-text-2);
+      }
+      .sum {
+        margin: 0;
+        font-size: var(--sw-fs-sm);
+        color: var(--sw-text);
+        font-weight: var(--sw-fw-medium);
+      }
+      .row {
+        box-sizing: border-box;
+        display: grid;
+        align-content: center;
+        gap: 2px;
+        block-size: 60px;
+        padding-inline: 12px;
+        border-block-end: 1px solid var(--sw-border);
+        font-size: var(--sw-fs-sm);
+        min-inline-size: 0;
+      }
+      .row .nm {
+        flex: none;
+      }
+      .row .ln {
+        color: var(--sw-text-2);
+        font-size: var(--sw-fs-xs);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row .ln.muted {
+        color: var(--sw-text-3);
+      }
+      .adj {
+        color: var(--sw-warning-text, var(--sw-text));
+        font-weight: var(--sw-fw-semibold);
+      }
+      .arrow,
+      .muted {
+        color: var(--sw-text-3);
+      }
+      /* touch targets (layout guard): the preview's tabs grow their hit area to 44 px (the shared knob), and the text fields are 44 px
+         high in touch layouts, as the multi-camera checklist's search */
       sw-tabs {
-        --sw-touch-desktop: 44px;
+        --sw-tab-min-h: 44px;
+        /* a flex item of the dialog's scrolling body: never squeezed below its own height (it scrolls sideways, so its automatic minimum is 0) */
+        flex: none;
       }
-    }
-    /* R5-LIVE-297 (the HOMEFABLE tiers in the multi-camera encoding dialog; the windowed rows keep their 44 / 60 px heights): the list is
-       a WELL (surface-2, no outline) inside the dialog; a chosen stream is a FILLED accent row with its name in bold heading ink, not
-       only a ticked box; rows tint on hover only under a fine pointer and darken on press; the count is a bold numeral */
-    .vl {
-      border-color: transparent;
-      background: var(--sw-surface-2);
-    }
-    .sel {
-      font-size: var(--sw-fs-md);
-      transition: background-color var(--sw-t-fast) var(--sw-ease);
-      -webkit-tap-highlight-color: transparent;
-    }
-    .sel:hover:not([aria-disabled='true']) {
-      background: transparent;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .sel:hover:not([aria-disabled='true']) {
-        background: var(--sw-surface-3);
+      @media (max-width: 1100px) {
+        sw-field input {
+          min-block-size: 44px;
+        }
+        /* touch layouts: 44 px whatever the desktop touch dial (the bubble skin sizes tab buttons by it; the shell does the same, bubble.ts) */
+        sw-tabs {
+          --sw-touch-desktop: 44px;
+        }
       }
-    }
-    .sel:active:not([aria-disabled='true']) {
-      background: var(--sw-pressed-wash);
-    }
-    .sel[aria-checked='true'] {
-      background: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-surface)); /* 50 % test: accent-soft vanished in dark */
-    }
-    .vl {
-      border-radius: var(--sw-r-lg);
-    }
-    .sel[aria-checked='true'] .nm {
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
-    }
-    .box {
-      background: var(--sw-surface);
-    }
-    .count {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
-    }
-    .row {
-      font-size: var(--sw-fs-md);
-    }
-    .row .nm {
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-heading);
-    }
-    .sum {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-heading);
-    }
-    .msg {
-      padding: 8px 12px;
-      border-radius: var(--sw-r-md);
-    }
-    /* R5-LIVE-297 Fable pass (the Opus list still had hairlines between the rows and a 20 % tint that vanished in dark): the rows sit
-       in the well with NO lines (the windowed 44 / 60 px heights untouched); a chosen stream is a 26 % accent field with a 4 px accent
-       bar at its start edge and a 22 px box; the count is a 20 px / 800 display line; the plan rows are bold in the heading ink */
-    .sel,
-    .row {
-      border-block-end: 0;
-    }
-    .sel {
-      padding-inline: 14px;
-      gap: 12px;
-      color: var(--sw-heading);
-    }
-    .sel[aria-checked='true'] {
-      background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
-      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
-      box-shadow: inset -4px 0 0 var(--sw-accent);
-    }
-    :host-context([dir='ltr']) .sel[aria-checked='true'] {
-      box-shadow: inset 4px 0 0 var(--sw-accent);
-    }
-    .box {
-      inline-size: 22px;
-      block-size: 22px;
-      border-radius: var(--sw-r-xs);
-      border-color: var(--sw-border-strong);
-      box-shadow: var(--sw-shadow-1);
-    }
-    .sel[aria-checked='true'] .box {
-      box-shadow: none;
-    }
-    /* A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
-       1.5-2.3:1 on the dark one (a checkbox boundary needs 3:1, WCAG 1.4.11). Light draws it in the muted ink (>= 4.9:1 every skin), dark
-       in the muted ink at 70 % (3.2-4.3:1, tests/unit-dark-polish-beds.spec.ts on fix/DARK-REVIEW-2342). light-dark() keys on the page's
-       color-scheme (it inherits into the shadow root); an engine without it drops the line and keeps the old edge. */
-    .sel:not([aria-checked='true']) .box {
-      border-color: light-dark(var(--sw-text-3), color-mix(in srgb, var(--sw-text-3) 70%, transparent));
-    }
-    .sel .meta {
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
-    }
-    .count {
-      font-size: var(--sw-fs-2xl);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      font-variant-numeric: tabular-nums;
-    }
-    .row {
-      padding-inline: 14px;
-    }
-    .row .nm {
-      font-weight: var(--sw-fw-bold);
-    }
-    .adj {
-      font-weight: var(--sw-fw-bold);
-    }
-    .sum {
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-bold);
-    }
-    /* NVR-H264-BULK-2341: the H.264 preset - a quiet well above the checklist (no border; the checklist below keeps its own look) */
-    .preset {
-      display: grid;
-      gap: 8px;
-      padding: 12px 14px;
-      border-radius: var(--sw-r-lg);
-      background: var(--sw-surface-2);
-      min-inline-size: 0;
-    }
-    .preset-head {
-      display: grid;
-      gap: 2px;
-    }
-    .preset-title {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
-    }
-  `;
+      /* R5-LIVE-297: the well's corners, the chosen stream's name in the heading ink, the plan rows and the summary */
+      .vl {
+        border-radius: var(--sw-r-lg);
+      }
+      .sel[aria-checked='true'] .nm {
+        color: var(--sw-heading);
+      }
+      .row {
+        font-size: var(--sw-fs-md);
+      }
+      .row .nm {
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-heading);
+      }
+      .sum {
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-heading);
+      }
+      /* R5-LIVE-297 Fable pass: no lines between the plan rows; the count is a 20 px / 800 display line; the plan rows are bold in the heading ink */
+      .row {
+        border-block-end: 0;
+      }
+      .count {
+        font-size: var(--sw-fs-2xl);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .row {
+        padding-inline: 14px;
+      }
+      .row .nm {
+        font-weight: var(--sw-fw-bold);
+      }
+      .adj {
+        font-weight: var(--sw-fw-bold);
+      }
+      .sum {
+        font-size: var(--sw-fs-lg);
+        font-weight: var(--sw-fw-bold);
+      }
+      /* NVR-H264-BULK-2341: the H.264 preset - a quiet well above the checklist (no border; the checklist below keeps its own look) */
+      .preset {
+        display: grid;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: var(--sw-r-lg);
+        background: var(--sw-surface-2);
+        min-inline-size: 0;
+      }
+      .preset-head {
+        display: grid;
+        gap: 2px;
+      }
+      .preset-title {
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-bold);
+        color: var(--sw-heading);
+      }
+    `,
+  ];
 
   // ---------------------------------------------------------------------------------------------- the screen's calls
 
@@ -457,22 +291,12 @@ export class NvrEncodingBatch extends LitElement {
   }
 
   protected updated() {
-    const vl = this.renderRoot.querySelector<HTMLElement>('.vl');
-    if (vl && vl.clientHeight > 0 && Math.abs(vl.clientHeight - this.viewH) > 1) this.viewH = vl.clientHeight;
-  }
-
-  private resetScroll() {
-    this.listTop = 0;
-    const vl = this.renderRoot.querySelector<HTMLElement>('.vl');
-    if (vl) vl.scrollTop = 0;
+    this.measureList();
   }
 
   private vlist(n: number, rowH: number, kind: string, row: (i: number) => TemplateResult, label: string) {
-    const w = windowOf(this.listTop, this.viewH, n, rowH);
-    const idx: number[] = [];
-    for (let i = w.start; i < w.end; i++) idx.push(i);
-    return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-enc-list=${kind} data-rows=${n} @scroll=${(e: Event) => (this.listTop = (e.target as HTMLElement).scrollTop)}>
-      <div class="space" style="padding-block:${w.top}px ${Math.max(0, w.total - w.top - (w.end - w.start) * rowH)}px">${repeat(idx, (i) => i, (i) => row(i))}</div>
+    return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-enc-list=${kind} data-rows=${n} @scroll=${this.onListScroll}>
+      ${this.windowRows(n, rowH, row)}
     </div>`;
   }
 
@@ -613,8 +437,7 @@ export class NvrEncodingBatch extends LitElement {
       this.phase = 'preview';
       this.resetScroll();
     } catch (err) {
-      const shape = err instanceof ApiError ? { status: err.status, code: err.code, user_message: err.body.user_message } : { status: 0, code: 'network' };
-      this.line = encErrorLine(shape).text;
+      this.line = encErrorLine(errorShape(err)).text;
     } finally {
       this.busy = false;
     }
@@ -688,20 +511,9 @@ export class NvrEncodingBatch extends LitElement {
       const b = await nvrBatch().startEncoding(startRequest(p, this.refusalKnown ? this.onRefusal : undefined));
       this.handOff(b);
     } catch (err) {
-      const sent = !(err instanceof ApiError) || err.status >= 500; // the answer may have been lost after the batch started
-      if (sent) {
-        try {
-          const a = await nvrBatch().active();
-          if (a) {
-            this.handOff(a);
-            return;
-          }
-        } catch {
-          /* cannot read either: say so below */
-        }
-      }
-      const shape = err instanceof ApiError ? { status: err.status, code: err.code, user_message: err.body.user_message } : { status: 0, code: 'network' };
-      const l = encErrorLine(shape);
+      // the answer may have been lost after the batch started: the active batch is read, the request is never repeated
+      if (await takeActiveAfterLostAnswer(err, (a) => this.handOff(a))) return;
+      const l = encErrorLine(errorShape(err));
       if (l.reload) {
         this.busy = false;
         await this.runPreview(true); // a read: the new plan replaces the old one; the person confirms again
@@ -716,10 +528,6 @@ export class NvrEncodingBatch extends LitElement {
     this.phase = 'closed';
     this.plan = null;
     this.emit('encoding-started', { batch: b });
-  }
-
-  private emit<T>(name: string, detail?: T) {
-    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
   // ---------------------------------------------------------------------------------------------- render

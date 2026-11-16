@@ -1,6 +1,5 @@
-import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-field';
@@ -29,11 +28,11 @@ import {
   toggleSelection,
   toneOf,
   undoConfirmModel,
-  windowOf,
   type BatchCandidate,
   type Tone,
 } from './nvr-batch-logic';
 import { undoLabel } from './nvr-h264-preset';
+import { CHECK, NvrBatchShell, errorShape, nvrBatchShellCss, takeActiveAfterLostAnswer } from './nvr-batch-shell';
 
 type Phase = 'closed' | 'select' | 'confirm' | 'undo-confirm' | 'progress';
 
@@ -46,7 +45,6 @@ export interface CameraInfo {
 const SEL_ROW = 44;
 const PROG_ROW = 52;
 
-const CHECK = html`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const CROSS = html`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" /></svg>`;
 
 const rememberLast = (id: string | null) => {
@@ -77,9 +75,12 @@ const recallLast = (): string | null => {
  * Talks to the server only through api/nvr-batch.ts; never repeats a request whose answer was lost (it asks for the active batch instead).
  * Events: `batch-change` ({batch}, every poll; null when nothing is shown), `batch-finished` ({batch}: completed in front of the person -
  * the screen shows its toast), `batch-refresh` (the cameras changed or are stale: read the list again).
+ *
+ * CR-DUP-NVR-BATCH-2440: the checklist's look, the windowed list and the lost-answer rule are screens/nvr-batch-shell.ts (shared with the
+ * encoding dialog); the styles below are only what this dialog adds to the shell.
  */
 @customElement('nvr-camera-batch')
-export class NvrCameraBatch extends LitElement {
+export class NvrCameraBatch extends NvrBatchShell {
   /** Cameras that can be chosen (the screen's `batchCandidates`). */
   @property({ attribute: false }) candidates: BatchCandidate[] = [];
   @property({ attribute: false }) info: Record<string, CameraInfo> = {};
@@ -96,376 +97,220 @@ export class NvrCameraBatch extends LitElement {
   @state() private stopping = false;
   @state() private offline = false;
   @state() private confirmFor: { model: ConfirmModel; run: () => void } | null = null;
-  @state() private listTop = 0;
-  @state() private viewH = 360;
 
   private pollSeq = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private follow = true;
   private focusedKey = '';
 
-  static styles = css`
-    :host {
-      display: contents;
-    }
-    .tools {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .tools sw-field {
-      flex: 1 1 180px;
-      min-inline-size: 0;
-    }
-    .count {
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-      font-variant-numeric: tabular-nums;
-    }
-    .vl {
-      contain: inline-size;
-      inline-size: 100%;
-      box-sizing: border-box;
-      block-size: clamp(180px, 46dvh, 440px);
-      overflow-y: auto;
-      overflow-x: hidden;
-      overscroll-behavior: contain;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-    }
-    .vl:focus-visible {
-      outline: 2px solid var(--sw-accent);
-      outline-offset: 2px;
-    }
-    .space {
-      box-sizing: border-box;
-      inline-size: 100%;
-    }
-    @media (max-width: 1100px) {
-      .tools sw-field input {
-        min-block-size: 44px;
+  static styles = [
+    nvrBatchShellCss,
+    css`
+      .tools sw-field {
+        flex: 1 1 180px;
+        min-inline-size: 0;
       }
-    }
-    .sel {
-      all: unset;
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      inline-size: 100%;
-      block-size: 44px;
-      padding-inline: 12px;
-      border-block-end: 1px solid var(--sw-border);
-      cursor: pointer;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text);
-    }
-    .sel:hover:not([aria-disabled='true']) {
-      background: var(--sw-surface-2);
-    }
-    .sel:focus-visible {
-      outline: 2px solid var(--sw-accent);
-      outline-offset: -2px;
-    }
-    .sel[aria-disabled='true'] {
-      cursor: default;
-    }
-    .box {
-      flex: none;
-      inline-size: 20px;
-      block-size: 20px;
-      border-radius: var(--sw-r-2xs);
-      border: 2px solid var(--sw-border-strong);
-      display: grid;
-      place-items: center;
-      color: var(--sw-text-inverse);
-      background: transparent;
-    }
-    .sel[aria-checked='true'] .box {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-    }
-    .sel[aria-disabled='true'] .box {
-      opacity: 0.6;
-    }
-    .nm {
-      flex: 1;
-      min-inline-size: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .meta {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      white-space: nowrap;
-    }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-      font-variant-numeric: tabular-nums;
-    }
-    .row {
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      block-size: 52px;
-      padding-inline: 12px;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .row .txt {
-      flex: 1;
-      min-inline-size: 0;
-      display: grid;
-      gap: 1px;
-    }
-    .row .ln {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .row.bad .ln,
-    .row.unk .ln {
-      color: var(--sw-text-2);
-    }
-    .row.skip .nm {
-      color: var(--sw-text-3);
-    }
-    .ic {
-      flex: none;
-      inline-size: 22px;
-      block-size: 22px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-    }
-    .ic.ok {
-      color: var(--sw-success);
-      background: var(--sw-success-soft);
-    }
-    .ic.bad {
-      color: var(--sw-danger);
-      background: var(--sw-danger-soft);
-    }
-    .ic.unk {
-      color: var(--sw-warning-text);
-      background: var(--sw-warning-soft);
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
-    }
-    .ic.wait::before,
-    .ic.skip::before {
-      content: '';
-      inline-size: 8px;
-      block-size: 8px;
-      border-radius: 50%;
-      background: var(--sw-text-3);
-    }
-    .ic.skip::before {
-      opacity: 0.5;
-    }
-    .ic.spin::before {
-      content: '';
-      inline-size: 16px;
-      block-size: 16px;
-      border-radius: 50%;
-      border: 2px solid var(--sw-border-strong);
-      border-block-start-color: var(--sw-accent);
-      animation: nvr-b-spin 0.8s linear infinite;
-    }
-    @keyframes nvr-b-spin {
-      to {
-        transform: rotate(360deg);
+      .vl {
+        block-size: clamp(180px, 46dvh, 440px);
       }
-    }
-    @media (prefers-reduced-motion: reduce) {
+      @media (max-width: 1100px) {
+        .tools sw-field input {
+          min-block-size: 44px;
+        }
+      }
+      .row {
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        block-size: 52px;
+        padding-inline: 12px;
+        border-block-end: 1px solid var(--sw-border);
+        font-size: var(--sw-fs-sm);
+      }
+      .row .txt {
+        flex: 1;
+        min-inline-size: 0;
+        display: grid;
+        gap: 1px;
+      }
+      .row .ln {
+        color: var(--sw-text-3);
+        font-size: var(--sw-fs-xs);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row.bad .ln,
+      .row.unk .ln {
+        color: var(--sw-text-2);
+      }
+      .row.skip .nm {
+        color: var(--sw-text-3);
+      }
+      .ic {
+        flex: none;
+        inline-size: 22px;
+        block-size: 22px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+      }
+      .ic.ok {
+        color: var(--sw-success);
+        background: var(--sw-success-soft);
+      }
+      .ic.bad {
+        color: var(--sw-danger);
+        background: var(--sw-danger-soft);
+      }
+      .ic.unk {
+        color: var(--sw-warning-text);
+        background: var(--sw-warning-soft);
+        font-weight: var(--sw-fw-semibold);
+        font-size: var(--sw-fs-sm);
+      }
+      .ic.wait::before,
+      .ic.skip::before {
+        content: '';
+        inline-size: 8px;
+        block-size: 8px;
+        border-radius: 50%;
+        background: var(--sw-text-3);
+      }
+      .ic.skip::before {
+        opacity: 0.5;
+      }
       .ic.spin::before {
-        animation: none;
+        content: '';
+        inline-size: 16px;
+        block-size: 16px;
+        border-radius: 50%;
+        border: 2px solid var(--sw-border-strong);
+        border-block-start-color: var(--sw-accent);
+        animation: nvr-b-spin 0.8s linear infinite;
       }
-    }
-    .bar {
-      block-size: 6px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-surface-3);
-      overflow: hidden;
-    }
-    .bar > i {
-      display: block;
-      block-size: 100%;
-      border-radius: inherit;
-      background: var(--sw-accent);
-      transition: inline-size var(--sw-t-med) var(--sw-ease-out);
-    }
-    .bar.error > i {
-      background: var(--sw-danger);
-    }
-    .bar.done > i {
-      background: var(--sw-success);
-    }
-    .msg {
-      margin: 0;
-      padding: 6px 8px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface-2);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
-    }
-    @media (max-width: 767px) {
-      .sel {
-        block-size: 44px;
+      @keyframes nvr-b-spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
-    }
-    /* CAMADMIN-POLISH-2331 (the R5-LIVE-297 language of the multi-camera encoding dialog, carried to the SVC checklist and the progress of
-       both): the list is a WELL (surface-2, no outline, no hairlines between rows) that is only as tall as its rows need (a short batch
-       no longer floats in a half-empty box; the 44 / 52 px windowed row heights are untouched); a chosen camera is a 26 % accent field
-       with a 4 px bar at its start edge, its name bold in the heading ink; rows tint on hover only under a fine pointer and darken on
-       press; the count is a bold numeral; a progress row names its camera in bold, its outcome line under it; messages are wells */
-    .vl {
-      block-size: min(clamp(180px, 46dvh, 440px), var(--vl-fit, 100dvh));
-      border-color: transparent;
-      background: var(--sw-surface-2);
-    }
-    .tools {
-      gap: 8px 10px;
-    }
-    .count {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
-    }
-    .sel,
-    .row {
-      border-block-end: 0;
-      padding-inline: 14px;
-    }
-    .sel {
-      gap: 12px;
-      font-size: var(--sw-fs-md);
-      color: var(--sw-heading);
-      transition: background-color var(--sw-t-fast) var(--sw-ease);
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-    }
-    .sel:hover:not([aria-disabled='true']) {
-      background: transparent;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .sel:hover:not([aria-disabled='true']) {
+      @media (prefers-reduced-motion: reduce) {
+        .ic.spin::before {
+          animation: none;
+        }
+      }
+      .bar {
+        block-size: 6px;
+        border-radius: var(--sw-r-pill);
         background: var(--sw-surface-3);
+        overflow: hidden;
       }
-    }
-    .sel:active:not([aria-disabled='true']) {
-      background: var(--sw-pressed-wash);
-    }
-    .sel[aria-checked='true'] {
-      background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
-      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
-      box-shadow: inset -4px 0 0 var(--sw-accent);
-    }
-    :host-context([dir='ltr']) .sel[aria-checked='true'] {
-      box-shadow: inset 4px 0 0 var(--sw-accent);
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
-        background: color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface));
-      }
-      /* DARK-REVIEW-2342: with the light dark-scheme accents of domus / crystal a 32 % field lifted the bed until the --sw-text-2 meta
-         line read 4.3-4.4:1; dark hovers at 28 % (>= 4.7:1 every skin, tests/unit-dark-polish-beds.spec.ts) - still a step above the
-         26 % resting field. Light keeps 32 % (light-dark() keys on the page's color-scheme; the rule above is the fallback of an engine without it). */
-      .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
-        background: light-dark(color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface)), color-mix(in srgb, var(--sw-accent) 28%, var(--sw-surface)));
-      }
-    }
-    .sel[aria-checked='true'] .nm {
-      font-weight: var(--sw-fw-bold);
-    }
-    .box {
-      inline-size: 22px;
-      block-size: 22px;
-      border-radius: var(--sw-r-xs);
-      background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
-    }
-    .sel[aria-checked='true'] .box {
-      box-shadow: none;
-    }
-    /* A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
-       1.5-2.3:1 on the dark one (a checkbox boundary needs 3:1, WCAG 1.4.11). Light draws it in the muted ink (>= 4.9:1 every skin), dark
-       in the muted ink at 70 % (3.2-4.3:1, tests/unit-dark-polish-beds.spec.ts on fix/DARK-REVIEW-2342). light-dark() keys on the page's
-       color-scheme (it inherits into the shadow root); an engine without it drops the line and keeps the old edge. */
-    .sel:not([aria-checked='true']) .box {
-      border-color: light-dark(var(--sw-text-3), color-mix(in srgb, var(--sw-text-3) 70%, transparent));
-    }
-    .sel[aria-disabled='true'] .box {
-      opacity: 0.7;
-    }
-    .sel .meta {
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
-    }
-    .row {
-      gap: 12px;
-      font-size: var(--sw-fs-md);
-    }
-    .row .nm {
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
-    }
-    .row .nm .meta {
-      font-weight: var(--sw-fw-medium);
-    }
-    .row.skip .nm {
-      font-weight: var(--sw-fw-semibold);
-    }
-    .row .ln {
-      font-size: var(--sw-fs-sm);
-    }
-    .row.bad {
-      background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface-2));
-    }
-    .row.bad .ln {
-      color: var(--sw-danger-text);
-    }
-    .row.unk {
-      background: color-mix(in srgb, var(--sw-warning) 12%, var(--sw-surface-2));
-    }
-    .row.unk .ln {
-      color: var(--sw-warning-text);
-      /* A11Y-POLISHED-2342: on the 12 % warning row the warning ink read 4.29:1 in classic light (4.27 bubble); light mixes a quarter of
-         the body ink in (>= 5.4:1), dark unchanged */
-      color: light-dark(color-mix(in srgb, var(--sw-warning-text) 75%, var(--sw-text)), var(--sw-warning-text));
-    }
-    .ic {
-      inline-size: 24px;
-      block-size: 24px;
-    }
-    .msg {
-      padding: 8px 12px;
-      border-radius: var(--sw-r-md);
-      font-size: var(--sw-fs-md);
-    }
-    .msg[role='alert'] {
-      background: var(--sw-danger-soft);
-      color: var(--sw-danger-text);
-    }
-    .more {
-      display: flex;
-      justify-content: flex-start;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .sel,
       .bar > i {
-        transition: none;
+        display: block;
+        block-size: 100%;
+        border-radius: inherit;
+        background: var(--sw-accent);
+        transition: inline-size var(--sw-t-med) var(--sw-ease-out);
       }
-    }
-  `;
+      .bar.error > i {
+        background: var(--sw-danger);
+      }
+      .bar.done > i {
+        background: var(--sw-success);
+      }
+      @media (max-width: 767px) {
+        .sel {
+          block-size: 44px;
+        }
+      }
+      /* CAMADMIN-POLISH-2331 (the R5-LIVE-297 language of the multi-camera encoding dialog, carried to the SVC checklist and the progress of
+         both): the list is a WELL (surface-2, no outline, no hairlines between rows) that is only as tall as its rows need (a short batch
+         no longer floats in a half-empty box; the 44 / 52 px windowed row heights are untouched); a chosen camera is a 26 % accent field
+         with a 4 px bar at its start edge, its name bold in the heading ink; rows tint on hover only under a fine pointer and darken on
+         press; the count is a bold numeral; a progress row names its camera in bold, its outcome line under it; messages are wells */
+      .vl {
+        block-size: min(clamp(180px, 46dvh, 440px), var(--vl-fit, 100dvh));
+      }
+      .tools {
+        gap: 8px 10px;
+      }
+      .row {
+        border-block-end: 0;
+        padding-inline: 14px;
+      }
+      .sel {
+        user-select: none;
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
+          background: color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface));
+        }
+        /* DARK-REVIEW-2342: with the light dark-scheme accents of domus / crystal a 32 % field lifted the bed until the --sw-text-2 meta
+           line read 4.3-4.4:1; dark hovers at 28 % (>= 4.7:1 every skin, tests/unit-dark-polish-beds.spec.ts) - still a step above the
+           26 % resting field. Light keeps 32 % (light-dark() keys on the page's color-scheme; the rule above is the fallback of an engine without it). */
+        .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
+          background: light-dark(color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface)), color-mix(in srgb, var(--sw-accent) 28%, var(--sw-surface)));
+        }
+      }
+      .sel[aria-disabled='true'] .box {
+        opacity: 0.7;
+      }
+      .row {
+        gap: 12px;
+        font-size: var(--sw-fs-md);
+      }
+      .row .nm {
+        font-weight: var(--sw-fw-bold);
+        color: var(--sw-heading);
+      }
+      .row .nm .meta {
+        font-weight: var(--sw-fw-medium);
+      }
+      .row.skip .nm {
+        font-weight: var(--sw-fw-semibold);
+      }
+      .row .ln {
+        font-size: var(--sw-fs-sm);
+      }
+      .row.bad {
+        background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface-2));
+      }
+      .row.bad .ln {
+        color: var(--sw-danger-text);
+      }
+      .row.unk {
+        background: color-mix(in srgb, var(--sw-warning) 12%, var(--sw-surface-2));
+      }
+      .row.unk .ln {
+        color: var(--sw-warning-text);
+        /* A11Y-POLISHED-2342: on the 12 % warning row the warning ink read 4.29:1 in classic light (4.27 bubble); light mixes a quarter of
+           the body ink in (>= 5.4:1), dark unchanged */
+        color: light-dark(color-mix(in srgb, var(--sw-warning-text) 75%, var(--sw-text)), var(--sw-warning-text));
+      }
+      .ic {
+        inline-size: 24px;
+        block-size: 24px;
+      }
+      .msg {
+        font-size: var(--sw-fs-md);
+      }
+      .msg[role='alert'] {
+        background: var(--sw-danger-soft);
+        color: var(--sw-danger-text);
+      }
+      .more {
+        display: flex;
+        justify-content: flex-start;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sel,
+        .bar > i {
+          transition: none;
+        }
+      }
+    `,
+  ];
 
   // ---------------------------------------------------------------------------------------------- the screen's calls
 
@@ -526,10 +371,6 @@ export class NvrCameraBatch extends LitElement {
   /** The server pages a batch's items and the start / listing answers carry at most a page: the screen always reads the whole batch by id. */
   private async full(b: Batch): Promise<Batch> {
     return nvrBatch().get(b.batch_id);
-  }
-
-  private emit<T>(name: string, detail?: T) {
-    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
   /** `showNow`: found after a reload - the dialog opens on it (a finished one shows its result). `live`: the person just started it - a batch that already
@@ -674,20 +515,9 @@ export class NvrCameraBatch extends LitElement {
       this.starting = false;
     } catch (err) {
       this.starting = false;
-      const sent = !(err instanceof ApiError) || err.status >= 500; // the answer may have been lost after the batch started
-      if (sent) {
-        try {
-          const a = await nvrBatch().active();
-          if (a) {
-            this.adopt(await this.full(a));
-            return;
-          }
-        } catch {
-          /* cannot read either: say so below */
-        }
-      }
-      const shape = err instanceof ApiError ? { status: err.status, code: err.code, user_message: err.body.user_message, details: err.body.details ?? {} } : { status: 0, code: 'network' };
-      const l = startErrorLine(shape, (idx) => {
+      // the answer may have been lost after the batch started: the active batch is read, the request is never repeated
+      if (await takeActiveAfterLostAnswer(err, async (a) => this.adopt(await this.full(a)))) return;
+      const l = startErrorLine(errorShape(err, true), (idx) => {
         const c = picked[idx];
         return c ? c.name : null;
       });
@@ -707,7 +537,7 @@ export class NvrCameraBatch extends LitElement {
       if (after) this.apply(after);
     } catch (err) {
       if (!(err instanceof ApiError)) this.offline = true;
-      else this.line = startErrorLine({ status: err.status, code: err.code, user_message: err.body.user_message }).text;
+      else this.line = startErrorLine(errorShape(err)).text;
       this.stopping = false;
     }
     if (this.batch && this.batch.batch_id === b.batch_id && !isTerminal(this.batch.state)) this.armPoll(b.batch_id, 400);
@@ -737,20 +567,8 @@ export class NvrCameraBatch extends LitElement {
       this.starting = false;
     } catch (err) {
       this.starting = false;
-      const sent = !(err instanceof ApiError) || err.status >= 500;
-      if (sent) {
-        try {
-          const a = await nvrBatch().active();
-          if (a) {
-            this.adopt(await this.full(a));
-            return;
-          }
-        } catch {
-          /* fall through to the line */
-        }
-      }
-      const shape = err instanceof ApiError ? { status: err.status, code: err.code, user_message: err.body.user_message, details: err.body.details ?? {} } : { status: 0, code: 'network' };
-      this.line = startErrorLine(shape).text;
+      if (await takeActiveAfterLostAnswer(err, async (a) => this.adopt(await this.full(a)))) return;
+      this.line = startErrorLine(errorShape(err, true)).text;
       if (keep) {
         this.batch = keep;
         this.phase = 'progress';
@@ -770,9 +588,8 @@ export class NvrCameraBatch extends LitElement {
   }
 
   protected updated() {
-    const vl = this.renderRoot.querySelector<HTMLElement>('.vl');
+    const vl = this.measureList();
     if (!vl) return;
-    if (Math.abs(vl.clientHeight - this.viewH) > 1 && vl.clientHeight > 0) this.viewH = vl.clientHeight;
     // progress: keep the camera in flight (or the failed one) in view until the person scrolls by hand
     if (this.phase === 'progress' && this.batch?.items?.length && this.follow) {
       const b = this.batch;
@@ -784,10 +601,6 @@ export class NvrCameraBatch extends LitElement {
     }
   }
 
-  private onScroll = (e: Event) => {
-    this.listTop = (e.target as HTMLElement).scrollTop;
-  };
-
   private takeControl = () => {
     this.follow = false;
   };
@@ -795,12 +608,9 @@ export class NvrCameraBatch extends LitElement {
   /** `fitRows`: the rows the list is sized for (the whole checklist, not the search's matches, so the dialog does not jump while typing);
    * the list is never shorter than three rows. */
   private vlist(n: number, rowH: number, kind: 'select' | 'progress', row: (i: number) => TemplateResult, label: string, fitRows = n) {
-    const w = windowOf(this.listTop, this.viewH, n, rowH);
-    const idx: number[] = [];
-    for (let i = w.start; i < w.end; i++) idx.push(i);
     const fit = Math.max(fitRows, 3) * rowH;
-    return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-batch-list=${kind} data-rows=${n} style=${`--vl-fit:${fit}px`} @scroll=${this.onScroll} @wheel=${this.takeControl} @touchstart=${this.takeControl} @pointerdown=${this.takeControl}>
-      <div class="space" style="padding-block:${w.top}px ${Math.max(0, w.total - w.top - (w.end - w.start) * rowH)}px">${repeat(idx, (i) => i, (i) => row(i))}</div>
+    return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-batch-list=${kind} data-rows=${n} style=${`--vl-fit:${fit}px`} @scroll=${this.onListScroll} @wheel=${this.takeControl} @touchstart=${this.takeControl} @pointerdown=${this.takeControl}>
+      ${this.windowRows(n, rowH, row)}
     </div>`;
   }
 
@@ -825,9 +635,7 @@ export class NvrCameraBatch extends LitElement {
         ? html`<div class="tools">
               <sw-field><input type="search" placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" data-nvr-batch-search .value=${this.q} @input=${(e: Event) => {
                 this.q = (e.target as HTMLInputElement).value;
-                this.listTop = 0;
-                const vl = this.renderRoot.querySelector<HTMLElement>('.vl');
-                if (vl) vl.scrollTop = 0;
+                this.resetScroll();
               }} /></sw-field>
               <sw-button size="sm" data-nvr-batch-all ?disabled=${!matching.length} @click=${() => (this.selected = selectAllMatching(this.selected, matching))}>${filtered ? `בחר הכל (${matching.length})` : 'בחר הכל'}</sw-button>
               <sw-button size="sm" variant="ghost" data-nvr-batch-clear @click=${() => (this.selected = clearSelection(this.fixedId))}>נקה</sw-button>
@@ -916,4 +724,3 @@ declare global {
     'nvr-camera-batch': NvrCameraBatch;
   }
 }
-

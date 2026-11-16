@@ -47,7 +47,7 @@ const POLISHED = [
   'screens/infra-report.ts', 'screens/infra-water.ts', 'screens/insights-doors.ts', 'screens/insights-settings.ts', 'screens/insights-waste.ts',
   'screens/investigate-cases.ts', 'screens/investigate-event-detail.ts', 'screens/investigate-events.ts', 'screens/investigate-exports.ts',
   'screens/investigate-ha-events.ts', 'screens/investigate-time.ts', 'screens/multimedia-players.ts', 'screens/multimedia-remote-editor.ts',
-  'screens/nvr-camera-batch.ts', 'screens/nvr-encoding-batch.ts', 'screens/nvr-h264-preset.ts', 'screens/plan-area-links-admin.ts',
+  'screens/nvr-batch-shell.ts', 'screens/nvr-camera-batch.ts', 'screens/nvr-encoding-batch.ts', 'screens/nvr-h264-preset.ts', 'screens/plan-area-links-admin.ts',
   'screens/plan-studio6-panel.ts', 'screens/schedule-create-dialog.ts', 'screens/schedule-slot-panel.ts', 'screens/schedule-table-view.ts',
   'screens/system-access.ts', 'screens/system-automations.ts', 'screens/system-brand-logos.ts', 'screens/system-calendar-sync.ts',
   'screens/system-calendars.ts', 'screens/system-cast.ts', 'screens/system-doors.ts', 'screens/system-fleet-report.ts',
@@ -177,7 +177,7 @@ test('shared contracts: popover Escape, the dialog stack, the field names its co
   expect(read('screens/devices-building.ts')).toMatch(/data-tree-sheet\s+@keydown=\$\{\(e: KeyboardEvent\) => modalKeydown\(/);
 
   // the light-scheme marks the dark review measured (fix/DARK-REVIEW-2342 "not fixed" list): checkbox edge, KPI dot, star, unknown row, toast icon
-  for (const f of ['screens/nvr-camera-batch.ts', 'screens/nvr-encoding-batch.ts']) expect(read(f)).toMatch(/\.sel:not\(\[aria-checked='true'\]\) \.box \{\s*border-color: light-dark\(var\(--sw-text-3\)/);
+  for (const f of ['screens/nvr-batch-shell.ts']) expect(read(f)).toMatch(/\.sel:not\(\[aria-checked='true'\]\) \.box \{\s*border-color: light-dark\(var\(--sw-text-3\)/);
   expect(read('insights/styles.ts')).toMatch(/\.kpi \.dot \{ background: light-dark\(var\(--c-ink\)/);
   expect(read('screens/plan-studio6-panel.ts')).toMatch(/color: light-dark\(var\(--sw-warning-text\), var\(--sw-warning\)\)/);
   expect(read('screens/nvr-camera-batch.ts')).toMatch(/\.row\.unk \.ln \{[^}]*light-dark\(color-mix\(in srgb, var\(--sw-warning-text\) 75%/);
