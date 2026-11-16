@@ -6,6 +6,7 @@
  * surface without WebGL (quality-ladder.ts viewMode). Only `lit === true` lights a room and only a listed open opening opens a
  * door - a stale or unknown state never does (the state layer's rule, room-state.ts).
  */
+import { tr } from '../i18n/msg/map';
 import { LitElement, css, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { bandAt, convexHull, stillKey, type BundleBakes, type MaskDoc, type StillBand, type StillPreset, type StillStyle } from './still-bake';
@@ -17,8 +18,8 @@ export interface StillsRoomState {
   lit?: boolean | null;
   presence?: boolean | null;
 }
-const EMPTY_HE = 'אין תמונות מוכנות למפלס זה';
-const LOAD_FAILED_HE = 'טעינת התמונה המוכנה נכשלה';
+const EMPTY_HE = tr('אין תמונות מוכנות למפלס זה');
+const LOAD_FAILED_HE = tr('טעינת התמונה המוכנה נכשלה');
 
 const maskCache = new Map<string, Promise<MaskDoc | null>>();
 function loadMask(url: string): Promise<MaskDoc | null> {
@@ -127,7 +128,7 @@ export class SwPlanStills extends LitElement {
     const present = m ? m.rooms.filter((r) => this.rooms[r.id]?.presence === true && this.rooms[r.id]?.lit !== true) : [];
     const open = new Set(this.openOpenings);
     const doors = m ? m.doors.filter((d) => open.has(d.id)) : [];
-    return html`<svg viewBox="0 0 ${base.width} ${base.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="תמונה מוכנה של המפלס" data-stills
+    return html`<svg viewBox="0 0 ${base.width} ${base.height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label=${tr('תמונה מוכנה של המפלס')} data-stills
         data-band=${this.band} data-style=${this.styleId} data-lit=${lit.length}>
       <defs>${lit.map((r) => svg`<clipPath id=${`lit-${r.id}`}><polygon points=${pts(convexHull([...r.floor, ...r.top]))}></polygon></clipPath>`)}</defs>
       ${svg`<image href=${base.url} width=${base.width} height=${base.height} preserveAspectRatio="none" @error=${() => { this.failed = true; }}></image>`}

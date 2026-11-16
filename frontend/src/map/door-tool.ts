@@ -2,6 +2,7 @@
  * (POST /plan-versions/{id}/door-proposal, services/plan_door_tool.py) to the ghost the editor shows, its handles, the
  * person's adjustments (width, hinge flip, swing flip) and the accepted door - an ordinary opening (and, when no drawn
  * wall carries it, the short wall piece it came with), added to the draft as one undo step. */
+import { tr } from '../i18n/msg/map';
 import type { DoorProposal } from '../api/geometry';
 import { OPENING_DEFAULTS, effectiveScale, pointOnWall, wallLengthPx, type GeometryDoc, type GeomOpening, type GeomWall, type Hinge, type Pt, type Swing } from './geometry';
 import { addOpening, addWall, defaultLevelId, openingRange, patchOpening, patchWall, wallDirectionAt, type WallDefaults } from './studio-ops';
@@ -141,11 +142,11 @@ export function ghostHandles(doc: GeometryDoc, g: DoorGhost, W: number, H: numbe
   const latchEnd = double ? gap[1] : g.hinge === 'start' ? gap[1] : gap[0];
   const off = (p: Pt, k: number): Pt => [p[0] + (nl[0] * k) / W, p[1] + (nl[1] * k) / H];
   const mid: Pt = [(gap[0][0] + gap[1][0]) / 2, (gap[0][1] + gap[1][1]) / 2];
-  const out: { id: 'width' | 'hinge' | 'swing'; at: Pt; label: string }[] = [{ id: 'width', at: latchEnd, label: 'רוחב הדלת: גרירה לאורך הקיר' }];
+  const out: { id: 'width' | 'hinge' | 'swing'; at: Pt; label: string }[] = [{ id: 'width', at: latchEnd, label: tr('רוחב הדלת: גרירה לאורך הקיר') }];
   const outward = g.hinge === 'start' ? -1 : 1; // along the wall, away from the opening
   const k = Math.max(14, 0.3 * widthPx);
-  if (!double) out.push({ id: 'hinge', at: [hingeEnd[0] + (d[0] * outward * k) / W, hingeEnd[1] + (d[1] * outward * k) / H], label: 'החלף צד ציר' });
-  out.push({ id: 'swing', at: off(mid, side * Math.max(18, 0.5 * widthPx)), label: double ? 'החלף את צד הפתיחה' : 'החלף כיוון פתיחה' });
+  if (!double) out.push({ id: 'hinge', at: [hingeEnd[0] + (d[0] * outward * k) / W, hingeEnd[1] + (d[1] * outward * k) / H], label: tr('החלף צד ציר') });
+  out.push({ id: 'swing', at: off(mid, side * Math.max(18, 0.5 * widthPx)), label: double ? tr('החלף את צד הפתיחה') : tr('החלף כיוון פתיחה') });
   return out;
 }
 
@@ -216,7 +217,7 @@ export function defaultGhost(doc: GeometryDoc, wall: GeomWall, t: number, click:
   const d = wallDirectionAt(wall, t, W, H);
   const c = pointOnWall(wall, t, W, H);
   const left = (click[0] - c[0]) * W * d[1] + (click[1] - c[1]) * H * -d[0] > 0;
-  return fitGhost(doc, { found: 'default', note: 'ברירת מחדל - בדוק', warning: null, wallId: wall.id, newWall: null, t, width_m: OPENING_DEFAULTS.door.width_m, hinge: 'start',
+  return fitGhost(doc, { found: 'default', note: tr('ברירת מחדל - בדוק'), warning: null, wallId: wall.id, newWall: null, t, width_m: OPENING_DEFAULTS.door.width_m, hinge: 'start',
     swing: left ? 'left' : 'right', confidence: 0.2 }, W, H);
 }
 

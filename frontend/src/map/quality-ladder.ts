@@ -10,13 +10,14 @@
  * runs only in the `auto` mode. The mode comes from the browser's own choice, else the person's / installation's
  * `plan.view.quality` dial (auto or a fixed rung).
  */
+import { tr } from '../i18n/msg/map';
 export type Rung = 'realistic' | 'lite' | 'full' | 'schematic';
 export type QualityMode = 'auto' | Rung;
 export type ViewLevel = 1 | 2 | 3;
 
 export const RUNGS: readonly Rung[] = ['realistic', 'lite', 'full', 'schematic'];
 export const MODES: readonly QualityMode[] = ['auto', ...RUNGS];
-export const RUNG_HE: Record<QualityMode, string> = { auto: 'אוטומטי', realistic: 'ריאליסטי', lite: 'ריאליסטי קל', full: 'מלא', schematic: 'סכמטי' };
+export const RUNG_HE: Record<QualityMode, string> = { auto: tr('אוטומטי'), realistic: tr('ריאליסטי'), lite: tr('ריאליסטי קל'), full: tr('מלא'), schematic: tr('סכמטי') };
 
 export const rungLevel = (r: Rung): ViewLevel => (r === 'schematic' ? 1 : r === 'full' ? 2 : 3);
 export const levelRung = (l: number): Rung => (l >= 3 ? 'realistic' : l === 2 ? 'full' : 'schematic');

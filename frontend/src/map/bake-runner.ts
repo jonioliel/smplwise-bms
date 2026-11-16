@@ -5,6 +5,7 @@
  * between lightmap rows), the add-on decodes one upload at a time from this browser. The lease of the request is renewed
  * while the job runs. Everything it needs is injected, so node tests run it with fakes (unit-bake-runner.spec.ts).
  */
+import { tr } from '../i18n/msg/map';
 import type { SceneDescription } from './scene-builder';
 import { buildMask, expectedSlots, isoCamera, isoProject, sizeOf, slotName, stillDescription, MASK_RECIPE, type BakeSetting, type BakeSlot, type Project,
   type StillRenderer, type StillVariant } from './still-bake';
@@ -106,7 +107,7 @@ export async function runBake(d: BakeDeps): Promise<BakeOutcome> {
         const proceed = await step(mask, async () => {
           let pr = project;
           if (!pr) {
-            if (preset !== 'iso') throw new Error('אין מצלמה למסכות: התמונות של מבט זה לא צוירו בדפדפן הזה.');
+            if (preset !== 'iso') throw new Error(tr('אין מצלמה למסכות: התמונות של מבט זה לא צוירו בדפדפן הזה.'));
             pr = isoProject(isoCamera(stillDescription(d.describe('off'), level, 'off'), w, h));
           }
           const doc = buildMask(d.describe('off'), level, { preset, width: w, height: h }, pr, d.live);

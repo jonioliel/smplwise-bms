@@ -6,6 +6,7 @@
  * by an explicit member list (security review B1). Pure functions, no DOM: the chip, the hint, the room under a point,
  * the claim of a new item, the deletions a save lists, the 3D volume from the two outlines.
  */
+import { tr } from '../i18n/msg/map';
 import { bidi } from '../i18n/bidi';
 import { effectiveScale, isCurved, MAX_TRIBUNE_ROWS, pointOnWall, type GeometryDoc, type GeomObject, type Pt } from './geometry';
 
@@ -63,7 +64,7 @@ export function otherOutlineIsUpper(e: Pick<SharedSpaceEntry, 'datum_m'>): boole
 }
 
 /** What the server names a home floor the reader may not read (services/shared_spaces.OTHER_FLOOR): no jump to it. */
-export const OTHER_FLOOR = 'קומה אחרת';
+export const OTHER_FLOOR = tr('קומה אחרת');
 
 /** The `shared` mark of a zone in the map bundle (api/types SpatialZone.shared). */
 export interface SharedZoneMark {
@@ -125,9 +126,9 @@ export function sharedHint(doc: Pick<GeometryDoc, 'shared_spaces'> | null | unde
   if (!item && !at) return '';
   const e = item?.shared ? entryOf(doc, item.shared) : at ? roomAt(doc, at, 'home') : null;
   if (!e) return '';
-  if (item?.shared?.readonly) return `חלק מ${bidi(e.home_floor_name)} · ערוך אותו שם`;
+  if (item?.shared?.readonly) return tr('חלק מ{floor} · ערוך אותו שם', { floor: bidi(e.home_floor_name) });
   const other = e.role === 'mirror' ? e.home_floor_name : e.other_floor_name ?? '';
-  return other ? `חלל משותף · השינוי יופיע גם ב${bidi(other)}` : 'חלל משותף';
+  return other ? tr('חלל משותף · השינוי יופיע גם ב{floor}', { floor: bidi(other) }) : tr('חלל משותף');
 }
 
 /** Re-review N3 on the home floor: the shared room whose UPPER outline (brought onto this plan) holds the item while its

@@ -1,3 +1,4 @@
+import { tr } from '../i18n/msg/map';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -43,10 +44,10 @@ export { QUALITY_KEY } from '../api/plan-quality';
  * out of the chunk - unit-three-chunk.spec.ts). The floor map's bake tool imports it from here. */
 export { SceneStillRenderer, encodePng } from './still-render-scene';
 
-const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
-const FALLBACK_HE = 'עבר לרמה סכמטית — קצב הפריימים היה נמוך';
+const EXPORT_FAILED_HE = tr('ייצוא glTF נכשל');
+const FALLBACK_HE = tr('עבר לרמה סכמטית — קצב הפריימים היה נמוך');
 /** The automatic ladder lowered the rung (only in the `auto` mode). */
-const fallbackHe = (r: Rung): string => (r === 'schematic' ? FALLBACK_HE : `עבר ל${RUNG_HE[r]} — קצב הפריימים היה נמוך`);
+const fallbackHe = (r: Rung): string => (r === 'schematic' ? FALLBACK_HE : tr('עבר ל{rung} — קצב הפריימים היה נמוך', { rung: RUNG_HE[r] }));
 /** CR-029 S1: the host builds the description with the realistic part (it listens to `realistic-change`). */
 export interface RealisticChangeDetail {
   on: boolean;
@@ -111,7 +112,7 @@ export interface KioskIdleDetail {
 }
 /** The input that keeps a kiosk awake, read on the window (capture, passive): a touch or a key anywhere on the page counts. */
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
-const LOCK_REFUSED_HE = 'נעילת סמן אינה זמינה בדף הזה — המבט נשאר בגרירה';
+const LOCK_REFUSED_HE = tr('נעילת סמן אינה זמינה בדף הזה — המבט נשאר בגרירה');
 /** LOOK_SPEC section 9: the walk's field of view - desktop, touch, portrait. */
 export const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
 /** The crosshair turns to a device within this distance (LOOK_SPEC section 9). */
@@ -175,7 +176,7 @@ export function withAlpha(color: string, a: number): string {
   return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${a})`;
 }
 
-const KIND_HE: Record<string, string> = { wall: 'קיר', opening: 'פתח', object: 'עצם', connector: 'מחבר', camera: 'מצלמה', entity: 'ישות', zone: 'חדר', label: 'תווית', level: 'מפלס' };
+const KIND_HE: Record<string, string> = { wall: tr('קיר'), opening: tr('פתח'), object: tr('עצם'), connector: tr('מחבר'), camera: tr('מצלמה'), entity: tr('ישות'), zone: tr('חדר'), label: tr('תווית'), level: tr('מפלס') };
 
 const readStore = (store: 'local' | 'session', key: string): string | null => {
   try {
@@ -1858,8 +1859,8 @@ export class SwPlan3d extends LitElement {
         // the 2D, the strip and the chips follow the level only when a level is shown on its own (all levels: they agree)
         if (this.activeLevel !== null && this.activeLevel !== e.level) this.dispatchEvent(new CustomEvent<LevelSelectDetail>('level-select', { detail: { id: e.level }, bubbles: true, composed: true }));
       } else if (e.type === 'cross-floor') this.crossFloor = e.floor;
-      else if (e.type === 'blocked') this.walkMessage(`הדלת ${DOOR_STATE_HE[e.door.state]}`, 'warn');
-      else if (e.type === 'edge') this.walkMessage('קצה התוכנית', 'info');
+      else if (e.type === 'blocked') this.walkMessage(tr('הדלת {state}', { state: DOOR_STATE_HE[e.door.state] }), 'warn');
+      else if (e.type === 'edge') this.walkMessage(tr('קצה התוכנית'), 'info');
       else if (e.type === 'path-blocked') this.walkMessage(t('walk.noWay'), 'warn');
       else if (e.type === 'room') {
         // LOOK_SPEC section 3: the room's daylight factor drives the walk's interior fill (level 3)
@@ -1889,7 +1890,7 @@ export class SwPlan3d extends LitElement {
     if (this.viewDials.walk_guard) {
       this.walkDrop = down;
       writeStore('session', WALK_GUARD_KEY, storedMode(down));
-      this.walkMessage(`הסיור עבר ל${RUNG_HE[down]} — קצב הפריימים היה נמוך`, 'info');
+      this.walkMessage(tr('הסיור עבר ל{rung} — קצב הפריימים היה נמוך', { rung: RUNG_HE[down] }), 'info');
     } else this.perfHint = down;
   }
   /** A click on the view: in the walk a device opens its card and the floor is a walk there (tap-to-walk); in pointer lock
@@ -1911,7 +1912,7 @@ export class SwPlan3d extends LitElement {
     }
     if (x === undefined || y === undefined) return;
     const pt = this.view?.floorPoint(x, y, w.ctrl.pose().ground);
-    if (pt && !w.walkTo(pt[0], pt[1])) this.walkMessage('אין דרך פתוחה לשם', 'warn');
+    if (pt && !w.walkTo(pt[0], pt[1])) this.walkMessage(tr('אין דרך פתוחה לשם'), 'warn');
   }
 
   private drawWalkMinimap(): void {
@@ -1948,15 +1949,15 @@ export class SwPlan3d extends LitElement {
   private renderWalk() {
     if (this.walkState !== 'on' || !this.walk) return nothing;
     return html`
-      <canvas class="minimap" data-walk-minimap role="img" aria-label="מפה קטנה של המפלס; לחיצה מעבירה לנקודה"
+      <canvas class="minimap" data-walk-minimap role="img" aria-label=${tr('מפה קטנה של המפלס; לחיצה מעבירה לנקודה')}
         @pointerdown=${(e: PointerEvent) => this.ui.minimapDown(e)} @pointermove=${(e: PointerEvent) => this.ui.minimapMove(e)}
         @pointerup=${(e: PointerEvent) => this.ui.minimapUp(e)} @pointercancel=${(e: PointerEvent) => this.ui.minimapUp(e)}></canvas>
       <span class="cross" ?data-aim=${!!this.walkAim} aria-hidden="true"></span>
       ${this.walkAim ? html`<span class="pill aim" data-walk-aim>${this.labelOf(this.walkAim)} · Enter</span>` : nothing}
       ${this.walkNote ? html`<span class="pill walknote" role="status" data-tone=${this.walkNote.tone} data-walk-note>${this.walkNote.text}</span>` : nothing}
       ${this.crossFloor
-        ? html`<span class="pill cross-floor" role="status" data-walk-cross=${this.crossFloor.id}>המדרגות ממשיכות ל${this.crossFloor.name ?? 'קומה אחרת'}
-            <sw-button size="lg" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
+        ? html`<span class="pill cross-floor" role="status" data-walk-cross=${this.crossFloor.id}>${tr('המדרגות ממשיכות ל{floor}', { floor: this.crossFloor.name ?? tr('קומה אחרת') })}
+            <sw-button size="lg" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>${tr('המשך לקומה')}</sw-button></span>`
         : nothing}
       <sw-walk-hud .starts=${this.description?.walk?.starts ?? NO_STARTS} .shown=${this.walkShown}
         @hud-exit=${() => this.stopWalk(true)} @hud-goto=${(e: CustomEvent<WalkHudGoto>) => this.ui.goto(e)} @hud-field=${(e: CustomEvent<WalkHudField>) => this.ui.field(e)} @hud-route=${(e: CustomEvent<WalkHudRoute>) => this.ui.routeToggle(e)}></sw-walk-hud>`;
@@ -2061,12 +2062,12 @@ export class SwPlan3d extends LitElement {
     if (this.levels.length < 2 || !this.thumbnailScene || !this.ready) return nothing;
     const listed = [...this.levels].sort((a, b) => b.elevation_m - a.elevation_m || (a.id < b.id ? -1 : 1));
     this.thumbs = keepIsos(this.thumbs, listed.map((l) => l.id));
-    return html`<div class="strip" role="group" aria-label="מפלסים" data-3d-strip>
+    return html`<div class="strip" role="group" aria-label=${tr('מפלסים')} data-3d-strip>
       ${listed.map((l) => {
         const d = this.levelDots[l.id];
-        return html`<button type="button" data-3d-thumb=${l.id} aria-pressed=${this.activeLevel === l.id ? 'true' : 'false'} title=${`${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳`} @click=${() => this.pickLevel(l.id)}>
+        return html`<button type="button" data-3d-thumb=${l.id} aria-pressed=${this.activeLevel === l.id ? 'true' : 'false'} title=${`${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} ${tr('מ׳')}`} @click=${() => this.pickLevel(l.id)}>
           <span class="pic"><img alt="" src=${this.thumbFor(l.id)} />${d && (d.presence > 0 || d.open || d.lit)
-            ? html`<span class="dots" data-3d-dots=${l.id}>${d.presence > 0 ? html`<i data-dot="presence" title="תנועה" style=${`--fade:${Math.max(0.35, d.presence).toFixed(2)}`}></i>` : nothing}${d.open ? html`<i data-dot="open" title="פתח פתוח"></i>` : nothing}${d.lit ? html`<i data-dot="lit" title="תאורה דולקת"></i>` : nothing}</span>`
+            ? html`<span class="dots" data-3d-dots=${l.id}>${d.presence > 0 ? html`<i data-dot="presence" title=${tr('תנועה')} style=${`--fade:${Math.max(0.35, d.presence).toFixed(2)}`}></i>` : nothing}${d.open ? html`<i data-dot="open" title=${tr('פתח פתוח')}></i>` : nothing}${d.lit ? html`<i data-dot="lit" title=${tr('תאורה דולקת')}></i>` : nothing}</span>`
             : nothing}</span><span>${l.name}</span>
         </button>`;
       })}
@@ -2100,15 +2101,15 @@ export class SwPlan3d extends LitElement {
     const today = siteLocal(Date.now(), this.site.zone);
     const ymd = this.timeManual?.ymd ?? [today.year, today.month, today.day];
     const date = `${ymd[0]}-${String(ymd[1]).padStart(2, '0')}-${String(ymd[2]).padStart(2, '0')}`;
-    return html`<div class="timepill" role="group" aria-label="שעה ביום" data-3d-time data-band=${s.band}>
+    return html`<div class="timepill" role="group" aria-label=${tr('שעה ביום')} data-3d-time data-band=${s.band}>
         <button type="button" class="tp" aria-expanded=${this.timeOpen ? 'true' : 'false'} data-3d-time-toggle @click=${() => (this.timeOpen = !this.timeOpen)}><span aria-hidden="true">${glyph}</span> <span class="hh" data-3d-time-label>${hourLabel(s.hour)}</span></button>
-        ${this.timeManual ? html`<button type="button" class="now" data-3d-time-now @click=${() => this.timeNow()}>עכשיו</button>` : nothing}
+        ${this.timeManual ? html`<button type="button" class="now" data-3d-time-now @click=${() => this.timeNow()}>${tr('עכשיו')}</button>` : nothing}
       </div>
       ${this.timeOpen
         ? html`<div class="timepop" data-3d-time-pop>
-            <input type="range" min="0" max="24" step="0.25" aria-label="שעה ביום" data-3d-time-slider .value=${String(s.hour)} @input=${(e: Event) => this.setTimeHour(Number((e.target as HTMLInputElement).value))} />
-            <div class="row"><input type="date" lang=${dateInputLang()} aria-label="תאריך" data-3d-time-date .value=${date} @change=${(e: Event) => this.setTimeDate((e.target as HTMLInputElement).value)} /><span>${TIME_BAND_HE[s.band as keyof typeof TIME_BAND_HE]} · שמש ${s.elevation}°</span></div>
-            ${this.site.known ? nothing : html`<div class="muted" data-3d-site-default>מיקום האתר לא הוגדר: מרכז הארץ</div>`}
+            <input type="range" min="0" max="24" step="0.25" aria-label=${tr('שעה ביום')} data-3d-time-slider .value=${String(s.hour)} @input=${(e: Event) => this.setTimeHour(Number((e.target as HTMLInputElement).value))} />
+            <div class="row"><input type="date" lang=${dateInputLang()} aria-label=${tr('תאריך')} data-3d-time-date .value=${date} @change=${(e: Event) => this.setTimeDate((e.target as HTMLInputElement).value)} /><span>${TIME_BAND_HE[s.band as keyof typeof TIME_BAND_HE]} · ${tr('שמש')} ${s.elevation}°</span></div>
+            ${this.site.known ? nothing : html`<div class="muted" data-3d-site-default>${tr('מיקום האתר לא הוגדר: מרכז הארץ')}</div>`}
           </div>`
         : nothing}`;
   }
@@ -2119,7 +2120,7 @@ export class SwPlan3d extends LitElement {
     const q = this.quality;
     return html`
       <div class="stage"></div>
-      ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>טוען תלת-ממד…</div>` : nothing}
+      ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>${tr('טוען תלת-ממד…')}</div>` : nothing}
       ${this.error ? html`<div class="spinner err" data-3d-error>${this.error}</div>` : nothing}
       ${this.overlays.length
         ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'label'
@@ -2127,42 +2128,42 @@ export class SwPlan3d extends LitElement {
             : p.kind === 'chip'
             ? html`<span class="chip" aria-hidden="true" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
             : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: ${pillInk(p.color)}`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
-            ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`
+            ? html`<span class="more" data-3d-more=${this.hiddenPills} title=${tr('ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן')}>${tr('+{n} ישויות', { n: this.hiddenPills })}</span>`
             : nothing}</div>`
         : nothing}
       ${this.pillLayer.render()}
       ${this.renderStrip()}
       ${this.renderWalk()}
-      <div class="bar" role="group" aria-label="תצוגות מוכנות" data-3d-bar>
-        <sw-chip data-preset-top ?selected=${preset === 'top'} @click=${() => this.pickPreset('top')}>מלמעלה</sw-chip>
-        <sw-chip data-preset-iso ?selected=${preset === 'iso'} @click=${() => this.pickPreset('iso')}>איזומטרי</sw-chip>
-        <sw-chip data-preset-persp ?selected=${preset === 'persp'} @click=${() => this.pickPreset('persp')}>פרספקטיבה</sw-chip>
+      <div class="bar" role="group" aria-label=${tr('תצוגות מוכנות')} data-3d-bar>
+        <sw-chip data-preset-top ?selected=${preset === 'top'} @click=${() => this.pickPreset('top')}>${tr('מלמעלה')}</sw-chip>
+        <sw-chip data-preset-iso ?selected=${preset === 'iso'} @click=${() => this.pickPreset('iso')}>${tr('איזומטרי')}</sw-chip>
+        <sw-chip data-preset-persp ?selected=${preset === 'persp'} @click=${() => this.pickPreset('persp')}>${tr('פרספקטיבה')}</sw-chip>
         ${this.cameras.length
-          ? html`<select data-preset-camera aria-label="מבט מהמצלמה" .value=${cameraId} @change=${(e: Event) => this.onCameraChange(e)}>
-              <option value="">מבט מהמצלמה…</option>
+          ? html`<select data-preset-camera aria-label=${tr('מבט מהמצלמה')} .value=${cameraId} @change=${(e: Event) => this.onCameraChange(e)}>
+              <option value="">${tr('מבט מהמצלמה…')}</option>
               ${this.cameras.map((c) => html`<option value=${c.id} ?selected=${c.id === cameraId}>${c.label}</option>`)}
             </select>`
           : nothing}
         <span class="sep" aria-hidden="true"></span>
-        <sw-chip data-quality-auto title="אוטומטי: מתחיל ברמת ברירת המחדל ויורד רמה כשהמכשיר איטי" ?selected=${this.mode === 'auto'} @click=${() => this.setMode('auto')}>אוטומטי</sw-chip>
-        <sw-chip data-quality-1 title="רמה סכמטית: חומרים שטוחים, בלי צללים" ?selected=${this.mode !== 'auto' && q === 1} @click=${() => this.setQuality(1)}>סכמטי</sw-chip>
-        <sw-chip data-quality-2 title="רמה מלאה: צללים רכים, חומרים, חיתוך קירות" ?selected=${this.mode !== 'auto' && q === 2} @click=${() => this.setQuality(2)}>מלא</sw-chip>
-        <sw-chip data-quality-3-lite title="ריאליסטי קל: חומרים אמיתיים, שמש ושמיים, בלי האפקטים הכבדים" ?selected=${this.mode === 'lite'} @click=${() => this.setMode('lite')}>ריאליסטי קל</sw-chip>
-        <sw-chip data-quality-3 title="ריאליסטי: חומרים אמיתיים, שמש לפי שעה, הצללה עדינה וזכוכית" ?selected=${this.mode === 'realistic'} @click=${() => this.setMode('realistic')}>ריאליסטי</sw-chip>
-        ${q < 3 ? html`<sw-chip data-night-toggle title="מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים" ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>לילה</sw-chip>` : nothing}
+        <sw-chip data-quality-auto title=${tr('אוטומטי: מתחיל ברמת ברירת המחדל ויורד רמה כשהמכשיר איטי')} ?selected=${this.mode === 'auto'} @click=${() => this.setMode('auto')}>${tr('אוטומטי')}</sw-chip>
+        <sw-chip data-quality-1 title=${tr('רמה סכמטית: חומרים שטוחים, בלי צללים')} ?selected=${this.mode !== 'auto' && q === 1} @click=${() => this.setQuality(1)}>${tr('סכמטי')}</sw-chip>
+        <sw-chip data-quality-2 title=${tr('רמה מלאה: צללים רכים, חומרים, חיתוך קירות')} ?selected=${this.mode !== 'auto' && q === 2} @click=${() => this.setQuality(2)}>${tr('מלא')}</sw-chip>
+        <sw-chip data-quality-3-lite title=${tr('ריאליסטי קל: חומרים אמיתיים, שמש ושמיים, בלי האפקטים הכבדים')} ?selected=${this.mode === 'lite'} @click=${() => this.setMode('lite')}>${tr('ריאליסטי קל')}</sw-chip>
+        <sw-chip data-quality-3 title=${tr('ריאליסטי: חומרים אמיתיים, שמש לפי שעה, הצללה עדינה וזכוכית')} ?selected=${this.mode === 'realistic'} @click=${() => this.setMode('realistic')}>${tr('ריאליסטי')}</sw-chip>
+        ${q < 3 ? html`<sw-chip data-night-toggle title=${tr('מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים')} ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>${tr('לילה')}</sw-chip>` : nothing}
         ${this.walkable
-          ? html`<sw-chip data-walk-btn title="סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה" ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? 'טוען סיור…' : 'סיור'}</sw-chip>`
+          ? html`<sw-chip data-walk-btn title=${tr('סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה')} ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? tr('טוען סיור…') : tr('סיור')}</sw-chip>`
           : nothing}
         <!-- ST7-odd: a surface like the chips beside it - a ghost control over the rendered picture faded into whatever lay behind it -->
-        <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
+        <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? tr('מייצא…') : tr('ייצוא glTF')}</sw-button>
       </div>
       ${renderZoom(this.ready && !this.error, (f) => this.view?.zoomBy(f))}
-      ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
+      ${this.description?.estimated ? html`<div class="note" data-3d-estimated>${tr('≈ מידות משוערות (התוכנית לא כוילה)')}</div>` : nothing}
       ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}
       ${this.perfHint
-        ? html`<div class="pill hint" role="status" data-3d-low-fps=${this.perfHint}>התצוגה איטית במכשיר הזה
-            <sw-button size="sm" variant="ghost" data-3d-low-fps-switch @click=${() => this.setMode(this.perfHint!)}>מעבר ל${RUNG_HE[this.perfHint]}</sw-button>
-            <button type="button" class="x" aria-label="סגירה" data-3d-low-fps-close @click=${() => (this.perfHint = null)}>×</button></div>`
+        ? html`<div class="pill hint" role="status" data-3d-low-fps=${this.perfHint}>${tr('התצוגה איטית במכשיר הזה')}
+            <sw-button size="sm" variant="ghost" data-3d-low-fps-switch @click=${() => this.setMode(this.perfHint!)}>${tr('מעבר ל{rung}', { rung: RUNG_HE[this.perfHint] })}</sw-button>
+            <button type="button" class="x" aria-label=${tr('סגירה')} data-3d-low-fps-close @click=${() => (this.perfHint = null)}>×</button></div>`
         : nothing}
       ${q === 3 ? this.renderTime() : nothing}
       ${q === 3 ? html`<div class="vignette" aria-hidden="true"></div>` : nothing}

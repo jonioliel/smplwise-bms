@@ -10,6 +10,7 @@
  * browser) <- the installation's default (`plan.quality`, system.configure) <- `auto`.
  * The wire value of both layers is the settings' string: "auto" | "2" | "1".
  */
+import { tr } from '../i18n/msg/map';
 import type { QualityLevel } from './scene-three';
 import type { QualityMode as LadderMode } from './quality-ladder';
 
@@ -18,12 +19,12 @@ export type QualityWire = 'auto' | '1' | '2';
 /** The order the settings and the toolbar list them in. */
 export const QUALITY_MODES: readonly QualityMode[] = ['auto', 'full', 'schematic'];
 /** The short label of a mode (toolbar chip, settings option). */
-export const QUALITY_MODE_LABEL: Record<QualityMode, string> = { auto: 'אוטומטי', full: 'מלא', schematic: 'סכמטי' };
+export const QUALITY_MODE_LABEL: Record<QualityMode, string> = { auto: tr('אוטומטי'), full: tr('מלא'), schematic: tr('סכמטי') };
 /** One line per mode for the settings rows and the chips' titles. */
 export const QUALITY_MODE_HINT: Record<QualityMode, string> = {
-  auto: 'מלא, ויורד לסכמטי כשקצב הפריימים נמוך לאורך זמן',
-  full: 'צללים, חומרים וחיתוך קירות - נשאר גם במכשיר איטי',
-  schematic: 'חומרים שטוחים, בלי צללים - הקל ביותר',
+  auto: tr('מלא, ויורד לסכמטי כשקצב הפריימים נמוך לאורך זמן'),
+  full: tr('צללים, חומרים וחיתוך קירות - נשאר גם במכשיר איטי'),
+  schematic: tr('חומרים שטוחים, בלי צללים - הקל ביותר'),
 };
 
 /** "auto" | "2" | "1" (also the numbers and the mode names themselves); anything else is null = not set. */

@@ -3,6 +3,7 @@
  * this floor's other levels and every level of every other floor of the building ("קומה 1 · גלריה"), so a link to
  * another floor chooses the level it reaches there too. Pure: no DOM, runs in node (tests/unit-stairs.spec.ts).
  */
+import { tr } from '../i18n/msg/map';
 import type { GeomConnector, GeometryDoc, GeomLevel, Pt } from './geometry';
 
 /** One floor of GET plan-versions/{id}/geometry/link-targets. */
@@ -103,7 +104,7 @@ export interface FloorLink {
   farLabel: string;
 }
 
-const KIND_HE: Record<string, string> = { stairs: 'מדרגות', ramp: 'רמפה', tribune: 'טריבונה', elevator: 'מעלית', ladder: 'סולם' };
+const KIND_HE: Record<string, string> = { stairs: tr('מדרגות'), ramp: tr('רמפה'), tribune: tr('טריבונה'), elevator: tr('מעלית'), ladder: tr('סולם') };
 
 const middle = (poly: Pt[]): Pt => {
   const xs = poly.map((p) => p[0]);
@@ -137,6 +138,6 @@ export function floorLinks(docs: readonly FloorLinkDoc[], floors: readonly { id:
       const first = sorted[0];
       const far = first.c.far;
       return { id, kindLabel: KIND_HE[first.c.kind] ?? first.c.kind, kind: first.c.kind, a: end(first), b: sorted[1] ? end(sorted[1]) : null,
-        farLabel: far?.floor_name ? (far.level_name ? `${far.floor_name} · ${far.level_name}` : far.floor_name) : 'קומה אחרת' };
+        farLabel: far?.floor_name ? (far.level_name ? `${far.floor_name} · ${far.level_name}` : far.floor_name) : tr('קומה אחרת') };
     });
 }
