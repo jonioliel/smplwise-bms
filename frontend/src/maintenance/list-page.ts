@@ -8,6 +8,7 @@ import { PageFit } from '../components/page-fit';
 import { liftRef } from '../components/top-layer';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { maintApi, type Task, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
@@ -64,7 +65,8 @@ export class MaintListPage extends LitElement {
   @state() private vendor: string | null = null;
   @state() private run: string | null = null;
   @state() private toast = '';
-  private timer?: number;
+  /** CR-POLL-FEATURES-2439: the task list re-read every POLL_MS (not while a round or the form is open) - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
   private loadedFor = '';
   /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5 a; code review 08:F23): on a desktop the table no longer scrolls inside its panel - the
    * rows that fit are page 1, the rest are on the next pages (the pager at the end of the toolbar). With the long lists set to scroll
@@ -83,14 +85,7 @@ export class MaintListPage extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && !this.run && !this.form) void this.load();
-    }, POLL_MS);
-  }
-
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('tasks', POLL_MS, () => this.load(), { when: () => !this.run && !this.form });
   }
 
   protected willUpdate(changed: Map<string, unknown>) {

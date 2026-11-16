@@ -28,6 +28,9 @@ export interface LiveSource {
   enabled?: () => boolean;
   /** True while nothing is known to exist behind this source (a module the installation may not have): its failures back it off but never count as "not current". */
   silent?: () => boolean;
+  /** CR-POLL-FEATURES-2439: the resume gap of this source in ms (default MIN_GAP_MS): a resume runs it only when its last start is older.
+   * The tickets lists (tickets/live-refresh.ts) keep their 1 s gap through it. */
+  resumeGapMs?: number;
 }
 
 export interface LiveEnv {
@@ -257,7 +260,7 @@ export class LiveController {
     for (const s of this.slots.values()) {
       if (resetFailures) s.failures = 0;
       if (skip.includes(s.src.id)) continue;
-      if (!force && t - s.lastStart < MIN_GAP_MS) continue;
+      if (!force && t - s.lastStart < (s.src.resumeGapMs ?? MIN_GAP_MS)) continue;
       if (s.queued || !this.canRun(s)) continue;
       const delay = i++ * STAGGER_MS;
       if (!delay) void this.runSlot(s);
@@ -265,7 +268,7 @@ export class LiveController {
         s.queued = true;
         this.env.setTimeout(() => {
           s.queued = false;
-          if (this.started && this.canRun(s) && (force || this.env.now() - s.lastStart >= MIN_GAP_MS)) void this.runSlot(s);
+          if (this.started && this.canRun(s) && (force || this.env.now() - s.lastStart >= (s.src.resumeGapMs ?? MIN_GAP_MS))) void this.runSlot(s);
         }, delay);
       }
     }

@@ -6,6 +6,7 @@ import '../components/sw-pager';
 import { PageFit } from '../components/page-fit';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { emergencyApi, type ItemGroup, type ItemStatus, type ReadinessItem, type ReadinessPage, type Verdict } from '../api/emergency';
 import { em, emLang, EN_SUMMARY, EN_TITLES, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
@@ -37,11 +38,12 @@ export class EmergencyReadinessPage extends LitElement {
   @state() private error = '';
   @state() private filter: Filter = 'all';
   @state() private view: View = 'list';
-  private timer?: number;
   /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5 a; code review 08:F23): on a desktop the checklist no longer scrolls inside its panel -
    * the rows that fit are page 1, the rest are on the next pages (a group that runs over repeats its heading; the pager in the panel's
    * foot). The long lists set to scroll (הגדרות › כללי): the checklist scrolls inside its panel as before. Printing draws every row. */
   private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('[data-emerg-list]'), () => this.view === 'list' && !!this.data);
+  /** CR-POLL-FEATURES-2439: the readiness re-read every 60 s - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [maintCss, css`
     :host { flex: 1; min-block-size: 0; }
@@ -86,14 +88,7 @@ export class EmergencyReadinessPage extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void this.load();
-    }, 60_000);
-  }
-
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('readiness', 60_000, () => this.load());
   }
 
   protected willUpdate() {

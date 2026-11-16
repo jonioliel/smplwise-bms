@@ -4,6 +4,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-sheet';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import {
   getIncident, prepareRelease, prepareStart, releaseIncident, retryOpenDoor, startIncident,
   type EmergencyKind, type EmergencyState, type Incident, type Prepared, type Scope,
@@ -12,6 +13,9 @@ import { dwt, dwtDynamic } from '../i18n/door-windows';
 import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retryableOpenDoors, type SheetStep } from './logic';
 import { dwCss } from './styles';
 import { timeText } from '../api/day-format';
+
+/** While doors are still being sent, the incident is read again this often. */
+const FOLLOW_MS = 1500;
 
 /**
  * CR-039 8 / DOORWIN-295: the emergency door controls.
@@ -141,7 +145,9 @@ export class DoorEmergencySheet extends LitElement {
   @state() private reason = '';
   private idle = 0;
   private tick = 0;
-  private poll = 0;
+  /** CR-POLL-FEATURES-2439 (08:F06): the incident follow-up read every 1.5 s - one read at a time (a slow answer is never overtaken by
+   * a second read, so an older answer cannot overwrite a newer state), paused while the tab is hidden, caught up on resume. */
+  private poll = new PollController(this);
 
   protected willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('open') && this.open) {
@@ -166,7 +172,7 @@ export class DoorEmergencySheet extends LitElement {
   private stopTimers(): void {
     clearTimeout(this.idle);
     clearInterval(this.tick);
-    clearInterval(this.poll);
+    this.poll.cancel('incident');
   }
 
   /** CR-039 8.1 (4): the sheet closes itself after 20 s without a decision (never while sending). */
@@ -237,18 +243,22 @@ export class DoorEmergencySheet extends LitElement {
 
   /** While doors are still being sent, read the incident again (the server's lane works after the answer). */
   private follow(): void {
-    clearInterval(this.poll);
-    this.poll = window.setInterval(async () => {
-      if (!this.incident || this.incident.state !== 'applying') {
-        clearInterval(this.poll);
-        return;
-      }
-      try {
-        this.incident = (await getIncident(this.incident.id)).incident;
-      } catch {
-        /* the next poll tries again */
-      }
-    }, 1500);
+    this.poll.every('incident', FOLLOW_MS, () => this.readIncident());
+  }
+
+  private async readIncident(): Promise<void> {
+    const inc = this.incident;
+    if (!inc || inc.state !== 'applying') {
+      this.poll.cancel('incident');
+      return;
+    }
+    try {
+      const next = (await getIncident(inc.id)).incident;
+      // the sheet was closed (or reopened on another incident) while this read was on its way: its answer is not ours any more
+      if (this.poll.has('incident') && this.incident?.id === inc.id) this.incident = next;
+    } catch {
+      /* the next poll tries again */
+    }
   }
 
   private renderChoose() {
