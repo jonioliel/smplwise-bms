@@ -15,10 +15,9 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import resolve_principal, resolve_remote_first, settings_of, touch_user
+from ..auth import principal_light, shared_steps
 from ..errors import ApiError, forbidden, validation
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
-from ..remote_channel import is_remote
 from ..services import area_presence as ap
 from ..services import building_presence as bp
 from ..services import building_presence_history as bph
@@ -29,8 +28,7 @@ from ._common import rid as _rid
 router = APIRouter()
 
 
-def _principal(request: Request) -> Principal:
-    return resolve_remote_first(request) if is_remote(request) else resolve_principal(request, settings_of(request))
+_principal = principal_light  # the identity alone; each handler runs auth.shared_steps(light=True) on its own connection (review 05:P2-03)
 
 
 class SensorsIn(BaseModel):
@@ -65,7 +63,7 @@ def building_snapshot(request: Request, principal: Principal = Depends(_principa
     """The live anonymous occupancy of the building and its rooms from the tagged presence sensors (presence.building.view); `configured: false` while none is tagged."""
     db = request.app.state.db
     with db.connection(mode="read", label="presence.building") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         if bp.VIEW not in permissions_anywhere(conn, principal):
             with db.write_aside() as w:
                 audit(w, actor=principal, action=bp.VIEW, decision="denied", resource_type="installation", resource_id="*", reason="no_binding", request_id=_rid(request))
@@ -86,7 +84,7 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
         raise validation("אזור לא תקין.", field="area_id")
     db = request.app.state.db
     with db.connection(mode="read", label="presence.area") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         perms = permissions_anywhere(conn, principal)
         if bp.VIEW not in perms and people_svc.VIEW not in perms:
             with db.write_aside() as w:
@@ -105,7 +103,7 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
 def building_sensors(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """The presence / motion sensors that can be tagged, with their tag and the two settings (system.configure)."""
     with request.app.state.db.connection(mode="read", label="presence.building.sensors") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
         return bp.list_for_settings(conn)
 
@@ -114,7 +112,7 @@ def building_sensors(request: Request, principal: Principal = Depends(_principal
 def set_building_sensors(body: SensorsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """Replace the tagged set (system.configure; binary sensors only; audited with entity ids)."""
     with request.app.state.db.connection(label="presence.building.tag") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
         try:
             added, removed = bp.replace_tags(conn, body.entity_ids, principal.user_id)
@@ -131,7 +129,7 @@ def set_building_sensors(body: SensorsIn, request: Request, principal: Principal
 def set_building_settings(body: SettingsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """The debounce hold (seconds) and the empty timeout (minutes) (system.configure; audited)."""
     with request.app.state.db.connection(label="presence.building.settings") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
         try:
             cfg = bp.set_config(conn, body.model_dump(exclude_none=True))
@@ -147,7 +145,7 @@ def set_building_settings(body: SettingsIn, request: Request, principal: Princip
 def set_building_sensor_room(body: RoomIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """Place a tagged sensor in a room (area_id) or back to its own (null) (system.configure; audited)."""
     with request.app.state.db.connection(label="presence.building.room") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
         try:
             bp.set_room(conn, body.entity_id, body.area_id)
@@ -162,7 +160,7 @@ def set_building_sensor_room(body: RoomIn, request: Request, principal: Principa
 def building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """How much history is kept (count, oldest) and for how long (system.configure)."""
     with request.app.state.db.connection(mode="read", label="presence.building.history") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
         return bph.summary(conn)
 
@@ -171,7 +169,7 @@ def building_history(request: Request, principal: Principal = Depends(_principal
 def purge_building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
     """Erase the whole presence history now (system.configure; audited with the number of rows)."""
     with request.app.state.db.connection(label="presence.building.purge") as conn:
-        touch_user(conn, principal)
+        shared_steps(request, conn, principal, light=True)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
         n = bph.purge(conn)
         audit(conn, actor=principal, action="presence.building.purge", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details={"rows": n})
