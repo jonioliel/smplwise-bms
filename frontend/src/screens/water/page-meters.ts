@@ -1,8 +1,7 @@
-import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { html, css, nothing, type TemplateResult } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-place-tree';
-import type { PlaceRow } from '../wiskey-stations-logic';
 import '../../components/sw-button';
 import '../../components/sw-dialog';
 import '../../components/sw-state-panel';
@@ -10,42 +9,26 @@ import '../../water/meter-card';
 import { describeError } from '../../api/client';
 import { areaKey, buildWaterAreaTree, DEFAULT_RULES, nightFlows, readableAlerts, water, type Candidate, type LeakRules, type Meter, type MeterKind, type WaterEvent } from '../../api/water';
 import type { SnoozeSettings } from '../../api/water-billing';
-import { navigate } from '../../router';
 import { onWaterAccess, waterAccess, type WaterAccess } from '../../water/access';
 import { waterCss } from '../../water/styles';
-import { alertOf, kindLabel, m3OfL, meterChip, METER_KINDS, nightText, store, stored } from '../../water/ui';
+import { alertOf, kindLabel, m3OfL, meterChip, METER_KINDS, nightText } from '../../water/ui';
 import { wt } from '../../water/i18n';
 import { fmtM3 } from '../../water/billing-format';
-import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
-
-const VIEW_KEY = 'sw.water.meters.view';
-const COLLAPSE_KEY = 'sw.water.meters.collapsed';
-const POLL_MS = 60_000;
+import { MetersPageBase, metersGridCss, metersResponsiveCss, type MetersFrameState, type MetersPageTexts } from '../meters-page-base';
 
 /**
  * תשתיות › מים › מונים (CR-WATER78 section 5.1): `screens/electricity/page-meters.ts` with the water adapter - the head row (search, כרטיסים /
  * טבלה, "+ הוספת מונה" for water.manage; the area select on the phone), the four tiles (היום, מתחילת החודש, מדווחים x מתוך y, דליפה חשודה),
  * the areas tree, the table (with ספיקת לילה), the cards, the phone rows, and the meter card drawer (`?meter=<id>`). States as electricity's.
+ * CR-DUP-METERS-2440: the shared parts are now really shared (screens/meters-page-base.ts); this file is the water adapter.
  */
 @customElement('water-meters-page')
-export class WaterMetersPage extends LitElement {
-  readonly bubbleSkin = new SkinController(this);
-  @property({ attribute: false }) segments: string[] = [];
-  @property({ attribute: false }) params: URLSearchParams = new URLSearchParams();
-
-  @state() private meters: Meter[] = [];
+export class WaterMetersPage extends MetersPageBase<Meter, WaterAccess> {
   @state() private open: WaterEvent[] = [];
   @state() private night: Record<string, number | null | 'off'> = {};
   @state() private rules: LeakRules = DEFAULT_RULES;
   @state() private snooze: SnoozeSettings | null = null;
-  @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
-  @state() private error = '';
-  @state() private q = '';
-  @state() private view: 'table' | 'cards' = stored<'table' | 'cards'>(VIEW_KEY, 'table');
-  @state() private collapsed: string[] = stored<string[]>(COLLAPSE_KEY, []);
-  @state() private access: WaterAccess = waterAccess();
-  @state() private notice = '';
   // the add dialog
   @state() private cq = '';
   @state() private cands: Candidate[] = [];
@@ -55,52 +38,14 @@ export class WaterMetersPage extends LitElement {
   @state() private newKind: MeterKind = 'sub';
   @state() private adding = false;
   @state() private addError = '';
-  private stop?: () => void;
-  private poll = 0;
+  /** the open alerts read with the list (applied with it) */
+  private loadedEvents: { items: WaterEvent[] } | null = null;
   private candTimer = 0;
 
   static styles = [
     waterCss,
+    metersGridCss,
     css`
-      .cols {
-        display: grid;
-        grid-template-columns: 240px minmax(0, 1fr);
-        gap: 14px;
-        align-items: start;
-      }
-      .cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-        gap: 12px;
-      }
-      .mcard {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        text-align: start;
-        font: inherit;
-        color: inherit;
-        cursor: pointer;
-        min-block-size: var(--elec-touch);
-      }
-      /* WKWATER-POLISH-2331 (R5-MEDIA-ENERGY-297): today's m³ is the card's display numeral; the card answers the press */
-      .mcard .big {
-        font-size: var(--sw-fs-4xl);
-        font-weight: 800;
-        letter-spacing: -0.03em;
-        line-height: 1.05;
-        font-variant-numeric: tabular-nums;
-        color: var(--sw-heading, var(--sw-text));
-      }
-      .mcard {
-        transition: transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-      }
-      .mcard:active {
-        transform: scale(var(--sw-press-scale));
-        box-shadow: var(--sw-shadow-1);
-      }
       .mcard:focus-visible {
         outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: var(--sw-focus-offset);
@@ -118,77 +63,16 @@ export class WaterMetersPage extends LitElement {
       .cand .li[aria-pressed='true'] {
         outline: 2px solid var(--sw-accent);
       }
-      @media (max-width: 899px) {
-        .cols {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .tree-card {
-          display: none;
-        }
-        .head .inp {
-          flex: 1 1 200px;
-        }
-        .head .inp.phone-only {
-          flex: 1 1 160px;
-        }
-      }
-      /* WKWATER-POLISH-2331 (NOSCROLL-297, the electricity meters' rule; owner rule: a control screen fits the viewport on a desktop):
-         the tree and the meters list take the height left under the head and the tiles; the table (its header row stays in place), the
-         cards and the tree each scroll inside their own box, never the page. Below 240 px of room the row keeps that height. */
-      @media (min-width: 900px) {
-        [data-water='meters'][data-state='ready'] {
-          flex: 1 1 auto;
-          min-block-size: 0;
-        }
-        .cols {
-          flex: 1 1 auto;
-          min-block-size: 240px;
-          grid-template-rows: minmax(0, 1fr);
-        }
-        .cols > .tree-card {
-          max-block-size: 100%;
-          box-sizing: border-box;
-          overflow-y: auto;
-          scrollbar-width: thin;
-        }
-        .cols > .mlist {
-          display: flex;
-          flex-direction: column;
-          max-block-size: 100%;
-          min-block-size: 0;
-          min-inline-size: 0;
-        }
-        .mlist > .scrollx,
-        .mlist > .cards {
-          min-block-size: 0;
-          overflow: auto;
-          scrollbar-width: thin;
-        }
-        .mlist > .cards {
-          padding: 2px;
-          grid-auto-rows: max-content;
-          align-content: start;
-        }
-        .mlist table.t thead th {
-          position: sticky;
-          inset-block-start: 0;
-          z-index: 1;
-        }
-      }
     `,
+    metersResponsiveCss,
     bubbleChrome,
   ];
 
-  connectedCallback() {
-    super.connectedCallback();
-    this.stop = onWaterAccess((a) => (this.access = a));
-    void this.load(true);
-    this.poll = window.setInterval(() => void this.load(false), POLL_MS);
+  constructor() {
+    super({ viewKey: 'sw.water.meters.view', collapseKey: 'sw.water.meters.collapsed', route: '/infra/water/meters', access: waterAccess, onAccess: onWaterAccess });
   }
 
   disconnectedCallback() {
-    this.stop?.();
-    window.clearInterval(this.poll);
     window.clearTimeout(this.candTimer);
     super.disconnectedCallback();
   }
@@ -198,79 +82,65 @@ export class WaterMetersPage extends LitElement {
     if (ch.has('params') && this.params.get('add') === '1' && this.candPhase === 'idle' && this.access.manage) void this.searchCands();
   }
 
-  private async load(initial: boolean) {
-    if (initial) this.phase = 'loading';
-    try {
-      const [meters, ev] = await Promise.all([water.listMeters(), water.events('open').catch(() => null)]);
-      this.meters = meters;
-      if (ev) this.open = ev.items;
-      this.phase = 'ready';
-      this.error = '';
-      if (initial) {
-        const cfg = await readableAlerts();
-        if (cfg) {
-          this.rules = cfg.rules;
-          this.snooze = cfg.snooze;
-        }
-        this.night = await nightFlows(meters, this.rules);
+  protected texts(): MetersPageTexts {
+    return {
+      search: wt('search'),
+      view: wt('view'),
+      cards: wt('cards'),
+      table: wt('table'),
+      area: wt('area'),
+      areas: wt('areas'),
+      allAreas: wt('allAreas'),
+      fold: wt('fold'),
+      unfold: wt('unfold'),
+      addMeter: wt('addMeter'),
+      loadError: wt('loadMetersError'),
+      retry: wt('retry'),
+    };
+  }
+
+  protected async fetchMeters(): Promise<Meter[]> {
+    const [meters, ev] = await Promise.all([water.listMeters(), water.events('open').catch(() => null)]);
+    this.loadedEvents = ev;
+    return meters;
+  }
+
+  /** The open alerts land with the list; the first load also reads the leak rules and the night flows. */
+  protected async afterLoad(initial: boolean, meters: Meter[]) {
+    const ev = this.loadedEvents;
+    if (ev) this.open = ev.items;
+    if (initial) {
+      const cfg = await readableAlerts();
+      if (cfg) {
+        this.rules = cfg.rules;
+        this.snooze = cfg.snooze;
       }
-    } catch (err) {
-      if (initial || this.phase !== 'ready') {
-        this.error = describeError(err);
-        this.phase = 'error';
-      }
+      this.night = await nightFlows(meters, this.rules);
     }
   }
 
-  private get areaFilter(): string {
-    return this.params.get('area') ?? '';
+  protected areaTree() {
+    return buildWaterAreaTree(this.meters);
   }
 
-  private setParams(patch: Record<string, string | null>) {
-    const p = new URLSearchParams(this.params);
-    for (const [k, v] of Object.entries(patch)) {
-      if (v) p.set(k, v);
-      else p.delete(k);
-    }
-    const rec: Record<string, string> = {};
-    p.forEach((v, k) => (rec[k] = v));
-    navigate('/infra/water/meters', rec);
-  }
-
-  private setView(v: 'table' | 'cards') {
-    this.view = v;
-    store(VIEW_KEY, v);
-  }
-
-  private toggleFloor(id: string) {
-    this.collapsed = this.collapsed.includes(id) ? this.collapsed.filter((x) => x !== id) : [...this.collapsed, id];
-    store(COLLAPSE_KEY, this.collapsed);
-  }
-
-  private visible(): Meter[] {
-    const needle = this.q.trim().toLowerCase();
-    const area = this.areaFilter;
-    // AUDIT30-E5: the shared places tree also picks a whole floor (`floor:<id>`, the key buildWaterAreaTree gives the floor)
+  protected inArea(m: Meter, area: string): boolean {
     const floor = area.startsWith('floor:') ? area.slice(6) : null;
-    return this.meters.filter((m) => (!area || (floor !== null ? (m.floor_id ?? '') === floor : areaKey(m) === area)) && (!needle || `${m.display_name} ${m.device_name ?? ''} ${m.area_name ?? ''}`.toLowerCase().includes(needle)));
+    return floor !== null ? (m.floor_id ?? '') === floor : areaKey(m) === area;
   }
 
-  private openMeter(m: Meter) {
+  protected matchesSearch(m: Meter, needle: string): boolean {
+    return `${m.display_name} ${m.device_name ?? ''} ${m.area_name ?? ''}`.toLowerCase().includes(needle);
+  }
+
+  protected openMeter(m: Meter) {
     this.setParams({ meter: m.id, add: null });
-  }
-
-  private onKey(e: KeyboardEvent, m: Meter) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      this.openMeter(m);
-    }
   }
 
   private chip(m: Meter) {
     return meterChip(m, alertOf(m.id, this.open));
   }
 
-  private renderTiles() {
+  protected renderTiles() {
     const live = this.meters.filter((m) => m.status !== 'retired');
     const sum = (k: 'today_l' | 'month_l') => (live.some((m) => m[k] != null) ? live.reduce((s, m) => s + (m[k] ?? 0), 0) / 1000 : null);
     const reporting = live.filter((m) => m.state === 'reporting').length;
@@ -283,24 +153,7 @@ export class WaterMetersPage extends LitElement {
     </div>`;
   }
 
-  /** AUDIT30-E5 (round-30 audit #14): the areas list is the shared places tree (sw-place-tree), as in the electricity meters page. */
-  private placeRows(): PlaceRow[] {
-    const rows: PlaceRow[] = [{ id: 'all', kind: 'all', name: wt('allAreas'), depth: 0, count: this.meters.length, dot: null }];
-    for (const f of buildWaterAreaTree(this.meters)) {
-      const open = !this.collapsed.includes(f.floor_id);
-      rows.push({ id: `floor:${f.floor_id}`, kind: 'floor', name: f.name, depth: 0, count: f.count, dot: null, open });
-      if (open) for (const a of f.areas) rows.push({ id: a.area_id, kind: 'area', name: a.name, depth: 1, count: a.count, dot: null });
-    }
-    return rows;
-  }
-
-  private renderTree() {
-    return html`<sw-place-tree data-area-tree heading=${wt('areas')} foldLabel=${wt('fold')} unfoldLabel=${wt('unfold')} .rows=${this.placeRows()} .selected=${this.areaFilter || 'all'}
-      @place-select=${(e: CustomEvent<string>) => this.setParams({ area: e.detail === 'all' ? null : e.detail })}
-      @place-toggle=${(e: CustomEvent<string>) => this.toggleFloor(e.detail.slice(6))}></sw-place-tree>`;
-  }
-
-  private renderTable(list: Meter[]) {
+  protected renderTable(list: Meter[]) {
     return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
       <thead><tr><th>${wt('colName')}</th><th>${wt('colArea')}</th><th class="n">${wt('colReading')}</th><th class="n">${wt('colToday')}</th><th class="n dsk">${wt('colMonth')}</th><th class="n">${wt('colNight')}</th><th>${wt('colState')}</th></tr></thead>
       <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
@@ -310,7 +163,7 @@ export class WaterMetersPage extends LitElement {
         <td>${this.chip(m)}</td></tr>`)}</tbody></table></div>`;
   }
 
-  private renderCards(list: Meter[]) {
+  protected renderCards(list: Meter[]) {
     return html`<div class="cards desk-only" data-meters-cards>${list.map((m) => html`<div class="card mcard" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="row"><b>${m.display_name}</b><span class="sp"></span>${this.chip(m)}</div>
       <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}</div>
@@ -318,14 +171,14 @@ export class WaterMetersPage extends LitElement {
       <div class="mut">${wt('colNight')} <span class="num">${nightText(this.night[m.id])}</span>${typeof this.night[m.id] === 'number' ? ` ${wt('lph')}` : ''}</div></div>`)}</div>`;
   }
 
-  private renderRows(list: Meter[]) {
+  protected renderRows(list: Meter[]) {
     return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="grow"><div class="t1">${m.display_name}</div><div class="t2">${m.area_name ?? ''} · ${wt('tToday')} <span class="num">${m3OfL(m.today_l)}</span> ${wt('m3')}</div></div>
       <div class="rowend">${this.chip(m)}<div class="t2 num">${m3OfL(m.value_l)}</div></div></div>`)}</div>`;
   }
 
   // ---------------------------------------------------------------- add a meter (water.manage)
-  private openAdd() {
+  protected openAdd() {
     this.picked = null;
     this.newName = '';
     this.newKind = 'sub';
@@ -376,7 +229,7 @@ export class WaterMetersPage extends LitElement {
     }
   }
 
-  private renderAdd() {
+  protected renderAdd() {
     const open = this.params.get('add') === '1' && this.access.manage;
     if (!open) return nothing;
     return html`<sw-dialog open wide heading=${wt('addTitle')} data-add-dialog @close=${() => this.setParams({ add: null })}>
@@ -407,46 +260,29 @@ export class WaterMetersPage extends LitElement {
     </sw-dialog>`;
   }
 
-  private renderHead() {
-    const tree = buildWaterAreaTree(this.meters);
-    return html`<div class="row head">
-      <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-meters-search placeholder=${wt('search')} aria-label=${wt('search')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
-      <div class="seg desk-only" role="group" aria-label=${wt('view')}><button type="button" aria-pressed=${this.view === 'cards' ? 'true' : 'false'} data-view="cards" @click=${() => this.setView('cards')}>${wt('cards')}</button><button type="button" aria-pressed=${this.view === 'table' ? 'true' : 'false'} data-view="table" @click=${() => this.setView('table')}>${wt('table')}</button></div>
-      <span class="sp"></span>
-      <label class="inp phone-only"><select data-area-select aria-label=${wt('area')} @change=${(e: Event) => this.setParams({ area: (e.target as HTMLSelectElement).value || null })}>
-        <option value="" ?selected=${!this.areaFilter}>${wt('allAreas')}</option>
-        ${tree.flatMap((f) => f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.areaFilter}>${a.name}</option>`))}</select></label>
-      ${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>${wt('addMeter')}</sw-button>` : nothing}
-    </div>`;
+  protected frame(state: MetersFrameState, body: TemplateResult) {
+    return html`<div class=${state === 'ready' ? 'page' : nothing} data-water="meters" data-state=${state} aria-busy=${state === 'loading' ? 'true' : nothing}>${body}</div>`;
   }
 
-  render() {
-    if (!this.access.view) return html`<sw-state-panel state="forbidden" data-water="meters" data-state="forbidden"></sw-state-panel>`;
-    const meterId = this.params.get('meter') ?? '';
-    const card = meterId
-      ? html`<water-meter-card .meterId=${meterId} ?canManage=${this.access.manage} ?canAck=${this.access.ack} .rules=${this.rules} .snooze=${this.snooze} .night=${this.night[meterId]}
-          @close=${() => this.setParams({ meter: null })} @changed=${() => void this.load(false)}></water-meter-card>`
-      : nothing;
-    if (this.phase === 'loading') {
-      return html`<div data-water="meters" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
-    }
-    if (this.phase === 'error') {
-      return html`<div data-water="meters" data-state="error"><sw-state-panel state="error" heading=${wt('loadMetersError')} hint=${this.error} actionLabel=${wt('retry')} @action=${() => void this.load(true)}></sw-state-panel></div>`;
-    }
-    if (!this.meters.length) {
-      return html`<div data-water="meters" data-state="empty"><sw-state-panel icon="drop" state="empty" heading=${wt('emptyMeters')}>${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>${wt('addMeter')}</sw-button>` : nothing}</sw-state-panel>${this.renderAdd()}</div>`;
-    }
-    const list = this.visible();
-    const body = !list.length
-      ? html`<sw-state-panel icon="drop" state="empty" compact heading=${wt('noResults')} data-no-results></sw-state-panel>`
-      : html`${this.view === 'cards' ? this.renderCards(list) : this.renderTable(list)}${this.renderRows(list)}`;
-    return html`<div class="page" data-water="meters" data-state="ready">
-      ${this.renderHead()}
-      ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
-      ${this.renderTiles()}
-      <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div class="mlist">${body}</div></div>
-      ${this.renderAdd()}${card}
-    </div>`;
+  protected renderForbidden() {
+    return html`<sw-state-panel state="forbidden" data-water="meters" data-state="forbidden"></sw-state-panel>`;
+  }
+
+  protected skeletonRow(cells: TemplateResult) {
+    return html`<div class="row skrow">${cells}</div>`;
+  }
+
+  protected renderEmpty(addButton: TemplateResult | typeof nothing) {
+    return html`<sw-state-panel icon="drop" state="empty" heading=${wt('emptyMeters')}>${addButton}</sw-state-panel>`;
+  }
+
+  protected renderNoResults() {
+    return html`<sw-state-panel icon="drop" state="empty" compact heading=${wt('noResults')} data-no-results></sw-state-panel>`;
+  }
+
+  protected renderCard(meterId: string) {
+    return html`<water-meter-card .meterId=${meterId} ?canManage=${this.access.manage} ?canAck=${this.access.ack} .rules=${this.rules} .snooze=${this.snooze} .night=${this.night[meterId]}
+          @close=${() => this.setParams({ meter: null })} @changed=${() => void this.load(false)}></water-meter-card>`;
   }
 }
 

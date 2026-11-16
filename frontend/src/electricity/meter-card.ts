@@ -1,5 +1,5 @@
-import { LitElement, html, css, svg, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { html, css, svg, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-button';
@@ -10,14 +10,14 @@ import { getMeter, listMeters, meterSeries, pauseMeter, removeMeter, renameMeter
 import { fmtDate, fmtDateTime, fmtKwh, fmtTime } from './format';
 import { checkMeterName, DUPLICATE_NAME_ERROR, meterNames, RENAME_HINT } from './meter-name';
 import { elecCss } from './styles';
-import { SkinController } from '../design/skin';
 import { getReadingLog, type ReadingLog } from '../api/electricity-readings';
 import type { OpenDialogDetail, ReadingsDialog } from './meter-readings';
+import { MeterCardBase, meterCardCss, type MeterRange } from './meter-card-base';
 
 export const STATUS_LABEL: Record<MeterStatus, string> = { reporting: 'מדווח', stale: 'לא מדווח', paused: 'מושהה' };
 export const STATUS_CLASS: Record<MeterStatus, string> = { reporting: 'c-ok', stale: 'c-warn', paused: 'c-mut' };
 
-type Range = 'hours' | 'days' | 'months';
+type Range = MeterRange;
 const RANGE_LABEL: Record<Range, string> = { hours: '24 שעות', days: '30 ימים', months: '12 חודשים' };
 const REASON_LABEL: Record<string, string> = { install: 'התקנה', reset: 'איפוס', replace: 'החלפת מונה', source_change: 'שינוי מקור' };
 
@@ -51,20 +51,11 @@ export function barChart(data: { label: string; value: number }[], ariaLabel: st
 /**
  * The meter card (mockup "כרטיס מונה"): a drawer with the status, the reading, the consumption chart, the counter lives (epochs) and the
  * actions - replace the counter, pause or resume, remove. Fires `close` and `changed` (after a change: the list reloads).
+ * CR-DUP-METERS-2440: the drawer, the guarded load, the range switch and the actions row are electricity/meter-card-base.ts (shared with water).
  */
 @customElement('elec-meter-card')
-export class ElecMeterCard extends LitElement {
-  readonly bubbleSkin = new SkinController(this);
-  @property() meterId = '';
-  @property({ type: Boolean }) canManage = false;
-
-  @state() private detail: MeterDetail | null = null;
-  @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
-  @state() private error = '';
-  @state() private range: Range = 'days';
+export class ElecMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'replace' | 'rename' | Exclude<ReadingsDialog, ''>> {
   @state() private points: SeriesPoint[] = [];
-  @state() private chartError = false;
-  @state() private dlg: '' | 'remove' | 'replace' | 'rename' | Exclude<ReadingsDialog, ''> = '';
   /** EL6: manual readings and calibrations of the meter, and the dialog's target */
   @state() private log: ReadingLog | null = null;
   @state() private logError = '';
@@ -72,26 +63,15 @@ export class ElecMeterCard extends LitElement {
   @state() private newName = '';
   @state() private otherNames: string[] = [];
   @state() private nameError = '';
-  @state() private busy = false;
-  @state() private actionError = '';
   @state() private finalReading = '';
   @state() private startReading = '0';
   @state() private note = '';
   @state() private replaceError = '';
-  private seq = 0;
 
   static styles = [
     elecCss,
+    meterCardCss,
     css`
-      :host {
-        display: contents;
-      }
-      .body {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        padding: 4px 0 8px;
-      }
       dl.kv {
         display: grid;
         grid-template-columns: auto 1fr;
@@ -133,65 +113,40 @@ export class ElecMeterCard extends LitElement {
       svg.chart text.val {
         fill: var(--sw-text-2);
       }
-      .actions {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      .form {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .form .wide {
-        grid-column: 1 / -1;
-      }
-      @media (max-width: 520px) {
-        .form {
-          grid-template-columns: 1fr;
-        }
-      }
     `,
   ];
 
-  willUpdate(changed: Map<string, unknown>) {
-    if (changed.has('meterId') && this.meterId) void this.load();
+  constructor() {
+    super('days');
   }
 
-  private async load() {
-    const my = ++this.seq;
-    this.phase = 'loading';
+  protected fetchDetail() {
+    return getMeter(this.meterId);
+  }
+
+  protected beforeLoad() {
     if (this.log?.meter_id !== this.meterId) this.log = null;
-    try {
-      const d = await getMeter(this.meterId);
-      if (my !== this.seq) return;
-      this.detail = d;
-      this.phase = 'ready';
-      void this.loadSeries();
-      void this.loadLog();
-    } catch (err) {
-      if (my !== this.seq) return;
-      this.error = describeError(err);
-      this.phase = 'error';
-    }
   }
 
-  private async loadSeries() {
-    const range = this.range;
-    const step: SeriesStep = range === 'hours' ? '1h' : '1d';
-    const span = range === 'hours' ? 1 : range === 'days' ? 30 : 365;
-    const to = new Date();
-    const from = new Date(to.getTime() - span * 86_400_000);
-    try {
-      let pts = await meterSeries(this.meterId, step, from.toISOString(), to.toISOString());
-      if (range === 'months') pts = monthly(pts);
-      if (range !== this.range) return;
+  protected afterLoad() {
+    void this.loadSeries();
+    void this.loadLog();
+  }
+
+  protected async fetchSeries(range: Range, step: SeriesStep, from: string, to: string) {
+    let pts = await meterSeries(this.meterId, step, from, to);
+    if (range === 'months') pts = monthly(pts);
+    return () => {
       this.points = pts;
-      this.chartError = false;
-    } catch {
-      this.chartError = true;
-    }
+    };
+  }
+
+  protected titles(d: MeterDetail) {
+    return { heading: meterNames(d).primary, subheading: meterNames(d).secondary };
+  }
+
+  protected texts() {
+    return { loadError: 'לא ניתן לטעון את המונה', retry: 'נסה שוב' };
   }
 
   /** EL6: the meter's manual readings and calibrations (a failure shows in that section only). */
@@ -225,10 +180,6 @@ export class ElecMeterCard extends LitElement {
     if (this.range === 'hours') return fmtTime(p.t).slice(0, 2);
     if (this.range === 'months') return `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
     return String(d.getDate());
-  }
-
-  private fire(name: string) {
-    this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true }));
   }
 
   private async toggleStatus() {
@@ -307,15 +258,6 @@ export class ElecMeterCard extends LitElement {
     }
   }
 
-  /** Re-read the meter without the loading state (after a rename or a conflict). */
-  private async refresh() {
-    try {
-      this.detail = await getMeter(this.meterId);
-    } catch {
-      /* the card keeps what it has */
-    }
-  }
-
   private openReplace() {
     this.finalReading = this.detail?.reading_kwh != null ? String(this.detail.reading_kwh) : '';
     this.startReading = '0';
@@ -344,7 +286,7 @@ export class ElecMeterCard extends LitElement {
     }
   }
 
-  private renderBody(d: MeterDetail) {
+  protected renderBody(d: MeterDetail) {
     const data = this.points.map((p) => ({ label: this.label(p), value: p.kwh }));
     return html`<div class="body" data-meter-card=${d.id}>
       <div class="row"><span class="chip ${STATUS_CLASS[d.status]}" data-meter-status=${d.status}>${STATUS_LABEL[d.status]}</span></div>
@@ -356,7 +298,7 @@ export class ElecMeterCard extends LitElement {
         <dt>בחשבונות</dt><dd>${d.accounts.length ? d.accounts.join(', ') : html`<span class="mut">-</span>`}</dd>
       </dl>
       <div class="row"><h3>צריכה</h3><span class="sp"></span>
-        <div class="seg" role="group" aria-label="טווח">${(['hours', 'days', 'months'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => { this.range = r; void this.loadSeries(); }}>${RANGE_LABEL[r]}</button>`)}</div></div>
+        ${this.rangeSeg('טווח', (r) => RANGE_LABEL[r])}</div>
       ${this.chartError ? html`<div class="alert err" role="alert">לא ניתן לטעון את גרף הצריכה</div>` : barChart(data, `גרף צריכה, ${RANGE_LABEL[this.range]}`)}
       <h3>תקופות מונה</h3>
       <div class="list" data-epochs>${d.epochs.map((e) => html`<div class="li"><div class="grow"><div class="t1">${REASON_LABEL[e.reason] ?? e.reason} · <span class="num">${fmtDate(e.started_at)}</span></div>
@@ -364,26 +306,26 @@ export class ElecMeterCard extends LitElement {
       <elec-meter-readings .log=${this.log} error=${this.logError} ?canManage=${this.canManage} @open-dialog=${(e: CustomEvent<OpenDialogDetail>) => this.openReadingsDialog(e)}></elec-meter-readings>
       ${this.actionError ? html`<div class="alert err" role="alert" data-meter-action-error>${this.actionError}</div>` : nothing}
       ${this.canManage
-        ? html`<div class="actions">
-            <sw-button data-meter-rename @click=${() => this.openRename()}>שינוי שם</sw-button>
-            <sw-button data-meter-replace @click=${() => this.openReplace()}>החלפת מונה</sw-button>
-            <sw-button data-meter-pause ?disabled=${this.busy} @click=${() => void this.toggleStatus()}>${d.status === 'paused' ? 'חידוש' : 'השהיה'}</sw-button>
-            <span class="sp"></span>
-            <sw-button variant="danger" data-meter-remove @click=${() => { this.actionError = ''; this.dlg = 'remove'; }}>הסרה</sw-button>
-          </div>`
+        ? this.actionsRow({
+            rename: 'שינוי שם',
+            replace: 'החלפת מונה',
+            pause: d.status === 'paused' ? 'חידוש' : 'השהיה',
+            remove: 'הסרה',
+            pauseDisabled: this.busy,
+            onRename: () => this.openRename(),
+            onReplace: () => this.openReplace(),
+            onPause: () => void this.toggleStatus(),
+            onRemove: () => {
+              this.actionError = '';
+              this.dlg = 'remove';
+            },
+          })
         : nothing}
     </div>`;
   }
 
-  render() {
-    const d = this.detail;
+  protected renderDialogs() {
     return html`
-      <!-- a dialog opened from the card sits above the drawer's top layer only while the drawer steps aside -->
-      <sw-drawer ?open=${!this.dlg} modal heading=${d ? meterNames(d).primary : ''} subheading=${d ? meterNames(d).secondary : ''} data-meter-drawer @close=${() => { if (!this.dlg) this.fire('close'); }}>
-        ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
-        ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading="לא ניתן לטעון את המונה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
-        ${this.phase === 'ready' && d ? this.renderBody(d) : nothing}
-      </sw-drawer>
       <sw-dialog ?open=${this.dlg === 'remove'} heading="הסרת המונה" data-meter-remove-dialog @close=${() => (this.dlg = '')}>
         <div>המונה יוסר מהרשימה. הנתונים שנאספו יישמרו.</div>
         ${this.actionError && this.dlg === 'remove' ? html`<div class="alert err" role="alert">${this.actionError}</div>` : nothing}
@@ -443,4 +385,3 @@ declare global {
     'elec-meter-card': ElecMeterCard;
   }
 }
-
