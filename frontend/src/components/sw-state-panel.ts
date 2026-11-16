@@ -36,6 +36,11 @@ export class SwStatePanel extends LitElement {
    * forbidden, stale and partial keep their preset icon, so a screen can set it once on a panel whose state changes. Unset: the
    * neutral tray. */
   @property() icon: IconName | '' = '';
+  /** CR-UI-CONTROLLERS-2440 (review finding 07:F17): the ERROR the screen shows is a refusal (HTTP 403). The caller sets it from the
+   * answer itself - `.forbidden=${err instanceof ApiError && err.status === 403}` - so the lock and "no retry" no longer depend on the
+   * Hebrew wording of the hint (which fails in every other language). Only read while `state` is 'error'; the wording test below
+   * stays as the fallback for a screen that kept only the message. */
+  @property({ type: Boolean }) forbidden = false;
 
   static styles = css`
     :host {
@@ -246,7 +251,7 @@ export class SwStatePanel extends LitElement {
     // A screen that only kept the message of a refused request still gets the lock: every 403 the backend writes
     // says "אין הרשאה…" (rbac.forbidden), so for such a hint the error preset yields to the forbidden one and the
     // retry button goes away - a viewer used to see "משהו השתבש · נסה שוב" on the events centre (0.1.80).
-    const forbidden = this.state === 'error' && /אין (לך )?הרשא/.test(this.hint);
+    const forbidden = this.state === 'error' && (this.forbidden || /אין (לך )?הרשא/.test(this.hint));
     const preset = PRESETS[forbidden ? 'forbidden' : this.state];
     // UXREST-295: a hint that is only a machine code ("internal_error", "http_502": an error answer without a message) is never shown to the operator
     const rawCode = /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(this.hint.trim());
