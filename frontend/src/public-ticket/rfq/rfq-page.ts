@@ -18,10 +18,11 @@ import './rfq.css';
 import { newRequestId, rfqApi, type ApiFailure, type Credentials, type RfqQuote, type RfqView } from '../api';
 import { brandMark } from '../brand';
 import { h, icon } from '../dom';
+import { bannerEl, centerScreen, codeCard, langPicker, messageContent, themeToggle } from '../page-frame'; // CR-PUBLIC-FRAME-2440: the frame shared with the ticket page
 import { codeMessage, validSession } from '../state';
 import { holdForLang } from '../lang-packs';
-import { LANG_SELF, isLang, LANGS, RTL, text, type Key, type Lang } from '../strings';
-import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, type ThemeMode } from '../theme';
+import { isLang, RTL, text, type Key, type Lang } from '../strings';
+import { applyMode, resolveMode, saveServerMode, storedChoice, type ThemeMode } from '../theme';
 import { formatDate, formatWhen, zoneNote } from '../time';
 import { computeForm, formatMoney, formatRate, newLine, type LineDraft, type LineKind } from '../claim/claim-model';
 import { claimLang, ct, errorText, type ClaimTextKey } from '../claim/claim-text';
@@ -426,17 +427,15 @@ class RfqPage {
     }
   }
 
+  /** CR-PUBLIC-FRAME-2440: this page's words as the shared frame asks for them (page-frame.ts). */
+  private readonly frameText = (key: string, vars?: Record<string, string | number>): string => this.t(key, vars);
+
   private msgScreen(content: (Node | null)[]): HTMLElement {
-    return h('div', { class: 'page rfq' }, this.view ? this.header(this.view) : null, h('main', { class: 'center' }, h('section', { class: 'card msg' }, ...content)));
+    return centerScreen('page rfq', this.view ? this.header(this.view) : null, content);
   }
 
   private message(title: Key, bodyKey: Key, ic: string, retry = false): HTMLElement {
-    return this.msgScreen([
-      h('div', { class: 'msg-icon' }, icon(ic)),
-      h('h1', { class: 'msg-title', attrs: { 'data-state-title': title } }, this.t(title)),
-      h('p', { class: 'msg-body' }, this.t(bodyKey)),
-      retry && this.creds.token ? h('button', { class: 'btn block', attrs: { type: 'button' }, on: { click: () => void this.load() } }, this.t('retry')) : null,
-    ]);
+    return this.msgScreen(messageContent(this.frameText, title, bodyKey, ic, retry && this.creds.token ? () => void this.load() : null));
   }
 
   private header(v: RfqView): HTMLElement {
@@ -451,22 +450,15 @@ class RfqPage {
   }
 
   private themeToggle(): HTMLElement {
-    const dark = this.theme === 'dark' || (this.theme === 'auto' && prefersDark());
-    return h('button', { class: 'icon-btn', attrs: { type: 'button', 'data-theme-toggle': dark ? 'dark' : 'light', 'aria-label': this.t(dark ? 'themeToLight' : 'themeToDark') },
-      on: { click: () => { const c = nextChoice(this.theme, prefersDark()); saveChoice(c); this.theme = c; applyMode(c); this.render(); } } }, icon(dark ? 'sun' : 'moon'));
+    return themeToggle(this.theme, this.frameText, (c) => { this.theme = c; applyMode(c); this.render(); });
   }
 
   private langPicker(): HTMLElement {
-    const sel = h('select', { class: 'lang', attrs: { 'aria-label': this.t('language'), 'data-lang-picker': true },
-      on: { change: (e) => { const value = (e.target as HTMLSelectElement).value; if (isLang(value)) { this.lang = value; this.host.chosenLang = value; this.host.store('lang', value); this.render(); } } } });
-    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, LANG_SELF[l].langName));
-    return sel;
+    return langPicker(this.lang, this.frameText, (value) => { this.lang = value; this.host.chosenLang = value; this.host.store('lang', value); this.render(); });
   }
 
   private bannerEl(): HTMLElement | null {
-    const b = this.banner;
-    if (!b) return null;
-    return h('div', { class: `banner ${b.tone}`, attrs: { role: b.tone === 'bad' ? 'alert' : 'status', 'data-banner': b.key } }, this.t(b.key, { n: b.n ?? '' }));
+    return bannerEl(this.banner, this.frameText);
   }
 
   private footer(): HTMLElement {
@@ -480,21 +472,15 @@ class RfqPage {
 
   /** The code gate: reference, organisation and department only (the minimal card carries nothing else). The ticket page's flow and words. */
   private codeScreen(v: RfqView): HTMLElement {
-    const m = this.code.message;
-    const input = h('input', { class: 'input code', attrs: { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 9, 'aria-label': this.t('codeInput'),
-      'data-code-input': true, dir: 'ltr' }, on: { input: (e) => { this.code.value = (e.target as HTMLInputElement).value; } } });
-    input.value = this.code.value;
     return h('div', { class: 'page rfq', attrs: { 'data-rfq-screen': 'code' } }, this.header(v), h('main', { class: 'col' },
-      h('section', { class: 'card code' },
-        h('div', { class: 'msg-icon' }, icon('lock')),
-        h('h1', { class: 'msg-title' }, this.t('codeTitle')),
-        h('p', { class: 'msg-body' }, this.t('codeBody')),
-        h('p', { class: 'msg-sub' }, h('span', { attrs: { dir: 'ltr' } }, v.ref), v.department ? ` · ${v.department}` : ''),
-        m ? h('div', { class: `banner ${m.key.startsWith('codeSent') ? 'ok' : 'bad'}`, attrs: { role: 'status', 'data-code-message': m.key } }, this.t(m.key, { n: m.n ?? '' })) : null,
-        this.code.sent ? h('div', { class: 'row' }, input,
-          h('button', { class: 'btn primary', attrs: { type: 'button', disabled: this.busy, 'data-code-verify': true }, on: { click: () => void this.codeVerify() } }, this.t('codeVerify'))) : null,
-        h('button', { class: `btn ${this.code.sent ? 'ghost' : 'primary'} block`, attrs: { type: 'button', disabled: this.busy, 'data-code-send': true },
-          on: { click: () => void this.codeSend() } }, this.t(this.code.sent ? 'codeResend' : 'codeSend'))),
+      codeCard({
+        t: this.frameText,
+        code: this.code,
+        busy: this.busy,
+        sub: h('p', { class: 'msg-sub' }, h('span', { attrs: { dir: 'ltr' } }, v.ref), v.department ? ` · ${v.department}` : ''),
+        onSend: () => void this.codeSend(),
+        onVerify: () => void this.codeVerify(),
+      }),
       this.footer()));
   }
 
