@@ -144,6 +144,46 @@ def test_adopted_routes_keep_their_refusal(client, settings, method, path, body,
         assert tuple(row) == (action, "not_system_admin")
 
 
+LINEAGE = "/access-control/wiskey-lineage"
+LINEAGE_OP = "00000000-0000-4000-8000-000000000001"
+
+
+@pytest.mark.parametrize("method,path,body,action,text", [
+    ("GET", LINEAGE, None, "wiskey.lineage.view", "רק מנהל מערכת."),
+    ("POST", f"{LINEAGE}/{LINEAGE_OP}/resolve", None, "wiskey.lineage.resolve", "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו."),
+    ("POST", f"{LINEAGE}/{LINEAGE_OP}/close", {"code": "operator_closed", "confirm": True}, "wiskey.lineage.close",
+     "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו."),
+    ("POST", f"{LINEAGE}/reinitialise", {"confirm": "אתחול"}, "wiskey.lineage.reinitialise", "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו."),
+])
+def test_wiskey_lineage_routes_use_the_one_gate(client, settings, method, path, body, action, text):
+    """CR-W2-FOLLOWUPS-2441: the lineage administration gates through rbac.require_system_admin like the other WisKey administrator
+    routes. A user without system.configure is refused by step one (403 `forbidden`, audited by require()); a system.configure holder
+    who is not a system administrator by step two, with the lineage's own action, resource and text."""
+    r = client.request(method, f"{API}{path}", json=body, headers=as_user("plain"))
+    assert r.status_code == 403 and r.json()["code"] == "forbidden", r.text
+    client.get(f"{API}/me", headers=as_user("cfg"))
+    with _conn(settings) as conn:
+        _bind(conn, "user", "dev-cfg", _configure_only_role(conn))
+    r = client.request(method, f"{API}{path}", json=body, headers=as_user("cfg"))
+    assert r.status_code == 403, r.text
+    assert r.json()["code"] == "not_system_admin" and r.json()["user_message"] == text, r.json()
+    with _conn(settings) as conn:
+        row = conn.execute("SELECT action, resource_type, resource_id, reason FROM audit_log WHERE actor_user_id = 'dev-cfg' AND decision = 'denied' "
+                           "ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert tuple(row) == (action, "wiskey_lineage", "*", "not_system_admin")
+
+
+def test_wiskey_lineage_has_no_gate_of_its_own():
+    import ast
+    from pathlib import Path
+
+    from smplwise.routers import wiskey_lineage
+
+    tree = ast.parse(Path(wiskey_lineage.__file__).read_text(encoding="utf-8"))
+    names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} | {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    assert "require_system_admin" in names and "is_system_admin" not in names
+
+
 def test_service_identity_kill_switch_keeps_code_forbidden(client, settings):
     """Lead decision L6: this route is not moved onto the shared gate - its order (administrator first) and code stay."""
     client.get(f"{API}/me", headers=as_user("cfg"))
