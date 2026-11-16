@@ -662,7 +662,7 @@ import{M as st,O as at,B as ot,F as Ye,S as P,U as N,V as M,W as j,H as I,N as z
 		}
 
 		float SMAASearchXLeft( sampler2D edgesTex, sampler2D searchTex, vec2 texcoord, float end ) {
-			/**
+			 sourceMappingURL=[^*]**/*
 				* @PSEUDO_GATHER4
 				* This texcoord has been offset by (-0.25, -0.125) in the vertex shader to
 				* sample between edge, thus fetching four edges in a row.

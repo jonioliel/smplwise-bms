@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, normalize_username, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, LEGACY_PERMISSIONS, LOCAL_ID_PREFIX, ROLE_NAMES_HE, ROLES, STATION, STATION_PERMISSIONS, Principal, expand_legacy, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_name, role_permissions, scope_name
@@ -899,7 +899,7 @@ def delegated_sees(conn: sqlite3.Connection, principal: Principal, b: dict[str, 
 # ---------------------------------------------------------------- directory
 
 @router.get("/identity/users")
-def list_users(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed and assigns_anywhere(conn, principal):
         return _delegated_directory(conn, principal)
     require(conn, principal, "identity.directory.read", INSTALLATION)
@@ -977,7 +977,7 @@ def sync_directory(request: Request, principal: Principal = Depends(current_prin
 # ---------------------------------------------------------------- roles
 
 @router.get("/access/roles")
-def list_roles(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_roles(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The role catalogue. A delegated administrator (rbac.assign somewhere, no directory right) gets only the roles
     they may hand out - the wizard never offers system_admin, site_admin or anything off the allow-list."""
     delegated_only = not authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed and assigns_anywhere(conn, principal)
@@ -1013,7 +1013,7 @@ class BindingBody(BaseModel):
 
 
 @router.get("/access/bindings")
-def list_bindings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not assigns_anywhere(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)
     rows = conn.execute(_active_bindings_sql(), (now_iso(),)).fetchall()
@@ -1234,8 +1234,8 @@ def preview(body: PreviewBody, principal: Principal = Depends(current_principal)
 
 @router.get("/audit")
 def list_audit(
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
     prefix: str = Query("rbac.", max_length=60),
     actor: str | None = Query(None, max_length=200),
     resource_id: str | None = Query(None, max_length=200),
@@ -1478,7 +1478,7 @@ DELEGATION_RULES = [
 
 
 @router.get("/access/delegation")
-def get_delegation(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_delegation(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     blocked = {rid: delegation_block(conn, rid) for rid in all_roles(conn)}
     return {"delegable_roles": delegable_roles(conn), "default": DEFAULT_DELEGABLE, "rules": DELEGATION_RULES,

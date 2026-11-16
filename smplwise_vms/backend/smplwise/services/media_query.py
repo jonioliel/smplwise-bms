@@ -192,7 +192,9 @@ def call_bridge_media_query(settings: Settings, payload: dict[str, Any], timeout
     if not ha_client.configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
     try:
-        with httpx.Client(timeout=timeout) as c:
+        from .nvr import _ssl_context  # review 03 F04: the shared TLS context (a client without it loads the CA bundle again)
+
+        with httpx.Client(timeout=timeout, verify=_ssl_context()) as c:
             r = c.post(ha_client._rest_base(settings) + "/services/smplwise_bridge/media_query?return_response", headers=ha_client._headers(settings), content=json.dumps(payload))
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc

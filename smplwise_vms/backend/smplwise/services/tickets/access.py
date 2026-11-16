@@ -259,8 +259,9 @@ def visible_for_entity(viewer: Viewer, entity_id: str, registry_id: str | None, 
     ones first. The CALLER checked the device itself first (device_context.readable_entity: devices.read on the entity, the security
     rule) - this function decides every ticket row with the one rule above."""
     out: list[Seen] = []
+    on = module_on(viewer.conn)  # F-01: the module switch once per call, not once per row (visible_many does the same)
     for row in store.entity_ticket_rows_unchecked(viewer.conn, entity_id, registry_id, ENTITY_SCAN):
-        seen = visible(viewer, row)
+        seen = _decide(viewer, row) if on else None
         if seen is not None:
             out.append(seen)
             if len(out) >= limit:
@@ -310,6 +311,7 @@ def visible_page(
     if dept_ids is not None and not dept_ids and not user_id:
         return [], None
     after = store.decode_cursor(cursor)
+    on = module_on(conn)  # F-01: the module switch once per page, not once per row; the walk (and its cursor) is unchanged
     out: list[Seen] = []
     scanned = 0
     cap = SCAN_FACTOR * limit
@@ -321,7 +323,7 @@ def visible_page(
         for row in batch:
             scanned += 1
             after = (row["last_activity_at"], row["id"])
-            seen = visible(viewer, row)
+            seen = _decide(viewer, row) if on else None
             if seen is not None:
                 out.append(seen)
                 if len(out) >= limit:
@@ -371,6 +373,7 @@ def _table_scan(viewer: Viewer, query: Any, after: tuple[list[Any], str] | None,
     if superset is None:
         return
     dept_ids, user_id = superset
+    on = module_on(viewer.conn)  # F-01: the module switch once per scan, not once per row
     scanned = 0
     n = len(query.sort)
     while scanned < scan_cap:
@@ -380,7 +383,7 @@ def _table_scan(viewer: Viewer, query: Any, after: tuple[list[Any], str] | None,
         for row in batch:
             scanned += 1
             after = ([row[f"_s{i}"] for i in range(n)], row["id"])
-            seen = visible(viewer, row)
+            seen = _decide(viewer, row) if on else None
             if seen is not None and query.filters.stuck and not seen.full:
                 seen = None  # TK251: the stuck kind is management information - a filter on it never matches a limited row
             yield row, seen, after

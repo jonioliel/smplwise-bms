@@ -11,3 +11,13 @@ filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "timing_lane: a wall-clock / load-sensitive test; the release gate deselects it (-m 'not timing_lane') and the non-blocking timing lane runs it when the runner is quiet (docs/testing/GATE_LANES.md)",
 ]
+
+# CR-BE-GATES-2436 (review findings 04:F06, 01:F-17): the static check is pyflakes only (rule set F: unused / undefined names, imports,
+# redefinitions), no style rules. The existing `# noqa` markers are honoured. Non-blocking lane for now (scripts/gate/lint_backend.py,
+# printed by `gate_entry.py decide`); the findings are fixed and the lane made blocking later (wave 3B, CR-PYFLAKES-ENFORCE).
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["F"]

@@ -32,6 +32,7 @@ from .. import __version__
 from ..audit import audit
 from ..db import Database, new_id, now_iso
 from ..errors import ApiError, conflict, not_found
+from . import bill_ledger as bl
 from . import energy_billing as eb
 from . import energy_counter as ec
 from . import energy_formula as fx
@@ -51,6 +52,10 @@ ENGINE = "arx.water.billing/1"
 VIEW, MANAGE, BILLS = "water.view", "water.manage", "water.bills"
 ISSUED_STATES = eb.ISSUED_STATES
 STATE_HE = eb.STATE_HE
+# CR-BILL-LEDGER-A-2436: the sealed-bill lifecycle shared with electricity (services/bill_ledger.py); every name is a constant, never input
+KIND = bl.BillKind(name="water", table="water_bills", events_table="water_bill_events", quantity="m3", resource_type="water_bill",
+                   audit_prefix="infra.water.", state_he=STATE_HE, issued_states=ISSUED_STATES, correction_columns="id",
+                   number_tables=("energy_bill_numbers", "energy_bills", "water_bills"), account_table=None)
 HISTORY_PERIODS = 12
 AUTO_MAX_PER_ACCOUNT = 24
 AUTO_RETRY = dt.timedelta(hours=6)
@@ -749,10 +754,7 @@ def account_history(conn: sqlite3.Connection, provider: WaterReadings, account: 
 # ====================================================================== bills
 
 def get_bill(conn: sqlite3.Connection, bid: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM water_bills WHERE id = ?", (bid,)).fetchone()
-    if not row:
-        raise not_found("החיוב לא נמצא.")
-    return row
+    return bl.get_bill(KIND, conn, bid)
 
 
 def bill_actions(row: sqlite3.Row) -> list[str]:
@@ -786,29 +788,22 @@ def bill_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
 
 
 def _event(conn: sqlite3.Connection, bid: str, action: str, actor: Any | None, details: dict[str, Any] | None = None) -> None:
-    conn.execute("INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                 (new_id(), bid, now_iso(), action, "user" if actor is not None else "system", getattr(actor, "user_id", None),
-                  (getattr(actor, "display_name", None) or getattr(actor, "username", None)) if actor is not None else None,
-                  json.dumps(details, ensure_ascii=False) if details else None))
+    bl.event(KIND, conn, bid, action, actor, details)
 
 
 def _audit(conn: sqlite3.Connection, actor: Any | None, action: str, rid: str, request_id: str | None = None, details: dict[str, Any] | None = None) -> None:
-    audit(conn, actor=actor, action=f"infra.water.{action}", decision="allowed", resource_type="water_bill", resource_id=rid, request_id=request_id, details=details)
+    bl.audit(KIND, conn, actor, action, rid, request_id, details)
 
 
 resolve_period = eb.resolve_period  # the account rows carry the same cycle columns
 
 
 def overlapping(conn: sqlite3.Connection, aid: str, p: per.Period, exclude: tuple[str, ...] = ()) -> sqlite3.Row | None:
-    for r in conn.execute("SELECT * FROM water_bills WHERE account_id = ? AND state IN ('issued','sent','paid') AND period_start < ? AND period_end > ?",
-                          (aid, p.end.isoformat(), p.start.isoformat())).fetchall():
-        if r["id"] not in exclude:
-            return r
-    return None
+    return bl.overlapping(KIND, conn, aid, p, exclude)
 
 
 def overlap_error(r: sqlite3.Row) -> ApiError:
-    return conflict("period_overlap", f"התקופה חופפת לחיוב {r['number']} שכבר הונפק.", bill_id=r["id"], number=r["number"])
+    return bl.overlap_error(r)
 
 
 def by_create_request(conn: sqlite3.Connection, client_request_id: str) -> sqlite3.Row | None:
@@ -887,106 +882,35 @@ def delete_draft(conn: sqlite3.Connection, bid: str, row_version: int, actor: An
 def number_for(conn: sqlite3.Connection, bill: sqlite3.Row, customer_number: str) -> tuple[str, str, int]:
     """(number, base, seq) in the SHARED number space: YYYY-MM-CCCC[/S][-R] (the electricity format, month of the period's last day);
     the sequence and the uniqueness are checked against the shared ledger and both bill tables."""
-    last = _date(bill["period_end"]) - dt.timedelta(days=1)
-    rev = int(bill["revision"])
-    if bill["replaces_bill_id"]:
-        root = get_bill(conn, bill["replaces_bill_id"])
-        while root["replaces_bill_id"]:
-            root = get_bill(conn, root["replaces_bill_id"])
-        base, seq = root["number_base"], int(root["number_seq"])
-    else:
-        base = f"{last.year:04d}-{last.month:02d}-{customer_number}"
-        seq = 1 + max(int(conn.execute(f"SELECT MAX(number_seq) FROM {t} WHERE number_base = ?", (base,)).fetchone()[0] or 0)
-                      for t in ("energy_bill_numbers", "energy_bills", "water_bills"))
-    number = base + (f"/{seq}" if seq > 1 else "") + (f"-{rev}" if rev > 1 else "")
-    for t in ("energy_bill_numbers", "energy_bills", "water_bills"):
-        if conn.execute(f"SELECT 1 FROM {t} WHERE number = ?", (number,)).fetchone():
-            raise conflict("number_taken", "מספר החיוב כבר נוצל. יש לנסות שוב.", number=number)
-    return number, base, seq
+    return bl.number_for(KIND, conn, bill, customer_number)
 
 
 def seal(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, *, actor: Any | None, issue_date: dt.date, request_id: str | None,
          client_request_id: str | None) -> None:
     """Issue a draft inside the caller's write transaction: overlap check, number (shared ledger), sealed snapshot + hash, the original of a
     correction cancelled."""
-    p = per.Period(_date(bill["period_start"]), _date(bill["period_end"]))
-    hit = overlapping(conn, bill["account_id"], p, exclude=(bill["replaces_bill_id"],) if bill["replaces_bill_id"] else ())
-    if hit:
-        raise overlap_error(hit)
-    snap = comp.snapshot
-    number, base, seq = number_for(conn, bill, snap["customer"]["customer_number"])
-    due = px.due_date(issue_date, snap["bill"]["payment_terms"])
-    at = now_utc()
-    snap["bill"].update({"id": bill["id"], "number": number, "state": "issued", "issue_date": issue_date.isoformat(), "due_date": due.isoformat(),
-                         "expected_due_date": due.isoformat(), "issued_at": _iso(at),
-                         "issued_by": {"kind": "user", "display_name": getattr(actor, "display_name", "") or getattr(actor, "username", "")} if actor is not None else {"kind": "system"}})
-    digest = eb.sha256_of(snap)
-    conn.execute("""UPDATE water_bills SET state = 'issued', number = ?, number_base = ?, number_seq = ?, m3 = ?, total = ?, snapshot_json = ?, snapshot_sha256 = ?,
-                      issue_date = ?, due_date = ?, issued_by = ?, issued_at = ?, issue_request_id = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?""",
-                 (number, base, seq, comp.m3, comp.total, json.dumps(snap, ensure_ascii=False), digest, issue_date.isoformat(), due.isoformat(),
-                  getattr(actor, "user_id", None), _iso(at), client_request_id, now_iso(), bill["id"]))
-    conn.execute("INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES (?, ?, ?, ?, ?, ?)",
-                 (number, base, seq, int(bill["revision"]), bill["id"], now_iso()))
-    action = "issue" if actor is not None else "auto_issue"
-    _event(conn, bill["id"], action, actor, {"number": number})
-    _audit(conn, actor, f"bill.{action}", bill["id"], request_id, {"number": number, "sha256": digest[:12], "account_id": bill["account_id"]})
-    if bill["replaces_bill_id"]:
-        orig = get_bill(conn, bill["replaces_bill_id"])
-        if orig["state"] != "void":
-            reason = f"הוחלף ב-{number}"
-            conn.execute("UPDATE water_bills SET state = 'void', void_reason = ?, voided_at = ?, replaced_by_bill_id = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                         (reason, now_iso(), bill["id"], now_iso(), orig["id"]))
-            _event(conn, orig["id"], "void", actor, {"reason": reason, "replaced_by": number})
-            _audit(conn, actor, "bill.void", orig["id"], request_id, {"replaced_by": number})
-        else:
-            conn.execute("UPDATE water_bills SET replaced_by_bill_id = ? WHERE id = ?", (bill["id"], orig["id"]))
+    bl.seal(KIND, conn, bill, comp, actor=actor, issue_date=issue_date, request_id=request_id, client_request_id=client_request_id,
+            clock=lambda: now_utc())
 
 
 def _check_version(row: sqlite3.Row, row_version: int | None) -> None:
-    if row_version is not None and row["row_version"] != row_version:
-        raise conflict("revision_conflict", "החיוב שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=row["row_version"])
+    bl.check_version(row, row_version)
 
 
 def mark_sent(conn: sqlite3.Connection, bid: str, at: str, how: str, note: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
-    row = get_bill(conn, bid)
-    _check_version(row, row_version)
-    if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לסמן כנשלח חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    conn.execute("UPDATE water_bills SET state = 'sent', sent_at = ?, sent_how = ?, sent_note = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                 (at, how, note, now_iso(), bid))
-    _event(conn, bid, "sent", actor, {"how": how})
-    _audit(conn, actor, "bill.sent", bid, request_id, {"how": how})
+    bl.mark_sent(KIND, conn, bid, at, how, note, actor, request_id, row_version)
 
 
 def mark_paid(conn: sqlite3.Connection, bid: str, at: str, reference: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
-    row = get_bill(conn, bid)
-    _check_version(row, row_version)
-    if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לסמן כשולם חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    conn.execute("UPDATE water_bills SET state = 'paid', paid_at = ?, paid_ref = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?", (at, reference, now_iso(), bid))
-    _event(conn, bid, "paid", actor)
-    _audit(conn, actor, "bill.paid", bid, request_id)
+    bl.mark_paid(KIND, conn, bid, at, reference, actor, request_id, row_version)
 
 
 def void_bill(conn: sqlite3.Connection, bid: str, reason: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
-    row = get_bill(conn, bid)
-    _check_version(row, row_version)
-    if not reason or not reason.strip():
-        raise _err(422, "reason_required", "חובה לציין סיבת ביטול.")
-    if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לבטל חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    conn.execute("UPDATE water_bills SET state = 'void', void_reason = ?, voided_at = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                 (reason.strip(), now_iso(), now_iso(), bid))
-    _event(conn, bid, "void", actor, {"reason": reason.strip()})
-    _audit(conn, actor, "bill.void", bid, request_id)
+    bl.void_bill(KIND, conn, bid, reason, actor, request_id, row_version)
 
 
 def check_correctable(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
-    if row["state"] not in ISSUED_STATES:
-        raise conflict("bill_state", f"אי אפשר לתקן חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    existing = conn.execute("SELECT id FROM water_bills WHERE replaces_bill_id = ? AND state = 'draft'", (row["id"],)).fetchone()
-    if existing:
-        raise conflict("bill_state", "כבר קיימת טיוטת תיקון לחיוב זה.", bill_id=existing["id"], state=row["state"])
+    bl.check_correctable(KIND, conn, row)
 
 
 # ====================================================================== automatic generation and retention (the shared keys)

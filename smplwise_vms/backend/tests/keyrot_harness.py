@@ -362,6 +362,13 @@ class FakeEntry:
         self.entry_id, self.data, self.options = entry_id, dict(data), dict(options or {})
         self.unloads: list[Callable[[], Any]] = []
         self.listeners: list[Any] = []
+        self.background: list[str] = []  # CR-BRIDGE-RUNTIME-2436: names of the entry's background tasks, in order
+
+    def async_create_background_task(self, hass: "FakeHass", target: Any, name: str, eager_start: bool = True) -> Any:
+        """Home Assistant's entry-bound task (cancelled at unload). Queued like any task here; `stop()` drops what never ran, as the
+        cancel does."""
+        self.background.append(name)
+        return hass.async_create_task(target)
 
     def async_on_unload(self, f: Callable[[], Any]) -> None:
         self.unloads.append(f)

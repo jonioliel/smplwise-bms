@@ -24,8 +24,8 @@ def _write_audit(
     request_id: str | None = None,
     details: dict[str, Any] | None = None,
     under: Any | None = None,
-) -> None:
-    """Append one audit row. Never include secrets or source URLs in `details`. `under` (an rbac.Decision) records the
+) -> int | None:
+    """Append one audit row and return its id. Never include secrets or source URLs in `details`. `under` (an rbac.Decision) records the
     binding, role and scope the action was authorised under (T055; ids only)."""
     if isinstance(resource_id, str) and len(resource_id) > RESOURCE_ID_MAX:
         resource_id = resource_id[:RESOURCE_ID_MAX]  # a key straight from a URL path is never stored whole (CR-016 review L4)
@@ -55,22 +55,22 @@ def _write_audit(
     scope = getattr(under, "scope", None)
     if under is not None and scope:
         try:
-            conn.execute(
+            cur = conn.execute(
                 """INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason,
                                          request_id, permission_revision, details_json, scope_type, scope_id, role_id, binding_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (*base, scope[0], scope[1], getattr(under, "role_id", None), getattr(under, "binding_id", None)),
             )
-            return
+            return cur.lastrowid
         except sqlite3.OperationalError as exc:  # a database still before migration 0032 (upgrade tests)
             if "scope_type" not in str(exc):
                 raise
-    conn.execute(
+    return conn.execute(
         """INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason,
                                  request_id, permission_revision, details_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         base,
-    )
+    ).lastrowid
 
 
 def prune(conn: sqlite3.Connection, days: int = RETENTION_DAYS) -> int:
@@ -96,14 +96,13 @@ def audit(
     request_id: str | None = None,
     details: dict[str, Any] | None = None,
     under: Any | None = None,
-) -> None:
-    """Append one audit row. A read-mode request (deferred, query-only) records it through a short side
+) -> int | None:
+    """Append one audit row and return its id (CR-AUDIT-INDEX: the caller that updates its own row in place needs no lookup). A read-mode request (deferred, query-only) records it through a short side
     transaction so a refusal is still kept without the request taking the write lock."""
     if read_mode(conn):
         db = database_of(conn)
         if db is not None:
             with db.write_aside() as w:
-                _write_audit(w, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details, under=under)
-            return
-    _write_audit(conn, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details, under=under)
+                return _write_audit(w, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details, under=under)
+    return _write_audit(conn, actor=actor, action=action, decision=decision, resource_type=resource_type, resource_id=resource_id, reason=reason, request_id=request_id, details=details, under=under)
 
