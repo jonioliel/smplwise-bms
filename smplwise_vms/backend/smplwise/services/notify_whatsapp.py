@@ -23,7 +23,6 @@ from __future__ import annotations
 import datetime as dt
 import heapq
 import hmac
-import itertools
 import json
 import logging
 import os
@@ -35,13 +34,14 @@ import time
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from ..audit import audit
 from ..db import now_iso
 from . import messaging_accounts as ma
 from . import messaging_runtime as mr
 from . import notify
+from .delayed_worker import DelayedWorker
 from .notify_channels import Channel, Dispatch, Target, record_outcome, register
 from .notify_visibility import Reach, principal_of
 from .tickets.channel import LANGS, NOT_SENT, REFUSED, SENT, UNKNOWN, AccountRef, OutboundMessage, Recipient, SendResult, one_line, phone_digits
@@ -530,18 +530,14 @@ _LOCK = threading.Lock()
 _TEST_SENDS: dict[str, list[float]] = {}
 
 
-class Worker:
+class Worker(DelayedWorker):
+    """The WhatsApp notification channel's own thread. The thread, the queue, the heap, `drain` and `stop` are
+    services/delayed_worker.DelayedWorker (CR-SENDER-WORKER); a heap entry here is (due, priority, seq, job) - urgent first."""
+
     def __init__(self, db: Any) -> None:
-        self.db = db
-        self.q: queue.Queue[Callable[["Worker"], None]] = queue.Queue(maxsize=QUEUE_MAX)
-        self.heap: list[tuple[float, int, int, Job]] = []
-        self.seq = itertools.count()
-        self.lock = threading.Lock()
-        self.inflight = 0
-        self.stop_evt = threading.Event()
+        super().__init__(db, name="whatsapp-notify", queue_max=QUEUE_MAX, log=log, what="whatsapp notification")
         self.gate = ma.PacingGate(mr.DbSendLedger(db))
-        self.thread = threading.Thread(target=self._loop, name="whatsapp-notify", daemon=True)
-        self.thread.start()
+        self._start()
 
     def submit(self, jobs: list[Job]) -> bool:
         try:
@@ -562,76 +558,17 @@ class Worker:
             _LIVE.add(job.delivery_id)
         self._wake()
 
-    def make_due(self) -> None:
-        with self.lock:
-            self.heap[:] = [(0.0, p, s, j) for _t, p, s, j in self.heap]
-            heapq.heapify(self.heap)
-        self._wake()
-
     def pending(self) -> int:
         with self.lock:
             return len(self.heap)
 
-    def _wake(self) -> None:
-        try:
-            self.q.put_nowait(lambda _w: None)
-        except queue.Full:
-            pass
+    # -- the thread's part of this channel
+    def _run_job(self, job: Job) -> None:
+        run_job(self, job)
 
-    def _loop(self) -> None:
-        while not self.stop_evt.is_set():
-            with self.lock:
-                wait = max(0.0, min(1.0, self.heap[0][0] - time.monotonic())) if self.heap else 1.0
-            try:
-                fn = self.q.get(timeout=wait)
-            except queue.Empty:
-                fn = None
-            if self.stop_evt.is_set():
-                return
-            try:
-                if fn is not None:
-                    try:
-                        fn(self)
-                    finally:
-                        self.q.task_done()
-                self._run_due()
-            except Exception:  # noqa: BLE001 - the worker never dies on one bad job
-                log.exception("whatsapp notification worker step failed")
-
-    def _run_due(self) -> None:
-        while True:
-            with self.lock:
-                if not self.heap or self.heap[0][0] > time.monotonic():
-                    return
-                self.inflight += 1
-                job = heapq.heappop(self.heap)[3]
-            try:
-                run_job(self, job)
-            except Exception:  # noqa: BLE001
-                log.exception("whatsapp notification job failed")
-                _finish(self.db, job, "failed", "channel_error", job.attempt + 1)
-            finally:
-                with self.lock:
-                    self.inflight -= 1
-
-    def drain(self, timeout: float = 10.0) -> bool:
-        """Wait until nothing is queued, in flight or due (jobs scheduled for later do not count)."""
-        end = time.monotonic() + timeout
-        while True:
-            with self.lock:
-                due = bool(self.heap) and self.heap[0][0] <= time.monotonic()
-                idle = self.q.unfinished_tasks == 0 and self.inflight == 0 and not due
-            if idle:
-                return True
-            if time.monotonic() >= end:
-                return False
-            time.sleep(0.02)
-
-    def stop(self) -> None:
-        self.stop_evt.set()
-        self._wake()
-        if self.thread is not threading.current_thread():
-            self.thread.join(timeout=3.0)
+    def _job_failed(self, job: Job) -> None:
+        log.exception("whatsapp notification job failed")
+        _finish(self.db, job, "failed", "channel_error", job.attempt + 1)
 
 
 _WORKER: Worker | None = None
