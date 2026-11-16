@@ -4,6 +4,7 @@
  * in words, and what each vendor will receive. No DOM here (the unit spec reads it).
  */
 import type { RfqAttachmentLimits, RfqFile, RfqFileKind } from '../api/tickets-rfq';
+import { BYTE_UNITS_EN, BYTE_UNITS_HE, formatByteSize } from '../format/bytes';
 
 /** Until the server's meta arrives: Word / Excel OFF (the installation setting `rfq.attachments.allow_office` is off by default). */
 export const DEFAULT_LIMITS: RfqAttachmentLimits = {
@@ -73,12 +74,8 @@ export function precheck<F extends { name: string; type: string; size: number }>
 
 /** "980 KB", "1.2 MB" (or "980 ק״ב", "1.2 מ״ב"). */
 export function formatBytes(n: number, lang: 'he' | 'en' = 'he'): string {
-  const kb = lang === 'en' ? 'KB' : 'ק״ב';
-  const mb = lang === 'en' ? 'MB' : 'מ״ב';
-  if (!Number.isFinite(n) || n < 0) return '';
-  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} ${kb}`;
-  const v = n / (1024 * 1024);
-  return `${v < 10 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v)} ${mb}`;
+  // CR-FORMAT-2440: the arithmetic is format/bytes.ts; this screen's shape is the options
+  return formatByteSize(n, { units: lang === 'en' ? BYTE_UNITS_EN : BYTE_UNITS_HE, minKb: 1, mb: 'short', invalid: '' });
 }
 
 /** The files EVERY invited vendor receives through his link: live and "visible to vendors" (an internal-only file never leaves). */

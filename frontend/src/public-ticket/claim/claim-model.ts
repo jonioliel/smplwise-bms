@@ -13,6 +13,8 @@
  *    submission keeps one id while its outcome is unknown (network failure, 429, 5xx) and takes a new one after a definite answer;
  *  - the draft kept in sessionStorage for bad reception (every storage access in try/catch).
  */
+import { formatByteSize } from '../../format/bytes';
+
 
 // ---------------------------------------------------------------- types of the wire contract (GET /t/api/claim, POST answers)
 
@@ -289,9 +291,9 @@ export function formatMoney(minor: number, currency: string, lang: string): stri
   }
 }
 
+/** "313 KB" / "1.3 MB"; a tiny file is "1 KB", never "0 KB". CR-FORMAT-2440: the arithmetic is format/bytes.ts. */
 export function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(Math.round((bytes / (1024 * 1024)) * 10) / 10).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return formatByteSize(bytes, { minKb: 1, mb: 'round1' });
 }
 
 /** 1800 bp -> "18", 1750 -> "17.5". */
