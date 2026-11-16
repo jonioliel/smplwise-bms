@@ -52,7 +52,7 @@ import { loadOwnSize, saveOwnSize } from './drawer-prefs';
 import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
 import { locationPicker } from './location-picker';
 import { OTHER, editStartPick, otherTooLong, ticketEditLocationBody } from './org-locations-model';
-import { lt } from './org-locations-text';
+import { loct } from './org-locations-text';
 import { dateInputLang } from '../api/day-format';
 
 interface EditForm {
@@ -861,7 +861,7 @@ export class TicketDetailView extends LitElement {
     if (can.has('priority_id') && e.priority_id && e.priority_id !== t.priority?.id) body.priority_id = e.priority_id;
     if (can.has('location_id')) {
       if (otherTooLong(e.pick, e.place)) {
-        this.dlgError = lt('err_too_long');
+        this.dlgError = loct('err_too_long');
         return;
       }
       Object.assign(body, ticketEditLocationBody(e.startPick, e.startPlace, e.pick, e.place, can.has('place_text')));

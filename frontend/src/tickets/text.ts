@@ -8,13 +8,13 @@
  * screen); tests/unit-tickets-naming.spec.ts fails when it is. Variables of a text are `{name}`-style and are filled AFTER the
  * name tokens, so a value (a title someone typed) is never read as a token.
  */
-import { tn, type TicketLang } from './naming';
 import { NAV_TT, ticketsLang, ticketsSectionLabel } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's labels live there
 import { S4_EN, S4_HE } from './text-s4';
 import { UI6_EN, UI6_HE } from './text-ui6';
 import { OTP_EN, OTP_HE } from './text-otp';
 import { DM_EN, DM_HE } from './text-deptmgr';
 import { NR_EN, NR_HE } from './text-needsreview';
+import { makeCatalogue, renderText } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // the area, the navigation, the settings index
@@ -794,17 +794,15 @@ const en: Partial<Record<TicketTextKey, string>> = {
 export { ticketsLang };
 
 /** The raw template of a key in a language (the unit tests and the catalogue-completeness test read it). */
-export function template(key: TicketTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<TicketTextKey>(he, en);
+export const template = catalogue.template;
 
 /** A text of the tickets screens: the template in the document's language, the module's name rendered (D33), then `{var}`s. */
 export function tt(key: TicketTextKey, vars?: Record<string, string | number>): string {
   const lang = ticketsLang();
   const raw = template(key, lang);
   if (raw === undefined) return String(key); // an unknown key (a newer server's code) never breaks a render (2.5.0: the הרשאות tab)
-  const named = tn(raw, lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
+  return renderText(raw, lang, vars);
 }
 
 /** SERVICEIA1-295: the name of one section of the area (`short` = the phone label). CR-NAV-LABELS-2436: defined in i18n/nav-labels.ts beside
@@ -812,5 +810,5 @@ export function tt(key: TicketTextKey, vars?: Record<string, string | number>): 
 export { ticketsSectionLabel };
 
 /** Every key of the Hebrew catalogue (the completeness test compares the English column with it). */
-export const TICKET_TEXT_KEYS = Object.keys(he) as TicketTextKey[];
-export const TICKET_TEXT_EN_KEYS = Object.keys(en) as TicketTextKey[];
+export const TICKET_TEXT_KEYS = catalogue.KEYS;
+export const TICKET_TEXT_EN_KEYS = catalogue.EN_KEYS;

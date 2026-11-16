@@ -3,8 +3,7 @@
  * tickets/text.ts contract: Hebrew first, English falls back to Hebrew, every text naming the module is a template with the tokens of
  * tickets/naming.ts (`{ticket}`, `{tickets}`, `{the_ticket}`, `{f:..|m:..}`) rendered with the configured name; `{var}`s after.
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   action: 'מחיקת {ticket}',
@@ -52,15 +51,12 @@ const en: Partial<Record<DeleteTextKey, string>> = {
   p_delete: 'Full deletion',
 };
 
-export function deleteTemplate(key: DeleteTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<DeleteTextKey>(he, en);
 
-export function dlt(key: DeleteTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(deleteTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const deleteTemplate = catalogue.template;
 
-export const DELETE_TEXT_KEYS = Object.keys(he) as DeleteTextKey[];
-export const DELETE_TEXT_EN_KEYS = Object.keys(en) as DeleteTextKey[];
+export const dlt = catalogue.t;
+
+export const DELETE_TEXT_KEYS = catalogue.KEYS;
+export const DELETE_TEXT_EN_KEYS = catalogue.EN_KEYS;

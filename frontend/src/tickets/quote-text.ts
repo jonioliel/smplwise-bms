@@ -6,8 +6,7 @@
  * Vocabulary (owner 16.10): the retired cost term is never written. Before the work the vendor sends a quote ("הצעת מחיר"); after the
  * work a payment demand ("דרישת תשלום"); a request for quotes from several vendors is an RFQ ("בקשת הצעות מחיר", its own screen).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // the tab's header: the stage chip (contract 4.3 flow.stage) and the read-only stepper
@@ -332,16 +331,13 @@ const en: Partial<Record<QuoteTextKey, string>> = {
   expiredRefused: 'The validity of the quote has expired. Tick the confirmation and try again.',
 };
 
-export function quoteTemplate(key: QuoteTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<QuoteTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const quoteTemplate = catalogue.template;
 
 /** A text of the Costs tab: the template in the screen's language, the module's name rendered (D33), then `{var}`s. */
-export function qt(key: QuoteTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(quoteTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const qt = catalogue.t;
 
-export const QUOTE_TEXT_KEYS = Object.keys(he) as QuoteTextKey[];
-export const QUOTE_TEXT_EN_KEYS = Object.keys(en) as QuoteTextKey[];
+export const QUOTE_TEXT_KEYS = catalogue.KEYS;
+export const QUOTE_TEXT_EN_KEYS = catalogue.EN_KEYS;

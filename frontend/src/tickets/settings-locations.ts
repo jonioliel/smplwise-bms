@@ -16,7 +16,7 @@ import {
   CITY_MAX, DETAILS_MAX, NAME_MAX, STREET_MAX, addressLine, areaChoices, areaLabel, blankDraft, draftBody, draftOf, locationProblems, serverProblem,
   type LocationDraft, type LocationField, type LocationProblem,
 } from './org-locations-model';
-import { lt, type LocTextKey } from './org-locations-text';
+import { loct, type LocTextKey } from './org-locations-text';
 
 const PROBLEM_TEXT: Record<LocationProblem, LocTextKey> = {
   required: 'err_required', too_long: 'err_too_long', duplicate: 'err_duplicate', address: 'err_address', url: 'err_url', coords: 'err_coords',
@@ -203,7 +203,7 @@ export class TicketsLocationsSettings extends LitElement {
       const loc = this.data?.locations.find((x) => x.id === this.editing);
       this.data = this.editing === 'new' ? await api.create(draftBody(this.draft)) : await api.update(this.editing, draftBody(this.draft, loc?.revision));
       this.editing = '';
-      this.notice({ ok: lt('saved') });
+      this.notice({ ok: loct('saved') });
     } catch (e) {
       if (!this.takeServer(e)) this.notice({ error: describeError(e) });
     } finally {
@@ -215,7 +215,7 @@ export class TicketsLocationsSettings extends LitElement {
     this.busy = true;
     try {
       this.data = await ticketsLocationsApi().update(loc.id, { ...body, revision: loc.revision });
-      this.notice({ ok: lt('saved') });
+      this.notice({ ok: loct('saved') });
     } catch (e) {
       this.notice({ error: describeError(e) });
     } finally {
@@ -224,13 +224,13 @@ export class TicketsLocationsSettings extends LitElement {
   }
 
   private async removeLocation(loc: OrgLocationAdmin): Promise<void> {
-    if (!window.confirm(lt('confirmRemove', { name: loc.name }))) return;
+    if (!window.confirm(loct('confirmRemove', { name: loc.name }))) return;
     this.busy = true;
     try {
       this.data = await ticketsLocationsApi().remove(loc.id);
-      this.notice({ ok: lt('removed') });
+      this.notice({ ok: loct('removed') });
     } catch (e) {
-      this.notice({ error: e instanceof ApiError && e.code === 'location_in_use' ? lt('err_in_use') : describeError(e) });
+      this.notice({ error: e instanceof ApiError && e.code === 'location_in_use' ? loct('err_in_use') : describeError(e) });
     } finally {
       this.busy = false;
     }
@@ -240,7 +240,7 @@ export class TicketsLocationsSettings extends LitElement {
     this.busy = true;
     try {
       this.data = await ticketsLocationsApi().setDepartmentDefault(deptId, locationId || null);
-      this.notice({ ok: lt('saved') });
+      this.notice({ ok: loct('saved') });
     } catch (e) {
       this.notice({ error: describeError(e) });
     } finally {
@@ -252,17 +252,17 @@ export class TicketsLocationsSettings extends LitElement {
 
   private err(p: Partial<Record<LocationField, LocationProblem>>, f: LocationField): TemplateResult | typeof nothing {
     const code = p[f];
-    return (this.tried || this.serverErr[f]) && code ? html`<span class="err" role="alert" data-location-err=${f}>${lt(PROBLEM_TEXT[code])}</span>` : nothing;
+    return (this.tried || this.serverErr[f]) && code ? html`<span class="err" role="alert" data-location-err=${f}>${loct(PROBLEM_TEXT[code])}</span>` : nothing;
   }
 
   /** ORGPLAN-291: the optional plan-room picker (display-only link: it never changes who may see a request or a floor) */
   private areaField(p: Partial<Record<LocationField, LocationProblem>>): TemplateResult | typeof nothing {
     if (this.areas === null && !this.draft.plan_zone_id) return nothing;
     const cur = this.draft.plan_zone_id;
-    return html`<label class="fld wide">${lt('fArea')}
+    return html`<label class="fld wide">${loct('fArea')}
       <select class="in" data-location-field="plan_zone_id" ?disabled=${this.busy} @change=${(e: Event) => this.set('plan_zone_id', (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${!cur}>${lt('areaNone')}</option>
-        ${areaChoices(this.areas, cur).map((o) => html`<option value=${o.id} ?selected=${o.id === cur}>${o.missing ? lt('areaMissing') : bidi(o.label)}</option>`)}
+        <option value="" ?selected=${!cur}>${loct('areaNone')}</option>
+        ${areaChoices(this.areas, cur).map((o) => html`<option value=${o.id} ?selected=${o.id === cur}>${o.missing ? loct('areaMissing') : bidi(o.label)}</option>`)}
       </select>${this.err(p, 'plan_zone_id')}</label>`;
   }
 
@@ -275,30 +275,30 @@ export class TicketsLocationsSettings extends LitElement {
     const d = this.draft;
     const p = this.problems();
     const inv = (f: LocationField) => String(!!(this.tried && p[f]));
-    const text = (k: 'name' | 'street' | 'city' | 'details', label: LocTextKey, max: number, wide = false, ph = '') => html`<label class=${`fld${wide ? ' wide' : ''}`}>${lt(label)}
+    const text = (k: 'name' | 'street' | 'city' | 'details', label: LocTextKey, max: number, wide = false, ph = '') => html`<label class=${`fld${wide ? ' wide' : ''}`}>${loct(label)}
       <input class="in" data-location-field=${k} maxlength=${max} placeholder=${ph} aria-invalid=${inv(k)} .value=${d[k]}
         @input=${(e: Event) => this.set(k, (e.target as HTMLInputElement).value)} />${this.err(p, k)}</label>`;
     return html`<div class="editor" data-location-editor=${this.editing}>
       ${text('name', 'fName', NAME_MAX)}
-      <label class="fld">${lt('fSort')}<input class="in num" inputmode="numeric" dir="ltr" data-location-field="sort_order" .value=${d.sort_order}
+      <label class="fld">${loct('fSort')}<input class="in num" inputmode="numeric" dir="ltr" data-location-field="sort_order" .value=${d.sort_order}
         @input=${(e: Event) => this.set('sort_order', (e.target as HTMLInputElement).value)} /></label>
       ${text('street', 'fStreet', STREET_MAX)}
       ${text('city', 'fCity', CITY_MAX)}
-      ${text('details', 'fDetails', DETAILS_MAX, true, lt('fDetailsPh'))}
-      <div class="fld wide"><span>${lt('fCoords')}</span><div class="pair">
-        <input class="in" inputmode="decimal" dir="ltr" data-location-field="lat" aria-label=${lt('fLat')} placeholder=${lt('fLat')} aria-invalid=${inv('coords')} .value=${d.lat}
+      ${text('details', 'fDetails', DETAILS_MAX, true, loct('fDetailsPh'))}
+      <div class="fld wide"><span>${loct('fCoords')}</span><div class="pair">
+        <input class="in" inputmode="decimal" dir="ltr" data-location-field="lat" aria-label=${loct('fLat')} placeholder=${loct('fLat')} aria-invalid=${inv('coords')} .value=${d.lat}
           @input=${(e: Event) => this.set('lat', (e.target as HTMLInputElement).value)} />
-        <input class="in" inputmode="decimal" dir="ltr" data-location-field="lng" aria-label=${lt('fLng')} placeholder=${lt('fLng')} aria-invalid=${inv('coords')} .value=${d.lng}
+        <input class="in" inputmode="decimal" dir="ltr" data-location-field="lng" aria-label=${loct('fLng')} placeholder=${loct('fLng')} aria-invalid=${inv('coords')} .value=${d.lng}
           @input=${(e: Event) => this.set('lng', (e.target as HTMLInputElement).value)} /></div>${this.err(p, 'coords')}</div>
       ${this.areaField(p)}
       <div class="checks wide">
-        <label><input type="checkbox" data-location-field="active" .checked=${d.active} @change=${(e: Event) => this.set('active', (e.target as HTMLInputElement).checked)} /> ${lt('fActive')}</label>
-        <label><input type="checkbox" data-location-field="is_default" .checked=${d.is_default} @change=${(e: Event) => this.set('is_default', (e.target as HTMLInputElement).checked)} /> ${lt('fDefault')}</label>
+        <label><input type="checkbox" data-location-field="active" .checked=${d.active} @change=${(e: Event) => this.set('active', (e.target as HTMLInputElement).checked)} /> ${loct('fActive')}</label>
+        <label><input type="checkbox" data-location-field="is_default" .checked=${d.is_default} @change=${(e: Event) => this.set('is_default', (e.target as HTMLInputElement).checked)} /> ${loct('fDefault')}</label>
         ${this.err(p, 'default')}
       </div>
       <div class="acts wide">
-        <sw-button size="sm" variant="primary" data-location-save ?disabled=${this.busy} @click=${() => void this.save()}>${lt('save')}</sw-button>
-        <sw-button size="sm" data-location-cancel ?disabled=${this.busy} @click=${() => (this.editing = '')}>${lt('cancel')}</sw-button>
+        <sw-button size="sm" variant="primary" data-location-save ?disabled=${this.busy} @click=${() => void this.save()}>${loct('save')}</sw-button>
+        <sw-button size="sm" data-location-cancel ?disabled=${this.busy} @click=${() => (this.editing = '')}>${loct('cancel')}</sw-button>
       </div>
     </div>`;
   }
@@ -306,17 +306,17 @@ export class TicketsLocationsSettings extends LitElement {
   private row(l: OrgLocationAdmin): TemplateResult {
     if (this.editing === l.id) return this.editor();
     return html`<div class="loc" data-location=${l.id} ?data-inactive=${!l.active}>
-      <span class="txt"><b>${bidi(l.name)} ${l.is_default ? html`<span class="chip" data-location-default>${lt('defaultChip')}</span>` : nothing}
-        ${!l.active ? html`<span class="chip" data-location-inactive>${lt('inactiveChip')}</span>` : nothing}</b>
+      <span class="txt"><b>${bidi(l.name)} ${l.is_default ? html`<span class="chip" data-location-default>${loct('defaultChip')}</span>` : nothing}
+        ${!l.active ? html`<span class="chip" data-location-inactive>${loct('inactiveChip')}</span>` : nothing}</b>
         <small>${bidi([addressLine(l), l.details].filter(Boolean).join(' · '))}</small>
-        ${l.plan_zone_id && this.areaName(l) ? html`<small data-location-area>${bidi(lt('areaLinked', { name: this.areaName(l) }))}</small>` : nothing}
-        ${l.references ? html`<small data-location-refs>${lt('inUse', { n: l.references })}</small>` : nothing}</span>
-      ${l.nav_url ? html`<a class="nav" href=${l.nav_url} target="_blank" rel="noopener noreferrer" data-location-nav>${lt('navigate')}</a>` : nothing}
+        ${l.plan_zone_id && this.areaName(l) ? html`<small data-location-area>${bidi(loct('areaLinked', { name: this.areaName(l) }))}</small>` : nothing}
+        ${l.references ? html`<small data-location-refs>${loct('inUse', { n: l.references })}</small>` : nothing}</span>
+      ${l.nav_url ? html`<a class="nav" href=${l.nav_url} target="_blank" rel="noopener noreferrer" data-location-nav>${loct('navigate')}</a>` : nothing}
       <span class="acts">
-        <sw-button size="sm" data-location-edit=${l.id} ?disabled=${this.busy || !!this.editing} @click=${() => this.open(l.id)}>${lt('edit')}</sw-button>
-        ${l.active && !l.is_default ? html`<sw-button size="sm" data-location-make-default=${l.id} ?disabled=${this.busy} @click=${() => void this.patch(l, { is_default: true })}>${lt('makeDefault')}</sw-button>` : nothing}
-        <sw-button size="sm" data-location-toggle=${l.id} ?disabled=${this.busy} @click=${() => void this.patch(l, { active: !l.active })}>${l.active ? lt('deactivate') : lt('activate')}</sw-button>
-        ${l.references ? nothing : html`<sw-button size="sm" data-location-remove=${l.id} ?disabled=${this.busy} @click=${() => void this.removeLocation(l)}>${lt('remove')}</sw-button>`}
+        <sw-button size="sm" data-location-edit=${l.id} ?disabled=${this.busy || !!this.editing} @click=${() => this.open(l.id)}>${loct('edit')}</sw-button>
+        ${l.active && !l.is_default ? html`<sw-button size="sm" data-location-make-default=${l.id} ?disabled=${this.busy} @click=${() => void this.patch(l, { is_default: true })}>${loct('makeDefault')}</sw-button>` : nothing}
+        <sw-button size="sm" data-location-toggle=${l.id} ?disabled=${this.busy} @click=${() => void this.patch(l, { active: !l.active })}>${l.active ? loct('deactivate') : loct('activate')}</sw-button>
+        ${l.references ? nothing : html`<sw-button size="sm" data-location-remove=${l.id} ?disabled=${this.busy} @click=${() => void this.removeLocation(l)}>${loct('remove')}</sw-button>`}
       </span>
     </div>`;
   }
@@ -324,10 +324,10 @@ export class TicketsLocationsSettings extends LitElement {
   private deptCard(a: LocationsAdminAnswer): TemplateResult | typeof nothing {
     const active = a.locations.filter((l) => l.active);
     if (!this.depts.length || !active.length) return nothing;
-    return html`<sw-card heading=${lt('deptTitle')} subheading=${lt('deptSub')} data-card="locations-departments">
+    return html`<sw-card heading=${loct('deptTitle')} subheading=${loct('deptSub')} data-card="locations-departments">
       ${this.depts.map((d) => html`<div class="row" data-location-dept=${d.id}><span class="lbl">${bidi(d.name)}</span>
-        <span class="end"><select class="in" aria-label=${`${lt('deptTitle')} · ${d.name}`} ?disabled=${this.busy} @change=${(e: Event) => void this.setDept(d.id, (e.target as HTMLSelectElement).value)}>
-          <option value="" ?selected=${!a.department_defaults[d.id]}>${lt('deptNone')}</option>
+        <span class="end"><select class="in" aria-label=${`${loct('deptTitle')} · ${d.name}`} ?disabled=${this.busy} @change=${(e: Event) => void this.setDept(d.id, (e.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!a.department_defaults[d.id]}>${loct('deptNone')}</option>
           ${active.map((l) => html`<option value=${l.id} ?selected=${a.department_defaults[d.id] === l.id}>${bidi(l.name)}</option>`)}
         </select></span></div>`)}
     </sw-card>`;
@@ -335,15 +335,15 @@ export class TicketsLocationsSettings extends LitElement {
 
   render() {
     if (this.forbidden) return html`<sw-state-panel state="forbidden"></sw-state-panel>`;
-    if (this.failed) return html`<sw-state-panel state="error" heading=${this.failed}><sw-button size="sm" @click=${() => void this.load()}>${lt('retry')}</sw-button></sw-state-panel>`;
+    if (this.failed) return html`<sw-state-panel state="error" heading=${this.failed}><sw-button size="sm" @click=${() => void this.load()}>${loct('retry')}</sw-button></sw-state-panel>`;
     const a = this.data;
-    if (!a) return html`<sw-state-panel state="loading" heading=${lt('loading')}></sw-state-panel>`;
+    if (!a) return html`<sw-state-panel state="loading" heading=${loct('loading')}></sw-state-panel>`;
     const full = a.locations.length >= a.max;
-    return html`<sw-card heading=${lt('title')} subheading=${lt('sub')} data-card="locations">
-      ${a.locations.length || this.editing === 'new' ? nothing : html`<div class="row" data-locations-empty><span class="lbl">${lt('empty')}</span></div>`}
+    return html`<sw-card heading=${loct('title')} subheading=${loct('sub')} data-card="locations">
+      ${a.locations.length || this.editing === 'new' ? nothing : html`<div class="row" data-locations-empty><span class="lbl">${loct('empty')}</span></div>`}
       ${repeat(a.locations, (l) => l.id, (l) => this.row(l))}
       ${this.editing === 'new' ? this.editor() : html`<div class="row"><sw-button size="sm" data-location-add ?disabled=${this.busy || !!this.editing || full}
-        @click=${() => this.open('new')}>${lt('add')}</sw-button></div>`}
+        @click=${() => this.open('new')}>${loct('add')}</sw-button></div>`}
     </sw-card>
     ${this.deptCard(a)}`;
   }

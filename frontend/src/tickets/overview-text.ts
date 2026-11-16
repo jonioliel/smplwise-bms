@@ -4,9 +4,8 @@
  * naming rules as board-text.ts (D33): a text that names the module is a template with the tokens of tickets/naming.ts - `{ticket}`,
  * `{tickets}`, `{f:..|m:..}` - and the default name is never written here (tests/unit-tickets-overview.spec.ts fails when it is).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
 import { NAV_OT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   tab: NAV_OT.he.tab,
@@ -432,16 +431,13 @@ const en: Partial<Record<OverviewTextKey, string>> = {
 };
 
 /** The raw template of a key (the unit tests read it). */
-export function overviewTemplate(key: OverviewTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<OverviewTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const overviewTemplate = catalogue.template;
 
 /** A text of the overview: the template in the document's language, the module's name rendered (D33), then `{var}`s. */
-export function ot(key: OverviewTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(overviewTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const ot = catalogue.t;
 
-export const OVERVIEW_TEXT_KEYS = Object.keys(he) as OverviewTextKey[];
-export const OVERVIEW_TEXT_EN_KEYS = Object.keys(en) as OverviewTextKey[];
+export const OVERVIEW_TEXT_KEYS = catalogue.KEYS;
+export const OVERVIEW_TEXT_EN_KEYS = catalogue.EN_KEYS;

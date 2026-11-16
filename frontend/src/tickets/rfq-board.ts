@@ -34,7 +34,7 @@ import { DEFAULT_LIMITS, formatBytes, vendorFiles } from './rfq-files-model';
 import { pendingQuestions, questionBadge } from './rfq-questions';
 import { refreshRfqQuestions } from './rfq-questions-store';
 import { tt, ticketsLang } from './text';
-import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS: the navigation-link switch
+import { loct } from './org-locations-text'; // CR-ORG-LOCATIONS: the navigation-link switch
 import { showOnMapHref } from './org-locations-model'; // ORGPLAN2-291
 import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
 import { locationPicker } from './location-picker';
@@ -254,7 +254,7 @@ export class TicketsRfqBoard extends LitElement {
   /** ORGPLAN2-291: "show on map" - the server sends `plan_area` only to a viewer who may read that floor on the map. */
   private mapLink(d: RfqDetail): TemplateResult | typeof nothing {
     const href = showOnMapHref(d.plan_area);
-    return href ? html`<a class="chip info" href=${href} data-rfq-on-map>${tIcon('link')}${lt('showOnMap')}</a>` : nothing;
+    return href ? html`<a class="chip info" href=${href} data-rfq-on-map>${tIcon('link')}${loct('showOnMap')}</a>` : nothing;
   }
 
   private header(d: RfqDetail): TemplateResult {
@@ -585,7 +585,7 @@ export class TicketsRfqBoard extends LitElement {
           <div class="choice" role="radiogroup" aria-label=${rt('sendTitle')}>${opt('auto', 'sendAuto', 'sendAutoSub', pageOff)}${opt('manual', 'sendManual', 'sendManualSub', false)}</div>
           ${this.sendMode === 'auto' && d.location ? html`<label class="chk" data-rfq-location-nav><input type="checkbox" .checked=${this.sendNav}
             ?disabled=${this.busy || !d.location.map_url} @change=${(e: Event) => (this.sendNav = (e.target as HTMLInputElement).checked)} />
-            <span><b>${lt('navOn')}</b><small>${d.location.map_url ? lt('navOnSub') : lt('navNoCoords')}</small></span></label>` : nothing}
+            <span><b>${loct('navOn')}</b><small>${d.location.map_url ? loct('navOnSub') : loct('navNoCoords')}</small></span></label>` : nothing}
           ${this.sendMode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${pv}</pre>` : nothing}
           ${this.sendFiles(d)}`,
           foot(rt('sendNow'), 'send', () => void this.send(), pageOff && this.sendMode === 'auto'), true);

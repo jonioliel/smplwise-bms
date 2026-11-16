@@ -11,7 +11,7 @@ import { canChangeOwner, ownerView } from './owner-model';
 import { initials } from './status-block';
 import { etaText, slaState } from './status-sentence';
 import { ticketsLang } from './text';
-import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS
+import { loct } from './org-locations-text'; // CR-ORG-LOCATIONS
 import { showOnMapHref } from './org-locations-model'; // ORGPLAN-291
 
 /**
@@ -141,7 +141,7 @@ export function nowSection(t: TicketDetail, ctx: OverviewCtx): TemplateResult | 
 function showOnMapLink(t: TicketDetail): TemplateResult | typeof nothing {
   const href = showOnMapHref(t.location?.plan_area);
   if (!href) return nothing;
-  return html`<div class="f wide" data-fact="location-map"><a href=${href} data-location-on-map>${tIcon('link')}${lt('showOnMap')}</a></div>`;
+  return html`<div class="f wide" data-fact="location-map"><a href=${href} data-location-on-map>${tIcon('link')}${loct('showOnMap')}</a></div>`;
 }
 
 function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
@@ -151,7 +151,7 @@ function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
   return html`<section class="sect" data-ov="facts">
     <h4><span class="tag t2">${tIcon('layers')}</span>${dwt('ovFacts')}${ctx.onEdit ? html`<button type="button" class="btn sm quiet act" data-edit ?disabled=${ctx.busy} @click=${ctx.onEdit}>${tIcon('edit')}${dwt('a_edit')}</button>` : nothing}</h4>
     <div class="facts">
-      ${f('location', lt('fLocation'), t.location?.text ?? '', true)}
+      ${f('location', loct('fLocation'), t.location?.text ?? '', true)}
       ${showOnMapLink(t)}
       ${f('place', dwt('fPlace'), t.place_text)}
       ${f('device', dwt('fDevice'), t.device_name)}

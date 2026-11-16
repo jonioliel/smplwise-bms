@@ -7,8 +7,7 @@
  * written here (tests/unit-tickets-naming.spec.ts). The delivery words reuse slice 5b's (messages-text.ts): the product never says
  * "delivered" or "read" (D14) - the only receipt is "the link was opened after the message".
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // ---- the two sub-tabs (IA §4.2): the toggle group, its captions, the badges
@@ -173,16 +172,13 @@ const en: Partial<Record<ConvTextKey, string>> = {
 };
 
 /** The raw template of a key (the unit tests read it). */
-export function convTemplate(key: ConvTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<ConvTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const convTemplate = catalogue.template;
 
 /** A text of the Conversation / History tabs: the module's name rendered (D33), then the `{var}`s. */
-export function cvt(key: ConvTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(convTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const cvt = catalogue.t;
 
-export const CONV_TEXT_KEYS = Object.keys(he) as ConvTextKey[];
-export const CONV_TEXT_EN_KEYS = Object.keys(en) as ConvTextKey[];
+export const CONV_TEXT_KEYS = catalogue.KEYS;
+export const CONV_TEXT_EN_KEYS = catalogue.EN_KEYS;

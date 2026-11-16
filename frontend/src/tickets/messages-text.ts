@@ -5,8 +5,7 @@
  * `mtt()`; the default name is never written here (tests/unit-tickets-naming.spec.ts scans this file). Hebrew first, an English column.
  * The product never says "delivered" or "read" - only that a message was handed over ("מסירה לא ידועה", D14).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // the ticket's delivery block (D14) and its actions (D29)
@@ -294,14 +293,10 @@ const en: Partial<Record<keyof typeof he, string>> = {
 };
 
 export type MessageTextKey = keyof typeof he;
-export const MESSAGE_TEXT_KEYS = Object.keys(he) as MessageTextKey[];
-export const MESSAGE_TEXT_EN_KEYS = Object.keys(en) as MessageTextKey[];
+const catalogue = makeCatalogue<MessageTextKey>(he, en);
+export const MESSAGE_TEXT_KEYS = catalogue.KEYS;
+export const MESSAGE_TEXT_EN_KEYS = catalogue.EN_KEYS;
 
 /** A text of the message screens: the document's language, the module's name rendered (D33), then `{var}`s (a typed value is never
  * read as a token: the variables are filled after the name). `{link}` / `{code}` in the template texts are literal placeholders. */
-export function mtt(key: MessageTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const raw = (lang === 'en' ? en[key] : undefined) ?? he[key];
-  const named = tn(raw, lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const mtt = catalogue.t;

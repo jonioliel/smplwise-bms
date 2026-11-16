@@ -26,7 +26,7 @@ import { rfqError } from '../tickets/rfq-new';
 import { questionBadge } from '../tickets/rfq-questions';
 import { rIcon } from '../tickets/rfq-icons';
 import { tt, ticketsLang } from '../tickets/text';
-import { lt } from '../tickets/org-locations-text';
+import { loct } from '../tickets/org-locations-text';
 import { showOnMapHref } from '../tickets/org-locations-model'; // ORGPLAN2-291
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
@@ -303,7 +303,7 @@ export class TicketsRfqsPage extends LitElement {
   /** ORGPLAN2-291: "show on map" under the row (a sibling of the row link: anchors do not nest); only when the server sent `plan_area`. */
   private mapLink(i: RfqSummary): TemplateResult | typeof nothing {
     const href = showOnMapHref(i.plan_area);
-    return href ? html`<a class="rmap" href=${href} data-rfq-row-on-map=${i.id}>${tIcon('link')}${lt('showOnMap')}</a>` : nothing;
+    return href ? html`<a class="rmap" href=${href} data-rfq-row-on-map=${i.id}>${tIcon('link')}${loct('showOnMap')}</a>` : nothing;
   }
 
   /** RFQQUESTIONS: the row's "N questions waiting" badge (red while one is new). */
