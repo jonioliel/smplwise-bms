@@ -41,10 +41,10 @@ import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import { circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
-import { stateFactsOf } from '../map/state-facts';
-import { defaultLevelId } from '../map/studio-ops';
-import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
-import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
+import { stateEntitiesOf, stateFactsOf } from '../map/state-facts';
+import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, type PresenceFade, type RoomStateLayer, type StateOpening } from '../map/room-state';
+import { loadLibrary } from '../api/plan-catalog';
+import { default3dDue, defaultViewIs3d, fallbackLevelId, hoverLabelsOf, isTypingTarget, libraryLookups, loadPlan3d, readPlanImage, sceneZonesOf, stateLampsOf, stateRoomsOf, writePlanImage } from '../map/floor-view-shared';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
 import { buildScene, entityMeta, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import { sameScene } from '../map/scene-equal';
@@ -1481,7 +1481,7 @@ export class ExploreFloorMap extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (this.embedded && e.key === '3') return; // hosted: the host screen owns the keyboard
-    if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !this.typing(e)) {
+    if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !isTypingTarget(e.composedPath()[0])) {
       if (this.confirmSpec || this.saveView || e.repeat) return; // a dialog is open, or the key is held down
       e.preventDefault();
       void this.toggle3d();
@@ -1495,12 +1495,6 @@ export class ExploreFloorMap extends LitElement {
       if (!this.shows3d) this.canvas?.focusMarker(id);
     } else if (this.panel) this.panel = false;
   };
-
-  /** A key pressed inside a text field, a select or an editable node belongs to it. */
-  private typing(e: KeyboardEvent): boolean {
-    const target = e.composedPath()[0];
-    return target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
-  }
 
   /** UI round 1c: the plan editor is entered from the user menu ("עריכת המפה", shell/screen-edit.ts), not from a button here.
    * The same permission the button had: the floor's own edit right (the static demo has no bundle and offers it too). */
@@ -1628,7 +1622,7 @@ export class ExploreFloorMap extends LitElement {
     this.scheduleFadeTick(this.bundle && this.layers.has('states') ? this.roomStateLayer : null);
     // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
     // of the last view existed before, and none is added: the toggle still switches for the visit)
-    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+    if (default3dDue(this.default3d, this.view3d, this.hasScene)) {
       this.default3d = false;
       void this.toggle3d();
     }
@@ -1798,7 +1792,7 @@ export class ExploreFloorMap extends LitElement {
       void productSettings()
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
-          if (this.bundle === b) this.default3d = (s['map.default_view'] === '3d' || this.keep3d()) && !this.view3d;
+          if (this.bundle === b) this.default3d = (defaultViewIs3d(s) || this.keep3d()) && !this.view3d;
           this.quality3d = modeFromWire(s['plan.quality']); // auto | full | schematic (map/quality-mode.ts); the viewer's own mode wins in the element
           this.r28 = s as unknown as Record<string, unknown>; // PLAN3D-R28-UI-2433: the round 28 map settings (room pills, room card, spread levels)
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
@@ -1819,10 +1813,11 @@ export class ExploreFloorMap extends LitElement {
       if (this.bundle.source === 'api') {
         this.startWs();
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
-          this.catalogLookup = lookupOf(lib);
-          this.catalog3d = lookup3dOf(lib);
-          this.materials3d = lookupMaterialsOf(lib);
-          this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
+          const l = libraryLookups(lib);
+          this.catalogLookup = l.catalogLookup;
+          this.catalog3d = l.catalog3d;
+          this.materials3d = l.materials3d;
+          this.itemNames = l.itemNames;
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
       void this.applyFocus();
@@ -1943,15 +1938,10 @@ export class ExploreFloorMap extends LitElement {
     if (!b.zones.length && !facts?.openings.length) return null;
     const circuits = this.circuitStates3d;
     const states = this.entityStates3d;
-    const entities: StateEntity[] = [];
-    for (const a of b.anchors) {
-      if (a.resource_type !== 'ha_entity') continue;
-      const e = a.entity;
-      entities.push({ id: a.resource_id, domain: e?.domain ?? a.resource_id.split('.')[0] ?? '', device_class: e?.device_class ?? null, state: states[a.resource_id] ?? null, last_changed: e?.last_changed ?? null, attributes: e?.attributes ?? null, x: a.position.x, y: a.position.y, level_id: a.level_id ?? null, layer_id: a.layer_id });
-    }
-    const lamps = (facts?.lamps ?? []).map((l) => ({ x: l.x, y: l.y, level_id: l.level_id, on: (l.circuit !== null && circuits[l.circuit] === 'on') || (l.entity !== null && states[l.entity] === 'on') }));
-    const rooms = b.zones.map((z) => ({ id: z.id, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const fallback = this.geometry ? defaultLevelId(this.geometry) : (b.levels.find((l) => l.is_default)?.id ?? 'L0');
+    const entities = stateEntitiesOf(b.anchors, states);
+    const lamps = stateLampsOf(facts, circuits, states);
+    const rooms = stateRoomsOf(b.zones);
+    const fallback = fallbackLevelId(this.geometry, b);
     return roomStates({ rooms, entities, openings: facts?.openings ?? [], lamps, size: [b.width, b.height], scaleMPerPx: b.scaleMPerPx, now: this.stateNow, fade: this.presenceFade, levelOf: (id) => id ?? fallback });
   }
 
@@ -2036,7 +2026,7 @@ export class ExploreFloorMap extends LitElement {
       // no anchors: they are not part of the geometry key (controlSceneInput drops them anyway, and leaves out every
       // camera-bound object - STILLCAM-SKIN: where it stands is that camera's place, and the skin is for every reader)
       const base: SceneInput = { doc: this.geometry, width: b.width, height: b.height, entityStates: {}, circuitStates: {}, catalog: this.catalog3d, anchors: [],
-        zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
+        zones: sceneZonesOf(b.zones) };
       let identical = 0;
       for (const state of CONTROL_STATES) {
         const png = el.captureControl(controlDescription(buildScene(controlSceneInput(base, state)), state));
@@ -2110,12 +2100,10 @@ export class ExploreFloorMap extends LitElement {
       Object.assign(labels, demoSceneLabels(b.floorId));
     } else if (this.geometry) {
       base = { doc: this.geometry, width: b.width, height: b.height, anchors: this.sceneAnchors, entityStates: this.entityStates3d, circuitStates: this.circuitStates3d, catalog: this.catalog3d,
-        zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
+        zones: sceneZonesOf(b.zones) };
       cameras = b.anchors.filter((a) => a.resource_type === 'camera' && this.layers.has('cameras') && cameraState(a) !== 'forbidden').map((a) => ({ id: a.id, label: entityName(a) }));
       // hover labels: anchors by their map name, objects by label or library name, zones by name
-      for (const a of b.anchors) labels[a.id] = entityName(a);
-      for (const o of this.geometry.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
-      for (const z of b.zones) labels[z.id] = z.name;
+      Object.assign(labels, hoverLabelsOf(b.anchors, entityName, this.geometry.objects, this.itemNames, b.zones));
     }
     if (!base) return null;
     const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
@@ -2172,14 +2160,13 @@ export class ExploreFloorMap extends LitElement {
     }
     if (this.threeState !== 'ready') {
       this.threeState = 'loading';
-      try {
-        await import('../map/sw-plan-3d');
-        this.threeState = 'ready';
-      } catch (err) {
+      const failed = await loadPlan3d();
+      if (failed !== null) {
         this.threeState = 'error';
-        this.threeError = describeError(err);
+        this.threeError = failed;
         return;
       }
+      this.threeState = 'ready';
     }
     if (!this.can3d) return; // the floor changed (or lost its structure) while the chunk loaded
     this.anchor = null; // the 3D has no pin to hang a popover on: an open card continues as a drawer
@@ -2267,8 +2254,7 @@ export class ExploreFloorMap extends LitElement {
 
   /** The level a zone or anchor without one stands on (the floor's default level). */
   private get fallbackLevel(): string {
-    const b = this.bundle;
-    return this.geometry ? defaultLevelId(this.geometry) : (b?.levels.find((l) => l.is_default)?.id ?? 'L0');
+    return fallbackLevelId(this.geometry, this.bundle);
   }
 
   /** The anchor as the room summaries read it: the live state and the UI's own state words. */
@@ -2291,7 +2277,7 @@ export class ExploreFloorMap extends LitElement {
     const states = this.entityStates3d;
     const anchors = b.anchors.filter((a) => a.resource_type === 'ha_entity' && this.anchorShown(a)).map((a) => this.pillAnchor(a, states));
     const fb = this.fallbackLevel;
-    const rooms = summarizeRooms(b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })), anchors, layer, (id) => id ?? fb);
+    const rooms = summarizeRooms(sceneZonesOf(b.zones), anchors, layer, (id) => id ?? fb);
     this.roomsMemo = { bundle: b, layer, layers: this.layers, rooms };
     return rooms;
   }
@@ -2574,20 +2560,12 @@ export class ExploreFloorMap extends LitElement {
   /** The plan picture switch, per floor in this browser (key apart from the layer list: it is not an anchor layer). */
   private setPlanImage(on: boolean) {
     this.planImage = on;
-    try {
-      localStorage.setItem(`sw.floor.background.${this.floorId}`, on ? '1' : '0');
-    } catch {
-      /* private mode or blocked storage: the choice lives for this page only */
-    }
+    writePlanImage('floor', this.floorId, on);
   }
 
   /** A floor never switched shows its picture. */
   private restorePlanImage() {
-    try {
-      this.planImage = localStorage.getItem(`sw.floor.background.${this.floorId}`) !== '0';
-    } catch {
-      this.planImage = true;
-    }
+    this.planImage = readPlanImage('floor', this.floorId);
   }
 
   // ---- multi-camera selection (T043) ----
