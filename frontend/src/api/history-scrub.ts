@@ -8,6 +8,7 @@
  * back to the classic historical map.
  */
 import { ApiError, get } from './client';
+import { isoZ } from './day-format';
 import type { EntityLayerId, RangeLayerId } from '../map/history-replay';
 
 export type LayerStatus = 'ok' | 'empty' | 'not_recorded' | 'not_permitted' | 'gap';
@@ -107,10 +108,9 @@ export interface HistoryRange {
   layers: Partial<Record<EntityLayerId, RangeEntityLayer>> & { elevators?: RangeElevatorLayer };
 }
 
-/** UTC ISO without milliseconds (the form the routes and the existing map bundle use). */
-export function isoZ(d: Date | number): string {
-  return new Date(d).toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
+/** UTC ISO without milliseconds (the form the routes and the existing map bundle use). CR-CSS-FRAGMENTS-2440: it lives in
+ * api/day-format.ts now; re-exported here so every existing import keeps working. */
+export { isoZ };
 
 /** The error code of an API error; the time-scrub routes may wrap it as `{error: {code}}` as well as the house `{code}`. */
 export function apiErrorCode(err: unknown): string | null {
