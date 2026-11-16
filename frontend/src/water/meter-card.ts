@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
@@ -9,13 +9,13 @@ import { ApiError, describeError } from '../api/client';
 import { DEFAULT_RULES, nightRuleOff, water, type LeakRules, type ManualReading, type MeterDetail, type WaterEvent } from '../api/water';
 import type { SnoozeSettings } from '../api/water-billing';
 import { fmtDate, fmtDateTime, fmtTime } from '../electricity/format';
-import { SkinController } from '../design/skin';
 import { snoozeLabel, snoozeUntil } from './billing-format';
 import { waterCss } from './styles';
 import { alertOf, eventKindLabel, eventValue, kindLabel, m3OfL, meterChip, METER_KINDS, nightText, waterBarChart, type Bar } from './ui';
 import { wt } from './i18n';
+import { MeterCardBase, meterCardCss, type MeterRange, type MeterSeriesStep } from '../electricity/meter-card-base';
 
-type Range = 'hours' | 'days' | 'months';
+type Range = MeterRange;
 const RANGE_KEY = { hours: 'r24h', days: 'r30d', months: 'r12m' } as const;
 const REASON_KEY: Record<string, 'reasonFirst' | 'reasonReplaced' | 'reasonSource'> = { first: 'reasonFirst', replaced: 'reasonReplaced', source_changed: 'reasonSource' };
 const p2 = (n: number) => String(n).padStart(2, '0');
@@ -34,102 +34,47 @@ const inWindow = (t: Date, r: Pick<LeakRules, 'night_from' | 'night_to'>) => {
  * (אזור, קריאה נוכחית, דיווח אחרון, יחידה, סוג, ספיקת לילה, כללי דליפה), the consumption chart 24 שעות / 30 ימים / 12 חודשים (the 24-hour
  * view shades the night window; a leak paints its bars red), the open alerts with אישור + the snooze split button (water.ack), the counter
  * lives, the manual readings (water.manage) and the actions row (שינוי שם, החלפת מונה, השהיה / חידוש, הסרה). Fires `close` and `changed`.
+ * CR-DUP-METERS-2440: the drawer, the guarded load, the range switch and the actions row are electricity/meter-card-base.ts (shared with electricity).
  */
 @customElement('water-meter-card')
-export class WaterMeterCard extends LitElement {
-  readonly bubbleSkin = new SkinController(this);
-  @property() meterId = '';
-  @property({ type: Boolean }) canManage = false;
+export class WaterMeterCard extends MeterCardBase<MeterDetail, 'remove' | 'replace' | 'rename' | 'reading'> {
   @property({ type: Boolean }) canAck = false;
   @property({ attribute: false }) rules: LeakRules = DEFAULT_RULES;
   @property({ attribute: false }) snooze: SnoozeSettings | null = null;
   @property({ attribute: false }) night: number | null | 'off' | undefined = undefined;
 
-  @state() private detail: MeterDetail | null = null;
-  @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
-  @state() private error = '';
-  @state() private range: Range = 'hours';
   @state() private bars: Bar[] = [];
-  @state() private chartError = false;
   @state() private alerts: WaterEvent[] = [];
   @state() private readings: ManualReading[] = [];
-  @state() private dlg: '' | 'remove' | 'replace' | 'rename' | 'reading' = '';
-  @state() private busy = false;
-  @state() private actionError = '';
   @state() private notice = '';
   @state() private f1 = '';
   @state() private f2 = '';
   @state() private f3 = '';
   @state() private unit: 'm3' | 'L' = 'm3';
   @state() private kind = '';
-  private seq = 0;
 
-  static styles = [
-    waterCss,
-    css`
-      :host {
-        display: contents;
-      }
-      .body {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        padding: 4px 0 8px;
-      }
-      .actions {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      .form {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .form .wide {
-        grid-column: 1 / -1;
-      }
-      @media (max-width: 520px) {
-        .form {
-          grid-template-columns: 1fr;
-        }
-      }
-    `,
-  ];
+  static styles = [waterCss, meterCardCss];
 
-  willUpdate(changed: Map<string, unknown>) {
-    if (changed.has('meterId') && this.meterId) void this.load();
+  constructor() {
+    super('hours');
   }
 
-  private fire(name: string) {
-    this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true }));
+  protected fetchDetail() {
+    return water.meter(this.meterId);
   }
 
-  private async load() {
-    const my = ++this.seq;
-    this.phase = 'loading';
-    try {
-      const d = await water.meter(this.meterId);
-      if (my !== this.seq) return;
-      this.detail = d;
-      this.phase = 'ready';
-      if (this.canManage) void this.loadReadings();
-      await this.loadAlerts(); // the 24-hour chart paints a leak's night bars: the alerts first
-      if (my === this.seq) void this.loadSeries();
-    } catch (err) {
-      if (my !== this.seq) return;
-      this.error = describeError(err);
-      this.phase = 'error';
-    }
+  protected async afterLoad(current: () => boolean) {
+    if (this.canManage) void this.loadReadings();
+    await this.loadAlerts(); // the 24-hour chart paints a leak's night bars: the alerts first
+    if (current()) void this.loadSeries();
   }
 
-  private async refresh() {
-    try {
-      this.detail = await water.meter(this.meterId);
-    } catch {
-      /* the card keeps what it has */
-    }
+  protected titles(d: MeterDetail) {
+    return { heading: d.display_name ?? '', subheading: [kindLabel(d.kind), d.area_name, d.floor_name].filter(Boolean).join(' · ') };
+  }
+
+  protected texts() {
+    return { loadError: wt('cardLoadError'), retry: wt('retry') };
   }
 
   private async loadAlerts() {
@@ -148,14 +93,9 @@ export class WaterMeterCard extends LitElement {
     }
   }
 
-  private async loadSeries() {
-    const range = this.range;
-    const to = new Date();
-    const span = range === 'hours' ? 1 : range === 'days' ? 30 : 365;
-    const from = new Date(to.getTime() - span * 86_400_000);
-    try {
-      const items = await water.series(this.meterId, range === 'hours' ? '1h' : '1d', from.toISOString(), to.toISOString());
-      if (range !== this.range) return;
+  protected async fetchSeries(range: Range, step: MeterSeriesStep, from: string, to: string) {
+    const items = await water.series(this.meterId, step, from, to);
+    return () => {
       const leak = alertOf(this.meterId, this.alerts) === 'leak';
       if (range === 'hours') {
         this.bars = items.map((i) => {
@@ -174,10 +114,7 @@ export class WaterMeterCard extends LitElement {
         }
         this.bars = [...by.entries()].map(([label, value]) => ({ label, value }));
       }
-      this.chartError = false;
-    } catch {
-      this.chartError = true;
-    }
+    };
   }
 
   private flash(t: string) {
@@ -282,7 +219,7 @@ export class WaterMeterCard extends LitElement {
         : html`<div class="mut">${wt('noReadings')}</div>`}`;
   }
 
-  private renderBody(d: MeterDetail) {
+  protected renderBody(d: MeterDetail) {
     const alert = alertOf(d.id, this.alerts);
     const off = nightRuleOff(d);
     const w = `${this.rules.night_from}-${this.rules.night_to}`;
@@ -300,7 +237,7 @@ export class WaterMeterCard extends LitElement {
         <dt>${wt('fRules')}</dt><dd>${own ? wt('fRulesOwn', { w }) : wt('fRulesDefault', { w })}</dd>
       </dl>
       <div class="row"><h3 class="sec">${wt('usage')}</h3><span class="sp"></span>
-        <div class="seg" role="group" aria-label=${wt('range')}>${(['hours', 'days', 'months'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => { this.range = r; void this.loadSeries(); }}>${wt(RANGE_KEY[r])}</button>`)}</div></div>
+        ${this.rangeSeg(wt('range'), (r) => wt(RANGE_KEY[r]))}</div>
       ${this.chartError ? html`<div class="alert err" role="alert">${wt('chartError')}</div>` : waterBarChart(this.bars, wt('chartAria', { r: wt(RANGE_KEY[this.range]) }), this.range === 'hours' ? (v) => String(Math.round(v)) : (v) => v.toFixed(v < 10 ? 2 : 1))}
       ${this.range === 'hours' ? html`<div class="mut">${wt('nightNote', { w })}</div>` : nothing}
       ${this.renderAlerts()}
@@ -310,13 +247,17 @@ export class WaterMeterCard extends LitElement {
       ${this.renderReadings()}
       ${this.actionError && !this.dlg ? html`<div class="alert err" role="alert" data-meter-action-error>${this.actionError}</div>` : nothing}
       ${this.canManage
-        ? html`<div class="actions">
-            <sw-button data-meter-rename @click=${() => this.openDlg('rename')}>${wt('rename')}</sw-button>
-            <sw-button data-meter-replace @click=${() => this.openDlg('replace')}>${wt('replace')}</sw-button>
-            <sw-button data-meter-pause ?disabled=${this.busy || d.status === 'retired'} @click=${() => void this.act(() => water.patchMeter(d, { status: d.status === 'paused' ? 'active' : 'paused' }), () => void this.load())}>${d.status === 'paused' ? wt('resume') : wt('pause')}</sw-button>
-            <span class="sp"></span>
-            <sw-button variant="danger" data-meter-remove @click=${() => this.openDlg('remove')}>${wt('remove')}</sw-button>
-          </div>`
+        ? this.actionsRow({
+            rename: wt('rename'),
+            replace: wt('replace'),
+            pause: d.status === 'paused' ? wt('resume') : wt('pause'),
+            remove: wt('remove'),
+            pauseDisabled: this.busy || d.status === 'retired',
+            onRename: () => this.openDlg('rename'),
+            onReplace: () => this.openDlg('replace'),
+            onPause: () => void this.act(() => water.patchMeter(d, { status: d.status === 'paused' ? 'active' : 'paused' }), () => void this.load()),
+            onRemove: () => this.openDlg('remove'),
+          })
         : nothing}
     </div>`;
   }
@@ -325,7 +266,7 @@ export class WaterMeterCard extends LitElement {
     return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for=${id}>${label}</label><div class="inp"><input id=${id} type=${o.type ?? 'text'} inputmode=${o.type ? 'text' : 'decimal'} .value=${value} @input=${(e: Event) => set((e.target as HTMLInputElement).value)} />${o.suffix ? html`<span class="mut">${o.suffix}</span>` : nothing}</div></div>`;
   }
 
-  private renderDialogs() {
+  protected renderDialogs() {
     const err = this.actionError && this.dlg ? html`<div class="alert err wide" role="alert">${this.actionError}</div>` : nothing;
     const foot = (label: string, danger = false) => html`<sw-button slot="footer" variant=${danger ? 'danger' : 'primary'} data-dialog-save ?disabled=${this.busy} @click=${() => this.save()}>${label}</sw-button><sw-button slot="footer" @click=${() => (this.dlg = '')}>${wt('cancel')}</sw-button>`;
     return html`
@@ -349,18 +290,6 @@ export class WaterMeterCard extends LitElement {
           ${this.field('wrn2', wt('readingNote'), this.f3, (v) => (this.f3 = v), { type: 'text', wide: true })}${err}</div>
         ${foot(wt('save'))}
       </sw-dialog>`;
-  }
-
-  render() {
-    const d = this.detail;
-    const sub = d ? [kindLabel(d.kind), d.area_name, d.floor_name].filter(Boolean).join(' · ') : '';
-    return html`
-      <sw-drawer ?open=${!this.dlg} modal heading=${d?.display_name ?? ''} subheading=${sub} data-meter-drawer @close=${() => { if (!this.dlg) this.fire('close'); }}>
-        ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
-        ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${wt('cardLoadError')} hint=${this.error} actionLabel=${wt('retry')} @action=${() => void this.load()}></sw-state-panel>` : nothing}
-        ${this.phase === 'ready' && d ? this.renderBody(d) : nothing}
-      </sw-drawer>
-      ${this.renderDialogs()}`;
   }
 }
 
