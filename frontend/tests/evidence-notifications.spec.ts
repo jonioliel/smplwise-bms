@@ -110,9 +110,12 @@ test.describe('the notification center (mock)', () => {
     await open(page);
     expect(await page.evaluate(() => document.documentElement.dir)).toBe('rtl');
     await openCenter(page, info);
-    const box = (await panel(page).boundingBox())!;
     const rail = (await page.locator('sw-app nav.rail').boundingBox())!;
-    expect(box.x + box.width).toBeLessThanOrEqual(rail.x + 2); // the sheet's right edge is at (or left of) the rail's left edge: the start side
+    // DOMUS-DEFAULT-2439: the sheet slides in from 32 px; in the default skin (domus, glass over the whole page) the software renderer
+    // may start that slide later than the 350 ms openCenter waits, so its landing is polled, not read once
+    const edge = async () => { const b = (await panel(page).boundingBox())!; return b.x + b.width; };
+    await expect.poll(edge, { timeout: 5000 }).toBeLessThanOrEqual(rail.x + 2); // the sheet's right edge is at (or left of) the rail's left edge: the start side
+    const box = (await panel(page).boundingBox())!;
     expect(box.x + box.width).toBeGreaterThan(rail.x - 30);
     expect(box.width).toBeGreaterThan(440);
     expect(box.width).toBeLessThan(520);

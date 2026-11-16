@@ -25,7 +25,11 @@ async function openMenuAction(page: Page, id: string) {
 test.describe('players page (mocked backend)', () => {
   tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   let st: St;
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, info) => {
+    // DOMUS-DEFAULT-2439: these pages open in the default skin, now domus. On the phone project (Pixel 7, 2.6x) a screenshot of the
+    // players page costs about a quarter more in domus than in classic under the software renderer (measured on the workstation:
+    // 2.6-3.3 s against 2.0-2.5 s), and these tests take many. On the gate runner they already ran 30-50 s of the 60; three times that.
+    if (info.project.name === 'mobile') test.slow();
     st = fresh(ADMIN);
     await page.addInitScript(() => {
       try {
@@ -400,7 +404,11 @@ test.describe('players page (mocked backend)', () => {
 test.describe('groups page (mocked backend)', () => {
   tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   let st: St;
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, info) => {
+    // DOMUS-DEFAULT-2439: these pages open in the default skin, now domus. On the phone project (Pixel 7, 2.6x) a screenshot of the
+    // players page costs about a quarter more in domus than in classic under the software renderer (measured on the workstation:
+    // 2.6-3.3 s against 2.0-2.5 s), and these tests take many. On the gate runner they already ran 30-50 s of the 60; three times that.
+    if (info.project.name === 'mobile') test.slow();
     st = fresh(ADMIN);
     await page.addInitScript(() => {
       try {
