@@ -129,3 +129,14 @@ NOT_RUN:
 ## Rollback
 Revert the branch's commits. Data: an installation that was moved has `ui.skin.domus_switch = moved:classic`; set `ui.skin` back to
 `classic` in the look card to undo the move there (older code ignores the marker row and a stored `ui.chip_selected` row).
+
+## Entry-check fix (round 2)
+- Entry check of 7c61a52c8 stopped the gate in the early layout stage: `dropdown-picker-choice.spec.ts:62` (desktop) read
+  `data-dd-search` on `<html>` right after the mock server had counted the PATCH, before the page applied the response
+  (`Expected "never", Received "4"`, failed alone on the retry too, runner load 18). The branch does not touch `tabs-mode.ts` or the spec's
+  mocks: a timing race in the spec, not a Domus behaviour change. Fix: the 8 reads of `data-dd-search` use `expect.poll`
+  (spec only, no product change, no pixel change, no baseline refresh).
+- Run locally (desktop, workers=1, one command at a time, `vite build` preview): dropdown-picker-choice 4/4 passed;
+  dropdown-phone-choice, dropdown-styles, dropdown-capsule component specs, smoke-skinfound-297, evidence-design-foundation (20 passed, 1 brand-colours
+  failure that passed twice alone on rerun: a load flake, unrelated).
+- NOT_RUN locally: specs that import `/src/*` modules (they need the Vite dev server; the gate runs those on dev), the rest of the suite.
