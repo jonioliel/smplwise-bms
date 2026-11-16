@@ -7,9 +7,28 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import Awaitable, Callable
+import json
+from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
+
+
+async def close_with_error(websocket: WebSocket, frame: str | dict[str, Any], code: int | None, *, close_apart: bool = False) -> None:
+    """CR-LIVE-SOCKET-CAPS (03:F19): the one "tell the socket why, then close it" step - accept the socket if it is still
+    connecting (a close before accept is a bare handshake failure, and HA ingress turns a bare close code into 1000), send ONE
+    text frame (a dict goes out as JSON with Hebrew kept readable; a string as it is), then close with `code`. Nothing here
+    raises: a socket that is already gone is not an error.
+    `code` None: no close - the caller ends the socket its own way (it raises WebSocketException).
+    `close_apart`: the close is tried even when the accept or the frame failed (the playback "replaced" close)."""
+    with contextlib.suppress(Exception):
+        if websocket.client_state.name == "CONNECTING":
+            await websocket.accept()
+        await websocket.send_text(frame if isinstance(frame, str) else json.dumps(frame, ensure_ascii=False))
+        if code is not None and not close_apart:
+            await websocket.close(code=code)
+    if code is not None and close_apart:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=code)
 
 
 async def relay_ws(websocket: WebSocket, upstream_url: str, headers: dict[str, str], on_down: Callable[[int], None], should_stop: Callable[[], bool] | None = None,
