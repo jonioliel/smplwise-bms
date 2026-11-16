@@ -41,7 +41,6 @@ import functools
 import heapq
 import html
 import ipaddress
-import itertools
 import json
 import logging
 import queue
@@ -58,6 +57,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import brand_assets, notify
+from .delayed_worker import DelayedWorker
 from . import notify_settings as nsettings
 from . import secret_files
 from . import white_label
@@ -576,7 +576,7 @@ def smtp_send(cfg: MailConfig, to: str, r: Rendered, deadline: float | None = No
                 try:
                     client.close()
                 except Exception:  # noqa: BLE001
-                    pass
+                    log.debug("e-mail: closing the SMTP connection failed", exc_info=True)  # 04:F27: a silent failure leaves a trace
 
 
 # ---------------------------------------------------------------- rate limits
@@ -685,21 +685,16 @@ def reset_state() -> None:
     GATE.stamps.clear()
 
 
-class EmailWorker:
+class EmailWorker(DelayedWorker):
     """The e-mail channel's OWN thread: a queue of dispatches handed over by the notifier thread, and a heap of retry / digest jobs (the same
     `recheck(db)` / `run_retry(worker)` job protocol as services/push.PushNotifier). SMTP, with its timeouts, happens only here - a slow
-    or dead mail server delays only e-mail."""
+    or dead mail server delays only e-mail. The thread, the queue, the heap, `drain` and `stop` are services/delayed_worker.DelayedWorker
+    (CR-SENDER-WORKER); `retries` is that worker's heap under this channel's name."""
 
     def __init__(self, db: Any) -> None:
-        self.db = db
-        self.q: queue.Queue[Callable[["EmailWorker"], None]] = queue.Queue(maxsize=WORKER_QUEUE_MAX)
-        self.retries: list[tuple[float, int, Any]] = []
-        self.seq = itertools.count()
-        self.lock = threading.Lock()
-        self.inflight = 0
-        self.stop_evt = threading.Event()
-        self.thread = threading.Thread(target=self._loop, name="email-worker", daemon=True)
-        self.thread.start()
+        super().__init__(db, name="email-worker", queue_max=WORKER_QUEUE_MAX, log=log, what="e-mail")
+        self.retries: list[tuple[float, int, Any]] = self.heap  # the same list: (due, seq, job)
+        self._start()
 
     # -- handing work over (never blocks, never touches the database)
     def submit(self, fn: Callable[["EmailWorker"], None]) -> bool:
@@ -718,76 +713,13 @@ class EmailWorker:
         with self.lock:
             return any(j is job for _t, _s, j in self.retries)
 
-    def make_due(self) -> None:
-        """Every waiting job comes due now (tests)."""
-        with self.lock:
-            self.retries[:] = [(0.0, seq, job) for _t, seq, job in self.retries]
-            heapq.heapify(self.retries)
-        self._wake()
+    # -- the thread's part of this channel
+    def _run_job(self, job: Any) -> None:
+        if job.recheck(self.db):
+            job.run_retry(self)
 
-    def _wake(self) -> None:
-        try:
-            self.q.put_nowait(lambda _w: None)
-        except queue.Full:
-            pass
-
-    # -- the thread
-    def _next_wait(self) -> float:
-        with self.lock:
-            return max(0.0, min(1.0, self.retries[0][0] - time.monotonic())) if self.retries else 1.0
-
-    def _loop(self) -> None:
-        while not self.stop_evt.is_set():
-            try:
-                fn = self.q.get(timeout=self._next_wait())
-            except queue.Empty:
-                fn = None
-            if self.stop_evt.is_set():
-                return
-            try:
-                if fn is not None:
-                    try:
-                        fn(self)
-                    finally:
-                        self.q.task_done()
-                self._run_due()
-            except Exception:  # noqa: BLE001 - the worker never dies on one bad dispatch
-                log.exception("e-mail worker step failed")
-
-    def _run_due(self) -> None:
-        while True:
-            with self.lock:
-                if not self.retries or self.retries[0][0] > time.monotonic():
-                    return
-                self.inflight += 1  # before the pop: drain() never sees an empty heap with a job still on its way
-                _t, _s, job = heapq.heappop(self.retries)
-            try:
-                if job.recheck(self.db):
-                    job.run_retry(self)
-            except Exception:  # noqa: BLE001
-                log.exception("e-mail retry failed")
-            finally:
-                with self.lock:
-                    self.inflight -= 1
-
-    def drain(self, timeout: float = 10.0) -> bool:
-        """Wait until nothing is queued, in flight or due (jobs scheduled for later do not count)."""
-        end = time.monotonic() + timeout
-        while True:
-            with self.lock:
-                due = bool(self.retries) and self.retries[0][0] <= time.monotonic()
-                idle = self.q.unfinished_tasks == 0 and self.inflight == 0 and not due
-            if idle:
-                return True
-            if time.monotonic() >= end:
-                return False
-            time.sleep(0.02)
-
-    def stop(self) -> None:
-        self.stop_evt.set()
-        self._wake()
-        if self.thread is not threading.current_thread():
-            self.thread.join(timeout=3.0)
+    def _job_failed(self, job: Any) -> None:
+        log.exception("e-mail retry failed")
 
 
 _WORKER: EmailWorker | None = None

@@ -57,6 +57,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..db import Database, new_id, now_iso
 from ..rbac import Principal
+from .delayed_worker import heap_wait, wait_idle
 
 log = logging.getLogger("smplwise.push")
 
@@ -731,14 +732,10 @@ class PushNotifier:
         the configuration) and `run_retry(notifier) -> None` (one more attempt, which may `schedule` again)."""
         heapq.heappush(self.retries, (time.monotonic() + delay, next(self.seq), job))
 
-    def _due(self) -> float | None:
-        return self.retries[0][0] - time.monotonic() if self.retries else None
-
     def _loop(self) -> None:
         while not self.stop_evt.is_set():
-            wait = self._due()
             try:
-                item = self.q.get(timeout=max(0.0, min(wait, 1.0)) if wait is not None else 1.0)
+                item = self.q.get(timeout=heap_wait(self.retries))  # CR-SENDER-WORKER: until the first retry is due, at most 1 s
             except queue.Empty:
                 item = None
             if self.stop_evt.is_set():
@@ -816,12 +813,10 @@ class PushNotifier:
     def drain(self, timeout: float = 5.0, retries: bool = True) -> bool:
         """Wait until nothing is queued or in flight (and, with `retries`, nothing waits in the retry heap); returns
         whether that happened within `timeout`. The notification outbox counts as queued work while the worker runs."""
-        deadline = time.monotonic() + timeout
-        while self.q.unfinished_tasks or self.inflight or self.dirty or (retries and self.retries) or (self.running and self.outbox_pending()):
-            if time.monotonic() >= deadline:
-                return False
-            time.sleep(0.02)
-        return True
+        def idle() -> bool:
+            return not (self.q.unfinished_tasks or self.inflight or self.dirty or (retries and self.retries) or (self.running and self.outbox_pending()))
+
+        return wait_idle(idle, timeout)  # CR-SENDER-WORKER: the shared 20 ms poll
 
 
 _LIVE: "weakref.WeakSet[PushNotifier]" = weakref.WeakSet()  # every running notifier (the app's NOTIFIER, and a private one a test or tool starts)
