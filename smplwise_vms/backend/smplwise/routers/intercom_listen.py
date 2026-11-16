@@ -43,7 +43,7 @@ from ..services import wiskey_listen_adapter as adapter
 from ..services.leases import CameraLease
 from ._common import raw_body as _raw_body, rid as _rid
 from . import media
-from .intercom_media import CALL, MAX_STATION_ID, READ, _gate, _served_station, _visible_station
+from .intercom_media import CALL, MAX_STATION_ID, READ, _gate, _served_station, _visible_station, run_until_first
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom.listen")
@@ -243,27 +243,7 @@ async def _pump(websocket: WebSocket, s: il.ListenSession, channel: adapter.List
                 return "access_lost"
 
     tasks = [asyncio.create_task(to_browser()), asyncio.create_task(from_browser()), asyncio.create_task(watch())]
-    try:
-        done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            if task.exception() is not None:
-                log.warning("listen session %s ended by an error: %s", s.ref, type(task.exception()).__name__)
-                return "upstream_closed"
-            return task.result()
-        return "ended"
-    finally:
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-        joined = asyncio.gather(*tasks, return_exceptions=True)
-        cancelled = False
-        while not joined.done():
-            try:
-                await asyncio.shield(joined)
-            except asyncio.CancelledError:
-                cancelled = True
-        if cancelled:
-            raise asyncio.CancelledError
+    return await run_until_first(tasks, what="listen", ref=s.ref, log=log)
 
 
 
