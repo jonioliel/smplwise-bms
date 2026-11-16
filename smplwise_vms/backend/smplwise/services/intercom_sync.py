@@ -77,6 +77,7 @@ from typing import Any, Awaitable, Callable
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
+from ..test_reset import register_reset
 from . import ha_client, intercom_client, loop_thread_stop
 from .intercom_client import IntercomError
 
@@ -1971,3 +1972,19 @@ def lease_station_diff(before: list[Any], after: list[Any]) -> None:
 
 
 SYNC = IntercomSync()
+
+
+def reset_for_tests() -> None:
+    """The feed's STATE and its served copy back to idle - unless a feed a test started is still winding down (never pulled
+    from under it)."""
+    thread = SYNC.thread
+    if thread is not None and thread.is_alive():
+        return
+    STATE.reset()
+    with SYNC._cache_lock:
+        cached = SYNC._cache is not None
+    if cached:
+        SYNC._drop()
+
+
+register_reset(__name__, ("STATE", "SYNC"), reset_for_tests)

@@ -20,6 +20,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .config import Settings
+from .test_reset import register_reset
 
 PRIMARY = "nvr-1"
 # go2rtc's stream-name rule ([A-Za-z0-9_.-]) and never `ha_` (ADP section 3.1); ids are assigned by the server as `nvr-<n>`
@@ -50,6 +51,14 @@ def set_disabled(recorder_id: str, disabled: bool) -> None:
 # adapter built afterwards (no restart). Absent = the vendor's own default (Provision-ISR: `nvr_extra.writes_enabled`, else off;
 # Hikvision: on, as shipped since CR-020 S2).
 WRITES: dict[str, bool] = {}
+
+
+def reset_for_tests() -> None:
+    DISABLED.clear()
+    WRITES.clear()
+
+
+register_reset(__name__, ("DISABLED", "WRITES"), reset_for_tests)
 
 
 def writes_override(recorder_id: str | None) -> bool | None:

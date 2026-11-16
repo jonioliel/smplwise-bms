@@ -15,6 +15,7 @@ import logging
 from ..config import Settings
 from ..db import unlocked
 from ..routers.settings import read_settings
+from ..test_reset import register_reset
 from . import nvr, recordings
 from .timeutil import iso_utc, nvr_wall_to_utc, utc_to_nvr_wall, zone
 
@@ -132,6 +133,9 @@ def warm(db: Any, settings: Settings, force: bool = False) -> bool:
 def invalidate() -> None:
     with _lock:
         _cache.clear()
+
+
+register_reset(__name__, ("_cache",), invalidate)
 
 
 def build(settings: Settings, tz_name: str, cams: list[dict[str, Any]], now: dt.datetime) -> dict[str, Any]:

@@ -27,6 +27,7 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
+from ..test_reset import register_reset
 from . import ha_client, loop_thread_stop, site_location
 
 log = logging.getLogger("smplwise.ha")
@@ -148,6 +149,16 @@ class SyncState:
 
 
 STATE = SyncState()
+_LINK_AT_IMPORT = {k: STATE.__dict__.get(k) for k in ("connected", "disconnected_since")}
+
+
+def reset_link_for_tests() -> None:
+    """The link flag and its `disconnected_since` stamp back to their import-time values (bypassing `__setattr__`, which would
+    stamp a fresh "just lost" instant). Only the link: the counters and stamps of STATE are left to the tests that set them."""
+    STATE.__dict__.update(_LINK_AT_IMPORT)
+
+
+register_reset(__name__, ("STATE",), reset_link_for_tests)
 
 # HA1: a failed connect is classified into a stable code the UI turns into plain Hebrew. While it looks like a platform
 # restart (the core answers the websocket handshake with an HTTP error, refuses the port, or times out) the retry

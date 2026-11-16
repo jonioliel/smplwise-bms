@@ -19,6 +19,7 @@ import httpx
 
 from ..config import Settings
 from ..errors import ApiError
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.ha")
 
@@ -491,6 +492,9 @@ def reset_refusals() -> None:
     with _refusals_lock:
         _refusals.clear()
         _refusals_generation += 1
+
+
+register_reset(__name__, ("_refusals",), reset_refusals)
 
 
 def refusals_generation() -> int:
