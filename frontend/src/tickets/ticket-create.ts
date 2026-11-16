@@ -25,7 +25,7 @@ import { MAP_TEXT } from './map-text';
 import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations'; // CR-ORG-LOCATIONS: the location picker
 import { locationPicker } from './location-picker';
 import { OTHER, defaultPick, locationBody, otherTooLong } from './org-locations-model';
-import { lt } from './org-locations-text';
+import { loct } from './org-locations-text';
 
 /**
  * CR-038 `<ticket-create .open .meta mode="sheet|dialog">`: the create form (D22: a side sheet - the automation builder's 620 px sheet - or a
@@ -348,7 +348,7 @@ export class TicketCreate extends LitElement {
       <label class="fld"><span>${tt('fDescription')}</span>
         <textarea class="inp" maxlength="4000" data-create-description placeholder=${tt('fDescriptionPh')} .value=${this.description} @input=${(e: Event) => (this.description = (e.target as HTMLTextAreaElement).value)}></textarea></label>
       ${locationPicker({ ans: this.locs, pick: this.locPick, other: this.locOther, disabled: this.busy,
-        error: this.tried && otherTooLong(this.locPick, this.locOther) ? html`<span class="err" role="alert" data-create-location-err>${lt('err_too_long')}</span>` : nothing,
+        error: this.tried && otherTooLong(this.locPick, this.locOther) ? html`<span class="err" role="alert" data-create-location-err>${loct('err_too_long')}</span>` : nothing,
         onPick: (v) => { this.locTouched = true; this.locPick = v; }, onOther: (v) => { this.locTouched = true; this.locOther = v; } })}
       <div class="fld"><span>${tt('fPhotos')}</span>
         <div class="thumbs">

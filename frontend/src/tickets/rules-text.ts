@@ -4,6 +4,7 @@
  */
 import { hasNameTokens, tn } from './naming';
 import { ticketsLang } from './text';
+import { fillVars } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   tab: 'פתיחה אוטומטית',
@@ -164,6 +165,6 @@ export const RULES_TEXT_EN: Readonly<Record<RulesTextKey, string>> = en;
 
 export function rlt(key: RulesTextKey, vars?: Record<string, string | number>): string {
   const s = (ticketsLang() === 'en' ? en[key] : he[key]) ?? he[key];
-  const out = vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  const out = fillVars(s, vars);
   return hasNameTokens(out) ? tn(out) : out;
 }

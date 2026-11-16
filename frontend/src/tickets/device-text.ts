@@ -5,8 +5,7 @@
  * configured name (owner decision D33) with the SAME tokens as tt(): `{ticket}`, `{tickets}`, `{f:..|m:..}`. The default name is never
  * written here (tests/unit-tickets-device.spec.ts and the D33 lint fail when it is).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   tab: '{tickets}',
@@ -110,16 +109,13 @@ const en: Partial<Record<DeviceTextKey, string>> = {
   lp_menu: 'Short menu',
 };
 
-export function deviceTemplate(key: DeviceTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<DeviceTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const deviceTemplate = catalogue.template;
 
 /** A text of the device integration: the template in the document's language, the module's name rendered (D33), then `{var}`s. */
-export function dt(key: DeviceTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(deviceTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const dt = catalogue.t;
 
-export const DEVICE_TEXT_KEYS = Object.keys(he) as DeviceTextKey[];
-export const DEVICE_TEXT_EN_KEYS = Object.keys(en) as DeviceTextKey[];
+export const DEVICE_TEXT_KEYS = catalogue.KEYS;
+export const DEVICE_TEXT_EN_KEYS = catalogue.EN_KEYS;

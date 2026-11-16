@@ -20,7 +20,7 @@ import '../tickets/settings-costs'; // slice 9b: costs (11A.14)
 import '../tickets/settings-locations'; // CR-ORG-LOCATIONS: the organisation's locations
 import '../tickets/settings-rules'; // TKRULES-291: tickets opened automatically from alerts
 import { rlt } from '../tickets/rules-text';
-import { lt } from '../tickets/org-locations-text';
+import { loct } from '../tickets/org-locations-text';
 import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
 import '../tickets/notify-matrix'; // TKNOTIFMATRIX: the notification matrix and the daily digest
 import '../tickets/settings-visits'; // VENDORARRIVAL126B-295: the vendor visits, the "I have arrived" tap and the missed-arrival detector
@@ -1082,7 +1082,7 @@ export class SystemTickets extends LitElement {
     // AUDIT30-C-TICKETS (#16, #18, Q11 option 1): the settings page is the one structure - sw-page (crumb, title, one sub line), the tabs as
     // the underline row of every settings page, the cards under it
     if (this.enabled === null) return html`<sw-page wide class="page" data-tickets-settings heading=${heading} crumbs="הגדרות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: lt('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), rules: rlt('tab'), permissions: tt('setTabPermissions') };
+    const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: loct('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), rules: rlt('tab'), permissions: tt('setTabPermissions') };
     const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
     const tabs = this.enabled ? html`<sw-tabs class="stabs" variant="underline" group-label=${heading} data-tickets-settings-tabs .items=${items} .active=${this.tab}
       @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;

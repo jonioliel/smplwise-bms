@@ -8,7 +8,7 @@ import { bidi } from '../i18n/bidi';
 import type { TicketItem } from '../api/tickets';
 import { sentenceFor, type ViewerRole } from './status-sentence';
 import { tIcon } from './icons';
-import { calName, ct } from './calendar-text';
+import { calName, calt } from './calendar-text';
 import {
   DEFAULT_TZ, addDays, dayNum, eventsOf, groupByDay, monthNum, nearestEventWeek, stepWeek, timeText, todayKey, toneOf, unscheduledCount, weekCount, weekKeys, weekStart, weekdayOf,
   type CalKind, type DaySegment,
@@ -493,7 +493,7 @@ export class TicketsCalendar extends LitElement {
     const role = this.roleOf(t);
     const sentence = sentenceFor(t, role, this.now);
     return html`<li><a class=${`ev tone-${tone}`} href=${this.hrefOf(t.id)} data-cal-event=${ev.kind} data-cal-tone=${tone} data-ticket=${t.id} aria-current=${String(this.openId === t.id)}>
-      <span class="top"><time datetime=${new Date(ev.startMs).toISOString()}>${timeText(ev.startMs, this.tz)}</time><span class="kind">${this.kindIcon(ev.kind)}${ct(`calK_${ev.kind}` as 'calK_visit')}</span></span>
+      <span class="top"><time datetime=${new Date(ev.startMs).toISOString()}>${timeText(ev.startMs, this.tz)}</time><span class="kind">${this.kindIcon(ev.kind)}${calt(`calK_${ev.kind}` as 'calK_visit')}</span></span>
       <b>${bidi(`#${t.number} ${t.title}`)}</b>
       <span class="sent" data-cal-sentence title=${sentence}>${sentence}</span>
       <ticket-elapsed .item=${t}></ticket-elapsed>
@@ -501,12 +501,12 @@ export class TicketsCalendar extends LitElement {
   }
 
   private dayList(list: DaySegment<TicketItem>[]): TemplateResult {
-    return list.length ? html`<ul class="evs">${list.map((s) => this.eventCard(s))}</ul>` : html`<span class="none" data-cal-day-empty>${ct('calDayEmpty')}</span>`;
+    return list.length ? html`<ul class="evs">${list.map((s) => this.eventCard(s))}</ul>` : html`<span class="none" data-cal-day-empty>${calt('calDayEmpty')}</span>`;
   }
 
   private legend(): TemplateResult {
-    const rows: [string, string][] = [['info', ct('calK_visit')], ['quiet', ct('calK_resolve')], ['warn', `${ct('calK_resolve')} < 24h`], ['bad', `${ct('calK_resolve')} !`]];
-    return html`<ul class="leg" aria-label=${ct('calLegend')} data-cal-legend>
+    const rows: [string, string][] = [['info', calt('calK_visit')], ['quiet', calt('calK_resolve')], ['warn', `${calt('calK_resolve')} < 24h`], ['bad', `${calt('calK_resolve')} !`]];
+    return html`<ul class="leg" aria-label=${calt('calLegend')} data-cal-legend>
       ${rows.map(([tone, text]) => html`<li class=${`tone-${tone}`}><i></i>${text}</li>`)}
     </ul>`;
   }
@@ -523,32 +523,32 @@ export class TicketsCalendar extends LitElement {
     const range = this.weekRange(start);
     const nearest = n === 0 ? nearestEventWeek(all, start, this.tz) : null;
     const empty = n === 0;
-    const label = ct('calWeekOf', range);
-    const countText = n === 0 ? ct('calCountNone') : n === 1 ? ct('calCountOne') : ct('calCount', { n });
+    const label = calt('calWeekOf', range);
+    const countText = n === 0 ? calt('calCountNone') : n === 1 ? calt('calCountOne') : calt('calCount', { n });
     const rtl = getComputedStyle(this).direction === "rtl";
-    const prev = this.phone ? ct('calPrevDay') : ct('calPrev');
-    const next = this.phone ? ct('calNextDay') : ct('calNext');
-    return html`<section class="cal" data-cal data-cal-mode=${this.phone ? 'day' : 'week'} aria-label=${ct('calGroup')} @keydown=${this.onKey}>
+    const prev = this.phone ? calt('calPrevDay') : calt('calPrev');
+    const next = this.phone ? calt('calNextDay') : calt('calNext');
+    return html`<section class="cal" data-cal data-cal-mode=${this.phone ? 'day' : 'week'} aria-label=${calt('calGroup')} @keydown=${this.onKey}>
       <div class="bar" data-cal-nav>
         <button type="button" class=${`step prev${rtl ? "" : " flip"}`} data-cal-prev aria-label=${prev} title=${prev} @click=${() => this.step(-1)}>${tIcon('back')}</button>
         <button type="button" class=${`step next${rtl ? " flip" : ""}`} data-cal-next aria-label=${next} title=${next} @click=${() => this.step(1)}>${tIcon('back')}</button>
-        <h2 data-cal-range aria-live="polite" aria-label=${ct('calWeekAria', range)}>${isolateRanges(label)}</h2>
-        <button type="button" class="btn sm today" data-cal-today title=${ct('calTodayJump')} aria-current=${anchor === today ? "date" : nothing} @click=${this.goToday}>${ct('calToday')}</button>
+        <h2 data-cal-range aria-live="polite" aria-label=${calt('calWeekAria', range)}>${isolateRanges(label)}</h2>
+        <button type="button" class="btn sm today" data-cal-today title=${calt('calTodayJump')} aria-current=${anchor === today ? "date" : nothing} @click=${this.goToday}>${calt('calToday')}</button>
         <span class="grow"></span>
         <span class="cnt" data-cal-count>${countText}</span>
       </div>
       ${this.legend()}
-      ${unsched ? html`<p class="note" data-cal-unscheduled>${unsched === 1 ? ct('calUnscheduledOne') : ct('calUnscheduled', { n: unsched })}</p>` : nothing}
+      ${unsched ? html`<p class="note" data-cal-unscheduled>${unsched === 1 ? calt('calUnscheduledOne') : calt('calUnscheduled', { n: unsched })}</p>` : nothing}
       ${this.phone ? this.dayMode(keys, by, anchor, today) : this.weekMode(keys, by, today)}
-      ${empty ? html`<div class="statebox glass" role="status" data-cal-state="empty"><span class="ring">${tIcon('clock')}</span><b>${this.items.length ? ct('calEmptyTitle') : ct('calEmptyAll')}</b>
-        ${nearest ? html`<button type="button" class="btn sm" data-cal-nearest @click=${() => (this.anchor = nearest)}>${ct('calJumpNearest')}</button>` : nothing}</div>` : nothing}
-      ${this.hasMore ? html`<div class="more"><button type="button" class="btn" data-cal-more ?disabled=${this.loadingMore} @click=${() => this.dispatchEvent(new CustomEvent('cal-load-more', { bubbles: true, composed: true }))}>${ct('calLoadMore')}</button></div>` : nothing}
+      ${empty ? html`<div class="statebox glass" role="status" data-cal-state="empty"><span class="ring">${tIcon('clock')}</span><b>${this.items.length ? calt('calEmptyTitle') : calt('calEmptyAll')}</b>
+        ${nearest ? html`<button type="button" class="btn sm" data-cal-nearest @click=${() => (this.anchor = nearest)}>${calt('calJumpNearest')}</button>` : nothing}</div>` : nothing}
+      ${this.hasMore ? html`<div class="more"><button type="button" class="btn" data-cal-more ?disabled=${this.loadingMore} @click=${() => this.dispatchEvent(new CustomEvent('cal-load-more', { bubbles: true, composed: true }))}>${calt('calLoadMore')}</button></div>` : nothing}
     </section>`;
   }
 
   private weekMode(keys: string[], by: Record<string, DaySegment<TicketItem>[]>, today: string): TemplateResult {
-    return html`<div class="week" data-cal-week role="group" aria-label=${ct('calDaysStrip')}>
-      ${keys.map((k) => html`<section class=${`day glass${k === today ? ' today' : ''}`} data-cal-day=${k} aria-label=${ct('calDayLabel', { day: this.dayName(k), date: this.dateLabel(k) })} aria-current=${k === today ? 'date' : 'false'}>
+    return html`<div class="week" data-cal-week role="group" aria-label=${calt('calDaysStrip')}>
+      ${keys.map((k) => html`<section class=${`day glass${k === today ? ' today' : ''}`} data-cal-day=${k} aria-label=${calt('calDayLabel', { day: this.dayName(k), date: this.dateLabel(k) })} aria-current=${k === today ? 'date' : 'false'}>
         <div class="dhd"><b>${dayNum(k)}</b><small>${this.dayName(k, true)}</small>${by[k].length ? html`<span class="n">${by[k].length}</span>` : nothing}</div>
         ${this.dayList(by[k])}
       </section>`)}
@@ -557,12 +557,12 @@ export class TicketsCalendar extends LitElement {
 
   private dayMode(keys: string[], by: Record<string, DaySegment<TicketItem>[]>, anchor: string, today: string): TemplateResult {
     const list = by[anchor] ?? [];
-    return html`<div class="strip" role="group" aria-label=${ct('calDaysStrip')} data-cal-nav data-cal-strip>
-        ${keys.map((k) => html`<button type="button" class=${`dbtn${k === today ? ' today' : ''}`} data-cal-pick=${k} aria-pressed=${String(k === anchor)} aria-label=${ct('calDayLabel', { day: this.dayName(k), date: this.dateLabel(k) })}
+    return html`<div class="strip" role="group" aria-label=${calt('calDaysStrip')} data-cal-nav data-cal-strip>
+        ${keys.map((k) => html`<button type="button" class=${`dbtn${k === today ? ' today' : ''}`} data-cal-pick=${k} aria-pressed=${String(k === anchor)} aria-label=${calt('calDayLabel', { day: this.dayName(k), date: this.dateLabel(k) })}
           @click=${() => (this.anchor = k)}><small>${this.dayName(k, true)}</small><b>${dayNum(k)}</b>${by[k].length ? html`<span class="dot" aria-hidden="true"></span>` : nothing}</button>`)}
       </div>
-      <div class="daybox glass" data-cal-day=${anchor} @touchstart=${this.onTouchStart} @touchend=${this.onTouchEnd} title=${ct('calSwipeHint')}>
-        <div class="dayhd"><h3>${ct('calDayLabel', { day: this.dayName(anchor), date: this.dateLabel(anchor) })}</h3><span class="cnt">${list.length ? ct('calDayCount', { n: list.length }) : ''}</span></div>
+      <div class="daybox glass" data-cal-day=${anchor} @touchstart=${this.onTouchStart} @touchend=${this.onTouchEnd} title=${calt('calSwipeHint')}>
+        <div class="dayhd"><h3>${calt('calDayLabel', { day: this.dayName(anchor), date: this.dateLabel(anchor) })}</h3><span class="cnt">${list.length ? calt('calDayCount', { n: list.length }) : ''}</span></div>
         ${this.dayList(list)}
       </div>`;
   }

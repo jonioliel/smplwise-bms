@@ -5,9 +5,8 @@
  * `{f:..|m:..}` for a word that agrees with the name's gender - read through `bt()`; the default name is never written here
  * (tests/unit-tickets-board.spec.ts fails when it is). Variables are `{name}`-style and are filled after the name tokens.
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
 import { NAV_BT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   tabBoard: NAV_BT.he.tabBoard,
@@ -206,16 +205,13 @@ const en: Partial<Record<BoardTextKey, string>> = {
 };
 
 /** The raw template of a key (the unit tests read it). */
-export function boardTemplate(key: BoardTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<BoardTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const boardTemplate = catalogue.template;
 
 /** A text of the board: the template in the document's language, the module's name rendered (D33), then `{var}`s. */
-export function bt(key: BoardTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(boardTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const bt = catalogue.t;
 
-export const BOARD_TEXT_KEYS = Object.keys(he) as BoardTextKey[];
-export const BOARD_TEXT_EN_KEYS = Object.keys(en) as BoardTextKey[];
+export const BOARD_TEXT_KEYS = catalogue.KEYS;
+export const BOARD_TEXT_EN_KEYS = catalogue.EN_KEYS;
