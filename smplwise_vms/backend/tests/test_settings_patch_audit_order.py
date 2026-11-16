@@ -255,3 +255,17 @@ def test_a_request_that_repeats_the_stored_values_writes_one_row(settings):
     assert rows[0]["details"] == rows[0]["details"] | {"security.local_public_url": ""}
     assert sorted(rows[0]["details"]) == sorted(["security.local_public_url", "update.apply_enabled", "tickets.enabled", "maintenance.enabled",
                                                  "docread.enabled", "emergency_readiness.enabled"])
+
+
+def test_the_table_names_declared_settings_and_no_prefix_twice():
+    """A dict keeps one handler per prefix: two groups naming the same prefix would silently drop a check."""
+    from smplwise.routers import settings_patch
+    from smplwise.routers.settings_patch import content, ui
+
+    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS)
+    declared = [f.alias for f in SettingsPatch.model_fields.values()]
+    for prefix in settings_patch.VALIDATORS:
+        assert any(alias.startswith(prefix) for alias in declared), prefix
+    checked = [name for name, _body, _status, _code in CHECKS]
+    table = [next(name for name in checked if name.startswith(prefix)) for prefix in settings_patch.VALIDATORS]
+    assert table == sorted(table, key=checked.index), "the table is in the order of the checks"

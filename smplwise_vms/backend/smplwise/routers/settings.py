@@ -15,13 +15,13 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, get_settings_many, set_setting  # noqa: F401 - get_settings_many: kept as this module's attribute (tests patch it)
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from . import ui_background
-from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, home_screen_options, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors, xs_options
+from . import settings_patch, ui_background
+from ..services import app_download, automation_settings, home_config, home_screen, nvr_capacity, dd_style
 # CR-SETTINGS-STORE-2436: the registry lives in services/settings_store.py; these names are re-exported so every caller
 # (`from ..routers.settings import read_settings, DEFAULTS, ...`) keeps working unchanged.
 from ..services.settings_store import (
     DEFAULTS,
-    SCHEDULE_CLASSES,
+    SCHEDULE_CLASSES,  # noqa: F401 - re-export
     INT_KEYS,  # noqa: F401 - re-export
     FROZEN_SKINS,
     FROZEN_FALLBACK_SKIN,  # noqa: F401 - re-export
@@ -35,7 +35,7 @@ from ..services.settings_store import (
     _stored_xs,  # noqa: F401 - re-export
     _stored_timeline_colors,  # noqa: F401 - re-export
     _stored_area_row,  # noqa: F401 - re-export
-    PLAN_SURFACES,
+    PLAN_SURFACES,  # noqa: F401 - re-export
     stored_plan_surfaces,  # noqa: F401 - re-export
     CLASSES_REV_KEY,
     stored_schedule_classes,  # noqa: F401 - re-export
@@ -47,7 +47,7 @@ from ..services.settings_store import (
     TABS_MAX_PER_LIST,  # noqa: F401 - re-export
     TABS_MAX_JSON,  # noqa: F401 - re-export
     _stored_tabs,  # noqa: F401 - re-export
-    normalize_tabs,
+    normalize_tabs,  # noqa: F401 - re-export
     NORMALISED_KEYS,  # noqa: F401 - re-export
     setting_value,  # noqa: F401 - re-export
 )
@@ -406,126 +406,8 @@ def _local_only_identity_key(conn: sqlite3.Connection, request: Request, princip
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     changes = {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None}
-    if "ui.design_names" in changes:
-        try:
-            names = json.loads(changes["ui.design_names"])
-            assert isinstance(names, dict) and set(names) <= {"a", "b"} and all(isinstance(v, str) and 1 <= len(v.strip()) <= 24 for v in names.values())
-        except (ValueError, AssertionError):
-            raise ApiError(422, "validation", "שמות העיצובים: אובייקט עם a ו־b, עד 24 תווים לכל שם.")
-        changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
-    if "ui.tabs" in changes:
-        changes["ui.tabs"] = normalize_tabs(changes["ui.tabs"])
-    if "ui.nav_size" in changes:
-        try:
-            changes["ui.nav_size"] = nav_size.normalize(changes["ui.nav_size"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "גודל הניווט: ערך לא תקין.", details={"ui.nav_size": str(exc)})
-    if "ui.look" in changes:
-        try:
-            changes["ui.look"] = look.normalize(changes["ui.look"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "מראה: ערך לא תקין.", details={"ui.look": str(exc)})
-    if "ui.palettes" in changes:
-        try:
-            changes["ui.palettes"] = palettes.normalize_customs(changes["ui.palettes"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", str(exc), details={"ui.palettes": str(exc)})
-    if "ui.tabs_mode_groups" in changes:
-        try:
-            changes["ui.tabs_mode_groups"] = tabs_mode.normalize_groups(changes["ui.tabs_mode_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "תצוגת לשוניות לפי קבוצה: ערך לא תקין.", details={"ui.tabs_mode_groups": str(exc)})
-    if "ui.dd_style_groups" in changes:
-        try:
-            changes["ui.dd_style_groups"] = dd_style.normalize_groups(changes["ui.dd_style_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "סגנון תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_style_groups": str(exc)})
-    if "ui.dd_size_groups" in changes:
-        try:
-            changes["ui.dd_size_groups"] = dd_style.normalize_size_groups(changes["ui.dd_size_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "גודל תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_size_groups": str(exc)})
-    if "ui.dd_ring_groups" in changes:
-        try:
-            changes["ui.dd_ring_groups"] = dd_style.normalize_ring_groups(changes["ui.dd_ring_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "עובי טבעת לפי קבוצה: ערך לא תקין.", details={"ui.dd_ring_groups": str(exc)})
-    if "ui.dd_panel_groups" in changes:
-        try:
-            changes["ui.dd_panel_groups"] = dd_style.normalize_panel_groups(changes["ui.dd_panel_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "רוחב לוח פתוח לפי קבוצה: ערך לא תקין.", details={"ui.dd_panel_groups": str(exc)})
-    if "ui.mobile" in changes:
-        try:
-            changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "אפשרויות נייד: ערך לא תקין.", details={"ui.mobile": str(exc)})
-    if "ui.xs" in changes:
-        try:
-            changes["ui.xs"] = xs_options.normalize(changes["ui.xs"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "אפשרויות חתך הבניין: ערך לא תקין.", details={"ui.xs": str(exc)})
-    if "timeline.colors" in changes:
-        try:
-            changes["timeline.colors"] = timeline_colors.normalize(changes["timeline.colors"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "צבעי ציר הזמן: ערך לא תקין.", details={"timeline.colors": str(exc)})
-    for key in brand_colors.KEYS:
-        if key in changes:
-            try:
-                changes[key] = brand_colors.normalize(changes[key], key)
-            except ValueError as exc:
-                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן, קוד ‎#rrggbb, ולמתג גם \"כמו הצבע הראשי\".", details={key: str(exc)})
-    if "devices.area_row" in changes:
-        try:
-            changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "מה מוצג ליד שם האזור: ערך לא תקין.", details={"devices.area_row": str(exc)})
-    if "devices.floor_row" in changes:
-        try:
-            changes["devices.floor_row"] = area_row.normalize_floor(changes["devices.floor_row"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "מה מוצג בכותרת הקומה: ערך לא תקין.", details={"devices.floor_row": str(exc)})
-    if "home.screen" in changes:
-        try:  # HOME-295: a partial update over the stored options (the defaults when nothing was saved)
-            changes["home.screen"] = home_screen_options.normalize(changes["home.screen"], home_screen_options.stored(get_setting(conn, "home.screen", "")))
-        except ValueError as exc:
-            raise ApiError(422, "validation", "אפשרויות המסך הראשי: ערך לא תקין.", details={"home.screen": str(exc)})
-    if "plan.surfaces" in changes:
-        bad = [c for c in changes["plan.surfaces"] if c not in PLAN_SURFACES]
-        if bad:
-            raise ApiError(422, "validation", "מיקומי התוכנית החיה: ערך לא מוכר.", details={"plan.surfaces": bad})
-        changes["plan.surfaces"] = [c for c in PLAN_SURFACES if c in changes["plan.surfaces"]]
-    if "plan.view" in changes:
-        try:  # a partial update over the stored dials (the defaults when nothing was saved)
-            changes["plan.view"] = plan_view.normalize_site(changes["plan.view"], plan_view.stored_site(get_setting(conn, "plan.view", DEFAULTS["plan.view"])))
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרות התלת־ממד הריאליסטי: ערך לא תקין.", details={"plan.view": str(exc)})
-    for key, limit in (("site.latitude", 90.0), ("site.longitude", 180.0)):  # CR-029 S2: degrees inside their range
-        if key in changes and changes[key] != "" and abs(float(changes[key])) > limit:
-            raise ApiError(422, "validation", "מיקום האתר: קו רוחב בין -90 ל-90, קו אורך בין -180 ל-180.", details={key: changes[key]})
-    if "plan.bakes" in changes:
-        try:  # a partial update over the stored value (the defaults when nothing was saved)
-            changes["plan.bakes"] = plan_bakes.normalize_setting(changes["plan.bakes"], plan_bakes.stored_setting(get_setting(conn, "plan.bakes", DEFAULTS["plan.bakes"])))
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרות התמונות המוכנות: ערך לא תקין.", details={"plan.bakes": str(exc)})
-    if "schedules.classes" in changes:
-        bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
-        if bad:
-            raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
-        changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
-    for key in automation_settings.JSON_KEYS:  # CR-017: validated in full before anything is stored
-        if key in changes:
-            try:
-                changes[key] = automation_settings.normalize(key, changes[key])
-            except ValueError as exc:
-                raise ApiError(422, "validation", "הגדרות האוטומציות: ערך לא תקין.", details={key: str(exc)})
-    if "multimedia.remote_default" in changes:
-        try:
-            changes["multimedia.remote_default"] = media_layout.normalise_remote_config(changes["multimedia.remote_default"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרת השלט: ערך לא תקין.", details={"multimedia.remote_default": str(exc)})
-    app_download.normalize(changes)
+    # CR-SETTINGS-PATCH-A-2440: the appearance and screen-content checks run from the table in routers/settings_patch (same order)
+    settings_patch.validate(settings_patch.Patch(conn, request, principal, changes))
     disarm_confirm = changes.pop("schedules.allow_disarm_confirm", None)
     disarm_change = None
     if "schedules.allow_disarm" in changes:
