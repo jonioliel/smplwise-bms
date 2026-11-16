@@ -102,7 +102,7 @@ def test_a_stop_reason_wins_over_a_plain_disconnect_when_both_finish_together():
 
 def test_a_raising_task_is_upstream_closed_and_logged_with_its_type_only(caplog):
     async def boom() -> str:
-        raise ConnectionResetError("peer 10.0.0.7 reset")
+        raise ConnectionResetError("peer 192.0.2.7 reset")
 
     async def main():
         flags: list = []

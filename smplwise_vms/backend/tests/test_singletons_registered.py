@@ -13,6 +13,7 @@ import dataclasses
 import enum
 import importlib
 import pkgutil
+import sys
 from pathlib import Path
 
 import smplwise
@@ -75,7 +76,12 @@ def test_every_module_level_singleton_is_registered_or_recorded():
     assert not missing, (
         "module-level singletons without a per-test reset: register one with smplwise.test_reset.register_reset(__name__, "
         "(names), reset), or record the name in tests/singletons_unregistered.txt:\n  " + "\n  ".join(missing))
-    stale = sorted((listed - found) | (listed & registered))
+    # a listed name is stale when it is registered now or when the NAME is gone. It is not stale while the name is still bound
+    # but to an object this walk does not count: start-up replaces tickets.external.DISPATCH by the outbox dispatcher (a class
+    # of another module), so `found` depends on whether an application was built earlier in the process, and a singleton of a
+    # shared class (the three health pollers, a PeriodicWorker each) is never in `found` (CR-W3-BE-COMBINED-2441)
+    gone = {n for n in listed - found if not hasattr(sys.modules.get(n.rpartition(".")[0]), n.rpartition(".")[2])}
+    stale = sorted(gone | (listed & registered))
     assert not stale, "tests/singletons_unregistered.txt entries that are registered now or no longer exist:\n  " + "\n  ".join(stale)
 
 

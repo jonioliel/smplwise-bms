@@ -48,6 +48,7 @@ PARTS = (access_directory.router, access_roles.router, access_bindings.router, a
 router = APIRouter()
 for _part in PARTS:
     router.include_router(_part)
+del _part  # (the loop name must not stay bound: a module walk would read the last part's router as this module's)
 
 __all__ = [
     "BindingBody", "CustomRoleBody", "CustomRolePatch", "DEFAULT_DELEGABLE", "DELEGATION_RULES", "DelegationBody", "LOCAL_DENY_HE",

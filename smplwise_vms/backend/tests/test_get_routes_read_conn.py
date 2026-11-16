@@ -52,11 +52,15 @@ def _allowlist() -> dict[str, str]:
     return out
 
 
-def _reaches_write_conn(dependant) -> bool:
+def _reaches(dependant, target) -> bool:
     for dep in dependant.dependencies:
-        if dep.call is auth.get_conn or _reaches_write_conn(dep):
+        if dep.call is target or _reaches(dep, target):
             return True
     return False
+
+
+def _reaches_write_conn(dependant) -> bool:
+    return _reaches(dependant, auth.get_conn)
 
 
 def _router_modules() -> list[str]:
@@ -80,7 +84,7 @@ def _get_routes() -> list[tuple[str, APIRoute]]:
             seen.append(value)
             for r in value.routes:
                 if isinstance(r, APIRoute) and "GET" in r.methods and r.endpoint.__module__ == mod.__name__:
-                    out.append((f"GET {API}{value.prefix}{r.path}", r))
+                    out.append((f"GET {API}{r.path}", r))  # (r.path already carries the router's own prefix)
     return out
 
 
@@ -117,10 +121,26 @@ def _concrete(route: APIRoute) -> str:
 AUDITS_ON_SUCCESS = {
     f"GET {API}/intercom/diagnostics",  # intercom.diagnostics.read
     f"GET {API}/identity/local-users/export",  # identity.local.user.exported
+    # in scope since CR-READCONN-B-2440 widened this file to every router (they were on the read connection before it):
+    f"GET {API}/access-grants/export.csv",  # access.grant.export
+    f"GET {API}/access-control/diag/stations/{{station_id}}/permission-audit",  # the diagnostics audit row
+    f"GET {API}/fleet/report/enrollment",  # fleet.enrollment.read
+}
+# Read routes that write one row aside IN THIS FIXTURE (an empty installation, HA not configured, ids that do not exist) - the
+# same short side transaction, so the same treatment: no held lock, still no write connection of their own. Recorded by a sweep
+# of all converted routes under a held lock (CR-W3-BE-COMBINED-2441); none of them was changed by that branch.
+WRITES_ASIDE_HERE = {
+    f"GET {API}/access-control/people/{{person_id}}/messages",  # the refusal's audit row (messaging: the person is not found)
+    f"GET {API}/compliance/access/matrix",  # the refusal's audit row (the export is switched off)
+    f"GET {API}/compliance/access/matrix.csv",  # the same
+    f"GET {API}/frigate/{{recorder_id}}/cameras/{{camera_id}}/ptz",  # the refusal's audit row (rbac.require on an unknown camera)
+    f"GET {API}/push/vapid-key",  # the key pair is created on the first call (db.write_aside)
 }
 
 _ALLOW = _allowlist()
-_CONVERTED = [(key, _concrete(r)) for key, r in _get_routes() if key not in _ALLOW]
+# the behaviour check is about the request's READ connection: a GET route that takes neither request connection (a public
+# route with a short labelled connection of its own, a route that reads no database) has nothing to convert and is not walked
+_CONVERTED = [(key, _concrete(r)) for key, r in _get_routes() if key not in _ALLOW and _reaches(r.dependant, auth.get_read_conn)]
 
 
 @pytest.mark.parametrize(("key", "url"), _CONVERTED, ids=[k for k, _ in _CONVERTED])
@@ -144,7 +164,7 @@ def test_converted_get_answers_while_the_write_lock_is_held(settings, monkeypatc
         opened.append((mode, label))
         return original(self, mode=mode, label=label, durable=durable)
 
-    hold = key not in AUDITS_ON_SUCCESS
+    hold = key not in AUDITS_ON_SUCCESS and key not in WRITES_ASIDE_HERE
     held, release = threading.Event(), threading.Event()
 
     def writer():
@@ -165,7 +185,9 @@ def test_converted_get_answers_while_the_write_lock_is_held(settings, monkeypatc
         release.set()
         if hold:
             t.join(30)
-    own = [m for m, label in opened if label == f"GET {url}"]
+    # the label carries the route template in place of the path parameters (auth.conn_label, CR-BRIDGE-PREVERIFY-2440); a route
+    # without parameters is labelled with the request path, which is the same text
+    own = [m for m, label in opened if label in (key, f"GET {url}")]
     assert own, f"{key}: the request opened no labelled request connection (the recorder missed it)"
     assert "write" not in own, f"{key} opened a WRITE request connection (auth.get_conn): {own}"
     assert r.status_code != 500, f"{key} -> {r.status_code}: {r.text[:300]}"

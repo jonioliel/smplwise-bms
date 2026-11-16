@@ -83,6 +83,7 @@ PARTS = (access_control_entry.router, access_control_stills.router, access_contr
 router = APIRouter()
 for _part in PARTS:
     router.include_router(_part)
+del _part  # (the loop name must not stay bound: a module walk would read the last part's router as this module's)
 
 __all__ = [
     "PARTS", "CALL_LIMIT_S", "CAPTURE", "CAPTURE_NOTE", "COMMAND_ID", "CREDENTIALS", "CallBody", "CaptureCancelBody", "CaptureConfirmBody", "CaptureStartBody",

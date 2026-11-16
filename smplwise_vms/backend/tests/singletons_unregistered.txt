@@ -5,7 +5,7 @@
 # that use them; moving such a fixture to a registered reset removes the line here.
 # Recorded on 2026-11-16 from origin/pilot/CR-WAVE2-COMBINED-2439 (97080bbc4): 116 names.
 
-smplwise.routers.access_control.RELAYS
+smplwise.routers.access_control_command.RELAYS
 smplwise.routers.calendar_feeds._FILTER
 smplwise.routers.frames.MEMO
 smplwise.routers.media.REGISTRY

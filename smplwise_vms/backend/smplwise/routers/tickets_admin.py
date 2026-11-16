@@ -51,6 +51,7 @@ PARTS = (tickets_admin_settings.router, tickets_admin_departments.router, ticket
 router = APIRouter()
 for _part in PARTS:
     router.include_router(_part)
+del _part  # (the loop name must not stay bound: a module walk would read the last part's router as this module's)
 
 __all__ = [
     "BudgetsPatch", "COLOR", "CategoryBody", "CodePatch", "CostsPatch", "DOMAIN", "DepartmentBody", "DepartmentLocationBody", "DirectoryPatch",

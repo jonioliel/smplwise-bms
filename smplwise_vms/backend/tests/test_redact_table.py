@@ -15,7 +15,7 @@ from smplwise.services.skins import provider as skin_provider
 from smplwise.services.tickets import contacts as tk_contacts
 
 NVR = "rtsp://admin:s3cret@nvr.local:554/Streaming/Channels/401"
-HA = "rtsp://gate-user:pw@10.1.2.3:8554/live?token=abc"
+HA = "rtsp://gate-user:pw@192.0.2.3:8554/live?token=abc"
 
 # ---------------------------------------------------------------- credentials in URLs
 URL_USERINFO = [
@@ -37,7 +37,7 @@ URL_SCHEME_ONLY = [
 ]
 SOURCE_BY_NAME = [
     ("smplwise_ha_front_door", HA, "rtsp://***"),
-    ("smplwise_cam_1", "rtsp://u:p@10.0.0.9/s?key=1", "rtsp://***"),
+    ("smplwise_cam_1", "rtsp://u:p@192.0.2.9/s?key=1", "rtsp://***"),
     ("smplwise_wiskey_st1", "rtsp://u:p@192.0.2.7:554/Streaming/Channels/101", "rtsp://***/Streaming/Channels/101"),
     ("smplwise_wiskey_st1", "no-scheme", "no-scheme"),
     ("smplwise_nvr-1_ch1_sub", "rtsp://u:p@nvr.local/x", "rtsp://***@nvr.local/x"),

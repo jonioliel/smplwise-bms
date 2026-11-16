@@ -21,6 +21,15 @@ MOUNTS = [e for e in ROUTERS if isinstance(e, Mount)]
 # routers that another router includes (routers/wiskey_installer.py), so the table mounts their parent only
 NESTED = {("wiskey_installer_clock", "router"), ("wiskey_installer_technical", "router"), ("wiskey_installer_lifecycle", "router"),
           ("wiskey_installer_platform", "router")}
+# the parts of the three split routers (CR-SPLIT-ACCESS-2440, CR-SPLIT-ACCESS-CONTROL-2440, CR-SPLIT-TICKETS-ADMIN-2440): the table
+# mounts the re-export module, whose `router` includes the parts in the old route order (its `PARTS`)
+SPLIT_PARTS = {
+    "access": ("access_directory", "access_roles", "access_bindings", "access_audit", "access_custom_roles"),
+    "access_control": ("access_control_entry", "access_control_stills", "access_control_credentials", "access_control_door",
+                       "access_control_calls", "access_control_people", "access_control_capture", "access_control_ws"),
+    "tickets_admin": ("tickets_admin_settings", "tickets_admin_departments", "tickets_admin_catalogue", "tickets_admin_people",
+                      "tickets_admin_locations"),
+}
 
 
 def _index(module: str, attr: str = "router") -> int:
@@ -50,7 +59,12 @@ def test_every_api_router_is_mounted_exactly_once():
         objects.setdefault(id(getattr(routers_pkg.load(module), attr)), []).append((module, attr))
     assert all(len(v) == 1 for v in objects.values()), [v for v in objects.values() if len(v) > 1]
     unmounted = {(m, a) for m, a in declared if id(getattr(routers_pkg.load(m), a)) not in objects}
-    assert unmounted == NESTED, f"a router that the table does not mount: {sorted(unmounted - NESTED)}"
+    parts = {(m, "router") for names in SPLIT_PARTS.values() for m in names}
+    assert unmounted == NESTED | parts, f"a router that the table does not mount: {sorted(unmounted - NESTED - parts)}"
+    for parent_name, names in SPLIT_PARTS.items():
+        assert (parent_name, "router") in mounted, parent_name
+        included = [id(r) for r in routers_pkg.load(parent_name).PARTS]
+        assert included == [id(routers_pkg.load(m).router) for m in names], f"{parent_name}.PARTS is the parts, in the old order"
     parent = (PKG / "wiskey_installer.py").read_text(encoding="utf-8")
     assert all(f"router.include_router({m}.router)" in parent for m, _ in NESTED), "each nested router is included by its parent"
 
