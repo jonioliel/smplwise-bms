@@ -25,9 +25,12 @@ ZONE_KEY = "time.zone"
 
 
 def zone(name: str) -> ZoneInfo:
+    """The IANA zone of that name; an unknown, malformed or unusable name is DEFAULT_ZONE. OSError (CR-W2-FOLLOWUPS-2441, lead
+    decision 14.11): a name that is a tzdata DIRECTORY ("Asia") is not "not found" for zoneinfo - opening it raises
+    PermissionError / IsADirectoryError, which went up to the caller as a 500."""
     try:
         return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
+    except (ZoneInfoNotFoundError, ValueError, OSError):
         return ZoneInfo(DEFAULT_ZONE)
 
 
