@@ -9,7 +9,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from ..db import get_setting, set_setting
+from ..db import get_setting
 from ..errors import ApiError
 from . import energy_settings as es
 
@@ -51,9 +51,7 @@ def validate(key: str, raw: Any) -> str:
     return es.validate_spec(spec, key, raw)
 
 
-def store(conn: sqlite3.Connection, changes: dict[str, str]) -> None:
-    for key, text in changes.items():
-        set_setting(conn, key, text)
+store = es.store  # CR-BE-TWINS-2440 (review 04:F20): the same loop over `set_setting`
 
 
 def ranges() -> dict[str, dict[str, Any]]:

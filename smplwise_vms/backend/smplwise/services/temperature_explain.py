@@ -26,7 +26,7 @@ import statistics
 from typing import Any
 
 from . import temperature as t
-from .timeutil import iso_from_epoch, parse_utc
+from .timeutil import epoch_or_none, iso_from_epoch
 
 NEIGHBORS_MAX = 12
 EXPLAIN_KINDS = ("high", "low")
@@ -196,13 +196,7 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
 
 # ---------------------------------------------------------------- the loader
 
-def _ts(iso: str | None) -> float | None:
-    if not iso:
-        return None
-    try:
-        return parse_utc(iso).timestamp()
-    except (ValueError, TypeError):
-        return None
+_ts = epoch_or_none  # CR-BE-TWINS-2440 (review 04:F20): was one of three identical copies
 
 
 def _points(conn: sqlite3.Connection, unit_id: str, lo: float, hi: float) -> list[tuple[float, float, int, float | None, float | None]]:

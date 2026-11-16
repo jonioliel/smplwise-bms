@@ -38,7 +38,7 @@ VACUUM_EVERY_S = 7 * 86400
 def _connected() -> bool:
     from . import ha_sync
 
-    return bool(ha_sync.STATE.connected)
+    return ha_sync.connected()
 
 
 def tick(db: Database, settings: Settings, now: float | None = None, *, require_connection: bool = True) -> dict[str, Any]:

@@ -652,6 +652,13 @@ def on_state_changed(db: Database, data: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def connected() -> bool:
+    """Is the Home Assistant feed connected right now? The one answer behind `elevators.mirror_connected`, `temperature.mirror_connected`,
+    `messaging_runtime.ws_connected` and the samplers' `_connected` (CR-BE-TWINS-2440, review 04:F20): those names stay in their
+    modules (tests replace them there) and all read this."""
+    return bool(STATE.connected)
+
+
 def _note_connect_gap(db: Database) -> None:
     """DEVHIST: the activity log was not fed between the last state the mirror had seen and this connection."""
     from . import device_activity
@@ -660,6 +667,7 @@ def _note_connect_gap(db: Database) -> None:
         with db.connection(mode="read") as conn:
             last = conn.execute("SELECT MAX(state_seen_at) FROM ha_entities").fetchone()[0]
     except Exception:  # noqa: BLE001
+        log.debug("connect gap: the last seen state could not be read", exc_info=True)  # review 04:F27: the one broad handler here that left no trace
         last = None
     device_activity.note_connect(db, last)
     from . import ha_history

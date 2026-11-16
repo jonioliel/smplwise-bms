@@ -22,6 +22,7 @@ from typing import Any
 
 from ..audit import audit
 from ..db import now_iso
+from ..errors import ServiceInvalid
 from . import notify_policy
 from . import notify_recipients
 
@@ -49,9 +50,11 @@ ESCALATION_DEFAULT: dict[str, Any] = {
 }
 
 
-class AlertsInvalid(ValueError):
+class AlertsInvalid(ServiceInvalid):
+    """CR-BE-TWINS-2440 (T7, review 04:F16): on the common base; the constructor, the attributes and `str()` are as before."""
+
     def __init__(self, code: str, message: str, message_en: str, details: dict[str, Any] | None = None) -> None:
-        super().__init__(code)
+        ValueError.__init__(self, code)
         self.code, self.message, self.message_en, self.details = code, message, message_en, details or {}
 
 
@@ -59,9 +62,7 @@ def default_settings() -> dict[str, Any]:
     return {"kinds": copy.deepcopy(DEFAULTS), "escalation": copy.deepcopy(ESCALATION_DEFAULT), "row_version": 0}
 
 
-def _rec_of(rec: Any) -> dict[str, list[str]]:
-    rec = rec if isinstance(rec, dict) else {}
-    return {x: [y for y in (rec.get(x) or []) if isinstance(y, str)] for x in ("roles", "users", "groups")}
+_rec_of = notify_recipients.as_lists  # CR-BE-TWINS-2440 (review 04:F20): was one of two identical copies
 
 
 def _escalation_of(raw: Any) -> dict[str, Any]:

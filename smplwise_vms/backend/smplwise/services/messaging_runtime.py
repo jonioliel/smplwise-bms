@@ -129,7 +129,7 @@ def store_doc(conn: sqlite3.Connection, doc: ma.MappingDoc) -> None:
 def ws_connected() -> bool:
     from . import ha_sync
 
-    return bool(ha_sync.STATE.connected)
+    return ha_sync.connected()
 
 
 def _ws(ws: Callable[[], bool] | None) -> Callable[[], bool]:
