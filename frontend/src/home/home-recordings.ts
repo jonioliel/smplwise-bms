@@ -31,6 +31,8 @@ interface PbState {
 
 const st: PbState = { cam: '', back: 0, t: 12 * 60, play: false, session: null, spans: [], events: [], tz: 'Asia/Jerusalem', loading: false, note: '', seq: 0 };
 let tick = 0;
+/** FE-LEAK-TEXTKEY-2435: bumped by stop(); a play that was in flight when the screen left closes the session it got and does not start the clock. */
+let gen = 0;
 
 function dateOf(back: number): string {
   return dateInZone(new Date(Date.now() - back * 86_400_000), st.tz);
@@ -42,7 +44,9 @@ export function playbackHref(camera: string, at?: Date): string {
 }
 
 async function stop(h: HomeHost) {
+  gen++;
   window.clearInterval(tick);
+  tick = 0;
   const s = st.session;
   st.session = null;
   st.play = false;
@@ -86,8 +90,15 @@ async function playAt(h: HomeHost, minute: number) {
   st.t = Math.max(0, Math.min(1439.99, minute));
   const at = instantInZone(dateOf(st.back), st.t, st.tz).toISOString().replace(/\.\d{3}Z$/, 'Z');
   st.note = '';
+  const g = gen;
+  const was = st.session?.id;
   try {
-    st.session = st.session ? await seekPlayback(st.session.id, at) : await createPlayback(st.cam, at);
+    const got = st.session ? await seekPlayback(st.session.id, at) : await createPlayback(st.cam, at);
+    if (g !== gen) {
+      if (got.id !== was) await closePlayback(got.id).catch(() => undefined);
+      return;
+    }
+    st.session = got;
     const real = st.session.actual_start_at;
     if (real && dateInZone(new Date(real), st.tz) === dateOf(st.back)) st.t = minuteInZone(new Date(real), st.tz);
     st.play = true;
@@ -98,6 +109,7 @@ async function playAt(h: HomeHost, minute: number) {
       h.requestUpdate();
     }, 1000);
   } catch (err) {
+    if (g !== gen) return;
     st.play = false;
     st.note = playbackError(err instanceof ApiError ? (err.status === 403 ? 'forbidden' : err.code) : undefined);
     if (st.session && err instanceof ApiError && err.code === 'session_over') st.session = null;
@@ -146,7 +158,7 @@ registerScreen((h: HomeHost) => ({
     if (!cam) return;
     if (cam !== st.cam || at) setCam(h, cam);
     else void loadDay(h);
-    if (at) window.setTimeout(() => void playAt(h, st.t), 0);
+    if (at) { const g = gen; window.setTimeout(() => { if (g === gen) void playAt(h, st.t); }, 0); }
   },
   leave() {
     void stop(h);

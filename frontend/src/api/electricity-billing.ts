@@ -843,6 +843,17 @@ export function elecErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 export const elecErrorCode = (err: unknown): string => (err instanceof ApiError ? err.body.code : '');
+/** FE-LEAK-TEXTKEY-2435: the server (or the demo store) refused for lack of permission - read from the HTTP status and the
+ * error code, never from the wording of the message. */
+export const elecForbidden = (err: unknown): boolean => err instanceof ApiError && (err.status === 403 || err.body.code === 'forbidden');
+/** FE-LEAK-TEXTKEY-2435: a refused new customer whose problem is the customer number (its error code, or the field the
+ * server names in `details.fields`), so the wizard shows the message under that field and not under the name. */
+export function elecCustomerNumberError(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  if (err.body.code.startsWith('customer_number')) return true;
+  const f = err.body.details?.fields as unknown;
+  return Array.isArray(f) ? f.includes('customer_number') : !!f && typeof f === 'object' && 'customer_number' in f;
+}
 /** `details.fields` of a 422 validation error: field name -> message */
 export function elecFieldErrors(err: unknown): Record<string, string> {
   if (!(err instanceof ApiError)) return {};

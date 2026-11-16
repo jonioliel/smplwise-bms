@@ -6,7 +6,7 @@
  */
 import { html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { elec, elecErrorText, elecToday, type CalendarDay, type CalendarYear } from '../api/electricity-billing';
+import { elec, elecErrorText, elecForbidden, elecToday, type CalendarDay, type CalendarYear } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import { fmtDate, isIsoDate } from './elec-format';
@@ -42,7 +42,7 @@ export class ElecSettingsCalendar extends ElecBase {
       this.st = 'ready';
     } catch (e) {
       this.error = elecErrorText(e);
-      this.st = /הרשאה/.test(this.error) ? 'forbidden' : 'error';
+      this.st = elecForbidden(e) ? 'forbidden' : 'error';
     }
   }
   private setYear(y: number) {

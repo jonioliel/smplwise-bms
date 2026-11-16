@@ -134,6 +134,7 @@ export class SwHome extends LitElement {
   private swipe: { x: number; y: number } | null = null;
   private down = { x: 0, y: 0 };
   private saveT = 0;
+  private pendingFavs: (() => void) | null = null;
   private lastRoute = '';
   /** HOME-V3-P1-2430: the registered v3 screens (home-ext.ts) */
   readonly ext: HomeScreen[] = buildScreens(this);
@@ -159,6 +160,15 @@ export class SwHome extends LitElement {
     window.removeEventListener('resize', this.onResize);
     window.clearInterval(this.clockT);
     this.stopHa?.();
+    this.stopHa = null;
+    // FE-LEAK-TEXTKEY-2435: the active v3 screen gives back what it holds (a playing recording closes its server playback session
+    // and stops its 1 s clock), and no timer of this element fires on a detached host. A pending favourites save is sent now
+    // instead of being dropped.
+    this.extFor(this.extRoute)?.leave?.();
+    this.p3.dispose();
+    for (const t of [this.refreshT, this.toastT, this.armT, this.holdT]) window.clearTimeout(t);
+    this.refreshT = this.toastT = this.armT = this.holdT = this.clockT = 0;
+    this.flushFavs();
   }
 
   private onResize = () => {
@@ -184,6 +194,7 @@ export class SwHome extends LitElement {
           mods.has('energy') ? loadEnergy() : Promise.resolve(null),
         ]);
         this.data = { ...this.data, scenes, alerts, energy };
+        if (!this.isConnected) return; // FE-LEAK-TEXTKEY-2435: left the page while loading - start nothing (a reconnect loads again)
         const rt = this.route();
         this.extFor(rt.name)?.enter?.(rt.name, rt.arg); // HOME-V3-P1-2430: a deep link into a v3 screen loads its data once the home is known
         if (mods.has('security') && canAnywhere('alarm.view')) void this.loadPanels();
@@ -270,7 +281,17 @@ export class SwHome extends LitElement {
   private saveFavs(key: string, list: Fav[]) {
     this.prefs = { ...this.prefs, favourites: { ...this.prefs.favourites, [key]: list } };
     window.clearTimeout(this.saveT);
-    this.saveT = window.setTimeout(() => void putHomePrefs({ favourites: { [key]: list } }).catch((err) => this.toast(describeError(err))), 400);
+    this.pendingFavs = () => void putHomePrefs({ favourites: { [key]: list } }).catch((err) => { if (this.isConnected) this.toast(describeError(err)); });
+    this.saveT = window.setTimeout(() => this.flushFavs(), 400);
+  }
+
+  /** Sends a debounced favourites save at once (the timer fired, or the element is leaving the page). */
+  private flushFavs() {
+    window.clearTimeout(this.saveT);
+    this.saveT = 0;
+    const send = this.pendingFavs;
+    this.pendingFavs = null;
+    send?.();
   }
 
   // ---------------------------------------------------------------- routing
