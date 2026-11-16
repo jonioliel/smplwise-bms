@@ -8,6 +8,7 @@
  */
 import { ApiError, api, apiUrl, get, post, put } from './client';
 import { commandId } from './request-id';
+import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 
 /** A display zone as WisKey sends it (time.ts `DisplayZone`): an IANA zone, or a device's own DST rule. */
 export type DisplayZone =
@@ -624,48 +625,26 @@ export type IntercomPush =
 
 /** Change notices for the entry center (data-free, like WisKey's own `subscribe`): refetch on each. Returns a stop
  * function; `onSocket` reports whether the notices are flowing, so the screen can fall back to polling. */
-export function subscribeIntercom(onMessage: (m: IntercomPush) => void, onSocket?: (connected: boolean) => void): () => void {
-  let ws: WebSocket | null = null;
-  let stopped = false;
-  let delay = 2000;
-  const url = (() => {
-    const u = new URL(apiUrl('intercom/ws'));
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return u.toString();
-  })();
-  const open = () => {
-    if (stopped) return;
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      return;
-    }
-    ws.onopen = () => {
-      delay = 2000;
-      onSocket?.(true);
-    };
-    ws.onmessage = (m) => {
+export function subscribeIntercom(onMessage: (m: IntercomPush) => void, onSocket?: (connected: boolean) => void, env?: SocketEnv): () => void {
+  // CR-SOCKETS-2439 (07:F6): the shared reconnecting socket - back-off 2 s .. 30 s, no reconnect after 4401 / 4403 (as before), plus
+  // the liveness check (heartbeat every 30 s), a retry after a constructor that throws, and resume on visible / online
+  return openReconnectingSocket({
+    url: wsUrl('intercom/ws'),
+    env,
+    maxDelayMs: 30_000,
+    finalClose: (code) => code === 4403 || code === 4401,
+    onOpen: () => onSocket?.(true),
+    onDown: () => onSocket?.(false),
+    onMessage: (data) => {
       try {
-        const env = JSON.parse(m.data as string) as { type: string; payload: Record<string, unknown> };
-        if (env.type === 'intercom_refresh') onMessage({ type: 'intercom_refresh' });
-        else if (env.type === 'intercom_state') onMessage({ type: 'intercom_state', state: env.payload.state as IntercomFeedState });
-        else if (env.type === 'intercom_tts') onMessage({ type: 'intercom_tts', status: env.payload as unknown as IntercomTtsStatus });
-        else if (env.type === 'heartbeat') onMessage({ type: 'heartbeat' });
+        const m = JSON.parse(data) as { type: string; payload: Record<string, unknown> };
+        if (m.type === 'intercom_refresh') onMessage({ type: 'intercom_refresh' });
+        else if (m.type === 'intercom_state') onMessage({ type: 'intercom_state', state: m.payload.state as IntercomFeedState });
+        else if (m.type === 'intercom_tts') onMessage({ type: 'intercom_tts', status: m.payload as unknown as IntercomTtsStatus });
+        else if (m.type === 'heartbeat') onMessage({ type: 'heartbeat' });
       } catch {
         /* ignore malformed frames */
       }
-    };
-    ws.onclose = (ev) => {
-      onSocket?.(false);
-      if (!stopped && ev.code !== 4403 && ev.code !== 4401) {
-        window.setTimeout(open, delay);
-        delay = Math.min(30000, delay * 2);
-      }
-    };
-  };
-  open();
-  return () => {
-    stopped = true;
-    ws?.close();
-  };
+    },
+  });
 }

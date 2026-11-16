@@ -14,9 +14,10 @@
  * per-script "allowed in schedules" mark (`listScheduleScripts`, `markScheduleScript`, `CatalogEntity.approval`, `ScheduleAction.blocked`) and
  * `allow_disarm` allowed by default.
  */
-import { apiUrl, get, post, put, patch } from './client';
+import { get, post, put, patch } from './client';
 import { invalidateSettings } from './prefs';
 import { commandId } from './request-id';
+import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 import { isApi } from './session';
 import { lazy } from './demo-load';
 
@@ -718,55 +719,45 @@ export function listScheduleTags(): Promise<{ tags: { name: string; count: numbe
  */
 export function subscribeSchedules(onChange: () => void, onSocket?: (connected: boolean) => void): () => void {
   if (!isApi()) return () => undefined;
-  let ws: WebSocket | null = null;
+  return schedulesSocket(onChange, onSocket);
+}
+
+/** The socket of `subscribeSchedules` (no mode check; `env`: tests only). CR-SOCKETS-2439 (07:F6): the shared reconnecting socket -
+ * back-off 2 s .. 30 s, no reconnect after 4401 / 4403 (as before), plus the liveness check, the constructor retry and resume. */
+export function schedulesSocket(onChange: () => void, onSocket?: (connected: boolean) => void, env?: SocketEnv): () => void {
   let stopped = false;
-  let delay = 2000;
-  let pending = 0;
+  let pending: unknown = null;
+  const later = env ? (fn: () => void, ms: number) => env.setTimeout(fn, ms) : (fn: () => void, ms: number) => window.setTimeout(fn, ms);
+  const cancel = env ? (h: unknown) => env.clearTimeout(h) : (h: unknown) => window.clearTimeout(h as number);
   const fire = () => {
-    if (pending) return;
-    pending = window.setTimeout(() => {
-      pending = 0;
+    if (pending !== null) return;
+    pending = later(() => {
+      pending = null;
       if (!stopped) onChange();
     }, 1000);
   };
-  const url = (() => {
-    const u = new URL(apiUrl('ha/ws'));
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return u.toString();
-  })();
-  const open = () => {
-    if (stopped) return;
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      return;
-    }
-    ws.onopen = () => {
-      delay = 2000;
-      onSocket?.(true);
-    };
-    ws.onmessage = (m) => {
+  const stop = openReconnectingSocket({
+    url: wsUrl('ha/ws'),
+    env,
+    maxDelayMs: 30_000,
+    finalClose: (code) => code === 4403 || code === 4401,
+    onOpen: () => onSocket?.(true),
+    onDown: () => onSocket?.(false),
+    onMessage: (data) => {
       try {
-        const env = JSON.parse(m.data as string) as { type: string; payload?: { entity?: { entity_id?: string } } };
-        if (env.type === 'schedules_changed') fire();
-        else if (env.type === 'entity_state_changed' && String(env.payload?.entity?.entity_id ?? '').startsWith('switch.schedule_')) fire();
+        const m = JSON.parse(data) as { type: string; payload?: { entity?: { entity_id?: string } } };
+        if (m.type === 'schedules_changed') fire();
+        else if (m.type === 'entity_state_changed' && String(m.payload?.entity?.entity_id ?? '').startsWith('switch.schedule_')) fire();
       } catch {
         /* ignore malformed frames */
       }
-    };
-    ws.onclose = (ev) => {
-      onSocket?.(false);
-      if (!stopped && ev.code !== 4403 && ev.code !== 4401) {
-        window.setTimeout(open, delay);
-        delay = Math.min(30000, delay * 2);
-      }
-    };
-  };
-  open();
+    },
+  });
   return () => {
     stopped = true;
-    if (pending) window.clearTimeout(pending);
-    ws?.close();
+    if (pending !== null) cancel(pending);
+    pending = null;
+    stop();
   };
 }
 

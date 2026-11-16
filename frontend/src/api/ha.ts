@@ -2,7 +2,8 @@
  * Home Assistant entities (chapters 8 and 22): the synced catalogue, entity state on the map, safe actions through
  * the SMPLWISE bridge integration, pairing status and the push socket.
  */
-import { apiUrl, get, post } from './client';
+import { get, post } from './client';
+import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 import { ltrIsolate } from '../i18n/bidi';
 import { commandId } from './request-id';
 import type { StateKind } from '../components/sw-badge';
@@ -456,124 +457,62 @@ export type HaPush =
    * the client refetches `GET multimedia/cast/sessions` with its own permissions. */
   | { type: 'cast_sessions_changed'; reason: string };
 
-/** Subscribe to entity state pushes scoped to what the user may see; returns a stop function. */
-export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void): () => void {
-  let ws: WebSocket | null = null;
-  let stopped = false;
-  let delay = 2000;
-  let retry = 0; // the pending reconnect timer
-  let lastFrameAt = Date.now();
-  const url = (() => {
-    const u = new URL(apiUrl('ha/ws'));
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return u.toString();
-  })();
-  const open = () => {
-    if (stopped) return;
-    let sock: WebSocket;
-    try {
-      sock = ws = new WebSocket(url);
-    } catch {
-      return;
-    }
-    lastFrameAt = Date.now();
-    let counted = false;
-    /** HOMELIVE-295: let go of this socket at once (a half-open one never says close): its handlers go quiet, the count is released. */
-    release = () => {
-      sock.onopen = sock.onmessage = sock.onclose = null;
-      if (counted) {
-        counted = false;
-        liveSockets = Math.max(0, liveSockets - 1);
-        onSocket?.(false);
-      }
-      try {
-        sock.close();
-      } catch {
-        /* already gone */
-      }
-    };
-    ws.onopen = () => {
-      lastFrameAt = Date.now();
-      delay = 2000;
+/** Subscribe to entity state pushes scoped to what the user may see; returns a stop function.
+ * CR-SOCKETS-2439 (07:F6): the shared reconnecting socket (api/reconnecting-socket.ts) with this socket's HOMELIVE-295 timings kept
+ * (SILENT_MS, CONNECT_MS, WATCHDOG_MS; back-off 2 s .. 30 s; no reconnect after 4401 / 4403) - now with a small jitter on the back-off
+ * and a retry after a constructor that throws. `haPushLive()` counts the OPEN sockets as before. `env`: tests only. */
+export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void, env?: SocketEnv): () => void {
+  let counted = false;
+  const uncount = () => {
+    if (!counted) return;
+    counted = false;
+    liveSockets = Math.max(0, liveSockets - 1);
+  };
+  const stop = openReconnectingSocket({
+    url: wsUrl('ha/ws'),
+    env,
+    maxDelayMs: 30_000,
+    silentMs: SILENT_MS,
+    connectMs: CONNECT_MS,
+    watchdogMs: WATCHDOG_MS,
+    finalClose: (code) => code === 4403 || code === 4401,
+    onOpen: () => {
       if (!counted) {
         counted = true;
         liveSockets++;
       }
       onSocket?.(true);
-    };
-    ws.onmessage = (m) => {
-      lastFrameAt = Date.now();
+    },
+    onDown: () => {
+      uncount();
+      onSocket?.(false);
+    },
+    onMessage: (data) => {
       try {
-        const env = JSON.parse(m.data as string) as { type: string; payload: Record<string, unknown> };
-        if (env.type === 'entity_state_changed') {
+        const m = JSON.parse(data) as { type: string; payload: Record<string, unknown> };
+        if (m.type === 'entity_state_changed') {
           // the command listeners first (LAT1): a toggle confirms in the same tick the push lands, before the screen's own refetch
-          notePush(env.payload.entity as HaEntity);
-          onMessage({ type: 'entity_state_changed', entity: env.payload.entity as HaEntity });
+          notePush(m.payload.entity as HaEntity);
+          onMessage({ type: 'entity_state_changed', entity: m.payload.entity as HaEntity });
         }
-        else if (env.type === 'ha_sync_state') onMessage({ type: 'ha_sync_state', connected: Boolean(env.payload.connected) });
-        else if (env.type === 'heartbeat') onMessage({ type: 'heartbeat', sync: env.payload.sync as HaSyncState });
-        else if (env.type === 'structure_changed')
-          onMessage({ type: 'structure_changed', reason: String(env.payload.reason ?? ''), last_registry_at: (env.payload.last_registry_at as string | null) ?? null });
-        else if (env.type === 'schedules_changed') onMessage({ type: 'schedules_changed' });
-        else if (env.type === 'automations_changed') onMessage({ type: 'automations_changed', kinds: Array.isArray(env.payload?.kinds) ? (env.payload.kinds as unknown[]).map(String) : [], ids: Array.isArray(env.payload?.ids) ? (env.payload.ids as unknown[]).map(String) : [] });
-        else if (env.type === 'media_state') onMessage({ type: 'media_state', device_key: String(env.payload.device_key ?? ''), entity_id: String(env.payload.entity_id ?? ''), live: env.payload.live as unknown as MediaLive });
-        else if (env.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(env.payload?.reason ?? '') });
-        else if (env.type === 'media_groups_changed') onMessage({ type: 'media_groups_changed' });
-        else if (env.type === 'cast_sessions_changed') onMessage({ type: 'cast_sessions_changed', reason: String(env.payload?.reason ?? '') });
+        else if (m.type === 'ha_sync_state') onMessage({ type: 'ha_sync_state', connected: Boolean(m.payload.connected) });
+        else if (m.type === 'heartbeat') onMessage({ type: 'heartbeat', sync: m.payload.sync as HaSyncState });
+        else if (m.type === 'structure_changed')
+          onMessage({ type: 'structure_changed', reason: String(m.payload.reason ?? ''), last_registry_at: (m.payload.last_registry_at as string | null) ?? null });
+        else if (m.type === 'schedules_changed') onMessage({ type: 'schedules_changed' });
+        else if (m.type === 'automations_changed') onMessage({ type: 'automations_changed', kinds: Array.isArray(m.payload?.kinds) ? (m.payload.kinds as unknown[]).map(String) : [], ids: Array.isArray(m.payload?.ids) ? (m.payload.ids as unknown[]).map(String) : [] });
+        else if (m.type === 'media_state') onMessage({ type: 'media_state', device_key: String(m.payload.device_key ?? ''), entity_id: String(m.payload.entity_id ?? ''), live: m.payload.live as unknown as MediaLive });
+        else if (m.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(m.payload?.reason ?? '') });
+        else if (m.type === 'media_groups_changed') onMessage({ type: 'media_groups_changed' });
+        else if (m.type === 'cast_sessions_changed') onMessage({ type: 'cast_sessions_changed', reason: String(m.payload?.reason ?? '') });
       } catch {
         /* ignore malformed frames */
       }
-    };
-    ws.onclose = (ev) => {
-      if (counted) {
-        counted = false;
-        liveSockets = Math.max(0, liveSockets - 1);
-      }
-      onSocket?.(false);
-      if (!stopped && ev.code !== 4403 && ev.code !== 4401) {
-        window.clearTimeout(retry);
-        retry = window.setTimeout(open, delay);
-        delay = Math.min(30000, delay * 2);
-      }
-    };
-  };
-  let release: () => void = () => undefined;
-  /** HOMELIVE-295: a phone that slept leaves the socket half-open (no close event for minutes) or closed with the back-off timer frozen. The server
-   * sends a heartbeat every 30 s, so a socket silent for longer than SILENT_MS is dead: drop it and connect again now (the screen's onSocket(true)
-   * refetches what the dead socket missed). A socket that is already closed and waiting for its back-off reconnects at once. */
-  const revive = (force: boolean) => {
-    if (stopped) return;
-    const dead = !ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING;
-    const silent = !!ws && ws.readyState === WebSocket.OPEN && Date.now() - lastFrameAt > SILENT_MS;
-    const connecting = !!ws && ws.readyState === WebSocket.CONNECTING && Date.now() - lastFrameAt > CONNECT_MS;
-    if (!(dead || silent || connecting || (force && !!ws && ws.readyState !== WebSocket.OPEN))) return;
-    window.clearTimeout(retry);
-    release();
-    ws = null;
-    delay = 2000;
-    open();
-  };
-  const onResume = () => {
-    if (document.visibilityState !== 'hidden') revive(false);
-  };
-  const onOnline = () => revive(true);
-  const watchdog = window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') revive(false);
-  }, WATCHDOG_MS);
-  document.addEventListener('visibilitychange', onResume);
-  window.addEventListener('focus', onResume);
-  window.addEventListener('pageshow', onResume);
-  window.addEventListener('online', onOnline);
-  open();
+    },
+  });
   return () => {
-    stopped = true;
-    window.clearTimeout(retry);
-    window.clearInterval(watchdog);
-    document.removeEventListener('visibilitychange', onResume);
-    window.removeEventListener('focus', onResume);
-    window.removeEventListener('pageshow', onResume);
-    window.removeEventListener('online', onOnline);
-    ws?.close();
+    stop();
+    uncount(); // the open socket no longer counts for haPushLive()
   };
 }
 
