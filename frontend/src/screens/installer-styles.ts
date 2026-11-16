@@ -1,16 +1,11 @@
 import { css } from 'lit';
+import { settingsFieldLabelStyles, settingsFieldInvalidStyles, settingsOptRowStyles } from '../styles/settings';
+import { mutedStyles } from '../styles/fragments';
 
 /** WISKEY-INSTALLER-NATIVE-2400: the few rules the installer tools share on top of settingsStyles - a labelled field, a picker row and the
  * muted / tone helpers. Tokens only. */
 export const installerStyles = css`
-  label.f {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: var(--sw-fs-sm);
-    color: var(--sw-text-2);
-    min-inline-size: 0;
-  }
+  ${settingsFieldLabelStyles}
   label.f input,
   label.f select,
   label.f textarea,
@@ -44,17 +39,12 @@ export const installerStyles = css`
     color: var(--sw-text-3);
     cursor: not-allowed;
   }
-  label.f input[aria-invalid='true'] {
-    border-color: var(--sw-danger, var(--sw-err));
-  }
+  ${settingsFieldInvalidStyles}
   .field-error {
     color: var(--sw-danger-text, var(--sw-err));
     font-size: var(--sw-fs-sm);
   }
-  .muted {
-    color: var(--sw-text-3);
-    font-size: var(--sw-fs-sm);
-  }
+  ${mutedStyles}
   .pickrow {
     display: flex;
     flex-wrap: wrap;
@@ -69,11 +59,7 @@ export const installerStyles = css`
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: 12px;
   }
-  .opt {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-  }
+  ${settingsOptRowStyles}
   .opt input {
     margin-block-start: 4px;
     inline-size: 18px;

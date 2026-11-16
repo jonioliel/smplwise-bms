@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { errLineStyles, okLineStyles, segThumbPlainStyles } from './fragments';
 
 /**
  * SET-polish (2026-10-10): the ONE stylesheet of the settings screens (הגדרות › *). Every `system-*` screen used to carry its
@@ -355,6 +356,198 @@ export const settingsKitStyles = css`
     .set-chips label {
       transition-duration: 0ms;
     }
+  }
+`;
+
+/** CR-CSS-FRAGMENTS-2440 (review findings 06:DUP-8, 06:CSS-1): the rule blocks the settings-card family typed more than once, each one
+ * exactly as it stood in the screens - the same selectors, the same declarations. A screen interpolates the block where its own copy
+ * stood (`${settingsPlainRowStyles}` inside its `css`), so the order of its rules, and with it every pixel, is unchanged. These are
+ * NOT part of `settingsStyles`: the screens that use them keep their own older look and opt in block by block. A screen that needs a
+ * different value keeps its own rule; never edit a block here to suit one screen. */
+
+/** The hairline row of the look cards: a block host and the label / control row (system-design, system-look, system-nav-size,
+ * system-palette-editor). */
+export const settingsPlainRowStyles = css`
+  :host {
+    display: block;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 0;
+    border-block-end: 1px solid var(--sw-border);
+  }
+`;
+
+/** A row's label with its hint stacked under it (system-design, system-nav-size). */
+export const settingsStackLabelStyles = css`
+  .lbl {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-weight: var(--sw-fw-medium);
+  }
+`;
+
+/** The hint inside such a label: muted, small, regular weight (system-design, system-look, system-nav-size). */
+export const settingsMutedHintStyles = css`
+  .muted {
+    color: var(--sw-text-3);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-regular);
+  }
+`;
+
+/** A pill key that is off, and the keyboard ring of a pill key (system-design, system-look). */
+export const settingsSegKeyStateStyles = css`
+  .seg button[disabled] {
+    cursor: default;
+    opacity: 0.6;
+  }
+  .seg button:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
+  }
+`;
+
+/** The save row of a look card and its status lines (system-design, system-look). */
+export const settingsFootStatusStyles = css`
+  .foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-block-start: 12px;
+  }
+  ${okLineStyles}
+  ${errLineStyles}
+`;
+
+/** The wrapping button row under a card's rows (system-nav-size, system-presence). */
+export const settingsWrapFootStyles = css`
+  .foot {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-block-start: 12px;
+  }
+`;
+
+/** The round pill keys of the presence settings: the key, the chosen key and its keyboard ring (system-presence,
+ * system-building-presence). The track differs between the two and stays local. */
+export const settingsPillSegKeyStyles = css`
+  .seg button {
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    padding: 4px 14px;
+    border-radius: var(--sw-r-pill);
+    color: var(--sw-text-2);
+    cursor: pointer;
+  }
+  ${segThumbPlainStyles}
+  .seg button:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 2px;
+  }
+`;
+
+/** The tab strip of the intercom settings pages, with their block host (system-intercom-installer, system-intercom-ops). */
+export const settingsTabNavStyles = css`
+  :host {
+    display: block;
+  }
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-block-end: 16px;
+    border-block-end: 1px solid var(--sw-border);
+  }
+  nav.tabs::-webkit-scrollbar {
+    display: none;
+  }
+  nav.tabs a {
+    flex: none;
+    padding: 10px 14px;
+    color: var(--sw-text-2);
+    text-decoration: none;
+    font-weight: var(--sw-fw-medium);
+    border-block-end: 2px solid transparent;
+    margin-block-end: -1px;
+    white-space: nowrap;
+  }
+  nav.tabs a[aria-current='page'] {
+    color: var(--sw-accent-text);
+    border-block-end-color: var(--sw-accent);
+  }
+  nav.tabs a:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    nav.tabs a:hover {
+      color: var(--sw-text);
+    }
+  }
+`;
+
+/** A labelled field of the installer tools: the caption above its control (screens/installer-styles.ts, system-intercom-ops). */
+export const settingsFieldLabelStyles = css`
+  label.f {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--sw-fs-sm);
+    color: var(--sw-text-2);
+    min-inline-size: 0;
+  }
+`;
+
+/** The rejected input of such a field (screens/installer-styles.ts, installer-clock). */
+export const settingsFieldInvalidStyles = css`
+  label.f input[aria-invalid='true'] {
+    border-color: var(--sw-danger, var(--sw-err));
+  }
+`;
+
+/** A checkbox with its text beside it (screens/installer-styles.ts, installer-clock). */
+export const settingsOptRowStyles = css`
+  .opt {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+`;
+
+/** One column of the palette preview (system-look, system-palette-editor). */
+export const settingsPreviewColStyles = css`
+  .pv-col {
+    display: grid;
+    gap: var(--sw-gap);
+    align-content: start;
+  }
+`;
+
+/** The sample button of the palette preview (system-look, system-palette-editor). */
+export const settingsPreviewButtonStyles = css`
+  .pv-btn {
+    min-block-size: var(--sw-touch-desktop);
+    padding: 0 16px;
+    border: 0;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+    font: inherit;
+    font-weight: var(--sw-fw-semibold);
+    justify-self: start;
+    pointer-events: none;
   }
 `;
 

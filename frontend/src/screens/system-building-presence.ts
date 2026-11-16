@@ -17,6 +17,7 @@ import {
 import { cardOptions, filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 import { LongListsController, perPageFor } from '../api/long-lists';
+import { settingsPillSegKeyStyles } from '../styles/settings';
 
 const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true, area_line: false };
 
@@ -253,26 +254,7 @@ export class SystemBuildingPresence extends LitElement {
       background: var(--sw-surface-2);
       flex-wrap: wrap;
     }
-    .seg button {
-      border: 0;
-      background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      padding: 4px 14px;
-      border-radius: var(--sw-r-pill);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
-    }
+    ${settingsPillSegKeyStyles}
     input[type='checkbox'] {
       accent-color: var(--sw-accent);
       inline-size: 18px;

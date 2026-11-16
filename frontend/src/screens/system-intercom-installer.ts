@@ -6,7 +6,7 @@ import './installer-clock';
 import './installer-technical';
 import './installer-lifecycle';
 import './installer-platform';
-import { settingsStyles } from '../styles/settings';
+import { settingsStyles, settingsTabNavStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import { getOverview, type InstallerOverview, type ToolName } from '../api/installer';
 import { installerText as T } from '../i18n/wiskey-installer';
@@ -31,43 +31,7 @@ export class SystemIntercomInstaller extends LitElement {
   static styles = [
     settingsStyles,
     css`
-      :host {
-        display: block;
-      }
-      nav.tabs {
-        display: flex;
-        gap: 4px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        margin-block-end: 16px;
-        border-block-end: 1px solid var(--sw-border);
-      }
-      nav.tabs::-webkit-scrollbar {
-        display: none;
-      }
-      nav.tabs a {
-        flex: none;
-        padding: 10px 14px;
-        color: var(--sw-text-2);
-        text-decoration: none;
-        font-weight: var(--sw-fw-medium);
-        border-block-end: 2px solid transparent;
-        margin-block-end: -1px;
-        white-space: nowrap;
-      }
-      nav.tabs a[aria-current='page'] {
-        color: var(--sw-accent-text);
-        border-block-end-color: var(--sw-accent);
-      }
-      nav.tabs a:focus-visible {
-        outline: var(--sw-focus-w) solid var(--sw-focus);
-        outline-offset: -2px;
-      }
-      @media (hover: hover) and (pointer: fine) {
-        nav.tabs a:hover {
-          color: var(--sw-text);
-        }
-      }
+      ${settingsTabNavStyles}
     `,
   ];
 
