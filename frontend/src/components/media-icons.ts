@@ -1,5 +1,5 @@
-import { html, svg, type TemplateResult } from 'lit';
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import { html, type TemplateResult } from 'lit';
+import { iconSvg } from './icon-paths';
 import type { Glyph } from '../api/media-screens';
 
 /**
@@ -85,11 +85,13 @@ const ICONS = {
 } as const;
 
 export type MediaIconName = keyof typeof ICONS;
+/** The path table (read-only; for the registry spec). */
+export const MEDIA_ICON_PATHS: Readonly<Record<MediaIconName, string>> = ICONS;
 
 /** An inline icon; its size is the `font-size` of the place it sits in (or `size` px). */
 export function mIcon(name: MediaIconName, size?: number, cls = ''): TemplateResult {
-  // the path strings above are static, trusted markup of this file (never user data), hence unsafeSVG
-  return svg`<svg class=${cls ? `ic ${cls}` : 'ic'} viewBox="0 0 24 24" aria-hidden="true" style=${size ? `font-size:${size}px` : ''}>${unsafeSVG(ICONS[name])}</svg>`;
+  // the path strings above are static, trusted markup of this file (never user data); CR-ICONS-PALETTE-2440: the one wrapper (icon-paths.ts)
+  return iconSvg(ICONS[name], cls ? `ic ${cls}` : 'ic', size ? `font-size:${size}px` : '');
 }
 
 /** The icon of a curated source / app glyph (media-screens.ts `Glyph`); an unknown glyph is the neutral "apps" mark. */

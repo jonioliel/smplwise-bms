@@ -23,7 +23,8 @@ test('the empty preset is the neutral tray, not the map pin; the icon override a
   const panel = readFileSync(path.join(SRC, 'components', 'sw-state-panel.ts'), 'utf8');
   expect(panel).toMatch(/empty: \{ icon: 'inbox'/);
   expect(panel).toMatch(/this\.state === 'empty' && this\.icon \? this\.icon : preset\.icon/);
-  expect(readFileSync(path.join(SRC, 'components', 'sw-icon.ts'), 'utf8')).toMatch(/\n  inbox: svg`/);
+  // CR-ICONS-PALETTE-2440: the path table is plain strings in components/icon-paths.ts now (sw-icon.ts re-exports it)
+  expect(readFileSync(path.join(SRC, 'components', 'icon-paths.ts'), 'utf8')).toMatch(/\n  inbox: '</);
 });
 
 test('every empty (or state-bound) sw-state-panel names a topical icon', () => {

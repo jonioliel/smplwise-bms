@@ -1,5 +1,5 @@
-import { html, type TemplateResult } from 'lit';
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
+import type { TemplateResult } from 'lit';
+import { iconSvg } from './icon-paths';
 import { ICON, glyphPath } from './media-remote-keys';
 
 /** CR-016 S3: the few glyphs the player panel needs on top of the remote's set (same 24 px stroke style, `currentColor`). */
@@ -22,6 +22,6 @@ export const PLAYER_ICON: Record<string, string> = {
 const ALL: Record<string, string> = { ...ICON, ...PLAYER_ICON };
 
 /** One icon by name (the remote's set, then the player set); an unknown name draws nothing. */
-export const ic = (name: string): TemplateResult => html`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(ALL[name] ?? '')}</svg>`;
+export const ic = (name: string): TemplateResult => iconSvg(ALL[name] ?? '');
 /** A library / now-playing glyph: the item's own glyph, else a note. */
-export const gl = (g: string | null | undefined, cls = 'ic gl'): TemplateResult => html`<svg class=${cls} viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(g === 'radio' ? PLAYER_ICON.radio : glyphPath(g ?? 'music'))}</svg>`;
+export const gl = (g: string | null | undefined, cls = 'ic gl'): TemplateResult => iconSvg(g === 'radio' ? PLAYER_ICON.radio : glyphPath(g ?? 'music'), cls);

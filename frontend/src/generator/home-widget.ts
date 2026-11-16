@@ -3,6 +3,7 @@ import type { LiveSummaryItem } from '../api/generator';
 import type { WidgetItem } from '../api/home-config';
 import { GEN_HOME_HREF, STATE_KEY, SUPPLY_KEY, SUPPLY_LOOK, genHomeView, type GenHomeItem, type GenLook, type GenSupply } from './home-widget-model';
 import { gwt } from '../i18n/generator-widget';
+import { statusCss } from '../styles/status-palette';
 
 /**
  * GENWIDGET 2.9.3: the generator home widget, built like the elevators one (elevators/home-widget.ts): one card in the host's shell, drawn
@@ -25,12 +26,12 @@ const GRID = 'M12 2v20M5 22l7-20 7 20M7 10h10M5 16h14';
 
 export const GENERATOR_WIDGET_STYLES = css`
   :host {
-    --sw-gw-ok: #15803d;
+    --sw-gw-ok: ${statusCss.ok};
     --sw-gw-run: #1d4ed8;
     --sw-gw-trans: #0e7490;
-    --sw-gw-warn: #c2410c;
-    --sw-gw-fault: #c81e1e;
-    --sw-gw-unk: #667085;
+    --sw-gw-warn: ${statusCss.warn};
+    --sw-gw-fault: ${statusCss.fault};
+    --sw-gw-unk: ${statusCss.unknown};
   }
   .wg-gen [data-look='ok'], .gw-chip[data-look='ok'] { --gw-c: var(--sw-gw-ok); }
   .wg-gen [data-look='run'], .gw-chip[data-look='run'] { --gw-c: var(--sw-gw-run); }
