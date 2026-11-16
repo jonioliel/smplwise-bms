@@ -414,7 +414,9 @@ def project_person(raw: Any) -> dict[str, Any] | None:
     # R4-09: the SAME completeness reading as intercom_sync.person_scope (and the grant engine's person_from_raw): a record projected for a
     # restricted caller (`redacted_fields` or `operator_editable` present - even empty / true) may hold a station-filtered assignments
     # map, so `stations_known` is false and an empty list is "not shown", never "no stations". A malformed marker blocks everything.
-    scope = intercom_sync.person_scope(raw)
+    # CR-PERSON-PROJECTION (02:P2-7): the record's containers come from the ONE reader the people view and the editor use too
+    fields = intercom_sync.person_fields(raw)
+    scope = fields["scope"]
     if scope["redacted_fields"] is None:
         redacted |= {"access", "credentials", "phone", "photo", "profile"}
     if not scope["access_readable"]:  # a field name (`assignments`, `group_ids` ...) withholds the access category too
@@ -426,9 +428,9 @@ def project_person(raw: Any) -> dict[str, Any] | None:
     # dropped from a list that still claims to be the complete set - `dropped` clears access_known / stations_known below, and the strict
     # shared verdict (person_scope -> access_grant_engine.access_shape) already clears them for every other malformed shape.
     dropped = False
-    if "access" not in redacted and isinstance(raw.get("assignments"), dict):
+    if "access" not in redacted and fields["assignments"] is not None:
         assignments = []
-        for sid, a in sorted(raw["assignments"].items(), key=lambda kv: str(kv[0])):
+        for sid, a in sorted(fields["assignments"].items(), key=lambda kv: str(kv[0])):
             if not isinstance(a, dict) or not ia.valid_id(sid):
                 dropped = True
                 continue
@@ -440,13 +442,13 @@ def project_person(raw: Any) -> dict[str, Any] | None:
                 "last_sync_at": _iso(a.get("last_sync_at")),
                 "last_error": _code(a.get("last_error")),
             })
-    profile = raw.get("profile") if isinstance(raw.get("profile"), dict) else None
+    profile = fields["profile"]
     # PERMOVR-293 (WisKey Q2): the STATIONS of the person's own permission overrides (allow AND deny - never the values), for the write
     # gate (intercom_authority.person_gate_station_ids). None = unknown: withheld, missing, not a map, or any entry malformed (fail
     # closed - a malformed entry is never skipped, so it cannot shrink the set).
-    raw_overrides = raw.get("permission_overrides")
+    raw_overrides = fields["permission_overrides"]
     override_stations: list[str] | None = None
-    if "access" not in redacted and isinstance(raw_overrides, dict) and all(ia.valid_id(k) and v in ("allow", "deny") for k, v in raw_overrides.items()):
+    if "access" not in redacted and raw_overrides is not None and all(ia.valid_id(k) and v in ("allow", "deny") for k, v in raw_overrides.items()):
         override_stations = sorted(raw_overrides)
     return {
         "id": raw["id"],
