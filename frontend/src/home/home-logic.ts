@@ -71,7 +71,8 @@ export function keptNote(rs: HRoom[]): string {
 export function greeting(name: string, at = new Date()): string {
   const h = at.getHours();
   const part = h < 5 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 17 ? 'צהריים טובים' : h < 21 ? 'ערב טוב' : 'לילה טוב';
-  return name ? `${part}, ${name}` : part;
+  // HOME-V3-AUDITFIX-2437 (audit item 29): a first name longer than 14 characters would wrap the greeting to three lines on a phone
+  return name && [...name].length <= 14 ? `${part}, ${name}` : part;
 }
 
 // ---------------------------------------------------------------- paging (no control screen ever scrolls)
