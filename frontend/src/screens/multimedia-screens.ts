@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { html, css, nothing, type TemplateResult } from 'lit';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { leadReserveStyles } from '../styles/lead-reserve';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -11,38 +11,32 @@ import '../components/media-bulk-dialog';
 import '../components/sw-pager';
 import '../components/sw-page';
 import { PageFit } from './multimedia-page-fit';
+import { MediaCardsScreenBase } from './multimedia-base';
 import './multimedia-edit-panel';
 import type { MediaBulkDialog } from '../components/media-bulk-dialog';
 import { ApiError, describeError } from '../api/client';
-import { subscribeHa } from '../api/ha';
-import { getDevicesTree } from '../api/devices';
 import { isApi } from '../api/session';
 import {
-  EMPTY_LAYOUT, bulkCandidates, isLit, media, resolveCards,
-  type CardGroup, type LayoutResponse, type MediaDevice, type MediaLayout, type MediaStatus, type Size,
+  bulkCandidates, isLit, media, resolveCards,
+  type CardGroup, type MediaDevice, type MediaLayout, type MediaStatus, type Size,
 } from '../api/media-screens';
-import { loadLayout, savePersonal } from '../api/media-personal';
-import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
-import { registerScreenEdit } from '../shell/screen-edit';
+import { savePersonal } from '../api/media-personal';
+import type { RouteState } from '../router';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
-import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
+import { mediaGlassStyles } from '../styles/media-glass';
 import { clearPairChip, publishPairChip } from '../shell/tab-pair';
-import { HYBRID_MAX_ITEMS, TabsModeController, ddPanelOf, ddRingOf, ddSizeOf, ddStyleOf } from '../shell/tabs-mode';
+import { ddPanelOf, ddRingOf, ddSizeOf, ddStyleOf } from '../shell/tabs-mode';
 import '../components/sw-dropdown';
 import type { DropdownItem } from '../components/sw-dropdown';
 import { mIcon, nameText } from '../components/media-icons';
 import {
-  DEMO_FLOOR_ORDER, NO_FILTER, NO_FLOOR, STATE_FILTERS, cardOf, countsOf, editGroups, effective, filterDevices, filtersActive, filtersFromParams, filtersToParams,
-  floorsOf, installationPayload, isDirty, moveInGroup, personalFrom, roomsOf, setCard, startDraft, togglePin, withFloorOrder,
+  NO_FILTER, NO_FLOOR, STATE_FILTERS, cardOf, countsOf, editGroups, effective, filterDevices, filtersActive, filtersFromParams, filtersToParams,
+  floorsOf, installationPayload, moveInGroup, personalFrom, roomsOf, setCard, startDraft, togglePin, withFloorOrder,
   type EditScope, type Filters, type StateFilter,
 } from './multimedia-layout';
-import { applyMultimediaKinds } from '../shell/nav';
-
-type Phase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
 const PATH = '/multimedia/screens';
-const FALLBACK_LAYOUT: LayoutResponse = { installation: EMPTY_LAYOUT, personal: null, revision: 0, can_edit: false, can_personalize: false };
 const SIZE_ORDER: Size[] = ['s', 'm', 'l'];
 
 /**
@@ -56,50 +50,20 @@ const SIZE_ORDER: Size[] = ['s', 'm', 'l'];
  * kept and marked stale), forbidden and "off" states are all drawn here; nothing is shown that the server would refuse.
  */
 @customElement('multimedia-screens')
-export class MultimediaScreens extends LitElement {
+export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDevice, Filters> {
   /** `?remote=<device key>` of the address: the screen whose remote is open ('' = none). */
   @property() remoteKey = '';
-  @state() private phase: Phase = 'loading';
-  @state() private devices: MediaDevice[] = [];
-  @state() private status: MediaStatus | null = null;
-  @state() private res: LayoutResponse = FALLBACK_LAYOUT;
-  /** The home screen's floor order: what an empty `floor_order` of the layout follows. */
-  @state() private homeFloors: string[] = [];
-  @state() private filters: Filters = NO_FILTER;
-  @state() private compactHeader = false;
-  @state() private staleError = '';
-  @state() private toast = '';
-  @state() private phone = window.matchMedia('(max-width: 767px)').matches;
-  // the layout editor
-  @state() private editing = false;
+  @state() protected filters: Filters = NO_FILTER;
   @state() private scope: EditScope = 'all';
-  @state() private draft: MediaLayout | null = null;
-  @state() private base: MediaLayout | null = null;
-  @state() private busy = false;
-  @state() private saveError = '';
-  @state() private conflict = false;
-  @state() private confirm: 'reset' | 'cancel' | null = null;
   @query('media-bulk-dialog') private bulk?: MediaBulkDialog;
 
-  /** 0.1.153: the multimedia group's presentation (tabs = the room chips, today). */
-  private tabsMode = new TabsModeController(this, 'multimedia');
-  private phoneMq = window.matchMedia('(max-width: 767px)');
-  private onPhone = () => (this.phone = this.phoneMq.matches);
-  private offRoute: (() => void) | null = null;
-  private offEdit: (() => void) | null = null;
-  private offPush: (() => void) | null = null;
-  private refreshTimer = 0;
-  private pollTimer = 0;
-  private toastTimer = 0;
-  private qTimer = 0;
-  private typing = 0;
-  private wantsEdit = false;
-  private editHandled = false;
-  private pushedRemote = false;
-  private loading = false;
-  private homeFloorsLoaded = false;
+  protected readonly path = PATH;
+  protected readonly tab = 'screens';
+  protected readonly editEntry = { id: 'multimedia-layout', label: 'עריכת מסך המולטימדיה' };
+  protected readonly noFilter = NO_FILTER;
+  protected readonly panelParam = 'remote';
   /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
-  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
+  protected fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
 
   static styles = [mediaGlassStyles, leadReserveStyles, liftedReset, css`
     :host {
@@ -580,59 +544,9 @@ export class MultimediaScreens extends LitElement {
     }
   `];
 
-  connectedCallback() {
-    super.connectedCallback();
-    void applyMediaGlass(this);
-    this.phoneMq.addEventListener('change', this.onPhone);
-    this.addEventListener('scroll', this.onScroll, { passive: true });
-    // addition A: the layout editor is entered from the user menu (shell/screen-edit.ts), never from a button in the page
-    this.offEdit = registerScreenEdit({
-      id: 'multimedia-layout',
-      label: 'עריכת מסך המולטימדיה',
-      icon: 'edit',
-      can: () => this.canEdit && !this.editing,
-      run: () => this.enterEdit(),
-    });
-    this.offRoute = onRouteChange((r) => {
-      if (r.mode !== 'multimedia' || (r.segments[1] ?? 'screens') !== 'screens') return;
-      const f = filtersFromParams(r.params);
-      this.filters = this.typing ? { ...f, q: this.filters.q } : f;
-      this.wantsEdit = r.params.get('edit') === '1';
-      if (!this.wantsEdit) {
-        this.editHandled = false;
-        if (this.editing) this.leaveEdit(false); // Back / a link took the address out of edit mode
-      }
-      this.requestUpdate();
-    });
-    void this.load();
-    if (isApi()) {
-      this.offPush = subscribeHa(
-        (m) => {
-          if (m.type === 'media_state') {
-            const was = this.devices.find((d) => d.key === m.device_key)?.live.power;
-            this.devices = this.devices.map((d) => (d.key === m.device_key ? { ...d, live: m.live as MediaDevice['live'] } : d)); // a screen's frame; the players' frames match no screen here
-            if (was && was !== m.live.power) this.scheduleRefresh(800); // `caps` follow the live state: read them again after a power change
-          } else if (m.type === 'media_devices_changed') this.scheduleRefresh(200);
-        },
-        (connected) => {
-          if (connected) this.scheduleRefresh(200); // pushes sent while the socket was down are gone: catch up now
-        },
-      );
-    }
-    this.pollTimer = window.setInterval(() => void this.load(), 30_000); // a slow safety net; the push socket does the real work
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    clearPairChip(this);
-    this.phoneMq.removeEventListener('change', this.onPhone);
-    this.removeEventListener('scroll', this.onScroll);
-    this.offEdit?.();
-    this.offRoute?.();
-    this.offPush?.();
-    this.offEdit = this.offRoute = this.offPush = null;
-    for (const t of [this.refreshTimer, this.pollTimer, this.toastTimer, this.qTimer]) window.clearTimeout(t);
-    window.clearInterval(this.pollTimer);
+  /** The screens page is the entry of the section: `#/multimedia` alone is this tab. */
+  protected ownsRoute(r: RouteState): boolean {
+    return (r.segments[1] ?? 'screens') === 'screens';
   }
 
   /** 0.1.153: the room filter in its dropdown form is drawn by the shell, beside the area's tab chip (shell/tab-pair.ts). */
@@ -648,14 +562,7 @@ export class MultimediaScreens extends LitElement {
   protected updated() {
     this.syncPair();
     this.measureBar();
-    // `?edit=1` (the user menu, or a link): entered once the data is there and this user may edit; dropped otherwise
-    if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
-      this.editHandled = true;
-      if (!this.editing) {
-        if (this.canEdit) this.enterEdit(true);
-        else this.dropParam('edit');
-      }
-    }
+    super.updated();
   }
 
   /** The compact bar covers the title row only (see `.dh::before`): its height is measured, never guessed, and only written when it changed. */
@@ -671,58 +578,28 @@ export class MultimediaScreens extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ data
 
-  private get canEdit(): boolean {
+  protected get canEdit(): boolean {
     return this.phase === 'ready' && (this.res.can_edit || this.res.can_personalize) && !phoneRestricted('layout_editor');
   }
 
-  private async load() {
-    if (this.loading) return;
-    this.loading = true;
-    try {
-      const st = await media().status();
-      this.status = st;
-      applyMultimediaKinds(st.counts); // the screens page is the entry of the section: without this the players / groups tabs are never offered
-      if (!st.enabled) {
-        this.phase = 'disabled';
-        return;
-      }
-      if (!st.can.read) {
-        this.phase = 'forbidden';
-        return;
-      }
-      const [list, lay] = await Promise.allSettled([media().list(), loadLayout()]);
-      if (list.status === 'rejected') throw list.reason;
-      this.devices = list.value.devices;
-      if (lay.status === 'fulfilled' && !this.editing) this.res = lay.value;
-      if (!this.homeFloorsLoaded && !this.res.installation.floor_order.length) await this.loadHomeFloors();
-      this.phase = 'ready';
-      this.staleError = '';
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) this.phase = 'forbidden';
-      else if (err instanceof ApiError && err.code === 'feature_disabled') this.phase = 'disabled';
-      else if (this.phase === 'ready') this.staleError = describeError(err);
-      else {
-        this.phase = 'error';
-        this.staleError = describeError(err);
-      }
-    } finally {
-      this.loading = false;
-    }
+  protected readStatus() {
+    return media().status();
   }
 
-  /** An empty `floor_order` of the layout follows the home screen's floors (MEDIA_API.md §2.4): read once from the devices tree
-   * (devices.read; without it the order of the list stands). The static demo has no home screen: the mock's own floor order. */
-  private async loadHomeFloors() {
-    this.homeFloorsLoaded = true;
-    if (!isApi()) {
-      this.homeFloors = DEMO_FLOOR_ORDER;
-      return;
-    }
-    try {
-      this.homeFloors = (await getDevicesTree()).floors.map((f) => f.floor_id).filter((id) => id !== NO_FLOOR);
-    } catch {
-      this.homeFloors = [];
-    }
+  protected async listDevices() {
+    return (await media().list()).devices;
+  }
+
+  protected filtersFromParams(p: URLSearchParams) {
+    return filtersFromParams(p);
+  }
+
+  protected filtersToParams(f: Filters, p: URLSearchParams) {
+    return filtersToParams(f, p);
+  }
+
+  protected roomsInFloor() {
+    return roomsOf(this.devices, this.filters.floor);
   }
 
   /** The layout the page draws: the installation's with the personal override, the floors in the order that applies. */
@@ -730,117 +607,20 @@ export class MultimediaScreens extends LitElement {
     return withFloorOrder(effective(this.res.installation, this.res.personal), this.homeFloors);
   }
 
-  private scheduleRefresh(ms: number) {
-    window.clearTimeout(this.refreshTimer);
-    this.refreshTimer = window.setTimeout(() => void this.load(), ms);
-  }
-
-  private say(text: string) {
-    this.toast = text;
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = ''), 3200);
-  }
-
-  // ------------------------------------------------------------------------------------------------ address
-
-  private params(): URLSearchParams {
-    return new URLSearchParams(parseRoute().params);
-  }
-
-  private dropParam(name: string) {
-    const p = this.params();
-    p.delete(name);
-    replaceRoute(PATH, p);
-  }
-
-  private setFilters(patch: Partial<Filters>, immediate = true) {
-    this.filters = { ...this.filters, ...patch };
-    if (patch.floor !== undefined && patch.area === undefined && this.filters.area && !roomsOf(this.devices, this.filters.floor).some((r) => r.id === this.filters.area)) this.filters = { ...this.filters, area: '' };
-    const write = () => replaceRoute(PATH, filtersToParams(this.filters, this.params()));
-    window.clearTimeout(this.qTimer);
-    if (immediate) write();
-    else this.qTimer = window.setTimeout(write, 300);
-  }
-
-  private onSearch(v: string) {
-    this.typing = Date.now();
-    this.setFilters({ q: v }, false);
-    window.setTimeout(() => {
-      if (Date.now() - this.typing >= 900) this.typing = 0;
-    }, 950);
-  }
-
-  private onScroll = () => {
-    const y = this.scrollTop;
-    if (!this.compactHeader && y > 60) this.compactHeader = true;
-    else if (this.compactHeader && y < 12) this.compactHeader = false;
-  };
-
-  // ------------------------------------------------------------------------------------------------ remote
-
-  private openRemote(key: string) {
-    const p = this.params();
-    p.set('remote', key);
-    this.pushedRemote = true;
-    pushRoute(PATH, p);
-  }
-
-  private closeRemote() {
-    if (this.pushedRemote) {
-      this.pushedRemote = false;
-      window.history.back();
-    } else this.dropParam('remote');
-    this.scheduleRefresh(250);
-  }
-
   // ------------------------------------------------------------------------------------------------ the layout editor
 
-  private enterEdit(fromRoute = false) {
-    if (!this.canEdit || this.editing) return;
+  protected beforeEdit() {
     this.scope = this.res.can_edit ? 'all' : 'me';
-    this.beginDraft();
-    this.editing = true;
-    this.editHandled = true; // the address below is ours: nothing more to act on
-    this.filters = NO_FILTER;
-    if (!fromRoute) {
-      const p = this.params();
-      filtersToParams(NO_FILTER, p);
-      p.set('edit', '1');
-      replaceRoute(PATH, p);
-    }
-    this.scrollTo({ top: 0 });
   }
 
-  private beginDraft() {
-    const d = startDraft(this.scope, this.res.installation, this.res.personal, this.devices, this.homeFloors);
-    this.draft = d;
-    this.base = d;
-    this.saveError = '';
-    this.conflict = false;
-  }
-
-  private leaveEdit(dropParam = true) {
-    this.editing = false;
-    this.draft = this.base = null;
-    this.confirm = null;
-    this.busy = false;
-    this.editHandled = dropParam ? false : this.editHandled;
-    if (dropParam) this.dropParam('edit');
+  protected startDraft() {
+    return startDraft(this.scope, this.res.installation, this.res.personal, this.devices, this.homeFloors);
   }
 
   private setScope(s: EditScope) {
     if (s === this.scope) return;
     this.scope = s;
     this.beginDraft(); // another base: the changes of the other scope are not carried over
-  }
-
-  private get dirty(): boolean {
-    return !!this.draft && !!this.base && isDirty(this.base, this.draft);
-  }
-
-  private askCancel() {
-    if (this.dirty) this.confirm = 'cancel';
-    else this.leaveEdit();
   }
 
   private async save() {
@@ -871,16 +651,6 @@ export class MultimediaScreens extends LitElement {
       this.saveError = describeError(err);
       this.busy = false;
     }
-  }
-
-  private async reloadAfterConflict() {
-    this.res = await loadLayout();
-    await this.load();
-    this.beginDraft();
-  }
-
-  private patchDraft(next: MediaLayout) {
-    this.draft = next;
   }
 
   // ------------------------------------------------------------------------------------------------ render
@@ -914,7 +684,7 @@ export class MultimediaScreens extends LitElement {
     const edit = this.editing && !!this.draft;
     const off = edit && !cardOf(this.draft!, d.key).on;
     return html`<media-screen-card class=${classMap({ l: size === 'l' })} data-fit-item ?data-off=${paged} data-screen-card=${d.key} .device=${d} .size=${size} ?compact=${this.phone} ?editing=${edit} ?data-dimmed=${off}
-      @open-remote=${(e: CustomEvent<{ key: string }>) => this.openRemote(e.detail.key)} @media-changed=${() => this.scheduleRefresh(isApi() ? 700 : 30)}>${edit ? this.chips(d, index, count, size) : nothing}</media-screen-card>`;
+      @open-remote=${(e: CustomEvent<{ key: string }>) => this.openPanel(e.detail.key)} @media-changed=${() => this.scheduleRefresh(isApi() ? 700 : 30)}>${edit ? this.chips(d, index, count, size) : nothing}</media-screen-card>`;
   }
 
   /** `only`: the page shows this one group - its heading would repeat the filter chip (or, for the no-floor bucket of an installation without floors, say "ללא שיוך" about screens that do have a room), so it is left out. */
@@ -940,12 +710,6 @@ export class MultimediaScreens extends LitElement {
       <header class="sh"><div>${title}<small><span class="n">${counts.total}</span> ${counts.total === 1 ? 'מסך' : 'מסכים'}${lit ? html` · <em><span class="n">${lit}</span></em> פועלים` : nothing}</small></div><span class="grow"></span>${offBtn}</header>
       <div class="sgrid">${repeat(g.items, (i) => i.device.key, (i, idx) => this.card(i.device, i.size, idx, g.items.length, off(idx)))}</div>
     </section>`;
-  }
-
-  /** 0.1.153: the room filter as one dropdown - always in dropdown mode, in hybrid only for a list longer than three. */
-  private roomsAsDropdown(items: number): boolean {
-    const m = this.tabsMode.value;
-    return m === 'dropdown' || (m === 'hybrid' && items > HYBRID_MAX_ITEMS);
   }
 
   /** AUDIT30-D3: the one-line summary under the title (sw-page's subheading); the phone keeps its header short and has none */
@@ -991,42 +755,9 @@ export class MultimediaScreens extends LitElement {
     return html`<div class="flwrap"><sw-dropdown data-floor-menu label="קומות" icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
   }
 
-  /** The room chips scroll by a mouse drag too (a touch scrolls natively). */
-  private roomsDrag = (e: PointerEvent) => {
-    if (e.pointerType !== 'mouse' || e.button !== 0) return;
-    const el = e.currentTarget as HTMLElement;
-    const x0 = e.clientX;
-    const s0 = el.scrollLeft;
-    let moved = false;
-    const move = (m: PointerEvent) => {
-      if (Math.abs(m.clientX - x0) > 4) moved = true;
-      if (moved) {
-        el.classList.add('dragging');
-        el.scrollLeft = s0 - (m.clientX - x0) * (getComputedStyle(el).direction === 'rtl' ? -1 : 1);
-      }
-    };
-    const up = (u: PointerEvent) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      el.classList.remove('dragging');
-      if (moved) {
-        u.preventDefault();
-        const stop = (c: Event) => c.stopImmediatePropagation();
-        el.addEventListener('click', stop, { capture: true, once: true });
-        window.setTimeout(() => el.removeEventListener('click', stop, { capture: true }), 0);
-      }
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-
   private skeleton(): TemplateResult {
     const card = html`<div class="glass" style="padding:10px 10px 14px;display:flex;flex-direction:column;gap:12px"><span class="skl" style="aspect-ratio:16/6.3;border-radius:var(--sw-r-lg)"></span><div style="display:flex;align-items:center;gap:12px;padding-inline:6px"><div style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="skl" style="block-size:16px;inline-size:55%"></span><span class="skl" style="block-size:12px;inline-size:35%"></span></div><span class="skl" style="inline-size:44px;block-size:44px;border-radius:50%"></span></div><span class="skl" style="block-size:40px;border-radius:var(--sw-r-pill);margin-inline:6px"></span></div>`;
     return html`<div data-mm-state="loading" aria-busy="true"><div class="sgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
-  }
-
-  private stateBox(icon: 'tv' | 'warning' | 'search' | 'power', title: string, action?: TemplateResult): TemplateResult {
-    return html`<div class="statebox glass" role="status"><span class="ring">${mIcon(icon)}</span><b>${title}</b>${action ?? nothing}</div>`;
   }
 
   private editBar(): TemplateResult {
@@ -1079,10 +810,6 @@ export class MultimediaScreens extends LitElement {
     return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g, gi) => this.group(g, groups.length === 1, offsets[gi]))}</div>`;
   }
 
-  protected willUpdate() {
-    this.toggleAttribute('data-fit', this.fit.on);
-  }
-
   render() {
     const body = this.body(); // first: it tells the pager in the header how many cards there are
     return html`<sw-page class="page" wide heading="מסכים" subheading=${this.summary()} data-screen="multimedia">
@@ -1095,7 +822,7 @@ export class MultimediaScreens extends LitElement {
     </sw-page>
     <media-bulk-dialog @bulk-done=${() => void this.load()}></media-bulk-dialog>
     ${this.confirmDialog()}
-    ${this.remoteKey ? html`<media-remote .deviceKey=${this.remoteKey} .open=${true} @close=${() => this.closeRemote()}></media-remote>` : nothing}
+    ${this.remoteKey ? html`<media-remote .deviceKey=${this.remoteKey} .open=${true} @close=${() => this.closePanel()}></media-remote>` : nothing}
     ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${mIcon('check')}${this.toast}</div>` : nothing}`;
   }
 }

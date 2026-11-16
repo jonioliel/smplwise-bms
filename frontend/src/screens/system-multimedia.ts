@@ -25,6 +25,7 @@ import {
 import { SkinController } from '../design/skin';
 import { adminTable, mediaAdminListCss } from './media-admin-list';
 import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
+import { mediaAdminFormCss } from './media-admin-form-css';
 import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -71,7 +72,7 @@ export class SystemMultimedia extends LitElement {
   @state() private tab: 'main' | 'cast' | 'mine' | 'announce' = 'main';
   private noteTimer = 0;
 
-  static styles = [settingsStyles, mediaAdminListCss, css`
+  static styles = [settingsStyles, mediaAdminListCss, mediaAdminFormCss, css`
     sw-tabs {
       --sw-tab-min-h: 44px;
       margin-block-end: 10px;
@@ -99,39 +100,6 @@ export class SystemMultimedia extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
-    .dev {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 8px 0 0;
-    }
-    .line {
-      display: flex;
-      align-items: center;
-      gap: 10px 16px;
-      flex-wrap: wrap;
-    }
-    .line .grow {
-      flex: 1;
-    }
-    .f {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it (the profile select's
-         longest option, "זיהוי אוטומטי · ...", is wider than a 320 px phone's row) */
-      max-inline-size: 100%;
-      min-inline-size: 0;
-    }
-    .f.inline {
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
-    }
     input[type='text'],
     input[type='number'],
     select {
@@ -146,15 +114,8 @@ export class SystemMultimedia extends LitElement {
       font-size: var(--sw-fs-sm);
       max-inline-size: 100%;
     }
-    select {
-      max-inline-size: 100%;
-      min-inline-size: 0;
-    }
     input[type='text'] {
       min-inline-size: min(200px, 100%);
-    }
-    input[type='number'] {
-      inline-size: 88px;
     }
     .seg {
       display: inline-flex;
@@ -183,28 +144,6 @@ export class SystemMultimedia extends LitElement {
       opacity: 0.45;
       cursor: default;
     }
-    .ep {
-      display: grid;
-      grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(0, 2fr) auto;
-      gap: 6px 12px;
-      align-items: center;
-      padding: 6px 0;
-      font-size: var(--sw-fs-sm);
-      border-block-end: 1px dashed var(--sw-border);
-    }
-    .ep:last-child {
-      border-block-end: 0;
-    }
-    .link {
-      color: var(--sw-accent-text);
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-      background: none;
-      border: 0;
-      padding: 0;
-      font-family: inherit;
-      min-block-size: 32px;
-    }
     .ib {
       display: inline-grid;
       place-items: center;
@@ -217,10 +156,6 @@ export class SystemMultimedia extends LitElement {
       color: var(--sw-text);
       cursor: pointer;
     }
-    .ib:disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
     .sec {
       display: flex;
       align-items: center;
@@ -230,10 +165,6 @@ export class SystemMultimedia extends LitElement {
     }
     .sec .nm {
       flex: 1;
-      font-size: var(--sw-fs-sm);
-    }
-    .ok {
-      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {
