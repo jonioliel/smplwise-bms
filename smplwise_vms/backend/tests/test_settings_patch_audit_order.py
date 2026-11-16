@@ -262,10 +262,61 @@ def test_the_table_names_declared_settings_and_no_prefix_twice():
     from smplwise.routers import settings_patch
     from smplwise.routers.settings_patch import content, ui
 
-    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS)
+    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS) + 18
     declared = [f.alias for f in SettingsPatch.model_fields.values()]
     for prefix in settings_patch.VALIDATORS:
         assert any(alias.startswith(prefix) for alias in declared), prefix
-    checked = [name for name, _body, _status, _code in CHECKS]
-    table = [next(name for name in checked if name.startswith(prefix)) for prefix in settings_patch.VALIDATORS]
-    assert table == sorted(table, key=checked.index), "the table is in the order of the checks"
+
+
+def test_the_tables_are_in_the_order_of_the_one_long_function():
+    """CR-SETTINGS-PATCH-B-2440: the whole route runs from the two tables. Their order is the order of the checks and of the
+    audit rows; a new entry goes where its check belongs, and this list says so."""
+    from smplwise.routers import settings_patch
+
+    assert list(settings_patch.VALIDATORS) == [
+        "ui.design_names", "ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups",
+        "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "ui.xs", "timeline.colors", "ui.accent", "ui.toggle_on", "devices.area_row",
+        "devices.floor_row", "home.screen", "plan.surfaces", "plan.view", "site.", "plan.bakes", "schedules.classes", "automations.",
+        "multimedia.remote_default", "app.android_",
+        "schedules.allow_disarm", "update.apply_enabled", "security.local_identity", "security.local_identity_extended",
+        "security.local_public_url", "security.local_passkey_", "privacy.local_purge", "tickets.enabled", "maintenance.enabled",
+        "docread.enabled", "emergency_readiness.enabled", "schedules.shabbat_sensor", "map.default_floor", "home.title", "home.floor_order",
+        "home.widgets", "time.zone", "ai.provider",
+    ]
+    assert [f"{step.__module__.rsplit('.', 1)[-1]}.{step.__name__}" for step in settings_patch.AFTER] == [
+        "effects.store", "effects.schedules_switched_on", "effects.automations_switched_on", "effects.remote_csp",
+        "effects.station_media_provider", "effects.microphone_policy", "identity.local_identity_changed", "identity.local_switch_applied",
+        "identity.disarm_changed", "modules.update_changed", "modules.tickets_changed", "modules.emergency_changed",
+        "modules.maintenance_changed", "modules.docread_changed", "effects.settings_updated",
+    ]
+
+
+def test_the_package_does_not_import_the_router():
+    import ast
+    from pathlib import Path
+
+    from smplwise.routers import settings_patch
+
+    for path in sorted(Path(settings_patch.__file__).parent.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom):
+                assert not (node.module or "").endswith("routers.settings") and not (node.level == 2 and node.module == "settings"), path.name
+                assert not (node.level == 2 and node.module is None and any(a.name == "settings" for a in node.names)), path.name
+
+
+def test_the_followers_of_a_setting_are_told_after_the_store(settings, monkeypatch):
+    """The steps after the checks: the value is stored before a follower reads it, and a refused request tells nobody."""
+    from smplwise import remote_channel
+    from smplwise.db import get_setting
+
+    app = create_app(settings)
+    c = TestClient(app)
+    assert c.get(API).status_code == 200
+    seen: list[tuple[str, Any]] = []
+    monkeypatch.setattr(remote_channel, "set_csp_enforce", lambda value: seen.append(("csp", value)))
+    monkeypatch.setattr(remote_channel, "load_mic_mode_from", lambda conn: seen.append(("mic", get_setting(conn, "ui.hide_wiskey", None))))
+    r = c.patch(API, json={"remote.csp_enforce": "false", "ui.hide_wiskey": "true", "time.zone": "Mars/Olympus_Mons"})
+    assert r.status_code == 422 and seen == [], "a refused request tells nobody"
+    r = c.patch(API, json={"ui.hide_wiskey": "true", "remote.csp_enforce": "false"})
+    assert r.status_code == 200, r.text
+    assert seen == [("csp", False), ("mic", "true")], "in the table's order, and the microphone policy reads the stored value"
