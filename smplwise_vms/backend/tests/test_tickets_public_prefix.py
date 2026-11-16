@@ -338,12 +338,12 @@ def test_settings_default_validate_and_reach_the_running_edge(settings, monkeypa
 
 
 def test_the_prefix_settings_are_refused_from_a_remote_session(settings, monkeypatch):
-    from smplwise.routers import tickets_admin
+    from smplwise.routers import tickets_admin_settings
     from tickets_s4_world import API
 
     s4 = _s4(settings, monkeypatch)
     doc = s4.c.get(f"{API}/tickets/settings").json()
-    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    monkeypatch.setattr(tickets_admin_settings, "is_remote", lambda request: True)
     for public in ({"path_prefix": "help"}, {"legacy_t_paths": False}):
         r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": public})
         assert r.status_code == 403 and r.json()["code"] == "local_only", public

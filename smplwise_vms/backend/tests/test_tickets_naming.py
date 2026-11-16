@@ -21,7 +21,7 @@ from smplwise.services.tickets import naming
 API = "/api/v1"
 BACKEND = Path(__file__).resolve().parents[1] / "smplwise"
 DEFAULT_WORDS = re.compile(r"קריא(ה|ות|ת|תך|ותיך|ות)|בקש(ת|ות) ה?שירות|ניהול השירות|\bTickets?\b")
-TICKETS_SOURCES = sorted((BACKEND / "services" / "tickets").glob("*.py")) + [BACKEND / "routers" / "tickets.py", BACKEND / "routers" / "tickets_admin.py"]
+TICKETS_SOURCES = sorted((BACKEND / "services" / "tickets").glob("*.py")) + [BACKEND / "routers" / "tickets.py", *sorted((BACKEND / "routers").glob("tickets_admin*.py"))]
 NAME = {"one": "תקלה", "many": "תקלות", "gender": "f"}
 NAME_STORED = {**NAME, "module": "תקלות"}  # no module sent: the module's name is the plural (owner rename 2026-10-14)
 MASCULINE = {"one": "דיווח", "many": "דיווחים", "gender": "m"}

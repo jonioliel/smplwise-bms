@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from smplwise.routers import tickets_admin
+from smplwise.routers import tickets_admin_settings  # CR-SPLIT-TICKETS-ADMIN-2440: the part that reads is_remote
 from tickets_s4_world import API, Clock, build_s4
 
 
@@ -49,7 +49,7 @@ def test_an_unknown_mode_is_refused(s4):
 
 
 def test_the_theme_may_be_changed_from_a_remote_session_but_the_address_may_not(s4, monkeypatch):
-    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    monkeypatch.setattr(tickets_admin_settings, "is_remote", lambda request: True)
     assert put_theme(s4, "dark").status_code == 200
     rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "public": {"base_url": "https://t-x.example.org", "theme": "auto"}})
