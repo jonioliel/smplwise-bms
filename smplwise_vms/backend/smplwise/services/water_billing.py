@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
-from ..db import Database, new_id, now_iso
+from ..db import Database, has_table, new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from . import bill_ledger as bl
 from . import energy_billing as eb
@@ -910,7 +910,7 @@ def janitor(db: Database, settings: Any) -> AutoOutcome | None:
     key = str(getattr(db, "path", ""))
     with db.connection(mode="read", label="water.billing.gate") as conn:
         try:
-            if not ws.enabled(conn) or conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'water_bills'").fetchone() is None:
+            if not ws.enabled(conn) or not has_table(conn, "water_bills"):  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
                 return None
         except sqlite3.Error:
             return None

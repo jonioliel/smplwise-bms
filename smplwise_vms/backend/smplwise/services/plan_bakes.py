@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from ..config import Settings
-from ..db import ID_RE, new_id, now_iso
+from ..db import ID_RE, has_table, new_id, now_iso
 from . import safe_paths
 
 KINDS = ("still", "mask", "lightmap")
@@ -880,8 +880,7 @@ def delete_floor(settings: Settings, conn: sqlite3.Connection, floor_id: str) ->
 def sweep_orphans(settings: Settings, conn: sqlite3.Connection) -> int:
     """Rows of floors that are gone (a replace restore, a deleted floor) and rows whose path does not confine; folders under the
     bakes root without a live floor; files of a live floor that no row names (an interrupted replace). Returns rows removed."""
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
-    if "plan_bakes" not in tables:
+    if not has_table(conn, "plan_bakes"):  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
         return 0
     live = {r[0] for r in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()}
     n = 0

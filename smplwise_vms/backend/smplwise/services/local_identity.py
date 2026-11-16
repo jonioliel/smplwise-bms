@@ -1510,7 +1510,9 @@ def janitor(db: Any) -> int:
     n = 0
     try:
         with db.connection(mode="read", label="local identity janitor read") as conn:
-            if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_local_sessions'").fetchone() is None:
+            from ..db import has_table
+
+            if not has_table(conn, "auth_local_sessions"):  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
                 return 0
             week, month = iso(now - 7 * 86400), iso(now - 30 * 86400)
             due = conn.execute("""SELECT 1 FROM auth_local_links WHERE COALESCE(used_at, invalidated_at, expires_at) < ? LIMIT 1""", (week,)).fetchone() \

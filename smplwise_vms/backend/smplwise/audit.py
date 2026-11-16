@@ -63,6 +63,9 @@ def _write_audit(
             )
             return cur.lastrowid
         except sqlite3.OperationalError as exc:  # a database still before migration 0032 (upgrade tests)
+            # CR-SCHEMA-PROBES-2440 (review 05:P2-10): KEPT, marked verify. An upgrade from below 0032 runs code that may audit
+            # before `migrate()` (the update run's early boot), so this is not proven unreachable; it costs nothing on a migrated
+            # database (the insert above succeeds). Remove only with an upgrade test that proves no audit row precedes 0032.
             if "scope_type" not in str(exc):
                 raise
     return conn.execute(
