@@ -94,7 +94,9 @@ The branch touches `main.ts`, so the entry check ran the FULL frontend - the fir
    reads as Hebrew). New case in `unit-i18n-core.spec.ts`.
 2. **layout-schedules-parity :165 (4 skins).** The trash / review pages of the schedules screen show sw-page's back key
    (AUDIT30 base); at 390 px it was 26-28 px, under the 44 px target. Fix: sw-page names the key `part="back"`; the schedules
-   screen raises it to 44 px at a phone width (`sw-page::part(back)`, the same rule as its pager keys).
+   screen raises it to 44 px at a phone width (`sw-page::part(back)`, the same rule as its pager keys). The crystal skin pins
+   every small button at 30 px high (`min-block-size: 30px`), so for the back key only it reads `max(30px, --sw-ctl-h-sm)` -
+   30 px everywhere as before, 44 px where a screen raises the token (local run: 44x30 before this line).
 3. **evidence-menu-opaque :296 (3D view chip, classic / dark, desktop + mobile).** Classic rule 1 (AUDIT30-B-SHARED) paints the
    selected chip `--sw-accent-soft`, translucent in dark (`rgba(91,140,255,0.2)`), so the scene showed through. Fix: over the 3D
    canvas the bar's soft field is the same tint mixed into the opaque menu surface (`sw-plan-3d.ts`, dark only - light pixels
@@ -117,3 +119,6 @@ The branch touches `main.ts`, so the entry check ran the FULL frontend - the fir
 - pixel-wiskey-access-diag [desktop, mobile]: 10 passed (no win32 baselines: the image comparison itself is NOT_RUN locally) +
   a throw-away probe (reason box keeps the focus after an immediate fill, desktop + mobile): 2 passed, not committed.
 - Backend: `tests/test_intercom_authority.py` 27 passed (`pytest -p no:xdist`).
+- Dev server (`--workers=1`, desktop): layout-schedules-parity "geometry classes" - classic, domus, tesla 0 findings (passed);
+  crystal 4 findings (44x30) -> crystal back-key rule -> crystal re-run 0 findings, passed.
+- Unit config: unit-i18n-core + unit-ui-lang 15 passed; the skin / token / menu-surface / dialog unit specs (10 files) 64 passed.
