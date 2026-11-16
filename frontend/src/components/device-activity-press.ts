@@ -8,13 +8,13 @@
  * open a two-item menu ("פעילות", "תזמונים"); Alt+Enter opens the popup directly. Never started on a control with a gesture of its own
  * (slider, toggle, button, input) nor in a screen's arrange mode (the drag wins; the menu still works there).
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type { ActivityKind } from '../api/device-activity';
 import { canAnywhere } from '../api/session';
 import { deviceTicketsOn, directTab, longPressMode, pressPlan } from '../tickets/device-entry';
+import { LONG_PRESS_MS, MOVE_SLOP_PX, PressController, exceedsSlop, type PressStart } from './press-controller';
 
-export const LONG_PRESS_MS = 500;
-export const MOVE_SLOP_PX = 8;
+export { LONG_PRESS_MS, MOVE_SLOP_PX, exceedsSlop };
 export const OPEN_EVENT = 'sw-device-activity';
 
 /** What the tile tells the popup (serialised into `data-activity`). */
@@ -80,9 +80,6 @@ export function opensOnTap(el: { tagName?: string; getAttribute?: (n: string) =>
   return (el.getAttribute?.('variant') ?? 'plain') === 'plain';
 }
 
-/** True when the pointer has moved past the slop. */
-export const exceedsSlop = (dx: number, dy: number, slop = MOVE_SLOP_PX) => dx * dx + dy * dy > slop * slop;
-
 /** The structural part of a node the path logic reads (so the unit specs can pass plain objects). */
 export interface PathNode {
   tagName?: string;
@@ -134,6 +131,12 @@ export function activityNodeOf(path: PathNode[], opts: { allowArrange?: boolean;
   return null;
 }
 
+/** The tile a press, a click or a menu gesture belongs to. */
+interface ActivityHit {
+  el: HTMLElement;
+  target: ActivityTarget;
+}
+
 const reduced = () => {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -142,41 +145,30 @@ const reduced = () => {
   }
 };
 
-export class ActivityPress implements ReactiveController {
-  private timer: number | undefined;
-  private start: { x: number; y: number; el: HTMLElement; target: ActivityTarget; type: string } | null = null;
-  private swallowUntil = 0;
-  private lastType = 'mouse';
+export class ActivityPress extends PressController<ActivityHit> {
   private ring: Animation | null = null;
 
-  constructor(private host: ReactiveControllerHost & HTMLElement, private opts: { area?: () => string } = {}) {
-    host.addController(this);
+  constructor(host: ReactiveControllerHost & HTMLElement, private opts: { area?: () => string } = {}) {
+    super(host);
   }
 
-  hostConnected() {
-    const h = this.host;
-    h.addEventListener('pointerdown', this.down, true);
-    h.addEventListener('pointermove', this.move, true);
-    h.addEventListener('pointerup', this.up, true);
-    h.addEventListener('pointercancel', this.up, true);
-    h.addEventListener('click', this.click, true);
-    h.addEventListener('contextmenu', this.ctx, true);
-    h.addEventListener('keydown', this.key);
+  protected findPress(e: Event) {
+    return this.find(e);
   }
 
-  hostDisconnected() {
-    const h = this.host;
-    h.removeEventListener('pointerdown', this.down, true);
-    h.removeEventListener('pointermove', this.move, true);
-    h.removeEventListener('pointerup', this.up, true);
-    h.removeEventListener('pointercancel', this.up, true);
-    h.removeEventListener('click', this.click, true);
-    h.removeEventListener('contextmenu', this.ctx, true);
-    h.removeEventListener('keydown', this.key);
-    this.cancel();
+  protected findMenu(e: Event) {
+    return this.find(e, true);
   }
 
-  private find(e: Event, menuLike = false) {
+  protected pressStarted(hit: ActivityHit) {
+    this.startRing(hit.el);
+  }
+
+  protected pressEnded(completed: boolean) {
+    this.endRing(completed);
+  }
+
+  private find(e: Event, menuLike = false): ActivityHit | null {
     const hit = activityNodeOf(e.composedPath() as unknown as PathNode[], { allowArrange: menuLike, anyControl: menuLike });
     return hit ? { el: hit.node as unknown as HTMLElement, target: hit.target } : null;
   }
@@ -185,39 +177,7 @@ export class ActivityPress implements ReactiveController {
     window.dispatchEvent(new CustomEvent<ActivityOpen>(OPEN_EVENT, { detail: { ...detail, area: this.opts.area?.() } }));
   }
 
-  private down = (e: PointerEvent) => {
-    this.lastType = e.pointerType || 'mouse';
-    this.cancel();
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (!e.isPrimary) return;
-    const hit = this.find(e);
-    if (!hit) return;
-    this.start = { x: e.clientX, y: e.clientY, el: hit.el, target: hit.target, type: e.pointerType };
-    this.startRing(hit.el);
-    this.timer = window.setTimeout(() => this.fire(), LONG_PRESS_MS);
-  };
-
-  private move = (e: PointerEvent) => {
-    if (!this.start || this.timer === undefined) return;
-    if (exceedsSlop(e.clientX - this.start.x, e.clientY - this.start.y)) this.cancel();
-  };
-
-  private up = () => {
-    this.cancel();
-  };
-
-  private fire() {
-    const s = this.start;
-    this.timer = undefined;
-    if (!s) return;
-    this.swallowUntil = Date.now() + 800;
-    try {
-      navigator.vibrate?.(10);
-    } catch {
-      /* no haptics */
-    }
-    this.endRing(true);
-    this.start = null;
+  protected longPress(s: PressStart<ActivityHit>) {
     // CR-038 D17: the long press follows the installation's setting (tickets/device-entry.ts pressPlan - the matrix of section 12.1)
     const plan = pressPlan({ tracked: s.target.tracked !== false, on: deviceTicketsOn(), mode: longPressMode() });
     if (!plan) return;
@@ -237,13 +197,6 @@ export class ActivityPress implements ReactiveController {
       this.swallowUntil = 0;
       el.dispatchEvent(new CustomEvent('activate', { bubbles: true, composed: true }));
     };
-  }
-
-  private cancel() {
-    if (this.timer !== undefined) window.clearTimeout(this.timer);
-    this.timer = undefined;
-    if (this.start) this.endRing(false);
-    this.start = null;
   }
 
   private startRing(el: HTMLElement) {
@@ -269,33 +222,14 @@ export class ActivityPress implements ReactiveController {
     else r.cancel();
   }
 
-  /** The click that ends a completed long press must not toggle the device. */
-  private click = (e: MouseEvent) => {
-    if (Date.now() < this.swallowUntil && this.find(e, true)) {
-      e.stopPropagation();
-      e.preventDefault();
-      this.swallowUntil = 0;
-    }
-  };
-
-  private ctx = (e: MouseEvent) => {
-    const hit = this.find(e, true);
-    if (!hit) return;
-    if (this.lastType === 'touch' || this.lastType === 'pen') {
-      // the browser's own menu would appear beside the ring; the long press itself opens the popup
-      e.preventDefault();
-      return;
-    }
-    e.preventDefault();
-    this.cancel();
+  protected contextMenu(e: MouseEvent, hit: ActivityHit) {
     const keyboard = e.detail === 0 || (e.clientX === 0 && e.clientY === 0);
     const r = hit.el.getBoundingClientRect();
     const menu = keyboard ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: e.clientX, y: e.clientY };
-    this.lastType = 'mouse';
     this.emit({ target: hit.target, tab: 'activity', menu, source: 'context', openDevice: this.opener(hit.el), opener: hit.el });
-  };
+  }
 
-  private key = (e: KeyboardEvent) => {
+  protected keyDown(e: KeyboardEvent) {
     if (e.key !== 'Enter' || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const hit = this.find(e, true);
     if (!hit) return;
@@ -304,5 +238,5 @@ export class ActivityPress implements ReactiveController {
     e.preventDefault();
     e.stopPropagation();
     this.emit({ target: hit.target, tab, opener: hit.el });
-  };
+  }
 }
