@@ -233,6 +233,18 @@ export class SystemAccessDisplay extends LitElement {
     return { state: sum.state, text: `${fill(t.missing, { list })}${tail ? ` - ${tail}` : ''}` };
   }
 
+  /**
+   * FLAKY-S12-FIX-2441: the card is `ready` as soon as the saved settings are in, but two more answers still shape it - the media
+   * source's readiness line ("checking" -> its final sentence) and WisKey's engine list (the "system default is now ..." line and the
+   * language row). `data-access-display-settled` on the card says that neither is on its way any more (answered or failed), so a test
+   * shoots the card in its final shape instead of guessing with a pause.
+   */
+  private settled(): boolean {
+    const readinessPending = this.show !== 'announce' && isApi() && can('system.configure') && !this.readinessFailed && this.readiness === null;
+    const enginesPending = this.show !== 'display' && this.canEdit && (this.enginesState === 'idle' || this.enginesState === 'loading');
+    return !readinessPending && !enginesPending;
+  }
+
   private value(key: DisplayKey): string {
     return this.draft[key] ?? this.saved?.[key] ?? DEFAULTS[key];
   }
@@ -421,7 +433,7 @@ export class SystemAccessDisplay extends LitElement {
     const dirty = Object.keys(this.draft).length > 0;
     const valid = talkMaxInput(this.value(TALK_MAX_KEY)) !== null;
     const sub = this.bare ? '' : this.show === 'announce' ? sct().announceSub : pt('dispSub');
-    return html`<sw-card heading=${heading} subheading=${sub} data-access-display="ready" data-access-display-show=${this.show}>
+    return html`<sw-card heading=${heading} subheading=${sub} data-access-display="ready" data-access-display-settled=${this.settled() ? 'true' : 'false'} data-access-display-show=${this.show}>
       ${this.show !== 'announce' ? this.displayRows() : nothing}
       ${this.show !== 'display' ? this.announceRows(ro) : nothing}
       ${ro
