@@ -33,6 +33,7 @@ measured once on one channel; seek generations, rendered time and reconnect stil
 browser before the timeline claims frame accuracy (`time_precision = "keyframe_limited"`)."""
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import math
 import re
@@ -501,8 +502,7 @@ def rtsp_playback_url(settings: Settings, track_id: int, start: dt.datetime, end
                       recorder_id: str = "nvr-1", stream: str = "main") -> str:
     """Drop-in for `playback.playback_rtsp_url` (same signature) on a Provision-ISR recorder: `track_id` is the channel.
     The session engine keeps its go2rtc stream names (`smplwise_pb_<instance>_<session>_g<n>`), so nothing outside the
-    product's namespace is touched. Wiring (after CR-024): `_create_stream` picks this when `settings.nvr_vendor` is
-    `provision_isr`."""
+    product's namespace is touched. Called from services/recorders/vendor_io.py for a recorder it handles."""
     from ...mode import ensure_nvr, ensure_recorder_enabled
 
     ensure_nvr(settings)
@@ -533,6 +533,41 @@ def to_jpeg(snap: SnapshotAt, *, width: int = 480, timeout_s: int = 15, ffmpeg: 
     return proc.stdout
 
 
+STDERR_TAIL_BYTES = 8192  # what the export download keeps of ffmpeg's stderr (the error text shows its last 160 characters)
+DOWNLOAD_REAP_S = 30  # how long a finished or killed ffmpeg may take to be reaped
+
+
+class _StderrTail:
+    """CR-EXPORTS-HOUSEKEEPING (03:F08): reads a child's stderr on a small thread while the child runs and keeps only its last
+    bytes. ffmpeg's stderr was a pipe read only after the process ended: a stream that made it log errors for minutes filled the
+    pipe, ffmpeg blocked on the write, and the export worker (one job at a time) sat out the whole 3,600 s timeout. The text can
+    carry the source URL, so it stays in memory (never a file) and is scrubbed by the caller as before."""
+
+    def __init__(self, stream: Any, keep: int = STDERR_TAIL_BYTES) -> None:
+        self._stream = stream
+        self._keep = keep
+        self._buf = b""
+        self._thread = threading.Thread(target=self._pump, name="export-ffmpeg-stderr", daemon=True)
+        self._thread.start()
+
+    def _pump(self) -> None:
+        try:
+            while True:
+                chunk = self._stream.read(4096)
+                if not chunk:
+                    return
+                self._buf = (self._buf + chunk)[-self._keep:]
+        except (OSError, ValueError):  # the pipe closed under the read (the child was killed): what was read stands
+            return
+
+    def result(self, timeout: float = 5.0) -> bytes:
+        """The last bytes read. Waits for the reader to see the end of the stream (it ends when the child's stderr closes)."""
+        self._thread.join(timeout)
+        with contextlib.suppress(Exception):
+            self._stream.close()
+        return self._buf
+
+
 def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Callable[[int], bool] | None = None, *,
                   ffmpeg: str | None = None, timeout_s: int = 3600, poll_s: float = 1.0) -> None:
     """`exports.Worker.downloader` for Provision-ISR: copy one RTSP `backup` request into `dest` (MPEG-TS, no re-encode).
@@ -553,8 +588,10 @@ def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Ca
             "-protocol_whitelist", "rtsp,rtp,tcp,udp", "-i", playback_uri,  # security review Low: the input can only be RTSP
             "-map", "0", "-c", "copy", "-f", "mpegts", str(dest)]
     proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=minimal_env())
+    tail = _StderrTail(proc.stderr)  # drained while ffmpeg runs: a chatty stderr can no longer block it (03:F08)
     began = time.monotonic()
     aborted = False
+    stuck = False
     try:
         while proc.poll() is None:
             if time.monotonic() - began > timeout_s:
@@ -567,10 +604,22 @@ def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Ca
                 proc.kill()
                 break
             time.sleep(poll_s)
-        _out, err = proc.communicate(timeout=30)
+        try:
+            proc.wait(timeout=DOWNLOAD_REAP_S)
+        except subprocess.TimeoutExpired:
+            # 05:P3-06: this exception carries the command line - the source URL with its credentials - and the export worker
+            # logs an unexpected exception with its text. It never leaves this function: the process is killed below and the
+            # download fails with the refusal every other failure of it gives.
+            stuck = True
     finally:
         if proc.poll() is None:
             proc.kill()
+            with contextlib.suppress(Exception):
+                proc.wait(timeout=5)
+    err = tail.result()
+    if stuck:
+        dest.unlink(missing_ok=True)
+        raise ApiError(503, "download_refused", "ה־NVR לא סיפק את ההקלטה.", details={"op": "download", "error": "ffmpeg_stuck"})
     if aborted:
         dest.unlink(missing_ok=True)
         raise ApiError(409, "export_cancelled", "ההורדה הופסקה.", details={"op": "download"})

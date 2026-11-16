@@ -525,11 +525,4 @@ def _recheck_thread(db: Any, settings: Settings, batch_id: str, ids: set[str]) -
 
 def wait_idle(timeout: float = 30.0) -> bool:
     """Tests: True once no re-check thread of this process is alive."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        with _running_lock:
-            alive = [t for t in _running.values() if t.is_alive()]
-        if not alive:
-            return True
-        time.sleep(0.02)
-    return False
+    return nvr_batch.threads_idle(_running_lock, _running, timeout)
