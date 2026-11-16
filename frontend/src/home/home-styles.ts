@@ -1,7 +1,10 @@
-// GENERATED from the approved round-25 home mockup (private/design-system-2026-10-27/round25/home-simple-v2: home.css + v2.css +
-// themes.css) by a mechanical port: scoped to the home element's shadow root, --sw-* renamed --hs-*, the full-interface frame and the
-// dev bar dropped. HOME-V3-AUDITFIX-2437 hand-edits (design audit round 30): the phone / wide boundary queries and the two easing fallbacks. Themes: data-hs-theme + data-hs-scheme on the host. Edit the mockup and regenerate rather than hand-editing here,
-// except for the product-only additions in home-styles-extra.ts.
+// The home interface's base sheet. HAND-MAINTAINED (code review 08:F17, lead decision L12 - CR-I18N-HOME-2441): edit this file.
+// History: it began as a one-off port of the approved round-25 home mockup (home.css + v2.css + themes.css): scoped to the home element's
+// shadow root, --sw-* renamed --hs-*, the full-interface frame and the dev bar dropped. That port was done by hand - no generator script
+// was ever written, the mockup is design material outside the repository, and the sheet has been edited here since
+// (HOME-V3-AUDITFIX-2437: the phone / wide boundary queries and the two easing fallbacks) - so "regenerate" was never an option.
+// Themes: data-hs-theme + data-hs-scheme on the host. Product-only additions live in home-styles-extra.ts, the v3 screens in
+// home-styles-v3.ts and home-p3-styles.ts (loaded in that order by sw-home.ts).
 import { css, unsafeCSS } from 'lit';
 
 export const homeMockupStyles = css`${unsafeCSS(String.raw`:host {

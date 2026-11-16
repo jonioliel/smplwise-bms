@@ -11,6 +11,7 @@ import { registerMoreTile } from './more-registry';
 import { wallEvent } from './home-fb-api';
 import { cancelEvent, createEvent, listCalendars, myCalendar, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
 import { errText, has, iso, localInstant, plural, stepper, thisWeekDays, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
+import { tr } from '../i18n/msg/home';
 
 interface Draft { title: string; day: string; from: number; to: number; cal: string; room: string }
 const st: {
@@ -68,24 +69,24 @@ const dayOf = (o: Occurrence) => ymd(new Date(o.start));
 function roomFree(r: RoomDay, now: Date): string {
   const t = now.getTime();
   const open = r.open.length ? r.open : [];
-  if (!open.length) return 'סגור היום';
+  if (!open.length) return tr('סגור היום');
   const cur = r.entries.find((e) => Date.parse(e.start) <= t && Date.parse(e.end) > t);
-  if (cur) return `תפוס עד ${timeOf(cur.end)}`;
+  if (cur) return tr('תפוס עד {v1}', { v1: timeOf(cur.end) });
   const next = r.entries.filter((e) => Date.parse(e.start) > t).sort((a, b) => a.start.localeCompare(b.start))[0];
-  return next ? `פנוי היום עד ${timeOf(next.start)}` : 'פנוי עכשיו';
+  return next ? tr('פנוי היום עד {v1}', { v1: timeOf(next.start) }) : tr('פנוי עכשיו');
 }
 
 registerMoreTile({
-  id: 'calendar', order: 55, href: 'calendar', label: 'יומן', icon: 'cal',
+  id: 'calendar', order: 55, href: 'calendar', label: tr('יומן'), icon: 'cal',
   visible: (h) => seen(h) && has('calendar'),
   warm: (h) => load(h),
   line: (h) => {
     const now = h.now.getTime();
     const e = st.occ.find((x) => Date.parse(x.start) > now);
-    if (!e) return { text: 'אין אירועים קרובים' };
-    const title = e.title ?? 'אירוע';
+    if (!e) return { text: tr('אין אירועים קרובים') };
+    const title = e.title ?? tr('אירוע');
     // HOME-V3-AUDITFIX-2437 (audit item 4): a long title does not fit the wall chip - the chip says only the hour, the title keeps it all
-    const chip = title.length > 14 ? html`הבא ב-<span class="num">${timeOf(e.start)}</span>` : undefined;
+    const chip = title.length > 14 ? html`${tr('הבא ב-')}<span class="num">${timeOf(e.start)}</span>` : undefined;
     return { text: html`<span class="num">${timeOf(e.start)}</span> ${title}`, chip, title: `${timeOf(e.start)} ${title}` };
   },
 });
@@ -99,48 +100,48 @@ registerScreen((h: HomeHost) => ({
   names: ['calendar'],
   enter: (_n, arg) => { warmFamily(h); if (arg === 'book' || arg === 'day') st.tab = arg; load(h, true); },
   render(_name, arg) {
-    if (!has('calendar')) return offScreen(h, 'יומן');
+    if (!has('calendar')) return offScreen(h, tr('יומן'));
     if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     const locked = h.kioskLocked();
-    const tabs: [string, string][] = [['day', 'היומן שלנו'], ...(has('booking') && roomCals().length && !locked ? [['book', 'חדרים משותפים'] as [string, string]] : [])];
+    const tabs: [string, string][] = [['day', tr('היומן שלנו')], ...(has('booking') && roomCals().length && !locked ? [['book', tr('חדרים משותפים')] as [string, string]] : [])];
     if (arg === 'book' || arg === 'day') st.tab = arg as 'day' | 'book';
     if (!tabs.some((t) => t[0] === st.tab)) st.tab = 'day';
-    const sg = tabs.length > 1 ? h.seg('p2CalTab', tabs, st.tab, 'תצוגה') : nothing;
-    if (st.error && !st.at) return html`${h.head('יומן', '')}${h.empty('x', 'לא הצלחנו לטעון את היומן', st.error)}`;
+    const sg = tabs.length > 1 ? h.seg('p2CalTab', tabs, st.tab, tr('תצוגה')) : nothing;
+    if (st.error && !st.at) return html`${h.head(tr('יומן'), '')}${h.empty('x', tr('לא הצלחנו לטעון את היומן'), st.error)}`;
     if (st.tab === 'book') return book(h, sg);
     const days = stripDays(h);
     const today = ymd(h.now);
     const day = st.day && days.some((d) => d[2] === st.day) ? st.day : today;
     const wk = weekMode(h);
-    const wkSeg = h.seg('p2CalWeek', [['week', 'השבוע'], ['next', 'הימים הקרובים']], wk, 'ימים בפס');
+    const wkSeg = h.seg('p2CalWeek', [['week', tr('השבוע')], ['next', tr('הימים הקרובים')]], wk, tr('ימים בפס'));
     const list = st.occ.filter((o) => dayOf(o) === day);
     const pg = paged(list, h.phone ? 4 : 6, h.pg('cal'));
     const canNew = family().some(bookable); // HOME-V3-FOLLOWUP-B-2431: a wall panel too (its own route below)
     const d0 = days.find((d) => d[2] === day)!;
-    return html`${h.headT(day === today ? 'היום ביומן' : `יום ${d0[0]}, ${d0[1]} בחודש`, list.length ? plural(list.length, 'אירוע אחד', 'אירועים') : 'יום פנוי', html`${sg}${wkSeg}`,
-      html`${h.pager('cal', pg.pages)}${canNew ? html`<button class="hbtn strong" data-act="p2CalNew">${hi('plus')}<span class="bt">אירוע חדש</span></button>` : nothing}`)}
-      <div class="week" role="group" aria-label="ימי השבוע">${days.map(([l, n, s]) => {
+    return html`${h.headT(day === today ? tr('היום ביומן') : tr('יום {v1}, {v2} בחודש', { v1: d0[0], v2: d0[1] }), list.length ? plural(list.length, tr('אירוע אחד'), tr('אירועים')) : tr('יום פנוי'), html`${sg}${wkSeg}`,
+      html`${h.pager('cal', pg.pages)}${canNew ? html`<button class="hbtn strong" data-act="p2CalNew">${hi('plus')}<span class="bt">${tr('אירוע חדש')}</span></button>` : nothing}`)}
+      <div class="week" role="group" aria-label="${tr('ימי השבוע')}">${days.map(([l, n, s]) => {
         const k = st.occ.filter((o) => dayOf(o) === s).length;
-        return html`<button class="wd" data-act="p2CalDay" data-v=${s} aria-pressed=${String(s === day)} data-today=${s === today ? '1' : nothing} data-past=${s < today ? '1' : nothing} aria-label=${`יום ${l}, ${n}, ${k} אירועים`}><span class="wdl">${l}</span><b class="num">${n}</b><span class="wk">${k ? html`<i></i>${k > 1 ? html`<i></i>` : nothing}${k > 2 ? html`<i></i>` : nothing}` : nothing}</span></button>`;
+        return html`<button class="wd" data-act="p2CalDay" data-v=${s} aria-pressed=${String(s === day)} data-today=${s === today ? '1' : nothing} data-past=${s < today ? '1' : nothing} aria-label=${tr('יום {l}, {n}, {k} אירועים', { l, n, k })}><span class="wdl">${l}</span><b class="num">${n}</b><span class="wk">${k ? html`<i></i>${k > 1 ? html`<i></i>` : nothing}${k > 2 ? html`<i></i>` : nothing}` : nothing}</span></button>`;
       })}</div>
-      <div class="card-grid calg">${pg.items.length ? pg.items.map((e) => html`<div class="tile cev"><span class="ct"><b class="num">${e.all_day ? 'כל היום' : timeOf(e.start)}</b>${e.all_day ? nothing : html`<span class="muted num">${timeOf(e.end)}</span>`}</span><span class="at"><b class="clamp2">${e.title ?? 'תפוס'}</b><span class="muted clamp1">${[e.organizer?.name, calName(e.calendar_id)].filter(Boolean).join(' · ')}</span></span></div>`)
-        : h.empty('cal', st.loading ? 'טוענים…' : 'אין אירועים ביום הזה', canNew ? 'אפשר להוסיף אירוע בכפתור "אירוע חדש".' : '')}</div>`;
+      <div class="card-grid calg">${pg.items.length ? pg.items.map((e) => html`<div class="tile cev"><span class="ct"><b class="num">${e.all_day ? tr('כל היום') : timeOf(e.start)}</b>${e.all_day ? nothing : html`<span class="muted num">${timeOf(e.end)}</span>`}</span><span class="at"><b class="clamp2">${e.title ?? tr('תפוס')}</b><span class="muted clamp1">${[e.organizer?.name, calName(e.calendar_id)].filter(Boolean).join(' · ')}</span></span></div>`)
+        : h.empty('cal', st.loading ? tr('טוענים…') : tr('אין אירועים ביום הזה'), canNew ? tr('אפשר להוסיף אירוע בכפתור "אירוע חדש".') : '')}</div>`;
   },
   ovl(o: ExtOvl) {
     const dr = st.draft;
-    const x = html`<button class="rb" data-act="close" aria-label="סגור">${hi('x')}</button>`;
+    const x = html`<button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button>`;
     const days = weekDays(h.now);
     const bk = o.kind === 'bookNew';
     const room = bk ? st.rooms.find((r) => r.calendar_id === dr.room) : undefined;
     const cals = family().filter(bookable);
-    const dayRow = html`<div class="setrow flat"><span class="sname">יום</span><div class="week mini">${days.map(([l, n, s]) => html`<button class="wd" data-act="p2CalPick" data-k="day" data-v=${s} aria-pressed=${String(dr.day === s)}><span class="wdl">${l}</span><b class="num">${n}</b></button>`)}</div></div>`;
-    const timeRow = html`<div class="setrow flat"><span class="sname">משעה</span>${stepper('p2CalStp', 'from', dr.from, 'משעה')}<span class="sname mid-l">עד שעה</span>${stepper('p2CalStp', 'to', dr.to, 'עד שעה')}</div>`;
-    return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label=${bk ? 'הזמנת חדר' : 'אירוע חדש'} data-sheet=${bk ? 'bookNew' : 'calNew'}>
-      <header class="menu-h">${hi(bk ? 'door' : 'cal')}<span class="mh-t"><b class="clamp1">${bk ? 'הזמנת ' + (room?.name ?? '') : 'אירוע חדש'}</b><span class="muted clamp1">${bk ? (room ? roomFree(room, h.now) : '') : 'יופיע ביומן של כל המשפחה'}</span></span>${x}</header>
-      ${bk ? nothing : html`<label class="fld"><span>מה</span><input class="inp" .value=${dr.title} maxlength="120" placeholder="למשל: ארוחת ערב" enterkeyhint="done" @input=${(e: Event) => { dr.title = (e.target as HTMLInputElement).value; }}></label>`}
+    const dayRow = html`<div class="setrow flat"><span class="sname">${tr('יום')}</span><div class="week mini">${days.map(([l, n, s]) => html`<button class="wd" data-act="p2CalPick" data-k="day" data-v=${s} aria-pressed=${String(dr.day === s)}><span class="wdl">${l}</span><b class="num">${n}</b></button>`)}</div></div>`;
+    const timeRow = html`<div class="setrow flat"><span class="sname">${tr('משעה')}</span>${stepper('p2CalStp', 'from', dr.from, tr('משעה'))}<span class="sname mid-l">${tr('עד שעה')}</span>${stepper('p2CalStp', 'to', dr.to, tr('עד שעה'))}</div>`;
+    return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label=${bk ? tr('הזמנת חדר') : tr('אירוע חדש')} data-sheet=${bk ? 'bookNew' : 'calNew'}>
+      <header class="menu-h">${hi(bk ? 'door' : 'cal')}<span class="mh-t"><b class="clamp1">${bk ? tr('הזמנת ') + (room?.name ?? '') : tr('אירוע חדש')}</b><span class="muted clamp1">${bk ? (room ? roomFree(room, h.now) : '') : tr('יופיע ביומן של כל המשפחה')}</span></span>${x}</header>
+      ${bk ? nothing : html`<label class="fld"><span>${tr('מה')}</span><input class="inp" .value=${dr.title} maxlength="120" placeholder="${tr('למשל: ארוחת ערב')}" enterkeyhint="done" @input=${(e: Event) => { dr.title = (e.target as HTMLInputElement).value; }}></label>`}
       ${dayRow}${timeRow}
-      ${!bk && cals.length > 1 ? html`<div class="setrow flat"><span class="sname">יומן</span>${h.seg('p2CalCal', cals.slice(0, 3).map((c) => [c.id, c.name] as [string, string]), dr.cal, 'יומן')}</div>` : nothing}
-      <div class="dlg-acts"><button class="hbtn strong" data-act="p2CalSave" ?disabled=${st.busy}>${bk ? 'שלח בקשה' : 'שמור'}</button><button class="hbtn" data-act="close">ביטול</button></div></section>`;
+      ${!bk && cals.length > 1 ? html`<div class="setrow flat"><span class="sname">${tr('יומן')}</span>${h.seg('p2CalCal', cals.slice(0, 3).map((c) => [c.id, c.name] as [string, string]), dr.cal, tr('יומן'))}</div>` : nothing}
+      <div class="dlg-acts"><button class="hbtn strong" data-act="p2CalSave" ?disabled=${st.busy}>${bk ? tr('שלח בקשה') : tr('שמור')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div></section>`;
   },
   acts: {
     p2CalTab: (el) => { st.tab = el.dataset.v as 'day' | 'book'; h.page = { ...h.page, cal: 0 }; h.go('calendar/' + st.tab); },
@@ -172,8 +173,9 @@ registerScreen((h: HomeHost) => ({
     p2CalSave: () => {
       const d = st.draft;
       const bk = (h.ovl as ExtOvl | null)?.kind === 'bookNew';
+      // the booking's title is saved on the server and read by everyone: it stays Hebrew in every interface language
       const title = bk ? `הזמנה: ${st.rooms.find((r) => r.calendar_id === d.room)?.name ?? ''}`.slice(0, 120) : d.title.trim();
-      if (!title) return h.toast('כתבו מה האירוע.');
+      if (!title) return h.toast(tr('כתבו מה האירוע.'));
       st.busy = true;
       h.requestUpdate();
       const start = iso(localInstant(d.day, d.from));
@@ -182,7 +184,7 @@ registerScreen((h: HomeHost) => ({
       void (h.kioskLocked() && !bk ? wallEvent({ calendar_id: d.cal || undefined, title, start, end }) : createEvent({ calendar_id: bk ? d.room : d.cal, kind: bk ? 'booking' : 'event', title, start, end }))
         .then((r) => {
           h.ovl = null;
-          h.toast(bk ? (r.state === 'pending' ? 'הבקשה נשלחה. נודיע כשתאושר.' : 'החדר הוזמן') : 'האירוע נוסף ליומן');
+          h.toast(bk ? (r.state === 'pending' ? tr('הבקשה נשלחה. נודיע כשתאושר.') : tr('החדר הוזמן')) : tr('האירוע נוסף ליומן'));
           st.day = d.day;
           load(h, true);
         })
@@ -196,8 +198,8 @@ registerScreen((h: HomeHost) => ({
       const name = calName(m?.calendar_id ?? p?.calendar_id ?? '');
       const when = whenText(m?.start ?? p?.start, h.now);
       h.ovl = {
-        type: 'ask', title: `לבטל את ההזמנה של ${name}?`, text: when, yes: 'כן, בטל',
-        run: () => void cancelEvent(id, m ? m.state : 'pending', m?.revision).then(() => { h.toast('ההזמנה בוטלה'); load(h, true); }).catch((e) => h.toast(errText(e))),
+        type: 'ask', title: tr('לבטל את ההזמנה של {name}?', { name }), text: when, yes: tr('כן, בטל'),
+        run: () => void cancelEvent(id, m ? m.state : 'pending', m?.revision).then(() => { h.toast(tr('ההזמנה בוטלה')); load(h, true); }).catch((e) => h.toast(errText(e))),
       };
     },
   },
@@ -210,10 +212,10 @@ function book(h: HomeHost, sg: unknown) {
     ...st.pending.map((p) => ({ id: p.event_id, cal: p.calendar_id, start: p.start, end: p.end, state: 'pending' })),
   ].sort((a, b) => a.start.localeCompare(b.start));
   const pm = paged(mine, h.phone ? 2 : 3, h.pg('bkM'));
-  return html`${h.headT('חדרים משותפים', 'מזמינים חדר לשעות שנוח לכם', sg)}
-    <div class="doors-body bk"><section class="door-list" aria-label="חדרים">${pr.items.length ? pr.items.map((r) => html`<div class="tile arow"><span class="ai">${hi('door')}</span><span class="at"><b class="clamp1">${r.name}</b><span class="muted clamp1">${roomFree(r, h.now)}</span></span><button class="hbtn" data-act="p2BookNew" data-id=${r.calendar_id}>הזמן</button></div>`)
-      : h.empty('door', st.loading ? 'טוענים…' : 'אין חדרים להזמנה', 'כשיוגדרו חדרים משותפים, אפשר יהיה להזמין אותם מכאן.')}${h.pager('bkR', pr.pages)}</section>
-      <section class="tile pane" aria-label="ההזמנות שלי"><div class="bar"><h2>ההזמנות שלי</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} עד ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? 'מחכה לאישור' : 'מאושר'}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} aria-label="בטל את ההזמנה">${hi('del')}</button></div>`)
-        : html`<p class="muted pb-none">עוד לא הזמנתם חדר.</p>`}</section></div>`;
+  return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), sg)}
+    <div class="doors-body bk"><section class="door-list" aria-label="${tr('חדרים')}">${pr.items.length ? pr.items.map((r) => html`<div class="tile arow"><span class="ai">${hi('door')}</span><span class="at"><b class="clamp1">${r.name}</b><span class="muted clamp1">${roomFree(r, h.now)}</span></span><button class="hbtn" data-act="p2BookNew" data-id=${r.calendar_id}>${tr('הזמן')}</button></div>`)
+      : h.empty('door', st.loading ? tr('טוענים…') : tr('אין חדרים להזמנה'), tr('כשיוגדרו חדרים משותפים, אפשר יהיה להזמין אותם מכאן.'))}${h.pager('bkR', pr.pages)}</section>
+      <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? tr('מחכה לאישור') : tr('מאושר')}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)
+        : html`<p class="muted pb-none">${tr('עוד לא הזמנתם חדר.')}</p>`}</section></div>`;
 }
 

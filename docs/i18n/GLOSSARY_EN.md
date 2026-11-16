@@ -271,3 +271,33 @@ the English follows the commoner one until the Hebrew is split (a follow-up per 
 calendars "חזרה" (Back / Repeat), components "סגור" (Close / Closed), "יציאה" (Sign out / the remote's Exit key),
 system-b "שמירה" (Save / Retention: the Retention tab is left in Hebrew), media "אחר" (Other / move later), devices "אחר"
 (Other / move later), electricity "ביטול" (Cancel / Undo).
+
+## Home interface (CR-I18N-HOME-2441, `src/i18n/msg/home.ts`)
+
+Family words: no platform, product or protocol names, and no operator jargon.
+
+| Hebrew | English |
+| --- | --- |
+| ממשק ביתי / ממשק מלא | Home interface / full interface |
+| מנהל הבית | The home manager |
+| בני הבית | The household |
+| הבית שלי | My home |
+| מסך קיר | Wall screen |
+| מועדפים / חדר מועדף | Favourites / favourite room |
+| מפסקים / מפסק שאינו אור | Switches / non-light switch |
+| מיזוג | Air conditioning |
+| כיבוי החדר / כיבוי כל הבית | Room off / Whole house off |
+| כריזה בבית | Home announcement |
+| פנייה / פניות שירות | Request / service requests |
+| יומן הבית | Home diary |
+| מי בבית | Who is home |
+| לא להפריע | Do not disturb |
+| ערכת נושא | Theme |
+| קוט״ש / מ״ק | kWh / m³ |
+
+Sentence parts: where the Hebrew screen joins a word to a name or a number (`'חזרה אל '`, `' דולקים'`, `'ב{name}'`), the key keeps
+its space and the English carries the matching space. One Hebrew, two meanings in this module: "סגור" (Close / a closed gate)
+follows the commoner one, the button.
+
+Stay Hebrew in every interface language (data saved on the server, read by other people): the title of a room booking
+("הזמנה: ...") and the default title of a service request ("תקלה: ...").

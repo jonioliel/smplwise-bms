@@ -5,6 +5,7 @@ import { registerScreen, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { moreTiles } from './more-registry';
+import { tr } from '../i18n/msg/home';
 
 /** Keeps the home screen's "עוד" chip line current (tiles shown, waiting badges). */
 export function moreSummary(h: HomeHost): { tiles: number; badges: number } {
@@ -27,8 +28,8 @@ registerScreen((h: HomeHost) => ({
     const all = moreTiles(h);
     moreSummary(h);
     const pg = paged(all, h.phone ? 12 : 18, h.pg('hub'));
-    if (!all.length) return html`${h.head('עוד בבית', '')}${h.empty('grid', 'אין כאן עדיין יכולות נוספות', 'מנהל הבית מפעיל יכולות נוספות לכל אדם. כשיופעלו, הן יופיעו כאן.')}`;
-    return html`${h.head('עוד בבית', 'כל מה שהבית יודע לעשות, מעבר לחדרים', h.pager('hub', pg.pages))}
+    if (!all.length) return html`${h.head(tr('עוד בבית'), '')}${h.empty('grid', tr('אין כאן עדיין יכולות נוספות'), tr('מנהל הבית מפעיל יכולות נוספות לכל אדם. כשיופעלו, הן יופיעו כאן.'))}`;
+    return html`${h.head(tr('עוד בבית'), tr('כל מה שהבית יודע לעשות, מעבר לחדרים'), h.pager('hub', pg.pages))}
       <div class="hub">${pg.items.map((t) => {
         const l = t.line(h);
         return html`<a class="tile hubt" href=${h.href(t.href)} data-mod=${t.id} data-act=${t.act?.(h) ?? nothing}>${l.badge ? html`<b class="count num">${l.badge}</b>` : nothing}${hi(t.icon)}<b class="hl clamp1">${t.label}</b><span class="hs2 clamp2" data-tone=${l.tone ?? nothing}>${l.tone ? html`<i class="dot"></i>` : nothing}${l.text}</span></a>`;

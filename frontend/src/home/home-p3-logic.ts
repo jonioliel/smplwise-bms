@@ -1,12 +1,13 @@
 // HOME-V3-P3-2432: the pure logic of the home interface's phase 3 (mockup v3, round 27: music and screens, announcements, the electricity
 // bill, water, the house systems, the home map). No DOM, no network; unit-tested in tests/unit-home-v3-p3-logic.spec.ts.
 // Family words only: no platform, product or protocol names, no internal terms.
+import { tr } from '../i18n/msg/home';
 
 /** The six categories phase 3 adds (services/home_interface.MODULES_P3; an administrator can hide each per person). */
 export const P3_MODULES = ['media', 'announce', 'bills', 'water', 'systems', 'map'] as const;
 export type HomeModuleP3 = (typeof P3_MODULES)[number];
 export const P3_MODULE_LABEL: Record<HomeModuleP3, string> = {
-  media: 'מוזיקה ומסכים', announce: 'כריזה בבית', bills: 'חשבון חשמל', water: 'מים', systems: 'מערכות הבית', map: 'מפת הבית',
+  media: tr('מוזיקה ומסכים'), announce: tr('כריזה בבית'), bills: tr('חשבון חשמל'), water: tr('מים'), systems: tr('מערכות הבית'), map: tr('מפת הבית'),
 };
 /** The screens phase 3 adds below #/home (the announcement is a sheet, not a screen). */
 export const P3_SCREENS = ['media', 'bills', 'water', 'systems', 'map'] as const;
@@ -66,20 +67,20 @@ export const num1 = (n: number): string => NUM1.format(n);
 
 /** Today against a usual day in words; past 999 % a percentage says nothing, so "הרבה יותר" (audit item 17). `d` = whole percent. */
 export function diffWords(d: number, than: string): { pct: string | null; words: string } {
-  if (d > 999) return { pct: null, words: `הרבה יותר ${than}` };
-  return { pct: `${num1(Math.abs(d))}%`, words: `${d < 0 ? 'פחות' : 'יותר'} ${than}` };
+  if (d > 999) return { pct: null, words: tr('הרבה יותר {than}', { than }) };
+  return { pct: `${num1(Math.abs(d))}%`, words: `${d < 0 ? tr('פחות') : tr('יותר')} ${than}` };
 }
 
 /** The difference between the estimate and the last bill, in words. */
 export function vsLast(forecast: number | null, last: number | null): string {
   if (forecast == null || last == null) return '';
   const d = forecast - last;
-  if (Math.abs(d) < Math.max(10, last * 0.03)) return 'כמו בחשבון הקודם';
-  return `${ils(Math.abs(d))} ₪ ${d > 0 ? 'יותר' : 'פחות'} מהחשבון הקודם`;
+  if (Math.abs(d) < Math.max(10, last * 0.03)) return tr('כמו בחשבון הקודם');
+  return tr('{v1} ₪ {v2} מהחשבון הקודם', { v1: ils(Math.abs(d)), v2: d > 0 ? tr('יותר') : tr('פחות') });
 }
 
 export const BILL_STATE: Record<string, [string, string]> = {
-  draft: ['בהכנה', 'neutral'], issued: ['לתשלום', 'warn'], sent: ['לתשלום', 'warn'], paid: ['שולם', 'ok'], void: ['בוטל', 'neutral'],
+  draft: [tr('בהכנה'), 'neutral'], issued: [tr('לתשלום'), 'warn'], sent: [tr('לתשלום'), 'warn'], paid: [tr('שולם'), 'ok'], void: [tr('בוטל'), 'neutral'],
 };
 
 export const HE_MONTH = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -93,7 +94,7 @@ export function periodName(from: string, to: string): string {
 
 // ---------------------------------------------------------------- water
 
-const HE_DAY = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const HE_DAY = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
 /** The week's bars: seven local days ending today, each with its litres (null = no reading). */
 export function weekBars(series: { start: string; litres: number | null }[] | null | undefined, today: Date = new Date()): [string, number | null][] {
   const out: [string, number | null][] = [];
@@ -104,7 +105,7 @@ export function weekBars(series: { start: string; litres: number | null }[] | nu
   }
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-    out.push([i === 0 ? 'היום' : HE_DAY[d.getDay()], by.get(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`) ?? null]);
+    out.push([i === 0 ? tr('היום') : HE_DAY[d.getDay()], by.get(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`) ?? null]);
   }
   return out;
 }
@@ -122,15 +123,15 @@ export function vsUsual(bars: [string, number | null][]): number | null {
 
 export const TEMP_OK = new Set(['ok', 'off']);
 export const ELEVATOR_WORD: Record<string, [string, string]> = {
-  active: ['פועלת', 'ok'], moving_up: ['פועלת', 'ok'], moving_down: ['פועלת', 'ok'], travelling: ['בנסיעה', 'ok'], waiting: ['ממתינה', 'ok'], door_open: ['דלת פתוחה', 'ok'],
-  out_of_service: ['לא בשימוש כרגע', 'warn'], fault: ['תקלה', 'warn'], fire_service: ['מצב חירום', 'warn'], unknown: ['אין מידע עכשיו', 'neutral'],
+  active: [tr('פועלת'), 'ok'], moving_up: [tr('פועלת'), 'ok'], moving_down: [tr('פועלת'), 'ok'], travelling: [tr('בנסיעה'), 'ok'], waiting: [tr('ממתינה'), 'ok'], door_open: [tr('דלת פתוחה'), 'ok'],
+  out_of_service: [tr('לא בשימוש כרגע'), 'warn'], fault: [tr('תקלה'), 'warn'], fire_service: [tr('מצב חירום'), 'warn'], unknown: [tr('אין מידע עכשיו'), 'neutral'],
 };
 export const GEN_WORD: Record<string, [string, string]> = {
-  standby: ['מוכן', 'ok'], running: ['פועל', 'warn'], starting: ['מתניע', 'warn'], cooling: ['מתקרר', 'warn'], alarm: ['יש התראה', 'warn'], fault: ['תקלה', 'warn'],
-  unknown: ['אין מידע עכשיו', 'neutral'],
+  standby: [tr('מוכן'), 'ok'], running: [tr('פועל'), 'warn'], starting: [tr('מתניע'), 'warn'], cooling: [tr('מתקרר'), 'warn'], alarm: [tr('יש התראה'), 'warn'], fault: [tr('תקלה'), 'warn'],
+  unknown: [tr('אין מידע עכשיו'), 'neutral'],
 };
 export const SUPPLY_WORD: Record<string, [string, string, string]> = {
-  mains: ['חשמל מהרשת', 'תקין', 'ok'], generator: ['על גנרטור', 'אין חשמל מהרשת', 'warn'], none: ['אין חשמל מהרשת', 'כדאי לבדוק', 'warn'], unknown: ['אין מידע על החשמל', 'נבדוק שוב בקרוב', 'neutral'],
+  mains: [tr('חשמל מהרשת'), tr('תקין'), 'ok'], generator: [tr('על גנרטור'), tr('אין חשמל מהרשת'), 'warn'], none: [tr('אין חשמל מהרשת'), tr('כדאי לבדוק'), 'warn'], unknown: [tr('אין מידע על החשמל'), tr('נבדוק שוב בקרוב'), 'neutral'],
 };
 
 // ---------------------------------------------------------------- the home map (a schematic plan, drawn from the rooms; never mirrored)

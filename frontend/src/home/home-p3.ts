@@ -30,6 +30,7 @@ import { sBills } from './home-p3-bills';
 import { sWater } from './home-p3-water';
 import { sSystems } from './home-p3-systems';
 import { sMap } from './home-p3-map';
+import { tr } from '../i18n/msg/home';
 
 /** What phase 3 uses of <sw-home> (members that are private there; reached through this interface, never changed in shape). */
 export interface P3Host {
@@ -324,7 +325,7 @@ export class P3 {
     if (!r || !this.has('media') || !this.media) return [];
     const l = this.media.filter((m) => m.area_id === r.id);
     if (!l.length) return [];
-    return [['media', 'מדיה', 'music', l.some(playing) ? 'מתנגן' : 'כבוי', '', 'media']];
+    return [['media', tr('מדיה'), 'music', l.some(playing) ? tr('מתנגן') : tr('כבוי'), '', 'media']];
   }
 
   /** The announcement is offered: the category, the permission, the module on with at least one room, and (on a wall panel) its room. */
@@ -344,8 +345,8 @@ export class P3 {
 
   /** The electricity screen's links to water and the bill (the mockup's two buttons next to the period switch). */
   energyActs() {
-    const w = this.has('water') && this.water ? html`<a class="hbtn" href=${this.h.href('water')} data-p3-go="water">${hi3('drop')}<span class="bt">מים</span></a>` : nothing;
-    const b = this.has('bills') && this.bill ? html`<a class="hbtn" href=${this.h.href('bills')} data-p3-go="bills">${hi3('bill')}<span class="bt">החשבון</span></a>` : nothing;
+    const w = this.has('water') && this.water ? html`<a class="hbtn" href=${this.h.href('water')} data-p3-go="water">${hi3('drop')}<span class="bt">${tr('מים')}</span></a>` : nothing;
+    const b = this.has('bills') && this.bill ? html`<a class="hbtn" href=${this.h.href('bills')} data-p3-go="bills">${hi3('bill')}<span class="bt">${tr('החשבון')}</span></a>` : nothing;
     return html`${w}${b}`;
   }
 
@@ -360,22 +361,22 @@ export class P3 {
       o.push({ id, href, label, icon, line, tone, badge, kiosk, act });
     if (this.has('media') && this.media) {
       const n = new Set(this.media.filter(playing).map((m) => m.area_id)).size;
-      add('media', 'media', 'מוזיקה ומסכים', 'music', !this.media.length ? 'אין מכשירים מחוברים' : n ? plural(n, 'מתנגן בחדר אחד', 'חדרים מנגנים') : 'הכל שקט', '', 0, true);
+      add('media', 'media', tr('מוזיקה ומסכים'), 'music', !this.media.length ? tr('אין מכשירים מחוברים') : n ? plural(n, tr('מתנגן בחדר אחד'), tr('חדרים מנגנים')) : tr('הכל שקט'), '', 0, true);
     }
-    if (this.canAnnounce()) add('announce', 'media', 'כריזה בבית', 'horn', 'הודעה קולית לחדרים', '', 0, true, 'p3Announce');
+    if (this.canAnnounce()) add('announce', 'media', tr('כריזה בבית'), 'horn', tr('הודעה קולית לחדרים'), '', 0, true, 'p3Announce');
     if (this.has('bills') && this.bill) {
       const v = money(this.bill.status?.amount_so_far);
-      add('bills', 'bills', 'חשבון חשמל', 'bill', v != null ? `${ils(v)} ₪ עד עכשיו` : 'עוד אין חשבון');
+      add('bills', 'bills', tr('חשבון חשמל'), 'bill', v != null ? tr('{v1} ₪ עד עכשיו', { v1: ils(v) }) : tr('עוד אין חשבון'));
     }
     if (this.has('water') && this.water) {
       const w = this.water;
-      add('water', 'water', 'מים', 'drop', w.leaks ? 'חשד לנזילה' : w.today != null ? `${ils(w.today)} ליטר היום` : 'עוד אין נתונים', w.leaks ? 'warn' : '');
+      add('water', 'water', tr('מים'), 'drop', w.leaks ? tr('חשד לנזילה') : w.today != null ? tr('{v1} ליטר היום', { v1: ils(w.today) }) : tr('עוד אין נתונים'), w.leaks ? 'warn' : '');
     }
     if (this.has('systems') && this.sys) {
       const b = this.sysBad();
-      add('systems', 'systems', 'מערכות הבית', 'gen', b ? plural(b, 'דבר אחד דורש תשומת לב', 'דברים דורשים תשומת לב') : 'הכל תקין', b ? 'warn' : 'ok');
+      add('systems', 'systems', tr('מערכות הבית'), 'gen', b ? plural(b, tr('דבר אחד דורש תשומת לב'), tr('דברים דורשים תשומת לב')) : tr('הכל תקין'), b ? 'warn' : 'ok');
     }
-    if (this.mapOn()) add('map', 'map', 'מפת הבית', 'map', 'הבית לפי קומות');
+    if (this.mapOn()) add('map', 'map', tr('מפת הבית'), 'map', tr('הבית לפי קומות'));
     return this.h.kioskLocked() ? o.filter((t) => t.kiosk) : o;
   }
 
@@ -398,7 +399,7 @@ export class P3 {
 
   /** A screen whose capability is off for this person (a deep link): the mockup's quiet "not available" state. */
   off(title: string) {
-    return html`${this.h.head(title, '')}${this.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    return html`${this.h.head(title, '')}${this.empty('lock', tr('המסך הזה לא זמין'), tr('מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.'))}`;
   }
 
   pill(tone: string, text: string) {

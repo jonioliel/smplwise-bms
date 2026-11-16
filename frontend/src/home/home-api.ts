@@ -8,6 +8,7 @@ import { listMeters, meterSeries } from '../api/electricity-meters';
 import { notify, type Notification } from '../api/notifications';
 import { httpAutomations, type Item as AutoItem } from '../api/automations';
 import { can, canAnywhere } from '../api/session';
+import { tr } from '../i18n/msg/home';
 
 export type Interface = 'home' | 'full';
 export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security'
@@ -175,7 +176,9 @@ export async function loadCameras(): Promise<HCamera[]> {
   try {
     const r = await listCameras();
     return r.cameras.map((c) => {
-      const x = c as unknown as { id: string; name: string; can_view_live?: boolean; recorder_enabled?: boolean; area_id?: string | null; online?: boolean | null };
+      // Review 08:F19: no cast through `unknown` - the two fields this screen reads that api/types.ts Camera does not declare yet
+      // (`area_id`: sent for a camera with its own address; `online`: not sent by the current backend, kept as it was read)
+      const x: typeof c & { area_id?: string | null; online?: boolean | null } = c;
       return { id: x.id, name: x.name, ok: x.can_view_live !== false && x.recorder_enabled !== false && x.online !== false, room: x.area_id ?? null };
     });
   } catch {
@@ -206,12 +209,12 @@ export function relTime(iso: string, now = Date.now()): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return '';
   const min = Math.round((now - t) / 60000);
-  if (min < 1) return 'עכשיו';
-  if (min < 60) return min === 1 ? 'לפני דקה' : `לפני ${min} דקות`;
+  if (min < 1) return tr('עכשיו');
+  if (min < 60) return min === 1 ? tr('לפני דקה') : tr('לפני {min} דקות', { min });
   const d = new Date(t);
   const hm = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
   const today = new Date(now).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) === d.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
-  return today ? `היום, ${hm}` : `${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}, ${hm}`;
+  return today ? tr('היום, {hm}', { hm }) : `${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}, ${hm}`;
 }
 
 export async function loadAlerts(): Promise<HAlert[]> {
@@ -227,7 +230,7 @@ export async function loadAlerts(): Promise<HAlert[]> {
 }
 
 const DAY = 86_400_000;
-const HE_DAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const HE_DAYS = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
 
 function startOfDayLocal(at: number): number {
   const d = new Date(at);
@@ -275,7 +278,7 @@ export async function loadEnergy(): Promise<HEnergy | null> {
     }
   }));
   const byArea = new Map<string, number>();
-  for (const m of meters) byArea.set(m.area_name || 'שאר הבית', (byArea.get(m.area_name || 'שאר הבית') ?? 0) + (m.today_kwh ?? 0));
+  for (const m of meters) byArea.set(m.area_name || tr('שאר הבית'), (byArea.get(m.area_name || tr('שאר הבית')) ?? 0) + (m.today_kwh ?? 0));
   const byRoom = [...byArea.entries()].sort((a, b) => b[1] - a[1]);
   const round = (v: number) => Math.round(v * 100) / 100;
   return {

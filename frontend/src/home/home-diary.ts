@@ -14,6 +14,7 @@ import { canAnywhere } from '../api/session';
 import { diaryWord } from './home-v3-words';
 import { playbackHref } from './home-recordings';
 import { alarmChangeText, alarmLogOk, getAlarmLog } from './home-gaps-alarm'; // HOME-V3-GAPS-2436: the "אזעקה" filter
+import { tr } from '../i18n/msg/home';
 
 interface Row { id: string; at: string; text: string; icon: string; kind: 'cam' | 'door' | 'alarm'; cam: string | null; panel?: string }
 
@@ -37,12 +38,12 @@ async function load(h: HomeHost, force = false) {
     const w = diaryWord(e.type, e.camera_name ?? null);
     if (w) rows.push({ id: 'e' + e.id, at: e.occurred_at, text: w.text, icon: w.icon, kind: w.kind, cam: e.camera_id });
   }
-  for (const c of calls) rows.push({ id: 'c' + c.id, at: c.rang_at, text: `צלצול ב${c.station_name || 'כניסה'}`, icon: 'bell', kind: 'door', cam: null });
+  for (const c of calls) rows.push({ id: 'c' + c.id, at: c.rang_at, text: tr('צלצול ב{v1}', { v1: c.station_name || tr('כניסה') }), icon: 'bell', kind: 'door', cam: null });
   for (const a of alarm) rows.push({ id: 'a' + a.panel + a.at, at: a.at, text: alarmChangeText(a), icon: 'shield', kind: 'alarm', cam: null, panel: a.panel });
   st.alarm = alarm.length > 0;
   rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   st.rows = rows;
-  st.error = evs === null && !calls.length ? 'לא הצלחנו לטעון את היומן. נסו שוב בעוד רגע.' : '';
+  st.error = evs === null && !calls.length ? tr('לא הצלחנו לטעון את היומן. נסו שוב בעוד רגע.') : '';
   st.loaded = true;
   st.loading = false;
   st.at = Date.now();
@@ -58,14 +59,14 @@ registerMoreTile({
   id: 'events',
   order: 20,
   href: 'events',
-  label: 'יומן הבית',
+  label: tr('יומן הבית'),
   icon: 'list',
   visible: (h) => diaryOk(h),
   warm: (h) => void load(h),
   line: () => {
-    if (!st.loaded) return { text: 'מה קרה בבית' };
+    if (!st.loaded) return { text: tr('מה קרה בבית') };
     const n = todayCount();
-    return { text: n === 0 ? 'שקט היום' : n === 1 ? 'אירוע אחד היום' : `${n} אירועים היום` };
+    return { text: n === 0 ? tr('שקט היום') : n === 1 ? tr('אירוע אחד היום') : tr('{n} אירועים היום', { n }) };
   },
 });
 
@@ -86,7 +87,7 @@ registerScreen((h: HomeHost) => ({
     },
   },
   render() {
-    if (!diaryOk(h)) return html`${h.head('יומן הבית', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    if (!diaryOk(h)) return html`${h.head(tr('יומן הבית'), '')}${h.empty('lock', tr('המסך הזה לא זמין'), tr('מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.'))}`;
     const list = st.rows.filter((r) => st.tab === 'all' || r.kind === st.tab);
     const pg = paged(list, h.phone ? 5 : 8, h.pg('ev'));
     const n = todayCount();
@@ -94,10 +95,10 @@ registerScreen((h: HomeHost) => ({
     // HOME-V3-GAPS-2436: "אזעקה" (mockup) when the person may view an alarm and the alarm category is on
     const showAlarm = alarmLogOk(h) && (st.alarm || h.panels.length > 0);
     if (!showAlarm && st.tab === 'alarm') st.tab = 'all';
-    const tabs = h.seg('evTab', [['all', 'הכל'], ['door', 'דלתות'], ['cam', 'מצלמות'], ...(showAlarm ? [['alarm', 'אזעקה'] as [string, string]] : [])], st.tab, 'סינון');
+    const tabs = h.seg('evTab', [['all', tr('הכל')], ['door', tr('דלתות')], ['cam', tr('מצלמות')], ...(showAlarm ? [['alarm', tr('אזעקה')] as [string, string]] : [])], st.tab, tr('סינון'));
     const panelName = (id?: string) => (h.panels.length > 1 ? h.panels.find((p) => p.entity_id === id)?.name ?? '' : '');
-    const sub = !st.loaded ? '' : n ? (n === 1 ? 'אירוע אחד היום' : `${n} אירועים היום`) : 'לא קרה שום דבר מיוחד היום';
-    return html`${h.headT('יומן הבית', sub, tabs, h.pager('ev', pg.pages))}
-      <div class="card-grid evg">${!st.loaded ? html`<div class="empty loading" aria-busy="true">${hi('list')}<h2>טוענים…</h2></div>` : st.error ? h.empty('list', 'היומן לא זמין כרגע', st.error) : pg.items.length ? pg.items.map((e) => html`<div class="tile evrow" data-diary=${e.kind}><span class="ai">${hi(e.icon)}</span><span class="at"><b class="clamp2">${e.text}</b><span class="muted num-r">${relTime(e.at)}${e.kind === 'alarm' && panelName(e.panel) ? ' · ' + panelName(e.panel) : ''}</span></span>${e.cam && watch ? html`<button class="rb" data-act="evWatch" data-cam=${e.cam} data-at=${e.at} aria-label="צפה בהקלטה">${hi('play')}</button>` : nothing}</div>`) : h.empty('list', 'אין אירועים להצגה', 'כשמשהו יקרה בבית, דלת שנפתחה או תנועה במצלמה, הוא יופיע כאן.')}</div>`;
+    const sub = !st.loaded ? '' : n ? (n === 1 ? tr('אירוע אחד היום') : tr('{n} אירועים היום', { n })) : tr('לא קרה שום דבר מיוחד היום');
+    return html`${h.headT(tr('יומן הבית'), sub, tabs, h.pager('ev', pg.pages))}
+      <div class="card-grid evg">${!st.loaded ? html`<div class="empty loading" aria-busy="true">${hi('list')}<h2>${tr('טוענים…')}</h2></div>` : st.error ? h.empty('list', tr('היומן לא זמין כרגע'), st.error) : pg.items.length ? pg.items.map((e) => html`<div class="tile evrow" data-diary=${e.kind}><span class="ai">${hi(e.icon)}</span><span class="at"><b class="clamp2">${e.text}</b><span class="muted num-r">${relTime(e.at)}${e.kind === 'alarm' && panelName(e.panel) ? ' · ' + panelName(e.panel) : ''}</span></span>${e.cam && watch ? html`<button class="rb" data-act="evWatch" data-cam=${e.cam} data-at=${e.at} aria-label="${tr('צפה בהקלטה')}">${hi('play')}</button>` : nothing}</div>`) : h.empty('list', tr('אין אירועים להצגה'), tr('כשמשהו יקרה בבית, דלת שנפתחה או תנועה במצלמה, הוא יופיע כאן.'))}</div>`;
   },
 }));

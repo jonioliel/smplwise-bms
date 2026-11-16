@@ -9,6 +9,7 @@ import { lightsText, onCount, zoneOn } from './home-logic';
 import { loadScenes, type HRoom } from './home-api';
 import { captureScene, createScene } from './home-p2-api';
 import { errText, has, plural, sw, warmFamily } from './home-p2-ui';
+import { tr } from '../i18n/msg/home';
 
 const st: { draft: { name: string; scope: 'room' | 'house'; cl: boolean; cs: boolean; cc: boolean }; busy: boolean } = { draft: { name: '', scope: 'room', cl: true, cs: true, cc: false }, busy: false };
 
@@ -21,7 +22,7 @@ function rooms(h: HomeHost): HRoom[] {
 export function sceneScreenActs(h: HomeHost) {
   warmFamily(h);
   const locked = h.kioskLocked();
-  return html`${has('schedules') ? html`<a class="hbtn" href=${h.href('schedules')}>${hi('clock')}<span class="bt">תזמונים</span></a>` : nothing}${has('sceneNew') && !locked ? html`<button class="hbtn strong" data-act="p2CapNew">${hi('plus')}<span class="bt">סצנה חדשה</span></button>` : nothing}`;
+  return html`${has('schedules') ? html`<a class="hbtn" href=${h.href('schedules')}>${hi('clock')}<span class="bt">${tr('תזמונים')}</span></a>` : nothing}${has('sceneNew') && !locked ? html`<button class="hbtn strong" data-act="p2CapNew">${hi('plus')}<span class="bt">${tr('סצנה חדשה')}</span></button>` : nothing}`;
 }
 
 registerScreen((h: HomeHost) => ({
@@ -35,13 +36,13 @@ registerScreen((h: HomeHost) => ({
     const nl = onCount(rs);
     const ns = rs.reduce((a, k) => a + k.shades.length, 0);
     const nz = rs.flatMap((k) => k.zones).filter(zoneOn).length;
-    return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label="סצנה חדשה" data-sheet="capNew"><header class="menu-h">${hi('scenes')}<span class="mh-t"><b>סצנה חדשה</b><span class="muted">שומרים את מה שדולק עכשיו, ומפעילים אותו שוב בנגיעה</span></span><button class="rb" data-act="close" aria-label="סגור">${hi('x')}</button></header>
-      <label class="fld"><span>שם הסצנה</span><input class="inp" .value=${dr.name} maxlength="80" placeholder="למשל: ערב סרט" enterkeyhint="done" @input=${(e: Event) => { dr.name = (e.target as HTMLInputElement).value; }}></label>
-      ${r ? html`<div class="setrow flat"><span class="sname">מאיפה</span>${h.seg('p2CapScope', [['room', r.name], ['house', 'כל הבית']], dr.scope, 'מאיפה')}</div>` : nothing}
-      <div class="setrow flat"><span class="sname"><b>אורות</b><span class="muted">${lightsText(nl)}</span></span>${sw(dr.cl, 'p2CapTog', 'אורות', { k: 'cl' })}</div>
-      <div class="setrow flat"><span class="sname"><b>תריסים</b><span class="muted">${ns ? plural(ns, 'תריס אחד', 'תריסים') + ', במצב שלהם עכשיו' : 'אין תריסים'}</span></span>${sw(dr.cs && ns > 0, 'p2CapTog', 'תריסים', { k: 'cs' }, !ns)}</div>
-      <div class="setrow flat"><span class="sname"><b>מיזוג</b><span class="muted">${nz ? plural(nz, 'מזגן אחד פועל', 'מזגנים פועלים') : 'המיזוג כבוי'}</span></span>${sw(dr.cc, 'p2CapTog', 'מיזוג', { k: 'cc' })}</div>
-      <div class="dlg-acts"><button class="hbtn strong" data-act="p2CapSave" ?disabled=${st.busy}>שמור סצנה</button><button class="hbtn" data-act="close">ביטול</button></div></section>`;
+    return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label="${tr('סצנה חדשה')}" data-sheet="capNew"><header class="menu-h">${hi('scenes')}<span class="mh-t"><b>${tr('סצנה חדשה')}</b><span class="muted">${tr('שומרים את מה שדולק עכשיו, ומפעילים אותו שוב בנגיעה')}</span></span><button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button></header>
+      <label class="fld"><span>${tr('שם הסצנה')}</span><input class="inp" .value=${dr.name} maxlength="80" placeholder="${tr('למשל: ערב סרט')}" enterkeyhint="done" @input=${(e: Event) => { dr.name = (e.target as HTMLInputElement).value; }}></label>
+      ${r ? html`<div class="setrow flat"><span class="sname">${tr('מאיפה')}</span>${h.seg('p2CapScope', [['room', r.name], ['house', tr('כל הבית')]], dr.scope, tr('מאיפה'))}</div>` : nothing}
+      <div class="setrow flat"><span class="sname"><b>${tr('אורות')}</b><span class="muted">${lightsText(nl)}</span></span>${sw(dr.cl, 'p2CapTog', tr('אורות'), { k: 'cl' })}</div>
+      <div class="setrow flat"><span class="sname"><b>${tr('תריסים')}</b><span class="muted">${ns ? plural(ns, tr('תריס אחד'), tr('תריסים')) + tr(', במצב שלהם עכשיו') : tr('אין תריסים')}</span></span>${sw(dr.cs && ns > 0, 'p2CapTog', tr('תריסים'), { k: 'cs' }, !ns)}</div>
+      <div class="setrow flat"><span class="sname"><b>${tr('מיזוג')}</b><span class="muted">${nz ? plural(nz, tr('מזגן אחד פועל'), tr('מזגנים פועלים')) : tr('המיזוג כבוי')}</span></span>${sw(dr.cc, 'p2CapTog', tr('מיזוג'), { k: 'cc' })}</div>
+      <div class="dlg-acts"><button class="hbtn strong" data-act="p2CapSave" ?disabled=${st.busy}>${tr('שמור סצנה')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div></section>`;
   },
   acts: {
     p2CapNew: () => {
@@ -53,17 +54,17 @@ registerScreen((h: HomeHost) => ({
     p2CapSave: () => {
       const d = st.draft;
       const name = d.name.trim();
-      if (!name) return h.toast('תנו לסצנה שם.');
+      if (!name) return h.toast(tr('תנו לסצנה שם.'));
       const rs = rooms(h);
       const ids = [
         ...(d.cl ? rs.flatMap((r) => r.lights.filter((l) => l.can).map((l) => l.id)) : []),
         ...(d.cs ? rs.flatMap((r) => r.shades.filter((s) => s.can).map((s) => s.id)) : []),
         ...(d.cc ? rs.flatMap((r) => r.zones.filter((z) => z.can).map((z) => z.id)) : []),
       ].slice(0, 100);
-      if (!ids.length) return h.toast('אין מה לשמור: בחרו אורות, תריסים או מיזוג.');
+      if (!ids.length) return h.toast(tr('אין מה לשמור: בחרו אורות, תריסים או מיזוג.'));
       st.busy = true;
       h.requestUpdate();
-      void captureScene(ids).then((c) => createScene(name, c.members)).then(() => { h.ovl = null; h.toast(`הסצנה "${name}" נשמרה`); return loadScenes().then((scenes) => { h.data = { ...h.d, scenes }; }); })
+      void captureScene(ids).then((c) => createScene(name, c.members)).then(() => { h.ovl = null; h.toast(tr('הסצנה "{name}" נשמרה', { name })); return loadScenes().then((scenes) => { h.data = { ...h.d, scenes }; }); })
         .catch((e) => h.toast(errText(e)))
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },

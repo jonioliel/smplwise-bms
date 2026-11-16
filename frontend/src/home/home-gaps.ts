@@ -10,24 +10,25 @@ import { registerScreen, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
 import { canNewTicket, newTicketFor } from './home-tickets';
 import { diaryOk } from './home-diary';
+import { tr } from '../i18n/msg/home';
 
 /** "התראות" head: what reaches my phone, and the home diary. */
 export function gapAlertActs(h: HomeHost) {
-  return html`${h.extFor('notif') ? html`<a class="hbtn" href=${h.href('notif')} aria-label="ההתראות שלי" data-gap-notif>${hi('sliders')}<span class="bt">מה מגיע אליי</span></a>` : nothing}${h.extFor('events') && diaryOk(h) ? html`<a class="hbtn" href=${h.href('events')} aria-label="יומן הבית" data-gap-diary>${hi('list')}<span class="bt">יומן הבית</span></a>` : nothing}`;
+  return html`${h.extFor('notif') ? html`<a class="hbtn" href=${h.href('notif')} aria-label="${tr('ההתראות שלי')}" data-gap-notif>${hi('sliders')}<span class="bt">${tr('מה מגיע אליי')}</span></a>` : nothing}${h.extFor('events') && diaryOk(h) ? html`<a class="hbtn" href=${h.href('events')} aria-label="${tr('יומן הבית')}" data-gap-diary>${hi('list')}<span class="bt">${tr('יומן הבית')}</span></a>` : nothing}`;
 }
 
 /** The personal menu's "ההתראות שלי" row (not on a locked wall panel: it has no phone of its own). */
 export function gapMenuRow(h: HomeHost) {
   if (!h.extFor('notif') || h.kioskLocked()) return nothing;
-  return html`<a class="mrow" href=${h.href('notif')} data-act="closeNav" data-gap-menu-notif>${hi('bell')}<span>ההתראות שלי</span>${hi('fwd')}</a>`;
+  return html`<a class="mrow" href=${h.href('notif')} data-act="closeNav" data-gap-menu-notif>${hi('bell')}<span>${tr('ההתראות שלי')}</span>${hi('fwd')}</a>`;
 }
 
 /** "פתח פנייה לאינסטלטור" / "דווח על תקלה": shown only when a ticket can be opened from here. */
 export function gapTicketButton(h: Pick<HomeHost, 'kioskLocked' | 'requestUpdate'>, kind: 'plumber' | 'fault') {
   if (!canNewTicket(h)) return nothing;
   return kind === 'plumber'
-    ? html`<button class="hbtn strong" data-act="gapTkPlumber" data-gap-ticket="plumber">${hi('wrench')}פתח פנייה לאינסטלטור</button>`
-    : html`<button class="hbtn" data-act="gapTkFault" data-gap-ticket="fault" aria-label="דווח על תקלה">${hi('wrench')}<span class="bt">דווח על תקלה</span></button>`;
+    ? html`<button class="hbtn strong" data-act="gapTkPlumber" data-gap-ticket="plumber">${hi('wrench')}${tr('פתח פנייה לאינסטלטור')}</button>`
+    : html`<button class="hbtn" data-act="gapTkFault" data-gap-ticket="fault" aria-label="${tr('דווח על תקלה')}">${hi('wrench')}<span class="bt">${tr('דווח על תקלה')}</span></button>`;
 }
 
 registerScreen((h: HomeHost) => ({

@@ -3,6 +3,7 @@
 import { get } from '../api/client';
 import { canAnywhere } from '../api/session';
 import type { HomeHost } from './home-ext';
+import { tr } from '../i18n/msg/home';
 
 export type AlarmChange = 'arm_away' | 'arm_home' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass' | 'disarm';
 export interface AlarmLogItem { at: string; panel: string; action: AlarmChange; by: string | null; me: boolean }
@@ -10,8 +11,8 @@ export const getAlarmLog = () => get<{ items: AlarmLogItem[]; days: number }>('h
 
 /** The diary's words for an alarm change (mockup: 'האזעקה נדרכה למצב "בבית"', 'האזעקה נוטרלה: יונתן'). */
 export function alarmChangeText(i: Pick<AlarmLogItem, 'action' | 'by' | 'me'>): string {
-  const w = i.action === 'disarm' ? 'האזעקה נוטרלה' : i.action === 'arm_home' ? 'האזעקה נדרכה למצב "בבית"' : i.action === 'arm_night' ? 'האזעקה נדרכה ללילה' : 'האזעקה נדרכה';
-  const who = i.me ? 'אני' : i.by;
+  const w = i.action === 'disarm' ? tr('האזעקה נוטרלה') : i.action === 'arm_home' ? tr('האזעקה נדרכה למצב "בבית"') : i.action === 'arm_night' ? tr('האזעקה נדרכה ללילה') : tr('האזעקה נדרכה');
+  const who = i.me ? tr('אני') : i.by;
   return who ? `${w}: ${who}` : w;
 }
 

@@ -12,6 +12,7 @@ import { ApiError, get } from '../api/client';
 import { closePlayback, createPlayback, dateInZone, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekPlayback, type PlaybackSession } from '../api/recordings';
 import { clockOf, dayWord, daySpans, diaryWord, inSpans, playbackError } from './home-v3-words';
 import '../components/sw-live-player';
+import { tr } from '../i18n/msg/home';
 
 interface PbEvent { at: number; text: string; icon: string }
 
@@ -130,10 +131,10 @@ registerMoreTile({
   id: 'rec',
   order: 10,
   href: 'playback',
-  label: 'הקלטות',
+  label: tr('הקלטות'),
   icon: 'film',
   visible: (h) => !!h.extFor('playback') && h.recOk(),
-  line: () => ({ text: 'מה צולם היום ובימים הקודמים' }),
+  line: () => ({ text: tr('מה צולם היום ובימים הקודמים') }),
 });
 
 registerScreen((h: HomeHost) => ({
@@ -200,27 +201,27 @@ registerScreen((h: HomeHost) => ({
   render() {
     const cams = h.d.cameras;
     const c = cams.find((x) => x.id === st.cam) ?? cams[0];
-    if (!h.recOk() || !c) return html`${h.head('הקלטות', '')}${h.empty('film', 'אין מצלמות עם הקלטות', 'כשתחובר מצלמה, ההקלטות שלה יופיעו כאן.')}`;
+    if (!h.recOk() || !c) return html`${h.head(tr('הקלטות'), '')}${h.empty('film', tr('אין מצלמות עם הקלטות'), tr('כשתחובר מצלמה, ההקלטות שלה יופיעו כאן.'))}`;
     const ok = inSpans(st.spans, st.t);
     const pg = paged(st.events, h.phone ? 2 : 4, h.pg('pbE'));
     const stamp = html`${dayWord(st.back)} <span class="num">${clockOf(st.t)}</span>`;
     const pct = (m: number) => `${(m / 1440) * 100}%`;
     const pic = st.session && st.play
       ? html`<sw-live-player class="scene-pic" .wsUrl=${playbackWsUrl(st.session)} mode="mse" .retry=${false} fit="contain"></sw-live-player><div class="cap"><span class="clamp1">${c.name}</span><span class="rec-st">${stamp}</span></div>`
-      : st.loading ? html`<div class="cam-off">${hi('film')}<span>טוענים את ההקלטות…</span></div>`
+      : st.loading ? html`<div class="cam-off">${hi('film')}<span>${tr('טוענים את ההקלטות…')}</span></div>`
         : st.note ? html`<div class="cam-off">${hi('film')}<span>${st.note}</span></div>`
-          : !st.spans.length ? html`<div class="cam-off">${hi('film')}<span>אין הקלטות למצלמה הזו ${st.back === 0 ? 'היום' : 'ביום הזה'}</span></div>`
-            : ok ? html`<div class="cam-off">${hi('play')}<span>ההקלטה מוכנה. לחצו על נגן.</span><small>${stamp}</small></div>`
-              : html`<div class="cam-off">${hi('film')}<span>אין הקלטה בשעה הזו</span><small>גררו את הסמן לאזור מסומן בציר</small></div>`;
-    const acts = html`<span class="cf-nav pb-days" role="group" aria-label="יום"><button class="rb" data-act="pbDay" data-d="1" aria-label="יום קודם">${hi('back')}</button><b class="pbd clamp1">${dayWord(st.back)}</b><button class="rb" data-act="pbDay" data-d="-1" ?disabled=${st.back === 0} aria-label="יום אחרי">${hi('fwd')}</button></span>${cams.length > 1 ? html`<span class="cf-nav pb-cams" role="group" aria-label="מצלמה"><button class="rb" data-act="pbCam" data-d="-1" aria-label="המצלמה הקודמת">${hi('back')}</button><b class="pbd pbc clamp1" dir="auto" title=${c.name}>${c.name}</b><button class="rb" data-act="pbCam" data-d="1" aria-label="המצלמה הבאה">${hi('fwd')}</button></span>` : nothing}`;
+          : !st.spans.length ? html`<div class="cam-off">${hi('film')}<span>${tr('אין הקלטות למצלמה הזו')} ${st.back === 0 ? tr('היום') : tr('ביום הזה')}</span></div>`
+            : ok ? html`<div class="cam-off">${hi('play')}<span>${tr('ההקלטה מוכנה. לחצו על נגן.')}</span><small>${stamp}</small></div>`
+              : html`<div class="cam-off">${hi('film')}<span>${tr('אין הקלטה בשעה הזו')}</span><small>${tr('גררו את הסמן לאזור מסומן בציר')}</small></div>`;
+    const acts = html`<span class="cf-nav pb-days" role="group" aria-label="${tr('יום')}"><button class="rb" data-act="pbDay" data-d="1" aria-label="${tr('יום קודם')}">${hi('back')}</button><b class="pbd clamp1">${dayWord(st.back)}</b><button class="rb" data-act="pbDay" data-d="-1" ?disabled=${st.back === 0} aria-label="${tr('יום אחרי')}">${hi('fwd')}</button></span>${cams.length > 1 ? html`<span class="cf-nav pb-cams" role="group" aria-label="${tr('מצלמה')}"><button class="rb" data-act="pbCam" data-d="-1" aria-label="${tr('המצלמה הקודמת')}">${hi('back')}</button><b class="pbd pbc clamp1" dir="auto" title=${c.name}>${c.name}</b><button class="rb" data-act="pbCam" data-d="1" aria-label="${tr('המצלמה הבאה')}">${hi('fwd')}</button></span>` : nothing}`;
     // HOME-V3-AUDITFIX-2437 (audit item 9): with the camera stepper naming the camera, the wide title does not repeat it
     const onInput = (e: Event) => { st.t = +(e.target as HTMLInputElement).value; h.requestUpdate(); };
     const onChange = (e: Event) => { const m = +(e.target as HTMLInputElement).value; if (st.session) void playAt(h, m); else { st.t = m; h.requestUpdate(); } };
-    return html`${h.head(h.phone ? c.name : cams.length > 1 ? 'הקלטות' : `הקלטות: ${c.name}`, h.phone ? 'בחרו יום וזמן.' : 'בחרו יום, ואז זמן על הציר או אירוע מהרשימה', acts)}
-      <div class="pb-body" data-home-playback=${c.id}><section class=${'tile pb-pic' + (st.play ? '' : ' off')} aria-label="תמונה">${pic}</section>
-        <section class="tile pane pb-side" aria-label="מה קרה"><div class="bar"><h2>מה קרה כאן</h2>${h.pager('pbE', pg.pages)}</div>${pg.items.length ? pg.items.map((e) => html`<button class="mrow pb-ev" data-act="pbJump" data-t=${String(e.at)} aria-pressed=${String(Math.abs(e.at - st.t) < 1)}>${hi(e.icon)}<span class="clamp2">${e.text}</span><b class="num">${clockOf(e.at).slice(0, 5)}</b></button>`) : html`<p class="muted pb-none">לא נרשמו אירועים ליד המצלמה הזו ${st.back === 0 ? 'היום' : 'ביום הזה'}.</p>`}</section>
-        <section class="tile pb-ctl" aria-label="ניגון"><span class="pb-btns"><button class="rb" data-act="pbSkip" data-d="-10" aria-label="10 שניות אחורה" ?disabled=${!st.spans.length}>${hi('rew')}</button><button class="rb play" data-act="pbPlay" aria-pressed=${String(st.play)} aria-label=${st.play ? 'השהה' : 'נגן'} ?disabled=${!st.spans.length}>${hi(st.play ? 'pause' : 'play')}</button><button class="rb" data-act="pbSkip" data-d="10" aria-label="10 שניות קדימה" ?disabled=${!st.spans.length}>${hi('ffw')}</button></span>
-          <div class="tl" dir="ltr"><div class="tl-track">${st.spans.map(([a, b]) => html`<i class="tl-seg" style=${`left:${pct(a)};width:${pct(b - a)}`}></i>`)}${st.events.map((e) => html`<i class="tl-ev" style=${`left:${pct(e.at)}`}></i>`)}<i class="tl-head" style=${`left:${pct(st.t)}`}></i></div><input type="range" min="0" max="1439" step="1" .value=${String(Math.round(st.t))} aria-label="זמן בהקלטה" ?disabled=${!st.spans.length} @input=${onInput} @change=${onChange}><div class="tl-ax">${[0, 6, 12, 18, 24].map((x) => html`<span class="num">${String(x % 24).padStart(2, '0')}:00</span>`)}</div></div>
-          <a class="hbtn" href=${h.href('cameras')} data-act="pbLive">${hi('cam')}<span class="bt">חזרה לחי</span></a></section></div>`;
+    return html`${h.head(h.phone ? c.name : cams.length > 1 ? tr('הקלטות') : tr('הקלטות: {name}', { name: c.name }), h.phone ? tr('בחרו יום וזמן.') : tr('בחרו יום, ואז זמן על הציר או אירוע מהרשימה'), acts)}
+      <div class="pb-body" data-home-playback=${c.id}><section class=${'tile pb-pic' + (st.play ? '' : ' off')} aria-label="${tr('תמונה')}">${pic}</section>
+        <section class="tile pane pb-side" aria-label="${tr('מה קרה')}"><div class="bar"><h2>${tr('מה קרה כאן')}</h2>${h.pager('pbE', pg.pages)}</div>${pg.items.length ? pg.items.map((e) => html`<button class="mrow pb-ev" data-act="pbJump" data-t=${String(e.at)} aria-pressed=${String(Math.abs(e.at - st.t) < 1)}>${hi(e.icon)}<span class="clamp2">${e.text}</span><b class="num">${clockOf(e.at).slice(0, 5)}</b></button>`) : html`<p class="muted pb-none">${tr('לא נרשמו אירועים ליד המצלמה הזו')} ${st.back === 0 ? tr('היום') : tr('ביום הזה')}.</p>`}</section>
+        <section class="tile pb-ctl" aria-label="${tr('ניגון')}"><span class="pb-btns"><button class="rb" data-act="pbSkip" data-d="-10" aria-label="${tr('10 שניות אחורה')}" ?disabled=${!st.spans.length}>${hi('rew')}</button><button class="rb play" data-act="pbPlay" aria-pressed=${String(st.play)} aria-label=${st.play ? tr('השהה') : tr('נגן')} ?disabled=${!st.spans.length}>${hi(st.play ? 'pause' : 'play')}</button><button class="rb" data-act="pbSkip" data-d="10" aria-label="${tr('10 שניות קדימה')}" ?disabled=${!st.spans.length}>${hi('ffw')}</button></span>
+          <div class="tl" dir="ltr"><div class="tl-track">${st.spans.map(([a, b]) => html`<i class="tl-seg" style=${`left:${pct(a)};width:${pct(b - a)}`}></i>`)}${st.events.map((e) => html`<i class="tl-ev" style=${`left:${pct(e.at)}`}></i>`)}<i class="tl-head" style=${`left:${pct(st.t)}`}></i></div><input type="range" min="0" max="1439" step="1" .value=${String(Math.round(st.t))} aria-label="${tr('זמן בהקלטה')}" ?disabled=${!st.spans.length} @input=${onInput} @change=${onChange}><div class="tl-ax">${[0, 6, 12, 18, 24].map((x) => html`<span class="num">${String(x % 24).padStart(2, '0')}:00</span>`)}</div></div>
+          <a class="hbtn" href=${h.href('cameras')} data-act="pbLive">${hi('cam')}<span class="bt">${tr('חזרה לחי')}</span></a></section></div>`;
   },
 }));

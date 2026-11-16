@@ -6,6 +6,7 @@ import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { getPresence, setHidden, type PresenceHome } from './home-p2-api';
 import { errText, has, plural, sw, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
+import { tr } from '../i18n/msg/home';
 
 const st: { data: PresenceHome | null; at: number; loading: boolean; error: string } = { data: null, at: 0, loading: false, error: '' };
 
@@ -23,14 +24,14 @@ const homeCount = (d: PresenceHome) => d.people.filter((p) => p.home && !(p.me &
 const awayCount = (d: PresenceHome) => d.people.filter((p) => !p.home).length;
 
 registerMoreTile({
-  id: 'presence', order: 50, href: 'presence', label: 'מי בבית', icon: 'people',
+  id: 'presence', order: 50, href: 'presence', label: tr('מי בבית'), icon: 'people',
   visible: (h) => seen(h) && has('presence'),
   warm: (h) => load(h),
   line: () => {
     const d = st.data;
-    if (!d || !d.enabled) return { text: 'עוד אין נתונים' };
+    if (!d || !d.enabled) return { text: tr('עוד אין נתונים') };
     const n = homeCount(d);
-    return { text: !d.people.length ? 'עוד אין נתונים' : n === 0 ? 'אף אחד לא בבית' : plural(n, 'אחד בבית', 'בבית') };
+    return { text: !d.people.length ? tr('עוד אין נתונים') : n === 0 ? tr('אף אחד לא בבית') : plural(n, tr('אחד בבית'), tr('בבית')) };
   },
 });
 
@@ -39,24 +40,24 @@ registerScreen((h: HomeHost) => ({
   names: ['presence'],
   enter: () => { warmFamily(h); load(h, true); },
   render() {
-    if (!has('presence')) return offScreen(h, 'מי בבית');
+    if (!has('presence')) return offScreen(h, tr('מי בבית'));
     if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     const d = st.data;
-    if (!d) return html`${h.head('מי בבית', '')}${st.error ? h.empty('x', 'לא הצלחנו לטעון', st.error) : h.empty('people', 'טוענים…', '')}`;
+    if (!d) return html`${h.head(tr('מי בבית'), '')}${st.error ? h.empty('x', tr('לא הצלחנו לטעון'), st.error) : h.empty('people', tr('טוענים…'), '')}`;
     const people = d.people;
     const n = homeCount(d);
     const pg = paged(people, h.phone ? 4 : 6, h.pg('pres'));
-    const sub = !people.length ? '' : `${n === 0 ? 'אף אחד לא בבית' : plural(n, 'אחד בבית', 'בבית')} · ${plural(awayCount(d), 'אחד בחוץ', 'בחוץ')}`;
-    return html`${h.head('מי בבית', sub, h.pager('pres', pg.pages))}
+    const sub = !people.length ? '' : `${n === 0 ? tr('אף אחד לא בבית') : plural(n, tr('אחד בבית'), tr('בבית'))} · ${plural(awayCount(d), tr('אחד בחוץ'), tr('בחוץ'))}`;
+    return html`${h.head(tr('מי בבית'), sub, h.pager('pres', pg.pages))}
       <div class="card-grid pplg">${pg.items.length ? pg.items.map((p) => {
         const hidden = p.me && d.me_hidden;
         // audit item 25: today needs no day word ("מאז 07:23"); another day keeps it ("מאז אתמול 22:10")
-        const since = p.at ? (p.home ? 'מאז ' : 'יצא ') + whenText(p.at, h.now).replace(/^היום /, '') : '';
-        return html`<div class=${'tile prow' + (p.home ? '' : ' away')} data-person=${p.me ? 'me' : 'other'}><span class="av">${(p.name || '?').slice(0, 1)}</span><span class="at"><span class="pn"><b class="clamp1" dir="auto">${p.name}</b>${p.me ? html`<span class="me-mark">(אני)</span>` : nothing}</span>${hidden
-          ? html`<span class="muted">מוסתר מהאחרים</span>`
-          : html`<span class="dst" data-tone=${p.home ? 'ok' : 'neutral'}><i class="dot"></i><span class="clamp1">${p.home ? 'בבית' : 'לא בבית'}</span></span>`}</span><span class="pk"><span class="muted clamp2 num-r">${since}</span></span></div>`;
-      }) : h.empty('people', 'עוד לא יודעים מי בבית', 'כשבני הבית יחברו את הטלפון שלהם, נראה כאן מי בבית.')}</div>
-      <div class="tile setrow me-row"><span class="sname"><b>להציג אותי לשאר בני הבית</b><span class="muted clamp1">אפשר לכבות בכל רגע. מנהל הבית לא יכול להפעיל את זה במקומך.</span></span>${sw(!d.me_hidden, 'p2ShowMe', 'להציג אותי')}</div>`;
+        const since = p.at ? (p.home ? tr('מאז ') : tr('יצא ')) + whenText(p.at, h.now).replace(/^היום /, '') : '';
+        return html`<div class=${'tile prow' + (p.home ? '' : ' away')} data-person=${p.me ? 'me' : 'other'}><span class="av">${(p.name || '?').slice(0, 1)}</span><span class="at"><span class="pn"><b class="clamp1" dir="auto">${p.name}</b>${p.me ? html`<span class="me-mark">${tr('(אני)')}</span>` : nothing}</span>${hidden
+          ? html`<span class="muted">${tr('מוסתר מהאחרים')}</span>`
+          : html`<span class="dst" data-tone=${p.home ? 'ok' : 'neutral'}><i class="dot"></i><span class="clamp1">${p.home ? tr('בבית') : tr('לא בבית')}</span></span>`}</span><span class="pk"><span class="muted clamp2 num-r">${since}</span></span></div>`;
+      }) : h.empty('people', tr('עוד לא יודעים מי בבית'), tr('כשבני הבית יחברו את הטלפון שלהם, נראה כאן מי בבית.'))}</div>
+      <div class="tile setrow me-row"><span class="sname"><b>${tr('להציג אותי לשאר בני הבית')}</b><span class="muted clamp1">${tr('אפשר לכבות בכל רגע. מנהל הבית לא יכול להפעיל את זה במקומך.')}</span></span>${sw(!d.me_hidden, 'p2ShowMe', tr('להציג אותי'))}</div>`;
   },
   acts: {
     p2ShowMe: () => {
@@ -65,7 +66,7 @@ registerScreen((h: HomeHost) => ({
       const hide = !d.me_hidden;
       d.me_hidden = hide;
       h.requestUpdate();
-      void setHidden(hide).then(() => { h.toast(hide ? 'הוסתרת משאר בני הבית' : 'בני הבית רואים אותך שוב'); load(h, true); })
+      void setHidden(hide).then(() => { h.toast(hide ? tr('הוסתרת משאר בני הבית') : tr('בני הבית רואים אותך שוב')); load(h, true); })
         .catch((e) => { d.me_hidden = !hide; h.toast(errText(e)); h.requestUpdate(); });
     },
   },

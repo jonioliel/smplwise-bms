@@ -1,13 +1,14 @@
 // HOME-SIMPLE-2420: the home interface's pure rules - the words it says, the paging that keeps every control screen free of
 // scrolling, and the default favourites. No DOM, no network (unit-tested in tests/unit-home-simple-logic.spec.ts).
 import type { Fav, HDoor, HLoad, HRoom, HZone, HScene, HCamera, HFloor } from './home-api';
+import { tr } from '../i18n/msg/home';
 
-export const lightsText = (n: number): string => (n === 0 ? 'כל האורות כבויים' : n === 1 ? 'אור אחד דולק' : `${n} אורות דולקים`);
+export const lightsText = (n: number): string => (n === 0 ? tr('כל האורות כבויים') : n === 1 ? tr('אור אחד דולק') : tr('{n} אורות דולקים', { n }));
 export const onCount = (rs: HRoom[]): number => rs.reduce((n, r) => n + r.lights.filter((l) => l.on).length, 0);
-export const onWord = (on: boolean): string => (on ? 'דולק' : 'כבוי');
+export const onWord = (on: boolean): string => (on ? tr('דולק') : tr('כבוי'));
 
-export const MODES: Record<string, string> = { cool: 'קירור', heat: 'חימום', auto: 'אוטומטי', heat_cool: 'אוטומטי', dry: 'ייבוש', fan_only: 'אוורור', off: 'כבוי' };
-export const PRESETS: [string, number][] = [['נעים', 23], ['חיסכון', 26], ['לילה', 22]];
+export const MODES: Record<string, string> = { cool: tr('קירור'), heat: tr('חימום'), auto: tr('אוטומטי'), heat_cool: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('אוורור'), off: tr('כבוי') };
+export const PRESETS: [string, number][] = [[tr('נעים'), 23], [tr('חיסכון'), 26], [tr('לילה'), 22]];
 
 export const zoneOn = (z: HZone): boolean => z.mode !== 'off' && z.ok;
 export const roomActive = (r: HRoom): boolean => r.lights.some((l) => l.on) || r.zones.some(zoneOn);
@@ -16,45 +17,45 @@ export const loadsOn = (rs: HRoom[]): HLoad[] => rs.flatMap((r) => r.loads.filte
 
 export function roomLights(r: HRoom): string {
   const n = r.lights.filter((l) => l.on).length;
-  if (!r.lights.length && !r.shades.length && !r.zones.length && !r.loads.length) return 'אין כאן התקנים';
-  if (!r.lights.length) return 'אין אורות';
-  return n === 0 ? 'חשוך' : n === 1 ? 'אור אחד דולק' : `${n} אורות דולקים`;
+  if (!r.lights.length && !r.shades.length && !r.zones.length && !r.loads.length) return tr('אין כאן התקנים');
+  if (!r.lights.length) return tr('אין אורות');
+  return n === 0 ? tr('חשוך') : n === 1 ? tr('אור אחד דולק') : tr('{n} אורות דולקים', { n });
 }
 
 export function activeText(r: HRoom): string {
   const p: string[] = [];
   const n = r.lights.filter((l) => l.on).length;
-  if (n) p.push(n === 1 ? 'אור אחד' : `${n} אורות`);
+  if (n) p.push(n === 1 ? tr('אור אחד') : tr('{n} אורות', { n }));
   const z = r.zones.find(zoneOn);
-  if (z) p.push(z.target != null ? `מיזוג ${z.target}°` : 'מיזוג');
-  return p.join(' · ') || 'הכל כבוי';
+  if (z) p.push(z.target != null ? tr('מיזוג {target}°', { target: z.target }) : tr('מיזוג'));
+  return p.join(' · ') || tr('הכל כבוי');
 }
 
 export function homeBarText(rs: HRoom[]): string {
   const n = onCount(rs);
   const a = activeRooms(rs).length;
-  return n || a ? `${lightsText(n)}${a ? (a === 1 ? ' · בחדר אחד' : ` · ב-${a} חדרים`) : ''}` : 'הכל כבוי בבית';
+  return n || a ? `${lightsText(n)}${a ? (a === 1 ? tr(' · בחדר אחד') : tr(' · ב-{a} חדרים', { a })) : ''}` : tr('הכל כבוי בבית');
 }
 
 export function doorsText(doors: HDoor[]): string {
   const u = doors.filter((d) => !d.locked);
-  if (!doors.length) return 'אין דלתות מחוברות';
-  if (!u.length) return 'כל הדלתות נעולות';
-  return u.length === 1 ? `${u[0].name} ${u[0].kind === 'gate' ? 'פתוח' : 'פתוחה'}` : `${u.length} דלתות פתוחות`;
+  if (!doors.length) return tr('אין דלתות מחוברות');
+  if (!u.length) return tr('כל הדלתות נעולות');
+  return u.length === 1 ? `${u[0].name} ${u[0].kind === 'gate' ? tr('פתוח') : tr('פתוחה')}` : tr('{length} דלתות פתוחות', { length: u.length });
 }
 
 // HOME-SIMPLE-2421 (lab 2.42.0): why a door offers no "open" here (the server's unlock_reason, the devices panel's own rule), in calm words
 const DOOR_NO_OPEN: Record<string, string> = {
-  door_not_mapped: 'הדלת עדיין לא משויכת לעמדה', no_permission: 'אין הרשאה לפתוח', no_control: 'אין הרשאה לפתוח', not_placed: 'אין הרשאה לפתוח את הדלת הזו',
-  wall_profile: 'מסך קיר לא פותח דלתות', alarm_managed: 'נשלטת ממסך האזעקה',
+  door_not_mapped: tr('הדלת עדיין לא משויכת לעמדה'), no_permission: tr('אין הרשאה לפתוח'), no_control: tr('אין הרשאה לפתוח'), not_placed: tr('אין הרשאה לפתוח את הדלת הזו'),
+  wall_profile: tr('מסך קיר לא פותח דלתות'), alarm_managed: tr('נשלטת ממסך האזעקה'),
 };
-export const doorNoOpenText = (reason: string): string => DOOR_NO_OPEN[reason] ?? 'אי אפשר לפתוח מכאן כרגע';
-export const doorState = (d: HDoor): string => (d.kind === 'gate' ? (d.locked ? 'סגור' : 'פתוח') : d.locked ? 'נעולה' : 'פתוחה');
+export const doorNoOpenText = (reason: string): string => DOOR_NO_OPEN[reason] ?? tr('אי אפשר לפתוח מכאן כרגע');
+export const doorState = (d: HDoor): string => (d.kind === 'gate' ? (d.locked ? tr('סגור') : tr('פתוח')) : d.locked ? tr('נעולה') : tr('פתוחה'));
 
 export function shadeText(pos: number | null, moving = false, state: string | null = null): string {
-  if (moving) return state === 'closing' ? 'נסגר' : 'נפתח';
-  if (pos == null) return state === 'open' ? 'פתוח' : state === 'closed' ? 'סגור' : 'לא ידוע';
-  return pos === 0 ? 'סגור' : pos === 100 ? 'פתוח' : `פתוח ${pos}%`;
+  if (moving) return state === 'closing' ? tr('נסגר') : tr('נפתח');
+  if (pos == null) return state === 'open' ? tr('פתוח') : state === 'closed' ? tr('סגור') : tr('לא ידוע');
+  return pos === 0 ? tr('סגור') : pos === 100 ? tr('פתוח') : tr('פתוח {pos}%', { pos });
 }
 
 /** The mean brightness of the lit dimmable lights (the room's "all the lights" slider), 0 when none is lit. */
@@ -65,12 +66,12 @@ export function masterLevel(r: HRoom): number {
 
 export function keptNote(rs: HRoom[]): string {
   const k = loadsOn(rs);
-  return !k.length ? '' : k.length === 1 ? ` · ${k[0].name} נשאר דולק` : ` · ${k.length} מפסקים שאינם אור נשארו דולקים`;
+  return !k.length ? '' : k.length === 1 ? tr(' · {name} נשאר דולק', { name: k[0].name }) : tr(' · {length} מפסקים שאינם אור נשארו דולקים', { length: k.length });
 }
 
 export function greeting(name: string, at = new Date()): string {
   const h = at.getHours();
-  const part = h < 5 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 17 ? 'צהריים טובים' : h < 21 ? 'ערב טוב' : 'לילה טוב';
+  const part = h < 5 ? tr('לילה טוב') : h < 12 ? tr('בוקר טוב') : h < 17 ? tr('צהריים טובים') : h < 21 ? tr('ערב טוב') : tr('לילה טוב');
   // HOME-V3-AUDITFIX-2437 (audit item 29): a first name longer than 14 characters would wrap the greeting to three lines on a phone
   return name && [...name].length <= 14 ? `${part}, ${name}` : part;
 }

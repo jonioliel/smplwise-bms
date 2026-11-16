@@ -5,6 +5,7 @@ import { describeError } from '../api/client';
 import type { HomeHost } from './home-ext';
 import { getFamily, type FamilyInfo } from './home-p2-api';
 import { moreTiles } from './more-registry';
+import { tr } from '../i18n/msg/home';
 
 const P2_TILES = new Set(['presence', 'calendar', 'notices', 'tickets', 'schedules', 'weather', 'notif']);
 
@@ -68,13 +69,13 @@ export function sw(on: boolean, act: string, label: string, attrs: Record<string
 export const hm = (mins: number) => `${String(Math.floor(((mins % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String((((mins % 1440) + 1440) % 1440) % 60).padStart(2, '0')}`;
 
 export function stepper(act: string, key: string, mins: number, label: string) {
-  return html`<span class="stp" role="group" aria-label=${label}><button class="rb" data-act=${act} data-k=${key} data-d="-1" aria-label=${label + ': פחות'}>${minus}</button><b class="num" data-stp=${key}>${hm(mins)}</b><button class="rb" data-act=${act} data-k=${key} data-d="1" aria-label=${label + ': יותר'}>${plus}</button></span>`;
+  return html`<span class="stp" role="group" aria-label=${label}><button class="rb" data-act=${act} data-k=${key} data-d="-1" aria-label=${label + tr(': פחות')}>${minus}</button><b class="num" data-stp=${key}>${hm(mins)}</b><button class="rb" data-act=${act} data-k=${key} data-d="1" aria-label=${label + tr(': יותר')}>${plus}</button></span>`;
 }
 const minus = html`<svg class="hi" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 const plus = html`<svg class="hi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 
-export const DAY_LETTER = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-export const DAY_NAME = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+export const DAY_LETTER = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
+export const DAY_NAME = [tr('ראשון'), tr('שני'), tr('שלישי'), tr('רביעי'), tr('חמישי'), tr('שישי'), tr('שבת')];
 export const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const TZ = 'Asia/Jerusalem';
 const F_HM = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ, hourCycle: 'h23' });
@@ -95,9 +96,9 @@ export function whenText(iso: string | null | undefined, now = new Date()): stri
   if (!Number.isFinite(d.getTime())) return '';
   const days = Math.round((Date.parse(ymd(now)) - Date.parse(ymd(d))) / 86_400_000);
   const t = timeOf(iso);
-  if (days === 0) return `היום ${t}`;
-  if (days === 1) return `אתמול ${t}`;
-  if (days === -1) return `מחר ${t}`;
+  if (days === 0) return tr('היום {t}', { t });
+  if (days === 1) return tr('אתמול {t}', { t });
+  if (days === -1) return tr('מחר {t}', { t });
   return `${DAY_NAME[weekdayIx(d)]} ${dayMonth(d)}, ${t}`;
 }
 
@@ -148,6 +149,6 @@ export function seen(h: HomeHost): boolean {
 
 /** A family screen the person may not see: "loading" until the feature map is known, then the "not switched on for you" panel. */
 export function offScreen(h: HomeHost, title: string) {
-  if (!familyKnown()) { warmFamily(h); return html`${h.head(title, '')}${h.empty('home', 'טוענים…', '')}`; }
-  return html`${h.head(title, '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+  if (!familyKnown()) { warmFamily(h); return html`${h.head(title, '')}${h.empty('home', tr('טוענים…'), '')}`; }
+  return html`${h.head(title, '')}${h.empty('lock', tr('המסך הזה לא זמין'), tr('מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.'))}`;
 }
