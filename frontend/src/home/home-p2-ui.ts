@@ -14,6 +14,9 @@ const fam: { info: FamilyInfo | null; at: number; loading: boolean; failedAt: nu
 
 /** Load (or refresh after 3 minutes) what the person may see; redraws the host when it arrives. */
 export function warmFamily(h: HomeHost, force = false): void {
+  // RELEASE-2437-TRAIN gate (home-leave-2435 :87 mobile): a render queued before the home left the page still runs on the detached
+  // host (Lit updates a disconnected element) and asked for /home/family again - a detached home starts no read
+  if (!h.isConnected) return;
   if (fam.loading || (!force && fam.info && Date.now() - fam.at < 180_000)) return;
   // FE-LEAK-TEXTKEY-2435: a failed read is retried after 30 s, not on the next render - the redraw below renders again, and every
   // render asked again (a request loop while the read kept failing, which also ran on after the home left the page)
