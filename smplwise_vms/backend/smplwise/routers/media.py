@@ -34,7 +34,7 @@ from ..services import go2rtc as g2
 from ..services import live_codec as lc
 from ..services.access import camera_decision, require_camera
 from ..services.leases import CameraLease
-from ..services.relay import relay_ws
+from ..services.relay import close_with_error, relay_ws
 from .settings import read_settings
 
 log = logging.getLogger("smplwise.media")
@@ -225,13 +225,7 @@ def ensure_live_stream(settings: Settings, cam: sqlite3.Row, choice: lc.Choice) 
 async def _refuse_choice(websocket: WebSocket, value: str, message: str, code: int, **extra: Any) -> None:
     """LIVE-H265-2341: a live socket refused for its codec (`h265_unsupported`, close 4415) or the transcode cap
     (`transcode_cap`, close 4430): accepted first so the player sees the reason and its Hebrew text."""
-    import json as _json
-
-    with contextlib.suppress(Exception):
-        if websocket.client_state.name == "CONNECTING":
-            await websocket.accept()
-        await websocket.send_text(_json.dumps({"type": "error", "value": value, "message": message, **extra}, ensure_ascii=False))
-        await websocket.close(code=code)
+    await close_with_error(websocket, {"type": "error", "value": value, "message": message, **extra}, code)
 
 
 VIDEO_SERVICE_DOWN_HE = "שירות הווידאו לא זמין"
@@ -253,20 +247,15 @@ async def refuse_media(websocket: WebSocket, settings: Settings, code: str) -> N
     `{"type":"error","value":<code>,"message":…,"media":<state>}` frame, then closed 4503. Lab 11.11: a close before accept (or a bare
     4503) reached the browser through HA ingress as a plain close 1000, so the player never knew the video service was down and
     retried blind. `media` is services/media_reach's state (reachable / unreachable / ...), never an address."""
-    import json as _json
-
     from ..services import media_reach
 
     state = media_reach.REACH.view(settings)["state"]
-    with contextlib.suppress(Exception):
-        if code not in MEDIA_DOWN_CODES and state != media_reach.UNREACHABLE:
-            # a stream-level refusal (a recorder read, a station offline): unchanged - the bare 4503 each player already handles
+    if code not in MEDIA_DOWN_CODES and state != media_reach.UNREACHABLE:
+        # a stream-level refusal (a recorder read, a station offline): unchanged - the bare 4503 each player already handles
+        with contextlib.suppress(Exception):
             await websocket.close(code=4503)
-            return
-        if websocket.client_state.name == "CONNECTING":
-            await websocket.accept()
-        await websocket.send_text(_json.dumps({"type": "error", "value": code, "message": VIDEO_SERVICE_DOWN_HE, "media": state}, ensure_ascii=False))
-        await websocket.close(code=4503)
+        return
+    await close_with_error(websocket, {"type": "error", "value": code, "message": VIDEO_SERVICE_DOWN_HE, "media": state}, 4503)
 
 
 # AZIA-LIVE-2331: device reads that fail for a moment (the NVR's HTTP server busy or slow while many tiles open). A disabled
@@ -310,7 +299,10 @@ def list_streams(request: Request, principal: Principal = Depends(current_princi
     # GO2RTC-STREAM-SYNC-2436: `online` is "go2rtc pulls it right now"; an on-demand stream nobody watches is `state` "idle" (ready), not down
     ours = [{"name": s.name, "online": s.online, "state": s.state, "consumers": s.consumers, "sources": [g2.redact_source(s.name, u) for u in s.sources]}
             for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
-    return {"go2rtc": client.info(), "streams": ours, "foreign_streams": len(streams) - len(ours)}
+    info = client.info()
+    # CR-LIVE-SOCKET-CAPS (03:F23, lead decision L9): go2rtc's whole `/api` answer carries its host and its configuration file
+    # path; the one screen that reads this route (system diagnostics) shows the version only, so only the version leaves
+    return {"go2rtc": {"version": info.get("version")}, "streams": ours, "foreign_streams": len(streams) - len(ours)}
 
 
 @router.get("/media/sessions")
@@ -473,14 +465,9 @@ async def _refuse_socket(websocket: WebSocket, exc: ApiError) -> None:
     client sees the reason (a close before accept is a bare handshake failure), one `{"type":"error","value":<code>,"message":…}`
     frame, then close 4403 - raised as WebSocketException, so no route handler runs past _principal_for_ws (its own `None -> 4401`
     branch would read as "signed out" and send the app back to the sign-in page)."""
-    import json as _json
-
     from starlette.exceptions import WebSocketException
 
-    with contextlib.suppress(Exception):
-        if websocket.client_state.name == "CONNECTING":
-            await websocket.accept()
-        await websocket.send_text(_json.dumps({"type": "error", "value": exc.code, "message": exc.user_message}, ensure_ascii=False))
+    await close_with_error(websocket, {"type": "error", "value": exc.code, "message": exc.user_message}, None)
     raise WebSocketException(code=4403, reason=exc.code)
 
 
@@ -488,8 +475,6 @@ async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Prin
     """The remote live cap on the socket: accepted first so the browser sees the reason (a close before accept is a
     bare handshake failure), then `{"type":"error","value":"remote_live_cap","message":…}` and close 4429 (the player
     shows its "stream quota reached" state for 4429). Audited like the HTTP refusal (throttled per sign-in)."""
-    import json as _json
-
     details = cap_audit_details(chain, int(refusal.details.get("max") or 0))
 
     def _write() -> None:
@@ -500,12 +485,7 @@ async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Prin
     if details is not None:
         with contextlib.suppress(Exception):
             await run_in_threadpool(_write)
-    with contextlib.suppress(Exception):
-        if websocket.client_state.name == "CONNECTING":
-            await websocket.accept()
-        await websocket.send_text(_json.dumps({"type": "error", "value": "remote_live_cap", "message": refusal.user_message,
-                                              "max": refusal.details.get("max")}, ensure_ascii=False))
-        await websocket.close(code=4429)
+    await close_with_error(websocket, {"type": "error", "value": "remote_live_cap", "message": refusal.user_message, "max": refusal.details.get("max")}, 4429)
 
 
 async def _live_relay(
@@ -521,6 +501,7 @@ async def _live_relay(
     lease: CameraLease,
     chain: str | None,
     remote_cap: int,
+    cap: int | None = None,
     on_text: Callable[[str], str | None] | None = None,
     on_end: Callable[[str, float], None] | None = None,
     hello: dict[str, Any] | None = None,
@@ -553,6 +534,13 @@ async def _live_relay(
             log.error("audit %s for live session %s failed: %s", action, session.id, exc)
 
     await websocket.accept()
+    # CR-LIVE-SOCKET-CAPS (03:F07): the installation cap (`media.max_live_sessions`) again, with nothing awaited before the
+    # registration. The route's own check ran before the codec choice and the stream creation (seconds): a wall opening
+    # sixteen tiles at once passed sixteen checks before one registration. Only the racing surplus is refused, 4429 as there.
+    if cap is not None and REGISTRY.count() >= cap:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=4429)
+        return
     # re-checked with nothing awaited before the registration: two starts of one sign-in cannot both pass the cap
     refusal = remote_cap_refusal(chain, remote_cap)
     if refusal is not None:
@@ -690,7 +678,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
             make_stream=lambda: ensure_live_stream(settings, cam, choice),
             # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
             # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
-            lease=CameraLease(db, principal, camera_id, "video.live"), chain=chain, remote_cap=remote_cap, hello=hello,
+            lease=CameraLease(db, principal, camera_id, "video.live"), chain=chain, remote_cap=remote_cap, cap=cap, hello=hello,
             extra=profile_fallback_details(profile, fallback),
         )
     finally:
@@ -740,6 +728,6 @@ async def live_ha_ws(websocket: WebSocket, entity_id: str) -> None:
     await _live_relay(
         websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="ha_entity", resource_id=entity_id,
         make_stream=lambda: hls.ensure_ready(db, settings, entity_id),
-        lease=hls.HaLiveLease(db, principal, entity_id), chain=chain, remote_cap=remote_cap,
+        lease=hls.HaLiveLease(db, principal, entity_id), chain=chain, remote_cap=remote_cap, cap=cap,
         on_text=lambda text: hls.sanitize_frame(entity_id, text), on_end=lambda reason, seconds: hls.note_session_end(entity_id, reason, seconds),
     )

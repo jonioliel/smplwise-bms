@@ -29,7 +29,7 @@ from ..services import playback as pb
 from ..services import recordings
 from ..services.access import require_camera
 from ..services.leases import CameraLease
-from ..services.relay import relay_ws
+from ..services.relay import close_with_error, relay_ws
 from ..services.timeutil import UTC, iso_utc, parse_utc
 from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
@@ -166,12 +166,7 @@ REPLACED_FRAME = '{"type":"replaced","value":"superseded"}'
 
 async def close_replaced(websocket: WebSocket) -> None:
     """Tell a socket of an old generation it was replaced, then close it 4410 (accepted first when it was not yet)."""
-    with contextlib.suppress(Exception):
-        if websocket.client_state.name == "CONNECTING":
-            await websocket.accept()
-        await websocket.send_text(REPLACED_FRAME)
-    with contextlib.suppress(Exception):
-        await websocket.close(code=4410)
+    await close_with_error(websocket, REPLACED_FRAME, 4410, close_apart=True)
 
 
 @router.websocket("/playback/sessions/{session_id}/ws")

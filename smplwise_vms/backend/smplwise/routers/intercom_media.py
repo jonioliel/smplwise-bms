@@ -304,7 +304,7 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
     try:
         await media._live_relay(
             websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="intercom_station", resource_id=station_id,
-            make_stream=make_stream, lease=StationLease(db, settings, principal, station_id, profile), chain=chain, remote_cap=remote_cap,
+            make_stream=make_stream, lease=StationLease(db, settings, principal, station_id, profile), chain=chain, remote_cap=remote_cap, cap=cap,
             # go2rtc's error frames can carry a source address: never forwarded (the rule of a Home Assistant camera's stream)
             on_text=_sanitize_frame,
         )
