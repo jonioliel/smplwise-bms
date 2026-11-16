@@ -557,9 +557,9 @@ def test_d4_no_other_module_signs_a_door_open():
 
     root = Path(__file__).resolve().parents[1] / "smplwise"
     signers = sorted(str(p.relative_to(root)).replace("\\", "/") for p in root.rglob("*.py") if "sign_message(" in p.read_text(encoding="utf-8"))
-    assert signers == ["routers/access_control.py", "routers/doors.py", "services/trusted_door.py"]
+    assert signers == ["routers/access_control_door.py", "routers/doors.py", "services/trusted_door.py"]  # the door part of routers/access_control.py
     assert sorted(str(p.relative_to(root)).replace("\\", "/") for p in root.rglob("*.py") if "wiskey-trusted-door-v1" in p.read_text(encoding="utf-8")) == ["services/trusted_door.py"]
-    ac = (root / "routers" / "access_control.py").read_text(encoding="utf-8")
+    ac = (root / "routers" / "access_control_door.py").read_text(encoding="utf-8")
     assert ac.count("door_authority.check(") == 2 and "open_from_tile" in (root / "routers" / "ha.py").read_text(encoding="utf-8")
 
 

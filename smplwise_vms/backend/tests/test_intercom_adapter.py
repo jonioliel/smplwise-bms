@@ -505,7 +505,7 @@ def test_the_reads_never_hold_the_write_lock_while_wiskey_answers():
     from fastapi.routing import APIRoute
 
     from smplwise.auth import get_conn, get_read_conn
-    from smplwise.routers import access_control, access_control_reads
+    from smplwise.routers import access_control_entry, access_control_reads  # CR-SPLIT-ACCESS-CONTROL-2440: the legacy reads' part
 
     def calls(dep: Any) -> list[Any]:
         out = []
@@ -516,7 +516,7 @@ def test_the_reads_never_hold_the_write_lock_while_wiskey_answers():
 
     legacy = {("GET", "/intercom/events"), ("GET", "/intercom/people"), ("GET", "/intercom/people/{user_id}")}
     routes = [r for r in access_control_reads.router.routes if isinstance(r, APIRoute)]
-    routes += [r for r in access_control.router.routes if isinstance(r, APIRoute) and any((m, r.path) in legacy for m in r.methods)]
+    routes += [r for r in access_control_entry.router.routes if isinstance(r, APIRoute) and any((m, r.path) in legacy for m in r.methods)]
     assert len(routes) == 25 + 1 + 3  # the 25 typed reads, the parity report (CR-036 S12), the three legacy reads
     for route in routes:
         deps = calls(route.dependant)

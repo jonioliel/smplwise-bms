@@ -24,7 +24,7 @@ from fake_trusted_bridge import FakeWisKeyFeed, station
 from schedules_fixture import post_json, rid, sched_app  # noqa: F401  (the CR-014 fixture)
 
 from smplwise.db import now_iso
-from smplwise.routers import access_control
+from smplwise.routers import access_control, access_control_door
 from smplwise.services import door_conversion, door_run_guard, ha_client, intercom_sync
 
 ENTRY = "01JTESTSTATIONENTRY000000A"
@@ -47,7 +47,8 @@ def _clean():
 def _no_door_commands(monkeypatch: Any, feed: FakeWisKeyFeed | None = None) -> None:
     """Every way a door could be opened from the add-on fails the test."""
     monkeypatch.setattr(ha_client, "call_bridge_execute", lambda *a, **k: pytest.fail("nothing is executed by the conversion"))
-    monkeypatch.setattr(access_control, "open_door", lambda *a, **k: pytest.fail("no door is opened by the conversion"))
+    for module in (access_control, access_control_door):  # the name door_run_guard reads and the one the release route / the tile read
+        monkeypatch.setattr(module, "open_door", lambda *a, **k: pytest.fail("no door is opened by the conversion"))
     if feed is not None:
         monkeypatch.setattr(intercom_sync.SYNC, "action", lambda *a, **k: pytest.fail("no WisKey command is sent by the conversion"))
 
