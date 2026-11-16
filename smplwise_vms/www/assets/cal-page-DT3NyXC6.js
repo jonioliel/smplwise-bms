@@ -25,7 +25,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
   kbd { font: inherit; font-size: var(--sw-fs-2xs); border: 1px solid var(--sw-border-strong); border-block-end-width: 2px; border-radius: var(--sw-r-2xs); padding: 0 4px; background: var(--sw-surface-2); }
   .kb { margin-inline-start: auto; font-size: var(--sw-fs-xs); color: var(--sw-text-3); white-space: nowrap; }
   .x { inline-size: 32px; min-block-size: 32px; border: 0; background: transparent; }
-   sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (D22 review): the popover also opens on a touch tablet - its close key is a 44 px target there */
+  /* ROUND4-LEFTOVERS-2390 (D22 review): the popover also opens on a touch tablet - its close key is a 44 px target there */
   @media (pointer: coarse) { .x { inline-size: 44px; min-block-size: 44px; } }
   @media (prefers-reduced-motion: reduce) {
     .pop, .pop.in { transform: none; }
@@ -368,7 +368,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
       .panel { padding: 12px; gap: 10px; }
       .big { font-size: var(--sw-fs-xl); }
       .ph { gap: 6px; }
-       sourceMappingURL=[^*]**/ AUDIT30-F5 (touch): the day cell is the target - six rows of 44 px (the month grows to fit them, the agenda under it keeps the rest) */
+      /* AUDIT30-F5 (touch): the day cell is the target - six rows of 44 px (the month grows to fit them, the agenda under it keeps the rest) */
       .month { flex: none; block-size: auto; }
       .mgrid { grid-template-rows: repeat(6, 44px); }
       .mhead div { padding: 0 0 4px; text-align: center; }
@@ -448,7 +448,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     .tl-axis span.first { transform: none; }
     .tl-axis span.last { transform: translateX(-100%); }
     .tl-now { position: absolute; inset-block: 0; inline-size: 2px; background: var(--sw-accent); z-index: 2; pointer-events: none; }
-     sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (D22): ".tl-axis span" (an hour label: grey ink, top 4px) out-ranked the pill's own class, so the time
+    /* ROUND4-LEFTOVERS-2390 (D22): ".tl-axis span" (an hour label: grey ink, top 4px) out-ranked the pill's own class, so the time
        on the pill was drawn in the labels' grey on the accent fill (unreadable, it read as a covered label). The pill's rules now
        carry the axis in the selector; once the axis is measured the pill is placed in px inside the axis ("placed": no centring) */
     .tl-axis .tl-nowlab { position: absolute; top: 2px; line-height: 18px; transform: translateX(-50%); background: var(--sw-accent); color: var(--sw-text-inverse); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold);
@@ -540,7 +540,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     li.att .ct { direction: ltr; unicode-bidi: isolate; color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
     .mini { font: inherit; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); min-block-size: 28px; min-inline-size: 28px; padding: 0 8px; border: 0; border-radius: var(--sw-r-pill);
       background: transparent; color: var(--sw-text-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-     sourceMappingURL=[^*]**/ AUDIT30-F1 (#4): the selected filter is the Blue Wash pair, like every selected chip of the module */
+    /* AUDIT30-F1 (#4): the selected filter is the Blue Wash pair, like every selected chip of the module */
     .mini[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
     .mini:focus-visible, [role='option']:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
     @media (hover: hover) and (pointer: fine) { .mini:not([disabled]):hover { background: var(--sw-hover-wash); } .mini[aria-pressed='true']:hover { background: var(--sw-accent-soft); } }
@@ -596,7 +596,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     .tg[aria-expanded='true'] .chev { transform: rotate(180deg); }
     .tg:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; border-radius: var(--sw-r-sm); }
     .body { padding-block-start: 6px; padding-inline-start: 26px; }
-     sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (D22 review): the attendees toggle is a 44 px target on a touch screen */
+    /* ROUND4-LEFTOVERS-2390 (D22 review): the attendees toggle is a 44 px target on a touch screen */
     @media (pointer: coarse) { .tg { min-block-size: 44px; } }
   `];ot([y({attribute:!1})],Et.prototype,"value",2);ot([y({attribute:!1})],Et.prototype,"onChange",2);ot([y({attribute:!1})],Et.prototype,"api",2);ot([d()],Et.prototype,"open",2);Et=ot([it("cal-quick-attendees")],Et);oe.attendees=t=>t.surface==="drawer"?n`<cal-attendees-section .eventId=${t.eventId??""}
     .initial=${!t.eventId&&Array.isArray(t.value)?t.value:[]}></cal-attendees-section>`:n`<cal-quick-attendees .value=${Array.isArray(t.value)?t.value:[]} .onChange=${e=>t.onChange(e)}></cal-quick-attendees>`;var Ws=Object.defineProperty,Zs=Object.getOwnPropertyDescriptor,C=(t,e,s,a)=>{for(var i=a>1?void 0:a?Zs(e,s):e,o=t.length-1,r;o>=0;o--)(r=t[o])&&(i=(a?r(e,s,i):r(i))||i);return a&&i&&Ws(e,s,i),i};let E=class extends at{constructor(){super(...arguments),this.ctx=null,this.detail=null,this.calId="",this.evTitle="",this.date="",this.from="",this.to="",this.repeat="none",this.count=9,this.behalf="self",this.behalfLabel="",this.headcount="",this.guestName="",this.guestPhone="",this.dayOcc=[],this.preview=null,this.error="",this.suggestions=[],this.busy=!1,this.event=null,this.confirmCancel=!1,this.retention=null,this.guestKinds=["customer","class"],this.editMode=!1,this.notes="",this.attendees=void 0,this.previewTimer=0,this.dayKey="",this.onDrawerClose=t=>{t.stopPropagation(),this.close()}}connectedCallback(){super.connectedCallback();const t=this.detail??{};if(t.eventId){this.loadEvent(t.eventId);return}const s=this.ctx?.now??new Date,a=this.bookable().find(r=>r.id===t.calendarId)??this.defaultCal();this.calId=a?.id??"";const i=t.start?new Date(t.start):new Date(Math.ceil(s.getTime()/(30*6e4))*30*6e4),o=t.end?new Date(t.end):new Date(i.getTime()+60*6e4);this.date=Q(i),this.from=w(i),this.to=w(o),t.title&&(this.evTitle=t.title),t.repeat&&(this.repeat=t.repeat),t.count&&(this.count=t.count),t.behalf&&t.behalf in ft&&(this.behalf=t.behalf),t.behalfLabel&&(this.behalfLabel=t.behalfLabel),t.headcount&&(this.headcount=String(t.headcount)),Array.isArray(t.attendees)&&t.attendees.length&&(this.attendees=[...t.attendees]),this.loadSettings()}disconnectedCallback(){super.disconnectedCallback(),clearTimeout(this.previewTimer)}firstUpdated(){requestAnimationFrame(()=>requestAnimationFrame(()=>this.renderRoot.querySelector('[data-cal-field="title"]')?.focus({preventScroll:!0})))}willUpdate(t){this.editMode&&(t.has("calId")||t.has("date"))&&this.loadDay(),!(this.event||this.detail?.eventId)&&(["calId","date","from","to","repeat","count","behalf","headcount"].some(e=>t.has(e))&&this.schedulePreview(),(t.has("calId")||t.has("date"))&&this.loadDay())}bookable(){return(this.ctx?.cals??[]).filter(t=>!t.archived&&t.my_role&&t.my_role!=="view"&&t.type!=="maintenance")}defaultCal(){const t=this.bookable();return t.find(e=>e.type==="room"&&e.my_role==="manage")??t.find(e=>e.type==="room")??t[0]}cal(){return this.ctx?.cals.find(t=>t.id===this.calId)}async loadSettings(){try{const{settings:t}=await this.ctx.api.settings();this.retention=t.guest_retention_days,this.guestKinds=t.guest_details_kinds?.length?t.guest_details_kinds:this.guestKinds}catch{}}async loadEvent(t){try{const e=(await this.ctx.api.event(t)).event;if(this.event=e,De(e,this.ctx?.now??new Date)){const s=new Date(e.start);this.calId=e.calendar_id,this.evTitle=e.title??"",this.notes=e.notes??"",this.date=Q(s),this.from=w(s),this.to=w(e.end),this.behalf=e.on_behalf_kind??"self",this.behalfLabel=e.on_behalf_label??"",this.headcount=e.headcount?String(e.headcount):"",this.editMode=!0,this.loadSettings()}}catch(e){this.error=_(e)}}patchBody(){const t=this.event,e=ut(this.date,this.from),s=ut(this.date,this.to);if(!t||!e||!s)return null;const a=this.ctx,i={revision:t.revision};this.evTitle.trim()!==(t.title??"")&&(i.title=this.evTitle.trim()),this.notes!==(t.notes??"")&&(i.notes=this.notes),t.recurring||((e.toISOString()!==new Date(t.start).toISOString()||s.toISOString()!==new Date(t.end).toISOString())&&(i.start=e.toISOString(),i.end=s.toISOString()),this.calId!==t.calendar_id&&(i.calendar_id=this.calId));const o=parseInt(this.headcount,10),r=o>0?o:null;return r!==(t.headcount??null)&&(i.headcount=r),a.access.can.book_for_others&&(this.behalf!==(t.on_behalf_kind??"self")||this.behalfLabel.trim()!==(t.on_behalf_label??""))&&(i.on_behalf={kind:this.behalf,label:this.behalfLabel.trim()}),i}async saveEdit(){const t=this.problem();if(t){this.error=t;return}const e=this.patchBody();if(e){if(Object.keys(e).length===1){this.close();return}this.busy=!0,this.error="";try{const s=await this.ctx.api.patchEvent(this.event.id,e);A(this,z.changed),A(this,z.toast,s.change_withdrawn?"השינוי בוטל · ההזמנה חזרה למועד המאושר":s.event.state==="pending"&&s.event.held?"השינויים נשמרו · ממתין לאישור, המועד הקודם שמור":s.event.state==="pending"?"השינויים נשמרו · ממתין לאישור":"השינויים נשמרו"),this.close()}catch(s){this.error=_(s)}finally{this.busy=!1}}}editHint(){const t=this.cal(),e=ut(this.date,this.from),s=ut(this.date,this.to),a=this.event;return!t||!e||!s||!a||s<=e||!(e.getTime()!==new Date(a.start).getTime()||s.getTime()!==new Date(a.end).getTime()||t.id!==a.calendar_id)?null:Bt({cal:t,start:e,end:s,ignoreId:a.id,moving:a.state==="confirmed"?"confirmed":"pending",behalf:this.behalf,headcount:parseInt(this.headcount,10)||void 0},this.dayOcc,{contested_requests:"queue",maintenance_overlap:"first_holds",editors_bypass_approval:!0,pending_holds_slot:!1},this.ctx?.now??new Date)}async loadDay(){const t=this.ctx,e=ut(this.date,"00:00");if(!t||!e||!this.calId)return;const s=`${this.calId}|${this.date}`;if(s!==this.dayKey){this.dayKey=s;try{const a=await t.api.occurrences(e.toISOString(),B(e,1).toISOString(),[this.calId]);s===this.dayKey&&(this.dayOcc=a.occurrences.filter(i=>["confirmed","pending"].includes(i.state)))}catch{this.dayOcc=[]}}}body(){const t=ut(this.date,this.from),e=ut(this.date,this.to);if(!t||!e||!this.calId)return null;const s=this.ctx,a={calendar_id:this.calId,kind:"booking",title:this.evTitle.trim(),start:t.toISOString(),end:e.toISOString()},i=qe(this.repeat,this.count);i&&(a.rrule=i),s.access.can.book_for_others&&this.behalf!=="self"&&(a.on_behalf={kind:this.behalf,label:this.behalfLabel.trim()});const o=parseInt(this.headcount,10);o>0&&(a.headcount=o),this.guestsOffered()&&(this.guestName.trim()||this.guestPhone.trim())&&(a.guests=[{name:this.guestName.trim(),phone:this.guestPhone.trim()}]);const r=this.renderRoot.querySelector("cal-attendees-section")?.payload()??[];return r.length&&Object.assign(a,{attendees:r}),a}guestsOffered(){const t=this.ctx;return t.access.ui.guest_details_enabled&&t.access.can.book_for_others&&this.behalf!=="self"&&this.guestKinds.includes(this.behalf)}schedulePreview(){clearTimeout(this.previewTimer),this.previewTimer=window.setTimeout(()=>void this.runPreview(),250)}async runPreview(){const t=this.body();if(!t||new Date(t.end)<=new Date(t.start)){this.preview=null;return}try{this.preview=await this.ctx.api.previewEvent({...t,title:t.title||"בדיקה"})}catch{this.preview=null}}close(){this.dispatchEvent(new Event("close"))}problem(){const t=ut(this.date,this.from),e=ut(this.date,this.to);return this.calId?this.evTitle.trim()?!t||!e?"חסר תאריך או שעה.":e<=t?"שעת הסיום לפני שעת ההתחלה.":this.behalf!=="self"&&!this.behalfLabel.trim()?`חסר שם ה${ft[this.behalf]}.`:"":"חסרה כותרת.":"אין יומן שאפשר להזמין בו."}async submit(){const t=this.problem();if(t){this.error=t;return}const e=this.body();this.busy=!0,this.error="",this.suggestions=[];try{const s=await this.ctx.api.createEvent(e);A(this,z.changed),A(this,z.toast,s.state==="pending"?"הבקשה נשלחה לאישור":"ההזמנה נשמרה"),this.close()}catch(s){this.error=_(s),s instanceof dt&&Array.isArray(s.body.details.suggestions)&&(this.suggestions=s.body.details.suggestions.slice(0,3))}finally{this.busy=!1}}take(t){const e=new Date(t.start);this.date=Q(e),this.from=w(e),this.to=w(t.end),this.suggestions=[],this.error=""}render(){if(!this.ctx)return c;const e=!!this.detail?.eventId;return this.editMode?this.form():e?this.viewEvent():this.form()}frame(t,e,s,a,i,o=c){return n`<sw-drawer modal open heading=${e} subheading=${s} data-cal-drawer=${t} @close=${this.onDrawerClose}>
@@ -667,7 +667,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
       <div class="scale num"><span>07:00</span><span>12:00</span><span>17:00</span><span>22:00</span></div>
       ${!this.preview||this.editMode?c:p?n`<span class="hint bad" data-cal-avail="clash"><sw-icon name="warning" size="14"></sw-icon><span class="ell"><b>${u>1?n`<span class="num">${s.length}</span> מועדים מתנגשים`:"המועד תפוס"}</b>${s[0]?n` · <span class="num">${pt(new Date(s[0].start))} ${w(s[0].start)}</span>${s[0].title?` (${s[0].title})`:""}`:c}</span></span>
           ${h?n`<div class="sugg"><button type="button" class="num ltr" data-cal-suggest @click=${()=>this.take(h)}>${w(h.start)}–${w(h.end)}</button></div>`:c}`:n`<span class="hint ok" data-cal-avail="free"><sw-icon name="check" size="14"></sw-icon><span class="ell"><b>${u>1?n`פנוי בכל <span class="num">${u}</span> המועדים`:"פנוי"}</b>${v?n` · כולל <span class="num">${v}</span> דק׳ הפסקה אחרי`:c}</span></span>`}`}nextFree(t,e){const s=e.getTime()-t.getTime(),a=new Date(M(t).getTime()+22*36e5);for(let i=t.getTime()+15*6e4;i+s<=a.getTime();i+=15*6e4){const o=new Date(i),r=new Date(i+s);if(!this.dayOcc.some(l=>l.state==="confirmed"&&new Date(l.start)<r&&new Date(l.end)>o))return{start:o.toISOString(),end:r.toISOString()}}return null}};E.styles=[nt,tt`
-     sourceMappingURL=[^*]**/ AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (sw-drawer modal: scrim, focus trap, Escape, focus return, the
+    /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (sw-drawer modal: scrim, focus trap, Escape, focus return, the
        same header and action row as every drawer). CAL-GRID-EDIT-2343: a tall form scrolls inside the drawer's body, never the page. */
     :host { display: contents; }
     sw-drawer { --sw-drawer-sheet-h: 88dvh; }
@@ -935,7 +935,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
         <sw-button slot="footer" variant="primary" icon="wrench" ?disabled=${o||this.busy||!t.length||!this.rooms.length} data-maint-save @click=${()=>void this.save()}>${u}</sw-button>
         <sw-button slot="footer" variant="secondary" data-maint-cancel @click=${()=>this.close()}>ביטול</sw-button>
       </sw-drawer>`}};J.styles=[nt,tt`
-     sourceMappingURL=[^*]**/ AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (scrim, focus trap, Escape, focus return, one header and action row) */
+    /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (scrim, focus trap, Escape, focus return, one header and action row) */
     :host { display: contents; }
     sw-drawer { --sw-drawer-sheet-h: 88dvh; }
     .content { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
@@ -1090,7 +1090,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     .main { flex: 1; }
     .list { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
     .list > .row { flex: none; }
-     sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (D22): at 1024 x 768 the list showed 7 calendars with most of an eighth row empty under them - 2 px less
+    /* ROUND4-LEFTOVERS-2390 (D22): at 1024 x 768 the list showed 7 calendars with most of an eighth row empty under them - 2 px less
        padding a row (58 -> 54 px, still well over a 44 px target) fits the eighth; the phone's rows keep their tap height */
     @media (min-width: 700px) { .list > .row { padding-block: 8px; } }
     .cname { flex: 0 0 300px; min-inline-size: 0; cursor: pointer; }
@@ -1111,7 +1111,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     @media (pointer: coarse) { .menu button { min-block-size: 44px; } }
     .menu button.bad { color: var(--sw-danger-text); }
     .hint { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
-     sourceMappingURL=[^*]**/ members */
+    /* members */
     .calhead { display: flex; align-items: center; gap: 12px; min-inline-size: 0; flex-wrap: wrap; }
     .calhead .sq { inline-size: 40px; block-size: 40px; border-radius: var(--sw-r-md); }
     .calhead h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
@@ -1140,7 +1140,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     aside.overlay { position: fixed; inset-block: 12px; inset-inline-start: 12px; z-index: calc(var(--sw-z-modal) + 1); box-shadow: var(--sw-shadow-3); inline-size: min(380px, calc(100vw - 24px)); }
     :host([shrink]) aside.panel:not(.overlay) { inline-size: 280px; }
     :host([shrink]) .rt { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-     sourceMappingURL=[^*]**/ the calendar form */
+    /* the calendar form */
     .form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 24px; align-content: start; }
     .form .fld { grid-template-columns: 110px minmax(0, 1fr); }
     .hues { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -1335,7 +1335,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     .done { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--sw-r-lg); background: var(--sw-success-soft); color: var(--sw-success-text); flex: none; }
     .done b { color: var(--sw-heading); display: block; }
     .center { display: grid; place-items: center; flex: 1; }
-     sourceMappingURL=[^*]**/ the bottom sheet (mobile-native: safe area, 16 px inputs, 44 px targets, the grab handle) */
+    /* the bottom sheet (mobile-native: safe area, 16 px inputs, 44 px targets, the grab handle) */
     .scrim { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); animation: fade var(--sw-t-sheet) var(--sw-ease); }
     .sheet { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: var(--sw-z-modal); background: var(--sw-surface-solid); border-start-start-radius: var(--sw-r-2xl);
       border-start-end-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); display: flex; flex-direction: column; max-block-size: 88dvh;
@@ -1390,7 +1390,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
         actionLabel=${this.access.can.manage?"יצירת יומן ראשון":""} @action=${()=>location.hash=`${Jt(this.route)}/manage${this.demoQuery()}`}></sw-state-panel></div>`;switch(this.view){case"rooms":return n`<cal-view-rooms .ctx=${e}></cal-view-rooms>`;case"approvals":return n`<cal-view-approvals .ctx=${e}></cal-view-approvals>`;case"maint":return n`<cal-view-maint .ctx=${e}></cal-view-maint>`;case"manage":return n`<cal-view-manage .ctx=${e}></cal-view-manage>`;default:return n`<cal-view-calendar .ctx=${e}></cal-view-calendar>`}}loadingView(){return this.access.ui.loading_style==="spinner"?n`<div class="center" data-cal-state="loading"><div class="spin" role="status" aria-label="טוען"></div></div>`:n`<div class="loading" data-cal-state="loading" role="status" aria-label="טוען">
       <div class="panel">${Array.from({length:6},(t,e)=>n`<div class="skel" style=${`block-size:${e?64:32}px`}></div>`)}</div>
       <div class="panel side">${Array.from({length:8},()=>n`<div class="skel" style="block-size:22px"></div>`)}</div></div>`}};st.styles=[nt,tt`
-     sourceMappingURL=[^*]**/ AUDIT30-F2 (#6): the page frame is the shared sw-page (title, actions at the row's end); the frame fills the screen, the view the rest */
+    /* AUDIT30-F2 (#6): the page frame is the shared sw-page (title, actions at the row's end); the frame fills the screen, the view the rest */
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; overflow: hidden; }
     sw-page { flex: 1; min-block-size: 0; }
     .page-state { display: flex; flex-direction: column; flex: 1; min-block-size: 0; padding: 14px var(--sw-page-pad) 20px; }
@@ -1400,10 +1400,10 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     .tab { font: inherit; font-size: var(--sw-fs-md); border: 0; background: transparent; color: var(--sw-text-2); padding: 0 14px; min-block-size: 34px; border-radius: var(--sw-r-pill);
       cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; -webkit-tap-highlight-color: transparent; }
     .tab[aria-current='page'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
-     sourceMappingURL=[^*]**/ AUDIT30-F5 (touch): the view tabs are 44 px targets on a coarse pointer */
+    /* AUDIT30-F5 (touch): the view tabs are 44 px targets on a coarse pointer */
     @media (pointer: coarse) { .tab { min-block-size: 44px; } }
     .tab .n { color: var(--sw-text-3); font-weight: var(--sw-fw-semibold); }
-     sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380: on the dark light pill the count takes the key's dark label (light keeps the muted ink) */
+    /* DARK-SEG-ALL-2380: on the dark light pill the count takes the key's dark label (light keeps the muted ink) */
     .tab[aria-current='page'] .n { color: var(--sw-seg-key-ink, var(--sw-text-3)); }
     .search { display: inline-flex; align-items: center; gap: 8px; min-block-size: var(--sw-ctl-h-lg); padding: 0 14px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border);
       background: var(--sw-surface-solid); inline-size: 220px; max-inline-size: 100%; }
@@ -1413,7 +1413,7 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
     .loading { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; flex: 1; min-block-size: 0; }
     .loading .panel { gap: 10px; }
     .center { display: grid; place-items: center; flex: 1; }
-     sourceMappingURL=[^*]**/ AUDIT30-F2 (#8, owner Q5 option A assumed): on the phone the one primary action is a floating button in the bottom corner */
+    /* AUDIT30-F2 (#8, owner Q5 option A assumed): on the phone the one primary action is a floating button in the bottom corner */
     @media (max-width: 767px) {
       .new { position: fixed; z-index: var(--sw-z-drawer); inset-block-end: calc(var(--sw-bottomnav-h) + var(--sw-s-3) + env(safe-area-inset-bottom, 0px));
         inset-inline-end: var(--sw-page-pad-phone); box-shadow: var(--sw-shadow-3); border-radius: var(--sw-r-pill); }

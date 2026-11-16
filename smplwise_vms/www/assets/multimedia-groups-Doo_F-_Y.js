@@ -107,7 +107,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
       flex-direction: column;
       line-height: 1.3;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the group name is the card's title - 20 px / 800 in the heading ink */
+    /* R5-MEDIA-ENERGY-297: the group name is the card's title - 20 px / 800 in the heading ink */
     .gh .tx b {
       font-size: var(--sw-fs-2xl);
       font-weight: 800;
@@ -131,7 +131,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
       align-items: center;
       padding: 10px;
       border-radius: var(--sw-r-lg);
-       sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the now-playing strip is a well inside the glass card (no outlined box inside a card) */
+      /* R5-MEDIA-ENERGY-297: the now-playing strip is a well inside the glass card (no outlined box inside a card) */
       background: var(--dv-surface-2);
       border: 1px solid transparent;
     }
@@ -196,7 +196,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
       padding: 0 2px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the group volume is a display numeral (20 px / 800) */
+    /* R5-MEDIA-ENERGY-297: the group volume is a display numeral (20 px / 800) */
     .vrow .vv {
       min-inline-size: 36px;
       text-align: end;
@@ -325,7 +325,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
       min-block-size: var(--mm-member-row-h);
       padding: 6px 12px;
       border-radius: var(--sw-r-lg);
-       sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: a member row is a well (a tone step, no outline); the leading room a filled accent field */
+      /* R5-MEDIA-ENERGY-297: a member row is a well (a tone step, no outline); the leading room a filled accent field */
       background: var(--dv-surface-2);
       border: 1px solid transparent;
     }
@@ -426,7 +426,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
     .gfoot .btn.pend .ic {
       animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP5: the edit chips sit at the card's end (the shared place) and the title row keeps clear of them while editing, so
+    /* POLISH4-WP5: the edit chips sit at the card's end (the shared place) and the title row keeps clear of them while editing, so
        a long group name ends in an ellipsis before the chips instead of running under them (they covered the icon and the first
        words at the start edge) */
     .gcard > .ecard {
@@ -438,7 +438,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
     .qbtn {
       color: var(--dv-text-2);
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP5 (emil-design-eng): a link answers the press like the keys do, the slider's thumb lifts while it is held, and hover
+    /* POLISH4-WP5 (emil-design-eng): a link answers the press like the keys do, the slider's thumb lifts while it is held, and hover
        is for a pointer that hovers (a touch never leaves it lit) */
     .lnk {
       transition: transform var(--sw-t-press) var(--mm-ease), color var(--mm-motion);
@@ -462,7 +462,7 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
         text-decoration: underline;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, 960 px at 1366x768). Below 1024 px wide - or
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, 960 px at 1366x768). Below 1024 px wide - or
        on a window too short for the header and a row of cards - the region is transparent and the page scrolls as before. From
        1024 x 560 (outside the editor) the page takes the screen's height and the cards region never scrolls: the cards that fit are
        page 1, the rest are on the next pages (the pager in the title row). */
@@ -489,11 +489,11 @@ import{a as V,kC as A,fT as Y,fq as F,cU as W,bI as L,K as C,aS as J,cA as X,eq 
       :host([data-fit]) .groups {
         gap: var(--sw-s-5);
       }
-       sourceMappingURL=[^*]**/ the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
+      /* the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
       :host([data-fit]) [data-off] {
         display: none !important;
       }
-       sourceMappingURL=[^*]**/ a group of many rooms keeps one card's height on a page: its room rows (the long part) scroll inside the card, the half row at
+      /* a group of many rooms keeps one card's height on a page: its room rows (the long part) scroll inside the card, the half row at
          the edge says there is more */
       :host([data-fit]) .gcard .members {
         max-block-size: 160px;

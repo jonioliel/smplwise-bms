@@ -46,7 +46,7 @@ import{a as x,S,t0 as k,a7 as T,ak as m,t3 as z,ax as E,W as A,a2 as C,qL as D,p
         ${this.renderBody()}
       </sw-page>
     `}};l.styles=[L`
-     sourceMappingURL=[^*]**/ EVENTS-POLISH-2331 (the event centre's fix, same pattern): from a tablet up the screen takes the height the shell leaves it, the list
+    /* EVENTS-POLISH-2331 (the event centre's fix, same pattern): from a tablet up the screen takes the height the shell leaves it, the list
        scrolls inside its own box with a sticky header and the drawer is as tall as that box, so its footer stays in view; a phone keeps the
        page scroll and gets a full-screen modal sheet. */
     :host { display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; }
@@ -64,7 +64,7 @@ import{a as x,S,t0 as k,a7 as T,ak as m,t3 as z,ax as E,W as A,a2 as C,qL as D,p
     .rangepick { display: inline-flex; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); padding: 2px; }
     .rangepick button { font: inherit; font-size: var(--sw-fs-xs); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-xs); padding: 4px 8px; cursor: pointer; min-block-size: 28px; }
     .rangepick button.on { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: the status line reads as a stat strip (the count a display numeral), the rows at 13 px */
+    /* R5-INVESTIGATE-297: the status line reads as a stat strip (the count a display numeral), the rows at 13 px */
     .banner[data-ha-status] { font-size: var(--sw-fs-sm); padding: 8px 14px; background: var(--sw-surface); box-shadow: var(--sw-shadow-1); }
     .banner[data-ha-status] [data-ha-summary] { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .banner { font-size: var(--sw-fs-xs); padding: 6px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); border: 1px solid var(--sw-border); color: var(--sw-text-2); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; line-height: 1.5; margin-block: 8px; }

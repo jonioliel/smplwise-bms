@@ -310,7 +310,7 @@ import{a as F,bm as L,K as $,c3 as I,ak as g,c4 as T,bD as j,bB as P,R as z,br a
       text-align: start;
       margin-block-end: 4px;
     }
-     sourceMappingURL=[^*]**/ T086: the DXF mapping tables scroll inside their own box on a narrow screen, never the page */
+    /* T086: the DXF mapping tables scroll inside their own box on a narrow screen, never the page */
     .stage {
       min-inline-size: 0;
     }
@@ -352,14 +352,14 @@ import{a as F,bm as L,K as $,c3 as I,ak as g,c4 as T,bD as j,bB as P,R as z,br a
     table.map .nowrap {
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ phone: the sample column and the kind breakdown give way so the target select stays in view */
+    /* phone: the sample column and the kind breakdown give way so the target select stays in view */
     @media (max-width: 767px) {
       table.map .sample,
       table.map .kinds {
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the stage is the hero step (large radius, shadow 2); the drop zone and the
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the stage is the hero step (large radius, shadow 2); the drop zone and the
        preview are wells on the scheme's own surface (the preview and the page thumbnails were a fixed #f3f5f9 - a light box in the dark
        scheme); the picked page is a FILLED accent field, not a halo; press feedback on the page tiles and the asset rows. */
     .stage {
@@ -385,7 +385,7 @@ import{a as F,bm as L,K as $,c3 as I,ak as g,c4 as T,bD as j,bB as P,R as z,br a
     .drop.over {
       color: var(--sw-text);
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D12): the drop zone answers a hovering mouse only (fine pointer); a tap on a tablet opens the picker with no sticky wash */
+    /* POLISH4 WP6 (D12): the drop zone answers a hovering mouse only (fine pointer); a tap on a tablet opens the picker with no sticky wash */
     @media (hover: hover) and (pointer: fine) {
       .drop:hover {
         border-color: var(--sw-accent);

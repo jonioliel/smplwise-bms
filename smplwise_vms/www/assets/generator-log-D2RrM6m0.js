@@ -3,7 +3,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     --gen-flow: var(--sw-accent);
     --gen-gen: var(--sw-success);
     --gen-grid: var(--sw-accent);
-     sourceMappingURL=[^*]**/ POLISH4-WP5: the diagram's three private colours are tokens now (each scheme has its own value in the token sheet, so the
+    /* POLISH4-WP5: the diagram's three private colours are tokens now (each scheme has its own value in the token sheet, so the
        per-scheme overrides are gone): the load is the product's purple, the wire's base a tint of the ink, the node shadow the
        overlay ink */
     --gen-load: var(--sw-purple);
@@ -72,7 +72,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     line-height: 20px;
     white-space: nowrap;
   }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the severity chip's word is the theme's readable text token of its tone (the raw status colour on its soft tint
+  /* POLISH-CONTROL-297: the severity chip's word is the theme's readable text token of its tone (the raw status colour on its soft tint
      fell under 4.5:1 for the warning and the cleared chips, light and dark) */
   .sev.critical {
     background: var(--sw-danger-soft);
@@ -95,7 +95,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     color: var(--sw-text-2);
   }
 
-   sourceMappingURL=[^*]**/ power flow */
+  /* power flow */
   svg.flow {
     direction: ltr;
     inline-size: 100%;
@@ -282,7 +282,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     }
   }
 
-   sourceMappingURL=[^*]**/ gauges */
+  /* gauges */
   .gauges {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -390,7 +390,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     padding: 8px 10px;
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the small number's label in the secondary text colour, one line (it was the faintest tier at the smallest size) */
+  /* POLISH-CONTROL-297: the small number's label in the secondary text colour, one line (it was the faintest tier at the smallest size) */
   .kpi .k {
     color: var(--sw-text-2);
     font-size: var(--sw-fs-xs);
@@ -406,7 +406,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     color: var(--sw-heading);
   }
 
-   sourceMappingURL=[^*]**/ picker, notices, banners */
+  /* picker, notices, banners */
   .gpick {
     display: flex;
     align-items: center;
@@ -442,7 +442,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent);
   }
 
-   sourceMappingURL=[^*]**/ charts */
+  /* charts */
   .charts {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -512,7 +512,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     color: var(--sw-text-3);
   }
 
-   sourceMappingURL=[^*]**/ alerts */
+  /* alerts */
   .al {
     display: flex;
     gap: 12px;
@@ -527,7 +527,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     font: inherit;
     color: inherit;
   }
-   sourceMappingURL=[^*]**/ round 2 (impeccable detector: no side-tab stripe): an alert row is a flat tinted field of its severity with its icon tile */
+  /* round 2 (impeccable detector: no side-tab stripe): an alert row is a flat tinted field of its severity with its icon tile */
   .al {
     transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     touch-action: manipulation;
@@ -700,7 +700,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     resize: vertical;
   }
 
-   sourceMappingURL=[^*]**/ routing */
+  /* routing */
   table.routing th.c,
   table.routing td.c {
     text-align: center;
@@ -849,7 +849,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     border-block-end: 1px solid var(--sw-border);
   }
 
-   sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 measured the live page 307 px over at 1366x768 and 192 px
+  /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 measured the live page 307 px over at 1366x768 and 192 px
      at 1440x900): from 1101 px (where the hero is two columns) the page is two aligned columns - the flow diagram over the meters, the engine
      card over the phase table - instead of four full-width bands. The engine facts read in two pairs per row, the flow diagram is capped to the
      row's height, the dials are one denser row. Up to 1100 px (tablet, phone) the bands stay as they were (.lower is display: contents). */
@@ -949,7 +949,7 @@ import{i}from"./index-C5kZ9jiu.js";const w=i`
     .det {
       grid-template-columns: auto 1fr;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP5: the history filters were a sideways-scrolling strip of full-width fields on a phone (each select took the whole row's
+    /* POLISH4-WP5: the history filters were a sideways-scrolling strip of full-width fields on a phone (each select took the whole row's
        width); they are a two-column grid now - the search and the window switch take the full row, the selects pair up - so every
        filter is in view without a sideways scroll */
     .filters {

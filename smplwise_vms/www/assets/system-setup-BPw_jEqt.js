@@ -174,7 +174,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
     </sw-card>${this.dialog()}`}};B.styles=[Be,A`
       :host {
         display: block;
-         sourceMappingURL=[^*]**/ every button of the card is a 44 px target (the shared settings rows are not, in every skin) */
+        /* every button of the card is a 44 px target (the shared settings rows are not, in every skin) */
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
         --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px));
       }
@@ -238,7 +238,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
         flex: 1 1 260px;
         min-inline-size: 0;
       }
-       sourceMappingURL=[^*]**/ a device's switch and badge stay on the row of its name on a phone (the card is ~366 px wide there) */
+      /* a device's switch and badge stay on the row of its name on a phone (the card is ~366 px wide there) */
       .ent .who {
         flex-basis: 180px;
       }
@@ -268,7 +268,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
         gap: var(--sw-s-2);
         flex-wrap: wrap;
       }
-       sourceMappingURL=[^*]**/ the switch is 42 x 24; its host is the 44 px target (a press on the host flips it too) */
+      /* the switch is 42 x 24; its host is the 44 px target (a press on the host flips it too) */
       sw-toggle.t {
         min-block-size: 44px;
         min-inline-size: 44px;
@@ -316,7 +316,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
     gap: var(--sw-s-3);
     font-size: var(--sw-fs-sm);
     color: var(--sw-text);
-     sourceMappingURL=[^*]**/ the tables fold by the card's own width (a settings card sits beside a tree on wide screens) */
+    /* the tables fold by the card's own width (a settings card sits beside a tree on wide screens) */
     container: admin / inline-size;
   }
   .head {
@@ -373,7 +373,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
     background: var(--sw-accent-soft);
     color: var(--sw-accent-text);
   }
-   sourceMappingURL=[^*]**/ ---- a table that folds to rows on a narrow card ---- */
+  /* ---- a table that folds to rows on a narrow card ---- */
   .tbl {
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-md);
@@ -457,7 +457,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
       display: inline-flex;
     }
   }
-   sourceMappingURL=[^*]**/ FRIGATE-F2B-2405: what a folded row would lose with its hidden columns (an export still being written, a Frigate-made row
+  /* FRIGATE-F2B-2405: what a folded row would lose with its hidden columns (an export still being written, a Frigate-made row
      that is not Arx's to rename or delete) comes back as a tag on the sub line, drawn only while folded */
   .tbl .fold {
     display: none;
@@ -472,7 +472,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
     color: var(--sw-text-3);
     font-size: var(--sw-fs-xs);
   }
-   sourceMappingURL=[^*]**/ ---- forms ---- */
+  /* ---- forms ---- */
   .form {
     display: grid;
     gap: var(--sw-s-3);
@@ -1015,7 +1015,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
     .h:active {
       cursor: grabbing;
     }
-     sourceMappingURL=[^*]**/ the midpoint of an edge: a smaller, hollow handle that inserts a point */
+    /* the midpoint of an edge: a smaller, hollow handle that inserts a point */
     .m {
       position: absolute;
       inline-size: 28px;
@@ -1462,7 +1462,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
       display: flex;
       flex-direction: column;
     }
-     sourceMappingURL=[^*]**/ one recorder per row: name and model, the state badge beside the camera count, the actions; the tone bar at the start edge says
+    /* one recorder per row: name and model, the state badge beside the camera count, the actions; the tone bar at the start edge says
        error / pending restart / disabled at a glance (the badge carries the word) */
     .rec {
       display: flex;
@@ -2304,7 +2304,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
     `}render(){return be()?this.renderApi():i`<sw-page crumbs="הגדרות" heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · כתיבה ל־NVR רק בפעולות המאושרות, עם הרשאה רגישה">
       <sw-state-panel icon="link" state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${()=>window.location.hash="#/system/wizard"}></sw-state-panel>
     </sw-page>`}};m.styles=[Be,A`
-     sourceMappingURL=[^*]**/ SETUPPLAN-POLISH-2331: the channel matrix is a dense data table (ui-ux-pro-max: tabular numerals, a quiet header, a row
+    /* SETUPPLAN-POLISH-2331: the channel matrix is a dense data table (ui-ux-pro-max: tabular numerals, a quiet header, a row
        hover under a pointer that hovers, a scroll box of its own so a 16-channel recorder never widens the page on a phone) */
     .tablewrap {
       overflow-x: auto;
@@ -2352,7 +2352,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
         background: var(--sw-hover-wash);
       }
     }
-     sourceMappingURL=[^*]**/ a yes / no mark: a drawn check or cross in a small tinted chip (the success / neutral tones of the fact rows) */
+    /* a yes / no mark: a drawn check or cross in a small tinted chip (the success / neutral tones of the fact rows) */
     .yn {
       display: inline-grid;
       place-items: center;
@@ -2403,7 +2403,7 @@ import{L as G,av as Se,i as A,r as d,a as R,ak as f,R as Ae,p as o,q as i,x as O
       font-variant-numeric: tabular-nums;
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ owner round 4 (1.1): the system card packed clock/disks/outputs/reboot behind bare bold text with no
+    /* owner round 4 (1.1): the system card packed clock/disks/outputs/reboot behind bare bold text with no
        separation - a wall of controls. A real section head (icon, label, rule) makes it scannable. */
     .syshead {
       display: flex;

@@ -4,7 +4,7 @@ import{i as I,r as u,n as M,q as o,p as d,_ as T,a as G,x as N,L as H,au as lt,d
     position: relative;
     min-inline-size: 0;
     contain: inline-size;
-     sourceMappingURL=[^*]**/ two categorical slots, validated (light #2a78d6 / #eb6834, dark #3987e5 / #d95926) */
+    /* two categorical slots, validated (light #2a78d6 / #eb6834, dark #3987e5 / #d95926) */
     --c-s1: light-dark(#2a78d6, #3987e5);
     --c-s2: light-dark(#eb6834, #d95926);
     --c-text: var(--sw-text-3);
@@ -17,7 +17,7 @@ import{i as I,r as u,n as M,q as o,p as d,_ as T,a as G,x as N,L as H,au as lt,d
     inline-size: 100%;
     display: block;
     overflow: visible;
-     sourceMappingURL=[^*]**/ the geometry is drawn in absolute x (axis at the right, time running right to left); text anchors must not flip with RTL */
+    /* the geometry is drawn in absolute x (axis at the right, time running right to left); text anchors must not flip with RTL */
     direction: ltr;
   }
   text {

@@ -97,7 +97,7 @@ import{a as f,ac as h,sZ as g,q as a,b_ as n,p as c,rK as b,i as u,r as x,x as y
       padding: 14px 24px 24px;
       max-inline-size: var(--sw-content-max);
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: the guide reads in the product's own scale - the page heading, 17/700 section titles, a body-sized lead */
+    /* R5-SYSTEM-297: the guide reads in the product's own scale - the page heading, 17/700 section titles, a body-sized lead */
     h2 {
       font-family: var(--sw-font-heading, var(--sw-font));
       font-size: var(--sw-h1, var(--sw-fs-2xl));
@@ -119,7 +119,7 @@ import{a as f,ac as h,sZ as g,q as a,b_ as n,p as c,rK as b,i as u,r as x,x as y
       font-size: var(--sw-fs-md);
       max-inline-size: 90ch;
     }
-     sourceMappingURL=[^*]**/ the surface ladder of HOMEFABLE / R5: the page, a hero (large radius, shadow 2 + light line), a card (shadow 1), a well (surface-2) */
+    /* the surface ladder of HOMEFABLE / R5: the page, a hero (large radius, shadow 2 + light line), a card (shadow 1), a well (surface-2) */
     .ladder {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

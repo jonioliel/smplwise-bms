@@ -102,7 +102,7 @@ import{gN as $,gO as f,K as z,gP as _,R as E,gQ as O,fS as B,i as M,n as b,r as 
       outline: 2px dashed color-mix(in srgb, var(--dv-accent) 55%, transparent);
       outline-offset: 4px;
     }
-     sourceMappingURL=[^*]**/ the poster */
+    /* the poster */
     .shot {
       position: relative;
       display: block;
@@ -227,7 +227,7 @@ import{gN as $,gO as f,K as z,gP as _,R as E,gQ as O,fS as B,i as M,n as b,r as 
     .shot[disabled] {
       cursor: default;
     }
-     sourceMappingURL=[^*]**/ name, state, power, controls */
+    /* name, state, power, controls */
     .sbody {
       display: flex;
       flex-direction: column;
@@ -247,7 +247,7 @@ import{gN as $,gO as f,K as z,gP as _,R as E,gQ as O,fS as B,i as M,n as b,r as 
       flex-direction: column;
       line-height: 1.3;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the screen name is the card's title - 20 px / 800 in the heading ink */
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the screen name is the card's title - 20 px / 800 in the heading ink */
     .srow .tx b {
       font-size: var(--sw-fs-2xl);
       font-weight: 800;
@@ -294,7 +294,7 @@ import{gN as $,gO as f,K as z,gP as _,R as E,gQ as O,fS as B,i as M,n as b,r as 
       color: var(--dv-text-2);
       font-size: var(--sw-fs-base);
     }
-     sourceMappingURL=[^*]**/ the phone's horizontal card (and size "s") */
+    /* the phone's horizontal card (and size "s") */
     :host([compact]) .scard,
     :host([data-size='s']) .scard {
       display: grid;
@@ -346,7 +346,7 @@ import{gN as $,gO as f,K as z,gP as _,R as E,gQ as O,fS as B,i as M,n as b,r as 
       inset-inline: 8px;
       inset-block-end: 4px;
     }
-     sourceMappingURL=[^*]**/ the wrappers are display:contents there: the grid items themselves must sit above the glow */
+    /* the wrappers are display:contents there: the grid items themselves must sit above the glow */
     :host([compact]) .srow .tx,
     :host([compact]) .srow .pw,
     :host([compact]) .sctl,

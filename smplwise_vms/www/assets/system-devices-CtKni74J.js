@@ -247,7 +247,7 @@ import{i as P,n as E,r as d,a as F,S as q,ak as $,p as h,q as t,x as L,a_ as D,b
       justify-content: center;
       padding-block-start: 8px;
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437: from 1024 px the page takes the screen's height, the table stage takes what is left under the filters and
+    /* NOSCROLL-1366-2437: from 1024 px the page takes the screen's height, the table stage takes what is left under the filters and
        pages its rows (fit() above); the recorder card stays one compact row under it */
     @media (min-width: 1024px) {
       sw-page {
@@ -268,7 +268,7 @@ import{i as P,n as E,r as d,a as F,S as q,ak as $,p as h,q as t,x as L,a_ as D,b
         grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2 (D11): the phone. A row is a card (sw-table stacks the cells); this screen keeps the camera, its state, the picture
+    /* POLISH4-WP2 (D11): the phone. A row is a card (sw-table stacks the cells); this screen keeps the camera, its state, the picture
        check and when it was last seen on the card - FPS, rate, stream and the network bars move to the drawer, so a camera reads in
        one glance instead of a nine-line column. The search takes the full row under the chips. */
     @media (max-width: 767px) {

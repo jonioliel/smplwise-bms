@@ -55,7 +55,7 @@ import{kw as I,gZ as O,kq as M,kx as _,fS as j,i as N,n as b,r as S,a as G,fT as
       padding: 16px 16px 18px;
       border: 1px dashed color-mix(in srgb, var(--dv-accent) 55%, transparent);
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the panel's headings read as headings (heading ink, no tracking); its rows are wells, not outlined boxes */
+    /* R5-MEDIA-ENERGY-297: the panel's headings read as headings (heading ink, no tracking); its rows are wells, not outlined boxes */
     h3,
     h4 {
       margin: 0;

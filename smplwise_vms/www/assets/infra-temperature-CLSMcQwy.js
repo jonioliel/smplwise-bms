@@ -236,15 +236,15 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; max-inline-size: 100vw; overflow: hidden;
     }
     .drawer.wide { inline-size: min(1240px, 100vw); }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (emil: drawers 200-400 ms, ease-out; transform + opacity only): the drawer slides in from its edge in 280 ms, the scrim fades */
+    /* R5-MEDIA-ENERGY-297 (emil: drawers 200-400 ms, ease-out; transform + opacity only): the drawer slides in from its edge in 280 ms, the scrim fades */
     .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
     .drawer { opacity: 1; transform: translateX(0); transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms var(--sw-ease-out); }
-     sourceMappingURL=[^*]**/ the drawer hangs on the inline end: in RTL (the product) that edge is the left, so it enters from the left; in LTR from the right */
+    /* the drawer hangs on the inline end: in RTL (the product) that edge is the left, so it enters from the left; in LTR from the right */
     @starting-style { .ovl { opacity: 0; } .drawer { opacity: 0; transform: translateX(-28px); } }
     :host(:dir(ltr)) .drawer { transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms var(--sw-ease-out); }
     @starting-style { :host(:dir(ltr)) .drawer { transform: translateX(28px); } }
     .dh { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--sw-border); background: var(--sw-surface); }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the drawer's title is a title (24 px / 800), its statistics are wells with display numerals, its footer keys are raised */
+    /* R5-MEDIA-ENERGY-297: the drawer's title is a title (24 px / 800), its statistics are wells with display numerals, its footer keys are raised */
     .dh h2 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); }
     .dh small { color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
     .dh .t { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
@@ -287,7 +287,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .tlrow .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); flex-wrap: wrap; }
     .cmp { display: grid; gap: 8px; }
     .ci { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: var(--sw-r-sm); border: 0; background: transparent; font: inherit; color: inherit; text-align: start; cursor: pointer; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the row answers the press */
+    /* R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the row answers the press */
     @media (hover: hover) and (pointer: fine) { .ci:hover { background: var(--sw-hover-wash); } }
     .ci:active { background: var(--sw-surface-3); }
     .ci > div { min-inline-size: 0; overflow-wrap: anywhere; }
@@ -318,7 +318,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     @media (hover: hover) and (pointer: fine) { .pop button:hover { background: var(--sw-hover-wash); } }
     .pop button:active { background: var(--sw-surface-3); }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-     sourceMappingURL=[^*]**/ phase 3 */
+    /* phase 3 */
     .summ.hl b[data-bad='true'] { color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
     .warnline { color: var(--sw-warning-text) !important; }
     .fx { display: grid; gap: 2px; margin-block-start: 8px; }
@@ -491,12 +491,12 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       position: relative; inline-size: min(780px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg);
       border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade */
+    /* R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade */
     .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
     .sheet { opacity: 1; transform: scale(1); transition: opacity 300ms var(--sw-ease-out), transform 300ms cubic-bezier(0.23, 1, 0.32, 1); }
     @starting-style { .ovl { opacity: 0; } .sheet { opacity: 0; transform: scale(0.96); } }
     .wh { display: flex; align-items: center; gap: 10px; padding: 16px 20px 8px; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the wizard's title is a title; the step bar is a real bar; a rule row is a well, not an outlined box */
+    /* R5-MEDIA-ENERGY-297: the wizard's title is a title; the step bar is a real bar; a rule row is a well, not an outlined box */
     .wh h2 { margin: 0; flex: 1; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
     .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
     .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 20px 10px; }
@@ -593,7 +593,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
     .top .sp { flex: 1; }
     .meta { display: flex; gap: 8px; flex-wrap: wrap; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the log table is the page's hero object; its header row and severity marks carry weight */
+    /* R5-MEDIA-ENERGY-297: the log table is the page's hero object; its header row and severity marks carry weight */
     .tcard { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); overflow: hidden; }
     .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px; border-block-end: 1px solid var(--sw-border); }
     .filters select { min-block-size: var(--sw-ctl-h-sm); border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 12px; font: inherit; }
@@ -690,7 +690,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
     .sheet { position: relative; inline-size: min(1040px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden; }
     .wh { display: flex; align-items: flex-start; gap: 10px; padding: 16px 20px 8px; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade, the scrim
+    /* R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade, the scrim
        fades with it; the title is a title */
     .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
     .sheet { opacity: 1; transform: scale(1); transition: opacity 300ms var(--sw-ease-out), transform 300ms cubic-bezier(0.23, 1, 0.32, 1); }
@@ -917,10 +917,10 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       color: var(--sw-offline-text); font-size: var(--sw-fs-sm);
     }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297 round 2: the number is the hero of the tile (display size, heavy, tight, tabular), the tile on the card elevation */
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the unit cards (surface-2, a hairline, no shadow) so the
+    /* POLISH-CONTROL-297 round 2: the number is the hero of the tile (display size, heavy, tight, tabular), the tile on the card elevation */
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the unit cards (surface-2, a hairline, no shadow) so the
        cards read as the page's objects; its label gets two lines before an ellipsis; a chosen counter is a filled status field */
-     sourceMappingURL=[^*]**/ loop 2 (visible-difference test): surface-2 is 3 % from white and read as "another white card"; the counter is now a surface-3 well with
+    /* loop 2 (visible-difference test): surface-2 is 3 % from white and read as "another white card"; the counter is now a surface-3 well with
        no outline and no shadow, its mark a 20 px disc with a ring; a counter that is not zero on an alerting status is a filled status field
        (impeccable detect flagged the first try - a 6 px side border - as the "side-tab accent border" tell; replaced by the field) */
     .kpi {
@@ -929,7 +929,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
     .kpi > div { min-inline-size: 0; }
-     sourceMappingURL=[^*]**/ POLISH136: the KPI is a filter button - it answers hover (fine pointers only), press and keyboard like the cards */
+    /* POLISH136: the KPI is a filter button - it answers hover (fine pointers only), press and keyboard like the cards */
     .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out); }
     .kpi:active { transform: scale(var(--sw-press-scale)); background: var(--sw-surface-3); }
     .kpi[aria-pressed='true'] { border-color: var(--c); background: color-mix(in srgb, var(--c) 20%, var(--sw-surface)); box-shadow: inset 0 0 0 1px var(--c); }
@@ -947,20 +947,20 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .ucard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg); overflow: hidden;
-       sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the unit card is the hero tier - the ladder's second step and a lit top edge */
+      /* R5-MEDIA-ENERGY-297: the unit card is the hero tier - the ladder's second step and a lit top edge */
       background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; cursor: pointer;
-       sourceMappingURL=[^*]**/ POLISH136: a tappable card confirms the press (transform only, token durations - zero under reduced motion) */
+      /* POLISH136: a tappable card confirms the press (transform only, token durations - zero under reduced motion) */
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
     .ucard:active { transform: scale(var(--sw-press-scale)); box-shadow: var(--sw-shadow-1); }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (status as a filled field): an alerting card is a solid tinted field of its colour with a strong frame - readable from
+    /* R5-MEDIA-ENERGY-297 (status as a filled field): an alerting card is a solid tinted field of its colour with a strong frame - readable from
        across the room, in light and in dark - never a 7 % wash */
     .ucard[data-look='alarm'] { border-color: color-mix(in srgb, var(--tc-alarm) 75%, transparent); background: color-mix(in srgb, var(--tc-alarm) 16%, var(--sw-surface)); }
     .ucard[data-look='warn'] { border-color: color-mix(in srgb, var(--tc-warn) 75%, transparent); background: color-mix(in srgb, var(--tc-warn) 14%, var(--sw-surface)); }
     .ucard[data-look='alarm'] .chip, .ucard[data-look='warn'] .chip { background: color-mix(in srgb, var(--sw-surface) 55%, transparent); }
     .ucard[data-look='off'] { border-style: dashed; }
     .ucard:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
-     sourceMappingURL=[^*]**/ round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only;
+    /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only;
        under reduced motion only the fade remains */
     @media (prefers-reduced-motion: no-preference) {
       .ucard { animation: tp-in 360ms var(--sw-ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
@@ -973,7 +973,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     @keyframes tp-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
     @keyframes tp-fade { from { opacity: 0; } }
     .uhead { display: flex; align-items: flex-start; gap: 10px; min-inline-size: 0; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the unit name is the card's title - 20 px / 800 in the heading ink */
+    /* R5-MEDIA-ENERGY-297: the unit name is the card's title - 20 px / 800 in the heading ink */
     .uhead h3 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .uhead h3 small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: var(--sw-fw-regular); overflow: hidden; text-overflow: ellipsis; }
     .ubody { display: flex; gap: 14px; align-items: center; min-inline-size: 0; }
@@ -988,7 +988,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .add small { color: var(--sw-text-3); }
     .add:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 3px; }
     .kpi[data-k='health'] { --c: var(--sw-warning); }
-     sourceMappingURL=[^*]**/ phase 3 (idea 7): area groups, like the floors tree of the other screens; a quick floor filter */
+    /* phase 3 (idea 7): area groups, like the floors tree of the other screens; a quick floor filter */
     .floors { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .floors button {
       border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit;
@@ -1016,15 +1016,15 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .toast {
       position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 20px); inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw;
       background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2);
-       sourceMappingURL=[^*]**/ POLISH136: the toast rises in instead of popping (token duration: zero under reduced motion) */
+      /* POLISH136: the toast rises in instead of popping (token duration: zero under reduced motion) */
       opacity: 1; transform: translateY(0); transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease);
     }
     @starting-style { .toast { opacity: 0; transform: translateY(8px); } }
-     sourceMappingURL=[^*]**/ POLISH136: the header actions and the add card answer a press like every other control on the page */
+    /* POLISH136: the header actions and the add card answer a press like every other control on the page */
     .meta .btn, .hand .btn, .add { transition: border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .meta .btn:active, .hand .btn:active { transform: scale(0.97); }
     .add:active { transform: scale(0.99); }
-     sourceMappingURL=[^*]**/ POLISH136: the loading state draws the shape of the page (title, KPI row, three cards) instead of a blank screen; .skl was never
+    /* POLISH136: the loading state draws the shape of the page (title, KPI row, three cards) instead of a blank screen; .skl was never
        defined for this screen (the generator and elevators screens share the gap - noted for the round) */
     .skl { display: flex; flex-direction: column; gap: 14px; }
     .sk {
@@ -1034,7 +1034,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
     .sk-kpi { block-size: 64px; }
     .sk-card { block-size: 236px; border-radius: var(--sw-r-lg); }
     @keyframes tp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-     sourceMappingURL=[^*]**/ POLISH136: hover is only for fine pointers - a touch must not leave a card lit */
+    /* POLISH136: hover is only for fine pointers - a touch must not leave a card lit */
     @media (hover: hover) and (pointer: fine) {
       .ucard:hover { box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
       .ucard:hover:not([data-look='alarm']):not([data-look='warn']) { border-color: var(--sw-border-strong); }
@@ -1043,7 +1043,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       .ghead:hover { background: var(--sw-surface-2); }
       .add:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30: 76 px over at 1366x768): from 1101 px (a desktop; the 1024 px tablet keeps the page as it was) the screen keeps
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30: 76 px over at 1366x768): from 1101 px (a desktop; the 1024 px tablet keeps the page as it was) the screen keeps
        its box (the shell gives it the room under the tabs) and the unit cards are pages (the pager sits beside "יומן התראות"); a short window
        (<= 820 px high) draws the counters and the cards a step denser, so two rows of cards fit at 1366x768. Tablet and phone unchanged. */
     @media (min-width: 1101px) {
@@ -1060,7 +1060,7 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       .umeta { gap: 4px; }
     }
     @media (max-width: 600px) {
-       sourceMappingURL=[^*]**/ round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis */
+      /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis */
       .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
       .ubody { gap: 10px; }
     }

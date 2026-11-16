@@ -50,7 +50,7 @@ import{a as $,S as y,K as v,R as k,ak as b,a2 as f,W as u,p as o,q as e,br as g,
         ${s?this.renderApi():this.renderDemo()}
       </sw-page>
     `}};d.styles=[D`
-     sourceMappingURL=[^*]**/ INVREST-POLISH-2331: from a tablet up the screen takes the height the shell leaves it and never scrolls - the summary and the
+    /* INVREST-POLISH-2331: from a tablet up the screen takes the height the shell leaves it and never scrolls - the summary and the
        note stay put, the job list scrolls inside its own panel. A phone keeps the page scroll. */
     :host {
       display: flex;
@@ -92,7 +92,7 @@ import{a as $,S as y,K as v,R as k,ak as b,a2 as f,W as u,p as o,q as e,br as g,
     .summary .r5-sub {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the list panel: the page's primary object (radius lg, shadow 2); it scrolls in its own box */
+    /* the list panel: the page's primary object (radius lg, shadow 2); it scrolls in its own box */
     .list {
       flex: 0 1 auto;
       min-block-size: 0;
@@ -119,7 +119,7 @@ import{a as $,S as y,K as v,R as k,ak as b,a2 as f,W as u,p as o,q as e,br as g,
       color: var(--sw-text-2);
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ a job is a well (tone step, rounded): what | how far | what you can do */
+    /* a job is a well (tone step, rounded): what | how far | what you can do */
     .job {
       display: grid;
       grid-template-columns: minmax(0, 1fr) clamp(170px, 24%, 260px) minmax(0, auto);
@@ -140,7 +140,7 @@ import{a as $,S as y,K as v,R as k,ak as b,a2 as f,W as u,p as o,q as e,br as g,
     .job[data-tone='warn'] {
       background: var(--sw-warning-soft);
     }
-     sourceMappingURL=[^*]**/ the demo rows' legacy tones */
+    /* the demo rows' legacy tones */
     .job[data-state='fail'] {
       background: var(--sw-danger-soft);
     }

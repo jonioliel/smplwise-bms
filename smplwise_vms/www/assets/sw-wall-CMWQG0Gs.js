@@ -60,7 +60,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
       line-height: 1.3;
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
-       sourceMappingURL=[^*]**/ the dark wall theme: the product's video canvas, white HUD text */
+      /* the dark wall theme: the product's video canvas, white HUD text */
       --wall-bg: var(--sw-video-bg);
       --wall-text: var(--sw-on-video);
       --wall-text-2: var(--sw-on-video-2);
@@ -105,7 +105,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
       --strip-h: calc(64px * var(--s, 1));
       --chip-h: calc(44px * var(--s, 1));
       grid-template-rows: var(--strip-h) minmax(0, 1fr);
-       sourceMappingURL=[^*]**/ the pixel shift glides and the dim fades: a burn-in move is never a visible jump */
+      /* the pixel shift glides and the dim fades: a burn-in move is never a visible jump */
       transition: opacity 3s ease, transform 2s ease-in-out;
     }
     .wall[data-preset='tablet-portrait'] {
@@ -168,7 +168,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
       font-weight: var(--sw-fw-regular);
       color: var(--wall-text-2);
     }
-     sourceMappingURL=[^*]**/ dimmed (burn-in): the strip's fill goes, the clock becomes an outline, the chips recede - nothing stays bright */
+    /* dimmed (burn-in): the strip's fill goes, the clock becomes an outline, the chips recede - nothing stays bright */
     .dim .clock {
       -webkit-text-stroke: 1px var(--wall-text);
       color: transparent;
@@ -246,7 +246,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
       direction: ltr;
       animation: fade-in 0.6s var(--sw-ease) both;
     }
-     sourceMappingURL=[^*]**/ the picture keeps its 16:9 and sits centred in the cell (a portrait cell is taller than wide: no dead band under the
+    /* the picture keeps its 16:9 and sits centred in the cell (a portrait cell is taller than wide: no dead band under the
        video, the letterbox is split above and below); where container units are missing the tile fills the width as before */
     .tile sw-camera-tile {
       display: block;
@@ -270,7 +270,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
     .tile[data-health='lost'] sw-camera-tile {
       visibility: hidden;
     }
-     sourceMappingURL=[^*]**/ the map pane of a portrait wall (cfg.show_map): the tile material under the plan that sw-wall-plan draws (CR-029 S5-B); an
+    /* the map pane of a portrait wall (cfg.show_map): the tile material under the plan that sw-wall-plan draws (CR-029 S5-B); an
        empty surface until the floor loads, and for a profile with no floor */
     .pane {
       position: relative;
@@ -657,7 +657,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
     .announce [data-size='l'] .ann-t { font-size: calc(64px * var(--s, 1)); }
     .announce [data-size='m'] .ann-t { font-size: calc(44px * var(--s, 1)); }
     .announce [data-size='s'] .ann-t { font-size: calc(30px * var(--s, 1)); }
-    .announce [data-size='xs'] .ann-t { font-size: calc(22px * var(--s, 1)); }  sourceMappingURL=[^*]**/ ANNOUNCE-297: four full-length languages */
+    .announce [data-size='xs'] .ann-t { font-size: calc(22px * var(--s, 1)); } /* ANNOUNCE-297: four full-length languages */
     .announce [data-size='xs'] .ann-body { gap: calc(14px * var(--s, 1)); }
     .announce [data-size='xs'] .ann-t + .ann-t { padding-block-start: calc(12px * var(--s, 1)); }
     .announce .ann-mt {
@@ -847,7 +847,7 @@ import{a as F,a5 as H,a6 as R,a7 as j,p as r,q as i,R as _,a8 as T,a9 as f,aa as
         animation: none !important;
       }
     }
-     sourceMappingURL=[^*]**/ WALL-FOLLOWUPS-2390: a desktop wall (mouse, no touch) hides the parked pointer after 3 s without movement; any movement brings it back at once */
+    /* WALL-FOLLOWUPS-2390: a desktop wall (mouse, no touch) hides the parked pointer after 3 s without movement; any movement brings it back at once */
     :host([data-cursor-idle]),
     :host([data-cursor-idle]) * {
       cursor: none !important;

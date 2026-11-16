@@ -108,7 +108,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
         animation: none;
       }
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the read card number is the dialog's display figure - 26/800 tabular in a well */
+    /* R5-SECURITY: the read card number is the dialog's display figure - 26/800 tabular in a well */
     .card {
       font-size: var(--sw-fs-3xl);
       font-weight: 800;
@@ -399,7 +399,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     .pane {
       inline-size: min(1040px, 100%);
       max-block-size: calc(100dvh - 32px);
-       sourceMappingURL=[^*]**/ opaque: the glass skins make --sw-surface translucent, and this pane sits over the people table */
+      /* opaque: the glass skins make --sw-surface translucent, and this pane sits over the people table */
       background: var(--sw-surface-solid);
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
@@ -418,7 +418,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       flex: 1;
     }
     h3 {
-       sourceMappingURL=[^*]**/ R5-SECURITY: the dialog's heading 20/800 in the heading ink */
+      /* R5-SECURITY: the dialog's heading 20/800 in the heading ink */
       margin: 0;
       font-size: var(--sw-fs-2xl);
       font-weight: 800;
@@ -467,7 +467,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       gap: 12px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: each section is a well (a tone step, no edge, radius lg); its legend 14.5/700 in the heading ink */
+    /* R5-SECURITY: each section is a well (a tone step, no edge, radius lg); its legend 14.5/700 in the heading ink */
     fieldset {
       border: 1px solid transparent;
       border-radius: var(--sw-r-lg);
@@ -1043,7 +1043,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     .tabs button:active {
       transform: scale(var(--sw-press-scale));
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the badges in the head and the sections are fields - 12.5/700 on 22 px */
+    /* R5-SECURITY: the badges in the head and the sections are fields - 12.5/700 on 22 px */
     sw-badge {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-bold);
@@ -1060,7 +1060,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       flex-direction: column;
       gap: 8px;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: section headings in the heading ink (14.5/700); values 14/600; the sensitive section is a well (a tone step, no edge) */
+    /* R5-SECURITY: section headings in the heading ink (14.5/700); values 14/600; the sensitive section is a well (a tone step, no edge) */
     h4 {
       margin: 0;
       display: flex;
@@ -1271,7 +1271,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       gap: 2px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the recipient is the dialog's display line - 17/800 in the heading ink; the pills are 12.5/700 fields */
+    /* R5-SECURITY: the recipient is the dialog's display line - 17/800 in the heading ink; the pills are 12.5/700 fields */
     .to b {
       font-weight: 800;
       font-size: var(--sw-fs-xl);
@@ -1325,7 +1325,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       flex-wrap: wrap;
       gap: 8px;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the template chips are raised keys (shadow 1, 600) that sink on pointer-down; the chosen one a filled accent field */
+    /* R5-SECURITY: the template chips are raised keys (shadow 1, 600) that sink on pointer-down; the chosen one a filled accent field */
     .chip {
       min-block-size: 44px;
       padding-inline: 14px;
@@ -1435,7 +1435,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     sw-button {
       min-block-size: 44px;
     }
-     sourceMappingURL=[^*]**/ the per-recipient result table of a bulk run */
+    /* the per-recipient result table of a bulk run */
     .results {
       inline-size: 100%;
       border-collapse: collapse;
@@ -1513,7 +1513,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       <div class="frame" aria-label=${h("photo.preview")}>${t.phase==="ready"?n`<img src=${t.data} alt=${h("photo.preview")} data-photo-preview />`:n`<sw-icon name="user" size=${40}></sw-icon>`}</div>
       <div class="col">
         <label class="pick">
-          <input type="file" accept="image sourceMappingURL=[^*]**/" data-photo-input @change=${s=>void this.pickPhoto(s)} ?disabled=${this.step==="working"} />
+          <input type="file" accept="image/*" data-photo-input @change=${s=>void this.pickPhoto(s)} ?disabled=${this.step==="working"} />
           <span>${h("btn.choose_photo")}</span>
         </label>
         ${t.phase==="processing"?n`<span class="muted" role="status">${h("photo.processing")}</span>`:l}
@@ -1543,7 +1543,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       font-weight: var(--sw-fw-semibold);
       text-align: start;
       cursor: pointer;
-       sourceMappingURL=[^*]**/ R5-SECURITY: the menu items are raised keys (shadow 1) that sink on pointer-down; a hover only under a fine pointer */
+      /* R5-SECURITY: the menu items are raised keys (shadow 1) that sink on pointer-down; a hover only under a fine pointer */
       box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -2466,7 +2466,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       align-items: center;
       gap: 8px;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the filter chips are raised keys (shadow 1, no outline); an active one is a filled accent field */
+    /* R5-SECURITY: the filter chips are raised keys (shadow 1, no outline); an active one is a filled accent field */
     .fchip {
       display: inline-flex;
       align-items: center;
@@ -2544,7 +2544,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     .note.ok {
       background: var(--sw-success-soft);
     }
-     sourceMappingURL=[^*]**/ WISKEY-PEOPLE-COMPLETE-2390: people who may be in the list twice */
+    /* WISKEY-PEOPLE-COMPLETE-2390: people who may be in the list twice */
     .note.dup {
       background: var(--sw-warning-soft);
     }
@@ -2588,7 +2588,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     .dup-more {
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ not sticky: now that the page scrolls, a bar stuck to the top of the column would pass under the shell's floating search / status
+    /* not sticky: now that the page scrolls, a bar stuck to the top of the column would pass under the shell's floating search / status
        corner (it covers the far end of whatever is at the top) and cover the rows beneath it (layout guard: floating) */
     .bulk {
       display: flex;
@@ -2629,7 +2629,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     .row:last-child {
       border-block-end: 0;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the press answers on pointer-down */
+    /* R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the press answers on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .row:hover,
       .card:hover,
@@ -2656,7 +2656,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
     tbody tr.sel {
       background: var(--sw-accent-soft);
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the state badge is the question of its column - 13/700, a 26 px field */
+    /* R5-SECURITY: the state badge is the question of its column - 13/700, a 26 px field */
     sw-badge {
       font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-bold);
@@ -2820,7 +2820,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       border: 1px solid transparent;
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
-       sourceMappingURL=[^*]**/ R5-SECURITY pass 2: the table is the screen's one primary object - shadow 2 */
+      /* R5-SECURITY pass 2: the table is the screen's one primary object - shadow 2 */
       box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
     }
     table {
@@ -2836,7 +2836,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: column heads are a filled head row (surface-2, 11/700 tracked); the name cell is the row's display line */
+    /* R5-SECURITY: column heads are a filled head row (surface-2, 11/700 tracked); the name cell is the row's display line */
     th {
       position: sticky;
       inset-block-start: 0;
@@ -2847,7 +2847,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       letter-spacing: 0.03em;
       padding-block: 10px;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY pass 2: the name is the row's display line (17/800, tracked -0.01em), the row 60 px, the figures 600 */
+    /* R5-SECURITY pass 2: the name is the row's display line (17/800, tracked -0.01em), the row 60 px, the figures 600 */
     td .who b,
     td.name b {
       font-size: var(--sw-fs-xl);
@@ -2877,7 +2877,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       inline-size: 48px;
       padding: 0 4px;
     }
-     sourceMappingURL=[^*]**/ break-ui (R5): an 80-character name used to push every other column out of the table (nowrap cells, no cap); the name cell
+    /* break-ui (R5): an 80-character name used to push every other column out of the table (nowrap cells, no cap); the name cell
        is capped at 30ch and truncates, the full name lives in the person drawer */
     .who {
       display: inline-flex;
@@ -2891,7 +2891,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ PEOPLE-TABLE-2271: the R5 cells (14 px sides, 15 px figures, the 13/700 state field) made the table's narrowest form about
+    /* PEOPLE-TABLE-2271: the R5 cells (14 px sides, 15 px figures, the 13/700 state field) made the table's narrowest form about
        930 px, wider than its box from the table's first width (TABLE_MIN_WIDTH, 1000 px) to about 1075 px - it scrolled sideways by
        51 px at 1024. Below 1200 px the cells keep the R5 type and take 8 px sides; 1200 px and up are unchanged. */
     @media (max-width: 1199px) {
@@ -2981,7 +2981,7 @@ import{i as K,n as _,r as c,a as W,ds as Tt,ak as U,R as x,dt as Ot,cJ as pe,du 
       }
       .fchip,
       .filters > sw-dropdown {
-         sourceMappingURL=[^*]**/ AUDIT30-H: the filter dropdowns keep their width in the one scrolling line (they shrank to a letter column) */
+        /* AUDIT30-H: the filter dropdowns keep their width in the one scrolling line (they shrank to a letter column) */
         flex-shrink: 0;
       }
     }

@@ -1,18 +1,18 @@
-import{L as xE,s as nL,c as iL}from"./sw-logo-art-Va6y_cIM.js";const rL=(function(){const t=typeof document<"u"&&document.createElement("link").relList;return t&&t.supports&&t.supports("modulepreload")?"modulepreload":"preload"})(),oL=function(e,t){return new URL(e,t).href},I_={},D=function(t,s,a){let n=Promise.resolve();if(s&&s.length>0){let r=function(u){return Promise.all(u.map(h=>Promise.resolve(h).then(f=>({status:"fulfilled",value:f}),f=>({status:"rejected",reason:f}))))};const l=document.getElementsByTagName("link"),c=document.querySelector("meta[property=csp-nonce]"),d=c?.nonce||c?.getAttribute("nonce");n=r(s.map(u=>{if(u=oL(u,a),u in I_)return;I_[u]=!0;const h=u.endsWith(".css"),f=h?'[rel="stylesheet"]':"";if(!!a)for(let v=l.length-1;v>=0;v--){const x=l[v];if(x.href===u&&(!h||x.rel==="stylesheet"))return}else if(document.querySelector(`link[href="${u}"]${f}`))return;const b=document.createElement("link");if(b.rel=h?"stylesheet":rL,h||(b.as="script"),b.crossOrigin="",b.href=u,d&&b.setAttribute("nonce",d),document.head.appendChild(b),h)return new Promise((v,x)=>{b.addEventListener("load",v),b.addEventListener("error",()=>x(new Error(`Unable to preload CSS for ${u}`)))})}))}function i(r){const l=new Event("vite:preloadError",{cancelable:!0});if(l.payload=r,window.dispatchEvent(l),!l.defaultPrevented)throw r}return n.then(r=>{for(const l of r||[])l.status==="rejected"&&i(l.reason);return t().catch(i)})}; sourceMappingURL=[^*]**/*
+import{L as xE,s as nL,c as iL}from"./sw-logo-art-Va6y_cIM.js";const rL=(function(){const t=typeof document<"u"&&document.createElement("link").relList;return t&&t.supports&&t.supports("modulepreload")?"modulepreload":"preload"})(),oL=function(e,t){return new URL(e,t).href},I_={},D=function(t,s,a){let n=Promise.resolve();if(s&&s.length>0){let r=function(u){return Promise.all(u.map(h=>Promise.resolve(h).then(f=>({status:"fulfilled",value:f}),f=>({status:"rejected",reason:f}))))};const l=document.getElementsByTagName("link"),c=document.querySelector("meta[property=csp-nonce]"),d=c?.nonce||c?.getAttribute("nonce");n=r(s.map(u=>{if(u=oL(u,a),u in I_)return;I_[u]=!0;const h=u.endsWith(".css"),f=h?'[rel="stylesheet"]':"";if(!!a)for(let v=l.length-1;v>=0;v--){const x=l[v];if(x.href===u&&(!h||x.rel==="stylesheet"))return}else if(document.querySelector(`link[href="${u}"]${f}`))return;const b=document.createElement("link");if(b.rel=h?"stylesheet":rL,h||(b.as="script"),b.crossOrigin="",b.href=u,d&&b.setAttribute("nonce",d),document.head.appendChild(b),h)return new Promise((v,x)=>{b.addEventListener("load",v),b.addEventListener("error",()=>x(new Error(`Unable to preload CSS for ${u}`)))})}))}function i(r){const l=new Event("vite:preloadError",{cancelable:!0});if(l.payload=r,window.dispatchEvent(l),!l.defaultPrevented)throw r}return n.then(r=>{for(const l of r||[])l.status==="rejected"&&i(l.reason);return t().catch(i)})};/**
  * @license
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const eh=globalThis,Ox=eh.ShadowRoot&&(eh.ShadyCSS===void 0||eh.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,Cx=Symbol(),F_=new WeakMap;let kE=class{constructor(t,s,a){if(this._$cssResult$=!0,a!==Cx)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=s}get styleSheet(){let t=this.o;const s=this.t;if(Ox&&t===void 0){const a=s!==void 0&&s.length===1;a&&(t=F_.get(s)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),a&&F_.set(s,t))}return t}toString(){return this.cssText}};const Rx=e=>new kE(typeof e=="string"?e:e+"",void 0,Cx),P=(e,...t)=>{const s=e.length===1?e[0]:t.reduce((a,n,i)=>a+(r=>{if(r._$cssResult$===!0)return r.cssText;if(typeof r=="number")return r;throw Error("Value passed to 'css' function must be a 'css' function result: "+r+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(n)+e[i+1],e[0]);return new kE(s,e,Cx)},lL=(e,t)=>{if(Ox)e.adoptedStyleSheets=t.map(s=>s instanceof CSSStyleSheet?s:s.styleSheet);else for(const s of t){const a=document.createElement("style"),n=eh.litNonce;n!==void 0&&a.setAttribute("nonce",n),a.textContent=s.cssText,e.appendChild(a)}},q_=Ox?e=>e:e=>e instanceof CSSStyleSheet?(t=>{let s="";for(const a of t.cssRules)s+=a.cssText;return Rx(s)})(e):e; sourceMappingURL=[^*]**/*
+ */const eh=globalThis,Ox=eh.ShadowRoot&&(eh.ShadyCSS===void 0||eh.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,Cx=Symbol(),F_=new WeakMap;let kE=class{constructor(t,s,a){if(this._$cssResult$=!0,a!==Cx)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=s}get styleSheet(){let t=this.o;const s=this.t;if(Ox&&t===void 0){const a=s!==void 0&&s.length===1;a&&(t=F_.get(s)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),a&&F_.set(s,t))}return t}toString(){return this.cssText}};const Rx=e=>new kE(typeof e=="string"?e:e+"",void 0,Cx),P=(e,...t)=>{const s=e.length===1?e[0]:t.reduce((a,n,i)=>a+(r=>{if(r._$cssResult$===!0)return r.cssText;if(typeof r=="number")return r;throw Error("Value passed to 'css' function must be a 'css' function result: "+r+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(n)+e[i+1],e[0]);return new kE(s,e,Cx)},lL=(e,t)=>{if(Ox)e.adoptedStyleSheets=t.map(s=>s instanceof CSSStyleSheet?s:s.styleSheet);else for(const s of t){const a=document.createElement("style"),n=eh.litNonce;n!==void 0&&a.setAttribute("nonce",n),a.textContent=s.cssText,e.appendChild(a)}},q_=Ox?e=>e:e=>e instanceof CSSStyleSheet?(t=>{let s="";for(const a of t.cssRules)s+=a.cssText;return Rx(s)})(e):e;/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const{is:cL,defineProperty:dL,getOwnPropertyDescriptor:uL,getOwnPropertyNames:pL,getOwnPropertySymbols:hL,getPrototypeOf:fL}=Object,xm=globalThis,H_=xm.trustedTypes,mL=H_?H_.emptyScript:"",gL=xm.reactiveElementPolyfillSupport,od=(e,t)=>e,Rh={toAttribute(e,t){switch(t){case Boolean:e=e?mL:null;break;case Object:case Array:e=e==null?e:JSON.stringify(e)}return e},fromAttribute(e,t){let s=e;switch(t){case Boolean:s=e!==null;break;case Number:s=e===null?null:Number(e);break;case Object:case Array:try{s=JSON.parse(e)}catch{s=null}}return s}},Mx=(e,t)=>!cL(e,t),B_={attribute:!0,type:String,converter:Rh,reflect:!1,useDefault:!1,hasChanged:Mx};Symbol.metadata??=Symbol("metadata"),xm.litPropertyMetadata??=new WeakMap;let En=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,s=B_){if(s.state&&(s.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((s=Object.create(s)).wrapped=!0),this.elementProperties.set(t,s),!s.noAccessor){const a=Symbol(),n=this.getPropertyDescriptor(t,a,s);n!==void 0&&dL(this.prototype,t,n)}}static getPropertyDescriptor(t,s,a){const{get:n,set:i}=uL(this.prototype,t)??{get(){return this[s]},set(r){this[s]=r}};return{get:n,set(r){const l=n?.call(this);i?.call(this,r),this.requestUpdate(t,l,a)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??B_}static _$Ei(){if(this.hasOwnProperty(od("elementProperties")))return;const t=fL(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(od("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(od("properties"))){const s=this.properties,a=[...pL(s),...hL(s)];for(const n of a)this.createProperty(n,s[n])}const t=this[Symbol.metadata];if(t!==null){const s=litPropertyMetadata.get(t);if(s!==void 0)for(const[a,n]of s)this.elementProperties.set(a,n)}this._$Eh=new Map;for(const[s,a]of this.elementProperties){const n=this._$Eu(s,a);n!==void 0&&this._$Eh.set(n,s)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const s=[];if(Array.isArray(t)){const a=new Set(t.flat(1/0).reverse());for(const n of a)s.unshift(q_(n))}else t!==void 0&&s.push(q_(t));return s}static _$Eu(t,s){const a=s.attribute;return a===!1?void 0:typeof a=="string"?a:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,s=this.constructor.elementProperties;for(const a of s.keys())this.hasOwnProperty(a)&&(t.set(a,this[a]),delete this[a]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return lL(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,s,a){this._$AK(t,a)}_$ET(t,s){const a=this.constructor.elementProperties.get(t),n=this.constructor._$Eu(t,a);if(n!==void 0&&a.reflect===!0){const i=(a.converter?.toAttribute!==void 0?a.converter:Rh).toAttribute(s,a.type);this._$Em=t,i==null?this.removeAttribute(n):this.setAttribute(n,i),this._$Em=null}}_$AK(t,s){const a=this.constructor,n=a._$Eh.get(t);if(n!==void 0&&this._$Em!==n){const i=a.getPropertyOptions(n),r=typeof i.converter=="function"?{fromAttribute:i.converter}:i.converter?.fromAttribute!==void 0?i.converter:Rh;this._$Em=n;const l=r.fromAttribute(s,i.type);this[n]=l??this._$Ej?.get(n)??l,this._$Em=null}}requestUpdate(t,s,a,n=!1,i){if(t!==void 0){const r=this.constructor;if(n===!1&&(i=this[t]),a??=r.getPropertyOptions(t),!((a.hasChanged??Mx)(i,s)||a.useDefault&&a.reflect&&i===this._$Ej?.get(t)&&!this.hasAttribute(r._$Eu(t,a))))return;this.C(t,s,a)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,s,{useDefault:a,reflect:n,wrapped:i},r){a&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,r??s??this[t]),i!==!0||r!==void 0)||(this._$AL.has(t)||(this.hasUpdated||a||(s=void 0),this._$AL.set(t,s)),n===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(s){Promise.reject(s)}const t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[n,i]of this._$Ep)this[n]=i;this._$Ep=void 0}const a=this.constructor.elementProperties;if(a.size>0)for(const[n,i]of a){const{wrapped:r}=i,l=this[n];r!==!0||this._$AL.has(n)||l===void 0||this.C(n,void 0,i,l)}}let t=!1;const s=this._$AL;try{t=this.shouldUpdate(s),t?(this.willUpdate(s),this._$EO?.forEach(a=>a.hostUpdate?.()),this.update(s)):this._$EM()}catch(a){throw t=!1,this._$EM(),a}t&&this._$AE(s)}willUpdate(t){}_$AE(t){this._$EO?.forEach(s=>s.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(s=>this._$ET(s,this[s])),this._$EM()}updated(t){}firstUpdated(t){}};En.elementStyles=[],En.shadowRootOptions={mode:"open"},En[od("elementProperties")]=new Map,En[od("finalized")]=new Map,gL?.({ReactiveElement:En}),(xm.reactiveElementVersions??=[]).push("2.1.2"); sourceMappingURL=[^*]**/*
+ */const{is:cL,defineProperty:dL,getOwnPropertyDescriptor:uL,getOwnPropertyNames:pL,getOwnPropertySymbols:hL,getPrototypeOf:fL}=Object,xm=globalThis,H_=xm.trustedTypes,mL=H_?H_.emptyScript:"",gL=xm.reactiveElementPolyfillSupport,od=(e,t)=>e,Rh={toAttribute(e,t){switch(t){case Boolean:e=e?mL:null;break;case Object:case Array:e=e==null?e:JSON.stringify(e)}return e},fromAttribute(e,t){let s=e;switch(t){case Boolean:s=e!==null;break;case Number:s=e===null?null:Number(e);break;case Object:case Array:try{s=JSON.parse(e)}catch{s=null}}return s}},Mx=(e,t)=>!cL(e,t),B_={attribute:!0,type:String,converter:Rh,reflect:!1,useDefault:!1,hasChanged:Mx};Symbol.metadata??=Symbol("metadata"),xm.litPropertyMetadata??=new WeakMap;let En=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,s=B_){if(s.state&&(s.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((s=Object.create(s)).wrapped=!0),this.elementProperties.set(t,s),!s.noAccessor){const a=Symbol(),n=this.getPropertyDescriptor(t,a,s);n!==void 0&&dL(this.prototype,t,n)}}static getPropertyDescriptor(t,s,a){const{get:n,set:i}=uL(this.prototype,t)??{get(){return this[s]},set(r){this[s]=r}};return{get:n,set(r){const l=n?.call(this);i?.call(this,r),this.requestUpdate(t,l,a)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??B_}static _$Ei(){if(this.hasOwnProperty(od("elementProperties")))return;const t=fL(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(od("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(od("properties"))){const s=this.properties,a=[...pL(s),...hL(s)];for(const n of a)this.createProperty(n,s[n])}const t=this[Symbol.metadata];if(t!==null){const s=litPropertyMetadata.get(t);if(s!==void 0)for(const[a,n]of s)this.elementProperties.set(a,n)}this._$Eh=new Map;for(const[s,a]of this.elementProperties){const n=this._$Eu(s,a);n!==void 0&&this._$Eh.set(n,s)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const s=[];if(Array.isArray(t)){const a=new Set(t.flat(1/0).reverse());for(const n of a)s.unshift(q_(n))}else t!==void 0&&s.push(q_(t));return s}static _$Eu(t,s){const a=s.attribute;return a===!1?void 0:typeof a=="string"?a:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,s=this.constructor.elementProperties;for(const a of s.keys())this.hasOwnProperty(a)&&(t.set(a,this[a]),delete this[a]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return lL(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,s,a){this._$AK(t,a)}_$ET(t,s){const a=this.constructor.elementProperties.get(t),n=this.constructor._$Eu(t,a);if(n!==void 0&&a.reflect===!0){const i=(a.converter?.toAttribute!==void 0?a.converter:Rh).toAttribute(s,a.type);this._$Em=t,i==null?this.removeAttribute(n):this.setAttribute(n,i),this._$Em=null}}_$AK(t,s){const a=this.constructor,n=a._$Eh.get(t);if(n!==void 0&&this._$Em!==n){const i=a.getPropertyOptions(n),r=typeof i.converter=="function"?{fromAttribute:i.converter}:i.converter?.fromAttribute!==void 0?i.converter:Rh;this._$Em=n;const l=r.fromAttribute(s,i.type);this[n]=l??this._$Ej?.get(n)??l,this._$Em=null}}requestUpdate(t,s,a,n=!1,i){if(t!==void 0){const r=this.constructor;if(n===!1&&(i=this[t]),a??=r.getPropertyOptions(t),!((a.hasChanged??Mx)(i,s)||a.useDefault&&a.reflect&&i===this._$Ej?.get(t)&&!this.hasAttribute(r._$Eu(t,a))))return;this.C(t,s,a)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,s,{useDefault:a,reflect:n,wrapped:i},r){a&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,r??s??this[t]),i!==!0||r!==void 0)||(this._$AL.has(t)||(this.hasUpdated||a||(s=void 0),this._$AL.set(t,s)),n===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(s){Promise.reject(s)}const t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[n,i]of this._$Ep)this[n]=i;this._$Ep=void 0}const a=this.constructor.elementProperties;if(a.size>0)for(const[n,i]of a){const{wrapped:r}=i,l=this[n];r!==!0||this._$AL.has(n)||l===void 0||this.C(n,void 0,i,l)}}let t=!1;const s=this._$AL;try{t=this.shouldUpdate(s),t?(this.willUpdate(s),this._$EO?.forEach(a=>a.hostUpdate?.()),this.update(s)):this._$EM()}catch(a){throw t=!1,this._$EM(),a}t&&this._$AE(s)}willUpdate(t){}_$AE(t){this._$EO?.forEach(s=>s.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(s=>this._$ET(s,this[s])),this._$EM()}updated(t){}firstUpdated(t){}};En.elementStyles=[],En.shadowRootOptions={mode:"open"},En[od("elementProperties")]=new Map,En[od("finalized")]=new Map,gL?.({ReactiveElement:En}),(xm.reactiveElementVersions??=[]).push("2.1.2");/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */const Lx=globalThis,U_=e=>e,Mh=Lx.trustedTypes,W_=Mh?Mh.createPolicy("lit-html",{createHTML:e=>e}):void 0,_E="$lit$",$i=`lit$${Math.random().toFixed(9).slice(2)}$`,$E="?"+$i,wL=`<${$E}>`,Fr=document,Wd=()=>Fr.createComment(""),jd=e=>e===null||typeof e!="object"&&typeof e!="function",Dx=Array.isArray,bL=e=>Dx(e)||typeof e?.[Symbol.iterator]=="function",Pg=`[ 	
 \f\r]`,Sc=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,j_=/-->/g,K_=/>/g,ar=RegExp(`>|${Pg}(?:([^\\s"'>=/]+)(${Pg}*=${Pg}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`,"g"),V_=/'/g,G_=/"/g,SE=/^(?:script|style|textarea|title)$/i,EE=e=>(t,...s)=>({_$litType$:e,strings:t,values:s}),o=EE(1),z=EE(2),rn=Symbol.for("lit-noChange"),p=Symbol.for("lit-nothing"),Y_=new WeakMap,vr=Fr.createTreeWalker(Fr,129);function zE(e,t){if(!Dx(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return W_!==void 0?W_.createHTML(t):t}const vL=(e,t)=>{const s=e.length-1,a=[];let n,i=t===2?"<svg>":t===3?"<math>":"",r=Sc;for(let l=0;l<s;l++){const c=e[l];let d,u,h=-1,f=0;for(;f<c.length&&(r.lastIndex=f,u=r.exec(c),u!==null);)f=r.lastIndex,r===Sc?u[1]==="!--"?r=j_:u[1]!==void 0?r=K_:u[2]!==void 0?(SE.test(u[2])&&(n=RegExp("</"+u[2],"g")),r=ar):u[3]!==void 0&&(r=ar):r===ar?u[0]===">"?(r=n??Sc,h=-1):u[1]===void 0?h=-2:(h=r.lastIndex-u[2].length,d=u[1],r=u[3]===void 0?ar:u[3]==='"'?G_:V_):r===G_||r===V_?r=ar:r===j_||r===K_?r=Sc:(r=ar,n=void 0);const m=r===ar&&e[l+1].startsWith("/>")?" ":"";i+=r===Sc?c+wL:h>=0?(a.push(d),c.slice(0,h)+_E+c.slice(h)+$i+m):c+$i+(h===-2?l:m)}return[zE(e,i+(e[s]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),a]};let fb=class TE{constructor({strings:t,_$litType$:s},a){let n;this.parts=[];let i=0,r=0;const l=t.length-1,c=this.parts,[d,u]=vL(t,s);if(this.el=TE.createElement(d,a),vr.currentNode=this.el.content,s===2||s===3){const h=this.el.content.firstChild;h.replaceWith(...h.childNodes)}for(;(n=vr.nextNode())!==null&&c.length<l;){if(n.nodeType===1){if(n.hasAttributes())for(const h of n.getAttributeNames())if(h.endsWith(_E)){const f=u[r++],m=n.getAttribute(h).split($i),b=/([.?@])?(.*)/.exec(f);c.push({type:1,index:i,name:b[2],strings:m,ctor:b[1]==="."?xL:b[1]==="?"?kL:b[1]==="@"?_L:km}),n.removeAttribute(h)}else h.startsWith($i)&&(c.push({type:6,index:i}),n.removeAttribute(h));if(SE.test(n.tagName)){const h=n.textContent.split($i),f=h.length-1;if(f>0){n.textContent=Mh?Mh.emptyScript:"";for(let m=0;m<f;m++)n.append(h[m],Wd()),vr.nextNode(),c.push({type:2,index:++i});n.append(h[f],Wd())}}}else if(n.nodeType===8)if(n.data===$E)c.push({type:2,index:i});else{let h=-1;for(;(h=n.data.indexOf($i,h+1))!==-1;)c.push({type:7,index:i}),h+=$i.length-1}i++}}static createElement(t,s){const a=Fr.createElement("template");return a.innerHTML=t,a}};function Rl(e,t,s=e,a){if(t===rn)return t;let n=a!==void 0?s._$Co?.[a]:s._$Cl;const i=jd(t)?void 0:t._$litDirective$;return n?.constructor!==i&&(n?._$AO?.(!1),i===void 0?n=void 0:(n=new i(e),n._$AT(e,s,a)),a!==void 0?(s._$Co??=[])[a]=n:s._$Cl=n),n!==void 0&&(t=Rl(e,n._$AS(e,t.values),n,a)),t}let yL=class{constructor(t,s){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=s}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:s},parts:a}=this._$AD,n=(t?.creationScope??Fr).importNode(s,!0);vr.currentNode=n;let i=vr.nextNode(),r=0,l=0,c=a[0];for(;c!==void 0;){if(r===c.index){let d;c.type===2?d=new oc(i,i.nextSibling,this,t):c.type===1?d=new c.ctor(i,c.name,c.strings,this,t):c.type===6&&(d=new $L(i,this,t)),this._$AV.push(d),c=a[++l]}r!==c?.index&&(i=vr.nextNode(),r++)}return vr.currentNode=Fr,n}p(t){let s=0;for(const a of this._$AV)a!==void 0&&(a.strings!==void 0?(a._$AI(t,a,s),s+=a.strings.length-2):a._$AI(t[s])),s++}};class oc{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,s,a,n){this.type=2,this._$AH=p,this._$AN=void 0,this._$AA=t,this._$AB=s,this._$AM=a,this.options=n,this._$Cv=n?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode;const s=this._$AM;return s!==void 0&&t?.nodeType===11&&(t=s.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,s=this){t=Rl(this,t,s),jd(t)?t===p||t==null||t===""?(this._$AH!==p&&this._$AR(),this._$AH=p):t!==this._$AH&&t!==rn&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):bL(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==p&&jd(this._$AH)?this._$AA.nextSibling.data=t:this.T(Fr.createTextNode(t)),this._$AH=t}$(t){const{values:s,_$litType$:a}=t,n=typeof a=="number"?this._$AC(t):(a.el===void 0&&(a.el=fb.createElement(zE(a.h,a.h[0]),this.options)),a);if(this._$AH?._$AD===n)this._$AH.p(s);else{const i=new yL(n,this),r=i.u(this.options);i.p(s),this.T(r),this._$AH=i}}_$AC(t){let s=Y_.get(t.strings);return s===void 0&&Y_.set(t.strings,s=new fb(t)),s}k(t){Dx(this._$AH)||(this._$AH=[],this._$AR());const s=this._$AH;let a,n=0;for(const i of t)n===s.length?s.push(a=new oc(this.O(Wd()),this.O(Wd()),this,this.options)):a=s[n],a._$AI(i),n++;n<s.length&&(this._$AR(a&&a._$AB.nextSibling,n),s.length=n)}_$AR(t=this._$AA.nextSibling,s){for(this._$AP?.(!1,!0,s);t!==this._$AB;){const a=U_(t).nextSibling;U_(t).remove(),t=a}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}}class km{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,s,a,n,i){this.type=1,this._$AH=p,this._$AN=void 0,this.element=t,this.name=s,this._$AM=n,this.options=i,a.length>2||a[0]!==""||a[1]!==""?(this._$AH=Array(a.length-1).fill(new String),this.strings=a):this._$AH=p}_$AI(t,s=this,a,n){const i=this.strings;let r=!1;if(i===void 0)t=Rl(this,t,s,0),r=!jd(t)||t!==this._$AH&&t!==rn,r&&(this._$AH=t);else{const l=t;let c,d;for(t=i[0],c=0;c<i.length-1;c++)d=Rl(this,l[a+c],s,c),d===rn&&(d=this._$AH[c]),r||=!jd(d)||d!==this._$AH[c],d===p?t=p:t!==p&&(t+=(d??"")+i[c+1]),this._$AH[c]=d}r&&!n&&this.j(t)}j(t){t===p?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}}class xL extends km{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===p?void 0:t}}class kL extends km{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==p)}}class _L extends km{constructor(t,s,a,n,i){super(t,s,a,n,i),this.type=5}_$AI(t,s=this){if((t=Rl(this,t,s,0)??p)===rn)return;const a=this._$AH,n=t===p&&a!==p||t.capture!==a.capture||t.once!==a.once||t.passive!==a.passive,i=t!==p&&(a===p||n);n&&this.element.removeEventListener(this.name,this,a),i&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}}class $L{constructor(t,s,a){this.element=t,this.type=6,this._$AN=void 0,this._$AM=s,this.options=a}get _$AU(){return this._$AM._$AU}_$AI(t){Rl(this,t)}}const SL={I:oc},EL=Lx.litHtmlPolyfillSupport;EL?.(fb,oc),(Lx.litHtmlVersions??=[]).push("3.3.3");const mb=(e,t,s)=>{const a=s?.renderBefore??t;let n=a._$litPart$;if(n===void 0){const i=s?.renderBefore??null;a._$litPart$=n=new oc(t.insertBefore(Wd(),i),i,void 0,s??{})}return n._$AI(e),n}; sourceMappingURL=[^*]**/*
+\f\r"'\`<>=]|("|')|))|$)`,"g"),V_=/'/g,G_=/"/g,SE=/^(?:script|style|textarea|title)$/i,EE=e=>(t,...s)=>({_$litType$:e,strings:t,values:s}),o=EE(1),z=EE(2),rn=Symbol.for("lit-noChange"),p=Symbol.for("lit-nothing"),Y_=new WeakMap,vr=Fr.createTreeWalker(Fr,129);function zE(e,t){if(!Dx(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return W_!==void 0?W_.createHTML(t):t}const vL=(e,t)=>{const s=e.length-1,a=[];let n,i=t===2?"<svg>":t===3?"<math>":"",r=Sc;for(let l=0;l<s;l++){const c=e[l];let d,u,h=-1,f=0;for(;f<c.length&&(r.lastIndex=f,u=r.exec(c),u!==null);)f=r.lastIndex,r===Sc?u[1]==="!--"?r=j_:u[1]!==void 0?r=K_:u[2]!==void 0?(SE.test(u[2])&&(n=RegExp("</"+u[2],"g")),r=ar):u[3]!==void 0&&(r=ar):r===ar?u[0]===">"?(r=n??Sc,h=-1):u[1]===void 0?h=-2:(h=r.lastIndex-u[2].length,d=u[1],r=u[3]===void 0?ar:u[3]==='"'?G_:V_):r===G_||r===V_?r=ar:r===j_||r===K_?r=Sc:(r=ar,n=void 0);const m=r===ar&&e[l+1].startsWith("/>")?" ":"";i+=r===Sc?c+wL:h>=0?(a.push(d),c.slice(0,h)+_E+c.slice(h)+$i+m):c+$i+(h===-2?l:m)}return[zE(e,i+(e[s]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),a]};let fb=class TE{constructor({strings:t,_$litType$:s},a){let n;this.parts=[];let i=0,r=0;const l=t.length-1,c=this.parts,[d,u]=vL(t,s);if(this.el=TE.createElement(d,a),vr.currentNode=this.el.content,s===2||s===3){const h=this.el.content.firstChild;h.replaceWith(...h.childNodes)}for(;(n=vr.nextNode())!==null&&c.length<l;){if(n.nodeType===1){if(n.hasAttributes())for(const h of n.getAttributeNames())if(h.endsWith(_E)){const f=u[r++],m=n.getAttribute(h).split($i),b=/([.?@])?(.*)/.exec(f);c.push({type:1,index:i,name:b[2],strings:m,ctor:b[1]==="."?xL:b[1]==="?"?kL:b[1]==="@"?_L:km}),n.removeAttribute(h)}else h.startsWith($i)&&(c.push({type:6,index:i}),n.removeAttribute(h));if(SE.test(n.tagName)){const h=n.textContent.split($i),f=h.length-1;if(f>0){n.textContent=Mh?Mh.emptyScript:"";for(let m=0;m<f;m++)n.append(h[m],Wd()),vr.nextNode(),c.push({type:2,index:++i});n.append(h[f],Wd())}}}else if(n.nodeType===8)if(n.data===$E)c.push({type:2,index:i});else{let h=-1;for(;(h=n.data.indexOf($i,h+1))!==-1;)c.push({type:7,index:i}),h+=$i.length-1}i++}}static createElement(t,s){const a=Fr.createElement("template");return a.innerHTML=t,a}};function Rl(e,t,s=e,a){if(t===rn)return t;let n=a!==void 0?s._$Co?.[a]:s._$Cl;const i=jd(t)?void 0:t._$litDirective$;return n?.constructor!==i&&(n?._$AO?.(!1),i===void 0?n=void 0:(n=new i(e),n._$AT(e,s,a)),a!==void 0?(s._$Co??=[])[a]=n:s._$Cl=n),n!==void 0&&(t=Rl(e,n._$AS(e,t.values),n,a)),t}let yL=class{constructor(t,s){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=s}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:s},parts:a}=this._$AD,n=(t?.creationScope??Fr).importNode(s,!0);vr.currentNode=n;let i=vr.nextNode(),r=0,l=0,c=a[0];for(;c!==void 0;){if(r===c.index){let d;c.type===2?d=new oc(i,i.nextSibling,this,t):c.type===1?d=new c.ctor(i,c.name,c.strings,this,t):c.type===6&&(d=new $L(i,this,t)),this._$AV.push(d),c=a[++l]}r!==c?.index&&(i=vr.nextNode(),r++)}return vr.currentNode=Fr,n}p(t){let s=0;for(const a of this._$AV)a!==void 0&&(a.strings!==void 0?(a._$AI(t,a,s),s+=a.strings.length-2):a._$AI(t[s])),s++}};class oc{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,s,a,n){this.type=2,this._$AH=p,this._$AN=void 0,this._$AA=t,this._$AB=s,this._$AM=a,this.options=n,this._$Cv=n?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode;const s=this._$AM;return s!==void 0&&t?.nodeType===11&&(t=s.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,s=this){t=Rl(this,t,s),jd(t)?t===p||t==null||t===""?(this._$AH!==p&&this._$AR(),this._$AH=p):t!==this._$AH&&t!==rn&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):bL(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==p&&jd(this._$AH)?this._$AA.nextSibling.data=t:this.T(Fr.createTextNode(t)),this._$AH=t}$(t){const{values:s,_$litType$:a}=t,n=typeof a=="number"?this._$AC(t):(a.el===void 0&&(a.el=fb.createElement(zE(a.h,a.h[0]),this.options)),a);if(this._$AH?._$AD===n)this._$AH.p(s);else{const i=new yL(n,this),r=i.u(this.options);i.p(s),this.T(r),this._$AH=i}}_$AC(t){let s=Y_.get(t.strings);return s===void 0&&Y_.set(t.strings,s=new fb(t)),s}k(t){Dx(this._$AH)||(this._$AH=[],this._$AR());const s=this._$AH;let a,n=0;for(const i of t)n===s.length?s.push(a=new oc(this.O(Wd()),this.O(Wd()),this,this.options)):a=s[n],a._$AI(i),n++;n<s.length&&(this._$AR(a&&a._$AB.nextSibling,n),s.length=n)}_$AR(t=this._$AA.nextSibling,s){for(this._$AP?.(!1,!0,s);t!==this._$AB;){const a=U_(t).nextSibling;U_(t).remove(),t=a}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}}class km{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,s,a,n,i){this.type=1,this._$AH=p,this._$AN=void 0,this.element=t,this.name=s,this._$AM=n,this.options=i,a.length>2||a[0]!==""||a[1]!==""?(this._$AH=Array(a.length-1).fill(new String),this.strings=a):this._$AH=p}_$AI(t,s=this,a,n){const i=this.strings;let r=!1;if(i===void 0)t=Rl(this,t,s,0),r=!jd(t)||t!==this._$AH&&t!==rn,r&&(this._$AH=t);else{const l=t;let c,d;for(t=i[0],c=0;c<i.length-1;c++)d=Rl(this,l[a+c],s,c),d===rn&&(d=this._$AH[c]),r||=!jd(d)||d!==this._$AH[c],d===p?t=p:t!==p&&(t+=(d??"")+i[c+1]),this._$AH[c]=d}r&&!n&&this.j(t)}j(t){t===p?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}}class xL extends km{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===p?void 0:t}}class kL extends km{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==p)}}class _L extends km{constructor(t,s,a,n,i){super(t,s,a,n,i),this.type=5}_$AI(t,s=this){if((t=Rl(this,t,s,0)??p)===rn)return;const a=this._$AH,n=t===p&&a!==p||t.capture!==a.capture||t.once!==a.once||t.passive!==a.passive,i=t!==p&&(a===p||n);n&&this.element.removeEventListener(this.name,this,a),i&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}}class $L{constructor(t,s,a){this.element=t,this.type=6,this._$AN=void 0,this._$AM=s,this.options=a}get _$AU(){return this._$AM._$AU}_$AI(t){Rl(this,t)}}const SL={I:oc},EL=Lx.litHtmlPolyfillSupport;EL?.(fb,oc),(Lx.litHtmlVersions??=[]).push("3.3.3");const mb=(e,t,s)=>{const a=s?.renderBefore??t;let n=a._$litPart$;if(n===void 0){const i=s?.renderBefore??null;a._$litPart$=n=new oc(t.insertBefore(Wd(),i),i,void 0,s??{})}return n._$AI(e),n};/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -23,93 +23,93 @@ import{L as xE,s as nL,c as iL}from"./sw-logo-art-Va6y_cIM.js";const rL=(functio
 :host(sw-card:nth-child(3)), :host(sw-kpi:nth-child(3)), :host(home-widgets) .wg:nth-child(3), :host(devices-building) section.fcard:nth-child(3), :host(devices-building) a.tile:nth-child(3) { animation-delay: calc(var(--sw-stagger) * 2); }
 :host(sw-card:nth-child(n + 4)), :host(sw-kpi:nth-child(n + 4)), :host(home-widgets) .wg:nth-child(n + 4), :host(devices-building) section.fcard:nth-child(n + 4), :host(devices-building) a.tile:nth-child(n + 4) { animation-delay: calc(var(--sw-stagger) * 3); }
 `,AL={"--sw-bg":g("#e4e9f2","#070b14"),"--sw-canvas":g("radial-gradient(1000px 560px at 100% -10%, rgba(37, 99, 235, 0.07), transparent 62%), radial-gradient(900px 520px at 0% 110%, rgba(37, 99, 235, 0.05), transparent 62%), linear-gradient(#e4e9f2, #e4e9f2)","radial-gradient(1000px 560px at 100% -10%, rgba(58, 108, 224, 0.16), transparent 62%), radial-gradient(900px 520px at 0% 110%, rgba(58, 108, 224, 0.10), transparent 62%), linear-gradient(#070b14, #070b14)"),"--sw-surface":g("#ffffff","#131a2a"),"--sw-surface-2":g("#f4f7fb","#1a2336"),"--sw-surface-3":g("#e9eef6","#243049"),"--sw-surface-solid":g("#ffffff","#131a2a"),"--sw-surface-2-solid":g("#f4f7fb","#1a2336"),"--sw-surface-3-solid":g("#e9eef6","#243049"),"--sw-menu-surface":g("#ffffff","#1a2336"),"--sw-menu-border":g("#dfe5ee","#2f3c58"),"--sw-border":g("#d9e0ea","#253148"),"--sw-border-strong":g("#c7d1df","#36445f"),"--sw-highlight":g("rgba(255, 255, 255, 1)","rgba(255, 255, 255, 0.07)"),"--sw-heading":g("#0f1b31","#f7f9fd"),"--sw-text":g("#1f2b42","#e4e9f3"),"--sw-text-2":g("#46556f","#a7b2c7"),"--sw-text-3":g("#4f5e78","#98a4ba"),"--sw-accent":g("#2360e8","#3b6fe6"),"--sw-accent-hover":g("#1b4ecf","#3365d9"),"--sw-accent-soft":g("#e4ecff","rgba(91, 140, 255, 0.2)"),"--sw-accent-text":g("#1a4fd6","#8fb2ff"),"--sw-offline-text":g("#525b6c","#b4bdcc"),"--sw-unknown-text":g("#525b6c","#aab5c9"),"--sw-success-text":g("#0f6e33","#3ddc84"),"--sw-focus":g("#2360e8","#7aa2ff"),"--sw-nav":g("#2360e8","#3b6fe6"),"--sw-overlay":g("rgba(15, 23, 42, 0.46)","rgba(2, 4, 10, 0.7)"),"--sw-hover-wash":g("rgba(20, 30, 50, 0.05)","rgba(255, 255, 255, 0.06)"),"--sw-pressed-wash":g("rgba(20, 30, 50, 0.09)","rgba(255, 255, 255, 0.11)"),"--sw-skeleton":g("#e9eef6","#243049"),"--sw-fs-2xs":k("11px"),"--sw-fs-xs":k("12px"),"--sw-fs-sm":k("13px"),"--sw-fs-base":k("13.5px"),"--sw-fs-md":k("14.5px"),"--sw-fs-lg":k("16px"),"--sw-fs-xl":k("18px"),"--sw-fs-2xl":k("24px"),"--sw-fs-3xl":k("30px"),"--sw-lh":k("1.45"),"--sw-h1":k("30px"),"--sw-h1-weight":k("800"),"--sw-h1-tracking":k("-0.9px"),"--sw-h1-phone":k("22px"),"--sw-r-xs":k("7px"),"--sw-r-sm":k("10px"),"--sw-r-md":k("16px"),"--sw-r-lg":k("18px"),"--sw-r-xl":k("22px"),"--sw-r-2xl":k("26px"),"--sw-ctl-h-sm":k("28px"),"--sw-ctl-h-md":k("34px"),"--sw-ctl-h-lg":k("40px"),"--sw-shadow-1":g("0 1px 1px rgba(16, 24, 40, 0.05), 0 2px 4px rgba(16, 24, 40, 0.05), 0 12px 24px -10px rgba(30, 45, 80, 0.18)","0 1px 1px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3), 0 14px 28px -10px rgba(0, 0, 0, 0.6)"),"--sw-shadow-2":g("0 2px 4px rgba(16, 24, 40, 0.05), 0 8px 16px -4px rgba(30, 45, 80, 0.12), 0 24px 48px -16px rgba(30, 45, 80, 0.24)","0 2px 4px rgba(0, 0, 0, 0.4), 0 10px 20px -4px rgba(0, 0, 0, 0.45), 0 28px 56px -16px rgba(0, 0, 0, 0.7)"),"--sw-shadow-3":g("0 4px 8px rgba(16, 24, 40, 0.06), 0 16px 32px -8px rgba(30, 45, 80, 0.18), 0 48px 96px -24px rgba(30, 45, 80, 0.34)","0 4px 8px rgba(0, 0, 0, 0.45), 0 20px 40px -8px rgba(0, 0, 0, 0.55), 0 56px 112px -24px rgba(0, 0, 0, 0.8)"),"--sw-shadow-primary":g("0 1px 2px rgba(29, 79, 209, 0.35), 0 6px 16px -4px rgba(37, 99, 235, 0.45)","0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 16px -4px rgba(59, 111, 230, 0.5)"),"--sw-shadow-thumb":g("0 1px 2px rgba(16, 24, 40, 0.16), 0 3px 8px -2px rgba(16, 24, 40, 0.2)","0 1px 2px rgba(0, 0, 0, 0.55), 0 3px 8px -2px rgba(0, 0, 0, 0.5)"),"--sw-toast-bg":g("#0f1b31","#283452"),"--sw-hover-lift":k("-2px"),...OE},OL=`
- sourceMappingURL=[^*]**/ classic 1 - a key: raised (a vertical gradient, the 1 px light top edge, the two-layer shadow); pressed: sunk into a well */
+/* classic 1 - a key: raised (a vertical gradient, the 1 px light top edge, the two-layer shadow); pressed: sunk into a well */
 :host(sw-button) button, :host(sw-chip) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-surface-2)) var(--sw-surface); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ SKIN-QA-FOLLOWUP-2404 (owner round 22, Q6 = a): the key's top catches the skin's highlight instead of a fixed white - the same opaque
+/* SKIN-QA-FOLLOWUP-2404 (owner round 22, Q6 = a): the key's top catches the skin's highlight instead of a fixed white - the same opaque
    white in light (unchanged), the faint 7 % one in dark, where the whitened top under the white label read 4.1:1 (now >= 4.5:1) */
 :host(sw-button[variant='primary']) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 86%, var(--sw-highlight)), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
 :host(sw-button[variant='ghost']) button { background: transparent; box-shadow: none; }
 :host(sw-button[variant='danger']) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-danger-soft)); }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-2); box-shadow: inset 0 2px 3px rgba(16, 24, 40, 0.14); }
 :host(sw-button[variant='primary']) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.26); }
- sourceMappingURL=[^*]**/ AUDIT30-B-SHARED (audit round 30, finding 4; owner gate Q3, option א assumed): the SELECTED chip is no longer a raised accent key - it is
+/* AUDIT30-B-SHARED (audit round 30, finding 4; owner gate Q3, option א assumed): the SELECTED chip is no longer a raised accent key - it is
    the one soft selected field of the whole product (sw-chip.ts chipSelected): accent-soft, accent ink, no edge, flat, no hover lift */
 :host(sw-chip[selected]) { --sw-chip-on-count: var(--sw-accent-text); --sw-chip-dot-ring: var(--sw-surface-solid); }
 :host(sw-chip[selected]) button { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; box-shadow: none; }
 :host(sw-chip[selected]) button:active:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); box-shadow: none; }
 @media (hover: hover) and (pointer: fine) { :host(sw-chip[selected]) button:hover:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); border-color: transparent; transform: none; box-shadow: none; } }
 @media (hover: hover) and (pointer: fine) { :host(sw-button:not([variant='ghost'])) button:hover:not(:disabled), :host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); } }
- sourceMappingURL=[^*]**/ classic 2 - panels are objects: the light top edge over the ladder's first step; the home widgets, the floor cards and the tree too */
+/* classic 2 - panels are objects: the light top edge over the ladder's first step; the home widgets, the floor cards and the tree too */
 :host(sw-card), :host(sw-kpi), :host(sw-table), :host(devices-building) section.fcard, :host(devices-building) nav.tree, :host(home-widgets) .wg { box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ loop 2 (impeccable look-and-fix): a panel is a material, not a flat white - a 3 % fall of the canvas tone down its face (the home widgets keep their own tints) */
+/* loop 2 (impeccable look-and-fix): a panel is a material, not a flat white - a 3 % fall of the canvas tone down its face (the home widgets keep their own tints) */
 :host(sw-card), :host(sw-kpi), :host(sw-table), :host(devices-building) section.fcard, :host(devices-building) nav.tree { background: linear-gradient(180deg, var(--sw-surface) 0%, color-mix(in srgb, var(--sw-surface) 96%, var(--sw-bg)) 100%); }
 :host(sw-card[interactive]:hover), :host(sw-kpi[interactive]:hover) { box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); transform: translateY(var(--sw-hover-lift)); }
 :host(sw-card) h3 { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; }
- sourceMappingURL=[^*]**/ classic 3 - the counters: a display numeral (24 px / 800, tight), a 12 px medium label, the icon in a 34 px tile with a soft gradient and ring */
+/* classic 3 - the counters: a display numeral (24 px / 800, tight), a 12 px medium label, the icon in a 34 px tile with a soft gradient and ring */
 :host(sw-kpi) { --sw-kpi-compact-value-fs: 24px; --sw-kpi-compact-icon: 34px; gap: 6px; }
 :host(sw-kpi) .value { font-weight: 800; letter-spacing: -0.03em; }
 :host(sw-kpi) .label { font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); letter-spacing: 0.01em; }
 :host(sw-kpi) .icon { border-radius: var(--sw-r-sm); background: linear-gradient(160deg, color-mix(in srgb, var(--sw-accent-soft) 70%, var(--sw-surface)), var(--sw-accent-soft)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 16%, transparent), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ classic 4 - the segmented control: a well with a raised white key; the switch: a well, the "on" track a gradient of the accent */
+/* classic 4 - the segmented control: a well with a raised white key; the switch: a well, the "on" track a gradient of the accent */
 :host(sw-tabs[data-variant='pill']) .row::before { background: var(--sw-surface-3); box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.08); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
 :host(sw-toggle) button { box-shadow: inset 0 1px 3px rgba(16, 24, 40, 0.16); }
 :host(sw-toggle[checked]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-toggle-on) 86%, #ffffff), var(--sw-toggle-on)); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18); }
- sourceMappingURL=[^*]**/ classic 5 - fields sit in a shallow well; focus is a 4 px halo of the accent */
+/* classic 5 - fields sit in a shallow well; focus is a 4 px halo of the accent */
 ::slotted(input:not([type='checkbox']):not([type='radio']):not([type='range'])), ::slotted(select), ::slotted(textarea) { border-radius: var(--sw-r-sm); box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.06); }
 ::slotted(input:focus), ::slotted(select:focus), ::slotted(textarea:focus) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--sw-accent) 18%, transparent); }
- sourceMappingURL=[^*]**/ classic 6 - floating layers: a hairline, the light edge and the ladder's top step on the dialog and the drawer */
+/* classic 6 - floating layers: a hairline, the light edge and the ladder's top step on the dialog and the drawer */
 :host(sw-dialog) .box { border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-drawer) .panel { box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ classic 7 - the rail sits on the canvas; the current area is a raised white key (the segmented thumb's material), its label a step heavier */
+/* classic 7 - the rail sits on the canvas; the current area is a raised white key (the segmented thumb's material), its label a step heavier */
 :host(sw-app) nav.rail.rail { background: transparent; border-inline-end-color: transparent; }
 :host(sw-app) a.item.active { background: var(--sw-surface); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) a.item.a { font-size: var(--nav-label-polish, var(--nav-label, 11px)); }
 :host(sw-app) a.item.a.active { font-weight: var(--sw-fw-bold); }
- sourceMappingURL=[^*]**/ classic 8 - tables: a quiet caption row, tabular figures, a hairline under the header a step stronger than the row rules */
+/* classic 8 - tables: a quiet caption row, tabular figures, a hairline under the header a step stronger than the row rules */
 :host(sw-table) th { font-weight: var(--sw-fw-bold); letter-spacing: 0.02em; color: var(--sw-text-2); border-block-end-color: var(--sw-border-strong); }
 :host(sw-table) td { font-variant-numeric: tabular-nums; }
- sourceMappingURL=[^*]**/ classic 9 - a status badge is a filled pill with its own ink ring (was a bare soft fill; outline was weak at 11 px) */
+/* classic 9 - a status badge is a filled pill with its own ink ring (was a bare soft fill; outline was weak at 11 px) */
 :host(sw-badge) { font-weight: var(--sw-fw-semibold); padding-inline: 9px; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent); }
- sourceMappingURL=[^*]**/ classic 10 - the home clock is a display reading (a medium weight, tight), the dates under it a step heavier; the widget header a step bolder */
+/* classic 10 - the home clock is a display reading (a medium weight, tight), the dates under it a step heavier; the widget header a step bolder */
 :host(home-widgets) .hm { font-weight: 600; letter-spacing: -0.045em; }
 :host(home-widgets) .hm b { opacity: 0.4; }
 :host(home-widgets) .d1 { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
 :host(home-widgets) .wg-h { font-weight: var(--sw-fw-bold); }
- sourceMappingURL=[^*]**/ classic 11 - empty / loading: the quiet 48 px icon tile gets a soft gradient and the light edge; the heading one step larger and bolder */
+/* classic 11 - empty / loading: the quiet 48 px icon tile gets a soft gradient and the light edge; the heading one step larger and bolder */
 :host(sw-state-panel[state='empty']) .icon, :host(sw-state-panel[state='loading']) .icon { border-radius: var(--sw-r-sm); background: linear-gradient(160deg, var(--sw-surface-2), var(--sw-surface-3)); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border); }
 :host(sw-state-panel) h4 { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); }
- sourceMappingURL=[^*]**/ classic 12 - the sign-in: the card is the one floating object (top step of the ladder, rounder), a display title, the key as everywhere */
+/* classic 12 - the sign-in: the card is the one floating object (top step of the ladder, rounder), a display title, the key as everywhere */
 :host(arx-login) .card { border-radius: var(--sw-r-xl); padding: 32px 28px 24px; box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(arx-login) h1 { font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; }
 :host(arx-login) input { border-radius: var(--sw-r-sm); box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.06); }
- sourceMappingURL=[^*]**/ SKIN-QA-FOLLOWUP-2404: the sign-in key catches the highlight as the primary key above (classic 1) */
+/* SKIN-QA-FOLLOWUP-2404: the sign-in key catches the highlight as the primary key above (classic 1) */
 :host(arx-login) button:not(.link):not(.mode):not(.secondary) { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 86%, var(--sw-highlight)), var(--sw-accent-hover)) var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28); }
 ${CE}`,CL={id:"classic",name:"Classic",nameHe:"קלאסי",noteHe:"המראה הנוכחי של המערכת",stage:"stable",features:{material:!1,bevel:!0,pixelEdge:!0,glass:!1},tokens:AL,rules:OL},RL={"--sw-bg":g("#d3dcec","#0a0e16"),"--sw-canvas":g("radial-gradient(1100px 680px at 90% -8%, rgba(255,193,117,.5), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(178,200,255,.46), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.34), transparent 70%), linear-gradient(170deg, #dde4f1 0%, #ccd6e9 55%, #d3dbec 100%)","radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.2), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.28), transparent 64%), linear-gradient(180deg, #0f1521 0%, #090c13 100%)"),"--sw-surface":g("rgba(255,255,255,.70)","rgba(24,30,44,.80)"),"--sw-surface-2":g("rgba(255,255,255,.84)","rgba(255,255,255,.07)"),"--sw-surface-3":g("rgba(20,30,50,.10)","rgba(255,255,255,.11)"),"--sw-surface-solid":g("#fbfcfe","#171d29"),"--sw-surface-2-solid":g("#ffffff","#1f2634"),"--sw-surface-3-solid":g("#e3e8f1","#293246"),"--sw-menu-surface":g("#fbfcfe","#171d29"),"--sw-menu-border":g("#dfe1e6","#2f3542"),"--sw-border":g("rgba(255,255,255,.95)","rgba(255,255,255,.14)"),"--sw-border-strong":g("rgba(20,30,50,.24)","rgba(255,255,255,.22)"),"--sw-highlight":g("rgba(255,255,255,1)","rgba(255,255,255,.14)"),"--sw-overlay":g("rgba(10,16,30,.44)","rgba(0,0,0,.64)"),"--sw-text":g("#172033","#eef2f8"),"--sw-heading":g("#0c1322","#ffffff"),"--sw-text-2":g("#3f4c63","#aab5c9"),"--sw-text-3":g("#48546a","#9aa8bd"),"--sw-text-inverse":g("#ffffff","#0c1018"),"--sw-accent":g("#2458e6","#6ea2ff"),"--sw-accent-hover":g("#1b48cc","#8ab5ff"),"--sw-accent-soft":g("rgba(36,88,230,.14)","rgba(110,162,255,.2)"),"--sw-accent-text":g("#1847c2","#8fb8ff"),"--sw-focus":g("#2458e6","#7fb0ff"),"--sw-nav":g("#2458e6","#6ea2ff"),"--sw-live":g("#1f9d55","#3ddc84"),"--sw-live-soft":g("rgba(31,157,85,.14)","rgba(61,220,132,.20)"),"--sw-recorded":g("#2458e6","#6ea2ff"),"--sw-recorded-soft":g("rgba(36,88,230,.12)","rgba(110,162,255,.20)"),"--sw-offline":g("#7c879a","#8b96a8"),"--sw-offline-soft":g("rgba(124,135,154,.14)","rgba(139,150,168,.20)"),"--sw-stale":g("#bf7506","#f5b043"),"--sw-stale-soft":g("rgba(217,138,11,.15)","rgba(245,176,67,.20)"),"--sw-unknown":g("#aab3c2","#6b7686"),"--sw-unknown-soft":g("rgba(170,179,194,.16)","rgba(107,118,134,.22)"),"--sw-danger":g("#d93838","#ff6b62"),"--sw-danger-soft":g("rgba(217,56,56,.12)","rgba(255,107,98,.20)"),"--sw-warning":g("#bf7506","#f5b043"),"--sw-warning-soft":g("rgba(217,138,11,.15)","rgba(245,176,67,.20)"),"--sw-success":g("#1f9d55","#3ddc84"),"--sw-success-soft":g("rgba(31,157,85,.14)","rgba(61,220,132,.20)"),"--sw-forbidden":g("#c81e1e","#ff7a70"),"--sw-forbidden-soft":g("rgba(200,30,30,.12)","rgba(255,122,112,.20)"),"--sw-purple":g("#7c5cf0","#a78bfa"),"--sw-live-text":g("#14703c","#3ddc84"),"--sw-recorded-text":g("#1d51d2","#8fb8ff"),"--sw-offline-text":g("#475164","#b4bdcc"),"--sw-stale-text":g("#7a4c00","#f5b043"),"--sw-unknown-text":g("#475268","#aab5c9"),"--sw-danger-text":g("#a82525","#ff857d"),"--sw-warning-text":g("#7a4c00","#f5b043"),"--sw-success-text":g("#105e32","#3ddc84"),"--sw-forbidden-text":g("#a51818","#ff7a70"),"--sw-toggle-on":g("#22a55b","#34c76a"),"--sw-map-bg":g("#f4f6fa","#0f141d"),"--sw-map-wall":g("#b9c3d3","#4a5568"),"--sw-map-furniture":g("#e7ecf4","#1f2736"),"--sw-map-furniture-line":g("#cfd7e3","#3a4457"),"--sw-map-structure":g("#4f5b73","#9aa6bb"),"--sw-map-candidate":g("#2458e6","#6ea2ff"),"--sw-map-label":g("#5f6c82","#8391a8"),"--sw-map-presence":g("#2458e6","#6ea2ff"),"--sw-fov":g("rgba(36,88,230,.12)","rgba(110,162,255,.16)"),"--sw-obj-light":g("#e5a52a","#f2b544"),"--sw-obj-electrical":g("#d9712a","#f08a45"),"--sw-obj-safety":g("#d94039","#ff6b62"),"--sw-obj-medical":g("#2c9ba6","#4fc3ce"),"--sw-obj-sport":g("#3a9a55","#5cc47a"),"--sw-obj-sanitary":g("#4f8fd0","#7fb2ff"),"--sw-obj-security":g("#7457c2","#a78bfa"),"--sw-obj-outdoor":g("#55964a","#7cc26e"),"--sw-circuit-1":g("#2458e6","#6ea2ff"),"--sw-circuit-2":g("#d98a0b","#f5b043"),"--sw-circuit-3":g("#1f9d55","#3ddc84"),"--sw-circuit-4":g("#9a55f0","#c084fc"),"--sw-circuit-5":g("#d93838","#ff6b62"),"--sw-circuit-6":g("#12a39a","#2dd4bf"),"--sw-fs-2xs":k("11px"),"--sw-fs-xs":k("12px"),"--sw-fs-sm":k("13px"),"--sw-fs-base":k("13.5px"),"--sw-fs-md":k("14.5px"),"--sw-fs-lg":k("16px"),"--sw-fs-xl":k("19px"),"--sw-fs-2xl":k("24px"),"--sw-fs-3xl":k("32px"),"--sw-lh":k("1.45"),"--sw-h1":k("48px"),"--sw-h1-weight":k("800"),"--sw-h1-tracking":k("-1.4px"),"--sw-h1-phone":k("26px"),"--sw-page-pad":k("28px"),"--sw-r-2xs":k("6px"),"--sw-r-xs":k("9px"),"--sw-r-sm":k("12px"),"--sw-r-md":k("20px"),"--sw-r-lg":k("26px"),"--sw-r-xl":k("30px"),"--sw-r-2xl":k("34px"),"--sw-ctl-h-sm":k("28px"),"--sw-ctl-h-md":k("34px"),"--sw-ctl-h-lg":k("40px"),"--sw-hover-wash":g("rgba(255,255,255,.4)","rgba(255,255,255,.08)"),"--sw-pressed-wash":g("rgba(20,30,50,.08)","rgba(255,255,255,.12)"),"--sw-skeleton":g("rgba(20,30,50,.08)","rgba(255,255,255,.08)"),"--sw-shadow-primary":g("0 1px 2px rgba(27,72,204,.4), 0 8px 20px -4px rgba(36,88,230,.5)","0 1px 2px rgba(0,0,0,.5), 0 8px 20px -4px rgba(110,162,255,.35)"),"--sw-on-image-bg":g("rgba(255,255,255,.9)","rgba(24,30,44,.88)"),"--sw-shadow-1":g("0 1px 2px rgba(15,23,42,.06), 0 4px 10px -2px rgba(15,23,42,.06), 0 16px 36px -10px rgba(15,23,42,.16)","0 1px 2px rgba(0,0,0,.45), 0 4px 10px -2px rgba(0,0,0,.35), 0 18px 40px -10px rgba(0,0,0,.65)"),"--sw-shadow-2":g("0 2px 6px rgba(15,23,42,.07), 0 12px 24px -6px rgba(15,23,42,.12), 0 32px 64px -16px rgba(15,23,42,.24)","0 2px 6px rgba(0,0,0,.45), 0 14px 28px -6px rgba(0,0,0,.5), 0 36px 72px -16px rgba(0,0,0,.75)"),"--sw-shadow-3":g("0 8px 20px rgba(15,23,42,.1), 0 28px 60px -10px rgba(15,23,42,.24), 0 64px 120px -24px rgba(15,23,42,.36)","0 8px 20px rgba(0,0,0,.5), 0 30px 70px -10px rgba(0,0,0,.7), 0 70px 130px -24px rgba(0,0,0,.85)"),"--sw-shadow-thumb":g("0 1px 3px rgba(0,0,0,.2), 0 4px 10px -2px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.06)","0 1px 3px rgba(0,0,0,.5), 0 4px 10px -2px rgba(0,0,0,.5), 0 0 0 .5px rgba(0,0,0,.4)"),"--sw-glass-blur":k("blur(28px) saturate(1.7)"),"--sw-glass-blur-nav":k("blur(22px) saturate(1.6)"),"--sw-glass-blur-sheet":k("blur(36px) saturate(1.7)"),"--sw-glass-sheen":g("linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.2) 38%, rgba(255,255,255,0) 72%)","linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.03) 40%, rgba(255,255,255,0) 72%)"),"--sw-t-med":k("220ms"),"--sw-ease":k("cubic-bezier(.2, 0, 0, 1)"),"--sw-ease-thumb":k("cubic-bezier(0.32, 0.72, 0, 1)"),"--sw-hover-lift":k("-3px"),...OE},ML=`
- sourceMappingURL=[^*]**/ domus 1 - the canvas: warm and cool blooms the glass sits on */
+/* domus 1 - the canvas: warm and cool blooms the glass sits on */
 :host(sw-app) { background: var(--sw-canvas); }
- sourceMappingURL=[^*]**/ domus 2 - the rail is a floating glass panel 12px off the edges; the brand tile; the floating corner pill; the phone dock */
+/* domus 2 - the rail is a floating glass panel 12px off the edges; the brand tile; the floating corner pill; the phone dock */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); font-size: var(--nav-label-polish, var(--nav-label, 11px)); }
 :host(sw-app) a.item.active { background: var(--sw-surface-2); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); font-weight: var(--sw-fw-bold); }
 :host(sw-app) .float .pillrow { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ domus 2b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13); the corner pill above keeps its glass */
+/* domus 2b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13); the corner pill above keeps its glass */
 :host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--sw-shadow-2); }
 :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); box-shadow: none; }
- sourceMappingURL=[^*]**/ domus 3 - glass panels: cards, KPI tiles, tables, the home widgets, the floor cards, area tiles and the building tree; a hovered interactive panel lifts */
+/* domus 3 - glass panels: cards, KPI tiles, tables, the home widgets, the floor cards, area tiles and the building tree; a hovered interactive panel lifts */
 :host(sw-card), :host(sw-kpi), :host(sw-table), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { background: var(--sw-glass-sheen), var(--sw-surface); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur); backdrop-filter: var(--sw-glass-blur); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-card[interactive]:hover), :host(sw-kpi[interactive]:hover), :host(devices-building) a.tile:hover { box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); transform: translateY(var(--sw-hover-lift)); }
 :host(sw-card) h3, :host(sw-state-panel) h4 { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; }
- sourceMappingURL=[^*]**/ domus 4 - the counters: a display numeral, the icon in a 34 px glass tile ringed by the accent */
+/* domus 4 - the counters: a display numeral, the icon in a 34 px glass tile ringed by the accent */
 :host(sw-kpi) { --sw-kpi-compact-value-fs: 24px; --sw-kpi-compact-icon: 34px; gap: 6px; }
 :host(sw-kpi) .value { font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 :host(sw-kpi) .icon { border-radius: var(--sw-r-xs); background: linear-gradient(160deg, rgba(255, 255, 255, 0.7), var(--sw-accent-soft)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 18%, transparent), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ domus 5 - the building tree stays prominent: a taller panel, pill rows, the selected row filled */
+/* domus 5 - the building tree stays prominent: a taller panel, pill rows, the selected row filled */
 :host(devices-building) nav.tree { border-radius: var(--sw-r-lg); padding: 10px; gap: 3px; }
 :host(devices-building) .tree-row { border-radius: var(--sw-r-pill); padding-block: 8px; }
 :host(devices-building) .tree-row.selected { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
- sourceMappingURL=[^*]**/ domus 6 - keys: round, raised (a vertical gradient, the light top edge, the dark lower edge of the bevel), pressed = sunk; pill chips */
+/* domus 6 - keys: round, raised (a vertical gradient, the light top edge, the dark lower edge of the bevel), pressed = sunk; pill chips */
 :host(sw-button) button { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)) var(--sw-surface-solid); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
 :host(sw-chip) button { border-radius: var(--sw-r-pill); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)) var(--sw-surface-solid); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
 :host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
@@ -117,27 +117,27 @@ ${CE}`,CL={id:"classic",name:"Classic",nameHe:"קלאסי",noteHe:"המראה ה
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-3-solid); box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.16); }
 :host(sw-button[variant='primary']) button:active:not(:disabled), :host(sw-chip[selected]) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: 0 2px 6px color-mix(in srgb, var(--sw-accent) 24%, transparent), inset 0 2px 4px rgba(0, 0, 0, 0.24); }
 @media (hover: hover) and (pointer: fine) { :host(sw-button:not([variant='ghost'])) button:hover:not(:disabled), :host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); } }
- sourceMappingURL=[^*]**/ domus 7 - fields: a soft well at rest, a glow of the accent on focus */
+/* domus 7 - fields: a soft well at rest, a glow of the accent on focus */
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: var(--sw-surface-2-solid); border-color: var(--sw-border-strong); border-radius: var(--sw-r-sm); box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06); }
 ::slotted(input:focus), ::slotted(select:focus), ::slotted(textarea:focus) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--sw-accent) 20%, transparent); }
- sourceMappingURL=[^*]**/ domus 8 - the switch (a well; "on" a gradient of the green) and the segmented / tab rails (a well with a raised white key) */
+/* domus 8 - the switch (a well; "on" a gradient of the green) and the segmented / tab rails (a well with a raised white key) */
 :host(sw-toggle) button { box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.18); }
 :host(sw-toggle[checked]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-toggle-on) 84%, #ffffff), var(--sw-toggle-on)); }
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-3); box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-seg-key, var(--sw-surface-solid)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
- sourceMappingURL=[^*]**/ domus 9 - floating layers: the dialog and the drawer carry the glass edge over the ladder's top step; a popover is a menu (owner 2026-10-13): fully opaque, no blur */
+/* domus 9 - floating layers: the dialog and the drawer carry the glass edge over the ladder's top step; a popover is a menu (owner 2026-10-13): fully opaque, no blur */
 :host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border: 1px solid var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
- sourceMappingURL=[^*]**/ domus 10 - tables: hairline rows, a soft hover, a quiet caption row, tabular figures; a status badge is a filled pill with its ink ring */
+/* domus 10 - tables: hairline rows, a soft hover, a quiet caption row, tabular figures; a status badge is a filled pill with its ink ring */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-bold); letter-spacing: 0.02em; color: var(--sw-text-2); }
 :host(sw-table) td { font-variant-numeric: tabular-nums; }
 :host(sw-badge) { font-weight: var(--sw-fw-semibold); padding-inline: 9px; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent); }
- sourceMappingURL=[^*]**/ domus 11 - the settings navigation column: pill links, the current one lifted like a tab */
+/* domus 11 - the settings navigation column: pill links, the current one lifted like a tab */
 :host(system-nav) a { border-radius: var(--sw-r-pill); }
 :host(system-nav) a[aria-current='page'] { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
- sourceMappingURL=[^*]**/ domus 12 - the home clock is a display reading; empty / loading / error icons in a glass tile; the sign-in card is the one floating object */
+/* domus 12 - the home clock is a display reading; empty / loading / error icons in a glass tile; the sign-in card is the one floating object */
 :host(home-widgets) .hm { font-weight: 600; letter-spacing: -0.045em; }
 :host(home-widgets) .d1 { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
 :host(sw-state-panel[state='empty']) .icon, :host(sw-state-panel[state='loading']) .icon { border-radius: var(--sw-r-sm); background: var(--sw-glass-sheen), var(--sw-surface-3); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border); }
@@ -145,26 +145,26 @@ ${CE}`,CL={id:"classic",name:"Classic",nameHe:"קלאסי",noteHe:"המראה ה
 :host(arx-login) h1 { font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; }
 :host(arx-login) button:not(.link):not(.mode):not(.secondary) { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32); }
 ${CE}`,LL={id:"domus",name:"hi-tech Domus",nameHe:"הייטק Domus",noteHe:"זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות",stage:"stable",features:{material:!0,bevel:!0,pixelEdge:!0,glass:!0},tokens:RL,rules:ML},DL={"--sw-bg":g("#ffffff","#000000"),"--sw-canvas":g("linear-gradient(#ffffff, #ffffff)","linear-gradient(#000000, #000000)"),"--sw-surface":g("#fafafa","#0f0f0f"),"--sw-surface-2":g("#f2f2f2","#171717"),"--sw-surface-3":g("#e6e6e6","#242424"),"--sw-surface-solid":g("#fafafa","#0f0f0f"),"--sw-surface-2-solid":g("#f2f2f2","#171717"),"--sw-surface-3-solid":g("#e6e6e6","#242424"),"--sw-menu-surface":g("#fafafa","#0f0f0f"),"--sw-menu-border":g("#dcdcdc","#2c2c2c"),"--sw-border":g("rgba(0,0,0,.12)","rgba(255,255,255,.12)"),"--sw-border-strong":g("rgba(0,0,0,.28)","rgba(255,255,255,.26)"),"--sw-overlay":g("rgba(0,0,0,.50)","rgba(0,0,0,.72)"),"--sw-video-bg":g("#111111","#000000"),"--sw-text":g("#171a20","#e7e7e7"),"--sw-heading":g("#000000","#ffffff"),"--sw-text-2":g("#3f4247","#a6a6a6"),"--sw-text-3":g("#606368","#939393"),"--sw-text-inverse":g("#ffffff","#000000"),"--sw-accent":g("#2662f0","#3d7eff"),"--sw-accent-hover":g("#1d52d1","#5f97ff"),"--sw-accent-soft":g("rgba(38,98,240,.10)","rgba(61,126,255,.16)"),"--sw-accent-text":g("#1f56d6","#7fadff"),"--sw-focus":g("#2662f0","#7fadff"),"--sw-nav":g("#2662f0","#3d7eff"),"--sw-live":g("#0f9d58","#2fd070"),"--sw-live-soft":g("rgba(15,157,88,.10)","rgba(47,208,112,.14)"),"--sw-recorded":g("#2662f0","#3d7eff"),"--sw-recorded-soft":g("rgba(38,98,240,.10)","rgba(61,126,255,.16)"),"--sw-offline":g("#7a7c80","#8f8f8f"),"--sw-offline-soft":g("rgba(122,124,128,.10)","rgba(143,143,143,.14)"),"--sw-stale":g("#b8720a","#f2b134"),"--sw-stale-soft":g("rgba(196,127,0,.10)","rgba(242,177,52,.14)"),"--sw-unknown":g("#a8aaae","#5c5c5c"),"--sw-unknown-soft":g("rgba(168,170,174,.12)","rgba(92,92,92,.20)"),"--sw-danger":g("#d92c2c","#ff5a5a"),"--sw-danger-soft":g("rgba(217,44,44,.10)","rgba(255,90,90,.14)"),"--sw-warning":g("#b8720a","#f2b134"),"--sw-warning-soft":g("rgba(196,127,0,.10)","rgba(242,177,52,.14)"),"--sw-success":g("#0f9d58","#2fd070"),"--sw-success-soft":g("rgba(15,157,88,.10)","rgba(47,208,112,.14)"),"--sw-forbidden":g("#c81e1e","#ff6b6b"),"--sw-forbidden-soft":g("rgba(200,30,30,.10)","rgba(255,107,107,.14)"),"--sw-purple":g("#6b4fd8","#b48cff"),"--sw-live-text":g("#0a7a44","#2fd070"),"--sw-recorded-text":g("#1f56d6","#7fadff"),"--sw-offline-text":g("#55575b","#b3b3b3"),"--sw-stale-text":g("#7a4c00","#f2b134"),"--sw-unknown-text":g("#5c5e62","#a6a6a6"),"--sw-danger-text":g("#b01f1f","#ff5a5a"),"--sw-warning-text":g("#7a4c00","#f2b134"),"--sw-success-text":g("#0a7541","#2fd070"),"--sw-forbidden-text":g("#a51818","#ff6b6b"),"--sw-toggle-on":g("#2662f0","#3d7eff"),"--sw-map-bg":g("#f4f6fa","#0f141d"),"--sw-map-wall":g("#b9c3d3","#4a5568"),"--sw-map-furniture":g("#e7ecf4","#1f2736"),"--sw-map-furniture-line":g("#cfd7e3","#3a4457"),"--sw-map-structure":g("#4f5b73","#9aa6bb"),"--sw-map-glass":g("#5b8cff","#3d7eff"),"--sw-map-candidate":g("#2662f0","#3d7eff"),"--sw-map-label":g("#5f6c82","#8391a8"),"--sw-map-presence":g("#2662f0","#3d7eff"),"--sw-fov":g("rgba(38,98,240,.10)","rgba(61,126,255,.14)"),"--sw-obj-light":g("#e5a52a","#f2b544"),"--sw-obj-electrical":g("#d9712a","#f08a45"),"--sw-obj-safety":g("#d94039","#ff6b62"),"--sw-obj-medical":g("#2c9ba6","#4fc3ce"),"--sw-obj-sport":g("#3a9a55","#5cc47a"),"--sw-obj-sanitary":g("#4f8fd0","#7fb2ff"),"--sw-obj-security":g("#7457c2","#a78bfa"),"--sw-obj-outdoor":g("#55964a","#7cc26e"),"--sw-circuit-1":g("#2662f0","#3d7eff"),"--sw-circuit-2":g("#d98a0b","#f5b043"),"--sw-circuit-3":g("#1f9d55","#3ddc84"),"--sw-circuit-4":g("#9a55f0","#c084fc"),"--sw-circuit-5":g("#d93838","#ff6b62"),"--sw-circuit-6":g("#12a39a","#2dd4bf"),"--sw-fs-2xs":k("11px"),"--sw-fs-xs":k("12px"),"--sw-fs-sm":k("13px"),"--sw-fs-base":k("13.5px"),"--sw-fs-lg":k("16px"),"--sw-fs-xl":k("18px"),"--sw-fs-2xl":k("22px"),"--sw-fs-3xl":k("30px"),"--sw-h1":k("48px"),"--sw-h1-weight":k("500"),"--sw-h1-tracking":k("-0.5px"),"--sw-page-pad":k("32px"),"--sw-r-2xs":k("2px"),"--sw-r-xs":k("3px"),"--sw-r-sm":k("4px"),"--sw-r-md":k("6px"),"--sw-r-lg":k("8px"),"--sw-r-xl":k("8px"),"--sw-r-2xl":k("10px"),"--sw-r-pill":k("6px"),"--sw-shadow-primary":k("none"),"--sw-shadow-1":k("none"),"--sw-shadow-2":k("none"),"--sw-shadow-3":g("0 0 0 1px rgba(0,0,0,.28)","0 0 0 1px rgba(255,255,255,.26)"),"--sw-shadow-thumb":k("none"),"--sw-t-fast":k("100ms"),"--sw-t-med":k("180ms"),"--sw-ease":k("cubic-bezier(.4, 0, .2, 1)"),"--sw-ease-thumb":k("cubic-bezier(.4, 0, .2, 1)")},NL=`
- sourceMappingURL=[^*]**/ tesla 1 - the rail is a flat column with a hairline; the brand mark is an outline; the active item is the heading colour */
+/* tesla 1 - the rail is a flat column with a hairline; the brand mark is an outline; the active item is the heading colour */
 :host(sw-app) nav.rail.rail { background: var(--sw-bg); border-inline-end: 1px solid var(--sw-border); }
 :host(sw-app) .brand-tile { background: transparent; color: var(--sw-heading); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); box-shadow: none; font-weight: 600; }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
 :host(sw-app) a.item.a.active { background: transparent; color: var(--sw-heading); }
 :host(sw-app) a.item.a.active sw-icon { color: var(--sw-heading); }
- sourceMappingURL=[^*]**/ tesla 2 - the phone bar and the corner pill are flat too */
+/* tesla 2 - the phone bar and the corner pill are flat too */
 :host(sw-app) nav.bottom.bottom { background: var(--sw-bg); box-shadow: none; border-block-start: 1px solid var(--sw-border); }
 :host(sw-app) nav.bottom.bottom a.active .ic { background: transparent; box-shadow: inset 0 -2px 0 var(--sw-accent); border-radius: 0; }
 :host(sw-app) .float .pillrow { border-radius: var(--sw-r-md); box-shadow: none; }
 :host(sw-app) .searchpanel { box-shadow: none; border-color: var(--sw-border-strong); }
- sourceMappingURL=[^*]**/ tesla 3 - the building tree: a ruled panel, the selected row marked by a 2px accent rule at its start edge */
+/* tesla 3 - the building tree: a ruled panel, the selected row marked by a 2px accent rule at its start edge */
 :host(devices-building) nav.tree { border-radius: var(--sw-r-lg); padding: 10px; }
 :host(devices-building) .tree-row { position: relative; border-radius: var(--sw-r-sm); padding-block: 8px; }
 :host(devices-building) .tree-row.selected { background: var(--sw-surface-3); color: var(--sw-heading); }
 :host(devices-building) .tree-row.selected::before { content: ''; position: absolute; inset-block: 6px; inset-inline-start: 0; inline-size: 2px; background: var(--sw-accent); }
- sourceMappingURL=[^*]**/ tesla 4 - titles in medium weight, big numerals */
+/* tesla 4 - titles in medium weight, big numerals */
 :host(sw-page) h1, :host(sw-card) h3, :host(sw-dialog) h3 { font-weight: var(--sw-fw-medium); }
 :host(sw-kpi) .value { font-weight: var(--sw-fw-medium); font-variant-numeric: tabular-nums; }
- sourceMappingURL=[^*]**/ tesla 5 - flat, outlined controls (transparent on the page; a HUD bar over a canvas hands them an opaque fill through --hud-fill: styles/menu-surface.ts, owner 2026-10-13) */
+/* tesla 5 - flat, outlined controls (transparent on the page; a HUD bar over a canvas hands them an opaque fill through --hud-fill: styles/menu-surface.ts, owner 2026-10-13) */
 :host(sw-button) button { border-radius: var(--sw-r-md); box-shadow: none; }
 :host(sw-button[variant='primary']) button { box-shadow: none; }
 :host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button { background: var(--hud-fill, transparent); }
@@ -172,83 +172,83 @@ ${CE}`,LL={id:"domus",name:"hi-tech Domus",nameHe:"הייטק Domus",noteHe:"ז�
 :host(sw-chip[selected]) button { background: var(--sw-text); border-color: var(--sw-text); color: var(--sw-text-inverse); }
 :host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: transparent; border-radius: var(--sw-r-sm); }
- sourceMappingURL=[^*]**/ tesla 6 - switch: an outlined track, the thumb in grey, accent when on */
+/* tesla 6 - switch: an outlined track, the thumb in grey, accent when on */
 :host(sw-toggle) button { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-toggle-off); }
 :host(sw-toggle) button::after { background: var(--sw-text-2); box-shadow: none; }
 :host(sw-toggle[checked]) button { background: var(--sw-toggle-on); box-shadow: none; }
 :host(sw-toggle[checked]) button::after { background: #fff; }
- sourceMappingURL=[^*]**/ tesla 7 - the segmented control: outlined boxes, the selected segment inverted */
+/* tesla 7 - the segmented control: outlined boxes, the selected segment inverted */
 :host(sw-tabs[data-variant='pill']) .row::before { background: transparent; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-sm); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-text); color: var(--sw-text-inverse); box-shadow: none; }
- sourceMappingURL=[^*]**/ tesla 8 - floating layers: a strong rule instead of a shadow; a popover is a menu (owner 2026-10-13): the menu token, the same strong rule */
+/* tesla 8 - floating layers: a strong rule instead of a shadow; a popover is a menu (owner 2026-10-13): the menu token, the same strong rule */
 :host(sw-dialog) .box, :host(sw-drawer) .panel { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); box-shadow: none; }
 :host(sw-popover) { border: 1px solid var(--sw-border-strong); background: var(--sw-menu-surface); box-shadow: none; }
- sourceMappingURL=[^*]**/ tesla 9 - the home widgets lose their tint (the alarm's error tone keeps its colour) */
+/* tesla 9 - the home widgets lose their tint (the alarm's error tone keeps its colour) */
 :host(home-widgets) .wg-weather, :host(home-widgets) .wg-shabbat { background: var(--sw-surface); }
- sourceMappingURL=[^*]**/ tesla 10 - tables: ruled rows, small-caps headings */
+/* tesla 10 - tables: ruled rows, small-caps headings */
 :host(sw-table) th { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--sw-fs-xs); }
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-2); }
- sourceMappingURL=[^*]**/ tesla 11 - the settings navigation column: a rule at its edge, the current link marked by a bar instead of a fill */
+/* tesla 11 - the settings navigation column: a rule at its edge, the current link marked by a bar instead of a fill */
 :host(system-nav) { border-inline-end: 1px solid var(--sw-border); }
 :host(system-nav) a[aria-current='page'] { background: transparent; box-shadow: inset 3px 0 0 var(--sw-accent); border-radius: 0; }
 `,PL={id:"tesla",name:"Tesla clean hi-tech",nameHe:"הייטק נקי (Tesla)",noteHe:"משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד",stage:"stable",features:{material:!1,bevel:!1,pixelEdge:!1,glass:!1},tokens:DL,rules:NL},IL={"--sw-bg":g("#eceef5","#2b2a37"),"--sw-canvas":g("radial-gradient(60% 50% at 85% 0%, rgba(120, 140, 255, 0.22), transparent 70%), radial-gradient(50% 45% at 10% 100%, rgba(255, 170, 120, 0.18), transparent 70%), linear-gradient(#eceef5, #eceef5)","radial-gradient(55% 45% at 88% 0%, rgba(110, 120, 230, 0.22), transparent 70%), radial-gradient(50% 45% at 8% 100%, rgba(230, 120, 80, 0.14), transparent 70%), linear-gradient(#2b2a37, #2b2a37)"),"--sw-surface":g("#dfe3ee","#4a4356"),"--sw-surface-2":g("#cfd5e3","#5a5268"),"--sw-surface-3":g("#c1c9da","#675e77"),"--sw-surface-solid":g("#f4f5fa","#3b3548"),"--sw-surface-2-solid":g("#dfe3ee","#4a4356"),"--sw-surface-3-solid":g("#cfd5e3","#5a5268"),"--sw-menu-surface":g("#f6f7fc","#3b3548"),"--sw-menu-border":g("#f6f7fc","#3b3548"),"--sw-border":g("transparent","transparent"),"--sw-border-strong":g("rgba(34, 49, 76, 0.2)","rgba(255, 255, 255, 0.18)"),"--sw-highlight":g("rgba(255, 255, 255, 0.85)","rgba(255, 255, 255, 0.16)"),"--sw-overlay":g("rgba(30, 36, 56, 0.28)","rgba(14, 12, 22, 0.42)"),"--sw-video-bg":g("#0f1729","#05070c"),"--sw-text":g("#20263b","#ffffff"),"--sw-heading":g("#171c2e","#ffffff"),"--sw-text-2":g("#3d4459","#e4deee"),"--sw-text-3":g("#4f566c","#ddd8e6"),"--sw-text-inverse":k("#ffffff"),"--sw-accent":g("#2767ed","#4c6fd9"),"--sw-accent-hover":g("#1f57d1","#4668d6"),"--sw-accent-soft":g("rgba(39, 103, 237, 0.14)","rgba(110, 140, 240, 0.26)"),"--sw-accent-text":g("#1d4fc4","#c9d6ff"),"--sw-focus":g("#2767ed","#a9bdff"),"--sw-nav":g("#2767ed","#4c6fd9"),"--sw-toggle-on":g("#2767ed","#4c6fd9"),"--sw-toggle-off":g("#66708a","#ada5c0"),"--sw-live":g("#16a34a","#3ddc84"),"--sw-live-soft":g("rgba(22, 163, 74, 0.14)","rgba(61, 220, 132, 0.2)"),"--sw-live-text":g("#116330","#7ff0b0"),"--sw-recorded":g("#2767ed","#6ea2ff"),"--sw-recorded-soft":g("rgba(39, 103, 237, 0.14)","rgba(110, 162, 255, 0.2)"),"--sw-recorded-text":g("#1d4fc4","#c9d6ff"),"--sw-offline":g("#7c879a","#8b96a8"),"--sw-offline-soft":g("rgba(124, 135, 154, 0.14)","rgba(139, 150, 168, 0.2)"),"--sw-offline-text":g("#4f5a6d","#ddd8e6"),"--sw-stale":g("#bf7506","#f5b043"),"--sw-stale-soft":g("rgba(217, 138, 11, 0.15)","rgba(245, 176, 67, 0.22)"),"--sw-stale-text":g("#7a4c00","#ffd08a"),"--sw-unknown":g("#aab3c2","#6b7686"),"--sw-unknown-soft":g("rgba(170, 179, 194, 0.16)","rgba(107, 118, 134, 0.22)"),"--sw-unknown-text":g("#4f5b72","#ddd8e6"),"--sw-danger":g("#ef4444","#ff6b62"),"--sw-danger-soft":g("rgba(239, 68, 68, 0.14)","rgba(255, 107, 98, 0.22)"),"--sw-danger-text":g("#a01515","#ffc8c3"),"--sw-warning":g("#f59e0b","#f5b043"),"--sw-warning-soft":g("rgba(245, 158, 11, 0.16)","rgba(245, 176, 67, 0.22)"),"--sw-warning-text":g("#944705","#ffd08a"),"--sw-success":g("#16a34a","#3ddc84"),"--sw-success-soft":g("rgba(22, 163, 74, 0.14)","rgba(61, 220, 132, 0.2)"),"--sw-success-text":g("#116330","#7ff0b0"),"--sw-forbidden":g("#c81e1e","#ff7a70"),"--sw-forbidden-soft":g("rgba(200, 30, 30, 0.14)","rgba(255, 122, 112, 0.22)"),"--sw-forbidden-text":g("#a01515","#ffc8c3"),"--sw-purple":g("#7c5cf0","#a78bfa"),"--sw-map-bg":g("#f4f6fa","#262533"),"--sw-fs-2xs":k("11px"),"--sw-fs-xs":k("12px"),"--sw-fs-sm":k("13px"),"--sw-fs-base":k("13.5px"),"--sw-h1":k("24px"),"--sw-page-pad":k("18px"),"--sw-rail-w":k("92px"),"--sw-touch":k("44px"),"--sw-r-2xs":k("6px"),"--sw-r-xs":k("8px"),"--sw-r-sm":k("12px"),"--sw-r-md":k("18px"),"--sw-r-lg":k("28px"),"--sw-r-xl":k("42px"),"--sw-r-2xl":k("48px"),"--sw-shadow-1":k("none"),"--sw-shadow-primary":k("none"),"--sw-shadow-2":g("0 8px 24px rgba(30, 40, 70, 0.12)","0 8px 24px rgba(0, 0, 0, 0.35)"),"--sw-shadow-3":g("0 24px 60px rgba(30, 40, 70, 0.22)","0 24px 70px rgba(0, 0, 0, 0.5)"),"--sw-glass-blur":k("none"),"--sw-glass-blur-nav":k("blur(18px) saturate(150%)"),"--sw-glass-blur-sheet":k("blur(26px) saturate(160%)"),"--sw-t-fast":k("200ms"),"--sw-t-med":k("300ms"),"--sw-t-sheet":k("460ms"),"--sw-t-state":k("900ms"),"--sw-ease":k("cubic-bezier(0.4, 0, 0.2, 1)"),"--sw-ease-thumb":k("cubic-bezier(0.34, 1.32, 0.64, 1)"),"--sw-sheet-rgb":g("246, 247, 252","59, 53, 72"),"--sw-layer":g("rgba(255, 255, 255, 0.55)","rgba(255, 255, 255, 0.08)"),"--sw-layer-2":g("rgba(255, 255, 255, 0.8)","rgba(255, 255, 255, 0.14)"),"--sw-nav-glass":g("rgba(246, 247, 252, 0.62)","rgba(43, 42, 55, 0.6)"),"--sw-backdrop-blur":k("blur(3px)"),"--sw-lit":g("#f3a43c","#f19e33"),"--sw-lit-soft":g("rgba(243, 164, 60, 0.32)","rgba(241, 158, 51, 0.34)"),"--sw-r-media":k("16px")},FL=`
- sourceMappingURL=[^*]**/ bubble 1 - the canvas with its two blooms */
-:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); --sw-settings-search-h: var(--sw-touch-desktop); --sw-settings-row-h: max(44px, var(--sw-touch-desktop));  sourceMappingURL=[^*]**/ the bubble desktop dial is 40 here, the guard asks for 44 */ /* 2.16.0: the settings side column rows meet the touch dial too (the layout guard's 44 px), the dense short-screen mode never goes below it */ /* 0.1.157: the shell's tab rows meet the touch dial; 2.4.6: so does the settings search field (screens/system-nav.ts) */ }
- sourceMappingURL=[^*]**/ bubble 2 - the rail is a floating glass pill column */
+/* bubble 1 - the canvas with its two blooms */
+:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); --sw-settings-search-h: var(--sw-touch-desktop); --sw-settings-row-h: max(44px, var(--sw-touch-desktop)); /* the bubble desktop dial is 40 here, the guard asks for 44 */ /* 2.16.0: the settings side column rows meet the touch dial too (the layout guard's 44 px), the dense short-screen mode never goes below it */ /* 0.1.157: the shell's tab rows meet the touch dial; 2.4.6: so does the settings search field (screens/system-nav.ts) */ }
+/* bubble 2 - the rail is a floating glass pill column */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 0; border-radius: var(--sw-r-lg); background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { border-radius: 50%; }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
- sourceMappingURL=[^*]**/ the chosen item of every list is the accent pill (one rule for the rail, the phone dock's icon and the building tree row; they were three identical rules until the menu rules needed the room under the 50-rule budget) */
+/* the chosen item of every list is the accent pill (one rule for the rail, the phone dock's icon and the building tree row; they were three identical rules until the menu rules needed the room under the 50-rule budget) */
 :host(sw-app) a.item.a.active, :host(sw-app) nav.bottom.bottom a.active .ic, :host(devices-building) .tree-row.selected { background: var(--sw-accent); color: var(--sw-text-inverse); }
 :host(sw-app) a.item.a.active sw-icon { color: var(--sw-text-inverse); }
- sourceMappingURL=[^*]**/ bubble 3 - the floating corner (search / status) keeps its glass; the search panel is a menu: the same pill shape, fully opaque, nothing blurred behind it (owner 2026-10-13) */
+/* bubble 3 - the floating corner (search / status) keeps its glass; the search panel is a menu: the same pill shape, fully opaque, nothing blurred behind it (owner 2026-10-13) */
 :host(sw-app) .float .pillrow { border-radius: var(--sw-r-pill); background: var(--sw-perf-glass-bg, var(--sw-nav-glass)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-nav)); box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
 :host(sw-app) .searchpanel { border-radius: var(--sw-r-pill); background: var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2); }
- sourceMappingURL=[^*]**/ bubble 4 - the phone dock: the bottom bar is a floating pill stack beside the home button (sw-app renders the dock row in this skin) */
+/* bubble 4 - the phone dock: the bottom bar is a floating pill stack beside the home button (sw-app renders the dock row in this skin) */
 :host(sw-app) nav.bottom.bottom { background: transparent; border: 0; box-shadow: none; }
 :host(sw-app) nav.bottom.bottom .stack { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-2); }
- sourceMappingURL=[^*]**/ bubble 5 - the building tree stays prominent: a glass panel, pill rows, the selected row filled (the filled row is the shared accent rule above) */
+/* bubble 5 - the building tree stays prominent: a glass panel, pill rows, the selected row filled (the filled row is the shared accent rule above) */
 :host(devices-building) nav.tree { border: 0; border-radius: var(--sw-r-lg); padding: 14px 10px; background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(devices-building) .tree-row { border-radius: var(--sw-r-pill); min-block-size: 44px; }
 :host(devices-building) .tree-row:not(.selected):hover { background: var(--sw-layer); }
- sourceMappingURL=[^*]**/ bubble 6 - cards, KPI tiles, home widgets, floor cards and area tiles: flat pills, no border, no shadow */
+/* bubble 6 - cards, KPI tiles, home widgets, floor cards and area tiles: flat pills, no border, no shadow */
 :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(home-widgets) .wg { border: 0; border-radius: var(--sw-r-lg); background: var(--sw-surface); box-shadow: none; }
 :host(devices-building) a.tile:hover, :host(sw-card[interactive]:hover) { background: var(--sw-surface-3); transform: none; }
- sourceMappingURL=[^*]**/ bubble 7 - controls: pill buttons, pill chips, pill fields, a pill switch */
+/* bubble 7 - controls: pill buttons, pill chips, pill fields, a pill switch */
 :host(sw-button) button { border: 0; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); box-shadow: none; background: var(--sw-surface-2); }
 :host(sw-button[variant='primary']) button { background: var(--sw-accent); }
 :host(sw-button[variant='ghost']) button { background: transparent; }
 :host(sw-button[size='sm']) button { min-block-size: var(--sw-touch-desktop); min-inline-size: var(--sw-touch-desktop); }
 :host(sw-button[icononly]) button { min-inline-size: var(--sw-touch-desktop); }
 :host(sw-chip) button { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; min-block-size: var(--sw-touch-desktop); min-inline-size: var(--sw-touch-desktop); }
- sourceMappingURL=[^*]**/ bubble 7b - the screens' small round and inline targets follow the touch dial too (the layout guard): the area menu's "⋯", the area breadcrumb */
+/* bubble 7b - the screens' small round and inline targets follow the touch dial too (the layout guard): the area menu's "⋯", the area breadcrumb */
 :host(devices-bulk-menu) .more { inline-size: var(--sw-touch-desktop); block-size: var(--sw-touch-desktop); border-radius: 50%; }
 :host(devices-area-nav) .crumb { min-block-size: var(--sw-touch-desktop); border-radius: var(--sw-r-pill); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: var(--sw-surface-2); border-color: transparent; border-radius: var(--sw-r-md); }
 :host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); transition-timing-function: var(--sw-ease-thumb); }
 :host(sw-toggle[checked]) button { background: var(--sw-toggle-on); }
- sourceMappingURL=[^*]**/ bubble 8 - the segmented control: a pill track, the chosen segment a solid pill */
+/* bubble 8 - the segmented control: a pill track, the chosen segment a solid pill */
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); min-block-size: calc(var(--sw-touch-desktop) - 6px); }
 :host(sw-tabs) a, :host(sw-tabs) button, :host(sw-tabs[data-variant='pill']) a, :host(sw-tabs[data-variant='pill']) button { min-block-size: var(--sw-touch-desktop); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
- sourceMappingURL=[^*]**/ bubble 9 - floating layers (dialog, drawer) are translucent sheets over a blurred page, solid when the OS asks for less transparency or blur is unsupported; a popover is a menu: the same shape, fully opaque, no blur (owner 2026-10-13) */
+/* bubble 9 - floating layers (dialog, drawer) are translucent sheets over a blurred page, solid when the OS asks for less transparency or blur is unsupported; a popover is a menu: the same shape, fully opaque, no blur (owner 2026-10-13) */
 :host(sw-dialog) .box, :host(sw-drawer) .panel { border: 0; border-radius: var(--sw-r-xl); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
 :host(sw-popover) { border: 0; border-radius: var(--sw-r-xl); background: var(--sw-menu-surface); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
 :host(sw-dialog) .backdrop { -webkit-backdrop-filter: var(--sw-backdrop-blur); backdrop-filter: var(--sw-backdrop-blur); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-dialog) .box, :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-dialog) .box, :host(sw-drawer) .panel, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom .stack, :host(devices-building) nav.tree { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
- sourceMappingURL=[^*]**/ bubble 10 - the phone tab pair (0.1.153 dropdown mode) and the dropdown chip / list follow the skin: glass row, pill chips, a translucent list */
+/* bubble 10 - the phone tab pair (0.1.153 dropdown mode) and the dropdown chip / list follow the skin: glass row, pill chips, a translucent list */
 :host(sw-app) .tabpair { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); }
 :host(sw-app) .tabpair a.alarmpin { border-radius: 50%; background: var(--sw-surface-2); }
 :host(sw-dropdown[dd-style='auto']) .chip { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; }
 :host(sw-dropdown) .pop { border: 0; border-radius: var(--sw-r-lg); background: var(--sw-menu-surface); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
- sourceMappingURL=[^*]**/ bubble 11 - tables: pill-shaped rows with a soft hover (admin lists stay tables, never a column of pills) */
+/* bubble 11 - tables: pill-shaped rows with a soft hover (admin lists stay tables, never a column of pills) */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); }
 :host(sw-page) h1 { letter-spacing: -0.3px; }
- sourceMappingURL=[^*]**/ bubble 12 - 0.1.157 (the security / lists / settings chrome): the security sections (לייב | חקירה | אזעקה) are a pill track with a solid thumb like the segmented control; the phone's row does not stick (nothing floats over the rows) */
+/* bubble 12 - 0.1.157 (the security / lists / settings chrome): the security sections (לייב | חקירה | אזעקה) are a pill track with a solid thumb like the segmented control; the phone's row does not stick (nothing floats over the rows) */
 :host(sw-app) nav.sections.sections { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); padding: 0; --sw-tab-min-h: var(--sw-touch-desktop); }
 :host(sw-app) nav.sections.sections a { border-radius: var(--sw-r-pill); min-block-size: var(--sw-tab-min-h); }
 :host(sw-app) nav.sections.sections a.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-2); }
@@ -256,29 +256,29 @@ ${CE}`,LL={id:"domus",name:"hi-tech Domus",nameHe:"הייטק Domus",noteHe:"ז�
 :host(sw-app) nav.secrow.secrow::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
 :host(sw-app) nav.secrow.secrow a.on .pill { border-radius: var(--sw-r-pill); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
 @media (max-width: 1100px) { :host(sw-app) .subnav, :host(sw-app) nav.sections.sections { --sw-tab-min-h: 44px; } }
- sourceMappingURL=[^*]**/ the settings navigation column: pills, like every bubble list row */
+/* the settings navigation column: pills, like every bubble list row */
 :host(system-nav) a { border-radius: var(--sw-r-pill); min-block-size: max(36px, var(--sw-settings-row-h, 0px)); }
 `,qL={id:"bubble",name:"Bubble",nameHe:"Bubble",noteHe:"חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה",stage:"frozen",features:{material:!0,bevel:!0,pixelEdge:!0,glass:!0},tokens:IL,rules:FL},HL={"--sw-bg":g("#eef3fa","#0a0f1a"),"--sw-canvas":g("radial-gradient(1200px 760px at 8% -10%, rgba(152, 213, 255, 0.38), transparent 62%), radial-gradient(1100px 720px at 100% 110%, rgba(204, 187, 255, 0.30), transparent 64%), radial-gradient(900px 520px at 55% 30%, rgba(255, 255, 255, 0.55), transparent 70%), linear-gradient(165deg, #f4f8fd 0%, #e9eff8 55%, #e6edf7 100%)","radial-gradient(1000px 640px at 6% -8%, rgba(64, 140, 255, 0.20), transparent 62%), radial-gradient(1000px 680px at 100% 108%, rgba(140, 96, 255, 0.18), transparent 64%), linear-gradient(180deg, #0d1424 0%, #080c16 100%)"),"--sw-bg-veil":g("rgba(238, 243, 250, 0.42)","rgba(10, 15, 26, 0.50)"),"--sw-surface":g("rgba(255, 255, 255, 0.58)","rgba(20, 28, 46, 0.64)"),"--sw-surface-2":g("rgba(255, 255, 255, 0.72)","rgba(255, 255, 255, 0.07)"),"--sw-surface-3":g("rgba(30, 50, 90, 0.07)","rgba(255, 255, 255, 0.10)"),"--sw-surface-solid":g("#f9fbfe","#141c2e"),"--sw-surface-2-solid":g("#ffffff","#1b2538"),"--sw-surface-3-solid":g("#e6ecf5","#263248"),"--sw-menu-surface":g("#f9fbfe","#141c2e"),"--sw-menu-border":g("#dfe3ea","#353c4b"),"--sw-border":g("rgba(255, 255, 255, 0.82)","rgba(255, 255, 255, 0.14)"),"--sw-border-strong":g("rgba(30, 50, 90, 0.18)","rgba(255, 255, 255, 0.22)"),"--sw-highlight":g("rgba(255, 255, 255, 1)","rgba(255, 255, 255, 0.22)"),"--sw-overlay":g("rgba(12, 22, 44, 0.38)","rgba(0, 0, 0, 0.62)"),"--sw-text":g("#152238","#e9eef8"),"--sw-heading":g("#0e1a30","#ffffff"),"--sw-text-2":g("#3e4d66","#aeb9cf"),"--sw-text-3":g("#55637c","#9aa6bc"),"--sw-text-inverse":g("#ffffff","#0b1020"),"--sw-accent":g("#1e5bd8","#8ab8ff"),"--sw-accent-hover":g("#174cbd","#a5c8ff"),"--sw-accent-soft":g("rgba(30, 91, 216, 0.12)","rgba(138, 184, 255, 0.18)"),"--sw-accent-text":g("#174cbd","#9ec4ff"),"--sw-focus":g("#1e5bd8","#9ec4ff"),"--sw-nav":g("#1e5bd8","#8ab8ff"),"--sw-live":g("#1f9d55","#3ddc84"),"--sw-live-soft":g("rgba(31, 157, 85, 0.14)","rgba(61, 220, 132, 0.20)"),"--sw-recorded":g("#1e5bd8","#8ab8ff"),"--sw-recorded-soft":g("rgba(30, 91, 216, 0.12)","rgba(138, 184, 255, 0.20)"),"--sw-offline":g("#7c879a","#8b96a8"),"--sw-offline-soft":g("rgba(124, 135, 154, 0.14)","rgba(139, 150, 168, 0.20)"),"--sw-stale":g("#bf7506","#f5b043"),"--sw-stale-soft":g("rgba(217, 138, 11, 0.15)","rgba(245, 176, 67, 0.20)"),"--sw-unknown":g("#aab3c2","#6b7686"),"--sw-unknown-soft":g("rgba(170, 179, 194, 0.16)","rgba(107, 118, 134, 0.22)"),"--sw-danger":g("#d93838","#ff6b62"),"--sw-danger-soft":g("rgba(217, 56, 56, 0.12)","rgba(255, 107, 98, 0.20)"),"--sw-warning":g("#bf7506","#f5b043"),"--sw-warning-soft":g("rgba(217, 138, 11, 0.15)","rgba(245, 176, 67, 0.20)"),"--sw-success":g("#1f9d55","#3ddc84"),"--sw-success-soft":g("rgba(31, 157, 85, 0.14)","rgba(61, 220, 132, 0.20)"),"--sw-forbidden":g("#c81e1e","#ff7a70"),"--sw-forbidden-soft":g("rgba(200, 30, 30, 0.12)","rgba(255, 122, 112, 0.20)"),"--sw-purple":g("#7c5cf0","#a78bfa"),"--sw-live-text":g("#14703c","#3ddc84"),"--sw-recorded-text":g("#174cbd","#9ec4ff"),"--sw-offline-text":g("#4f5a6d","#b4bdcc"),"--sw-stale-text":g("#7a4c00","#f5b043"),"--sw-unknown-text":g("#525f77","#aab5c9"),"--sw-danger-text":g("#a82525","#ff6b62"),"--sw-warning-text":g("#7a4c00","#f5b043"),"--sw-success-text":g("#14703c","#3ddc84"),"--sw-forbidden-text":g("#a51818","#ff7a70"),"--sw-toggle-on":g("#1e5bd8","#5f9cff"),"--sw-map-bg":g("#f3f6fb","#0f141d"),"--sw-map-wall":g("#b6c2d4","#4a5568"),"--sw-map-furniture":g("#e6ecf5","#1f2736"),"--sw-map-furniture-line":g("#cbd5e3","#3a4457"),"--sw-map-structure":g("#4b5873","#9aa6bb"),"--sw-map-candidate":g("#1e5bd8","#8ab8ff"),"--sw-map-label":g("#5a6882","#8391a8"),"--sw-map-presence":g("#1e5bd8","#8ab8ff"),"--sw-fov":g("rgba(30, 91, 216, 0.12)","rgba(138, 184, 255, 0.16)"),"--sw-circuit-1":g("#1e5bd8","#8ab8ff"),"--sw-circuit-2":g("#d98a0b","#f5b043"),"--sw-circuit-3":g("#1f9d55","#3ddc84"),"--sw-circuit-4":g("#9a55f0","#c084fc"),"--sw-circuit-5":g("#d93838","#ff6b62"),"--sw-circuit-6":g("#12a39a","#2dd4bf"),"--sw-fs-2xs":k("10.5px"),"--sw-fs-xs":k("11.5px"),"--sw-fs-sm":k("12.5px"),"--sw-fs-base":k("13.5px"),"--sw-fs-md":k("14px"),"--sw-fs-lg":k("15.5px"),"--sw-fs-xl":k("17.5px"),"--sw-fs-2xl":k("21px"),"--sw-fs-3xl":k("27px"),"--sw-lh":k("1.48"),"--sw-h1":k("34px"),"--sw-h1-weight":k("600"),"--sw-h1-tracking":k("-0.8px"),"--sw-page-pad":k("28px"),"--sw-r-2xs":k("5px"),"--sw-r-xs":k("8px"),"--sw-r-sm":k("10px"),"--sw-r-md":k("14px"),"--sw-r-lg":k("18px"),"--sw-r-xl":k("22px"),"--sw-r-2xl":k("28px"),"--sw-hover-wash":g("rgba(255, 255, 255, 0.40)","rgba(255, 255, 255, 0.07)"),"--sw-pressed-wash":g("rgba(30, 50, 90, 0.08)","rgba(255, 255, 255, 0.12)"),"--sw-skeleton":g("rgba(30, 50, 90, 0.08)","rgba(255, 255, 255, 0.08)"),"--sw-shadow-primary":g("0 6px 16px rgba(30, 91, 216, 0.28)","0 6px 16px rgba(0, 0, 0, 0.45)"),"--sw-on-image-bg":g("rgba(255, 255, 255, 0.88)","rgba(20, 28, 46, 0.86)"),"--sw-toast-bg":g("#13213a","#223052"),"--sw-shadow-1":g("0 1px 2px rgba(20, 40, 80, 0.05), 0 10px 30px rgba(20, 40, 80, 0.08)","0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 36px rgba(0, 0, 0, 0.50)"),"--sw-shadow-2":g("0 2px 6px rgba(20, 40, 80, 0.06), 0 18px 44px rgba(20, 40, 80, 0.13)","0 2px 6px rgba(0, 0, 0, 0.45), 0 22px 56px rgba(0, 0, 0, 0.58)"),"--sw-shadow-3":g("0 8px 20px rgba(20, 40, 80, 0.10), 0 30px 76px rgba(20, 40, 80, 0.22)","0 8px 20px rgba(0, 0, 0, 0.5), 0 32px 84px rgba(0, 0, 0, 0.72)"),"--sw-shadow-thumb":g("0 1px 3px rgba(0, 0, 0, 0.20), 0 0 0 0.5px rgba(0, 0, 0, 0.06)","0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(0, 0, 0, 0.4)"),"--sw-glass-blur":k("blur(28px) saturate(1.4)"),"--sw-glass-blur-nav":k("blur(22px) saturate(1.3)"),"--sw-glass-blur-sheet":k("blur(36px) saturate(1.5)"),"--sw-glass-sheen":g("linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.14) 38%, rgba(255, 255, 255, 0) 72%)","linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0) 46%)"),"--sw-sheet-rgb":g("248, 251, 255","20, 28, 46"),"--sw-nav-glass":g("rgba(255, 255, 255, 0.55)","rgba(20, 28, 46, 0.62)"),"--sw-backdrop-blur":k("blur(6px)"),"--sw-t-med":k("220ms"),"--sw-ease":k("cubic-bezier(0.2, 0, 0, 1)"),"--sw-ease-thumb":k("cubic-bezier(0.34, 1.3, 0.64, 1)"),"--sw-hover-lift":k("-1px")},BL=`
- sourceMappingURL=[^*]**/ crystal 1 - the canvas: the chosen background artwork under a soft veil, over the prism blooms (none = the blooms alone) */
+/* crystal 1 - the canvas: the chosen background artwork under a soft veil, over the prism blooms (none = the blooms alone) */
 :host(sw-app) { background: linear-gradient(var(--sw-bg-veil), var(--sw-bg-veil)), var(--sw-bg-image) center / cover no-repeat, var(--sw-canvas); }
- sourceMappingURL=[^*]**/ crystal 2 - the rail is a floating crystal panel with a luminous rim */
+/* crystal 2 - the rail is a floating crystal panel with a luminous rim */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ crystal 3 - brand tile, rail items, the floating corner (the search panel is a menu, rule 3b), the phone bar */
+/* crystal 3 - brand tile, rail items, the floating corner (the search panel is a menu, rule 3b), the phone bar */
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); box-shadow: var(--sw-shadow-primary); }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
 :host(sw-app) a.item.a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); box-shadow: inset 0 0 0 1px var(--sw-border); }
 :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { border: 1px solid var(--sw-border); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ crystal 3b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13) */
+/* crystal 3b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13) */
 :host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); box-shadow: 0 -1px 0 var(--sw-highlight); }
- sourceMappingURL=[^*]**/ crystal 4 - crystal panels: cards, KPI tiles, home widgets, floor cards, area tiles and the building tree (blur and fill behind the performance switches) */
+/* crystal 4 - crystal panels: cards, KPI tiles, home widgets, floor cards, area tiles and the building tree (blur and fill behind the performance switches) */
 :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
 :host(sw-card[interactive]:hover), :host(devices-building) a.tile:hover { box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); transform: translateY(var(--sw-hover-lift)); }
- sourceMappingURL=[^*]**/ crystal 5 - the building tree stays prominent: a taller panel with the nav blur, pill rows, the selected row filled */
+/* crystal 5 - the building tree stays prominent: a taller panel with the nav blur, pill rows, the selected row filled */
 :host(devices-building) nav.tree { border-radius: var(--sw-r-lg); padding: 10px; gap: 3px; -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); }
 :host(devices-building) .tree-row { border-radius: var(--sw-r-pill); padding-block: 8px; }
 :host(devices-building) .tree-row.selected { background: var(--sw-accent-soft); color: var(--sw-accent-text); box-shadow: inset 0 0 0 1px var(--sw-border); }
- sourceMappingURL=[^*]**/ crystal 6 - controls: buttons with a light rim, pill chips, frosted fields */
+/* crystal 6 - controls: buttons with a light rim, pill chips, frosted fields */
 :host(sw-button) button { border-radius: var(--sw-r-sm); min-block-size: 34px; box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-button[variant='primary']) button { background: linear-gradient(180deg, var(--sw-accent), var(--sw-accent-hover)); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28); }
 :host(sw-button[variant='ghost']) button { box-shadow: none; }
@@ -286,88 +286,88 @@ ${CE}`,LL={id:"domus",name:"hi-tech Domus",nameHe:"הייטק Domus",noteHe:"ז�
 :host(sw-button[size='sm'][data-page-back]) button { min-block-size: max(30px, var(--sw-ctl-h-sm)); }
 :host(sw-chip) button { border-radius: var(--sw-r-pill); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: var(--sw-surface-2); border-color: var(--sw-border-strong); border-radius: var(--sw-r-sm); }
- sourceMappingURL=[^*]**/ crystal 7 - the switch and the segmented / tab rails: a glass track, a solid luminous thumb */
+/* crystal 7 - the switch and the segmented / tab rails: a glass track, a solid luminous thumb */
 :host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); transition-timing-function: var(--sw-ease-thumb); }
 :host(sw-toggle[checked]) button { background: var(--sw-toggle-on); }
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-seg-key, var(--sw-surface-solid)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
- sourceMappingURL=[^*]**/ crystal 8 - floating layers read on anything: the solid twin under the sheen, a sheet blur behind, a luminous rim; the menus (a popover, a dropdown's list) are fully opaque, no blur (owner 2026-10-13) */
+/* crystal 8 - floating layers read on anything: the solid twin under the sheen, a sheet blur behind, a luminous rim; the menus (a popover, a dropdown's list) are fully opaque, no blur (owner 2026-10-13) */
 :host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-popover), :host(sw-dropdown) .pop { background: var(--sw-glass-sheen), var(--sw-menu-surface); border-color: var(--sw-menu-border); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
 :host(sw-dialog) .backdrop { -webkit-backdrop-filter: var(--sw-backdrop-blur); backdrop-filter: var(--sw-backdrop-blur); }
- sourceMappingURL=[^*]**/ crystal 9 - tables and list rows: hairline rows, a soft hover; tabular numbers on the KPI tiles; headings */
+/* crystal 9 - tables and list rows: hairline rows, a soft hover; tabular numbers on the KPI tiles; headings */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); letter-spacing: 0.02em; }
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 :host(sw-page) h1 { font-weight: var(--sw-h1-weight); }
- sourceMappingURL=[^*]**/ crystal 10 - no backdrop-filter, or the OS asks for less transparency: every crystal layer becomes its solid twin (layout unchanged) */
+/* crystal 10 - no backdrop-filter, or the OS asks for less transparency: every crystal layer becomes its solid twin (layout unchanged) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 `,UL={id:"crystal",name:"Crystal",nameHe:"קריסטל",noteHe:"זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות",stage:"stable",features:{material:!1,bevel:!1,pixelEdge:!0,glass:!0},tokens:HL,rules:BL},WL={"--sw-t-press":k("140ms"),"--sw-t-hover":k("160ms"),"--sw-t-fast":k("160ms"),"--sw-t-med":k("220ms"),"--sw-t-slow":k("280ms"),"--sw-t-exit":k("160ms"),"--sw-t-toast":k("400ms"),"--sw-t-sheet":k("220ms"),"--sw-t-state":k("220ms"),"--sw-ease":k("cubic-bezier(0.23, 1, 0.32, 1)"),"--sw-ease-thumb":k("cubic-bezier(0.23, 1, 0.32, 1)"),"--sw-ease-in-out":k("cubic-bezier(0.77, 0, 0.175, 1)"),"--sw-ease-drawer":k("cubic-bezier(0.32, 0.72, 0, 1)"),"--sw-ease-color":k("ease"),"--sw-spring-toggle-ms":k("385ms"),"--sw-spring-toggle":k("linear(0, 0.081, 0.25, 0.435, 0.601, 0.734, 0.833, 0.903, 0.949, 0.977, 0.993, 1.002, 1.005, 1.006, 1.006, 1.005, 1.004, 1.003, 1.002, 1.001, 1.001, 1, 1, 1, 1)"),"--sw-spring-tab-ms":k("438ms"),"--sw-spring-tab":k("linear(0, 0.079, 0.239, 0.411, 0.564, 0.688, 0.783, 0.853, 0.902, 0.936, 0.959, 0.975, 0.985, 0.991, 0.995, 0.997, 0.998, 0.999, 1, 1, 1, 1, 1, 1, 1)"),"--sw-spring-dialog-ms":k("375ms"),"--sw-spring-dialog":k("linear(0, 0.043, 0.14, 0.258, 0.376, 0.487, 0.584, 0.667, 0.736, 0.793, 0.838, 0.874, 0.903, 0.925, 0.943, 0.956, 0.967, 0.975, 0.981, 0.986, 0.989, 0.992, 0.994, 0.995, 1)"),"--sw-spring-drawer-ms":k("630ms"),"--sw-spring-drawer":k("linear(0, 0.079, 0.242, 0.418, 0.574, 0.701, 0.797, 0.867, 0.916, 0.948, 0.969, 0.983, 0.991, 0.996, 0.998, 1, 1, 1.001, 1.001, 1.001, 1, 1, 1, 1, 1)"),"--sw-spring-kpi-ms":k("350ms"),"--sw-spring-kpi":k("linear(0, 0.082, 0.256, 0.448, 0.621, 0.76, 0.861, 0.93, 0.974, 0.999, 1.011, 1.015, 1.015, 1.013, 1.01, 1.007, 1.004, 1.003, 1.001, 1.001, 1, 1, 1, 1, 1)"),"--sw-stagger":k("40ms"),"--sw-enter-y":k("6px"),"--sw-enter-ms":k("240ms"),"--sw-press-scale":k("0.97")},RE=`
- sourceMappingURL=[^*]**/ arx motion 1 - buttons and chips: press feedback (transform) and colour on the hover curve */
+/* arx motion 1 - buttons and chips: press feedback (transform) and colour on the hover curve */
 :host(sw-button) button, :host(sw-chip) button { transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color); }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { transform: scale(var(--sw-press-scale)); }
- sourceMappingURL=[^*]**/ arx motion 2 - the switch: the track fades on the state curve, the thumb rides the toggle spring */
+/* arx motion 2 - the switch: the track fades on the state curve, the thumb rides the toggle spring */
 :host(sw-toggle) button { transition: background var(--sw-t-med) var(--sw-ease); }
 :host(sw-toggle) button::after { transition: transform var(--sw-spring-toggle-ms) var(--sw-spring-toggle); }
 `,ME=`
- sourceMappingURL=[^*]**/ arx kpi 1 - the icon box becomes a 10 px dot in the tile's tone with a 14 % halo; the glyph leaves the layout (round 2, r2.css §5) */
+/* arx kpi 1 - the icon box becomes a 10 px dot in the tile's tone with a 14 % halo; the glyph leaves the layout (round 2, r2.css §5) */
 :host(sw-kpi) .icon.icon { inline-size: 10px; block-size: 10px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 14%, transparent); }
 :host(sw-kpi) .icon > sw-icon { visibility: hidden; position: absolute; }
- sourceMappingURL=[^*]**/ arx kpi 2 - the tall tile: the dot sits beside the number and the word, not above them */
+/* arx kpi 2 - the tall tile: the dot sits beside the number and the word, not above them */
 :host(sw-kpi:not([layout='compact'])) { flex-direction: row; align-items: center; gap: 10px; }
- sourceMappingURL=[^*]**/ arx kpi 3 - COMPONENT_RULES.md §3 (KPI tile, cards): the word is one line with an ellipsis (the host's title carries the full text), so a
+/* arx kpi 3 - COMPONENT_RULES.md §3 (KPI tile, cards): the word is one line with an ellipsis (the host's title carries the full text), so a
    long label never grows a three-line tile with the dot adrift beside it (break-ui); the number never truncates */
 :host(sw-kpi:not([layout='compact'])) .txt { flex: 1; }
 :host(sw-kpi:not([layout='compact'])) .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :host(sw-kpi:not([layout='compact'])) .value { white-space: nowrap; }
 `,LE=`
- sourceMappingURL=[^*]**/ arx rail 1 - labels and icons in the rail's text colour; the current item takes the rail's active pill and mark */
+/* arx rail 1 - labels and icons in the rail's text colour; the current item takes the rail's active pill and mark */
 :host(sw-app) a.item.a, :host(sw-app) a.item.a sw-icon, :host(sw-app) button.me.rail { color: var(--sw-rail-text); }
 :host(sw-app) a.item.a.active, :host(sw-app) button.me.rail.active { background: var(--sw-rail-active-bg); color: var(--sw-rail-active); }
 :host(sw-app) a.item.a.active sw-icon { color: var(--sw-rail-active); }
 :host(sw-app) a.item.a.active::after { background: var(--sw-rail-active); }
 :host(sw-app) button.me.rail.open:not(.active) { background: color-mix(in srgb, var(--sw-rail-text) 14%, transparent); color: var(--sw-rail-text); }
 @media (hover: hover) and (pointer: fine) { :host(sw-app) a.item.a:not(.active):hover { background: color-mix(in srgb, var(--sw-rail-text) 12%, transparent); color: var(--sw-rail-text); } }
- sourceMappingURL=[^*]**/ arx rail 1b - press feedback on a rail item (emil: a pressable answers the press; the press scale is 1 under reduced motion) */
+/* arx rail 1b - press feedback on a rail item (emil: a pressable answers the press; the press scale is 1 under reduced motion) */
 :host(sw-app) a.item.a { transition: transform var(--sw-t-press) var(--sw-ease), background-color var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color); }
 :host(sw-app) a.item.a:active { transform: scale(var(--sw-press-scale)); }
- sourceMappingURL=[^*]**/ arx rail 2 - the phone bar shares the rail's colours */
+/* arx rail 2 - the phone bar shares the rail's colours */
 :host(sw-app) nav.bottom a, :host(sw-app) nav.bottom button { color: var(--sw-rail-text); }
 :host(sw-app) nav.bottom a.active, :host(sw-app) nav.bottom button.active { color: var(--sw-rail-active); }
 `,jL=`
- sourceMappingURL=[^*]**/ infra rail - the fill and the hairline of the rail and the phone bar */
+/* infra rail - the fill and the hairline of the rail and the phone bar */
 :host(sw-app) nav.rail.rail { background: var(--sw-rail-bg); border-inline-end-color: var(--sw-rail-border); }
 :host(sw-app) nav.bottom.bottom { background: var(--sw-rail-bg); border-block-start-color: var(--sw-rail-border); }
 `,KL=`
- sourceMappingURL=[^*]**/ soft 6 - pill buttons, every size (the [size] form outranks the component's own size rules) */
+/* soft 6 - pill buttons, every size (the [size] form outranks the component's own size rules) */
 :host(sw-button) button, :host(sw-button[size]) button, :host(sw-button[round]) button { border-radius: var(--sw-r-pill); }
- sourceMappingURL=[^*]**/ soft 7 - the switch is 51 x 31 with a 27 px knob on the thumb shadow (iOS proportions); the knob travels 20 px */
+/* soft 7 - the switch is 51 x 31 with a 27 px knob on the thumb shadow (iOS proportions); the knob travels 20 px */
 :host(sw-toggle) button { inline-size: 51px; block-size: 31px; }
 :host(sw-toggle) button::after { inset-block-start: 2px; inset-inline-start: 2px; inline-size: 27px; block-size: 27px; box-shadow: var(--sw-shadow-thumb); }
 :host(sw-toggle[checked]) button::after { transform: translateX(-20px); }
 :host(sw-toggle[checked][dir='ltr']) button::after { transform: translateX(20px); }
- sourceMappingURL=[^*]**/ soft 8 - a lit light glows warm: the tile is tinted by the lamp colour and carries a 24 px warm glow (the glass device style keeps its own) */
+/* soft 8 - a lit light glows warm: the tile is tinted by the lamp colour and carries a 24 px warm glow (the glass device style keeps its own) */
 :host(devices-area:not([data-devices-style='glass'])) sw-card[data-card='lighting'] .tile.on { background: color-mix(in srgb, var(--sw-lit) 16%, var(--sw-surface-solid)); border-color: color-mix(in srgb, var(--sw-lit) 40%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sw-lit) 40%, transparent), 0 8px 24px color-mix(in srgb, var(--sw-lit) 28%, transparent); }
- sourceMappingURL=[^*]**/ soft 8b - the glow fades in with the fill (emil: properties of one state change move together; the base fades only fill and border) */
+/* soft 8b - the glow fades in with the fill (emil: properties of one state change move together; the base fades only fill and border) */
 :host(devices-area:not([data-devices-style='glass'])) sw-card[data-card='lighting'] .tile { transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), opacity var(--sw-t-state) var(--sw-ease); }
 @media (prefers-contrast: more) { :host(devices-area:not([data-devices-style='glass'])) sw-card[data-card='lighting'] .tile.on { box-shadow: none; border-color: var(--sw-border-strong); } }
 `,DE={"--sw-border-strong":g("#d9dfe9","#2f3c58"),"--sw-text-2":g("#4b5976","#b0bbd0"),"--sw-text-3":g("#596985","#97a4bb"),"--sw-offline-text":g("#5c6573","#b4bdcc"),"--sw-unknown-text":g("#5c6573","#aab5c9"),"--sw-stale-text":g("#a04a06","#f5b043"),"--sw-warning-text":g("#a04a06","#f5b043"),"--sw-fs-2xl":k("22px"),"--sw-h1":k("24px"),"--sw-h1-weight":k("700"),"--sw-h1-tracking":k("-0.01em"),"--sw-h1-phone":k("20px"),"--sw-page-pad":k("24px"),"--sw-page-pad-phone":k("14px"),"--sw-gap":k("12px"),"--sw-gap-lg":k("16px"),"--sw-touch":k("44px"),"--sw-ctl-h-sm":k("28px"),"--sw-ctl-h-md":k("34px"),"--sw-ctl-h-lg":k("40px"),"--sw-rail-w":k("72px"),"--sw-rail-w-wide":k("72px"),"--sw-bottomnav-h":k("56px"),"--sw-tree-w":k("260px"),"--sw-lh-tight":k("1.2"),"--sw-fs-4xl":k("32px"),"--sw-r-xl":k("16px"),"--sw-shadow-1":g("0 1px 2px rgba(16, 24, 40, 0.05), 0 0 0 1px rgba(16, 24, 40, 0.02)","0 1px 2px rgba(0, 0, 0, 0.4)"),"--sw-shadow-2":g("0 4px 14px rgba(34, 49, 76, 0.09), 0 1px 2px rgba(16, 24, 40, 0.05)","0 6px 18px rgba(0, 0, 0, 0.45)"),"--sw-shadow-3":g("0 18px 44px rgba(34, 49, 76, 0.16), 0 2px 6px rgba(16, 24, 40, 0.06)","0 18px 44px rgba(0, 0, 0, 0.6)"),"--sw-hover-lift":k("0px"),"--sw-menu-surface":g("#ffffff","#151c2c"),"--sw-menu-border":g("#e7ebf2","#232e45"),"--sw-rail-bg":g("#ffffff","#0f1526"),"--sw-rail-text":g("#4b5976","#a9b4ca"),"--sw-rail-active":g("#2062ec","#8fb2ff"),"--sw-rail-active-bg":g("#e9f0ff","rgba(91, 140, 255, 0.18)"),"--sw-rail-border":g("#e7ebf2","#232e45"),...WL},VL={"--sw-rail-bg":g("#141b2b","#0f1526"),"--sw-rail-text":g("#aab6cc","#a9b4ca"),"--sw-rail-active":g("#ffffff","#8fb2ff"),"--sw-rail-active-bg":g("rgba(255, 255, 255, 0.1)","rgba(91, 140, 255, 0.18)"),"--sw-rail-border":g("#141b2b","#232e45")},GL=`
- sourceMappingURL=[^*]**/ infra 1 - numbers are tabular on the KPI tiles (round 2 §3) */
+/* infra 1 - numbers are tabular on the KPI tiles (round 2 §3) */
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 ${ME}${jL}${LE}${RE}`,YL={id:"infra",name:"Arx Infra",nameHe:"Arx Infra",noteHe:"קו שיער וצל עדין, כחול אחד, משטחים אטומים",stage:"foundation",features:{material:!1,bevel:!1,pixelEdge:!1,glass:!1},tokens:DE,rules:GL,darkRail:VL},XL={...DE,"--sw-bg":g("#eef2f9","#0b1020"),"--sw-canvas":g("radial-gradient(900px 500px at 85% -10%, rgba(255, 196, 120, 0.35), transparent 60%), radial-gradient(900px 600px at 10% 110%, rgba(154, 190, 255, 0.3), transparent 60%), linear-gradient(#eef2f9, #f3f1ec)","radial-gradient(900px 500px at 85% -10%, rgba(255, 159, 10, 0.14), transparent 60%), radial-gradient(900px 600px at 10% 110%, rgba(58, 108, 224, 0.25), transparent 60%), linear-gradient(#0b1020, #0e1220)"),"--sw-surface":g("rgba(255, 255, 255, 0.72)","rgba(24, 30, 48, 0.7)"),"--sw-surface-solid":g("#fdfdfe","#1a2032"),"--sw-surface-2":g("rgba(255, 255, 255, 0.62)","rgba(44, 52, 76, 0.6)"),"--sw-surface-2-solid":g("#f4f6fa","#232a40"),"--sw-surface-3":g("rgba(120, 120, 128, 0.12)","rgba(235, 235, 245, 0.12)"),"--sw-menu-surface":g("#fdfdfe","#1a2032"),"--sw-menu-border":g("#dde2ec","#2b3450"),"--sw-border":g("rgba(30, 41, 59, 0.09)","rgba(255, 255, 255, 0.1)"),"--sw-border-strong":g("rgba(30, 41, 59, 0.18)","rgba(255, 255, 255, 0.2)"),"--sw-highlight":g("rgba(255, 255, 255, 0.9)","rgba(255, 255, 255, 0.1)"),"--sw-nav-glass":g("rgba(255, 255, 255, 0.6)","rgba(16, 21, 38, 0.6)"),"--sw-rail-bg":g("rgba(255, 255, 255, 0.6)","rgba(16, 21, 38, 0.6)"),"--sw-rail-text":g("#4d5a72","#aeb8cc"),"--sw-rail-active":g("#2158d4","#9ec0ff"),"--sw-rail-active-bg":g("rgba(47, 109, 246, 0.12)","rgba(91, 141, 255, 0.2)"),"--sw-rail-border":g("rgba(30, 41, 59, 0.08)","rgba(255, 255, 255, 0.08)"),"--sw-text":g("#1f2a3d","#eef2fa"),"--sw-heading":g("#16203a","#f8faff"),"--sw-text-2":g("#44516a","#b6c0d4"),"--sw-text-3":g("#566480","#a0abc1"),"--sw-accent":g("#2f6df6","#2f6df6"),"--sw-accent-hover":g("#255ddb","#255ddb"),"--sw-accent-soft":g("rgba(47, 109, 246, 0.12)","rgba(91, 141, 255, 0.2)"),"--sw-accent-text":g("#2158d4","#9ec0ff"),"--sw-focus":g("#2f6df6","#9ec0ff"),"--sw-nav":g("#2f6df6","#2f6df6"),"--sw-live":g("#22c55e","#30d158"),"--sw-live-soft":g("rgba(34, 197, 94, 0.14)","rgba(48, 209, 88, 0.2)"),"--sw-live-text":g("#0e6b33","#7ee29a"),"--sw-success":g("#22c55e","#30d158"),"--sw-success-soft":g("rgba(34, 197, 94, 0.14)","rgba(48, 209, 88, 0.2)"),"--sw-success-text":g("#0e6b33","#7ee29a"),"--sw-recorded":g("#2f6bff","#6ea2ff"),"--sw-recorded-soft":g("rgba(47, 107, 255, 0.14)","rgba(110, 162, 255, 0.2)"),"--sw-recorded-text":g("#1f5ae6","#9ec0ff"),"--sw-offline":g("#8e8e93","#8e8e93"),"--sw-offline-soft":g("rgba(142, 142, 147, 0.14)","rgba(142, 142, 147, 0.2)"),"--sw-offline-text":g("#4f5866","#c0c4cc"),"--sw-stale":g("#ff9f0a","#ff9f0a"),"--sw-stale-soft":g("rgba(255, 159, 10, 0.16)","rgba(255, 159, 10, 0.2)"),"--sw-stale-text":g("#a04a06","#ffc46b"),"--sw-warning":g("#ff9f0a","#ff9f0a"),"--sw-warning-soft":g("rgba(255, 159, 10, 0.16)","rgba(255, 159, 10, 0.2)"),"--sw-warning-text":g("#a04a06","#ffc46b"),"--sw-unknown":g("#aeaeb2","#636366"),"--sw-unknown-soft":g("rgba(174, 174, 178, 0.1)","rgba(99, 99, 102, 0.16)"),"--sw-unknown-text":g("#4f5866","#b7bcc8"),"--sw-danger":g("#e5484d","#ff453a"),"--sw-danger-soft":g("rgba(229, 72, 77, 0.13)","rgba(255, 69, 58, 0.2)"),"--sw-danger-text":g("#b91c1c","#ff8a80"),"--sw-forbidden":g("#d70015","#ff453a"),"--sw-forbidden-soft":g("rgba(215, 0, 21, 0.12)","rgba(255, 69, 58, 0.2)"),"--sw-forbidden-text":g("#b91c1c","#ff8a80"),"--sw-toggle-on":g("#34c759","#30d158"),"--sw-lit":g("#ffb13b","#ffb547"),"--sw-r-2xs":k("6px"),"--sw-r-xs":k("8px"),"--sw-r-sm":k("12px"),"--sw-r-md":k("18px"),"--sw-r-lg":k("22px"),"--sw-r-xl":k("24px"),"--sw-r-2xl":k("28px"),"--sw-shadow-1":g("0 10px 30px rgba(31, 45, 80, 0.09), 0 1px 2px rgba(31, 45, 80, 0.05), inset 0 1px 0 var(--sw-highlight)","0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 var(--sw-highlight)"),"--sw-shadow-2":g("0 18px 44px rgba(31, 45, 80, 0.15), 0 2px 4px rgba(31, 45, 80, 0.06), inset 0 1px 0 var(--sw-highlight)","0 18px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 var(--sw-highlight)"),"--sw-shadow-3":g("0 24px 64px rgba(15, 23, 42, 0.24)","0 26px 70px rgba(0, 0, 0, 0.6)"),"--sw-shadow-primary":g("0 4px 12px rgba(47, 109, 246, 0.3)","0 4px 12px rgba(0, 0, 0, 0.4)"),"--sw-glass-blur":k("blur(18px) saturate(1.4)"),"--sw-glass-blur-nav":k("blur(16px) saturate(1.4)"),"--sw-glass-blur-sheet":k("none"),"--sw-glass-sheen":g("linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 40%)","linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 40%)"),"--sw-h1":k("28px"),"--sw-h1-tracking":k("-0.02em"),"--sw-h1-phone":k("24px"),"--sw-gap":k("14px"),"--sw-gap-lg":k("18px"),"--sw-page-pad":k("28px"),"--sw-hover-lift":k("-2px")},JL=`
- sourceMappingURL=[^*]**/ soft 1 - the canvas: the warm and cool blooms under the glass */
+/* soft 1 - the canvas: the warm and cool blooms under the glass */
 :host(sw-app) { background: var(--sw-canvas); }
- sourceMappingURL=[^*]**/ soft 2 - the rail and the phone bar: nav glass with the lit edge */
+/* soft 2 - the rail and the phone bar: nav glass with the lit edge */
 :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-rail-bg); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-color: var(--sw-rail-border); }
- sourceMappingURL=[^*]**/ soft 3 - panels: cards and KPI tiles are glass (blur and fill behind the performance switches) */
+/* soft 3 - panels: cards and KPI tiles are glass (blur and fill behind the performance switches) */
 :host(sw-card), :host(sw-kpi) { border-color: var(--sw-border); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); }
 @media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover) { box-shadow: var(--sw-shadow-2); transform: translateY(var(--sw-hover-lift)); transition: transform var(--sw-t-hover) var(--sw-ease), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
- sourceMappingURL=[^*]**/ soft 4 - numbers are tabular on the KPI tiles */
+/* soft 4 - numbers are tabular on the KPI tiles */
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
- sourceMappingURL=[^*]**/ soft 5 - no backdrop-filter, less transparency asked, or more contrast asked: every glass layer becomes its solid twin (layout unchanged) */
+/* soft 5 - no backdrop-filter, less transparency asked, or more contrast asked: every glass layer becomes its solid twin (layout unchanged) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media (prefers-contrast: more) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); border-color: var(--sw-border-strong); -webkit-backdrop-filter: none; backdrop-filter: none; } }
@@ -376,29 +376,29 @@ ${KL}${ME}${LE}${RE}`,QL={id:"soft",name:"Arx Soft",nameHe:"Arx Soft",noteHe:"ח
 :host(sw-kpi[tone='stale']), :host(sw-kpi[tone='partial']) { --sw-m-tone: var(--sw-warning); --sw-m-on: 1; }
 :host(sw-kpi[tone='live']) { --sw-m-tone: var(--sw-success); --sw-m-on: 1; }
 `,iD=`
- sourceMappingURL=[^*]**/ material 1 - tiles, cards, widgets, the security strip and the opaque pills: the layers over the surface, the rim and the lift (today's bubble shadow is none, so the material is the whole shadow) */
+/* material 1 - tiles, cards, widgets, the security strip and the opaque pills: the layers over the surface, the rim and the lift (today's bubble shadow is none, so the material is the whole shadow) */
 :host(sw-card), :host(sw-card[interactive]:hover), :host(sw-kpi), :host(devices-building[data-skin='bubble']) a.tile, :host(devices-building[data-skin='bubble']) a.tile:hover, :host(devices-building[data-skin='bubble']) .arow, :host(devices-building[data-skin='bubble']) .arow:hover, :host(home-widgets[data-skin='bubble']) .wg, :host([data-skin='bubble']) .sec-strip, :host(sw-pill:not([data-surface='gradient']):not([data-surface='glass']):not([accent])), :host(sw-pill:not([data-surface='gradient']):not([data-surface='glass']):not([accent]):hover) { ${mi} background-image: ${ur}; box-shadow: ${gi}; }
- sourceMappingURL=[^*]**/ material 2 - the glass pill keeps its highlight and ring under the rim; its full-tier blur follows the preset (the lite tier's none wins) */
+/* material 2 - the glass pill keeps its highlight and ring under the rim; its full-tier blur follows the preset (the lite tier's none wins) */
 :host(sw-pill[data-surface='glass']:not([accent])), :host(sw-pill[data-surface='glass']:not([accent]):hover) { ${mi} background-image: ${ur}; box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), ${gi}; ${nD} }
- sourceMappingURL=[^*]**/ material 3 - the gradient pill: two colours on one tile fight, so no wash and no layers; the rim and the lift stay */
+/* material 3 - the gradient pill: two colours on one tile fight, so no wash and no layers; the rim and the lift stay */
 :host(sw-pill[data-surface='gradient']:not([accent])) { ${mi} --sw-m-on: 0; box-shadow: ${gi}; }
- sourceMappingURL=[^*]**/ material 4 - chrome: the tree and the rail keep their glass and highlight, the rim and the lift come on top; never a tone */
+/* material 4 - chrome: the tree and the rail keep their glass and highlight, the rim and the lift come on top; never a tone */
 :host(devices-building) nav.tree, :host(sw-app) nav.rail.rail { ${mi} --sw-m-on: 0; background-image: ${ur}; box-shadow: inset 0 1px 0 var(--sw-highlight), ${gi}; }
 :host(sw-app) nav.bottom.bottom .stack { ${mi} --sw-m-on: 0; background-image: ${ur}; box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-2), ${gi}; }
 :host(sw-app) .float .pillrow, :host(sw-app) .searchpanel { ${mi} --sw-m-on: 0; background-image: ${ur}; box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-2), ${gi}; }
- sourceMappingURL=[^*]**/ material 5 - where the tone comes from (KPI tiles; the pill and the home tile set theirs in JS / inline) */
-${lz} sourceMappingURL=[^*]**/ material 6 - neon: the bloom only around a tile whose tone is decorative (the hue ring), never a state colour, never in a list */
+/* material 5 - where the tone comes from (KPI tiles; the pill and the home tile set theirs in JS / inline) */
+${lz}/* material 6 - neon: the bloom only around a tile whose tone is decorative (the hue ring), never a state colour, never in a list */
 :host(sw-pill[on]:not([accent]):not([data-density='row'])), :host(devices-building[data-skin='bubble']) a.tile.on { --sw-m-glow-on: 1; --sw-m-glow-c: var(--h, var(--sw-accent)); }
- sourceMappingURL=[^*]**/ material 7 - lists: the tone goes to a 6 px side stripe (the tint dial scales it 0 / 6 px), never the row; the stripe sits inside the pill */
+/* material 7 - lists: the tone goes to a 6 px side stripe (the tint dial scales it 0 / 6 px), never the row; the stripe sits inside the pill */
 :host(sw-pill[data-density='row'][on]:not([accent])) { border-inline-start: calc(6px * min(1, var(--sw-m-tint))) solid var(--sw-m-tone, var(--sw-lit)); }
 :host(devices-building[data-skin='bubble']) .arow[data-on='true'] { border-inline-start: calc(6px * min(1, var(--sw-m-tint))) solid var(--sw-m-tone, var(--sw-lit)); }
- sourceMappingURL=[^*]**/ material 8 - reduced transparency: no material blur on a pill either (the pill's own rule already drops its fill) */
+/* material 8 - reduced transparency: no material blur on a pill either (the pill's own rule already drops its fill) */
 @media (prefers-reduced-transparency: reduce) { :host(sw-pill[data-surface='glass']:not([accent])) { -webkit-backdrop-filter: none; backdrop-filter: none; } }
 `,rD=`
- sourceMappingURL=[^*]**/ material (domus) 1 - cards and KPI tiles: the layers over the glass sheen, the rim and the lift over shadow-1 and the highlight */
+/* material (domus) 1 - cards and KPI tiles: the layers over the glass sheen, the rim and the lift over shadow-1 and the highlight */
 :host(sw-card), :host(sw-kpi) { ${mi} background-image: ${ur}, var(--sw-glass-sheen); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), ${gi}; }
 :host(sw-card[interactive]:hover) { ${mi} background-image: ${ur}, var(--sw-glass-sheen); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight), ${gi}; }
- sourceMappingURL=[^*]**/ material (domus) 2 - the KPI tone */
+/* material (domus) 2 - the KPI tone */
 ${lz}`;function oD(e){return e==="bubble"?iD:e==="domus"?rD:""}const e1=(e,t,s=!1)=>Object.entries(e).filter(([,a])=>!s||a.light!==a.dark).map(([a,n])=>`${a}:${n[t]};`).join(""),lD=':not([data-theme="light"]):not([data-theme="dark"])',cD=w8(),dD=g8(),t1=`${dD}${cD}`;function Fg(e,t,s){const a=e1(t,"light"),n=e1(t,"dark",s);let i="";return a&&(i+=`${e}{${s?"color-scheme:light;":""}${a}}
 `),n&&(i+=`${e}[data-theme="dark"]{${s?"color-scheme:dark;":""}${n}}
 `,i+=`@media (prefers-color-scheme: dark){${e}${lD}{${s?"color-scheme:dark;":""}${n}}}
@@ -408,14 +408,14 @@ ${lz}`;function oD(e){return e==="bubble"?iD:e==="domus"?rD:""}const e1=(e,t,s=!
 `,e+=`@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}
 `,e}function uD(e,t=!1){return{...AE,...In[e].tokens,...t?In[e].darkRail??{}:{}}}function pD(e){return In[e].rules+(In[e].features.material?oD(e):"")}function Ms(e){const t=e.trim();let s=/^#([0-9a-f]{3})$/i.exec(t);if(s)return[...s[1].split("").map(a=>parseInt(a+a,16)),1];if(s=/^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(t),s)return[parseInt(s[1].slice(0,2),16),parseInt(s[1].slice(2,4),16),parseInt(s[1].slice(4,6),16),s[2]?parseInt(s[2],16)/255:1];if(s=/^rgba?\(([^)]+)\)$/i.exec(t),s){const a=s[1].split(/[\s,/]+/).filter(Boolean).map(Number);return a.length<3||a.some(n=>Number.isNaN(n))?null:[a[0],a[1],a[2],a[3]??1]}return s=/^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/.exec(t),s?[Number(s[1]),Number(s[2]),Number(s[3]),1]:null}const Qa=(e,t)=>[0,1,2].map(s=>e[s]*e[3]+t[s]*(1-e[3])).concat(1),cz=(e,t)=>[e[0],e[1],e[2],t];function a1(e){const[t,s,a]=[e[0],e[1],e[2]].map(n=>{const i=n/255;return i<=.03928?i/12.92:((i+.055)/1.055)**2.4});return .2126*t+.7152*s+.0722*a}function dz(e,t){const[s,a]=[a1(e),a1(t)].sort((n,i)=>i-n);return(s+.05)/(a+.05)}const Kx=4.5;function hD(e,t,s){return Qa(cz(e.sheet,t),Qa(e.overlay,s))}function fD(e,t){let s=1/0;for(const a of e.behind){const n=hD(e,t,a);for(const i of e.texts)s=Math.min(s,dz(Qa(i,n),n))}return s}function uz(e,t=Kx,s=.01){let a=1;for(let n=1;n>=0-1e-9;n-=s){const i=Math.round(n*100)/100;if(fD(e,i)>=t)a=i;else break}return a}function mD(e){const t=Ms(e("--sw-sheet-rgb")),s=Ms(e("--sw-overlay"));if(!t||!s)return null;const a=["--sw-text","--sw-text-2","--sw-heading"].map(i=>Ms(e(i))).filter(i=>!!i),n=["--sw-bg","--sw-lit","--sw-accent","--sw-hue-2","--sw-surface"].map(i=>Ms(e(i))).filter(i=>!!i);return n.push([255,255,255,1],[10,10,14,1]),{sheet:t,overlay:s,texts:a,behind:n}}const gD=.86;function wD(e){return{...e,overlay:[0,0,0,0],behind:[...e.behind,[255,0,0,1],[0,0,255,1],[0,255,0,1],[255,255,0,1]]}}const bD=(e,t=Kx)=>uz(wD(e),t),vD=e=>Math.max(gD,bD(e)),yD=62,xD=["--sw-lit","--sw-accent","--sw-success","--sw-warning","--sw-danger","--sw-cool","--sw-heat","--sw-hue-1","--sw-hue-2","--sw-hue-3","--sw-hue-4","--sw-hue-5","--sw-hue-6","--sw-hue-7","--sw-hue-8"];function kD(e){const t=Ms(e("--sw-bg"));if(!t)return null;const s=r=>r?r[3]>=1?r:Qa(r,t):null,a=["--sw-surface","--sw-surface-solid"].map(r=>s(Ms(e(r)))).filter(r=>!!r),n=xD.map(r=>Ms(e(r))).filter(r=>!!r),i=["--sw-text","--sw-text-2"].map(r=>Ms(e(r))).filter(r=>!!r);return a.length&&n.length&&i.length?{bases:a,tones:n,texts:i}:null}function _D(e,t){let s=1/0;for(const a of e.bases)for(const n of e.tones){const i=Qa(cz(n,t/100),a);for(const r of e.texts)s=Math.min(s,dz(Qa(r,i),i))}return s}function $D(e,t=Kx,s=2){let a=0;for(let n=s;n<=yD&&_D(e,n)>=t;n+=s)a=n;return a}const SD=12,ED=/^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/,zD=YE,Vx=zD.palettes.filter(e=>!0),TD=Vx.map(e=>e.id),AD=e=>TD.includes(e),OD=e=>e.length<=40&&ED.test(e),pz={bg:"hex",surface:"hex",surface2:"hex",surfaceElevated:"hex",text:"hex",textMuted:"hex",border:"color",accent:"hex",accentContrast:"hex",accentText:"hex","glass.tint":"hex","glass.opacity.min":"number","glass.opacity.default":"number","glass.opacity.max":"number","glass.layer":"color","glass.overlay":"color","glass.blurPx":"number","state.on":"hex","state.off":"hex","state.unavailable":"hex","state.success":"hex","state.warning":"hex","state.danger":"hex","state.successText":"hex","state.warningText":"hex","state.dangerText":"hex","entity.light":"hex","entity.climate":"hex","entity.cover":"hex","entity.media":"hex","entity.security":"hex","entity.camera":"hex","entity.icon":"hex","gradient.pairs":"pairs","gradient.text":"hex","slider.fill":"hex","slider.fillCool":"hex","slider.onFill":"hex","slider.edge":"hex","slider.track":"hex","wallpaper.stops":"hex[]","wallpaper.angle":"number"},n1=new Set(Object.keys(pz)),ld=/^#[0-9a-f]{6}$/i,Ri=(e,t)=>t.split(".").reduce((s,a)=>s&&typeof s=="object"?s[a]:void 0,e),qg=e=>typeof e=="number"&&Number.isFinite(e);function CD(e){const t=[];if(!e||typeof e!="object"||Array.isArray(e))return["palette must be an object"];const s=e,a=Object.keys(s).filter(r=>!["id","name","character","schemes"].includes(r));a.length&&t.push(`unknown palette keys: ${a.slice(0,5).join(", ")}`),/^[a-z][a-z0-9-]{1,40}$/.test(String(s.id??""))||t.push("id: lower-case kebab id required");const n=s.name;!n||typeof n!="object"||!["he","en"].every(r=>typeof n[r]=="string"&&n[r].trim())||Object.keys(n).some(r=>r!=="he"&&r!=="en")?t.push("name.he and name.en required"):["he","en"].some(r=>n[r].length>40)&&t.push("name: at most 40 characters"),"character"in s&&!(typeof s.character=="string"&&s.character.length<=200)&&t.push("character: text up to 200 characters");const i=s.schemes;if(!i||typeof i!="object"||Object.keys(i).length!==2||!("light"in i)||!("dark"in i))return[...t,"schemes.light and schemes.dark required"];for(const r of["light","dark"]){const l=i[r];if(!l||typeof l!="object"||Array.isArray(l)){t.push(`schemes.${r} must be an object`);continue}for(const[h,f]of Object.entries(pz)){const m=Ri(l,h),b=`schemes.${r}.${h}`;if(m==null){t.push(`${b} missing`);continue}f==="hex"&&!(typeof m=="string"&&ld.test(m))?t.push(`${b} must be #rrggbb`):f==="color"&&!(typeof m=="string"&&Ms(m))?t.push(`${b}: unsupported colour`):f==="number"&&!qg(m)?t.push(`${b} must be a number`):f==="hex[]"&&!(Array.isArray(m)&&m.length>=2&&m.length<=5&&m.every(v=>typeof v=="string"&&ld.test(v)))?t.push(`${b} must be 2-5 #rrggbb stops`):f==="pairs"&&!(Array.isArray(m)&&m.length>=2&&m.length<=8&&m.every(v=>Array.isArray(v)&&v.length===2&&v.every(x=>typeof x=="string"&&ld.test(x))))&&t.push(`${b} must be 2-8 [#start, #end] pairs`)}const c=Ri(l,"glass.opacity");if(c&&["min","default","max"].every(h=>qg(c[h]))){const[h,f,m]=[c.min,c.default,c.max];h>0&&h<=f&&f<=m&&m<=1||t.push(`schemes.${r}.glass.opacity: need 0 < min <= default <= max <= 1`)}const d=Ri(l,"glass.blurPx");qg(d)&&(d<0||d>60)&&t.push(`schemes.${r}.glass.blurPx: 0..60`);const u=(h,f)=>{for(const[m,b]of Object.entries(h)){const v=f?`${f}.${m}`:m;b&&typeof b=="object"&&!Array.isArray(b)&&!n1.has(v)?u(b,v):n1.has(v)||t.push(`schemes.${r}.${v.slice(0,40)}: unknown token (closed set)`)}};u(l,"")}return t}const Us=4.5,Ts=3,qr=e=>{const[t,s,a]=[e[0],e[1],e[2]].map(n=>{const i=n/255;return i<=.04045?i/12.92:((i+.055)/1.055)**2.4});return .2126*t+.7152*s+.0722*a},Gt=(e,t)=>{const[s,a]=[qr(e),qr(t)];return(Math.max(s,a)+.05)/(Math.min(s,a)+.05)},Ks=(e,t)=>{const s=Ms(String(Ri(e,t)));if(!s)throw new Error(`bad colour at ${t}`);return s};function kb(e){const t=m=>Ks(e,m),s=[],a=(m,b,v,x,y,A,L,E=!1)=>{const C=Gt(x,A);s.push({group:m,what:b,fg:v,bg:y,ratio:Math.round(C*100)/100,min:L,ok:C>=L||E})},n={bg:t("bg"),surface:t("surface"),surface2:t("surface2"),surfaceElevated:t("surfaceElevated")};for(const m of["text","textMuted"])for(const[b,v]of Object.entries(n))a("text",`${m} on ${b}`,m,t(m),b,v,Us);const i=e.wallpaper.stops.map(m=>Ms(m)),r=[...i].sort((m,b)=>qr(b)-qr(m)),l=[["lightest stop",r[0]],["darkest stop",r[r.length-1]]],c=e.glass.opacity.min,d=t("glass.tint"),u={},h=Math.round(c*100);for(const[m,b]of l){u[`glass card @${h}% / ${m}`]=Qa([d[0],d[1],d[2],c],b);const v=Qa([d[0],d[1],d[2],c],Qa(t("glass.overlay"),b));u[`pop-up sheet @${h}% / dimmed ${m}`]=v,u[`pill layer in sheet / dimmed ${m}`]=Qa(t("glass.layer"),v)}for(const m of["text","textMuted"])for(const[b,v]of Object.entries(u))a("glass",`${m} on ${b}`,m,t(m),b,v,Us);for(const[m,b]of Object.entries(u))m.startsWith("pill")||a("glass",`accentText on ${m}`,"accentText",t("accentText"),m,b,Us);i.forEach((m,b)=>a("wallpaper",`text on wallpaper stop ${b+1}`,"text",t("text"),`wallpaper.stops[${b}]`,m,Us)),a("accent","accentContrast on accent","accentContrast",t("accentContrast"),"accent",t("accent"),Us);for(const m of["bg","surface","surfaceElevated"])a("accent",`accentText on ${m}`,"accentText",t("accentText"),m,n[m],Us);for(const m of["bg","surface"])a("accent",`accent (toggle, focus) vs ${m}`,"accent",t("accent"),m,n[m],Ts);const f=m=>{let b={r:99,n:"",b:m};for(const[v,x]of Object.entries(u)){const y=Gt(m,x);y<b.r&&(b={r:y,n:v,b:x})}return b};for(const m of["on","off","unavailable","success","warning","danger"]){const b=`state.${m}`,v=t(b);for(const y of["bg","surface","surfaceElevated"])a("state",`${m} vs ${y}`,b,v,y,n[y],Ts);const x=f(v);a("state",`${m} vs ${x.n}`,b,v,x.n,x.b,Ts)}for(const m of["successText","warningText","dangerText"])for(const b of["surface","surfaceElevated"])a("state",`${m} on ${b}`,`state.${m}`,t(`state.${m}`),b,n[b],Us);for(const m of["light","climate","cover","media","security","camera"]){const b=`entity.${m}`;for(const v of["bg","surface"])a("entity",`${m} ring vs ${v}`,b,t(b),v,n[v],Ts);a("entity",`icon on ${m} ring`,"entity.icon",t("entity.icon"),b,t(b),Ts)}e.gradient.pairs.forEach((m,b)=>m.forEach((v,x)=>a("gradient",`gradient text on pair ${b+1} ${x?"end":"start"}`,"gradient.text",t("gradient.text"),`gradient.pairs[${b}][${x}]`,Ms(v),Us)));for(const m of["fill","fillCool"]){a("slider",`onFill on ${m}`,"slider.onFill",t("slider.onFill"),`slider.${m}`,t(`slider.${m}`),Us);const b=Gt(t(`slider.${m}`),t("slider.track")),v=Gt(t("slider.edge"),t(`slider.${m}`)),x=Gt(t("slider.edge"),t("slider.track")),y=v>=Ts&&x>=Ts;a("slider",`${m} vs track (position)`,`slider.${m}`,t(`slider.${m}`),"slider.track",t("slider.track"),Ts,y),b<Ts&&(a("slider",`edge vs ${m}`,"slider.edge",t("slider.edge"),`slider.${m}`,t(`slider.${m}`),Ts),a("slider",`edge vs track (${m})`,"slider.edge",t("slider.edge"),"slider.track",t("slider.track"),Ts))}return s}function hz(e){const t=[];for(const s of["light","dark"])for(const a of kb(Gx(e,s)))a.ok||t.push({...a,scheme:s});return t}const RD={text:"טקסט",textMuted:"טקסט משני",accent:"צבע הדגש",accentContrast:"טקסט על הדגש",accentText:"טקסט בצבע הדגש","gradient.text":"טקסט על גוון","slider.onFill":"טקסט על המילוי","slider.edge":"קו קצה של מחוון","slider.fill":"מילוי מחוון","slider.fillCool":"מילוי מחוון קר","entity.icon":"סמל על טבעת","state.on":"מצב פעיל","state.off":"מצב כבוי","state.unavailable":"לא זמין","state.success":"הצלחה","state.warning":"אזהרה","state.danger":"שגיאה","state.successText":"טקסט הצלחה","state.warningText":"טקסט אזהרה","state.dangerText":"טקסט שגיאה"},i1={bg:"הרקע",surface:"המשטח",surface2:"המשטח המשני",surfaceElevated:"המשטח המוגבה",accent:"הדגש","slider.track":"מסלול המחוון"},MD=e=>RD[e]??(e.startsWith("entity.")?`טבעת ${e.split(".")[1]}`:e);function LD(e){return i1[e]?i1[e]:e.startsWith("glass card")?"כרטיס זכוכית":e.startsWith("pop-up sheet")?"חלון קופץ":e.startsWith("pill layer")?"שכבת כמוסה":e.startsWith("wallpaper.stops")?"הרקע המצויר":e.startsWith("gradient.pairs")?"גוון":e.startsWith("slider.")?"מילוי מחוון":e.startsWith("entity.")?`טבעת ${e.split(".")[1]}`:e}function DD(e,t=3){const a=[...e].sort((i,r)=>i.ratio-r.ratio).slice(0,t).map(i=>`${i.scheme==="light"?"בהיר":"כהה"}: ${MD(i.fg)} על ${LD(i.bg)} - ${i.ratio.toFixed(2)}:1 (נדרש ${i.min}:1)`),n=e.length>t?` ועוד ${e.length-t}`:"";return`אזהרה: ניגודיות נמוכה מדי ב־${e.length} זוגות. ${a.join("; ")}${n}.`}function fz(e,t={}){const s=CD(e);if(s.length)return{ok:!1,message:`ערכת הצבעים אינה תקינה: ${s[0]}`,rows:[]};const a=e;if(t.custom&&!OD(a.id))return{ok:!1,message:"מזהה ערכה מותאמת חייב להתחיל ב־custom- (אותיות קטנות, ספרות ומקפים)",rows:[]};const n=hz(a);return{ok:!0,palette:a,rows:n,warning:n.length?DD(n):""}}const Hg=e=>Math.max(0,Math.min(255,Math.round(e))).toString(16).padStart(2,"0"),Vd=e=>`#${Hg(e[0])}${Hg(e[1])}${Hg(e[2])}`,pi=(e,t)=>`rgba(${Math.round(e[0])}, ${Math.round(e[1])}, ${Math.round(e[2])}, ${Math.round(t*100)/100})`,$m=(e,t,s)=>[e[0]+(t[0]-e[0])*s,e[1]+(t[1]-e[1])*s,e[2]+(t[2]-e[2])*s,1],r1=e=>Vd($m(Ks(e,"surface2"),Ks(e,"text"),.08));function ND(e,t){const s=Gx(e,t),a=t==="dark",n=m=>Ks(s,m),i={},r=n("accent"),l=n("glass.tint");i["--sw-bg"]=s.bg,i["--sw-canvas"]=`linear-gradient(${s.wallpaper.angle}deg, ${s.wallpaper.stops.join(", ")})`,i["--sw-surface"]=s.surface,i["--sw-surface-2"]=s.surface2,i["--sw-surface-3"]=r1(s),i["--sw-surface-solid"]=s.surfaceElevated,i["--sw-surface-2-solid"]=s.surface2,i["--sw-surface-3-solid"]=r1(s),i["--sw-menu-surface"]=s.surfaceElevated,i["--sw-menu-border"]=s.surfaceElevated,i["--sw-border-strong"]=s.border,i["--sw-overlay"]=s.glass.overlay,i["--sw-text"]=s.text,i["--sw-heading"]=s.text,i["--sw-text-2"]=s.textMuted,i["--sw-text-3"]=s.textMuted,i["--sw-text-inverse"]=s.accentContrast,i["--sw-accent"]=s.accent,i["--sw-nav"]=s.accent,i["--sw-focus"]=s.accent,i["--sw-toggle-on"]=s.state.on,i["--sw-accent-hover"]=Vd($m(r,qr(n("accentContrast"))>.4?[0,0,0,1]:n("text"),.12)),i["--sw-accent-soft"]=pi(r,a?.26:.14),i["--sw-accent-text"]=s.accentText,i["--sw-recorded"]=s.accent,i["--sw-recorded-soft"]=pi(r,a?.26:.14),i["--sw-recorded-text"]=s.accentText,i["--sw-sheet-rgb"]=`${Math.round(l[0])}, ${Math.round(l[1])}, ${Math.round(l[2])}`,i["--sw-layer"]=s.glass.layer;const c=n("glass.layer");i["--sw-layer-2"]=pi(c,Math.min(1,c[3]*1.45)),i["--sw-nav-glass"]=pi(l,s.glass.opacity.default),i["--sw-glass-blur-sheet"]=`blur(${s.glass.blurPx}px) saturate(160%)`,i["--sw-glass-blur-nav"]=`blur(${Math.round(s.glass.blurPx*.7)}px) saturate(150%)`;const d=[[["--sw-success","--sw-live"],"success","successText"],[["--sw-warning","--sw-stale"],"warning","warningText"],[["--sw-danger","--sw-forbidden"],"danger","dangerText"]];for(const[m,b,v]of d){const x=n(`state.${b}`);for(const y of m)i[y]=s.state[b],i[`${y}-soft`]=pi(x,a?.22:.14),i[`${y}-text`]=s.state[v]}const u=n("state.success");i["--sw-on-success"]=Gt([4,20,11,1],u)>=Gt([255,255,255,1],u)?"#04140b":"#ffffff",i["--sw-offline"]=s.state.off,i["--sw-offline-soft"]=pi(n("state.off"),a?.2:.14),i["--sw-offline-text"]=s.textMuted,i["--sw-unknown"]=s.state.unavailable,i["--sw-unknown-soft"]=pi(n("state.unavailable"),a?.22:.16),i["--sw-unknown-text"]=s.textMuted,i["--sw-lit"]=s.slider.fill,i["--sw-lit-cool"]=s.slider.fillCool,i["--sw-lit-soft"]=pi(n("slider.fill"),.32),i["--sw-on-lit"]=s.slider.onFill;const h=Gt(n("slider.fill"),n("slider.track"))<Ts||Gt(n("slider.fillCool"),n("slider.track"))<Ts;i["--sw-fill-edge"]=h?s.slider.edge:"transparent";{for(let m=1;m<=8;m++)i[`--sw-hue-${m}`]=s.accent;i["--sw-ring-on-hue"]=s.accentContrast}i["--sw-cool"]=s.entity.climate;const f=FD(s);return i["--sw-wash-start"]=`${f.start}%`,i["--sw-wash-end"]=`${f.end}%`,i["--sw-wash-lit"]=`${f.lit}%`,i}const PD=1.35,Qo=[255,255,255,1],th=[0,0,0,1];function Gx(e,t){const s=e.schemes.dark;if(t==="light")return e.schemes.light;const a=Ms(e.schemes.light.accent),n=Ms(s.accent);if(!a||!n)return s;const i=[Ks(s,"bg"),Ks(s,"surface")],r=u=>qr(u)>qr(a)&&Gt(u,a)>=PD&&i.every(h=>Gt(u,h)>=Ts);if(r(n))return s;let l=n;for(let u=.04;u<=.9&&(l=$m(n,Qo,u),!r(l));u+=.04);const c=Vd(l),d=[Ks(s,"accentContrast"),th,Qo].find(u=>Gt(u,l)>=Us)??(Gt(th,l)>=Gt(Qo,l)?th:Qo);return{...s,accent:c,accentContrast:Vd(d),state:{...s.state,on:s.state.on.toLowerCase()===s.accent.toLowerCase()?c:s.state.on}}}const o1=e=>{const[t,s,a]=[e[0],e[1],e[2]].map(l=>{const c=l/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4}),n=Math.cbrt(.4122214708*t+.5363325363*s+.0514459929*a),i=Math.cbrt(.2119034982*t+.6806995451*s+.1073969566*a),r=Math.cbrt(.0883024619*t+.2817188376*s+.6299787005*a);return[.2104542553*n+.793617785*i-.0040720468*r,1.9779984951*n-2.428592205*i+.4505937099*r,.0259040371*n+.7827717662*i-.808675766*r]},ID=([e,t,s])=>{const a=(e+.3963377774*t+.2158037573*s)**3,n=(e-.1055613458*t-.0638541728*s)**3,i=(e-.0894841775*t-1.291485548*s)**3,r=[4.0767416621*a-3.3077115913*n+.2309699292*i,-1.2684380046*a+2.6097574011*n-.3413193965*i,-.0041960863*a-.7034186147*n+1.707614701*i],[l,c,d]=r.map(u=>{const h=Math.max(0,Math.min(1,u));return 255*(h<=.0031308?12.92*h:1.055*h**(1/2.4)-.055)});return[l,c,d,1]},l1=(e,t,s)=>{const[a,n]=[o1(e),o1(t)],i=s/100;return ID([a[0]*i+n[0]*(1-i),a[1]*i+n[1]*(1-i),a[2]*i+n[2]*(1-i)])},op={start:40,end:24,lit:70};function FD(e){const t=Ks(e,"accent"),s=Ks(e,"surface");let a=op.start;const n=r=>{const l=l1(t,s,r);return Gt(Ks(e,"text"),l)>=Us&&Gt(Ks(e,"textMuted"),l)>=Us};for(;a>0&&!n(a);)a-=2;let i=op.lit;for(;i>0&&Gt(Ks(e,"slider.onFill"),l1(t,Qo,i))<Us;)i-=2;return{start:a,end:Math.round(a*(op.end/op.start)),lit:i}}function lge(e,t,s=10){const a=[];for(const n of Vx){const i=String(Ri(n.schemes[t],e)??"").toLowerCase();ld.test(i)&&!a.includes(i)&&a.push(i)}return a.slice(0,s)}const qD=["light","dark"];function cge(e){const t=JSON.parse(JSON.stringify(e)),s=[],a=(n,i,r)=>{const l=i.split("."),c=l.pop();let d=n;for(const u of l)d=d[u];d[c]=r};for(const n of qD){const i=t.schemes[n];for(let r=0;r<4;r++){const l=kb(c1(t,n,i)).filter(d=>!d.ok);if(!l.length)break;const c=[...new Set(l.map(d=>d.fg))].filter(d=>ld.test(String(Ri(i,d)??"")));if(!c.length)break;for(const d of c){const u=Ks(i,d),h=m=>{const b=String(Ri(i,d));a(i,d,m);const v=kb(c1(t,n,i)).filter(x=>!x.ok&&x.fg===d).length;return a(i,d,b),v};let f=null;for(let m=.02;m<=1.0001&&!(f&&f.fails===0);m+=.02)for(const b of[Qo,th]){const v=Vd($m(u,b,Math.min(1,m))),x=h(v);if((!f||x<f.fails)&&(f={hex:v,fails:x}),x===0){f={hex:v,fails:x};break}}f&&f.hex!==String(Ri(i,d)).toLowerCase()&&(a(i,d,f.hex),s.push(`${n}.${d}`))}}}return{palette:t,changed:s,remaining:hz(t)}}function c1(e,t,s){return t==="light"?s:Gx({...e,schemes:{light:e.schemes.light,dark:s}},"dark")}const _b="sw.ui.palettes";let hl=[],d1=null;const $b=new Set;function HD(){try{return localStorage.getItem(_b)}catch{return null}}function BD(e){try{e===null?localStorage.removeItem(_b):localStorage.setItem(_b,e)}catch{}}function mz(e){let t=e;if(typeof t=="string")try{t=JSON.parse(t)}catch{return[]}if(!Array.isArray(t))return[];const s=[];for(const a of t.slice(0,SD)){const n=fz(a,{custom:!0});n.ok&&!s.some(i=>i.id===n.palette.id)&&s.push(n.palette)}return s}function UD(e){return $b.add(e),()=>$b.delete(e)}const dge=()=>hl;function WD(e){hl=mz(e),BD(hl.length?JSON.stringify(hl):null),$b.forEach(t=>t())}function jD(){const e=HD();hl=e?mz(e):[]}const KD=()=>[...Vx,...hl];function VD(e){return KD().find(t=>t.id===e)??null}function GD(e=_t("palette")){const t=VD(e);return t?fz(t,{custom:!AD(t.id)}).ok?(d1=t,t):d1:null}let u1=[];function YD(e,t){const s=t??{};for(const a of u1)a in s||e.style.removeProperty(a);for(const[a,n]of Object.entries(s))e.style.getPropertyValue(a)!==n&&e.style.setProperty(a,n);u1=Object.keys(s)}function XD(e,t){if(e!=="bubble")return{palette:null,tokens:null};const s=GD();return{palette:s,tokens:s?ND(s,t):null}}const Mi="default",Yx="accent",gz={ios_green:"#34c759",ios_blue:"#007aff",teal:"#0d9488",purple:"#7c3aed",orange:"#ea580c",pink:"#db2777",graphite:"#475569"},uge="#2767ed",wz=/^#[0-9a-fA-F]{6}$/,bz="sw.ui.brand";function Hr(e,t="accent"){if(typeof e!="string")return Mi;const s=e.trim();return s===Mi||Object.prototype.hasOwnProperty.call(gz,s)||s===Yx&&t==="toggle"?s:wz.test(s)?s.toLowerCase():Mi}function p1(e){const t=Hr(e,"toggle");return t===Mi||t===Yx?null:gz[t]??t}function pge(e){const t=a=>{const n=parseInt(e.slice(a,a+2),16)/255;return n<=.03928?n/12.92:((n+.055)/1.055)**2.4};return 1.05/(.2126*t(1)+.7152*t(3)+.0722*t(5)+.05)}function JD(e){const t=s=>{const a=parseInt(e.slice(s,s+2),16)/255;return a<=.03928?a/12.92:((a+.055)/1.055)**2.4};return .2126*t(1)+.7152*t(3)+.0722*t(5)}function h1(e,t,s){const a=(i,r)=>parseInt(i.slice(r,r+2),16),n=i=>Math.round(a(e,i)+(a(t,i)-a(e,i))*s).toString(16).padStart(2,"0");return`#${n(1)}${n(3)}${n(5)}`}function QD(e,t="#ffffff"){return JD(t)>.4?h1(e,"#000000",.14):h1(e,"#ffffff",.2)}function ZD(e,t,s="#ffffff"){const a={},n=p1(e.accent);if(n&&(a["--sw-accent"]=n,a["--sw-nav"]=n,a["--sw-accent-hover"]=QD(n,wz.test(s)?s:"#ffffff"),t==="light"?(a["--sw-accent-soft"]=`color-mix(in srgb, ${n} 10%, #ffffff)`,a["--sw-accent-text"]=`color-mix(in srgb, ${n} 82%, #000000)`,a["--sw-focus"]=n):(a["--sw-accent-soft"]=`color-mix(in srgb, ${n} 18%, transparent)`,a["--sw-accent-text"]=`color-mix(in srgb, ${n} 62%, #ffffff)`,a["--sw-focus"]=`color-mix(in srgb, ${n} 72%, #ffffff)`)),Hr(e.toggle,"toggle")===Yx)a["--sw-toggle-on"]="var(--sw-accent)";else{const i=p1(e.toggle);i&&(a["--sw-toggle-on"]=i)}return a}function eN(){try{const e=JSON.parse(localStorage.getItem(bz)??"null");return{accent:Hr(e?.accent),toggle:Hr(e?.toggle,"toggle")}}catch{return{accent:Mi,toggle:Mi}}}let Zo={accent:Mi,toggle:Mi};const Sb=new Set;function tN(){Zo=eN()}const vz=()=>({...Zo});function f1(e,t){const s={accent:Hr(e),toggle:Hr(t,"toggle")};if(!(s.accent===Zo.accent&&s.toggle===Zo.toggle)){Zo=s;try{localStorage.setItem(bz,JSON.stringify(Zo))}catch{}Sb.forEach(a=>a())}}function sN(e){return Sb.add(e),()=>Sb.delete(e)}const aN=["builtin","none","custom"],nN=["day","night"],yz="builtin",fl=e=>typeof e=="string"&&aN.includes(e),m1={day:"backgrounds/crystal-day.webp",night:"backgrounds/crystal-night.webp"},xz="sw.ui.background",Gd="sw.ui.background.own",kz={day:null,night:null};let Ws={mode:yz,images:{...kz}},da=null,Eb=null,Nh=null,_z=!1;const zb=new Set;function Tb(e){try{return localStorage.getItem(e)}catch{return null}}function Ph(e,t){try{t===null?localStorage.removeItem(e):localStorage.setItem(e,t)}catch{}}function $z(e){const t={...kz};if(e&&typeof e=="object")for(const s of nN){const a=e[s];typeof a=="string"&&a.trim()&&(t[s]=a.trim())}return t}function Yd(){zb.forEach(e=>e())}function iN(e){return zb.add(e),()=>zb.delete(e)}let g1=!1;function rN(){if(!g1){g1=!0;try{const e=JSON.parse(Tb(xz)??"null");e&&(Ws={mode:fl(e.mode)?e.mode:yz,images:$z(e.images)})}catch{}try{const e=JSON.parse(Tb(Gd)??"null");da=e&&fl(e.mode)?e.mode:null}catch{da=null}try{const e=new URLSearchParams(window.location.search).get("bg");Eb=fl(e)?e:null}catch{Eb=null}}}function Sz(e,t){const s={mode:fl(e)?e:Ws.mode,images:t===void 0?Ws.images:$z(t)};s.mode===Ws.mode&&JSON.stringify(s.images)===JSON.stringify(Ws.images)||(Ws=s,Ph(xz,JSON.stringify(Ws)),Yd())}function hge(e){Sz(e,Ws.images)}const fge=()=>({mode:Ws.mode,images:{...Ws.images}}),mge=()=>da,oN=()=>Eb??da??Ws.mode;async function lN(e,t){Nh=e,_z=t;try{const s=JSON.parse(Tb(Gd)??"null");da=s&&s.u===e&&fl(s.mode)?s.mode:null}catch{da=null}if(Yd(),!!t)try{const s=await Zn();if(Nh!==e)return;const a=s.prefs["ui.background"];da=fl(a)?a:null,Ph(Gd,da?JSON.stringify({u:e,mode:da}):null),Yd()}catch{}}async function gge(e){const t=da;if(da=e,Ph(Gd,e?JSON.stringify({u:Nh,mode:e}):null),Yd(),!!_z)try{await Xt({"ui.background":e})}catch(s){throw da=t,Ph(Gd,t?JSON.stringify({u:Nh,mode:t}):null),Yd(),s}}function w1(e,t=Ws.images){const s=t[e];return s?`${typeof document>"u"?`api/v1/settings/background/${e}`:St(`settings/background/${e}`)}?v=${encodeURIComponent(s)}`:null}function cN(e,t,s=Ws.images){const a=t==="dark"?"night":"day",n=a==="day"?"night":"day",i=typeof document>"u"?m1[a]:is(m1[a]);return e==="none"?null:e==="custom"?w1(a,s)??w1(n,s)??i:i}function dN(e){const t=document.documentElement,s=oN(),a=cN(s,e),n=a?`url("${a.replace(/["\\]/g,"")}")`:"none";t.style.getPropertyValue("--sw-bg-image")!==n&&t.style.setProperty("--sw-bg-image",n),t.getAttribute("data-bg")!==s&&t.setAttribute("data-bg",s)}const wge=["light","dark","auto"],sh=e=>e==="light"||e==="dark"||e==="auto",bge=["auto","full","reduced"],Ab=e=>e==="auto"||e==="full"||e==="reduced",vge=["on","off"],Ez=e=>e==="on"||e==="off",Xx="sw.ui.design",zz="sw.ui.scheme";function b1(e){try{return localStorage.getItem(e)}catch{return null}}function Jx(e,t){try{t===null?localStorage.removeItem(e):localStorage.setItem(e,t)}catch{}}let Ie={skin:Px,scheme:"light",motion:"auto",rail:"auto",enter:"on"},Sm=null,Em={skin:null,scheme:null,motion:null},el=null,v1=null,Bg=null;const Ob=new Set;function uN(){try{const t=JSON.parse(b1(Xx)??"null");t&&UE(t.skin)&&(Ie.skin=Lh(t.skin)??Px),t&&sh(t.scheme)&&(Ie.scheme=t.scheme),t&&Ab(t.motion)&&(Ie.motion=t.motion),t&&BE(t.rail)&&(Ie.rail=t.rail),t&&Ez(t.enter)&&(Ie.enter=t.enter)}catch{}const e=b1(zz);Sm=sh(e)?e:null;try{const t=new URLSearchParams(window.location.search),s=t.get("skin"),a=t.get("scheme"),n=t.get("motion");Em={skin:Lh(s),scheme:sh(a)?a:null,motion:Ab(n)?n:null}}catch{}}const Tr=()=>Em.skin??Ie.skin,Tz=()=>Em.scheme??Sm??Ie.scheme,Az=()=>Em.motion??Ie.motion,yge=()=>({...Ie}),xge=()=>Sm;function pN(){try{return window.matchMedia("(prefers-color-scheme: dark)").matches}catch{return!1}}const ml=()=>{const e=Tz();return e==="auto"?pN()?"dark":"light":e},hN="*,*::before,*::after{animation-duration:0.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:0s !important;transition-delay:0s !important;scroll-behavior:auto !important}";let pr=null,Cb=null,y1=!1;function Oz(){const e=Az();if(e==="reduced")return!0;if(e==="full")return!1;try{return!!Cb?.matches}catch{return!1}}function Cz(){if(!pr)return;const e=Oz();e!==y1&&(y1=e,pr.replaceSync(e?hN:""))}function _n(){const e=document.documentElement,t=Tr(),s=ml();e.getAttribute("data-skin")!==t&&e.setAttribute("data-skin",t),e.getAttribute("data-theme")!==s&&e.setAttribute("data-theme",s);const a=Az();e.getAttribute("data-motion")!==a&&e.setAttribute("data-motion",a),e.getAttribute("data-enter")!==Ie.enter&&e.setAttribute("data-enter",Ie.enter),Cz(),v8(t,Ie.rail)?e.getAttribute("data-rail")!=="dark"&&e.setAttribute("data-rail","dark"):e.hasAttribute("data-rail")&&e.removeAttribute("data-rail"),dN(s),el&&v1!==t&&(el.replaceSync(pD(t)),v1=t);const n=uD(t),{palette:i,tokens:r}=XD(t,s),l=ZD(vz(),s,r?.["--sw-text-inverse"]??n["--sw-text-inverse"]?.[s]??"#ffffff");YD(e,r||Object.keys(l).length?{...r??{},...l}:null);const c=mD(u=>r?.[u]??n[u]?.[s]??"");K8(Math.max(c?uz(c):1,i?i.schemes[s].glass.opacity.min:0)),V8(c?vD(c):1);const d=kD(u=>r?.[u]??n[u]?.[s]??"");G8(d?$D(d):0),Ob.forEach(u=>u())}function dc(e){return Ob.add(e),()=>Ob.delete(e)}function fN(e,t,s,a,n){const i={skin:Lh(e)??Ie.skin,scheme:sh(t)?t:Ie.scheme,motion:Ab(s)?s:Ie.motion,rail:BE(a)?a:Ie.rail,enter:Ez(n)?n:Ie.enter};i.skin===Ie.skin&&i.scheme===Ie.scheme&&i.motion===Ie.motion&&i.rail===Ie.rail&&i.enter===Ie.enter||(Ie=i,Jx(Xx,JSON.stringify(Ie)),_n())}function kge(e,t,s=Ie.motion,a=Ie.rail,n=Ie.enter){Ie={skin:Lh(e)??Px,scheme:t,motion:s,rail:a,enter:n},Jx(Xx,JSON.stringify(Ie)),_n()}function _ge(e){Sm=e,Jx(zz,e),_n()}let x1=!1;function mN(){if(!x1){x1=!0,uN(),J8(),jD(),rN(),ez(()=>_n()),UD(()=>_n()),tN(),sN(()=>_n()),iN(()=>_n());try{const e=new CSSStyleSheet;e.replaceSync(s1()),document.adoptedStyleSheets=[...document.adoptedStyleSheets,e]}catch{const e=document.createElement("style");e.id="sw-design-tokens",e.textContent=s1(),document.head.appendChild(e)}try{el=new CSSStyleSheet;try{pr=new CSSStyleSheet,Cb=window.matchMedia("(prefers-reduced-motion: reduce)"),Cb.addEventListener("change",()=>Cz()),document.adoptedStyleSheets=[...document.adoptedStyleSheets,pr]}catch{pr=null}const e=En.prototype,t=e.createRenderRoot;e.createRenderRoot=function(){const a=t.call(this);return el&&"adoptedStyleSheets"in a&&(a.adoptedStyleSheets=[...a.adoptedStyleSheets,el,...pr?[pr]:[]]),a}}catch{el=null}try{Bg=window.matchMedia("(prefers-color-scheme: dark)"),Bg.addEventListener("change",()=>{Tz()==="auto"&&_n()})}catch{Bg=null}_n()}}mN();const gN="(max-width: 767px)",wN="(pointer: coarse)",Rz=gN,k1=wN,_1=`
 html {
-   sourceMappingURL=[^*]**/ the translucent grey flash iOS / Android paint over a tapped element; every control draws its own pressed state instead */
+  /* the translucent grey flash iOS / Android paint over a tapped element; every control draws its own pressed state instead */
   -webkit-tap-highlight-color: transparent;
-   sourceMappingURL=[^*]**/ no font inflation when a phone turns to landscape */
+  /* no font inflation when a phone turns to landscape */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 @media ${Rz} {
-   sourceMappingURL=[^*]**/ the shell is a 100dvh grid with its own scroll areas: a pull past the top of the page must never reload the app (the shell's <main>
+  /* the shell is a 100dvh grid with its own scroll areas: a pull past the top of the page must never reload the app (the shell's <main>
      already contains; the root stops the browser's own pull-to-refresh and the whole-page rubber band) */
   html,
   body {
@@ -423,7 +423,7 @@ html {
   }
 }
 `,bN=`
- sourceMappingURL=[^*]**/ a control never double-tap-zooms: click fires at once (the remaining tap delay on iOS); the pan / pinch of the page stay with the browser.
+/* a control never double-tap-zooms: click fires at once (the remaining tap delay on iOS); the pan / pinch of the page stay with the browser.
    An element that owns a gesture (.grab, a slider, a drag surface) sets its own touch-action with a class and keeps it (higher specificity). */
 button,
 a[href],
@@ -436,7 +436,7 @@ summary {
 }
 
 @media ${k1} {
-   sourceMappingURL=[^*]**/ a long press on a control selects its label on iOS (and pops the copy / share callout on a link used as a button); native controls
+  /* a long press on a control selects its label on iOS (and pops the copy / share callout on a link used as a button); native controls
      never do. Content stays selectable: this names controls only, never text. */
   button,
   a[href],
@@ -451,7 +451,7 @@ summary {
     -webkit-touch-callout: none;
   }
 
-   sourceMappingURL=[^*]**/ the press of the two controls that had none, in train 2's model: the skin's press scale (1 = none), zeroed by reduced motion */
+  /* the press of the two controls that had none, in train 2's model: the skin's press scale (1 = none), zeroed by reduced motion */
   :host(sw-view-switch) button {
     transition:
       background var(--sw-t-fast) var(--sw-ease),
@@ -473,17 +473,17 @@ summary {
 }
 
 @media ${Rz} and ${k1} {
-   sourceMappingURL=[^*]**/ iOS Safari zooms the page when focus lands on a field whose text is under 16 px, and never zooms back: every text field reads at the
+  /* iOS Safari zooms the page when focus lands on a field whose text is under 16 px, and never zooms back: every text field reads at the
      xl tier on a phone (17-19 px in every skin; the tier devices-announce uses for the same reason). The cause is fixed; the viewport
      keeps user zoom, never maximum-scale=1. */
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
   select:not([data-sw-mp]):not([data-sw-mp]):not([data-sw-mp]):not([data-sw-mp]),
   textarea:not([data-sw-mp]):not([data-sw-mp]):not([data-sw-mp]):not([data-sw-mp]) {
-     sourceMappingURL=[^*]**/ the repeated :not() is specificity only (0,4,1): a screen's own ".bar sw-field:not([capsule]) select" (live-wall) must not win */
+    /* the repeated :not() is specificity only (0,4,1): a screen's own ".bar sw-field:not([capsule]) select" (live-wall) must not win */
     font-size: max(var(--sw-fs-xl), 1em);
   }
 
-   sourceMappingURL=[^*]**/ PHONE-BUTTONS-44-2342 (owner 02.11, answer 2A): the shared button is DRAWN 44 px high on a phone, small and default alike (it was 40 /
+  /* PHONE-BUTTONS-44-2342 (owner 02.11, answer 2A): the shared button is DRAWN 44 px high on a phone, small and default alike (it was 40 /
      36 px with an invisible 3-4 px hit slop above and below; an absolutely positioned slop paints above non-positioned neighbours and
      steals their edges). The component writes the same rules (components/sw-button.ts); they are repeated here, after the skin sheet and
      at the skins' specificity, so a skin's resting height (crystal 34 / 30 px, bubble's touch dial) does not shrink it on a phone. */
@@ -505,11 +505,11 @@ summary {
   :host(sw-button[icononly][size='lg']) button {
     inline-size: max(44px, var(--sw-ctl-h-lg));
   }
-   sourceMappingURL=[^*]**/ (POLISH-PHONE-2310: no slop on sw-chip - it already carries the shared centred 44 x 44 hit of styles/focus-policy.ts (.sw-hit), which
+  /* (POLISH-PHONE-2310: no slop on sw-chip - it already carries the shared centred 44 x 44 hit of styles/focus-policy.ts (.sw-hit), which
      a 0-inline slop here would narrow; none on sw-toggle - a ::before wider than the 42 px track is scrollable overflow and trips the
      layout guards' clipped-content check at 320 px) */
 
-   sourceMappingURL=[^*]**/ the pop-ups measure the visible viewport (dvh), never the one with the browser chrome collapsed (vh): a centred pop-up no longer
+  /* the pop-ups measure the visible viewport (dvh), never the one with the browser chrome collapsed (vh): a centred pop-up no longer
      runs under the URL bar on the first paint */
   :host(sw-sheet) .sheet {
     max-block-size: min(86dvh, 860px);
@@ -517,13 +517,13 @@ summary {
   :host(sw-sheet[data-layout='bottom']) .sheet {
     max-block-size: 88dvh;
   }
-   sourceMappingURL=[^*]**/ the bottom sheet's body keeps clear of the home indicator even when a screen slots a footer-less body */
+  /* the bottom sheet's body keeps clear of the home indicator even when a screen slots a footer-less body */
   :host(sw-sheet[data-layout='bottom']) .body {
     padding-block-end: max(22px, calc(10px + env(safe-area-inset-bottom, 0px)));
   }
 }
 
- sourceMappingURL=[^*]**/ sticky hover: a touch browser applies :hover on the first tap and leaves it there until the next tap elsewhere. The shared controls
+/* sticky hover: a touch browser applies :hover on the first tap and leaves it there until the next tap elsewhere. The shared controls
    already gate their hover to (hover: hover) and (pointer: fine); what is left ungated is the skins' table-row tint (bubble, crystal,
    domus, tesla) and two rules of the shell. Where the primary input cannot hover, those rest in their resting colours. A pressed row
    keeps its own press wash (:not(:active)). */
@@ -562,39 +562,39 @@ summary {
     inset-inline: min(0px, calc((100% - ${E1}px) / 2));
   }
 }
-`;let Eo=null;function kN(){if(Eo)return Eo;try{Eo=new CSSStyleSheet,Eo.replaceSync(yN+xN)}catch{Eo=null}return Eo}let z1=!1;function _N(){if(z1||typeof document>"u")return;z1=!0;const e=kN();if(!e)return;try{document.adoptedStyleSheets=[...document.adoptedStyleSheets,e]}catch{}const t=En.prototype,s=t.createRenderRoot;t.createRenderRoot=function(){const a=s.call(this);if(typeof ShadowRoot<"u"&&a instanceof ShadowRoot)try{a.adoptedStyleSheets=[...a.adoptedStyleSheets,e]}catch{}return a}}_N();const $N="/api/hassio_ingress/";function Qx(e=window.location.pathname){if(e.startsWith($N))return null;const t=/^\/([a-z0-9][a-z0-9_-]{0,31})\//.exec(e);return t?`/${t[1]}/`:null}function Mz(){return Qx()!==null}function mn(){return`${window.location.origin}${Qx()??"/"}`}function SN(){return`${mn()}?auth_callback=1`}const Zx=Mz();let Ih=null;Zx&&(Ih=document.querySelector("sw-app"),Ih?.remove());function $ge(){document.querySelector("sw-app")||(document.body.appendChild(Ih??document.createElement("sw-app")),Ih=null)} sourceMappingURL=[^*]**/*
+`;let Eo=null;function kN(){if(Eo)return Eo;try{Eo=new CSSStyleSheet,Eo.replaceSync(yN+xN)}catch{Eo=null}return Eo}let z1=!1;function _N(){if(z1||typeof document>"u")return;z1=!0;const e=kN();if(!e)return;try{document.adoptedStyleSheets=[...document.adoptedStyleSheets,e]}catch{}const t=En.prototype,s=t.createRenderRoot;t.createRenderRoot=function(){const a=s.call(this);if(typeof ShadowRoot<"u"&&a instanceof ShadowRoot)try{a.adoptedStyleSheets=[...a.adoptedStyleSheets,e]}catch{}return a}}_N();const $N="/api/hassio_ingress/";function Qx(e=window.location.pathname){if(e.startsWith($N))return null;const t=/^\/([a-z0-9][a-z0-9_-]{0,31})\//.exec(e);return t?`/${t[1]}/`:null}function Mz(){return Qx()!==null}function mn(){return`${window.location.origin}${Qx()??"/"}`}function SN(){return`${mn()}?auth_callback=1`}const Zx=Mz();let Ih=null;Zx&&(Ih=document.querySelector("sw-app"),Ih?.remove());function $ge(){document.querySelector("sw-app")||(document.body.appendChild(Ih??document.createElement("sw-app")),Ih=null)}/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const W=e=>(t,s)=>{s!==void 0?s.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)}; sourceMappingURL=[^*]**/*
+ */const W=e=>(t,s)=>{s!==void 0?s.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)};/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const EN={attribute:!0,type:String,converter:Rh,reflect:!1,hasChanged:Mx},zN=(e=EN,t,s)=>{const{kind:a,metadata:n}=s;let i=globalThis.litPropertyMetadata.get(n);if(i===void 0&&globalThis.litPropertyMetadata.set(n,i=new Map),a==="setter"&&((e=Object.create(e)).wrapped=!0),i.set(s.name,e),a==="accessor"){const{name:r}=s;return{set(l){const c=t.get.call(this);t.set.call(this,l),this.requestUpdate(r,c,e,!0,l)},init(l){return l!==void 0&&this.C(r,void 0,e,l),l}}}if(a==="setter"){const{name:r}=s;return function(l){const c=this[r];t.call(this,l),this.requestUpdate(r,c,e,!0,l)}}throw Error("Unsupported decorator location: "+a)};function _(e){return(t,s)=>typeof s=="object"?zN(e,t,s):((a,n,i)=>{const r=n.hasOwnProperty(i);return n.constructor.createProperty(i,a),r?Object.getOwnPropertyDescriptor(n,i):void 0})(e,t,s)} sourceMappingURL=[^*]**/*
+ */const EN={attribute:!0,type:String,converter:Rh,reflect:!1,hasChanged:Mx},zN=(e=EN,t,s)=>{const{kind:a,metadata:n}=s;let i=globalThis.litPropertyMetadata.get(n);if(i===void 0&&globalThis.litPropertyMetadata.set(n,i=new Map),a==="setter"&&((e=Object.create(e)).wrapped=!0),i.set(s.name,e),a==="accessor"){const{name:r}=s;return{set(l){const c=t.get.call(this);t.set.call(this,l),this.requestUpdate(r,c,e,!0,l)},init(l){return l!==void 0&&this.C(r,void 0,e,l),l}}}if(a==="setter"){const{name:r}=s;return function(l){const c=this[r];t.call(this,l),this.requestUpdate(r,c,e,!0,l)}}throw Error("Unsupported decorator location: "+a)};function _(e){return(t,s)=>typeof s=="object"?zN(e,t,s):((a,n,i)=>{const r=n.hasOwnProperty(i);return n.constructor.createProperty(i,a),r?Object.getOwnPropertyDescriptor(n,i):void 0})(e,t,s)}/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */function w(e){return _({...e,state:!0,attribute:!1})} sourceMappingURL=[^*]**/*
+ */function w(e){return _({...e,state:!0,attribute:!1})}/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const TN=(e,t,s)=>(s.configurable=!0,s.enumerable=!0,Reflect.decorate&&typeof t!="object"&&Object.defineProperty(e,t,s),s); sourceMappingURL=[^*]**/*
+ */const TN=(e,t,s)=>(s.configurable=!0,s.enumerable=!0,Reflect.decorate&&typeof t!="object"&&Object.defineProperty(e,t,s),s);/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */function Lz(e,t){return(s,a,n)=>{const i=r=>r.renderRoot?.querySelector(e)??null;return TN(s,a,{get(){return i(this)}})}} sourceMappingURL=[^*]**/*
+ */function Lz(e,t){return(s,a,n)=>{const i=r=>r.renderRoot?.querySelector(e)??null;return TN(s,a,{get(){return i(this)}})}}/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const Cu={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4},oo=e=>(...t)=>({_$litDirective$:e,values:t});let uc=class{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,s,a){this._$Ct=t,this._$AM=s,this._$Ci=a}_$AS(t,s){return this.update(t,s)}update(t,s){return this.render(...s)}}; sourceMappingURL=[^*]**/*
+ */const Cu={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4},oo=e=>(...t)=>({_$litDirective$:e,values:t});let uc=class{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,s,a){this._$Ct=t,this._$AM=s,this._$Ci=a}_$AS(t,s){return this.update(t,s)}update(t,s){return this.render(...s)}};/**
  * @license
  * Copyright 2018 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const H=oo(class extends uc{constructor(e){if(super(e),e.type!==Cu.ATTRIBUTE||e.name!=="class"||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(this.st===void 0){this.st=new Set,e.strings!==void 0&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(a=>a!=="")));for(const a in t)t[a]&&!this.nt?.has(a)&&this.st.add(a);return this.render(t)}const s=e.element.classList;for(const a of this.st)a in t||(s.remove(a),this.st.delete(a));for(const a in t){const n=!!t[a];n===this.st.has(a)||this.nt?.has(a)||(n?(s.add(a),this.st.add(a)):(s.remove(a),this.st.delete(a)))}return rn}}); sourceMappingURL=[^*]**/*
+ */const H=oo(class extends uc{constructor(e){if(super(e),e.type!==Cu.ATTRIBUTE||e.name!=="class"||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(this.st===void 0){this.st=new Set,e.strings!==void 0&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(a=>a!=="")));for(const a in t)t[a]&&!this.nt?.has(a)&&this.st.add(a);return this.render(t)}const s=e.element.classList;for(const a of this.st)a in t||(s.remove(a),this.st.delete(a));for(const a in t){const n=!!t[a];n===this.st.has(a)||this.nt?.has(a)||(n?(s.add(a),this.st.add(a)):(s.remove(a),this.st.delete(a)))}return rn}});/**
  * @license
  * Copyright 2020 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */const{I:AN}=SL,T1=e=>e,ON=e=>e.strings===void 0,A1=()=>document.createComment(""),Ec=(e,t,s)=>{const a=e._$AA.parentNode,n=t===void 0?e._$AB:t._$AA;if(s===void 0){const i=a.insertBefore(A1(),n),r=a.insertBefore(A1(),n);s=new AN(i,r,e,e.options)}else{const i=s._$AB.nextSibling,r=s._$AM,l=r!==e;if(l){let c;s._$AQ?.(e),s._$AM=e,s._$AP!==void 0&&(c=e._$AU)!==r._$AU&&s._$AP(c)}if(i!==n||l){let c=s._$AA;for(;c!==i;){const d=T1(c).nextSibling;T1(a).insertBefore(c,n),c=d}}}return s},nr=(e,t,s=e)=>(e._$AI(t,s),e),CN={},Dz=(e,t=CN)=>e._$AH=t,RN=e=>e._$AH,Ug=e=>{e._$AR(),e._$AA.remove()}; sourceMappingURL=[^*]**/*
+ */const{I:AN}=SL,T1=e=>e,ON=e=>e.strings===void 0,A1=()=>document.createComment(""),Ec=(e,t,s)=>{const a=e._$AA.parentNode,n=t===void 0?e._$AB:t._$AA;if(s===void 0){const i=a.insertBefore(A1(),n),r=a.insertBefore(A1(),n);s=new AN(i,r,e,e.options)}else{const i=s._$AB.nextSibling,r=s._$AM,l=r!==e;if(l){let c;s._$AQ?.(e),s._$AM=e,s._$AP!==void 0&&(c=e._$AU)!==r._$AU&&s._$AP(c)}if(i!==n||l){let c=s._$AA;for(;c!==i;){const d=T1(c).nextSibling;T1(a).insertBefore(c,n),c=d}}}return s},nr=(e,t,s=e)=>(e._$AI(t,s),e),CN={},Dz=(e,t=CN)=>e._$AH=t,RN=e=>e._$AH,Ug=e=>{e._$AR(),e._$AA.remove()};/**
  * @license
  * Copyright 2021 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -618,7 +618,7 @@ summary {
       block-size: 100%;
       fill: none;
       stroke: currentColor;
-      stroke-width: var(--sw-icon-stroke, 1.8);  sourceMappingURL=[^*]**/ HOMEFABLE-297: a host may set a lighter or heavier stroke (the home's quiet counter icons) */
+      stroke-width: var(--sw-icon-stroke, 1.8); /* HOMEFABLE-297: a host may set a lighter or heavier stroke (the home's quiet counter icons) */
       stroke-linecap: round;
       stroke-linejoin: round;
     }
@@ -634,7 +634,7 @@ summary {
     :host([hidden]) {
       display: none;
     }
-     sourceMappingURL=[^*]**/ block: the button fills its container (phone layouts, action grids) */
+    /* block: the button fills its container (phone layouts, action grids) */
     :host([block]) {
       display: flex;
     }
@@ -655,14 +655,14 @@ summary {
       font-weight: var(--sw-fw-medium);
       line-height: 1;
       cursor: pointer;
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297: colour on the hover curve, the press on the press curve (emil-design-eng: name the properties,
+      /* POLISH-CLASSIC-DOMUS-297: colour on the hover curve, the press on the press curve (emil-design-eng: name the properties,
          transform for feedback). --sw-press-scale is 1 in a skin that sets no press feedback, so nothing moves there. */
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
       white-space: nowrap;
       color: var(--sw-text);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);
-       sourceMappingURL=[^*]**/ mobile-native: no grey tap flash, no 300 ms wait, a long press does not select the label */
+      /* mobile-native: no grey tap flash, no 300 ms wait, a long press does not select the label */
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
       user-select: none;
@@ -675,7 +675,7 @@ summary {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-     sourceMappingURL=[^*]**/ hover only where a pointer can hover (mobile-native: a tapped button kept its hover tint on a phone) */
+    /* hover only where a pointer can hover (mobile-native: a tapped button kept its hover tint on a phone) */
     @media (hover: hover) and (pointer: fine) {
       button:hover:not(:disabled) {
         background: var(--sw-surface-2);
@@ -692,7 +692,7 @@ summary {
         background: var(--sw-danger-soft);
       }
     }
-     sourceMappingURL=[^*]**/ the press wash where there is no hover (touch): the state is visible under the finger */
+    /* the press wash where there is no hover (touch): the state is visible under the finger */
     button:active:not(:disabled) {
       background: var(--sw-surface-2);
     }
@@ -736,7 +736,7 @@ summary {
     :host([variant='danger']) button:active:not(:disabled) {
       background: var(--sw-danger-soft);
     }
-     sourceMappingURL=[^*]**/ disabled keeps its shape and fades; it never lifts, presses or casts a shadow (it read as "enabled but pale") */
+    /* disabled keeps its shape and fades; it never lifts, presses or casts a shadow (it read as "enabled but pale") */
     :host([disabled]) button,
     :host([disabled][variant]) button {
       cursor: not-allowed;
@@ -756,7 +756,7 @@ summary {
     :host([round]) button {
       border-radius: 50%;
     }
-     sourceMappingURL=[^*]**/ touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px. SHAREDUI-295: never
+    /* touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px. SHAREDUI-295: never
        below the host's own control height, so a screen that asks for 44 px targets (--sw-ctl-h-*) keeps them on a phone too.
        PHONE-BUTTONS-44-2342 (owner 02.11, answer 2A): the small and the default button are DRAWN 44 px on a phone (they were 36 / 40
        px with an invisible hit slop), with the inline padding grown in proportion (md 12 -> 13 px, sm 9 -> 11 px). The same rules sit
@@ -799,7 +799,7 @@ summary {
       color: var(--sw-text-2);
       border: 1px solid transparent;
       white-space: nowrap;
-       sourceMappingURL=[^*]**/ break-ui (POLISH-CLASSIC-DOMUS-297): a long label stays inside its row (ellipsis; the full text is the title) */
+      /* break-ui (POLISH-CLASSIC-DOMUS-297): a long label stays inside its row (ellipsis; the full text is the title) */
       max-inline-size: 100%;
       min-inline-size: 0;
       box-sizing: border-box;
@@ -808,7 +808,7 @@ summary {
       min-inline-size: 0;
       overflow: hidden;
       text-overflow: ellipsis;
-       sourceMappingURL=[^*]**/ second pass (break-ui): the text takes its own direction, so a Latin e-mail in the RTL shell is cut at its END, not its start */
+      /* second pass (break-ui): the text takes its own direction, so a Latin e-mail in the RTL shell is cut at its END, not its start */
       unicode-bidi: plaintext;
     }
     :host([onimage]) {
@@ -871,7 +871,7 @@ summary {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 (status as a filled field, not a wash): "filled" paints the badge as a solid field with a solid edge and a
+    /* R5-INVESTIGATE-297 (status as a filled field, not a wash): "filled" paints the badge as a solid field with a solid edge and a
        slightly larger reading size; an outline-only kind (unknown) keeps its dashed meaning.
        SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 12: "סגור" 2.54:1 and "קריטי" 3.76:1 in light, "מידע" 2.51:1 in dark): the field
        is the state's contrast-proven INK (--sw-<kind>-text / --sw-text-2, >= 4.5:1 on the panel in both schemes) and the label is the
@@ -894,7 +894,7 @@ summary {
     }
     :host([filled][kind='live']) {
       background: var(--sw-success);
-       sourceMappingURL=[^*]**/ SKIN-QA-FOLLOWUP-2404 (owner round 22, Q5 = a): dark ink on the green (white read 1.8-3.5:1); the dot follows (currentColor) */
+      /* SKIN-QA-FOLLOWUP-2404 (owner round 22, Q5 = a): dark ink on the green (white read 1.8-3.5:1); the dot follows (currentColor) */
       color: var(--sw-on-success);
     }
     :host([filled][kind='recorded']),
@@ -986,7 +986,7 @@ summary {
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;
       box-shadow: var(--sw-dd-shadow, var(--sw-shadow-1));
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297: colour on the hover curve, the same small press as a button (1 = none where a skin sets no scale) */
+      /* POLISH-CLASSIC-DOMUS-297: colour on the hover curve, the same small press as a button (1 = none where a skin sets no scale) */
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
@@ -996,7 +996,7 @@ summary {
     .chip:active {
       transform: scale(var(--sw-press-scale));
     }
-     sourceMappingURL=[^*]**/ the 44 px target: the chip stays 32 px and the hit area grows into the row's padding (the shell's floating-button trick) */
+    /* the 44 px target: the chip stays 32 px and the hit area grows into the row's padding (the shell's floating-button trick) */
     .chip::after {
       content: '';
       position: absolute;
@@ -1016,7 +1016,7 @@ summary {
     .chip[aria-expanded='true'] {
       border-color: var(--sw-dd-accent, var(--sw-accent));
     }
-     sourceMappingURL=[^*]**/ DROPDOWNFIT-295: the label never ends in an ellipsis. fit-text.ts shrinks its font size to a floor, then sets data-fit="wrap" (two lines,
+    /* DROPDOWNFIT-295: the label never ends in an ellipsis. fit-text.ts shrinks its font size to a floor, then sets data-fit="wrap" (two lines,
        a long word breaks) - overflow stays hidden only as the safety net the fit never needs. */
     .txt {
       min-inline-size: 0;
@@ -1069,7 +1069,7 @@ summary {
       display: flex;
       flex-direction: column;
       overflow: hidden;
-       sourceMappingURL=[^*]**/ a list is a menu, and a menu is never see-through (owner 2026-10-13): the opaque menu surface in every skin, scheme, palette and
+      /* a list is a menu, and a menu is never see-through (owner 2026-10-13): the opaque menu surface in every skin, scheme, palette and
          glass screen, nothing blurred behind it (the dim scrim of the phone sheet, ::backdrop below, may stay translucent) */
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
@@ -1080,10 +1080,10 @@ summary {
       box-shadow: var(--sw-shadow-3);
       outline: none;
       opacity: 1;
-       sourceMappingURL=[^*]**/ the list grows out of its chip (emil-design-eng: origin-aware, from 97 %, never from nothing) */
+      /* the list grows out of its chip (emil-design-eng: origin-aware, from 97 %, never from nothing) */
       transition: opacity var(--sw-t-fast) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ the desktop list only (the phone sheet and the centred box have their own travel and a finger-driven drag) */
+    /* the desktop list only (the phone sheet and the centred box have their own travel and a finger-driven drag) */
     .pop:not(.sheet):not(.centred) {
       transform-origin: top center;
       transition: opacity var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
@@ -1097,7 +1097,7 @@ summary {
     .pop[hidden] {
       display: none !important;
     }
-     sourceMappingURL=[^*]**/ the options scroll, the search field above them stays put; the box of the listbox is the box of the popover (anchoring checks use it) */
+    /* the options scroll, the search field above them stays put; the box of the listbox is the box of the popover (anchoring checks use it) */
     .lb {
       flex: 1 1 auto;
       min-block-size: 0;
@@ -1110,7 +1110,7 @@ summary {
       color: var(--sw-dd-text-3, var(--sw-text-3));
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ the search field of a long list (8+ options) */
+    /* the search field of a long list (8+ options) */
     .search {
       flex: none;
       display: flex;
@@ -1127,7 +1127,7 @@ summary {
     .search:focus-within {
       border-color: var(--sw-accent);
     }
-     sourceMappingURL=[^*]**/ 2.0.1: the search field of a multiple list is a target like its options (44 px on touch layouts, the desktop dial above); the input fills its label */
+    /* 2.0.1: the search field of a multiple list is a target like its options (44 px on touch layouts, the desktop dial above); the input fills its label */
     :host([multiple]) .search {
       min-block-size: max(38px, var(--sw-touch-desktop));
     }
@@ -1155,7 +1155,7 @@ summary {
     .q::-webkit-search-cancel-button {
       -webkit-appearance: none;
     }
-     sourceMappingURL=[^*]**/ the phone: a bottom sheet (default) or a centred box (the Bubble popup dial), both over a dimmed backdrop; inline = the list opens in the flow */
+    /* the phone: a bottom sheet (default) or a centred box (the Bubble popup dial), both over a dimmed backdrop; inline = the list opens in the flow */
     :host .pop.sheet,
     :host .pop.centred {
       inset-inline: 0;
@@ -1166,7 +1166,7 @@ summary {
       padding-block-end: env(safe-area-inset-bottom, 0px);
     }
     :host .pop.sheet {
-       sourceMappingURL=[^*]**/ the on-screen keyboard: --dd-kb is the height it covers, --dd-vh the visible height (set while the sheet is open, from visualViewport) */
+      /* the on-screen keyboard: --dd-kb is the height it covers, --dd-vh the visible height (set while the sheet is open, from visualViewport) */
       inset-block: auto var(--dd-kb, 0px);
       max-block-size: min(72dvh, calc(var(--dd-vh, 100dvh) - 16px));
     }
@@ -1182,18 +1182,18 @@ summary {
     .pop.centred::backdrop {
       background: var(--sw-overlay);
     }
-     sourceMappingURL=[^*]**/ the bottom sheet slides up (the mockups' opening; backwards fill so a swipe's own inline transform takes over after it) and the scrim fades in;
+    /* the bottom sheet slides up (the mockups' opening; backwards fill so a swipe's own inline transform takes over after it) and the scrim fades in;
        prefers-reduced-motion: none of it */
     :host .pop.sheet {
       animation: dd-sheet-in var(--sw-t-sheet) var(--sw-ease-thumb, cubic-bezier(0.2, 0.8, 0.2, 1)) backwards;
     }
     .pop.sheet::backdrop {
       animation: dd-scrim-in 200ms ease-out backwards;
-       sourceMappingURL=[^*]**/ the live page behind is blurred a little (the mockups: 3 px); not in the lite performance tier, not under reduced transparency */
+      /* the live page behind is blurred a little (the mockups: 3 px); not in the lite performance tier, not under reduced transparency */
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(3px));
       backdrop-filter: var(--sw-perf-blur, blur(3px));
     }
-     sourceMappingURL=[^*]**/ closing: 200 ms ease-in down and out (the open attribute is already false; the popover stays up until the animation ends) */
+    /* closing: 200 ms ease-in down and out (the open attribute is already false; the popover stays up until the animation ends) */
     :host .pop.sheet.closing {
       animation: dd-sheet-out 200ms ease-in forwards;
       pointer-events: none;
@@ -1235,7 +1235,7 @@ summary {
         animation: none;
       }
     }
-     sourceMappingURL=[^*]**/ the sheet's head (handle + title): the part a finger drags down to close it */
+    /* the sheet's head (handle + title): the part a finger drags down to close it */
     .hd {
       flex: none;
       touch-action: none;
@@ -1304,7 +1304,7 @@ summary {
         outline: 2px solid Highlight;
       }
     }
-     sourceMappingURL=[^*]**/ ---- 2.0.1 multiple: a check box drawn on every option, a dimmed one that cannot be picked now, the foot with the count / "נקה" / "סיום" ---- */
+    /* ---- 2.0.1 multiple: a check box drawn on every option, a dimmed one that cannot be picked now, the foot with the count / "נקה" / "סיום" ---- */
     :host([multiple]) .opt::before {
       content: '';
       flex: none;
@@ -1340,14 +1340,14 @@ summary {
     .opt[aria-disabled='true'] .lbl {
       opacity: 0.7;
     }
-     sourceMappingURL=[^*]**/ 2.0.2: the short reason after the label (why a camera cannot join now) */
+    /* 2.0.2: the short reason after the label (why a camera cannot join now) */
     .opt .why {
       flex: none;
       font-size: var(--sw-fs-xs);
       color: var(--sw-dd-text-3, var(--sw-text-3));
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ the chip in the multiple mode: the count always shows (the capsule hides the single mode's count); the chip box itself is the touch
+    /* the chip in the multiple mode: the count always shows (the capsule hides the single mode's count); the chip box itself is the touch
        target (the desktop dial, 44 px on touch layouts) - a picker that is pressed several times in a row, not a 32 px tab chip */
     :host([multiple]) .chip .n,
     :host([multiple][dd-style='capsule']) .chip .n {
@@ -1449,7 +1449,7 @@ summary {
       }
     }
 
-     sourceMappingURL=[^*]**/ ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). auto has none of this. ---- */
+    /* ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). auto has none of this. ---- */
     :host(:where(:not([dd-style='auto']))) {
       --_h: max(28px, calc(var(--sw-touch-desktop) - 12px));
       --_opt: var(--sw-touch-desktop);
@@ -1483,7 +1483,7 @@ summary {
       font-weight: var(--sw-fw-medium);
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ pill: a filled pill, no border */
+    /* pill: a filled pill, no border */
     :host([dd-style='pill']) .chip {
       border-color: transparent;
       border-radius: var(--sw-r-pill);
@@ -1509,7 +1509,7 @@ summary {
     :host([dd-style='pill']) .opt[aria-selected='true'][data-active] {
       background: var(--sw-surface-3);
     }
-     sourceMappingURL=[^*]**/ field: a bordered form control, a check mark on the selected option */
+    /* field: a bordered form control, a check mark on the selected option */
     :host([dd-style='field']) .chip {
       background: var(--sw-surface);
       border-color: var(--sw-border-strong);
@@ -1524,7 +1524,7 @@ summary {
       -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
       mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
     }
-     sourceMappingURL=[^*]**/ underline: the tab that stayed a tab */
+    /* underline: the tab that stayed a tab */
     :host([dd-style='underline']) .chip {
       padding-inline: 6px 2px;
       border-color: transparent;
@@ -1555,7 +1555,7 @@ summary {
       border-inline-start-color: var(--sw-accent);
       background: var(--sw-accent-soft);
     }
-     sourceMappingURL=[^*]**/ text: the title is the menu (the chevron sits in a small round badge) */
+    /* text: the title is the menu (the chevron sits in a small round badge) */
     :host([dd-style='text']) .chip {
       padding-inline: 2px 0;
       gap: 8px;
@@ -1615,7 +1615,7 @@ summary {
         font-size: var(--sw-fs-lg, var(--sw-fs-sm));
       }
     }
-     sourceMappingURL=[^*]**/ prefix: the group name before the value ("אבטחה: חקירה"); a pair chip on the phone drops it (width) */
+    /* prefix: the group name before the value ("אבטחה: חקירה"); a pair chip on the phone drops it (width) */
     :host([dd-style='prefix']) .pre {
       display: inline;
       padding-inline-end: 8px;
@@ -1659,7 +1659,7 @@ summary {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ tonal: the selected segment of a pill bar, standing alone */
+    /* tonal: the selected segment of a pill bar, standing alone */
     :host([dd-style='tonal']) .chip {
       border-color: transparent;
       border-radius: var(--sw-r-md);
@@ -1693,7 +1693,7 @@ summary {
     :host([dd-style='tonal']) .opt[aria-selected='true'][data-active] {
       box-shadow: inset 0 0 0 1px var(--sw-accent);
     }
-     sourceMappingURL=[^*]**/ ---- Unreleased: the SIZE dial (dd-size) for the six older styles and auto. md = today's size, nothing changes. The text style keeps its own big title.
+    /* ---- Unreleased: the SIZE dial (dd-size) for the six older styles and auto. md = today's size, nothing changes. The text style keeps its own big title.
        Row heights never go under the touch dial (44 px by default); the chip's hit area stays 44 px through ::after. ---- */
     :host([dd-size='sm']:not([dd-style='capsule']):not([dd-style='text'])) .chip {
       min-block-size: 26px;
@@ -1717,7 +1717,7 @@ summary {
       min-block-size: 52px;
       font-size: var(--sw-fs-md);
     }
-     sourceMappingURL=[^*]**/ ---- Unreleased: capsule (owner reference 2026-10-04). Closed: a capsule with a blue ring, a white-to-lavender fill, a soft bottom shadow, an icon at the
+    /* ---- Unreleased: capsule (owner reference 2026-10-04). Closed: a capsule with a blue ring, a white-to-lavender fill, a soft bottom shadow, an icon at the
        start, a confident label and a small chevron at the end (RTL: icon right, chevron left; the chevron turns up while open). Open: a floating, rounded,
        translucent panel; the chosen row is a tinted row in the accent colour; every row has its icon at the start and a COUNT at the other end; a divider item
        draws a thin line. The visible capsule is the chip's ::before (so a small one still has a 44 px hit box on touch and on the 44 px desktop dial).
@@ -1793,7 +1793,7 @@ summary {
         min-block-size: max(var(--_ch), 44px);
       }
     }
-     sourceMappingURL=[^*]**/ DROPDOWNFIT-295: a squeezed capsule (a phone header with three controls in a row) first shrinks its label to the floor and then, before the label
+    /* DROPDOWNFIT-295: a squeezed capsule (a phone header with three controls in a row) first shrinks its label to the floor and then, before the label
        wraps, tightens the chrome: the same capsule, the icon and the chevron untouched, less air around them (data-tight, set by the fit). */
     :host([dd-style='capsule'][data-tight]) .chip {
       gap: 6px;
@@ -1938,18 +1938,18 @@ summary {
         border-color: ButtonText;
       }
     }
-     sourceMappingURL=[^*]**/ ---- the mockups' per-skin notes (docs/design/compare/dropdown-styles): three small exceptions. The skin is mirrored on the host (data-skin).
+    /* ---- the mockups' per-skin notes (docs/design/compare/dropdown-styles): three small exceptions. The skin is mirrored on the host (data-skin).
        The LIST surface is no longer one of them (owner 2026-10-13): every skin's list is the opaque menu surface of the base above - the glass sheet
        of Domus, the sheet colour of Bubble at the transparency dial and the translucent list of the mockups are gone, the skin's own --sw-menu-surface
        carries its colour. ---- */
-     sourceMappingURL=[^*]**/ Tesla: the pill is a 6 px rectangle there, so it gets a hairline to read as a control; the text style's badge follows the square radius */
+    /* Tesla: the pill is a 6 px rectangle there, so it gets a hairline to read as a control; the text style's badge follows the square radius */
     :host([data-skin='tesla'][dd-style='pill']) .chip {
       border-color: var(--sw-border);
     }
     :host([data-skin='tesla'][dd-style='text']) .chip .chev {
       border-radius: var(--sw-r-sm);
     }
-     sourceMappingURL=[^*]**/ Bubble: the field style rounds to r-md (the borderless language, softened) */
+    /* Bubble: the field style rounds to r-md (the borderless language, softened) */
     :host([data-skin='bubble'][dd-style='field']) .chip {
       border-radius: var(--sw-r-md);
     }
@@ -1962,7 +1962,7 @@ summary {
     :host([dd-style='text']) .pop {
       min-inline-size: 240px;
     }
-     sourceMappingURL=[^*]**/ ---- WALL-PHONE-TOOLBAR-2401: icon-only. One square key (the chip's own border, fill and shadow in every style, so a bare style still reads as
+    /* ---- WALL-PHONE-TOOLBAR-2401: icon-only. One square key (the chip's own border, fill and shadow in every style, so a bare style still reads as
        a control), the icon centred, no text and no chevron - nothing to cut, so nothing to ellipsise. The chip box is the 44 px target. ---- */
     :host([icon-only]:not([multiple])) {
       flex: none;
@@ -1990,7 +1990,7 @@ summary {
       min-inline-size: max(var(--_ch), 44px);
       block-size: max(var(--_ch), 44px);
     }
-     sourceMappingURL=[^*]**/ a key is never taller than the phone row allows (the lg capsule is 58 px): 48 px at most */
+    /* a key is never taller than the phone row allows (the lg capsule is 58 px): 48 px at most */
     :host([icon-only][dd-style='capsule'][dd-size='lg']) {
       --_ch: 48px;
       --_cico: 22px;
@@ -2040,13 +2040,13 @@ summary {
       max-inline-size: 100%;
       min-inline-size: 0;
       box-sizing: border-box;
-       sourceMappingURL=[^*]**/ the hit height: the host's --sw-tab-min-h, else 44 px on a phone (coarse pointer, below), else none */
+      /* the hit height: the host's --sw-tab-min-h, else 44 px on a phone (coarse pointer, below), else none */
       --_h: var(--sw-tab-min-h, 0px);
-       sourceMappingURL=[^*]**/ SETTINGS-TABS-SCROLL-2331: the scroll arrow's box and the fade that runs from under it into the tabs */
+      /* SETTINGS-TABS-SCROLL-2331: the scroll arrow's box and the fade that runs from under it into the tabs */
       --_arr: 32px;
       --_fade: calc(var(--_arr) + 20px);
     }
-     sourceMappingURL=[^*]**/ CR-013: a row wider than its box scrolls sideways (snapping to tabs) and fades at the edge that hides more tabs,
+    /* CR-013: a row wider than its box scrolls sideways (snapping to tabs) and fades at the edge that hides more tabs,
        so a clipped label reads as "more this way" rather than a cut word. SETTINGS-TABS-SCROLL-2331: the scrolling box is the
        viewport inside the host (the arrows sit over it, outside the fade); the fade masks the viewport, not the tabs. */
     .vp {
@@ -2056,7 +2056,7 @@ summary {
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: none;
-       sourceMappingURL=[^*]**/ no scroll snapping since 2.33.1: a snap re-aligned the strip after the arrows, the wheel and the active-tab reveal had placed
+      /* no scroll snapping since 2.33.1: a snap re-aligned the strip after the arrows, the wheel and the active-tab reveal had placed
          it (the revealed tab could land back under the fade); the arrows and the keyboard now do what the snap did */
       scroll-padding-inline: var(--_fade);
       overscroll-behavior-x: contain;
@@ -2077,7 +2077,7 @@ summary {
       -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
       mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
     }
-     sourceMappingURL=[^*]**/ the scroll arrows: one per reading side, drawn only while that side hides tabs (data-more). A mouse affordance - the keyboard
+    /* the scroll arrows: one per reading side, drawn only while that side hides tabs (data-more). A mouse affordance - the keyboard
        walks the tabs with the arrow keys and a finger swipes - so they are hidden from assistive technology and take no focus. */
     .arr {
       position: absolute;
@@ -2168,7 +2168,7 @@ summary {
       user-select: none;
       -webkit-user-select: none;
     }
-     sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (mobile-native): hover only under a hovering pointer */
+    /* POLISH-CLASSIC-DOMUS-297 (mobile-native): hover only under a hovering pointer */
     @media (hover: hover) and (pointer: fine) {
       a:hover,
       button:hover {
@@ -2193,7 +2193,7 @@ summary {
       align-items: center;
       gap: 5px;
     }
-     sourceMappingURL=[^*]**/ touch targets (mobile audit 2026-09-30): page-level tab strips were 29-37 px high on a phone; a host may still ask for more */
+    /* touch targets (mobile audit 2026-09-30): page-level tab strips were 29-37 px high on a phone; a host may still ask for more */
     @media (max-width: 767px) and (pointer: coarse) {
       :host {
         --_h: var(--sw-tab-min-h, 44px);
@@ -2223,12 +2223,12 @@ summary {
       padding-inline: 5px;
       border-radius: 999px;
       background: var(--sw-danger);
-      color: var(--sw-on-video);  sourceMappingURL=[^*]**/ white on the danger fill */
+      color: var(--sw-on-video); /* white on the danger fill */
       font-size: var(--sw-fs-xs);
       font-weight: 700;
       line-height: 1;
     }
-     sourceMappingURL=[^*]**/ SERVICEIA1-295: the "something waits inside" dot (the dropdown chip's dot, in the bar forms) */
+    /* SERVICEIA1-295: the "something waits inside" dot (the dropdown chip's dot, in the bar forms) */
     .tdot {
       inline-size: 8px;
       block-size: 8px;
@@ -2238,11 +2238,11 @@ summary {
       flex: none;
     }
 
-     sourceMappingURL=[^*]**/ ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
+    /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
     :host([data-variant='dropdown']) {
       display: inline-flex;
       overflow: visible;
-      padding-block: 4px;  sourceMappingURL=[^*]**/ 32 px chip + 4 + 4 = the 40 px row; the chip's hit area reaches 44 px */
+      padding-block: 4px; /* 32 px chip + 4 + 4 = the 40 px row; the chip's hit area reaches 44 px */
       -webkit-mask-image: none;
       mask-image: none;
     }
@@ -2253,7 +2253,7 @@ summary {
       min-inline-size: 0;
     }
 
-     sourceMappingURL=[^*]**/ ---- pill: the narrow segmented control (the track is 34 px; a taller hit area grows around it) ---- */
+    /* ---- pill: the narrow segmented control (the track is 34 px; a taller hit area grows around it) ---- */
     :host([data-variant='pill']) .row {
       padding-inline: 3px;
     }
@@ -2277,7 +2277,7 @@ summary {
       box-sizing: border-box;
       justify-content: center;
     }
-     sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380 (WCAG 1.4.11): in dark the chosen key is the light pill of every segmented control (--sw-seg-key with its
+    /* DARK-SEG-ALL-2380 (WCAG 1.4.11): in dark the chosen key is the light pill of every segmented control (--sw-seg-key with its
        opaque dark label --sw-seg-key-ink, design/tokens.ts); light falls back to the surface and keeps the inherited ink (currentColor
        as the value of color is the inherited colour, so the hover ink of the button still reaches the label in light) */
     :host([data-variant='pill']) .on .lbl {
@@ -2290,7 +2290,7 @@ summary {
       color: var(--sw-seg-key-ink, var(--sw-accent-text));
     }
 
-     sourceMappingURL=[^*]**/ ---- underline: the settings-page style (thin accent underline under the active tab) ---- */
+    /* ---- underline: the settings-page style (thin accent underline under the active tab) ---- */
     :host([data-variant='underline']),
     :host([data-variant='underline-compact']) {
       display: flex;
@@ -2313,7 +2313,7 @@ summary {
       border-block-end-color: var(--sw-accent);
     }
 
-     sourceMappingURL=[^*]**/ ---- underline-compact: the same row, 32 px high (the sub-tabs) ----
+    /* ---- underline-compact: the same row, 32 px high (the sub-tabs) ----
        The text sits at the top of the tab, the underline at 30 px; with a taller --sw-tab-min-h the extra hit height lies BELOW
        the underline, and a negative margin gives that room back to the layout, so the row takes 32 px whatever the target. */
     :host([data-variant='underline-compact']) {
@@ -2325,7 +2325,7 @@ summary {
       flex: 1 0 auto;
       gap: 0;
     }
-     sourceMappingURL=[^*]**/ the arrow sits on the visible 32 px row, not on the extra hit height below it */
+    /* the arrow sits on the visible 32 px row, not on the extra hit height below it */
     :host([data-variant='underline-compact']) .arr {
       inset-block-end: auto;
       block-size: 32px;
@@ -2761,7 +2761,7 @@ summary {
   @media (hover: hover) and (pointer: fine) {
     .wg-pres .pr-go:hover { text-decoration: underline; text-underline-offset: 3px; }
   }
-   sourceMappingURL=[^*]**/ the lamp: green only while occupied; hollow for "no data" (shape, not colour alone) */
+  /* the lamp: green only while occupied; hollow for "no data" (shape, not colour alone) */
   .wg-pres .pr-lamp { inline-size: 10px; block-size: 10px; border-radius: 50%; flex: none; background: var(--sw-unknown); }
   .wg-pres[data-tone='ok'] .pr-lamp { background: var(--sw-success); box-shadow: 0 0 0 3px var(--sw-success-soft); }
   .wg-pres[data-tone='unknown'] .pr-lamp { background: transparent; box-shadow: inset 0 0 0 2px var(--sw-unknown); }
@@ -2773,9 +2773,9 @@ summary {
   .wg-pres .pr-last, .wg-pres .pr-rest, .wg-pres .pc-rooms { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-pres .pr-last { font-size: var(--sw-fs-sm); line-height: 24px; color: var(--sw-text-3); }
   .wg-pres .pr-rest { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-   sourceMappingURL=[^*]**/ floors: the active count large, a short bar per floor */
+  /* floors: the active count large, a short bar per floor */
   .wg-pres .pb-body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: center; min-inline-size: 0; }
-   sourceMappingURL=[^*]**/ "2 / 5" in the reading order of the line (RTL: the active count first, at the start), like "2 מתוך 5" */
+  /* "2 / 5" in the reading order of the line (RTL: the active count first, at the start), like "2 מתוך 5" */
   .wg-pres .pb-n { line-height: 1; white-space: nowrap; }
   .wg-pres .pb-n b { font-size: var(--sw-fs-4xl, 32px); font-weight: var(--sw-fw-medium); letter-spacing: -0.04em; color: var(--sw-heading, var(--sw-text)); }
   .wg-pres[data-tone='ok'] .pb-n b { color: var(--sw-success-text); }
@@ -2790,16 +2790,16 @@ summary {
   .wg-pres .pb-f .bar i { display: block; block-size: 100%; inline-size: var(--p, 0%); background: var(--sw-success); border-radius: 3px; }
   .wg-pres .pb-f .c { color: var(--sw-text-3); direction: ltr; unicode-bidi: isolate; }
   .wg-pres .pb-more { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-   sourceMappingURL=[^*]**/ quiet: one ambient sentence */
+  /* quiet: one ambient sentence */
   .wg-pres .pc-line { display: flex; align-items: center; gap: 8px; min-inline-size: 0; font-size: var(--sw-fs-base, 13px); color: var(--sw-text-2); }
   .wg-pres .pc-line .t { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-pres .pc-line .pr-state { font-size: inherit; font-weight: var(--sw-fw-semibold); letter-spacing: 0; }
   .wg-pres .pc-rooms { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .wg-pres .pc-rooms bdi + bdi::before { content: ', '; }
   .wg-pres .pc-rooms .rest { color: var(--sw-text-3); }
-   sourceMappingURL=[^*]**/ PRESENCE-COUNT-2400 - count and names (round-16 direction A): the number in the clock's voice (the clock's --hm, scaled per size so the
+  /* PRESENCE-COUNT-2400 - count and names (round-16 direction A): the number in the clock's voice (the clock's --hm, scaled per size so the
      row never grows), the names as text, a hairline bar with a tick a room. Green lives only in the lamp and the bar. */
-   sourceMappingURL=[^*]**/ the block keeps its own height so the card centres it (as the mockup); only the row band, where the card is a row, lets it take the width */
+  /* the block keeps its own height so the card centres it (as the mockup); only the row band, where the card is a row, lets it take the width */
   .wg-pres .pn { display: flex; flex-direction: column; gap: 8px; flex: 0 1 auto; min-inline-size: 0; }
   :host([layout='row']) .wg-pres .pn { flex: 1 1 auto; }
   .wg-pres .pn-row { display: flex; align-items: center; gap: 14px; min-inline-size: 0; }
@@ -2813,7 +2813,7 @@ summary {
   .wg-pres .pn-w { display: flex; align-items: center; gap: 7px; min-inline-size: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); white-space: nowrap; }
   .wg-pres .pn-w > span:not(.pr-lamp) { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
   .wg-pres .pn .pr-lamp { inline-size: 8px; block-size: 8px; }
-   sourceMappingURL=[^*]**/ the names line: one text run per part (no element per name), each part ends in its own ellipsis - nothing runs past the card */
+  /* the names line: one text run per part (no element per name), each part ends in its own ellipsis - nothing runs past the card */
   .wg-pres .pn-names { display: flex; gap: 0.35em; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); white-space: nowrap; }
   .wg-pres .pn-names > span { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
   .wg-pres .pn-names .nm { flex: 0 1 auto; }
@@ -2825,7 +2825,7 @@ summary {
   .wg-pres .pn-bar.share { display: block; background: var(--sw-surface-3); border-radius: var(--sw-r-pill, 999px); overflow: hidden; }
   .wg-pres .pn-bar.share b { display: block; block-size: 100%; inline-size: var(--p, 0%); background: var(--sw-success); border-radius: var(--sw-r-pill, 999px); }
   .wg-pres .pn-fl { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-   sourceMappingURL=[^*]**/ the tightest fit step and the row band: no floor line (the count, the names and the bar keep the card at the row's height) */
+  /* the tightest fit step and the row band: no floor line (the count, the names and the bar keep the card at the row's height) */
   :host([data-fit='2']) .wg-pres .pn-fl,
   .wg-pres.pr-compact .pn-fl { display: none; }
   @media (prefers-reduced-motion: no-preference) {
@@ -2845,7 +2845,7 @@ summary {
         <text x=${a.x+14} y=${a.y+26} text-anchor="start" font-size="15" font-weight="500" fill="var(--sw-map-label)" font-family="var(--sw-font)" direction="rtl" style="unicode-bidi: plaintext">${a.label}</text>
       `)}
   `}function UU(){return{source:"demo",sites:IU.map((t,s)=>({id:t.id,name:t.name,address:t.address,timezone:"Asia/Jerusalem",sort_order:s,updated_at:"",buildings:FU.filter(a=>a.siteId===t.id).map((a,n)=>({id:a.id,site_id:t.id,name:a.name,sort_order:n,updated_at:"",floors:a.floors.map((i,r)=>{const l=du.find(c=>c.id===i.id);return{id:i.id,building_id:a.id,name:i.name,level:-r,sort_order:r,ha_area_id:null,has_plan:i.hasPlan,published_version_id:i.hasPlan?`demo-${i.id}`:null,plan_width_px:l?.planWidth??null,plan_height_px:l?.planHeight??null,draft_version_id:null,anchor_count:i.cameras+i.entities,camera_count:i.cameras,updated_at:""}})}))})),canCreateSite:!0}}async function El(){if(!O())return UU();const e=await $("sites?tree=true");return{source:"api",sites:e.sites,canCreateSite:e.can_create_site}}const n0e=e=>S("sites",e),i0e=(e,t)=>Le(`sites/${e}`,t),r0e=e=>De(`sites/${e}`),o0e=(e,t)=>S(`sites/${e}/buildings`,t),l0e=(e,t)=>Le(`buildings/${e}`,t),c0e=e=>De(`buildings/${e}`),d0e=(e,t)=>S(`buildings/${e}/floors`,t),u0e=(e,t)=>Le(`floors/${e}`,t),Nv=()=>$("home-links"),WU=(e,t)=>U(`floors/${e}/home-link`,t),p0e=(e,t=!1)=>De(`floors/${e}${t?"?force=true":""}`);function h0e(e,t,s){const a=new FormData;return a.append("file",s,s.name),lc(`${e}s/${t}/image`,a)}const f0e=(e,t)=>Ae(`${e}s/${t}/image`,{method:"DELETE"}),m0e=e=>St(e.replace(/^api\/v1\//,""));function jU(e,t){for(const s of e.sites)for(const a of s.buildings??[]){const n=(a.floors??[]).find(i=>i.id===t);if(n)return{site:s,building:a,floor:n}}return null}function KU(e){for(const t of e.sites)for(const s of t.buildings??[])for(const a of s.floors??[])return a;return null}function g0e(e,t){return(t?jU(e,t)?.floor:void 0)??KU(e)}const r2=["·","-",":"," "],PA=["start","end","label","word"],VU=["letter","number","word","any"],GU=12,An={position:"start",seps:["·","-",":"],kind:"any",marker:"בניין"},ys=e=>`${e.kind==="floor"?"f":"a"}:${e.id}`,Bi=(e,t)=>!!e&&!!t&&e.t===t.t&&(e.t==="b"?e.id===t.id:e.t==="new"?e.name===t.name:!0),IA=e=>e?e.t==="b"?`b:${e.id}`:e.t==="new"?`n:${e.name}`:"none":"",YU=["table","starts","ends","contains","label","regex"],Uu={id:"table",kind:"table",value:"",to:null,on:!0},FA={floor_inherit:"on",auto_insert:"off",new_token:"new_first"},Pv={floor_inherit:["on","off"],auto_insert:["off","on"],new_token:["new_first","existing_first","unassigned_first"]},XU=-50,JU=300,wk=(e=An)=>({v:1,spec:{...e,seps:[...e.seps]},tokens:{},manual_tokens:[],advanced:!1,rules:[{...Uu}],decisions:{},levels:{}}),qA=e=>e.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");function QU(e){if(e===" ")return/\s+/gu;const t=e.trim();return new RegExp(`\\s*${qA(t||e)}\\s*`,"gu")}function ZU(e,t){const s=[],a=QU(t);for(let n=a.exec(e);n;n=a.exec(e)){if(n[0].length===0){a.lastIndex+=1;continue}const i=n.index,r=i+n[0].length;t.trim()==="-"&&/^\s/.test(n[0])&&!/\s$/.test(n[0])&&/\d/.test(e[r]??"")||s.push({i,j:r})}return s}function aw(e,t){if(!e||e.length>GU)return!1;switch(t){case"letter":return/^\p{L}$/u.test(e);case"number":return/^\p{Nd}{1,4}$/u.test(e);case"word":return/^[\p{L}\p{N}][\p{L}\p{N}'"׳״_.]*$/u.test(e);default:return(e.match(/\s+/g)?.length??0)<=1}}function uu(e,t){const s=(e.name??"").trim();if(t.position==="label"){for(const n of e.labels??[]){const i=n.trim();if(aw(i,t.kind==="any"?"any":t.kind)||t.kind==="any"&&i.length<=40&&i)return{token:i,sep:"",rest:s}}return null}if(!s)return null;if(t.position==="word"){const n=t.marker.trim();if(!n)return null;const i=new RegExp(`(?:^|\\s)${qA(n)}\\s+(\\S+)`,"u").exec(s);if(!i)return null;const r=i[1];if(!aw(r,t.kind==="any"?"word":t.kind))return null;const l=(s.slice(0,i.index)+s.slice(i.index+i[0].length)).replace(/\s+/g," ").trim();return{token:r,sep:"",rest:l||s}}const a=[];for(const n of t.seps)for(const i of ZU(s,n))a.push({sep:n,...i});t.position==="start"?a.sort((n,i)=>n.i-i.i||i.j-n.j):a.sort((n,i)=>i.j-n.j||n.i-i.i);for(const n of a){const i=(t.position==="start"?s.slice(0,n.i):s.slice(n.j)).trim(),r=(t.position==="start"?s.slice(n.j):s.slice(0,n.i)).trim();if(!(!r||!aw(i,t.kind)))return{token:i,sep:n.sep,rest:r}}return null}function wf(e,t){const s=new Map,a={},n=[];let i=0;for(const l of e){const c=uu(l,t);if(!c){n.push(l);continue}i+=1,c.sep&&(a[c.sep]=(a[c.sep]??0)+1);let d=s.get(c.token);d||s.set(c.token,d={token:c.token,floors:0,areas:0,samples:[],seps:{}}),l.kind==="floor"?d.floors+=1:d.areas+=1,d.samples.length<6&&d.samples.push(l.name),c.sep&&(d.seps[c.sep]=(d.seps[c.sep]??0)+1)}const r=[...s.values()].sort((l,c)=>c.floors+c.areas-(l.floors+l.areas)||l.token.localeCompare(c.token,"he"));return{total:e.length,marked:i,pct:e.length?Math.round(100*i/e.length):0,sepUse:a,tokens:r,unmarked:n}}function eW(e){const t=["·","-",":"],s=[{position:"start",seps:t,kind:"any",marker:An.marker},{position:"end",seps:t,kind:"any",marker:An.marker},{position:"label",seps:t,kind:"any",marker:An.marker},{position:"word",seps:t,kind:"any",marker:An.marker}],a={};let n=s[0],i=-1,r=[-1,0,0];const l=(c,d)=>c[0]!==d[0]?c[0]>d[0]:c[1]!==d[1]?c[1]<d[1]:c[2]<d[2];for(const c of s){const d=wf(e,c);a[c.position]=d.pct;const u=d.tokens.length?d.tokens.reduce((f,m)=>f+m.token.length,0)/d.tokens.length:0,h=[d.pct,d.tokens.length,u];l(h,r)&&(n=c,i=d.pct,r=h)}if(n.position==="start"||n.position==="end"){const c=wf(e,n).sepUse,d=t.filter(u=>c[u]);n={...n,seps:d.length?d:["·"]}}return{spec:n,pct:Math.max(0,i),alternatives:a}}const Ta=e=>e.replace(/\s+/g," ").trim().toLowerCase();function bk(e,t){const s=Ta(e);if(!s)return null;const a=n=>Ta(n).replace(/^(בניין|מבנה|מגדל|building|tower)\s+/u,"");return t.find(n=>Ta(n.name)===s)??t.find(n=>a(n.name)===s)??null}function bf(e,t,s){const a=t.tokens[e];if(a)return a;const n=bk(e,s);return n?{t:"b",id:n.id}:void 0}const vf=e=>/^(בניין|מבנה|מגדל)\s/u.test(e)||e==="משותף"?e:`בניין ${e}`;function HA(e,t,s){const a=[],n=new Set,i=(r,l,c)=>{if(n.has(r))return;n.add(r);const d=bf(r,t,s),u=!!d&&d.t!=="none"&&a.some(h=>Bi(h.target,d));a.push({token:r,stat:l,target:d,own:!!t.tokens[r],merged:u,manual:c})};for(const r of e.tokens)i(r.token,r,t.manual_tokens.includes(r.token));for(const r of t.manual_tokens)i(r,{token:r,floors:0,areas:0,samples:[],seps:{}},!0);return a}function tW(e,t,s,a){const n=bf(s,e,a);return!n||t===s?e:{...e,tokens:{...e.tokens,[t]:n}}}function sW(e){try{return e?new RegExp(e,"u"):null}catch{return null}}function BA(e,t,s){const a=t.advanced?t.rules:[Uu],n=[],i=e.name.trim();for(const r of a){if(!r.on)continue;const l=r.value.trim();switch(r.kind){case"table":{const c=uu(e,t.spec);c&&n.push({rule:r,to:bf(c.token,t,s),token:c.token,sep:c.sep});break}case"starts":l&&i.startsWith(l)&&n.push({rule:r,to:r.to??void 0,token:null,sep:""});break;case"ends":l&&i.endsWith(l)&&n.push({rule:r,to:r.to??void 0,token:null,sep:""});break;case"contains":l&&i.includes(l)&&n.push({rule:r,to:r.to??void 0,token:null,sep:""});break;case"label":l&&(e.labels??[]).some(c=>c.trim()===l)&&n.push({rule:r,to:r.to??void 0,token:null,sep:""});break;case"regex":{const c=sW(r.value)?.exec(i);if(!c)break;r.to?n.push({rule:r,to:r.to,token:null,sep:""}):c[1]&&n.push({rule:r,to:bf(c[1],t,s),token:c[1],sep:""});break}}}return n}function aW(e,t,s){const a={};for(const n of t.rules)a[n.id]={floors:0,areas:0};for(const n of e){const i=BA(n,t,s).find(l=>l.to);if(!i)continue;const r=a[i.rule.id]??={floors:0,areas:0};n.kind==="floor"?r.floors+=1:r.areas+=1}return a}function nW(e,t,s){if(t===s||t<0||s<0||t>=e.length||s>=e.length)return e;const a=[...e],[n]=a.splice(t,1);return a.splice(s,0,n),a}function iW(e,t){const s={t:"new",name:vf(e)},a={t:"none"};return t.new_token==="unassigned_first"?[a,s]:[s,a]}function UA(e){return e.new_token==="existing_first"?["existing","new","none"]:e.new_token==="unassigned_first"?["none","new","existing"]:["new","existing","none"]}function o2(e,t,s){for(const a of e.labels??[]){const n=t.tokens[a.trim()]??(()=>{const i=bk(a,s);return i?{t:"b",id:i.id}:void 0})();if(n&&n.t!=="none")return n}}function l2(e,t,s){const a=BA(e,t,s.buildings),n=a.find(l=>l.to);if(!n){const l=a.find(d=>d.token&&!d.to);if(l)return{to:null,src:"none",token:l.token,sep:l.sep,open:!0,conflict:{kind:"unknown_token",options:iW(l.token,s.settings),token:l.token}};const c=o2(e,t,s.buildings);return{to:null,src:"none",token:null,open:!0,conflict:{kind:"no_mark",options:c?[c,{t:"none"}]:[{t:"none"}]}}}const i={to:n.to,src:"rule",rule:n.rule.id,token:n.token,sep:n.sep,open:!1},r=a.find(l=>l!==n&&l.to&&!Bi(l.to,n.to));if(r)i.open=!0,i.conflict={kind:"rules",options:[n.to,r.to],alt:r.to};else if(n.rule.kind!=="label"){const l=o2(e,t,s.buildings);l&&!Bi(l,n.to)&&(i.open=!0,i.conflict={kind:"label",options:[n.to,l],alt:l})}return i}function Ui(e,t,s){const a=new Map,n=i=>{const r=t.decisions[i];return r?{to:r,src:"manual",open:!1}:null};for(const i of e){if(i.kind!=="floor")continue;const r=ys(i);a.set(r,n(r)??l2(i,t,s))}for(const i of e){if(i.kind!=="area")continue;const r=ys(i),l=n(r);if(l){a.set(r,l);continue}const c=l2(i,t,s),d=i.floorId?a.get(`f:${i.floorId}`):void 0,u=d&&!d.open&&d.to&&d.to.t!=="none"?d.to:null;if(c.src==="rule"&&u&&!Bi(c.to,u)&&!c.conflict)c.open=!0,c.conflict={kind:"floor",options:[u,c.to],alt:u};else if(c.src==="none"&&u&&s.settings.floor_inherit==="on"&&c.conflict?.kind==="no_mark"){a.set(r,{to:u,src:"floor",token:null,open:!1});continue}c.conflict?.kind==="no_mark"&&u&&(c.conflict.options=[u,...c.conflict.options.filter(h=>!Bi(h,u))]),a.set(r,c)}return a}const c2=e=>e.conflict?.options[0]??e.to;function rW(e,t){const s=new Map,a=[];for(const n of e){const i=t.get(ys(n));if(!(!i||!i.open||!i.conflict)){if(i.conflict.kind==="unknown_token"&&i.conflict.token){const r=s.get(i.conflict.token);if(r)r.count+=1;else{const l={key:`t:${i.conflict.token}`,kind:"unknown_token",item:n,token:i.conflict.token,count:1,conflict:i.conflict,res:i};s.set(i.conflict.token,l),a.push(l)}continue}a.push({key:ys(n),kind:i.conflict.kind,item:n,count:1,conflict:i.conflict,res:i})}}return a.sort((n,i)=>(n.item?.kind==="floor"?0:1)-(i.item?.kind==="floor"?0:1)||(n.item?.name??"").localeCompare(i.item?.name??"","he"))}function WA(e,t,s){return t.key.startsWith("t:")&&t.token?{...e,tokens:{...e.tokens,[t.token]:s}}:{...e,decisions:{...e.decisions,[t.key]:s}}}function oW(e,t){let s=e;for(const a of t)s=WA(s,a,{t:"none"});return s}function lW(e,t,s,a){const n=Object.keys(s.decisions);if(!n.length)return 0;const i=d=>({...d,decisions:{}}),r=Ui(e,i(t),a),l=Ui(e,i(s),a);let c=0;for(const d of n){const u=r.get(d),h=l.get(d);if(!h)continue;const f=u?c2(u):null,m=c2(h);!Bi(f,m)&&!Bi(m,s.decisions[d])&&(c+=1)}return c}function jA(e,t,s,a=[]){const n=new Map,i=u=>{const h=IA(u);let f=n.get(h);return f||n.set(h,f={key:h,target:u,floors:0,areas:0,manual:0,byFloor:0,tokens:[]}),f};for(const u of s)i({t:"b",id:u.id});const r={floors:0,areas:0};let l=0,c=0,d=0;for(const u of e){const h=t.get(ys(u));if(!h)continue;if(h.open&&(l+=1),h.src==="manual"&&(c+=1),h.src==="floor"&&(d+=1),h.open||!h.to||h.to.t==="none"){u.kind==="floor"?r.floors+=1:r.areas+=1;continue}const f=i(h.to);u.kind==="floor"?f.floors+=1:f.areas+=1,h.src==="manual"&&(f.manual+=1),h.src==="floor"&&(f.byFloor+=1)}for(const u of a)u.target&&u.target.t!=="none"&&i(u.target).tokens.push(u.token);return{buildings:[...n.values()],unassigned:r,open:l,manual:c,byFloor:d,total:e.length}}function cW(e){if(/קרקע|lobby|ground/iu.test(e))return 0;const t=/(-?\d{1,3})/.exec(e.replace(/‎/g,""));return t?Number(t[1]):null}function vk(e,t,s,a,n,i={},r){const l={new_buildings:[],new_floors:[],floors:[],areas:[],items:e.map(ys)},c=new Map,d=E=>{if(E.t==="b")return s.some(C=>C.id===E.id)?E.id:null;if(E.t==="new"){const C=s.find(T=>Ta(T.name)===Ta(E.name));if(C)return C.id;let N=c.get(E.name);return N||(N=`b${c.size+1}`,c.set(E.name,N),l.new_buildings.push({key:N,name:E.name})),`new:${N}`}return null},u=E=>a.filter(C=>C.building_id===E),h=new Map(a.map(E=>[E.id,E.building_id])),f=new Map(n.floors.map(E=>[E.ha_floor_id,E.floor_id])),m=new Map(n.areas.map(E=>[E.area_id,E.floor_id])),b=new Map((n.buildings??[]).map(E=>[E.area_id,E.building_id])),v=(E,C,N)=>{let T=l.new_floors.find(F=>F.building===E&&Ta(F.name)===Ta(C)&&F.level===N);return T||l.new_floors.push(T={key:`f${l.new_floors.length+1}`,building:E,name:C,level:N}),`new:${T.key}`},x=E=>E.startsWith("new:")?l.new_floors.find(C=>`new:${C.key}`===E)?.building:h.get(E),y=new Map,A=(E,C,N,T)=>{const F=f.get(C);if(F&&h.get(F)===E)return F;const K=E.startsWith("new:")?[]:u(E),ve=dW(N,t.get(`f:${C}`));let _e=T??cW(ve);if(_e===null){const Ct=i[C],Rt=K.filter(di=>Ta(di.name)===Ta(ve));if(!Ct&&Rt.length===1)return Rt[0].id;if(r?.push({id:C,building:E,rest:ve||N,answer:Ct}),Ct?.t==="floor"&&h.get(Ct.id)===E)return Ct.id;Ct?.t==="level"&&(_e=Ct.level)}const ts=_e===null?[]:K.filter(Ct=>Ct.level===_e);if(ts.length===1)return ts[0].id;const Ot=K.filter(Ct=>Ta(Ct.name)===Ta(ve));return Ot.length===1?Ot[0].id:v(E,ve||N,_e??0)};for(const E of e){if(E.kind!=="floor")continue;const C=t.get(ys(E));if(!C||C.open||!C.to)continue;if(C.to.t==="none"){f.has(E.id)&&l.floors.push({ha_floor_id:E.id,floor:null}),y.set(E.id,{floor:null,building:null});continue}const N=d(C.to);if(!N)continue;const T=A(N,E.id,E.name,E.level);l.floors.push({ha_floor_id:E.id,floor:T}),y.set(E.id,{floor:T,building:N})}const L=new Map(e.filter(E=>E.kind==="floor").map(E=>[E.id,E.level??null]));for(const E of e){if(E.kind!=="area")continue;const C=t.get(ys(E));if(!C||C.open||!C.to)continue;const N=E.floorId?y.get(E.floorId):void 0,T=E.floorId?f.get(E.floorId):void 0,F=N?N.building:T?h.get(T)??null:null,K=m.has(E.id),ve=b.has(E.id);if(C.to.t==="none"){(C.src==="manual"||C.src==="rule")&&l.areas.push({area_id:E.id,floor:null,building:null});continue}const _e=d(C.to);if(!_e)continue;if(F===_e){const Rt=m.get(E.id),di=Rt?x(Rt)===_e:!1;(K&&!di||ve)&&l.areas.push({area_id:E.id,floor:K&&!di?"auto":"keep",building:null});continue}const ts=E.floorId?L.get(E.floorId)??null:null,Ot=_e.startsWith("new:")?l.new_floors.filter(Rt=>Rt.building===_e).map(Rt=>({id:`new:${Rt.key}`,level:Rt.level})):u(_e),Ct=ts===null?[]:Ot.filter(Rt=>Rt.level===ts);Ct.length===1?l.areas.push({area_id:E.id,floor:Ct[0].id,building:null}):l.areas.push({area_id:E.id,floor:F||K?null:"keep",building:_e})}return l}function dW(e,t){if(t?.token&&t.sep!==void 0){const s=uu({name:e},{position:"start",seps:t.sep?[t.sep]:["·","-",":"],kind:"any",marker:""});if(s&&s.token===t.token)return s.rest;const a=uu({name:e},{position:"end",seps:t.sep?[t.sep]:["·","-",":"],kind:"any",marker:""});if(a&&a.token===t.token)return a.rest}return e.trim()}function KA(e,t,s,a=new Set){if(!s)return{fresh:[],ready:[],open:[]};const n=new Set(s),i=e.filter(c=>!n.has(ys(c))),r=[],l=[];for(const c of i){const d=t.get(ys(c));d&&!d.open&&d.to&&d.to.t!=="none"&&!a.has(ys(c))?r.push(c):l.push(c)}return{fresh:i,ready:r,open:l}}function d2(e,t,s){const a=t.tokens[e.trim()];if(a)return a;const n=bk(e,s);return n?{t:"b",id:n.id}:null}function uW(e,t){if(!e||e.src!=="rule"||!e.to)return!1;const s=(t.advanced?t.rules:[Uu]).find(a=>a.id===e.rule);return!!s&&(s.kind==="label"||s.kind==="table"&&t.spec.position==="label")}function pW(e,t,s,a,n){const i=e.filter(h=>h.kind==="area"),r=new Map;for(const h of n??[])r.set(h.name.trim(),{name:h.name,color:h.color,areas:0,byLabel:0,agrees:0,differs:0,to:d2(h.name,s,a)});let l=0,c=0,d=0;for(const h of i){const f=[...new Set((h.labels??[]).map(x=>x.trim()).filter(Boolean))];if(!f.length)continue;l+=1;const m=t.get(ys(h)),b=uW(m,s);b&&(c+=1);let v=!1;for(const x of f){let y=r.get(x);y||r.set(x,y={name:x,color:null,areas:0,byLabel:0,agrees:0,differs:0,to:d2(x,s,a)}),y.areas+=1,b?y.byLabel+=1:y.to&&y.to.t!=="none"&&m?.to&&m.to.t!=="none"&&(Bi(y.to,m.to)?y.agrees+=1:(y.differs+=1,v=!0))}(v||m?.conflict?.kind==="label")&&(d+=1)}const u=[...r.values()].sort((h,f)=>(f.areas>0?1:0)-(h.areas>0?1:0));return{synced:n!=null,areas:i.length,labelled:l,byLabel:c,differs:d,rows:u}}function hW(e){if(!e.synced)return'תוויות: עדיין לא נקראו ממערכת הבית, ולכן כללי "בתווית" לא נבדקים כאן.';const t=e.rows.length;if(!e.labelled)return t?`תוויות: יש ${t} ${t===1?"תווית":"תוויות"} במערכת הבית, אבל אף אזור לא מסומן באחת מהן.`:"תוויות: אין תוויות במערכת הבית.";const s=e.rows.filter(n=>n.areas>0).slice(0,3).map(n=>`${n.name} (${n.areas})`).join(", "),a=[`תוויות: ${e.labelled} מתוך ${e.areas} אזורים מסומנים בתווית - ${s}${e.rows.filter(n=>n.areas>0).length>3?" ועוד":""}`];return a.push(e.byLabel?`${e.byLabel} משויכים לפי התווית`:"אף אזור לא משויך לפי התווית"),e.differs&&a.push(`ב-${e.differs} התווית מצביעה על בניין אחר מהשם`),`${a.join("; ")}.`}function fW(e,t){const s=e.floors.filter(c=>t.has(`f:${c.ha_floor_id}`)),a=e.areas.filter(c=>t.has(`a:${c.area_id}`)),n=new Set([...s.map(c=>c.floor),...a.map(c=>c.floor)].filter(c=>typeof c=="string")),i=e.new_floors.filter(c=>n.has(`new:${c.key}`)),r=new Set([...i.map(c=>c.building),...a.map(c=>c.building).filter(c=>!!c)]),l=e.new_buildings.filter(c=>r.has(`new:${c.key}`));return{...e,floors:s,areas:a,new_floors:i,new_buildings:l}}function VA(e,t,s,a,n,i){const r=[];return vk(e,t,s,a,n,i,r),r}function GA(e,t,s,a,n,i){return new Set(VA(e,t,s,a,n,i).filter(r=>!r.answer).map(r=>`f:${r.id}`))}function mW(e){let t=0,s=0;for(const a of e){if(a.kind!=="auto")break;const n=i=>typeof a.summary[i]=="number"?a.summary[i]:0;t+=a.summary.auto_added===void 0?n("confirmed"):n("auto_areas"),s+=n("auto_floors")}return{areas:t,floors:s}}function gW(e){const t=mW(e.versions);if(!t.areas&&!t.floors)return"";const s=t.areas===1?"אזור אחד":`${t.areas} אזורים`,a=t.floors===1?"קומה אחת":`${t.floors} קומות`,n=t.areas&&t.floors?`${s} ${t.floors===1?"וקומה אחת":`ו-${t.floors} קומות`}`:t.areas?s:a;return`${t.areas+t.floors>1?"נוספו":t.areas?"נוסף":"נוספה"} אוטומטית ${n}`}function wW(e){if(!e||typeof e!="object")return null;const t=e;return t.t==="level"&&Number.isInteger(t.level)&&t.level>=XU&&t.level<=JU?{t:"level",level:t.level}:t.t==="floor"&&typeof t.id=="string"&&t.id?{t:"floor",id:t.id}:t.t==="skip"?{t:"skip"}:null}function bW(e){const t=wk();if(!e||typeof e!="object")return t;const s=e,a=s.spec??{};t.spec={position:PA.includes(a.position)?a.position:An.position,seps:Array.isArray(a.seps)?a.seps.filter(i=>typeof i=="string"&&i.length>0&&i.length<=4).slice(0,8):[...An.seps],kind:VU.includes(a.kind)?a.kind:An.kind,marker:typeof a.marker=="string"?a.marker.slice(0,20):An.marker};const n=i=>{if(!i||typeof i!="object")return null;const r=i;return r.t==="b"&&typeof r.id=="string"?{t:"b",id:r.id}:r.t==="new"&&typeof r.name=="string"&&r.name.trim()?{t:"new",name:r.name.trim().slice(0,120)}:r.t==="none"?{t:"none"}:null};for(const[i,r]of Object.entries(s.tokens??{})){const l=n(r);l&&(t.tokens[i]=l)}for(const[i,r]of Object.entries(s.decisions??{})){const l=n(r);l&&/^[fa]:/.test(i)&&(t.decisions[i]=l)}for(const[i,r]of Object.entries(s.levels??{})){const l=wW(r);l&&(t.levels[i]=l)}if(t.manual_tokens=Array.isArray(s.manual_tokens)?s.manual_tokens.filter(i=>typeof i=="string"&&!!i.trim()).slice(0,200):[],t.advanced=s.advanced===!0,Array.isArray(s.rules)){const i=[];for(const r of s.rules){if(!r||typeof r!="object")continue;const l=r;!YU.includes(l.kind)||typeof l.id!="string"||i.push({id:l.id,kind:l.kind,value:typeof l.value=="string"?l.value:"",to:n(l.to),on:l.on!==!1})}i.some(r=>r.kind==="table")||i.unshift({...Uu}),t.rules=i}return t}function vW(e){const t=e&&typeof e=="object"?e:{},s={...FA};for(const a of Object.keys(Pv)){const n=t[a];Pv[a].includes(n)&&(s[a]=n)}return s}function u2(e){const t=[...e.items.floors.map(n=>({id:n.id,kind:"floor",name:n.name,level:n.level})),...e.items.areas.map(n=>({id:n.id,kind:"area",name:n.name,floorId:n.floor_id,labels:n.labels??[]}))],s=e.buildings.flatMap(n=>n.floors.map(i=>({id:i.id,building_id:n.id,name:i.name,level:i.level}))),a=e.items.labels&&e.items.labels_synced_at?e.items.labels:null;return{...e,settings:vW(e.settings),parsed:e.state?bW(e.state):wk(),mapItems:t,ourFloors:s,haLabels:a}}let $d=null;async function ho(){if($d)return $d;const e=await D(()=>import("./mapping-demo-DzZd_R4f.js"),[],import.meta.url);return $d??=yW(e.demoMapping)}function yW(e){const t=e(),s=new URLSearchParams(location.search),n={read:{site:{id:"site1",name:"מתחם הגפן"},state:null,revision:0,settings:{...FA},multi_building:!!s.get("mb")&&s.get("mb")!=="off",can_toggle:!0,building_reach:"map_and_mapping",can_set_reach:!0,versions:[],seen:null,items:{floors:t.items.filter(i=>i.kind==="floor").map(i=>({id:i.id,name:i.name,level:i.level??null})),areas:t.items.filter(i=>i.kind==="area").map(i=>({id:i.id,name:i.name,floor_id:i.floorId??null,labels:i.labels??[]})),labels:xW(t.items),labels_synced_at:"2026-10-31T17:00:00Z"},buildings:t.buildings.map(i=>({id:i.id,name:i.name,is_shared:!!i.shared,floors:t.floors.filter(r=>r.building_id===i.id).map(r=>({id:r.id,name:r.name,level:r.level}))})),links:{floors:[],areas:[],buildings:[]}},versions:[]};return s.get("mbmap")==="applied"&&kW(n),n}function xW(e){const t=new Map;for(const s of e)for(const a of new Set(s.labels??[]))t.set(a,(t.get(a)??0)+1);return[...t].map(([s,a],n)=>({id:`demo_label_${n+1}`,name:s,color:null,icon:null,areas:a}))}function kW(e){const t=[...e.read.items.floors.map(i=>`f:${i.id}`),...e.read.items.areas.map(i=>`a:${i.id}`)],s=new Set(["a:ha112","a:ha139","a:ha140"]),a=t.filter(i=>!s.has(i)),n={number:1,kind:"apply",restored_from:null,created_at:"2026-10-31T17:40:00Z",by:"דנה",summary:{floor_rows:24,manual:7},note:"",current:!0};e.versions.push({v:n,state:{...wk(),tokens:{מ:{t:"b",id:"bS"}}},links:e.read.links,items:a}),e.read.state=e.versions[0].state,e.read.seen=a,e.read.versions=[n],e.read.revision=1}const $r=e=>JSON.parse(JSON.stringify(e));async function YA(e){return O()?u2(await $(`sites/${encodeURIComponent(e)}/mapping`)):u2($r((await ho()).read))}async function p2(e,t,s){if(!O()){const a=await ho();return a.read.state=$r(t),a.read.revision+=1,{revision:a.read.revision}}return U(`sites/${encodeURIComponent(e)}/mapping/state`,{state:t,revision:s})}async function _W(e,t){if(!O()){const s=await ho();return s.read.settings={...s.read.settings,...t},{settings:s.read.settings}}return U(`sites/${encodeURIComponent(e)}/mapping/settings`,t)}const $W=["map_and_mapping","map"],SW={map_and_mapping:"מפה + מיפוי אזורים",map:"מיקום במפה"};async function EW(e){return O()?U("home/building-reach",{mode:e}):((await ho()).read.building_reach=e,{mode:e})}async function XA(e){if(!O())return(await ho()).read.multi_building=e,window.dispatchEvent(new CustomEvent("sw-multi-building",{detail:{enabled:e}})),{enabled:e};const t=await U("home/multi-building",{enabled:e});return window.dispatchEvent(new CustomEvent("sw-multi-building",{detail:t})),t}async function JA(e,t){return O()?S(`sites/${encodeURIComponent(e)}/mapping/apply`,t):TW(await ho(),t)}async function zW(e,t){if(!O()){const s=await ho(),a=s.versions.find(n=>n.v.number===t);if(!a)throw new Error("not found");return QA(s,"restore",a.state,a.links,a.items,{restored_from:t},t)}return S(`sites/${encodeURIComponent(e)}/mapping/versions/${t}/restore`)}function QA(e,t,s,a,n,i,r=null){for(const d of e.versions)d.v.current=!1;const l=e.versions.length+1,c={number:l,kind:t,restored_from:r,created_at:new Date().toISOString(),by:"הדגמה",summary:i,note:"",current:!0};return e.versions.unshift({v:c,state:$r(s),links:$r(a),items:n}),e.read.versions=e.versions.map(d=>d.v),e.read.state=$r(s),e.read.links=$r(a),e.read.seen=n,e.read.revision+=1,{version:l,revision:e.read.revision}}function TW(e,t){const s=new Map,a={buildings:[],floors:[]};for(const d of t.plan.new_buildings){const u=`demo_b_${e.read.buildings.length+1}`;e.read.buildings.push({id:u,name:d.name,is_shared:!1,floors:[]}),s.set(`new:${d.key}`,u),a.buildings.push({id:u,name:d.name})}const n=new Map;for(const d of t.plan.new_floors){const u=s.get(d.building)??d.building,h=`demo_f_${Math.random().toString(36).slice(2,8)}`;e.read.buildings.find(f=>f.id===u)?.floors.push({id:h,name:d.name,level:d.level}),n.set(`new:${d.key}`,h),a.floors.push({id:h,name:d.name,building_id:u})}const i=$r(e.read.links),r=d=>n.get(d)??d;for(const d of t.plan.floors)i.floors=i.floors.filter(u=>u.ha_floor_id!==d.ha_floor_id),d.floor&&i.floors.push({ha_floor_id:d.ha_floor_id,floor_id:r(d.floor)});for(const d of t.plan.areas)d.floor==="auto"?i.areas=i.areas.filter(u=>u.area_id!==d.area_id):d.floor!=="keep"&&(i.areas=i.areas.filter(u=>u.area_id!==d.area_id),i.areas.push({area_id:d.area_id,floor_id:d.floor===null?null:r(d.floor)})),i.buildings=i.buildings.filter(u=>u.area_id!==d.area_id),d.building&&i.buildings.push({area_id:d.area_id,building_id:s.get(d.building)??d.building});const l=t.kind&&t.kind!=="apply"?[...new Set([...e.read.seen??[],...t.plan.items])]:t.plan.items;return{...QA(e,t.kind??"apply",t.state,i,l,{...t.summary??{},floor_rows:t.plan.floors.length}),created:a}}async function Iv(){if(!O()){const e=new URLSearchParams(location.search).get("mb");return $d?$d.read.multi_building:!!e&&e!=="off"}try{return(await wa())["home.multi_building"]==="on"}catch{return!1}}const AW=["default","sand","forest","graphite"],OW=P`
-   sourceMappingURL=[^*]**/ ---- 0. every style: the compact summary tiles (ui.tile_layout) and the tree columns - bridged to sw-kpi's own
+  /* ---- 0. every style: the compact summary tiles (ui.tile_layout) and the tree columns - bridged to sw-kpi's own
      --sw-kpi-compact-* properties. A palette may override any of them in its own block. ---- */
   :host {
     --dv-kpi-compact-min-block: 60px;
@@ -2869,9 +2869,9 @@ summary {
     --sw-kpi-compact-value-fs: var(--dv-kpi-compact-value-fs);
   }
 
-   sourceMappingURL=[^*]**/ ---- 1. the bridge: glass knobs -> the v2 tokens every nested component reads ---- */
+  /* ---- 1. the bridge: glass knobs -> the v2 tokens every nested component reads ---- */
   :host([data-devices-style='glass']) {
-     sourceMappingURL=[^*]**/ DARK-REVIEW-2342 / DARK-SEG-ALL-2380: the dark segment key (--sw-seg-key, its label --sw-seg-key-ink, its edge
+    /* DARK-REVIEW-2342 / DARK-SEG-ALL-2380: the dark segment key (--sw-seg-key, its label --sw-seg-key-ink, its edge
        --sw-seg-thumb-shadow) follows the SHELL's scheme; a glass screen has its own (devices.scheme), so inside it the segments keep
        their own fill in both of its schemes (initial = guaranteed-invalid: every user's fallback) */
     --sw-seg-thumb-shadow: initial;
@@ -2884,7 +2884,7 @@ summary {
     --sw-surface-3: var(--dv-surface-3);
     --sw-border: var(--dv-border);
     --sw-border-strong: var(--dv-border-strong);
-     sourceMappingURL=[^*]**/ a menu inside a glass screen is the palette's SOLID surface (owner 2026-10-13: no transparency in any menu), light or dark by the
+    /* a menu inside a glass screen is the palette's SOLID surface (owner 2026-10-13: no transparency in any menu), light or dark by the
        host's own scheme - never the translucent --sw-surface above; its hairline is the panel hairline over that opaque fill */
     --sw-menu-surface: var(--dv-surface-solid);
     --sw-menu-border: var(--dv-border);
@@ -2919,13 +2919,13 @@ summary {
     --sw-shadow-1: var(--dv-shadow-1);
     --sw-shadow-2: var(--dv-shadow-2);
     --sw-shadow-3: var(--dv-shadow-3);
-     sourceMappingURL=[^*]**/ SYS-AUDIT-QUICKFIX-2437: no --sw-font bridge - the glass screens read the product face (--dv-font: var(--sw-font) below), so
+    /* SYS-AUDIT-QUICKFIX-2437: no --sw-font bridge - the glass screens read the product face (--dv-font: var(--sw-font) below), so
        --sw-font stays the inherited product stack here (a bridge both ways would be a custom-property cycle) */
     color-scheme: var(--dv-color-scheme);
     color: var(--dv-text);
     font-family: var(--dv-font);
   }
-   sourceMappingURL=[^*]**/ BGFIX-293 (owner 2026-10-20): ONE page background on every screen - the shell's skin canvas (sw-app), exactly as the
+  /* BGFIX-293 (owner 2026-10-20): ONE page background on every screen - the shell's skin canvas (sw-app), exactly as the
      security screen shows it. A glass screen therefore paints no page layer of its own: --dv-page-backdrop is transparent and
      the canvas shows through the glass. Only when the glass area's resolved scheme differs from the product's (an explicit
      devices.glass_scheme / devices.scheme choice: dark glass inside a light product, or the reverse) does the palette's
@@ -2941,12 +2941,12 @@ summary {
     --dv-page-backdrop: var(--dv-backdrop);
     --dv-page-fill: var(--dv-backdrop);
   }
-   sourceMappingURL=[^*]**/ the (own) backdrop rides on the page frame, which grows with the content (the host is only as tall as the view) */
+  /* the (own) backdrop rides on the page frame, which grows with the content (the host is only as tall as the view) */
   :host([data-devices-style='glass']) sw-page {
     background: var(--dv-page-backdrop);
   }
 
-   sourceMappingURL=[^*]**/ ---- 2. palette "default" (the approved mockup): light. 6b: this block is the BASE of every palette (the shape
+  /* ---- 2. palette "default" (the approved mockup): light. 6b: this block is the BASE of every palette (the shape
      knobs - radii, sizes, gaps, fonts - apply to all; the other palettes override the colour knobs, devices-palettes.ts) */
   :host([data-devices-style='glass']) {
     --dv-color-scheme: light;
@@ -2961,13 +2961,13 @@ summary {
     --dv-border: rgba(60, 60, 67, 0.12);
     --dv-border-strong: rgba(60, 60, 67, 0.22);
     --dv-overlay: rgba(15, 23, 42, 0.38);
-     sourceMappingURL=[^*]**/ SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 2: 22 % of the sampled text on 12 glass screens was drawn in the OS face):
+    /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 2: 22 % of the sampled text on 12 glass screens was drawn in the OS face):
        the One Face Rule - the glass screens use the product's font stack (Heebo first, design/tokens.ts --sw-font) */
     --dv-font: var(--sw-font);
     --dv-text: #1c1c1e;
     --dv-text-2: #4c4c50;
     --dv-text-3: #67676c;
-     sourceMappingURL=[^*]**/ DU1 (2026-10-09): the default palette's interaction and state colours are the PRODUCT's (the skin's accent, toggle and
+    /* DU1 (2026-10-09): the default palette's interaction and state colours are the PRODUCT's (the skin's accent, toggle and
        state colours, light or dark), read through the never-bridged --sw-product-* aliases (design/tokens.ts). One accent and
        one toggle colour per skin on every screen; the mockup's iOS values live on in the sand / forest / graphite palettes'
        own blocks and in the remote's --mr-* set. */
@@ -3030,7 +3030,7 @@ summary {
     --dv-tree-inline: 270px;
     --dv-hover-lift: -2px;
   }
-   sourceMappingURL=[^*]**/ palette "default": dark (the mockup's own board 6) - only on an explicit data-devices-scheme="dark", never from
+  /* palette "default": dark (the mockup's own board 6) - only on an explicit data-devices-scheme="dark", never from
      the OS colour scheme: the app shell is light only, and a dark device area inside a white shell was rejected
      (review of 6a). Slice 6b's devices.scheme setting (auto | light | dark) sets the attribute. */
   :host([data-devices-style='glass'][data-devices-theme='default'][data-devices-scheme='dark']) {
@@ -3048,7 +3048,7 @@ summary {
     --dv-text: #f5f5f7;
     --dv-text-2: rgba(235, 235, 245, 0.72);
     --dv-text-3: rgba(235, 235, 245, 0.64);
-     sourceMappingURL=[^*]**/ the accent and state knobs stay on the --sw-product-* aliases of the light block: the product's dark values apply when
+    /* the accent and state knobs stay on the --sw-product-* aliases of the light block: the product's dark values apply when
        the product is dark; with devices.scheme=dark under a light product the light accent reads on the dark glass */
     --dv-neutral-soft: rgba(142, 142, 147, 0.2);
     --dv-shadow-1: 0 18px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -3060,7 +3060,7 @@ summary {
     --dv-icon-ring-fg: #f5f5f7;
     --dv-toggle-on: var(--sw-product-toggle-on);
   }
-   sourceMappingURL=[^*]**/ AUDIT30-A-GLASS-BRIDGE (audit round 30, finding 13: two darks and two inks - the glass screens drew neutral #1c1c1e / black-grey
+  /* AUDIT30-A-GLASS-BRIDGE (audit round 30, finding 13: two darks and two inks - the glass screens drew neutral #1c1c1e / black-grey
      panels and their own ink beside the product's navy screens). Palette "default" whose scheme IS the product's scheme (no own
      backdrop): the COLOUR knobs read the product tokens - one ink, one hairline, one navy - the SHAPE knobs (blur, radii, gaps,
      shadows) stay the glass ones. The literal blocks above remain the palette's own ground for the case it is painted on a backdrop
@@ -3093,7 +3093,7 @@ summary {
     --dv-surface: color-mix(in srgb, var(--dv-surface-solid) 72%, transparent);
     --dv-surface-2: color-mix(in srgb, var(--dv-surface-2-solid) 62%, transparent);
   }
-   sourceMappingURL=[^*]**/ palette "default": phone (sizes only; colours as above) - every palette (6b) */
+  /* palette "default": phone (sizes only; colours as above) - every palette (6b) */
   @media (max-width: 767px) {
     :host([data-devices-style='glass']) {
       --dv-gap: 10px;
@@ -3107,7 +3107,7 @@ summary {
     }
   }
 
-   sourceMappingURL=[^*]**/ ---- 3. fallback: no backdrop-filter, or the viewer asked for less transparency - solid panels, same layout ---- */
+  /* ---- 3. fallback: no backdrop-filter, or the viewer asked for less transparency - solid panels, same layout ---- */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :host([data-devices-style='glass']) {
       --sw-glass-blur: none;
@@ -3127,7 +3127,7 @@ summary {
 ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); border-width: 1.5px; }
 .lay-swatch[data-role='${e}'] { background: linear-gradient(var(--dv-role-${e}-bg), var(--dv-role-${e}-bg)), var(--sw-surface); border-color: var(--dv-role-${e}-border); color: var(--dv-role-${e}-fg); }`).join(`
 `),IW=[P`
-     sourceMappingURL=[^*]**/ the base values the text-size steps scale (resolved on the host, inherited as values) */
+    /* the base values the text-size steps scale (resolved on the host, inherited as values) */
     :host {
       --dvb-fs-xs: var(--sw-fs-xs);
       --dvb-fs-sm: var(--sw-fs-sm);
@@ -3142,7 +3142,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --dvb-fs-value-big: var(--dv-fs-value-big, 24px);
     }
 
-     sourceMappingURL=[^*]**/ ---- an applied layout: grid units only (4 classes + attribute: beats every automatic grid rule of the screens) */
+    /* ---- an applied layout: grid units only (4 classes + attribute: beats every automatic grid rule of the screens) */
     :host .lay-grid.lay-grid.lay-grid[data-lay-cols] {
       display: grid;
       grid-auto-rows: minmax(8px, auto);
@@ -3151,7 +3151,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       align-items: stretch;
       justify-items: stretch;
     }
-     sourceMappingURL=[^*]**/ the compact density: tighter columns too (a viewer's rows are packed to one-row gaps, devices-layout.ts) */
+    /* the compact density: tighter columns too (a viewer's rows are packed to one-row gaps, devices-layout.ts) */
     :host([data-devices-density='compact']) .lay-grid.lay-grid.lay-grid[data-lay-cols] {
       column-gap: 8px;
     }
@@ -3161,7 +3161,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host .lay-grid.lay-grid.lay-grid[data-lay-cols='4'] {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
-     sourceMappingURL=[^*]**/ editing the phone layout on a wide screen: a phone-wide preview */
+    /* editing the phone layout on a wide screen: a phone-wide preview */
     :host .lay-grid.lay-grid.lay-grid[data-lay-phone-preview] {
       inline-size: min(100%, 400px);
       justify-self: start;
@@ -3185,7 +3185,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-accent);
     }
 
-     sourceMappingURL=[^*]**/ text size: three steps */
+    /* text size: three steps */
     .lay-item[data-lay-text='sm'] {
       --lay-scale: 0.88;
     }
@@ -3206,13 +3206,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --dv-fs-value-big: calc(var(--dvb-fs-value-big) * var(--lay-scale));
     }
 
-     sourceMappingURL=[^*]**/ ---- edit mode */
+    /* ---- edit mode */
     :host([data-lay-editing]) {
       --lay-panel: 300px;
     }
-     sourceMappingURL=[^*]**/ OWNER-R12-2341 (owner 01.11, 8B): the side panel only from 1200 px; a phone AND a tablet (768-1199) get the bottom sheet,
+    /* OWNER-R12-2341 (owner 01.11, 8B): the side panel only from 1200 px; a phone AND a tablet (768-1199) get the bottom sheet,
        so the 12-column preview keeps the page's full width (the 300 px panel left it ~560 px at 1024) */
-     sourceMappingURL=[^*]**/ HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): the home screen sets data-he-free while its edit drawer is CLOSED and
+    /* HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): the home screen sets data-he-free while its edit drawer is CLOSED and
        home.screen.edit_drawer_space = free (default) - the preview takes the column back. The area screen never sets it. */
     @media (min-width: 1200px) {
       :host([data-lay-editing]:not([data-he-free])) sw-page {
@@ -3241,7 +3241,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       -webkit-backdrop-filter: var(--sw-glass-blur);
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ a phone: a compact bar (the variant and the actions), the page stays visible under it */
+      /* a phone: a compact bar (the variant and the actions), the page stays visible under it */
       .lay-bar {
         padding: 6px 8px;
         gap: 6px;
@@ -3332,7 +3332,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       user-select: none;
       -webkit-user-select: none;
     }
-     sourceMappingURL=[^*]**/ the card's own controls rest while its layout is edited: a tap selects, it never switches a device */
+    /* the card's own controls rest while its layout is edited: a tap selects, it never switches a device */
     .lay-item.lay-edit > :first-child {
       pointer-events: none;
     }
@@ -3409,7 +3409,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       }
     }
 
-     sourceMappingURL=[^*]**/ the side panel of the selected card (a bottom sheet on a phone and a tablet, below 1200 px - OWNER-R12-2341) */
+    /* the side panel of the selected card (a bottom sheet on a phone and a tablet, below 1200 px - OWNER-R12-2341) */
     .lay-panel {
       position: fixed;
       z-index: 30;
@@ -3487,14 +3487,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-text);
       font: inherit;
     }
-     sourceMappingURL=[^*]**/ DEVICES-POLISH-2331: the two number fields share one baseline even when one label wraps to two lines */
+    /* DEVICES-POLISH-2331: the two number fields share one baseline even when one label wraps to two lines */
     .lay-row2 {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: end;
       gap: var(--sw-s-2);
     }
-     sourceMappingURL=[^*]**/ DEVICES-POLISH-2331: the panel's groups (look / size and place / content / card actions), a hairline between them */
+    /* DEVICES-POLISH-2331: the panel's groups (look / size and place / content / card actions), a hairline between them */
     .lay-grp {
       display: flex;
       flex-direction: column;
@@ -3504,7 +3504,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding-block-start: var(--sw-s-3);
       border-block-start: 1px solid var(--sw-border);
     }
-     sourceMappingURL=[^*]**/ a dialog's action row (the confirmations, the library, the camera picker) */
+    /* a dialog's action row (the confirmations, the library, the camera picker) */
     .lay-dlg-acts {
       display: flex;
       gap: var(--sw-s-2);
@@ -3552,7 +3552,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font: inherit;
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ the device picker: the list itself never scrolls (the panel does); its search / buttons row sticks to the panel's top */
+    /* the device picker: the list itself never scrolls (the panel does); its search / buttons row sticks to the panel's top */
     .lay-ents {
       display: flex;
       flex-direction: column;
@@ -3635,7 +3635,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ the card library dialog */
+    /* the card library dialog */
     .lay-lib {
       display: flex;
       flex-direction: column;
@@ -3662,7 +3662,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: start;
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP4: the hover wash only under a pointer that hovers (it stuck after a tap on a tablet) */
+    /* POLISH4-WP4: the hover wash only under a pointer that hovers (it stuck after a tap on a tablet) */
     @media (hover: hover) and (pointer: fine) {
       .lay-libItem:hover {
         border-color: var(--sw-accent);
@@ -3723,8 +3723,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       line-height: 1.5;
     }
 
-     sourceMappingURL=[^*]**/ ---- slice 6c: device tiles inside an area card (DEVICE_THEMES.md §8) */
-     sourceMappingURL=[^*]**/ an arranged card: one grid of the card's tile columns, the tiles in the saved order (the DOM order), no gaps left
+    /* ---- slice 6c: device tiles inside an area card (DEVICE_THEMES.md §8) */
+    /* an arranged card: one grid of the card's tile columns, the tiles in the saved order (the DOM order), no gaps left
        by hidden ones; beats the screens' automatic .tiles / glass / compact rules */
     :host .lay-tgrid.lay-tgrid.lay-tgrid {
       display: grid;
@@ -3744,7 +3744,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .lay-tile > :first-child {
       flex: 1 1 auto;
     }
-     sourceMappingURL=[^*]**/ size: three steps, on top of the card's own text size */
+    /* size: three steps, on top of the card's own text size */
     .lay-tile[data-tile-size='s'] {
       --lay-tscale: 0.88;
     }
@@ -3770,7 +3770,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding-block: 16px;
     }
 
-     sourceMappingURL=[^*]**/ the arranging editor: the card alone, its tiles with a dashed outline and a place chip */
+    /* the arranging editor: the card alone, its tiles with a dashed outline and a place chip */
     .lay-stage {
       display: block;
     }
@@ -3786,7 +3786,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       user-select: none;
       -webkit-user-select: none;
     }
-     sourceMappingURL=[^*]**/ the tile's own controls rest while it is arranged: a tap selects, it never switches a device */
+    /* the tile's own controls rest while it is arranged: a tap selects, it never switches a device */
     .lay-tile.lay-tedit > :first-child {
       pointer-events: none;
     }
@@ -3828,7 +3828,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-accent);
       color: var(--sw-on-accent, var(--sw-text-inverse));
     }
-     sourceMappingURL=[^*]**/ a card's "סידור התקנים" in the cards editor (the move chip holds the other corner) */
+    /* a card's "סידור התקנים" in the cards editor (the move chip holds the other corner) */
     .lay-tbtn {
       position: absolute;
       inset-block-start: -12px;
@@ -3873,7 +3873,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         inset-block-start: -12px;
       }
     }
-     sourceMappingURL=[^*]**/ a phone arranging one card: the sticky bar keeps only what that needs (cancel, save, the way back) - the
+    /* a phone arranging one card: the sticky bar keeps only what that needs (cancel, save, the way back) - the
        variant, reset and copy-to-all act on the whole screen and wait until the cards are back */
     @media (max-width: 767px) {
       .lay-bar[data-tiles] > .lay-seg,
@@ -3883,7 +3883,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ the breadcrumb back to the cards, on its own line of the edit bar (a phone too) */
+    /* the breadcrumb back to the cards, on its own line of the edit bar (a phone too) */
     .lay-crumb {
       flex-basis: 100%;
       display: flex;
@@ -4357,7 +4357,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       position: absolute;
       display: flex;
       flex-direction: column;
-       sourceMappingURL=[^*]**/ a menu is never see-through (owner 2026-10-13): the opaque menu surface in every skin, scheme and glass palette, no blur */
+      /* a menu is never see-through (owner 2026-10-13): the opaque menu surface in every skin, scheme and glass palette, no blur */
       background: var(--sw-menu-surface);
       color: var(--sw-text);
       box-shadow: var(--sw-shadow-3);
@@ -4366,7 +4366,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: start;
       outline: none;
     }
-     sourceMappingURL=[^*]**/ desktop and tablet: a popover beside the rail's foot (RTL: the rail is on the right, the panel opens to its left) */
+    /* desktop and tablet: a popover beside the rail's foot (RTL: the rail is on the right, the panel opens to its left) */
     @media (min-width: 768px) {
       .scrim {
         background: transparent;
@@ -4392,7 +4392,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ phone: a bottom sheet over the bottom bar */
+    /* phone: a bottom sheet over the bottom bar */
     @media (max-width: 767px) {
       .panel {
         inset-inline: 0;
@@ -4519,7 +4519,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
     }
-     sourceMappingURL=[^*]**/ a view choice: the label and, at the end, a compact two-option control (the menu stays open when it is used) */
+    /* a view choice: the label and, at the end, a compact two-option control (the menu stays open when it is used) */
     li.view {
       display: flex;
       align-items: center;
@@ -4609,7 +4609,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       content: '';
     }
     details sw-icon.chev {
-       sourceMappingURL=[^*]**/ the chevron mirrors in RTL (points left): -90deg turns it down, +90deg up */
+      /* the chevron mirrors in RTL (points left): -90deg turns it down, +90deg up */
       transform: rotate(-90deg);
       transition: transform var(--sw-t-fast) var(--sw-ease);
     }
@@ -4630,7 +4630,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-danger-soft);
       color: var(--sw-danger);
     }
-  `;Qe([_({type:Boolean,reflect:!0})],We.prototype,"open",2);Qe([_()],We.prototype,"name",2);Qe([_()],We.prototype,"role",2);Qe([_({type:Boolean})],We.prototype,"api",2);Qe([_({type:Boolean})],We.prototype,"gated",2);Qe([_({type:Number})],We.prototype,"alerts",2);Qe([_({type:Boolean})],We.prototype,"alertsHot",2);Qe([_({type:Boolean})],We.prototype,"notifyCenter",2);Qe([_()],We.prototype,"alertsHref",2);Qe([_()],We.prototype,"settingsHref",2);Qe([_()],We.prototype,"updateHref",2);Qe([_()],We.prototype,"restartHref",2);Qe([_()],We.prototype,"editHomeHref",2);Qe([_()],We.prototype,"homeHref",2);Qe([_({attribute:!1})],We.prototype,"screenEdits",2);Qe([_({attribute:!1})],We.prototype,"screenViews",2);Qe([w()],We.prototype,"level",2);Qe([w()],We.prototype,"sessionsOpen",2);Qe([w()],We.prototype,"wiskeyOpen",2);Qe([w()],We.prototype,"videoOpen",2);Qe([w()],We.prototype,"homeOpen",2);Qe([w()],We.prototype,"factorOpen",2);Qe([w()],We.prototype,"factorReady",2);Qe([w()],We.prototype,"deviceOpen",2);Qe([w()],We.prototype,"staffOpen",2);We=Qe([W("sw-user-menu")],We); sourceMappingURL=[^*]**/*
+  `;Qe([_({type:Boolean,reflect:!0})],We.prototype,"open",2);Qe([_()],We.prototype,"name",2);Qe([_()],We.prototype,"role",2);Qe([_({type:Boolean})],We.prototype,"api",2);Qe([_({type:Boolean})],We.prototype,"gated",2);Qe([_({type:Number})],We.prototype,"alerts",2);Qe([_({type:Boolean})],We.prototype,"alertsHot",2);Qe([_({type:Boolean})],We.prototype,"notifyCenter",2);Qe([_()],We.prototype,"alertsHref",2);Qe([_()],We.prototype,"settingsHref",2);Qe([_()],We.prototype,"updateHref",2);Qe([_()],We.prototype,"restartHref",2);Qe([_()],We.prototype,"editHomeHref",2);Qe([_()],We.prototype,"homeHref",2);Qe([_({attribute:!1})],We.prototype,"screenEdits",2);Qe([_({attribute:!1})],We.prototype,"screenViews",2);Qe([w()],We.prototype,"level",2);Qe([w()],We.prototype,"sessionsOpen",2);Qe([w()],We.prototype,"wiskeyOpen",2);Qe([w()],We.prototype,"videoOpen",2);Qe([w()],We.prototype,"homeOpen",2);Qe([w()],We.prototype,"factorOpen",2);Qe([w()],We.prototype,"factorReady",2);Qe([w()],We.prototype,"deviceOpen",2);Qe([w()],We.prototype,"staffOpen",2);We=Qe([W("sw-user-menu")],We);/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -4680,7 +4680,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       transform: none;
       visibility: visible;
     }
-     sourceMappingURL=[^*]**/ review G: closed, the side panel is not laid out at all - an off-screen absolute box still counts toward the
+    /* review G: closed, the side panel is not laid out at all - an off-screen absolute box still counts toward the
        scrollable overflow of the page around it */
     :host(:not([open])) aside.panel {
       display: none;
@@ -4696,7 +4696,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex: 1;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ an optional header action (the player panel's power button) sits between the title and the close button, and comes AFTER it in
+    /* an optional header action (the player panel's power button) sits between the title and the close button, and comes AFTER it in
        the focus order: the first focus on open is the close button, never an action */
     header sw-button[data-drawer-close] {
       order: 2;
@@ -4718,7 +4718,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-sm);
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ TKUI1: a fixed band between the header and the scrolling body (the request's status block and tabs); empty = no room taken */
+    /* TKUI1: a fixed band between the header and the scrolling body (the request's status block and tabs); empty = no room taken */
     .strip {
       flex: none;
       min-inline-size: 0;
@@ -4742,7 +4742,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     footer[hidden] {
       display: none;
     }
-     sourceMappingURL=[^*]**/ the far end of the footer row (slot footer-end); it wraps under the actions as a whole on a narrow panel */
+    /* the far end of the footer row (slot footer-end); it wraps under the actions as a whole on a narrow panel */
     footer .fend {
       display: flex;
       gap: var(--sw-s-2);
@@ -4780,7 +4780,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       }
     }
 
-     sourceMappingURL=[^*]**/ ---- modal: a <dialog> in the top layer ---- */
+    /* ---- modal: a <dialog> in the top layer ---- */
     dialog.panel {
       position: fixed;
       margin: 0;
@@ -4796,7 +4796,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       inline-size: min(var(--sw-drawer-modal-w, 480px), 100vw);
       box-sizing: border-box;
       color: var(--sw-text);
-       sourceMappingURL=[^*]**/ a panel over the page must stay readable: a glass palette's solid surface when there is one */
+      /* a panel over the page must stay readable: a glass palette's solid surface when there is one */
       background: var(--dv-surface-solid, var(--sw-surface));
       transform: none;
       transition: none;
@@ -4822,7 +4822,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         inset-block: auto 0;
         inset-inline: 0;
         inline-size: 100%;
-         sourceMappingURL=[^*]**/ TKUI1: a host may open the sheet at full height (the request's phone sheet) - the default stays the 88 % sheet */
+        /* TKUI1: a host may open the sheet at full height (the request's phone sheet) - the default stays the 88 % sheet */
         block-size: var(--sw-drawer-sheet-h, auto);
         max-block-size: var(--sw-drawer-sheet-max-h, 88dvh);
         border-inline-end: 0;
@@ -4838,7 +4838,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         padding-block-end: max(10px, env(safe-area-inset-bottom, 0px));
       }
     }
-  `;fo([_({type:Boolean,reflect:!0})],Pa.prototype,"open",2);fo([_()],Pa.prototype,"heading",2);fo([_()],Pa.prototype,"subheading",2);fo([_({type:Boolean,reflect:!0})],Pa.prototype,"modal",2);fo([w()],Pa.prototype,"hasFooter",2);fo([w()],Pa.prototype,"hasFooterEnd",2);Pa=fo([W("sw-drawer")],Pa); sourceMappingURL=[^*]**/*
+  `;fo([_({type:Boolean,reflect:!0})],Pa.prototype,"open",2);fo([_()],Pa.prototype,"heading",2);fo([_()],Pa.prototype,"subheading",2);fo([_({type:Boolean,reflect:!0})],Pa.prototype,"modal",2);fo([w()],Pa.prototype,"hasFooter",2);fo([w()],Pa.prototype,"hasFooterEnd",2);Pa=fo([W("sw-drawer")],Pa);/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -4882,7 +4882,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .backdrop {
       position: fixed;
       inset: 0;
-       sourceMappingURL=[^*]**/ the browser's [popover] style (fit-content size, auto margin, a border, Canvas colours) put back to a full-viewport layer */
+      /* the browser's [popover] style (fit-content size, auto margin, a border, Canvas colours) put back to a full-viewport layer */
       inline-size: auto;
       block-size: auto;
       max-inline-size: none;
@@ -4895,9 +4895,9 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       z-index: var(--sw-z-modal);
       display: grid;
       place-items: center;
-       sourceMappingURL=[^*]**/ standalone: keep the box clear of the notch and the home indicator */
+      /* standalone: keep the box clear of the notch and the home indicator */
       padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (apple-design "dim to focus", emil-design-eng "nothing appears from nothing"): the scrim fades in and
+      /* POLISH-CLASSIC-DOMUS-297 (apple-design "dim to focus", emil-design-eng "nothing appears from nothing"): the scrim fades in and
          the box lands from 96 % with opacity on the dialog spring. Centred (a modal is not anchored to a trigger). Reduced motion zeroes
          the durations (css.ts); a browser without @starting-style simply shows the dialog, as before. */
       opacity: 1;
@@ -4921,7 +4921,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: flex;
       flex-direction: column;
       max-block-size: calc(100dvh - 32px);
-       sourceMappingURL=[^*]**/ set only inside a device screen in the glass style (CR-007 6a, devices-style.ts); none everywhere else */
+      /* set only inside a device screen in the glass style (CR-007 6a, devices-style.ts); none everywhere else */
       backdrop-filter: var(--sw-glass-blur);
       -webkit-backdrop-filter: var(--sw-glass-blur);
       opacity: 1;
@@ -5130,7 +5130,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .foot .grow {
       flex: 1;
     }
-     sourceMappingURL=[^*]**/ "אפס לברירת המחדל": a quiet text action, not a second button */
+    /* "אפס לברירת המחדל": a quiet text action, not a second button */
     button.link {
       all: unset;
       box-sizing: border-box;
@@ -5186,16 +5186,16 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex-basis: 100%;
       color: var(--sw-danger-text);
     }
-     sourceMappingURL=[^*]**/ from 768 px up the shell's floating search / status corner sits over the far end of the first row (as for the setup hint) */
+    /* from 768 px up the shell's floating search / status corner sits over the far end of the first row (as for the setup hint) */
     @media (min-width: 768px) {
       .bar {
-        padding-inline-end: calc(86px + var(--sw-corner-extra, 0px));  sourceMappingURL=[^*]**/ LOGOFIT-295: + the logos that share the corner's row (set by the shell) */
+        padding-inline-end: calc(86px + var(--sw-corner-extra, 0px)); /* LOGOFIT-295: + the logos that share the corner's row (set by the shell) */
       }
     }
     @media (max-width: 767px) {
       .bar {
         margin: 8px 12px 0;
-        padding-inline-end: 92px;  sourceMappingURL=[^*]**/ the floating search / status corner is on the phone too */
+        padding-inline-end: 92px; /* the floating search / status corner is on the phone too */
       }
     }
   `;Ku([w()],Jr.prototype,"pending",2);Ku([w()],Jr.prototype,"phase",2);Ku([w()],Jr.prototype,"manualOnly",2);Ku([w()],Jr.prototype,"error",2);Jr=Ku([W("nvr-restart-banner")],Jr);const Cj=["prepared","publishing","published","confirmed","switching","switched","retiring"],I0e=()=>$("system/bridge-key"),F0e=e=>U("system/bridge-key/settings",e),q0e=e=>S("system/bridge-key/rotations",{mode:e,confirm:!0}),H0e=e=>U("system/bridge-key/owner-contacts",{user_ids:e}),Rj=()=>$("system/bridge-key/notice"),B0e=e=>S("system/bridge-key/revoke",{confirm:!0,wiskey_acknowledged:e}),U0e=e=>S("system/bridge-key/revoke/reveal",{code:e}),W0e=e=>S(`system/bridge-key/rotations/${encodeURIComponent(e)}/resume`);function j0e(e){return typeof e.door_commands_paused=="boolean"?e.door_commands_paused:e.enabled?e.rotation&&Cj.includes(e.rotation.state)?!0:e.last?.state==="needs_repair":!1}const Tk={title:"מפתח הגשר",stateOff:"כבוי",stateReady:"מוכן",stateRotating:"בהחלפה",stateAttention:"דורש טיפול",keyId:"מזהה מפתח",generation:"דור",since:"פעיל מאז",lastRotation:"החלפה אחרונה",none:"אין",switchLabel:"החלפת מפתח",reminder:"תזכורת להחלפה",reminderOff:"ללא",reminderDays:"כל {n} ימים",reminderDue:"הגיע זמן להחליף מפתח",rotate:"החלפת מפתח",hardCut:"החלפה מיידית",resume:"השלמת החלפה",confirmRotate:"להחליף את מפתח הגשר? שני המפתחות יפעלו יחד עד 3 דקות.",confirmHardCut:"להחליף מיד? המפתח הישן יפסיק לפעול מיד.",confirm:"אישור",cancel:"ביטול",retireAt:"המפתח הישן יבוטל ב־{t}",saved:"נשמר",modeRoutine:"רגילה",modeHardCut:"מיידית",st_prepared:"מכין",st_publishing:"שולח לגשר",st_published:"הגשר קיבל",st_confirmed:"אומת בגשר",st_switching:"מחליף",st_switched:"הוחלף",st_retiring:"מבטל את הישן",st_retired:"המפתח הישן בוטל",st_verified:"הושלם",st_verify_failed:"האימות נכשל",st_rolled_back:"בוטל, חזרה למפתח הקודם",st_needs_repair:"נדרש זיווג מחדש",bl_rotation_off:"ההחלפה כבויה",bl_rotation_not_permitted:"דורש אישור הפעלה מבעל המערכת",bl_peer_unavailable:"הגשר טרם עודכן",bl_wiskey_present:"חסום כל עוד WisKey מותקן (WisKey מאמת רק את קוד הצימוד המקורי)",bl_rotation_in_progress:"החלפה מתבצעת",bl_repair_required:"יש להשלים החלפה קודמת",bl_key_unreadable:"המפתח אינו קריא במכונה זו",bl_not_paired:"הגשר לא צומד",doorsPaused:"פתיחת דלתות מרחוק מושהית בזמן החלפת המפתח",hygieneNote:"החלפת מפתח היא תחזוקה שוטפת בלבד, לא טיפול בדליפה. חושדים שהמפתח דלף? יש לבצע צימוד מחדש.",autoWaiting:"ממתין לעדכון הגשר. ההחלפה תתחיל מעצמה.",autoScheduled:"ההחלפה תתחיל מעצמה בקרוב.",autoIdle:"המפתח הוחלף. אין צורך בפעולה.",autoAwaitClick:"הגשר מוכן. החלפת המפתח הראשונה מתחילה בלחיצה אחת.",startFirst:"התחלת החלפה",ownerContacts:"בעלי המערכת להתראות",ownerNone:"לא נבחרו. התראות על מפתח הגשר נשלחות לכל מנהלי המערכת.",ownerAdd:"הוספת מנהל מערכת",ownerRemove:"הסרה",ownerInvalid:"כבר אינו מנהל מערכת",ownerReach:"התראה על מפתח הגשר תגיע ל־{n} מנהלי מערכת",wd_overlap_overdue:"ההחלפה לא הסתיימה בזמן. Arx כבר לא מקבל את המפתח הישן.",wd_needs_repair:"ההחלפה נעצרה ודורשת השלמה.",wd_verify_failed:"לא אושר שהגשר ביטל את המפתח הישן. מומלץ צימוד מחדש.",wd_generation_mismatch:"הגשר מדווח על דור מפתח {b}, ו־Arx על דור {a}. מומלץ צימוד מחדש.",bridgeGen:"דור המפתח שהגשר מדווח",bridgeGenNone:"הגשר לא מדווח",anchorUnavailable:"הקטנת עוגן השעון אינה זמינה עדיין: WisKey עוד לא מקבל את הדיווח הזה.",bannerText:"התראת אבטחה על מפתח הגשר ממתינה לאישור, ולא נבחרו בעלי מערכת להתראות.",bannerOpen:"למרכז ההתראות",bannerContacts:"לבחירת בעלי מערכת",stateRevoked:"בוטל בחירום",rvTitle:"ביטול חירום",rvNote:"אם יש חשד שמפתח הגשר דלף: המפתח נמחק מיד, כל הפעולות דרך הגשר נעצרות, ונוצר קוד צימוד חדש.",rvButton:"ביטול חירום של המפתח",rvDlgTitle:"לבטל את מפתח הגשר בחירום?",rvDlg1:"המפתח הנוכחי נמחק עכשיו ולא ישמש שוב.",rvDlg2:"כל הפעולות דרך הגשר נעצרות עד הצימוד מחדש: דלתות, מכשירים ומצלמות שעוברים דרכו.",rvDlg3:"נוצר קוד צימוד חדש. כשאפשר, הוא נשלח לגשר אוטומטית והגשר בודק אותו מול Arx.",rvDlg4:"הודעה תישלח לאנשי הקשר של הבעלים ולכל מנהלי המערכת, ובה שמך.",rvWiskeyWarn:"WisKey מותקן במערכת: פתיחת דלתות דרך WisKey תיפסק עד הצימוד מחדש.",rvWiskeyAck:"הבנתי שפתיחת דלתות דרך WisKey תיפסק עד הצימוד מחדש",rvConfirm:"ביטול המפתח",rvBack:"חזרה",rvRevoked:"מפתח הגשר בוטל ב־{t} בידי {name}. כל הפעולות דרך הגשר מושבתות עד צימוד מחדש.",rvAuto:"הקוד החדש נשלח לגשר אוטומטית. הגשר בודק אותו מול Arx לפני שהוא מחליף אותו.",rvManual:"הקוד החדש לא יכול להגיע לגשר לבד. הציגו אותו והזינו אותו בגשר.",rvRepaired:"הגשר צומד מחדש ב־{t}.",rvReveal:"הצגת הקוד החדש",rvRevealTitle:"קוד הצימוד החדש",rvStepUp:"לאימות מחדש, הזינו את הקוד הנוכחי מאפליקציית האימות שלכם. כל הצגה נרשמת ביומן.",rvStepUpNone:"כדי להציג את הקוד צריך אימות דו־שלבי בחשבון שלך. הפעילו אותו בחשבון ונסו שוב.",rvCodeLabel:"קוד אימות",rvShow:"הצגה",rvCode:"קוד צימוד",rvAddress:"כתובת",rvSteps:"בתשתית המערכת: הגדרות ‹ מכשירים ושירותים ‹ SMPLWISE Bridge ‹ הגדרה מחדש. הזינו את הכתובת ואת הקוד. הגשר בודק את הקוד מול Arx לפני שהוא מקבל אותו.",rvCopy:"העתקה",rvCopied:"הועתק",rvClose:"סגירה",rvDone:"מפתח הגשר בוטל.",bl_bridge_revoked:"המפתח בוטל בחירום, ממתין לצימוד מחדש"},Mj={title:"Bridge key",stateOff:"Off",stateReady:"Ready",stateRotating:"Rotating",stateAttention:"Needs attention",keyId:"Key id",generation:"Generation",since:"Active since",lastRotation:"Last rotation",none:"None",switchLabel:"Key rotation",reminder:"Rotation reminder",reminderOff:"None",reminderDays:"Every {n} days",reminderDue:"Time to rotate the key",rotate:"Rotate key",hardCut:"Immediate rotation",resume:"Finish rotation",confirmRotate:"Rotate the bridge key? Both keys work together for up to 3 minutes.",confirmHardCut:"Rotate now? The old key stops working at once.",confirm:"Confirm",cancel:"Cancel",retireAt:"The old key is retired at {t}",saved:"Saved",modeRoutine:"Routine",modeHardCut:"Immediate",st_prepared:"Preparing",st_publishing:"Sending to the bridge",st_published:"Bridge received",st_confirmed:"Bridge verified",st_switching:"Switching",st_switched:"Switched",st_retiring:"Retiring the old key",st_retired:"Old key retired",st_verified:"Done",st_verify_failed:"Verification failed",st_rolled_back:"Cancelled, back to the previous key",st_needs_repair:"Re-pairing required",bl_rotation_off:"Rotation is off",bl_rotation_not_permitted:"Needs the owner’s activation permit",bl_peer_unavailable:"The bridge has not been updated yet",bl_wiskey_present:"Blocked while WisKey is installed (WisKey verifies only the original pairing code)",bl_rotation_in_progress:"A rotation is running",bl_repair_required:"Finish the previous rotation first",bl_key_unreadable:"The key cannot be read on this machine",bl_not_paired:"The bridge is not paired",doorsPaused:"Doors paused during key rotation",hygieneNote:"Key rotation is routine hygiene only, not a fix for a leak. If you suspect the key leaked, re-pair the bridge.",autoWaiting:"Waiting for the bridge update. The rotation starts by itself.",autoScheduled:"The rotation will start by itself shortly.",autoIdle:"The key has been rotated. Nothing to do.",autoAwaitClick:"The bridge is ready. The first key rotation starts with one click.",startFirst:"Start rotation",ownerContacts:"Owner contacts",ownerNone:"None chosen. Bridge-key notices go to every system administrator.",ownerAdd:"Add a system administrator",ownerRemove:"Remove",ownerInvalid:"No longer a system administrator",ownerReach:"A bridge-key notice reaches {n} system administrators",wd_overlap_overdue:"The rotation did not finish in time. Arx no longer accepts the old key.",wd_needs_repair:"The rotation stopped and needs to be completed.",wd_verify_failed:"It was not confirmed that the bridge dropped the old key. Re-pairing is recommended.",wd_generation_mismatch:"The bridge reports key generation {b}, Arx has generation {a}. Re-pairing is recommended.",bridgeGen:"Key generation reported by the bridge",bridgeGenNone:"Not reported",anchorUnavailable:"Lowering the clock anchor is not available yet: WisKey does not take this report yet.",bannerText:"A bridge-key security notice is waiting to be acknowledged, and no owner contacts are chosen.",bannerOpen:"Open notifications",bannerContacts:"Choose owner contacts",stateRevoked:"Revoked",rvTitle:"Emergency revocation",rvNote:"If you suspect the bridge key leaked: the key is deleted at once, every operation through the bridge stops, and a new pairing code is made.",rvButton:"Revoke the key now",rvDlgTitle:"Revoke the bridge key in an emergency?",rvDlg1:"The current key is deleted now and never used again.",rvDlg2:"Every operation through the bridge stops until the re-pair: doors, devices and cameras that go through it.",rvDlg3:"A new pairing code is made. When possible it reaches the bridge by itself, and the bridge checks it with Arx.",rvDlg4:"The owner contacts and every system administrator are notified, with your name.",rvWiskeyWarn:"WisKey is installed: door opening through WisKey stops until the re-pair.",rvWiskeyAck:"I understand that door opening through WisKey stops until the re-pair",rvConfirm:"Revoke the key",rvBack:"Back",rvRevoked:"The bridge key was revoked at {t} by {name}. Every operation through the bridge is stopped until the re-pair.",rvAuto:"The new code was sent to the bridge automatically. The bridge checks it with Arx before it switches.",rvManual:"The new code cannot reach the bridge by itself. Show it and enter it in the bridge.",rvRepaired:"The bridge was re-paired at {t}.",rvReveal:"Show the new code",rvRevealTitle:"The new pairing code",rvStepUp:"To confirm it is you, enter the current code from your authenticator app. Every reveal is recorded in the log.",rvStepUpNone:"Showing the code needs two-step verification on your account. Turn it on in your account and try again.",rvCodeLabel:"Authenticator code",rvShow:"Show",rvCode:"Pairing code",rvAddress:"Address",rvSteps:"In the system infrastructure: Settings › Devices & services › SMPLWISE Bridge › Reconfigure. Enter the address and the code. The bridge checks the code with Arx before it takes it.",rvCopy:"Copy",rvCopied:"Copied",rvClose:"Close",rvDone:"The bridge key was revoked.",bl_bridge_revoked:"Revoked in an emergency, waiting for the re-pair"},Lj={title:"مفتاح الجسر",stateOff:"متوقف",stateReady:"جاهز",stateRotating:"قيد التبديل",stateAttention:"يحتاج إلى معالجة",keyId:"معرّف المفتاح",generation:"الجيل",since:"نشط منذ",lastRotation:"آخر تبديل",none:"لا يوجد",switchLabel:"تبديل المفتاح",reminder:"تذكير بالتبديل",reminderOff:"بدون",reminderDays:"كل {n} يومًا",reminderDue:"حان وقت تبديل المفتاح",rotate:"تبديل المفتاح",hardCut:"تبديل فوري",resume:"إكمال التبديل",confirmRotate:"هل تريد تبديل مفتاح الجسر؟ يعمل المفتاحان معًا حتى 3 دقائق.",confirmHardCut:"هل تريد التبديل الآن؟ يتوقف المفتاح القديم فورًا.",confirm:"تأكيد",cancel:"إلغاء",retireAt:"يُلغى المفتاح القديم في {t}",saved:"تم الحفظ",modeRoutine:"عادي",modeHardCut:"فوري",st_prepared:"قيد التحضير",st_publishing:"يُرسل إلى الجسر",st_published:"استلمه الجسر",st_confirmed:"تحقق منه الجسر",st_switching:"قيد التبديل",st_switched:"تم التبديل",st_retiring:"يُلغى المفتاح القديم",st_retired:"أُلغي المفتاح القديم",st_verified:"اكتمل",st_verify_failed:"فشل التحقق",st_rolled_back:"أُلغي، عودة إلى المفتاح السابق",st_needs_repair:"يلزم إعادة الاقتران",bl_rotation_off:"التبديل متوقف",bl_rotation_not_permitted:"يحتاج إلى إذن تشغيل من المالك",bl_peer_unavailable:"لم يتم تحديث الجسر بعد",bl_wiskey_present:"محظور طالما WisKey مثبت (يتحقق WisKey من رمز الاقتران الأصلي فقط)",bl_rotation_in_progress:"يجري تبديل",bl_repair_required:"أكمل التبديل السابق أولًا",bl_key_unreadable:"لا يمكن قراءة المفتاح على هذا الجهاز",bl_not_paired:"الجسر غير مقترن",doorsPaused:"فتح الأبواب متوقف مؤقتًا أثناء تبديل المفتاح",hygieneNote:"تبديل المفتاح صيانة دورية فقط وليس علاجًا لتسرّب. إذا اشتبهت بتسرّب المفتاح فأعد اقتران الجسر.",autoWaiting:"بانتظار تحديث الجسر. سيبدأ التبديل تلقائيًا.",autoScheduled:"سيبدأ التبديل تلقائيًا قريبًا.",autoIdle:"تم تبديل المفتاح. لا حاجة لأي إجراء.",autoAwaitClick:"الجسر جاهز. يبدأ أول تبديل للمفتاح بنقرة واحدة.",startFirst:"بدء التبديل",ownerContacts:"جهات اتصال المالك",ownerNone:"لم يتم الاختيار. تُرسل إشعارات مفتاح الجسر إلى جميع مديري النظام.",ownerAdd:"إضافة مدير نظام",ownerRemove:"إزالة",ownerInvalid:"لم يعد مدير نظام",ownerReach:"يصل إشعار مفتاح الجسر إلى {n} من مديري النظام",wd_overlap_overdue:"لم ينتهِ التبديل في الوقت المحدد. لم يعد Arx يقبل المفتاح القديم.",wd_needs_repair:"توقف التبديل ويجب إكماله.",wd_verify_failed:"لم يتم التأكد من أن الجسر ألغى المفتاح القديم. يوصى بإعادة الاقتران.",wd_generation_mismatch:"يبلغ الجسر عن جيل المفتاح {b}، ولدى Arx الجيل {a}. يوصى بإعادة الاقتران.",bridgeGen:"جيل المفتاح الذي يبلغ عنه الجسر",bridgeGenNone:"لا يبلغ",anchorUnavailable:"خفض مرساة الساعة غير متاح بعد: WisKey لا يستقبل هذا التقرير بعد.",bannerText:"إشعار أمني عن مفتاح الجسر ينتظر التأكيد، ولم يتم اختيار جهات اتصال للمالك.",bannerOpen:"إلى مركز الإشعارات",bannerContacts:"اختيار جهات اتصال المالك",stateRevoked:"أُلغي",rvTitle:"إلغاء طارئ",rvNote:"عند الاشتباه بتسرّب مفتاح الجسر: يُحذف المفتاح فورًا، وتتوقف كل العمليات عبر الجسر، ويُنشأ رمز اقتران جديد.",rvButton:"إلغاء المفتاح الآن",rvDlgTitle:"إلغاء مفتاح الجسر بشكل طارئ؟",rvDlg1:"يُحذف المفتاح الحالي الآن ولن يُستخدم مجددًا.",rvDlg2:"تتوقف كل العمليات عبر الجسر حتى إعادة الاقتران: الأبواب والأجهزة والكاميرات التي تمر عبره.",rvDlg3:"يُنشأ رمز اقتران جديد. عند الإمكان يصل إلى الجسر تلقائيًا ويتحقق منه الجسر مع Arx.",rvDlg4:"يُبلَّغ جهات اتصال المالك وكل مسؤولي النظام، مع اسمك.",rvWiskeyWarn:"WisKey مثبّت: يتوقف فتح الأبواب عبر WisKey حتى إعادة الاقتران.",rvWiskeyAck:"أفهم أن فتح الأبواب عبر WisKey يتوقف حتى إعادة الاقتران",rvConfirm:"إلغاء المفتاح",rvBack:"رجوع",rvRevoked:"أُلغي مفتاح الجسر في {t} بواسطة {name}. كل العمليات عبر الجسر متوقفة حتى إعادة الاقتران.",rvAuto:"أُرسل الرمز الجديد إلى الجسر تلقائيًا. يتحقق منه الجسر مع Arx قبل التبديل.",rvManual:"لا يمكن أن يصل الرمز الجديد إلى الجسر وحده. اعرضه وأدخله في الجسر.",rvRepaired:"أُعيد اقتران الجسر في {t}.",rvReveal:"عرض الرمز الجديد",rvRevealTitle:"رمز الاقتران الجديد",rvStepUp:"للتأكيد أنك أنت، أدخل الرمز الحالي من تطبيق المصادقة. كل عرض يُسجَّل في السجل.",rvStepUpNone:"يتطلب عرض الرمز التحقق بخطوتين في حسابك. فعّله في حسابك وحاول مجددًا.",rvCodeLabel:"رمز المصادقة",rvShow:"عرض",rvCode:"رمز الاقتران",rvAddress:"العنوان",rvSteps:"في بنية النظام: الإعدادات › الأجهزة والخدمات › SMPLWISE Bridge › إعادة التهيئة. أدخل العنوان والرمز. يتحقق الجسر من الرمز مع Arx قبل قبوله.",rvCopy:"نسخ",rvCopied:"نُسخ",rvClose:"إغلاق",rvDone:"أُلغي مفتاح الجسر.",bl_bridge_revoked:"أُلغي بشكل طارئ، بانتظار إعادة الاقتران"},Dj={title:"Ключ моста",stateOff:"Выключено",stateReady:"Готово",stateRotating:"Идёт замена",stateAttention:"Требует внимания",keyId:"Идентификатор ключа",generation:"Поколение",since:"Активен с",lastRotation:"Последняя замена",none:"Нет",switchLabel:"Замена ключа",reminder:"Напоминание о замене",reminderOff:"Нет",reminderDays:"Каждые {n} дн.",reminderDue:"Пора заменить ключ",rotate:"Заменить ключ",hardCut:"Немедленная замена",resume:"Завершить замену",confirmRotate:"Заменить ключ моста? Оба ключа работают вместе до 3 минут.",confirmHardCut:"Заменить сейчас? Старый ключ сразу перестанет работать.",confirm:"Подтвердить",cancel:"Отмена",retireAt:"Старый ключ будет отозван в {t}",saved:"Сохранено",modeRoutine:"Обычная",modeHardCut:"Немедленная",st_prepared:"Подготовка",st_publishing:"Отправка на мост",st_published:"Мост получил",st_confirmed:"Мост подтвердил",st_switching:"Переключение",st_switched:"Переключено",st_retiring:"Отзыв старого ключа",st_retired:"Старый ключ отозван",st_verified:"Готово",st_verify_failed:"Проверка не прошла",st_rolled_back:"Отменено, возврат к прежнему ключу",st_needs_repair:"Нужно повторное сопряжение",bl_rotation_off:"Замена выключена",bl_rotation_not_permitted:"Нужно разрешение владельца на включение",bl_peer_unavailable:"Мост ещё не обновлён",bl_wiskey_present:"Заблокировано, пока установлен WisKey (WisKey проверяет только исходный код сопряжения)",bl_rotation_in_progress:"Идёт замена",bl_repair_required:"Сначала завершите прошлую замену",bl_key_unreadable:"Ключ не читается на этой машине",bl_not_paired:"Мост не сопряжён",doorsPaused:"Открытие дверей приостановлено на время замены ключа",hygieneNote:"Замена ключа - это только плановая гигиена, а не лечение утечки. Если вы подозреваете утечку ключа, выполните повторное сопряжение моста.",autoWaiting:"Ожидается обновление моста. Замена начнётся автоматически.",autoScheduled:"Замена скоро начнётся автоматически.",autoIdle:"Ключ заменён. Действий не требуется.",autoAwaitClick:"Мост готов. Первая замена ключа запускается одним нажатием.",startFirst:"Начать замену",ownerContacts:"Контакты владельца",ownerNone:"Не выбраны. Уведомления о ключе моста получают все администраторы системы.",ownerAdd:"Добавить администратора системы",ownerRemove:"Убрать",ownerInvalid:"Больше не администратор системы",ownerReach:"Уведомление о ключе моста получат администраторы системы: {n}",wd_overlap_overdue:"Замена не завершилась вовремя. Arx больше не принимает старый ключ.",wd_needs_repair:"Замена остановилась и требует завершения.",wd_verify_failed:"Не подтверждено, что мост удалил старый ключ. Рекомендуется повторное сопряжение.",wd_generation_mismatch:"Мост сообщает поколение ключа {b}, у Arx поколение {a}. Рекомендуется повторное сопряжение.",bridgeGen:"Поколение ключа по данным моста",bridgeGenNone:"Не сообщается",anchorUnavailable:"Снижение якоря часов пока недоступно: WisKey ещё не принимает этот отчёт.",bannerText:"Уведомление безопасности о ключе моста ждёт подтверждения, а контакты владельца не выбраны.",bannerOpen:"К центру уведомлений",bannerContacts:"Выбрать контакты владельца",stateRevoked:"Отозван",rvTitle:"Экстренный отзыв",rvNote:"Если есть подозрение на утечку ключа моста: ключ сразу удаляется, все операции через мост останавливаются, создаётся новый код сопряжения.",rvButton:"Отозвать ключ сейчас",rvDlgTitle:"Экстренно отозвать ключ моста?",rvDlg1:"Текущий ключ удаляется сейчас и больше не используется.",rvDlg2:"Все операции через мост останавливаются до повторного сопряжения: двери, устройства и камеры, идущие через него.",rvDlg3:"Создаётся новый код сопряжения. Когда возможно, он доходит до моста сам, и мост проверяет его в Arx.",rvDlg4:"Контакты владельца и все администраторы системы получат уведомление с вашим именем.",rvWiskeyWarn:"WisKey установлен: открытие дверей через WisKey остановится до повторного сопряжения.",rvWiskeyAck:"Я понимаю, что открытие дверей через WisKey остановится до повторного сопряжения",rvConfirm:"Отозвать ключ",rvBack:"Назад",rvRevoked:"Ключ моста отозван {t}, отозвал: {name}. Все операции через мост остановлены до повторного сопряжения.",rvAuto:"Новый код отправлен мосту автоматически. Мост проверяет его в Arx перед переключением.",rvManual:"Новый код не может дойти до моста сам. Покажите его и введите в мосте.",rvRepaired:"Мост повторно сопряжён {t}.",rvReveal:"Показать новый код",rvRevealTitle:"Новый код сопряжения",rvStepUp:"Для подтверждения введите текущий код из приложения-аутентификатора. Каждый показ записывается в журнал.",rvStepUpNone:"Чтобы показать код, в вашей учётной записи нужна двухэтапная проверка. Включите её и попробуйте снова.",rvCodeLabel:"Код аутентификатора",rvShow:"Показать",rvCode:"Код сопряжения",rvAddress:"Адрес",rvSteps:"В инфраструктуре системы: Настройки › Устройства и службы › SMPLWISE Bridge › Перенастроить. Введите адрес и код. Мост проверяет код в Arx, прежде чем принять его.",rvCopy:"Копировать",rvCopied:"Скопировано",rvClose:"Закрыть",rvDone:"Ключ моста отозван.",bl_bridge_revoked:"Экстренно отозван, ждёт повторного сопряжения"};function x6(){const e=typeof document<"u"?(document.documentElement.lang||"").toLowerCase():"";return e.startsWith("en")?"en":e.startsWith("ar")?"ar":e.startsWith("ru")?"ru":"he"}const Nj={he:Tk,en:Mj,ar:Lj,ru:Dj};function hh(e,t,s=x6()){const a=Nj[s][e]??Tk[e]??e;return t?a.replace(/\{(\w+)\}/g,(n,i)=>i in t?String(t[i]):n):a}function K0e(e,t,s=x6()){if(!t)return"";const a=`${e}${t}`;return a in Tk?hh(a,void 0,s):t}var Pj=Object.defineProperty,Ij=Object.getOwnPropertyDescriptor,k6=(e,t,s,a)=>{for(var n=a>1?void 0:a?Ij(t,s):t,i=e.length-1,r;i>=0;i--)(r=e[i])&&(n=(a?r(t,s,n):r(n))||n);return a&&n&&Pj(t,s,n),n};let Ef=class extends B{constructor(){super(...arguments),this.show=!1}connectedCallback(){super.connectedCallback(),!(!O()||Ur()||!Te("system.configure"))&&Rj().then(e=>this.show=e?.show===!0).catch(()=>this.show=!1)}render(){return this.show?o`<div class="bar" role="alert" data-bridge-key-banner><sw-icon name="warning" size=${16}></sw-icon><span>${hh("bannerText")}</span>
@@ -5282,7 +5282,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --mm-art-veil: rgba(18, 18, 20, 0.34);
     --mm-screen-off: linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
     --mm-sheet-surface: rgba(22, 22, 25, 0.84);
-     sourceMappingURL=[^*]**/ POLISH2-295 (owner: the dark choice buttons were hard to read): the grey thumb sat 1.8:1 from the track, so the chosen segment
+    /* POLISH2-295 (owner: the dark choice buttons were hard to read): the grey thumb sat 1.8:1 from the track, so the chosen segment
        barely showed; the thumb is now the light pill the chosen floor chip already uses (#f5f5f7, dark label 15.6:1, 18:1 from the track)
        and an unselected label is a step quieter (about 8:1 on the track) */
     --mm-seg-thumb: #f5f5f7;
@@ -5311,7 +5311,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --mm-tkey-main-size: 62px;
     }
   }
-   sourceMappingURL=[^*]**/ no backdrop-filter, or the viewer asked for less transparency: solid sheets, same layout */
+  /* no backdrop-filter, or the viewer asked for less transparency: solid sheets, same layout */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :host([data-devices-style='glass']) {
       --mm-sheet-surface: var(--dv-surface-solid);
@@ -5382,7 +5382,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     border-radius: var(--dv-radius-md);
     box-shadow: var(--dv-shadow-1);
   }
-   sourceMappingURL=[^*]**/ buttons */
+  /* buttons */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -5453,7 +5453,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     opacity: 0.45;
     pointer-events: none;
   }
-   sourceMappingURL=[^*]**/ segmented control */
+  /* segmented control */
   .seg {
     display: inline-flex;
     align-items: center;
@@ -5502,7 +5502,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     min-block-size: 30px;
     font-size: var(--sw-fs-sm);
   }
-   sourceMappingURL=[^*]**/ switch */
+  /* switch */
   .tog {
     position: relative;
     flex: none;
@@ -5532,7 +5532,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .tog[aria-checked='true']::after {
     inset-inline-start: 20px;
   }
-   sourceMappingURL=[^*]**/ round keys, the power button, the volume rocker, the remote button */
+  /* round keys, the power button, the volume rocker, the remote button */
   .rb {
     position: relative;
     flex: none;
@@ -5734,7 +5734,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .pilld .ic {
     font-size: var(--sw-fs-sm);
   }
-   sourceMappingURL=[^*]**/ popover menu (floor menu, source menu) */
+  /* popover menu (floor menu, source menu) */
   @keyframes mm-pop {
     from {
       transform: scale(0.96);
@@ -5745,7 +5745,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     position: absolute;
     z-index: 25;
     min-inline-size: 230px;
-     sourceMappingURL=[^*]**/ a menu sits inside glass panels (a nested backdrop-filter cannot blur what lies beyond its parent), and it is never see-through
+    /* a menu sits inside glass panels (a nested backdrop-filter cannot blur what lies beyond its parent), and it is never see-through
        (owner 2026-10-13; it was 96 % of the solid twin): the opaque menu surface - the glass palette's solid twin here, the skin's own under Bubble */
     background: var(--sw-menu-surface);
     max-block-size: min(60vh, 440px);
@@ -5802,7 +5802,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     border-block-start: 1px solid var(--dv-border);
     margin: 4px 6px;
   }
-   sourceMappingURL=[^*]**/ skeleton, states */
+  /* skeleton, states */
   @keyframes mm-shimmer {
     0% {
       background-position: 200% 0;
@@ -5887,7 +5887,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--dv-accent-text);
     font-size: var(--sw-fs-xl);
   }
-   sourceMappingURL=[^*]**/ the now-showing "poster": a gradient of our own hue and a neutral glyph (never a logo, never a brand colour) */
+  /* the now-showing "poster": a gradient of our own hue and a neutral glyph (never a logo, never a brand colour) */
   .art {
     position: absolute;
     inset: 0;
@@ -5956,7 +5956,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       animation: none;
     }
   }
-   sourceMappingURL=[^*]**/ touch: every control is a 44 px target (the owner's operator-screen rule) */
+  /* touch: every control is a 44 px target (the owner's operator-screen rule) */
   @media (pointer: coarse), (max-width: 767px) {
     .btn,
     .btn.sm {
@@ -5965,7 +5965,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .seg button,
     .seg.sm button {
       min-block-size: 44px;
-      min-inline-size: 44px;  sourceMappingURL=[^*]**/ UXFIX-A11Y-295: the icon-only view switch was 37 px wide */
+      min-inline-size: 44px; /* UXFIX-A11Y-295: the icon-only view switch was 37 px wide */
     }
     .rb {
       inline-size: 44px;
@@ -5988,7 +5988,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
 `,aG=P`
   :host([data-skin='bubble'][data-devices-style='glass']) {
-     sourceMappingURL=[^*]**/ the glass bridge (devices-themes.ts) rewrites these --sw-* names from the --dv-* knobs; here the knobs are the --sw-* names,
+    /* the glass bridge (devices-themes.ts) rewrites these --sw-* names from the --dv-* knobs; here the knobs are the --sw-* names,
        so the bridge is undone first (inherit = the page's own tokens) or every pair would be a cycle */
     --sw-glass-blur: inherit;
     --sw-bg: inherit;
@@ -6072,7 +6072,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --dv-hover-lift: 0px;
     --mm-sheen: none;
     --mm-accent-glow: transparent;
-    --mm-text-inverse: var(--sw-bg);  sourceMappingURL=[^*]**/ text on a chip filled with --sw-text (the chosen room): the page colour, both schemes */
+    --mm-text-inverse: var(--sw-bg); /* text on a chip filled with --sw-text (the chosen room): the page colour, both schemes */
     --mm-fs-page-title: var(--sw-h1);
     --mm-fs-page-title-compact: var(--sw-fs-lg);
     --mm-art-glow-alpha: 0.42;
@@ -6103,7 +6103,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --mm-sheet-blur: none;
     }
   }
-   sourceMappingURL=[^*]**/ the bubble skin's targets: every control at least the desktop touch dial (44 / 32) and 44 px in touch layouts (the layout guard);
+  /* the bubble skin's targets: every control at least the desktop touch dial (44 / 32) and 44 px in touch layouts (the layout guard);
      the page header no longer sticks (a floating bar over the rows is the one thing the owner's rule forbids) */
   :host([data-skin='bubble']) .btn,
   :host([data-skin='bubble']) .btn.sm,
@@ -6118,7 +6118,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     min-block-size: var(--sw-touch-desktop, 44px);
     block-size: auto;
   }
-   sourceMappingURL=[^*]**/ the floor filter (sw-dropdown, 2.0.0): its host is an inline flex box, so a taller host stretches the chip itself to the bubble target,
+  /* the floor filter (sw-dropdown, 2.0.0): its host is an inline flex box, so a taller host stretches the chip itself to the bubble target,
      in every dropdown style and size (the old hand-built .floorbtn was in the list above) */
   :host([data-skin='bubble']) sw-dropdown[data-floor-menu] {
     min-block-size: var(--sw-touch-desktop, 44px);
@@ -6234,10 +6234,10 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       align-items: flex-end;
       justify-content: space-between;
       gap: 10px 12px;
-       sourceMappingURL=[^*]**/ the shell's floating search / status corner (sw-app, no top bar) sits over the far end of the first row when
+      /* the shell's floating search / status corner (sw-app, no top bar) sits over the far end of the first row when
          nothing else is above the page; the shell sets this only then (0 elsewhere) */
       padding-inline-end: var(--sw-float-reserve, 0px);
-       sourceMappingURL=[^*]**/ header dropdown placement 4 (shell): the chip sits at the start edge of this row */
+      /* header dropdown placement 4 (shell): the chip sits at the start edge of this row */
       padding-inline-start: var(--sw-lead-reserve, 0px);
     }
     :host([flush]) header {
@@ -6245,7 +6245,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding-inline-end: calc(16px + var(--sw-float-reserve, 0px));
       padding-inline-start: calc(16px + var(--sw-lead-reserve, 0px));
     }
-     sourceMappingURL=[^*]**/ the title block may shrink below its content: a scrolling chip row in the crumbs slot (the area page on a phone) otherwise
+    /* the title block may shrink below its content: a scrolling chip row in the crumbs slot (the area page on a phone) otherwise
        widened the block to the whole row and dragged the page sideways */
     .head {
       min-inline-size: 0;
@@ -6291,7 +6291,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       gap: 8px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ ---- AUDIT30-B2-PAGE-ACTION (finding 8, Q5 = א): the primary action ---- */
+    /* ---- AUDIT30-B2-PAGE-ACTION (finding 8, Q5 = א): the primary action ---- */
     .primary {
       display: none;
       align-items: center;
@@ -6310,7 +6310,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       :host {
         padding: 12px 12px 16px;
       }
-       sourceMappingURL=[^*]**/ the floating action: above the bottom navigation and the home indicator, at the end side, below drawers and dialogs */
+      /* the floating action: above the bottom navigation and the home indicator, at the end side, below drawers and dialogs */
       :host([has-primary]) .primary {
         position: fixed;
         inset-block-end: calc(var(--sw-bottomnav-h) + 12px + env(safe-area-inset-bottom));
@@ -6324,7 +6324,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       :host([has-primary]) .primary:active {
         transform: scale(0.97);
       }
-       sourceMappingURL=[^*]**/ the slotted key becomes the 52 px pill (or circle when icon-only): its own size / radius tokens, scoped to it */
+      /* the slotted key becomes the 52 px pill (or circle when icon-only): its own size / radius tokens, scoped to it */
       ::slotted([slot='primary']) {
         --sw-ctl-h-sm: 52px;
         --sw-ctl-h-md: 52px;
@@ -6335,7 +6335,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         --sw-fs-xs: var(--sw-fs-md);
         --sw-hover-lift: 0px;
       }
-       sourceMappingURL=[^*]**/ the last row of the page stays reachable above the floating action */
+      /* the last row of the page stays reachable above the floating action */
       :host([has-primary]) .body {
         padding-block-end: calc(52px + 12px);
       }
@@ -6385,15 +6385,15 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-stale-soft);
       color: var(--sw-stale);
     }
-     sourceMappingURL=[^*]**/ POLISH-295: a screen may colour a counter that has something on by its kind (--sw-kpi-on-bg / --sw-kpi-on-fg, tokens only) */
-     sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (audit finding 3, owner "no green outside status meaning"): "all is well" no longer paints the tile's
+    /* POLISH-295: a screen may colour a counter that has something on by its kind (--sw-kpi-on-bg / --sw-kpi-on-fg, tokens only) */
+    /* POLISH-CLASSIC-DOMUS-297 (audit finding 3, owner "no green outside status meaning"): "all is well" no longer paints the tile's
        icon green - the healthy state is the quiet one; its word below (the detail line) still carries the status colour. A screen
        that colours a counter by its kind keeps doing so through --sw-kpi-on-bg / --sw-kpi-on-fg. */
     :host([tone='live']) .icon {
       background: var(--sw-kpi-on-bg, var(--sw-surface-3));
       color: var(--sw-kpi-on-fg, var(--sw-text-2));
     }
-     sourceMappingURL=[^*]**/ ---- AUDIT30-B-SHARED (audit round 30, finding 7; Q4 = א assumed): the variants the module tiles drew locally ----
+    /* ---- AUDIT30-B-SHARED (audit round 30, finding 7; Q4 = א assumed): the variants the module tiles drew locally ----
        tone warn / alarm: a soft state fill and a 1 px state hairline; the words keep their inks (label --sw-text-2, detail --sw-text) */
     :host([tone='warn']) {
       background: var(--sw-warning-soft);
@@ -6411,26 +6411,26 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-surface-solid, var(--sw-surface));
       color: var(--sw-danger-text);
     }
-     sourceMappingURL=[^*]**/ the detail line on the soft state fill reads in the strong neutral ink: the state's own ink on its own soft field measured
+    /* the detail line on the soft state fill reads in the strong neutral ink: the state's own ink on its own soft field measured
        4.42:1 (domus light, danger) - the fill, the hairline and the icon carry the state, the words stay readable everywhere */
     :host([tone='warn']) .detail,
     :host([tone='alarm']) .detail {
       color: var(--sw-text);
     }
-     sourceMappingURL=[^*]**/ the unit and the "of N" figure ride the value's baseline in the quieter ink; they never wrap away from it */
+    /* the unit and the "of N" figure ride the value's baseline in the quieter ink; they never wrap away from it */
     .unit,
     .sec {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
       letter-spacing: 0;
-      line-height: 1;  sourceMappingURL=[^*]**/ rides inside the value's line box: never makes the tile taller than the bare value */
+      line-height: 1; /* rides inside the value's line box: never makes the tile taller than the bare value */
       color: var(--sw-text-2);
       margin-inline-start: 3px;
     }
     .sec {
       margin-inline-start: 5px;
     }
-     sourceMappingURL=[^*]**/ dot instead of the icon tile: a 10 px state dot centred in the tile's icon column (the tile keeps its height and grid) */
+    /* dot instead of the icon tile: a 10 px state dot centred in the tile's icon column (the tile keeps its height and grid) */
     .sdot {
       display: grid;
       place-items: center;
@@ -6458,7 +6458,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([dot='error']) .sdot,
     :host([dot='forbidden']) .sdot,
     :host([dot='alarm']) .sdot { --_dot: var(--sw-danger); }
-     sourceMappingURL=[^*]**/ unknown keeps its outline-only meaning (as in sw-badge) */
+    /* unknown keeps its outline-only meaning (as in sw-badge) */
     :host([dot='unknown']) .sdot::before {
       background: transparent;
       box-shadow: inset 0 0 0 2px var(--sw-unknown-text, var(--sw-text-3));
@@ -6470,7 +6470,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .label {
       display: block;
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (sw-kpi size hook, like --sw-kpi-label-lines): a host may ask for a display numeral; unset = the old 20 px / 700 */
+    /* R5-LIVE-297 (sw-kpi size hook, like --sw-kpi-label-lines): a host may ask for a display numeral; unset = the old 20 px / 700 */
     .value {
       font-size: var(--sw-kpi-value-fs, var(--sw-fs-2xl));
       font-weight: var(--sw-kpi-value-fw, var(--sw-fw-bold));
@@ -6497,7 +6497,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     }
     :host([tone='error']) .detail,
     :host([tone='offline']) .detail {
-      color: var(--sw-danger-text);  sourceMappingURL=[^*]**/ the ink of the status, not its bare dot colour (3.8:1 on white) */
+      color: var(--sw-danger-text); /* the ink of the status, not its bare dot colour (3.8:1 on white) */
     }
     :host([tone='neutral']) .detail {
       color: var(--sw-text-3);
@@ -6516,7 +6516,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-variant-numeric: tabular-nums;
     }
 
-     sourceMappingURL=[^*]**/ ---- compact: a rectangle, the icon beside the text (knobs: --sw-kpi-compact-*) ---- */
+    /* ---- compact: a rectangle, the icon beside the text (knobs: --sw-kpi-compact-*) ---- */
     :host([layout='compact']) {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -6532,14 +6532,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       inline-size: var(--sw-kpi-compact-icon, 32px);
       block-size: var(--sw-kpi-compact-icon, 32px);
     }
-     sourceMappingURL=[^*]**/ owner 2026-09-30 (home screen): the icon at the end of the text block - the left side in Hebrew */
+    /* owner 2026-09-30 (home screen): the icon at the end of the text block - the left side in Hebrew */
     :host([layout='compact'][icon-end]) {
       grid-template-columns: minmax(0, 1fr) auto;
     }
     :host([layout='compact'][icon-end]) .icon {
       order: 2;
     }
-     sourceMappingURL=[^*]**/ the value above its label: the text block stays narrow enough for a small tile */
+    /* the value above its label: the text block stays narrow enough for a small tile */
     :host([layout='compact'][icon-end]) .value,
     :host([layout='compact'][icon-end]) .label {
       display: block;
@@ -6548,7 +6548,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([layout='compact'][icon-end]) .label {
       line-height: 1.25;
     }
-     sourceMappingURL=[^*]**/ the value and the label on one line; a long label wraps once, then ellipsis (the full text is the host's title).
+    /* the value and the label on one line; a long label wraps once, then ellipsis (the full text is the host's title).
        POLISH-CLASSIC-DOMUS-297 second pass (break-ui, P4/P6): the VALUE never wraps ("1284 / 2047" broke over two lines and pushed the
        label out of the clamp, so the label vanished) - only the label is clamped; the figures are tabular */
     :host([layout='compact']) .line {
@@ -6573,7 +6573,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-kpi-compact-value-fs, 17px);
       line-height: 1.2;
     }
-     sourceMappingURL=[^*]**/ a value wider than its tile first shrinks (fit-text.ts, to ~72 %), and only at that floor breaks at its spaces ("53928 /
+    /* a value wider than its tile first shrinks (fit-text.ts, to ~72 %), and only at that floor breaks at its spaces ("53928 /
        49392"), never inside a number; it never runs over the icon */
     :host([layout='compact']) .value[data-fit='wrap'] {
       white-space: normal;
@@ -6592,18 +6592,18 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       overflow-wrap: anywhere;
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ icon at the end: the value above its label, the label one clamped line (the tile's height as before) */
+    /* icon at the end: the value above its label, the label one clamped line (the tile's height as before) */
     :host([layout='compact'][icon-end]) .line {
       flex-direction: column;
       align-items: flex-start;
     }
-     sourceMappingURL=[^*]**/ HOMEFABLE-297 (sw-kpi size hook): the host may ask for two label lines (--sw-kpi-label-lines) - the home's counters do */
+    /* HOMEFABLE-297 (sw-kpi size hook): the host may ask for two label lines (--sw-kpi-label-lines) - the home's counters do */
     :host([layout='compact'][icon-end]) .label {
       display: -webkit-box;
       -webkit-line-clamp: var(--sw-kpi-label-lines, 1);
       line-clamp: var(--sw-kpi-label-lines, 1);
       inline-size: 100%;
-      flex: 0 1 auto;  sourceMappingURL=[^*]**/ the row layout's 4em basis is a HEIGHT in this column - the label is as tall as its clamped lines */
+      flex: 0 1 auto; /* the row layout's 4em basis is a HEIGHT in this column - the label is as tall as its clamped lines */
     }
     :host([layout='compact'][icon-end]) .value {
       font-weight: 800;
@@ -6616,7 +6616,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ review M6: the badge rides the tile's top corner - it never takes a column from the value and the label */
+    /* review M6: the badge rides the tile's top corner - it never takes a column from the value and the label */
     .tag {
       position: absolute;
       inset-inline-start: 10px;
@@ -6642,7 +6642,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       pointer-events: none;
     }
 
-     sourceMappingURL=[^*]**/ ---- a tile that is a control: the native link / button covers it ---- */
+    /* ---- a tile that is a control: the native link / button covers it ---- */
     .hit {
       position: absolute;
       inset: 0;
@@ -6664,7 +6664,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([interactive]) {
       transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ the hover convention of the shared components: only under a pointer that hovers (a tapped tile kept its lift on a phone) */
+    /* the hover convention of the shared components: only under a pointer that hovers (a tapped tile kept its lift on a phone) */
     @media (hover: hover) and (pointer: fine) {
       :host([interactive]:hover) {
         border-color: var(--sw-border-strong);
@@ -6695,7 +6695,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-toggle-off);
       position: relative;
       cursor: pointer;
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297: the track fades on the state curve, the thumb rides the switch spring (tokens.ts: the plain curve at
+      /* POLISH-CLASSIC-DOMUS-297: the track fades on the state curve, the thumb rides the switch spring (tokens.ts: the plain curve at
          120 ms in a skin that sets no spring) */
       transition: background var(--sw-t-med) var(--sw-ease), box-shadow var(--sw-t-med) var(--sw-ease);
       padding: 0;
@@ -6715,12 +6715,12 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       block-size: 18px;
       border-radius: 50%;
       background: var(--sw-toggle-thumb);
-       sourceMappingURL=[^*]**/ the knob's own shadow (the thumb token), not the card's: it reads as a physical knob on the track */
+      /* the knob's own shadow (the thumb token), not the card's: it reads as a physical knob on the track */
       box-shadow: var(--sw-shadow-thumb);
       transition: transform var(--sw-spring-toggle-ms) var(--sw-spring-toggle);
     }
     :host([checked]) button {
-       sourceMappingURL=[^*]**/ 2.4.4: the switch-on colour token (classic: the same blue as the accent; Settings › "צבע מתג פעיל" may change it) */
+      /* 2.4.4: the switch-on colour token (classic: the same blue as the accent; Settings › "צבע מתג פעיל" may change it) */
       background: var(--sw-toggle-on);
     }
     :host([checked]) button::after {
@@ -6736,7 +6736,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     span {
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ UIPOLISH-2320 (owner 1B, 31.10): on a phone the 24 px track gets a 44 px tall touch target - a transparent ::before (free: the thumb is
+    /* UIPOLISH-2320 (owner 1B, 31.10): on a phone the 24 px track gets a 44 px tall touch target - a transparent ::before (free: the thumb is
        ::after) that grows ONLY in the block axis. No inline extension: a ::before wider than the 42 px track is horizontal overflow and
        tripped the 320 px clipped-content guard (layout-devices-break-297), which is why POLISH-PHONE-2310 dropped the old 50 x 44 slop.
        Absolute, so the drawn switch and the row layout do not move. */
@@ -6962,7 +6962,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       block-size: 100%;
       background: var(--sw-video-bg);
       overflow: hidden;
-       sourceMappingURL=[^*]**/ SKIN-QA-2403: the tile's own width decides whether the top-start tag shares the top row with a top-end badge (.subtag below) */
+      /* SKIN-QA-2403: the tile's own width decides whether the top-start tag shares the top row with a top-end badge (.subtag below) */
       container: swlp / inline-size;
     }
     video,
@@ -6977,14 +6977,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     img.poster {
       object-fit: cover;
     }
-     sourceMappingURL=[^*]**/ the live picture's own framing (the fit property) - separate rules from the poster's own default above */
+    /* the live picture's own framing (the fit property) - separate rules from the poster's own default above */
     :host([fit='cover']) video {
       object-fit: cover;
     }
     :host([fit='fill']) video {
       object-fit: fill;
     }
-     sourceMappingURL=[^*]**/ T018 re-review: match the poster to the live framing choice too, so a wide/spanned tile does not crop
+    /* T018 re-review: match the poster to the live framing choice too, so a wide/spanned tile does not crop
        while connecting and then jump to a stretched frame the moment live video starts. */
     :host([fit='fill']) img.poster {
       object-fit: fill;
@@ -7039,13 +7039,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-2xs);
       opacity: 0.75;
     }
-     sourceMappingURL=[^*]**/ HEALTH-GO2RTC-FOLLOWUP-2431: the administrator's choice of video service inside the "video service unavailable" notice */
+    /* HEALTH-GO2RTC-FOLLOWUP-2431: the administrator's choice of video service inside the "video service unavailable" notice */
     .center sw-video-service-picker {
       inline-size: min(340px, 100%);
       text-align: start;
       color: var(--sw-on-video);
     }
-     sourceMappingURL=[^*]**/ WARMUP-POLISH-2421: the viewer's retry when the video server does not answer */
+    /* WARMUP-POLISH-2421: the viewer's retry when the video server does not answer */
     .center .again {
       margin-block-start: 2px;
       padding: 6px 14px;
@@ -7103,7 +7103,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([compact]) .status span.t {
       display: none;
     }
-     sourceMappingURL=[^*]**/ CR-008 D7: what is playing on the remote channel (profile · transport), and an announced fallback */
+    /* CR-008 D7: what is playing on the remote channel (profile · transport), and an announced fallback */
     .vbadge {
       position: absolute;
       inset-inline-end: 8px;
@@ -7125,7 +7125,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-weight: 500;
       opacity: 0.85;
     }
-     sourceMappingURL=[^*]**/ re-review F2: autoplay refused (iOS Low Power Mode) - one tap starts the decoded stream */
+    /* re-review F2: autoplay refused (iOS Low Power Mode) - one tap starts the decoded stream */
     .tap {
       position: absolute;
       inset: 0;
@@ -7160,14 +7160,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([compact]) .vnotice {
       display: none;
     }
-     sourceMappingURL=[^*]**/ VIDEO-SUB-FALLBACK-2402: the automatic quality moved this tile to the main stream - quiet, top-start (the badges sit top-end) */
+    /* VIDEO-SUB-FALLBACK-2402: the automatic quality moved this tile to the main stream - quiet, top-start (the badges sit top-end) */
     .subtag {
       position: absolute;
       inset-inline-start: 8px;
       inset-block-start: 8px;
       font-size: var(--sw-fs-2xs);
       font-weight: 500;
-       sourceMappingURL=[^*]**/ SKIN-QA-2403: the full on-video ink, as the status pill beside it - the 72 % ink read at 3.3:1 when the picture under the scrim is
+      /* SKIN-QA-2403: the full on-video ink, as the status pill beside it - the 72 % ink read at 3.3:1 when the picture under the scrim is
          bright (a sunlit yard, a white wall; the tile's picture is never known). Still quiet: weight 500, the smallest size, no icon. */
       color: var(--sw-on-video);
       background: var(--sw-video-scrim);
@@ -7177,7 +7177,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding: 2px 8px;
       pointer-events: none;
     }
-     sourceMappingURL=[^*]**/ SKIN-QA-2403: the remote channel's profile badge (.vbadge) is "direction: ltr", so its inline END is the right edge - the same
+    /* SKIN-QA-2403: the remote channel's profile badge (.vbadge) is "direction: ltr", so its inline END is the right edge - the same
        corner as this tag's inline start in the RTL shell: the two lay on top of each other on every remote tile. The tag steps down
        to a second row under the badge. The H.265 tag sits at the real end (left): it meets the tag only on a narrow tile. */
     .vbadge ~ .subtag {
@@ -7188,7 +7188,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         inset-block-start: 30px;
       }
     }
-     sourceMappingURL=[^*]**/ SKIN-QA-FOLLOWUP-2404 (owner round 22: the fallback stays visible on every tile): a tile narrower than SUB_CHIP_MAX (a phone wall
+    /* SKIN-QA-FOLLOWUP-2404 (owner round 22: the fallback stays visible on every tile): a tile narrower than SUB_CHIP_MAX (a phone wall
        of three columns, ~116 x 65 px) has no free row for the words - not beside the remote profile badge (top-start), not under it (the
        camera's name). The tag becomes a CHIP: a 20 px circle with the "up" glyph (stepped up from the sub stream to the main one) in the
        bottom-end corner, on the name's row, opposite the name (sw-camera-tile keeps the name clear of it). The words stay in the DOM,
@@ -7218,7 +7218,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       user-select: none;
       -webkit-user-select: none;
     }
-     sourceMappingURL=[^*]**/ a finger-sized area for the long press, drawn nowhere (a short tap passes on to the tile) */
+    /* a finger-sized area for the long press, drawn nowhere (a short tap passes on to the tile) */
     :host([data-subchip]) .subtag::after {
       content: '';
       position: absolute;
@@ -7235,7 +7235,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       clip-path: inset(50%);
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ the long-press words: over the tile, above the chip; they wrap rather than run off a narrow tile */
+    /* the long-press words: over the tile, above the chip; they wrap rather than run off a narrow tile */
     .subhint {
       position: absolute;
       inset-inline-end: 6px;
@@ -7254,7 +7254,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       overflow-wrap: anywhere;
       pointer-events: none;
     }
-     sourceMappingURL=[^*]**/ LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
+    /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
     .h265tag {
       position: absolute;
       inset-inline-end: 8px;
@@ -7267,11 +7267,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding: 2px 8px;
       backdrop-filter: var(--sw-perf-blur, blur(6px));
     }
-     sourceMappingURL=[^*]**/ under a remote plan its own badge sits there: the tag goes below it */
+    /* under a remote plan its own badge sits there: the tag goes below it */
     .h265tag.below {
       inset-block-start: 34px;
     }
-     sourceMappingURL=[^*]**/ the transcode cap is full: the snapshot refreshes behind this notice (no black tile, no spinner loop) */
+    /* the transcode cap is full: the snapshot refreshes behind this notice (no black tile, no spinner loop) */
     .stillnote {
       position: absolute;
       inset-inline: 8px;
@@ -7315,7 +7315,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       isolation: isolate;
       outline: none;
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (mobile-native, emil press): the lift follows a hovering pointer only (a tapped tile kept it on a phone), and a
+    /* R5-LIVE-297 (mobile-native, emil press): the lift follows a hovering pointer only (a tapped tile kept it on a phone), and a
        tile answers the pointer-down at once - it sinks a step, the shadow drops */
     @media (hover: hover) and (pointer: fine) {
       :host(:hover) {
@@ -7341,18 +7341,18 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([selected]) {
       box-shadow: 0 0 0 2px var(--sw-accent), var(--sw-shadow-2);
     }
-     sourceMappingURL=[^*]**/ an offline / forbidden / unknown tile is a quiet card with a dashed edge: the absence of a picture reads as a state, not a loading gap */
+    /* an offline / forbidden / unknown tile is a quiet card with a dashed edge: the absence of a picture reads as a state, not a loading gap */
     :host([state='offline']),
     :host([state='forbidden']),
     :host([state='unknown']) {
       box-shadow: inset 0 0 0 1px var(--sw-border-strong);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (status as a filled field): a camera that is down is a filled offline field - the panel in the offline tint, a
+    /* R5-LIVE-297 (status as a filled field): a camera that is down is a filled offline field - the panel in the offline tint, a
        solid ring with the icon, the name 15 px bold over a "disconnected" line - not a white card with a dashed edge that read as
        a picture still loading; forbidden takes the danger tint */
     :host([state='offline']:not([dark])) .off,
     :host([state='unknown']:not([dark])) .off {
-      background: color-mix(in srgb, var(--sw-offline) 40%, var(--sw-surface-3));  sourceMappingURL=[^*]**/ loop 1: 22 % read as an empty card in light */
+      background: color-mix(in srgb, var(--sw-offline) 40%, var(--sw-surface-3)); /* loop 1: 22 % read as an empty card in light */
     }
     :host([dark][state='offline']) .off,
     :host([dark][state='unknown']) .off {
@@ -7390,7 +7390,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     sw-scene,
     sw-live-player,
     img.poster {
-      color: transparent;  sourceMappingURL=[^*]**/ HOME-V3-AUDITFIX-2437: no alt text / broken-image glyph while a still fails (hidden by posterFailed too) */
+      color: transparent; /* HOME-V3-AUDITFIX-2437: no alt text / broken-image glyph while a still fails (hidden by posterFailed too) */
       position: absolute;
       inset: 0;
       inline-size: 100%;
@@ -7473,8 +7473,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297: the camera's name is the tile's title - 14 px bold on the picture */
-     sourceMappingURL=[^*]**/ loop 2: on a phone's two-column wall a 14 px name ran into the floor line - the step up is for tablet and desktop widths */
+    /* R5-LIVE-297: the camera's name is the tile's title - 14 px bold on the picture */
+    /* loop 2: on a phone's two-column wall a 14 px name ran into the floor line - the step up is for tablet and desktop widths */
     @media (min-width: 768px) {
       :host(:not([compact])) .label {
         font-size: var(--sw-fs-md);
@@ -7494,7 +7494,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       box-shadow: 0 0 0 1.5px var(--sw-on-video-2);
       flex-shrink: 0;
     }
-     sourceMappingURL=[^*]**/ the live dot breathes while the picture is live (the same rhythm as sw-badge); still under reduced motion */
+    /* the live dot breathes while the picture is live (the same rhythm as sw-badge); still under reduced motion */
     :host([state='live']) .label .dot {
       animation: breathe 2.4s ease-in-out infinite;
     }
@@ -7539,7 +7539,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([state='forbidden']) .off .label .dot {
       background: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass (the Opus offline tile was a flat grey field with a 44 px dashed ring: it still read as a picture that had
+    /* R5-LIVE-297 Fable pass (the Opus offline tile was a flat grey field with a 44 px dashed ring: it still read as a picture that had
        not loaded): the down tile is a filled offline FIELD with a 60 px solid ring that floats (surface, the second shadow), the name
        18 px / 800 in the heading ink, the reason 14 px semibold; dark tiles tint deeper (34 %) so the field reads on the video ink */
     :host(:not([compact])) .off {
@@ -7579,7 +7579,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       inline-size: 9px;
       block-size: 9px;
     }
-     sourceMappingURL=[^*]**/ R5 fix (phone): the 60 px ring in a ~100 px tall two-column tile was flex-shrunk into an oval; the ring never shrinks, and on a
+    /* R5 fix (phone): the 60 px ring in a ~100 px tall two-column tile was flex-shrunk into an oval; the ring never shrinks, and on a
        phone the down tile keeps the earlier 44 px ring and smaller type (the filled field and the solid ring stay) */
     .off .ring {
       flex: none;
@@ -7601,7 +7601,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         font-size: var(--sw-fs-base);
       }
     }
-     sourceMappingURL=[^*]**/ R5 fix: the name and the floor line share one footer row with a real gap - the larger R5 type made two absolutely placed
+    /* R5 fix: the name and the floor line share one footer row with a real gap - the larger R5 type made two absolutely placed
        labels overlap on a phone; the floor line gives way first (ellipsis), the name keeps its room */
     .foot {
       position: absolute;
@@ -7616,11 +7616,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       inset-inline: 8px;
       inset-block-end: 6px;
     }
-     sourceMappingURL=[^*]**/ SKIN-QA-FOLLOWUP-2404: the player draws its "moved to main" chip at the bottom-end corner of a narrow tile (sw-live-player
+    /* SKIN-QA-FOLLOWUP-2404: the player draws its "moved to main" chip at the bottom-end corner of a narrow tile (sw-live-player
        data-subchip): the name's row stops short of it, so a long name ends in its ellipsis before the chip instead of under it */
     sw-live-player[data-subchip] ~ .foot {
       padding-inline-end: 22px;
-      pointer-events: none;  sourceMappingURL=[^*]**/ the row's box spans the chip's corner: a press there reaches the chip (the row holds no control) */
+      pointer-events: none; /* the row's box spans the chip's corner: a press there reaches the chip (the row holds no control) */
     }
     .foot .label {
       position: static;
@@ -7680,16 +7680,16 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding: var(--sw-s-8) var(--sw-s-4);
       color: var(--sw-text-2);
       min-block-size: 220px;
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (impeccable harden; audit finding 10: the state sat 120 px from the top of an empty page): in a
+      /* POLISH-CLASSIC-DOMUS-297 (impeccable harden; audit finding 10: the state sat 120 px from the top of an empty page): in a
          column with room to spare the panel takes the middle of it; in a block parent the auto margins do nothing */
       margin-block: auto;
-       sourceMappingURL=[^*]**/ second pass (P4): in a flex column the panel takes the remaining room (its content is centred in it), so a forbidden or empty
+      /* second pass (P4): in a flex column the panel takes the remaining room (its content is centred in it), so a forbidden or empty
          screen no longer reads as a small note pinned to the top of an empty page */
       flex: 1 1 auto;
       align-self: stretch;
       box-sizing: border-box;
     }
-     sourceMappingURL=[^*]**/ the two "whole screen" states get a taller resting box, capped so it never pushes a control screen into a scroll */
+    /* the two "whole screen" states get a taller resting box, capped so it never pushes a control screen into a scroll */
     :host([state='forbidden']:not([compact])),
     :host([state='empty']:not([compact])) {
       min-block-size: clamp(220px, 32dvh, 320px);
@@ -7703,9 +7703,9 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: start;
       justify-content: flex-start;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: a whole-screen state is the one object on the page - a 64 px tile that sits on the page (the floating shadow,
+    /* R5-SYSTEM-297: a whole-screen state is the one object on the page - a 64 px tile that sits on the page (the floating shadow,
        the 1 px light line), a 20/700 heading, a 14 px hint in the secondary ink; the compact row keeps its 34 px tile */
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297 loop 2: the whole-screen state is a HERO CARD (the P8 ladder's top step), not a note floating in a void - a
+    /* R5-SYSTEM-297 loop 2: the whole-screen state is a HERO CARD (the P8 ladder's top step), not a note floating in a void - a
        surface with the large radius, shadow 2 and the light line, 32 px of padding, capped at 560 px; it enters once (opacity +
        scale 0.97 -> 1, 220 ms ease-out; opacity only under reduced motion). The compact row stays flat. */
     .box {
@@ -7715,7 +7715,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: inherit;
       gap: var(--sw-s-3);
       inline-size: min(100%, 560px);
-       sourceMappingURL=[^*]**/ SHARED-POLISH-2342 (INSIGHTS-POLISH-2331 proposal): centred in the host even when a page's sheet turns the host into a block
+      /* SHARED-POLISH-2342 (INSIGHTS-POLISH-2331 proposal): centred in the host even when a page's sheet turns the host into a block
          (the water / electricity shells set ".body > * { display: block }", so the flex centring above did nothing and the tile sat
          against the start edge of an empty page); in the compact row the box is display: contents and the margins do not apply */
       margin-inline: auto;
@@ -7730,7 +7730,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: contents;
       animation: none;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP1: bare - the state sits on its card's surface (the card is the object; the panel draws no second one) */
+    /* POLISH4-WP1: bare - the state sits on its card's surface (the card is the object; the panel draws no second one) */
     :host([bare]:not([compact])) {
       flex: none;
       margin-block: 0;
@@ -7789,11 +7789,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       border-radius: var(--sw-r-lg);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
-       sourceMappingURL=[^*]**/ a hairline of its own ink: the tile reads as an object, not a smudge of tint */
+      /* a hairline of its own ink: the tile reads as an object, not a smudge of tint */
       box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), var(--sw-shadow-2);
       position: relative;
     }
-     sourceMappingURL=[^*]**/ the neutral states (empty, loading) are quiet: no accent tile for "nothing here" (colour is for action and status) */
+    /* the neutral states (empty, loading) are quiet: no accent tile for "nothing here" (colour is for action and status) */
     :host([state='empty']) .icon,
     :host([state='loading']) .icon {
       background: var(--sw-surface-3);
@@ -7819,7 +7819,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-stale-soft);
       color: var(--sw-stale);
     }
-     sourceMappingURL=[^*]**/ loading: the icon stays still (a spinning clock read as a broken clock); an arc runs round the tile instead (emil-design-eng:
+    /* loading: the icon stays still (a spinning clock read as a broken clock); an arc runs round the tile instead (emil-design-eng:
        a quick spinner reads as a quicker load) */
     :host([state='loading']) .icon {
       border-radius: 50%;
@@ -8262,7 +8262,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     gap: var(--sw-s-1h);
     flex-wrap: wrap;
   }
-   sourceMappingURL=[^*]**/ DEVICES-POLISH-2331: a cover's tilt is a second movement of the same device - its row reads as its own group */
+  /* DEVICES-POLISH-2331: a cover's tilt is a second movement of the same device - its row reads as its own group */
   .ctl-row[data-control='cover-tilt'] {
     padding-block-start: var(--sw-s-2);
     border-block-start: 1px dashed var(--sw-border);
@@ -8274,7 +8274,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
-   sourceMappingURL=[^*]**/ DEVICES-POLISH-2331: a mode menu is one of the row's controls - the small button's height, radius, border, lift and type
+  /* DEVICES-POLISH-2331: a mode menu is one of the row's controls - the small button's height, radius, border, lift and type
      (sw-button size sm), so minus / value / plus, the menus and the buttons sit on one line as one family */
   .ctl-select {
     font: inherit;
@@ -8361,7 +8361,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     white-space: normal;
     max-inline-size: 26em;
   }
-   sourceMappingURL=[^*]**/ UNLOCK-REASON-2370: the door-map link beside a "door not mapped" note (system administrators only) */
+  /* UNLOCK-REASON-2370: the door-map link beside a "door not mapped" note (system administrators only) */
   .ctl-link {
     color: var(--sw-accent-text, var(--sw-accent));
     text-decoration: underline;
@@ -8530,8 +8530,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         inset: 0;
         z-index: var(--sw-z-modal);
         background: var(--sw-overlay);
-        -webkit-backdrop-filter: var(--sw-backdrop-blur);  sourceMappingURL=[^*]**/ taste-skill-ignore: the skin contract's scrim blur, none by default */
-        backdrop-filter: var(--sw-backdrop-blur);  sourceMappingURL=[^*]**/ taste-skill-ignore: the skin contract's scrim blur, none by default */
+        -webkit-backdrop-filter: var(--sw-backdrop-blur); /* taste-skill-ignore: the skin contract's scrim blur, none by default */
+        backdrop-filter: var(--sw-backdrop-blur); /* taste-skill-ignore: the skin contract's scrim blur, none by default */
         opacity: 0;
         pointer-events: none;
         transition: opacity var(--qc-close-ms) var(--sw-ease-out);
@@ -8549,8 +8549,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         flex-direction: column;
         color: var(--sw-text);
         background: var(--sw-surface-solid);
-        border: 1px solid var(--sw-border-strong);  sourceMappingURL=[^*]**/ taste-skill-ignore: the floating dialog's edge over a dark page */
-        box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-3);  sourceMappingURL=[^*]**/ taste-skill-ignore: a real overlay (dialog) floats */
+        border: 1px solid var(--sw-border-strong); /* taste-skill-ignore: the floating dialog's edge over a dark page */
+        box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-3); /* taste-skill-ignore: a real overlay (dialog) floats */
         isolation: isolate;
         overflow: hidden;
         visibility: hidden;
@@ -8561,7 +8561,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         visibility: visible;
         transition: transform var(--qc-open-ms) var(--qc-spring), opacity 200ms var(--sw-ease-dialog), inline-size var(--qc-open-ms) var(--qc-spring), visibility 0s;
       }
-       sourceMappingURL=[^*]**/ ---- drawer: the inline start (right in Hebrew) ---- */
+      /* ---- drawer: the inline start (right in Hebrew) ---- */
       :host([mode='drawer']) .panel {
         inset-block: 0;
         inset-inline-start: 0;
@@ -8582,15 +8582,15 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       :host([mode='drawer'][open][data-shown]) .panel {
         transform: none;
       }
-       sourceMappingURL=[^*]**/ ---- pop-up: centred, grows out of the pressed element ---- */
-       sourceMappingURL=[^*]**/ HOMEFABLE-297 (emil-design-eng: a modal under 300-500 ms; apple-design: materialize - blur and scale arrive together): the
+      /* ---- pop-up: centred, grows out of the pressed element ---- */
+      /* HOMEFABLE-297 (emil-design-eng: a modal under 300-500 ms; apple-design: materialize - blur and scale arrive together): the
          pop-up lands in 380 ms on the same spring, the scrim behind it blurs the page a touch */
       :host([mode='popup']) {
         --qc-open-ms: 380ms;
       }
       :host([mode='popup']) .scrim {
-        -webkit-backdrop-filter: var(--sw-popup-blur);  sourceMappingURL=[^*]**/ taste-skill-ignore: the dimmed page behind a dialog */
-        backdrop-filter: var(--sw-popup-blur);  sourceMappingURL=[^*]**/ taste-skill-ignore: the dimmed page behind a dialog */
+        -webkit-backdrop-filter: var(--sw-popup-blur); /* taste-skill-ignore: the dimmed page behind a dialog */
+        backdrop-filter: var(--sw-popup-blur); /* taste-skill-ignore: the dimmed page behind a dialog */
       }
       :host([mode='popup']) .panel {
         inset-inline: 0;
@@ -8609,7 +8609,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         opacity: 1;
         transform: translateY(-50%);
       }
-       sourceMappingURL=[^*]**/ ---- bottom sheet (phone): three detents, dragged ---- */
+      /* ---- bottom sheet (phone): three detents, dragged ---- */
       :host([mode='sheet']) .panel {
         inset-inline: 0;
         inset-block-end: 0;
@@ -8621,16 +8621,16 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         padding-block-end: env(safe-area-inset-bottom, 0px);
         transform: translateY(100%);
       }
-       sourceMappingURL=[^*]**/ the list scrolls with the finger; the grabber and the head drag the sheet */
+      /* the list scrolls with the finger; the grabber and the head drag the sheet */
       :host([mode='sheet']) .body {
         touch-action: pan-y;
-        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);  sourceMappingURL=[^*]**/ taste-skill-ignore: a fade MASK at the cut edge, not a fill */
-        mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);  sourceMappingURL=[^*]**/ taste-skill-ignore: a fade MASK at the cut edge, not a fill */
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%); /* taste-skill-ignore: a fade MASK at the cut edge, not a fill */
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%); /* taste-skill-ignore: a fade MASK at the cut edge, not a fill */
       }
       :host([mode='sheet'][open][data-shown]) .panel {
         transform: translateY(var(--qc-rest, 38%));
       }
-       sourceMappingURL=[^*]**/ AREAEDIT-2290: the editor's footer (reset / cancel / save) must always be on screen. The browsing sheet is a full-height panel
+      /* AREAEDIT-2290: the editor's footer (reset / cancel / save) must always be on screen. The browsing sheet is a full-height panel
          pushed down by its detent (its lower part is cropped; the list scrolls); the editor panel is only as tall as the visible part. */
       :host([mode='sheet'][data-editing]) .panel {
         inset-block-start: 0;
@@ -8674,8 +8674,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         padding-block-start: 2px;
         touch-action: none;
       }
-       sourceMappingURL=[^*]**/ ---- the head: icon ring, name, the floor and the temperature, the actions ---- */
-       sourceMappingURL=[^*]**/ HOMEFABLE-297 (impeccable typeset): the room's name is the display line of the surface - 24 px / 800, tight - over a 14.5 px
+      /* ---- the head: icon ring, name, the floor and the temperature, the actions ---- */
+      /* HOMEFABLE-297 (impeccable typeset): the room's name is the display line of the surface - 24 px / 800, tight - over a 14.5 px
          reading line; the icon ring a 46 px object with the ladder's first shadow, lit when something is on */
       header {
         flex: none;
@@ -8729,11 +8729,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         font-weight: var(--sw-fw-semibold);
         color: var(--sw-text);
       }
-       sourceMappingURL=[^*]**/ each piece of the sub-line keeps its own direction (a number next to Hebrew never swaps places) */
+      /* each piece of the sub-line keeps its own direction (a number next to Hebrew never swaps places) */
       .sub > span {
         unicode-bidi: isolate;
       }
-       sourceMappingURL=[^*]**/ AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area line, as on the area screen - one fixed-height line that never wraps
+      /* AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area line, as on the area screen - one fixed-height line that never wraps
          (a long list ends in an ellipsis; the full list is the tooltip); green only while someone is there */
       .pline {
         display: flex;
@@ -8771,7 +8771,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         text-overflow: ellipsis;
         color: var(--sw-text);
       }
-       sourceMappingURL=[^*]**/ PRESENCE-COMPACT-2310: the room's presence - green words only while active, a hollow dot for "no data" */
+      /* PRESENCE-COMPACT-2310: the room's presence - green words only while active, a hollow dot for "no data" */
       .sub .pres i {
         display: inline-block;
         inline-size: 7px;
@@ -8836,7 +8836,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           inline-size: 44px;
           block-size: 44px;
         }
-         sourceMappingURL=[^*]**/ a narrow head: the floor, the temperature and the count may take a second line instead of an ellipsis */
+        /* a narrow head: the floor, the temperature and the count may take a second line instead of an ellipsis */
         .sub {
           white-space: normal;
           display: -webkit-box;
@@ -8845,7 +8845,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           line-clamp: 2;
         }
       }
-       sourceMappingURL=[^*]**/ ---- the body: no scroll where it fits; a scroll only when it does not ---- */
+      /* ---- the body: no scroll where it fits; a scroll only when it does not ---- */
       .body {
         flex: 1 1 auto;
         min-block-size: 0;
@@ -8860,7 +8860,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         flex-direction: column;
         gap: 18px;
       }
-       sourceMappingURL=[^*]**/ expanded: two CSS columns in a box of its own height (a column box with a fixed height spills sideways - break-ui found it) */
+      /* expanded: two CSS columns in a box of its own height (a column box with a fixed height spills sideways - break-ui found it) */
       :host([data-expanded]) .cols {
         display: block;
         column-count: 2;
@@ -8874,7 +8874,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       :host([data-expanded]) .cols > .note {
         column-span: all;
       }
-       sourceMappingURL=[^*]**/ the content focuses in as the panel lands */
+      /* the content focuses in as the panel lands */
       :host([open][data-shown]) .cols > * {
         animation: qc-in var(--qc-open-ms) var(--sw-ease-dialog) both;
       }
@@ -8893,13 +8893,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           transform: translateY(6px);
         }
       }
-       sourceMappingURL=[^*]**/ ---- the quick strip: the area's group actions ---- */
+      /* ---- the quick strip: the area's group actions ---- */
       .quick {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
       }
-       sourceMappingURL=[^*]**/ HOMEFABLE-297 (apple-design materials, emil press): the group actions are raised keys (a tone step, the first shadow, 14.5 px
+      /* HOMEFABLE-297 (apple-design materials, emil press): the group actions are raised keys (a tone step, the first shadow, 14.5 px
          semibold) and the one that turns the room off is a filled danger key, not a red outline; a press sinks the key at once */
       .qb {
         display: inline-flex;
@@ -8907,10 +8907,10 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         gap: 7px;
         min-block-size: 40px;
         padding: 0 16px;
-        border: 1px solid var(--sw-border);  sourceMappingURL=[^*]**/ taste-skill-ignore: the key's edge, one step under the panel outline */
+        border: 1px solid var(--sw-border); /* taste-skill-ignore: the key's edge, one step under the panel outline */
         border-radius: var(--sw-r-pill);
         background: var(--sw-surface-2);
-        box-shadow: var(--sw-shadow-1);  sourceMappingURL=[^*]**/ taste-skill-ignore: a raised key (owner: depth) */
+        box-shadow: var(--sw-shadow-1); /* taste-skill-ignore: a raised key (owner: depth) */
         color: var(--sw-heading);
         font: inherit;
         font-size: var(--sw-fs-md);
@@ -8953,14 +8953,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           min-block-size: 44px;
         }
       }
-       sourceMappingURL=[^*]**/ ---- a section: a small label with its icon and count, then the rows ---- */
+      /* ---- a section: a small label with its icon and count, then the rows ---- */
       .sec {
         display: flex;
         flex-direction: column;
         gap: 6px;
         min-inline-size: 0;
       }
-       sourceMappingURL=[^*]**/ HOMEFABLE-297: a section is a real heading (14.5 px bold, heading ink, the icon in the accent) with its count as a filled pill */
+      /* HOMEFABLE-297: a section is a real heading (14.5 px bold, heading ink, the icon in the accent) with its count as a filled pill */
       .sh {
         display: flex;
         align-items: center;
@@ -9002,7 +9002,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         padding: 7px 12px;
         border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
-        border: 1px solid transparent;  sourceMappingURL=[^*]**/ taste-skill-ignore: reserves the width, no visible line */
+        border: 1px solid transparent; /* taste-skill-ignore: reserves the width, no visible line */
         transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
       }
       .row.on {
@@ -9046,7 +9046,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         display: inline-flex;
         align-items: center;
       }
-       sourceMappingURL=[^*]**/ the shared controls (devices-controls.ts) take a whole line under the name and the state */
+      /* the shared controls (devices-controls.ts) take a whole line under the name and the state */
       .row > .ctl-row,
       .row > .ctl-range,
       .row > .cmd-status,
@@ -9057,7 +9057,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       .row > .ctl-row {
         margin-block-start: 4px;
       }
-       sourceMappingURL=[^*]**/ sensors: value chips */
+      /* sensors: value chips */
       .sens {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -9086,7 +9086,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-       sourceMappingURL=[^*]**/ cameras */
+      /* cameras */
       .cams {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -9096,7 +9096,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         border-radius: var(--sw-r-media);
         overflow: hidden;
       }
-       sourceMappingURL=[^*]**/ scenes: chips that run */
+      /* scenes: chips that run */
       .scenes {
         display: flex;
         flex-wrap: wrap;
@@ -9108,7 +9108,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         gap: 6px;
         min-block-size: 36px;
         padding: 0 12px;
-        border: 1px solid var(--sw-border-strong);  sourceMappingURL=[^*]**/ taste-skill-ignore: the same outlined pill as the home's own quick actions */
+        border: 1px solid var(--sw-border-strong); /* taste-skill-ignore: the same outlined pill as the home's own quick actions */
         border-radius: var(--sw-r-pill);
         background: var(--sw-surface);
         color: var(--sw-text);
@@ -9132,7 +9132,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           background: var(--sw-surface-2);
         }
       }
-       sourceMappingURL=[^*]**/ schedules and events: quiet lines */
+      /* schedules and events: quiet lines */
       .line {
         display: flex;
         align-items: center;
@@ -9193,11 +9193,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           transform: rotate(360deg);
         }
       }
-       sourceMappingURL=[^*]**/ ---- solid when the browser cannot blur or the OS asks for less transparency / more contrast ---- */
+      /* ---- solid when the browser cannot blur or the OS asks for less transparency / more contrast ---- */
       @media (prefers-reduced-transparency: reduce) {
         .scrim {
-          -webkit-backdrop-filter: none;  sourceMappingURL=[^*]**/ taste-skill-ignore: the reset */
-          backdrop-filter: none;  sourceMappingURL=[^*]**/ taste-skill-ignore: the reset */
+          -webkit-backdrop-filter: none; /* taste-skill-ignore: the reset */
+          backdrop-filter: none; /* taste-skill-ignore: the reset */
         }
       }
       @media (prefers-contrast: more) {
@@ -9205,7 +9205,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           border-color: var(--sw-text-2);
         }
       }
-       sourceMappingURL=[^*]**/ ---- reduced motion: a short cross-fade, no travel, no spring ---- */
+      /* ---- reduced motion: a short cross-fade, no travel, no spring ---- */
       @media (prefers-reduced-motion: reduce) {
         .panel,
         :host([open]) .panel,
@@ -9238,8 +9238,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         }
       }
 
-       sourceMappingURL=[^*]**/ ---- AREAEDIT-2290: the editor (same panel; hide + order). Tokens only; green is never used here, the switch is accent blue ---- */
-       sourceMappingURL=[^*]**/ the name keeps its ellipsis, the "editing" label never leaves; on the phone the head carries only the close button while editing */
+      /* ---- AREAEDIT-2290: the editor (same panel; hide + order). Tokens only; green is never used here, the switch is accent blue ---- */
+      /* the name keeps its ellipsis, the "editing" label never leaves; on the phone the head carries only the close button while editing */
       h2 {
         display: flex;
         align-items: center;
@@ -9265,7 +9265,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         letter-spacing: 0;
         vertical-align: middle;
       }
-       sourceMappingURL=[^*]**/ a 375 px row: four 44 px controls + the name; the "hidden" word gives way to the dimmed row and the closed eye */
+      /* a 375 px row: four 44 px controls + the name; the "hidden" word gives way to the dimmed row and the closed eye */
       :host([mode='sheet']) .er {
         gap: 2px;
         padding-inline: 4px;
@@ -9287,14 +9287,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       .ed-main {
         flex: 1 1 auto;
         min-block-size: 0;
-        overflow-y: auto;  sourceMappingURL=[^*]**/ only when the sections do not fit (an accordion keeps it rare); the footer never scrolls away */
+        overflow-y: auto; /* only when the sections do not fit (an accordion keeps it rare); the footer never scrolls away */
         overflow-x: hidden;
         padding: 4px 20px 8px;
         display: flex;
         flex-direction: column;
         gap: 12px;
       }
-       sourceMappingURL=[^*]**/ two columns (list + side) only where there is room: the pop-up and the widened drawer; the 480 px drawer and the phone stack them */
+      /* two columns (list + side) only where there is room: the pop-up and the widened drawer; the 480 px drawer and the phone stack them */
       :host([mode='popup']) .ed-main,
       :host([mode='drawer'][data-expanded]) .ed-main {
         flex-direction: row;
@@ -9319,7 +9319,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         display: flex;
         align-items: center;
         gap: 6px;
-        min-block-size: 48px;  sourceMappingURL=[^*]**/ a 44 px control and 2 px of air on each side */
+        min-block-size: 48px; /* a 44 px control and 2 px of air on each side */
         padding: 2px 6px;
         border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
@@ -9335,7 +9335,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       }
       .er.it {
         margin-inline-start: 24px;
-        min-block-size: 46px;  sourceMappingURL=[^*]**/ the 44 px control inside the 1 px edge */
+        min-block-size: 46px; /* the 44 px control inside the 1 px edge */
         padding-block: 0;
         background: transparent;
         border: 1px solid var(--sw-border);
@@ -9369,7 +9369,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       .mv,
       .grip,
       .exp {
-        inline-size: 44px;  sourceMappingURL=[^*]**/ a touch target is 44 x 44 at every width (owner rule); the 375 px row drops the drag handle to make room */
+        inline-size: 44px; /* a touch target is 44 x 44 at every width (owner rule); the 375 px row drops the drag handle to make room */
         block-size: 44px;
         flex: none;
         display: grid;
@@ -9385,7 +9385,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       }
       .grip {
         cursor: grab;
-        touch-action: none;  sourceMappingURL=[^*]**/ a finger on the handle reorders; it never scrolls the list or drags the sheet */
+        touch-action: none; /* a finger on the handle reorders; it never scrolls the list or drags the sheet */
       }
       :host([data-ed-dragging]) .grip {
         cursor: grabbing;
@@ -9407,7 +9407,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         inline-size: 44px;
         flex: none;
       }
-       sourceMappingURL=[^*]**/ the editor's other controls reach 44 px too: the apply-to switch, "show more", the footer keys, the head's buttons, the sheet's handle,
+      /* the editor's other controls reach 44 px too: the apply-to switch, "show more", the footer keys, the head's buttons, the sheet's handle,
          the alert switch (its host is padded to 44 x 44; a press on the padding flips it) */
       :host([data-editing]) .ib,
       :host([data-editing]) .qb,
@@ -9566,13 +9566,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         padding-inline: 12px;
       }
       .ed-side sw-toggle {
-        --sw-toggle-on: var(--sw-accent);  sourceMappingURL=[^*]**/ the editor's switch is accent blue, never the success green */
+        --sw-toggle-on: var(--sw-accent); /* the editor's switch is accent blue, never the success green */
       }
       :host([data-editing]) .sub {
         white-space: normal;
       }
       :host([mode='drawer']:not([data-expanded])) .ed-foot .lockn {
-        display: none;  sourceMappingURL=[^*]**/ the narrow drawer has no room for the note; the head's hint and the disabled controls say it */
+        display: none; /* the narrow drawer has no room for the note; the head's hint and the disabled controls say it */
       }
       .ed-foot .lockn {
         display: inline-flex;
@@ -9624,7 +9624,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         justify-content: flex-end;
         gap: 8px;
       }
-       sourceMappingURL=[^*]**/ a hidden sensor that is in alarm: shown for as long as it alarms, red (only an alarm is red) */
+      /* a hidden sensor that is in alarm: shown for as long as it alarms, red (only an alarm is red) */
       .sv.alarm {
         background: var(--sw-danger-soft);
         outline: 1px solid color-mix(in srgb, var(--sw-danger) 55%, transparent);
@@ -9673,7 +9673,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex: 1;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the top layer (popover="manual") - or, without the Popover API, a fixed panel above everything; placed by place() */
+    /* the top layer (popover="manual") - or, without the Popover API, a fixed panel above everything; placed by place() */
     .panel {
       position: fixed;
       inset: auto;
@@ -9684,7 +9684,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       min-inline-size: 220px;
       max-inline-size: min(300px, calc(100vw - 16px));
       color: var(--sw-text);
-       sourceMappingURL=[^*]**/ a summary over the tree must stay readable: the opaque menu surface (the glass palette's solid twin inside a glass screen; before
+      /* a summary over the tree must stay readable: the opaque menu surface (the glass palette's solid twin inside a glass screen; before
          2026-10-13 it fell back to the translucent --sw-surface outside one, so the Domus / Crystal skins showed the tree through it) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
@@ -9715,7 +9715,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-surface-2);
       color: var(--sw-text);
     }
-     sourceMappingURL=[^*]**/ UXREST-295: the fill alone is not a focus indicator (UX audit, keyboard pass): the brand ring stays */
+    /* UXREST-295: the fill alone is not a focus indicator (UX audit, keyboard pass): the brand ring stays */
     .more:focus-visible,
     button.item:focus-visible,
     a.open:focus-visible {
@@ -9852,7 +9852,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         ${e.done?o`<div class="muted">${e.note}</div>`:o`<div class="muted">אפשר לסגור את החלון; הפעולה ממשיכה בשרת.</div>`}
       </div>
       <div class="actions"><sw-button data-bulk-cancel autofocus @click=${this.close}>סגור</sw-button></div>`}};Un.styles=P`
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the dialog answers "what will happen" at a glance - the headline is a display line, the domains are filled
+    /* R5-DEVICES-297: the dialog answers "what will happen" at a glance - the headline is a display line, the domains are filled
        pills, the notes read at the base size, the progress bar is a real bar */
     .what {
       display: flex;
@@ -9951,7 +9951,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
     }
-  `;pt([_({attribute:!1})],Un.prototype,"building",2);pt([w()],Un.prototype,"phase",2);pt([w()],Un.prototype,"req",2);pt([w()],Un.prototype,"preview",2);pt([w()],Un.prototype,"record",2);pt([w()],Un.prototype,"error",2);Un=pt([W("devices-bulk-dialog")],Un);const $C={prev:"הקודם",next:"הבא",pageOf:"עמוד {n} מתוך {m}",pages:"דפדוף",rows:"שורות",review:"לבדיקה",select:"בחירה מרובה",selectDone:"סיום בחירה",candles:"כניסת שבת",havdalah:"צאת שבת",alarm:"אזעקה",listsHeading:"תצוגת הרשימה",defaultView:"תצוגת ברירת מחדל",perPageWide:"פריטים בעמוד · מחשב",perPagePhone:"פריטים בעמוד · טלפון",cardsPerPageWide:"כרטיסים בעמוד · מחשב",cardsPerPagePhone:"כרטיסים בעמוד · טלפון",infoHeading:"שעון, מזג אוויר ושבת",infoBar:"שורה דקה",infoCards:"ווידג׳טים",saved:"נשמר",readOnly:"שינוי ההגדרות דורש הרשאת מנהל מערכת.",lastRun:"ריצה אחרונה",nextRun:"הרצה הבאה"},Gee={prev:"Previous",next:"Next",pageOf:"Page {n} of {m}",pages:"Pages",rows:"Rows",review:"To review",select:"Select several",selectDone:"Done selecting",candles:"Shabbat begins",havdalah:"Shabbat ends",alarm:"Alarm",listsHeading:"List display",defaultView:"Default view",perPageWide:"Items per page · desktop",perPagePhone:"Items per page · phone",cardsPerPageWide:"Cards per page · desktop",cardsPerPagePhone:"Cards per page · phone",infoHeading:"Clock, weather and Shabbat",infoBar:"Thin row",infoCards:"Widgets",saved:"Saved",readOnly:"Changing these settings needs a system administrator.",lastRun:"Last run",nextRun:"Next run"},Yee={prev:"السابق",next:"التالي",pageOf:"صفحة {n} من {m}",pages:"الصفحات",rows:"صفوف",review:"للمراجعة",select:"تحديد متعدد",selectDone:"إنهاء التحديد",candles:"دخول السبت",havdalah:"خروج السبت",alarm:"الإنذار",listsHeading:"عرض القائمة",defaultView:"العرض الافتراضي",perPageWide:"عناصر في الصفحة · حاسوب",perPagePhone:"عناصر في الصفحة · هاتف",cardsPerPageWide:"بطاقات في الصفحة · حاسوب",cardsPerPagePhone:"بطاقات في الصفحة · هاتف",infoHeading:"الساعة والطقس والسبت",infoBar:"صف رفيع",infoCards:"ودجات",saved:"تم الحفظ",readOnly:"تغيير هذه الإعدادات يتطلب مدير النظام.",lastRun:"آخر تشغيل",nextRun:"التشغيل التالي"},Xee={prev:"Назад",next:"Вперёд",pageOf:"Страница {n} из {m}",pages:"Страницы",rows:"Строки",review:"На проверку",select:"Выбрать несколько",selectDone:"Готово",candles:"Начало шаббата",havdalah:"Конец шаббата",alarm:"Сигнализация",listsHeading:"Вид списка",defaultView:"Вид по умолчанию",perPageWide:"Элементов на странице · компьютер",perPagePhone:"Элементов на странице · телефон",cardsPerPageWide:"Карточек на странице · компьютер",cardsPerPagePhone:"Карточек на странице · телефон",infoHeading:"Часы, погода и шаббат",infoBar:"Тонкая строка",infoCards:"Виджеты",saved:"Сохранено",readOnly:"Изменение настроек требует администратора системы.",lastRun:"Последний запуск",nextRun:"Следующий запуск"};function Jee(){const e=typeof document<"u"?(document.documentElement.lang||"").toLowerCase():"";return e.startsWith("en")?"en":e.startsWith("ar")?"ar":e.startsWith("ru")?"ru":"he"}const Qee={he:$C,en:Gee,ar:Yee,ru:Xee};function Sr(e,t={},s=Jee()){let a=Qee[s][e]??$C[e];for(const[n,i]of Object.entries(t))a=a.replace(`{${n}}`,String(i));return a}const qS=5e3,Zee=15e3,ete=300,tte=3e5,ste=.1;function ate(){return{now:()=>Date.now(),setTimeout:(e,t)=>window.setTimeout(e,t),clearTimeout:e=>window.clearTimeout(e),visible:()=>document.visibilityState!=="hidden",online:()=>navigator.onLine!==!1,onResume(e,t){const s=()=>{document.visibilityState!=="hidden"&&e()},a=()=>t();return document.addEventListener("visibilitychange",s),window.addEventListener("focus",e),window.addEventListener("pageshow",e),window.addEventListener("online",a),()=>{document.removeEventListener("visibilitychange",s),window.removeEventListener("focus",e),window.removeEventListener("pageshow",e),window.removeEventListener("online",a)}},random:()=>Math.random()}}class SC{constructor(t={}){this.slots=new Map,this.off=null,this.started=!1,this.listeners=new Set,this.env={...ate(),...t}}add(t){return this.slots.set(t.id,{src:t,timer:null,running:!1,queued:!1,lastStart:0,lastOk:0,failures:0}),this.started&&this.arm(this.slots.get(t.id)),this}remove(t){const s=this.slots.get(t);s&&(this.env.clearTimeout(s.timer),this.slots.delete(t))}start(){if(!this.started){this.started=!0,this.off=this.env.onResume(()=>this.resume(!1),()=>this.resume(!0));for(const t of this.slots.values())this.arm(t)}}stop(){this.started=!1,this.off?.(),this.off=null;for(const t of this.slots.values())this.env.clearTimeout(t.timer),t.timer=null}markRead(t,s){const a=this.slots.get(t);if(!a)return;const n=this.env.now();a.lastStart=n,s?(a.lastOk=n,a.failures=0):a.failures++,this.emit()}nudge(t,s=Zee){const a=this.slots.get(t);!a||!this.started||!this.canRun(a)||this.env.now()-a.lastStart<s||this.runSlot(a)}refreshAll(t=[]){this.fanOut(!0,!0,t)}refreshOne(t){const s=this.slots.get(t);s&&(s.failures=0,this.runSlot(s))}lastOkAt(){let t=0;for(const s of this.slots.values())s.lastOk>t&&(t=s.lastOk);return t}ageOf(t){const s=this.slots.get(t);return!s||!s.lastOk?Number.POSITIVE_INFINITY:this.env.now()-s.lastOk}failing(){for(const t of this.slots.values())if(t.failures>0&&!t.src.silent?.())return!0;return!1}onChange(t){return this.listeners.add(t),()=>this.listeners.delete(t)}emit(){for(const t of[...this.listeners])try{t()}catch{}}canRun(t){if(t.running||!this.env.visible()||!this.env.online())return!1;try{return t.src.enabled?t.src.enabled()!==!1:!0}catch{return!1}}period(t){const s=typeof t.src.pollMs=="function"?t.src.pollMs():t.src.pollMs,a=Math.min(s*2**Math.min(t.failures,10),Math.max(s,tte));return Math.round(a*(1+(this.env.random()*2-1)*ste))}arm(t){this.env.clearTimeout(t.timer),t.timer=null,this.started&&(t.timer=this.env.setTimeout(()=>{t.timer=null,this.canRun(t)?this.runSlot(t):this.arm(t)},this.period(t)))}async runSlot(t){if(t.running)return;t.running=!0,t.lastStart=this.env.now();let s=!0;try{s=await t.src.run()!==!1}catch{s=!1}t.running=!1,s?(t.lastOk=this.env.now(),t.failures=0):t.failures++,this.emit(),this.arm(t)}resume(t){this.started&&this.fanOut(!1,t)}fanOut(t,s,a=[]){const n=this.env.now();let i=0;for(const r of this.slots.values()){if(s&&(r.failures=0),a.includes(r.src.id)||!t&&n-r.lastStart<qS||r.queued||!this.canRun(r))continue;const l=i++*ete;l?(r.queued=!0,this.env.setTimeout(()=>{r.queued=!1,this.started&&this.canRun(r)&&(t||this.env.now()-r.lastStart>=qS)&&this.runSlot(r)},l)):this.runSlot(r)}}}const EC={updated:"עודכן",stale:"הנתונים אינם מעודכנים"},nte={updated:"Updated",stale:"The data is not current"},ite={updated:"آخر تحديث",stale:"البيانات غير محدّثة"},rte={updated:"Обновлено",stale:"Данные не актуальны"};function ote(){const e=typeof document<"u"?(document.documentElement.lang||"").toLowerCase():"";return e.startsWith("en")?"en":e.startsWith("ar")?"ar":e.startsWith("ru")?"ru":"he"}const lte={he:EC,en:nte,ar:ite,ru:rte};function HS(e,t=ote()){return lte[t][e]??EC[e]}const e2e=e=>$(e?`plan/areas?floor_id=${encodeURIComponent(e)}`:"plan/areas"),t2e=e=>$("plan/area-links"),s2e=e=>S("plan/area-links",{links:e}),cte=e=>e?`#/explore/floors/${encodeURIComponent(e.floor_id)}?zone=${encodeURIComponent(e.zone_id)}`:null; sourceMappingURL=[^*]**/*
+  `;pt([_({attribute:!1})],Un.prototype,"building",2);pt([w()],Un.prototype,"phase",2);pt([w()],Un.prototype,"req",2);pt([w()],Un.prototype,"preview",2);pt([w()],Un.prototype,"record",2);pt([w()],Un.prototype,"error",2);Un=pt([W("devices-bulk-dialog")],Un);const $C={prev:"הקודם",next:"הבא",pageOf:"עמוד {n} מתוך {m}",pages:"דפדוף",rows:"שורות",review:"לבדיקה",select:"בחירה מרובה",selectDone:"סיום בחירה",candles:"כניסת שבת",havdalah:"צאת שבת",alarm:"אזעקה",listsHeading:"תצוגת הרשימה",defaultView:"תצוגת ברירת מחדל",perPageWide:"פריטים בעמוד · מחשב",perPagePhone:"פריטים בעמוד · טלפון",cardsPerPageWide:"כרטיסים בעמוד · מחשב",cardsPerPagePhone:"כרטיסים בעמוד · טלפון",infoHeading:"שעון, מזג אוויר ושבת",infoBar:"שורה דקה",infoCards:"ווידג׳טים",saved:"נשמר",readOnly:"שינוי ההגדרות דורש הרשאת מנהל מערכת.",lastRun:"ריצה אחרונה",nextRun:"הרצה הבאה"},Gee={prev:"Previous",next:"Next",pageOf:"Page {n} of {m}",pages:"Pages",rows:"Rows",review:"To review",select:"Select several",selectDone:"Done selecting",candles:"Shabbat begins",havdalah:"Shabbat ends",alarm:"Alarm",listsHeading:"List display",defaultView:"Default view",perPageWide:"Items per page · desktop",perPagePhone:"Items per page · phone",cardsPerPageWide:"Cards per page · desktop",cardsPerPagePhone:"Cards per page · phone",infoHeading:"Clock, weather and Shabbat",infoBar:"Thin row",infoCards:"Widgets",saved:"Saved",readOnly:"Changing these settings needs a system administrator.",lastRun:"Last run",nextRun:"Next run"},Yee={prev:"السابق",next:"التالي",pageOf:"صفحة {n} من {m}",pages:"الصفحات",rows:"صفوف",review:"للمراجعة",select:"تحديد متعدد",selectDone:"إنهاء التحديد",candles:"دخول السبت",havdalah:"خروج السبت",alarm:"الإنذار",listsHeading:"عرض القائمة",defaultView:"العرض الافتراضي",perPageWide:"عناصر في الصفحة · حاسوب",perPagePhone:"عناصر في الصفحة · هاتف",cardsPerPageWide:"بطاقات في الصفحة · حاسوب",cardsPerPagePhone:"بطاقات في الصفحة · هاتف",infoHeading:"الساعة والطقس والسبت",infoBar:"صف رفيع",infoCards:"ودجات",saved:"تم الحفظ",readOnly:"تغيير هذه الإعدادات يتطلب مدير النظام.",lastRun:"آخر تشغيل",nextRun:"التشغيل التالي"},Xee={prev:"Назад",next:"Вперёд",pageOf:"Страница {n} из {m}",pages:"Страницы",rows:"Строки",review:"На проверку",select:"Выбрать несколько",selectDone:"Готово",candles:"Начало шаббата",havdalah:"Конец шаббата",alarm:"Сигнализация",listsHeading:"Вид списка",defaultView:"Вид по умолчанию",perPageWide:"Элементов на странице · компьютер",perPagePhone:"Элементов на странице · телефон",cardsPerPageWide:"Карточек на странице · компьютер",cardsPerPagePhone:"Карточек на странице · телефон",infoHeading:"Часы, погода и шаббат",infoBar:"Тонкая строка",infoCards:"Виджеты",saved:"Сохранено",readOnly:"Изменение настроек требует администратора системы.",lastRun:"Последний запуск",nextRun:"Следующий запуск"};function Jee(){const e=typeof document<"u"?(document.documentElement.lang||"").toLowerCase():"";return e.startsWith("en")?"en":e.startsWith("ar")?"ar":e.startsWith("ru")?"ru":"he"}const Qee={he:$C,en:Gee,ar:Yee,ru:Xee};function Sr(e,t={},s=Jee()){let a=Qee[s][e]??$C[e];for(const[n,i]of Object.entries(t))a=a.replace(`{${n}}`,String(i));return a}const qS=5e3,Zee=15e3,ete=300,tte=3e5,ste=.1;function ate(){return{now:()=>Date.now(),setTimeout:(e,t)=>window.setTimeout(e,t),clearTimeout:e=>window.clearTimeout(e),visible:()=>document.visibilityState!=="hidden",online:()=>navigator.onLine!==!1,onResume(e,t){const s=()=>{document.visibilityState!=="hidden"&&e()},a=()=>t();return document.addEventListener("visibilitychange",s),window.addEventListener("focus",e),window.addEventListener("pageshow",e),window.addEventListener("online",a),()=>{document.removeEventListener("visibilitychange",s),window.removeEventListener("focus",e),window.removeEventListener("pageshow",e),window.removeEventListener("online",a)}},random:()=>Math.random()}}class SC{constructor(t={}){this.slots=new Map,this.off=null,this.started=!1,this.listeners=new Set,this.env={...ate(),...t}}add(t){return this.slots.set(t.id,{src:t,timer:null,running:!1,queued:!1,lastStart:0,lastOk:0,failures:0}),this.started&&this.arm(this.slots.get(t.id)),this}remove(t){const s=this.slots.get(t);s&&(this.env.clearTimeout(s.timer),this.slots.delete(t))}start(){if(!this.started){this.started=!0,this.off=this.env.onResume(()=>this.resume(!1),()=>this.resume(!0));for(const t of this.slots.values())this.arm(t)}}stop(){this.started=!1,this.off?.(),this.off=null;for(const t of this.slots.values())this.env.clearTimeout(t.timer),t.timer=null}markRead(t,s){const a=this.slots.get(t);if(!a)return;const n=this.env.now();a.lastStart=n,s?(a.lastOk=n,a.failures=0):a.failures++,this.emit()}nudge(t,s=Zee){const a=this.slots.get(t);!a||!this.started||!this.canRun(a)||this.env.now()-a.lastStart<s||this.runSlot(a)}refreshAll(t=[]){this.fanOut(!0,!0,t)}refreshOne(t){const s=this.slots.get(t);s&&(s.failures=0,this.runSlot(s))}lastOkAt(){let t=0;for(const s of this.slots.values())s.lastOk>t&&(t=s.lastOk);return t}ageOf(t){const s=this.slots.get(t);return!s||!s.lastOk?Number.POSITIVE_INFINITY:this.env.now()-s.lastOk}failing(){for(const t of this.slots.values())if(t.failures>0&&!t.src.silent?.())return!0;return!1}onChange(t){return this.listeners.add(t),()=>this.listeners.delete(t)}emit(){for(const t of[...this.listeners])try{t()}catch{}}canRun(t){if(t.running||!this.env.visible()||!this.env.online())return!1;try{return t.src.enabled?t.src.enabled()!==!1:!0}catch{return!1}}period(t){const s=typeof t.src.pollMs=="function"?t.src.pollMs():t.src.pollMs,a=Math.min(s*2**Math.min(t.failures,10),Math.max(s,tte));return Math.round(a*(1+(this.env.random()*2-1)*ste))}arm(t){this.env.clearTimeout(t.timer),t.timer=null,this.started&&(t.timer=this.env.setTimeout(()=>{t.timer=null,this.canRun(t)?this.runSlot(t):this.arm(t)},this.period(t)))}async runSlot(t){if(t.running)return;t.running=!0,t.lastStart=this.env.now();let s=!0;try{s=await t.src.run()!==!1}catch{s=!1}t.running=!1,s?(t.lastOk=this.env.now(),t.failures=0):t.failures++,this.emit(),this.arm(t)}resume(t){this.started&&this.fanOut(!1,t)}fanOut(t,s,a=[]){const n=this.env.now();let i=0;for(const r of this.slots.values()){if(s&&(r.failures=0),a.includes(r.src.id)||!t&&n-r.lastStart<qS||r.queued||!this.canRun(r))continue;const l=i++*ete;l?(r.queued=!0,this.env.setTimeout(()=>{r.queued=!1,this.started&&this.canRun(r)&&(t||this.env.now()-r.lastStart>=qS)&&this.runSlot(r)},l)):this.runSlot(r)}}}const EC={updated:"עודכן",stale:"הנתונים אינם מעודכנים"},nte={updated:"Updated",stale:"The data is not current"},ite={updated:"آخر تحديث",stale:"البيانات غير محدّثة"},rte={updated:"Обновлено",stale:"Данные не актуальны"};function ote(){const e=typeof document<"u"?(document.documentElement.lang||"").toLowerCase():"";return e.startsWith("en")?"en":e.startsWith("ar")?"ar":e.startsWith("ru")?"ru":"he"}const lte={he:EC,en:nte,ar:ite,ru:rte};function HS(e,t=ote()){return lte[t][e]??EC[e]}const e2e=e=>$(e?`plan/areas?floor_id=${encodeURIComponent(e)}`:"plan/areas"),t2e=e=>$("plan/area-links"),s2e=e=>S("plan/area-links",{links:e}),cte=e=>e?`#/explore/floors/${encodeURIComponent(e.floor_id)}?zone=${encodeURIComponent(e.zone_id)}`:null;/**
  * @license
  * Copyright 2018 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -10142,7 +10142,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         </div></div>
       <label class="lay-check"><input type="checkbox" data-layout-tile-hidden .checked=${d.hidden} @change=${h=>this.patchTile(t,c,{hidden:h.target.checked})} />מוסתר (עדיין נספר במונים של הכרטיס)</label>
       <div class="lay-tacts">${r}</div>
-    </aside>`}}function d2e(e,t){const s=new Set(e?.hidden_entities??[]);for(const[a,n]of Object.entries(e?.tiles??{}))n.hidden&&s.add(a);return s.size?t.filter(a=>!s.has(a.entity_id)):t}function Cw(e,t){return e?.title??t}let My=null;function Ly(){return My||(me.me?.modules?.tickets_long_press==="menu"?"menu":"sheet")}function u2e(e){My=e}function Xf(e=Q,t=kl()){return t&&e("tickets.view")&&e("devices.read")}function Mte(e){return e.on?e.mode==="menu"?{kind:"menu"}:{kind:"sheet",tab:e.tracked?"activity":"tickets"}:e.tracked?{kind:"sheet",tab:"activity"}:null}function Lte(e){return e.tracked?"activity":e.on?"tickets":null}function Dte(e){const t=e.tracked?["activity","schedules"]:[];return e.on&&t.push("tickets"),t}function Nte(e){const t=e.held??Q,s=[],a=e.on&&e.mode==="menu";return a&&e.canOpenDevice&&s.push("device"),e.tracked&&s.push("activity","schedules"),e.on&&(t("tickets.create")&&s.push("ticket_new"),(a||!e.tracked)&&s.push("tickets")),s}const QS=500,Pte=8,Dy="sw-device-activity";function Ite(e,t="",s=Q,a=Xf(s)){if(e.activity_permissions?.length&&!e.activity_permissions.some(s))return;if(!e.activity)return a?JSON.stringify({id:e.entity_id,kind:"generic",name:e.name,state:t,tracked:!1}):void 0;const n={id:e.entity_id,kind:e.activity_kind??"generic",name:e.name,state:t};return JSON.stringify(n)}function Fte(e){if(!e)return null;try{const t=JSON.parse(e);if(!t.id)return null;const s={id:t.id,kind:t.kind??"generic",name:t.name??"",state:t.state??""};return t.tracked===!1&&(s.tracked=!1),s}catch{return null}}function qte(e){return!e||(e.tagName??"").toLowerCase()!=="sw-pill"?!1:(e.getAttribute?.("variant")??"plain")==="plain"}const Hte=(e,t,s=Pte)=>e*e+t*t>s*s,Bte=/slider|toggle|dropdown|switch|range/i;function Ute(e,t){const s=(e.tagName??"").toLowerCase();if(!s)return!1;const a=e.getAttribute?.("role")??"";return a==="slider"||a==="switch"||a==="spinbutton"||s==="input"||s==="select"||s==="textarea"||e.hasAttribute?.("data-no-activity")||s.startsWith("sw-")&&Bte.test(s)?!0:t?!1:s==="button"||s==="a"||s==="sw-button"||a==="button"||a==="menuitem"}function Wte(e,t={}){for(let s=0;s<e.length;s++){const a=e[s],n=a.getAttribute?.("data-activity")??null;if(n===null)continue;const i=Fte(n);if(!i)return null;const r=a.shadowRoot??null;for(let l=0;l<s&&!t.anyControl;l++){const c=e[l],d=r!==null&&(c.getRootNode?.()??null)===r;if(Ute(c,d))return null}if(!t.allowArrange){for(let l=s;l<e.length;l++)if(e[l].classList?.contains("lay-tedit")||e[l].hasAttribute?.("data-lay-tpos"))return null}return{node:a,target:i}}return null}const jte=()=>{try{return window.matchMedia("(prefers-reduced-motion: reduce)").matches}catch{return!1}};class Kte{constructor(t,s={}){this.host=t,this.opts=s,this.start=null,this.swallowUntil=0,this.lastType="mouse",this.ring=null,this.down=a=>{if(this.lastType=a.pointerType||"mouse",this.cancel(),a.pointerType==="mouse"&&a.button!==0||!a.isPrimary)return;const n=this.find(a);n&&(this.start={x:a.clientX,y:a.clientY,el:n.el,target:n.target,type:a.pointerType},this.startRing(n.el),this.timer=window.setTimeout(()=>this.fire(),QS))},this.move=a=>{!this.start||this.timer===void 0||Hte(a.clientX-this.start.x,a.clientY-this.start.y)&&this.cancel()},this.up=()=>{this.cancel()},this.click=a=>{Date.now()<this.swallowUntil&&this.find(a,!0)&&(a.stopPropagation(),a.preventDefault(),this.swallowUntil=0)},this.ctx=a=>{const n=this.find(a,!0);if(!n)return;if(this.lastType==="touch"||this.lastType==="pen"){a.preventDefault();return}a.preventDefault(),this.cancel();const i=a.detail===0||a.clientX===0&&a.clientY===0,r=n.el.getBoundingClientRect(),l=i?{x:r.left+r.width/2,y:r.top+r.height/2}:{x:a.clientX,y:a.clientY};this.lastType="mouse",this.emit({target:n.target,tab:"activity",menu:l,source:"context",openDevice:this.opener(n.el),opener:n.el})},this.key=a=>{if(a.key!=="Enter"||!a.altKey||a.ctrlKey||a.metaKey||a.shiftKey)return;const n=this.find(a,!0);if(!n)return;const i=Lte({tracked:n.target.tracked!==!1,on:Xf()});i&&(a.preventDefault(),a.stopPropagation(),this.emit({target:n.target,tab:i,opener:n.el}))},t.addController(this)}hostConnected(){const t=this.host;t.addEventListener("pointerdown",this.down,!0),t.addEventListener("pointermove",this.move,!0),t.addEventListener("pointerup",this.up,!0),t.addEventListener("pointercancel",this.up,!0),t.addEventListener("click",this.click,!0),t.addEventListener("contextmenu",this.ctx,!0),t.addEventListener("keydown",this.key)}hostDisconnected(){const t=this.host;t.removeEventListener("pointerdown",this.down,!0),t.removeEventListener("pointermove",this.move,!0),t.removeEventListener("pointerup",this.up,!0),t.removeEventListener("pointercancel",this.up,!0),t.removeEventListener("click",this.click,!0),t.removeEventListener("contextmenu",this.ctx,!0),t.removeEventListener("keydown",this.key),this.cancel()}find(t,s=!1){const a=Wte(t.composedPath(),{allowArrange:s,anyControl:s});return a?{el:a.node,target:a.target}:null}emit(t){window.dispatchEvent(new CustomEvent(Dy,{detail:{...t,area:this.opts.area?.()}}))}fire(){const t=this.start;if(this.timer=void 0,!t)return;this.swallowUntil=Date.now()+800;try{navigator.vibrate?.(10)}catch{}this.endRing(!0),this.start=null;const s=Mte({tracked:t.target.tracked!==!1,on:Xf(),mode:Ly()});if(s){if(s.kind==="menu"){const a=t.el.getBoundingClientRect(),n=t.type==="mouse"?{x:t.x,y:t.y}:{x:Math.min(t.x,a.right),y:Math.min(t.y+8,a.bottom)};this.emit({target:t.target,tab:"activity",menu:n,source:"press",openDevice:this.opener(t.el),opener:t.el});return}this.emit({target:t.target,tab:s.tab,opener:t.el})}}opener(t){if(qte(t))return()=>{this.swallowUntil=0,t.dispatchEvent(new CustomEvent("activate",{bubbles:!0,composed:!0}))}}cancel(){this.timer!==void 0&&window.clearTimeout(this.timer),this.timer=void 0,this.start&&this.endRing(!1),this.start=null}startRing(t){try{const s="0 0 0 2px var(--sw-accent, #2563eb)",a=jte();this.ring=t.animate(a?[{boxShadow:"none"},{boxShadow:"none",offset:.99},{boxShadow:s}]:[{transform:"scale(1)",boxShadow:"none"},{transform:"scale(.98)",boxShadow:s}],{delay:120,duration:QS-120,easing:"linear",fill:"both"})}catch{this.ring=null}}endRing(t){const s=this.ring;this.ring=null,s&&(t?window.setTimeout(()=>s.cancel(),160):s.cancel())}} sourceMappingURL=[^*]**/*
+    </aside>`}}function d2e(e,t){const s=new Set(e?.hidden_entities??[]);for(const[a,n]of Object.entries(e?.tiles??{}))n.hidden&&s.add(a);return s.size?t.filter(a=>!s.has(a.entity_id)):t}function Cw(e,t){return e?.title??t}let My=null;function Ly(){return My||(me.me?.modules?.tickets_long_press==="menu"?"menu":"sheet")}function u2e(e){My=e}function Xf(e=Q,t=kl()){return t&&e("tickets.view")&&e("devices.read")}function Mte(e){return e.on?e.mode==="menu"?{kind:"menu"}:{kind:"sheet",tab:e.tracked?"activity":"tickets"}:e.tracked?{kind:"sheet",tab:"activity"}:null}function Lte(e){return e.tracked?"activity":e.on?"tickets":null}function Dte(e){const t=e.tracked?["activity","schedules"]:[];return e.on&&t.push("tickets"),t}function Nte(e){const t=e.held??Q,s=[],a=e.on&&e.mode==="menu";return a&&e.canOpenDevice&&s.push("device"),e.tracked&&s.push("activity","schedules"),e.on&&(t("tickets.create")&&s.push("ticket_new"),(a||!e.tracked)&&s.push("tickets")),s}const QS=500,Pte=8,Dy="sw-device-activity";function Ite(e,t="",s=Q,a=Xf(s)){if(e.activity_permissions?.length&&!e.activity_permissions.some(s))return;if(!e.activity)return a?JSON.stringify({id:e.entity_id,kind:"generic",name:e.name,state:t,tracked:!1}):void 0;const n={id:e.entity_id,kind:e.activity_kind??"generic",name:e.name,state:t};return JSON.stringify(n)}function Fte(e){if(!e)return null;try{const t=JSON.parse(e);if(!t.id)return null;const s={id:t.id,kind:t.kind??"generic",name:t.name??"",state:t.state??""};return t.tracked===!1&&(s.tracked=!1),s}catch{return null}}function qte(e){return!e||(e.tagName??"").toLowerCase()!=="sw-pill"?!1:(e.getAttribute?.("variant")??"plain")==="plain"}const Hte=(e,t,s=Pte)=>e*e+t*t>s*s,Bte=/slider|toggle|dropdown|switch|range/i;function Ute(e,t){const s=(e.tagName??"").toLowerCase();if(!s)return!1;const a=e.getAttribute?.("role")??"";return a==="slider"||a==="switch"||a==="spinbutton"||s==="input"||s==="select"||s==="textarea"||e.hasAttribute?.("data-no-activity")||s.startsWith("sw-")&&Bte.test(s)?!0:t?!1:s==="button"||s==="a"||s==="sw-button"||a==="button"||a==="menuitem"}function Wte(e,t={}){for(let s=0;s<e.length;s++){const a=e[s],n=a.getAttribute?.("data-activity")??null;if(n===null)continue;const i=Fte(n);if(!i)return null;const r=a.shadowRoot??null;for(let l=0;l<s&&!t.anyControl;l++){const c=e[l],d=r!==null&&(c.getRootNode?.()??null)===r;if(Ute(c,d))return null}if(!t.allowArrange){for(let l=s;l<e.length;l++)if(e[l].classList?.contains("lay-tedit")||e[l].hasAttribute?.("data-lay-tpos"))return null}return{node:a,target:i}}return null}const jte=()=>{try{return window.matchMedia("(prefers-reduced-motion: reduce)").matches}catch{return!1}};class Kte{constructor(t,s={}){this.host=t,this.opts=s,this.start=null,this.swallowUntil=0,this.lastType="mouse",this.ring=null,this.down=a=>{if(this.lastType=a.pointerType||"mouse",this.cancel(),a.pointerType==="mouse"&&a.button!==0||!a.isPrimary)return;const n=this.find(a);n&&(this.start={x:a.clientX,y:a.clientY,el:n.el,target:n.target,type:a.pointerType},this.startRing(n.el),this.timer=window.setTimeout(()=>this.fire(),QS))},this.move=a=>{!this.start||this.timer===void 0||Hte(a.clientX-this.start.x,a.clientY-this.start.y)&&this.cancel()},this.up=()=>{this.cancel()},this.click=a=>{Date.now()<this.swallowUntil&&this.find(a,!0)&&(a.stopPropagation(),a.preventDefault(),this.swallowUntil=0)},this.ctx=a=>{const n=this.find(a,!0);if(!n)return;if(this.lastType==="touch"||this.lastType==="pen"){a.preventDefault();return}a.preventDefault(),this.cancel();const i=a.detail===0||a.clientX===0&&a.clientY===0,r=n.el.getBoundingClientRect(),l=i?{x:r.left+r.width/2,y:r.top+r.height/2}:{x:a.clientX,y:a.clientY};this.lastType="mouse",this.emit({target:n.target,tab:"activity",menu:l,source:"context",openDevice:this.opener(n.el),opener:n.el})},this.key=a=>{if(a.key!=="Enter"||!a.altKey||a.ctrlKey||a.metaKey||a.shiftKey)return;const n=this.find(a,!0);if(!n)return;const i=Lte({tracked:n.target.tracked!==!1,on:Xf()});i&&(a.preventDefault(),a.stopPropagation(),this.emit({target:n.target,tab:i,opener:n.el}))},t.addController(this)}hostConnected(){const t=this.host;t.addEventListener("pointerdown",this.down,!0),t.addEventListener("pointermove",this.move,!0),t.addEventListener("pointerup",this.up,!0),t.addEventListener("pointercancel",this.up,!0),t.addEventListener("click",this.click,!0),t.addEventListener("contextmenu",this.ctx,!0),t.addEventListener("keydown",this.key)}hostDisconnected(){const t=this.host;t.removeEventListener("pointerdown",this.down,!0),t.removeEventListener("pointermove",this.move,!0),t.removeEventListener("pointerup",this.up,!0),t.removeEventListener("pointercancel",this.up,!0),t.removeEventListener("click",this.click,!0),t.removeEventListener("contextmenu",this.ctx,!0),t.removeEventListener("keydown",this.key),this.cancel()}find(t,s=!1){const a=Wte(t.composedPath(),{allowArrange:s,anyControl:s});return a?{el:a.node,target:a.target}:null}emit(t){window.dispatchEvent(new CustomEvent(Dy,{detail:{...t,area:this.opts.area?.()}}))}fire(){const t=this.start;if(this.timer=void 0,!t)return;this.swallowUntil=Date.now()+800;try{navigator.vibrate?.(10)}catch{}this.endRing(!0),this.start=null;const s=Mte({tracked:t.target.tracked!==!1,on:Xf(),mode:Ly()});if(s){if(s.kind==="menu"){const a=t.el.getBoundingClientRect(),n=t.type==="mouse"?{x:t.x,y:t.y}:{x:Math.min(t.x,a.right),y:Math.min(t.y+8,a.bottom)};this.emit({target:t.target,tab:"activity",menu:n,source:"press",openDevice:this.opener(t.el),opener:t.el});return}this.emit({target:t.target,tab:s.tab,opener:t.el})}}opener(t){if(qte(t))return()=>{this.swallowUntil=0,t.dispatchEvent(new CustomEvent("activate",{bubbles:!0,composed:!0}))}}cancel(){this.timer!==void 0&&window.clearTimeout(this.timer),this.timer=void 0,this.start&&this.endRing(!1),this.start=null}startRing(t){try{const s="0 0 0 2px var(--sw-accent, #2563eb)",a=jte();this.ring=t.animate(a?[{boxShadow:"none"},{boxShadow:"none",offset:.99},{boxShadow:s}]:[{transform:"scale(1)",boxShadow:"none"},{transform:"scale(.98)",boxShadow:s}],{delay:120,duration:QS-120,easing:"linear",fill:"both"})}catch{this.ring=null}}endRing(t){const s=this.ring;this.ring=null,s&&(t?window.setTimeout(()=>s.cancel(),160):s.cancel())}}/**
  * @license
  * Copyright 2018 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -10238,7 +10238,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         border-radius: var(--sw-r-md);
         overflow: hidden;
       }
-       sourceMappingURL=[^*]**/ R5-DEVICES-297: the filter segment reads at the base size, 40 px high; a press sinks the key */
+      /* R5-DEVICES-297: the filter segment reads at the base size, 40 px high; a press sinks the key */
       .seg button {
         flex: 1;
         min-inline-size: 0;
@@ -10310,7 +10310,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         display: flex;
         gap: 6px;
       }
-       sourceMappingURL=[^*]**/ the master control: an icon-only 44 px button; filled = something is on (a press turns all off) */
+      /* the master control: an icon-only 44 px button; filled = something is on (a press turns all off) */
       button.master {
         position: relative;
         flex: none;
@@ -10390,7 +10390,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         flex-direction: column;
         gap: 6px;
       }
-       sourceMappingURL=[^*]**/ R5-DEVICES-297: the floor is a heading, the area a sub-heading; rows are wells (no outline), a lit row a full lit field */
+      /* R5-DEVICES-297: the floor is a heading, the area a sub-heading; rows are wells (no outline), a lit row a full lit field */
       .floor > h4 {
         margin: 10px 0 0;
         font-size: var(--sw-fs-lg);
@@ -10430,7 +10430,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         font-weight: var(--sw-fw-bold);
         color: var(--sw-heading, var(--sw-text));
       }
-       sourceMappingURL=[^*]**/ HOME polish (2026-10-10): a row's state change fades in; still under reduced motion */
+      /* HOME polish (2026-10-10): a row's state change fades in; still under reduced motion */
       @media (prefers-reduced-motion: no-preference) {
         .row,
         .row > sw-icon,
@@ -10506,7 +10506,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         gap: 8px;
         padding-block-start: 8px;
       }
-       sourceMappingURL=[^*]**/ touch: every control a 44 px target */
+      /* touch: every control a 44 px target */
       @media (max-width: 767px), (pointer: coarse) {
         .seg button,
         .search input {
@@ -10531,11 +10531,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           min-block-size: 44px;
         }
       }
-    `];yt([_({type:Boolean,reflect:!0})],dt.prototype,"open",2);yt([_()],dt.prototype,"kind",2);yt([_()],dt.prototype,"scope",2);yt([_()],dt.prototype,"scopeId",2);yt([_()],dt.prototype,"scopeName",2);yt([_()],dt.prototype,"filter",2);yt([_({attribute:!1})],dt.prototype,"areaFilter",2);yt([_()],dt.prototype,"switches",2);yt([_({type:Boolean})],dt.prototype,"pairedMaster",2);yt([_()],dt.prototype,"headingText",2);yt([_({attribute:!1})],dt.prototype,"building",2);yt([_({attribute:!1})],dt.prototype,"bulkHold",2);yt([w()],dt.prototype,"data",2);yt([w()],dt.prototype,"error",2);yt([w()],dt.prototype,"notFound",2);yt([w()],dt.prototype,"q",2);yt([w()],dt.prototype,"why",2);yt([w()],dt.prototype,"unlocking",2);yt([w()],dt.prototype,"lockAll",2);dt=yt([W("devices-tiles-panel")],dt);const ise=["auto","cards","compact"],CC=600,Py="sw.tiles.override",g2e={auto:"אוטומטי",cards:"כרטיסים",compact:"קומפקטי"};function RC(e){return typeof e=="string"&&ise.includes(e)}let MC="auto",Mw=null;const Iy=new Set;let qp=null;function rse(){try{return localStorage.getItem(Py)}catch{return null}}function r_(){Iy.forEach(e=>e())}function ose(){if(!qp)try{qp=window.matchMedia(`(max-width: ${CC-1}px)`),qp.addEventListener("change",r_)}catch{qp=null}}function lse(){const e=rse();return RC(e)?e:null}function w2e(e){try{e===null?localStorage.removeItem(Py):localStorage.setItem(Py,e)}catch{}r_()}function cse(e){MC=RC(e)?e:"auto",r_()}function LC(){return lse()??MC}function Lw(e=LC(),t){return e!=="auto"?e:(typeof window<"u"?window.innerWidth:1024)<CC?"compact":"cards"}function dse(){return Mw||(Mw=(async()=>{if(O())try{cse((await wa())["ui.tile_layout"])}catch{}})()),Mw}function use(e){return ose(),Iy.add(e),()=>Iy.delete(e)}class pse{constructor(t){this.host=t,this.layout=Lw(),this.off=null,this.apply=()=>{const s=Lw();this.host.setAttribute("data-tile-layout",s),s!==this.layout&&(this.layout=s,this.host.requestUpdate())},t.addController(this)}hostConnected(){this.off=use(this.apply),this.layout=Lw(),this.host.setAttribute("data-tile-layout",this.layout),dse().then(this.apply)}hostDisconnected(){this.off?.(),this.off=null}} sourceMappingURL=[^*]**/*
+    `];yt([_({type:Boolean,reflect:!0})],dt.prototype,"open",2);yt([_()],dt.prototype,"kind",2);yt([_()],dt.prototype,"scope",2);yt([_()],dt.prototype,"scopeId",2);yt([_()],dt.prototype,"scopeName",2);yt([_()],dt.prototype,"filter",2);yt([_({attribute:!1})],dt.prototype,"areaFilter",2);yt([_()],dt.prototype,"switches",2);yt([_({type:Boolean})],dt.prototype,"pairedMaster",2);yt([_()],dt.prototype,"headingText",2);yt([_({attribute:!1})],dt.prototype,"building",2);yt([_({attribute:!1})],dt.prototype,"bulkHold",2);yt([w()],dt.prototype,"data",2);yt([w()],dt.prototype,"error",2);yt([w()],dt.prototype,"notFound",2);yt([w()],dt.prototype,"q",2);yt([w()],dt.prototype,"why",2);yt([w()],dt.prototype,"unlocking",2);yt([w()],dt.prototype,"lockAll",2);dt=yt([W("devices-tiles-panel")],dt);const ise=["auto","cards","compact"],CC=600,Py="sw.tiles.override",g2e={auto:"אוטומטי",cards:"כרטיסים",compact:"קומפקטי"};function RC(e){return typeof e=="string"&&ise.includes(e)}let MC="auto",Mw=null;const Iy=new Set;let qp=null;function rse(){try{return localStorage.getItem(Py)}catch{return null}}function r_(){Iy.forEach(e=>e())}function ose(){if(!qp)try{qp=window.matchMedia(`(max-width: ${CC-1}px)`),qp.addEventListener("change",r_)}catch{qp=null}}function lse(){const e=rse();return RC(e)?e:null}function w2e(e){try{e===null?localStorage.removeItem(Py):localStorage.setItem(Py,e)}catch{}r_()}function cse(e){MC=RC(e)?e:"auto",r_()}function LC(){return lse()??MC}function Lw(e=LC(),t){return e!=="auto"?e:(typeof window<"u"?window.innerWidth:1024)<CC?"compact":"cards"}function dse(){return Mw||(Mw=(async()=>{if(O())try{cse((await wa())["ui.tile_layout"])}catch{}})()),Mw}function use(e){return ose(),Iy.add(e),()=>Iy.delete(e)}class pse{constructor(t){this.host=t,this.layout=Lw(),this.off=null,this.apply=()=>{const s=Lw();this.host.setAttribute("data-tile-layout",s),s!==this.layout&&(this.layout=s,this.host.requestUpdate())},t.addController(this)}hostConnected(){this.off=use(this.apply),this.layout=Lw(),this.host.setAttribute("data-tile-layout",this.layout),dse().then(this.apply)}hostDisconnected(){this.off?.(),this.off=null}}/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */class Jf extends uc{constructor(t){if(super(t),this.it=p,t.type!==Cu.CHILD)throw Error(this.constructor.directiveName+"() can only be used in child bindings")}render(t){if(t===p||t==null)return this._t=void 0,this.it=t;if(t===rn)return t;if(typeof t!="string")throw Error(this.constructor.directiveName+"() called with a non-string value");if(t===this.it)return this._t;this.it=t;const s=[t];return s.raw=s,this._t={_$litType$:this.constructor.resultType,strings:s,values:[]}}}Jf.directiveName="unsafeHTML",Jf.resultType=1;const hse=oo(Jf); sourceMappingURL=[^*]**/*
+ */class Jf extends uc{constructor(t){if(super(t),this.it=p,t.type!==Cu.CHILD)throw Error(this.constructor.directiveName+"() can only be used in child bindings")}render(t){if(t===p||t==null)return this._t=void 0,this.it=t;if(t===rn)return t;if(typeof t!="string")throw Error(this.constructor.directiveName+"() called with a non-string value");if(t===this.it)return this._t;this.it=t;const s=[t];return s.raw=s,this._t={_$litType$:this.constructor.resultType,strings:s,values:[]}}}Jf.directiveName="unsafeHTML",Jf.resultType=1;const hse=oo(Jf);/**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
@@ -10553,7 +10553,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       ${this.arrow("right")}${this.arrow("down")}</div>`}};tc.styles=P`
       :host {
         display: block;
-        direction: ltr;  sourceMappingURL=[^*]**/ the pad is geometry: never mirrored */
+        direction: ltr; /* the pad is geometry: never mirrored */
         inline-size: var(--mr-dpad-size);
         block-size: var(--mr-dpad-size);
         -webkit-touch-callout: none;
@@ -10807,7 +10807,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       opacity: 0.6;
     }
   }
-   sourceMappingURL=[^*]**/ ---- sliders: fill from the inline-start (the right in RTL), the ceiling marker only where one is set ---- */
+  /* ---- sliders: fill from the inline-start (the right in RTL), the ceiling marker only where one is set ---- */
   .vrow {
     display: flex;
     align-items: center;
@@ -10916,7 +10916,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     block-size: 16px;
     background: var(--mr-text);
   }
-   sourceMappingURL=[^*]**/ the ceiling in force (volume_max / the night window) - drawn ONLY where an administrator set one */
+  /* the ceiling in force (volume_max / the night window) - drawn ONLY where an administrator set one */
   .rngwrap .cap {
     position: absolute;
     inset-block: 14px;
@@ -10931,7 +10931,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     inset-block: 15px;
     inset-inline-start: calc(10px + (100% - 20px) * var(--capn) / 100 - 1px);
   }
-   sourceMappingURL=[^*]**/ ---- per room ---- */
+  /* ---- per room ---- */
   .members {
     display: flex;
     flex-direction: column;
@@ -11000,7 +11000,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     }
   }
 `,d_=P`
-   sourceMappingURL=[^*]**/ ---- header action (power) and the sticky notice ---- */
+  /* ---- header action (power) and the sticky notice ---- */
   .hpw {
     position: relative;
     inline-size: 44px;
@@ -11036,7 +11036,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     position: sticky;
     inset-block-start: 0;
     z-index: 4;
-     sourceMappingURL=[^*]**/ opaque under the tint: the body scrolls beneath it */
+    /* opaque under the tint: the body scrolls beneath it */
     background: color-mix(in srgb, var(--mr-danger) 16%, var(--mr-surface-solid));
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
   }
@@ -11067,7 +11067,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     gap: 14px;
   }
 
-   sourceMappingURL=[^*]**/ ---- now playing ---- */
+  /* ---- now playing ---- */
   .npb {
     display: flex;
     flex-direction: column;
@@ -11196,7 +11196,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-weight: 600;
   }
 
-   sourceMappingURL=[^*]**/ ---- transport: never mirrored ---- */
+  /* ---- transport: never mirrored ---- */
   .tport {
     direction: ltr;
     display: flex;
@@ -11304,7 +11304,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--mr-accent);
   }
 
-   sourceMappingURL=[^*]**/ ---- section heads ---- */
+  /* ---- section heads ---- */
   .psh {
     display: flex;
     align-items: center;
@@ -11354,7 +11354,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     pointer-events: none;
   }
 
-   sourceMappingURL=[^*]**/ ---- up next ---- */
+  /* ---- up next ---- */
   .uq {
     display: flex;
     flex-direction: column;
@@ -11444,7 +11444,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-size: var(--sw-fs-lg);
   }
 
-   sourceMappingURL=[^*]**/ ---- library ---- */
+  /* ---- library ---- */
   .libg {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -11545,7 +11545,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-weight: 500;
   }
 
-   sourceMappingURL=[^*]**/ ---- the group section ---- */
+  /* ---- the group section ---- */
   .gsec {
     display: flex;
     flex-direction: column;
@@ -11663,7 +11663,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     inset: -6px;
   }
 
-   sourceMappingURL=[^*]**/ ---- transfer ---- */
+  /* ---- transfer ---- */
   .ctas {
     display: flex;
     flex-direction: column;
@@ -11720,7 +11720,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     white-space: nowrap;
   }
 
-   sourceMappingURL=[^*]**/ ---- receiver ---- */
+  /* ---- receiver ---- */
   .modes {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -11755,7 +11755,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     flex: 1;
   }
 
-   sourceMappingURL=[^*]**/ ---- confirmation (rendered inside the drawer) ---- */
+  /* ---- confirmation (rendered inside the drawer) ---- */
   .cd-line {
     margin: 0;
     font-size: var(--sw-fs-base);
@@ -11946,7 +11946,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --mr-glow-alpha: 0.36;
     --mr-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --mr-motion: 240ms;
-    --mr-font: var(--sw-font);  sourceMappingURL=[^*]**/ SYS-AUDIT-QUICKFIX-2437: the product face in both schemes (was the OS stack in light) */
+    --mr-font: var(--sw-font); /* SYS-AUDIT-QUICKFIX-2437: the product face in both schemes (was the OS stack in light) */
     color-scheme: light;
   }
   :host([data-devices-scheme='dark']) {
@@ -11987,7 +11987,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --mr-glow-alpha: 0.5;
     color-scheme: dark;
   }
-   sourceMappingURL=[^*]**/ the Bubble skin (phase C): the remote and the player panel read the product's tokens - the sheet, the keys, the rows follow
+  /* the Bubble skin (phase C): the remote and the player panel read the product's tokens - the sheet, the keys, the rows follow
      the skin and its scheme (data-theme on <html>), not devices.scheme; declared after the dark block so it wins */
   :host([data-skin='bubble']) {
     --mr-text: var(--sw-text);
@@ -12037,7 +12037,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --mr-key-size: 50px;
     }
   }
-   sourceMappingURL=[^*]**/ no backdrop blur is used by the remote itself (the sheet is a solid panel with a tinted glow); transparency settings
+  /* no backdrop blur is used by the remote itself (the sheet is a solid panel with a tinted glow); transparency settings
      therefore need nothing here. Reduced motion: only the state changes stay, the movement goes. */
   @media (prefers-reduced-motion: reduce) {
     :host {
@@ -12049,7 +12049,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     display: contents;
     font-family: var(--mr-font);
     color: var(--mr-text);
-     sourceMappingURL=[^*]**/ the drawer (sw-drawer, modal) reads these: its panel surface, title, hairlines and buttons follow the remote's scheme */
+    /* the drawer (sw-drawer, modal) reads these: its panel surface, title, hairlines and buttons follow the remote's scheme */
     --dv-surface-solid: radial-gradient(130% 34% at 50% 0%, rgb(var(--mr-art, 107 119 136) / var(--mr-glow-alpha)), transparent 72%), var(--mr-surface-solid);
     --sw-text: var(--mr-text);
     --sw-text-2: var(--mr-text-2);
@@ -12077,7 +12077,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--mr-text);
     padding-block-end: 6px;
   }
-   sourceMappingURL=[^*]**/ POLISH4-WP1 (MEDIA-POLISH-2331 5.3): while the layout editor is open its "ביטול / שמירה" bar sticks to the top of the drawer's
+  /* POLISH4-WP1 (MEDIA-POLISH-2331 5.3): while the layout editor is open its "ביטול / שמירה" bar sticks to the top of the drawer's
      scroll box. A sticky box stops at the scroll box's padding edge, so the body's top padding left a strip where the rows scrolled
      past ABOVE the bar. Editing, the body has no top padding and the editor carries the same space itself: at rest nothing moves,
      scrolled the bar meets the top edge and nothing shows above it. */
@@ -12121,7 +12121,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     cursor: not-allowed;
   }
 
-   sourceMappingURL=[^*]**/ ---- now showing ---- */
+  /* ---- now showing ---- */
   .np {
     display: grid;
     grid-template-columns: 64px minmax(0, 1fr);
@@ -12233,7 +12233,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     border-radius: 2px;
   }
 
-   sourceMappingURL=[^*]**/ ---- segmented control, toggles, buttons ---- */
+  /* ---- segmented control, toggles, buttons ---- */
   .seg {
     display: flex;
     align-items: center;
@@ -12310,7 +12310,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-size: var(--sw-fs-lg);
   }
 
-   sourceMappingURL=[^*]**/ ---- round buttons ---- */
+  /* ---- round buttons ---- */
   .rb {
     position: relative;
     flex: none;
@@ -12343,7 +12343,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     pointer-events: none;
   }
 
-   sourceMappingURL=[^*]**/ ---- volume slider row, audio switch, recent chips ---- */
+  /* ---- volume slider row, audio switch, recent chips ---- */
   .vrow {
     display: flex;
     align-items: center;
@@ -12477,7 +12477,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-size: var(--sw-fs-xl);
   }
 
-   sourceMappingURL=[^*]**/ ---- the pad body ---- */
+  /* ---- the pad body ---- */
   .rpad {
     position: relative;
     display: flex;
@@ -12855,7 +12855,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     min-block-size: 48px;
   }
 
-   sourceMappingURL=[^*]**/ ---- off / art / unavailable / loading ---- */
+  /* ---- off / art / unavailable / loading ---- */
   .roff {
     display: flex;
     flex-direction: column;
@@ -12954,7 +12954,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--mr-danger);
   }
 
-   sourceMappingURL=[^*]**/ ---- sources and apps ---- */
+  /* ---- sources and apps ---- */
   .srcg {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -13078,7 +13078,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--mr-text-3);
   }
 
-   sourceMappingURL=[^*]**/ ---- the notice above the body (not confirmed / refused) ---- */
+  /* ---- the notice above the body (not confirmed / refused) ---- */
   .notice {
     display: flex;
     align-items: center;
@@ -13292,7 +13292,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         color: var(--mr-text-2);
         padding: 2px 8px;
       }
-       sourceMappingURL=[^*]**/ every target is 44 px (the layout guard's rule: touch layouts, and the desktop dial's default) */
+      /* every target is 44 px (the layout guard's rule: touch layouts, and the desktop dial's default) */
       .qb {
         inline-size: 44px;
         block-size: 44px;
@@ -13565,7 +13565,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         flex-direction: column;
         gap: 14px;
       }
-       sourceMappingURL=[^*]**/ MEDIA-POLISH-2331: the bar with "ביטול" / "שמירה" sticks to the top of the remote while a long list of sources and apps
+      /* MEDIA-POLISH-2331: the bar with "ביטול" / "שמירה" sticks to the top of the remote while a long list of sources and apps
          scrolls under it (save was out of sight after the first screen of rows); it is opaque, so the rows never show through */
       .bar {
         position: sticky;
@@ -13741,7 +13741,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         font-family: var(--sw-font-mono);
         font-size: var(--sw-fs-sm);
       }
-       sourceMappingURL=[^*]**/ keyboard: the order buttons, the switches, the fold box and the fields show where the focus is */
+      /* keyboard: the order buttons, the switches, the fold box and the fields show where the focus is */
       .ib:focus-visible,
       .tog:focus-visible,
       .fold input:focus-visible,
@@ -13762,7 +13762,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       .ib[disabled] {
         cursor: default;
       }
-       sourceMappingURL=[^*]**/ touch: 44 px targets; on a narrow remote a source / app row puts its name field on a line of its own */
+      /* touch: 44 px targets; on a narrow remote a source / app row puts its name field on a line of its own */
       @media (pointer: coarse) {
         .ib {
           inline-size: 44px;
@@ -13864,7 +13864,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding-inline: var(--pill-pad);
       padding-block: 4px;
       border-radius: var(--sw-r-pill);
-      background: var(--pill-base, var(--sw-surface));  sourceMappingURL=[^*]**/ --pill-base: a host puts the pill on a translucent sheet (--sw-layer) */
+      background: var(--pill-base, var(--sw-surface)); /* --pill-base: a host puts the pill on a translucent sheet (--sw-layer) */
       color: var(--sw-text);
       font-family: var(--sw-font);
       font-size: calc(var(--sw-fs-name) * var(--sw-look-scale));
@@ -13878,7 +13878,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ the fill grows from the inline start (RTL: from the right) */
+    /* the fill grows from the inline start (RTL: from the right) */
     :host::before {
       content: '';
       position: absolute;
@@ -13892,7 +13892,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([data-dragging])::before {
       transition: none;
     }
-     sourceMappingURL=[^*]**/ a palette whose fill is under 3:1 against the track marks the fill's end (transparent otherwise) */
+    /* a palette whose fill is under 3:1 against the track marks the fill's end (transparent otherwise) */
     :host([variant='slider'])::before {
       box-sizing: border-box;
       border-inline-end: 3px solid var(--sw-fill-edge);
@@ -13976,7 +13976,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host(:not([on]):not([accent])) .ring sw-icon {
       opacity: 0.8;
     }
-     sourceMappingURL=[^*]**/ the text, drawn twice in a slider: the base colour, and the on-fill colour clipped to the fill (same box, so wrapping never misaligns them) */
+    /* the text, drawn twice in a slider: the base colour, and the on-fill colour clipped to the fill (same box, so wrapping never misaligns them) */
     .txw {
       position: relative;
       flex: 1 1 96px;
@@ -13991,7 +13991,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex-direction: column;
       justify-content: center;
     }
-     sourceMappingURL=[^*]**/ a full fill (a switch that is on, a flat-surface state): the text simply takes the on-fill colour */
+    /* a full fill (a switch that is on, a flat-surface state): the text simply takes the on-fill colour */
     :host([on][variant='toggle']:not([accent])) .tx.base,
     :host([on][variant='plain']:not([accent])) .tx.base,
     :host([on][data-surface='flat']:not([accent])) .tx.base,
@@ -14017,7 +14017,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       inset: 0;
       pointer-events: none;
       color: var(--sw-on-lit);
-       sourceMappingURL=[^*]**/ --lay-s: where this layer starts, from the pill's inline start; the fill edge is --fill * 100cqw from there (the host is the container).
+      /* --lay-s: where this layer starts, from the pill's inline start; the fill edge is --fill * 100cqw from there (the host is the container).
          Visible = the part of the layer before the fill edge; the rest is clipped on the inline-END side (LTR: right, RTL: left). */
       --lay-s: calc(var(--pill-pad) + max(var(--sw-touch-desktop), var(--sw-icon-ring) * var(--sw-look-scale)) + var(--pill-gap));
       --lay-cut: calc(100% - (var(--fill) * 100cqw - var(--lay-s)));
@@ -14041,7 +14041,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([data-dragging]) .tx.over {
       transition: none;
     }
-     sourceMappingURL=[^*]**/ sub-buttons wrap under the label when the row is too narrow; every target 44 px in touch layouts */
+    /* sub-buttons wrap under the label when the row is too narrow; every target 44 px in touch layouts */
     .subs {
       display: flex;
       flex-wrap: wrap;
@@ -14065,7 +14065,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: center;
       position: relative;
     }
-     sourceMappingURL=[^*]**/ ---- the list view (density row): rows touch, only the group's outer corners are round ---- */
+    /* ---- the list view (density row): rows touch, only the group's outer corners are round ---- */
     :host([data-density='row']) {
       border-radius: min(10px, var(--sw-r-md));
     }
@@ -14085,12 +14085,12 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --pill-pad: 6px;
       --pill-gap: 8px;
     }
-     sourceMappingURL=[^*]**/ ---- the surface dial ---- */
-     sourceMappingURL=[^*]**/ flat: a state is the whole pill (no partial fill) */
+    /* ---- the surface dial ---- */
+    /* flat: a state is the whole pill (no partial fill) */
     :host([data-surface='flat'][on])::before {
       inline-size: 100%;
     }
-     sourceMappingURL=[^*]**/ gradient: a hue-to-hue wash with a solid hue ring; the lit part is a light tint of the hue with dark text */
+    /* gradient: a hue-to-hue wash with a solid hue ring; the lit part is a light tint of the hue with dark text */
     :host([data-surface='gradient']:not([accent])) {
       background: linear-gradient(100deg, color-mix(in oklab, var(--h) var(--sw-wash-start), var(--sw-surface)) 0%, color-mix(in oklab, var(--h) var(--sw-wash-end), var(--sw-surface)) 100%);
     }
@@ -14101,9 +14101,9 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([data-surface='gradient'][on]:not([accent]))::before {
       background: color-mix(in oklab, var(--h) var(--sw-wash-lit), #fff);
     }
-     sourceMappingURL=[^*]**/ glass: a translucent, blurred layer over the canvas */
+    /* glass: a translucent, blurred layer over the canvas */
     :host([data-surface='glass']:not([accent])) {
-       sourceMappingURL=[^*]**/ the lite tier (performance dial): no blur on a pill, a tinted near-solid fill at the contrast-computed alpha */
+      /* the lite tier (performance dial): no blur on a pill, a tinted near-solid fill at the contrast-computed alpha */
       background: var(--sw-perf-glass-bg, rgba(var(--sw-sheet-rgb), 0.42));
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(16px) saturate(150%));
       backdrop-filter: var(--sw-perf-blur, blur(16px) saturate(150%));
@@ -14119,7 +14119,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         backdrop-filter: none;
       }
     }
-     sourceMappingURL=[^*]**/ none (BV1, the surfaceless look): no fill at all - the ring and the text on the canvas; a lit pill shows its fill as a 4 px bar
+    /* none (BV1, the surfaceless look): no fill at all - the ring and the text on the canvas; a lit pill shows its fill as a 4 px bar
        under the text (the fill still grows from the inline start, so the slider reads the same); hover is a faint layer */
     :host([data-surface='none']:not([accent])) {
       background: transparent;
@@ -14148,11 +14148,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--fill-c);
       color: var(--sw-on-lit);
     }
-     sourceMappingURL=[^*]**/ a list of surfaceless rows: a hairline under each row instead of touching fills */
+    /* a list of surfaceless rows: a hairline under each row instead of touching fills */
     :host([data-surface='none'][data-density='row']:not(:last-child)) {
       box-shadow: inset 0 -1px 0 var(--sw-border-strong);
     }
-     sourceMappingURL=[^*]**/ ---- touch layouts: 44 px targets whatever the density says ---- */
+    /* ---- touch layouts: 44 px targets whatever the density says ---- */
     @media (max-width: 1100px) {
       :host {
         min-block-size: max(calc(var(--sw-pill-h) * var(--sw-look-scale)), 52px);
@@ -14177,7 +14177,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       }
     }
   `;Zt([_()],zt.prototype,"icon",2);Zt([_()],zt.prototype,"label",2);Zt([_()],zt.prototype,"state",2);Zt([_()],zt.prototype,"variant",2);Zt([_({type:Boolean,reflect:!0})],zt.prototype,"on",2);Zt([_({type:Number})],zt.prototype,"value",2);Zt([_({attribute:"fill-color"})],zt.prototype,"fillColor",2);Zt([_({type:Number})],zt.prototype,"hue",2);Zt([_({type:Boolean,reflect:!0})],zt.prototype,"unavailable",2);Zt([_({type:Boolean,reflect:!0})],zt.prototype,"readonly",2);Zt([_({type:Boolean,reflect:!0})],zt.prototype,"accent",2);Zt([_({type:Boolean,reflect:!0,attribute:"keep-text"})],zt.prototype,"keepText",2);Zt([_({type:Boolean,reflect:!0,attribute:"ring-static"})],zt.prototype,"ringStatic",2);Zt([_()],zt.prototype,"density",2);Zt([_()],zt.prototype,"surface",2);Zt([w()],zt.prototype,"hasSubs",2);zt=Zt([W("sw-pill")],zt);const Jne={route:"מסך",scene:"סצנה",script:"סקריפט",quick:"פעולה מהירה"},A5=12,u_=[{id:"home",label:"חשמל והתקנים",icon:"home",hash:"/devices/building",perms:["devices.read"]},{id:"live",label:"לייב",icon:"camera",hash:"/live/wall",perms:["video.live"]},{id:"events",label:"אירועים",icon:"history",hash:"/investigate/events",perms:["events.read"]},{id:"map",label:"מפה",icon:"map",hash:"/explore",perms:["map.read"]},{id:"alarm",label:"אזעקה",icon:"shield",hash:"/security/alarm",perms:["alarm.view"]},{id:"screens",label:"מסכים",icon:"media",hash:"/multimedia/screens",perms:["media.read"]},{id:"players",label:"נגנים",icon:"play",hash:"/multimedia/players",perms:["media.read"]},{id:"schedules",label:"תזמונים",icon:"clock",hash:"/devices/schedules",perms:["schedule.view"]},{id:"automations",label:"אוטומציות",icon:"rule",hash:"/devices/automations",perms:["automation.manage","scene.manage","script.run","script.manage"]},{id:"wiskey",label:"בקרת כניסה",icon:"door",hash:"/wiskey",perms:["access.read"]},{id:"energy",label:"חשמל",icon:"bolt",hash:"/infra/electricity/meters",perms:["energy.view"]},{id:"settings",label:"הגדרות",icon:"system",hash:"/system",perms:["system.configure"]}];u_.map(e=>e.id);const sp=e=>u_.find(t=>t.id===e),Qne=["scene.manage","devices.control","ha.entity.control"],Zne=["script.run"];function eie(e,t,s=Q){if(e.kind==="route"){const a=sp(e.id);return!!a&&(!a.perms.length||a.perms.some(s))}return e.kind==="scene"?Qne.some(s):e.kind==="script"?Zne.some(s):!!t[e.id]}function tie(e){return e.kind==="route"?sp(e.id)?.icon??"grid":e.kind==="scene"?"sparkle":e.kind==="script"?"route":e.id==="all_off"?"power":"light"}const nR=e=>e.split(".").slice(1).join(".").replace(/_/g," ");async function O5(e){if(e.kind==="route"){const n=sp(e.id);n&&dn(n.hash);return}if(e.kind==="quick")return;const t=e.kind,{items:s}=await ba().list({kind:t,limit:500}),a=s.find(n=>n.entity_id===e.id);if(!a)throw new Error(e.kind==="scene"?"הסצנה לא נמצאה":"הסקריפט לא נמצא");e.kind==="scene"?await RO(a.id):await nQ(a.id)}const sie=z`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>`,aie=z`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`,nie=z`<path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>`;function iie(e){const t=Si(e);return t==="moon"?7:t==="rain"||t==="storm"?1:t==="snow"||t==="fog"?8:t==="cloud"||t==="wind"?4:6}const rie=P`
-   sourceMappingURL=[^*]**/ ---- the tiles (Bubble, style: tile): a hue surface, a big glyph / number, the facts under it ---- */
+  /* ---- the tiles (Bubble, style: tile): a hue surface, a big glyph / number, the facts under it ---- */
   :host([data-skin='bubble']) .wg.tile {
     justify-content: flex-start;
     gap: var(--sw-s-2);
@@ -14195,7 +14195,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) .wg.tile .wx-fc {
     border-color: rgba(255, 255, 255, 0.25);
   }
-   sourceMappingURL=[^*]**/ only the clock / weather tiles are square (their content is fixed); the agenda grows with its rows */
+  /* only the clock / weather tiles are square (their content is fixed); the agenda grows with its rows */
   :host([layout='hero'][data-skin='bubble']) .wg.tile.sq:not([data-size='l']) {
     aspect-ratio: 1 / 1;
     flex-grow: 0;
@@ -14219,7 +14219,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-weight: 300;
     letter-spacing: -0.03em;
     line-height: 1;
-     sourceMappingURL=[^*]**/ HOMEEDIT-POLISH-2331: the minute changes under the eye - fixed-width figures so the time does not shuffle sideways */
+    /* HOMEEDIT-POLISH-2331: the minute changes under the eye - fixed-width figures so the time does not shuffle sideways */
     font-variant-numeric: tabular-nums;
     direction: ltr;
     unicode-bidi: isolate;
@@ -14291,7 +14291,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --tic: 56px;
     --tbig: 56px;
   }
-   sourceMappingURL=[^*]**/ ---- the agenda ---- */
+  /* ---- the agenda ---- */
   .ag {
     display: flex;
     flex-direction: column;
@@ -14351,7 +14351,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .ag-more {
     font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
-    align-self: center;  sourceMappingURL=[^*]**/ away from the tile's rounded corners */
+    align-self: center; /* away from the tile's rounded corners */
   }
   :host([data-skin='bubble']) .wg-agenda {
     --h: var(--sw-hue-5);
@@ -14369,7 +14369,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     flex-wrap: wrap;
     gap: var(--sw-s-1h) var(--sw-s-4h);
   }
-   sourceMappingURL=[^*]**/ ---- the launcher grid: round buttons, icon above a short label ---- */
+  /* ---- the launcher grid: round buttons, icon above a short label ---- */
   .lg {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--lgc, 76px), 1fr));
@@ -14415,7 +14415,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--sw-accent-text);
     transition: transform var(--sw-t-fast) var(--sw-ease-thumb), background var(--sw-t-fast) var(--sw-ease);
   }
-   sourceMappingURL=[^*]**/ HOMEEDIT-POLISH-2331: hover only under a pointer that hovers (a tap left the ring grey on a phone); the press is the one press
+  /* HOMEEDIT-POLISH-2331: hover only under a pointer that hovers (a tap left the ring grey on a phone); the press is the one press
      model of the system (owner 2026-10-30, answer 5A: scale(var(--sw-press-scale))), not a private 0.94 */
   @media (hover: hover) and (pointer: fine) {
     .lb:hover:not(:disabled) .lr {
@@ -14489,7 +14489,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     display: flex;
     flex-wrap: wrap;
   }
-   sourceMappingURL=[^*]**/ the hero band: the launcher takes a wider place (three to four columns of buttons), not a two-column tower that stretches the band */
+  /* the hero band: the launcher takes a wider place (three to four columns of buttons), not a two-column tower that stretches the band */
   :host([layout='hero']) .wg-launcher[data-size='m'] {
     flex-basis: 330px;
     flex-grow: 1.6;
@@ -14512,7 +14512,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       block-size: 56px;
     }
   }
-   sourceMappingURL=[^*]**/ ---- the surfaceless look (surface: none, Bubble): widgets and tiles have no fill - a hairline frame only ---- */
+  /* ---- the surfaceless look (surface: none, Bubble): widgets and tiles have no fill - a hairline frame only ---- */
   :host([data-skin='bubble'][data-surface='none']) .wg:not(.ghost) {
     background: transparent;
     box-shadow: inset 0 0 0 1px var(--sw-border-strong);
@@ -14549,7 +14549,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     background: transparent;
     box-shadow: inset 0 0 0 1px var(--sw-border-strong);
   }
-   sourceMappingURL=[^*]**/ the glass surface: the tiles and the launcher ring are translucent layers like the pills */
+  /* the glass surface: the tiles and the launcher ring are translucent layers like the pills */
   :host([data-skin='bubble'][data-surface='glass']) .wg:not(.ghost):not(.tile.hued) {
     background: var(--sw-perf-glass-bg, rgba(var(--sw-sheet-rgb), 0.42));
     -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet));
@@ -14597,7 +14597,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   [data-look='unk'] { --el-c: var(--sw-el-unk); }
   [data-look='trav'] { --el-c: var(--sw-el-trav); }
 
-   sourceMappingURL=[^*]**/ the solid state badge */
+  /* the solid state badge */
   .el-badge {
     display: inline-flex;
     align-items: center;
@@ -14611,13 +14611,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     letter-spacing: -0.005em;
     white-space: nowrap;
     line-height: 1.4;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);  sourceMappingURL=[^*]**/ round 2: a lit top edge, the badge reads as a solid pill, not a flat rectangle */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); /* round 2: a lit top edge, the badge reads as a solid pill, not a flat rectangle */
   }
   .el-badge.sm {
     padding: 2px 8px;
     font-size: var(--sw-fs-state);
   }
-   sourceMappingURL=[^*]**/ out of service is a calm outlined chip (ELEVFIX-297, was a loud diagonal stripe): a tinted fill, an outline and its own icon and word, so it
+  /* out of service is a calm outlined chip (ELEVFIX-297, was a loud diagonal stripe): a tinted fill, an outline and its own icon and word, so it
      is told apart by more than its colour; the text follows the theme's text colour (readable in light and dark) */
   .el-badge[data-look='off'] {
     background: color-mix(in srgb, var(--el-c) 13%, var(--sw-surface, #fff));
@@ -14626,7 +14626,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
   .el-badge { max-inline-size: 100%; box-sizing: border-box; }
 
-   sourceMappingURL=[^*]**/ the door icon */
+  /* the door icon */
   .eicon {
     --ei: 78px;
     inline-size: var(--ei);
@@ -14664,7 +14664,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     display: grid;
     place-items: center;
   }
-   sourceMappingURL=[^*]**/ waiting (or a door sensor says open): the doors stand open - a gap between the two panels (logical margin: the same picture in RTL and LTR);
+  /* waiting (or a door sensor says open): the doors stand open - a gap between the two panels (logical margin: the same picture in RTL and LTR);
      in operation they are shut (ELEVDOORS-293) */
   .eicon[data-doors='open'] u:first-of-type { margin-inline-end: calc(var(--ei) * 0.14); }
   .eicon[data-look='off'] u {
@@ -14681,9 +14681,9 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     50% { opacity: 0.55; }
   }
 
-   sourceMappingURL=[^*]**/ the sensor lights */
+  /* the sensor lights */
   .leds { display: flex; flex-wrap: wrap; gap: 6px; }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: a sensor light is a well (a tone step, no outline - five outlined pills per card were the page's loudest noise);
+  /* R5-MEDIA-ENERGY-297: a sensor light is a well (a tone step, no outline - five outlined pills per card were the page's loudest noise);
      a lit sensor is a filled field of its colour with the word in the heading ink */
   .led {
     display: inline-flex;
@@ -14710,8 +14710,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .led[data-on='null'] i { background: transparent; border: 1px dashed var(--sw-text-3); box-sizing: border-box; }
   .led[data-na] { opacity: 0.45; }
 
-   sourceMappingURL=[^*]**/ the 24-hour bar */
-   sourceMappingURL=[^*]**/ round 2 (dataviz marks): a taller bar with a surface gap between the state segments, so each run reads as its own mark */
+  /* the 24-hour bar */
+  /* round 2 (dataviz marks): a taller bar with a surface gap between the state segments, so each run reads as its own mark */
   .tl {
     block-size: 12px;
     border-radius: 999px;
@@ -14724,8 +14724,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .tl span.lead { background: transparent; }
 `;function am(e,t=78){return o`<span class="eicon" data-look=${e.look} data-doors=${e.doors} style=${`--ei:${t}px`} role="img" aria-label=${e.label}><u></u><u></u><span class="cap"><sw-icon name=${e.icon} size=${Math.max(10,Math.round(t*.17))}></sw-icon></span></span>`}function lR(e,t=!1,s={}){return o`<span class=${t?"el-badge sm":"el-badge"} data-look=${e.look} data-elevator-state=${e.state} data-elevator-badge=${s.id??p}><sw-icon name=${e.icon} size=${t?12:14}></sw-icon>${e.label}</span>`}const bie={s:0,m:4,l:12},vie=[wie,P`
   .wg-elev { gap: 8px; }
-   sourceMappingURL=[^*]**/ ELEVFIX-297: the card's content is a size container, so a narrow card stacks cleanly instead of squeezing every part (title, summary, badge) */
-   sourceMappingURL=[^*]**/ WIDGETFIX-298: an inline-size container has no width of its own content, so it must take the card's width explicitly. In the home's
+  /* ELEVFIX-297: the card's content is a size container, so a narrow card stacks cleanly instead of squeezing every part (title, summary, badge) */
+  /* WIDGETFIX-298: an inline-size container has no width of its own content, so it must take the card's width explicitly. In the home's
      row band (layout row) the card is a flex ROW and this box a flex item sized by content (flex-basis auto): without the 100% it shrank to
      0 px - the title became a stub, the names vanished, and the row of cards stretched to its 250 px height. */
   .wg-elev .el-box { display: grid; gap: 8px; min-inline-size: 0; inline-size: 100%; flex: 1 1 auto; box-sizing: border-box; container: el / inline-size; }
@@ -14738,13 +14738,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .wg-elev .el-big .t small { color: var(--sw-text-2); font-size: var(--sw-fs-state); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-elev .dots { display: flex; flex-wrap: wrap; gap: 6px; }
   .wg-elev .dots i { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--el-c); display: inline-block; }
-  .wg-elev .dots i[data-look='off'] { border-radius: 3px; }  sourceMappingURL=[^*]**/ out of service: a square, not only a colour */
+  .wg-elev .dots i[data-look='off'] { border-radius: 3px; } /* out of service: a square, not only a colour */
   .wg-elev .lst { display: grid; gap: 6px; }
   .el-row {
     display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0;
     border-radius: 10px; padding: 4px 6px; margin-inline: -2px;
   }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
+  /* POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
      focus ring (transform and colour only, token durations - zero under reduced motion) */
   .el-row, .el-card { transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
   .el-row:active { transform: scale(0.985); }
@@ -14758,7 +14758,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .el-row .nm { flex: 1; font-weight: 600; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .el-row small { color: var(--sw-text-2); font-size: var(--sw-fs-state); white-space: nowrap; }
   .el-row .meta { display: contents; }
-   sourceMappingURL=[^*]**/ a narrow card: the name takes the first line, the state badge (and how long ago) the line under it, beside the small door icon */
+  /* a narrow card: the name takes the first line, the state badge (and how long ago) the line under it, beside the small door icon */
   @container el (max-width: 359px) {
     .wg-elev .el-h { flex-direction: column; align-items: stretch; gap: 2px; }
     .wg-elev .el-h b { max-inline-size: 100%; }
@@ -14771,14 +14771,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
   .el-row[aria-disabled='true'], .el-card[aria-disabled='true'] { pointer-events: none; }
   .wg-elev .none { color: var(--sw-text-2); font-size: var(--sw-fs-base); }
-   sourceMappingURL=[^*]**/ one card per elevator: the section is a transparent row of small cards */
+  /* one card per elevator: the section is a transparent row of small cards */
   .wg.wg-elev-cards { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; overflow: visible; }
   .el-cards { display: flex; flex-wrap: wrap; gap: 10px; }
   .el-card {
     display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md, 20px); text-decoration: none; color: var(--sw-text);
     background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: min(100%, 168px); flex: 1 1 168px; box-sizing: border-box;
   }
-   sourceMappingURL=[^*]**/ round 2 (taste-skill: no gradients): an alerting card is a flat tinted field of its colour */
+  /* round 2 (taste-skill: no gradients): an alerting card is a flat tinted field of its colour */
   .el-card[data-look='fire'] { border-color: color-mix(in srgb, var(--sw-el-fire) 45%, transparent); background: color-mix(in srgb, var(--sw-el-fire) 9%, var(--sw-surface)); }
   .el-card[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); background: color-mix(in srgb, var(--sw-el-fault) 6%, var(--sw-surface)); }
   .el-card[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 50%, transparent); }
@@ -14801,17 +14801,17 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .wg-temp .tw-h { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: var(--sw-text-2); flex-wrap: wrap; }
   .wg-temp .tw-h b { color: var(--sw-text); font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; }
   .wg-temp .tw-big { display: flex; align-items: center; gap: 12px; min-inline-size: 0; }
-   sourceMappingURL=[^*]**/ round 2 (dataviz hero number): the loudest reading at display size, heavy and tight */
+  /* round 2 (dataviz hero number): the loudest reading at display size, heavy and tight */
   .wg-temp .tw-big .v { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--tw); font-variant-numeric: tabular-nums; direction: ltr; }
   .wg-temp .tw-big .t { display: grid; gap: 2px; min-inline-size: 0; }
   .wg-temp .tw-big .t b { font-size: var(--sw-fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-temp .tw-big .t small { color: var(--sw-text-2); font-size: var(--sw-fs-state); }
   .wg-temp .dots { display: flex; flex-wrap: wrap; gap: 6px; }
   .wg-temp .dots i { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--tw); display: inline-block; }
-  .wg-temp .dots i[data-look='off'] { border-radius: 3px; }  sourceMappingURL=[^*]**/ sensor offline: a square, not only a colour */
+  .wg-temp .dots i[data-look='off'] { border-radius: 3px; } /* sensor offline: a square, not only a colour */
   .wg-temp .lst { display: grid; gap: 6px; }
-  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 4px; }  sourceMappingURL=[^*]**/ GATE-FIX-2270: no negative inline margin - the row (and its hover fill) stays inside the list box; the text keeps its 4 px inset */
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
+  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 4px; } /* GATE-FIX-2270: no negative inline margin - the row (and its hover fill) stays inside the list box; the text keeps its 4 px inset */
+  /* POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
      focus ring (transform and colour only, token durations - zero under reduced motion) */
   .tw-row, .tw-card { transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
   .tw-row:active { transform: scale(0.985); }
@@ -14821,7 +14821,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .tw-row:hover { background: color-mix(in srgb, var(--sw-text) 6%, transparent); }
     .tw-card:hover { box-shadow: var(--sw-shadow-2); border-color: color-mix(in srgb, var(--tw) 55%, var(--sw-border)); }
   }
-   sourceMappingURL=[^*]**/ the state dot carries a soft halo of its colour (the KPI dots of the temperature screen) */
+  /* the state dot carries a soft halo of its colour (the KPI dots of the temperature screen) */
   .tw-row i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--tw); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tw) 18%, transparent); }
   .tw-row .nm { flex: 1; font-weight: 600; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tw-row .vv { font-variant-numeric: tabular-nums; direction: ltr; white-space: nowrap; }
@@ -14830,7 +14830,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .wg-temp .none { color: var(--sw-text-2); font-size: var(--sw-fs-base); }
   .wg.wg-temp-cards { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; overflow: visible; }
   .tw-cards { display: flex; flex-wrap: wrap; gap: 10px; }
-   sourceMappingURL=[^*]**/ round 2 (impeccable detector: the 4 px side stripe was a slop tell): the unit card is a flat tinted field of its state with a dot before the name */
+  /* round 2 (impeccable detector: the 4 px side stripe was a slop tell): the unit card is a flat tinted field of its state with a dot before the name */
   .tw-card {
     display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--sw-r-md, 20px); text-decoration: none; color: var(--sw-text);
     background: color-mix(in srgb, var(--tw) 7%, var(--sw-surface));
@@ -14946,7 +14946,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .wg-xs .xm-sum b { color: var(--sw-text); font-weight: var(--sw-fw-bold); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
   .wg-xs .xm-sum .al { color: var(--sw-danger-text, var(--sw-danger)); font-weight: var(--sw-fw-semibold); }
   .wg-xs .xm-sum .xi, .wg-xs .xm-mk .xi, .wg-xs .xm-lc .xi { inline-size: 12px; block-size: 12px; flex: none; }
-   sourceMappingURL=[^*]**/ the building: a roof line, the slabs, a ground line between the floors above and below ground */
+  /* the building: a roof line, the slabs, a ground line between the floors above and below ground */
   .wg-xs .xm-b { --xr: 18px; display: flex; flex-direction: column; gap: 3px; min-inline-size: 0; padding-block-start: 4px; border-block-start: 2px solid var(--sw-border-strong); }
   .wg-xs[data-size='s'] .xm-b { --xr: 14px; gap: 2px; }
   .wg-xs[data-size='l'] .xm-b { --xr: 20px; }
@@ -14967,7 +14967,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .wg-xs .xm-slab[data-tint='2'] { background: color-mix(in srgb, var(--sw-lit) 50%, var(--sw-surface-2)); color: var(--sw-text); }
   .wg-xs .xm-slab[data-tint='3'] { background: color-mix(in srgb, var(--sw-lit) 80%, var(--sw-surface-2)); color: var(--sw-text); }
   .wg-xs .xm-r.below .xm-slab[data-tint='0'] { background: color-mix(in srgb, var(--sw-surface-2) 70%, var(--sw-surface-3)); }
-   sourceMappingURL=[^*]**/ no data: an outline, no fill - said in words in the name */
+  /* no data: an outline, no fill - said in words in the name */
   .wg-xs .xm-slab[data-off] { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text-3); }
   .wg-xs .xm-r[data-alarm] .xm-slab { box-shadow: inset 0 0 0 2px var(--sw-danger); }
   .wg-xs .xm-slab:focus-visible, .wg-xs .xm-lc:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
@@ -15069,7 +15069,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       visibility: visible;
       transition: transform var(--sw-t-sheet) var(--sw-ease-thumb), opacity 250ms var(--sw-ease-dialog), visibility 0s;
     }
-     sourceMappingURL=[^*]**/ the grabber: a 44 px in-flow row of the sheet (never over the content), shown in the bottom-sheet layout only */
+    /* the grabber: a 44 px in-flow row of the sheet (never over the content), shown in the bottom-sheet layout only */
     .grab {
       display: none;
       flex: none;
@@ -15118,7 +15118,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex: 1;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the close button: a round target of the touch size (44 px on a phone and by default on a desktop; the look dial may say 32) */
+    /* the close button: a round target of the touch size (44 px on a phone and by default on a desktop; the look dial may say 32) */
     .x {
       flex: none;
       inline-size: var(--sw-touch-desktop);
@@ -15174,7 +15174,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     footer[hidden] {
       display: none;
     }
-     sourceMappingURL=[^*]**/ the content focuses in as the sheet lands (the Bubble intro video) */
+    /* the content focuses in as the sheet lands (the Bubble intro video) */
     :host([open]) .body > ::slotted(*) {
       animation: focus-in var(--sw-t-sheet) var(--sw-ease-dialog) both;
     }
@@ -15190,7 +15190,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         transform: none;
       }
     }
-     sourceMappingURL=[^*]**/ ---- bottom sheet (phone, kind sheet) ---- */
+    /* ---- bottom sheet (phone, kind sheet) ---- */
     :host([data-layout='bottom']) .sheet {
       top: auto;
       bottom: 0;
@@ -15217,11 +15217,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([data-layout='bottom']) header {
       padding-block-start: 0;
     }
-     sourceMappingURL=[^*]**/ ---- centred on a phone: full width with a 16 px inset ---- */
+    /* ---- centred on a phone: full width with a 16 px inset ---- */
     :host([data-layout='centred-phone']) .sheet {
       inline-size: calc(100% - 32px);
     }
-     sourceMappingURL=[^*]**/ ---- inline: an in-flow panel, no backdrop, never over anything ---- */
+    /* ---- inline: an in-flow panel, no backdrop, never over anything ---- */
     :host([data-layout='inline']) {
       display: block;
     }
@@ -15247,13 +15247,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       -webkit-mask-image: none;
       mask-image: none;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP1: an opaque sheet on request (a form) - no glass, no blur behind its own surface */
+    /* POLISH4-WP1: an opaque sheet on request (a form) - no glass, no blur behind its own surface */
     :host([solid]) .sheet {
       background: var(--sw-surface-solid);
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
     }
-     sourceMappingURL=[^*]**/ no blur, or the OS asks for less transparency: solid (the skin contract) */
+    /* no blur, or the OS asks for less transparency: solid (the skin contract) */
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
       .sheet {
         background: var(--sw-surface-solid);
@@ -15445,7 +15445,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     background: var(--sw-accent);
     color: var(--sw-text-inverse);
   }
-   sourceMappingURL=[^*]**/ the quick actions as pills: a row in the band, a column in the side panel and on a phone */
+  /* the quick actions as pills: a row in the band, a column in the side panel and on a phone */
   :host([data-skin='bubble']) .wg-quick {
     padding: 0;
     background: transparent;
@@ -15454,7 +15454,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) .wg-quick .wg-h {
     padding: 4px 10px 0;
   }
-   sourceMappingURL=[^*]**/ room for the ring, the label and the round button on one line */
+  /* room for the ring, the label and the round button on one line */
   :host([layout='hero'][data-skin='bubble']) .wg-quick,
   :host([layout='row'][data-skin='bubble']) .wg-quick {
     flex-basis: 300px;
@@ -15547,7 +15547,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([hidden]) {
       display: none;
     }
-     sourceMappingURL=[^*]**/ size tiers: .only-s / .only-m / .only-l show in one size; .ge-m from medium up */
+    /* size tiers: .only-s / .only-m / .only-l show in one size; .ge-m from medium up */
     [data-size='s'] :is(.only-m, .only-l, .ge-m) {
       display: none !important;
     }
@@ -15562,7 +15562,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       gap: 12px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ MULTIBUILDING-HOME-2330: the scope a level-following widget speaks for ("אתר" / "בניין א"), quiet, in the card's top corner */
+    /* MULTIBUILDING-HOME-2330: the scope a level-following widget speaks for ("אתר" / "בניין א"), quiet, in the card's top corner */
     .wg-scope {
       position: absolute;
       inset-block-start: 6px;
@@ -15604,7 +15604,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding: 12px 14px;
       gap: 4px;
     }
-     sourceMappingURL=[^*]**/ HOME polish (2026-10-10): a state change (the alarm's tone, a chip's dot, a button's wash) fades in; nothing moves under
+    /* HOME polish (2026-10-10): a state change (the alarm's tone, a chip's dot, a button's wash) fades in; nothing moves under
        reduced motion */
     @media (prefers-reduced-motion: no-preference) {
       .wg,
@@ -15614,7 +15614,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       .gbtn {
         transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
       }
-       sourceMappingURL=[^*]**/ HOMEFABLE-297 (animation-performance): the alarm pulse is a ring that grows and fades (transform + opacity on a pseudo-element,
+      /* HOMEFABLE-297 (animation-performance): the alarm pulse is a ring that grows and fades (transform + opacity on a pseudo-element,
          composited), not a box-shadow repainted every frame */
       .wg-alarm[data-tone='err'] .aic::after {
         animation: al-pulse 1.6s var(--sw-ease-out) infinite;
@@ -15640,7 +15640,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         opacity: 0;
       }
     }
-     sourceMappingURL=[^*]**/ HOMEFABLE-297 (impeccable typeset): the widget's name is a real heading - 14.5 px bold in the heading ink, the icon in the accent */
+    /* HOMEFABLE-297 (impeccable typeset): the widget's name is a real heading - 14.5 px bold in the heading ink, the icon in the accent */
     .wg-h {
       display: flex;
       align-items: center;
@@ -15685,7 +15685,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       block-size: 1em;
       flex: none;
     }
-     sourceMappingURL=[^*]**/ ---- clock ---- */
+    /* ---- clock ---- */
     .hm {
       font-size: var(--hm, 56px);
       font-weight: var(--sw-fw-medium);
@@ -15731,7 +15731,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
-       sourceMappingURL=[^*]**/ WIDGETBREAK-297: the Hebrew date comes from a sensor the installer picked; a long state ends in an ellipsis (the full text is the tooltip) */
+      /* WIDGETBREAK-297: the Hebrew date comes from a sensor the installer picked; a long state ends in an ellipsis (the full text is the tooltip) */
       overflow: hidden;
       text-overflow: ellipsis;
       max-inline-size: 100%;
@@ -15739,7 +15739,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .wg-clock[data-size='s'] .d1 {
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ ---- weather ---- */
+    /* ---- weather ---- */
     .wg-weather {
       background: linear-gradient(160deg, var(--sky1, rgba(120, 180, 255, 0.26)), var(--sky2, rgba(255, 206, 120, 0.16)) 70%), var(--sw-surface);
     }
@@ -15747,7 +15747,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: flex;
       align-items: center;
       gap: 12px;
-      min-inline-size: 0;  sourceMappingURL=[^*]**/ P6 item 3: the measures column wraps inside the card at 105 C / 100% / 187.4 km/h instead of leaving it */
+      min-inline-size: 0; /* P6 item 3: the measures column wraps inside the card at 105 C / 100% / 187.4 km/h instead of leaving it */
     }
     .wx-ic {
       inline-size: var(--wxi, 44px);
@@ -15778,7 +15778,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       unicode-bidi: isolate;
       display: inline-block;
       text-align: start;
-       sourceMappingURL=[^*]**/ WORSTCASE-2310: a reading that still does not fit its column (105 °C, a sensor in °F with decimals) ends in an ellipsis inside
+      /* WORSTCASE-2310: a reading that still does not fit its column (105 °C, a sensor in °F with decimals) ends in an ellipsis inside
          the column instead of running under the condition glyph; the full reading is the tooltip */
       max-inline-size: 100%;
       overflow: hidden;
@@ -15854,7 +15854,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     }
     .fc .hl {
       display: flex;
-       sourceMappingURL=[^*]**/ WIDGETBREAK-297: in a narrow card the high and the low stack instead of crossing into the next day's column */
+      /* WIDGETBREAK-297: in a narrow card the high and the low stack instead of crossing into the next day's column */
       flex-wrap: wrap;
       justify-content: center;
       column-gap: 5px;
@@ -15865,7 +15865,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-style: normal;
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ ---- shabbat ---- */
+    /* ---- shabbat ---- */
     .wg-shabbat {
       background: linear-gradient(160deg, rgba(255, 184, 86, 0.26), rgba(255, 184, 86, 0.04) 75%), var(--sw-surface);
     }
@@ -15881,7 +15881,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .sub {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
-       sourceMappingURL=[^*]**/ WIDGETBREAK-297: the holiday and the date lines come from sensors; an unbreakable value wraps inside the card */
+      /* WIDGETBREAK-297: the holiday and the date lines come from sensors; an unbreakable value wraps inside the card */
       overflow-wrap: anywhere;
       min-inline-size: 0;
     }
@@ -15939,7 +15939,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-warning-text);
       font-weight: var(--sw-fw-semibold);
     }
-     sourceMappingURL=[^*]**/ ---- alarm ---- */
+    /* ---- alarm ---- */
     .wg-alarm {
       flex-direction: row;
       align-items: center;
@@ -16008,13 +16008,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       inline-size: 12px;
       block-size: 12px;
     }
-     sourceMappingURL=[^*]**/ ---- quick actions ---- */
+    /* ---- quick actions ---- */
     .qa {
       display: flex;
       flex-direction: column;
       gap: 7px;
     }
-     sourceMappingURL=[^*]**/ HOMEFABLE-297 (apple-design materials, emil press): a quick action is a raised key - a tone step up from the card, the ladder's first
+    /* HOMEFABLE-297 (apple-design materials, emil press): a quick action is a raised key - a tone step up from the card, the ladder's first
        shadow, a 14.5 px semibold label - and it sinks on press (scale from the skin's press token, 120 ms, instant on pointer-down) */
     .qbtn {
       display: flex;
@@ -16083,7 +16083,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding: 0 6px;
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ ---- media (CR-015): the screens that are on, as chips that open the remote ---- */
+    /* ---- media (CR-015): the screens that are on, as chips that open the remote ---- */
     .wg-media {
       flex-direction: row;
       align-items: center;
@@ -16183,7 +16183,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       overflow: hidden;
       text-overflow: ellipsis;
     }
-     sourceMappingURL=[^*]**/ POLISH2-295 (owner feedback 2026-10-25): medium and large are one header line and one row - the counts inline, the chips
+    /* POLISH2-295 (owner feedback 2026-10-25): medium and large are one header line and one row - the counts inline, the chips
        beside them on the same row (a narrow card puts the chips under the counts, still one row of them); the card is as tall as its
        content, not the band's fixed minimum (a card beside it in the band still stretches it to the band's height) */
     .wg-media .mrow {
@@ -16235,7 +16235,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ ---- ghosts (edit mode: a widget that is off or not available) ---- */
+    /* ---- ghosts (edit mode: a widget that is off or not available) ---- */
     .wg.ghost {
       border: 2px dashed var(--sw-border-strong);
       background: var(--sw-surface-2);
@@ -16279,8 +16279,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .gbtn:active {
       background: var(--sw-pressed-wash);
     }
-     sourceMappingURL=[^*]**/ ---- edit chrome on every shown widget ---- */
-     sourceMappingURL=[^*]**/ POLISH4-WP4 (D2): the room under the content for the edit bar is reserved in HOME_EDIT_BAR_STYLES (the last sheet), from the
+    /* ---- edit chrome on every shown widget ---- */
+    /* POLISH4-WP4 (D2): the room under the content for the edit bar is reserved in HOME_EDIT_BAR_STYLES (the last sheet), from the
        bar's measured height */
     :host([editing]) .wg:not(.ghost) {
       outline: 2px solid var(--sw-accent);
@@ -16299,7 +16299,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: flex;
       align-items: center;
       gap: 6px;
-       sourceMappingURL=[^*]**/ WIDGETBREAK-297: the edit controls wrap in a 240 px card instead of leaving it; POLISH4-WP4 (D2): the card reserves the
+      /* WIDGETBREAK-297: the edit controls wrap in a 240 px card instead of leaving it; POLISH4-WP4 (D2): the card reserves the
          wrapped bar's whole height (--wg-e-h), and the radius is a token (a pill reads badly once the bar takes two rows) */
       flex-wrap: wrap;
       row-gap: 2px;
@@ -16320,7 +16320,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-text-3);
       cursor: grab;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP4 (D2): the wash only under a pointer that hovers (it stuck after a tap), a press wash on pointer-down */
+    /* POLISH4-WP4 (D2): the wash only under a pointer that hovers (it stuck after a tap), a press wash on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .grip:hover,
       .eb:hover:not(:disabled) {
@@ -16380,7 +16380,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       border-radius: var(--sw-r-pill);
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP4 (D2): a 44 px target for every edit control on touch (26 px on a mouse) */
+    /* POLISH4-WP4 (D2): a 44 px target for every edit control on touch (26 px on a mouse) */
     @media (pointer: coarse) {
       .grip,
       .eb {
@@ -16404,19 +16404,19 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
-     sourceMappingURL=[^*]**/ QUICKHIDE-295: with the quick actions hidden by the setting the notices card is not held to its natural width: it takes the rest of its row */
+    /* QUICKHIDE-295: with the quick actions hidden by the setting the notices card is not held to its natural width: it takes the rest of its row */
     :host([quick-hidden]) .wg.wg-notices {
       max-inline-size: none;
     }
-     sourceMappingURL=[^*]**/ ================= directions ================= */
-     sourceMappingURL=[^*]**/ a: control centre - a hero band */
+    /* ================= directions ================= */
+    /* a: control centre - a hero band */
     :host([layout='hero']) .wrap {
       flex-wrap: wrap;
       align-items: stretch;
     }
     :host([layout='hero']) .wg {
       flex: 1 1 var(--wb, 210px);
-       sourceMappingURL=[^*]**/ HOMEINFO-295: with few widgets the cards keep a natural width instead of stretching across the row */
+      /* HOMEINFO-295: with few widgets the cards keep a natural width instead of stretching across the row */
       max-inline-size: calc(var(--wb, 210px) * 1.5);
     }
     :host([layout='hero']) .wg[data-size='s'] {
@@ -16494,7 +16494,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       column-gap: 10px;
       row-gap: 8px;
     }
-     sourceMappingURL=[^*]**/ WORSTCASE-2310: in this grid the measures column takes its natural width first and the temperature gets the rest - at 1440 the
+    /* WORSTCASE-2310: in this grid the measures column takes its natural width first and the temperature gets the rest - at 1440 the
        large card is ~300 px, so "28°C" at 50 px (101 px) had a 94 px column and ran under the glyph. The temperature now scales with
        its own column (a container on the 1fr cell, which already ignores its content's width there) and keeps --wxt as its ceiling:
        wider cards look exactly as before, the 1440 card shows the reading at ~45 px instead of cutting it */
@@ -16516,7 +16516,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex-direction: column;
       gap: 6px;
     }
-     sourceMappingURL=[^*]**/ b: side panel - a column */
+    /* b: side panel - a column */
     :host([layout='side']) .wrap {
       flex-direction: column;
       gap: 12px;
@@ -16585,7 +16585,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([layout='side']) .wg-quick[data-size='l'] .qbtn {
       flex: 1 1 120px;
     }
-     sourceMappingURL=[^*]**/ c: compact single row */
+    /* c: compact single row */
     :host([layout='row']) .wrap {
       gap: 10px;
       align-items: stretch;
@@ -16640,7 +16640,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --als: 16px;
       flex-grow: 1.4;
     }
-     sourceMappingURL=[^*]**/ HOME-295: the new home's info row packs tighter with the fit steps (a control screen never scrolls) */
+    /* HOME-295: the new home's info row packs tighter with the fit steps (a control screen never scrolls) */
     :host([layout='row'][data-fit='1']) .wg,
     :host([layout='row'][data-fit='2']) .wg {
       --wh: 72px;
@@ -16711,7 +16711,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([layout='row'][data-fit='2']) .wg {
       --wh: 62px;
     }
-     sourceMappingURL=[^*]**/ phone: widgets as a horizontal snap row */
+    /* phone: widgets as a horizontal snap row */
     :host([layout='snap']) .wrap {
       overflow-x: auto;
       scroll-snap-type: x mandatory;
@@ -16727,7 +16727,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       scroll-snap-align: start;
       min-block-size: var(--sh, 150px);
     }
-     sourceMappingURL=[^*]**/ one card under the other: every card the full width (the phone default) */
+    /* one card under the other: every card the full width (the phone default) */
     :host([layout='stack']) .wrap {
       flex-direction: column;
       gap: 10px;
@@ -16736,7 +16736,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex: none;
       min-block-size: var(--sh, 96px);
     }
-     sourceMappingURL=[^*]**/ two per row (wrapping): small and medium cards share a row, a large one takes the whole row */
+    /* two per row (wrapping): small and medium cards share a row, a large one takes the whole row */
     :host([layout='two']) .wrap {
       flex-wrap: wrap;
       gap: 10px;
@@ -16783,16 +16783,16 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       --ali: 46px;
       --als: 18px;
     }
-     sourceMappingURL=[^*]**/ POLISH2-295: the media card's height is its content (one header line and one row), in every direction and on a phone; kept last
+    /* POLISH2-295: the media card's height is its content (one header line and one row), in every direction and on a phone; kept last
        so it outranks the band's per-size minimums above (a card beside it in the same band still stretches it) */
     :host([layout]) .wg.wg-media[data-size='m'],
     :host([layout]) .wg.wg-media[data-size='l'] {
       min-block-size: 0;
       gap: 8px;
-       sourceMappingURL=[^*]**/ FIX2220: the chips sit beside the counts (POLISH2), so the HOMEINFO natural-width cap of the other cards is not this card's */
+      /* FIX2220: the chips sit beside the counts (POLISH2), so the HOMEINFO natural-width cap of the other cards is not this card's */
       max-inline-size: none;
     }
-     sourceMappingURL=[^*]**/ FIX2220: since HOME-295 the cards are the info row of the cards view by default, five on one row: at 1440 the clock card is
+    /* FIX2220: since HOME-295 the cards are the info row of the cards view by default, five on one row: at 1440 the clock card is
        ~290 px and the weather card cuts its forecast, at the 1024 tablet the cards are 150-195 px. Each card answers its OWN width
        (a container query): the clock puts its date under the time, the weather drops the forecast and then the facts, the media card
        stacks its two counts; a line that is still too long ends in an ellipsis instead of being cut at the card's edge. */
@@ -16808,7 +16808,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-overflow: ellipsis;
     }
     @container wg (max-width: 340px) {
-       sourceMappingURL=[^*]**/ (a container query adds no specificity: the row layout's own .wg-b rule is outranked by naming the host the same way) */
+      /* (a container query adds no specificity: the row layout's own .wg-b rule is outranked by naming the host the same way) */
       :host([layout='row']) .wg-clock .wg-b {
         flex-direction: column;
         align-items: flex-start;
@@ -16841,7 +16841,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         text-overflow: ellipsis;
       }
     }
-     sourceMappingURL=[^*]**/ WIDGETFIX-298: the infrastructure cards (elevators, temperature, generator, doors, notices) are a heading, a highlight and a list
+    /* WIDGETFIX-298: the infrastructure cards (elevators, temperature, generator, doors, notices) are a heading, a highlight and a list
        written one under the other; the row band's card is a flex ROW (built for the clock / weather), which laid those parts side by
        side and squeezed the names to 0 px. In the row band they keep their own top-to-bottom order. */
     :host([layout='row']) .wg:is(.wg-elev, .wg-temp, .wg-gen, .wg-doors, .wg-notices, .wg-pres) {
@@ -16850,7 +16850,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       justify-content: center;
       gap: 6px;
     }
-     sourceMappingURL=[^*]**/ the row band is the compact strip: the elevators card is its heading line and one line per elevator (the highlight repeats the
+    /* the row band is the compact strip: the elevators card is its heading line and one line per elevator (the highlight repeats the
        first line, and the stacked narrow-card form is kept for a card under 220 px) */
     :host([layout='row']) .wg-elev:not([data-size='s']) .el-big,
     :host([layout='row']) .wg-elev[data-size='l'] .dots {
@@ -16873,7 +16873,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([layout='row']) .wg-elev .lst {
       gap: 4px;
     }
-     sourceMappingURL=[^*]**/ a narrow temperature card: a wide reading puts the unit's name under it instead of squeezing the name away */
+    /* a narrow temperature card: a wide reading puts the unit's name under it instead of squeezing the name away */
     :host([layout='row']) .wg-temp .tw-big {
       flex-wrap: wrap;
       row-gap: 2px;
@@ -16881,7 +16881,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([layout='row']) .wg-temp .tw-big .t {
       flex: 1 1 72px;
     }
-     sourceMappingURL=[^*]**/ a narrow generator card: its state takes two lines before it ends in an ellipsis */
+    /* a narrow generator card: its state takes two lines before it ends in an ellipsis */
     :host([layout='row']) .wg-gen .gw-big .t b {
       white-space: normal;
       overflow-wrap: anywhere;
@@ -16890,7 +16890,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       -webkit-line-clamp: 2;
       line-clamp: 2;
     }
-     sourceMappingURL=[^*]**/ the weather card in the row band: the forecast shows the whole days that fit (the others wrap to a hidden second line) instead of
+    /* the weather card in the row band: the forecast shows the whole days that fit (the others wrap to a hidden second line) instead of
        being cut at the card's edge, and a fact line too long for the card ends in an ellipsis */
     :host([layout='row']) .wg-weather .wx-fc {
       flex: 1 1 0;
@@ -16916,7 +16916,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       margin-inline-end: 5px;
     }
     @container wg (max-width: 340px) {
-       sourceMappingURL=[^*]**/ the step before the facts drop (250 px): two facts, so a long value is not cut */
+      /* the step before the facts drop (250 px): two facts, so a long value is not cut */
       :host([layout='row']) .wg-weather .wx-m span:nth-child(n + 3) {
         display: none;
       }
@@ -16974,7 +16974,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       align-items: center;
       gap: var(--sw-s-4);
       min-block-size: var(--sw-ctl-h-lg);
-      box-sizing: border-box;  sourceMappingURL=[^*]**/ GATE-FIX-2270: one control row high, its 1 px border included (R5 large control = 40 px; it drew 42) */
+      box-sizing: border-box; /* GATE-FIX-2270: one control row high, its 1 px border included (R5 large control = 40 px; it drew 42) */
       padding-inline: var(--sw-s-3);
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface);
@@ -17027,7 +17027,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .alarm[data-tone='ok'] sw-icon {
       color: inherit;
     }
-     sourceMappingURL=[^*]**/ HOMEEDIT-POLISH-2331: a triggered alarm is the one thing in the strip that must not be missed - a filled danger chip, not a red word */
+    /* HOMEEDIT-POLISH-2331: a triggered alarm is the one thing in the strip that must not be missed - a filled danger chip, not a red word */
     .alarm[data-tone='err'] {
       color: var(--sw-danger-text);
       font-weight: var(--sw-fw-semibold);
@@ -17070,7 +17070,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       .part svg {
         display: none;
       }
-       sourceMappingURL=[^*]**/ the phone keeps a triggered alarm (was hidden with the rest): the chip with its icon, the word "אזעקה" dropped for width */
+      /* the phone keeps a triggered alarm (was hidden with the rest): the chip with its icon, the word "אזעקה" dropped for width */
       .alarm[data-tone='err'] .al-l {
         display: none;
       }
@@ -17138,7 +17138,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       content: '';
       position: absolute;
       inset-block: -8px;
-      inset-inline: -7px;  sourceMappingURL=[^*]**/ 30 + 14 = 44 px wide, 28 + 16 = 44 px tall */
+      inset-inline: -7px; /* 30 + 14 = 44 px wide, 28 + 16 = 44 px tall */
     }
   }
   .tl-menu {
@@ -17246,7 +17246,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     cursor: pointer;
   }
 `,joe=P`
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- quick actions (tile and row share the builder) */
+  /* ---------------------------------------------------------------- quick actions (tile and row share the builder) */
   .qa {
     position: relative;
     display: flex;
@@ -17342,7 +17342,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     inline-size: 28px;
     padding: 0;
   }
-   sourceMappingURL=[^*]**/ the bubble skin: every control meets its touch dial (the layout guard: the desktop dial above 1100 px, 44 px on a touch layout) */
+  /* the bubble skin: every control meets its touch dial (the layout guard: the desktop dial above 1100 px, 44 px on a touch layout) */
   :host([data-skin='bubble']) .qa .qb,
   :host([data-skin='bubble']) .treebtn {
     block-size: auto;
@@ -17358,13 +17358,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       min-inline-size: 44px;
     }
   }
-   sourceMappingURL=[^*]**/ the narrowest phone in bubble: the touch-sized actions leave the row the name only (as the landscape tablet below drops the temperature) */
+  /* the narrowest phone in bubble: the touch-sized actions leave the row the name only (as the landscape tablet below drops the temperature) */
   @media (max-width: 359px) {
     :host([data-skin='bubble']) .arow-q .arow .tm {
       display: none;
     }
   }
-   sourceMappingURL=[^*]**/ the blinds' count button opens open / stop / close beside it */
+  /* the blinds' count button opens open / stop / close beside it */
   .cmenu {
     position: absolute;
     inset-block-end: calc(100% + 4px);
@@ -17379,8 +17379,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     box-shadow: var(--sw-shadow-3);
   }
 
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- the tile with its quick row (tiles view) */
-   sourceMappingURL=[^*]**/ the tiles' width holds the quick row (the mockup: 222 px at 1440; the fit steps go no lower than 188 px) */
+  /* ---------------------------------------------------------------- the tile with its quick row (tiles view) */
+  /* the tiles' width holds the quick row (the mockup: 222 px at 1440; the fit steps go no lower than 188 px) */
   :host .floors {
     --tw: 214px;
   }
@@ -17400,8 +17400,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     padding-block-end: 44px;
     min-block-size: 96px;
   }
-   sourceMappingURL=[^*]**/ the summary tiles share one row on a control screen (the chosen ones; the labels clip before the row wraps) */
-   sourceMappingURL=[^*]**/ WORSTCASE-2310: ...while each tile keeps --dv-kpi-row-min. On the 1024 px tablet all nine kinds shared 881 px: 79 px tiles, a
+  /* the summary tiles share one row on a control screen (the chosen ones; the labels clip before the row wraps) */
+  /* WORSTCASE-2310: ...while each tile keeps --dv-kpi-row-min. On the 1024 px tablet all nine kinds shared 881 px: 79 px tiles, a
      13 px text column, "1284 / 2047" cut and the label gone. When the one-row share (--k1) is under the minimum, the row splits into
      two balanced rows (--kh = ceil(kn / 2) columns, --k2 each) instead of squeezing - the second term below is --k2 exactly when --k1
      is too small and never above --k1 otherwise, so a desktop row (and the pixel baselines) keeps its single row. 10 px = the gap.
@@ -17437,7 +17437,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
   a.tile[data-bad] {
     border-color: color-mix(in srgb, var(--sw-danger) 70%, transparent);
-    background: var(--sw-danger-soft);  sourceMappingURL=[^*]**/ HOMEFABLE-297: a solid status field, as the lit tile */
+    background: var(--sw-danger-soft); /* HOMEFABLE-297: a solid status field, as the lit tile */
   }
   a.tile .sub {
     font-size: var(--sw-fs-sm);
@@ -17463,7 +17463,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--sw-text-3);
   }
 
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- the cards-mode area row with its quick actions */
+  /* ---------------------------------------------------------------- the cards-mode area row with its quick actions */
   .arow-q {
     display: flex;
     align-items: center;
@@ -17479,7 +17479,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .arow-q .arow {
     border-block-start: 0;
   }
-   sourceMappingURL=[^*]**/ WORSTCASE-2310: the reading yields only after the name reached its minimum (devices-building .arow .tm): an ellipsis, the value in
+  /* WORSTCASE-2310: the reading yields only after the name reached its minimum (devices-building .arow .tm): an ellipsis, the value in
      the tooltip, instead of running under the "⋯" and the quick actions */
   .arow .tm {
     flex: 0 1 auto;
@@ -17487,7 +17487,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    direction: ltr;  sourceMappingURL=[^*]**/ a cut reading keeps its leading digits ("21.…"), never only its end */
+    direction: ltr; /* a cut reading keeps its leading digits ("21.…"), never only its end */
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
     color: var(--sw-text-2);
@@ -17503,7 +17503,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-size: var(--sw-fs-xs);
     font-weight: var(--sw-fw-bold);
   }
-   sourceMappingURL=[^*]**/ a landscape tablet: the row keeps the name and the actions (the mockup drops the temperature there) */
+  /* a landscape tablet: the row keeps the name and the actions (the mockup drops the temperature there) */
   @media (min-width: 900px) and (max-width: 1180px) {
     .arow-q .arow .tm,
     .arow-q .arow .btx {
@@ -17514,12 +17514,12 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       gap: 6px;
     }
   }
-   sourceMappingURL=[^*]**/ WORSTCASE-2310: the name's minimum never exceeds what the row has left after its state dot (8 px) and gap (10 px) - a floor card
+  /* WORSTCASE-2310: the name's minimum never exceeds what the row has left after its state dot (8 px) and gap (10 px) - a floor card
      squeezed by two quick actions used to push the name and the reading out of the row */
   .arow-q .arow .nm {
     min-inline-size: min(3.5em, calc(100% - 18px));
   }
-   sourceMappingURL=[^*]**/ WORSTCASE-2310: the quick row's link is sized by what the quick actions leave (they never shrink), never by its own text, so it can
+  /* WORSTCASE-2310: the quick row's link is sized by what the quick actions leave (they never shrink), never by its own text, so it can
      answer its own width: when the dot, the name's minimum and a whole reading no longer fit (a narrow floor card), the reading leaves
      the row - as on the landscape tablet below - instead of being cut to "…5°" */
   .arow-q .arow {
@@ -17530,7 +17530,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: none;
     }
   }
-   sourceMappingURL=[^*]**/ WORSTCASE-2310 (tablet): at 1024 px the three floor cards beside the tree leave each quick row 173 px - two actions (113-147 px)
+  /* WORSTCASE-2310 (tablet): at 1024 px the three floor cards beside the tree leave each quick row 173 px - two actions (113-147 px)
      took all of it and the room's link shrank to 12 px: no name at all, demo data included. Under 200 px a row keeps its FIRST quick
      action (as the portrait tablet does, rowQuickMax) and the name gets the rest; 1180 px (225 px rows) and the desktop keep two. The
      blinds' two direct buttons count as one action; the open blinds menu (.cmenu) is never hidden. Layout containment here is safe: the
@@ -17543,7 +17543,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: none;
     }
   }
-   sourceMappingURL=[^*]**/ HOMEFABLE-297 (impeccable bolder, status clarity): a room with something on is a whole lit row - a solid warm field with its own
+  /* HOMEFABLE-297 (impeccable bolder, status clarity): a room with something on is a whole lit row - a solid warm field with its own
      rounded edge, not a fade that dies halfway across the card; the rows sit as wells inside the floor card (home layout) */
   .arow-q {
     border-radius: var(--sw-r-sm);
@@ -17568,7 +17568,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     box-shadow: inset 0 0 0 1.5px var(--sw-offline);
   }
 
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- floor-off control: two direct buttons */
+  /* ---------------------------------------------------------------- floor-off control: two direct buttons */
   .foff {
     display: inline-flex;
     gap: 6px;
@@ -17604,7 +17604,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     outline-offset: 2px;
   }
 
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- the alerts rows and the no-connection row */
+  /* ---------------------------------------------------------------- the alerts rows and the no-connection row */
   .alerts {
     display: flex;
     gap: 8px;
@@ -17691,7 +17691,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     border: 2px solid currentColor;
     border-inline-end-color: transparent;
     flex: none;
-     sourceMappingURL=[^*]**/ WORSTCASE-2310: the turning ring's bounding box (18 px with its border) grows by up to 41% mid-turn (a rotated square): 4 px each
+    /* WORSTCASE-2310: the turning ring's bounding box (18 px with its border) grows by up to 41% mid-turn (a rotated square): 4 px each
        side keep it inside the reconnect group, whatever the angle the guard catches it at */
     margin-inline: 4px;
   }
@@ -17715,7 +17715,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     }
   }
 
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- more floors: four (three) cards in one row */
+  /* ---------------------------------------------------------------- more floors: four (three) cards in one row */
   .fcards[data-cols='4'] {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -17756,7 +17756,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     border-radius: 0 0 var(--sw-r-sm) var(--sw-r-sm);
     color: var(--sw-text-2);
   }
-   sourceMappingURL=[^*]**/ the screen editor's options card */
+  /* the screen editor's options card */
   .hs-edit {
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-md);
@@ -17770,7 +17770,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--sw-heading);
   }
 
-   sourceMappingURL=[^*]**/ ---------------------------------------------------------------- phone: one floor at a time, the tree in a sheet */
+  /* ---------------------------------------------------------------- phone: one floor at a time, the tree in a sheet */
   .pfl {
     display: flex;
     align-items: center;
@@ -17807,7 +17807,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     cursor: pointer;
   }
   .pfl .segs button[aria-pressed='true'] {
-     sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380 (WCAG 1.4.11): the dark accent read 2.8-2.9:1 from the surface-3 track (classic, infra, soft); dark draws the
+    /* DARK-SEG-ALL-2380 (WCAG 1.4.11): the dark accent read 2.8-2.9:1 from the surface-3 track (classic, infra, soft); dark draws the
        light pill of every segmented control (--sw-seg-key / --sw-seg-key-ink, design/tokens.ts); light keeps the accent key */
     background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-accent)));
     color: var(--sw-seg-on-text, var(--sw-seg-key-ink, var(--sw-text-inverse)));
@@ -17886,7 +17886,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--sw-text-2);
     cursor: pointer;
   }
-   sourceMappingURL=[^*]**/ the tree inside the phone sheet is shown (it is hidden on a narrow screen otherwise) */
+  /* the tree inside the phone sheet is shown (it is hidden on a narrow screen otherwise) */
   .hsheet nav.tree {
     display: flex;
     position: static;
@@ -18092,7 +18092,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     ${d("quick","פעולה מהירה",ql.map(u=>({id:u,name:Cr[u]})))}`}const LR=P`
   .seg {
     display: inline-flex;
-     sourceMappingURL=[^*]**/ VISDIFF-246: the track never gives up width to its row: overflow hidden lets a flex item shrink below its buttons, which
+    /* VISDIFF-246: the track never gives up width to its row: overflow hidden lets a flex item shrink below its buttons, which
        clipped the last segment ("30 דק׳") of the schedules defaults in the page's 300 px side column at tablet widths */
     flex: none;
     max-inline-size: 100%;
@@ -18103,8 +18103,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     padding: var(--sw-seg-pad, 3px);
     gap: var(--sw-seg-gap, 2px);
   }
-   sourceMappingURL=[^*]**/ the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
-   sourceMappingURL=[^*]**/ R5-SYSTEM-297: a segment is a KEY - 14/600, 34 px, the hover only under a pointer that hovers (mobile-native) */
+  /* the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
+  /* R5-SYSTEM-297: a segment is a KEY - 14/600, 34 px, the hover only under a pointer that hovers (mobile-native) */
   .seg button {
     border: 0;
     border-radius: var(--sw-seg-btn-radius, var(--sw-r-sm));
@@ -18128,7 +18128,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
   .seg button[aria-pressed='true'],
   .seg button[aria-selected='true'] {
-     sourceMappingURL=[^*]**/ GATE2370-B: in dark the chosen key is the light pill (--sw-seg-key / --sw-seg-key-ink, design/tokens.ts): the --sw-seg-thumb
+    /* GATE2370-B: in dark the chosen key is the light pill (--sw-seg-key / --sw-seg-key-ink, design/tokens.ts): the --sw-seg-thumb
        lift read ~1.3:1 from the track, a chosen segment needs 3:1 (WCAG 1.4.11); light keeps the card surface + the accent ink */
     background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));
     color: var(--sw-seg-on-fg, var(--sw-seg-key-ink, var(--sw-accent-text)));
@@ -18140,17 +18140,17 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
 `,ele=P`
   :host {
-     sourceMappingURL=[^*]**/ the card step: sw-card reads these (components/sw-card.ts) - the skins keep their material, the step and the title are the settings' */
+    /* the card step: sw-card reads these (components/sw-card.ts) - the skins keep their material, the step and the title are the settings' */
     --sw-card-radius: var(--sw-r-lg);
     --sw-card-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
     --sw-card-title-fs: var(--sw-fs-2xl);
     --sw-card-title-fw: var(--sw-fw-bold);
     --sw-card-pad: 18px;
-     sourceMappingURL=[^*]**/ loop 2 (visible-difference test): the well is a real step down from the card, not a near-white wash - surface-2 pulled a
+    /* loop 2 (visible-difference test): the well is a real step down from the card, not a near-white wash - surface-2 pulled a
        quarter of the way toward the border tone; the skins' own surface-2 / border decide the hue, so domus and crystal stay glass */
     --sw-well: color-mix(in srgb, var(--sw-surface-2) 76%, var(--sw-border));
   }
-   sourceMappingURL=[^*]**/ press feedback (emil-design-eng: a pressable thing gives on pointer-down; 120 ms, transform only) */
+  /* press feedback (emil-design-eng: a pressable thing gives on pointer-down; 120 ms, transform only) */
   .seg button,
   .kpi,
   .skin,
@@ -18409,7 +18409,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     max-inline-size: 880px;
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ R5-SYSTEM-297: a group label is a heading, not a 10 px uppercase smudge (Hebrew has no uppercase to begin with) */
+  /* R5-SYSTEM-297: a group label is a heading, not a 10 px uppercase smudge (Hebrew has no uppercase to begin with) */
   .grouplabel {
     font-size: var(--sw-fs-base);
     font-weight: var(--sw-fw-bold);
@@ -18421,14 +18421,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .grouplabel:not(:first-child) {
     margin-block-start: var(--sw-s-4);
   }
-   sourceMappingURL=[^*]**/ R5-SYSTEM-297: a settings row is a WELL (surface-2, rounded, no hairline) inside the card - the third step of the ladder; the
+  /* R5-SYSTEM-297: a settings row is a WELL (surface-2, rounded, no hairline) inside the card - the third step of the ladder; the
      label reads at a glance (14/600 in the heading ink) and its hint is body-sized secondary text, not an 11 px caption */
   .row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--sw-s-3) var(--sw-s-4);
-     sourceMappingURL=[^*]**/ SETTINGS-INTERCOM-CARDS-2401: a host may draw its rows denser (--sw-set-row-pad / --sw-set-row-gap); unset = as before */
+    /* SETTINGS-INTERCOM-CARDS-2401: a host may draw its rows denser (--sw-set-row-pad / --sw-set-row-gap); unset = as before */
     padding: var(--sw-set-row-pad, 14px 16px);
     border: 0;
     border-radius: var(--sw-r-md);
@@ -18480,7 +18480,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     justify-content: flex-end;
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ R5-SYSTEM-297: a fact row keeps its hairline (a dense list) but its value is a display figure (14.5/700 in the heading ink, tabular)
+  /* R5-SYSTEM-297: a fact row keeps its hairline (a dense list) but its value is a display figure (14.5/700 in the heading ink, tabular)
      and a toned value is a FILLED pill, not a coloured word (status as a field) */
   .check {
     display: flex;
@@ -18573,7 +18573,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .msg sw-icon {
     flex: none;
   }
-   sourceMappingURL=[^*]**/ the old plain-text lines: kept as classes so nothing breaks, now with the same tones */
+  /* the old plain-text lines: kept as classes so nothing breaks, now with the same tones */
   .ok {
     color: var(--sw-success-text);
     font-size: var(--sw-fs-xs);
@@ -18644,7 +18644,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   }
   ${LR}
   ${tle}
-   sourceMappingURL=[^*]**/ a value the control itself rejects (min / max / pattern / required) after the user touched it, or one the screen marked */
+  /* a value the control itself rejects (min / max / pattern / required) after the user touched it, or one the screen marked */
   input[aria-invalid='true'],
   select[aria-invalid='true'],
   textarea[aria-invalid='true'],
@@ -18670,7 +18670,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-   sourceMappingURL=[^*]**/ the bubble skin is frozen (unit-bubble-freeze-295): its rows keep the hairline list and its cards their own material */
+  /* the bubble skin is frozen (unit-bubble-freeze-295): its rows keep the hairline list and its cards their own material */
   :host([data-skin='bubble']) {
     --sw-card-radius: initial;
     --sw-card-shadow: initial;
@@ -18830,7 +18830,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         display: block;
         --he-well: color-mix(in srgb, var(--sw-surface-2) 76%, var(--sw-border));
         --sw-seg-h: var(--sw-ctl-h-md);
-         sourceMappingURL=[^*]**/ HOME-EDIT-DRAWER-2351: the panel lays itself out by its OWN width (the drawer is ~340-420 px on a wide screen) */
+        /* HOME-EDIT-DRAWER-2351: the panel lays itself out by its OWN width (the drawer is ~340-420 px on a wide screen) */
         container-type: inline-size;
       }
       :host([flat]) .home-edit {
@@ -18979,7 +18979,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         color: var(--sw-text-3);
         cursor: default;
       }
-       sourceMappingURL=[^*]**/ the widgets: one list of wells */
+      /* the widgets: one list of wells */
       .wl {
         display: flex;
         flex-direction: column;
@@ -18999,11 +18999,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         border-color: var(--sw-accent);
         background: var(--sw-surface-2);
       }
-       sourceMappingURL=[^*]**/ a widget that is off: its name and its phone line step back; the switch itself keeps full contrast (was the whole row at 70 %) */
+      /* a widget that is off: its name and its phone line step back; the switch itself keeps full contrast (was the whole row at 70 %) */
       .w.off .w-name {
         color: var(--sw-text-3);
       }
-       sourceMappingURL=[^*]**/ DARK-REVIEW-2342: by the muted ink instead of opacity 0.6 (which read 3.4-3.8:1 on the dark well, 2.7-3.1:1 in light; the
+      /* DARK-REVIEW-2342: by the muted ink instead of opacity 0.6 (which read 3.4-3.8:1 on the dark well, 2.7-3.1:1 in light; the
          placement select on that line is still live) - the same step back as the name */
       .w.off .w-phone {
         color: var(--sw-text-3);
@@ -19185,7 +19185,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           grid-template-columns: minmax(0, 1fr);
         }
       }
-       sourceMappingURL=[^*]**/ HOME-EDIT-DRAWER-2351: narrow by its own width (the drawer): one column, the field label over its picker, the extra
+      /* HOME-EDIT-DRAWER-2351: narrow by its own width (the drawer): one column, the field label over its picker, the extra
          calendar field's title under its sensor - the phone's arrangement without the phone's 44 px targets */
       @container (max-width: 640px) {
         .home-edit {
@@ -19207,7 +19207,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
           grid-row: 2;
         }
       }
-       sourceMappingURL=[^*]**/ a phone: one column of controls, 44 px targets, the extra calendar field's title under its sensor */
+      /* a phone: one column of controls, 44 px targets, the extra calendar field's title under its sensor */
       @media (max-width: 767px) {
         :host {
           --sw-seg-h: var(--sw-touch-desktop);
@@ -19272,7 +19272,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       <sw-button size="sm" variant="primary" icon="check" data-home-drawer-save ?disabled=${e.busy||!e.dirty} @click=${e.onSave}>שמור</sw-button>
     </footer>
   </aside>`}function cle(e,t){return o`<button type="button" class="he-tog" data-home-drawer-toggle aria-controls=${PR} aria-expanded=${String(e)} @click=${t}><sw-icon name="home" size=${15}></sw-icon>הגדרות המסך</button>`}const dle=P`
-   sourceMappingURL=[^*]**/ the drawer is wider than the card panel was (300 px): the widget rows and the entity pickers need the room */
+  /* the drawer is wider than the card panel was (300 px): the widget rows and the entity pickers need the room */
   :host([data-lay-editing]) {
     --lay-panel: clamp(340px, 27vw, 420px);
   }
@@ -19388,7 +19388,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: -2px;
   }
-   sourceMappingURL=[^*]**/ the ONE scroll container of edit mode: the page beside it stays put */
+  /* the ONE scroll container of edit mode: the page beside it stays put */
   .he-db {
     flex: 1;
     min-block-size: 0;
@@ -19404,7 +19404,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .he-pane[hidden] {
     display: none;
   }
-   sourceMappingURL=[^*]**/ the card panel of the layout editor, inside the drawer: its own floating box is the drawer now */
+  /* the card panel of the layout editor, inside the drawer: its own floating box is the drawer now */
   .he-drawer .lay-panel {
     position: static;
     inset: auto;
@@ -19432,7 +19432,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-size: var(--sw-fs-md);
     font-weight: var(--sw-fw-bold);
   }
-   sourceMappingURL=[^*]**/ save / cancel: always in view, whatever the body scrolls */
+  /* save / cancel: always in view, whatever the body scrolls */
   .he-df {
     flex: none;
     display: flex;
@@ -19486,7 +19486,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .he-tabs [role='tab']:active {
     transform: scale(var(--sw-press-scale));
   }
-   sourceMappingURL=[^*]**/ OWNER-R12-2341 (8B): below 1200 px a bottom sheet over the lower part of the page (the page keeps 52vh of room under it) */
+  /* OWNER-R12-2341 (8B): below 1200 px a bottom sheet over the lower part of the page (the page keeps 52vh of room under it) */
   @media (max-width: 1199px) {
     .he-drawer {
       inset-block: auto calc(8px + env(safe-area-inset-bottom, 0px));
@@ -19512,9 +19512,9 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       padding-block-start: var(--sw-s-2);
     }
   }
-   sourceMappingURL=[^*]**/ a phone (only when the installation lets the layout editor open there): 44 px targets */
+  /* a phone (only when the installation lets the layout editor open there): 44 px targets */
   @media (max-width: 767px) {
-     sourceMappingURL=[^*]**/ PRE-GATE-2360: the phone's bottom bar sits over the page; the sheet starts above it, or the bar covers save / cancel */
+    /* PRE-GATE-2360: the phone's bottom bar sits over the page; the sheet starts above it, or the bar covers save / cancel */
     .he-drawer {
       inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 8px + env(safe-area-inset-bottom, 0px));
     }
@@ -19565,7 +19565,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
       -webkit-tap-highlight-color: transparent;
     }
-     sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (mobile-native): the lift only under a pointer that hovers; a press gives the same small give as a button */
+    /* POLISH-CLASSIC-DOMUS-297 (mobile-native): the lift only under a pointer that hovers; a press gives the same small give as a button */
     @media (hover: hover) and (pointer: fine) {
       :host([interactive]:hover) {
         border-color: var(--sw-border-strong);
@@ -19579,7 +19579,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       display: flex;
       align-items: center;
       justify-content: space-between;
-       sourceMappingURL=[^*]**/ a host may let the actions drop under the title when both do not fit one line (default: one line, as before) */
+      /* a host may let the actions drop under the title when both do not fit one line (default: one line, as before) */
       flex-wrap: var(--sw-card-head-wrap, nowrap);
       gap: 10px;
       margin-block-end: 10px;
@@ -19588,7 +19588,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       margin: 0;
       font-size: var(--sw-card-title-fs, var(--sw-fs-md));
       font-weight: var(--sw-card-title-fw, var(--sw-fw-semibold));
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297: a card title is a heading (the heading ink, a hair tighter), not body text in bold */
+      /* POLISH-CLASSIC-DOMUS-297: a card title is a heading (the heading ink, a hair tighter), not body text in bold */
       color: var(--sw-card-title-color, var(--sw-heading));
       letter-spacing: -0.005em;
     }
@@ -19611,7 +19611,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: start;
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ open: the chevron points up (fold it); folded: down (unfold it) - the same in either text direction */
+    /* open: the chevron points up (fold it); folded: down (unfold it) - the same in either text direction */
     .fold sw-icon {
       color: var(--sw-text-3);
       transform: rotate(180deg);
@@ -19631,7 +19631,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([collapsed]) .body {
       display: none;
     }
-     sourceMappingURL=[^*]**/ row: heading at the start side, the body beside it */
+    /* row: heading at the start side, the body beside it */
     :host([row]) {
       display: grid;
       grid-template-columns: minmax(110px, 140px) minmax(0, 1fr);
@@ -19648,7 +19648,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([row][collapsed]) {
       grid-template-columns: 1fr;
     }
-     sourceMappingURL=[^*]**/ fill (NOSCROLL-297): the card takes the height its parent gives it and its body scrolls inside (a naturally long list on a
+    /* fill (NOSCROLL-297): the card takes the height its parent gives it and its body scrolls inside (a naturally long list on a
        screen that fits the viewport); the heading stays in place. Off by default. */
     :host([fill]) {
       display: flex;
@@ -19665,7 +19665,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       overflow-y: auto;
       scrollbar-width: thin;
     }
-     sourceMappingURL=[^*]**/ WARMUP-POLISH-2421: a fill card whose screen pages its items instead (the live overview's attention card): the body never
+    /* WARMUP-POLISH-2421: a fill card whose screen pages its items instead (the live overview's attention card): the body never
        scrolls; the screen shows only what fits */
     :host([fill][clip]) .body {
       overflow: hidden;
@@ -19721,7 +19721,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-sm);
       transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color);
     }
-     sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (impeccable harden: every control state): hover where a pointer hovers, a disabled field that reads
+    /* POLISH-CLASSIC-DOMUS-297 (impeccable harden: every control state): hover where a pointer hovers, a disabled field that reads
        as unavailable, a field the person left wrong in the danger outline */
     @media (hover: hover) and (pointer: fine) {
       ::slotted(input:hover:not(:focus):not(:disabled)),
@@ -19749,17 +19749,17 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 3px var(--sw-accent-soft);
     }
-     sourceMappingURL=[^*]**/ touch targets (mobile audit 2026-09-30): fields were 30-33 px high on a phone */
+    /* touch targets (mobile audit 2026-09-30): fields were 30-33 px high on a phone */
     @media (max-width: 767px) and (pointer: coarse) {
       ::slotted(input:not([type='checkbox']):not([type='radio']):not([type='range'])),
       ::slotted(select),
       ::slotted(textarea) {
-        min-block-size: 44px;  sourceMappingURL=[^*]**/ UXFIX-A11Y-295: 44 px touch target (was 40) */
-         sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (mobile-native): under 16 px the phone zooms the page into the field and never zooms back */
+        min-block-size: 44px; /* UXFIX-A11Y-295: 44 px touch target (was 40) */
+        /* POLISH-CLASSIC-DOMUS-297 (mobile-native): under 16 px the phone zooms the page into the field and never zooms back */
         font-size: max(16px, var(--sw-fs-sm));
       }
     }
-     sourceMappingURL=[^*]**/ ---- DROPDOWNFIT-295: the capsule select. The metrics are the sw-dropdown capsule's (--_c*, copied from sw-dropdown.ts, held equal by
+    /* ---- DROPDOWNFIT-295: the capsule select. The metrics are the sw-dropdown capsule's (--_c*, copied from sw-dropdown.ts, held equal by
        tests/layout-dropdown-fit.spec.ts). The host-qualified selectors outrank the skins' ::slotted(select) rules. ---- */
     .box {
       position: relative;
@@ -19855,7 +19855,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         border-color: ButtonText;
       }
     }
-     sourceMappingURL=[^*]**/ ---- AUDIT30-B-SHARED (finding 16): the search box (type="search"). Measured before: pill, r10, r16 and r0 search inputs across
+    /* ---- AUDIT30-B-SHARED (finding 16): the search box (type="search"). Measured before: pill, r10, r16 and r0 search inputs across
        the modules. One shape now: the field's own outline and well, the icon at the start, the clear key at the end. ---- */
     .sbox {
       position: relative;
@@ -19935,7 +19935,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       touch-action: manipulation;
       transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), scale var(--sw-t-press) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ a 44 px hit area around the 26 px key (touch target) without growing the field */
+    /* a 44 px hit area around the 26 px key (touch target) without growing the field */
     .sclr::after {
       content: '';
       position: absolute;
@@ -19957,7 +19957,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     @media (pointer: coarse) {
       input.search {
         block-size: 44px;
-        font-size: max(16px, var(--sw-fs-sm));  sourceMappingURL=[^*]**/ under 16 px the phone zooms the page into the field */
+        font-size: max(16px, var(--sw-fs-sm)); /* under 16 px the phone zooms the page into the field */
         padding-inline: 38px 44px;
       }
       .sico {
@@ -20292,7 +20292,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline-offset: var(--sw-focus-offset, 2px);
     }
 
-     sourceMappingURL=[^*]**/ ---------- step: the mark ---------- */
+    /* ---------- step: the mark ---------- */
     .opts {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -20625,7 +20625,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       white-space: nowrap;
     }
 
-     sourceMappingURL=[^*]**/ ---------- step: the table ---------- */
+    /* ---------- step: the table ---------- */
     .two {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 320px;
@@ -20755,7 +20755,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       line-height: 1.5;
     }
 
-     sourceMappingURL=[^*]**/ ---------- step: decisions ---------- */
+    /* ---------- step: decisions ---------- */
     .prog {
       display: flex;
       gap: 12px;
@@ -20906,7 +20906,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-accent-text, var(--sw-accent));
     }
 
-     sourceMappingURL=[^*]**/ ---------- step: summary ---------- */
+    /* ---------- step: summary ---------- */
     .sum {
       display: flex;
       flex-direction: column;
@@ -21033,7 +21033,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       max-inline-size: 720px;
     }
 
-     sourceMappingURL=[^*]**/ ---------- advanced ---------- */
+    /* ---------- advanced ---------- */
     .rules {
       display: flex;
       flex-direction: column;
@@ -21096,7 +21096,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-text-3);
     }
 
-     sourceMappingURL=[^*]**/ ---------- tablet / phone ---------- */
+    /* ---------- tablet / phone ---------- */
     @media (max-width: 900px) {
       .opts {
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -21712,7 +21712,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .site[data-phone] {
       grid-template-columns: minmax(0, 1fr);
     }
-     sourceMappingURL=[^*]**/ ---- the grouped tree ---- */
+    /* ---- the grouped tree ---- */
     nav {
       display: flex;
       flex-direction: column;
@@ -21836,7 +21836,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       gap: 6px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ ---- the cards ---- */
+    /* ---- the cards ---- */
     .cards {
       display: grid;
       grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
@@ -21871,7 +21871,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .card > .foot {
       flex: none;
     }
-     sourceMappingURL=[^*]**/ a short card (a landscape tablet, many buildings) keeps what answers "is something wrong, and where": the name, the counters, an
+    /* a short card (a landscape tablet, many buildings) keeps what answers "is something wrong, and where": the name, the counters, an
        alert row; "no alerts" and the floor bars go first, then the open button (the name itself opens the building) */
     @container (max-height: 190px) {
       .ok {
@@ -21988,7 +21988,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-success-text);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ the floors that do not fit wrap into a second column outside the card (clipped whole, never half a row) */
+    /* the floors that do not fit wrap into a second column outside the card (clipped whole, never half a row) */
     .bars {
       flex: 1 1 auto;
       min-block-size: 0;
@@ -22092,7 +22092,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .bar:active {
       transform: scale(0.98);
     }
-     sourceMappingURL=[^*]**/ ---- the site's alerts and the mini cross-section ---- */
+    /* ---- the site's alerts and the mini cross-section ---- */
     .card h4 {
       margin: 0;
       font-size: var(--sw-fs-md);
@@ -22374,7 +22374,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     font-weight: var(--sw-fw-semibold);
     font-size: calc(var(--sw-fs-name) * var(--sw-look-scale));
   }
-   sourceMappingURL=[^*]**/ the ring: the area's hue, the lit halo when something is on */
+  /* the ring: the area's hue, the lit halo when something is on */
   :host([data-skin='bubble']) .arow .sdot,
   :host([data-skin='bubble']) .tile-head .ring {
     inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
@@ -22417,7 +22417,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) .fcard.loose .arow {
     background: var(--sw-surface-2);
   }
-   sourceMappingURL=[^*]**/ the tiles view: a pill per area with the ring at the start */
+  /* the tiles view: a pill per area with the ring at the start */
   :host([data-skin='bubble']) a.tile {
     flex-direction: row;
     align-items: center;
@@ -22456,7 +22456,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     min-block-size: var(--sw-touch-desktop);
     padding-inline: 12px;
   }
-   sourceMappingURL=[^*]**/ the targets of the tree and the floor headers: the fold, the title, the "⋯" (the layout guard's touch dial) */
+  /* the targets of the tree and the floor headers: the fold, the title, the "⋯" (the layout guard's touch dial) */
   :host([data-skin='bubble']) .tfold {
     inline-size: var(--sw-touch-desktop);
     block-size: var(--sw-touch-desktop);
@@ -22472,7 +22472,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     align-items: center;
     justify-content: flex-start;
   }
-   sourceMappingURL=[^*]**/ the area tile's "⋯" sits in the row, never over the tile */
+  /* the area tile's "⋯" sits in the row, never over the tile */
   :host([data-skin='bubble']) .tile-wrap {
     flex-direction: row;
     align-items: center;
@@ -22548,7 +22548,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     padding-block: var(--dv-item-pad-block);
     padding-inline: var(--dv-item-pad-inline);
   }
-   sourceMappingURL=[^*]**/ iOS-like segmented control for "פריסה" */
+  /* iOS-like segmented control for "פריסה" */
   :host([data-devices-style='glass']) .seg .opts {
     border: 0;
     border-radius: var(--dv-radius-control);
@@ -22571,9 +22571,9 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--dv-text);
     box-shadow: var(--dv-shadow-control);
   }
-   sourceMappingURL=[^*]**/ the tree panel: pill rows */
+  /* the tree panel: pill rows */
   :host([data-devices-style='glass']) .split {
-     sourceMappingURL=[^*]**/ owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
+    /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
     grid-template-columns: clamp(var(--dv-tree-inline), 16vw, var(--dv-tree-inline-max, 340px)) minmax(0, 1fr);
     gap: var(--dv-gap-lg);
   }
@@ -22590,7 +22590,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     background: var(--dv-accent-soft);
     color: var(--dv-accent-text);
   }
-   sourceMappingURL=[^*]**/ larger floor ("room") cards */
+  /* larger floor ("room") cards */
   :host([data-devices-style='glass']) .fcards {
     grid-template-columns: repeat(auto-fill, minmax(var(--dv-floor-card-min), 1fr));
     gap: var(--dv-gap-lg);
@@ -22627,7 +22627,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     padding-block: 4px var(--dv-card-pad-block);
     padding-inline: var(--dv-card-pad-inline);
   }
-   sourceMappingURL=[^*]**/ icon-forward area tiles */
+  /* icon-forward area tiles */
   :host([data-devices-style='glass']) .areas {
     grid-template-columns: repeat(auto-fill, minmax(var(--dv-area-tile-min), 1fr));
     gap: var(--dv-gap);
@@ -22683,7 +22683,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     }
   }
 
-   sourceMappingURL=[^*]**/ compact density (either style): tighter tiles, rows and gaps */
+  /* compact density (either style): tighter tiles, rows and gaps */
   :host([data-devices-density='compact']) .kpis {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 8px;
@@ -22730,7 +22730,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
 `,Ace=P`
   :host([data-tile-layout='compact']) .kpis {
     grid-template-columns: repeat(auto-fill, minmax(var(--dv-kpi-compact-col-min), 1fr));
-    grid-auto-rows: 1fr;  sourceMappingURL=[^*]**/ review low: every compact tile as tall as the tallest */
+    grid-auto-rows: 1fr; /* review low: every compact tile as tall as the tallest */
     gap: var(--dv-kpi-compact-grid-gap);
   }
   :host([data-tile-layout='compact']) sw-kpi {
@@ -22760,13 +22760,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     :host([data-tile-layout='compact']) .areas {
       grid-template-columns: repeat(var(--dv-kpi-compact-cols-phone), minmax(0, 1fr));
     }
-     sourceMappingURL=[^*]**/ an odd last tile takes the whole row */
+    /* an odd last tile takes the whole row */
     :host([data-tile-layout='compact']) .kpis > sw-kpi:last-child:nth-child(odd) {
       grid-column: 1 / -1;
     }
   }
 `,Oce=P`
-   sourceMappingURL=[^*]**/ MULTIBUILDING-HOME-2330: the site bar of a multi-building site - where we are, the building switch (segmented), the level's off
+  /* MULTIBUILDING-HOME-2330: the site bar of a multi-building site - where we are, the building switch (segmented), the level's off
      actions. Drawn only when the site has two or more buildings; one building never sees it. */
   .site-bar {
     display: flex;
@@ -22839,7 +22839,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .bswitch button.shared {
     color: var(--sw-shared-text);
   }
-   sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380: a chosen shared building on the dark light pill takes the key's dark label (light keeps the shared ink) */
+  /* DARK-SEG-ALL-2380: a chosen shared building on the dark light pill takes the key's dark label (light keeps the shared ink) */
   .bswitch button.shared[aria-pressed='true'] {
     color: var(--sw-seg-key-ink, var(--sw-shared-text));
   }
@@ -22869,12 +22869,12 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     gap: 6px;
     flex-wrap: nowrap;
   }
-   sourceMappingURL=[^*]**/ POLISH-295: the info bar sits first in the header row and gives way (it clips its own text) before the refresh icon does */
+  /* POLISH-295: the info bar sits first in the header row and gives way (it clips its own text) before the refresh icon does */
   .hdr home-ambient-bar {
     flex: 0 1 auto;
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ POLISH-295: a counter that has something on takes its kind's colour (sw-kpi --sw-kpi-on-*): light, switches and screens warm,
+  /* POLISH-295: a counter that has something on takes its kind's colour (sw-kpi --sw-kpi-on-*): light, switches and screens warm,
      cooling cool, heating amber; covers and locks keep the live green */
   sw-kpi[data-tile-kind='lights'],
   sw-kpi[data-tile-kind='switches'],
@@ -22882,14 +22882,14 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --sw-kpi-on-bg: var(--sw-lit-soft);
     --sw-kpi-on-fg: var(--sw-warning-text);
   }
-   sourceMappingURL=[^*]**/ the owner's explicit "compact" tile choice stays compact: one label line, the 18 px numeral, the knobs' own height */
+  /* the owner's explicit "compact" tile choice stays compact: one label line, the 18 px numeral, the knobs' own height */
   :host([data-tile-layout='compact']) .kpis[data-kpis] > sw-kpi[data-kpi][layout='compact'] {
     --sw-kpi-label-lines: 1;
     --sw-kpi-compact-value-fs: var(--sw-fs-xl);
     min-block-size: var(--dv-kpi-compact-min-block);
     padding-block: var(--dv-kpi-compact-pad-block);
   }
-   sourceMappingURL=[^*]**/ HOMEFABLE-297: the display size is for numerals; the alarm tile's value is a word ("armed (home)") and keeps the 16 px reading size, so a
+  /* HOMEFABLE-297: the display size is for numerals; the alarm tile's value is a word ("armed (home)") and keeps the 16 px reading size, so a
      wrapped state never stretches the whole counter row */
   :host .kpis[data-kpis] > sw-kpi[data-tile-kind='alarm'][layout='compact'] {
     --sw-kpi-compact-value-fs: var(--sw-fs-lg);
@@ -22902,7 +22902,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     --sw-kpi-on-bg: var(--sw-warning-soft);
     --sw-kpi-on-fg: var(--sw-warning-text);
   }
-   sourceMappingURL=[^*]**/ the widgets (home redesign): direction a puts the band above the summary tiles, c a compact row, b a column beside the
+  /* the widgets (home redesign): direction a puts the band above the summary tiles, c a compact row, b a column beside the
      floors (the tree becomes a floor filter in the toolbar row); a phone gets a snap row above the tiles */
   .page-body {
     display: flex;
@@ -22986,13 +22986,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       grid-template-columns: minmax(0, 1fr);
     }
   }
-   sourceMappingURL=[^*]**/ the summary tiles: small rectangles, the icon at the end of the text */
+  /* the summary tiles: small rectangles, the icon at the end of the text */
   :host .kpis[data-kpis] {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     grid-auto-rows: auto;
     gap: 10px;
   }
-   sourceMappingURL=[^*]**/ HOMEFABLE-297 (impeccable typeset, taste-skill §5 "the figure leads"): the counter is a display numeral (the type scale's 2xl, 800,
+  /* HOMEFABLE-297 (impeccable typeset, taste-skill §5 "the figure leads"): the counter is a display numeral (the type scale's 2xl, 800,
      tight), its label a full 12 px line under it (two lines before an ellipsis, never "תאורה..."), the icon a quiet 30 px mark; the
      tile is a tone step DOWN from the floor cards (surface-2, a hairline, no shadow) so the floors read as the page's objects */
   :host .kpis[data-kpis] > sw-kpi[data-kpi][layout='compact'] {
@@ -23005,7 +23005,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     column-gap: 10px;
     row-gap: 0;
   }
-   sourceMappingURL=[^*]**/ "אריחים": the floors as packed sections beside the tree - floors with few areas share a row */
+  /* "אריחים": the floors as packed sections beside the tree - floors with few areas share a row */
   .floors {
     --tw: 172px;
     --th: 78px;
@@ -23046,10 +23046,10 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .split[data-layout-view='tiles'] > .floors {
     align-self: start;
   }
-   sourceMappingURL=[^*]**/ the floor card's header is two rows: the title with the floor action, then the counts (home redesign) */
+  /* the floor card's header is two rows: the title with the floor action, then the counts (home redesign) */
   .fcard header {
     flex-direction: column;
-    flex-wrap: nowrap;  sourceMappingURL=[^*]**/ a wrapping column sizes its one line by the widest row: a long chip row then pushed the floor action out of the card */
+    flex-wrap: nowrap; /* a wrapping column sizes its one line by the widest row: a long chip row then pushed the floor action out of the card */
     align-items: stretch;
     gap: 6px;
   }
@@ -23062,7 +23062,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     min-inline-size: 0;
   }
   @media (max-width: 767px) {
-     sourceMappingURL=[^*]**/ the floor header's chips stay on one line (release 0.1.149); a long list scrolls sideways instead of wrapping */
+    /* the floor header's chips stay on one line (release 0.1.149); a long list scrolls sideways instead of wrapping */
     .fh-chips {
       flex-wrap: nowrap;
       overflow-x: auto;
@@ -23085,7 +23085,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .fcard header .fh-top devices-bulk-menu {
     margin-inline-start: auto;
   }
-   sourceMappingURL=[^*]**/ fit step 1: smaller tiles and rows */
+  /* fit step 1: smaller tiles and rows */
   .split[data-fit='1'] .floors {
     --tw: 156px;
     --th: 60px;
@@ -23111,7 +23111,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   .split[data-fit='1'] .tree-row {
     padding-block: 3px;
   }
-   sourceMappingURL=[^*]**/ fit step 2: the smallest */
+  /* fit step 2: the smallest */
   .split[data-fit='2'] .floors {
     --tw: 140px;
     --th: 0px;
@@ -23402,7 +23402,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex-wrap: wrap;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-       sourceMappingURL=[^*]**/ next to the title (owner's 1920 px screenshot: an auto margin pushed the chips to the far edge of the page) */
+      /* next to the title (owner's 1920 px screenshot: an auto margin pushed the chips to the far edge of the page) */
       margin-inline-start: 6px;
     }
     .floor-sum span {
@@ -23433,7 +23433,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex: 1;
     }
     .tile-wrap.bulk > a.tile .tile-head {
-      padding-inline-end: 28px;  sourceMappingURL=[^*]**/ room for the popover trigger in the corner */
+      padding-inline-end: 28px; /* room for the popover trigger in the corner */
     }
     .tile-wrap devices-bulk-menu {
       position: absolute;
@@ -23493,8 +23493,8 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .toolbar .bulk-buttons {
       margin-inline-start: auto;
     }
-     sourceMappingURL=[^*]**/ ---- the mockup's layout: tree panel (inline start) + floor cards */
-     sourceMappingURL=[^*]**/ K88: the plan view - the live plan beside the tree, the floor chooser above it, the room's area summary over it */
+    /* ---- the mockup's layout: tree panel (inline start) + floor cards */
+    /* K88: the plan view - the live plan beside the tree, the floor chooser above it, the room's area summary over it */
     .planview {
       position: relative;
       display: flex;
@@ -23550,7 +23550,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     }
     .split {
       display: grid;
-       sourceMappingURL=[^*]**/ owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
+      /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
       grid-template-columns: clamp(250px, 16vw, 320px) minmax(0, 1fr);
       gap: 18px;
       align-items: start;
@@ -23566,10 +23566,10 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       box-shadow: var(--sw-shadow-1);
       position: sticky;
       inset-block-start: 8px;
-       sourceMappingURL=[^*]**/ owner 2026-09-29 ("unnecessary scrolling"): the tree never scrolls on its own unless it is itself taller than
+      /* owner 2026-09-29 ("unnecessary scrolling"): the tree never scrolls on its own unless it is itself taller than
          the viewport - then it sticks and scrolls inside the visible height (the top bar and the page padding off) */
       box-sizing: border-box;
-      max-block-size: calc(100dvh - var(--sw-topbar-h) - var(--sw-banner-h, 0px) - 16px);  sourceMappingURL=[^*]**/ the view under the top bar, minus the 8 px sticky offset top and bottom */
+      max-block-size: calc(100dvh - var(--sw-topbar-h) - var(--sw-banner-h, 0px) - 16px); /* the view under the top bar, minus the 8 px sticky offset top and bottom */
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
@@ -23593,7 +23593,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .tree-row:hover {
       background: var(--sw-hover-wash);
     }
-     sourceMappingURL=[^*]**/ HOME polish (2026-10-10): keyboard focus is a ring, not only a wash (the wash alone vanished on a hovered row) */
+    /* HOME polish (2026-10-10): keyboard focus is a ring, not only a wash (the wash alone vanished on a hovered row) */
     .tree-row:focus-visible {
       background: var(--sw-hover-wash);
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -23621,13 +23621,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ owner 2026-09-29 (tree rows): the name takes the row (inline-start, ellipsis only when truly out of room, the full
+    /* owner 2026-09-29 (tree rows): the name takes the row (inline-start, ellipsis only when truly out of room, the full
        name in its title); the lit count sits in a fixed column at the inline end, then the "⋯" column - so every row
        lines up, with or without a menu (a row without one keeps the menu's width free) */
     .tree-row .lit {
       flex: none;
       box-sizing: border-box;
-       sourceMappingURL=[^*]**/ WORSTCASE-2310: a minimum, not a fixed width - every usual count lines up in the 44 px column, a five-digit one (49392 lights
+      /* WORSTCASE-2310: a minimum, not a fixed width - every usual count lines up in the 44 px column, a five-digit one (49392 lights
          on the building row) widens its own row instead of pushing the bulb out of the column */
       min-inline-size: var(--dv-tree-count-w, 44px);
       justify-content: flex-end;
@@ -23662,7 +23662,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       align-items: center;
       margin-block-start: 6px;
     }
-     sourceMappingURL=[^*]**/ a floor is the tree's grouping level: it reads as the heading of its area rows, not as a smaller caption */
+    /* a floor is the tree's grouping level: it reads as the heading of its area rows, not as a smaller caption */
     .tree-floor .tree-row {
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-sm);
@@ -23675,7 +23675,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .tree-floor .tree-row.selected > sw-icon {
       color: inherit;
     }
-     sourceMappingURL=[^*]**/ the floor's fold chevron: a compact column at the row's start (a touch screen's hit area grows invisibly past it) */
+    /* the floor's fold chevron: a compact column at the row's start (a touch screen's hit area grows invisibly past it) */
     .tfold {
       position: relative;
       flex: none;
@@ -23710,11 +23710,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         content: '';
         position: absolute;
         inset-block: -8px;
-        inset-inline: -11px;  sourceMappingURL=[^*]**/ UXFIX-A11Y-295: 22 + 22 = 44 px wide, 28 + 16 = 44 px tall */
+        inset-inline: -11px; /* UXFIX-A11Y-295: 22 + 22 = 44 px wide, 28 + 16 = 44 px tall */
       }
     }
     .tfold .chev.folded {
-      transform: rotate(90deg);  sourceMappingURL=[^*]**/ points to the inline start (left, in Hebrew) */
+      transform: rotate(90deg); /* points to the inline start (left, in Hebrew) */
     }
     .tfold .chev.folded:dir(ltr) {
       transform: rotate(-90deg);
@@ -23740,7 +23740,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       position: relative;
       display: flex;
       align-items: center;
-      padding-inline-start: 24px;  sourceMappingURL=[^*]**/ under the floor's name: past the fold chevron's column */
+      padding-inline-start: 24px; /* under the floor's name: past the fold chevron's column */
     }
     .tree-area devices-bulk-menu {
       flex: 1;
@@ -23756,12 +23756,12 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-border-strong);
       flex: none;
     }
-     sourceMappingURL=[^*]**/ something is on: the warm dot carries a soft halo, so the state reads from across the room and in both schemes */
+    /* something is on: the warm dot carries a soft halo, so the state reads from across the room and in both schemes */
     .sdot.on {
       background: var(--sw-warning);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-warning) 22%, transparent);
     }
-     sourceMappingURL=[^*]**/ the hover "כבה אזור" takes NO room in the row (owner 2026-09-29: an invisible button used to squeeze the names):
+    /* the hover "כבה אזור" takes NO room in the row (owner 2026-09-29: an invisible button used to squeeze the names):
        it floats over the count column, before the "⋯", while the row is hovered or focused; on a touch screen the
        row's "⋯" carries the same action, so it is not drawn there at all */
     .quick {
@@ -23794,7 +23794,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       gap: 14px;
       align-items: start;
     }
-     sourceMappingURL=[^*]**/ HOMEFABLE-297 (impeccable bolder / layout): the floor cards are the page's hero tier - the rounder radius, the ladder's second
+    /* HOMEFABLE-297 (impeccable bolder / layout): the floor cards are the page's hero tier - the rounder radius, the ladder's second
        step, a floor title at 20 px / 800; the rows inside are wells (tone step, rounded), not a ruled table */
     section.fcard {
       display: flex;
@@ -23804,7 +23804,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-2);
     }
-     sourceMappingURL=[^*]**/ the hero step over every skin's own panel rule (the skins keep their material; the ladder step and the radius are the home's) */
+    /* the hero step over every skin's own panel rule (the skins keep their material; the ladder step and the radius are the home's) */
     :host .fcards > section.fcard {
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
@@ -23828,7 +23828,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       letter-spacing: -0.025em;
       line-height: 1.15;
     }
-     sourceMappingURL=[^*]**/ owner feedback 2026-09-29: the floor's title enters the floor, like "פתח קומה" */
+    /* owner feedback 2026-09-29: the floor's title enters the floor, like "פתח קומה" */
     .fcard header h2 .ftitle {
       border: 0;
       padding: 0;
@@ -23839,7 +23839,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       text-align: start;
       border-radius: var(--sw-r-2xs);
     }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297 (owner decision, P6 item "long floor names"): the name is clamped to the installation's line count (2 by default,
+    /* POLISH-CONTROL-297 (owner decision, P6 item "long floor names"): the name is clamped to the installation's line count (2 by default,
        the full name in the tooltip); 1 = one line with an ellipsis */
     .fcard header h2 .ftitle {
       display: -webkit-box;
@@ -23869,7 +23869,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ an area row is a link into the area (owner feedback 2026-09-29) */
+    /* an area row is a link into the area (owner feedback 2026-09-29) */
     a.tree-row,
     a.arow {
       box-sizing: border-box;
@@ -23887,7 +23887,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-warning);
     }
     .fcard header devices-bulk-menu {
-      margin-inline-start: auto;  sourceMappingURL=[^*]**/ the card's own header: the floor action closes the row, as in the mockup */
+      margin-inline-start: auto; /* the card's own header: the floor action closes the row, as in the mockup */
     }
     .fcard .rows {
       display: flex;
@@ -23913,7 +23913,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       flex-wrap: nowrap;
       transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ mobile-native: a hover only under a pointer that hovers (a tap would leave it stuck); the press answers on pointer-down */
+    /* mobile-native: a hover only under a pointer that hovers (a tap would leave it stuck); the press answers on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .arow:hover {
         background: var(--sw-surface-3);
@@ -23957,13 +23957,13 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
       flex: 1 1 auto;
-      min-inline-size: min(3ch, calc(100% - 18px));  sourceMappingURL=[^*]**/ P6 item 2: the name never squeezes under three letters - the indicators yield first (WORSTCASE-2310: nor past the row's own width after the 8 px dot and 10 px gap) */
+      min-inline-size: min(3ch, calc(100% - 18px)); /* P6 item 2: the name never squeezes under three letters - the indicators yield first (WORSTCASE-2310: nor past the row's own width after the 8 px dot and 10 px gap) */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ P6 item 2: the temperature / stale time never shrinks or clips ("21.0°" read as "0°"); tabular so rows align */
-     sourceMappingURL=[^*]**/ WORSTCASE-2310: ...but when the name is already at its minimum and the row is still too narrow (a floor card beside the tree and
+    /* P6 item 2: the temperature / stale time never shrinks or clips ("21.0°" read as "0°"); tabular so rows align */
+    /* WORSTCASE-2310: ...but when the name is already at its minimum and the row is still too narrow (a floor card beside the tree and
        three more cards, a quick row with two actions), the reading yields the rest instead of running out of the row under the "⋯"
        and the actions: it ends in an ellipsis on its LTR end ("21.…", never "0°") and carries the full value in its tooltip */
     .arow .tm {
@@ -23975,11 +23975,11 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       direction: ltr;
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ release 0.1.149: what sits after an area's name - one line, never wrapping; at most three on a phone, the rest as "+N" */
+    /* release 0.1.149: what sits after an area's name - one line, never wrapping; at most three on a phone, the rest as "+N" */
     .ind {
       display: inline-flex;
       align-items: center;
-      min-block-size: 20px;  sourceMappingURL=[^*]**/ an empty row is as tall as one with indicators */
+      min-block-size: 20px; /* an empty row is as tall as one with indicators */
       flex: none;
       gap: 10px;
       font-size: var(--sw-fs-xs);
@@ -24026,7 +24026,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       border-style: dashed;
     }
     @media (max-width: 899px) {
-       sourceMappingURL=[^*]**/ the floor cards carry every row and action of the tree: on a narrow screen they are the whole screen */
+      /* the floor cards carry every row and action of the tree: on a narrow screen they are the whole screen */
       .split {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -24067,7 +24067,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-     sourceMappingURL=[^*]**/ HOMEFABLE-297: a lit area tile is a solid lit field (the same status field as the cards-mode rows), not a fade */
+    /* HOMEFABLE-297: a lit area tile is a solid lit field (the same status field as the cards-mode rows), not a fade */
     a.tile.on {
       background: var(--sw-lit-soft);
       border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
@@ -24131,7 +24131,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ ---- the loading skeleton (HOME polish 2026-10-10) ---- */
+    /* ---- the loading skeleton (HOME polish 2026-10-10) ---- */
     .skeleton {
       display: flex;
       flex-direction: column;
@@ -24215,7 +24215,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
         margin-inline-start: 0;
       }
     }
-     sourceMappingURL=[^*]**/ owner 2026-09-29: a floor's count chips (and the floor card's lit count) open the tiles' panel for that floor */
+    /* owner 2026-09-29: a floor's count chips (and the floor card's lit count) open the tiles' panel for that floor */
     .chip {
       display: inline-flex;
       align-items: center;
@@ -24237,7 +24237,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     .fchips:empty {
       display: none;
     }
-     sourceMappingURL=[^*]**/ HOME polish: the count chips are quiet pills on the card (no outline); the lit chip takes the warm tone when something is on */
+    /* HOME polish: the count chips are quiet pills on the card (no outline); the lit chip takes the warm tone when something is on */
     .fchips button.chip {
       position: relative;
       background: var(--sw-surface-2);
@@ -24361,7 +24361,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-xs);
     }
   `;vo([_({attribute:!1})],Vn.prototype,"session",2);vo([_()],Vn.prototype,"variant",2);vo([w()],Vn.prototype,"confirming",2);vo([w()],Vn.prototype,"off",2);vo([w()],Vn.prototype,"busy",2);vo([w()],Vn.prototype,"error",2);Vn=vo([W("sw-cast-stop")],Vn);const C5e=e=>$(`floors/${encodeURIComponent(e)}/bakes`);async function R5e(e,t,s=a=>new Promise(n=>setTimeout(n,a))){const a=()=>{const n=new FormData;return n.set("kind",t.slot.kind),n.set("level_id",t.slot.level_id),n.set("preset",t.slot.preset),n.set("style",t.slot.style),n.set("band",t.slot.band),n.set("variant",t.slot.variant),n.set("bake_key",t.bakeKey),n.set("recipe",t.recipe),n.set("meta",t.meta?JSON.stringify(t.meta):""),n.set("file",t.file,t.name??ede(t.slot.kind,t.file.type)),n};for(let n=0;;n++)try{return await lc(`floors/${encodeURIComponent(e)}/bakes`,a())}catch(i){if(n<2&&i instanceof X&&i.status===503){await s(1500*(n+1));continue}throw i}}function ede(e,t){return`${e}.${t==="image/webp"?"webp":t==="image/jpeg"?"jpg":t==="application/json"?"json":"png"}`}const M5e=(e,t={})=>S(`floors/${encodeURIComponent(e)}/bakes/regenerate`,t),L5e=(e,t)=>S(`floors/${encodeURIComponent(e)}/bakes/jobs/${encodeURIComponent(t)}/claim`),D5e=(e,t,s,a)=>S(`floors/${encodeURIComponent(e)}/bakes/jobs/${encodeURIComponent(t)}/finish`,a?{status:s,error:a}:{status:s});function tde(e){if(!e)return null;const t={};for(const[s,a]of Object.entries(e.levels??{}))t[s]={stills:Object.fromEntries(Object.entries(a.stills).map(([n,i])=>[n,{...i,url:is(i.url)}])),masks:Object.fromEntries(Object.entries(a.masks).map(([n,i])=>[n,{url:is(i.url)}])),lightmap:a.lightmap?{...a.lightmap,url:is(a.lightmap.url)}:null};return{...e,levels:t}}function sde(e){const t=du.find(a=>a.id===e)??du[0],s=qU.filter(a=>a.floorId===t.id);return{source:"demo",floorId:t.id,floorName:t.name,buildingName:i2.building,siteName:i2.name,width:t.planWidth||1200,height:t.planHeight||800,imageUrl:null,planSvg:t.hasPlan?BU(t.id):null,planStatus:t.hasPlan?"published":"none",planVersionId:t.hasPlan?`demo-${t.id}`:null,needsAlignment:!1,renderMode:"source",stylizedAvailable:!1,planPublishedAt:null,planArchivedAt:null,at:null,history:null,historyFrom:null,haHistory:null,geometryRef:null,scaleMPerPx:null,catalogRevision:null,levels:[],circuitStates:{},floorImages:null,anchors:s.map((a,n)=>({id:`demo-anchor-${a.id}`,floor_id:t.id,plan_version_id:`demo-${t.id}`,resource_type:"camera",resource_id:a.id,position:{x:a.x,y:a.y},rotation_degrees:a.rotation,field_of_view_degrees:a.fov,coverage_radius:null,coverage_polygon:null,layer_id:"cameras",label:a.name,revision:1,effective_from:"",effective_to:null,updated_at:"",camera:{id:a.id,recorder_id:"demo",channel:n+1,name:a.name,name_source:a.name,alias:null,enabled:!0,sort_order:n,grid_col_span:1,main_track:null,sub_track:null,status:a.state==="offline"?"offline":"online",last_seen_at:null}})),zones:[],cameras:[],permissions:{edit:!0,publish:!0,import:!0,structure:!1}}}async function N5e(e,t=!1,s){if(!O())return sde(e);const a=new URLSearchParams;t&&a.set("draft","true"),s&&a.set("at",s);const n=a.toString(),i=await $(`floors/${e}/map${n?`?${n}`:""}`);return{source:"api",floorId:i.floor.id,floorName:i.floor.name,floorLevel:i.floor.level,buildingName:i.building.name,siteName:i.site.name,width:i.plan?.width_px??1200,height:i.plan?.height_px??800,imageUrl:i.plan?is(i.plan.image_url):null,planSvg:null,planStatus:i.plan?i.plan.status==="published"?"published":"draft":"none",planVersionId:i.plan?.id??null,needsAlignment:i.needs_alignment,anchors:i.anchors,zones:i.zones??[],cameras:i.cameras,permissions:i.permissions,renderMode:i.plan?.render_mode==="stylized"?"stylized":"source",stylizedAvailable:!!i.plan?.stylized_url,planPublishedAt:i.plan?.published_at??null,planArchivedAt:i.plan?.archived_at??null,at:i.at??null,history:i.history??null,historyFrom:i.history_from??null,haHistory:i.ha_history??null,geometryRef:i.geometry??null,scaleMPerPx:i.plan?.scale_m_per_px??null,catalogRevision:i.catalog_revision??null,levels:i.levels??[],circuitStates:i.circuit_states??{},floorImages:i.floor_images?{off:i.floor_images.off?is(i.floor_images.off):null,on:i.floor_images.on?is(i.floor_images.on):null,corners:i.floor_images.corners,opacity:i.floor_images.opacity??1}:null,bakes:tde(i.bakes)}}function P5e(e,t){const s=e.camera;return s?s.recorder_enabled===!1?"neutral":s.status==="online"?"live":s.status==="offline"?"offline":t??"unknown":t??"unknown"}const I5e=e=>$(`floors/${e}/plan-assets`),F5e=(e,t)=>{const s=new FormData;return s.append("file",t,t.name),lc(`floors/${e}/plan-assets`,s)},q5e=e=>$(`floors/${e}/plan-versions`),H5e=(e,t)=>S(`floors/${e}/plan-versions`,t),B5e=e=>S(`plan-versions/${e}/publish`),U5e=(e,t)=>$(`plan-versions/${e}/diff`),W5e=(e,t,s)=>S(`plan-versions/${e}/rollback`,{revision:t,expected_published_id:s}),j5e=e=>De(`plan-versions/${e}`);function K5e(e){return e.resource_type==="camera"?e.camera?.name??e.label??e.resource_id:e.label??e.entity?.name??e.resource_id}const V5e=(e,t)=>S(`floors/${e}/anchors`,t),G5e=(e,t,s)=>Le(`map-anchors/${e}${s?`?from_floor_id=${encodeURIComponent(s)}`:""}`,t),Y5e=(e,t)=>S(`floors/${e}/anchors/realign`,{mode:t}),X5e=(e,t)=>De(`map-anchors/${e}${t?`?from_floor_id=${encodeURIComponent(t)}`:""}`),JR=()=>$("cameras").then(async e=>(await YX(e.cameras),O()&&!ha("nvr")?{...e,cameras:bI(e.cameras,!1),recorders:e.recorders?o0(e.recorders,!1):e.recorders,recorder:null}:e)),J5e=()=>S("cameras/sync"),Q5e=e=>S("cameras",e),Z5e=(e,t)=>Le(`cameras/${e}`,t),e4e=e=>$(`plan-assets/${e}/dxf`),t4e=(e,t)=>U(`plan-assets/${e}/dxf`,t),QR=P`
-   sourceMappingURL=[^*]**/ 1. segmented controls (.layouts live wall, .rangepick events, .transport camera, .seg / .kseg settings and schedules,
+  /* 1. segmented controls (.layouts live wall, .rangepick events, .transport camera, .seg / .kseg settings and schedules,
         .switcher alarm, .pages audit, .range look, .sevseg notifications): a pill track, pill segments, a solid thumb */
   :host([data-skin='bubble']) .layouts,
   :host([data-skin='bubble']) .rangepick,
@@ -24379,7 +24379,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     gap: 2px;
     box-shadow: none;
   }
-   sourceMappingURL=[^*]**/ the screens' own sw-tabs rows (the settings hub, the look card) take the touch dial as their hit height */
+  /* the screens' own sw-tabs rows (the settings hub, the look card) take the touch dial as their hit height */
   :host([data-skin='bubble']) {
     --sw-tab-min-h: var(--sw-touch-desktop);
   }
@@ -24400,7 +24400,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     box-shadow: none;
     background: transparent;
   }
-   sourceMappingURL=[^*]**/ chip rows wrap instead of leaving their card (the notifications' channel chips at 320-390) */
+  /* chip rows wrap instead of leaving their card (the notifications' channel chips at 320-390) */
   :host([data-skin='bubble']) .chs {
     flex-wrap: wrap;
   }
@@ -24419,7 +24419,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     color: var(--sw-accent-text);
     box-shadow: var(--sw-shadow-2);
   }
-   sourceMappingURL=[^*]**/ 2. chip-like toggles and small round buttons that are not sw-chip / sw-button (.chips alarm filters, .rc / .colbtn / .dc
+  /* 2. chip-like toggles and small round buttons that are not sw-chip / sw-button (.chips alarm filters, .rc / .colbtn / .dc
         pickers, .stepper, .pillsel, .ib icon buttons, .mv / .more / .eyeb / .zoom / .round / .keys): pills, no hairline, the touch dial */
   :host([data-skin='bubble']) .chips button,
   :host([data-skin='bubble']) .colbtn,
@@ -24437,7 +24437,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     background: var(--sw-surface-2);
     box-shadow: none;
   }
-   sourceMappingURL=[^*]**/ a pressed chip keeps a filled state (shape + text, never a colour alone: the pressed one is also the solid one) */
+  /* a pressed chip keeps a filled state (shape + text, never a colour alone: the pressed one is also the solid one) */
   :host([data-skin='bubble']) .chips button[aria-pressed='true'],
   :host([data-skin='bubble']) .colbtn.on,
   :host([data-skin='bubble']) .rc[aria-pressed='true'],
@@ -24481,17 +24481,17 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     min-block-size: var(--sw-touch-desktop);
     min-inline-size: var(--sw-touch-desktop);
   }
-   sourceMappingURL=[^*]**/ the navigation-size card's mini previews (a fixed-width phone bar) never push a 320 px page sideways */
+  /* the navigation-size card's mini previews (a fixed-width phone bar) never push a 320 px page sideways */
   :host([data-skin='bubble']) .stage > div {
     max-inline-size: 100%;
     overflow: hidden;
   }
-   sourceMappingURL=[^*]**/ the settings hub's tile preview: two 170 px columns are wider than a 320 px phone */
+  /* the settings hub's tile preview: two 170 px columns are wider than a 320 px phone */
   :host([data-skin='bubble']) .tile-preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-inline-size: 348px;
   }
-   sourceMappingURL=[^*]**/ a wide segmented control wraps inside its track at 320 px instead of pushing the page sideways; a muted note wraps too */
+  /* a wide segmented control wraps inside its track at 320 px instead of pushing the page sideways; a muted note wraps too */
   :host([data-skin='bubble']) .seg {
     flex-wrap: wrap;
   }
@@ -24499,7 +24499,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     white-space: normal;
     overflow-wrap: anywhere;
   }
-   sourceMappingURL=[^*]**/ 3. bordered boxes and list items (.wrow events, .item / .files / .add cases, .settings-row wall, .evl a history, .acc-root
+  /* 3. bordered boxes and list items (.wrow events, .item / .files / .add cases, .settings-row wall, .evl a history, .acc-root
         camera, .hcard / .brow diagnostics, .zone alarm, .skin / button.opt / li pickers, .ib, .step wizard, .map detail,
         pre.report, .preview tabs-mode, .card / .tbl / .list / .kpi / .wrap lists): no hairline, a flat layer, soft corners */
   :host([data-skin='bubble']) .wrow,
@@ -24557,7 +24557,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) li.dragging {
     box-shadow: inset 0 0 0 2px var(--sw-accent);
   }
-   sourceMappingURL=[^*]**/ 4. separator rows (.row settings, .ev / .spot / .hrow overview, .job exports, .recent sync, .li / .tr schedules, .dev / .ep /
+  /* 4. separator rows (.row settings, .ev / .spot / .hrow overview, .job exports, .recent sync, .li / .tr schedules, .dev / .ep /
         .frow / .sec multimedia, .policy / .tbl .r storage, .check / .fact setup and wizard, .bind / .eff .row access, .rev / .tpl,
         .stream, .corr .link, .dryrow / .dry rules, .note cases, .effective li, .srow, table cells): the hairline stays visible */
   :host([data-skin='bubble']) .row,
@@ -24595,7 +24595,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) th {
     border-color: color-mix(in srgb, var(--sw-border-strong) 55%, transparent);
   }
-   sourceMappingURL=[^*]**/ 5. fields (DROPDOWNFIT-295: a capsule select - sw-field[capsule] - is dressed by sw-field itself, like the capsule dropdown; the screens' own inputs and selects; sw-field's are slotted and dressed by the skin sheet): pill fields on the
+  /* 5. fields (DROPDOWNFIT-295: a capsule select - sw-field[capsule] - is dressed by sw-field itself, like the capsule dropdown; the screens' own inputs and selects; sw-field's are slotted and dressed by the skin sheet): pill fields on the
         second surface, the touch dial; checkboxes, radios, colour wells and ranges keep their native drawing */
   :host([data-skin='bubble']) input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']):not([type='file']),
   :host([data-skin='bubble']) select:not(sw-field[capsule] > select),
@@ -24616,7 +24616,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
-   sourceMappingURL=[^*]**/ 6. nothing sticks over the rows in this skin (the sticky save / bulk bars of the settings and list screens become the last
+  /* 6. nothing sticks over the rows in this skin (the sticky save / bulk bars of the settings and list screens become the last
         row; the layout guard's "floating" class) */
   :host([data-skin='bubble']) .bulk,
   :host([data-skin='bubble']) .bar,
@@ -24625,7 +24625,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) .savebar {
     position: static;
   }
-   sourceMappingURL=[^*]**/ 7. the banners / notices and the icon squares: soft corners of the skin */
+  /* 7. the banners / notices and the icon squares: soft corners of the skin */
   :host([data-skin='bubble']) .banner,
   :host([data-skin='bubble']) .notice,
   :host([data-skin='bubble']) .impact,
@@ -24649,7 +24649,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
   :host([data-skin='bubble']) .item .thumb {
     border-radius: var(--sw-r-sm);
   }
-   sourceMappingURL=[^*]**/ touch layouts: 44 px whatever the desktop dial says (the dial is a desktop choice) */
+  /* touch layouts: 44 px whatever the desktop dial says (the dial is a desktop choice) */
   @media (max-width: 1100px) {
     :host([data-skin='bubble']) .layouts button,
     :host([data-skin='bubble']) .rangepick button,
@@ -24820,7 +24820,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ MEDIA-POLISH-2331: the error stays in view at the top while the person scrolls (a save that failed far down the screens list
+    /* MEDIA-POLISH-2331: the error stays in view at the top while the person scrolls (a save that failed far down the screens list
        used to report above the first card, out of sight); the "נשמר" note floats at the bottom of the window, where it is seen
        whichever row was changed */
     .err {
@@ -24856,7 +24856,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       outline: 2px solid var(--sw-focus);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ the screens table: ONE grid; the header and every row share its columns (subgrid). Each row used to be a grid of its own with
+    /* the screens table: ONE grid; the header and every row share its columns (subgrid). Each row used to be a grid of its own with
        auto columns, so the header labels and the controls under them never lined up. */
     .sgrid {
       display: grid;
@@ -24990,7 +24990,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP5: a screen that cannot be cast to is shown quieter by its ink, not by a see-through row (opacity took the name below AA) */
+    /* POLISH4-WP5: a screen that cannot be cast to is shown quieter by its ink, not by a see-through row (opacity took the name below AA) */
     .it.no .nm {
       color: var(--sw-text-2);
     }
@@ -25008,7 +25008,7 @@ ${x2(`[data-lay-border='${e}']`)} { border-color: var(--dv-role-${e}-border); bo
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ a phone: the allowed duration drops under the name instead of squeezing it */
+    /* a phone: the allowed duration drops under the name instead of squeezing it */
     @media (max-width: 767px) {
       .it {
         flex-wrap: wrap;
@@ -25078,7 +25078,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     :host {
       display: inline-flex;
       min-inline-size: 0;
-       sourceMappingURL=[^*]**/ WALL-OVERFLOW-2270: the slotted label is ellipsized by the inner span (.btn > span); the host says so too, so the
+      /* WALL-OVERFLOW-2270: the slotted label is ellipsized by the inner span (.btn > span); the host says so too, so the
          label's full (unpainted) run past a narrow card - a long door name at 320 px - reads as ellipsized text, not as text
          cut by the card. No rendering change: text-overflow does not apply to the flex host itself. */
       text-overflow: ellipsis;
@@ -25377,7 +25377,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .line[data-tone='error'] {
       color: var(--sw-danger-text);
     }
-     sourceMappingURL=[^*]**/ the call's own actions on one row (answer + decline, or end); the doors under them, each as wide as its name needs */
+    /* the call's own actions on one row (answer + decline, or end); the doors under them, each as wide as its name needs */
     .acts {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
@@ -25439,7 +25439,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       clip: rect(0 0 0 0);
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ a phone: a bottom sheet over the screen's lower part, large press targets, clear of the home indicator */
+    /* a phone: a bottom sheet over the screen's lower part, large press targets, clear of the home indicator */
     @media (max-width: 600px) {
       .sheet {
         inset-block-start: auto;
@@ -25481,7 +25481,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       overflow: auto;
       scrollbar-width: thin;
       padding: 16px 0 24px var(--sw-page-pad);
-       sourceMappingURL=[^*]**/ LOGOFIX-295: the developer / installer logos at the page's start sit over this column's first rows - it starts below them (0 without logos) */
+      /* LOGOFIX-295: the developer / installer logos at the page's start sit over this column's first rows - it starts below them (0 without logos) */
       padding-block-start: calc(16px + var(--sw-lead-reserve-h, 0px));
       padding-inline-end: 0;
       padding-inline-start: var(--sw-page-pad);
@@ -25510,7 +25510,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .search input {
       inline-size: 100%;
       box-sizing: border-box;
-       sourceMappingURL=[^*]**/ the large control height on a desktop; a skin whose desktop targets follow the touch dial (bubble) sets
+      /* the large control height on a desktop; a skin whose desktop targets follow the touch dial (bubble) sets
          --sw-settings-search-h on the shell; touch layouts (below) always get 44 px */
       min-block-size: var(--sw-settings-search-h, var(--sw-ctl-h-lg));
       padding: 0 32px 0 10px;
@@ -25563,7 +25563,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       flex-direction: column;
       gap: 1px;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: a group label is a heading of the column (12.5/700, the heading ink), not a 10 px uppercase smudge */
+    /* R5-SYSTEM-297: a group label is a heading of the column (12.5/700, the heading ink), not a 10 px uppercase smudge */
     .grp > b {
       display: flex;
       align-items: center;
@@ -25578,7 +25578,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .grp > b sw-icon {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the group label is the button that opens / closes its entries (the whole column has to fit the screen without a scroll) */
+    /* the group label is the button that opens / closes its entries (the whole column has to fit the screen without a scroll) */
     .grp > b .gh {
       flex: 1;
       display: flex;
@@ -25615,7 +25615,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .grp[data-open='true'] > b {
       margin-block-end: 2px;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: the entries read at a glance (13.5/500), the current one is a filled field in 600; a press gives (transform only) */
+    /* R5-SYSTEM-297: the entries read at a glance (13.5/500), the current one is a filled field in 600; a press gives (transform only) */
     a {
       display: flex;
       align-items: center;
@@ -25708,7 +25708,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       font-weight: var(--sw-fw-regular);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ the results: the same links, flat, with where they live */
+    /* the results: the same links, flat, with where they live */
     .results {
       display: flex;
       flex-direction: column;
@@ -25740,13 +25740,13 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     :host([compact]) nav {
       display: none;
     }
-     sourceMappingURL=[^*]**/ Owner decision 402: on a short desktop screen the open group is drawn denser so the whole column fits without a scroll (the ‘system’
+    /* Owner decision 402: on a short desktop screen the open group is drawn denser so the whole column fits without a scroll (the ‘system’
        group is the longest, 17 entries); the overflow:auto on :host stays only as the last resort below about 700 px of height */
     @media (min-width: 1101px) and (max-height: 960px) {
       :host {
         gap: var(--sw-s-2);
         padding-block: 10px 10px;
-        padding-block-start: calc(10px + var(--sw-lead-reserve-h, 0px));  sourceMappingURL=[^*]**/ LOGOFIX-295 */
+        padding-block-start: calc(10px + var(--sw-lead-reserve-h, 0px)); /* LOGOFIX-295 */
       }
       nav {
         gap: var(--sw-s-2);
@@ -25766,7 +25766,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       :host {
         gap: 6px;
         padding-block: 6px 6px;
-        padding-block-start: calc(6px + var(--sw-lead-reserve-h, 0px));  sourceMappingURL=[^*]**/ LOGOFIX-295 */
+        padding-block-start: calc(6px + var(--sw-lead-reserve-h, 0px)); /* LOGOFIX-295 */
       }
       nav {
         gap: 4px;
@@ -25786,7 +25786,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         min-block-size: max(32px, var(--sw-settings-row-h, 0px));
       }
     }
-     sourceMappingURL=[^*]**/ a tablet gets the search row too (the shell stacks the column above the page up to 1100 px, the reference tablet width included) */
+    /* a tablet gets the search row too (the shell stacks the column above the page up to 1100 px, the reference tablet width included) */
     @media (max-width: 1100px) {
       :host {
         position: static;
@@ -25794,7 +25794,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         max-block-size: none;
         overflow: visible;
         padding: 12px var(--sw-page-pad) 0;
-         sourceMappingURL=[^*]**/ LOGOFIX-295: stacked above the page, the search row is the page's first row: it keeps the logos' width free at its start */
+        /* LOGOFIX-295: stacked above the page, the search row is the page's first row: it keeps the logos' width free at its start */
         padding-inline-start: calc(var(--sw-page-pad) + var(--sw-lead-reserve, 0px));
         gap: 0;
       }
@@ -25820,7 +25820,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       :host([compact]) .search {
         max-inline-size: none;
       }
-       sourceMappingURL=[^*]**/ the search row is a touch target on a phone and a tablet (the layout guard's 44 px) */
+      /* the search row is a touch target on a phone and a tablet (the layout guard's 44 px) */
       .search input {
         min-block-size: 44px;
       }
@@ -25989,7 +25989,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       align-items: center;
       padding-block-start: 10px;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP8 (owner Q7): the preferences save row stays in view on a phone while the long page scrolls under it - the same look as
+    /* POLISH4-WP8 (owner Q7): the preferences save row stays in view on a phone while the long page scrolls under it - the same look as
        the settings kit's .foot.sticky (styles/settings.ts), kept local because this element does not load the kit */
     @media (max-width: 767px) {
       .foot.sticky {
@@ -26154,7 +26154,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     </sw-sheet>`}};Ne.styles=[a_,P`
     :host { display: contents; }
 
-     sourceMappingURL=[^*]**/ CARD1: the equipment card between the head and the tabs */
+    /* CARD1: the equipment card between the head and the tabs */
     .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
     .card.on { background: var(--sw-accent-soft); border-color: transparent; }
     .card .st { display: flex; align-items: baseline; gap: var(--sw-s-2); flex-wrap: wrap; min-inline-size: 0; }
@@ -26180,7 +26180,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .chip:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .auto { display: flex; align-items: center; gap: var(--sw-s-2); color: var(--sw-text-2); font-size: var(--sw-fs-sm); min-block-size: 28px; }
     .auto span { flex: 1; min-inline-size: 0; }
-     sourceMappingURL=[^*]**/ the hold-to-confirm button: a bar fills it over HOLD_MS while the pointer is held */
+    /* the hold-to-confirm button: a bar fills it over HOLD_MS while the pointer is held */
     .hbtn {
       position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; min-block-size: 36px; padding-inline: 16px;
       border-radius: var(--sw-r-sm); border: 1px solid var(--sw-accent); background: var(--sw-accent); color: var(--sw-text-inverse); font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium);
@@ -26206,7 +26206,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     }
     .menu button:hover, .menu button:focus-visible { background: var(--sw-accent-soft); color: var(--sw-accent-text); outline: none; }
     .menu button:focus-visible { box-shadow: 0 0 0 2px var(--sw-focus); }
-     sourceMappingURL=[^*]**/ CR-038 D17: the ticket items under a divider, the device's open count at the end of its row */
+    /* CR-038 D17: the ticket items under a divider, the device's open count at the end of its row */
     .menu hr { border: 0; border-block-start: 1px solid var(--sw-menu-border); margin: var(--sw-s-1) var(--sw-s-2); }
     .menu .ml { flex: 1; }
     .menu .mc { min-inline-size: 20px; padding-inline: 6px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-xs); text-align: center; font-variant-numeric: tabular-nums; }
@@ -26228,10 +26228,10 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .cnt { font-size: var(--sw-fs-xs); background: var(--sw-accent-soft); color: var(--sw-accent-text); border-radius: var(--sw-r-pill); padding: 0 6px; }
 
     .pbody { min-block-size: 120px; max-block-size: min(60vh, 520px); overflow: auto; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); scrollbar-width: thin; }
-     sourceMappingURL=[^*]**/ a phone: the sheet itself scrolls, one scroller only (no list inside a list) */
+    /* a phone: the sheet itself scrolls, one scroller only (no list inside a list) */
     @media (max-width: 767px) { .pbody { max-block-size: none; overflow: visible; } }
 
-     sourceMappingURL=[^*]**/ ---- the toolbar: filters at the start, the view toggle and refresh at the end; on a phone the chips scroll sideways in one row ---- */
+    /* ---- the toolbar: filters at the start, the view toggle and refresh at the end; on a phone the chips scroll sideways in one row ---- */
     .fl { display: flex; align-items: center; gap: var(--sw-s-2); padding-block: var(--sw-s-1h) var(--sw-s-2); }
     .fchips { flex: 1 1 auto; min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
     .ftools { flex: none; display: inline-flex; align-items: center; gap: 2px; }
@@ -26253,24 +26253,24 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .vw button.on { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .vw button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
 
-     sourceMappingURL=[^*]**/ ---- the day groups: a sticky day line (translucent, so the sheet's glass stays) with the count at its end ---- */
+    /* ---- the day groups: a sticky day line (translucent, so the sheet's glass stays) with the count at its end ---- */
     .feed { display: grid; gap: var(--sw-s-2); }
     .dg { min-inline-size: 0; }
     .day {
       position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--sw-s-2);
       padding: var(--sw-s-2) 2px var(--sw-s-1); color: var(--sw-text-3); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold);
-       sourceMappingURL=[^*]**/ the sheet's own colour, nearly opaque: no second backdrop blur inside the blurred sheet (a phone pays for nested blurs) */
+      /* the sheet's own colour, nearly opaque: no second backdrop blur inside the blurred sheet (a phone pays for nested blurs) */
       background: rgba(var(--sw-sheet-rgb), max(var(--sw-sheet-alpha, 1), 0.92));
     }
     .dn { min-inline-size: 18px; padding-inline: 5px; block-size: 18px; display: inline-grid; place-items: center; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-variant-numeric: tabular-nums; font-weight: var(--sw-fw-medium); }
-     sourceMappingURL=[^*]**/ cards: the day's events sit in one soft card */
+    /* cards: the day's events sit in one soft card */
     .feed.cards .dgb { border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); padding-inline: var(--sw-s-3); }
     .ev { display: grid; grid-template-columns: 28px 1fr auto; gap: var(--sw-s-3); align-items: center; min-block-size: 52px; border-block-end: 1px solid var(--sw-border); padding-block: var(--sw-s-1h); }
     .feed.cards .ev:last-child { border-block-end: 0; }
     .av { position: relative; display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
     .av.unknown { background: transparent; border: 1px dashed var(--sw-border-strong); color: var(--sw-text-3); }
     .av.automation, .av.schedule, .av.scene, .av.device, .av.system { background: var(--sw-surface-3); color: var(--sw-text-2); }
-     sourceMappingURL=[^*]**/ the tone marker: a small dot - on (success), off (muted), a value change (accent), availability lost (stale) / back (success ring) */
+    /* the tone marker: a small dot - on (success), off (muted), a value change (accent), availability lost (stale) / back (success ring) */
     .tn { display: block; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--sw-text-3); box-sizing: border-box; }
     .av .tn { position: absolute; inset-inline-end: -2px; inset-block-end: -1px; inline-size: 10px; block-size: 10px; border: 2px solid var(--sw-surface-2); }
     [data-tone='on'] .tn { background: var(--sw-success); }
@@ -26288,7 +26288,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     [data-tone='lost'] .ba b { color: var(--sw-stale); }
     .mt { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     .t { color: var(--sw-text-3); font-size: var(--sw-fs-sm); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-     sourceMappingURL=[^*]**/ list: one dense line per event - clock | dot | who | what */
+    /* list: one dense line per event - clock | dot | who | what */
     .rw { display: grid; grid-template-columns: auto 8px fit-content(42%) minmax(0, 1fr); gap: var(--sw-s-2); align-items: center; min-block-size: 36px; border-block-end: 1px solid var(--sw-border); padding-block: var(--sw-s-1); font-size: var(--sw-fs-sm); }
     .rw .t { min-inline-size: 38px; }
     .rw .tn { inline-size: 8px; block-size: 8px; }
@@ -26399,7 +26399,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     :host {
       display: contents;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I3 (#11, owner Q9 option a): the dialog is the product's one <sw-dialog> (its scrim, its centred box, its spring, its focus
+    /* AUDIT30-I3 (#11, owner Q9 option a): the dialog is the product's one <sw-dialog> (its scrim, its centred box, its spring, its focus
        trap, Escape and the return of focus), wide. Opaque in every skin: the glass skins' translucent --sw-surface and their blur stop
        at this box (the audit measured the old box as rgba(255,255,255,.64) under a 40 px blur in the glass look). */
     sw-dialog {
@@ -26438,7 +26438,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-bold);
     }
-     sourceMappingURL=[^*]**/ the tabs, the body and the footer live in sw-dialog's slots; its body scrolls, its footer stays (the actions are always on screen) */
+    /* the tabs, the body and the footer live in sw-dialog's slots; its body scrolls, its footer stays (the actions are always on screen) */
     .cbody {
       display: flex;
       flex-direction: column;
@@ -26559,7 +26559,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was solid accent) */
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was solid accent) */
     .chip[aria-pressed='true'] {
       background: var(--sw-accent-soft);
       border-color: transparent;
@@ -26693,7 +26693,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       display: block;
       direction: ltr;
       font-size: var(--sw-fs-xs);
-       sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the category colours follow the product's status tokens (a skin, a palette and the dark scheme change them);
+      /* POLISH-CONTROL-297: the category colours follow the product's status tokens (a skin, a palette and the dark scheme change them);
          the two that have no status meaning keep a hue of their own */
       --sc-on: var(--sw-success);
       --sc-off: var(--sw-unknown);
@@ -26704,7 +26704,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       --sc-custom: var(--sw-text-2);
       --sc-empty: var(--sw-text-3);
       --label-w: 64px;
-       sourceMappingURL=[^*]**/ the night, the grid lines and the sun lines are tints of the text colour, so they are seen on a dark board too */
+      /* the night, the grid lines and the sun lines are tints of the text colour, so they are seen on a dark board too */
       --sc-night: color-mix(in srgb, var(--sw-text) 5%, transparent);
       --sc-gridline: color-mix(in srgb, var(--sw-text) 9%, transparent);
     }
@@ -26734,7 +26734,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       display: grid;
       grid-template-columns: 1fr var(--label-w);
     }
-     sourceMappingURL=[^*]**/ round 2: the day name one step larger and bold; the track is a tone step without a frame (taste-skill: no outlined boxes) */
+    /* round 2: the day name one step larger and bold; the track is a tone step without a frame (taste-skill: no outlined boxes) */
     .lbl {
       direction: rtl;
       padding-inline-start: 10px;
@@ -26779,7 +26779,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       border-inline-start: 2px solid var(--sw-danger);
       z-index: 2;
     }
-     sourceMappingURL=[^*]**/ the "now" line carries a small head, so it is told from a schedule's edge */
+    /* the "now" line carries a small head, so it is told from a schedule's edge */
     .nowl::before {
       content: '';
       position: absolute;
@@ -26790,7 +26790,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       border-radius: 50%;
       background: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the pill is one step taller and its text one step larger (it was the 10 px tier); it answers the press and the
+    /* POLISH-CONTROL-297: the pill is one step taller and its text one step larger (it was the 10 px tier); it answers the press and the
        keyboard, hover is for fine pointers only (transform and shadow, token durations - zero under reduced motion) */
     .pill {
       --c: var(--sc-custom);
@@ -26834,7 +26834,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .pill.cond {
       border-style: dashed;
     }
-     sourceMappingURL=[^*]**/ round 2 (impeccable detector: the 3 px side stripe was a slop tell): the category is a filled dot before the time */
+    /* round 2 (impeccable detector: the 3 px side stripe was a slop tell): the category is a filled dot before the time */
     .pill::before {
       content: '';
       inline-size: 7px;
@@ -26891,7 +26891,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       </div>
       ${this.schedules.some(i=>i.enabled)?p:o`<div class="empty">אין תזמונים פעילים להצגה.</div>`}
     </div>`}}Mg([_({attribute:!1})],ip.prototype,"schedules");Mg([_({attribute:!1})],ip.prototype,"sun");Mg([_({type:Number})],ip.prototype,"snap");Mg([w()],ip.prototype,"width");customElements.get("schedules-week-view")||customElements.define("schedules-week-view",ip);const lE={home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',door:'<rect x="6" y="3" width="12" height="18" rx="1"/><path d="M14 12h.01"/>',doorOpen:'<path d="M4 21h16"/><path d="M6 21V5l8-2v18"/><path d="M14 21h4V5h-4"/><path d="M11 12h.01"/>',bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>',bellRing:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3.5 9a8.5 8.5 0 0 1 2-4.5M20.5 9a8.5 8.5 0 0 0-2-4.5"/>',bellOff:'<path d="M8.6 6.6A6 6 0 0 1 18 11v5l1.5 2H9"/><path d="M6 11v5l-1.5 2H5"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="m3 3 18 18"/>',drop:'<path d="M12 3s6 6.2 6 10.5a6 6 0 0 1-12 0C6 9.2 12 3 12 3z"/>',flame:'<path d="M12 3c1 3 4 4.5 4 9a4 4 0 0 1-8 0c0-1.5.5-2.5 1.2-3.3.3 1.3 1 2 1.8 2.3C11 8.5 10.5 5.5 12 3z"/>',gas:'<path d="M7 13a5 5 0 0 0 10 0c0-3-3-5-2-9-3 1-3.5 4-3 6-1-1-1.5-2.5-1-4-2.5 1.5-4 4-4 7z"/><path d="M5 21h14"/>',siren:'<path d="M6 19v-6a6 6 0 0 1 12 0v6"/><path d="M4 19h16v2H4z"/><path d="M12 3v2M5 6l1.5 1.5M19 6l-1.5 1.5"/>',cameraOff:'<path d="M3 3l18 18"/><path d="M10.5 7H8.5L7 9H4v9h12"/><path d="M20 15.5V9h-3l-1.5-2H12"/><path d="M9.5 13.5a2.5 2.5 0 0 0 3.5 2.3"/>',cam:'<path d="M4 9h3l1.5-2h7L17 9h3v9H4z"/><circle cx="12" cy="13" r="3"/>',hdd:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 13h18"/><path d="M7 16.5h.01M10 16.5h.01"/>',archive:'<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9"/><path d="M10 13h4"/>',warning:'<path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/>',download:'<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',snooze:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5"/><path d="M15 2h5l-5 4h5"/>',bolt:'<path d="M13 3 4 14h7l-1 7 9-11h-7z"/>',layers:'<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',battery:'<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10v4"/><path d="M6 10v4"/>',key:'<circle cx="8" cy="14" r="4"/><path d="m11 11 9-9"/><path d="m16 6 3 3M14 8l2 2"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',shield:'<path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>',check:'<path d="m5 12 5 5 9-10"/>',checkAll:'<path d="m2 12 4.5 4.5L15 8"/><path d="m11 15.5 1.5 1.5L22 8"/>',close:'<path d="M6 6l12 12M18 6 6 18"/>',chevron:'<path d="m9 6 6 6-6 6"/>',chevronBack:'<path d="m15 6-6 6 6 6"/>',chevronDown:'<path d="m6 9 6 6 6-6"/>',more:'<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/>',open:'<path d="M14 4h6v6"/><path d="m20 4-9 9"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>',moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',send:'<path d="M21 3 3 10.5l7 2.5 2.5 7z"/><path d="m21 3-11 10"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>',chat:'<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8"/>',filter:'<path d="M4 5h16l-6 7v6l-4 2v-8z"/>',refresh:'<path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 4v7h-7"/>',plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m21 16-5-5-9 9"/>',escal:'<path d="m4 17 6-6 4 4 6-7"/><path d="M15 8h5v5"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',wifiOff:'<path d="M3 3l18 18"/><path d="M8.5 16a5 5 0 0 1 6.2-.6M5 12.5a10 10 0 0 1 4-2.3M16.5 10.5a10 10 0 0 1 2.5 2M2 9a15 15 0 0 1 5-3M11 5.1A15 15 0 0 1 22 9"/><path d="M12 19.5h.01"/>',inbox:'<path d="M3 13h5l2 3h4l2-3h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',flash:'<path d="M8 3h8l-3 6h4L9 21l2-9H7z"/>',eye:'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'};function re(e,t){return o`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style=${t?`font-size:${t}px`:""}>${Wn(lE[e]??lE.bell)}</svg>`}const Sfe=P`
-   sourceMappingURL=[^*]**/ SEC polish (2026-10-10): the knobs read the product's state tokens (--sw-product-*: the resolved product colours, never the
+  /* SEC polish (2026-10-10): the knobs read the product's state tokens (--sw-product-*: the resolved product colours, never the
      --dv-* bridge, so no cycle inside the glass host) - one amber, one red, one blue on every screen, light and dark, every skin.
      The scheme block below only re-tunes the washes that need more presence on a dark glass.
      MEDIA-polish (2026-10-10) aimed at the same result through the --dv-* knobs; the 2.4.6 integration keeps this (2.4.5) block. */
@@ -26948,7 +26948,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     background: var(--dv-warning-soft);
     color: var(--nt-warn-text);
   }
-   sourceMappingURL=[^*]**/ the door release: an amber control that reads as "a physical action" next to the quiet ones; its confirmation stays the center's */
+  /* the door release: an amber control that reads as "a physical action" next to the quiet ones; its confirmation stays the center's */
   .btn.door {
     background: var(--dv-warning-soft);
     border-color: color-mix(in srgb, var(--dv-warning) 40%, transparent);
@@ -27004,7 +27004,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     color: var(--dv-text);
     background: var(--dv-surface);
   }
-   sourceMappingURL=[^*]**/ AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was a solid --dv-text block) */
+  /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was a solid --dv-text block) */
   .rc[aria-pressed='true'],
   .rc.on {
     background: var(--sw-accent-soft);
@@ -27198,7 +27198,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
   .bnr > span {
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ the timeline of a notification, and the escalation preview of the settings */
+  /* the timeline of a notification, and the escalation preview of the settings */
   .tl {
     display: flex;
     flex-direction: column;
@@ -27507,7 +27507,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         inset-block-start: calc(100% - 8px);
         inset-inline-end: 8px;
         z-index: 30;
-         sourceMappingURL=[^*]**/ a row's "..." menu is never see-through (owner 2026-10-13): the opaque menu surface, nothing blurred behind it */
+        /* a row's "..." menu is never see-through (owner 2026-10-13): the opaque menu surface, nothing blurred behind it */
         background: var(--sw-menu-surface);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
@@ -27561,7 +27561,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       .ndet > * {
         flex-shrink: 0;
       }
-       sourceMappingURL=[^*]**/ TKNOTIFMATRIX: the digest's ticket list, folded until asked for */
+      /* TKNOTIFMATRIX: the digest's ticket list, folded until asked for */
       .dg summary {
         cursor: pointer;
         min-block-size: 44px;
@@ -27890,7 +27890,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         opacity: 1;
         transform: none;
       }
-       sourceMappingURL=[^*]**/ the full-screen presentation of a wide screen (notify.center_layout = 'page'): the content column beside the rail */
+      /* the full-screen presentation of a wide screen (notify.center_layout = 'page'): the content column beside the rail */
       :host([data-presentation='page']) .panel {
         inset-block: 0;
         inset-inline: var(--sw-rail-w) 0;
@@ -27908,7 +27908,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         margin-inline: auto;
         padding-block-start: 10px;
       }
-       sourceMappingURL=[^*]**/ the phone: a full-height bottom sheet */
+      /* the phone: a full-height bottom sheet */
       :host([data-presentation='bottom_sheet']) .panel {
         inset: auto 0 0 0;
         inline-size: auto;
@@ -28048,7 +28048,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         inset-block-start: calc(100% + 6px);
         inset-inline-end: 0;
         min-inline-size: 250px;
-         sourceMappingURL=[^*]**/ the source filter's menu is never see-through (owner 2026-10-13): the opaque menu surface, nothing blurred behind it */
+        /* the source filter's menu is never see-through (owner 2026-10-13): the opaque menu surface, nothing blurred behind it */
         background: var(--sw-menu-surface);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
@@ -28136,7 +28136,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       .statebox {
         padding-block: 56px;
       }
-       sourceMappingURL=[^*]**/ the door confirmation (CR §9) is a sibling of the sheet: a fixed element inside a backdrop-filtered parent would be clipped by it */
+      /* the door confirmation (CR §9) is a sibling of the sheet: a fixed element inside a backdrop-filtered parent would be clipped by it */
       .dlgwrap {
         position: absolute;
         inset: 0;
@@ -28250,7 +28250,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       .nh .back:hover {
         background: var(--dv-surface-2);
       }
-       sourceMappingURL=[^*]**/ the empty state: a ring, one line, nothing to do */
+      /* the empty state: a ring, one line, nothing to do */
       .statebox {
         display: flex;
         flex-direction: column;
@@ -28277,7 +28277,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
         font-size: var(--sw-fs-sm);
       }
       @media (prefers-reduced-motion: reduce) {
-         sourceMappingURL=[^*]**/ the host too: its delayed visibility (--mm-motion, a literal 240 ms in the glass layer) kept the closed, click-through layer visible */
+        /* the host too: its delayed visibility (--mm-motion, a literal 240 ms in the glass layer) kept the closed, click-through layer visible */
         :host,
         .panel {
           transition: none;
@@ -28330,7 +28330,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
     .plate img {
       block-size: calc(var(--_h) - 6px);
     }
-     sourceMappingURL=[^*]**/ the one place a colour invert is allowed: the administrator chose it (brand.dark_mode = invert) */
+    /* the one place a colour invert is allowed: the administrator chose it (brand.dark_mode = invert) */
     .invert img {
       filter: invert(1) hue-rotate(180deg);
     }
@@ -28415,7 +28415,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       max-block-size: min(70vh, 520px);
       overflow: auto;
       box-sizing: border-box;
-       sourceMappingURL=[^*]**/ the tray hangs over the page like a menu: opaque, never see-through (owner 2026-10-13) */
+      /* the tray hangs over the page like a menu: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
@@ -28427,7 +28427,7 @@ button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: no
       color: var(--sw-text);
       text-align: start;
     }
-     sourceMappingURL=[^*]**/ the phone: the pill sits in the floating corner, so the tray takes the screen's width under it instead of hanging off the pill */
+    /* the phone: the pill sits in the floating corner, so the tray takes the screen's width under it instead of hanging off the pill */
     @media (max-width: 767px) {
       .tray {
         position: fixed;
@@ -28620,7 +28620,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       flex-direction: column;
       background: var(--sw-surface);
       border-inline-end: 1px solid var(--sw-border);
-       sourceMappingURL=[^*]**/ RTL always: inline-start is the visual right, inline-end the visual left */
+      /* RTL always: inline-start is the visual right, inline-end the visual left */
       padding-block: 10px 8px;
       padding-inline-start: max(10px, env(safe-area-inset-right, 0px));
       padding-inline-end: max(10px, env(safe-area-inset-left, 0px));
@@ -28628,7 +28628,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       overflow: auto;
       scrollbar-width: none;
     }
-     sourceMappingURL=[^*]**/ RFQQUESTIONS: a count on an area icon (vendor questions waiting in the tickets area) */
+    /* RFQQUESTIONS: a count on an area icon (vendor questions waiting in the tickets area) */
     a.item,
     nav.bottom a {
       position: relative;
@@ -28644,7 +28644,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       padding-inline: 4px;
       border-radius: 999px;
       background: var(--sw-danger);
-      color: var(--sw-on-video);  sourceMappingURL=[^*]**/ white on the danger fill */
+      color: var(--sw-on-video); /* white on the danger fill */
       font-size: var(--sw-fs-2xs);
       font-weight: 700;
       line-height: 1;
@@ -28735,7 +28735,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       flex: 1;
       min-block-size: 0;
     }
-     sourceMappingURL=[^*]**/ SET-polish: the settings pages carry their own navigation column (screens/system-nav.ts) at the start side on a wide
+    /* SET-polish: the settings pages carry their own navigation column (screens/system-nav.ts) at the start side on a wide
        screen; up to 1100 px (the reference tablet width included, and the phone) it is the search row above the page */
     main > .screen[data-settings] {
       flex-direction: row;
@@ -28743,7 +28743,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
     }
     main > .screen[data-settings] > system-nav {
       flex: none;
-       sourceMappingURL=[^*]**/ CR-READY96: the sticky column never grows past the room the screen has (the tab row / banner above it used to push the shell's <main> into a page scroll by their own height) */
+      /* CR-READY96: the sticky column never grows past the room the screen has (the tab row / banner above it used to push the shell's <main> into a page scroll by their own height) */
       max-block-size: 100%;
     }
     main > .screen[data-settings] > :not(system-nav) {
@@ -28789,11 +28789,11 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
           'main'
           'bottom';
       }
-       sourceMappingURL=[^*]**/ KIOSK polish: a pull at the top of a screen stays inside the app - the browser's own pull-to-refresh would reload the
+      /* KIOSK polish: a pull at the top of a screen stays inside the app - the browser's own pull-to-refresh would reload the
          whole shell (and, installed, the whole app); the screens refresh themselves from the live channel */
       main {
         overscroll-behavior-y: contain;
-         sourceMappingURL=[^*]**/ A11Y-R4-LEFTOVERS-2380 (WCAG 2.4.11): the settings save row (.foot.sticky: 44 px key + 2 x 10 px padding + the border = 66 px, 8 px above the
+        /* A11Y-R4-LEFTOVERS-2380 (WCAG 2.4.11): the settings save row (.foot.sticky: 44 px key + 2 x 10 px padding + the border = 66 px, 8 px above the
            bottom edge) is pinned over the page's lower edge; a field that takes focus or is scrolled to is kept clear of it, never left under it.
            The row sits in the flow (sticky), so at the end of a page it is in its own place and covers nothing: no bottom padding is needed. */
         scroll-padding-block-end: calc(var(--sw-s-2) + 66px);
@@ -28804,7 +28804,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       .subnav {
         padding: 8px 12px 0;
       }
-       sourceMappingURL=[^*]**/ R5-SYSTEM-297 (phone shell): the bar is a surface that sits OVER the page (the upward shadow and the light line); an item
+      /* R5-SYSTEM-297 (phone shell): the bar is a surface that sits OVER the page (the upward shadow and the light line); an item
          gives on pointer-down (transform only, 120 ms); the current one reads in the accent ink at 600 */
       nav.bottom {
         grid-area: bottom;
@@ -28813,7 +28813,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         background: var(--sw-surface);
         border-block-start: 1px solid var(--sw-border);
         box-shadow: 0 -6px 18px rgba(16, 24, 40, 0.06), inset 0 1px 0 var(--sw-highlight);
-         sourceMappingURL=[^*]**/ a landscape phone's notch/rounded corners sit on the inline edges too, not only the home indicator below */
+        /* a landscape phone's notch/rounded corners sit on the inline edges too, not only the home indicator below */
         padding-inline: env(safe-area-inset-right, 0px) env(safe-area-inset-left, 0px);
         padding-block-end: env(safe-area-inset-bottom);
       }
@@ -28860,12 +28860,12 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       }
     }
 
-     sourceMappingURL=[^*]**/ ---- design SW A: four-area icon rail on the right, 72px top bar with crumbs, wide search, user chip ---- */
+    /* ---- design SW A: four-area icon rail on the right, 72px top bar with crumbs, wide search, user chip ---- */
     :host([data-design='a']) {
-       sourceMappingURL=[^*]**/ UI round 1: no top bar - the content owns the whole column; search and status float in its corner (.float) */
+      /* UI round 1: no top bar - the content owns the whole column; search and status float in its corner (.float) */
       grid-template-rows: minmax(0, 1fr);
       grid-template-areas: 'rail main';
-       sourceMappingURL=[^*]**/ UI round 1b (shell/nav-size.ts): the rail is as wide as its widest label needs (never clipped); sw-app measures it
+      /* UI round 1b (shell/nav-size.ts): the rail is as wide as its widest label needs (never clipped); sw-app measures it
          into --sw-rail-w for what is placed beside it (the user menu, the alert banner) */
       grid-template-columns: auto minmax(0, 1fr);
     }
@@ -28882,7 +28882,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
     .brand-tile[data-demo] {
       background: repeating-linear-gradient(135deg, var(--sw-warning) 0 6px, var(--sw-warning-text) 6px 12px);
     }
-     sourceMappingURL=[^*]**/ LOGOS-295: the SmplWise mark (a bundle file) replaces the blue "S" tile; the artwork is its own colour, no tile behind it.
+    /* LOGOS-295: the SmplWise mark (a bundle file) replaces the blue "S" tile; the artwork is its own colour, no tile behind it.
        FIX2180-295: Domus and Crystal paint this tile in the accent gradient (skins/domus.ts, skins/crystal.ts), so the rail mark is
        drawn in the white tone there (.scheme='dark' on its <sw-brand>); every other skin and the dark scheme keep the default. */
     .brand-tile {
@@ -28893,7 +28893,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       text-decoration: none;
       margin-block-end: 8px;
     }
-     sourceMappingURL=[^*]**/ LOGOS-295 + LOGOFIT-295: the logos share the floating corner's row (the page's own top row) - order inline-start -> end: the company
+    /* LOGOS-295 + LOGOFIT-295: the logos share the floating corner's row (the page's own top row) - order inline-start -> end: the company
        logo, the search / status pill, a hairline, the SmplWise logo (RTL: the far left, to the left of the search; owner 2026-10-24).
        Desktop and tablet only: the phone has no strip. 2.16.0 drew them as a 48 px row of their own above every screen, which pushed the
        whole screen down (owner bug report on 2.16.0); now they add no height: the row is part of the absolute corner and the pages keep
@@ -28913,7 +28913,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       align-items: center;
       gap: 14px;
     }
-     sourceMappingURL=[^*]**/ LOGOSIDE-295: with the setting brand.logo_side = start the developer / installer logos leave the corner row and sit at the START of
+    /* LOGOSIDE-295: with the setting brand.logo_side = start the developer / installer logos leave the corner row and sit at the START of
        the page's top row (RTL: the right, beside the rail), exactly where the page title begins; the pages keep their first row's start
        side clear of them through --sw-lead-reserve (the measured width, --sw-lead-brand). The same fade-on-scroll and no-hit-target rules. */
     .leadbrand {
@@ -28933,7 +28933,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       min-inline-size: 0;
       transition: opacity var(--sw-t-fast) var(--sw-ease), visibility 0s linear var(--sw-t-fast);
     }
-     sourceMappingURL=[^*]**/ FIX2200: the row itself fades too, not only its logos - an empty 34 px box stayed over the page's sticky tab row once the content
+    /* FIX2200: the row itself fades too, not only its logos - an empty 34 px box stayed over the page's sticky tab row once the content
        scrolled (the 2.20.0 layout guard: "div.leadbrand covers" a settings tab) */
     :host([data-scrolled]) .leadbrand,
     :host([data-scrolled]) .leadbrand sw-brand {
@@ -28945,7 +28945,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       transition-delay: 0s;
     }
     .float .cornerrow sw-brand[kind='product'] {
-      color: var(--sw-text-3);  sourceMappingURL=[^*]**/ "Smpl" of the wordmark, as the mockup's strip (.strip .sw) */
+      color: var(--sw-text-3); /* "Smpl" of the wordmark, as the mockup's strip (.strip .sw) */
     }
     .float .cornerrow sw-brand {
       transition: opacity var(--sw-t-fast) var(--sw-ease), visibility 0s linear var(--sw-t-fast);
@@ -28972,7 +28972,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         transition: none;
       }
     }
-     sourceMappingURL=[^*]**/ the tablet widths: the logos give the page title its room */
+    /* the tablet widths: the logos give the page title its room */
     @media (max-width: 1099px) {
       .float .cornerrow sw-brand[kind='company'],
       .float .cornerrow sw-brand[kind='installer'],
@@ -28992,7 +28992,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       box-sizing: border-box;
       min-block-size: 36px;
       padding-block: 6px 0;
-      padding-inline: 12px 96px;  sourceMappingURL=[^*]**/ the float pill keeps its corner */
+      padding-inline: 12px 96px; /* the float pill keeps its corner */
       min-inline-size: 0;
     }
     .homebrand .sp {
@@ -29023,7 +29023,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
     a.item.a span {
       display: inline;
     }
-     sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 second pass (P4): a long area label ("מולטימדיה", 76 px) overflowed the 68 px active pill on every
+    /* POLISH-CLASSIC-DOMUS-297 second pass (P4): a long area label ("מולטימדיה", 76 px) overflowed the 68 px active pill on every
        screen. The rail keeps its width; the pill never grows past it, gives the label 2 px more each side and ends a longer one in an
        ellipsis (the link's aria-label / title carries the whole name) */
     a.item.a {
@@ -29036,13 +29036,13 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       text-overflow: ellipsis;
       letter-spacing: -0.01em;
     }
-     sourceMappingURL=[^*]**/ labels off (a free size with no label): the icon alone; the link keeps its aria-label */
+    /* labels off (a free size with no label): the icon alone; the link keeps its aria-label */
     :host([data-nolabels]) a.item.a span,
     :host([data-nolabels]) button.me .lbl,
     :host([data-nolabels]) nav.bottom .lbl {
       display: none;
     }
-     sourceMappingURL=[^*]**/ WORSTCASE-2310: the active marker is the 3 px bar 5-8 px past the pill's inline end. It used to be an absolute box at
+    /* WORSTCASE-2310: the active marker is the 3 px bar 5-8 px past the pill's inline end. It used to be an absolute box at
        inset-inline-end: -8px, which made the link's own content 8 px wider than its box (76 vs 68 px: the worst-case guard read it
        as a label overflow, whatever the label). The same bar is now drawn as the shadow of a zero-width line at the pill's edge: a
        shadow paints where the box did but is not layout overflow. Spread 1.5 px = a 3 px wide, fully rounded bar; offset 6.5 px puts it
@@ -29077,7 +29077,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       inline-size: min(560px, 90vw);
       max-block-size: 60vh;
       overflow: auto;
-       sourceMappingURL=[^*]**/ a result list is a menu: opaque, never see-through (owner 2026-10-13) */
+      /* a result list is a menu: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
@@ -29141,7 +29141,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       font-size: var(--sw-fs-md);
     }
 
-     sourceMappingURL=[^*]**/ ---- UI round 1: no top bar. Search and the system status float in the content's corner (RTL: the top left) ---- */
+    /* ---- UI round 1: no top bar. Search and the system status float in the content's corner (RTL: the top left) ---- */
     :host([data-design='a']) {
       position: relative;
     }
@@ -29154,7 +29154,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       flex-direction: column;
       align-items: flex-end;
     }
-     sourceMappingURL=[^*]**/ CR-LIVEEVENT100: the "אירוע פעיל" pill beside the corner while an incident the viewer may read is open (one tap to the page) */
+    /* CR-LIVEEVENT100: the "אירוע פעיל" pill beside the corner while an incident the viewer may read is open (one tap to the page) */
     .float .evpill {
       position: absolute;
       inset-block-start: 0;
@@ -29186,7 +29186,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       .float .evpill { padding: 0 10px; }
     }
     @media (prefers-reduced-motion: reduce) { .float .evpill i { animation: none; } }
-     sourceMappingURL=[^*]**/ CR-LIVEEVENT100: the red dot on the security area icon (rail and bottom bar) */
+    /* CR-LIVEEVENT100: the red dot on the security area icon (rail and bottom bar) */
     .ndot {
       position: absolute;
       inset-block-start: 6px;
@@ -29221,13 +29221,13 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
-     sourceMappingURL=[^*]**/ a 44 px hit area without a bigger drawing (POLISH4-WP1 D1: -8 px all round, 28 + 16 = 44; it was -6 px = 40 px) */
+    /* a 44 px hit area without a bigger drawing (POLISH4-WP1 D1: -8 px all round, 28 + 16 = 44; it was -6 px = 40 px) */
     .float button::after {
       content: '';
       position: absolute;
       inset: -8px;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP1 D1: the wash follows a hovering fine pointer only (on touch a tapped key stayed tinted); an open key keeps it,
+    /* POLISH4-WP1 D1: the wash follows a hovering fine pointer only (on touch a tapped key stayed tinted); an open key keeps it,
        and a key gives on pointer-down (the press wash) */
     @media (hover: hover) and (pointer: fine) {
       .float button:hover {
@@ -29246,7 +29246,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP1 D1: the status of a user who may not open הגדרות › בריאות is no longer a bare dot - the same dot is a key that
+    /* POLISH4-WP1 D1: the status of a user who may not open הגדרות › בריאות is no longer a bare dot - the same dot is a key that
        opens a small read-only note with the state in words and the components behind it (no link that would end on a refusal) */
     .float .syspop {
       margin-block-start: 6px;
@@ -29261,7 +29261,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       font-size: var(--sw-fs-sm);
       line-height: 1.45;
     }
-     sourceMappingURL=[^*]**/ A11Y-R4-LEFTOVERS-2380: a keyboard open puts the focus on the note itself */
+    /* A11Y-R4-LEFTOVERS-2380: a keyboard open puts the focus on the note itself */
     .float .syspop:focus {
       outline: none;
     }
@@ -29311,7 +29311,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       border-radius: 50%;
       background: var(--sw-border-strong);
     }
-     sourceMappingURL=[^*]**/ UXFIX-A11Y-295 (UX audit 2026-10-20): the two keys were 28 x 28 and sat edge to edge, so their -8 px rings overlapped and the
+    /* UXFIX-A11Y-295 (UX audit 2026-10-20): the two keys were 28 x 28 and sat edge to edge, so their -8 px rings overlapped and the
        first key kept 28 px of width. On a touch screen each key is 44 px wide (the pill grows sideways; the icons and the 34 px pill
        height stay) and its ring adds 8 px above and below: 44 x 44 each, no overlap. */
     @media (max-width: 767px), (pointer: coarse) {
@@ -29331,7 +29331,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
     .searchpanel {
       margin-block-start: 6px;
       inline-size: min(440px, calc(100vw - 24px));
-       sourceMappingURL=[^*]**/ the search panel (field + results) hangs over the page like a menu: opaque, never see-through (owner 2026-10-13) */
+      /* the search panel (field + results) hangs over the page like a menu: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
@@ -29351,7 +29351,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       box-shadow: none;
       border-block-start: 1px solid var(--sw-menu-border);
     }
-     sourceMappingURL=[^*]**/ the first thing in the content (a page header) keeps clear of the floating corner; wide screens with a tab row
+    /* the first thing in the content (a page header) keeps clear of the floating corner; wide screens with a tab row
        or a section switch above it have their own row and need no reserve */
     :host {
       --sw-float-reserve: 0px;
@@ -29359,21 +29359,21 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
     :host([data-design='a'][data-top='page']) {
       --sw-float-reserve: 76px;
     }
-     sourceMappingURL=[^*]**/ LOGOFIT-295: with the logos in the corner's row, every reserve of that row grows by their measured width (--sw-corner-brand-w,
+    /* LOGOFIT-295: with the logos in the corner's row, every reserve of that row grows by their measured width (--sw-corner-brand-w,
        written by syncBrandStrip; 160 px until the first measure) */
     :host([data-design='a'][data-top='page'][data-brandstrip]) {
       --sw-float-reserve: calc(76px + var(--sw-corner-brand-w, 160px));
     }
-     sourceMappingURL=[^*]**/ the first rows of the content (setup hint, restart banner) keep clear of the corner's logos too */
+    /* the first rows of the content (setup hint, restart banner) keep clear of the corner's logos too */
     :host([data-brandstrip]) {
       --sw-corner-extra: var(--sw-corner-brand-w, 160px);
     }
-     sourceMappingURL=[^*]**/ LOGOSIDE-295 (side = start): the page's first row keeps the logos' measured width free at its start. With a tab row above the page the
+    /* LOGOSIDE-295 (side = start): the page's first row keeps the logos' measured width free at its start. With a tab row above the page the
        row itself keeps it; in the dropdown placements 2-4 (>= 1100 px) the chips hang on the page's first row, so the header keeps it
        (placement 4 adds it to the chips' own reserve, below). */
     :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='page']) {
       --sw-lead-reserve: var(--sw-lead-brand, 0px);
-       sourceMappingURL=[^*]**/ LOGOFIX-295: a COLUMN at the page's start (the settings navigation) cannot move sideways, so it keeps the logos' height free instead */
+      /* LOGOFIX-295: a COLUMN at the page's start (the settings navigation) cannot move sideways, so it keeps the logos' height free instead */
       --sw-lead-reserve-h: var(--sw-lead-brand-h, 0px);
     }
     @media (min-width: 768px) {
@@ -29424,7 +29424,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       font-size: var(--sw-fs-sm);
       box-shadow: var(--sw-shadow-3);
       max-inline-size: calc(100vw - 32px);
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297: the notice rises 8 px into place with opacity (it enters from the edge it lives on) */
+      /* POLISH-CLASSIC-DOMUS-297: the notice rises 8 px into place with opacity (it enters from the edge it lives on) */
       opacity: 1;
       translate: 0 0;
       transition: opacity var(--sw-t-toast) var(--sw-ease), translate var(--sw-t-toast) var(--sw-ease);
@@ -29439,7 +29439,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       position: fixed;
       inset-inline: 0;
       inset-block-start: var(--sw-topbar-h);
-       sourceMappingURL=[^*]**/ one level under the topbar: at the topbar's own level the banner (later in the DOM) painted over the
+      /* one level under the topbar: at the topbar's own level the banner (later in the DOM) painted over the
          search results that drop out of the topbar, and their first rows could not be clicked (0.1.79 sweep) */
       z-index: calc(var(--sw-z-topbar) - 1);
       display: flex;
@@ -29451,7 +29451,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       border-block-end: 1px solid var(--sw-danger-soft);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ no top bar (design A): the alert sits over the content column only, not over the rail's brand mark */
+    /* no top bar (design A): the alert sits over the content column only, not over the rail's brand mark */
     @media (min-width: 768px) {
       :host([data-design='a']) .sysbanner {
         inset-inline-start: var(--sw-rail-w);
@@ -29492,11 +29492,11 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         margin: 8px 12px 0;
       }
     }
-     sourceMappingURL=[^*]**/ from 768 px up the floating search / status corner sits over the far end of this first row (a phone held sideways; and at
+    /* from 768 px up the floating search / status corner sits over the far end of this first row (a phone held sideways; and at
        desktop widths the hint's dismiss button, release stage 0.1.148): the row leaves room for it at every height */
     @media (min-width: 768px) {
       .setuphint {
-        padding-inline-end: calc(86px + var(--sw-corner-extra, 0px));  sourceMappingURL=[^*]**/ LOGOFIT-295: the logos share the corner's row, so the pill sits further in */
+        padding-inline-end: calc(86px + var(--sw-corner-extra, 0px)); /* LOGOFIT-295: the logos share the corner's row, so the pill sits further in */
       }
     }
     .sysbanner a {
@@ -29506,18 +29506,18 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
     }
     :host([data-design='a']) .subnav {
       padding: 14px 30px 0;
-       sourceMappingURL=[^*]**/ the security sections (a page-level segmented control) sit before the page's own tab row */
+      /* the security sections (a page-level segmented control) sit before the page's own tab row */
       align-items: center;
       gap: 16px;
     }
-     sourceMappingURL=[^*]**/ SERVICEIA1-295: the service-management sections and the section's pages - side by side like the security sections and their
+    /* SERVICEIA1-295: the service-management sections and the section's pages - side by side like the security sections and their
        pages, wrapping to a second line when they do not fit (the phone always stacks them, below) */
     :host([data-design='a']) .subnav[data-tickets-row] {
       flex-wrap: wrap;
       row-gap: 8px;
     }
     :host([data-design='a']) nav.bottom {
-       sourceMappingURL=[^*]**/ 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל); CR-010 folded לייב and חקירה into אבטחה (5).
+      /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל); CR-010 folded לייב and חקירה into אבטחה (5).
          visibleAreas() renders unsliced here, so the grid follows the item count. */
       grid-auto-flow: column;
       grid-auto-columns: 1fr;
@@ -29527,7 +29527,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       font-size: var(--sw-fs-2xs);
       padding-inline: 2px;
     }
-     sourceMappingURL=[^*]**/ CR-010 / UI round 1: the security area's sections as a segmented control at the head of the page (the row above the
+    /* CR-010 / UI round 1: the security area's sections as a segmented control at the head of the page (the row above the
        page's own tab row; on the phone a sticky row) - not in a top bar */
     nav.sections {
       display: inline-flex;
@@ -29588,7 +29588,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       }
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ the tablet rule above (rail + content) is more specific than the base phone rule: repeat the
+      /* the tablet rule above (rail + content) is more specific than the base phone rule: repeat the
          single-column phone grid for SW A, otherwise the hidden rail keeps an empty column */
       :host([data-design='a']) {
         grid-template-columns: minmax(0, 1fr);
@@ -29600,7 +29600,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       }
     }
 
-     sourceMappingURL=[^*]**/ the area picker's rows (Bubble foundation; inside the sheet the pills are translucent layers) */
+    /* the area picker's rows (Bubble foundation; inside the sheet the pills are translucent layers) */
     .pk-floor {
       display: flex;
       flex-direction: column;
@@ -29646,9 +29646,9 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       --pill-base: var(--sw-layer);
     }
 
-     sourceMappingURL=[^*]**/ ---- CR-013: the user as the navigation's last item; no top bar on the phone ---- */
+    /* ---- CR-013: the user as the navigation's last item; no top bar on the phone ---- */
     :host {
-       sourceMappingURL=[^*]**/ the status-bar inset the page must keep clear of; the Android app's own WebView reserves it natively */
+      /* the status-bar inset the page must keep clear of; the Android app's own WebView reserves it natively */
       --sw-safe-top: env(safe-area-inset-top, 0px);
     }
     :host([data-android-shell]) {
@@ -29668,7 +29668,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       max-inline-size: 100%;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the phone's copy exists only on the phone (renderSections builds it there), and hides on wider screens like .secrow */
+    /* the phone's copy exists only on the phone (renderSections builds it there), and hides on wider screens like .secrow */
     nav.sectabs.phone {
       display: none;
     }
@@ -29691,7 +29691,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 3px transparent;
       transition: box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ review M9: a neutral grey circle; blue only while the menu is open or on the settings (the avatar's own area) */
+    /* review M9: a neutral grey circle; blue only while the menu is open or on the settings (the avatar's own area) */
     button.me sw-avatar {
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
@@ -29767,7 +29767,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       text-decoration: none;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ 0.1.157: the dropdown works on every width. On a wide screen the pair row (the two levels as chips, the alarm button) is the page
+    /* 0.1.157: the dropdown works on every width. On a wide screen the pair row (the two levels as chips, the alarm button) is the page
        head's own row (the .subnav padding) and its chips keep their natural width; the corner reserve stays. */
     @media (min-width: 768px) {
       :host([data-design='a']) .tabpair {
@@ -29778,7 +29778,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         padding: 14px 30px 0;
         padding-inline-end: 84px;
       }
-       sourceMappingURL=[^*]**/ HDRFIX-295: a pair with no chip in it (one section, one page) is no row: it takes no height above the page title */
+      /* HDRFIX-295: a pair with no chip in it (one section, one page) is no row: it takes no height above the page title */
       :host([data-design='a']) .tabpair:not(:has(> *)) {
         display: none;
       }
@@ -29809,7 +29809,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         inset: -6px;
       }
     }
-     sourceMappingURL=[^*]**/ Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 1). On a wide screen
+    /* Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 1). On a wide screen
        (>= 1100 px) the dropdown form of a tab group (the single chip of an area, or the two chips + alarm button of the pair) can share the
        page title's row instead of taking a row above it. The chrome row then collapses to zero height and its chips hang on the page's first
        row. data-dd-place is the EFFECTIVE placement, written by updated(): 1 own row (also below 1100 px and on the phone; for the areas in
@@ -29821,7 +29821,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .tabpair:not(.single) {
         position: relative;
-        z-index: 16;  sourceMappingURL=[^*]**/ above the pages' sticky page header (.dh, z-index 15 in styles/media-page.ts), which otherwise swallows the clicks on a chip hanging over it */
+        z-index: 16; /* above the pages' sticky page header (.dh, z-index 15 in styles/media-page.ts), which otherwise swallows the clicks on a chip hanging over it */
         flex: none;
         align-items: flex-start;
         block-size: 0;
@@ -29838,7 +29838,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         inset-block-start: 14px;
         align-self: flex-start;
       }
-       sourceMappingURL=[^*]**/ FIX2231C-295: placements 2 and 3 are measured; until the shell's first clear measurement (data-dd-fit, written by fitDd) the chips
+      /* FIX2231C-295: placements 2 and 3 are measured; until the shell's first clear measurement (data-dd-fit, written by fitDd) the chips
          keep their box but are not painted, so they never show at the default place and then jump */
       :host([data-design='a'][data-dd-head][data-dd-place='2']:not([data-dd-fit])) .subnav[data-tabstyle='dropdown'] > *,
       :host([data-design='a'][data-dd-head][data-dd-place='2']:not([data-dd-fit])) .tabpair:not(.single) > *,
@@ -29846,7 +29846,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       :host([data-design='a'][data-dd-head][data-dd-place='3']:not([data-dd-fit])) .tabpair:not(.single) > * {
         visibility: hidden;
       }
-       sourceMappingURL=[^*]**/ 2: far end of the title row, clear of the floating corner (--sw-dd-float-end: the corner's measured far-end extent + a gap); the
+      /* 2: far end of the title row, clear of the floating corner (--sw-dd-float-end: the corner's measured far-end extent + a gap); the
          pages keep their end side free through --sw-float-reserve, the chips' measured extent (--sw-dd-end) */
       :host([data-design='a'][data-dd-head][data-dd-place='2']) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head][data-dd-place='2']) .tabpair:not(.single) {
@@ -29859,13 +29859,13 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       :host([data-design='a'][data-dd-head='2'][data-dd-place='2']) {
         --sw-float-reserve: var(--sw-dd-end, 520px);
       }
-       sourceMappingURL=[^*]**/ 3: right after the title: --sw-dd-title-offset is measured by fitDd (the title's far edge, or the first free gap past it, + a gap) */
+      /* 3: right after the title: --sw-dd-title-offset is measured by fitDd (the title's far edge, or the first free gap past it, + a gap) */
       :host([data-design='a'][data-dd-head][data-dd-place='3']) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head][data-dd-place='3']) .tabpair:not(.single) {
         justify-content: flex-start;
         padding-inline: var(--sw-dd-title-offset, 360px) 84px;
       }
-       sourceMappingURL=[^*]**/ 4: the start edge: fixed-width chips, the page header leaves --sw-lead-reserve at its start */
+      /* 4: the start edge: fixed-width chips, the page header leaves --sw-lead-reserve at its start */
       :host([data-design='a'][data-dd-head][data-dd-place='4']) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head][data-dd-place='4']) .tabpair:not(.single) {
         justify-content: flex-start;
@@ -29884,7 +29884,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       :host([data-design='a'][data-dd-head='2'][data-dd-place='4']) {
         --sw-lead-reserve: calc(440px + var(--sw-lead-brand, 0px));
       }
-       sourceMappingURL=[^*]**/ 3 and 4: the row no longer holds the floating corner's reserve, so the page's first row keeps clear of it */
+      /* 3 and 4: the row no longer holds the floating corner's reserve, so the page's first row keeps clear of it */
       :host([data-design='a'][data-dd-head][data-dd-place='3']),
       :host([data-design='a'][data-dd-head][data-dd-place='4']) {
         --sw-float-reserve: 76px;
@@ -29897,7 +29897,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
           'main'
           'bottom';
       }
-       sourceMappingURL=[^*]**/ Bubble foundation: the phone dock is a ROW of the shell's grid (never an overlay), so the content scrolls above it and nothing
+      /* Bubble foundation: the phone dock is a ROW of the shell's grid (never an overlay), so the content scrolls above it and nothing
          can sit under it: a floating pill stack (the areas + the user) beside the round home button that opens the area picker */
       :host([data-design='a']) nav.bottom.dock {
         display: flex;
@@ -29936,7 +29936,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
-         sourceMappingURL=[^*]**/ UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
+        /* UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
         display: -webkit-box;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
@@ -29967,7 +29967,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: 2px;
       }
-       sourceMappingURL=[^*]**/ 320-359 px: six 44 px items (the areas and the user) and a 44 px home button fit exactly with 2 px paddings */
+      /* 320-359 px: six 44 px items (the areas and the user) and a 44 px home button fit exactly with 2 px paddings */
       @media (max-width: 359px) {
         :host([data-design='a']) nav.bottom.dock {
           gap: 4px;
@@ -29987,7 +29987,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
           block-size: 44px;
         }
       }
-       sourceMappingURL=[^*]**/ CR-023: with a sixth area (תשתיות) the dock holds seven 44 px items. Below 420 px the dock tightens (the room picker button
+      /* CR-023: with a sixth area (תשתיות) the dock holds seven 44 px items. Below 420 px the dock tightens (the room picker button
          44 px, minimal paddings: 368 px are enough); below 368 px the room picker button steps aside (the floors and areas stay
          reachable in ראשי) so every target keeps 44 px and nothing escapes the dock */
       @media (max-width: 419px) {
@@ -30033,20 +30033,20 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
           animation: none;
         }
       }
-       sourceMappingURL=[^*]**/ the kiosk and the Lovelace card view have no bars and keep the whole screen (review M5) */
+      /* the kiosk and the Lovelace card view have no bars and keep the whole screen (review M5) */
       :host([data-design='a']:not([data-kiosk]):not([data-embed])) {
         padding-block-start: var(--sw-safe-top);
       }
-       sourceMappingURL=[^*]**/ the degraded-system alert keeps the top edge (below the status bar) now that no top bar is there */
+      /* the degraded-system alert keeps the top edge (below the status bar) now that no top bar is there */
       :host([data-design='a']) .sysbanner {
         inset-block-start: var(--sw-safe-top);
         padding-inline: 12px;
       }
-       sourceMappingURL=[^*]**/ the setup progress moved into the user menu's header (a pill), with the health pill and "נתוני הדגמה" */
+      /* the setup progress moved into the user menu's header (a pill), with the health pill and "נתוני הדגמה" */
       :host([data-design='a']) .setuphint {
         display: none;
       }
-       sourceMappingURL=[^*]**/ review M7: only the section selector stays (slim, sticky); the page's tab row is the second level - the underline
+      /* review M7: only the section selector stays (slim, sticky); the page's tab row is the second level - the underline
          variant - and scrolls away with the content. Its tabs keep 44 px targets (review M8). */
       :host([data-design='a']) .subnav {
         padding: 2px 12px 0;
@@ -30055,20 +30055,20 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       :host([data-design='a']) .subnav sw-tabs {
         align-self: stretch;
       }
-       sourceMappingURL=[^*]**/ SERVICEIA1-295: on the phone the section row (short labels) sits above the section's page row, each on its own line */
+      /* SERVICEIA1-295: on the phone the section row (short labels) sits above the section's page row, each on its own line */
       :host([data-design='a']) .subnav[data-tickets-row]:not([data-tabstyle='dropdown']) > sw-tabs {
         flex: 1 1 100%;
       }
       :host([data-design='a']) .subnav[data-tickets-row][data-tabstyle='pill'] > sw-tabs[data-tickets-sections] {
         flex: 0 1 auto;
       }
-       sourceMappingURL=[^*]**/ 0.1.148: a segmented (pill) row keeps its natural width at the start of the row (the pill's 44 px tap area already
+      /* 0.1.148: a segmented (pill) row keeps its natural width at the start of the row (the pill's 44 px tap area already
          holds 5 px of air around the 34 px track); the compact underline row takes no more room than its 32 px (its 44 px tap
          targets overlap the empty space below it) */
       :host([data-design='a']) .subnav[data-tabstyle='pill'] sw-tabs {
         align-self: flex-start;
       }
-       sourceMappingURL=[^*]**/ the sections as an underline row (the installation's choice): sticky like the segmented row, tap targets of 44 px */
+      /* the sections as an underline row (the installation's choice): sticky like the segmented row, tap targets of 44 px */
       :host([data-design='a']) nav.sectabs.phone {
         position: sticky;
         inset-block-start: var(--sw-banner-h, 0px);
@@ -30082,11 +30082,11 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       :host([data-design='a']) nav.sectabs.phone sw-tabs {
         flex: 1;
       }
-       sourceMappingURL=[^*]**/ 0.1.153, dropdown mode: the chip keeps its natural width at the start of the row, the alarm button beside it */
+      /* 0.1.153, dropdown mode: the chip keeps its natural width at the start of the row, the alarm button beside it */
       :host([data-design='a']) .subnav[data-tabstyle='dropdown'] sw-tabs {
         align-self: flex-start;
       }
-       sourceMappingURL=[^*]**/ 0.1.153, the pair: the two levels as two equal chips in ONE row (primary on the inline-start side), clear of the floating corner */
+      /* 0.1.153, the pair: the two levels as two equal chips in ONE row (primary on the inline-start side), clear of the floating corner */
       :host([data-design='a']) .tabpair {
         position: sticky;
         inset-block-start: var(--sw-banner-h, 0px);
@@ -30129,7 +30129,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         position: absolute;
         inset: -6px;
       }
-       sourceMappingURL=[^*]**/ the floating search / status corner sits over the first row's far end: that row keeps clear of it (release 2.10.0: the
+      /* the floating search / status corner sits over the first row's far end: that row keeps clear of it (release 2.10.0: the
          phone reserve is 112 px - 84 px fitted the 28 px keys; UXFIX-A11Y-295 made each key 44 px wide, the corner reaches 108 px) */
       :host([data-design='a'][data-top='tabs']) .subnav {
         padding-inline-end: 112px;
@@ -30147,7 +30147,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         background: var(--sw-bg);
         border-block-end: 1px solid var(--sw-border);
       }
-       sourceMappingURL=[^*]**/ the track is drawn slim (34px); each segment keeps a 44px tap target */
+      /* the track is drawn slim (34px); each segment keeps a 44px tap target */
       :host([data-design='a']) nav.secrow::before {
         content: '';
         position: absolute;
@@ -30252,7 +30252,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
-         sourceMappingURL=[^*]**/ UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
+        /* UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
         display: -webkit-box;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
@@ -30261,11 +30261,11 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         line-height: 1.1;
         text-align: center;
       }
-       sourceMappingURL=[^*]**/ release 2.10.0: the two-line display above outranked "labels off" (:host([data-nolabels]) nav.bottom .lbl); labels off wins */
+      /* release 2.10.0: the two-line display above outranked "labels off" (:host([data-nolabels]) nav.bottom .lbl); labels off wins */
       :host([data-design='a'][data-nolabels]) nav.bottom .lbl {
         display: none;
       }
-       sourceMappingURL=[^*]**/ CR-023: seven items (six areas and the user) share the phone bar: the label size is capped at 10.5 px (the bigger navigation
+      /* CR-023: seven items (six areas and the user) share the phone bar: the label size is capped at 10.5 px (the bigger navigation
          presets keep their icons) and the side padding goes, so no label is cut */
       :host([data-design='a']) nav.bottom.crowded a,
       :host([data-design='a']) nav.bottom.crowded button.me {
@@ -30380,7 +30380,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
       display: inline-block;
       vertical-align: -3px;
     }
-     sourceMappingURL=[^*]**/ a touch screen: 44 px targets, and on a narrow phone the actions drop under the text so neither is squeezed */
+    /* a touch screen: 44 px targets, and on a narrow phone the actions drop under the text so neither is squeezed */
     @media (pointer: coarse) {
       .x {
         inline-size: 44px;
@@ -30399,7 +30399,7 @@ ${n}`.trim()} aria-label=${`מצב המערכת: ${a}`}
         flex: 1;
       }
     }
-     sourceMappingURL=[^*]**/ the connection pill: at the top, under the status bar, out of the way of the content and the bars */
+    /* the connection pill: at the top, under the status bar, out of the way of the content and the bars */
     .net {
       pointer-events: none;
       position: fixed;

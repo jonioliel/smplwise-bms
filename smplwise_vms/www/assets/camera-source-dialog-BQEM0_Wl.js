@@ -41,7 +41,7 @@ import{L as T,au as $,av as _,az as S,nt as R,i as N,n as h,r as l,a as C,cX as 
     .body {
       display: grid;
       gap: 12px;
-      min-inline-size: min(560px, 100%);  sourceMappingURL=[^*]**/ EVIDENCE-CAMERAS-2412: never wider than its box (was 86vw) */
+      min-inline-size: min(560px, 100%); /* EVIDENCE-CAMERAS-2412: never wider than its box (was 86vw) */
     }
     .seg {
       display: inline-flex;

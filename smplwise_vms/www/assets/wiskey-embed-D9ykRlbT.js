@@ -1,4 +1,4 @@
-import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as V,dc as me,dd as q,de as H,df as we,dg as be,bD as ye,dh as ve,di as I,dj as v,dk as Y,dl as ge,V as ke,dm as P,p as m,q as h,dn as N,ad as xe,dp as Ee,cR as Ae,i as Se,n as D,r as f,x as We}from"./index-C5kZ9jiu.js";import"./wiskey-overview-BXX9Vs2Z.js";import"./wiskey-events-CzvDIW-f.js";import"./wiskey-people-B13QacQz.js";import"./sw-logo-art-Va6y_cIM.js";import"./sw-chip-C5B_TIu4.js";import"./access-DS_9bMyG.js";import"./wiskey-format-BJBSoZNO.js";import"./tts-default-BdUzH1g6.js";import"./sw-table-BPsqqbv1.js";import"./access-events-DOOGMg8V.js";import"./events-logic-D0NwgLP0.js";import"./events-print-BofHdYv3.js";import"./wk-deep-links-BZ1yiVKg.js";import"./deep-links-DcLXvoYw.js";import"./live-DCquBbwC.js";import"./access-people-C36aN9Y-.js";import"./access-external-ANeplmrB.js";import"./access-messaging-CKbACMsU.js";import"./wiskey-profiles-BX9e98QG.js"; sourceMappingURL=[^*]**/*
+import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as V,dc as me,dd as q,de as H,df as we,dg as be,bD as ye,dh as ve,di as I,dj as v,dk as Y,dl as ge,V as ke,dm as P,p as m,q as h,dn as N,ad as xe,dp as Ee,cR as Ae,i as Se,n as D,r as f,x as We}from"./index-C5kZ9jiu.js";import"./wiskey-overview-BXX9Vs2Z.js";import"./wiskey-events-CzvDIW-f.js";import"./wiskey-people-B13QacQz.js";import"./sw-logo-art-Va6y_cIM.js";import"./sw-chip-C5B_TIu4.js";import"./access-DS_9bMyG.js";import"./wiskey-format-BJBSoZNO.js";import"./tts-default-BdUzH1g6.js";import"./sw-table-BPsqqbv1.js";import"./access-events-DOOGMg8V.js";import"./events-logic-D0NwgLP0.js";import"./events-print-BofHdYv3.js";import"./wk-deep-links-BZ1yiVKg.js";import"./deep-links-DcLXvoYw.js";import"./live-DCquBbwC.js";import"./access-people-C36aN9Y-.js";import"./access-external-ANeplmrB.js";import"./access-messaging-CKbACMsU.js";import"./wiskey-profiles-BX9e98QG.js";/**
  * @license
  * Adapted from the WisKey embed-api-v1 reference client. MIT License.
  * Copyright (c) 2026 Hikvision Intercom Manager contributors
@@ -63,7 +63,7 @@ import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as
       block-size: 100%;
     }
     :host([data-direct]:not([data-direct=''])) {
-       sourceMappingURL=[^*]**/ no frame: the SMPLWISE screen (or the note) flows and scrolls with the shell like any other screen */
+      /* no frame: the SMPLWISE screen (or the note) flows and scrolls with the shell like any other screen */
       block-size: auto;
     }
     .only {
@@ -134,7 +134,7 @@ import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as
       color: var(--sw-accent-text);
       font-weight: 600;
     }
-     sourceMappingURL=[^*]**/ the framed screen: the stage fills the host, the frame fills the stage - no border, outline, padding, margin,
+    /* the framed screen: the stage fills the host, the frame fills the stage - no border, outline, padding, margin,
        minimum height or darker canvas anywhere around it */
     .stage {
       --wk-crop: ${et}px;
@@ -146,7 +146,7 @@ import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as
       margin: 0;
       padding: 0;
       border: 0;
-      overflow: hidden;  sourceMappingURL=[^*]**/ clips the frame's outermost --wk-crop pixels (0 now: nothing of WisKey is clipped) */
+      overflow: hidden; /* clips the frame's outermost --wk-crop pixels (0 now: nothing of WisKey is clipped) */
       background: var(--sw-surface);
     }
     @media (max-width: 767px) {
@@ -167,7 +167,7 @@ import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as
       outline: none;
       background: var(--sw-surface);
     }
-     sourceMappingURL=[^*]**/ waiting / older build: one floating status line over the top edge of the frame, never a row that takes height */
+    /* waiting / older build: one floating status line over the top edge of the frame, never a row that takes height */
     .status {
       position: absolute;
       inset-block-start: 8px;
@@ -187,7 +187,7 @@ import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as
       box-shadow: var(--sw-shadow-1);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ size "מותאם" (ui.wiskey_size = fit): the frame is rendered 1/scale larger and scaled down from its top-left corner
+    /* size "מותאם" (ui.wiskey_size = fit): the frame is rendered 1/scale larger and scaled down from its top-left corner
        (physical, so RTL does not matter), so the wrapper - and the box WisKey lays out in - is bigger than what is
        shown and the visible result still fills the stage exactly. Pointer coordinates follow the transform. */
     .stage[data-fit] iframe {
@@ -202,7 +202,7 @@ import{d6 as de,a as he,d7 as ce,d8 as ue,d9 as K,da as pe,bI as M,db as fe,K as
       transform: scale(var(--wk-scale));
       transform-origin: 0 0;
     }
-     sourceMappingURL=[^*]**/ size "מסך מלא" (ui.wiskey_size = full): the whole viewport, over the rail, top bar and bottom bar, with one small
+    /* size "מסך מלא" (ui.wiskey_size = full): the whole viewport, over the rail, top bar and bottom bar, with one small
        floating exit control in a top corner */
     :host([data-size='full']) {
       position: fixed;

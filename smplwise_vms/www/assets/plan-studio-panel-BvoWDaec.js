@@ -171,7 +171,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
       <button type="button" class=${e.armed==="new"?"tbtn primary":"tbtn"} data-walk-add ?disabled=${e.disabled||a} title=${a?`עד ${fe} עמדות`:"לחיצה על התוכנית מציבה את העמדה"} @click=${()=>t.arm(e.armed==="new"?null:"new")}><sw-icon name="plus" size=${16}></sw-icon>${e.armed==="new"?"בטל הצבה":"עמדה חדשה"}</button>
     </div>
   </sw-card>`}const rs=ue`
-   sourceMappingURL=[^*]**/ a text button sized by the desktop touch dial (the shared sw-button's sm / md sizes stay 26-30 px) */
+  /* a text button sized by the desktop touch dial (the shared sw-button's sm / md sizes stay 26-30 px) */
   .tbtn {
     all: unset;
     box-sizing: border-box;
@@ -199,7 +199,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     background: var(--sw-accent);
     color: var(--sw-text-inverse);
   }
-   sourceMappingURL=[^*]**/ SETUPPLAN-POLISH-2331: every pressable control of the three cards gives on pointer-down (emil-design-eng: 120 ms, transform only,
+  /* SETUPPLAN-POLISH-2331: every pressable control of the three cards gives on pointer-down (emil-design-eng: 120 ms, transform only,
      the shared --sw-press-scale) and keeps its hover for a pointer that hovers - a tap no longer leaves a grey wash behind (mobile-native) */
   .tbtn,
   .swatch,
@@ -362,7 +362,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     border-radius: var(--sw-r-2xs);
     box-shadow: inset 0 0 0 1px var(--sw-border-strong);
   }
-   sourceMappingURL=[^*]**/ the north compass */
+  /* the north compass */
   .northrow {
     display: grid;
     grid-template-columns: 120px minmax(0, 1fr);
@@ -399,7 +399,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
   }
   .dial .n {
     fill: var(--sw-danger-text);
-    font-size: var(--sw-fs-xs);  sourceMappingURL=[^*]**/ 11px, from the type scale (unit-token-lint; integration 2.4.7) */
+    font-size: var(--sw-fs-xs); /* 11px, from the type scale (unit-token-lint; integration 2.4.7) */
     font-weight: var(--sw-fw-bold);
   }
   .dial .sun circle {
@@ -419,7 +419,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
   .northctl input {
     min-block-size: var(--sw-touch-desktop, 44px);
   }
-   sourceMappingURL=[^*]**/ the saved walk positions */
+  /* the saved walk positions */
   .note.armed {
     color: var(--sw-accent-text);
     background: var(--sw-accent-soft);
@@ -439,7 +439,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     grid-template-areas: 'idx name star' 'idx where where' 'idx acts acts';
     gap: 4px 8px;
     align-items: center;
-     sourceMappingURL=[^*]**/ the inline padding is always there, so focusing a row (.on) tints it without shifting its contents sideways */
+    /* the inline padding is always there, so focusing a row (.on) tints it without shifting its contents sideways */
     padding: 8px 6px;
     border-block-end: 1px solid var(--sw-border);
     border-radius: var(--sw-r-sm);
@@ -547,11 +547,11 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     background: var(--sw-accent-soft);
     color: var(--sw-accent-text);
   }
-   sourceMappingURL=[^*]**/ the default (start) position: the star is filled in the warm accent, not just a pressed wash */
+  /* the default (start) position: the star is filled in the warm accent, not just a pressed wash */
   .walkrow .star[aria-pressed='true'] {
     background: transparent;
     color: var(--sw-warning);
-     sourceMappingURL=[^*]**/ A11Y-POLISHED-2342: the bare warning read 2.0-2.15:1 on white in light; light draws the star in the warning ink (dark unchanged;
+    /* A11Y-POLISHED-2342: the bare warning read 2.0-2.15:1 on white in light; light draws the star in the warning ink (dark unchanged;
        an engine without light-dark() keeps the line above) */
     color: light-dark(var(--sw-warning-text), var(--sw-warning));
   }
@@ -1115,7 +1115,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-   sourceMappingURL=[^*]**/ A window wall's glazing: its own block under the wall fields; the panels that open are toggled as numbered chips. */
+  /* A window wall's glazing: its own block under the wall fields; the panels that open are toggled as numbered chips. */
   .glazing {
     display: grid;
     gap: 8px;
@@ -1287,7 +1287,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     cursor: pointer;
     padding: 0 2px;
   }
-   sourceMappingURL=[^*]**/ POLISH4 WP6 (D28): the favourite star drew in the bare warning hue (2.0-2.15:1 on the light card and on its warning wash); it takes the
+  /* POLISH4 WP6 (D28): the favourite star drew in the bare warning hue (2.0-2.15:1 on the light card and on its warning wash); it takes the
      warning ink, which is the same hue in dark in every skin and >= 4.5:1 in light */
   .libitem .fav.on {
     color: var(--sw-warning-text);
@@ -1393,13 +1393,13 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     border-block-end: 1px solid var(--sw-border);
     font-size: var(--sw-fs-sm);
   }
-   sourceMappingURL=[^*]**/ T087 review: a wall candidate outside the main structure - dark text on the warning tint (the warning colour alone
+  /* T087 review: a wall candidate outside the main structure - dark text on the warning tint (the warning colour alone
      is too light for text on white) */
   .dcand .outside,
   .note.warn {
     color: var(--sw-text);
     background: var(--sw-warning-soft);
-     sourceMappingURL=[^*]**/ R5-MAPS-297: the warning as a filled field with an inset hairline, not a 3 px coloured side edge (impeccable "side-tab") */
+    /* R5-MAPS-297: the warning as a filled field with an inset hairline, not a 3 px coloured side edge (impeccable "side-tab") */
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-warning) 60%, transparent);
     border-radius: var(--sw-r-xs);
     padding-inline: 6px;
@@ -1428,7 +1428,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     background: var(--sw-danger-soft);
   }
 
-   sourceMappingURL=[^*]**/ K88: the calibration pairs already taken */
+  /* K88: the calibration pairs already taken */
   [data-calib-pairs] .pair {
     display: inline-flex;
     align-items: center;
@@ -1447,7 +1447,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
     font: inherit;
     line-height: 1;
   }
-   sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): an issue is a FILLED status field (danger / warning soft with an inset hairline),
+  /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): an issue is a FILLED status field (danger / warning soft with an inset hairline),
      not a white box with a coloured outline; section labels and the measured value read as headings / display digits (the measurement in the
      interface face with tabular digits - monospace stays for code, taste-skill); the favourite star is a drawn icon; press feedback on every
      chip, mode and row; hover only with a fine pointer. */
@@ -1516,14 +1516,14 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
   .libitem .fav.on {
     background: var(--sw-warning-soft);
   }
-   sourceMappingURL=[^*]**/ POLISH4 WP6 (D12 / D13): hover only under a fine pointer (it replaces the ungated :hover + (hover: none) undo) */
+  /* POLISH4 WP6 (D12 / D13): hover only under a fine pointer (it replaces the ungated :hover + (hover: none) undo) */
   @media (hover: hover) and (pointer: fine) {
     .libitem:hover:not(.on) {
       background: var(--sw-accent-soft);
       border-color: var(--sw-accent);
     }
   }
-   sourceMappingURL=[^*]**/ POLISH4 WP6 (D13): a finger on a tablet or a phone gets the 44 px touch target on the studio's small keys (the mode pills, the
+  /* POLISH4 WP6 (D13): a finger on a tablet or a phone gets the 44 px touch target on the studio's small keys (the mode pills, the
      glazing panel chips and the favourite star); a mouse keeps the compact desktop rhythm */
   @media (pointer: coarse) {
     .modes button,
@@ -1539,7 +1539,7 @@ import{_ as D,i as ue,n as Be,r as N,a as Ue,ak as $e,X as Ke,q as l,p as c,x as
       min-block-size: var(--sw-touch-desktop);
     }
   }
-   sourceMappingURL=[^*]**/ POLISH4 WP6 (D13): on a phone the three-up number row (width / height / depth) keeps each field at least a thumb wide */
+  /* POLISH4 WP6 (D13): on a phone the three-up number row (width / height / depth) keeps each field at least a thumb wide */
   @media (max-width: 479px) {
     .three {
       grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));

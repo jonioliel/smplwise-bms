@@ -40,14 +40,14 @@ import{a as S,K as z,bD as _,ak as m,q as i,p,i as N,r as o,x as T}from"./index-
     select, textarea { box-sizing: border-box; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); max-inline-size: 100%; }
     select { min-block-size: 36px; padding-inline: 10px; cursor: pointer; }
     textarea { inline-size: 100%; padding: 8px 10px; resize: none; block-size: 56px; }
-     sourceMappingURL=[^*]**/ POLISH4-WP4 (D24): every radius from the tokens (the chip and the machine mark were literal pills) */
+    /* POLISH4-WP4 (D24): every radius from the tokens (the chip and the machine mark were literal pills) */
     .chip { min-block-size: 34px; padding-inline: 12px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; }
     .chip[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
     .part { display: flex; flex-direction: column; gap: 4px; }
     .em { display: flex; flex-direction: column; gap: 8px; }
     .em sw-button { inline-size: 100%; }
     .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
-     sourceMappingURL=[^*]**/ ANNOUNCE-297 design pass: press feedback on the chips (the translate chip too), no double-tap delay; POLISH4-WP4: the motion tokens,
+    /* ANNOUNCE-297 design pass: press feedback on the chips (the translate chip too), no double-tap delay; POLISH4-WP4: the motion tokens,
        a pressed wash on pointer-down, the hover only under a pointer that hovers, a visible keyboard focus */
     .chip { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
       transition: transform var(--sw-t-press) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease); }
@@ -60,14 +60,14 @@ import{a as S,K as z,bD as _,ak as m,q as i,p,i as N,r as o,x as T}from"./index-
     .chip:focus-visible, select:focus-visible, textarea:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .chip[disabled] { opacity: var(--sw-disabled-opacity, 0.45); cursor: default; }
     .chip[aria-busy='true'] { cursor: progress; }
-     sourceMappingURL=[^*]**/ a long translation grows its field instead of hiding lines (a 200-character Russian text at phone width); one line keeps the old height */
+    /* a long translation grows its field instead of hiding lines (a 200-character Russian text at phone width); one line keeps the old height */
     textarea { field-sizing: content; min-block-size: 56px; max-block-size: 160px; block-size: auto; }
     .part-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-     sourceMappingURL=[^*]**/ ANNOUNCE2-297: the machine mark is quiet (neutral, small): the translation is an aid, not a warning */
+    /* ANNOUNCE2-297: the machine mark is quiet (neutral, small): the translation is an aid, not a warning */
     .mt { padding: 1px 8px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-xs); white-space: nowrap; background: color-mix(in srgb, var(--sw-text-2) 10%, var(--sw-surface)); color: var(--sw-text-2); }
     @media (pointer: coarse) {
-      textarea, select { font-size: var(--sw-fs-xl); }  sourceMappingURL=[^*]**/ no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17px) */
-       sourceMappingURL=[^*]**/ POLISH4-WP4: a 44 px target on touch for the chips and the pickers */
+      textarea, select { font-size: var(--sw-fs-xl); } /* no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17px) */
+      /* POLISH4-WP4: a 44 px target on touch for the chips and the pickers */
       .chip, select { min-block-size: 44px; }
     }
     @media (prefers-reduced-motion: reduce) { .chip { transition: none; } .chip:active:not([disabled]) { transform: none; } }

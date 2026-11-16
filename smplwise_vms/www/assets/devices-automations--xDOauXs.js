@@ -19,7 +19,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     --ab-amber-text: #ffc46b;
     --ab-ok-text: #5ee08a;
   }
-   sourceMappingURL=[^*]**/ the sensitive-step chip colour is the SETTING automations.sensitive_chip (amber | red) */
+  /* the sensitive-step chip colour is the SETTING automations.sensitive_chip (amber | red) */
   :host([data-chip='red']) {
     --ab-sens-bg: var(--dv-danger-soft, rgba(255, 59, 48, 0.13));
     --ab-sens-fg: var(--dv-danger, #d70015);
@@ -49,7 +49,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       outline: 2px solid var(--dv-focus, var(--sw-focus));
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ ---- chips ---- */
+    /* ---- chips ---- */
     .tag {
       display: inline-flex;
       align-items: center;
@@ -101,7 +101,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       border-radius: var(--sw-r-xs);
       color: var(--dv-text-2);
     }
-     sourceMappingURL=[^*]**/ ---- buttons (pills, 44 px on a phone) ---- */
+    /* ---- buttons (pills, 44 px on a phone) ---- */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -152,7 +152,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .btn .ic {
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ ---- form controls ---- */
+    /* ---- form controls ---- */
     .frow {
       display: flex;
       gap: 10px;
@@ -172,7 +172,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .fld.full {
       flex: 1 1 100%;
     }
-     sourceMappingURL=[^*]**/ a field inside a field (the forms wrap labelled controls): the inner one never stretches in the column */
+    /* a field inside a field (the forms wrap labelled controls): the inner one never stretches in the column */
     .fld .fld {
       flex: none;
     }
@@ -268,7 +268,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       border-color: var(--dv-accent);
       color: var(--dv-accent-text);
     }
-     sourceMappingURL=[^*]**/ ---- segmented control ---- */
+    /* ---- segmented control ---- */
     .seg {
       display: inline-flex;
       align-items: center;
@@ -620,7 +620,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         flex-direction: column;
         min-block-size: 0;
         max-block-size: inherit;
-         sourceMappingURL=[^*]**/ the entity picker is a menu surface (a popover on a desktop, a bottom sheet on a phone): opaque, never see-through (owner 2026-10-13) */
+        /* the entity picker is a menu surface (a popover on a desktop, a bottom sheet on a phone): opaque, never see-through (owner 2026-10-13) */
         background: var(--sw-menu-surface);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
@@ -1181,7 +1181,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     ${gi(e,t.sensors)}`}function Mr(e){const t=e.block;return r`<div class="frow"><div class="fld"><label>מצב</label><select class="selx" aria-label="מצב" data-fld="presence.mode" @change=${s=>e.patch(i=>{i.mode=s.target.value})}>
       <option value="occupied" ?selected=${t.mode==="occupied"}>יש נוכחות</option><option value="empty" ?selected=${t.mode==="empty"}>אין נוכחות</option></select></div></div>
     ${gi(e,t.sensors)}`}ue["trigger:building_empty"]=Fr;ue["condition:room_occupied"]=Mr;var qr=Object.defineProperty,k=(e,t,s,i)=>{for(var a=void 0,n=e.length-1,o;n>=0;n--)(o=e[n])&&(a=o(t,s,a)||a);return a&&qr(t,s,a),a};const Ur={template:"תבנית",device:"מכשיר",purpose_trigger:"ייעודי",custom_service:"שירות מיוחד",service_not_allowed:"לא מותר",unsupported_step:"מתקדם",disabled_step:"מושבת",secret:"חסוי",code:"חסוי",unknown:"לא מוכר"},Is=new Set(["delegation_off","grant_required"]);class x extends Y{constructor(){super(...arguments),this.itemId=null,this.mode="edit",this.open=!0,this.scheme="",this.draft0=null,this.phase="loading",this.loadError="",this.loadDenied=!1,this.status=null,this.env=null,this.item=null,this.draft=null,this.openUid=null,this.view="builder",this.codeText="",this.codeOk=!0,this.preview=null,this.busy="",this.pop=null,this.picker=null,this.dialog=null,this.dryResult=null,this.saveError="",this.serverIssues=[],this.conflict=null,this.note="",this.dragUid=null,this.dropAt=null,this.touched=!1,this.stage="edit",this.templateName="",this.optionsOpen=!1,this.version=0,this.previewVersion=-1,this.previewFailed=!1,this.initial="",this.storedDraft=null,this.codeBase="",this.lockedFps=new Set,this.previewTimer=0,this.loadToken=0,this.lastDialogClose=0,this.lastKeyEsc=0,this.suggestDraft=null,this.onBeforeUnload=t=>{this.open&&this.dirty&&!this.busy&&(t.preventDefault(),t.returnValue="")},this.onSheetCancel=t=>{t.preventDefault();const s=performance.now();s-this.lastDialogClose<120||s-this.lastKeyEsc<120||this.requestCancel()},this.onSheetKey=t=>{t.key==="Escape"&&(this.picker||this.pop)&&(t.preventDefault(),t.stopPropagation(),this.picker=null,this.pop=null,this.lastKeyEsc=performance.now())},this.dialogClosed=()=>{this.dialog=null,this.lastDialogClose=performance.now()},this.onCode=t=>{this.codeText=t.detail.text,this.codeOk=t.detail.ok,this.saveError=""},this.gotoCode=()=>{this.setView("code")},this.editTemplate=(t,s)=>this.patchBlock(t,i=>{i.kind==="locked"&&Object.assign(i,Rn(i,s))}),this.onDragEnd=()=>{this.dragUid=null,this.dropAt=null}}get codeToggle(){return!0}get startsWithGallery(){return!1}footerExtras(){return d}static{this.styles=[Oi,an,Se,Dr,Br,ua,R`
-       sourceMappingURL=[^*]**/ KAV079-295: the pre-save warnings box (state 4) and the "save with warnings" button */
+      /* KAV079-295: the pre-save warnings box (state 4) and the "save with warnings" button */
       .vbox {
         display: flex;
         flex-direction: column;
@@ -1224,7 +1224,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       :host {
         display: contents;
       }
-       sourceMappingURL=[^*]**/ AUDIT30-I3 (#11, owner Q9 option a): the builder's sheet is opaque and on the product's dialog tokens - the solid surface, no
+      /* AUDIT30-I3 (#11, owner Q9 option a): the builder's sheet is opaque and on the product's dialog tokens - the solid surface, no
          backdrop blur (was blur(40px) saturate(1.8) over a translucent sheen), the dialog radius (was 28 px), the shared scrim and the
          floating shadow. The sheet stays a native modal <dialog> because its close request is guarded (unsaved changes ask first:
          onSheetCancel); sw-dialog closes itself on Escape / X / scrim without a cancelable hook (see docs/changes/AUDIT30-I-DEVICES.md). */
@@ -1274,7 +1274,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
           transform: translateY(40px);
         }
       }
-       sourceMappingURL=[^*]**/ the confirmations and small forms over the sheet read on a solid surface (the sheet itself is the glass) */
+      /* the confirmations and small forms over the sheet read on a solid surface (the sheet itself is the glass) */
       sw-dialog {
         --sw-surface: var(--dv-surface-solid, #fff);
         --sw-glass-blur: none;
@@ -1407,7 +1407,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         font-weight: 600;
         font-size: var(--sw-fs-base);
       }
-       sourceMappingURL=[^*]**/ ---- banners ---- */
+      /* ---- banners ---- */
       .banner {
         display: flex;
         gap: 10px;
@@ -1515,13 +1515,13 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         color: var(--dv-text-2);
         font-weight: 600;
       }
-       sourceMappingURL=[^*]**/ ---- sections ---- */
+      /* ---- sections ---- */
       .bsec2 {
         display: flex;
         flex-direction: column;
         gap: 8px;
       }
-       sourceMappingURL=[^*]**/ R5-DEVICES-297 loop 2: the builder's כאשר / אם / אז are the sheet's headings (xl/800, heading ink) above their block wells */
+      /* R5-DEVICES-297 loop 2: the builder's כאשר / אם / אז are the sheet's headings (xl/800, heading ink) above their block wells */
       .bsec2 > h4 {
         display: flex;
         gap: 10px;
@@ -1613,7 +1613,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         inset-block-start: 110px;
         max-block-size: calc(100% - 130px);
         overflow: auto;
-         sourceMappingURL=[^*]**/ the step-type chooser is a menu: opaque, never see-through (owner 2026-10-13); the editor sheet around it keeps its glass */
+        /* the step-type chooser is a menu: opaque, never see-through (owner 2026-10-13); the editor sheet around it keeps its glass */
         background: var(--sw-menu-surface);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
@@ -2009,7 +2009,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     </div>`:d}renderHistory(){return this.block?r`<details class="hist"><summary>${y("history")}</summary>
       ${this.history.length===0?r`<p class="muted">${y("historyEmpty")}</p>`:r`<ul>${this.history.slice(0,10).map(e=>r`<li><bdi dir="ltr">${e.at.slice(0,16).replace("T"," ")}</bdi> · <bdi>${e.door??"—"}</bdi> · ${e.attempted?we("o",e.outcome):we("r",e.reason)}</li>`)}</ul>`}
     </details>`:d}};F.styles=[Se,R`
-       sourceMappingURL=[^*]**/ local knobs: the editor's devices theme (--dv-*) when mounted inside it, the shell tokens otherwise (never redefine --dv-* here) */
+      /* local knobs: the editor's devices theme (--dv-*) when mounted inside it, the shell tokens otherwise (never redefine --dv-* here) */
       :host {
         display: block;
         --da-accent: var(--dv-accent, var(--sw-accent));
@@ -2558,7 +2558,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       box-shadow: var(--dv-shadow-2);
       transition: box-shadow var(--mm-motion) var(--mm-ease), transform var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the card is the top step (shadow 2 at rest); hover only for a fine pointer */
+    /* R5-DEVICES-297: the card is the top step (shadow 2 at rest); hover only for a fine pointer */
     @media (hover: hover) and (pointer: fine) {
       .acard:hover {
         box-shadow: var(--dv-shadow-3, var(--dv-shadow-2));
@@ -2758,13 +2758,13 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       <span class=${`run${s||t.tone==="bad"?" bad":""}`} role="cell" data-card-run title=${s?s.label:t.title}>${s?r`${g("warning")}<span data-chip=${s.id}>${s.label}</span>`:r`<i class=${`dot ${t.tone==="none"?"":t.tone}`}></i>${t.text}`}</span>
       <span class="ops" role="cell">${o?r`<button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`עוד · ${e.name}`} data-card-menu @click=${()=>this.setMenu(!this.menu)}>${g("dots")}</button>`:d}${this.menu?this.menuItems():d}</span>
     </div>`}};pe.styles=[ke,...me,R`
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: a row is a well (one tone step down, rounded, no hairline) inside the glass list; the name is a heading; an
+    /* R5-DEVICES-297: a row is a well (one tone step down, rounded, no hairline) inside the glass list; the name is a heading; an
        automation that is off sits a step deeper; the row sinks on pointer-down (the skin's press scale), hover for a fine pointer only */
     :host {
       display: block;
       position: relative;
       min-inline-size: 0;
-       sourceMappingURL=[^*]**/ GATE-FIX-2270: 1 px apart, 4 px at the list's ends, and the 52 px row: twelve wells fit a 1440 x 900 screen with no scroll (a
+      /* GATE-FIX-2270: 1 px apart, 4 px at the list's ends, and the 52 px row: twelve wells fit a 1440 x 900 screen with no scroll (a
          control screen never scrolls - owner rule; the 56 px row with 2 / 6 px margins scrolled the page by 46 px) */
       margin: 1px 6px;
     }
@@ -2924,7 +2924,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       color: var(--dv-danger);
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ POLISH-LEFTOVERS-2341: the phone grid gave the run summary (auto, up to 34vw) the room and cut the name to a few letters at
+      /* POLISH-LEFTOVERS-2341: the phone grid gave the run summary (auto, up to 34vw) the room and cut the name to a few letters at
          320 / 390. The name now owns the whole first line; the place and the last run share the second line (the run capped at
          38vw like the schedule rows' next-run column) - ellipsis only as the last resort. The cell wrapper keeps its DOM (specs read
          .who / .where / [data-card-run]); only its box steps aside so the name and the place line join the row's grid. */
@@ -2936,7 +2936,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         column-gap: var(--sw-s-2);
         row-gap: 2px;
         padding-inline: var(--sw-s-3);
-         sourceMappingURL=[^*]**/ the two lines (24 + 2 + 20 px) sit centred in the 56 px row with no block padding: padding grew every phone row to 62 px and
+        /* the two lines (24 + 2 + 20 px) sit centred in the 56 px row with no block padding: padding grew every phone row to 62 px and
            seven rows plus the pager scrolled the phone by 18-24 px (POLISH2-295 contract: 7 rows and the pager fit, no scroll) */
         padding-block: 0;
         align-content: center;
@@ -3449,7 +3449,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .eyeb .ic {
       font-size: var(--sw-fs-xl);
     }
-     sourceMappingURL=[^*]**/ hiding a scene of a device is an administrator's chore: with a mouse the control shows on hover or focus, not on every card;
+    /* hiding a scene of a device is an administrator's chore: with a mouse the control shows on hover or focus, not on every card;
        a touch screen has no hover, so it stays reachable there (quiet, like the star) - otherwise nobody could unhide a scene on a phone */
     @media (hover: hover) and (pointer: fine) {
       .eyeb {
@@ -3461,7 +3461,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         opacity: 1;
       }
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the scene's name is the card's heading (2xl/800); the section title above the group stays as it was */
+    /* R5-DEVICES-297: the scene's name is the card's heading (2xl/800); the section title above the group stays as it was */
     h3 {
       margin: 6px 0 0;
       font-size: var(--sw-fs-2xl);
@@ -3573,7 +3573,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       flex: 1;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the script's name is the card's heading (2xl/800) */
+    /* R5-DEVICES-297: the script's name is the card's heading (2xl/800) */
     h3 {
       margin: 0;
       font-size: var(--sw-fs-2xl);
@@ -3773,7 +3773,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     :host { display: block; block-size: 100%; }
     .wrap { display: flex; flex-direction: column; gap: 12px; block-size: 100%; min-block-size: 0; }
     .grid { flex: 1; min-block-size: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: 118px; gap: 12px; overflow: hidden; }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: a scenario card is the top step (shadow 2, no outline), its name a heading, its state a filled pill; the card
+    /* R5-DEVICES-297: a scenario card is the top step (shadow 2, no outline), its name a heading, its state a filled pill; the card
        sinks on pointer-down, hover for a fine pointer only */
     .card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--sw-r-lg, 20px); cursor: pointer; text-align: start; border: 1px solid var(--dv-border); background: var(--mm-sheen), var(--dv-surface); box-shadow: var(--dv-shadow-2); color: var(--dv-text); font: inherit; min-inline-size: 0; transition: transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out), box-shadow var(--mm-motion, 200ms) var(--mm-ease, ease-out); }
     .card:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; }
@@ -3794,7 +3794,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .ed { display: grid; gap: 12px; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .tree { display: grid; gap: 6px; }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: a group is a well, not a side-tab accent border (impeccable detect) */
+    /* R5-DEVICES-297: a group is a well, not a side-tab accent border (impeccable detect) */
     .grp { background: var(--dv-surface-2); border-radius: var(--sw-r-md, 12px); padding: 8px 10px; display: grid; gap: 6px; }
     .grp-h { display: flex; gap: 6px; align-items: center; }
     .leaf { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; border-radius: var(--sw-r-md, 12px); background: var(--dv-surface-2); }
@@ -3850,16 +3850,16 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     ${this.editorSheet()}
     ${this.dialogs()}
     ${this.note?r`<div class=${`toast${this.note.tone==="error"?" bad":""}`} popover="manual" role="status" data-auto-note>${g(this.note.tone==="error"?"warning":"check")}${this.note.text}${this.note.action?r`<button type="button" class="btn sm" data-note-action @click=${()=>{const a=this.note?.action;this.note=null,a?.run()}}>${this.note.action.label}</button>`:d}</div>`:d}`}};z.styles=[ke,...me,sn,R`
-     sourceMappingURL=[^*]**/ FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 bubble guard) */
+    /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 bubble guard) */
     :host([data-skin='bubble']) sw-pager {
       --sw-ctl-h-md: var(--sw-touch-desktop);
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
+    /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
       --sw-surface: var(--sw-surface-solid);
       --sw-glass-blur: none;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page>; the floor chips and the toolbar are the first rows of its body */
+    /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page>; the floor chips and the toolbar are the first rows of its body */
     sw-page.page {
       padding-block-start: var(--sw-s-4);
       gap: var(--sw-s-3);
@@ -3871,7 +3871,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .dh-row.fl {
       display: flex;
     }
-     sourceMappingURL=[^*]**/ on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
+    /* on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
        a long floor list scrolls sideways inside its own strip */
     .dh-row.hdact {
       display: flex;
@@ -3882,14 +3882,14 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .dh-row.hdact .rooms {
       max-inline-size: 50vw;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
       border-color: transparent;
       color: var(--sw-accent-text);
       box-shadow: none;
     }
-     sourceMappingURL=[^*]**/ the owner's setting automations.sensitive_chip: red instead of amber, for every chip below (custom properties inherit through the shadow roots) */
+    /* the owner's setting automations.sensitive_chip: red instead of amber, for every chip below (custom properties inherit through the shadow roots) */
     :host([data-sens='red']) {
       --au-sens-bg: var(--dv-danger-soft);
       --au-sens-fg: var(--dv-danger);
@@ -3912,7 +3912,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       gap: var(--dv-gap-lg, 16px);
       align-items: stretch;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP4 (D25): from 768 to 1199 px the cards take whole rows of three (two at 768) instead of two, a tighter gap, so the
+    /* POLISH4-WP4 (D25): from 768 to 1199 px the cards take whole rows of three (two at 768) instead of two, a tighter gap, so the
        cards view shows more than two cards a page where the height allows (the NOSCROLL fit still counts the rows; no new scroll) */
     @media (min-width: 768px) and (max-width: 1199px) {
       .cgrid {
@@ -3920,7 +3920,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         gap: var(--sw-s-3);
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP4 (D25): below the width where the toolbar holds the kinds, the state filter, the search and "+ חדש" in one line (about
+    /* POLISH4-WP4 (D25): below the width where the toolbar holds the kinds, the state filter, the search and "+ חדש" in one line (about
        1400 px), the state filter folds behind "סינון" as it does on a phone - by the same setting (automations.phone_filter: fold, the
        default; "rows" keeps the filter's own row) - so the header is two rows at 1024 / 1180 instead of three. The open filter takes its
        own line under the toolbar. */
@@ -3942,7 +3942,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .tools {
       display: contents;
     }
-     sourceMappingURL=[^*]**/ POLISH-295: the rows list (the approved preview) and its pager */
+    /* POLISH-295: the rows list (the approved preview) and its pager */
     .rlist {
       padding: 0;
       overflow: visible;
@@ -3959,7 +3959,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
     .foldbtn {
       display: none;
     }
-     sourceMappingURL=[^*]**/ POLISH2-295: the view switch, as on the schedules screen */
+    /* POLISH2-295: the view switch, as on the schedules screen */
     .vwrap {
       flex: none;
     }
@@ -3980,7 +3980,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       flex-direction: column;
       gap: var(--sw-s-4h);
     }
-     sourceMappingURL=[^*]**/ the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them.
+    /* the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them.
        DEVICES-POLISH-2331: the inverted-surface tokens (--sw-toast-*) instead of white literals - the same note as the undo bar */
     .toast[popover] {
       inset-block-start: auto;
@@ -4004,7 +4004,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
       gap: var(--sw-s-3);
       padding-block-start: var(--sw-s-1);
     }
-     sourceMappingURL=[^*]**/ DEVICES-POLISH-2331: the loading state has the shape of the view it waits for - the rows list (the default) or the cards -
+    /* DEVICES-POLISH-2331: the loading state has the shape of the view it waits for - the rows list (the default) or the cards -
        so nothing jumps when the list lands */
     .skl-card {
       padding: var(--sw-s-4h);
@@ -4068,7 +4068,7 @@ import{i as R,n as m,a as Y,p as d,q as r,x as U,r as u,fV as ie,ju as $e,jv as 
         grid-template-areas: 't .' 'r r';
         grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
       }
-       sourceMappingURL=[^*]**/ POLISH2-295: on a phone the view is one icon button in the toolbar row (no extra row on a screen that must not scroll) */
+      /* POLISH2-295: on a phone the view is one icon button in the toolbar row (no extra row on a screen that must not scroll) */
       .dh-det .vtog {
         order: 3;
         flex: none;

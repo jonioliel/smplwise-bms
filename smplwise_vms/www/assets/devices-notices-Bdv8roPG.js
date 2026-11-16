@@ -123,7 +123,7 @@ import{rL as s,q as a,i as w,n as D,r as d,a as P,sH as x,sI as C,p as l,x as z,
       background: var(--sw-hover-wash);
     }
   }
-   sourceMappingURL=[^*]**/ POLISH4-WP4: the row wash is gated to a hovering fine pointer in the shared sheet itself (notices/styles.ts, POLISH4-WP1), so the
+  /* POLISH4-WP4: the row wash is gated to a hovering fine pointer in the shared sheet itself (notices/styles.ts, POLISH4-WP1), so the
      local cancel that lived here is gone */
   table.t tr.go:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -164,7 +164,7 @@ import{rL as s,q as a,i as w,n as D,r as d,a as P,sH as x,sI as C,p as l,x as z,
       translate: 0 8px;
     }
   }
-   sourceMappingURL=[^*]**/ a phone: the toolbar's search takes the rest of the row, the KPI tiles and the segment keys reach a 44 px target */
+  /* a phone: the toolbar's search takes the rest of the row, the KPI tiles and the segment keys reach a 44 px target */
   @media (max-width: 767px) {
     .search {
       flex: 1;

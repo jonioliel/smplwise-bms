@@ -5,7 +5,7 @@ import{i as T,n as w,r as f,a as M,K as C,U as N,R as B,ak as z,p as u,q as o,bD
     --x-warn: var(--sw-warning);
     --x-err: var(--sw-danger);
     --x-off: var(--sw-text-3);
-     sourceMappingURL=[^*]**/ SHAREDUI-295: text in a tone colour, >= 4.5:1 on its soft fill and on the surfaces in every skin, light and dark: the product's
+    /* SHAREDUI-295: text in a tone colour, >= 4.5:1 on its soft fill and on the surfaces in every skin, light and dark: the product's
        -text token pulled 40% towards the heading colour (darker in light, lighter in dark). The plain -text tokens measure 3.0-4.5:1
        on their soft fills (success 3.0, accent 4.4, unknown 4.5 in the classic light set). */
     --x-ok-t: color-mix(in srgb, var(--sw-success-text) 60%, var(--sw-heading));
@@ -27,7 +27,7 @@ import{i as T,n as w,r as f,a as M,K as C,U as N,R as B,ak as z,p as u,q as o,bD
   .chip.door { font-weight: 500; white-space: normal; line-height: 1.35; padding-block: 3px; }
   .chip.door.add { --cs: var(--sw-success-soft); --ct: var(--x-ok-t); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; min-inline-size: 0; }
-   sourceMappingURL=[^*]**/ SHAREDUI-295: white on the solid state colours measured 1.8-3.8:1 (success, warning, danger, unknown); the badge is the soft fill
+  /* SHAREDUI-295: white on the solid state colours measured 1.8-3.8:1 (success, warning, danger, unknown); the badge is the soft fill
      with the tone text and a ring in the state colour, so it still reads as the strongest mark of the row */
   .badge {
     display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; font-size: var(--sw-fs-sm);
@@ -79,7 +79,7 @@ import{i as T,n as w,r as f,a as M,K as C,U as N,R as B,ak as z,p as u,q as o,bD
   .ku h4 { margin: 0; font-size: var(--sw-fs-sm); display: flex; gap: 6px; align-items: center; }
   .ku ul { margin: 0; padding-inline-start: 18px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); display: grid; gap: 4px; }
   .ku .unk h4 { color: var(--x-warn-t); }
-   sourceMappingURL=[^*]**/ SHAREDUI-295: the explanations of a state sit behind one disclosure ("how Arx decides"); the summary is a 44 px target */
+  /* SHAREDUI-295: the explanations of a state sit behind one disclosure ("how Arx decides"); the summary is a 44 px target */
   details.more { border-radius: var(--sw-r-sm); }
   details.more > summary { display: flex; align-items: center; gap: 6px; min-block-size: var(--sw-touch-desktop, 44px); cursor: pointer; list-style: none;
     font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text-2); border-radius: var(--sw-r-sm); }
@@ -104,7 +104,7 @@ import{i as T,n as w,r as f,a as M,K as C,U as N,R as B,ak as z,p as u,q as o,bD
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .row .sp { flex: 1; }
   .err-line { color: var(--x-err-t); font-size: var(--sw-fs-sm); font-weight: 600; margin: 0; }
-   sourceMappingURL=[^*]**/ EXTERNALBUILD-297: the readiness lines in the settings dialog */
+  /* EXTERNALBUILD-297: the readiness lines in the settings dialog */
   ul.rd { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
   ul.rd li { display: flex; gap: 8px; align-items: flex-start; font-size: var(--sw-fs-sm); color: var(--sw-text-1, inherit); }
   ul.rd li .chip { flex: none; }

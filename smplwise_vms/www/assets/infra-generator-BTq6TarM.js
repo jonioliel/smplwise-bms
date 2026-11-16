@@ -143,7 +143,7 @@ import{kV as R,n as C,r as $,a as st,S as et,kW as Nt,ak as N,kX as Wt,kY as gt,
     .lg .kpi .v small { font-size: var(--sw-fs-xs); font-weight: 400; color: var(--sw-text-2); }
     .lg .kpi .s { font-size: var(--sw-fs-xs); color: var(--sw-text-2); overflow-wrap: anywhere; }
     .lg .split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr); gap: 12px; align-items: start; }
-     sourceMappingURL=[^*]**/ GATE-FIX-2270: the R5 round grew the severity chip (13 px, 20 px line) and the KPI figures, so the page of runs sized for the
+    /* GATE-FIX-2270: the R5 round grew the severity chip (13 px, 20 px line) and the KPI figures, so the page of runs sized for the
        viewport ran 23 px past a 1024 x 768 screen (a control screen never scrolls): the run rows take 2 px less block padding and
        the pager - whose buttons are 44 px under 1100 px - drops its own block padding */
     .lg .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 2px 12px; }
@@ -154,7 +154,7 @@ import{kV as R,n as C,r as $,a as st,S as et,kW as Nt,ak as N,kX as Wt,kY as gt,
     .lg .row select { inline-size: auto; min-inline-size: 150px; flex: none; }
     .lg table.t td { padding: 5px 12px; }
     @media (max-width: 900px) { .lg .split { grid-template-columns: minmax(0, 1fr); } }
-     sourceMappingURL=[^*]**/ the phone keeps start, kind, duration and fuel: no sideways scrolling either */
+    /* the phone keeps start, kind, duration and fuel: no sideways scrolling either */
     @media (max-width: 767px) { .lg table.t th:nth-child(4), .lg table.t td:nth-child(4), .lg table.t th:nth-child(6), .lg table.t td:nth-child(6), .lg table.t th:nth-child(7), .lg table.t td:nth-child(7) { display: none; } }
   `];W([C({attribute:!1})],q.prototype,"device",2);W([$()],q.prototype,"range",2);W([$()],q.prototype,"kind",2);W([$()],q.prototype,"page",2);W([$()],q.prototype,"data",2);W([$()],q.prototype,"phase",2);W([$()],q.prototype,"error",2);q=W([at("gen-log-page")],q);var ie=Object.defineProperty,ne=Object.getOwnPropertyDescriptor,V=(t,s,a,r)=>{for(var i=r>1?void 0:r?ne(s,a):s,l=t.length-1,n;l>=0;l--)(n=t[l])&&(i=(r?n(s,a,i):n(i))||i);return r&&i&&ie(s,a,i),i};const k=R.generator,Gt=["live","alerts","charts","history","log"],le=3e4,It="sw.generator.device",Pt=t=>Gt.includes(t[2])?t[2]:"live";let G=class extends st{constructor(){super(...arguments),this.bubbleSkin=new et(this),this.route=null,this.access=bs(),this.list=null,this.device=null,this.summary={},this.phase="loading",this.error="",this.detecting=!1,this.deviceFailed=!1,this.timer=0,this.tabsMode=new ks(this,"area"),this.pagesChip=null}connectedCallback(){super.connectedCallback(),this.stop=xs(t=>this.access=t),this.loadList(),this.timer=window.setInterval(()=>{document.hidden||this.loadList(!0)},le)}disconnectedCallback(){this.stop?.(),window.clearInterval(this.timer),kt(this),this.pagesChip=null,super.disconnectedCallback()}updated(t){if(this.pagesChip?_s(this,this.pagesChip):kt(this),t.has("route")){const s=this.selectedId();s&&s!==this.device?.id&&this.loadDevice(s)}}shown(){const t=this.list?.devices??[];return this.access.manage?t:t.filter(s=>s.core_met)}selectedId(){const t=this.shown(),s=this.route?.params.get("device")??"";if(s&&t.some(r=>r.id===s))return s;let a="";try{a=localStorage.getItem(It)??""}catch{}return a&&t.some(r=>r.id===a)?a:(t.find(r=>r.core_met)??t[0])?.id??""}async loadList(t=!1){try{this.list=await Cs(),Os(this.list.log_enabled===!0),zs().then(a=>this.summary=Object.fromEntries(a.devices.map(r=>[r.id,r]))).catch(()=>{}),this.phase="ready";const s=this.selectedId();s?await this.loadDevice(s):this.device=null}catch(s){this.error=N(s),(!t||!this.list)&&(this.phase="error")}}async loadDevice(t){try{const s=await Is(t);t===this.selectedId()&&(this.device=s,this.deviceFailed=!1)}catch(s){this.error=N(s),t===this.selectedId()&&!this.device&&(this.deviceFailed=!0)}}async detect(){this.detecting=!0;try{await Ps(),await this.loadList()}catch(t){this.error=N(t)}finally{this.detecting=!1}}pick(t){try{localStorage.setItem(It,t.detail.id)}catch{}const s=Pt(this.route?.segments??[]);tt(`/infra/generator/${s}`,{device:t.detail.id})}notFound(){const t=this.access.manage;return e`<div class="card" data-state="not-found"><div class="empty"><div class="ic"><sw-icon name="bolt" size="26"></sw-icon></div><h3>${k.notFound.title}</h3>
       <div class="mut measure">${k.notFound.body}${this.list?.last_detect_at?` ${b(k.notFound.checked,{t:x(this.list.last_detect_at)})}`:""}</div>
@@ -167,7 +167,7 @@ import{kV as R,n as C,r as $,a as st,S as et,kW as Nt,ak as N,kX as Wt,kY as gt,
     .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .body { min-inline-size: 0; }
     .body > * { display: block; }
-     sourceMappingURL=[^*]**/ INSIGHTS-POLISH-2331: the loading state draws the page's shape - the tab row, the hero (diagram + side card) - and shimmers like the
+    /* INSIGHTS-POLISH-2331: the loading state draws the page's shape - the tab row, the hero (diagram + side card) - and shimmers like the
        other infrastructure skeletons; the not-found explanation keeps a reading measure */
     .sk-tabs { inline-size: min(320px, 70%); block-size: 22px; }
     .sk-hero { block-size: 280px; }
@@ -175,6 +175,6 @@ import{kV as R,n as C,r as $,a as st,S as et,kW as Nt,ak as N,kX as Wt,kY as gt,
     .sk-line + .sk-line { margin-block-start: 12px; inline-size: 70%; }
     .measure { max-inline-size: 520px; }
     .body > .card + .card { margin-block-start: 14px; }
-     sourceMappingURL=[^*]**/ the generators' count beside the picker is a quiet counter, not a bare digit */
+    /* the generators' count beside the picker is a quiet counter, not a bare digit */
     .gpick > .mut:last-child { font-variant-numeric: tabular-nums; padding: 2px 9px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); }
   `,Gs];V([C({attribute:!1})],G.prototype,"route",2);V([$()],G.prototype,"access",2);V([$()],G.prototype,"list",2);V([$()],G.prototype,"device",2);V([$()],G.prototype,"summary",2);V([$()],G.prototype,"phase",2);V([$()],G.prototype,"error",2);V([$()],G.prototype,"detecting",2);V([$()],G.prototype,"deviceFailed",2);G=V([at("infra-generator")],G);export{G as InfraGenerator,Pt as pageOf};

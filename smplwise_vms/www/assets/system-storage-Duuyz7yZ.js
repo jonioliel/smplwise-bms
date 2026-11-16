@@ -122,7 +122,7 @@ import{a as x,S as k,K as b,ak as w,p as l,q as e,X as f,a7 as _,cb as z,fs as E
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: the three counters are the hero row - a 32/800 figure in the heading ink, a 13 px label in the secondary ink; the
+    /* R5-SYSTEM-297: the three counters are the hero row - a 32/800 figure in the heading ink, a 13 px label in the secondary ink; the
        icon square steps back (28 px, quiet) so the number is the object (taste §5) */
     .kpi {
       display: flex;

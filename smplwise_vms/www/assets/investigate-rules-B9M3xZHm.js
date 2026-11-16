@@ -87,7 +87,7 @@ import{a as I,S as R,tO as $,q as a,K as u,bD as w,R as m,tP as B,tQ as L,bm as 
       --sw-card-pad: 10px;
       max-inline-size: 860px;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: a rule is one row - a well inside the hero list card (the sw-card of before put the slotted children in a
+    /* R5-INVESTIGATE-297: a rule is one row - a well inside the hero list card (the sw-card of before put the slotted children in a
        block, so 60 % of a 130 px card was empty and the toggle fell under the text) */
     .rulecard {
       padding: 10px;
@@ -163,7 +163,7 @@ import{a as I,S as R,tO as $,q as a,K as u,bD as w,R as m,tP as B,tQ as L,bm as 
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2 (break-ui, 390 px): a rule name is what identifies it, so on the phone it wraps to two lines instead
+    /* R5-INVESTIGATE-297 loop 2 (break-ui, 390 px): a rule name is what identifies it, so on the phone it wraps to two lines instead
        of "רכב באזור ..." after three words; the detail keeps one line */
     @media (max-width: 767px) {
       .txt b {
@@ -303,7 +303,7 @@ import{a as I,S as R,tO as $,q as a,K as u,bD as w,R as m,tP as B,tQ as L,bm as 
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: a dry-run hit is a well with a filled verdict */
+    /* R5-INVESTIGATE-297: a dry-run hit is a well with a filled verdict */
     .dry {
       display: flex;
       align-items: center;

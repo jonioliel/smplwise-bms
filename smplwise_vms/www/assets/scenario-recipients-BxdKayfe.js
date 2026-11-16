@@ -364,7 +364,7 @@ import{i as R,n as h,a as T,q as i,p as l,X as f,kf as B,x as A,r as u,jS as b,j
     .blk .chip.warn {
       flex: none;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: device rows and run rows are wells (no outline); the run's time is bold; a run row sinks on pointer-down */
+    /* R5-DEVICES-297: device rows and run rows are wells (no outline); the run's time is bold; a run row sinks on pointer-down */
     .dev {
       display: flex;
       align-items: center;
@@ -471,7 +471,7 @@ import{i as R,n as h,a as T,q as i,p as l,X as f,kf as B,x as A,r as u,jS as b,j
       font-weight: 600;
       color: var(--dv-text);
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the product's Blue Wash pair, never a solid text-colour block */
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the product's Blue Wash pair, never a solid text-colour block */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);

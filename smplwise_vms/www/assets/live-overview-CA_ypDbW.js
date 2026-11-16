@@ -191,7 +191,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
       border-radius: var(--sw-r-xs);
       transition: background var(--sw-t-fast) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2: the wash follows a hovering fine pointer only (it stuck on a tapped row on touch) */
+    /* POLISH4-WP2: the wash follows a hovering fine pointer only (it stuck on a tapped row on touch) */
     @media (hover: hover) and (pointer: fine) {
       .hrow.link:hover,
       .ev:hover {
@@ -330,7 +330,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
       min-inline-size: 0;
       flex: 1 1 auto;
     }
-     sourceMappingURL=[^*]**/ WARMUP-POLISH-2421: the attention pager (a desktop card pages its items instead of scrolling) */
+    /* WARMUP-POLISH-2421: the attention pager (a desktop card pages its items instead of scrolling) */
     .spotpager {
       display: flex;
       align-items: center;
@@ -359,7 +359,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
       cursor: default;
     }
     @media (min-width: 1024px) {
-       sourceMappingURL=[^*]**/ one line each for the meta and the reason on a desktop (the full text is the tooltip): more items fit before the pager */
+      /* one line each for the meta and the reason on a desktop (the full text is the tooltip): more items fit before the pager */
       .spot .sbody > .muted,
       .spot .sbody > .why {
         white-space: nowrap;
@@ -384,7 +384,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
         grid-template-columns: 1fr;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the page takes the screen's height and the last
+    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the page takes the screen's height and the last
        row - the recent events and the attention list, the two naturally long lists - takes what is left; each list scrolls inside
        its own card (sw-card fill). Below 200 px of room the row keeps that height and the page scrolls as before (a very short window). */
     @media (min-width: 1024px) {
@@ -412,13 +412,13 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ owner 2026-09-29: compact tiles (ui.tile_layout) - rectangles, icon beside the value; the sizes are the
+    /* owner 2026-09-29: compact tiles (ui.tile_layout) - rectangles, icon beside the value; the sizes are the
        --lv-tile-* knobs (styles/tile-knobs.ts). Four across on a desktop, the knob's column count on a phone. */
     :host([data-tile-layout='compact']) .kpis {
       grid-template-columns: repeat(auto-fit, minmax(var(--lv-tile-compact-col-min), 1fr));
       grid-auto-rows: 1fr;
       gap: var(--lv-tile-compact-grid-gap);
-      padding-block-start: 6px;  sourceMappingURL=[^*]**/ room for a badge riding the tile's top corner */
+      padding-block-start: 6px; /* room for a badge riding the tile's top corner */
     }
     @media (min-width: 1024px) {
       :host([data-tile-layout='compact']) .kpis {
@@ -430,7 +430,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
         grid-template-columns: repeat(var(--lv-tile-compact-cols-phone), minmax(0, 1fr));
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE method on the live overview, structure unchanged): three surface tiers - the four counters are the
+    /* R5-LIVE-297 (the HOMEFABLE method on the live overview, structure unchanged): three surface tiers - the four counters are the
        hero (a 32 px / 800 display numeral through the sw-kpi value hook), the cards the second tier, every row inside a card a WELL
        (surface-2, rounded, no hairline); a state is a filled field (the tone's tint behind a dot and a bold word), not a dot on white;
        the critical attention item is a filled danger field; rows sink on pointer-down and tint on hover only under a fine pointer */
@@ -463,7 +463,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
       border-block-end: 0;
       margin-inline: 0;
       margin-block-end: 5px;
-      padding: 7px 12px;  sourceMappingURL=[^*]**/ loop 1: 9 px left two events in view at 1440 x 900 */
+      padding: 7px 12px; /* loop 1: 9 px left two events in view at 1440 x 900 */
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
       -webkit-tap-highlight-color: transparent;
@@ -474,7 +474,7 @@ import{i as N,a as U,S as G,qD as V,K as q,a7 as Z,ft as K,L as O,qE as Q,ax as 
     .spot:last-child {
       margin-block-end: 0;
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437: the health rows sit in a grid; on a short desktop (1366x768 class) they take two columns, so the row of
+    /* NOSCROLL-1366-2437: the health rows sit in a grid; on a short desktop (1366x768 class) they take two columns, so the row of
        health / storage gives the last row (events, attention) the room it needs and the page does not scroll. From 1280 px only:
        at 1024x768 the half-width cells and the lower floor squeezed the attention card below one item (entry check 2026-11-12) */
     .hgrid {

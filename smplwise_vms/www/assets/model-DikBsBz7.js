@@ -1,6 +1,6 @@
 import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   :host {
-     sourceMappingURL=[^*]**/ taste-skill-ignore: calendar data hues (a categorical palette, not UI colour) */
+    /* taste-skill-ignore: calendar data hues (a categorical palette, not UI colour) */
     --cal-blue: #2563eb; --cal-rose: #e11d48; --cal-cyan: #0891b2; --cal-orange: #ea580c; --cal-violet: #7c3aed; --cal-brown: #a16207; --cal-magenta: #c026d3;
     --cal-slate: #64748b;
     --ev-fill: 16%; --ev-ink: 78%;
@@ -20,13 +20,13 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   .sp { flex: 1; }
   .vh { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-   sourceMappingURL=[^*]**/ panels */
+  /* panels */
   .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-1);
     padding: 16px; min-inline-size: 0; min-block-size: 0; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
   .panel > h2, .ph h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
   .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-inline-size: 0; }
 
-   sourceMappingURL=[^*]**/ buttons and pills */
+  /* buttons and pills */
   .btn { font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     min-block-size: var(--sw-ctl-h-lg); padding: 0 14px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface-solid);
     color: var(--sw-heading); cursor: pointer; white-space: nowrap; transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
@@ -39,11 +39,11 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   .btn.icon { inline-size: var(--sw-ctl-h-lg); padding: 0; }
   .btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; transform: none; }
   .btn:focus-visible, .tab:focus-visible, .chipb:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
-   sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (D22 review): hover only under a fine hovering pointer (a tablet with a mouse-emulating stylus kept it) */
+  /* ROUND4-LEFTOVERS-2390 (D22 review): hover only under a fine hovering pointer (a tablet with a mouse-emulating stylus kept it) */
   @media (hover: hover) and (pointer: fine) { .btn:not([disabled]):hover { background: var(--sw-hover-wash); } .btn.pri:not([disabled]):hover { background: var(--sw-accent-hover); } }
   .chipb { font: inherit; font-size: var(--sw-fs-md); display: inline-flex; align-items: center; gap: 6px; min-block-size: var(--sw-ctl-h-lg); padding: 0 16px;
     border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface-solid); color: var(--sw-heading); cursor: pointer; white-space: nowrap; }
-   sourceMappingURL=[^*]**/ AUDIT30-F1 (#4, owner Q3 option A assumed): a selected chip is the Blue Wash pair of the design document (sw-chip's look), never a black pill */
+  /* AUDIT30-F1 (#4, owner Q3 option A assumed): a selected chip is the Blue Wash pair of the design document (sw-chip's look), never a black pill */
   .chipb[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); box-shadow: none; }
   .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 10px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold);
     background: var(--sw-surface-3); color: var(--sw-text-2); white-space: nowrap; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }
@@ -55,18 +55,18 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   .count { display: inline-grid; place-items: center; min-inline-size: 20px; block-size: 20px; padding: 0 6px; border-radius: var(--sw-r-pill); background: var(--sw-badge-bg);
     color: var(--sw-badge-fg); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); }
 
-   sourceMappingURL=[^*]**/ segmented control (settings, view switch) */
+  /* segmented control (settings, view switch) */
   .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); max-inline-size: 100%; overflow: hidden; }
   .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); padding: 6px 12px; border-radius: var(--sw-r-pill);
     cursor: pointer; white-space: nowrap; min-block-size: 30px; }
   .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
   .seg button[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
 
-   sourceMappingURL=[^*]**/ the calendar's colour dot / square */
+  /* the calendar's colour dot / square */
   .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--h, var(--cal-slate)); flex: none; }
   .sq { inline-size: 24px; block-size: 24px; border-radius: var(--sw-r-xs); background: var(--h, var(--cal-slate)); flex: none; }
 
-   sourceMappingURL=[^*]**/ an entry: tinted fill in the calendar's hue; the kind marks */
+  /* an entry: tinted fill in the calendar's hue; the kind marks */
   .ev { --h: var(--cal-blue); position: relative; display: block; min-inline-size: 0; overflow: hidden; border: 0; text-align: start; font: inherit; cursor: pointer;
     background: color-mix(in srgb, var(--h) var(--ev-fill), var(--sw-surface-solid)); color: color-mix(in srgb, var(--h) var(--ev-ink), var(--sw-heading));
     border-radius: var(--sw-r-xs); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--h) 32%, transparent); padding: 3px 6px; font-size: var(--sw-fs-xs); line-height: 1.3; }
@@ -83,21 +83,21 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   .ev[data-flag='conflict'] { box-shadow: inset 0 0 0 2px var(--sw-danger); }
   .closed { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--sw-text-3) 18%, transparent) 6px 7px); }
 
-   sourceMappingURL=[^*]**/ legend */
+  /* legend */
   .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); align-items: center; }
   .legend i { display: inline-block; inline-size: 22px; block-size: 12px; border-radius: var(--sw-r-2xs); vertical-align: middle; margin-inline-end: 6px; --h: var(--cal-blue); }
 
-   sourceMappingURL=[^*]**/ list rows */
+  /* list rows */
   .row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface-2); min-inline-size: 0; }
   .row .name { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
   .row .sub { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
   .grow { flex: 1; min-inline-size: 0; }
 
-   sourceMappingURL=[^*]**/ the pager that replaces a page scroll */
+  /* the pager that replaces a page scroll */
   .pager { display: flex; align-items: center; gap: 8px; justify-content: flex-start; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .pager .btn { inline-size: var(--sw-ctl-h-lg); padding: 0; }
 
-   sourceMappingURL=[^*]**/ skeleton (owner answer 26A: after 300 ms, no flash) */
+  /* skeleton (owner answer 26A: after 300 ms, no flash) */
   .skel { border-radius: var(--sw-r-md); background: linear-gradient(90deg, var(--sw-skeleton) 0%, var(--sw-skeleton-shine) 50%, var(--sw-skeleton) 100%); background-size: 200% 100%;
     animation: sk 1.4s linear infinite; }
   @keyframes sk { to { background-position: -200% 0; } }
@@ -105,7 +105,7 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   @keyframes rot { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .skel, .spin { animation: none; } .btn { transition: none; } }
 
-   sourceMappingURL=[^*]**/ form fields of the drawers */
+  /* form fields of the drawers */
   .fld { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px 14px; align-items: center; }
   .fld > label, .fld > .lbl { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
   .inp { font: inherit; font-size: var(--sw-fs-md); color: var(--sw-heading); background: var(--sw-surface-2); border: 1px solid transparent; border-radius: var(--sw-r-md);
@@ -117,7 +117,7 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
   .note.bad { background: var(--sw-danger-soft); }
   .note b { display: block; color: var(--sw-heading); font-size: var(--sw-fs-md); }
 
-   sourceMappingURL=[^*]**/ AUDIT30-F5 (touch): on a coarse pointer every control of the module is a 44 px target (COMPONENT_RULES §1) */
+  /* AUDIT30-F5 (touch): on a coarse pointer every control of the module is a 44 px target (COMPONENT_RULES §1) */
   @media (pointer: coarse) {
     .btn, .btn.sm, .chipb, .seg button { min-block-size: 44px; }
     .btn.icon, .pager .btn { inline-size: 44px; }
@@ -125,7 +125,7 @@ import{i as z}from"./index-C5kZ9jiu.js";const L=z`
 
   @media (max-width: 699px) {
     .fld { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-     sourceMappingURL=[^*]**/ mobile-native: 16 px inputs never zoom the page */
+    /* mobile-native: 16 px inputs never zoom the page */
     .inp { font-size: max(16px, var(--sw-fs-lg)); }
   }
 `,O={room:"חדר",team:"צוות",maintenance:"אחזקה",event:"אירועים"},A={room:"חדרים",team:"צוותים",maintenance:"אחזקה",event:"אירועים"},R={view:"צפייה",book:"יצירת אירועים שלי",edit:"עריכת הכול",manage:"ניהול ואישור"},S={view:"רואה את היומן לפי הנראות",book:"יוצר, משנה ומבטל הזמנות שלו",edit:"משנה ומבטל כל הזמנה, גם מחוץ למגבלות הזמן",manage:"מאשר ודוחה בקשות, קובע כללים וחברים"},$={pending:"ממתין לאישור",confirmed:"מאושר",rejected:"נדחה",withdrawn:"בוטל על ידי המבקש",expired:"פג",cancelled:"בוטל",displaced:"נדחק",done:"הסתיים"},q={first_holds:"הראשון שאושר מחזיק, התחזוקה מחכה להחלטה",override_notify:"התחזוקה גוברת ומודיעים למארגנים",block:"אי אפשר להציב תחזוקה מעל הזמנה",ask:"לשאול בכל חלון"},P={first_holds:"הראשון מחזיק",override_notify:"התחזוקה גוברת",block:"אי אפשר להציב",ask:"לשאול בכל חלון"},C={none:"ללא אישור",always:"כל בקשה באישור",outside_hours:"באישור מחוץ לשעות",on_behalf:"באישור כשמזמינים בשם אחרים"},F={reapproval:"באישור מחדש",managers:"רק מנהל החדר"},B={ical:"iCal",ics_in:"iCal",ics_out:"iCal",google:"Google",microsoft:"Microsoft"},N={override_notify:0,first_holds:1,ask:2,block:3};function V(e){return e.kind==="holiday"?"holiday":e.state==="displaced"?"displaced":e.kind==="maintenance"||e.kind==="maintenance_task"?"maint":e.state==="pending"?"pending":e.kind==="external"?"external":e.title===null?"busy":"ok"}const f=e=>String(e).padStart(2,"0"),D=["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"],Y=["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"],G=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];function u(e){const a=new Date(e);return a.setHours(0,0,0,0),a}function v(e,a){const r=new Date(e);return r.setDate(r.getDate()+a),r}const h=(e,a)=>e.getFullYear()===a.getFullYear()&&e.getMonth()===a.getMonth()&&e.getDate()===a.getDate(),x=e=>{const a=typeof e=="string"?new Date(e):e;return`${f(a.getHours())}:${f(a.getMinutes())}`},I=e=>`${e.getFullYear()}-${f(e.getMonth()+1)}-${f(e.getDate())}`,_=e=>`${f(e.getDate())}.${f(e.getMonth()+1)}`,k=e=>e.getHours()*60+e.getMinutes();function U(e,a,r){const n=new Date(e);return`${h(n,r)?"היום":h(n,v(r,1))?"מחר":`${D[n.getDay()]} ${_(n)}`} · ${x(e)}–${x(a)}`}function j(e){const a=new Date(e.getFullYear(),e.getMonth(),1),r=v(a,-a.getDay());return Array.from({length:42},(n,t)=>{const o=v(r,t);return{day:o,inMonth:o.getMonth()===e.getMonth()}})}const H=e=>u(v(e,-e.getDay()));function M(e,a){const r=u(a).getTime(),n=v(u(a),1).getTime();return e.filter(t=>new Date(t.start).getTime()<n&&new Date(t.end).getTime()>r).sort((t,o)=>t.start.localeCompare(o.start))}function W(e,a,r,n){const t=(n-r)*60,o=M(e,a).filter(s=>!s.all_day).map(s=>{const i=Math.max(r*60,k(new Date(s.start))+(h(new Date(s.start),a)?0:-1440)),d=h(new Date(s.end),a)?k(new Date(s.end)):1440,c=Math.min(n*60,Math.max(d,i+15));return{o:s,s:i,e:c}}).filter(s=>s.e>r*60&&s.s<n*60),p=[];let l=[],g=-1;const b=()=>{const s=Math.max(1,...l.map(i=>i.lane+1));for(const i of l)p.push({o:i.o,top:(i.s-r*60)/t*100,height:(i.e-i.s)/t*100,lane:i.lane,lanes:s});l=[]};for(const s of o){s.s>=g&&l.length&&b();const i=new Set(l.filter(c=>c.e>s.s).map(c=>c.lane));let d=0;for(;i.has(d);)d+=1;l.push({...s,lane:d}),g=Math.max(g,s.e)}return l.length&&b(),p}function Q(e,a){if(!e)return{from:7,to:23};const r=Math.min(Math.max(a.getHours()-1,0),18);return{from:r,to:r+6}}function J(e,a,r,n){const t=u(a).getTime(),o=Math.max((new Date(e.start).getTime()-t)/6e4,r*60),p=Math.min((new Date(e.end).getTime()-t)/6e4,n*60);if(p<=o)return null;const l=(n-r)*60;return{start:(o-r*60)/l*100,width:(p-o)/l*100}}function K(e,a,r=1){return Math.max(r,Math.floor(e/a))}function X(e,a,r){const n=Math.max(1,Math.ceil(e.length/Math.max(1,r))),t=Math.min(Math.max(1,a),n);return{items:e.slice((t-1)*r,t*r),page:t,pages:n}}function Z(e){return["room","team","maintenance","event"].map(a=>({type:a,cals:e.filter(r=>r.type===a)})).filter(a=>a.cals.length)}const ee=e=>`var(--cal-${e??"slate"})`;function ae(e,a){const r=n=>n==="maintenance"?0:n==="team"||n==="department"?1:2;return[...e].sort((n,t)=>a!=="manual"&&n.queue_position!==void 0&&t.queue_position!==void 0&&n.queue_position!==t.queue_position?n.queue_position-t.queue_position:a==="by_kind"&&r(n.kind)!==r(t.kind)?r(n.kind)-r(t.kind):n.requested_at.localeCompare(t.requested_at))}function T(e,a,r,n,t,o){const p=[];for(const l of r){const[g,b]=l.from.split(":").map(Number),[s,i]=l.to.split(":").map(Number);for(let d=g*60+b;d+n<=s*60+i;d+=t){const c=new Date(u(a).getTime()+d*6e4),y=new Date(c.getTime()+n*6e4);if(c<o)continue;const m=e.filter(w=>new Date(w.start)<y&&new Date(w.end)>c);p.push({start:c,free:!m.some(w=>w.state==="confirmed"),pending:m.filter(w=>w.state==="pending").length})}}return p}function re(e,a,r){const n=a==="24h"?1440:a==="1h"?60:0;return new Date(e).getTime()-n*6e4<=r.getTime()}function ne(e,a){return e.free?!e.pending||a==="free"?"free":a==="blocked"?"blocked":"contest":"busy"}function te(e,a,r,n,t){return T(e,a,r,n,15,t).find(o=>o.free)?.start??null}export{C as A,N as B,F as C,Y as D,te as E,T as F,ne as G,re as H,G as M,P as O,B as P,R,$ as S,A as T,v as a,h as b,L as c,_ as d,ee as e,j as f,Z as g,x as h,I as i,D as j,V as k,X as l,k as m,W as n,M as o,f as p,J as q,U as r,u as s,Q as t,K as u,ae as v,H as w,q as x,O as y,S as z};

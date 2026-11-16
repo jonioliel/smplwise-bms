@@ -55,7 +55,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       position: relative;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ absolutely placed: the row height comes from the labels (the lane height token), the bars stretch to it */
+    /* absolutely placed: the row height comes from the labels (the lane height token), the bars stretch to it */
     svg {
       position: absolute;
       inset: 0;
@@ -244,7 +244,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       gap: 10px;
       padding: 14px 24px 12px;
     }
-     sourceMappingURL=[^*]**/ the header dropdown's lead reserve (styles/lead-reserve.ts) is ADDED to the row's own 24 px start padding, never in its place */
+    /* the header dropdown's lead reserve (styles/lead-reserve.ts) is ADDED to the row's own 24 px start padding, never in its place */
     .head.lead-head {
       padding-inline-start: calc(24px + var(--sw-lead-reserve, 0px));
     }
@@ -261,7 +261,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
     .grow {
       flex: 1;
     }
-     sourceMappingURL=[^*]**/ R5 assembly (owner decision 2026-10-28, option a): the time bar is the MAPS look - these are the pre-R5 base rules, and the
+    /* R5 assembly (owner decision 2026-10-28, option a): the time bar is the MAPS look - these are the pre-R5 base rules, and the
        R5-MAPS-297 block further down turns them into the recorded-tone status field with the 26 px recorded-tone time */
     .bar {
       display: flex;
@@ -318,7 +318,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       z-index: var(--sw-z-map-ui);
       display: flex;
       gap: 12px;
-       sourceMappingURL=[^*]**/ the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the legend was a white 92 % pill with the dark scheme's light ink on it */
+      /* the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the legend was a white 92 % pill with the dark scheme's light ink on it */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-pill);
@@ -346,12 +346,12 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       inset-inline-end: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-       sourceMappingURL=[^*]**/ the "historical state" tag: the opaque surface with a purple hairline and the body ink (purple text on a fixed lavender fill read at 2.4:1 in the dark scheme) */
+      /* the "historical state" tag: the opaque surface with a purple hairline and the body ink (purple text on a fixed lavender fill read at 2.4:1 in the dark scheme) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-purple);
       color: var(--sw-text);
       border-radius: var(--sw-r-md);
-      padding: 3px 9px;  sourceMappingURL=[^*]**/ 4 / 10 minus the hairline: the tag keeps its size */
+      padding: 3px 9px; /* 4 / 10 minus the hairline: the tag keeps its size */
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
@@ -461,7 +461,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
         grid-template-columns: 1fr;
       }
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): a 26/700 title; the time bar is the status field of the screen (the recorded
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): a 26/700 title; the time bar is the status field of the screen (the recorded
        tone with its own hairline from the token - the fixed #cddcff was a light line on the dark scheme) and the chosen time its display
        digit (20/700, tabular, interface face); the plan is the hero (shadow 2); the event rows are wells and the one at the chosen time a
        filled accent field; press feedback on the rows; hover only with a fine pointer. */
@@ -484,7 +484,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
     }
     .time {
       font-family: inherit;
-      font-size: var(--sw-fs-3xl);  sourceMappingURL=[^*]**/ loop 2: the chosen time is the display digit of this screen */
+      font-size: var(--sw-fs-3xl); /* loop 2: the chosen time is the display digit of this screen */
       font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.02em;
@@ -493,13 +493,13 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
     }
     .stage {
       box-shadow: var(--sw-shadow-2);
-      --sw-map-bg: var(--sw-surface-3);  sourceMappingURL=[^*]**/ loop 2: the ground a tone step down, the plan floats */
+      --sw-map-bg: var(--sw-surface-3); /* loop 2: the ground a tone step down, the plan floats */
       border-color: transparent;
     }
     .chip {
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      background: var(--sw-menu-surface);  sourceMappingURL=[^*]**/ a HUD panel keeps the opaque menu surface (unit-menu-lint): weight from the accent edge + ink */
+      background: var(--sw-menu-surface); /* a HUD panel keeps the opaque menu surface (unit-menu-lint): weight from the accent edge + ink */
       border: 2px solid var(--sw-accent);
       color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-2);
@@ -565,7 +565,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       }
     }
 
-     sourceMappingURL=[^*]**/ ===== CR-TIMESCRUB101 (owner layout rule 2026-10-24): the screen is a fixed-height column and NEVER scrolls - compact
+    /* ===== CR-TIMESCRUB101 (owner layout rule 2026-10-24): the screen is a fixed-height column and NEVER scrolls - compact
        head, one-line status bar, the plan + panel area takes all the height left (the plan fills it), the timeline bar is
        pinned to the bottom; only the side panel scrolls, inside itself ===== */
     :host([data-scrub]) {
@@ -663,7 +663,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       align-items: center;
       justify-content: center;
       padding: 24px;
-       sourceMappingURL=[^*]**/ no scrim: the plan stays readable around the (opaque) state panel */
+      /* no scrim: the plan stays readable around the (opaque) state panel */
     }
     .cover sw-state-panel {
       max-inline-size: 420px;
@@ -682,7 +682,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       gap: 8px;
       padding: 6px 10px;
       border-radius: var(--sw-r-md);
-       sourceMappingURL=[^*]**/ a HUD panel over the plan: the opaque surface with the warning hairline (styles/menu-surface.ts) */
+      /* a HUD panel over the plan: the opaque surface with the warning hairline (styles/menu-surface.ts) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-warning);
       color: var(--sw-warning-text);
@@ -727,7 +727,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       min-block-size: 34px;
       box-sizing: border-box;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2: hover only under a fine pointer */
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer */
     @media (hover: hover) and (pointer: fine) {
       .lyr:hover {
         background: var(--sw-hover-wash);
@@ -822,7 +822,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
       flex-wrap: wrap;
       margin-block-start: 10px;
     }
-     sourceMappingURL=[^*]**/ the timeline bar pinned to the bottom (never scrolled to; sticky is belt-and-braces) */
+    /* the timeline bar pinned to the bottom (never scrolled to; sticky is belt-and-braces) */
     .tlx {
       flex: none;
       position: sticky;
@@ -935,7 +935,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
         transition: none;
       }
     }
-     sourceMappingURL=[^*]**/ tablet: the two columns stay (the panel narrows and scrolls) so nothing drops below the timeline; one control row
+    /* tablet: the two columns stay (the panel narrows and scrolls) so nothing drops below the timeline; one control row
        stays one row - the hour steps, the date and the key hints leave it */
     @media (max-width: 1023px) {
       :host([data-scrub]) .head,
@@ -962,7 +962,7 @@ import{i as gt,n as M,a as vt,p as v,q as o,_ as D,x as bt,L as yt,R as xt,S as 
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ phone: the layer chips row above the plan, the plan fills the height between them and the pinned timeline, the
+    /* phone: the layer chips row above the plan, the plan fills the height between them and the pinned timeline, the
        detail cards open as a sheet over the plan ("פרטים") */
     @media (max-width: 767px) {
       :host([data-scrub]) .head,

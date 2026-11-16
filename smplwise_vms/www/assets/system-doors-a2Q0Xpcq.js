@@ -77,13 +77,13 @@ import{L as g,au as x,av as f,az as z,i as k,r as l,a as m,ak as b,p as o,q as a
     align-items: center;
     flex-wrap: wrap;
   }
-   sourceMappingURL=[^*]**/ MEDIA-POLISH-2331: the cards of one element stack with the settings' own rhythm (no inline margins on the cards) */
+  /* MEDIA-POLISH-2331: the cards of one element stack with the settings' own rhythm (no inline margins on the cards) */
   .stack {
     display: flex;
     flex-direction: column;
     gap: var(--sw-s-3);
   }
-   sourceMappingURL=[^*]**/ one caption above a list of switches instead of the same label repeated beside every switch (each switch keeps its own name) */
+  /* one caption above a list of switches instead of the same label repeated beside every switch (each switch keeps its own name) */
   .colhead {
     display: flex;
     justify-content: space-between;
@@ -100,7 +100,7 @@ import{L as g,au as x,av as f,az as z,i as k,r as l,a as m,ak as b,p as o,q as a
   .row select {
     max-inline-size: min(100%, 320px);
   }
-   sourceMappingURL=[^*]**/ touch: the fields are 44 px targets */
+  /* touch: the fields are 44 px targets */
   @media (pointer: coarse) {
     input,
     select {

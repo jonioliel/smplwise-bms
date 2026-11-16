@@ -83,7 +83,7 @@ import{a as O,ak as g,q as i,p as b,qh as H,qg as I,dH as M,dI as B,i as D,n as 
         ${t?i`<label class="typed"><span class="lbl">כדי לאשר, יש להקליד "מחיקה"</span><input class="inp" data-purge-word autocomplete="off" .value=${this.typed} @input=${a=>this.typed=a.target.value}></label>`:b}</div>
         <button slot="footer" type="button" class="btn" @click=${()=>this.confirm=null}>ביטול</button>
         <button slot="footer" type="button" class="btn bad fill" data-purge-ok ?disabled=${!s} @click=${()=>void this.purge()}>מחיקה</button></sw-dialog>`}return b}};c.styles=[G,B,D`
-     sourceMappingURL=[^*]**/ AUDIT30-F4 (#18, owner Q11 option A assumed): one settings structure - the shared page (crumb, title, the module switch at the row's
+    /* AUDIT30-F4 (#18, owner Q11 option A assumed): one settings structure - the shared page (crumb, title, the module switch at the row's
        end), underline tabs, the tab's content in one card. The card fills the page and pages its rows (no page scroll, owner rule 2026-10-24). */
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; overflow: hidden; }
     sw-page { flex: 1; min-block-size: 0; }
@@ -95,7 +95,7 @@ import{a as O,ak as g,q as i,p as b,qh as H,qg as I,dH as M,dI as B,i as D,n as 
     .groups .mod { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding: 0 5px; margin-inline-start: 6px; border-radius: var(--sw-r-pill);
       background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-2xs); font-weight: var(--sw-fw-bold); }
     .groupsel { inline-size: 100%; }
-     sourceMappingURL=[^*]**/ focus and hover on every control the screen draws itself (the shared .btn / .seg have theirs in calCss) */
+    /* focus and hover on every control the screen draws itself (the shared .btn / .seg have theirs in calCss) */
     .opt, .reset, .linkrow, .seg button, .selw select { transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color); }
     @media (prefers-reduced-motion: reduce) { .opt, .stepper button, .opt:active, .stepper button:active { transition: none; transform: none; } }
     .opt:focus-visible, .stepper button:focus-visible, .reset:focus-visible, .linkrow:focus-visible, .seg button:focus-visible {
@@ -110,7 +110,7 @@ import{a as O,ak as g,q as i,p as b,qh as H,qg as I,dH as M,dI as B,i as D,n as 
       .linkrow:hover .chip.acc { background: var(--sw-accent); color: var(--sw-text-inverse); }
       .reset:hover { text-decoration: underline; text-underline-offset: 2px; }
     }
-     sourceMappingURL=[^*]**/ a select reads as a select: the chevron at its end (appearance: none hid the native arrow) */
+    /* a select reads as a select: the chevron at its end (appearance: none hid the native arrow) */
     .selw { position: relative; display: inline-flex; align-items: center; max-inline-size: 100%; }
     .selw select { padding-inline-end: 30px; }
     .selw sw-icon { position: absolute; inset-inline-end: 10px; pointer-events: none; color: var(--sw-text-3); }

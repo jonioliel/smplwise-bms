@@ -123,7 +123,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-     sourceMappingURL=[^*]**/ a tile that just lost or gained its stream keeps its place; only the picture inside changes (sw-camera-tile) */
+    /* a tile that just lost or gained its stream keeps its place; only the picture inside changes (sw-camera-tile) */
     .grid sw-camera-tile {
       transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease), opacity var(--sw-t-state) var(--sw-ease);
     }
@@ -143,14 +143,14 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       display: grid;
       gap: 12px;
       grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-       sourceMappingURL=[^*]**/ Owner decision 2026-09-27: the cameras appear in EXACTLY their saved order, even when a spanned camera
+      /* Owner decision 2026-09-27: the cameras appear in EXACTLY their saved order, even when a spanned camera
          does not fit at the end of a row and that row ends in a gap. This is the default row auto-placement,
          spelled out on purpose: "dense" (used from the T091 review until this decision) filled such gaps by
          pulling a later, narrower camera up ahead of the wider one, so the wall did not show the saved order.
          The tile sizing (fitTile()) uses the exact row count of this placement - simulateStrictRows(). */
       grid-auto-flow: row;
     }
-     sourceMappingURL=[^*]**/ best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
+    /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
     .grid.fit {
       grid-template-columns: repeat(var(--cols), var(--tile));
       justify-content: center;
@@ -223,7 +223,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       cursor: pointer;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ "לא להציג": dimmed, but every control of the row stays usable (reorder, width, show again) */
+    /* "לא להציג": dimmed, but every control of the row stays usable (reorder, width, show again) */
     .settings-row.is-hidden {
       opacity: 0.55;
       background: var(--sw-surface-3);
@@ -232,15 +232,15 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       opacity: 1;
       color: var(--sw-text);
     }
-     sourceMappingURL=[^*]**/ the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
+    /* the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
     .pbar {
       display: flex;
-      flex-wrap: wrap;  sourceMappingURL=[^*]**/ 2.0.4: with a second recorder the filter makes five controls: they wrap to a second row instead of overflowing at 320 px */
+      flex-wrap: wrap; /* 2.0.4: with a second recorder the filter makes five controls: they wrap to a second row instead of overflowing at 320 px */
       align-items: center;
       gap: 6px;
       inline-size: 100%;
     }
-     sourceMappingURL=[^*]**/ DROPDOWNFIT-295: every control of the bar has room for its label (basis 150 px: two per row from 330 px, one per row below, the rest wrap); the capsule selects
+    /* DROPDOWNFIT-295: every control of the bar has room for its label (basis 150 px: two per row from 330 px, one per row below, the rest wrap); the capsule selects
        and the capsule dropdown share the height / font / ring of the dropdown component, so nothing here sets them. */
     .pbar sw-field {
       flex: 1 1 150px;
@@ -255,13 +255,13 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       min-inline-size: 0;
     }
     .pbar sw-field:not([capsule]) select {
-      min-block-size: 44px;  sourceMappingURL=[^*]**/ UXFIX-A11Y-295: 44 px touch target (was 40) */
+      min-block-size: 44px; /* UXFIX-A11Y-295: 44 px touch target (was 40) */
       padding-inline: 8px;
       font-size: var(--sw-fs-xs);
     }
     .pbar .kiosk {
       flex: none;
-       sourceMappingURL=[^*]**/ SKIN-QA-2403: 44 px in the two-row mode too (it was 40 px there; the icon row already had 44) - the phone's touch target */
+      /* SKIN-QA-2403: 44 px in the two-row mode too (it was 40 px there; the icon row already had 44) - the phone's touch target */
       inline-size: 44px;
       block-size: 44px;
       display: grid;
@@ -273,7 +273,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       cursor: pointer;
       padding: 0;
     }
-     sourceMappingURL=[^*]**/ WALL-PHONE-TOOLBAR-2401 (owner 04.11 evening): the phone's default toolbar is ONE row of icon keys (wall-phone-bar.ts). A key is a 44 px
+    /* WALL-PHONE-TOOLBAR-2401 (owner 04.11 evening): the phone's default toolbar is ONE row of icon keys (wall-phone-bar.ts). A key is a 44 px
        square (46 / 44 / 48 px circle in the capsule style, as the capsule dropdown), the icon in the middle, a short number in the corner where
        there is one; the native select lies over the whole key, invisible, so a tap opens the phone's own picker. No text on a key, so nothing is
        cut and nothing ends in an ellipsis; the full name is the accessible name, the tooltip and the long-press bubble (.khint). */
@@ -304,7 +304,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       -webkit-user-select: none;
       transition: transform var(--sw-t-press) var(--sw-ease-out);
     }
-     sourceMappingURL=[^*]**/ SKIN-QA-2403: a picker key sinks on press like the kiosk key and the columns key beside it (the skin's press scale; 1 in the flat
+    /* SKIN-QA-2403: a picker key sinks on press like the kiosk key and the columns key beside it (the skin's press scale; 1 in the flat
        skins, which draw no press) - it had no pressed state, so a tap on quality / count gave no feedback until the picker opened */
     .pbar[data-mode='icons'] .ikey:active {
       transform: scale(var(--sw-press-scale, 0.95));
@@ -328,7 +328,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       min-inline-size: 48px;
       block-size: 48px;
     }
-     sourceMappingURL=[^*]**/ the select covers the key's border too: the whole drawn key (44 px) is the select's box and its touch target */
+    /* the select covers the key's border too: the whole drawn key (44 px) is the select's box and its touch target */
     .pbar[data-mode='icons'] .ikey > select {
       --_kb: 1px;
       position: absolute;
@@ -379,7 +379,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       user-select: none;
       -webkit-user-select: none;
     }
-     sourceMappingURL=[^*]**/ the long-press name: under the row, over the wall (it never pushes the tiles down), wraps instead of being cut */
+    /* the long-press name: under the row, over the wall (it never pushes the tiles down), wraps instead of being cut */
     .pbar .khint {
       position: absolute;
       inset-block-start: calc(100% + 6px);
@@ -390,7 +390,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       padding: 6px 10px;
       border-radius: var(--sw-r-sm);
       background: var(--sw-heading);
-       sourceMappingURL=[^*]**/ SKIN-QA-2403: the solid surface - the glass skins' --sw-surface is translucent, which made the words see-through (crystal dark:
+      /* SKIN-QA-2403: the solid surface - the glass skins' --sw-surface is translucent, which made the words see-through (crystal dark:
          3.3:1 on the bubble) */
       color: var(--sw-surface-solid);
       font-size: var(--sw-fs-sm);
@@ -405,13 +405,13 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       .grid {
         gap: 8px;
       }
-       sourceMappingURL=[^*]**/ a safe default cap on phones so auto layout never crams tiny tiles - but an explicit column
+      /* a safe default cap on phones so auto layout never crams tiny tiles - but an explicit column
          choice (owner round 4, 1.7) is a deliberate override and wins even here. */
       .grid:not([data-wall-cols-manual]) {
         grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr));
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE method on the wall, the grid and its sizing untouched): the tile count is a real segmented control -
+    /* R5-LIVE-297 (the HOMEFABLE method on the wall, the grid and its sizing untouched): the tile count is a real segmented control -
        32 px keys, 13 px bold numerals, the chosen count a filled accent key that reads from across the room; hover tints only under a
        fine pointer and a key sinks on pointer-down; a camera that is down is a filled field at full strength (sw-camera-tile), not
        dimmed; the wall-settings rows are wells, not outlined boxes; the phone's kiosk button is a raised key */
@@ -483,7 +483,7 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
         transform: none;
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass: the tile-count tray is a RAISED control (surface, the first shadow, 36 px keys, 15 px / 800 numerals)
+    /* R5-LIVE-297 Fable pass: the tile-count tray is a RAISED control (surface, the first shadow, 36 px keys, 15 px / 800 numerals)
        instead of a flat surface-3 tray; the tile grid breathes 14 px; the settings rows are wells with a 15 px name */
     .layouts {
       background: var(--sw-surface);

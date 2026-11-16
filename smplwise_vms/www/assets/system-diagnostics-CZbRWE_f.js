@@ -198,7 +198,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger-text);
     }
-     sourceMappingURL=[^*]**/ the floor moves under the room name on a phone (its column folds away; the data stays) */
+    /* the floor moves under the room name on a phone (its column folds away; the data stays) */
     .phone {
       display: none;
     }
@@ -420,7 +420,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ one recorder per card: the status badge in the head, a tone bar at the start edge and a faint wash when something needs attention */
+    /* one recorder per card: the status badge in the head, a tone bar at the start edge and a faint wash when something needs attention */
     .card {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
@@ -590,7 +590,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     :host([data-skin='bubble']) .ths input,
     :host([data-skin='bubble']) .ths select,
     :host([data-skin='bubble']) .chk {
-      min-block-size: 44px;  sourceMappingURL=[^*]**/ the bubble skin's touch target */
+      min-block-size: 44px; /* the bubble skin's touch target */
     }
     .cont {
       display: flex;
@@ -1100,13 +1100,13 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     [data-ltr] { direction: ltr; text-align: start; }
     .end { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     code { font-family: var(--sw-font-mono, monospace); }
-     sourceMappingURL=[^*]**/ OFFBOX-RESTORE-2300: the verified copy's facts in ONE well (four cells, one line where the dialog is wide), so the restore dialog
+    /* OFFBOX-RESTORE-2300: the verified copy's facts in ONE well (four cells, one line where the dialog is wide), so the restore dialog
        holds the safety password row without scrolling on a tablet or a phone */
     .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px 16px; margin: 0; }
     .facts dt { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .facts dd { margin: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); overflow-wrap: anywhere; }
     .facts .num { font-variant-numeric: tabular-nums; }
-     sourceMappingURL=[^*]**/ GDRIVEBK-2310: the Google connection row and the consent dialog (the code is LTR, large, monospace) */
+    /* GDRIVEBK-2310: the Google connection row and the consent dialog (the code is LTR, large, monospace) */
     .gd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     select.ctl { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
@@ -1115,11 +1115,11 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .steps a { color: var(--sw-accent-text, var(--sw-accent)); font-weight: var(--sw-fw-semibold); }
     .code { margin-block-start: 6px; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xl, 1.5rem); letter-spacing: 0.12em;
       font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
-     sourceMappingURL=[^*]**/ GDRIVE-READY-2351: the connection check - one row per step, the fix under it */
+    /* GDRIVE-READY-2351: the connection check - one row per step, the fix under it */
     .diag { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
     .diag li { display: grid; gap: 2px; }
     .diag .fix { font-size: var(--sw-fs-sm); }
-     sourceMappingURL=[^*]**/ POLISH4-WP7: a visible focus ring on the plain fields, and on a phone the head, the action keys and the fields wrap onto the width */
+    /* POLISH4-WP7: a visible focus ring on the plain fields, and on a phone the head, the action keys and the fields wrap onto the width */
     input.ctl:focus-visible, textarea.ctl:focus-visible, select.ctl:focus-visible, .ret input:focus-visible, .confirm-in:focus-visible, .keybox:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; border-color: var(--sw-accent); }
     @media (max-width: 767px) {
@@ -1176,7 +1176,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       flex-wrap: wrap;
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: a swatch is a raised key (shadow 1, no outline); the chosen one carries the accent ring and a deeper shadow;
+    /* R5-DEVICES-297: a swatch is a raised key (shadow 1, no outline); the chosen one carries the accent ring and a deeper shadow;
        a press sinks it, hover for a fine pointer only */
     button.theme {
       display: flex;
@@ -1297,7 +1297,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     :host {
       display: block;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
+    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
     table {
       inline-size: 100%;
       border-collapse: separate;
@@ -1432,7 +1432,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       font-weight: var(--sw-fw-bold);
       color: var(--sw-accent-text, var(--sw-text));
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
+    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
     table {
       inline-size: 100%;
       border-collapse: separate;
@@ -1625,7 +1625,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold; a state is a filled
+    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold; a state is a filled
        chip, not a coloured word */
     table {
       inline-size: 100%;
@@ -1885,7 +1885,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       <div class="effective line" data-dd-picker-effective><sw-icon name="check" size=${16}></sw-icon><span><strong>מה פעיל אצלי עכשיו:</strong> ${Wt[this.pkOwn??this.pkInst]}, חיפוש ${Mt[this.seOwn??this.seInst]}</span></div>
       ${this.status("picker")}
     </sw-card>${this.renderPlaceCard(n)}${this.renderSettingsNavCard()}`}};P.styles=[O`
-     sourceMappingURL=[^*]**/ TABSMODE-POLISH-2331: the display cards follow the settings ladder (R5-SYSTEM-297 / HOMEFABLE): card > owner well > choice.
+    /* TABSMODE-POLISH-2331: the display cards follow the settings ladder (R5-SYSTEM-297 / HOMEFABLE): card > owner well > choice.
        The cards of this element are siblings inside ONE host, so the host spaces them itself (they used to touch). */
     :host {
       display: flex;
@@ -1906,7 +1906,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the two owners side by side, each a well; one column on a phone */
+    /* the two owners side by side, each a well; one column on a phone */
     .grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1930,7 +1930,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         padding: 12px;
       }
     }
-     sourceMappingURL=[^*]**/ the owner of a column: whose value it is and who may change it */
+    /* the owner of a column: whose value it is and who may change it */
     .colhead {
       display: flex;
       flex-direction: column;
@@ -1959,7 +1959,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       flex: none;
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ a choice is a tile on the well: the checked one carries the accent, the rest stay quiet */
+    /* a choice is a tile on the well: the checked one carries the accent, the rest stay quiet */
     .opt {
       display: flex;
       align-items: flex-start;
@@ -2020,7 +2020,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .opt .t .muted {
       font-weight: var(--sw-fw-regular);
     }
-     sourceMappingURL=[^*]**/ short choices (the settings navigation) sit side by side on a wide screen */
+    /* short choices (the settings navigation) sit side by side on a wide screen */
     .tiles {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
@@ -2034,7 +2034,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       font-size: var(--sw-fs-sm);
       line-height: 1.45;
     }
-     sourceMappingURL=[^*]**/ 2.0.2: a sub-heading inside a fieldset with two radio groups (the camera picker card) */
+    /* 2.0.2: a sub-heading inside a fieldset with two radio groups (the camera picker card) */
     .sub {
       margin: var(--sw-s-4) 0 var(--sw-s-2);
       font-size: var(--sw-fs-sm);
@@ -2044,7 +2044,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     legend + .sub {
       margin-block-start: 0;
     }
-     sourceMappingURL=[^*]**/ a value per group: the label at the start, the select at the end; the "all groups" row leads, the groups follow */
+    /* a value per group: the label at the start, the select at the end; the "all groups" row leads, the groups follow */
     .grp {
       display: flex;
       align-items: center;
@@ -2095,7 +2095,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         border-color: var(--sw-text-3);
       }
     }
-     sourceMappingURL=[^*]**/ "what is active for me now": a fact list - the group at the start, the value and where it comes from at the end */
+    /* "what is active for me now": a fact list - the group at the start, the value and where it comes from at the end */
     .effective {
       display: flex;
       flex-direction: column;
@@ -2147,7 +2147,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
     }
-     sourceMappingURL=[^*]**/ the one-line summary of a card with one global value */
+    /* the one-line summary of a card with one global value */
     .effective.line {
       flex-direction: row;
       align-items: center;
@@ -2207,7 +2207,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         min-block-size: 44px;
       }
     }
-     sourceMappingURL=[^*]**/ the live sample of the effective mode */
+    /* the live sample of the effective mode */
     .preview {
       display: flex;
       flex-direction: column;
@@ -2266,7 +2266,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       align-items: center;
       flex-wrap: wrap;
     }
-     sourceMappingURL=[^*]**/ the saved / error line: a pill with an icon in a reserved slot, so the card does not jump when it appears */
+    /* the saved / error line: a pill with an icon in a reserved slot, so the card does not jump when it appears */
     .status {
       display: flex;
       align-items: center;
@@ -2310,7 +2310,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         transition-duration: 0ms;
       }
     }
-     sourceMappingURL=[^*]**/ the bubble skin is frozen (unit-bubble-freeze-295): its owner columns keep the flat list, no wells */
+    /* the bubble skin is frozen (unit-bubble-freeze-295): its owner columns keep the flat list, no wells */
     :host([data-skin='bubble']) .grid > div,
     :host([data-skin='bubble']) .preview,
     :host([data-skin='bubble']) .styles > div {
@@ -2379,7 +2379,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       </div>`}
       <span class="sr" role="status" aria-live="polite" data-tabs-announce>${this.announce}</span>
     </div>`}};Z.styles=[Le,O`
-     sourceMappingURL=[^*]**/ TABSMODE-POLISH-2331: the page reads as two groups - how tabs look (saved at once) and which tabs each area shows (saved
+    /* TABSMODE-POLISH-2331: the page reads as two groups - how tabs look (saved at once) and which tabs each area shows (saved
        with the bar below) - each with its group heading and a line that says how it saves */
     .intro {
       margin: 0;
@@ -2478,7 +2478,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         color: var(--sw-text);
       }
     }
-     sourceMappingURL=[^*]**/ a finger gets the full touch target on the reorder keys (TOUCH_TARGET_PX) */
+    /* a finger gets the full touch target on the reorder keys (TOUCH_TARGET_PX) */
     @media (pointer: coarse) {
       .handle,
       .mv {
@@ -2513,7 +2513,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       vertical-align: middle;
       margin-inline-start: 6px;
     }
-     sourceMappingURL=[^*]**/ a setting row of a section card is a well (the settings ladder), like every .row of the settings pages */
+    /* a setting row of a section card is a well (the settings ladder), like every .row of the settings pages */
     .srow {
       display: flex;
       justify-content: space-between;
@@ -2729,7 +2729,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       color: var(--sw-text-3);
       font-weight: var(--sw-fw-medium);
     }
-     sourceMappingURL=[^*]**/ the mini rail: the shell's own proportions (sw-app.ts), driven by the same variables */
+    /* the mini rail: the shell's own proportions (sw-app.ts), driven by the same variables */
     .mini-rail {
       display: inline-flex;
       flex-direction: column;
@@ -2914,7 +2914,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       gap: 12px;
       align-items: start;
     }
-     sourceMappingURL=[^*]**/ VISDIFF-246: skins in a row that held one fewer left the last alone on a second line (a 25 % card and a hole beside it):
+    /* VISDIFF-246: skins in a row that held one fewer left the last alone on a second line (a 25 % card and a hole beside it):
        where the card is wide enough all of them sit in one row. BUBBLE-FREEZE-295: four selectable skins (the bubble skin is frozen).
        SKINFOUND-297: six with the two Arx skins - one row where the card is wide, two equal rows (3 + 3) where it is medium; the counts
        come from the registry (--skins-n / --skins-half on .skins), so a lone card on its own line never appears */
@@ -2931,7 +2931,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         grid-template-columns: repeat(var(--skins-n, 4), minmax(0, 1fr));
       }
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: a skin card is a key one step below the card (surface-2 well, no outline at rest); the chosen one is a FILLED accent
+    /* R5-SYSTEM-297: a skin card is a key one step below the card (surface-2 well, no outline at rest); the chosen one is a FILLED accent
        field with the accent ring; it gives on press and lifts only under a pointer that hovers */
     .skin {
       all: unset;
@@ -2978,7 +2978,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ DESIGNTOKENS-297 (break-ui): a skin added as data may carry a long name (up to 24 characters, skins/define.ts) or an unbroken
+    /* DESIGNTOKENS-297 (break-ui): a skin added as data may carry a long name (up to 24 characters, skins/define.ts) or an unbroken
        English word; the name wraps inside its card instead of pushing the card wider, and the "current" mark never shrinks or wraps */
     .skin .nm {
       display: flex;
@@ -3009,7 +3009,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
     }
-     sourceMappingURL=[^*]**/ the swatch: a miniature of the shell drawn in the skin's own tokens (inline custom properties on .sw) */
+    /* the swatch: a miniature of the shell drawn in the skin's own tokens (inline custom properties on .sw) */
     .sw {
       position: relative;
       display: grid;
@@ -3127,7 +3127,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ CRY: the two picture slots of the custom background */
+    /* CRY: the two picture slots of the custom background */
     .slots {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -3356,7 +3356,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         transition-duration: 0ms;
       }
     }
-     sourceMappingURL=[^*]**/ LOOK-POLISH-2331: the open editor is a well of its own under the palette row (it was an unmarked run of controls) */
+    /* LOOK-POLISH-2331: the open editor is a well of its own under the palette row (it was an unmarked run of controls) */
     .editor {
       display: grid;
       gap: 4px;
@@ -3614,7 +3614,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ LOOK-POLISH-2331: every key gives on pointer-down and washes on hover only under a pointer that hovers */
+    /* LOOK-POLISH-2331: every key gives on pointer-down and washes on hover only under a pointer that hovers */
     .seg button,
     .range button,
     .pal button {
@@ -3643,7 +3643,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         transition-duration: 0ms;
       }
     }
-     sourceMappingURL=[^*]**/ the thirteen dials in four headed groups (they were one unbroken list) */
+    /* the thirteen dials in four headed groups (they were one unbroken list) */
     .group {
       margin: 0;
       padding-block: 18px 2px;
@@ -3690,7 +3690,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ the palette row: one chip per palette with its four swatch colours */
+    /* the palette row: one chip per palette with its four swatch colours */
     .pal {
       display: inline-flex;
       gap: 6px;
@@ -3740,7 +3740,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .dots i:first-child {
       margin-inline-start: 0;
     }
-     sourceMappingURL=[^*]**/ the preview: a canvas with the draft's tokens, two pills, a mini sheet over a colourful backdrop */
+    /* the preview: a canvas with the draft's tokens, two pills, a mini sheet over a colourful backdrop */
     .preview {
       margin-block-start: 12px;
       padding: 14px;
@@ -3922,7 +3922,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       min-inline-size: 120px;
       flex: 1 1 200px;
     }
-     sourceMappingURL=[^*]**/ the scope switch heads the card: the one choice that changes what every row below means */
+    /* the scope switch heads the card: the one choice that changes what every row below means */
     .row.scope {
       background: transparent;
       padding-inline: 0;
@@ -3933,7 +3933,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .row.scope + .sub {
       margin-block-start: var(--sw-s-3);
     }
-     sourceMappingURL=[^*]**/ a sub-heading inside the card: the settings group-label scale, one step down (a heading, not a grey caption) */
+    /* a sub-heading inside the card: the settings group-label scale, one step down (a heading, not a grey caption) */
     .sub {
       margin: var(--sw-s-4) 0 var(--sw-s-2);
       font-size: var(--sw-fs-md);
@@ -3941,7 +3941,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       color: var(--sw-heading, var(--sw-text));
       letter-spacing: -0.005em;
     }
-     sourceMappingURL=[^*]**/ the settings segment, wrapping instead of clipping (five kiosk choices at 320 px) and on the 44 px dial */
+    /* the settings segment, wrapping instead of clipping (five kiosk choices at 320 px) and on the 44 px dial */
     .seg {
       flex: 0 1 auto;
       flex-wrap: wrap;
@@ -3984,7 +3984,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     }
     .range output {
       min-inline-size: 64px;
-      padding-inline: 16px;  sourceMappingURL=[^*]**/ clear of the pill's rounded corner in the bubble skin */
+      padding-inline: 16px; /* clear of the pill's rounded corner in the bubble skin */
       text-align: center;
       font-variant-numeric: tabular-nums;
       font-weight: var(--sw-fw-semibold);
@@ -4410,7 +4410,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       opacity: 0.5;
       cursor: default;
     }
-     sourceMappingURL=[^*]**/ PRESENCE-DESIGN-2300: a drawn icon instead of a "···" glyph, pressed feedback, focus ring */
+    /* PRESENCE-DESIGN-2300: a drawn icon instead of a "···" glyph, pressed feedback, focus ring */
     .more {
       display: inline-grid;
       place-items: center;
@@ -4432,7 +4432,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         transform: scale(0.96);
       }
     }
-     sourceMappingURL=[^*]**/ mobile-native: a finger gets 44 px targets and 16 px inputs (no zoom on focus) */
+    /* mobile-native: a finger gets 44 px targets and 16 px inputs (no zoom on focus) */
     @media (pointer: coarse) {
       .more {
         inline-size: 44px;
@@ -4447,7 +4447,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       }
       input[type='number'],
       select {
-         sourceMappingURL=[^*]**/ no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17-19px in every skin) */
+        /* no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17-19px in every skin) */
         font-size: var(--sw-fs-xl);
       }
     }
@@ -4547,7 +4547,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       inline-size: 18px;
       block-size: 18px;
     }
-     sourceMappingURL=[^*]**/ mockup: the sensor table is the wide column, the times and the history sit beside it */
+    /* mockup: the sensor table is the wide column, the times and the history sit beside it */
     @media (min-width: 1280px) {
       :host {
         grid-template-columns: minmax(0, 1fr) 340px;
@@ -4569,7 +4569,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         grid-row: 3;
       }
     }
-     sourceMappingURL=[^*]**/ PRESENCE-COMPACT-2310: the card's options sit as one indented group under "on the home screen" */
+    /* PRESENCE-COMPACT-2310: the card's options sit as one indented group under "on the home screen" */
     .cardopts {
       display: grid;
       padding-inline-start: 12px;
@@ -4656,7 +4656,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .ok { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-     sourceMappingURL=[^*]**/ ACCESS-POLISH-2331: why the save button is (not) available - unsaved edits, or the problems that block it */
+    /* ACCESS-POLISH-2331: why the save button is (not) available - unsaved edits, or the problems that block it */
     .pending { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     @media (max-width: 480px) { form { grid-template-columns: minmax(0, 1fr); } }
   `,U];Q([N({attribute:!1})],de.prototype,"settings",2);Q([N({type:Boolean})],de.prototype,"editable",2);Q([d()],de.prototype,"sites",2);Q([d()],de.prototype,"beacons",2);Q([d()],de.prototype,"wifi",2);Q([d()],de.prototype,"open",2);Q([d()],de.prototype,"floors",2);Q([d()],de.prototype,"zones",2);Q([d()],de.prototype,"busy",2);Q([d()],de.prototype,"message",2);Q([d()],de.prototype,"error",2);de=Q([C("system-presence-places")],de);let Ve=class extends T{constructor(){super(...arguments),this.bubbleSkin=new X(this),this.settings=null,this.editable=!1,this.draft={...er},this.busy=!1,this.message="",this.error="",this.source=""}willUpdate(){const e=this.settings?.people??er,s=JSON.stringify(e);s!==this.source&&(this.source=s,this.draft={...e})}async save(){this.busy=!0,this.error="";try{const e=await Fa({people:this.draft});this.dispatchEvent(new CustomEvent("saved",{detail:e.settings})),this.message=S("saved"),window.setTimeout(()=>this.message="",2500)}catch(e){this.error=f(e)}finally{this.busy=!1}}num(e,s){const[t,i]=St[e];return r`<sw-field label=${S(s)} hint=${S("rangeHint",{lo:t,hi:i})}><input type="number" min=${t} max=${i} step="1" .value=${String(this.draft[e])} ?disabled=${!this.editable||this.busy}
@@ -4747,7 +4747,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .row:last-of-type {
       border-block-end: 0;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the setting's name 14/700 in the heading ink */
+    /* R5-SECURITY: the setting's name 14/700 in the heading ink */
     .lbl {
       font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-md);
@@ -4792,7 +4792,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       align-items: center;
       margin-block-start: 12px;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP8: the message inks are the -text tokens (the live-video dot and the bare state colours were below text contrast) */
+    /* POLISH4-WP8: the message inks are the -text tokens (the live-video dot and the bare state colours were below text contrast) */
     .ok {
       color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
@@ -4906,7 +4906,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       .row > :not(.lbl) {
         align-self: flex-end;
       }
-       sourceMappingURL=[^*]**/ owner Q7: the policy card's save row stays in view on a phone while the long card scrolls under it (settings kit .foot.sticky look) */
+      /* owner Q7: the policy card's save row stays in view on a phone while the long card scrolls under it (settings kit .foot.sticky look) */
       .foot {
         position: sticky;
         inset-block-end: var(--sw-s-2);
@@ -5163,7 +5163,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .seg {
       display: inline-flex;
       flex-wrap: wrap;
-       sourceMappingURL=[^*]**/ FIX2200: the padding counts inside the width, so a wrapped row (the five company sizes on a phone) never pokes 8 px past the card */
+      /* FIX2200: the padding counts inside the width, so a wrapped row (the five company sizes on a phone) never pokes 8 px past the card */
       box-sizing: border-box;
       max-inline-size: 100%;
       padding: 3px;
@@ -5172,7 +5172,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       border-radius: var(--sw-r-sm);
       align-self: flex-start;
     }
-     sourceMappingURL=[^*]**/ LOOK-POLISH-2331: the key of the skin card above it on the same page (system-design): 36 px, 14 px, the selected key in the
+    /* LOOK-POLISH-2331: the key of the skin card above it on the same page (system-design): 36 px, 14 px, the selected key in the
        accent ink on a lifted thumb (it was 28 px / 12.5 px with a plain-text selected key) */
     .seg button {
       all: unset;
@@ -5222,7 +5222,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
     .grid > .main {
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the browser-tab demo sits in the preview column on a wide screen; in the names panel only where that column is a tab */
+    /* the browser-tab demo sits in the preview column on a wide screen; in the names panel only where that column is a tab */
     .pnl .tabdemo {
       display: none;
     }
@@ -5231,7 +5231,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
         display: flex;
       }
     }
-     sourceMappingURL=[^*]**/ a phone: a wrapped key row fills its lines evenly instead of leaving a ragged track */
+    /* a phone: a wrapped key row fills its lines evenly instead of leaving a ragged track */
     @media (max-width: 599px) {
       .seg {
         display: flex;
@@ -5293,7 +5293,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       border-radius: var(--sw-r-md);
       padding: 12px;
     }
-     sourceMappingURL=[^*]**/ the two preview surfaces are fixed colours on purpose: they show the OTHER scheme, whatever scheme the page is in */
+    /* the two preview surfaces are fixed colours on purpose: they show the OTHER scheme, whatever scheme the page is in */
     .tile.light,
     .mini.l {
       background: #ffffff;
@@ -5335,7 +5335,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ a phone: each dark-background option is a compact row (the swatch beside its text); the three tall cards made the panel three
+    /* a phone: each dark-background option is a compact row (the swatch beside its text); the three tall cards made the panel three
        screens long */
     @media (max-width: 599px) {
       .opts {
@@ -5437,7 +5437,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       background: #151c2c;
       border: 1px solid #232e45;
     }
-     sourceMappingURL=[^*]**/ LOGOSIDE-295: the stub stands for the page title: side start = the logos take the start of the row before the title, side end = the title
+    /* LOGOSIDE-295: the stub stands for the page title: side start = the logos take the start of the row before the title, side end = the title
        takes the start and the logos sit beside the SmplWise logo */
     .mini .ttl {
       flex: none;
@@ -5691,7 +5691,7 @@ import{jk as Le,i as O,r as d,a as T,vx as Kn,ak as f,vy as Un,bZ as H,q as r,p 
       cursor: default;
       opacity: 0.7;
     }
-     sourceMappingURL=[^*]**/ "same as the accent": a swatch painted with the live accent, marked by a link glyph */
+    /* "same as the accent": a swatch painted with the live accent, marked by a link glyph */
     .sw.follow {
       background: var(--sw-accent);
       color: var(--sw-text-inverse);
@@ -6078,7 +6078,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     bdi {
       unicode-bidi: isolate;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP7: on a phone the head (label + check key) wraps and the key takes the line; the facts stack */
+    /* POLISH4-WP7: on a phone the head (label + check key) wraps and the key takes the line; the facts stack */
     @media (max-width: 767px) {
       .head {
         flex-wrap: wrap;
@@ -6112,7 +6112,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
         ${this.error?r`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>`:l}
       </div>
     </sw-card>`}};ze.styles=[Le,O`
-       sourceMappingURL=[^*]**/ no box of its own: while nothing is drawn (loading, an older backend) the settings column's gap is not taken */
+      /* no box of its own: while nothing is drawn (loading, an older backend) the settings column's gap is not taken */
       :host {
         display: contents;
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
@@ -6373,7 +6373,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     bdi {
       unicode-bidi: isolate;
     }
-     sourceMappingURL=[^*]**/ SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the status lines are a step denser */
+    /* SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the status lines are a step denser */
     :host([bare]) .line {
       padding: 6px 0;
     }
@@ -6432,11 +6432,11 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     </sw-card>`}};te.styles=[Le,O`
       :host {
         display: block;
-         sourceMappingURL=[^*]**/ every control of the card is a 44 px target (the shared settings rows are not, in every skin) */
+        /* every control of the card is a 44 px target (the shared settings rows are not, in every skin) */
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
         --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px));
       }
-       sourceMappingURL=[^*]**/ the phrase row stacks its label over the box: the label keeps its own height (a row's 220 px basis is a width) */
+      /* the phrase row stacks its label over the box: the label keeps its own height (a row's 220 px basis is a width) */
       .row.stack .lbl {
         flex: none;
       }
@@ -6445,7 +6445,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
         resize: vertical;
         line-height: 1.5;
       }
-       sourceMappingURL=[^*]**/ SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the phrase box opens at three lines (it still grows by hand) - the open
+      /* SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the phrase box opens at three lines (it still grows by hand) - the open
          card has to fit the screen */
       :host([bare]) textarea {
         min-block-size: 84px;
@@ -6538,7 +6538,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
         accent-color: var(--sw-accent);
         flex: none;
       }
-       sourceMappingURL=[^*]**/ SETTINGS-INTERCOM-CARDS-2401: the screens of the checklist - one after the other (as before), or side by side inside a card */
+      /* SETTINGS-INTERCOM-CARDS-2401: the screens of the checklist - one after the other (as before), or side by side inside a card */
       .chk-grid {
         display: contents;
       }
@@ -6582,7 +6582,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     .about {
       margin: 0 0 8px;
     }
-     sourceMappingURL=[^*]**/ SETTINGS-INTERCOM-CARDS-2401: inside a card the link is a 44 px target */
+    /* SETTINGS-INTERCOM-CARDS-2401: inside a card the link is a 44 px target */
     :host([bare]) a {
       display: inline-flex;
       align-items: center;
@@ -6647,7 +6647,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
         transform: translateY(4px);
       }
     }
-     sourceMappingURL=[^*]**/ a header: the title over the summary line, the chevron at the end; a 44 px target at least */
+    /* a header: the title over the summary line, the chevron at the end; a 44 px target at least */
     .head {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -6663,7 +6663,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
       margin: 0;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
-       sourceMappingURL=[^*]**/ SKIN-QA-2403: a header is drawn as the skin draws its cards - in the glass skins (domus, crystal, soft) the sheen over the
+      /* SKIN-QA-2403: a header is drawn as the skin draws its cards - in the glass skins (domus, crystal, soft) the sheen over the
          translucent surface and the backdrop blur, so the words do not sit on the raw canvas (the city / bloom picture showed through);
          in the solid skins the sheen is transparent and the blur none, so classic, tesla and infra draw exactly what they drew */
       background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-card-bg, var(--sw-surface)));
@@ -6723,7 +6723,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     }
     .head[aria-expanded='true'] {
       border-color: color-mix(in srgb, var(--sw-accent) 45%, var(--sw-border));
-       sourceMappingURL=[^*]**/ SKIN-QA-2403: the accent tint is laid OVER the header's surface; alone, a translucent tint (every dark scheme, the glass skins)
+      /* SKIN-QA-2403: the accent tint is laid OVER the header's surface; alone, a translucent tint (every dark scheme, the glass skins)
          left the open header see-through (its accent title fell to 4.3:1 on soft / domus light). Where the tint is opaque (classic
          light) nothing changes. */
       background: linear-gradient(var(--sw-accent-soft), var(--sw-accent-soft)), var(--sw-perf-glass-bg, var(--sw-card-bg, var(--sw-surface)));
@@ -6734,7 +6734,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     .head[aria-expanded='true'] .s {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ narrow: the chevron says fold / unfold; wide: the open card stands beside its header, so the chevron is not drawn */
+    /* narrow: the chevron says fold / unfold; wide: the open card stands beside its header, so the chevron is not drawn */
     .head[aria-expanded='true'] sw-icon {
       transform: rotate(180deg);
     }
@@ -7337,7 +7337,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
       flex-direction: column;
       gap: 4px;
     }
-     sourceMappingURL=[^*]**/ K88: the plan.surfaces check rows */
+    /* K88: the plan.surfaces check rows */
     .chk {
       display: flex;
       align-items: center;
@@ -7356,7 +7356,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
       border-radius: 50%;
       background: var(--sw-stale);
     }
-     sourceMappingURL=[^*]**/ CR-DIAG-DEFECTS-2436: the General tab's live health row (the demo's dot has no data-status and keeps the colour above) */
+    /* CR-DIAG-DEFECTS-2436: the General tab's live health row (the demo's dot has no data-status and keeps the colour above) */
     .health .dot[data-status='ok'] {
       background: var(--sw-live);
     }
@@ -7369,10 +7369,10 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     }
     .hgrid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));  sourceMappingURL=[^*]**/ CR-026 guard: a 300px column overflowed a 320px phone */
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); /* CR-026 guard: a 300px column overflowed a 320px phone */
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: a health card is a well of the ladder (surface-2, no hairline); a failing one is a FILLED danger / stale field,
+    /* R5-SYSTEM-297: a health card is a well of the ladder (surface-2, no hairline); a failing one is a FILLED danger / stale field,
        not a coloured outline; its name reads at 14/600 in the heading ink */
     .hcard {
       border: 1px solid transparent;
@@ -7485,7 +7485,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
       color: var(--sw-text);
       background: var(--sw-surface);
     }
-     sourceMappingURL=[^*]**/ owner 2026-09-29: the live preview of "פריסת אריחים" (two sample tiles in the chosen shape) */
+    /* owner 2026-09-29: the live preview of "פריסת אריחים" (two sample tiles in the chosen shape) */
     .tile-preview {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 170px));
@@ -7508,7 +7508,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     .bar.fail i {
       background: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ CR-007 6a: הגדרות › חשמל והתקנים - the two style previews (static swatches, no screen is rendered) */
+    /* CR-007 6a: הגדרות › חשמל והתקנים - the two style previews (static swatches, no screen is rendered) */
     .swatches {
       display: flex;
       flex-wrap: wrap;
@@ -7565,7 +7565,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     .sw-prev .tree {
       grid-row: 1 / 3;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP7: the two style previews read tokens only (no literal colours). The Arx preview is the flat ladder (surface-2 ground,
+    /* POLISH4-WP7: the two style previews read tokens only (no literal colours). The Arx preview is the flat ladder (surface-2 ground,
        solid tiles on a hairline); the glass preview is the same ground with translucent tiles and a tinted bloom, so both follow
        the light / dark scheme instead of staying pinned to one. */
     .sw-prev.smplwise {
@@ -7618,7 +7618,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
       font-family: var(--sw-font-mono);
       direction: ltr;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP7 press + hover: the style swatch presses in on pointer-down (the same give as every key); hover only on a fine pointer */
+    /* POLISH4-WP7 press + hover: the style swatch presses in on pointer-down (the same give as every key); hover only on a fine pointer */
     .swatch {
       transition: transform var(--sw-t-press) var(--sw-ease), border-color var(--sw-t-hover) var(--sw-ease-color);
       -webkit-tap-highlight-color: transparent;
@@ -7642,13 +7642,13 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
       }
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ border-box: the full-width field keeps its padding and border inside the row (BACKUP-HASH-ENC's password / minimum
+      /* border-box: the full-width field keeps its padding and border inside the row (BACKUP-HASH-ENC's password / minimum
          fields stand alone in a stacked row and ran 7 px past the card at 390 - 2.7.0 gate) */
       .note-in {
         inline-size: 100%;
         box-sizing: border-box;
       }
-       sourceMappingURL=[^*]**/ POLISH4-WP7 (D15): the rest of the host's fixed widths give way on a phone. A backup row stacks its name over its actions, the
+      /* POLISH4-WP7 (D15): the rest of the host's fixed widths give way on a phone. A backup row stacks its name over its actions, the
          two preview tiles share the width, the style swatches take a line each, and a usage bar fills its row. */
       .brow {
         grid-template-columns: minmax(0, 1fr);
@@ -7674,12 +7674,12 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
         align-items: flex-start;
       }
     }
-     sourceMappingURL=[^*]**/ SETTINGS-INTERCOM-CARDS-2401 (layout a): the cards of "מתגי מסכי כניסה" take the page's width (the open card stands beside the
+    /* SETTINGS-INTERCOM-CARDS-2401 (layout a): the cards of "מתגי מסכי כניסה" take the page's width (the open card stands beside the
        headers) and draw their rows a step denser, so every open card fits 1366x768 without a scroll */
     sw-fold-cards.afolds {
       max-inline-size: 1180px;
     }
-     sourceMappingURL=[^*]**/ SETTINGS-CARDS-ACCORDION-2402: in place, one column of cards - the settings column's own width (as the list) */
+    /* SETTINGS-CARDS-ACCORDION-2402: in place, one column of cards - the settings column's own width (as the list) */
     sw-fold-cards.afolds[inplace] {
       max-inline-size: 880px;
     }
@@ -7691,7 +7691,7 @@ ${s.summary}`;an.get(e)!==t&&(an.set(e,t),e.dispatchEvent(new CustomEvent(Na,{de
     .afold-body > * {
       --sw-card-pad: 14px;
     }
-     sourceMappingURL=[^*]**/ SKIN-QA-2403: a short window in a skin with a taller page head (sw-fold-cards FOLD_TIGHT_ROOM) - the rows one more step denser */
+    /* SKIN-QA-2403: a short window in a skin with a taller page head (sw-fold-cards FOLD_TIGHT_ROOM) - the rows one more step denser */
     sw-fold-cards.afolds[tight] .afold-body {
       --sw-set-row-pad: 6px 12px;
     }

@@ -4,9 +4,9 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     color: var(--sw-text);
     font-size: var(--sw-fs-md);
     min-inline-size: 0;
-     sourceMappingURL=[^*]**/ the smallest hit area: 32 px on a desktop, the touch dial in the bubble skin, 44 px from 1100 px down (the layout guard's rule) */
+    /* the smallest hit area: 32 px on a desktop, the touch dial in the bubble skin, 44 px from 1100 px down (the layout guard's rule) */
     --elec-touch: 32px;
-     sourceMappingURL=[^*]**/ AUDIT30-E1 (round-30 audit #8): every key of the module sits on the shared button scale AND keeps the module's 32 px minimum hit
+    /* AUDIT30-E1 (round-30 audit #8): every key of the module sits on the shared button scale AND keeps the module's 32 px minimum hit
        area (tests/layout-electricity.spec.ts): the small key is drawn at the default control height (34 px in classic) - the local
        keys (links styled as buttons, split and menu keys, the segmented control's thumb) through --elec-key-sm, the shared
        <sw-button size="sm"> by mapping its small height to the default one inside these screens - and grows to the touch size where
@@ -17,7 +17,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
   sw-button {
     --sw-ctl-h-sm: var(--elec-key-md);
     --sw-ctl-h-md: var(--elec-key-md);
-     sourceMappingURL=[^*]**/ a skin that draws the key at a fixed height (crystal 34 / 30 px) still gets the hit area: the host is an inline flex box, so its
+    /* a skin that draws the key at a fixed height (crystal 34 / 30 px) still gets the hit area: the host is an inline flex box, so its
        inner button stretches to this height */
     min-block-size: var(--elec-key-md);
   }
@@ -68,7 +68,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     margin: 0;
     color: var(--sw-heading);
   }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): headings read as headings - 20 px / 800 and 17 px / 700 in the heading ink */
+  /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): headings read as headings - 20 px / 800 and 17 px / 700 in the heading ink */
   .h2 {
     font-size: var(--sw-fs-2xl);
     font-weight: 800;
@@ -109,8 +109,8 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     white-space: nowrap;
   }
 
-   sourceMappingURL=[^*]**/ cards, tiles */
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the card is the hero tier - the ladder's second step and a lit top edge; the number tiles step
+  /* cards, tiles */
+  /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the card is the hero tier - the ladder's second step and a lit top edge; the number tiles step
      DOWN (surface-2, a hairline, no shadow); rows and list items are wells */
   .card {
     background: var(--sw-surface);
@@ -144,8 +144,8 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
   }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the number tile sits on the same elevation as the cards beside it (it was flat); the label keeps one line */
-   sourceMappingURL=[^*]**/ loop 2 (visible-difference test): surface-2 read as "another white card"; the tile is a surface-3 well with no outline and no shadow;
+  /* POLISH-CONTROL-297: the number tile sits on the same elevation as the cards beside it (it was flat); the label keeps one line */
+  /* loop 2 (visible-difference test): surface-2 read as "another white card"; the tile is a surface-3 well with no outline and no shadow;
      the not-reporting tile is a filled warning field when it is not zero (impeccable detect flagged the first try - a 6 px side border -
      as the "side-tab accent border" tell; replaced by the field) */
   .tile {
@@ -174,9 +174,9 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     line-clamp: 2;
     line-height: 1.25;
   }
-   sourceMappingURL=[^*]**/ the number and its unit have no break opportunity between them (digits glued to letters), so with the skins' larger value type
+  /* the number and its unit have no break opportunity between them (digits glued to letters), so with the skins' larger value type
      (tesla 30px) a narrow tile would push the unit out; flex-wrap lets the unit drop to its own line, and a too-long number may break */
-   sourceMappingURL=[^*]**/ round 2 (dataviz hero number): display size, heavy, tight, tabular; the unit a quiet step beside it */
+  /* round 2 (dataviz hero number): display size, heavy, tight, tabular; the unit a quiet step beside it */
   .tile .v {
     display: flex;
     flex-wrap: wrap;
@@ -211,7 +211,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     background: var(--sw-accent);
   }
 
-   sourceMappingURL=[^*]**/ buttons and fields */
+  /* buttons and fields */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -228,12 +228,12 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     cursor: pointer;
     white-space: nowrap;
     text-decoration: none;
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE keys): a raised key - the first shadow and a lit top edge - that sinks on pointer-down (the press token) */
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE keys): a raised key - the first shadow and a lit top edge - that sinks on pointer-down (the press token) */
     box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: a button answers the press (transform only, token durations - zero under reduced motion), hover is for fine
+  /* POLISH-CONTROL-297: a button answers the press (transform only, token durations - zero under reduced motion), hover is for fine
      pointers only (a touch never leaves it lit), and the keyboard gets the product's focus ring (there was none) */
   .btn {
     transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
@@ -289,7 +289,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     opacity: 0.45;
     cursor: not-allowed;
   }
-   sourceMappingURL=[^*]**/ an icon-only button (✕, ←, →): square, never narrower than the hit area */
+  /* an icon-only button (✕, ←, →): square, never narrower than the hit area */
   .btn.ic {
     min-inline-size: var(--elec-key-sm);
     padding: 0 6px;
@@ -358,7 +358,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     border-color: var(--sw-accent);
     color: var(--sw-text-inverse);
   }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (taste lint: no glyph as an icon): the check is drawn, not a ✓ character */
+  /* R5-MEDIA-ENERGY-297 (taste lint: no glyph as an icon): the check is drawn, not a ✓ character */
   input[type='checkbox']:checked + .ind::after {
     content: '';
     inline-size: 5px;
@@ -367,7 +367,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     border-width: 0 2px 2px 0;
     transform: translateY(-1px) rotate(45deg);
   }
-   sourceMappingURL=[^*]**/ a bare checkbox or radio (outside label.li) keeps its own size: the field rules above are for text controls */
+  /* a bare checkbox or radio (outside label.li) keeps its own size: the field rules above are for text controls */
   input[type='checkbox']:not(label.li > input),
   input[type='radio']:not(label.li > input) {
     inline-size: 18px;
@@ -448,7 +448,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     padding: 3px;
     gap: 2px;
     background: var(--sw-surface-3);
-     sourceMappingURL=[^*]**/ AUDIT30-E1: a pill track with pill thumbs (the shared sw-view-switch shape); the thumb is the small key (34 px in classic, on
+    /* AUDIT30-E1: a pill track with pill thumbs (the shared sw-view-switch shape); the thumb is the small key (34 px in classic, on
        the button scale and above the module's 32 px hit area) - it was 32 px with a radius of r-sm minus 2 (8 px), off the scale */
     border-radius: var(--sw-r-pill);
     max-inline-size: 100%;
@@ -477,8 +477,8 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     cursor: not-allowed;
   }
 
-   sourceMappingURL=[^*]**/ chips */
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (status as a filled field): a status chip is a 24 px field of its colour at 24 % with the deep status text, 700 */
+  /* chips */
+  /* R5-MEDIA-ENERGY-297 (status as a filled field): a status chip is a 24 px field of its colour at 24 % with the deep status text, 700 */
   .chip {
     display: inline-flex;
     align-items: center;
@@ -523,7 +523,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     color: var(--sw-accent-text);
   }
 
-   sourceMappingURL=[^*]**/ tables and lists */
+  /* tables and lists */
   .scrollx {
     overflow-x: auto;
   }
@@ -611,12 +611,12 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     gap: 8px;
   }
   .li {
-    flex: none;  sourceMappingURL=[^*]**/ a row never shrinks inside a scrolling list (rows overlapped on the phone without it) */
+    flex: none; /* a row never shrinks inside a scrolling list (rows overlapped on the phone without it) */
     display: flex;
     gap: 10px;
     align-items: center;
     padding: 12px 14px;
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: a list row is a well (a tone step, no outline), never an outlined box inside the card */
+    /* R5-MEDIA-ENERGY-297: a list row is a well (a tone step, no outline), never an outlined box inside the card */
     background: var(--sw-surface-2);
     border: 1px solid transparent;
     border-radius: var(--sw-r-md);
@@ -667,7 +667,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (display numerals): the card's key figure is 24 px / 800, tabular; the amount sits in the heading ink */
+  /* R5-MEDIA-ENERGY-297 (display numerals): the card's key figure is 24 px / 800, tabular; the amount sits in the heading ink */
   .big {
     font-size: var(--sw-fs-3xl);
     font-weight: 800;
@@ -703,7 +703,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     font-weight: var(--sw-fw-semibold);
   }
 
-   sourceMappingURL=[^*]**/ states */
+  /* states */
   .empty {
     display: flex;
     flex-direction: column;
@@ -786,7 +786,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     }
   }
 
-   sourceMappingURL=[^*]**/ wizard */
+  /* wizard */
   .wiz {
     display: grid;
     grid-template-columns: 250px minmax(0, 1fr);
@@ -828,7 +828,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     background: var(--sw-success-soft);
     color: var(--sw-success-text);
   }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the current step is a filled accent field (status as a field), its number a light disc on it */
+  /* R5-MEDIA-ENERGY-297: the current step is a filled accent field (status as a field), its number a light disc on it */
   .steps button.on {
     background: var(--sw-accent);
     color: var(--sw-text-inverse);
@@ -869,7 +869,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     margin-block-start: 6px;
   }
 
-   sourceMappingURL=[^*]**/ formula editor */
+  /* formula editor */
   .presets {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1015,7 +1015,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     text-align: left;
   }
 
-   sourceMappingURL=[^*]**/ chart */
+  /* chart */
   .chart {
     inline-size: 100%;
     block-size: auto;
@@ -1060,7 +1060,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     vertical-align: -1px;
   }
 
-   sourceMappingURL=[^*]**/ bill paper (always light: a print style, not the skin) */
+  /* bill paper (always light: a print style, not the skin) */
   .paperwrap {
     display: flex;
     justify-content: center;
@@ -1070,7 +1070,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     overflow: hidden;
   }
 
-   sourceMappingURL=[^*]**/ POLISH4-WP5 (emil-design-eng): the interactive primitives that had no answer to a touch. Press sinks them (transform only, the token
+  /* POLISH4-WP5 (emil-design-eng): the interactive primitives that had no answer to a touch. Press sinks them (transform only, the token
      duration - none under reduced motion), hover is for a pointer that hovers, the keyboard gets the product's ring. */
   .seg button,
   .steps button,
@@ -1164,7 +1164,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
       min-block-size: 44px;
     }
   }
-   sourceMappingURL=[^*]**/ POLISH4-WP5: four number tiles stay four down to a small tablet, then two by two (a 3 + 1 split between 800 and 900 px looked broken) */
+  /* POLISH4-WP5: four number tiles stay four down to a small tablet, then two by two (a 3 + 1 split between 800 and 900 px looked broken) */
   @media (max-width: 900px) {
     .tiles {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1212,7 +1212,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     }
   }
 
-   sourceMappingURL=[^*]**/ meters screens (page-meters, meter picker, meter card, retention settings): the parts only they use */
+  /* meters screens (page-meters, meter picker, meter card, retention settings): the parts only they use */
   table.t th.n,
   table.t td.n {
     text-align: end;
@@ -1235,7 +1235,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
   .li.pick {
     cursor: pointer;
   }
-   sourceMappingURL=[^*]**/ a field with an icon or a unit inside one frame (the meters' search, the retention values); the bare control inside loses its own frame */
+  /* a field with an icon or a unit inside one frame (the meters' search, the retention values); the bare control inside loses its own frame */
   .inp {
     display: flex;
     align-items: center;
@@ -1263,7 +1263,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     flex: 1;
     inline-size: auto;
     min-inline-size: 0;
-    min-block-size: max(36px, var(--elec-touch));  sourceMappingURL=[^*]**/ the control itself is the hit target (44 px in touch layouts) */
+    min-block-size: max(36px, var(--elec-touch)); /* the control itself is the hit target (44 px in touch layouts) */
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -1276,7 +1276,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     cursor: pointer;
   }
 
-   sourceMappingURL=[^*]**/ skins */
+  /* skins */
   :host([data-skin='domus']) .card {
     box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
   }

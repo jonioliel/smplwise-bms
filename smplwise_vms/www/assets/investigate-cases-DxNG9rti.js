@@ -49,7 +49,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
         <sw-table .columns=${fs} .rows=${_} @row-select=${s=>u(`/investigate/cases/${s.detail.id}`)}></sw-table>
       </sw-page>
     `}};p.styles=[q`
-     sourceMappingURL=[^*]**/ INVREST-POLISH-2331: from a tablet up the screen takes the height the shell leaves it and never scrolls; the list scrolls in its
+    /* INVREST-POLISH-2331: from a tablet up the screen takes the height the shell leaves it and never scrolls; the list scrolls in its
        own box under a sticky header. A phone keeps the page scroll (the rows are cards there). */
     :host {
       display: flex;
@@ -301,7 +301,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
         </div>
       </sw-page>
     `}};h.styles=[q`
-     sourceMappingURL=[^*]**/ INVREST-POLISH-2331: the case page (server mode) is two columns from 1000 px up - the evidence list at the start, the case's
+    /* INVREST-POLISH-2331: the case page (server mode) is two columns from 1000 px up - the evidence list at the start, the case's
        own panel (description, adding a note or a picture, the evidence bundle) at the end - and takes exactly the height the shell
        leaves it: each column scrolls in its own box, the header actions never leave the screen. Narrower: one column, the page
        scrolls (a phone). */
@@ -341,7 +341,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
         min-block-size: 0;
         overflow: auto;
         overscroll-behavior: contain;
-         sourceMappingURL=[^*]**/ room for the cards' shadows inside the scroll box */
+        /* room for the cards' shadows inside the scroll box */
         padding: 2px 4px 8px;
         margin: -2px -4px 0;
       }
@@ -374,7 +374,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
       outline-offset: var(--sw-focus-offset);
       border-radius: var(--sw-r-2xs);
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2: the stage is bounded by the viewport height, so the clip row, the tabs and the form stay on
+    /* R5-INVESTIGATE-297 loop 2: the stage is bounded by the viewport height, so the clip row, the tabs and the form stay on
        screen at 1440x900 (the form used to scroll under the fold); the column centres when the height is the limit */
     .wrap {
       max-inline-size: 860px;
@@ -451,7 +451,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: a clip is an object (shadow 2) that sinks on pointer-down; the playing one wears the accent ring */
+    /* R5-INVESTIGATE-297: a clip is an object (shadow 2) that sinks on pointer-down; the playing one wears the accent ring */
     .clip {
       position: relative;
       aspect-ratio: 16 / 9;
@@ -480,7 +480,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
       font-family: var(--sw-font-mono);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
-     sourceMappingURL=[^*]**/ a missing clip is a danger field, not a grey hole: the name reads as a title, the reason as a filled badge */
+    /* a missing clip is a danger field, not a grey hole: the name reads as a title, the reason as a filled badge */
     .clip.missing {
       background: var(--sw-danger-soft);
       box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sw-danger) 35%, transparent);
@@ -610,7 +610,7 @@ import{a as E,S as A,K as f,a7 as M,ft as U,ak as w,cb as D,R as k,p as i,q as e
       flex: 1;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the side panel is narrow: a composer's field above its button */
+    /* the side panel is narrow: a composer's field above its button */
     .side .composer {
       flex-direction: column;
       align-items: stretch;

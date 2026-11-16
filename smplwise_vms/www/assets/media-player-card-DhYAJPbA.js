@@ -100,7 +100,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
     .edit-slot ::slotted(*) {
       pointer-events: auto;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP1 (MEDIA-POLISH-2331 5.2): while editing, the text column keeps clear of the edit chips (measured into --mm-edit-w by
+    /* POLISH4-WP1 (MEDIA-POLISH-2331 5.2): while editing, the text column keeps clear of the edit chips (measured into --mm-edit-w by
        the edit slot), so a long name ("רמקול חדר אורחים") ends in an ellipsis before the chips instead of running under them */
     :host([editing]) .tx {
       padding-inline-end: var(--mm-edit-w, 0px);
@@ -112,7 +112,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       outline: 2px dashed color-mix(in srgb, var(--dv-accent) 55%, transparent);
       outline-offset: 4px;
     }
-     sourceMappingURL=[^*]**/ the cover */
+    /* the cover */
     .cov {
       grid-area: cov;
       position: relative;
@@ -259,7 +259,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ name, state, title */
+    /* name, state, title */
     .tx {
       grid-area: tx;
       align-self: center;
@@ -269,7 +269,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       gap: 3px;
       line-height: 1.3;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the player name is the card's title - 20 px / 800 in the heading ink */
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the player name is the card's title - 20 px / 800 in the heading ink */
     .tx b {
       font-size: var(--sw-fs-2xl);
       font-weight: 800;
@@ -331,7 +331,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       grid-area: main;
       align-self: center;
     }
-     sourceMappingURL=[^*]**/ play / pause: the dark key of the remote's playback row */
+    /* play / pause: the dark key of the remote's playback row */
     .pk {
       position: relative;
       flex: none;
@@ -421,7 +421,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
     :host([data-size='s']) .pop {
       inset-inline-start: 8px;
     }
-     sourceMappingURL=[^*]**/ ---- the Bubble skin (phase C): the card is a pill row - a round cover ring, the name and the state, the play key and
+    /* ---- the Bubble skin (phase C): the card is a pill row - a round cover ring, the name and the state, the play key and
        the volume button at the end; the volume button MORPHS the row into a slider (mute · slider · % · close · play), as in
        the Bubble Card video. No blur, no shadow: a scrolling list stays cheap on a phone. ---- */
     :host([data-skin='bubble']) .pcard {
@@ -503,7 +503,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       background: rgba(0, 0, 0, 0.12);
       color: inherit;
     }
-     sourceMappingURL=[^*]**/ the end of the row: play / power, the volume button (morph), mute, source and "נגן" as round sub-buttons */
+    /* the end of the row: play / power, the volume button (morph), mute, source and "נגן" as round sub-buttons */
     :host([data-skin='bubble']) .main {
       display: inline-flex;
       align-items: center;
@@ -570,7 +570,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       box-shadow: none;
       padding-inline: 12px;
     }
-     sourceMappingURL=[^*]**/ the morph: the whole row becomes mute · the slider pill · close · the main key */
+    /* the morph: the whole row becomes mute · the slider pill · close · the main key */
     :host([data-skin='bubble']) .vmorph {
       grid-column: 1 / -1;
       grid-row: 1;
@@ -591,7 +591,7 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
     :host([data-skin='bubble']) .pop {
       border: 0;
       border-radius: var(--sw-r-lg);
-       sourceMappingURL=[^*]**/ the player's menu is never see-through (owner 2026-10-13): the skin's opaque menu surface, nothing blurred behind it */
+      /* the player's menu is never see-through (owner 2026-10-13): the skin's opaque menu surface, nothing blurred behind it */
       background: var(--sw-menu-surface);
       -webkit-backdrop-filter: none;
       backdrop-filter: none;

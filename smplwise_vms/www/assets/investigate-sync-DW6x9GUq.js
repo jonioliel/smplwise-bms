@@ -63,13 +63,13 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
         <div class="note">מקור שאינו מוכן מוצג במפורש (buffering / gap) ואינו מוצג כמסונכרן. יעד הנדסי: סטייה עד שנייה ב־95% מהדגימות, לאחר בדיקה עם אירוע חזותי משותף.</div>
       </sw-page>
     `}};r.styles=[M`
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: two rows of 16:9 tiles are bounded by the viewport height so the transport, the timeline and the filters
+    /* R5-INVESTIGATE-297: two rows of 16:9 tiles are bounded by the viewport height so the transport, the timeline and the filters
        stay on screen (owner: no scrolling in a control screen); the grid centres when the height, not the width, is the limit */
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
-       sourceMappingURL=[^*]**/ an explicit inline-size: with auto margins in the page's flex column, a max-inline-size alone shrink-wraps the grid to its gap */
+      /* an explicit inline-size: with auto margins in the page's flex column, a max-inline-size alone shrink-wraps the grid to its gap */
       inline-size: min(100%, calc((100dvh - 455px) * 16 / 9 + 10px));
       margin-inline: auto;
     }
@@ -91,7 +91,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
         inline-size: 100%;
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2: the pill keeps the page's direction, so inset-inline-end is the RTL end (it was direction:ltr, which turned its own
+    /* POLISH4-WP2: the pill keeps the page's direction, so inset-inline-end is the RTL end (it was direction:ltr, which turned its own
        inline-end to the right and laid it over the camera name); the value is isolated with <bdi> and reads left to right */
     .drift {
       position: absolute;
@@ -123,7 +123,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
       align-items: center;
       flex-wrap: wrap;
     }
-     sourceMappingURL=[^*]**/ 2.0.1: the picker is one dropdown (the chips of 2.0.0 took a row per camera on the phone); it never grows past the card */
+    /* 2.0.1: the picker is one dropdown (the chips of 2.0.0 took a row per camera on the phone); it never grows past the card */
     .filters sw-dropdown {
       max-inline-size: 100%;
     }
@@ -135,7 +135,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ 2.0.2: the four places of a set are always drawn - a picked camera fills its place, an empty one is a numbered, dashed frame
+    /* 2.0.2: the four places of a set are always drawn - a picked camera fills its place, an empty one is a numbered, dashed frame
        (the limit is visible without a sentence); two per row on the phone, four on a wide screen */
     .slots {
       display: grid;
@@ -187,7 +187,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
       inset-inline-start: 8px;
       inset-block-start: 8px;
     }
-     sourceMappingURL=[^*]**/ the lead tag sits on the picture like the number pill: a dark translucent pill with white text in every skin, light and dark
+    /* the lead tag sits on the picture like the number pill: a dark translucent pill with white text in every skin, light and dark
        (the badge's own on-image look keys on the text token, which is light in dark skins) */
     .slot .media .lead {
       background: var(--sw-video-scrim-strong);
@@ -207,7 +207,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ the remove button: a 28 px circle drawn inside a hit area of the touch dial (44 px on touch layouts, the desktop dial above) */
+    /* the remove button: a 28 px circle drawn inside a hit area of the touch dial (44 px on touch layouts, the desktop dial above) */
     .slot .media .rm {
       position: absolute;
       inset-inline-end: 0;
@@ -240,7 +240,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2 (D10): the hover wash only under a fine pointer (it stuck on a tablet after a tap); the press on pointer-down */
+    /* POLISH4-WP2 (D10): the hover wash only under a fine pointer (it stuck on a tablet after a tap); the press on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .slot .media .rm:hover .x {
         background: var(--sw-video-scrim-strong);
@@ -302,7 +302,7 @@ import{a as v,S as f,eo as y,K as w,ft as x,a7 as k,ak as $,sT as z,sW as S,p,sX
       }
     }
     @media (max-width: 1100px) {
-       sourceMappingURL=[^*]**/ a touch layout: the remove button is a 44 px target whatever the desktop dial says */
+      /* a touch layout: the remove button is a 44 px target whatever the desktop dial says */
       .slot .media .rm {
         inline-size: 44px;
         block-size: 44px;

@@ -119,7 +119,7 @@ import{a as $,S as y,q as i,K as w,bD as x,bI as _,bm as k,cx as S,aS as z,cd as
       direction: ltr;
       unicode-bidi: isolate;
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the drawer's key / value list is a well (surface 2, no hairlines) with the values as
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the drawer's key / value list is a well (surface 2, no hairlines) with the values as
        14/600 headings - the value is the answer; the keys stay the quiet column. The table itself is the shared sw-table (not touched). */
     dl {
       gap: 10px 14px;
@@ -133,7 +133,7 @@ import{a as $,S as y,q as i,K as w,bD as x,bI as _,bm as k,cx as S,aS as z,cd as
       color: var(--sw-text-2);
     }
     dd {
-      font-size: var(--sw-fs-lg);  sourceMappingURL=[^*]**/ loop 2: the value is the answer - 15/600 heading ink */
+      font-size: var(--sw-fs-lg); /* loop 2: the value is the answer - 15/600 heading ink */
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
     }

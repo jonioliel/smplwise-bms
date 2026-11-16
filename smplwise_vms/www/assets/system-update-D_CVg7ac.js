@@ -160,7 +160,7 @@ import{i as S,n as m,r as n,a as A,Ah as R,Ai as g,R as U,Aj as k,Ak as P,p as d
       gap: 12px;
       flex-wrap: wrap;
     }
-     sourceMappingURL=[^*]**/ touch layouts: every button is a 44 px target (the inner button stretches to the host) */
+    /* touch layouts: every button is a 44 px target (the inner button stretches to the host) */
     @media (max-width: 1100px) {
       sw-button {
         min-block-size: 44px;
@@ -257,7 +257,7 @@ import{i as S,n as m,r as n,a as A,Ah as R,Ai as g,R as U,Aj as k,Ak as P,p as d
         animation: none;
       }
     }
-     sourceMappingURL=[^*]**/ touch layouts: every button is a 44 px target (the inner button stretches to the host) */
+    /* touch layouts: every button is a 44 px target (the inner button stretches to the host) */
     @media (max-width: 1100px) {
       sw-button {
         min-block-size: 44px;
@@ -332,7 +332,7 @@ import{i as S,n as m,r as n,a as A,Ah as R,Ai as g,R as U,Aj as k,Ak as P,p as d
     .rows {
       display: grid;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: a fact row is a well (surface-2) with a 17/700 value in the heading ink */
+    /* R5-SYSTEM-297: a fact row is a well (surface-2) with a 17/700 value in the heading ink */
     .row {
       display: flex;
       align-items: center;
@@ -369,7 +369,7 @@ import{i as S,n as m,r as n,a as A,Ah as R,Ai as g,R as U,Aj as k,Ak as P,p as d
       display: grid;
       gap: 12px;
     }
-     sourceMappingURL=[^*]**/ status as a filled field, not a coloured word */
+    /* status as a filled field, not a coloured word */
     .status {
       display: inline-flex;
       align-items: center;
@@ -471,7 +471,7 @@ import{i as S,n as m,r as n,a as A,Ah as R,Ai as g,R as U,Aj as k,Ak as P,p as d
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the checkbox row is one 44 px target: the native input covers the whole row (invisible), the box is drawn beside the text */
+    /* the checkbox row is one 44 px target: the native input covers the whole row (invisible), the box is drawn beside the text */
     .chk {
       position: relative;
       display: flex;
@@ -519,7 +519,7 @@ import{i as S,n as m,r as n,a as A,Ah as R,Ai as g,R as U,Aj as k,Ak as P,p as d
     .chk input:disabled + .box {
       opacity: var(--sw-disabled-opacity);
     }
-     sourceMappingURL=[^*]**/ touch layouts: every button of this screen is a 44 px target (the inner button stretches to the host) */
+    /* touch layouts: every button of this screen is a 44 px target (the inner button stretches to the host) */
     @media (max-width: 1100px) {
       sw-button {
         min-block-size: 44px;

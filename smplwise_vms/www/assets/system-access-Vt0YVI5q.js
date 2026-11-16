@@ -522,7 +522,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
     .full {
       grid-column: 1 / -1;
     }
-     sourceMappingURL=[^*]**/ ACCESS-POLISH-2331: a checkbox row (the passkey-first switch) - a checkbox is never a 100 % wide, 40 px tall field */
+    /* ACCESS-POLISH-2331: a checkbox row (the passkey-first switch) - a checkbox is never a 100 % wide, 40 px tall field */
     label.check {
       flex-direction: row;
       align-items: center;
@@ -542,7 +542,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
       outline: 2px solid var(--sw-focus);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ the selected user's and the create form's header: the title, and a close action at the far end */
+    /* the selected user's and the create form's header: the title, and a close action at the far end */
     .head {
       grid-column: 1 / -1;
       display: flex;
@@ -557,7 +557,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
       font-size: var(--sw-fs-md);
       color: var(--sw-heading);
     }
-     sourceMappingURL=[^*]**/ a destructive action stands apart from the everyday ones */
+    /* a destructive action stands apart from the everyday ones */
     .actions .end {
       margin-inline-start: auto;
     }
@@ -711,7 +711,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
         <div><b>חדרים שהמשתמש רואה</b>${s.length?s.map(n=>t`<label class="chk"><input type="checkbox" .checked=${a(n.id)} @change=${d=>{const m=r(e.rooms,s.map(p=>p.id),n.id,d.target.checked);this.save(e,m==null?{all_rooms:!0}:{rooms:m})}}><span>${n.name}</span></label>`):t`<p class="note">עוד אין חדרים.</p>`}</div>
       </div>
     </section>`}};y.styles=H`
-     sourceMappingURL=[^*]**/ HOME-V3-P1-2430: a room's wallpaper for everyone */
+    /* HOME-V3-P1-2430: a room's wallpaper for everyone */
     .walls { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 10px; }
     .wopt { display: grid; gap: 4px; justify-items: center; inline-size: 88px; padding: 6px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: 13px; cursor: pointer; min-block-size: 44px; }
     .wopt[aria-pressed="true"] { outline: 2px solid var(--sw-accent); outline-offset: 1px; }
@@ -977,7 +977,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
       border-radius: var(--sw-r-sm);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ ACCESS-POLISH-2331: the user and group drawers are modal (fixed to the viewport, actions always in view), so the stage no longer
+    /* ACCESS-POLISH-2331: the user and group drawers are modal (fixed to the viewport, actions always in view), so the stage no longer
        reserves a fixed 420 / 620 px height for an absolutely placed panel - a short list ends where its rows end */
     .stage {
       position: relative;
@@ -985,7 +985,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
     .groups-stage {
       margin-block-start: 12px;
     }
-     sourceMappingURL=[^*]**/ a section label inside a drawer, a dialog or a result card (was an inline style repeated a dozen times) */
+    /* a section label inside a drawer, a dialog or a result card (was an inline style repeated a dozen times) */
     .sec {
       margin-block: 12px 4px;
       font-weight: var(--sw-fw-semibold);
@@ -1124,7 +1124,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ a custom role's own description is plain text, not a warning (it used the red "not included" style) */
+    /* a custom role's own description is plain text, not a warning (it used the red "not included" style) */
     .role .desc {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
@@ -1216,7 +1216,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
       overflow: auto;
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ inside a drawer the panel body is the one scroll container: no second, nested scroll for the member list */
+    /* inside a drawer the panel body is the one scroll container: no second, nested scroll for the member list */
     .members.in-drawer {
       max-block-size: none;
       overflow: visible;
@@ -1240,7 +1240,7 @@ import"./sw-second-factor-DI-rW9NY.js";import{K as P,au as j,L,jk as xe,a4 as ke
     .err {
       color: var(--sw-danger-text);
     }
-     sourceMappingURL=[^*]**/ the drawer footer's actions: one row with a gap; a destructive action sits apart at the far end */
+    /* the drawer footer's actions: one row with a gap; a destructive action sits apart at the far end */
     .dfoot {
       display: flex;
       flex-wrap: wrap;

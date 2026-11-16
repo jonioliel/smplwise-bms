@@ -28,7 +28,7 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
       font-size: var(--sw-table-fs, var(--sw-fs-sm));
       min-inline-size: 560px;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 (size hooks): a host may ask for taller rows and a larger reading size (the investigation lists do); the defaults
+    /* R5-INVESTIGATE-297 (size hooks): a host may ask for taller rows and a larger reading size (the investigation lists do); the defaults
        are exactly the old values, every other table is unchanged */
     th,
     td {
@@ -42,7 +42,7 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
     :host([dense]) td {
       padding: 7px 12px;
     }
-     sourceMappingURL=[^*]**/ Phones (M45): each row is a card — cells stack, the column label becomes a small caption, the first
+    /* Phones (M45): each row is a card — cells stack, the column label becomes a small caption, the first
        column (picture / avatar) sits beside the text. Nothing scrolls sideways. */
     @media (max-width: 767px) {
       :host {
@@ -79,7 +79,7 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
         border: 0;
         white-space: normal;
         grid-column: 2;
-         sourceMappingURL=[^*]**/ full-system sweep: an audit "details" cell (a JSON-ish string with no spaces) or a long entity id
+        /* full-system sweep: an audit "details" cell (a JSON-ish string with no spaces) or a long entity id
            has no break opportunity, so it ran off the card's edge and widened the whole page sideways */
         min-inline-size: 0;
         overflow-wrap: anywhere;
@@ -107,7 +107,7 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
     tbody tr {
       transition: background var(--sw-t-hover) var(--sw-ease-color);
     }
-     sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 (mobile-native): the row tint follows a hovering pointer only; on touch a tapped row stayed tinted */
+    /* POLISH-CLASSIC-DOMUS-297 (mobile-native): the row tint follows a hovering pointer only; on touch a tapped row stayed tinted */
     @media (hover: hover) and (pointer: fine) {
       tbody tr:hover {
         background: var(--sw-surface-2);
@@ -125,12 +125,12 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
     tr.clickable {
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ SHARED-POLISH-2342: the focused row draws the focus ring inside its own box (a table cell clips an outer outline) */
+    /* SHARED-POLISH-2342: the focused row draws the focus ring inside its own box (a table cell clips an outer outline) */
     tbody tr:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: calc(-1 * var(--sw-focus-w));
     }
-     sourceMappingURL=[^*]**/ UXFIX-RTL: a span.ltr inside any cell (a raw JSON payload, a code, an id) is its own left-to-right isolate; the braces no longer
+    /* UXFIX-RTL: a span.ltr inside any cell (a raw JSON payload, a code, an id) is its own left-to-right isolate; the braces no longer
        mirror and a "{" never lands at the line end of an RTL row. */
     td .ltr {
       direction: ltr;
@@ -145,7 +145,7 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP1: TableColumn.hideBelow */
+    /* POLISH4-WP1: TableColumn.hideBelow */
     @media (max-width: 1023px) {
       .hb-tablet {
         display: none;
@@ -156,7 +156,7 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ ---- AUDIT30-B-SHARED (finding 10, Q8 = א assumed): TableColumn.card - the phone row template (opt-in per table) ----
+    /* ---- AUDIT30-B-SHARED (finding 10, Q8 = א assumed): TableColumn.card - the phone row template (opt-in per table) ----
        one line "title · badge", one meta line; about 60 px a row (was ~160 px of caption / value pairs) */
     .cmeta {
       display: none;

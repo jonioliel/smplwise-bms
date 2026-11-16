@@ -11,13 +11,13 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       font-size: var(--sw-fs-md);
       line-height: 1.5;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-D3 (audit round 30 #6): the page frame is the shared <sw-page class="page" wide> - the title, the one-line summary under
+    /* AUDIT30-D3 (audit round 30 #6): the page frame is the shared <sw-page class="page" wide> - the title, the one-line summary under
        it and the floor menu at the end of the title row come from it (its padding is --sw-page-pad; --mm-pad mirrors it for the
        edge-to-edge bars below). Below it, the filter bar (.dh) and the cards. */
     .page {
       --mm-pad: var(--sw-page-pad);
     }
-     sourceMappingURL=[^*]**/ the filter bar: the room chips, the pager, the state filter, the search; it sticks and compacts while the page scrolls */
+    /* the filter bar: the room chips, the pager, the state filter, the search; it sticks and compacts while the page scrolls */
     .dh {
       position: sticky;
       inset-block-start: 0;
@@ -29,7 +29,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       align-items: center;
       gap: var(--sw-s-2) var(--sw-s-3);
     }
-     sourceMappingURL=[^*]**/ Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60 moved
+    /* Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60 moved
        every card under the finger and, with the scroll clamped, fell back under the threshold and expanded again (the list jumped
        back and forth on a phone, the first group heading slid over the search field). The bar is a layer of the measured height of
        the title row (measureHeaderBar below); what folds away fades out in place and stops taking taps. */
@@ -65,7 +65,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       flex: 1 1 320px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the bar is not the page's first row any more (sw-page's title row is, and it keeps the shell's lead reserve itself) */
+    /* the bar is not the page's first row any more (sw-page's title row is, and it keeps the shell's lead reserve itself) */
     :host sw-page.page .dh .dh-row {
       padding-inline-start: 0;
     }
@@ -78,7 +78,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       overflow-x: auto;
       scrollbar-width: none;
       padding: 6px 18px;
-       sourceMappingURL=[^*]**/ the first chip lines up with the title above: the fade's room hangs outside the text edge */
+      /* the first chip lines up with the title above: the fade's room hangs outside the text edge */
       margin-inline-start: -18px;
       -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
       mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
@@ -93,7 +93,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
     }
     .rc {
       flex: none;
-       sourceMappingURL=[^*]**/ AUDIT30-D1: the chip is a control of the shared height (34 in the classic skin; 44 on touch below) */
+      /* AUDIT30-D1: the chip is a control of the shared height (34 in the classic skin; 44 on touch below) */
       block-size: var(--sw-ctl-h-md);
       padding-inline: 14px;
       border-radius: var(--dv-radius-control);
@@ -109,7 +109,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the chip sinks on pointer-down */
+    /* R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the chip sinks on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .rc:hover {
         color: var(--dv-text);
@@ -119,7 +119,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
     .rc:active {
       transform: scale(var(--sw-press-scale, 0.97));
     }
-     sourceMappingURL=[^*]**/ AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
+    /* AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
        fill with the accent ink (Blue Wash), no border, no shadow; it was a black pill (--dv-text fill) */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
@@ -185,7 +185,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
     .search .ic {
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ groups and the grid */
+    /* groups and the grid */
     .groups {
       display: flex;
       flex-direction: column;
@@ -202,7 +202,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       gap: 12px;
       padding-inline: 4px;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-D2 (audit round 30 #17): a section heading sits one tier under the page title (the 26-30 px / 800 heading competed
+    /* AUDIT30-D2 (audit round 30 #17): a section heading sits one tier under the page title (the 26-30 px / 800 heading competed
        with the title, so a screen read as having several); it is the section step of the scale, semibold */
     .sh h2 {
       margin: 0;
@@ -252,7 +252,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       gap: var(--dv-gap-lg);
       align-items: start;
     }
-     sourceMappingURL=[^*]**/ edit chips on a card */
+    /* edit chips on a card */
     .ecard {
       position: absolute;
       inset-block-start: 18px;
@@ -300,7 +300,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
     .ecard .ic {
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ the confirmation dialogs carry the sheet material (a translucent glass panel over a dimmed page reads as washed out) */
+    /* the confirmation dialogs carry the sheet material (a translucent glass panel over a dimmed page reads as washed out) */
     media-bulk-dialog,
     media-group-dialog,
     media-preset-editor,
@@ -365,7 +365,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       color: var(--sw-success);
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ SHARED-POLISH-2342 (TKSET-POLISH-2331 proposal): a failure toast - the same pill, the icon in the danger ink instead of the
+    /* SHARED-POLISH-2342 (TKSET-POLISH-2331 proposal): a failure toast - the same pill, the icon in the danger ink instead of the
        success green, mixed toward the toast's own ink so it keeps its contrast on the dark pill in both schemes (the automations
        recipe); every page on this sheet gets it by adding class="bad" */
     .toast.bad .ic {
@@ -382,7 +382,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       }
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ sw-page's phone padding */
+      /* sw-page's phone padding */
       .page {
         --mm-pad: var(--sw-s-3);
       }
@@ -391,7 +391,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
         align-items: stretch;
         flex-wrap: nowrap;
       }
-       sourceMappingURL=[^*]**/ stuck at the top, the room row is what stays: it keeps clear of the shell's floating search / status corner */
+      /* stuck at the top, the room row is what stays: it keeps clear of the shell's floating search / status corner */
       .dh-row {
         flex: none;
         padding-inline-end: var(--sw-float-reserve, 0px);
@@ -418,7 +418,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
         gap: 22px;
       }
     }
-     sourceMappingURL=[^*]**/ The screens that still draw the OLD frame - a plain div.page whose sticky bar carries the large title (devices schedules and
+    /* The screens that still draw the OLD frame - a plain div.page whose sticky bar carries the large title (devices schedules and
        automations, notifications, the screens not yet on sw-page) - keep it until they adopt sw-page: the rules above are written for
        the sw-page frame (no page padding of its own, the bar a wrapping row), and on the old frame they dropped the page padding, the
        title style and the shell's start-edge chip room (layout-dd-click placement 4 fell back to 1 on #/devices/schedules). */
@@ -494,7 +494,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       }
       div.page .dh-row {
         display: grid;
-         sourceMappingURL=[^*]**/ the third column keeps the row clear of the shell's floating search / status corner */
+        /* the third column keeps the row clear of the shell's floating search / status corner */
         grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
         grid-template-areas: 't f .' 'r r r';
         gap: 10px;
@@ -503,7 +503,7 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
       div.page .dh-row h1 {
         grid-area: t;
       }
-       sourceMappingURL=[^*]**/ a long title wraps to two lines on a phone: a smaller compact font would shorten the header and feed back into the scroll */
+      /* a long title wraps to two lines on a phone: a smaller compact font would shorten the header and feed back into the scroll */
       div.page .dh.compact h1 {
         font-size: var(--mm-fs-page-title);
       }
@@ -523,6 +523,6 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ header dropdown placement 4: the title row keeps the shell's start-edge chip room free (0 everywhere else) */
+    /* header dropdown placement 4: the title row keeps the shell's start-edge chip room free (0 everywhere else) */
     ${p}
   `;function v(i,t){const e=i.querySelector(".dh");if(!e)return;const o=e.getBoundingClientRect().top;let a=0;const s=t&&!!e.querySelector(":scope > .dh-row > h1");for(const n of e.querySelectorAll(s?":scope > .dh-row > h1, :scope > .dh-row > .flwrap":":scope > .dh-row > *"))a=Math.max(a,n.getBoundingClientRect().bottom-o);const r=`${Math.ceil(a+(t?8:10))}px`;a&&e.style.getPropertyValue("--mm-bar-h")!==r&&e.style.setProperty("--mm-bar-h",r)}export{m as a,v as m};

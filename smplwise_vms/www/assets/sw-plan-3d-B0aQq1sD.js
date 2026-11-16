@@ -171,7 +171,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       direction: rtl;
       --hud-tap: var(--sw-touch-desktop);
     }
-     sourceMappingURL=[^*]**/ a finger needs 44 px: below 1100 px and on a coarse pointer whatever the desktop dial says */
+    /* a finger needs 44 px: below 1100 px and on a coarse pointer whatever the desktop dial says */
     @media (max-width: 1100px), (pointer: coarse) {
       :host {
         --hud-tap: 44px;
@@ -180,7 +180,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     [hidden] {
       display: none !important;
     }
-     sourceMappingURL=[^*]**/ ---- the joystick: a ring under the thumb and a knob; moved by transforms from setStick (no Lit render per frame) */
+    /* ---- the joystick: a ring under the thumb and a knob; moved by transforms from setStick (no Lit render per frame) */
     .stick {
       position: absolute;
       left: 0;
@@ -191,7 +191,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       border-radius: 50%;
       border: 2px solid var(--sw-on-video-2);
       background: color-mix(in srgb, var(--sw-video-scrim) 30%, transparent);
-      box-shadow: 0 0 0 1px var(--sw-video-scrim);  sourceMappingURL=[^*]**/ a dark edge: the white ring alone vanishes on a white wall */
+      box-shadow: 0 0 0 1px var(--sw-video-scrim); /* a dark edge: the white ring alone vanishes on a white wall */
       box-sizing: border-box;
       pointer-events: none;
     }
@@ -211,7 +211,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       box-sizing: border-box;
       box-shadow: var(--sw-shadow-2);
     }
-     sourceMappingURL=[^*]**/ ---- where a tap sent the walk */
+    /* ---- where a tap sent the walk */
     .target {
       position: absolute;
       left: 0;
@@ -234,7 +234,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
         opacity: 1;
       }
     }
-     sourceMappingURL=[^*]**/ ---- the dim between two saved positions of a route */
+    /* ---- the dim between two saved positions of a route */
     .fade {
       position: absolute;
       inset: 0;
@@ -246,7 +246,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     .fade[data-on] {
       opacity: 0.85;
     }
-     sourceMappingURL=[^*]**/ ---- the controls both layouts share */
+    /* ---- the controls both layouts share */
     .btn {
       min-inline-size: var(--hud-tap);
       min-block-size: var(--hud-tap);
@@ -288,7 +288,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       display: block;
       inline-size: 9px;
       block-size: 9px;
-      border-left: 2px solid currentColor;  sourceMappingURL=[^*]**/ physical: the chevron is a shape, not text (RTL must not turn it sideways) */
+      border-left: 2px solid currentColor; /* physical: the chevron is a shape, not text (RTL must not turn it sideways) */
       border-top: 2px solid currentColor;
       transform: translateY(2px) rotate(45deg);
       transition: transform var(--sw-t-fast) var(--sw-ease);
@@ -328,7 +328,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       color: var(--sw-text);
       max-inline-size: 170px;
     }
-     sourceMappingURL=[^*]**/ ---- the floating bar (a desktop, a tablet, any view wider than 640 px) */
+    /* ---- the floating bar (a desktop, a tablet, any view wider than 640 px) */
     .walkbar {
       position: absolute;
       inset-block-end: 12px;
@@ -339,7 +339,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       gap: var(--sw-s-2);
       padding: 6px 8px;
       border-radius: var(--sw-r-md);
-       sourceMappingURL=[^*]**/ over the live 3D scene the bar is opaque (owner 2026-10-13, like the phone sheet below): the menu surface and the strong hairline, no blur */
+      /* over the live 3D scene the bar is opaque (owner 2026-10-13, like the phone sheet below): the menu surface and the strong hairline, no blur */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
       box-shadow: var(--sw-shadow-1);
@@ -348,7 +348,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       pointer-events: auto;
       color: var(--sw-text);
     }
-     sourceMappingURL=[^*]**/ ---- the phone: a bottom sheet that opens upward from one row of controls */
+    /* ---- the phone: a bottom sheet that opens upward from one row of controls */
     .sheet {
       --hud-tap: 44px;
       position: absolute;
@@ -360,7 +360,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       max-block-size: min(64%, 480px);
       border-start-start-radius: var(--sw-r-xl);
       border-start-end-radius: var(--sw-r-xl);
-       sourceMappingURL=[^*]**/ over a live 3D scene the bottom sheet (places, fields) is a menu: fully opaque so the text always reads, whatever the look dial or the
+      /* over a live 3D scene the bottom sheet (places, fields) is a menu: fully opaque so the text always reads, whatever the look dial or the
          skin says (owner 2026-10-13; it was 94 % of the solid twin under a blur) */
       background: var(--sw-menu-surface);
       -webkit-backdrop-filter: none;
@@ -398,7 +398,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       flex-wrap: wrap;
       gap: var(--sw-s-2);
     }
-     sourceMappingURL=[^*]**/ a long position name (up to 40 characters) stays inside the sheet */
+    /* a long position name (up to 40 characters) stays inside the sheet */
     .sheet .places .btn {
       max-inline-size: 100%;
       overflow: hidden;
@@ -466,7 +466,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     outline: 2px solid var(--sw-accent);
     outline-offset: 1px;
   }
-   sourceMappingURL=[^*]**/ watchZoomRoom: on the bar's row where it leaves room, else just above the bar's row (the notes of that corner move up
+  /* watchZoomRoom: on the bar's row where it leaves room, else just above the bar's row (the notes of that corner move up
      over it); never over a chip, and the bar never wraps for it. A narrow element (a phone, an event's card) has none. */
   :host(:not([data-zoom-room])) .zoom {
     display: none;
@@ -517,7 +517,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       ${t?E`<div class="ltcol" role="group" aria-label="קומות" data-level-column>${[...this.tags].reverse().map(i=>this.tag(i,!0))}
             <div class="ltcta"><button type="button" class="enter" data-stack-enter @click=${i=>{i.stopPropagation(),this.emit("stack-level",{id:t.id,enter:!0})}}>פתח את הקומה<sw-icon name="chevron" size=${13}></sw-icon></button></div></div>`:this.tags.map(i=>this.tag(i,!1))}
     </div>`}layout(t,e,i){if(!this.active||!this.pills.length&&!this.tags.length)return;const o=this.host.renderRoot.querySelector(".rplayer");if(!o)return;const a=!this.tags.some(y=>y.state==="sel"),r=[];for(const y of this.pills)r.push(y.pos,[y.pos[0]+1,y.pos[1],y.pos[2]],[y.pos[0],y.pos[1],y.pos[2]+1]);if(a)for(const y of this.tags)r.push(y.pos);const l=t.projectPoints(r),h=new Map;this.pills.forEach((y,P)=>{const $=l[P*3],_=l[P*3+1],A=l[P*3+2];if(!$)return;const f=Math.max(_?Math.hypot(_.x-$.x,_.y-$.y):0,A?Math.hypot(A.x-$.x,A.y-$.y):0);h.set(y.id,{x:$.x,y:$.y,pxPerM:f})});const c=[...h.values()].map(y=>y.pxPerM).sort((y,P)=>y-P),d=ma(c.length?c[Math.floor(c.length/2)]:0,e,this.phoneW),u=e>=this.phoneW&&!this.hidden?wa(this.pills,h,e,i):null;if(d!==this.lod||u!==this.near){const y={lod:this.lod,near:this.near};this.lod=d,this.near=u,this.request("pillNear",y)}const p=[...o.querySelectorAll("[data-rp-part]")],m=[],w=new Map;for(const y of p){const P=y.getAttribute("data-rp-part")??"",$=h.get(P);if(!$){y.style.display="none";continue}y.style.display="flex";const _=`${P}|${y.textContent??""}|${y.getAttribute("data-lod")}`;let A=this.sizes.get(_);A||(A={w:y.offsetWidth,h:y.offsetHeight},A.w>0&&this.sizes.set(_,A)),m.push({id:P,x:Math.round($.x),y:Math.round($.y)-Hh,w:A.w,h:A.h}),w.set(P,y)}const x=m.length>1?ke(m,3):null;this.placed.clear();for(const y of m){const P=w.get(y.id),$=y.y+Math.round(x?.get(y.id)??0),_=`translate(${y.x}px, ${$}px) translate(-50%, -100%)`;P.style.transform!==_&&(P.style.transform=_),this.placed.set(y.id,{x:y.x,y:$,w:y.w,h:y.h})}const b=o.querySelector(".rpop"),z=this.pop?this.placed.get(this.pop):null;if(b&&z){const y=b.offsetHeight,P=Math.max(8,Math.min(e-Xi-8,z.x-Xi/2));let $=z.y+8;const _=$+y>i-8;_&&($=Math.max(8,z.y-z.h-8-y)),b.style.transformOrigin=`${Math.round(z.x-P)}px ${_?"100%":"0"}`,b.style.transform=`translate(${Math.round(P)}px, ${Math.round($)}px)`,b.style.visibility="visible"}else b&&(b.style.visibility="hidden");if(a){const y=this.pills.length*3,P=[...o.querySelectorAll("[data-lt-part]")],$=[],_=new Map;this.tags.forEach((f,g)=>{const v=P.find(R=>R.getAttribute("data-lt-part")===f.id),k=l[y+g];if(!v)return;if(!k){v.style.display="none";return}v.style.display="flex";const S=v.offsetWidth,T=v.offsetHeight,M=Math.max(8,Math.min(e-S-8,Math.round(k.x)+14));$.push({id:f.id,x:M+S/2,y:Math.round(k.y)+T/2,w:S,h:T}),_.set(f.id,{el:v,x:M,y:Math.round(k.y)+T/2,w:S})});const A=$.length>1?ke($,6):null;for(const[f,g]of _){const v=`translate(${g.x}px, ${g.y+Math.round(A?.get(f)??0)}px) translate(0, -100%)`;g.el.style.transform!==v&&(g.el.style.transform=v)}}}}const Gh=Se`
-   sourceMappingURL=[^*]**/ the spread view's backdrop when \`map.stack_backdrop\` is dark (round 28 Q7 b): the night sky whatever the theme */
+  /* the spread view's backdrop when \`map.stack_backdrop\` is dark (round 28 Q7 b): the night sky whatever the theme */
   :host([data-stack-dark]) {
     background: linear-gradient(180deg, #060b18 0%, #152442 100%);
   }
@@ -651,7 +651,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
   .rp:active {
     scale: 0.97;
   }
-   sourceMappingURL=[^*]**/ the popover: a small card under its pill */
+  /* the popover: a small card under its pill */
   .rpop {
     position: absolute;
     left: 0;
@@ -782,7 +782,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
   .ltcta .enter:active {
     scale: 0.98;
   }
-   sourceMappingURL=[^*]**/ the spread levels' tags */
+  /* the spread levels' tags */
   .ltag {
     gap: 10px;
     padding: 7px 12px 7px 14px;
@@ -930,28 +930,28 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       overflow: hidden;
       border-radius: inherit;
     }
-     sourceMappingURL=[^*]**/ level 2: the sky-gradient backdrop behind the transparent canvas (the two map-sky tokens of the theme) */
+    /* level 2: the sky-gradient backdrop behind the transparent canvas (the two map-sky tokens of the theme) */
     :host([data-quality='2']) {
       background: linear-gradient(180deg, var(--sw-map-sky) 0%, var(--sw-map-sky-horizon) 100%);
     }
-     sourceMappingURL=[^*]**/ K88 night mode: a night sky whatever the theme (the dark theme's own sky tokens are its night) */
+    /* K88 night mode: a night sky whatever the theme (the dark theme's own sky tokens are its night) */
     :host([data-night]) {
-       sourceMappingURL=[^*]**/ PLAN3D-POLISH-2430: a faint ground glow under the building (the stage's lower middle) so the outer walls' outline reads
+      /* PLAN3D-POLISH-2430: a faint ground glow under the building (the stage's lower middle) so the outer walls' outline reads
          against the night sky; the sky stays dark at the edges */
       background: radial-gradient(ellipse 60% 42% at 50% 60%, rgba(86, 116, 178, 0.34) 0%, rgba(86, 116, 178, 0) 100%), linear-gradient(180deg, #060b18 0%, #152442 100%);
     }
-     sourceMappingURL=[^*]**/ the night sky is dark whatever the theme: the bar and the strip stand on its own opaque navy (a translucent backdrop showed the scene through the chips' row) */
+    /* the night sky is dark whatever the theme: the bar and the strip stand on its own opaque navy (a translucent backdrop showed the scene through the chips' row) */
     :host([data-night]) .bar,
     :host([data-night]) .strip {
       background: #0f1729;
       color: #dfe7f5;
     }
-     sourceMappingURL=[^*]**/ CR-029 S1 / S2, level 3: the sky behind the canvas follows the sun and the style (the element sets the stops), the
+    /* CR-029 S1 / S2, level 3: the sky behind the canvas follows the sun and the style (the element sets the stops), the
        canvas carries the style's grade and the vignette (LOOK_SPEC section 1, G2) */
     :host([data-quality='3']) {
       background: linear-gradient(180deg, var(--sky-top, #cfdff2) 0%, var(--sky-hor, #eef3f9) 62%, var(--sky-bot, #d4d8dd) 100%);
     }
-     sourceMappingURL=[^*]**/ PLAN3D-REALISM-2432: the studio backdrop - a dark sky gradient with a soft glow behind the model */
+    /* PLAN3D-REALISM-2432: the studio backdrop - a dark sky gradient with a soft glow behind the model */
     :host([data-quality='3'][data-backdrop='studio']) {
       background: radial-gradient(ellipse 95% 85% at 50% 44%, var(--sky-hor, #3a4a63) 0%, var(--sky-top, #1b2536) 62%, var(--sky-bot, #0d121b) 100%);
     }
@@ -970,7 +970,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     :host([data-style='dark']) .vignette {
       background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.4) 100%);
     }
-     sourceMappingURL=[^*]**/ the top-end corner (map/hud-layout.ts): the pill, its picker and the walk's minimap start past a docked list of the host (--hud-end), and the
+    /* the top-end corner (map/hud-layout.ts): the pill, its picker and the walk's minimap start past a docked list of the host (--hud-end), and the
        host stacks its circuit buttons below them (this element reports what it keeps there: hud-corner) */
     .timepill {
       position: absolute;
@@ -982,7 +982,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       gap: 4px;
       padding: 3px;
       border-radius: 999px;
-       sourceMappingURL=[^*]**/ a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and the strong hairline, no blur */
+      /* a HUD panel over the 3D canvas is opaque (owner 2026-10-13, styles/menu-surface.ts): the menu surface and the strong hairline, no blur */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
@@ -1012,7 +1012,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       position: absolute;
       inset-block-start: ${ba-4}px;
       inset-inline-end: var(--hud-end, ${at}px);
-       sourceMappingURL=[^*]**/ a menu: it opens over whatever stands under the pill (the host's circuit buttons, the level bar, the floor strip) and above all of it */
+      /* a menu: it opens over whatever stands under the pill (the host's circuit buttons, the level bar, the floor strip) and above all of it */
       z-index: calc(var(--sw-z-map-ui) + 1);
       display: grid;
       gap: 6px;
@@ -1021,7 +1021,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       max-inline-size: calc(100% - var(--hud-end, ${at}px) - ${at}px);
       padding: 10px 12px;
       border-radius: 12px;
-       sourceMappingURL=[^*]**/ the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it is opaque too (second report, same day) */
+      /* the time-of-day picker (date + slider + presets) is a menu over the canvas: opaque, never see-through (owner 2026-10-13); the pill above it is opaque too (second report, same day) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       box-shadow: 0 8px 24px rgba(17, 24, 39, 0.1);
@@ -1050,7 +1050,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     .timepop .muted {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the slow-device notice: under the host's level bar when that has a row of its own (--hud-hint-top, set by the floor map), and above the
+    /* the slow-device notice: under the host's level bar when that has a row of its own (--hud-hint-top, set by the floor map), and above the
        columns it may cross on a phone - a transient notice, with its own buttons, never hidden behind a chip */
     .pill.hint {
       inset-block-start: var(--hud-hint-top, 56px);
@@ -1085,7 +1085,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       flex-wrap: wrap;
       max-inline-size: calc(100% - 24px);
       direction: rtl;
-       sourceMappingURL=[^*]**/ the chips, the select and the export button float on the canvas with no box of their own: the shared controls read --sw-surface, so
+      /* the chips, the select and the export button float on the canvas with no box of their own: the shared controls read --sw-surface, so
          here it is the opaque menu surface, and their hover fill that surface washed 8 % towards the ink (an opaque mix of two tokens the glass
          screens bridge, so it is right in every skin, scheme and glass palette) - glass everywhere else (owner 2026-10-13). Tesla draws its
          chips and secondary buttons flat and transparent on the page: they take the fill from --hud-fill (skins/tesla.ts), so here too. */
@@ -1093,7 +1093,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       --sw-surface-2: color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text));
       --hud-fill: var(--sw-menu-surface);
     }
-     sourceMappingURL=[^*]**/ the selected chip's soft field (classic skin rule 1, AUDIT30-B-SHARED) is a translucent accent in the dark schemes: over the canvas it
+    /* the selected chip's soft field (classic skin rule 1, AUDIT30-B-SHARED) is a translucent accent in the dark schemes: over the canvas it
        is the same tint laid on the opaque menu surface (an opaque mix), so the scene never shows through it (evidence-menu-opaque) */
     :host-context(html[data-theme='dark']) .bar {
       --sw-accent-soft: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-menu-surface));
@@ -1113,7 +1113,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       block-size: 18px;
       background: var(--sw-border-strong);
     }
-     sourceMappingURL=[^*]**/ the strip stands on the bar's side (inline-start of the RTL bar = the right edge), above it, growing upward:
+    /* the strip stands on the bar's side (inline-start of the RTL bar = the right edge), above it, growing upward:
        the host's floor buttons and level chips own the top edge, the note the other bottom corner */
     .strip {
       position: absolute;
@@ -1163,7 +1163,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     .strip button .pic {
       position: relative;
     }
-     sourceMappingURL=[^*]**/ the state dots (CR-006 1b): presence blue with the fade's opacity, an open opening red, a lit room warm - over the
+    /* the state dots (CR-006 1b): presence blue with the fade's opacity, an open opening red, a lit room warm - over the
        thumbnail's top-right corner (the strip is RTL: the inline start), never drawn into the cached picture */
     .strip button .dots {
       position: absolute;
@@ -1216,7 +1216,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       white-space: nowrap;
       display: none;
     }
-     sourceMappingURL=[^*]**/ PLAN3D-POLISH-2430: a room's name plate - one step larger than the chips and the pills, the body ink on the opaque menu
+    /* PLAN3D-POLISH-2430: a room's name plate - one step larger than the chips and the pills, the body ink on the opaque menu
        surface (readable in both themes, over the day and the night picture), never a target (a click goes to the room under it) */
     .room {
       padding: 2px 10px;
@@ -1229,7 +1229,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       border-color: #33456b;
       color: #e8eefb;
     }
-     sourceMappingURL=[^*]**/ an entity pill: its state token as the colour (stale / live / text-3), a click selects the entity as its
+    /* an entity pill: its state token as the colour (stale / live / text-3), a click selects the entity as its
        sprite used to; the selected one carries the accent ring the 3D outline gives a box */
     .lbl {
       color: var(--lbl, var(--sw-text));
@@ -1240,7 +1240,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 1px var(--sw-accent);
     }
-     sourceMappingURL=[^*]**/ the "+N" hint of the pill cap: the top start corner (the strip and the bar own the bottom) */
+    /* the "+N" hint of the pill cap: the top start corner (the strip and the bar own the bottom) */
     .more {
       position: absolute;
       inset-inline-start: 12px;
@@ -1285,7 +1285,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     .note.fb {
       inset-block-end: 40px;
     }
-     sourceMappingURL=[^*]**/ the bar wraps when it carries every mode chip: the notes stand above it, never over a chip */
+    /* the bar wraps when it carries every mode chip: the notes stand above it, never over a chip */
     @media (min-width: 641px) {
       :host .note {
         inset-block-end: calc(18px + var(--bar-h, 0px));
@@ -1306,7 +1306,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     .toast {
       position: absolute;
       inset-block-start: 12px;
-      left: calc(50% + (var(--hud-end, ${at}px) - ${at}px) / 2);  sourceMappingURL=[^*]**/ physical: centred whatever the direction - in the free band, past a docked list of the host */
+      left: calc(50% + (var(--hud-end, ${at}px) - ${at}px) / 2); /* physical: centred whatever the direction - in the free band, past a docked list of the host */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
@@ -1321,7 +1321,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     .err {
       color: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ CR-029 S4, the walk: a crosshair, the minimap in the top start corner, one floating walk bar, short notes */
+    /* CR-029 S4, the walk: a crosshair, the minimap in the top start corner, one floating walk bar, short notes */
     .cross {
       position: absolute;
       left: 50%;
@@ -1360,7 +1360,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     }
     .pill {
       position: absolute;
-      left: calc(50% + (var(--hud-end, ${at}px) - ${at}px) / 2);  sourceMappingURL=[^*]**/ the free band's centre: past a docked list of the host */
+      left: calc(50% + (var(--hud-end, ${at}px) - ${at}px) / 2); /* the free band's centre: past a docked list of the host */
       transform: translateX(-50%);
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
@@ -1373,7 +1373,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       direction: rtl;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ the aim label hangs under the crosshair, which is the canvas's centre whatever a host list takes at the edge */
+    /* the aim label hangs under the crosshair, which is the canvas's centre whatever a host list takes at the edge */
     .pill.aim {
       left: 50%;
     }
@@ -1389,7 +1389,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
       gap: 8px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ the one button of the stair's prompt is a finger's target on a phone (S5-A): 44 px whatever the control scale says */
+    /* the one button of the stair's prompt is a finger's target on a phone (S5-A): 44 px whatever the control scale says */
     .pill.cross-floor sw-button {
       --sw-ctl-h-lg: 44px;
     }
@@ -1397,7 +1397,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     :host([data-walk]) .strip {
       display: none;
     }
-     sourceMappingURL=[^*]**/ S5-A: a finger has no crosshair and no "Enter" hint; the stage is not selectable and a long press is the walk's, not a menu */
+    /* S5-A: a finger has no crosshair and no "Enter" hint; the stage is not selectable and a long press is the walk's, not a menu */
     :host([data-walk-touch]) .cross,
     :host([data-walk-touch]) .pill.aim {
       display: none;
@@ -1412,7 +1412,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
         inline-size: ${Ws}px;
         block-size: ${Ws}px;
       }
-       sourceMappingURL=[^*]**/ above the bottom sheet's row */
+      /* above the bottom sheet's row */
       .pill.walknote {
         inset-block-end: 84px;
       }
@@ -1431,7 +1431,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
         inset-block-start: 8px;
         inset-inline-end: 8px;
       }
-       sourceMappingURL=[^*]**/ the phone: a row of small thumbnails above the bar instead of a column up the side */
+      /* the phone: a row of small thumbnails above the bar instead of a column up the side */
       .strip {
         inset-inline-start: 8px;
         inset-block-end: max(44px, calc(12px + var(--bar-h, 0px)));
@@ -1449,7 +1449,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
         block-size: 35px;
       }
     }
-     sourceMappingURL=[^*]**/ CR-029 S5-B, the wall display's bare view: the plan and nothing to operate (no bar, level strip, time pill, hints, tooltips) */
+    /* CR-029 S5-B, the wall display's bare view: the plan and nothing to operate (no bar, level strip, time pill, hints, tooltips) */
     :host([kiosk]) .bar,
     :host([kiosk]) .strip,
     :host([kiosk]) .timepill,
@@ -1467,7 +1467,7 @@ ${Tr}`).replace("#include <alphatest_fragment>",`diffuseColor.a *= swContact(vSw
     :host([kiosk]) .spinner:not(.err) {
       display: none;
     }
-     sourceMappingURL=[^*]**/ the idle still: the host's baked picture over the stopped view; it takes the wake touch, fades in and out, and is
+    /* the idle still: the host's baked picture over the stopped view; it takes the wake touch, fades in and out, and is
        always laid out (hidden, not removed) so its picture is loaded before the view idles */
     .idle-still {
       position: absolute;

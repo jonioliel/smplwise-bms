@@ -47,7 +47,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       display: flex;
       justify-content: flex-start;
     }
-     sourceMappingURL=[^*]**/ a multi-camera change lists every camera: hundreds scroll inside the list, the dialog keeps its size */
+    /* a multi-camera change lists every camera: hundreds scroll inside the list, the dialog keeps its size */
     ul.names {
       max-block-size: min(36dvh, 240px);
       overflow: auto;
@@ -74,7 +74,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .arrow {
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE type scale in the one confirmation): the lead line 14 px in the reading ink, the number of changes a
+    /* R5-LIVE-297 (the HOMEFABLE type scale in the one confirmation): the lead line 14 px in the reading ink, the number of changes a
        WELL with a 17 px bold line - the one thing the owner must read before he presses - and the change list as wells */
     p {
       font-size: var(--sw-fs-md);
@@ -99,7 +99,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass (the Opus count well sat in the dialog's own grey): the number of changes is a 20 px / 800 line in a
+    /* R5-LIVE-297 Fable pass (the Opus count well sat in the dialog's own grey): the number of changes is a 20 px / 800 line in a
        14 % accent field with a 4 px accent bar - the one thing read before the press; the lead 15 px in the reading ink */
     p {
       font-size: var(--sw-fs-lg);
@@ -109,7 +109,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       padding: 12px 16px;
       border-radius: var(--sw-r-lg);
       background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-surface));
-      box-shadow: inset -4px 0 0 var(--sw-accent);  sourceMappingURL=[^*]**/ the start edge in RTL (offsets are physical) */
+      box-shadow: inset -4px 0 0 var(--sw-accent); /* the start edge in RTL (offsets are physical) */
       font-size: var(--sw-fs-2xl);
       font-weight: 800;
       letter-spacing: -0.02em;
@@ -157,7 +157,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       display: contents;
       --r5-drawer-ms: var(--sw-spring-drawer-ms);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (emil-design-eng: a panel lands in 200-400 ms): the Arx skins' drawer travel is 630 ms, long for a form opened
+    /* R5-LIVE-297 (emil-design-eng: a panel lands in 200-400 ms): the Arx skins' drawer travel is 630 ms, long for a form opened
        from a table row; this drawer clamps it to 380 ms and keeps every faster skin's own value */
     sw-drawer {
       --sw-spring-drawer-ms: clamp(200ms, var(--r5-drawer-ms), 380ms);
@@ -294,7 +294,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .muted {
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE tiers inside the stream editor): each setting is a WELL (surface-2, rounded) with its label 12.5 px
+    /* R5-LIVE-297 (the HOMEFABLE tiers inside the stream editor): each setting is a WELL (surface-2, rounded) with its label 12.5 px
        semibold in the heading ink over a control that sits a tier up (surface, first shadow, 14 px semibold value); the two switches
        are the same wells, so the drawer reads as ten equal blocks instead of floating labels; the history rows are wells too */
     form {
@@ -345,7 +345,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass: the wells breathe (12 / 14 px), the label 13 px / 700, the control a 46 px key with a 15 px / 700 value;
+    /* R5-LIVE-297 Fable pass: the wells breathe (12 / 14 px), the label 13 px / 700, the control a 46 px key with a 15 px / 700 value;
        the switch wells show their word at 15 px / 700 */
     form {
       gap: 10px;
@@ -697,7 +697,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         block-size: 44px;
       }
     }
-     sourceMappingURL=[^*]**/ CAMADMIN-POLISH-2331 (the R5-LIVE-297 language of the multi-camera encoding dialog, carried to the SVC checklist and the progress of
+    /* CAMADMIN-POLISH-2331 (the R5-LIVE-297 language of the multi-camera encoding dialog, carried to the SVC checklist and the progress of
        both): the list is a WELL (surface-2, no outline, no hairlines between rows) that is only as tall as its rows need (a short batch
        no longer floats in a half-empty box; the 44 / 52 px windowed row heights are untouched); a chosen camera is a 26 % accent field
        with a 4 px bar at its start edge, its name bold in the heading ink; rows tint on hover only under a fine pointer and darken on
@@ -741,7 +741,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     }
     .sel[aria-checked='true'] {
       background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
-       sourceMappingURL=[^*]**/ the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
+      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
       box-shadow: inset -4px 0 0 var(--sw-accent);
     }
     :host-context([dir='ltr']) .sel[aria-checked='true'] {
@@ -751,7 +751,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
         background: color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface));
       }
-       sourceMappingURL=[^*]**/ DARK-REVIEW-2342: with the light dark-scheme accents of domus / crystal a 32 % field lifted the bed until the --sw-text-2 meta
+      /* DARK-REVIEW-2342: with the light dark-scheme accents of domus / crystal a 32 % field lifted the bed until the --sw-text-2 meta
          line read 4.3-4.4:1; dark hovers at 28 % (>= 4.7:1 every skin, tests/unit-dark-polish-beds.spec.ts) - still a step above the
          26 % resting field. Light keeps 32 % (light-dark() keys on the page's color-scheme; the rule above is the fallback of an engine without it). */
       .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
@@ -771,7 +771,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .sel[aria-checked='true'] .box {
       box-shadow: none;
     }
-     sourceMappingURL=[^*]**/ A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
+    /* A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
        1.5-2.3:1 on the dark one (a checkbox boundary needs 3:1, WCAG 1.4.11). Light draws it in the muted ink (>= 4.9:1 every skin), dark
        in the muted ink at 70 % (3.2-4.3:1, tests/unit-dark-polish-beds.spec.ts on fix/DARK-REVIEW-2342). light-dark() keys on the page's
        color-scheme (it inherits into the shadow root); an engine without it drops the line and keeps the old edge. */
@@ -814,7 +814,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     }
     .row.unk .ln {
       color: var(--sw-warning-text);
-       sourceMappingURL=[^*]**/ A11Y-POLISHED-2342: on the 12 % warning row the warning ink read 4.29:1 in classic light (4.27 bubble); light mixes a quarter of
+      /* A11Y-POLISHED-2342: on the 12 % warning row the warning ink read 4.29:1 in classic light (4.27 bubble); light mixes a quarter of
          the body ink in (>= 5.4:1), dark unchanged */
       color: light-dark(color-mix(in srgb, var(--sw-warning-text) 75%, var(--sw-text)), var(--sw-warning-text));
     }
@@ -1021,7 +1021,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       direction: ltr;
       text-align: start;
     }
-     sourceMappingURL=[^*]**/ the Hebrew "ללא שינוי" placeholder reads right-to-left; a typed number stays left-to-right */
+    /* the Hebrew "ללא שינוי" placeholder reads right-to-left; a typed number stays left-to-right */
     .form input:placeholder-shown {
       direction: rtl;
     }
@@ -1076,23 +1076,23 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .muted {
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ touch targets (layout guard): the preview's tabs grow their hit area to 44 px (the shared knob), and the text fields are 44 px
+    /* touch targets (layout guard): the preview's tabs grow their hit area to 44 px (the shared knob), and the text fields are 44 px
        high in touch layouts, as the multi-camera checklist's search */
     sw-tabs {
       --sw-tab-min-h: 44px;
-       sourceMappingURL=[^*]**/ a flex item of the dialog's scrolling body: never squeezed below its own height (it scrolls sideways, so its automatic minimum is 0) */
+      /* a flex item of the dialog's scrolling body: never squeezed below its own height (it scrolls sideways, so its automatic minimum is 0) */
       flex: none;
     }
     @media (max-width: 1100px) {
       sw-field input {
         min-block-size: 44px;
       }
-       sourceMappingURL=[^*]**/ touch layouts: 44 px whatever the desktop touch dial (the bubble skin sizes tab buttons by it; the shell does the same, bubble.ts) */
+      /* touch layouts: 44 px whatever the desktop touch dial (the bubble skin sizes tab buttons by it; the shell does the same, bubble.ts) */
       sw-tabs {
         --sw-touch-desktop: 44px;
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE tiers in the multi-camera encoding dialog; the windowed rows keep their 44 / 60 px heights): the list is
+    /* R5-LIVE-297 (the HOMEFABLE tiers in the multi-camera encoding dialog; the windowed rows keep their 44 / 60 px heights): the list is
        a WELL (surface-2, no outline) inside the dialog; a chosen stream is a FILLED accent row with its name in bold heading ink, not
        only a ticked box; rows tint on hover only under a fine pointer and darken on press; the count is a bold numeral */
     .vl {
@@ -1116,7 +1116,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       background: var(--sw-pressed-wash);
     }
     .sel[aria-checked='true'] {
-      background: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-surface));  sourceMappingURL=[^*]**/ 50 % test: accent-soft vanished in dark */
+      background: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-surface)); /* 50 % test: accent-soft vanished in dark */
     }
     .vl {
       border-radius: var(--sw-r-lg);
@@ -1149,7 +1149,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       padding: 8px 12px;
       border-radius: var(--sw-r-md);
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass (the Opus list still had hairlines between the rows and a 20 % tint that vanished in dark): the rows sit
+    /* R5-LIVE-297 Fable pass (the Opus list still had hairlines between the rows and a 20 % tint that vanished in dark): the rows sit
        in the well with NO lines (the windowed 44 / 60 px heights untouched); a chosen stream is a 26 % accent field with a 4 px accent
        bar at its start edge and a 22 px box; the count is a 20 px / 800 display line; the plan rows are bold in the heading ink */
     .sel,
@@ -1163,7 +1163,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     }
     .sel[aria-checked='true'] {
       background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
-       sourceMappingURL=[^*]**/ the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
+      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
       box-shadow: inset -4px 0 0 var(--sw-accent);
     }
     :host-context([dir='ltr']) .sel[aria-checked='true'] {
@@ -1179,7 +1179,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .sel[aria-checked='true'] .box {
       box-shadow: none;
     }
-     sourceMappingURL=[^*]**/ A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
+    /* A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
        1.5-2.3:1 on the dark one (a checkbox boundary needs 3:1, WCAG 1.4.11). Light draws it in the muted ink (>= 4.9:1 every skin), dark
        in the muted ink at 70 % (3.2-4.3:1, tests/unit-dark-polish-beds.spec.ts on fix/DARK-REVIEW-2342). light-dark() keys on the page's
        color-scheme (it inherits into the shadow root); an engine without it drops the line and keeps the old edge. */
@@ -1210,7 +1210,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       font-size: var(--sw-fs-lg);
       font-weight: var(--sw-fw-bold);
     }
-     sourceMappingURL=[^*]**/ NVR-H264-BULK-2341: the H.264 preset - a quiet well above the checklist (no border; the checklist below keeps its own look) */
+    /* NVR-H264-BULK-2341: the H.264 preset - a quiet well above the checklist (no border; the checklist below keeps its own look) */
     .preset {
       display: grid;
       gap: 8px;
@@ -1517,7 +1517,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .muted {
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ LIVE-H265-2341: the H.265 badge (its title carries the Hebrew hint) */
+    /* LIVE-H265-2341: the H.265 badge (its title carries the Hebrew hint) */
     .h265 {
       display: inline-block;
       padding: 0 6px;
@@ -1565,7 +1565,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       display: none;
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ tablet widths: the channel folds into the camera cell and the cells tighten, so all columns fit without scrolling */
+    /* tablet widths: the channel folds into the camera cell and the cells tighten, so all columns fit without scrolling */
     @media (max-width: 1100px) {
       .c-chan {
         display: none;
@@ -1580,7 +1580,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         padding: 7px 6px;
       }
     }
-     sourceMappingURL=[^*]**/ S2: the SVC switch, the pencil, the pending spinner and the one muted line under a row */
+    /* S2: the SVC switch, the pencil, the pending spinner and the one muted line under a row */
     .vh {
       position: absolute;
       inline-size: 1px;
@@ -1661,7 +1661,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       align-items: center;
       gap: 8px;
     }
-     sourceMappingURL=[^*]**/ touch layouts: the switch's box and the pencil are 44 px targets */
+    /* touch layouts: the switch's box and the pencil are 44 px targets */
     @media (max-width: 1100px) {
       sw-toggle {
         padding: 10px 1px;
@@ -1670,7 +1670,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         inline-size: 44px;
         block-size: 44px;
       }
-       sourceMappingURL=[^*]**/ the toolbar's fields and the sort headers are 44 px targets in touch layouts (layout guard) */
+      /* the toolbar's fields and the sort headers are 44 px targets in touch layouts (layout guard) */
       .toolbar sw-field select,
       .toolbar sw-field input {
         min-block-size: 44px;
@@ -1729,7 +1729,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         margin: 0;
       }
     }
-     sourceMappingURL=[^*]**/ S2: with the switch and pencil columns the table needs about 900 px; a holder of nvr.configure gets the cards below that */
+    /* S2: with the switch and pencil columns the table needs about 900 px; a holder of nvr.configure gets the cards below that */
     @media (max-width: 899px) {
       :host([data-rw]) .wrap {
         display: none;
@@ -1750,7 +1750,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         margin: 0;
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE method on the cameras settings, columns and order untouched): the table is the one card of the screen
+    /* R5-LIVE-297 (the HOMEFABLE method on the cameras settings, columns and order untouched): the table is the one card of the screen
        (radius lg); its head is a tinted band with 12.5 px semibold labels instead of grey 11 px; each camera opens with its name in
        14 px bold heading ink and its second stream is quieter; a camera that is down is a FILLED offline row (the tint across the
        row, a solid dot) instead of a 7 px grey dot; the pencil is a raised key that sinks on press; the count is a bold numeral;
@@ -1785,7 +1785,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       border-block-start: 0;
     }
     tbody tr.down td {
-      background: color-mix(in srgb, var(--sw-offline) 26%, var(--sw-surface));  sourceMappingURL=[^*]**/ loop 1: 16 % vanished on white */
+      background: color-mix(in srgb, var(--sw-offline) 26%, var(--sw-surface)); /* loop 1: 16 % vanished on white */
     }
     tbody tr.down td[data-col='camera'] .cam {
       color: var(--sw-text-2);
@@ -1864,7 +1864,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
     }
-     sourceMappingURL=[^*]**/ break-ui (cams-worst, 390 px): a long camera name ran past the card's edge and pushed the WebRTC mark and the pencil off the
+    /* break-ui (cams-worst, 390 px): a long camera name ran past the card's edge and pushed the WebRTC mark and the pencil off the
        screen - the name takes the head's first line and wraps, the mark and the pencil keep their own line end */
     .card .head {
       flex-wrap: wrap;
@@ -1874,7 +1874,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       min-inline-size: 0;
       overflow-wrap: anywhere;
     }
-     sourceMappingURL=[^*]**/ break-ui (desktop): a long name widened the whole table into a sideways scroll - the name is clamped to one line at 280 px */
+    /* break-ui (desktop): a long name widened the whole table into a sideways scroll - the name is clamped to one line at 280 px */
     td[data-col='camera'] .cam {
       display: inline-block;
       max-inline-size: 280px;
@@ -1890,7 +1890,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         transform: none;
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass (the Opus table still read as hairlines at one weight): the head is a 13 px / 700 band in the heading ink
+    /* R5-LIVE-297 Fable pass (the Opus table still read as hairlines at one weight): the head is a 13 px / 700 band in the heading ink
        on surface-3; a camera's rows are separated by a 6 px step in the page tone (no 1 px line between cameras); the camera's name is
        15 px / 800, its main stream's codec and resolution 14 px / 700 in the heading ink, the second stream quiet; the WebRTC mark 28
        px; the pencil a 36 px raised key; the phone card's stream word is a filled tag */
@@ -1973,7 +1973,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
         inline-size: 44px;
         block-size: 44px;
       }
-       sourceMappingURL=[^*]**/ GATE-FIX-2270: at a tablet width the R5 band (13 px / 700 labels) and the 15 px / 800 name widened the table past its card
+      /* GATE-FIX-2270: at a tablet width the R5 band (13 px / 700 labels) and the 15 px / 800 name widened the table past its card
          (a sideways scroll at 820 px); there the labels keep the compact 11 px size and the name and the main stream's codec and
          resolution the table's own size (the name still bold) - all still in the heading ink */
       th {
@@ -2088,7 +2088,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     :host {
       display: contents;
     }
-     sourceMappingURL=[^*]**/ CAMADMIN-POLISH-2331: the editor is one container. Narrow (a phone, a narrow pane): one column - the cameras as a strip, the toolbar
+    /* CAMADMIN-POLISH-2331: the editor is one container. Narrow (a phone, a narrow pane): one column - the cameras as a strip, the toolbar
        and the picture, the regions and the history, the review button in a footer that sticks to the bottom of the view. Wide (760 px of
        content and a window at least 560 px tall): the cameras and the inspector (regions, history) share the start column and the review
        button closes it; the picture column fits the window, so nothing - the primary action least of all - lies below the fold */
@@ -2284,7 +2284,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       outline: 2px solid var(--sw-accent);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ the picture: LTR in every language (video and geometry are never mirrored) */
+    /* the picture: LTR in every language (video and geometry are never mirrored) */
     .frame {
       direction: ltr;
       position: relative;
@@ -2598,7 +2598,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       font-weight: var(--sw-fw-medium);
     }
 
-     sourceMappingURL=[^*]**/ CAMADMIN-POLISH-2331 - the R5-LIVE-297 camera-settings language on this screen (wells instead of outlined boxes, a chosen row as a
+    /* CAMADMIN-POLISH-2331 - the R5-LIVE-297 camera-settings language on this screen (wells instead of outlined boxes, a chosen row as a
        filled accent field with a bar at its start edge, names bold in the heading ink, counts as bold numerals, hovers only under a fine
        pointer, presses that give), and the fit of the wide layout */
     .banner {
@@ -2639,7 +2639,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     }
     .cam[aria-current='true'] {
       background: color-mix(in srgb, var(--sw-accent) 22%, var(--sw-surface));
-      box-shadow: inset -4px 0 0 var(--sw-accent);  sourceMappingURL=[^*]**/ the start edge in RTL (offsets are physical) */
+      box-shadow: inset -4px 0 0 var(--sw-accent); /* the start edge in RTL (offsets are physical) */
       font-weight: var(--sw-fw-bold);
     }
     :host-context([dir='ltr']) .cam[aria-current='true'] {
@@ -2862,7 +2862,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     .foot {
       gap: 8px 12px;
     }
-     sourceMappingURL=[^*]**/ the review button's footer: on a phone it sticks to the bottom of the view (on the page surface, a soft lift) so the action is
+    /* the review button's footer: on a phone it sticks to the bottom of the view (on the page surface, a soft lift) so the action is
        always in reach; in the wide layout it closes the start column */
     .edit-foot {
       display: grid;
@@ -3132,12 +3132,12 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       :host { display: block; }
       .lead { margin: 0; padding: 14px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
       .sw-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 14px; border-block-start: 1px solid var(--sw-border); }
-      .sw-row .t { margin: 0; font-size: var(--sw-fs-lg); color: var(--sw-heading); font-weight: var(--sw-fw-bold); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }  sourceMappingURL=[^*]**/ R5-SECURITY: the switch's name 15/700 */
+      .sw-row .t { margin: 0; font-size: var(--sw-fs-lg); color: var(--sw-heading); font-weight: var(--sw-fw-bold); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } /* R5-SECURITY: the switch's name 15/700 */
       .sw-row .x { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
       .sw-row .k { margin: 4px 0 0; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
       .sw-row .k code { font-family: var(--sw-font-mono, monospace); direction: ltr; unicode-bidi: isolate; }
       .sw-row .why { grid-column: 1 / -1; margin: 0; display: inline-flex; gap: 6px; align-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-      .pill { display: inline-flex; align-items: center; min-block-size: 24px; padding: 0 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); background: var(--sw-surface-3, var(--sw-border)); color: var(--sw-text-2); }  sourceMappingURL=[^*]**/ R5-SECURITY: the state is a filled 12.5/700 field */
+      .pill { display: inline-flex; align-items: center; min-block-size: 24px; padding: 0 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); background: var(--sw-surface-3, var(--sw-border)); color: var(--sw-text-2); } /* R5-SECURITY: the state is a filled 12.5/700 field */
       .pill[data-state='on'] { background: var(--sw-success-bg, var(--sw-toggle-on)); color: var(--sw-success-text, var(--sw-text)); }
       .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-block-start: 14px; }
       .err-line { margin: 10px 0 0; color: var(--sw-danger-text, var(--sw-danger)); font-size: var(--sw-fs-sm); }
@@ -3183,7 +3183,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     }
     li {
       display: flex;
-      flex-wrap: wrap;  sourceMappingURL=[^*]**/ EVIDENCE-CAMERAS-2412: at 390 px the three actions ran 46 px past the screen edge; they wrap under the name */
+      flex-wrap: wrap; /* EVIDENCE-CAMERAS-2412: at 390 px the three actions ran 46 px past the screen edge; they wrap under the name */
       align-items: center;
       gap: 4px 10px;
       min-block-size: 40px;
@@ -3195,7 +3195,7 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
     }
     li .name {
       flex: 1 1 8em;
-      min-inline-size: 7em;  sourceMappingURL=[^*]**/ EVIDENCE-CAMERAS-2412: the actions wrap before the name shrinks to one letter */
+      min-inline-size: 7em; /* EVIDENCE-CAMERAS-2412: the actions wrap before the name shrinks to one letter */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;

@@ -180,7 +180,7 @@ import"./settings-retention-DQjGw1P8.js";import{i as j,n as Z,a as I,q as l,x as
     </div>`}};C.styles=[se,Qe,j`
     :host { display: flex; flex-direction: column; gap: 14px; }
     .dset { display: grid; gap: 8px; max-inline-size: 640px; margin-block-start: 8px; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: an option row is a well inside the card (no outlined box inside a card inside a card), its label in the heading ink */
+    /* R5-MEDIA-ENERGY-297: an option row is a well inside the card (no outlined box inside a card inside a card), its label in the heading ink */
     .drow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border: 0; background: var(--sw-surface-2); border-radius: var(--sw-r-md); padding: 10px 14px; min-block-size: 48px; }
     .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: var(--sw-r-pill); gap: 1px; }
@@ -189,7 +189,7 @@ import"./settings-retention-DQjGw1P8.js";import{i as j,n as Z,a as I,q as l,x as
     .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: an elevator row is a well (52 px) with its name 16 px / 700 in the heading ink, not a ruled table line */
+    /* R5-MEDIA-ENERGY-297: an elevator row is a well (52 px) with its name 16 px / 700 in the heading ink, not a ruled table line */
     .el { display: flex; align-items: center; gap: 10px; padding: 8px 14px; margin: 6px 8px; min-block-size: 52px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
     .el:first-child { margin-block-start: 8px; }
     .el:last-child { margin-block-end: 8px; }
@@ -200,7 +200,7 @@ import"./settings-retention-DQjGw1P8.js";import{i as j,n as Z,a as I,q as l,x as
     .xrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }
     .foot { display: flex; justify-content: flex-end; gap: 8px; padding-block-start: 10px; }
     @media (max-width: 600px) { .map { grid-template-columns: 1fr; } }
-     sourceMappingURL=[^*]**/ POLISH4-WP8: the segment keys give on pointer-down and are 44 px on a touch screen; the link row's three columns stack on a phone */
+    /* POLISH4-WP8: the segment keys give on pointer-down and are 44 px on a touch screen; the link row's three columns stack on a phone */
     .seg button { transition: transform var(--sw-t-press) var(--sw-ease); }
     .seg button:active { transform: scale(var(--sw-press-scale)); }
     @media (pointer: coarse) { .seg button { min-block-size: 44px; padding-inline: 14px; } }
@@ -297,7 +297,7 @@ import"./settings-retention-DQjGw1P8.js";import{i as j,n as Z,a as I,q as l,x as
             <div class="opts">${e.channels.map(n=>l`<label class="sw"><input type="checkbox" .checked=${s.channels.includes(n)} ?disabled=${!e.can_edit}
               @change=${i=>this.saveAlert(t,{channels:i.target.checked?[...s.channels,n]:s.channels.filter(a=>a!==n)})} />${g(We[n])}</label>`)}</div></div></div>`})}${this.escalationEditor(e)}</div></div>`:c}`}};A.styles=[vs,j`
     :host { display: grid; gap: 14px; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: section titles read as titles; a rule kind is a well inside the panel, not an outlined box inside a card */
+    /* R5-MEDIA-ENERGY-297: section titles read as titles; a rule kind is a well inside the panel, not an outlined box inside a card */
     h3 { margin: 0 0 4px; font-size: var(--sw-fs-xl); font-weight: 800; letter-spacing: -0.01em; color: var(--sw-heading); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
     .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); color: var(--sw-heading); }

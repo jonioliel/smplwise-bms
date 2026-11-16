@@ -154,7 +154,7 @@ import{jk as A,i as T,r as c,a as C,R as E,q as a,cK as _,p as o,x as I,S as L,d
       background: var(--sw-stale-soft);
       color: var(--sw-warning-text);
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331 -> SHARED-POLISH-2342: the role matrix is the shared table.set-matrix of styles/settings.ts (header in text-2 /
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: the role matrix is the shared table.set-matrix of styles/settings.ts (header in text-2 /
        600, the role name in the heading ink); only its foot margin and the link stay here */
     table.mtx {
       margin-block-end: var(--sw-s-3);
@@ -188,7 +188,7 @@ import{jk as A,i as T,r as c,a as C,R as E,q as a,cK as _,p as o,x as I,S as L,d
       font-size: var(--sw-fs-sm);
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair */
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
       border-color: transparent;
@@ -291,7 +291,7 @@ import{jk as A,i as T,r as c,a as C,R as E,q as a,cK as _,p as o,x as I,S as L,d
       opacity: 0.35;
       cursor: default;
     }
-     sourceMappingURL=[^*]**/ the presence picker: the settings' select look (it had a class and no rule, so it rendered as the browser's default) */
+    /* the presence picker: the settings' select look (it had a class and no rule, so it rendered as the browser's default) */
     select.sel {
       min-block-size: 36px;
       max-inline-size: 260px;
@@ -355,7 +355,7 @@ import{jk as A,i as T,r as c,a as C,R as E,q as a,cK as _,p as o,x as I,S as L,d
       margin-block-start: var(--sw-s-3);
       max-inline-size: none;
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331 -> SHARED-POLISH-2342: a column narrower than a label plus a 240 px control stacks its rows (the label above
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: a column narrower than a label plus a 240 px control stacks its rows (the label above
        the control) - the shared .set-col of styles/settings.ts (the side column at 1440 / 1180) */
     @media (max-width: 1023px) {
       .cols {

@@ -318,7 +318,7 @@ import{K as B,av as P,L,jk as G,i as X,n as ve,r as h,a as Z,ak as O,W as ce,p a
     .in.num {
       inline-size: 96px;
     }
-     sourceMappingURL=[^*]**/ a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
+    /* a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
     .row.stack .lbl {
       flex: none;
     }
@@ -329,12 +329,12 @@ import{K as B,av as P,L,jk as G,i as X,n as ve,r as h,a as Z,ak as O,W as ce,p a
       margin-block-start: 4px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ a warning is a sentence: it wraps inside its row on a narrow phone instead of leaving the card */
+    /* a warning is a sentence: it wraps inside its row on a narrow phone instead of leaving the card */
     .warnline .tag {
       white-space: normal;
       max-inline-size: 100%;
       box-sizing: border-box;
-       sourceMappingURL=[^*]**/ GATE-FIX-2270: a wrapped warning is a short block, not a pill - a 999 px radius put the last word of a two-line warning
+      /* GATE-FIX-2270: a wrapped warning is a short block, not a pill - a 999 px radius put the last word of a two-line warning
          into the rounded corner (domus 1024 px); one line still reads as a rounded tag */
       border-radius: var(--sw-r-md);
     }
@@ -387,7 +387,7 @@ import{K as B,av as P,L,jk as G,i as X,n as ve,r as h,a as Z,ak as O,W as ce,p a
     .disabled {
       opacity: var(--sw-disabled-opacity);
     }
-     sourceMappingURL=[^*]**/ CALMSG-POLISH-2331: focus, hover and press on the controls this screen draws itself */
+    /* CALMSG-POLISH-2331: focus, hover and press on the controls this screen draws itself */
     .in:focus-visible,
     .linkbtn:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -409,7 +409,7 @@ import{K as B,av as P,L,jk as G,i as X,n as ve,r as h,a as Z,ak as O,W as ce,p a
         text-underline-offset: 2px;
       }
     }
-     sourceMappingURL=[^*]**/ a department row belongs to its use: indented, one step lighter, so the use - departments nesting reads at a glance
+    /* a department row belongs to its use: indented, one step lighter, so the use - departments nesting reads at a glance
        (the three department rows looked exactly like the use above them) */
     .linkbtn.depts {
       display: inline-flex;

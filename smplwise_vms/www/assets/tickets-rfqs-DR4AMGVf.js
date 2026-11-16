@@ -1,5 +1,5 @@
 import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as d,q as n,X as $,cP as ye,x as X,R as A,ak as lt,pj as Ue,T as v,cK as S,pk as ue,pl as dt,pm as Ne,pn as ct,po as pt,a0 as Te,pp as me,pq as ht,ac as ut,pr as mt,M as ft,O as vt,Q as $t,ps as bt,dH as gt,V as yt,pt as wt}from"./index-C5kZ9jiu.js";import{a as G}from"./automations-glass-B-MfZHsT.js";import{t as m}from"./icons-Cmf7CqDT.js";import{r as s,h as Qe}from"./rfq-text-DWFUcfct.js";import{a as Z}from"./automations-demo-CVgZlSKD.js";import{t as ge}from"./tickets-s4-CBaTYz_V.js";import{c as V,i as fe,l as De,w as kt,s as xt,f as ce}from"./cost-model-DzWhsEJZ.js";import{a as qt,c as oe,d as _t,i as Ke,p as Pe,b as le,e as St,n as zt,f as E,l as Se,g as He,w as W,h as D,T as Tt,D as Ot,P as Nt,t as Xe,M as Dt,o as Me,j as Pt,k as ke,m as Mt,s as Ct,q as At,u as xe,v as Ce,r as x,x as Ge,y as Et,z as Ae,A as Lt,B as Rt,C as Bt,E as Ee,F as Ft,G as It,H as jt,I as qe,K as Vt,J as Wt,L as Ut,N as Qt,O as Kt,Q as Le,R as Ht,S as Xt,U as Gt,V as Yt,W as Jt,X as Zt}from"./rfq-model-ohPZC2cS.js";import{t as Ye,d as Re,O as he,l as es,n as ve,g as ts,a as te,e as Be,h as ss,s as Je}from"./org-locations-text-BQNxbGxD.js";import{l as Ze}from"./location-picker-FXrg4h6C.js";import{a as Oe}from"./media-page-BF4b5gDG.js";import{t as as}from"./chip-selected-HVnpKhPo.js";import"./sw-logo-art-Va6y_cIM.js";import"./lead-reserve-BLWZG4KN.js";const is={columns:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',chat:'<path d="M4 5h16v11H9l-5 4z"/>',coin:'<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6v12"/>',cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',history:'<path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v5h5M12 8v4l3 2"/>',file:'<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/>',bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',hand:'<path d="M6 12V7a2 2 0 0 1 4 0v4M10 11V5a2 2 0 0 1 4 0v6M14 11V7a2 2 0 0 1 4 0v6a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a2 2 0 0 1 3.4-2L8 13"/>',ban:'<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',clip:'<path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/>',download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',sheet:'<path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 14h7M9 17h7M12 11v6"/>'};function b(e,t=""){return ot`<svg class=${t?`ic ${t}`:"ic"} viewBox="0 0 24 24" aria-hidden="true">${rt(is[e])}</svg>`}const Y=de`
-   sourceMappingURL=[^*]**/ the page frame (mediaPageStyles) makes every host a scroll container (overflow: auto); a step nested in tickets-rfqs must NOT be one:
+  /* the page frame (mediaPageStyles) makes every host a scroll container (overflow: auto); a step nested in tickets-rfqs must NOT be one:
      its sticky action bar would stick to this non-scrolling host (and stay at the end of the content) instead of the screen's scroller */
   :host(tickets-rfq-compare),
   :host(tickets-rfq-board),
@@ -7,7 +7,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
   :host(tickets-rfq-new) {
     overflow: visible;
   }
-   sourceMappingURL=[^*]**/ RFQQUESTIONS: a vendor question waiting for the manager - one unmistakable badge everywhere, the pending section at the top of a request */
+  /* RFQQUESTIONS: a vendor question waiting for the manager - one unmistakable badge everywhere, the pending section at the top of a request */
   .qbadge {
     display: inline-flex;
     align-items: center;
@@ -16,7 +16,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     padding-inline: 8px;
     border-radius: 999px;
     background: var(--sw-badge-bg);
-    color: var(--sw-badge-fg);  sourceMappingURL=[^*]**/ UXREST-295: readable text on the badge fill in both schemes */
+    color: var(--sw-badge-fg); /* UXREST-295: readable text on the badge fill in both schemes */
     font-size: var(--sw-fs-xs);
     font-weight: 700;
     white-space: nowrap;
@@ -125,7 +125,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     color: inherit;
     text-decoration: none;
   }
-   sourceMappingURL=[^*]**/ UXFIX-A11Y-295: a 16 px tall text link; the hit area grows to 44 px on touch, the line stays as drawn */
+  /* UXFIX-A11Y-295: a 16 px tall text link; the hit area grows to 44 px on touch, the line stays as drawn */
   @media (pointer: coarse) {
     .crumbs a {
       position: relative;
@@ -166,7 +166,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     direction: ltr;
     unicode-bidi: isolate;
   }
-   sourceMappingURL=[^*]**/ KPI glass tiles */
+  /* KPI glass tiles */
   .kpis {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -199,7 +199,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
   .kpi.warn b {
     color: var(--dv-warning-text);
   }
-   sourceMappingURL=[^*]**/ glass cards */
+  /* glass cards */
   .rcard {
     display: flex;
     flex-direction: column;
@@ -240,7 +240,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     gap: var(--sw-s-4);
     align-items: start;
   }
-   sourceMappingURL=[^*]**/ the list: one row per request */
+  /* the list: one row per request */
   .rlist {
     display: flex;
     flex-direction: column;
@@ -316,7 +316,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     color: var(--dv-text-2);
     font-variant-numeric: tabular-nums;
   }
-   sourceMappingURL=[^*]**/ the stacked vendor status bar of a request */
+  /* the stacked vendor status bar of a request */
   .vbar {
     display: flex;
     flex-direction: column;
@@ -360,7 +360,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     block-size: 8px;
     border-radius: 50%;
   }
-   sourceMappingURL=[^*]**/ the vendors table (cards on a phone) */
+  /* the vendors table (cards on a phone) */
   .rtbl {
     inline-size: 100%;
     border-collapse: collapse;
@@ -449,7 +449,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     color: var(--dv-text-2);
     white-space: nowrap;
   }
-   sourceMappingURL=[^*]**/ TKRFQVP: the per-vendor verification-code switch under the channel */
+  /* TKRFQVP: the per-vendor verification-code switch under the channel */
   .chancol {
     display: flex;
     flex-direction: column;
@@ -479,7 +479,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     color: var(--dv-text-2);
     margin-block-start: 4px;
   }
-   sourceMappingURL=[^*]**/ the timeline card */
+  /* the timeline card */
   .tl {
     display: flex;
     flex-direction: column;
@@ -506,7 +506,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
   .tl span {
     overflow-wrap: anywhere;
   }
-   sourceMappingURL=[^*]**/ the sticky action bar at the bottom of a step */
+  /* the sticky action bar at the bottom of a step */
   .bar2 {
     position: sticky;
     inset-block-end: 8px;
@@ -532,7 +532,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
   .bar2 .sum b {
     color: var(--dv-text);
   }
-   sourceMappingURL=[^*]**/ the comparison grid: a label column and one column per quote */
+  /* the comparison grid: a label column and one column per quote */
   .cmpwrap {
     overflow-x: auto;
     border-radius: var(--sw-r-2xl);
@@ -737,7 +737,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     font-weight: 700;
     color: var(--dv-text-2);
   }
-   sourceMappingURL=[^*]**/ the new-request sheet */
+  /* the new-request sheet */
   .form {
     display: flex;
     flex-direction: column;
@@ -807,7 +807,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
       min-block-size: 44px;
     }
   }
-   sourceMappingURL=[^*]**/ RFQATT: the send preview's list of the files each vendor receives */
+  /* RFQATT: the send preview's list of the files each vendor receives */
   .sendfiles {
     list-style: none;
     margin: 0;
@@ -1077,7 +1077,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
       justify-content: space-between;
       text-align: start;
     }
-     sourceMappingURL=[^*]**/ the vendors table becomes cards: each cell a labelled line */
+    /* the vendors table becomes cards: each cell a labelled line */
     .rtbl thead {
       display: none;
     }
@@ -1133,7 +1133,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
     .qline .desc {
       grid-column: 1 / -1;
     }
-     sourceMappingURL=[^*]**/ the phone's dock is a row of the shell grid BELOW the scroller (and carries the safe-area inset itself): the bar only needs to sit at
+    /* the phone's dock is a row of the shell grid BELOW the scroller (and carries the safe-area inset itself): the bar only needs to sit at
        the scroller's bottom edge. While it only shows the hint it is one compact line; with a selection the summary scrolls inside it. */
     .bar2 {
       inset-block-end: 6px;
@@ -1184,7 +1184,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
         <span>${s("fDrop")}</span>
         <label class="btn sm quiet">${b("clip")}${s("fPick")}<input class="vh" type="file" multiple accept=${ns(t)} ?disabled=${this.busy} data-rfq-file-input
           @change=${a=>{const i=a.target;this.pick(i.files),i.value=""}} /></label>
-        <label class="btn sm quiet">${m("camera")}${s("fCamera")}<input class="vh" type="file" accept="image sourceMappingURL=[^*]**/" capture="environment" ?disabled=${this.busy} data-rfq-camera-input
+        <label class="btn sm quiet">${m("camera")}${s("fCamera")}<input class="vh" type="file" accept="image/*" capture="environment" ?disabled=${this.busy} data-rfq-camera-input
           @change=${a=>{const i=a.target;this.pick(i.files),i.value=""}} /></label>
         <small>${s("fTypes",{types:rs(t),n:t.files,img:re(t.image_bytes,e),doc:re(t.document_bytes,e),total:re(t.total_bytes,e)})}</small>
       </div>`:d}
@@ -1267,7 +1267,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
       justify-content: flex-end;
       gap: 6px;
     }
-     sourceMappingURL=[^*]**/ a phone: the caption field is a 44 px touch target like every other control of the sheet */
+    /* a phone: the caption field is a 44 px touch target like every other control of the sheet */
     @media (max-width: 767px) {
       .meta .inp {
         min-block-size: 44px;
@@ -1924,7 +1924,7 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
       ${t&&this.canCreate()?n`<tickets-rfq-new .open=${e.creating} .meta=${this.meta} .sourceTicket=${e.from}
         @close=${()=>j(x({...e,creating:!1,from:""}),!0)} @rfq-saved=${this.onSaved}></tickets-rfq-new>`:d}
       ${this.toast?n`<div class=${`toast ${this.toast.tone}`} role=${this.toast.tone==="bad"?"alert":"status"} data-rfq-toast ${gt()}>${m(this.toast.tone==="bad"?"warning":"check")}${this.toast.text}</div>`:d}`}};L.styles=[Q,...G,Oe,Y,de`
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
     .newbtn {
       flex: none;
     }
@@ -1948,11 +1948,11 @@ import{ag as rt,_ as ot,i as de,a4 as Q,n as g,r as u,a as K,S as H,$ as N,p as 
       display: flex;
       justify-content: center;
     }
-     sourceMappingURL=[^*]**/ A11Y-POLISHED-2342: the shared failure icon recipe (styles/media-page.ts) - the bare red read 2.8-3.0:1 on the light toast pill */
+    /* A11Y-POLISHED-2342: the shared failure icon recipe (styles/media-page.ts) - the bare red read 2.8-3.0:1 on the light toast pill */
     .toast.bad .ic {
       color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
     }
-     sourceMappingURL=[^*]**/ six tiles (with "questions waiting") or five: one row on a wide page, three per row between a phone and a wide page */
+    /* six tiles (with "questions waiting") or five: one row on a wide page, three per row between a phone and a wide page */
     @media (min-width: 768px) and (max-width: 1279px) {
       .kpis {
         grid-template-columns: repeat(3, minmax(0, 1fr));

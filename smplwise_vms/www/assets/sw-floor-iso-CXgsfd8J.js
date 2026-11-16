@@ -16,7 +16,7 @@ import{i as y,n as p,a as d,_ as h,q as c,p as x,x as m}from"./index-C5kZ9jiu.js
       block-size: auto;
       overflow: visible;
     }
-     sourceMappingURL=[^*]**/ the true isometric keeps the thumbnail box of the demo drawing and fits its faces inside it */
+    /* the true isometric keeps the thumbnail box of the demo drawing and fits its faces inside it */
     svg.real {
       aspect-ratio: 120 / 72;
     }
@@ -35,7 +35,7 @@ import{i as y,n as p,a as d,_ as h,q as c,p as x,x as m}from"./index-C5kZ9jiu.js
       stroke-width: 1;
       stroke-linejoin: round;
     }
-     sourceMappingURL=[^*]**/ the true isometric: a token colour per face, sides darkened, the plate as the slab top */
+    /* the true isometric: a token colour per face, sides darkened, the plate as the slab top */
     polygon.plate {
       fill: #ffffff;
       stroke: #b7c3d4;

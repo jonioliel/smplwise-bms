@@ -65,7 +65,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
   svg.chart text.val {
     fill: var(--sw-text-2);
   }
-   sourceMappingURL=[^*]**/ WKWATER-POLISH-2331: the chart is drawn at the card's own width (page-usage.ts measures it), so it fills the card instead of a
+  /* WKWATER-POLISH-2331: the chart is drawn at the card's own width (page-usage.ts measures it), so it fills the card instead of a
      560 px island beside an empty half */
   .usage-chart {
     min-inline-size: 0;
@@ -187,9 +187,9 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
   .sect-nav {
     align-self: flex-start;
   }
-   sourceMappingURL=[^*]**/ WKWATER-POLISH-2331: the page rules that were inline styles - a tile whose figure is an alarm, the end column of a phone row (the
+  /* WKWATER-POLISH-2331: the page rules that were inline styles - a tile whose figure is an alarm, the end column of a phone row (the
      chip over the reading), its amount line, the skeleton rows, the bill log rows */
-   sourceMappingURL=[^*]**/ a time window (01:00-05:00) is one LTR unit: it never breaks at its dash, never reads backwards in RTL */
+  /* a time window (01:00-05:00) is one LTR unit: it never breaks at its dash, never reads backwards in RTL */
   .tile .v .nw {
     white-space: nowrap;
     direction: ltr;
@@ -221,7 +221,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: calc(var(--sw-focus-w) * -1);
   }
-   sourceMappingURL=[^*]**/ NOSCROLL-297 on the usage and alerts pages (infra-water.ts gives them the height under the tab rows): the list's card shrinks to the
+  /* NOSCROLL-297 on the usage and alerts pages (infra-water.ts gives them the height under the tab rows): the list's card shrinks to the
      room left and scrolls inside, its header row in place; it never grows past its rows */
   @media (min-width: 900px) {
     .page.fit {
@@ -240,7 +240,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
       z-index: 1;
     }
   }
-   sourceMappingURL=[^*]**/ a sheet's form keeps its save / cancel row in view: the row sticks to the foot of the scrolling sheet body */
+  /* a sheet's form keeps its save / cancel row in view: the row sticks to the foot of the scrolling sheet body */
   .formacts {
     position: sticky;
     inset-block-end: 0;
@@ -250,7 +250,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
     background: var(--sw-surface-solid, var(--sw-surface));
     box-shadow: 0 -1px 0 var(--sw-border);
   }
-   sourceMappingURL=[^*]**/ the bills page's state filter: on a narrow window the segments scroll sideways inside their own row, the search takes the next line */
+  /* the bills page's state filter: on a narrow window the segments scroll sideways inside their own row, the search takes the next line */
   @media (max-width: 1099px) {
     .seg.scroll-seg {
       max-inline-size: 100%;
@@ -788,7 +788,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
         cursor: pointer;
         min-block-size: var(--elec-touch);
       }
-       sourceMappingURL=[^*]**/ WKWATER-POLISH-2331 (R5-MEDIA-ENERGY-297): today's m³ is the card's display numeral; the card answers the press */
+      /* WKWATER-POLISH-2331 (R5-MEDIA-ENERGY-297): today's m³ is the card's display numeral; the card answers the press */
       .mcard .big {
         font-size: var(--sw-fs-4xl);
         font-weight: 800;
@@ -837,7 +837,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
           flex: 1 1 160px;
         }
       }
-       sourceMappingURL=[^*]**/ WKWATER-POLISH-2331 (NOSCROLL-297, the electricity meters' rule; owner rule: a control screen fits the viewport on a desktop):
+      /* WKWATER-POLISH-2331 (NOSCROLL-297, the electricity meters' rule; owner rule: a control screen fits the viewport on a desktop):
          the tree and the meters list take the height left under the head and the tiles; the table (its header row stays in place), the
          cards and the tree each scroll inside their own box, never the page. Below 240 px of room the row keeps that height. */
       @media (min-width: 900px) {
@@ -977,7 +977,7 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
     .body > * {
       display: block;
     }
-     sourceMappingURL=[^*]**/ WKWATER-POLISH-2331 (NOSCROLL-297, as infra-electricity.ts): the control pages - meters, usage, alerts - take the height left under
+    /* WKWATER-POLISH-2331 (NOSCROLL-297, as infra-electricity.ts): the control pages - meters, usage, alerts - take the height left under
        the tab rows; their table (or cards) and the areas tree scroll inside their own boxes (screens/water/page-*.ts, water/styles.ts
        .page.fit). The documents (accounts, bills, customers, settings) keep the page scroll. */
     @media (min-width: 900px) {

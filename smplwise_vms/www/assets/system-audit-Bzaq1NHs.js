@@ -68,7 +68,7 @@ import{a as w,S as b,K as u,L as g,ak as f,p as c,q as s,u9 as m,cK as v,rK as y
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP7 (D16): the phone layout. The filters share the width two to a line (the search field and the refresh key take a whole
+    /* POLISH4-WP7 (D16): the phone layout. The filters share the width two to a line (the search field and the refresh key take a whole
        line), the table is the card list sw-table gives a phone, and the footer line wraps under its pager. */
     @media (max-width: 767px) {
       .filters {

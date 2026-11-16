@@ -14,7 +14,7 @@ import{i as $,a4 as x,n as g,r as u,a as k,S as P,K as _,ua as D,qz as I,ak as b
   .row:last-child {
     border-block-end: 0;
   }
-   sourceMappingURL=[^*]**/ R5-SECURITY: the setting's name 14/700 in the heading ink, its note 12.5 */
+  /* R5-SECURITY: the setting's name 14/700 in the heading ink, its note 12.5 */
   .lbl {
     display: flex;
     flex-direction: column;
@@ -57,7 +57,7 @@ import{i as $,a4 as x,n as g,r as u,a as k,S as P,K as _,ua as D,qz as I,ak as b
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
-   sourceMappingURL=[^*]**/ POLISH4-WP7: the saved / error line is the same pill as the rest of the settings (--sw-*-soft ground, -text ink); a bare
+  /* POLISH4-WP7: the saved / error line is the same pill as the rest of the settings (--sw-*-soft ground, -text ink); a bare
      --sw-danger text did not reach contrast on a light card */
   .ok,
   .err {
@@ -86,7 +86,7 @@ import{i as $,a4 as x,n as g,r as u,a as k,S as P,K as _,ua as D,qz as I,ak as b
     align-items: center;
     flex-wrap: wrap;
   }
-   sourceMappingURL=[^*]**/ POLISH4-WP7 (D16): the phone layout, shared by the alarm settings and the per-user alarm card. A row stacks its name over its
+  /* POLISH4-WP7 (D16): the phone layout, shared by the alarm settings and the per-user alarm card. A row stacks its name over its
      control, a control takes the whole line (a select or the code field at its natural width left a ragged edge at 390) and the
      buttons beside the code field stay on that line. */
   @media (max-width: 767px) {
@@ -183,7 +183,7 @@ import{i as $,a4 as x,n as g,r as u,a as k,S as P,K as _,ua as D,qz as I,ak as b
       .scroll {
         overflow-x: auto;
       }
-       sourceMappingURL=[^*]**/ POLISH4-WP7 (D16): the pairing table keeps a readable width and scrolls sideways inside its own wrapper (never the page) */
+      /* POLISH4-WP7 (D16): the pairing table keeps a readable width and scrolls sideways inside its own wrapper (never the page) */
       @media (max-width: 767px) {
         .scroll table {
           min-inline-size: 520px;

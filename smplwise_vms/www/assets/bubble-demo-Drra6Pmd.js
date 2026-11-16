@@ -113,7 +113,7 @@ import{a as v,ex as u,q as a,xJ as l,p as h,xC as b,ci as w,i as g,r as c,x as m
       grid-template-columns: minmax(0, 1fr);
       gap: var(--sw-gap);
     }
-     sourceMappingURL=[^*]**/ the mini building tree (kept in every skin and density) */
+    /* the mini building tree (kept in every skin and density) */
     nav.tree {
       border-radius: var(--sw-r-lg);
       padding: 14px 10px;
@@ -213,7 +213,7 @@ import{a as v,ex as u,q as a,xJ as l,p as h,xC as b,ci as w,i as g,r as c,x as m
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ sub-buttons inside pills: round, the sub size, 44 px in touch layouts */
+    /* sub-buttons inside pills: round, the sub size, 44 px in touch layouts */
     .sb {
       inline-size: var(--sw-sub-size, var(--sw-sub));
       block-size: var(--sw-sub-size, var(--sw-sub));
@@ -305,7 +305,7 @@ import{a as v,ex as u,q as a,xJ as l,p as h,xC as b,ci as w,i as g,r as c,x as m
         min-inline-size: 44px;
       }
     }
-     sourceMappingURL=[^*]**/ the sheet's inside: pills are translucent layers over the sheet */
+    /* the sheet's inside: pills are translucent layers over the sheet */
     sw-sheet sw-pill {
       --pill-base: var(--sw-layer);
     }

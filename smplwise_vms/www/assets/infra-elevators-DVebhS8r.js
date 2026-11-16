@@ -44,18 +44,18 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
       background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; box-shadow: var(--sw-shadow-1);
     }
     button.new { border: 0; font: inherit; cursor: pointer; }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the focus ring is the product's (the same token as the temperature screen), and every pressable thing answers
+    /* POLISH-CONTROL-297: the focus ring is the product's (the same token as the temperature screen), and every pressable thing answers
        the press (transform only, token durations - zero under reduced motion) */
     .new:focus-visible, .add:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 3px; }
     .new, .add, .hbtn { transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .new:active { transform: scale(0.97); }
     .add:active { transform: scale(0.99); }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297 round 2: the number is the hero of the tile - display size, heavy, tight and tabular (dataviz "hero number"),
+    /* POLISH-CONTROL-297 round 2: the number is the hero of the tile - display size, heavy, tight and tabular (dataviz "hero number"),
        the word under it one quiet line; the tile sits on the card elevation with a lit top edge */
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the elevator cards (surface-2, a hairline, no shadow) so
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the elevator cards (surface-2, a hairline, no shadow) so
        the cards read as the page's objects; its label gets two lines before an ellipsis */
-     sourceMappingURL=[^*]**/ loop 2 (visible-difference test): surface-2 read as "another white card"; the counter is a surface-3 well with no outline and no shadow,
+    /* loop 2 (visible-difference test): surface-2 read as "another white card"; the counter is a surface-3 well with no outline and no shadow,
        its mark a 20 px disc with a ring; a counter that is not zero on fault / fire / out-of-service is a filled status field (impeccable
        detect flagged the first try - a 6 px side border - as the "side-tab accent border" tell; replaced by the field) */
     .kpi {
@@ -72,12 +72,12 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
     .ecard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
-       sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the elevator card is the hero tier - the ladder's second step and a lit top edge; it sinks on pointer-down */
+      /* R5-MEDIA-ENERGY-297: the elevator card is the hero tier - the ladder's second step and a lit top edge; it sinks on pointer-down */
       background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
     .ecard:active { transform: scale(var(--sw-press-scale)); box-shadow: var(--sw-shadow-1); }
-     sourceMappingURL=[^*]**/ round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only,
+    /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only,
        off the main thread; under reduced motion only the fade remains */
     @media (prefers-reduced-motion: no-preference) {
       .ecard { animation: el-in 360ms var(--sw-ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
@@ -87,14 +87,14 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
     }
     @keyframes el-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
     @keyframes el-fade { from { opacity: 0; } }
-     sourceMappingURL=[^*]**/ round 2 (taste-skill: no gradients; impeccable detector: no side-tab border): an alerting card is a flat tinted field of its colour,
+    /* round 2 (taste-skill: no gradients; impeccable detector: no side-tab border): an alerting card is a flat tinted field of its colour,
        the out-of-service card a dashed frame - the state is told by the field, the solid badge and the icon, never by a stripe */
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (status as a filled field): a solid tinted field with a strong frame, readable across the room in light and dark */
+    /* R5-MEDIA-ENERGY-297 (status as a filled field): a solid tinted field with a strong frame, readable across the room in light and dark */
     .ecard[data-look='fire'] { background: color-mix(in srgb, var(--sw-el-fire) 16%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fire) 70%, transparent); }
     .ecard[data-look='fault'] { background: color-mix(in srgb, var(--sw-el-fault) 14%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fault) 70%, transparent); }
     .ecard[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 70%, transparent); background: color-mix(in srgb, var(--sw-el-off) 8%, var(--sw-surface)); }
     .head { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-     sourceMappingURL=[^*]**/ the elevator name is the card's title - 20 px / 800 in the heading ink */
+    /* the elevator name is the card's title - 20 px / 800 in the heading ink */
     .head h3 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
     .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
@@ -102,12 +102,12 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
     .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }
     .ext { display: flex; flex-wrap: wrap; gap: 6px; }
     .ecard:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
-     sourceMappingURL=[^*]**/ the history button is a real target (32 px, 44 px on touch layouts) with a wash on hover, not a bare glyph that only changes colour */
+    /* the history button is a real target (32 px, 44 px on touch layouts) with a wash on hover, not a bare glyph that only changes colour */
     .hbtn { border: 0; background: transparent; color: var(--sw-text-2); border-radius: 999px; padding: 0; inline-size: 32px; block-size: 32px; display: inline-grid; place-items: center; cursor: pointer; flex: none; }
     .hbtn:active { transform: scale(0.94); }
     .hbtn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-block-size: 60vh; overflow: auto; }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: history rows are wells inside the dialog (no outlined boxes inside a panel), the state in the heading ink */
+    /* R5-MEDIA-ENERGY-297: history rows are wells inside the dialog (no outlined boxes inside a panel), the state in the heading ink */
     .hist li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--sw-r-md); border: 0; background: var(--sw-surface-2); min-block-size: 44px; }
     .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-c) 18%, transparent); }
     .hist .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
@@ -117,7 +117,7 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
       color: var(--sw-text-2); text-decoration: none; text-align: center; padding: 16px;
     }
     .add b { display: block; font-size: calc(var(--sw-fs-3xl) * 1.3); color: var(--sw-accent); line-height: 1; }
-     sourceMappingURL=[^*]**/ the loading state draws the shape of the page (title, the KPI row, three cards) instead of one grey bar - the temperature screen's skeleton */
+    /* the loading state draws the shape of the page (title, the KPI row, three cards) instead of one grey bar - the temperature screen's skeleton */
     .skl { display: flex; flex-direction: column; gap: 14px; block-size: auto; background: none; animation: none; border-radius: 0; }
     .sk {
       border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); box-sizing: border-box;
@@ -130,7 +130,7 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
     .sk-card { block-size: 220px; border-radius: var(--sw-r-lg); }
     @keyframes el-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
     @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
-     sourceMappingURL=[^*]**/ hover is only for fine pointers - a touch must not leave a card lit */
+    /* hover is only for fine pointers - a touch must not leave a card lit */
     @media (hover: hover) and (pointer: fine) {
       .ecard:hover { box-shadow: var(--sw-shadow-2); }
       .ecard:hover:not([data-look='fire']):not([data-look='fault']):not([data-look='off']) { border-color: var(--sw-border-strong); }
@@ -142,9 +142,9 @@ import{lO as b,lP as g,a as x,S as k,lQ as y,lR as $,fq as z,lS as n,aM as E,ak 
       .hbtn { inline-size: 44px; block-size: 44px; margin-block: -6px; }
     }
     @media (max-width: 600px) {
-       sourceMappingURL=[^*]**/ round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis ("ממתינות או פעי...") */
+      /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis ("ממתינות או פעי...") */
       .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
-       sourceMappingURL=[^*]**/ the title first, the button under it: the top start corner belongs to the floating search */
+      /* the title first, the button under it: the top start corner belongs to the floating search */
       .top { flex-direction: column; align-items: stretch; }
       .top .sp { display: none; }
       .new { align-self: flex-start; }

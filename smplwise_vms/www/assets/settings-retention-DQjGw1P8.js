@@ -130,7 +130,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
       stroke: var(--c-text);
       stroke-width: 1.5;
     }
-     sourceMappingURL=[^*]**/ the hit area of a band: wider than the mark, invisible; hover and focus light the bar */
+    /* the hit area of a band: wider than the mark, invisible; hover and focus light the bar */
     .hit {
       fill: transparent;
       cursor: default;
@@ -1488,7 +1488,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
         cursor: pointer;
         min-block-size: var(--elec-touch);
       }
-       sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the reading is the card's display numeral; the card answers the press */
+      /* R5-MEDIA-ENERGY-297: the reading is the card's display numeral; the card answers the press */
       .mcard .big {
         font-size: var(--sw-fs-4xl);
         font-weight: 800;
@@ -1532,7 +1532,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
         .head .inp {
           flex: 1 1 200px;
         }
-         sourceMappingURL=[^*]**/ the phone's area select fills the row beside the add button (one tidy row instead of a short select and a shorter button) */
+        /* the phone's area select fills the row beside the add button (one tidy row instead of a short select and a shorter button) */
         .head .inp.phone-only {
           flex: 1 1 160px;
         }
@@ -1545,7 +1545,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
           display: none;
         }
       }
-       sourceMappingURL=[^*]**/ NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the tree and the meters list take the height left
+      /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the tree and the meters list take the height left
          under the head and the tiles; the table (its header row stays in place), the cards and the tree each scroll inside their own
          box, never the page. Below 240 px of room the row keeps that height and the page scrolls (a very short window). */
       @media (min-width: 900px) {
@@ -1577,7 +1577,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
           overflow: auto;
           scrollbar-width: thin;
         }
-         sourceMappingURL=[^*]**/ GATEFIX2240-297: in a box of fixed height the grid shared that height out among its rows (the cards are overflow-clipped, so
+        /* GATEFIX2240-297: in a box of fixed height the grid shared that height out among its rows (the cards are overflow-clipped, so
            their automatic minimum is 0): at 1024 px the meter cards were squeezed and their reading row spilled below the card, at 1440 px
            they were stretched. Rows keep their content height and start at the top; the box scrolls. */
         .mlist > .cards {
@@ -1591,7 +1591,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
           z-index: 1;
         }
       }
-       sourceMappingURL=[^*]**/ R5 fix: the R5 type (bolder chips and names) made the meters table 8 px wider than its card at 1024 px (classic); the cells
+      /* R5 fix: the R5 type (bolder chips and names) made the meters table 8 px wider than its card at 1024 px (classic); the cells
          give 2 px of inline padding a side back so the table fits its card again */
       table.t[data-meters-table] th,
       table.t[data-meters-table] td {
@@ -1643,7 +1643,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
         align-items: flex-start;
         gap: 10px 16px;
         padding: 12px 14px;
-         sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: an option row is a well (a tone step, no outlined box inside the card) */
+        /* R5-MEDIA-ENERGY-297: an option row is a well (a tone step, no outlined box inside the card) */
         background: var(--sw-surface-2);
         border: 1px solid transparent;
         border-radius: var(--sw-r-md);
@@ -1675,7 +1675,7 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
         color: var(--sw-success-text, var(--sw-live-text));
         font-size: var(--sw-fs-sm);
       }
-       sourceMappingURL=[^*]**/ POLISH4-WP8 (owner Q7): on a phone the save row stays in view while the long list of data kinds scrolls under it (the settings
+      /* POLISH4-WP8 (owner Q7): on a phone the save row stays in view while the long list of data kinds scrolls under it (the settings
          kit's .foot.sticky look, styles/settings.ts); an option row's number field takes its own line */
       @media (max-width: 767px) {
         .foot {

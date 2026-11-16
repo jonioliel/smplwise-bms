@@ -14,7 +14,7 @@ const U=`<!doctype html>
   body { display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text);
     font: 15px/1.5 Heebo, system-ui, -apple-system, "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif; box-sizing: border-box;
     -webkit-font-smoothing: antialiased;
-     sourceMappingURL=[^*]**/ standalone: keep clear of the notch and the home indicator */
+    /* standalone: keep clear of the notch and the home indicator */
     padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px)); }
   main { width: 100%; max-width: 420px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 32px 24px 28px;
     box-shadow: var(--shadow); box-sizing: border-box; }

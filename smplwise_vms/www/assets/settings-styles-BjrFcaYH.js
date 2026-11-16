@@ -11,7 +11,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
   }
-   sourceMappingURL=[^*]**/ TKUI6: the label / hint / control rows of mock-up v5 (a hairline from the palette, a calm minimum height) */
+  /* TKUI6: the label / hint / control rows of mock-up v5 (a hairline from the palette, a calm minimum height) */
   .row {
     min-block-size: 54px;
     border-block-end-color: var(--dv-border, var(--sw-border));
@@ -19,11 +19,11 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
   .row .lbl {
     font-weight: var(--sw-fw-semibold);
   }
-   sourceMappingURL=[^*]**/ a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
+  /* a stacked row: the label is a line, not a 220 px flex basis (which is a HEIGHT in a column) */
   .row.stack .lbl {
     flex: none;
   }
-   sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#16, Q11 option 1): a field is the sw-field control of every settings page - the small radius and the md control
+  /* AUDIT30-C-TICKETS (#16, Q11 option 1): a field is the sw-field control of every settings page - the small radius and the md control
      height (it was the glass pill: 44 px, radius 999), the accent ring on focus; 44 px and 16 px text under a coarse pointer on a phone */
   .in {
     box-sizing: border-box;
@@ -78,7 +78,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
     inline-size: 100%;
   }
   .names > :first-child {
-    grid-column: 1 / -1;  sourceMappingURL=[^*]**/ the module's own name (owner rename 2026-10-14) takes its own row */
+    grid-column: 1 / -1; /* the module's own name (owner rename 2026-10-14) takes its own row */
   }
   .names label,
   .fld {
@@ -170,7 +170,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
-   sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, not the filled accent key */
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, not the filled accent key */
   .rc[aria-pressed='true'] {
     background: var(--sw-accent-soft);
     border-color: transparent;
@@ -218,7 +218,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
   .row .end.start {
     justify-content: flex-start;
   }
-   sourceMappingURL=[^*]**/ slice 2: the departments tab - a list at the start, the editor beside it (stacked on a narrow screen) */
+  /* slice 2: the departments tab - a list at the start, the editor beside it (stacked on a narrow screen) */
   .split {
     display: grid;
     grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
@@ -289,7 +289,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
     gap: 6px;
     flex-wrap: wrap;
   }
-   sourceMappingURL=[^*]**/ the SLA grid: a table on a wide screen, one card per priority on a phone */
+  /* the SLA grid: a table on a wide screen, one card per priority on a phone */
   .gridwrap {
     overflow-x: auto;
     max-inline-size: 100%;
@@ -408,7 +408,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
     min-inline-size: 0;
     overflow-wrap: anywhere;
   }
-   sourceMappingURL=[^*]**/ TKUI6: a stack of cards in two columns (the channel and the costs screens), one column on a narrow page */
+  /* TKUI6: a stack of cards in two columns (the channel and the costs screens), one column on a narrow page */
   .stack.cols {
     display: block;
     columns: 2 380px;
@@ -424,7 +424,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const r=e`
       columns: 1;
     }
   }
-   sourceMappingURL=[^*]**/ the layout follows the space the component really has (a settings page sits beside the settings index), not the window */
+  /* the layout follows the space the component really has (a settings page sits beside the settings index), not the window */
   :host {
     container-type: inline-size;
   }

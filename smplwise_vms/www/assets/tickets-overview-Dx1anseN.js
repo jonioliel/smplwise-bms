@@ -128,22 +128,22 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .n { direction: ltr; unicode-bidi: isolate; display: inline-block; font-variant-numeric: tabular-nums; }
     .amb { font-size: var(--sw-fs-md); color: var(--dv-text-2); }
     .amb em { font-style: normal; color: var(--dv-text); font-weight: 600; }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
     .dh { position: static; padding-block-start: 0; }
     .crumbs { font-size: var(--sw-fs-sm); color: var(--dv-text-2); margin-block-end: 2px; }
     .titles { min-inline-size: 0; }
     .seg button small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); font-weight: 600; font-variant-numeric: tabular-nums; margin-inline-start: 6px; }
     .offline-top { position: sticky; inset-block-start: 0; z-index: 16; margin: 0 -36px -16px; padding: 8px 36px; background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface-solid); border-block-end: 1px solid color-mix(in srgb, var(--dv-warning) 38%, transparent); font-size: var(--sw-fs-sm); font-weight: 600; color: var(--au-warn-text); display: flex; align-items: center; gap: 8px; }
-     sourceMappingURL=[^*]**/ the numbers row: the RFQ board's tiles */
+    /* the numbers row: the RFQ board's tiles */
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--sw-s-3); }
     .kpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border-radius: var(--sw-r-xl); border: 1px solid var(--dv-border); background: var(--dv-surface); -webkit-backdrop-filter: var(--dv-surface-blur); backdrop-filter: var(--dv-surface-blur); box-shadow: var(--dv-shadow-1); min-inline-size: 0; color: inherit; text-decoration: none; font: inherit; text-align: start; cursor: pointer; }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the number tile is a link - it answers hover (fine pointers only), the press and the keyboard (it had a pointer
+    /* POLISH-CONTROL-297: the number tile is a link - it answers hover (fine pointers only), the press and the keyboard (it had a pointer
        cursor and nothing else); transform and colour only, token durations - zero under reduced motion */
     .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .kpi:active { transform: scale(0.98); }
     .kpi:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; }
     .kpi small { font-size: var(--sw-fs-sm); color: var(--dv-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-     sourceMappingURL=[^*]**/ round 2 (dataviz hero number): the tile's number at display size, heavy and tight; the word stays a quiet line */
+    /* round 2 (dataviz hero number): the tile's number at display size, heavy and tight; the word stays a quiet line */
     .kpi b { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--dv-text); overflow-wrap: anywhere; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; }
     .kpi { gap: 6px; padding: 16px 20px; }
     .kpi.warn b { color: var(--au-warn-text); }
@@ -155,7 +155,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .kpi .least { font-size: var(--sw-fs-xs); font-weight: 600; color: var(--dv-text-3); }
     .page.stale .kpi b, .page.stale .lane .big, .page.stale .tree .n, .page.stale .cell { color: var(--dv-text-3); }
     .page.stale .load i.on, .page.stale .load i.hot { background: var(--dv-border-strong); }
-     sourceMappingURL=[^*]**/ the widget grid and the widget card */
+    /* the widget grid and the widget card */
     .wgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--dv-gap-lg, 18px); align-items: start; }
     .w { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 14px; border-radius: var(--sw-r-2xl); min-inline-size: 0; }
     .w.wide { grid-column: span 2; }
@@ -176,13 +176,13 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .cnt.bad { background: var(--dv-danger-soft); color: var(--dv-danger); }
     .quiet { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; font-size: var(--sw-fs-base); font-weight: 600; color: var(--au-ok-text); }
     .quiet .ic { font-size: var(--sw-fs-lg); }
-     sourceMappingURL=[^*]**/ round 2 loop 1 (impeccable harden): a widget's "not available now" is a tinted field with its retry, not a grey line in an empty card */
+    /* round 2 loop 1 (impeccable harden): a widget's "not available now" is a tinted field with its retry, not a grey line in an empty card */
     .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 52px; padding: 10px 14px; border-radius: var(--sw-r-lg); background: color-mix(in srgb, var(--dv-text) 5%, transparent); font-size: var(--sw-fs-base); font-weight: 600; color: var(--dv-text-2); }
     .unavail .btn { margin-inline-start: auto; }
     .skel { display: flex; flex-direction: column; gap: 10px; }
     .mut { color: var(--dv-text-3); font-size: var(--sw-fs-sm); }
     .note { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
-     sourceMappingURL=[^*]**/ where stuck */
+    /* where stuck */
     .rooms { flex-wrap: wrap; }
     .rc small { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding-inline: 5px; box-sizing: border-box; margin-inline-start: 8px; border-radius: var(--sw-r-pill); background: color-mix(in srgb, var(--dv-text) 8%, transparent); color: var(--dv-text-2); font-size: var(--sw-fs-xs); font-weight: 700; font-variant-numeric: tabular-nums; }
     .rc[aria-pressed='true'] small { background: color-mix(in srgb, currentColor 18%, transparent); color: inherit; }
@@ -207,7 +207,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .dot.acc { background: var(--dv-accent); }
     .dot.ok { background: var(--sw-success); }
     .dot.pur { background: var(--sw-purple); }
-     sourceMappingURL=[^*]**/ handler load */
+    /* handler load */
     .crows { display: flex; flex-direction: column; }
     .crow { display: grid; grid-template-columns: auto minmax(0, 1.4fr) auto auto; gap: 12px; align-items: center; padding: 6px; min-block-size: 56px; border-block-end: 1px solid var(--dv-border); color: inherit; text-decoration: none; font-size: var(--sw-fs-md); }
     .crow:last-child { border-block-end: 0; }
@@ -228,7 +228,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .load i { inline-size: 14px; block-size: 6px; border-radius: var(--sw-r-pill); background: var(--dv-surface-3); }
     .load i.on { background: var(--dv-accent); }
     .load i.hot { background: var(--dv-danger); }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the column heads of the handler table one step up from the smallest size (the audit's 10 px tier) */
+    /* POLISH-CONTROL-297: the column heads of the handler table one step up from the smallest size (the audit's 10 px tier) */
     .hhead { display: grid; grid-template-columns: 36px minmax(0, 1.4fr) auto auto; gap: 12px; padding-inline: 6px; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
     .hhead .st span { min-inline-size: 58px; text-align: center; }
     .hhead .ldc { min-inline-size: 70px; text-align: center; }
@@ -236,7 +236,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .sect { display: flex; flex-direction: column; gap: 8px; }
     .sect > h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--dv-text-2); }
     .sect > h4 .today { color: var(--dv-accent-text); }
-     sourceMappingURL=[^*]**/ who waits for whom */
+    /* who waits for whom */
     .lanes { display: grid; gap: 8px; }
     a.blk { text-decoration: none; color: inherit; }
     .lane .bt b { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-md); color: var(--dv-text); }
@@ -244,7 +244,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .lane .big { font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--dv-text); min-inline-size: 32px; text-align: center; }
     .lane .bi.me { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
     .lane .bi.ext { background: color-mix(in srgb, var(--sw-purple) 16%, transparent); color: color-mix(in srgb, var(--sw-purple) 68%, var(--dv-text)); }
-     sourceMappingURL=[^*]**/ rows: overdue and the agenda */
+    /* rows: overdue and the agenda */
     .closedrows { display: flex; flex-direction: column; padding: 4px 0; }
     .closedrows .cr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 14px; min-block-size: 44px; padding: 6px 10px; color: var(--dv-text); font-size: var(--sw-fs-base); text-align: start; text-decoration: none; border-radius: var(--sw-r-lg); }
     .closedrows .cr + .cr { border-block-start: 1px solid var(--dv-border); }
@@ -258,7 +258,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .cwarn { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--au-warn-text); }
     .cwarn.bad { color: var(--dv-danger); }
     .back { color: var(--dv-text-3); }
-     sourceMappingURL=[^*]**/ the department comparison */
+    /* the department comparison */
     .rtbl { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-base); }
     .rtbl th { text-align: start; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--dv-text-2); padding: 6px 8px; border-block-end: 1px solid var(--dv-border); white-space: nowrap; }
     .rtbl td { padding: 10px 8px; border-block-end: 1px solid var(--dv-border); vertical-align: middle; font-variant-numeric: tabular-nums; }
@@ -270,7 +270,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
       .tl:hover { text-decoration: underline; }
     }
     .dcards { display: none; }
-     sourceMappingURL=[^*]**/ phase 3: how much was handled, opened vs closed, waiting for my approval, requests for quotation */
+    /* phase 3: how much was handled, opened vs closed, waiting for my approval, requests for quotation */
     .w > header .pseg { margin-inline-start: auto; flex: none; }
     .w > header .pseg + .fold { margin-inline-start: 4px; }
     .rtbl.tp td.who { font-weight: 600; max-inline-size: 0; inline-size: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -293,12 +293,12 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .closedrows .cr .tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
     .closedrows .cr .tags .chip .ic { font-size: var(--sw-fs-xs); }
     .dcard.total { background: transparent; }
-     sourceMappingURL=[^*]**/ phase 4: an instalment row - the title takes the line, the due chip and the amount the line under it (the card is a third wide) */
+    /* phase 4: an instalment row - the title takes the line, the due chip and the amount the line under it (the card is a third wide) */
     .closedrows .cr[data-pay-row='instalment'] { grid-template-columns: auto minmax(0, 1fr) auto; }
     .closedrows .cr[data-pay-row='instalment'] .tags { grid-column: 2; grid-row: 2; justify-content: flex-start; align-items: center; gap: 8px; }
     .closedrows .cr[data-pay-row='instalment'] .back { grid-column: 3; grid-row: 1 / span 2; }
     .vh { position: absolute !important; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-     sourceMappingURL=[^*]**/ OVERVIEWFIT-297 (owner rule: a control screen never scrolls on a desktop; owner option א): on a desktop (.paged, set from
+    /* OVERVIEWFIT-297 (owner rule: a control screen never scrolls on a desktop; owner option א): on a desktop (.paged, set from
        TicketsOverview.pagedMq) the screen takes the window's height; the widgets keep their order and grid spans and are cut into pages
        of two rows that fill what is left under the numbers row; the pages sit side by side in a track that snaps page by page (the
        pager, a swipe, a trackpad, the keyboard focus). A long widget scrolls inside its own card. Elsewhere .wb is transparent and the
@@ -311,11 +311,11 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .paged .pg > .w { min-block-size: 0; overflow: hidden; }
     .paged .pg > .w.folded { align-self: start; }
     .paged .w > .wb { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; margin-inline: -6px; padding-inline: 6px; padding-block-end: 14px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
-     sourceMappingURL=[^*]**/ break-ui: a reference number never splits over two lines in a third-wide card */
+    /* break-ui: a reference number never splits over two lines in a third-wide card */
     .closedrows .cr .num { white-space: nowrap; }
     .paged .wgrid.top > .w { max-block-size: 30vh; overflow: hidden; }
     .paged .wgrid.top > .w > .wb { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 12px; }
-     sourceMappingURL=[^*]**/ many departments: one row that scrolls sideways (the controls row never grows into the widgets' room) */
+    /* many departments: one row that scrolls sideways (the controls row never grows into the widgets' room) */
     .paged .dh-det { flex-wrap: nowrap; }
     .paged .dh-det .depts { flex: 0 1 auto; min-inline-size: 0; overflow-x: auto; scrollbar-width: none; }
     .paged .dh-det .depts.over:dir(rtl) { -webkit-mask-image: linear-gradient(to left, transparent, #000 28px); mask-image: linear-gradient(to left, transparent, #000 28px); }
@@ -330,7 +330,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     .pager:dir(ltr) .pgb.next .ic { transform: none; }
     .pager .pgb { transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms ease; }
     .pager .pgb:active:not([disabled]) { transform: scale(0.94); }
-     sourceMappingURL=[^*]**/ mobile-native: a large touch screen (an iPad Pro in landscape) also gets the pages - no tap flash, no double-tap delay, no label selection */
+    /* mobile-native: a large touch screen (an iPad Pro in landscape) also gets the pages - no tap flash, no double-tap delay, no label selection */
     .pager .pgb, .pager .pd { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
     .pager .pgb[disabled] { opacity: 0.35; cursor: default; }
     .pager .pds { display: inline-flex; align-items: center; }
@@ -394,7 +394,7 @@ import{K as re,L as F,a as oe,S as de,M as le,N as ce,p as m,q as r,O as E,Q as 
     @media (pointer: coarse) {
       .tree .row, .closedrows .cr, .tl { min-block-size: 44px; }
     }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297: hover is for fine pointers only - a touch never leaves a tile, a row or the fold button lit */
+    /* POLISH-CONTROL-297: hover is for fine pointers only - a touch never leaves a tile, a row or the fold button lit */
     @media (hover: hover) and (pointer: fine) {
       .kpi:hover { border-color: var(--dv-border-strong, var(--dv-border)); box-shadow: var(--dv-shadow-2); }
       .w > header .fold:hover { background: var(--dv-surface-3); color: var(--dv-text); }

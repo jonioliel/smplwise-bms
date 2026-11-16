@@ -1,9 +1,9 @@
 import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   :host {
-     sourceMappingURL=[^*]**/ readable text on the soft success / warning fills (the palette's own colours are fills first) */
+    /* readable text on the soft success / warning fills (the palette's own colours are fills first) */
     --au-ok-text: color-mix(in srgb, var(--dv-success) 58%, #02300f);
     --au-warn-text: color-mix(in srgb, var(--dv-warning) 50%, #3d2400);
-    --au-bad-text: color-mix(in srgb, var(--dv-danger) 62%, #3d0505);  sourceMappingURL=[^*]**/ A11YFIX-297: the urgent chip was 3.3:1 in light (the bare danger colour on its soft fill) */
+    --au-bad-text: color-mix(in srgb, var(--dv-danger) 62%, #3d0505); /* A11YFIX-297: the urgent chip was 3.3:1 in light (the bare danger colour on its soft fill) */
   }
   :host([data-devices-scheme='dark']) {
     --au-ok-text: var(--dv-success);
@@ -11,10 +11,10 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
     --au-bad-text: var(--dv-danger);
   }
   .grow { flex: 1; }
-   sourceMappingURL=[^*]**/ the switch is 28-30 px high: its hit area is 44 px (an invisible margin of the button itself) */
+  /* the switch is 28-30 px high: its hit area is 44 px (an invisible margin of the button itself) */
   .tog::before { content: ''; position: absolute; inset: -8px -4px; }
   .tog[disabled] { opacity: 0.5; pointer-events: none; }
-   sourceMappingURL=[^*]**/ chips: state of an item, never a paragraph. R5-DEVICES-297: a filled field one step taller (28 px) in the base size, bold */
+  /* chips: state of an item, never a paragraph. R5-DEVICES-297: a filled field one step taller (28 px) in the base size, bold */
   .chip {
     display: inline-flex;
     align-items: center;
@@ -34,13 +34,13 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   .chip.info { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
   .chip.warn { background: var(--dv-warning-soft); color: var(--au-warn-text); }
   .chip.bad { background: var(--dv-danger-soft); color: var(--au-bad-text); }
-   sourceMappingURL=[^*]**/ the sensitive chip: amber (default) or red, the owner's setting */
+  /* the sensitive chip: amber (default) or red, the owner's setting */
   .chip.sens { background: var(--au-sens-bg, var(--dv-warning-soft)); color: var(--au-sens-fg, var(--au-warn-text)); }
   .dot { inline-size: 8px; block-size: 8px; border-radius: 50%; flex: none; background: var(--dv-offline, #98989d); }
   .dot.ok { background: var(--sw-success); }
   .dot.bad { background: var(--sw-danger); }
   .dot.run { background: var(--dv-accent); box-shadow: 0 0 0 3px var(--dv-accent-soft); }
-   sourceMappingURL=[^*]**/ banners above a list or inside the drawer */
+  /* banners above a list or inside the drawer */
   .banner {
     display: flex;
     align-items: center;
@@ -64,7 +64,7 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   .banner.bad > .ic { color: var(--dv-danger); }
   .banner.info > .ic { color: var(--dv-accent-text); }
   .banner .btn { margin-inline-start: auto; }
-   sourceMappingURL=[^*]**/ the sentence of an item: the one Hebrew line (a short paragraph) in an accent box. R5-DEVICES-297: it is the drawer's lead - the
+  /* the sentence of an item: the one Hebrew line (a short paragraph) in an accent box. R5-DEVICES-297: it is the drawer's lead - the
      heading size, semibold, with the heading ink */
   .sentence {
     display: flex;
@@ -81,7 +81,7 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   }
   .sentence > .ic { font-size: var(--sw-fs-3xl); color: var(--dv-accent-text); flex: none; margin-block-start: 1px; }
   .sentence small { display: block; font-size: var(--sw-fs-base); color: var(--dv-text-2); margin-block-start: 4px; font-weight: 500; letter-spacing: 0; }
-   sourceMappingURL=[^*]**/ drawer sections: כאשר / אם / אז, devices, runs. R5-DEVICES-297: the section title is a heading (md/700, heading ink) and its
+  /* drawer sections: כאשר / אם / אז, devices, runs. R5-DEVICES-297: the section title is a heading (md/700, heading ink) and its
      count a filled pill, so the sections read before the rows do */
   .sect { display: flex; flex-direction: column; gap: 8px; }
   .sect > h4 {
@@ -121,7 +121,7 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   .sect > h4 .tag.t1 { background: var(--sw-warning); }
   .sect > h4 .tag.t2 { background: #8e8e93; }
   .sect > h4 .tag.t3 { background: var(--dv-accent); }
-   sourceMappingURL=[^*]**/ R5-DEVICES-297: a block is a well (one tone step down, no outline) - a card inside the glass drawer read as a card in a card */
+  /* R5-DEVICES-297: a block is a well (one tone step down, no outline) - a card inside the glass drawer read as a card in a card */
   .blk {
     display: flex;
     align-items: center;
@@ -152,13 +152,13 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   .blk.nested { margin-inline-start: 22px; }
   .blk .chip { flex: none; }
   .tpl-badge { direction: ltr; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xs); padding: 1px 6px; border-radius: var(--sw-r-xs); background: var(--dv-surface-3); color: var(--dv-text-2); }
-   sourceMappingURL=[^*]**/ a small round back / close button on a sheet header */
+  /* a small round back / close button on a sheet header */
   .rb.sm { inline-size: 36px; block-size: 36px; }
   .rb.sm .ic { font-size: var(--sw-fs-lg); }
-   sourceMappingURL=[^*]**/ sheet footer and its buttons */
+  /* sheet footer and its buttons */
   .foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .foot .btn { flex: none; }
-   sourceMappingURL=[^*]**/ inputs of the glass style */
+  /* inputs of the glass style */
   .fld {
     display: flex;
     flex-direction: column;
@@ -183,7 +183,7 @@ import{i as e,fS as a}from"./index-C5kZ9jiu.js";const r=e`
   select.inp { padding-inline: 10px; }
   .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .empty-note { color: var(--dv-text-2); font-size: var(--sw-fs-base); padding: 6px 2px; }
-   sourceMappingURL=[^*]**/ R5-DEVICES-297: every key sinks on pointer-down (the skin's press scale; 1 = none), hover only for a fine pointer */
+  /* R5-DEVICES-297: every key sinks on pointer-down (the skin's press scale; 1 = none), hover only for a fine pointer */
   .btn, .rc, .more-btn, .more, .rb {
     transition: transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out), background-color var(--sw-t-fast, 120ms) var(--sw-ease, ease-out);
   }

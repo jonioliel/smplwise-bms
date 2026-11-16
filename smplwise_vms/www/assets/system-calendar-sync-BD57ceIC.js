@@ -159,14 +159,14 @@ import{qk as b,i as P,n as w,r,a as I,ak as m,ql as G,p as l,q as s,cc as U,x as
         <button slot="footer" type="button" class="btn" @click=${()=>this.newOpen=!1}>סגירה</button></sw-dialog>`:l}};h.styles=[M,Q,V,P`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     .panel { flex: 1; }
-     sourceMappingURL=[^*]**/ CALMSG-POLISH-2331: the title row sits above the panel like Settings › יומנים and every sw-page settings screen (crumb, the skin's h1) */
+    /* CALMSG-POLISH-2331: the title row sits above the panel like Settings › יומנים and every sw-page settings screen (crumb, the skin's h1) */
     h1 { margin: 0; font-family: var(--sw-font-heading, var(--sw-font)); font-size: var(--sw-h1, var(--sw-fs-2xl)); font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
       letter-spacing: var(--sw-h1-tracking, -0.01em); line-height: 1.2; color: var(--sw-heading); }
     .head { display: flex; align-items: flex-end; gap: 10px 16px; flex-wrap: wrap; padding-inline-end: var(--sw-float-reserve, 0px); }
     .ttl { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
     .crumb { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
     .state { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; max-inline-size: 50%; }
-     sourceMappingURL=[^*]**/ the actions sit on the card's floor: three cards of different content keep one action line */
+    /* the actions sit on the card's floor: three cards of different content keep one action line */
     .pcard > .acts { margin-block-start: auto; }
     .facts { display: flex; gap: 8px; flex: none; }
     .rulesh { margin-block-start: 4px; }
@@ -201,7 +201,7 @@ import{qk as b,i as P,n as w,r,a as I,ak as m,ql as G,p as l,q as s,cc as U,x as
       .panel { padding: 12px; gap: 10px; }
       .rules, .rulesh, .newbtn { display: none; }
       .flag { padding: 8px 10px; gap: 6px 8px; flex-wrap: wrap; }
-       sourceMappingURL=[^*]**/ the two decisions go under the entry: the title was cut to a few words beside them */
+      /* the two decisions go under the entry: the title was cut to a few words beside them */
       .flag .grow { flex-basis: calc(100% - 48px); }
       .facts { inline-size: 100%; justify-content: flex-end; }
       .crumb { display: none; }

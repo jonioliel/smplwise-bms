@@ -172,7 +172,7 @@ import{a as M,K as m,bD as T,cV as B,aT as N,R as y,ak as b,U as O,cT as P,W as 
       max-inline-size: 360px;
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (WP9): the search field states as on the stations screen (WKWATER) - a hover edge only under a
+    /* ROUND4-LEFTOVERS-2390 (WP9): the search field states as on the stations screen (WKWATER) - a hover edge only under a
        fine hovering pointer, a focus ring on the field (the input itself has no outline), 44 px on a touch screen */
     @media (hover: hover) and (pointer: fine) {
       .search:hover {
@@ -212,7 +212,7 @@ import{a as M,K as m,bD as T,cV as B,aT as N,R as y,ak as b,U as O,cT as P,W as 
       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
       gap: 12px;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: a station card is the hero step of this screen (radius lg, shadow 2); a ringing one is a FILLED warning field,
+    /* R5-SECURITY: a station card is the hero step of this screen (radius lg, shadow 2); a ringing one is a FILLED warning field,
        an offline one steps down a tone */
     .door {
       display: flex;
@@ -267,7 +267,7 @@ import{a as M,K as m,bD as T,cV as B,aT as N,R as y,ak as b,U as O,cT as P,W as 
       min-inline-size: 0;
     }
     .title b {
-       sourceMappingURL=[^*]**/ R5-SECURITY: the station's name is the card's display line - 17/800 in the heading ink */
+      /* R5-SECURITY: the station's name is the card's display line - 17/800 in the heading ink */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -293,7 +293,7 @@ import{a as M,K as m,bD as T,cV as B,aT as N,R as y,ak as b,U as O,cT as P,W as 
       padding: 4px 12px;
       border-radius: var(--sw-r-pill);
       background: var(--sw-warning);
-       sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (WP9): white on the amber fill read 2.2:1 (classic) - the ink for a warning fill */
+      /* ROUND4-LEFTOVERS-2390 (WP9): white on the amber fill read 2.2:1 (classic) - the ink for a warning fill */
       color: var(--sw-on-warning);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-bold);
@@ -309,7 +309,7 @@ import{a as M,K as m,bD as T,cV as B,aT as N,R as y,ak as b,U as O,cT as P,W as 
     .facts b {
       color: var(--sw-heading, var(--sw-text));
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the badges of this screen read as fields - 12.5/700 on 22 px */
+    /* R5-SECURITY: the badges of this screen read as fields - 12.5/700 on 22 px */
     sw-badge {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-bold);
@@ -338,7 +338,7 @@ import{a as M,K as m,bD as T,cV as B,aT as N,R as y,ak as b,U as O,cT as P,W as 
       object-fit: cover;
     }
     .still .tag {
-       sourceMappingURL=[^*]**/ sw-camera-tile's own "צילום" (still) tag */
+      /* sw-camera-tile's own "צילום" (still) tag */
       position: absolute;
       inset-inline-end: 8px;
       inset-block-start: 8px;

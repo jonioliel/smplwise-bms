@@ -93,7 +93,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       --al-motion: var(--sw-accent);
       --al-armed: var(--sw-accent);
     }
-     sourceMappingURL=[^*]**/ ---- the panel switcher (two or more partitions) ---- */
+    /* ---- the panel switcher (two or more partitions) ---- */
     .switcher {
       display: flex;
       gap: 6px;
@@ -117,7 +117,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease),
         transform var(--sw-t-press) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (WP9): the panel switcher's hover only under a fine hovering pointer (it stuck after a tap on a
+    /* ROUND4-LEFTOVERS-2390 (WP9): the panel switcher's hover only under a fine hovering pointer (it stuck after a tap on a
        touch screen), and a press on pointer-down like the filter chips */
     @media (hover: hover) and (pointer: fine) {
       .switcher button:hover {
@@ -156,7 +156,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
     .dot.triggered {
       background: var(--al-fault);
     }
-     sourceMappingURL=[^*]**/ ---- the state card: one tone (bar, shield ring, a faint wash) says what is armed; the label is the biggest text on the screen ---- */
+    /* ---- the state card: one tone (bar, shield ring, a faint wash) says what is armed; the label is the biggest text on the screen ---- */
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -164,7 +164,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       align-items: center;
       padding: 22px 24px;
       border-radius: var(--sw-r-lg);
-       sourceMappingURL=[^*]**/ R5-SECURITY: the hero step - the tone is a field (12%), not a wash (4%); its edge and its shadow carry the same tone */
+      /* R5-SECURITY: the hero step - the tone is a field (12%), not a wash (4%); its edge and its shadow carry the same tone */
       background: var(--sw-glass-sheen), color-mix(in srgb, var(--tone, var(--sw-offline)) 12%, var(--sw-surface));
       -webkit-backdrop-filter: var(--sw-glass-blur);
       backdrop-filter: var(--sw-glass-blur);
@@ -203,7 +203,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
     .hero[data-tone='offline'] {
       --tone: var(--sw-offline);
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY (animation-performance): the triggered pulse is a ring on the shield, on transform + opacity (composited), not a
+    /* R5-SECURITY (animation-performance): the triggered pulse is a ring on the shield, on transform + opacity (composited), not a
        box-shadow of the whole card (paint every frame) */
     .hero[data-tone='triggered'] .shield::after {
       content: '';
@@ -224,7 +224,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
         opacity: 0;
       }
     }
-     sourceMappingURL=[^*]**/ the arrival of a new state: the shield and the label settle in (once, never looping) */
+    /* the arrival of a new state: the shield and the label settle in (once, never looping) */
     @keyframes state-in {
       from {
         opacity: 0.4;
@@ -266,7 +266,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       color: var(--sw-text-inverse);
     }
     .state-label {
-       sourceMappingURL=[^*]**/ R5-SECURITY: the display word of the screen - 34/800, tracking -0.03em (impeccable craft-floor: obvious scale steps) */
+      /* R5-SECURITY: the display word of the screen - 34/800, tracking -0.03em (impeccable craft-floor: obvious scale steps) */
       font-size: clamp(26px, 5.5vw, 34px);
       font-weight: 800;
       color: var(--sw-heading, var(--sw-text));
@@ -341,7 +341,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
     .sent[data-alarm-sent='unknown']::before {
       background: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ ---- the zones: filter chips, a card / list switch, the count ---- */
+    /* ---- the zones: filter chips, a card / list switch, the count ---- */
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -359,7 +359,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       gap: 6px;
       flex-wrap: wrap;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the filter chips are raised keys (a tone step + shadow 1), not outlined pills; they sink on pointer-down */
+    /* R5-SECURITY: the filter chips are raised keys (a tone step + shadow 1), not outlined pills; they sink on pointer-down */
     .chips button {
       font: inherit;
       font-size: var(--sw-fs-base);
@@ -457,7 +457,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the area is a heading (16/800 in the heading ink), its count a filled pill */
+    /* R5-SECURITY: the area is a heading (16/800 in the heading ink), its count a filled pill */
     h3 {
       margin: 8px 0 8px;
       font-size: var(--sw-fs-xl);
@@ -481,7 +481,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       place-items: center;
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ the areas pack side by side on a wide screen (an area with one sensor no longer owns a whole row); each keeps its own cards grid */
+    /* the areas pack side by side on a wide screen (an area with one sensor no longer owns a whole row); each keeps its own cards grid */
     .areas {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
@@ -496,7 +496,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ a zone card: icon, name, state; the tone shows as the icon square, the state word and a faint wash - never a colour alone */
+    /* a zone card: icon, name, state; the tone shows as the icon square, the state word and a faint wash - never a colour alone */
     .zone {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -512,7 +512,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       position: relative;
       transition: background var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: a sensor that needs a look is a FILLED field (the whole card in the tone's soft colour), not a 6% wash + a 1px edge */
+    /* R5-SECURITY: a sensor that needs a look is a FILLED field (the whole card in the tone's soft colour), not a 6% wash + a 1px edge */
     .zone[data-tone='open'] {
       border-color: color-mix(in srgb, var(--al-open) 45%, transparent);
       background: var(--sw-glass-sheen), var(--sw-warning-soft);
@@ -575,7 +575,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       align-items: center;
     }
     .zstate {
-       sourceMappingURL=[^*]**/ R5-SECURITY: the state word reads first - 15/800 */
+      /* R5-SECURITY: the state word reads first - 15/800 */
       font-size: var(--sw-fs-lg);
       font-weight: 800;
       transition: color var(--sw-t-state) var(--sw-ease);
@@ -614,7 +614,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       font-size: var(--sw-fs-2xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ the list view: one dense row per zone, the same icon / name / state / bypass switch, hairlines between the rows */
+    /* the list view: one dense row per zone, the same icon / name / state / bypass switch, hairlines between the rows */
     .zlist {
       display: flex;
       flex-direction: column;
@@ -645,7 +645,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
         background: var(--sw-hover-wash);
       }
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the list row carries the same filled field as the card */
+    /* R5-SECURITY: the list row carries the same filled field as the card */
     .zrow[data-tone='open'] {
       background: var(--sw-warning-soft);
     }
@@ -735,7 +735,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-     sourceMappingURL=[^*]**/ VISDIFF-246: the filter chips and the cards / list switch are 44 px touch targets on a phone and a tablet (the chips were
+    /* VISDIFF-246: the filter chips and the cards / list switch are 44 px touch targets on a phone and a tablet (the chips were
        32 px and the switch 30 x 28 px in every layout) */
     @media (max-width: 1100px) {
       .chips button {
@@ -770,7 +770,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
     details.unpaired li {
       margin-block: 2px;
     }
-     sourceMappingURL=[^*]**/ ---- the keypad: its own material (big digits, a masked field, large keys), both schemes ---- */
+    /* ---- the keypad: its own material (big digits, a masked field, large keys), both schemes ---- */
     .keypad {
       display: flex;
       flex-direction: column;
@@ -815,7 +815,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
       -webkit-tap-highlight-color: transparent;
       transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ ROUND4-LEFTOVERS-2390 (WP9): a keypad is pressed with a finger - its hover only under a fine pointer (a tapped digit kept
+    /* ROUND4-LEFTOVERS-2390 (WP9): a keypad is pressed with a finger - its hover only under a fine pointer (a tapped digit kept
        the hover wash), the press scale from the motion tokens (zeroed with reduced motion) */
     @media (hover: hover) and (pointer: fine) {
       .keys button:hover {
@@ -904,7 +904,7 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
         min-inline-size: 0;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls): from 1024 px the page takes the screen's height, the state
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls): from 1024 px the page takes the screen's height, the state
        panel is a little denser, and the sensors (the one list that grows with the installation) take the room left and scroll inside
        their own region; the state, the arm keys and the filters never leave the screen */
     @media (min-width: 1024px) {
@@ -927,12 +927,12 @@ import{a as z,S as _,bz as E,aS as T,bI as R,K as v,aV as C,qz as S,ak as u,br a
         min-block-size: 0;
         overflow-y: auto;
         overscroll-behavior: contain;
-         sourceMappingURL=[^*]**/ room for the cards' shadow and focus ring inside the scroller */
+        /* room for the cards' shadow and focus ring inside the scroller */
         padding: 2px 4px 6px;
         margin-inline: -4px;
       }
     }
-     sourceMappingURL=[^*]**/ the bubble skin: the list and its rows are flat layers, the view switch a pill track */
+    /* the bubble skin: the list and its rows are flat layers, the view switch a pill track */
     :host([data-skin='bubble']) .zlist {
       border-color: transparent;
       background: var(--sw-surface);

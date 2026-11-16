@@ -48,7 +48,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     font-variant-numeric: tabular-nums;
   }
 
-   sourceMappingURL=[^*]**/ ---- the step bar */
+  /* ---- the step bar */
   .wz-steps {
     grid-area: steps;
     display: flex;
@@ -129,7 +129,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     }
   }
 
-   sourceMappingURL=[^*]**/ ---- the canvas: the plan on a dotted table, never mirrored */
+  /* ---- the canvas: the plan on a dotted table, never mirrored */
   .wz-canvas {
     grid-area: canvas;
     position: relative;
@@ -201,7 +201,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     border-radius: 3px;
     border: 2px solid var(--sw-text-3);
   }
-   sourceMappingURL=[^*]**/ the scanning band: a full-height layer whose last 90 px carry the light, moved by its own height (no layout per frame) */
+  /* the scanning band: a full-height layer whose last 90 px carry the light, moved by its own height (no layout per frame) */
   .scan {
     position: absolute;
     inset: 0;
@@ -301,7 +301,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     box-shadow: var(--sw-shadow-1);
   }
 
-   sourceMappingURL=[^*]**/ ---- the side panel */
+  /* ---- the side panel */
   .wz-side {
     grid-area: side;
     background: var(--sw-surface);
@@ -734,7 +734,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
   .dev[aria-pressed='true'] {
     border-color: var(--sw-accent);
   }
-   sourceMappingURL=[^*]**/ PLAN3D-R28-WIZARD2-2434: a placed camera, devices / cameras switch, the resume and kept-plan cards, the replace dialog */
+  /* PLAN3D-R28-WIZARD2-2434: a placed camera, devices / cameras switch, the resume and kept-plan cards, the replace dialog */
   .dev.set .w {
     color: var(--sw-accent-text);
   }
@@ -766,7 +766,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     transform: scale(0.97);
   }
   .seg button[aria-selected='true'] {
-     sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380: the chosen key reads the key tokens (in dark the light pill + its ink); light keeps the card surface */
+    /* DARK-SEG-ALL-2380: the chosen key reads the key tokens (in dark the light pill + its ink); light keeps the card surface */
     background: var(--sw-seg-key, var(--sw-surface));
     color: var(--sw-seg-key-ink, var(--sw-text));
     box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
@@ -811,7 +811,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     flex-wrap: wrap;
   }
 
-   sourceMappingURL=[^*]**/ ---- the footer */
+  /* ---- the footer */
   .wz-foot {
     grid-area: foot;
     display: flex;
@@ -833,7 +833,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
     white-space: nowrap;
   }
 
-   sourceMappingURL=[^*]**/ ---- the settings dialog */
+  /* ---- the settings dialog */
   .prefs {
     display: grid;
     gap: 14px;
@@ -993,7 +993,7 @@ import{_,p as v,K as Oe,L as Ee,av as je,c7 as Te,cc as Me,c8 as Ce,cd as ie,bB 
         <span class="hide-ph">${this.uploaded&&this.uploaded.pages.length>1?"בחר בצד את העמוד שבו נמצאת התוכנית":"תמונה או PDF של תוכנית אדריכלית, שרטוט מכירות או סריקה"}</span>
         <div class="row">
           <span><input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" data-wz-file @change=${a=>void this.onFile(a.target.files?.[0])} /><sw-button variant="primary" size="lg" ?disabled=${this.busy} @click=${a=>a.currentTarget.parentElement?.querySelector("input")?.click()}>${this.busy?"מעלה…":"בחר קובץ"}</sw-button></span>
-          <span><input type="file" accept="image sourceMappingURL=[^*]**/" capture="environment" @change=${a=>void this.onFile(a.target.files?.[0])} /><sw-button size="lg" icon="camera" ?disabled=${this.busy} @click=${a=>a.currentTarget.parentElement?.querySelector("input")?.click()}>צלם</sw-button></span>
+          <span><input type="file" accept="image/*" capture="environment" @change=${a=>void this.onFile(a.target.files?.[0])} /><sw-button size="lg" icon="camera" ?disabled=${this.busy} @click=${a=>a.currentTarget.parentElement?.querySelector("input")?.click()}>צלם</sw-button></span>
         </div>
         <div class="fmts"><span class="tag">PNG</span><span class="tag">JPG</span><span class="tag">PDF</span><a class="tag" href=${`#/explore/floors/${this.floorId}/import`}>DXF / IFC: ייבוא מדויק, בלי זיהוי</a></div>
       </div>`;if(t===2)return l`<div class="sheet">${this.planSvg(e,s,v)}</div>${this.phases.structure==="run"?l`<i class="scan" aria-hidden="true"></i>`:v}`;if(t===3){const a=this.geom,n=this.set;if(!a||!n)return v;const r=new Set(Object.entries(this.decisions).filter(([,o])=>o==="none").map(([o])=>o));return l`<div class="sheet">${this.planSvg(e,s,fe(a,n,this.prefs,new Set(Object.keys(this.decisions)),r,this.current),{click:o=>this.onCandClick(o)})}</div>

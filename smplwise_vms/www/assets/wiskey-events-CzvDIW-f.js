@@ -36,7 +36,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
       gap: 12px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the sections are wells (a tone step, no edge, radius lg); headings 14.5/700 in the heading ink; values 600 */
+    /* R5-SECURITY: the sections are wells (a tone step, no edge, radius lg); headings 14.5/700 in the heading ink; values 600 */
     .sect {
       border: 1px solid transparent;
       border-radius: var(--sw-r-lg);
@@ -243,7 +243,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
         <sw-button size="lg" data-wiskey-custom-cancel @click=${()=>this.customOpen=!1}>${t("crCancel")}</sw-button>
       </div>
     </sw-dialog>`}};h.styles=q`
-     sourceMappingURL=[^*]**/ every control of this screen - the shared buttons and the dialogs' close buttons included - has the touch size: the desktop dial
+    /* every control of this screen - the shared buttons and the dialogs' close buttons included - has the touch size: the desktop dial
        (44 px unless the owner chose the 32 px one) and 44 px on touch layouts. The control-height tokens inherit into the components'
        shadow roots. */
     :host {
@@ -300,7 +300,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
       box-shadow: 0 0 0 3px var(--sw-accent-soft);
     }
     .search input {
-       sourceMappingURL=[^*]**/ an explicit zero width: a text input's intrinsic width is also its minimum, and a row of icon buttons beside it must fit a phone */
+      /* an explicit zero width: a text input's intrinsic width is also its minimum, and a row of icon buttons beside it must fit a phone */
       flex: 1 1 0;
       inline-size: 0;
       min-inline-size: 0;
@@ -369,7 +369,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
       gap: 6px;
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ one scrolling row that bleeds to the screen's edges: sw-page's phone padding is 12 px */
+      /* one scrolling row that bleeds to the screen's edges: sw-page's phone padding is 12 px */
       .chips {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -411,7 +411,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
     .feed {
       display: block;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY: the day heading is a heading (13/800 in the heading ink on a tone step) */
+    /* R5-SECURITY: the day heading is a heading (13/800 in the heading ink on a tone step) */
     .grp {
       padding: 9px 14px;
       background: var(--sw-surface-3);
@@ -446,7 +446,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
     .grp + .row {
       border-block-start: 0;
     }
-     sourceMappingURL=[^*]**/ R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the row sinks on pointer-down; a refused entry is a
+    /* R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the row sinks on pointer-down; a refused entry is a
        filled danger field, a call a filled accent field (status as a field, never a wash) */
     @media (hover: hover) and (pointer: fine) {
       .row:hover {
@@ -466,7 +466,7 @@ import{q as r,_ as C,i as q,n as m,r as c,a as Y,R as E,p as l,x as H,ak as ie,d
       outline-offset: -2px;
     }
     .time {
-       sourceMappingURL=[^*]**/ the time is the display figure of a log row: 15/800, tabular, in the heading ink */
+      /* the time is the display figure of a log row: 15/800, tabular, in the heading ink */
       flex: none;
       min-inline-size: 56px;
       color: var(--sw-heading, var(--sw-text));

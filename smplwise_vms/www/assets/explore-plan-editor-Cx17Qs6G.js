@@ -512,7 +512,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
       display: flex;
       flex-direction: column;
       gap: 4px;
-       sourceMappingURL=[^*]**/ the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the tool rail, the floor chip, the level bar and the legend */
+      /* the HUD panels over the plan are opaque (owner 2026-10-13, styles/menu-surface.ts): the tool rail, the floor chip, the level bar and the legend */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
@@ -574,7 +574,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     .bar .grow {
       flex: 1;
     }
-     sourceMappingURL=[^*]**/ T085 pan/help: the hand-tool toggle and the shortcuts-help button live in the top bar, not the vertical rail (an
+    /* T085 pan/help: the hand-tool toggle and the shortcuts-help button live in the top bar, not the vertical rail (an
      * absolute overlay whose height is capped by the legend below it) - a row that grows in normal flow instead. The
      * hand tool is a modifier over whatever tool is active, not a content tool of its own, so its "on" state gets an
      * amber tone rather than the rail's blue accent, keeping it visually distinct from a selected tool. */
@@ -593,7 +593,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     }
     .bar button.icon.on {
       background: var(--sw-warning-soft);
-      color: var(--sw-warning-text);  sourceMappingURL=[^*]**/ POLISH4 WP6 (D28): the bare warning hue read ~2:1 on its own wash in light; the ink is >= 4.5:1 */
+      color: var(--sw-warning-text); /* POLISH4 WP6 (D28): the bare warning hue read ~2:1 on its own wash in light; the ink is >= 4.5:1 */
       border-color: var(--sw-warning);
     }
     .bar button.icon:disabled {
@@ -623,13 +623,13 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
       pointer-events: none;
       z-index: var(--sw-z-map-ui);
     }
-     sourceMappingURL=[^*]**/ WALLP: the drawing hints (a wall, a curved wall) float at the bottom of the window: the map column grows with the
+    /* WALLP: the drawing hints (a wall, a curved wall) float at the bottom of the window: the map column grows with the
        side panel, so its own bottom edge is often below the fold (a tablet in landscape never saw the live length,
        radius and the finish button) */
     .placing-hint.float {
       position: fixed;
       inset-block-end: 16px;
-      pointer-events: none;  sourceMappingURL=[^*]**/ only the pill takes the pointer: the strip beside it stays the map's */
+      pointer-events: none; /* only the pill takes the pointer: the strip beside it stays the map's */
     }
     .placing-hint.float.bindbar span {
       pointer-events: auto;
@@ -686,7 +686,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     .err {
       color: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ T085 pan/help: the keyboard-shortcuts dialog's grouped list */
+    /* T085 pan/help: the keyboard-shortcuts dialog's grouped list */
     .shortcuts-group h4 {
       margin: 10px 0 4px;
       font-size: var(--sw-fs-sm);
@@ -719,13 +719,13 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     .shortcuts-row span {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the plan is the hero (shadow 2), the tool rail a raised panel whose active tool is
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the plan is the hero (shadow 2), the tool rail a raised panel whose active tool is
        the accent FIELD (a disabled tool dims by its ink, never by fading the box); the save state is a filled pill (saved = the success field,
        unsaved = the stale field) instead of a 7 px dot beside grey text; the legend in the body ink with 10 px dots; keys and values in the
        side cards read at a glance. Press on pointer-down; hover only with a fine pointer. */
     .mapwrap {
       box-shadow: var(--sw-shadow-2);
-       sourceMappingURL=[^*]**/ loop 2: the map ground a tone step down (the desk), the plan sheet floats, the rail and chips read as raised */
+      /* loop 2: the map ground a tone step down (the desk), the plan sheet floats, the rail and chips read as raised */
       --sw-map-bg: var(--sw-surface-3);
     }
     .rail {
@@ -748,7 +748,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     .bar button.icon {
       transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D12 / D13): hover lives only under a fine pointer - the tool rail, the bar's icon keys and the side lists never keep a
+    /* POLISH4 WP6 (D12 / D13): hover lives only under a fine pointer - the tool rail, the bar's icon keys and the side lists never keep a
        sticky wash after a tap on a tablet (it replaces the ungated :hover + (hover: none) undo pair); the active key keeps its own fill */
     @media (hover: hover) and (pointer: fine) {
       .rail button:hover:not(.on):not(:disabled) {
@@ -782,7 +782,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     .autosave.dirty i {
       background: currentColor;
     }
-     sourceMappingURL=[^*]**/ a HUD panel keeps the opaque menu surface (owner 2026-10-13, unit-menu-lint): the chip's weight comes from a 2 px accent edge and the
+    /* a HUD panel keeps the opaque menu surface (owner 2026-10-13, unit-menu-lint): the chip's weight comes from a 2 px accent edge and the
        accent ink, not from an accent fill */
     .floorchip {
       font-size: var(--sw-fs-md);
@@ -817,7 +817,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-accent-text);
     }
-     sourceMappingURL=[^*]**/ a circuit row's colour as a 10 px dot in front of the name, not a 4 px coloured side edge (impeccable "side-tab") */
+    /* a circuit row's colour as a 10 px dot in front of the name, not a 4 px coloured side edge (impeccable "side-tab") */
     .list button[data-circuit-row]::before {
       content: '';
       inline-size: 10px;
@@ -881,7 +881,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     .kv .k {
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ CAMSUGGEST138-295: at most three rows, so the zone panel keeps fitting the viewport */
+    /* CAMSUGGEST138-295: at most three rows, so the zone panel keeps fitting the viewport */
     .cam-sug {
       display: flex;
       align-items: center;
@@ -896,7 +896,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
       flex-direction: column;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ CR-009: a room shown on two floors */
+    /* CR-009: a room shown on two floors */
     .shared-hint {
       display: flex;
       align-items: center;
@@ -990,7 +990,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
       flex-wrap: wrap;
       margin-block-start: 10px;
     }
-     sourceMappingURL=[^*]**/ K88: the floor-image upload buttons (the file input stays hidden behind the button) */
+    /* K88: the floor-image upload buttons (the file input stays hidden behind the button) */
     .upl {
       display: inline-flex;
     }
@@ -1110,7 +1110,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
     }
     .bindbar button {
       margin-inline-start: 8px;
-       sourceMappingURL=[^*]**/ POLISH4 WP6 (D13): the key sits on the toast-coloured hint pill, so it takes the toast ink (was white / white 60 % literals) */
+      /* POLISH4 WP6 (D13): the key sits on the toast-coloured hint pill, so it takes the toast ink (was white / white 60 % literals) */
       border: 1px solid color-mix(in srgb, var(--sw-toast-text) 60%, transparent);
       background: transparent;
       color: var(--sw-toast-text);
@@ -1125,13 +1125,13 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
       align-items: center;
       gap: 6px;
       position: absolute;
-      left: 50%;  sourceMappingURL=[^*]**/ physical: in RTL inset-inline-start is the right edge, and the -50% shift pushed the bar off the canvas's left */
+      left: 50%; /* physical: in RTL inset-inline-start is the right edge, and the -50% shift pushed the bar off the canvas's left */
       transform: translateX(-50%);
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-2xl);  sourceMappingURL=[^*]**/ a pill on one row; a rounded card, not a blob, when a narrow canvas wraps it */
+      border-radius: var(--sw-r-2xl); /* a pill on one row; a rounded card, not a blob, when a narrow canvas wraps it */
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
       max-inline-size: 60%;
@@ -1144,7 +1144,7 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
         order: 2;
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D13): a phone gets the canvas at most 70 % of the screen tall (it was a fixed 520 / 560 px floor that pushed the
+    /* POLISH4 WP6 (D13): a phone gets the canvas at most 70 % of the screen tall (it was a fixed 520 / 560 px floor that pushed the
        properties a full screen down), the tighter phone gap and the medium radius of a phone card */
     @media (max-width: 767px) {
       .layout {
@@ -1156,14 +1156,14 @@ import{au as ts,cc as q,ch as es,p,q as h,i as Wt,L as ss,aw as is,az as os,av a
         border-radius: var(--sw-r-md);
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D13): a finger gets a larger key on the bar's 26 px icon buttons (the tool rail is already 38 px) */
+    /* POLISH4 WP6 (D13): a finger gets a larger key on the bar's 26 px icon buttons (the tool rail is already 38 px) */
     @media (pointer: coarse) {
       .bar button.icon {
         position: relative;
         inline-size: var(--sw-ctl-h-lg);
         block-size: var(--sw-ctl-h-lg);
       }
-       sourceMappingURL=[^*]**/ A11Y-R4-LEFTOVERS-2380: the drawn key stays --sw-ctl-h-lg (36 / 40 px, so the bar does not grow on a tablet); an invisible layer
+      /* A11Y-R4-LEFTOVERS-2380: the drawn key stays --sw-ctl-h-lg (36 / 40 px, so the bar does not grow on a tablet); an invisible layer
        * brings the hit area to 44 px. It reaches at most 4 px past the key, and the bar's gap is 8 px, so two neighbours never overlap. */
       .bar button.icon::after {
         content: '';

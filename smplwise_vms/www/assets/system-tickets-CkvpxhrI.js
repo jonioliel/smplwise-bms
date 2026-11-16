@@ -448,7 +448,7 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
       padding-inline-start: 16px;
       border-inline-start: 2px solid var(--dv-border, var(--sw-border));
     }
-     sourceMappingURL=[^*]**/ GATE-FIX-2270: a department's mode row already sits inside the departments well (R5-SYSTEM-297 made every .row a well):
+    /* GATE-FIX-2270: a department's mode row already sits inside the departments well (R5-SYSTEM-297 made every .row a well):
        no second well around it, and its three keys (now 16/600) move under the department's name when the row is too narrow,
        instead of being cut (320 px) or leaving the well (1024 px) */
     .nested .row {
@@ -1409,16 +1409,16 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
       --sw-seg-gap: 2px;
       --sw-seg-h: var(--sw-touch-desktop);
       --sw-seg-divider: 0 solid transparent;
-       sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#3, #4, Q3 option 1): the chosen key of every segment on this page (the name's gender, the long press) is
+      /* AUDIT30-C-TICKETS (#3, #4, Q3 option 1): the chosen key of every segment on this page (the name's gender, the long press) is
          the Blue Wash pair - in dark the old light thumb under --dv-text read white on white (1:1) */
       --sw-seg-on-bg: var(--sw-accent-soft);
-       sourceMappingURL=[^*]**/ SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 3): the label on the thumb is the thumb's own ink (--mm-seg-fg-on, POLISH2-295),
+      /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 3): the label on the thumb is the thumb's own ink (--mm-seg-fg-on, POLISH2-295),
          as on every other glass segment - --dv-text is near-white in dark and the chosen tab / gender read white on white (1:1). In
          light both are --dv-text (no change). */
       --sw-seg-on-fg: var(--sw-accent-text);
       --sw-seg-on-shadow: none;
     }
-     sourceMappingURL=[^*]**/ MGRDASH: the "busy" threshold fields of the manager overview card (tickets/overview-settings.ts) */
+    /* MGRDASH: the "busy" threshold fields of the manager overview card (tickets/overview-settings.ts) */
     .num-in {
       inline-size: 4.5em;
       min-block-size: 36px;
@@ -1455,13 +1455,13 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
       box-sizing: border-box;
       gap: 16px;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#18): the tabs are the underline row of sw-tabs (the centred sticky glass pill is gone: its chosen tab read
+    /* AUDIT30-C-TICKETS (#18): the tabs are the underline row of sw-tabs (the centred sticky glass pill is gone: its chosen tab read
        white on white in dark, finding 3) */
     .stabs {
       display: block;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#16, Q11 option 1): a card's save key shows only when the card has a change; its footer (the hairline and the
+    /* AUDIT30-C-TICKETS (#16, Q11 option 1): a card's save key shows only when the card has a change; its footer (the hairline and the
        room) goes with it */
     .foot:not(:has(> :not([hidden]))) {
       display: none;
@@ -1486,7 +1486,7 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
     .stack {
       max-inline-size: none;
     }
-     sourceMappingURL=[^*]**/ TKSET-POLISH-2331: the tab body is its own size container - the two card columns need ~1000 px of the PAGE (not of the shell
+    /* TKSET-POLISH-2331: the tab body is its own size container - the two card columns need ~1000 px of the PAGE (not of the shell
        around it): at 1024 the shell container was still above 900 px while each column was ~420 px, and a row's label broke one word
        per line beside its segmented control. Below 1000 px of the body the cards take one column. */
     .tbody {
@@ -1499,18 +1499,18 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
         grid-template-columns: minmax(0, 1fr);
       }
     }
-     sourceMappingURL=[^*]**/ a number field keeps its unit on its own line ("24 שעות", never the unit under the field) */
+    /* a number field keeps its unit on its own line ("24 שעות", never the unit under the field) */
     .unit {
       flex-wrap: nowrap;
     }
-     sourceMappingURL=[^*]**/ the card's own actions in its header (the holders' person / permission switch) instead of a row with an empty label */
+    /* the card's own actions in its header (the holders' person / permission switch) instead of a row with an empty label */
     sw-card .seg[slot='actions'] {
       flex: none;
     }
     sw-card[data-card='holders'] {
       --sw-card-head-wrap: wrap;
     }
-     sourceMappingURL=[^*]**/ the permissions matrix: drawn marks instead of text glyphs; "no" is quiet, "yes" carries the success tone */
+    /* the permissions matrix: drawn marks instead of text glyphs; "no" is quiet, "yes" carries the success tone */
     .matrix td.yes sw-icon {
       color: var(--sw-success-text);
     }
@@ -1525,13 +1525,13 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
     [data-grant] sw-icon {
       flex: none;
     }
-     sourceMappingURL=[^*]**/ the save receipt and the error of any card: a toast at the bottom of the viewport (the card that was saved may be far below the
+    /* the save receipt and the error of any card: a toast at the bottom of the viewport (the card that was saved may be far below the
        title, where the old inline line sat out of sight). The error stays until it is dismissed or the next action starts. */
     .toast sw-icon {
       flex: none;
       color: var(--sw-success);
     }
-     sourceMappingURL=[^*]**/ A11Y-POLISHED-2342: the bare danger red read 2.8-3.0:1 on the light scheme's toast pill (domus, tesla); the shared failure icon
+    /* A11Y-POLISHED-2342: the bare danger red read 2.8-3.0:1 on the light scheme's toast pill (domus, tesla); the shared failure icon
        recipe of styles/media-page.ts (the danger ink mixed toward the toast's own ink) holds >= 4.3:1 light and >= 3.3:1 dark */
     .toast.bad .ic,
     .toast.bad sw-icon {
@@ -1567,7 +1567,7 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ TKNOTIFMATRIX: the picked users / roles of a department's digest (tickets/notify-matrix.ts, light DOM) */
+    /* TKNOTIFMATRIX: the picked users / roles of a department's digest (tickets/notify-matrix.ts, light DOM) */
     .nm-chips {
       display: flex;
       flex-wrap: wrap;
@@ -1627,7 +1627,7 @@ import{q as n,jk as X,a4 as re,i as Y,n as O,r as c,a as M,S as le,a0 as l,O as 
       .page {
         padding: 0 14px 26px;
       }
-       sourceMappingURL=[^*]**/ TKGATEFIX4: the display tab's choices on a phone - the row stacks, so the segmented control takes the line and its options
+      /* TKGATEFIX4: the display tab's choices on a phone - the row stacks, so the segmented control takes the line and its options
          share it; an option's text may wrap (the glass sheet's .seg button is nowrap, and "מגירה + מסך מלא" pushed the third option
          13-20 px out of its track at 320 px) */
       [data-display-tab] .row .seg {

@@ -56,7 +56,7 @@ import{a as g,bk as f,bl as v,bm as k,ak as p,bn as x,bo as y,p as n,q as t,bp a
       aspect-ratio: 16 / 10;
       overflow: hidden;
     }
-     sourceMappingURL=[^*]**/ SITENAME-2272: on a phone the picture is wider than tall, so a card with up to three name lines stays compact */
+    /* SITENAME-2272: on a phone the picture is wider than tall, so a card with up to three name lines stays compact */
     @media (max-width: 520px) {
       .pic {
         aspect-ratio: 2 / 1;
@@ -77,7 +77,7 @@ import{a as g,bk as f,bl as v,bm as k,ak as p,bn as x,bo as y,p as n,q as t,bp a
       border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
-     sourceMappingURL=[^*]**/ UXFIX-RTL: the text column may shrink (min-inline-size 0), so a long name or address wraps by words instead of one word per line,
+    /* UXFIX-RTL: the text column may shrink (min-inline-size 0), so a long name or address wraps by words instead of one word per line,
        the name and the address are clamped to two lines (the full text is the title attribute) and the action buttons sit at the top end
        of every card, at the same height. */
     .info {
@@ -242,7 +242,7 @@ import{a as g,bk as f,bl as v,bm as k,ak as p,bn as x,bo as y,p as n,q as t,bp a
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern): the site cards are the hero step - the large radius,
+    /* R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern): the site cards are the hero step - the large radius,
        shadow 2, the name as a 20/700 heading and the "buildings · cameras" count as the display line (it is the answer of this screen);
        the add card and the empty map are wells; the building rows keep the card step with a 15/700 name. Press feedback on pointer-down,
        hover only with a fine pointer (emil-design-eng, mobile-native). */
@@ -292,7 +292,7 @@ import{a as g,bk as f,bl as v,bm as k,ak as p,bn as x,bo as y,p as n,q as t,bp a
     .add:active {
       transform: scale(var(--sw-press-scale));
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D12): hover only under a fine pointer (a tap on a touch tablet leaves no sticky accent wash) */
+    /* POLISH4 WP6 (D12): hover only under a fine pointer (a tap on a touch tablet leaves no sticky accent wash) */
     @media (hover: hover) and (pointer: fine) {
       .add:hover {
         border-color: var(--sw-accent);
@@ -322,7 +322,7 @@ import{a as g,bk as f,bl as v,bm as k,ak as p,bn as x,bo as y,p as n,q as t,bp a
       border: 0;
       font-weight: var(--sw-fw-medium);
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 loop 2 (the loop-1 shots still read as "the same white cards"): the count is a FILLED field (surface 3 pill in the heading
+    /* R5-MAPS-297 loop 2 (the loop-1 shots still read as "the same white cards"): the count is a FILLED field (surface 3 pill in the heading
        ink); the building rows carry the same filled count field. */
     .info small:not(.clamp2) {
       display: inline-block;
@@ -338,7 +338,7 @@ import{a as g,bk as f,bl as v,bm as k,ak as p,bn as x,bo as y,p as n,q as t,bp a
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ SITENAME-2272: a site name always fits its card. The card is the size container; the action buttons take their own row at the
+    /* SITENAME-2272: a site name always fits its card. The card is the size container; the action buttons take their own row at the
        top end (so the name gets the full card width and the buttons align across a row), the name shrinks with the card width and may
        use three lines (the full text stays in the title attribute), and the count line never wraps. */
     .info {

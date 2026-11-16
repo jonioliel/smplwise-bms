@@ -61,7 +61,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
     }
-     sourceMappingURL=[^*]**/ the two pickers (owner 2026-10-10): a field-like control - the level's caption over its value, a chevron at the end */
+    /* the two pickers (owner 2026-10-10): a field-like control - the level's caption over its value, a chevron at the end */
     .picks {
       display: flex;
       align-items: stretch;
@@ -162,7 +162,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       max-block-size: min(60vh, 420px);
       overflow: auto;
       padding: 4px;
-       sourceMappingURL=[^*]**/ the picker's list (a popover, a bottom sheet on a phone) is a menu: opaque, never see-through (owner 2026-10-13) */
+      /* the picker's list (a popover, a bottom sheet on a phone) is a menu: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
@@ -226,7 +226,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
         min-block-size: 44px;
         padding: 0 10px;
       }
-       sourceMappingURL=[^*]**/ a phone: the two pickers take the next line, side by side; a long area name gets the whole line */
+      /* a phone: the two pickers take the next line, side by side; a long area name gets the whole line */
       .picks {
         flex: 1 1 100%;
       }
@@ -243,7 +243,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       .opt {
         min-block-size: 48px;
       }
-       sourceMappingURL=[^*]**/ the owner's phone choice (data-dd-phone, DDAREA-295): "sheet" = the bottom sheet; "list" keeps the popover under the picker, the area's list
+      /* the owner's phone choice (data-dd-phone, DDAREA-295): "sheet" = the bottom sheet; "list" keeps the popover under the picker, the area's list
          hanging from the picker's far edge so it stays inside the screen */
       :host([data-sheet]) .menu {
         position: fixed;
@@ -395,7 +395,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ the fill: from the bottom edge up */
+    /* the fill: from the bottom edge up */
     :host::before {
       content: '';
       position: absolute;
@@ -457,11 +457,11 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       white-space: nowrap;
       opacity: 0.86;
     }
-     sourceMappingURL=[^*]**/ once the fill passes the text, the text takes the on-fill colour (one colour per state; the bar is tall enough to read either way) */
+    /* once the fill passes the text, the text takes the on-fill colour (one colour per state; the bar is tall enough to read either way) */
     :host([on][data-high]) .tx {
       color: var(--sw-on-lit);
     }
-     sourceMappingURL=[^*]**/ the surface dial */
+    /* the surface dial */
     :host([data-surface='glass']) {
       background: var(--sw-perf-glass-bg, rgba(var(--sw-sheet-rgb), 0.42));
       box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong);
@@ -522,7 +522,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     sw-vslider {
       --pill-base: var(--sw-layer);
     }
-     sourceMappingURL=[^*]**/ the confirm chip a cover's slider carries (the same chip as devices-area-bubble's; it is rendered here, so it is styled here) */
+    /* the confirm chip a cover's slider carries (the same chip as devices-area-bubble's; it is rendered here, so it is styled here) */
     ::slotted(.chip),
     .chip {
       block-size: var(--sw-sub-size, var(--sw-sub));
@@ -560,7 +560,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       }
     }
   `;Ge([A({attribute:!1})],oe.prototype,"items",2);oe=Ge([J("bubble-sliders")],oe);const Dt={lighting:"light",switches:"bolt",climate:"snow",heating:"flame",covers:"layers",security:"shield",media:"play",sensors:"activity"};function Me(t){return Dt[t]}const Tt=K`
-   sourceMappingURL=[^*]**/ ---- the bubble skin: sections are separators, devices are pills in a grid, nothing is a card ---- */
+  /* ---- the bubble skin: sections are separators, devices are pills in a grid, nothing is a card ---- */
   :host([data-skin='bubble']) sw-page {
     gap: 12px;
   }
@@ -593,7 +593,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-skin='bubble']) sw-card[data-empty] {
     background: transparent;
   }
-   sourceMappingURL=[^*]**/ the separator: icon, bold label, a rounded 6 px rule, the count and the section's bulk button */
+  /* the separator: icon, bold label, a rounded 6 px rule, the count and the section's bulk button */
   .bsep {
     display: flex;
     align-items: center;
@@ -657,7 +657,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     display: inline-flex;
     gap: 6px;
   }
-   sourceMappingURL=[^*]**/ the pills: a grid of --sw-grid-min columns; row density = one column of touching rows */
+  /* the pills: a grid of --sw-grid-min columns; row density = one column of touching rows */
   .bgrid {
     display: grid;
     gap: var(--sw-gap-grid);
@@ -667,7 +667,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-skin='bubble']) .lay-tgrid.tiles {
     gap: var(--sw-gap-grid);
   }
-   sourceMappingURL=[^*]**/ an arranged card and the media card's leftover rows keep their containers: pills inside, the bubble grid's columns */
+  /* an arranged card and the media card's leftover rows keep their containers: pills inside, the bubble grid's columns */
   :host([data-skin='bubble']) .tiles:not(.lay-tgrid),
   :host([data-skin='bubble']) .rows {
     display: grid;
@@ -685,7 +685,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sw-gap);
   }
-   sourceMappingURL=[^*]**/ sub-buttons inside pills: round, the sub size, 44 px in touch layouts */
+  /* sub-buttons inside pills: round, the sub size, 44 px in touch layouts */
   .sb {
     inline-size: var(--sw-sub-size, var(--sw-sub));
     block-size: var(--sw-sub-size, var(--sw-sub));
@@ -782,7 +782,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       min-inline-size: 44px;
     }
   }
-   sourceMappingURL=[^*]**/ the sensor tiles (value big, name small) */
+  /* the sensor tiles (value big, name small) */
   .kv {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
@@ -836,14 +836,14 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
-   sourceMappingURL=[^*]**/ the head pill of the area (name, counts, the temperature, all off): a plain-variant pill is not a button */
+  /* the head pill of the area (name, counts, the temperature, all off): a plain-variant pill is not a button */
   .bhead {
     cursor: default;
   }
   .bhead:hover {
     background: var(--pill-base, var(--sw-surface));
   }
-   sourceMappingURL=[^*]**/ the security strip as pill chips */
+  /* the security strip as pill chips */
   :host([data-skin='bubble']) .sec-strip {
     border: 0;
     border-radius: var(--sw-r-lg);
@@ -867,7 +867,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-skin='bubble']) .count {
     padding-inline: 8px;
   }
-   sourceMappingURL=[^*]**/ ---- inside the sheet: pills are translucent layers over the sheet, chips and a big target ---- */
+  /* ---- inside the sheet: pills are translucent layers over the sheet, chips and a big target ---- */
   sw-sheet sw-pill {
     --pill-base: var(--sw-layer);
   }
@@ -1043,11 +1043,11 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
           </div>`:l}
       ${F(t,e)}
       ${L(e,[{k:"מצב",v:g(e)},...e.media_title?[{k:"מתנגן",v:e.media_title}]:[],...e.source?[{k:"מקור",v:e.source}]:[],...e.volume_pct!==null&&e.volume_pct!==void 0?[{k:"עוצמה",v:`${y(e.volume_pct)}%${e.muted?" · מושתק":""}`}]:[]])}`}if(s==="security"){const o=n?"לא זמין":e.kind==="alarm"?ve[e.state??""]??e.state??"":e.kind==="lock"?e.locked?"נעול":g(e):e.kind==="camera"?"מצלמת התקן":g(e);return i`${L(e,[{k:"מצב",v:o}])}`}return i`${L(e,[{k:"ערך",v:we(e)}])}`}var Nt=Object.defineProperty,Gt=Object.getOwnPropertyDescriptor,x=(t,e,s,a)=>{for(var n=a>1?void 0:a?Gt(e,s):e,r=t.length-1,o;r>=0;r--)(o=t[r])&&(n=(a?o(e,s,n):o(n))||n);return a&&n&&Nt(e,s,n),n};const Ht={door:"דלת",garage:"דלת מוסך",gate:"שער"},Ft={shutter:"תריס גלילה",blind:"תריס",curtain:"וילון",awning:"סוכך",window:"חלון"},Kt={door:"lock",garage:"lock",gate:"lock"},he={temperature:"טמפרטורה",humidity:"לחות",power:"חשמל / אנרגיה",illuminance:"תאורה סביבתית",co2:"CO2",battery:"סוללה",other:"אחר"},W=["temperature","humidity","power","illuminance","co2","battery"],Ut="(min-width: 1024px) and (min-height: 560px)",se=new Set(["lighting","switches","sensors"]),jt={lighting:"light",switches:"bolt",climate:"activity",heating:"activity",covers:"layers",security:"shield",media:"play",sensors:"sensor"},Wt=K`
-   sourceMappingURL=[^*]**/ a tighter page: the header, the room tabs, the security strip and the sections sit closer */
+  /* a tighter page: the header, the room tabs, the security strip and the sections sit closer */
   sw-page {
     gap: 8px;
   }
-   sourceMappingURL=[^*]**/ AREA-PRESENCE-LINE-2351: the presence line - one quiet line, fixed height, never wraps (a long list ends in an ellipsis; the full
+  /* AREA-PRESENCE-LINE-2351: the presence line - one quiet line, fixed height, never wraps (a long list ends in an ellipsis; the full
      list is the tooltip). Green only while someone is there. */
   .pres-line {
     display: flex;
@@ -1088,7 +1088,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     text-overflow: ellipsis;
     color: var(--sw-text);
   }
-   sourceMappingURL=[^*]**/ HOMEFABLE-297: the security strip is the one dark-ink line of the screen - a label in the heading ink, chips as filled wells */
+  /* HOMEFABLE-297: the security strip is the one dark-ink line of the screen - a label in the heading ink, chips as filled wells */
   .sec-strip {
     display: flex;
     flex-wrap: wrap;
@@ -1130,7 +1130,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   .sec-chip b {
     color: var(--sw-text);
     font-weight: var(--sw-fw-medium);
-     sourceMappingURL=[^*]**/ WIDGETBREAK-297: a long or unbreakable device name ends in an ellipsis inside the chip (the full name is the tooltip) */
+    /* WIDGETBREAK-297: a long or unbreakable device name ends in an ellipsis inside the chip (the full name is the tooltip) */
     min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1164,7 +1164,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
-   sourceMappingURL=[^*]**/ the main sensors strip and its fold */
+  /* the main sensors strip and its fold */
   .main-sensors {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1254,7 +1254,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     background: var(--sw-surface);
     color: var(--sw-text);
   }
-   sourceMappingURL=[^*]**/ dense tiles: icon, name and state on the start side, the switch at the end - one short row; a slider or a status line
+  /* dense tiles: icon, name and state on the start side, the switch at the end - one short row; a slider or a status line
      takes the whole row under it */
   .tile {
     display: grid;
@@ -1272,7 +1272,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   .tile .t > sw-icon {
     grid-area: ic;
   }
-   sourceMappingURL=[^*]**/ HOME polish (2026-10-10): a device's name may take two lines before the ellipsis (the dense tile cut "תאורה אולם ספור…") */
+  /* HOME polish (2026-10-10): a device's name may take two lines before the ellipsis (the dense tile cut "תאורה אולם ספור…") */
   .tile .t > span {
     grid-area: nm;
     display: -webkit-box;
@@ -1310,7 +1310,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   .tiles {
     gap: 6px;
   }
-   sourceMappingURL=[^*]**/ compact controls: the buttons and the slider share one line; a brightness slider is a thin line under its tile */
+  /* compact controls: the buttons and the slider share one line; a brightness slider is a thin line under its tile */
   .ctl-row {
     gap: 4px;
   }
@@ -1327,7 +1327,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   .row .d {
     gap: 4px 8px;
   }
-   sourceMappingURL=[^*]**/ the section's header has "פתח" / "סגור" now (with the confirmation): the group control keeps only what it adds -
+  /* the section's header has "פתח" / "סגור" now (with the confirmation): the group control keeps only what it adds -
      stop all and the position for all - on one short line */
   :host([data-area-design]) .grid:not(.lay-grid) .cover-group {
     padding: 4px 8px;
@@ -1338,13 +1338,13 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-area-design]) .grid:not(.lay-grid) .cover-group [data-cover-group-kind='covers_close'] {
     display: none;
   }
-   sourceMappingURL=[^*]**/ tiles: section cards flow in columns (top to bottom, then the next column) */
+  /* tiles: section cards flow in columns (top to bottom, then the next column) */
   :host([data-area-design='tiles']) .grid:not(.lay-grid) {
     display: block;
     column-width: 360px;
     column-gap: 12px;
   }
-   sourceMappingURL=[^*]**/ the dense direction: a position bar repeats what the slider under it already shows */
+  /* the dense direction: a position bar repeats what the slider under it already shows */
   :host([data-area-design]) .grid:not(.lay-grid) .row .bar {
     display: none;
   }
@@ -1357,12 +1357,12 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-area-design='tiles']) .grid:not(.lay-grid) > sw-card > header {
     margin-block-end: 10px;
   }
-   sourceMappingURL=[^*]**/ PRE-GATE-2350: the tiles design's own card padding (2026-10-28) outweighed the compact density's sw-card rule, so
+  /* PRE-GATE-2350: the tiles design's own card padding (2026-10-28) outweighed the compact density's sw-card rule, so
      devices.density = compact no longer tightened the area cards of the default design; compact wins again here */
   :host([data-area-design='tiles'][data-devices-density='compact']) .grid:not(.lay-grid) > sw-card {
     padding: 10px;
   }
-   sourceMappingURL=[^*]**/ sections: one section after the other, its title at the side; the sensors card stands beside them */
+  /* sections: one section after the other, its title at the side; the sensors card stands beside them */
   :host([data-area-design='sections']) .grid:not(.lay-grid) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 264px;
@@ -1391,13 +1391,13 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card .cover-group {
     grid-column: 1 / -1;
   }
-   sourceMappingURL=[^*]**/ FIXTURE-SPECS-2405: in the sections direction the title column is 110-140 px (sw-card [row]); since "הדלק הכל" joined "כבה הכל"
+  /* FIXTURE-SPECS-2405: in the sections direction the title column is 110-140 px (sw-card [row]); since "הדלק הכל" joined "כבה הכל"
      (ALLON, 2026-10-10) the two keys side by side (about 176 px) ran into the section's first tiles. They wrap inside the column. */
   :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card .sec-bulk {
     flex-wrap: wrap;
     max-inline-size: 100%;
   }
-   sourceMappingURL=[^*]**/ NOSCROLL-1366-2437: the cards region (measureBands). Below BANDS_MQ, and in the layout editor, it is transparent and the page scrolls
+  /* NOSCROLL-1366-2437: the cards region (measureBands). Below BANDS_MQ, and in the layout editor, it is transparent and the page scrolls
      as before. From there the page takes the screen's height and the region the room left under the header; it clips (a card's
      shadow keeps 12 px of room), the grid moves up to the page's first card, and the cards of the other pages are hidden. */
   .fitbox {
@@ -1421,7 +1421,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       visibility: hidden;
     }
   }
-   sourceMappingURL=[^*]**/ FIXTURE-SPECS-2405: the fit steps (measureFit) - only while the automatic layout would make the page scroll on a desktop-width
+  /* FIXTURE-SPECS-2405: the fit steps (measureFit) - only while the automatic layout would make the page scroll on a desktop-width
      screen; the look is the same, the air between and inside the cards is what gives. Step 1: */
   :host([data-fit='1']) sw-page,
   :host([data-fit='2']) sw-page {
@@ -1461,7 +1461,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-area-design='sections'][data-fit='1']) .grid:not(.lay-grid) > sw-card {
     padding: 7px 12px;
   }
-   sourceMappingURL=[^*]**/ step 2: the tightest */
+  /* step 2: the tightest */
   :host([data-fit='2']) .sec-strip {
     padding: 4px 10px;
   }
@@ -1488,7 +1488,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
   :host([data-area-design='sections'][data-fit='2']) .grid:not(.lay-grid) > sw-card {
     padding: 5px 10px;
   }
-   sourceMappingURL=[^*]**/ a phone: one column of folding sections */
+  /* a phone: one column of folding sections */
   @media (max-width: 599px) {
     :host([data-area-design]) .grid:not(.lay-grid) {
       display: flex;
@@ -1501,7 +1501,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       grid-row: auto;
       margin: 0;
       padding: 10px 12px;
-       sourceMappingURL=[^*]**/ GATE-FIX-2270: the R5 card title (larger, bold) and the semibold "turn all on / off" keys no longer fit one 320 px line;
+      /* GATE-FIX-2270: the R5 card title (larger, bold) and the semibold "turn all on / off" keys no longer fit one 320 px line;
          the keys drop under the title instead of widening the section past the screen (sw-card: --sw-card-head-wrap) */
       --sw-card-head-wrap: wrap;
     }
@@ -1536,7 +1536,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     gap: var(--dv-gap);
   }
   :host([data-devices-style='glass']) .tiles {
-     sourceMappingURL=[^*]**/ icon + name + switch need room: one column in a narrow card or on a phone, two in a wide one */
+    /* icon + name + switch need room: one column in a narrow card or on a phone, two in a wide one */
     grid-template-columns: repeat(auto-fill, minmax(min(var(--dv-entity-tile-min), 100%), 1fr));
     gap: var(--dv-gap-sm);
   }
@@ -1608,7 +1608,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     border-radius: var(--dv-radius-control);
   }
 
-   sourceMappingURL=[^*]**/ compact density (either style) */
+  /* compact density (either style) */
   :host([data-devices-density='compact']) .grid {
     grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
     gap: 8px;
@@ -1791,7 +1791,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       ${s?this.ctl.renderCmdStatus(a.entity_id):l}
       ${this.renderAssignButton(a)}
     </div>`}};$.styles=[kt,_t,K`
-     sourceMappingURL=[^*]**/ K88: the live plan card */
+    /* K88: the live plan card */
     .plancard {
       display: block;
       margin-block-end: 16px;
@@ -1854,7 +1854,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ HOMEFABLE-297 (impeccable bolder; craft floor "nested cards are always wrong"): a device inside a section card is a WELL - a tone
+    /* HOMEFABLE-297 (impeccable bolder; craft floor "nested cards are always wrong"): a device inside a section card is a WELL - a tone
        step down, rounded, no hairline - and a device that is on is a solid lit field with the heading ink; the section card above it
        keeps the only outline on the screen */
     .tile {
@@ -1874,7 +1874,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
     .tile.on .t {
       color: var(--sw-heading);
     }
-     sourceMappingURL=[^*]**/ HOME polish (2026-10-10): a device's state change fades in (the warm fill, the icon); still under reduced motion */
+    /* HOME polish (2026-10-10): a device's state change fades in (the warm fill, the icon); still under reduced motion */
     @media (prefers-reduced-motion: no-preference) {
       .tile,
       .row,
@@ -1960,7 +1960,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       gap: 10px;
       flex-wrap: wrap;
       min-inline-size: 0;
-       sourceMappingURL=[^*]**/ WIDGETBREAK-297: a long media title or source wraps inside the row, an unbreakable one breaks at the card edge */
+      /* WIDGETBREAK-297: a long media title or source wraps inside the row, an unbreakable one breaks at the card edge */
       overflow-wrap: anywhere;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
@@ -1982,7 +1982,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ ---- the loading skeleton (HOME polish 2026-10-10): the strip and three section cards in the screen's own shape ---- */
+    /* ---- the loading skeleton (HOME polish 2026-10-10): the strip and three section cards in the screen's own shape ---- */
     .skeleton {
       display: flex;
       flex-direction: column;
@@ -2028,7 +2028,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       font-weight: var(--sw-fw-regular, normal);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ WORSTCASE-2310: a cover's row is its name and its kind ("· תריס"). Both used to run in one ellipsis line, so a long name pushed the
+    /* WORSTCASE-2310: a cover's row is its name and its kind ("· תריס"). Both used to run in one ellipsis line, so a long name pushed the
        kind past the card edge (the guard saw it 26-29 px outside the card in domus and classic dark). The name now takes what is left
        and ends in an ellipsis (the row's title has the whole name); the kind is short and always stays visible at the end */
     .row .n.nk {
@@ -2062,7 +2062,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       color: var(--sw-text-3);
       white-space: normal;
     }
-     sourceMappingURL=[^*]**/ CR-007 slice 4: the covers card's own "כל התריסים" group control */
+    /* CR-007 slice 4: the covers card's own "כל התריסים" group control */
     .cover-group {
       display: flex;
       align-items: center;
@@ -2084,7 +2084,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       min-inline-size: 80px;
       accent-color: var(--sw-accent);
     }
-     sourceMappingURL=[^*]**/ CR-007 slice 4: assign an unassigned entity to an area */
+    /* CR-007 slice 4: assign an unassigned entity to an area */
     .assign-btn {
       grid-column: 1 / -1;
     }
@@ -2114,7 +2114,7 @@ import{i as K,n as A,r as b,a as Z,eo as Fe,cX as De,br as ie,p as l,X as w,q as
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ owner 2026-09-30: a camera card is the picture edge to edge (the glass style's card padding does not apply to it) */
+    /* owner 2026-09-30: a camera card is the picture edge to edge (the glass style's card padding does not apply to it) */
     :host sw-card[data-camera-card] {
       padding: 0 !important;
       overflow: hidden;

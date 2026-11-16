@@ -104,7 +104,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
         <sw-case-picker .item=${this.casePick} subheading=${`${t} · ${s} · ${this.fmt(e.occurred_at,!0)}`} @close=${()=>this.casePick=null}></sw-case-picker>
       </sw-page>
     `}};n.styles=[de,se`
-     sourceMappingURL=[^*]**/ INVREST-POLISH-2331: from 900 px up the page takes exactly the height the shell leaves it and never scrolls - the player stays
+    /* INVREST-POLISH-2331: from 900 px up the page takes exactly the height the shell leaves it and never scrolls - the player stays
        in view at the start, the context column (facts, map, correlation, route, nearby events) scrolls in its own box at the end, the
        header actions are always on screen. Narrower (a phone): one column, the page scrolls as before. */
     :host {
@@ -137,11 +137,11 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
         min-block-size: 0;
         overflow: auto;
         overscroll-behavior: contain;
-         sourceMappingURL=[^*]**/ room for the cards' shadows inside the scroll box */
+        /* room for the cards' shadows inside the scroll box */
         padding: 2px 4px 8px;
         margin: -2px -4px 0;
       }
-       sourceMappingURL=[^*]**/ the player keeps its 16:9 but never pushes the page past the screen: bounded by the room under the header */
+      /* the player keeps its 16:9 but never pushes the page past the screen: bounded by the room under the header */
       .player {
         max-block-size: calc(100dvh - 300px);
       }
@@ -157,7 +157,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
     }
-     sourceMappingURL=[^*]**/ SHARED-POLISH-2342: the disclosure is the shared techDetailsStyles (styles/tech-details.ts, the events list's look); only its
+    /* SHARED-POLISH-2342: the disclosure is the shared techDetailsStyles (styles/tech-details.ts, the events list's look); only its
        place under the facts and the semibold summary stay here */
     details.tech {
       margin-block-start: 10px;
@@ -219,7 +219,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2 (break-ui): the caption is bounded by the stage and breaks an unbreakable camera name instead of
+    /* R5-INVESTIGATE-297 loop 2 (break-ui): the caption is bounded by the stage and breaks an unbreakable camera name instead of
        running past the frame at 390 px; the name reads as a title */
     .caption {
       position: absolute;
@@ -249,7 +249,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
     .bar .grow {
       flex: 1;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: the facts are wells (value first, label as caption), two per row */
+    /* R5-INVESTIGATE-297: the facts are wells (value first, label as caption), two per row */
     dl.meta {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -300,7 +300,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
       z-index: var(--sw-z-map-ui);
       display: flex;
       gap: 6px;
-       sourceMappingURL=[^*]**/ the picture and 2D / 3D buttons float over the map with no box of their own: the shared buttons read --sw-surface, so here it is the opaque
+      /* the picture and 2D / 3D buttons float over the map with no box of their own: the shared buttons read --sw-surface, so here it is the opaque
          menu surface and their hover fill that surface washed 8 % towards the ink (an opaque mix); Tesla's flat buttons take --hud-fill
          (skins/tesla.ts) - owner 2026-10-13, styles/menu-surface.ts */
       --sw-surface: var(--sw-menu-surface);
@@ -364,7 +364,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ M064: a tick per suggested camera and the one-click confirmation row of the route card */
+    /* M064: a tick per suggested camera and the one-click confirmation row of the route card */
     .corr .link.route {
       grid-template-columns: auto minmax(0, 1fr) auto;
     }
@@ -406,7 +406,7 @@ import{a as R,S as L,K as _,ta as M,ak as v,tb as A,tc as N,p as c,q as i,br as 
       gap: 6px;
       margin-block-start: 6px;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: a nearby event is a well that sinks on pointer-down; hover only under a fine pointer */
+    /* R5-INVESTIGATE-297: a nearby event is a well that sinks on pointer-down; hover only under a fine pointer */
     .nearby a {
       display: flex;
       justify-content: space-between;

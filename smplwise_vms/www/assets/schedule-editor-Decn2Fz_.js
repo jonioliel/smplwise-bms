@@ -58,7 +58,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       --label-w: 64px;
       --row-h: 46px;
       --axis-h: 22px;
-       sourceMappingURL=[^*]**/ DU1: the slot colours are the product's state tokens (so dark mode and the skins reach the grid); the fills are the same colours at a low share */
+      /* DU1: the slot colours are the product's state tokens (so dark mode and the skins reach the grid); the fills are the same colours at a low share */
       --sc-on: var(--sw-success-text);
       --sc-on-bg: color-mix(in srgb, var(--sw-success) 16%, transparent);
       --sc-off: var(--sw-text-2);
@@ -89,7 +89,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       clip-path: inset(50%);
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ ------------------------------------------------------------------ horizontal */
+    /* ------------------------------------------------------------------ horizontal */
     .board {
       display: flex;
       flex-direction: column;
@@ -255,7 +255,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
     .grid-line.major {
       background: rgba(30, 46, 71, 0.12);
     }
-     sourceMappingURL=[^*]**/ ------------------------------------------------------------------ slots */
+    /* ------------------------------------------------------------------ slots */
     .slot {
       --c: var(--sc-custom);
       --bg: var(--sc-custom-bg);
@@ -324,7 +324,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       outline: 2px dashed var(--sw-warning);
       outline-offset: 1px;
     }
-     sourceMappingURL=[^*]**/ the marker of a sensitive / lowering slot stays visible on a narrow bar too (the flags inside hide there) */
+    /* the marker of a sensitive / lowering slot stays visible on a narrow bar too (the flags inside hide there) */
     .slot.lowering::after,
     .slot.sensitive::after {
       content: '';
@@ -458,7 +458,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
         inset-inline-end: -8px;
       }
     }
-     sourceMappingURL=[^*]**/ a point action: a pin with its label beside it */
+    /* a point action: a pin with its label beside it */
     .slot.point {
       border-inline-start-width: 1px;
       border-radius: var(--sw-r-lg);
@@ -476,7 +476,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
     .slot.point .txt {
       display: flex;
       position: absolute;
-       sourceMappingURL=[^*]**/ physical sides: the bar sits on an LTR axis, its label goes to the later side (the flipped one, near the end of the
+      /* physical sides: the bar sits on an LTR axis, its label goes to the later side (the flipped one, near the end of the
          day, to the earlier side) whatever the direction of the text inside */
       left: calc(100% + 5px);
       inline-size: max-content;
@@ -522,7 +522,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       direction: ltr;
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ ------------------------------------------------------------------ vertical (phone day view) */
+    /* ------------------------------------------------------------------ vertical (phone day view) */
     :host([orientation='vertical']) .board {
       display: grid;
       grid-template-columns: 34px 1fr;
@@ -785,7 +785,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       flex-direction: column;
       gap: 14px;
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331: the header reads like the editor's side panel (R5-DEVICES-297): a heading in the heading ink, the summary
+    /* SCHED-POLISH-2331: the header reads like the editor's side panel (R5-DEVICES-297): a heading in the heading ink, the summary
        under it, the slot's actions grouped at the end (they wrap below the title on a narrow card instead of crowding it) */
     header {
       display: flex;
@@ -1041,7 +1041,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ mobile-native: a finger needs 44 px; the mouse keeps the denser 36 */
+    /* mobile-native: a finger needs 44 px; the mouse keeps the denser 36 */
     @media (pointer: coarse) {
       input:not([type='range']):not([type='checkbox']),
       select {
@@ -1112,7 +1112,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
     :host {
       display: block;
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331: a narrow editor column scrolls the table sideways inside the card, never the page */
+    /* SCHED-POLISH-2331: a narrow editor column scrolls the table sideways inside the card, never the page */
     .wrap {
       overflow-x: auto;
       overscroll-behavior-x: contain;
@@ -1233,7 +1233,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       background: var(--sw-warning-soft);
       color: var(--sw-warning-text);
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331: the flex box is a div inside the cell - a td with display: flex leaves the table model, and its bottom rule
+    /* SCHED-POLISH-2331: the flex box is a div inside the cell - a td with display: flex leaves the table model, and its bottom rule
        stepped out of line with the rest of the row */
     .acts .btns {
       display: flex;
@@ -1955,7 +1955,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       </div>
       ${this.renderDialogs()}
     </sw-page>`}};g.styles=[...Fe,Ke,Ge,U`
-     sourceMappingURL=[^*]**/ KAV079-295: the conflict box of the schedule editor (mockup r079 state 7) */
+    /* KAV079-295: the conflict box of the schedule editor (mockup r079 state 7) */
     .kav-vbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--sw-r-lg); margin-block-end: 10px;
       background: color-mix(in srgb, var(--dv-warning) 10%, transparent); border: 1px solid color-mix(in srgb, var(--dv-warning) 35%, transparent); }
     .kav-vbox > b { display: flex; gap: 8px; align-items: center; }
@@ -2028,7 +2028,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       gap: 14px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the editor's panels are the top step (shadow 2, larger radius) */
+    /* R5-DEVICES-297: the editor's panels are the top step (shadow 2, larger radius) */
     .card {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
@@ -2135,7 +2135,7 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       block-size: 2px;
       background: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ DU1: the same state tokens as sw-schedule-grid's --sc-* knobs, so the legend and the grid agree in every scheme and skin */
+    /* DU1: the same state tokens as sw-schedule-grid's --sc-* knobs, so the legend and the grid agree in every scheme and skin */
     .c-on {
       --c: var(--sw-success-text);
       --bg: color-mix(in srgb, var(--sw-success) 16%, transparent);
@@ -2232,8 +2232,8 @@ import{hQ as ee,_ as X,i as U,n as f,r as u,a as R,hR as se,hS as xt,hT as at,hU
       border-style: dashed;
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ ------------------------------------------------------------------ side */
-     sourceMappingURL=[^*]**/ R5-DEVICES-297 loop 2: the side panel's section titles are headings (lg/700, heading ink), not grey labels */
+    /* ------------------------------------------------------------------ side */
+    /* R5-DEVICES-297 loop 2: the side panel's section titles are headings (lg/700, heading ink), not grey labels */
     .side h4 {
       display: flex;
       align-items: center;

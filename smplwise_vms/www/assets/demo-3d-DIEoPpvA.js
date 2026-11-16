@@ -8,7 +8,7 @@ import{i as x,n as h,a as b,q as k,x as E,fv as $,b_ as f,fw as g,fx as _}from".
       z-index: var(--sw-z-drawer);
       inline-size: 268px;
       max-inline-size: calc(100% - 24px);
-       sourceMappingURL=[^*]**/ a popover is a menu surface: opaque in every skin, scheme and glass screen, nothing blurred behind it (owner 2026-10-13) */
+      /* a popover is a menu surface: opaque in every skin, scheme and glass screen, nothing blurred behind it (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);

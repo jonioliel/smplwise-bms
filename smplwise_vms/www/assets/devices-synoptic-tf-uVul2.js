@@ -2,7 +2,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .pboard { display: grid; gap: 8px; block-size: 100%; min-block-size: 0; box-sizing: border-box; }
   .pboard.card { padding: 10px 12px; }
   .pboard.pa { grid-template-rows: auto auto auto minmax(0, 1fr); }
-   sourceMappingURL=[^*]**/ SYNOPTIC-PHONE-SETTINGS-2360: "שורת סיכום בטלפון" = line adds one auto row under the list (the list stays the only part that scrolls) */
+  /* SYNOPTIC-PHONE-SETTINGS-2360: "שורת סיכום בטלפון" = line adds one auto row under the list (the list stays the only part that scrolls) */
   .pboard.pa[data-sum='line'] { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
   .pboard.pb[data-sum='line'] { grid-template-rows: auto auto minmax(0, 1fr) auto; }
   .pboard.pc[data-sum='line'] { grid-template-rows: auto auto minmax(0, 1fr) auto auto; padding-block-end: 8px; }
@@ -14,11 +14,11 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .ib { flex: none; inline-size: 44px; block-size: 44px; margin-block: -4px; margin-inline-end: -10px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--sw-r-md); background: transparent; color: var(--sw-text-2); cursor: pointer; }
   .ib .xi { inline-size: 20px; block-size: 20px; }
 
-   sourceMappingURL=[^*]**/ every pressable of the phone board: no tap flash, no long-press selection, the click fires at once, the press answers on pointer-down */
+  /* every pressable of the phone board: no tap flash, no long-press selection, the click fires at once, the press answers on pointer-down */
   .ib, .pan, .plc, .pfh, .pmt, .pl1, .ppl { font: inherit; color: inherit; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-press) var(--sw-ease); }
   .ib:active, .pan:active, button.plc:active, button.pmt:active, button.ppl:active, .pfh:active, .pl1:active { transform: scale(var(--sw-press-scale)); }
 
-   sourceMappingURL=[^*]**/ numbers: tabular, isolated left-to-right inside a right-to-left row */
+  /* numbers: tabular, isolated left-to-right inside a right-to-left row */
   .n { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
   .pv { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-bold); color: var(--sw-text); white-space: nowrap; text-align: center; font-variant-numeric: tabular-nums; }
   .pv.mut { color: var(--sw-text-3); font-weight: var(--sw-fw-medium); }
@@ -29,7 +29,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .pv .xi, .pval .xi { inline-size: 16px; block-size: 16px; vertical-align: -3px; }
   .mb { display: block; inline-size: 34px; block-size: 4px; border-radius: 2px; background: var(--sw-surface-3); overflow: hidden; }
   .mb i { display: block; block-size: 100%; border-radius: 2px; background: var(--sw-lit); }
-   sourceMappingURL=[^*]**/ SYNOPTIC-PHONE-SETTINGS-2360 "תאורה בטלפון": the segment strip takes the bar's own width (one segment a light, eight at most) and grows 2 px taller to read */
+  /* SYNOPTIC-PHONE-SETTINGS-2360 "תאורה בטלפון": the segment strip takes the bar's own width (one segment a light, eight at most) and grows 2 px taller to read */
   .mb.seg { display: flex; gap: 1px; block-size: 6px; background: none; overflow: visible; }
   .mb.seg i { flex: 1 1 0; min-inline-size: 0; border-radius: 1px; background: var(--sw-border-strong); }
   .mb.seg i.on { background: var(--sw-lit); }
@@ -37,7 +37,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .pgl { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
   .pgl::before, .pgl::after { content: ''; flex: 1; block-size: 2px; border-radius: 2px; background: var(--sw-border-strong); }
 
-   sourceMappingURL=[^*]**/ A - the compact table */
+  /* A - the compact table */
   .pah, .par, .pfr { display: grid; grid-template-columns: var(--pgrid); align-items: center; column-gap: 6px; }
   .pah { block-size: 24px; padding: 0 10px; color: var(--sw-text-3); }
   .pah > span { display: flex; justify-content: center; min-inline-size: 0; }
@@ -62,7 +62,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .plc { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-inline-size: 0; min-block-size: 44px; padding: 0; border: 0; border-radius: var(--sw-r-sm); background: transparent; }
   button.plc { cursor: pointer; }
 
-   sourceMappingURL=[^*]**/ B - one card per floor (above six floors: one row each) */
+  /* B - one card per floor (above six floors: one row each) */
   .pbl { display: flex; flex-direction: column; gap: 8px; padding-block-end: 2px; }
   .pfc { flex: none; padding: 4px 12px 10px; }
   .pfc.row { padding: 0 12px; }
@@ -86,7 +86,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .pmt.warn .pval { color: var(--sw-danger-text); }
   .pmt.dash { background: transparent; outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; }
 
-   sourceMappingURL=[^*]**/ C - the cross-section first: roof, slabs warm by the share of lights on, the ground line and the floors below it */
+  /* C - the cross-section first: roof, slabs warm by the share of lights on, the ground line and the floors below it */
   .cl { display: grid; grid-template-columns: var(--slab) minmax(0, 1fr); column-gap: 10px; row-gap: 3px; align-content: start; padding-block-end: 8px; }
   .roof { block-size: 12px; margin: 0 4px -1px; background: var(--sw-border-strong); clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%); border-radius: 2px; }
   .sl { position: relative; min-block-size: 58px; border: 1.5px solid var(--sw-border-strong); border-radius: var(--sw-r-2xs); background: var(--sw-surface); overflow: hidden; }
@@ -103,7 +103,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .ppls { display: flex; gap: 5px; flex-wrap: nowrap; min-inline-size: 0; }
   .ppl { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; block-size: 24px; padding: 0 8px; border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
   button.ppl { cursor: pointer; }
-  button.ppl::after { content: ''; position: absolute; inset: -10px 0; }  sourceMappingURL=[^*]**/ a 44 px tall touch target around the 24 px pill (no sideways overflow) */
+  button.ppl::after { content: ''; position: absolute; inset: -10px 0; } /* a 44 px tall touch target around the 24 px pill (no sideways overflow) */
   .ppl .xi { inline-size: 13px; block-size: 13px; color: var(--sw-text-2); }
   .ppl.lit { background: color-mix(in srgb, var(--sw-lit) 24%, var(--sw-surface)); }
   .ppl.mut { color: var(--sw-text-3); font-weight: var(--sw-fw-medium); }
@@ -111,7 +111,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .ppl.dash { background: transparent; outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; color: var(--sw-text-3); }
   .cl[data-dense] .ci { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; }
   .cl[data-dense] .pl1 .s { display: none; }
-   sourceMappingURL=[^*]**/ name and pills share one line: the pills keep their size, the name gives way and ellipsises (320 px, 12 floors) */
+  /* name and pills share one line: the pills keep their size, the name gives way and ellipsises (320 px, 12 floors) */
   .cl[data-dense] .pl1 { flex: 1 1 auto; }
   .cl[data-dense] .pl1 .t { flex: 0 1 auto; min-inline-size: 0; max-inline-size: none; font-size: var(--sw-fs-base); }
   .cl[data-dense] .ppls { flex: none; }
@@ -122,8 +122,8 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
   .dstrip .tx { flex: 1; min-inline-size: 0; font-size: var(--sw-fs-sm); line-height: 1.35; color: var(--sw-text-2); }
   .dstrip .tx b { display: block; font-size: var(--sw-fs-md); color: var(--sw-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-   sourceMappingURL=[^*]**/ the info sheet (sub-answer 3B: the board's summary behind the info button) */
-   sourceMappingURL=[^*]**/ the summary as a line under the board (syn_phone_summary=line): small, wraps, the links keep a 44 px touch target without growing the line */
+  /* the info sheet (sub-answer 3B: the board's summary behind the info button) */
+  /* the summary as a line under the board (syn_phone_summary=line): small, wraps, the links keep a 44 px touch target without growing the line */
   .psum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding-block-start: 6px; border-block-start: 1px solid var(--sw-border); font-size: var(--sw-fs-xs); line-height: 1.45; color: var(--sw-text-2); }
   .psum .st b { color: var(--sw-heading); }
   .psum .hidnote { margin-inline-start: 0; white-space: normal; overflow: visible; }
@@ -264,9 +264,9 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
     .srow[aria-pressed='true'] { background: var(--sw-accent-soft); box-shadow: inset 0 0 0 2px var(--sw-accent); }
     .srow[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 12%, var(--sw-surface-2)); }
     .srow[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 12%, var(--sw-surface-2)); }
-     sourceMappingURL=[^*]**/ SYNOPTIC-HA-2310: a floor without data is the same well, said once in muted words (no stripes, no extra edge) */
+    /* SYNOPTIC-HA-2310: a floor without data is the same well, said once in muted words (no stripes, no extra edge) */
     .srow[data-off] .nm .t { color: var(--sw-text-2); }
-     sourceMappingURL=[^*]**/ rows too short for two lines (many floors): the name only; the selected floor's detail line carries its home-system floor */
+    /* rows too short for two lines (many floors): the name only; the selected floor's detail line carries its home-system floor */
     .srows[data-dense] .nm .s { display: none; }
     .srow[data-off] .nm .s { color: var(--sw-text-3); }
     .lnk { font: inherit; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text, var(--sw-accent)); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
@@ -296,7 +296,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
     .detail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-block-size: 40px; padding-block-start: 4px; border-block-start: 1px solid var(--sw-border); color: var(--sw-text-2); font-size: var(--sw-fs-base); }
     .detail b { color: var(--sw-heading); }
     .detail .grow { flex: 1; min-inline-size: 0; }
-     sourceMappingURL=[^*]**/ SYN-COLUMNS-2321: the columns left out for want of a source, said once and quietly at the foot of the board */
+    /* SYN-COLUMNS-2321: the columns left out for want of a source, said once and quietly at the foot of the board */
     .hidnote { margin-inline-start: auto; color: var(--sw-text-3); font-size: var(--sw-fs-state); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; max-inline-size: 100%; }
     .hidnote .lnk { color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
     .empty { display: grid; place-items: center; padding: 24px; color: var(--sw-text-3); }
@@ -318,7 +318,7 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
     .wallhead h1 { margin: 0; font-size: var(--sw-fs-3xl); color: var(--sw-heading); }
     @media (max-width: 767px) {
       .syn.wide, .syn.wide.ev { grid-template-columns: minmax(0, 1fr); }
-       sourceMappingURL=[^*]**/ SYNOPTIC-MOBILE-2342 root cause: number columns of minmax(0, auto) shrank to nothing while the lights strip and the number did not,
+      /* SYNOPTIC-MOBILE-2342 root cause: number columns of minmax(0, auto) shrank to nothing while the lights strip and the number did not,
          so lighting spilled over the cameras. The narrow wide board (only the wall screen still draws it under 768 px) gets fixed columns. */
       .sgrid { grid-template-columns: minmax(0, 1fr) repeat(var(--pcols, 3), 64px); gap: 8px; }
       .fac { display: none; }

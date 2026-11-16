@@ -131,7 +131,7 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ the progress: LTR like every timeline */
+    /* the progress: LTR like every timeline */
     .bar {
       grid-area: bar;
       direction: ltr;
@@ -221,7 +221,7 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
       min-inline-size: 0;
       --pill-base: var(--sw-layer);
     }
-     sourceMappingURL=[^*]**/ a narrow panel stacks: the art on top, centred */
+    /* a narrow panel stacks: the art on top, centred */
     @container (max-width: 560px) {
       .in {
         grid-template-columns: minmax(0, 1fr);
@@ -324,7 +324,7 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
     .pgrid > media-player-card {
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the bubble skin: the pill rows in --sw-grid-min columns (row density = one column), the hero on top */
+    /* the bubble skin: the pill rows in --sw-grid-min columns (row density = one column), the hero on top */
     :host([data-skin='bubble']) .pgrid {
       grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--sw-grid-min), 280px)), 1fr));
       gap: var(--sw-gap-grid);
@@ -344,7 +344,7 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
       align-items: center;
       gap: var(--sw-s-2);
     }
-     sourceMappingURL=[^*]**/ the loading skeleton: one placeholder card per slot, in the card's own geometry */
+    /* the loading skeleton: one placeholder card per slot, in the card's own geometry */
     .skc {
       display: grid;
       grid-template-columns: var(--mm-cover-size) minmax(0, 1fr) auto;
@@ -386,7 +386,7 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
       gap: var(--sw-s-2);
       padding-block-start: var(--sw-s-2);
     }
-     sourceMappingURL=[^*]**/ MEDIA-POLISH-2331 (owner rule: a control screen never scrolls on a desktop). Below 1024 px wide - or on a window too short to
+    /* MEDIA-POLISH-2331 (owner rule: a control screen never scrolls on a desktop). Below 1024 px wide - or on a window too short to
        hold the header and a row of cards - the region is transparent (display: contents) and the page scrolls exactly as before, with
        the compacting header. From 1024 x 560 the page takes the screen's height: the header (title, rooms, floors, state filter,
        search) and the edit bar stay in place and only the cards region scrolls, inside its own box. */
@@ -397,7 +397,7 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
       :host {
         overflow: hidden;
       }
-       sourceMappingURL=[^*]**/ the shared frame (sw-page) takes the screen's height; its body is a flex column, the region its growing child */
+      /* the shared frame (sw-page) takes the screen's height; its body is a flex column, the region its growing child */
       .page {
         block-size: 100%;
         min-block-size: 0;
@@ -412,29 +412,29 @@ import{fS as X,i as Y,n as V,r as p,a as J,gE as Z,fT as W,gG as E,p as l,gW as 
         overscroll-behavior: contain;
         scrollbar-width: thin;
         scrollbar-gutter: stable;
-         sourceMappingURL=[^*]**/ the region spans the page's side padding, so its scrollbar sits at the screen's edge and a focus ring is never clipped */
+        /* the region spans the page's side padding, so its scrollbar sits at the screen's edge and a focus ring is never clipped */
         margin-inline: calc(-1 * var(--mm-pad));
         padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-8);
       }
-       sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (audit round 30 #5: this region scrolled 1,537 px at 1366x768, all the cards in one panel): outside the
+      /* NOSCROLL-1366-2437 (audit round 30 #5: this region scrolled 1,537 px at 1366x768, all the cards in one panel): outside the
          editor the region never scrolls; the cards that fit are page 1, the rest are on the next pages (the pager in the filter row) */
       :host([data-fit]) .scr:not(.editing) {
         overflow: hidden;
         scrollbar-gutter: auto;
         padding-block-end: var(--sw-s-5);
       }
-       sourceMappingURL=[^*]**/ the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
+      /* the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
       :host([data-fit]) [data-off] {
         display: none !important;
       }
-       sourceMappingURL=[^*]**/ scrolled: the cards slide out under a soft fade instead of a hard cut against the filters */
+      /* scrolled: the cards slide out under a soft fade instead of a hard cut against the filters */
       .scr.scrolled {
         -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
         mask-image: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
       }
     }
     @media (min-width: 1100px) and (min-height: 560px) {
-       sourceMappingURL=[^*]**/ the editor: two panes that scroll on their own; the settings pane and the edit bar never leave the screen */
+      /* the editor: two panes that scroll on their own; the settings pane and the edit bar never leave the screen */
       .scr.editing {
         overflow: hidden;
         padding-block-end: var(--sw-s-4);

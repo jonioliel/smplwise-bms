@@ -131,13 +131,13 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       font-size: var(--sw-fs-md);
       line-height: 1.5;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-D3 (audit round 30 #6): the page frame is the shared <sw-page class="page" wide> - the title, the one-line summary under
+    /* AUDIT30-D3 (audit round 30 #6): the page frame is the shared <sw-page class="page" wide> - the title, the one-line summary under
        it and the floor menu at the end of the title row come from it (its padding is --sw-page-pad; --mm-pad mirrors it for the
        edge-to-edge bars below). Below it, the filter bar (.dh) and the cards. */
     .page {
       --mm-pad: var(--sw-page-pad);
     }
-     sourceMappingURL=[^*]**/ the filter bar: the room chips, the pager, the state filter, the search; it sticks and compacts while the page scrolls */
+    /* the filter bar: the room chips, the pager, the state filter, the search; it sticks and compacts while the page scrolls */
     .dh {
       position: sticky;
       inset-block-start: 0;
@@ -149,7 +149,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       align-items: center;
       gap: var(--sw-s-2) var(--sw-s-3);
     }
-     sourceMappingURL=[^*]**/ Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60
+    /* Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60
        moved every card under the finger (and, with the scroll clamped, fell back under the threshold and expanded again: the
        list jumped back and forth on a phone). The bar is a layer of the measured height of the title row; what folds away
        fades out in place and stops taking taps, and the cards slide under the transparent rest. */
@@ -185,7 +185,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       flex: 1 1 320px;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the bar is not the page's first row any more (sw-page's title row is, and it keeps the shell's lead reserve itself) */
+    /* the bar is not the page's first row any more (sw-page's title row is, and it keeps the shell's lead reserve itself) */
     :host .page .dh .dh-row {
       padding-inline-start: 0;
     }
@@ -198,7 +198,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       overflow-x: auto;
       scrollbar-width: none;
       padding: 6px 18px;
-       sourceMappingURL=[^*]**/ the first chip lines up with the title above: the fade's room hangs outside the text edge */
+      /* the first chip lines up with the title above: the fade's room hangs outside the text edge */
       margin-inline-start: -18px;
       -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
       mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
@@ -213,7 +213,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
     }
     .rc {
       flex: none;
-       sourceMappingURL=[^*]**/ AUDIT30-D1: the chip is a control of the shared height (34 in the classic skin; 44 on touch below) */
+      /* AUDIT30-D1: the chip is a control of the shared height (34 in the classic skin; 44 on touch below) */
       block-size: var(--sw-ctl-h-md);
       padding-inline: 14px;
       border-radius: var(--dv-radius-control);
@@ -229,7 +229,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the chip sinks on pointer-down */
+    /* R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the chip sinks on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .rc:hover {
         color: var(--dv-text);
@@ -239,7 +239,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
     .rc:active {
       transform: scale(var(--sw-press-scale, 0.97));
     }
-     sourceMappingURL=[^*]**/ AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
+    /* AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
        fill with the accent ink (Blue Wash), no border, no shadow; it was a black pill (--dv-text fill) */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
@@ -310,7 +310,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
     .search .ic {
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ groups and the grid */
+    /* groups and the grid */
     .groups {
       display: flex;
       flex-direction: column;
@@ -327,7 +327,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       gap: 12px;
       padding-inline: 4px;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-D2 (audit round 30 #17): the floor heading sits one tier under the page title (the 26-30 px / 800 heading competed
+    /* AUDIT30-D2 (audit round 30 #17): the floor heading sits one tier under the page title (the 26-30 px / 800 heading competed
        with the title, so the screen read as having several); it is the section step of the scale, semibold */
     .sh h2 {
       margin: 0;
@@ -362,7 +362,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       outline: 2px solid var(--dv-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP5: the floor link sinks on pointer-down like the chips and keys do */
+    /* POLISH4-WP5: the floor link sinks on pointer-down like the chips and keys do */
     .shlink:active {
       transform: scale(var(--sw-press-scale, 0.97));
     }
@@ -386,7 +386,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
     .sgrid > .l {
       grid-column: span 2;
     }
-     sourceMappingURL=[^*]**/ edit chips on a card */
+    /* edit chips on a card */
     .ecard {
       position: absolute;
       inset-block-start: 18px;
@@ -434,7 +434,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
     .ecard .ic {
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ the confirmation dialogs carry the sheet material (a translucent glass panel over a dimmed page reads as washed out) */
+    /* the confirmation dialogs carry the sheet material (a translucent glass panel over a dimmed page reads as washed out) */
     media-bulk-dialog,
     sw-dialog {
       --sw-surface: var(--mm-sheet-surface);
@@ -508,7 +508,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       }
       .shlink {
         min-block-size: 44px;
-        margin-block: -8px;  sourceMappingURL=[^*]**/ the hit area grows, the heading row does not */
+        margin-block: -8px; /* the hit area grows, the heading row does not */
       }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -519,7 +519,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       }
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ sw-page's phone padding */
+      /* sw-page's phone padding */
       .page {
         --mm-pad: var(--sw-s-3);
       }
@@ -528,7 +528,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
         align-items: stretch;
         flex-wrap: nowrap;
       }
-       sourceMappingURL=[^*]**/ stuck at the top, the room row is what stays: it keeps clear of the shell's floating search / status corner */
+      /* stuck at the top, the room row is what stays: it keeps clear of the shell's floating search / status corner */
       .dh-row {
         flex: none;
         padding-inline-end: var(--sw-float-reserve, 0px);
@@ -563,7 +563,7 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
         grid-column: auto;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, 549 px at 1366x768). Below 1024 px wide - or on a
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, 549 px at 1366x768). Below 1024 px wide - or on a
        window too short for the header and a row of cards - the region is transparent and the page scrolls as before. From 1024 x 560
        (outside the layout editor) the page takes the screen's height, the header stays and the cards region never scrolls: the cards
        that fit are page 1, the rest are on the next pages (the pager in the filter row). */
@@ -584,14 +584,14 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
         flex: 1 1 auto;
         min-block-size: 0;
         overflow: hidden;
-         sourceMappingURL=[^*]**/ the region spans the page's side padding, so a card's shadow and focus ring are never cut at the sides */
+        /* the region spans the page's side padding, so a card's shadow and focus ring are never cut at the sides */
         margin-inline: calc(-1 * var(--mm-pad));
         padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-5);
       }
       :host([data-fit]) .groups {
         gap: var(--sw-s-5);
       }
-       sourceMappingURL=[^*]**/ the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
+      /* the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
       :host([data-fit]) [data-off] {
         display: none !important;
       }

@@ -99,7 +99,7 @@ import{a as y,S as z,K as c,v8 as h,qy as S,v9 as u,R as m,ak as p,va as _,vb as
       color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: the panels take the card step (the ladder's shadow 2 + light line, the large radius) */
+    /* R5-SYSTEM-297: the panels take the card step (the ladder's shadow 2 + light line, the large radius) */
     .panel {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
@@ -107,7 +107,7 @@ import{a as y,S as z,K as c,v8 as h,qy as S,v9 as u,R as m,ak as p,va as _,vb as
       box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       padding: 14px 16px;
     }
-     sourceMappingURL=[^*]**/ the score is the one primary object of the page: the hero panel, a 120 px ring with a 40/800 figure */
+    /* the score is the one primary object of the page: the hero panel, a 120 px ring with a 40/800 figure */
     .hero {
       flex: none;
       display: flex;
@@ -264,7 +264,7 @@ import{a as y,S as z,K as c,v8 as h,qy as S,v9 as u,R as m,ak as p,va as _,vb as
       overflow-x: auto;
       scrollbar-width: none;
     }
-     sourceMappingURL=[^*]**/ the six counters are keys one step below the hero: surface-2 wells with a 22/800 figure, the chosen one a filled accent field;
+    /* the six counters are keys one step below the hero: surface-2 wells with a 22/800 figure, the chosen one a filled accent field;
        they give on press, and hover stays with a pointer that hovers */
     .kpi {
       all: unset;

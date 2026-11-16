@@ -284,7 +284,7 @@ import{L as A,au as m,R as C,cC as _,av as B,am as P,i as T,n as z,r as p,a as N
       border-radius: var(--sw-r-lg);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ the review drawer */
+    /* the review drawer */
     .rv {
       display: flex;
       flex-direction: column;

@@ -115,7 +115,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
       stroke: var(--sw-border-strong);
       stroke-width: 0.8;
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D13): the floor name was a 6px literal in viewBox units (120 units drawn at 180 px = 9 px on screen, in text-3).
+    /* POLISH4 WP6 (D13): the floor name was a 6px literal in viewBox units (120 units drawn at 180 px = 9 px on screen, in text-3).
        It is now the type scale's smallest step on screen: 2xs divided by the 1.5 draw scale, in the secondary ink (4.5:1 on the plate). */
     svg.stack .pname {
       font-size: calc(var(--sw-fs-2xs) * 2 / 3);
@@ -237,7 +237,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the floor rows are the hero objects - large radius, a 17/700 heading, the
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the floor rows are the hero objects - large radius, a 17/700 heading, the
        counts as a 13/500 line with tabular digits; the selected floor is a FILLED accent field with the accent edge and shadow 2
        (not a 3 px halo around a white card). Press on pointer-down; hover only with a fine pointer. */
     .pic {
@@ -261,7 +261,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
       border-color: var(--sw-accent);
       box-shadow: var(--sw-shadow-2);
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D12): the floor rows have one hover, the fine-pointer one below; the ungated :hover and its (hover: none) undo are gone,
+    /* POLISH4 WP6 (D12): the floor rows have one hover, the fine-pointer one below; the ungated :hover and its (hover: none) undo are gone,
        so a tap on a tablet never leaves a row raised */
     .title {
       font-size: var(--sw-fs-xl);
@@ -293,7 +293,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
     dt {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 loop 2: three steps, not one - the unselected floors are WELLS (surface 2, no shadow, no edge), the selected floor is the
+    /* R5-MAPS-297 loop 2: three steps, not one - the unselected floors are WELLS (surface 2, no shadow, no edge), the selected floor is the
        one hero (accent field, 2 px accent edge, shadow 2), the heading 20/700 and the counts 14/500 with 700 digits. */
     .floor {
       background: var(--sw-surface-2);
@@ -315,7 +315,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
     }
     .title {
       font-size: var(--sw-fs-2xl);
-       sourceMappingURL=[^*]**/ break-ui (shots/final/floors-worst-*): a 90-character unbreakable name ran out of the row; a name wraps to two lines at most */
+      /* break-ui (shots/final/floors-worst-*): a 90-character unbreakable name ran out of the row; a name wraps to two lines at most */
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
@@ -333,7 +333,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
       inline-size: 124px;
       block-size: 80px;
     }
-     sourceMappingURL=[^*]**/ 2.29.0: the cross-section beside the list. The list is frozen (no scroll): its cards share the height and shrink in steps; the section takes the free area. */
+    /* 2.29.0: the cross-section beside the list. The list is frozen (no scroll): its cards share the height and shrink in steps; the section takes the free area. */
     :host {
       display: block;
       block-size: 100%;
@@ -399,7 +399,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
     .floor.hl:not(.on) {
       background: var(--sw-surface-3);
     }
-     sourceMappingURL=[^*]**/ the steps: the more floors, the smaller the card (no scrolling) */
+    /* the steps: the more floors, the smaller the card (no scrolling) */
     .cards[data-step='1'] { gap: 8px; }
     .cards[data-step='1'] .floor { padding: 10px 16px; }
     .cards[data-step='1'] .title { font-size: var(--sw-fs-xl); }
@@ -427,7 +427,7 @@ import{a as J,bk as Q,K as b,U as S,bE as T,p,_ as F,X as L,q as a,bF as Z,bG as
     }
     .linkrow .lt { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); white-space: nowrap; }
     .linkrow .ll { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-     sourceMappingURL=[^*]**/ SYNOPTIC-HA-2310: the column has the page's height and the cards give way inside it (they shrank in steps but could still run under
+    /* SYNOPTIC-HA-2310: the column has the page's height and the cards give way inside it (they shrank in steps but could still run under
        the actions at 12 floors); the section's rows follow the cards' boxes, so both columns keep one rhythm. */
     .fl.beside { grid-template-rows: minmax(0, 1fr); }
     .fl.beside .list { min-block-size: 0; }

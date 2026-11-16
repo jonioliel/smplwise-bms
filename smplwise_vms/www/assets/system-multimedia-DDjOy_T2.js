@@ -179,7 +179,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       gap: 2px;
       min-inline-size: 190px;
       padding: 6px;
-       sourceMappingURL=[^*]**/ the column chooser is a menu: opaque, never see-through (owner 2026-10-13) */
+      /* the column chooser is a menu: opaque, never see-through (owner 2026-10-13) */
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       background: var(--sw-menu-surface);
@@ -370,7 +370,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       color: var(--sw-text-3);
     }
 `,We=O`
-   sourceMappingURL=[^*]**/ 2.4.6: the table chooses its layout by the width it actually has (a container query on .tbl), not by the viewport: on a
+  /* 2.4.6: the table chooses its layout by the width it actually has (a container query on .tbl), not by the viewport: on a
      settings page the navigation column takes 236 px, so a 1440 px window no longer leaves room for the wide columns. The
      wide set needs 1228 px at the default columns, the tablet set 864 px (CQ_WIDE / CQ_CARDS in media-admin-list-logic.ts);
      the viewport rules of before stay below as the fallback for a browser without container queries. */
@@ -381,7 +381,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
     --cols: var(--cols-w);
     container: mm-tbl / inline-size;
   }
-   sourceMappingURL=[^*]**/ the user's column choices (columns control in the toolbar): hw = hidden in the wide layout, hm = hidden in the tablet
+  /* the user's column choices (columns control in the toolbar): hw = hidden in the wide layout, hm = hidden in the tablet
      layout; the cards ignore both */
   @container mm-tbl (min-width: 1228px) {
     .hw {
@@ -485,7 +485,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
   .c .lb {
     display: none;
   }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the device name leads the row - 14.5 px semibold in the heading ink; the header row reads as a header */
+  /* R5-MEDIA-ENERGY-297: the device name leads the row - 14.5 px semibold in the heading ink; the header row reads as a header */
   .nm {
     font-weight: var(--sw-fw-semibold);
     font-size: var(--sw-fs-md);
@@ -609,7 +609,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
     color: var(--sw-text);
     cursor: pointer;
   }
-   sourceMappingURL=[^*]**/ the tablet column set below the wide width (the cards below override the grid) */
+  /* the tablet column set below the wide width (the cards below override the grid) */
   @container mm-tbl (max-width: 1227.98px) {
     .thead,
     .tr {
@@ -623,7 +623,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       }
     }
   }
-   sourceMappingURL=[^*]**/ the touch targets follow the touch layout of the whole window (the shell's rule), not the table's width */
+  /* the touch targets follow the touch layout of the whole window (the shell's rule), not the table's width */
   @media (max-width: 1100px) {
     .tbl {
       --hit: 44px;
@@ -793,7 +793,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       gap: 3px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
-       sourceMappingURL=[^*]**/ 0.1.162: the form opens inside the list's padded detail row; a field never grows past it on a phone */
+      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it on a phone */
       max-inline-size: 100%;
       min-inline-size: 0;
     }
@@ -930,7 +930,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       gap: var(--sw-s-2);
       padding-block-start: var(--sw-s-2);
     }
-     sourceMappingURL=[^*]**/ MEDIA-POLISH-2331: an error stays in view at the top of the settings while the person scrolls (it was a bare red line that
+    /* MEDIA-POLISH-2331: an error stays in view at the top of the settings while the person scrolls (it was a bare red line that
        scrolled away above the first card); the save note floats at the bottom of the window instead of after the last card, so the
        "נשמר" of a field near the top is actually seen */
     .err {
@@ -959,7 +959,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       box-shadow: var(--sw-shadow-3);
       font-weight: var(--sw-fw-medium);
     }
-     sourceMappingURL=[^*]**/ keyboard: every native field, icon button and link shows where the focus is */
+    /* keyboard: every native field, icon button and link shows where the focus is */
     input:focus-visible,
     select:focus-visible,
     .ib:focus-visible,
@@ -970,7 +970,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
     .link:focus-visible {
       border-radius: var(--sw-r-2xs);
     }
-     sourceMappingURL=[^*]**/ touch: the fields and the order buttons are 44 px targets */
+    /* touch: the fields and the order buttons are 44 px targets */
     @media (pointer: coarse) {
       input[type='text'],
       input[type='number'],
@@ -1034,7 +1034,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
     @media (pointer: coarse) {
       input, select { min-block-size: 44px; }
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP8 (D17): on a phone a template's labels sit above their fields (the 90 px label column squeezed "שם · English"), and the
+    /* POLISH4-WP8 (D17): on a phone a template's labels sit above their fields (the 90 px label column squeezed "שם · English"), and the
        add / save row of the list stays in view while the open templates scroll under it (owner Q7, the settings kit's .foot.sticky look) */
     @media (max-width: 767px) {
       .grid { grid-template-columns: minmax(0, 1fr); gap: 4px; }
@@ -1169,7 +1169,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
     .inl { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .area { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); padding-block: 10px 2px; }
     .pick { display: inline-flex; align-items: center; gap: 8px; }
-     sourceMappingURL=[^*]**/ POLISH4-WP8 (D17): every change saves at once, so the "saved" line is the only answer - it is a status pill that stays at the bottom
+    /* POLISH4-WP8 (D17): every change saves at once, so the "saved" line is the only answer - it is a status pill that stays at the bottom
        of the view while the long page scrolls (it used to sit after the last card, out of sight); success and error in their soft fills */
     .ok { position: sticky; inset-block-end: var(--sw-s-2); z-index: 3; align-self: center; display: inline-flex; align-items: center; gap: 6px;
       padding: 6px 14px; border-radius: var(--sw-r-pill); background: var(--sw-success-soft); color: var(--sw-success-text); font-size: var(--sw-fs-sm);
@@ -1185,7 +1185,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       input[type='text'], input[type='number'], input[type='time'], select, label.pick { min-block-size: 44px; }
     }
     @media (max-width: 600px) { input[type='text'] { inline-size: 100%; } }
-     sourceMappingURL=[^*]**/ the phone: a history entry is two lines (when, source and status, then the message in full) instead of a four-column row that ran
+    /* the phone: a history entry is two lines (when, source and status, then the message in full) instead of a four-column row that ran
        off the card; a row's controls take the full width under their label */
     @media (max-width: 767px) {
       .row > .inl { inline-size: 100%; }
@@ -1327,7 +1327,7 @@ import{i as O,r as p,a as I,kI as te,eq as b,ak as v,kJ as Ye,q as o,p as c,fR a
       gap: 3px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
-       sourceMappingURL=[^*]**/ 0.1.162: the form opens inside the list's padded detail row; a field never grows past it (the profile select's
+      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it (the profile select's
          longest option, "זיהוי אוטומטי · ...", is wider than a 320 px phone's row) */
       max-inline-size: 100%;
       min-inline-size: 0;

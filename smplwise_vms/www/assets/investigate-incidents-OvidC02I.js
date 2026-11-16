@@ -130,7 +130,7 @@ import{a as I,S as E,tf as D,tg as O,th as F,R as _,ak as v,bB as N,ti as P,tj a
     .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .clock { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 4px 12px; background: var(--sw-surface-3); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-md); }
     .clock sw-icon { color: var(--sw-text-3); }
-     sourceMappingURL=[^*]**/ AUDIT30-G-VIDEO (FIXES G5): the frame is sw-page (title, subtitle, actions as on every operator screen); the board under it keeps
+    /* AUDIT30-G-VIDEO (FIXES G5): the frame is sw-page (title, subtitle, actions as on every operator screen); the board under it keeps
        the height the shell gives (no page scroll, owner rule 2026-10-24) */
     sw-page.screen { flex: 1; min-block-size: 0; block-size: 100%; }
     sw-badge { flex: none; }
@@ -144,7 +144,7 @@ import{a as I,S as E,tf as D,tg as O,th as F,R as _,ak as v,bB as N,ti as P,tj a
     @media (hover: hover) and (pointer: fine) { a.lnk:hover { text-decoration: underline; } }
     .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; min-block-size: 0; display: flex; flex-direction: column; overflow: hidden; }
     .panel .hd { display: flex; align-items: center; gap: 8px; padding: 11px 16px 8px; flex-wrap: wrap; flex: none; }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: a panel title is a title (17 px / 800); the panels carry the hero shadow */
+    /* R5-INVESTIGATE-297: a panel title is a title (17 px / 800); the panels carry the hero shadow */
     .panel .hd h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
     .panel .hd .sp { flex: 1; }
     .panel > sw-state-panel { flex: 1; min-block-size: 0; }
@@ -190,7 +190,7 @@ import{a as I,S as E,tf as D,tg as O,th as F,R as _,ak as v,bB as N,ti as P,tj a
     table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 8px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
     table.t td { padding: 12px 14px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
     table.t tbody tr { cursor: pointer; }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row's title sinks on pointer-down (a tr cannot transform) */
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row's title sinks on pointer-down (a tr cannot transform) */
     @media (hover: hover) and (pointer: fine) { table.t tbody tr:hover { background: var(--sw-hover-wash); } }
     table.t tbody tr:active { background: var(--sw-surface-2); }
     .cards .c, .dr, .li { transition: transform var(--sw-t-press) var(--sw-ease-out); }
@@ -211,10 +211,10 @@ import{a as I,S as E,tf as D,tg as O,th as F,R as _,ak as v,bB as N,ti as P,tj a
     .form textarea { min-block-size: 72px; resize: none; }
     .form .acts { display: flex; gap: 8px; justify-content: flex-end; }
     .form p { margin: 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-     sourceMappingURL=[^*]**/ a small laptop: the plan header keeps icons only (the legend is in the plan) */
+    /* a small laptop: the plan header keeps icons only (the legend is in the plan) */
     @media (min-width: 1200px) and (max-width: 1299px) { .panel .hd .bt { display: none; } }
     @media (min-height: 900px) and (min-width: 1200px) { .step { padding-block-end: 20px; } .step .t1 { font-size: var(--sw-fs-md); } .step .t2, .step .w { font-size: var(--sw-fs-sm); } }
-     sourceMappingURL=[^*]**/ tablet and phone: ONE part of the board at a time (cameras first); the head and its actions stay */
+    /* tablet and phone: ONE part of the board at a time (cameras first); the head and its actions stay */
     @media (max-width: 1199px) {
       div.screen { padding: 10px 20px 12px; }
       .board { display: flex; flex-direction: column; gap: 10px; }
@@ -234,12 +234,12 @@ import{a as I,S as E,tf as D,tg as O,th as F,R as _,ak as v,bB as N,ti as P,tj a
     @media (max-width: 767px) {
       div.screen { padding: 8px 12px 8px; gap: 8px; }
       .acts { gap: 6px; }
-       sourceMappingURL=[^*]**/ the phone keeps the old header height: the clock rides beside the status (not a row of its own), sw-page's padding and
+      /* the phone keeps the old header height: the clock rides beside the status (not a row of its own), sw-page's padding and
          gaps one step denser (the board below must not overflow, layout-incidents) */
       sw-page.screen { padding: 8px 12px 8px; gap: 8px; }
       .eyebrow { margin-block-end: 4px; }
       .eyebrow .clock { display: inline-flex; }
-       sourceMappingURL=[^*]**/ the door rows one step denser on a phone (still 44 px targets): with the filled sw-badge a row is two lines plus its padding and
+      /* the door rows one step denser on a phone (still 44 px targets): with the filled sw-badge a row is two lines plus its padding and
          three of them overflowed the doors part by 9 px at 390x844 (layout-incidents) */
       .drs { gap: 4px; }
       .dr { padding-block: 3px; }

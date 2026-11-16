@@ -37,7 +37,7 @@ import{i as f,n as g,r as h,a as m,tq as w,tr as x,ak as v,ts as $,tt as y,tm as
     .tx { flex: 1; min-inline-size: 0; }
     .tx b { display: block; font-size: var(--sw-fs-base); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
     .tx span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-     sourceMappingURL=[^*]**/ POLISH4-WP7: the key reads the same tokens as sw-toggle (track, thumb, spring), presses in on pointer-down, shows a focus ring, and on a phone grows a
+    /* POLISH4-WP7: the key reads the same tokens as sw-toggle (track, thumb, spring), presses in on pointer-down, shows a focus ring, and on a phone grows a
        44 px tall hit area in the block axis only (a transparent ::before, so the drawn key and the row do not move) */
     .sw { position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-toggle-off); border: 0; cursor: pointer; flex: none; padding: 0; transition: background var(--sw-t-med) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .sw::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); transition: inset-inline-start var(--sw-spring-toggle-ms) var(--sw-spring-toggle); box-shadow: var(--sw-shadow-thumb); }
@@ -63,7 +63,7 @@ import{i as f,n as g,r as h,a as m,tq as w,tr as x,ak as v,ts as $,tt as y,tm as
     .foot .msg { flex: 1; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
     .foot .err { color: var(--sw-danger-text); }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ the live-budget row (four controls) and the long hints wrap under their label instead of squeezing it */
+      /* the live-budget row (four controls) and the long hints wrap under their label instead of squeezing it */
       .srow { flex-wrap: wrap; }
       .tx { flex-basis: 100%; }
       .foot { flex-wrap: wrap; }

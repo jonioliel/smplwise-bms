@@ -1,4 +1,4 @@
-import{q as h}from"./index-C5kZ9jiu.js"; sourceMappingURL=[^*]**/*
+import{q as h}from"./index-C5kZ9jiu.js";/**
  * @license
  * Copyright 2020 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause

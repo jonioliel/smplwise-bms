@@ -10,7 +10,7 @@ import{b as de,s as Q,S as ue,c as pe,a as fe,w as he,o as we,m as ve}from"./tic
     font-weight: 600;
     opacity: 0.85;
   }
-   sourceMappingURL=[^*]**/ the sentence IS the status: the largest line of the card after the title, two lines at most (the full text is the title attribute) */
+  /* the sentence IS the status: the largest line of the card after the title, two lines at most (the full text is the title attribute) */
   p.stat {
     margin: 0;
     font-size: var(--sw-fs-md);
@@ -23,7 +23,7 @@ import{b as de,s as Q,S as ue,c as pe,a as fe,w as he,o as we,m as ve}from"./tic
     overflow: hidden;
     overflow-wrap: anywhere;
   }
-   sourceMappingURL=[^*]**/ the board card's one ranked warning line, instead of its chips row */
+  /* the board card's one ranked warning line, instead of its chips row */
   .cwarn {
     position: relative;
     z-index: 2;
@@ -86,7 +86,7 @@ import{b as de,s as Q,S as ue,c as pe,a as fe,w as he,o as we,m as ve}from"./tic
       font-size: var(--sw-fs-base);
     }
   }
-   sourceMappingURL=[^*]**/ UXFIX-A11Y-295: the skeleton card - shimmer bars sit IN the text lines, so every line keeps the height of the text it stands for */
+  /* UXFIX-A11Y-295: the skeleton card - shimmer bars sit IN the text lines, so every line keeps the height of the text it stands for */
   .tcard.sk .skl.ln {
     display: inline-block;
     vertical-align: middle;
@@ -162,7 +162,7 @@ import{b as de,s as Q,S as ue,c as pe,a as fe,w as he,o as we,m as ve}from"./tic
   .seg.stf button small {
     margin-inline-start: 6px;
   }
-   sourceMappingURL=[^*]**/ a count on a department chip is a small badge, never read as part of the name */
+  /* a count on a department chip is a small badge, never read as part of the name */
   .rooms .rc small {
     display: inline-grid;
     place-items: center;
@@ -242,7 +242,7 @@ import{b as de,s as Q,S as ue,c as pe,a as fe,w as he,o as we,m as ve}from"./tic
     font-size: var(--sw-fs-base);
     text-align: start;
   }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the "today" entry answers the press (transform only, token durations - zero under reduced motion); hover is for
+  /* POLISH-CONTROL-297: the "today" entry answers the press (transform only, token durations - zero under reduced motion); hover is for
      fine pointers only */
   .today button.up {
     cursor: pointer;
@@ -393,7 +393,7 @@ import{b as de,s as Q,S as ue,c as pe,a as fe,w as he,o as we,m as ve}from"./tic
       align-items: center;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ a narrow host (the calendar's week columns) sets --sw-elapsed-wrap: normal and its own --sw-elapsed-fs */
+    /* a narrow host (the calendar's week columns) sets --sw-elapsed-wrap: normal and its own --sw-elapsed-fs */
     span {
       font-size: var(--sw-elapsed-fs, var(--sw-fs-base));
       font-variant-numeric: tabular-nums;

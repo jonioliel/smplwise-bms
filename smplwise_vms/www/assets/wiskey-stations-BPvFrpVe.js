@@ -381,7 +381,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
       gap: var(--sw-s-2);
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ nothing offered: no box at all, so the drawer's grid keeps no empty row and no gap for it */
+    /* nothing offered: no box at all, so the drawer's grid keeps no empty row and no gap for it */
     :host([hidden]) {
       display: none;
     }
@@ -479,7 +479,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     .frame img {
       object-fit: cover;
     }
-     sourceMappingURL=[^*]**/ VIDEO-TRANSPORT-2400: the viewer's choice allows nothing this station offers - said on the still, never another transport */
+    /* VIDEO-TRANSPORT-2400: the viewer's choice allows nothing this station offers - said on the still, never another transport */
     .blocked {
       position: absolute;
       inset: 0;
@@ -633,7 +633,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     font-weight: var(--sw-fw-semibold);
     white-space: nowrap;
     cursor: pointer;
-     sourceMappingURL=[^*]**/ R5-SECURITY: a raised key (shadow 1), sinks on pointer-down; the active one a filled accent field */
+    /* R5-SECURITY: a raised key (shadow 1), sinks on pointer-down; the active one a filled accent field */
     box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -675,7 +675,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     font-weight: var(--sw-fw-bold);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-warning) 40%, transparent);
   }
-   sourceMappingURL=[^*]**/ R5-SECURITY: the badges of the cards, rows and the drawer are fields - 12.5/700 on 22 px */
+  /* R5-SECURITY: the badges of the cards, rows and the drawer are fields - 12.5/700 on 22 px */
   sw-badge {
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-bold);
@@ -694,7 +694,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     flex: 1;
   }
 
-   sourceMappingURL=[^*]**/ ---- cards ---- */
+  /* ---- cards ---- */
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
@@ -703,7 +703,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
   .card {
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ the ring is the ONLY layer of the shadow: a skin may set --sw-shadow-N to "none" (Tesla does), and "none" inside a shadow list
+  /* the ring is the ONLY layer of the shadow: a skin may set --sw-shadow-N to "none" (Tesla does), and "none" inside a shadow list
      makes the whole declaration invalid - the ring would vanish exactly where the screen needs it */
   .card.ringing {
     box-shadow: 0 0 0 2px var(--sw-warning);
@@ -764,7 +764,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-     sourceMappingURL=[^*]**/ R5-SECURITY: the station's name is the card's display line - 20/800 */
+    /* R5-SECURITY: the station's name is the card's display line - 20/800 */
     font-size: var(--sw-fs-2xl);
     font-weight: 800;
     letter-spacing: -0.02em;
@@ -877,7 +877,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     font-size: var(--sw-fs-xl);
     font-weight: 800;
   }
-   sourceMappingURL=[^*]**/ the controls of a call row move together: when the row is narrow they take their own line, side by side */
+  /* the controls of a call row move together: when the row is narrow they take their own line, side by side */
   .ctl {
     flex: 1 1 auto;
     display: flex;
@@ -898,7 +898,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     color: var(--sw-text-3);
     font-weight: var(--sw-fw-regular);
   }
-   sourceMappingURL=[^*]**/ WISKEY-TALK-DIAL-2382 (owner 03.11, Q2): the dial is Arx's talk; the classic panel is a small secondary link under it, at the end */
+  /* WISKEY-TALK-DIAL-2382 (owner 03.11, Q2): the dial is Arx's talk; the classic panel is a small secondary link under it, at the end */
   .dialnative {
     display: grid;
     gap: var(--sw-s-1);
@@ -907,7 +907,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
   .dialnative > wk-action-button {
     justify-self: end;
   }
-   sourceMappingURL=[^*]**/ WISKEY-TALK-DIAL-2382: why the drawer cannot dial from this screen - one sentence that wraps (never cut), the classic panel beside it */
+  /* WISKEY-TALK-DIAL-2382: why the drawer cannot dial from this screen - one sentence that wraps (never cut), the classic panel beside it */
   .cs.dialwhy {
     flex: 1 1 14em;
     white-space: normal;
@@ -947,7 +947,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     background: var(--sw-danger-soft);
     color: var(--sw-danger-text);
   }
-   sourceMappingURL=[^*]**/ in the drawer the outcome sticks to the top of the scrolling body, over a solid backing (the soft tones are translucent) */
+  /* in the drawer the outcome sticks to the top of the scrolling body, over a solid backing (the soft tones are translucent) */
   .result.sticky {
     position: sticky;
     inset-block-start: 0;
@@ -984,12 +984,12 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     unicode-bidi: isolate;
   }
 
-   sourceMappingURL=[^*]**/ ---- list rows ---- */
+  /* ---- list rows ---- */
   .rows {
     display: flex;
     flex-direction: column;
   }
-   sourceMappingURL=[^*]**/ a row is two groups: the station (opens the drawer) and its side - call pill, "seen", actions, chevron. When the row is
+  /* a row is two groups: the station (opens the drawer) and its side - call pill, "seen", actions, chevron. When the row is
      narrow the side takes its own line below the station, whole, instead of squeezing the station's name away. */
   .row {
     display: flex;
@@ -1113,7 +1113,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     color: var(--sw-accent-text);
   }
 
-   sourceMappingURL=[^*]**/ ---- the drawer ---- */
+  /* ---- the drawer ---- */
   .live {
     position: relative;
     flex: none;
@@ -1161,7 +1161,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     color: var(--sw-text-3);
     font-size: var(--sw-fs-sm);
   }
-   sourceMappingURL=[^*]**/ CR-036 S12 / WXSCH: the quiet ways on from a station - its entry log, the schedules of its doors */
+  /* CR-036 S12 / WXSCH: the quiet ways on from a station - its entry log, the schedules of its doors */
   .evlink {
     display: flex;
     flex-wrap: wrap;
@@ -1178,7 +1178,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     border-radius: var(--sw-r-lg);
     background: var(--sw-surface-2);
   }
-   sourceMappingURL=[^*]**/ R5-SECURITY: the drawer's sections are wells; their headings 14.5/700 in the heading ink; the door name 15/700 */
+  /* R5-SECURITY: the drawer's sections are wells; their headings 14.5/700 in the heading ink; the door name 15/700 */
   .dsec h4 {
     display: flex;
     align-items: center;
@@ -1286,14 +1286,14 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     line-height: 1.5;
   }
 
-   sourceMappingURL=[^*]**/ WKWATER-POLISH-2331: one rhythm between the toolbar and the columns (they touched before) */
+  /* WKWATER-POLISH-2331: one rhythm between the toolbar and the columns (they touched before) */
   [data-wk-stations] {
     display: flex;
     flex-direction: column;
     gap: var(--sw-s-3);
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ a list row answers the pointer like the cards: a tone step under a fine pointer, the press scale on the station part */
+  /* a list row answers the pointer like the cards: a tone step under a fine pointer, the press scale on the station part */
   .rowmain {
     transition: transform var(--sw-t-press) var(--sw-ease-out);
     touch-action: manipulation;
@@ -1316,7 +1316,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
       --wk-tree: 208px;
     }
   }
-   sourceMappingURL=[^*]**/ WKWATER-POLISH-2331 (NOSCROLL-297, owner rule: a control screen fits the viewport on a desktop): above 1100 px the screen takes the
+  /* WKWATER-POLISH-2331 (NOSCROLL-297, owner rule: a control screen fits the viewport on a desktop): above 1100 px the screen takes the
      shell's height; the title, the toolbar and the filter chips stay in place and the stations (cards, list or table) scroll inside their
      own box, the places tree inside its column. A short window keeps 240 px for the stations and lets the page scroll below that. On a
      tablet and a phone the page scrolls as before. */
@@ -1359,8 +1359,8 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
       overflow-y: auto;
       scrollbar-width: thin;
     }
-     sourceMappingURL=[^*]**/ the ringing card's pulse (5 px) and the cards' shadows stay inside the scrolling box: the box keeps that much room around them */
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437: the cards view is paged to what fits (the screen measures whole rows; the pager sits at the end of the chips
+    /* the ringing card's pulse (5 px) and the cards' shadows stay inside the scrolling box: the box keeps that much room around them */
+    /* NOSCROLL-1366-2437: the cards view is paged to what fits (the screen measures whole rows; the pager sits at the end of the chips
        row), so the box no longer scrolls; overflow stays a fallback for a window too short for one row */
     .chips .pager {
       margin-inline-start: auto;
@@ -1400,7 +1400,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
     .seen {
       display: none;
     }
-     sourceMappingURL=[^*]**/ WKWATER-POLISH-2331: on a phone the whole row opens the drawer; its chevron took a line of its own under a row's buttons */
+    /* WKWATER-POLISH-2331: on a phone the whole row opens the drawer; its chevron took a line of its own under a row's buttons */
     .rowside > sw-icon {
       display: none;
     }
@@ -1600,7 +1600,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the dialog's body is a column that scrolls: its direct children keep their height (a tall tab must not squash the tab bar) */
+    /* the dialog's body is a column that scrolls: its direct children keep their height (a tall tab must not squash the tab bar) */
     .sub,
     .tabs,
     .note,
@@ -1636,7 +1636,7 @@ import{i as j,n as g,r as u,a as I,cB as Ct,ak as $e,a7 as xe,p as l,q as o,x as
       white-space: nowrap;
     }
     .tabs button[aria-selected='true'] {
-       sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380: the chosen key reads the segment tokens (a neutral surface key is invisible in the dark scheme) */
+      /* DARK-SEG-ALL-2380: the chosen key reads the segment tokens (a neutral surface key is invisible in the dark scheme) */
       background: var(--sw-seg-key, var(--sw-surface));
       color: var(--sw-seg-key-ink, var(--sw-accent-text, var(--sw-accent)));
       font-weight: var(--sw-fw-semibold);

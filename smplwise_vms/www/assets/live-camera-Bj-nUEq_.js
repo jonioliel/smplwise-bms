@@ -134,7 +134,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
       z-index: var(--sw-z-drawer);
       inline-size: min(380px, calc(100vw - 24px));
       max-block-size: min(70vh, 560px);
-       sourceMappingURL=[^*]**/ the anchored picker floats over the page like a menu: opaque, never see-through (owner 2026-10-13) */
+      /* the anchored picker floats over the page like a menu: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border-color: var(--sw-menu-border);
     }
@@ -213,7 +213,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
     .seg button[aria-pressed='true'] {
       background: var(--sw-seg-key, var(--sw-surface));
       color: var(--sw-seg-key-ink, var(--sw-accent, var(--sw-text)));
-       sourceMappingURL=[^*]**/ DARK-REVIEW-2342: the bare accent read ~2.2:1 on the lifted dark thumb (3.3:1 on the old one) - dark takes the accent's text ink;
+      /* DARK-REVIEW-2342: the bare accent read ~2.2:1 on the lifted dark thumb (3.3:1 on the old one) - dark takes the accent's text ink;
          light keeps the accent (an engine without light-dark() keeps the line above) */
       color: var(--sw-seg-key-ink, light-dark(var(--sw-accent, var(--sw-text)), var(--sw-accent-text)));
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
@@ -663,12 +663,12 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
         ${e?this.renderApi():this.renderDemo()}
       </sw-page>
     `}};d.styles=[N`
-     sourceMappingURL=[^*]**/ the detection-zones view (renderZones). Here, not in a <style> element of the template: the remote channel's strict
+    /* the detection-zones view (renderZones). Here, not in a <style> element of the template: the remote channel's strict
        CSP (style-src-elem 'self', CR-008 P2) refuses inline style elements; static styles are constructed stylesheets */
     .zones .frame { position: relative; aspect-ratio: 16 / 9; background: var(--sw-video-bg); border-radius: var(--sw-r-sm); overflow: hidden; }
     .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
     .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
-     sourceMappingURL=[^*]**/ POLISH4-WP2: the overlays drawn over the video take tokens of the video domain (fixed in both schemes, as the picture is):
+    /* POLISH4-WP2: the overlays drawn over the video take tokens of the video domain (fixed in both schemes, as the picture is):
        motion cells the timeline's motion tone, a mask the video ink, a field the warning tone, a line the recorded blue */
     .zones .cell { fill: color-mix(in srgb, var(--sw-tl-motion) 28%, transparent); stroke: color-mix(in srgb, var(--sw-tl-motion) 55%, transparent); stroke-width: 1; }
     .zones .mask { fill: color-mix(in srgb, var(--sw-video-bg) 78%, transparent); stroke: var(--sw-video-bg); stroke-width: 3; }
@@ -682,7 +682,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
     .video {
       position: relative;
       aspect-ratio: 16 / 9;
-       sourceMappingURL=[^*]**/ owner report: on a wide desktop (design A has no page max-width), a 16:9 box at full page width grows
+      /* owner report: on a wide desktop (design A has no page max-width), a 16:9 box at full page width grows
          taller than the viewport - the controls and settings below need a scroll to even see they exist. Capping
          the height (the width then follows from the ratio) keeps the whole screen reachable without scrolling. */
       max-block-size: min(60dvh, 640px);
@@ -758,7 +758,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
       justify-items: center;
       gap: 6px;
     }
-     sourceMappingURL=[^*]**/ EVIDENCE-CAMERAS-2412: the "no WebRTC server" link was the browser's default blue on the dark video area */
+    /* EVIDENCE-CAMERAS-2412: the "no WebRTC server" link was the browser's default blue on the dark video area */
     .center[data-webrtc-required] a {
       color: inherit;
       font-weight: 600;
@@ -995,7 +995,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
         grid-template-columns: 1fr;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30: 464 px at 1366x768). The wrappers are inert
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30: 464 px at 1366x768). The wrappers are inert
        below 1024 px (display: contents: the tablet and the phone keep the stacked page). From 1024 px the page takes the screen's
        height and splits in two: the player column (the video as large as the room allows at 16:9, its controls under it, always on
        screen) and a side column with the details / settings, which scrolls inside itself when the settings are opened. */
@@ -1024,7 +1024,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
       }
       .vbox {
         display: block;
-         sourceMappingURL=[^*]**/ as tall as 16:9 of the column when there is room (the controls sit right under the picture), shorter when there is not
+        /* as tall as 16:9 of the column when there is room (the controls sit right under the picture), shorter when there is not
            (the picture then narrows to keep 16:9, centred) */
         aspect-ratio: 16 / 9;
         flex: 0 1 auto;
@@ -1042,7 +1042,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
         min-block-size: 0;
         overflow-y: auto;
         overscroll-behavior: contain;
-         sourceMappingURL=[^*]**/ room for the cards' shadow and the focus ring inside the scroller */
+        /* room for the cards' shadow and the focus ring inside the scroller */
         padding: 2px 4px 6px;
         margin: -2px -4px 0;
       }
@@ -1054,7 +1054,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
         margin-block-start: 0;
       }
     }
-     sourceMappingURL=[^*]**/ settings accordion (owner round 4, 2.6): the video keeps its place, everything below starts collapsed
+    /* settings accordion (owner round 4, 2.6): the video keeps its place, everything below starts collapsed
        under one "camera settings" toggle, and each setting inside is its own collapsed row. */
     .acc-root {
       margin-block-start: 12px;
@@ -1111,7 +1111,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
     .acc-content {
       padding: 0 2px 12px;
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE method on the single camera): the picture is the hero (radius 2xl, the third shadow); the stream
+    /* R5-LIVE-297 (the HOMEFABLE method on the single camera): the picture is the hero (radius 2xl, the third shadow); the stream
        choice is a pair of raised keys with the chosen one a filled accent key, 14 px bold; the round tools are 42 px raised keys that
        sink on pointer-down and tint on hover only under a fine pointer; the details card's facts are WELLS (label over a 15 px bold
        value) instead of grey label / value text; a camera that is down is a filled offline field */
@@ -1131,7 +1131,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-bold);
     }
-     sourceMappingURL=[^*]**/ visible-difference test (50 %): on a desktop the picture is most of the frame, so the tool row became a tier-2 strip - the
+    /* visible-difference test (50 %): on a desktop the picture is most of the frame, so the tool row became a tier-2 strip - the
        surface, the first shadow, rounded - that reads as the camera's control deck under the hero */
     .controls {
       margin-block-start: 14px;
@@ -1161,7 +1161,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
         background: var(--sw-surface-2);
         box-shadow: var(--sw-shadow-2);
       }
-       sourceMappingURL=[^*]**/ DARK-SEG-ALL-2380: a hovered chosen transport key keeps the dark light pill (its label is the key's dark ink); light: surface-2 as before */
+      /* DARK-SEG-ALL-2380: a hovered chosen transport key keeps the dark light pill (its label is the key's dark ink); light: surface-2 as before */
       .round .transport button.on:hover:not(:disabled) {
         background: var(--sw-seg-key, var(--sw-surface-2));
       }
@@ -1195,7 +1195,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
       gap: 16px;
       margin-block-start: 16px;
     }
-     sourceMappingURL=[^*]**/ each label / value pair is one well row: the two cells share the surface-2 fill and round the row's outer corners */
+    /* each label / value pair is one well row: the two cells share the surface-2 fill and round the row's outer corners */
     dl {
       gap: 5px 0;
       font-size: var(--sw-fs-md);
@@ -1240,7 +1240,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
         transform: none;
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 Fable pass (the Opus deck was a full-width strip, 80 % empty, that vanished in the flat skins): the deck hugs its
+    /* R5-LIVE-297 Fable pass (the Opus deck was a full-width strip, 80 % empty, that vanished in the flat skins): the deck hugs its
        keys - a raised remote (radius xl, the second shadow) at the start edge under the picture, not a band; 44 px keys with the first
        shadow, the stream choice 40 px / 15 px bold with the chosen one a filled accent key; the player's state is a filled field in the
        deck (the same slot as the old "playing through…" note, so the order of controls is unchanged); a camera that is down shows a
@@ -1253,7 +1253,7 @@ import{i as N,n as $,r as c,a as P,K as g,kV as _,ak as y,p as o,q as r,x as j,q
       gap: 10px 14px;
       border-color: transparent;
       border-radius: var(--sw-r-xl);
-       sourceMappingURL=[^*]**/ loop 1: in the flat skins (tesla, Arx Infra, Arx Soft) a surface deck with a faint shadow melted into the page - the deck is a
+      /* loop 1: in the flat skins (tesla, Arx Infra, Arx Soft) a surface deck with a faint shadow melted into the page - the deck is a
          7 % tone step in the heading ink, so it reads as a tray in every skin, light and dark, and the surface keys float on it */
       background: color-mix(in srgb, var(--sw-heading) 7%, var(--sw-surface));
       box-shadow: var(--sw-shadow-2);

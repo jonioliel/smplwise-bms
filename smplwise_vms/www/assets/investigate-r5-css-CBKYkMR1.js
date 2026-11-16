@@ -1,5 +1,5 @@
 import{i as r}from"./index-C5kZ9jiu.js";const a=r`
-   sourceMappingURL=[^*]**/ the page's primary object: the list or the main card sits a step above the page (radius lg, shadow 2, a light line on top) */
+  /* the page's primary object: the list or the main card sits a step above the page (radius lg, shadow 2, a light line on top) */
   sw-table,
   sw-card:not([flush]):not([row]),
   .r5-hero {
@@ -14,7 +14,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
     --sw-table-fs: var(--sw-fs-base);
     box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
   }
-   sourceMappingURL=[^*]**/ a well: a row inside a card (tone step down, rounded, no hairline) */
+  /* a well: a row inside a card (tone step down, rounded, no hairline) */
   .r5-well {
     background: var(--sw-surface-2);
     border: 0;
@@ -45,7 +45,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
   .r5-press:active {
     transform: scale(var(--sw-press-scale));
   }
-   sourceMappingURL=[^*]**/ the reading sizes: a row title, its detail, a display numeral */
+  /* the reading sizes: a row title, its detail, a display numeral */
   .r5-title {
     font-size: var(--sw-fs-md);
     font-weight: var(--sw-fw-semibold);
@@ -68,7 +68,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
   .r5-num.sm {
     font-size: var(--sw-fs-xl);
   }
-   sourceMappingURL=[^*]**/ a key: a raised control (tone step up + shadow 1) that sinks on pointer-down */
+  /* a key: a raised control (tone step up + shadow 1) that sinks on pointer-down */
   .r5-key {
     background: var(--sw-surface);
     border: 1px solid var(--sw-border);
@@ -79,7 +79,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
   .r5-key:active {
     transform: scale(var(--sw-press-scale));
   }
-   sourceMappingURL=[^*]**/ a facts list (dt / dd) as wells: the value reads first, the label is the caption */
+  /* a facts list (dt / dd) as wells: the value reads first, the label is the caption */
   dl.r5-facts {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -111,7 +111,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
     direction: ltr;
     unicode-bidi: isolate;
   }
-   sourceMappingURL=[^*]**/ POLISH4-WP2: the wells and keys stand still under reduced motion (the press keeps its colour change, not its travel) */
+  /* POLISH4-WP2: the wells and keys stand still under reduced motion (the press keeps its colour change, not its travel) */
   @media (prefers-reduced-motion: reduce) {
     .r5-well,
     .r5-key {

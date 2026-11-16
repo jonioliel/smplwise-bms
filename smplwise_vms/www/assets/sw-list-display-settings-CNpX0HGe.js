@@ -24,7 +24,7 @@ import{jm as b,i as f,n as y,r as h,a as $,jn as w,K as p,jo as S,ch as z,jl as 
     .row + .row {
       border-block-start: 1px solid var(--sw-border);
     }
-     sourceMappingURL=[^*]**/ POLISH2-295: the segmented control is the settings pages' own (settingsSegStyles: the accent with the inverse label when chosen,
+    /* POLISH2-295: the segmented control is the settings pages' own (settingsSegStyles: the accent with the inverse label when chosen,
        AA in both schemes); its own look (the chosen segment darker than the track in the dark scheme, 1.2:1) is gone. A read-only
        viewer sees the same contrast: no dimming. */
     .seg button:disabled {

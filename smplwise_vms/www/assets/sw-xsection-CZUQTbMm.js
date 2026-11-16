@@ -39,7 +39,7 @@ import{a as F,gs as T,gt as z,bQ as s,q as i,bZ as q,bR as y,p,X as B,gu as g,gv
       :host { display: block; min-inline-size: 0; min-block-size: 0; block-size: 100%; }
       .card { block-size: 100%; min-block-size: 0; box-sizing: border-box; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 16px 18px 14px; background: var(--sw-surface); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); border: 1px solid var(--sw-border); }
       :host([sheet]) .card { box-shadow: none; border: 0; padding: 4px 2px 0; }
-       sourceMappingURL=[^*]**/ aligned beside the floor cards: no panel chrome - the rows are wells like the cards, so a card and its row read as one table line */
+      /* aligned beside the floor cards: no panel chrome - the rows are wells like the cards, so a card and its row read as one table line */
       .card.aligned { grid-template-rows: auto auto; align-content: start; gap: 14px; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
       .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-inline-size: 0; }
       h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); letter-spacing: -0.02em; color: var(--sw-heading); white-space: nowrap; }
@@ -55,7 +55,7 @@ import{a as F,gs as T,gt as z,bQ as s,q as i,bZ as q,bR as y,p,X as B,gu as g,gv
       .chip.hot { background: color-mix(in srgb, var(--sw-heat) 16%, var(--sw-surface)); color: var(--sw-text); }
       .chip.cold { background: color-mix(in srgb, var(--sw-cool) 16%, var(--sw-surface)); color: var(--sw-text); }
       .chip.off { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text-3); }
-       sourceMappingURL=[^*]**/ white on --sw-danger is 3.8:1; the darker mix is 5.3:1 (ui-ux-pro-max contrast pass) */
+      /* white on --sw-danger is 3.8:1; the darker mix is 5.3:1 (ui-ux-pro-max contrast pass) */
       .chip.alarm { background: color-mix(in srgb, var(--sw-danger) 80%, #000); color: #fff; font-weight: var(--sw-fw-bold); }
       .hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
       .hint .xi { color: var(--sw-text-3); }
@@ -88,7 +88,7 @@ import{a as F,gs as T,gt as z,bQ as s,q as i,bZ as q,bR as y,p,X as B,gu as g,gv
       .row[data-temp='cold'] .deg { color: color-mix(in srgb, var(--sw-cool) 62%, var(--sw-heading)); }
       .row[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 12%, var(--sw-surface-2)); }
       .row[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 12%, var(--sw-surface-2)); }
-       sourceMappingURL=[^*]**/ no data: the same well, said once in muted words - no stripes, no extra edge, no empty facade */
+      /* no data: the same well, said once in muted words - no stripes, no extra edge, no empty facade */
       .row[data-off] .t { color: var(--sw-text-2); }
       .row[data-fire='alarm'] { background: color-mix(in srgb, var(--sw-danger) 14%, var(--sw-surface)); border-color: var(--sw-danger); }
       .row.below:not([data-temp]):not([data-fire]):not(.sel) { background: color-mix(in srgb, var(--sw-surface-2) 70%, var(--sw-surface-3)); }
@@ -108,7 +108,7 @@ import{a as F,gs as T,gt as z,bQ as s,q as i,bZ as q,bR as y,p,X as B,gu as g,gv
       .shaft .c.bot::before { bottom: 50%; }
       .shaft .c.in::after { content: ''; position: absolute; inset-inline-start: 50%; top: 50%; inline-size: 8px; block-size: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--sw-surface); box-shadow: inset 0 0 0 2px var(--sw-accent); }
       .shaft .c.in.pend::after { box-shadow: inset 0 0 0 2px var(--sw-text-3); background: var(--sw-surface-2); }
-       sourceMappingURL=[^*]**/ aligned: one line from the first served row to the last, a stop on each served row */
+      /* aligned: one line from the first served row to the last, a stop on each served row */
       .shaft.abs { display: block; }
       .shaft.abs .ln { position: absolute; inset-inline-start: 50%; margin-inline-start: -1px; border-inline-start: 2px solid var(--sw-accent); }
       .shaft.abs[data-k='stairs'] .ln { border-inline-start-style: dashed; }
@@ -123,9 +123,9 @@ import{a as F,gs as T,gt as z,bQ as s,q as i,bZ as q,bR as y,p,X as B,gu as g,gv
       .legend i.ln { inline-size: 14px; block-size: 0; border-radius: 0; border-block-start: 2px solid var(--sw-accent); background: none; }
       .legend i.ln.d { border-block-start-style: dashed; }
       .empty { display: grid; place-items: center; gap: 6px; padding: 24px; text-align: center; color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
-       sourceMappingURL=[^*]**/ density: by the row height (aligned) or the number of floors (filling) - fewer pixels, fewer words. Never a scroll. */
+      /* density: by the row height (aligned) or the number of floors (filling) - fewer pixels, fewer words. Never a scroll. */
       .quiet { display: none; }
-       sourceMappingURL=[^*]**/ roomy rows: the second line may take two lines (the home-system floor and how it was matched); a floor without data has no
+      /* roomy rows: the second line may take two lines (the home-system floor and how it was matched); a floor without data has no
          facade or values, so its words take the row */
       @media (min-width: 1101px) {
         .stack[data-d='l'] .s, .stack[data-d='l'] .t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
@@ -147,7 +147,7 @@ import{a as F,gs as T,gt as z,bQ as s,q as i,bZ as q,bR as y,p,X as B,gu as g,gv
       .stack:not(.abs)[data-d='s'] .t { font-size: clamp(8px, calc((100cqh - 6px * var(--n, 16)) / var(--n, 16) * 0.55), 13px); }
       .stack:not(.abs)[data-d='s'] .deg { font-size: clamp(8px, calc((100cqh - 6px * var(--n, 16)) / var(--n, 16) * 0.6), 14.5px); }
       .stack:not(.abs)[data-d='s'] .row { border-radius: 8px; }
-       sourceMappingURL=[^*]**/ entrance: fade only unless motion is allowed and the option is on */
+      /* entrance: fade only unless motion is allowed and the option is on */
       .stack[data-enter] .row { animation: xs-fade 160ms var(--sw-ease, ease) backwards; }
       @media (prefers-reduced-motion: no-preference) {
         .stack[data-enter='rise'] .row { animation: xs-rise 260ms var(--sw-ease, ease) backwards; animation-delay: calc(var(--i, 0) * var(--step, 20ms) * 0.4); }

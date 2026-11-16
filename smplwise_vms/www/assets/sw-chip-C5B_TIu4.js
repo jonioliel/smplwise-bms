@@ -17,7 +17,7 @@ import{i as d,n as o,a as u,q as a,x as w}from"./index-C5kZ9jiu.js";var v=Object
     `}};e.styles=d`
     :host {
       display: inline-flex;
-       sourceMappingURL=[^*]**/ break-ui (POLISH-CLASSIC-DOMUS-297): a long label (an e-mail, a long area name) ends in an ellipsis inside its container
+      /* break-ui (POLISH-CLASSIC-DOMUS-297): a long label (an e-mail, a long area name) ends in an ellipsis inside its container
          instead of running out of the card; the count and the dot never shrink */
       max-inline-size: 100%;
       min-inline-size: 0;
@@ -26,7 +26,7 @@ import{i as d,n as o,a as u,q as a,x as w}from"./index-C5kZ9jiu.js";var v=Object
       min-inline-size: 0;
       overflow: hidden;
       text-overflow: ellipsis;
-       sourceMappingURL=[^*]**/ second pass (break-ui): the text takes its own direction, so a Latin e-mail in the RTL shell is cut at its END, not its start */
+      /* second pass (break-ui): the text takes its own direction, so a Latin e-mail in the RTL shell is cut at its END, not its start */
       unicode-bidi: plaintext;
       white-space: nowrap;
     }
@@ -51,7 +51,7 @@ import{i as d,n as o,a as u,q as a,x as w}from"./index-C5kZ9jiu.js";var v=Object
       cursor: pointer;
       white-space: nowrap;
       box-shadow: var(--sw-shadow-1);
-       sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297: colour on the hover curve, press feedback on transform (1 = none in a skin that sets no scale) */
+      /* POLISH-CLASSIC-DOMUS-297: colour on the hover curve, press feedback on transform (1 = none in a skin that sets no scale) */
       transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
@@ -77,7 +77,7 @@ import{i as d,n as o,a as u,q as a,x as w}from"./index-C5kZ9jiu.js";var v=Object
     .count {
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-B-SHARED: the component's own selected state stays the accent key with inverse ink, because a skin that repaints the
+    /* AUDIT30-B-SHARED: the component's own selected state stays the accent key with inverse ink, because a skin that repaints the
        selected chip as an accent key (domus rule 6) sets only its background and relies on this ink - a soft-field ink here read
        accent-text on accent there (measured on the runner, pixel-round4-leftovers wk-overview domus). The soft field is drawn by the
        skin layer: classic rule 1 (the default skin) uses exactly chipSelected; the other skins follow when their owner adopts it. */
@@ -101,7 +101,7 @@ import{i as d,n as o,a as u,q as a,x as w}from"./index-C5kZ9jiu.js";var v=Object
       color: var(--sw-text-3);
     }
     :host([selected]) .count {
-      color: var(--sw-chip-on-count, var(--sw-text-inverse));  sourceMappingURL=[^*]**/ UXREST-295: the 80 % mix read 3.7:1 on the accent fill; the count is the quieter figure by its brackets and size. AUDIT30-B: a skin that draws the soft field sets --sw-chip-on-count (classic: --sw-accent-text) */
+      color: var(--sw-chip-on-count, var(--sw-text-inverse)); /* UXREST-295: the 80 % mix read 3.7:1 on the accent fill; the count is the quieter figure by its brackets and size. AUDIT30-B: a skin that draws the soft field sets --sw-chip-on-count (classic: --sw-accent-text) */
     }
     button:disabled {
       cursor: default;

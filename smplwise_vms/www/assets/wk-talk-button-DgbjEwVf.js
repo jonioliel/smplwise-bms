@@ -29,7 +29,7 @@ import{i as $,n as c,r as m,a as I,c_ as z,c$ as C,cH as _,cQ as O,p as d,q as r
       justify-content: center;
       gap: var(--sw-s-2);
       inline-size: 100%;
-      min-block-size: max(56px, var(--sw-ctl-h-lg, 0px));  sourceMappingURL=[^*]**/ a big press target on every skin and width */
+      min-block-size: max(56px, var(--sw-ctl-h-lg, 0px)); /* a big press target on every skin and width */
       padding-inline: var(--sw-s-4);
       border-radius: var(--sw-r-md);
       border: 1px solid var(--sw-border-strong);

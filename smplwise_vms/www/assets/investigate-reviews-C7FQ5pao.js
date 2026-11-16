@@ -75,7 +75,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
     :host([data-reviewed]) .cells {
       opacity: 0.6;
     }
-     sourceMappingURL=[^*]**/ ---- the still ---- */
+    /* ---- the still ---- */
     .thumb {
       position: relative;
       display: block;
@@ -94,7 +94,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       inline-size: 100%;
       block-size: 100%;
       object-fit: cover;
-       sourceMappingURL=[^*]**/ a still is a picture of the camera: never mirrored by RTL */
+      /* a still is a picture of the camera: never mirrored by RTL */
       direction: ltr;
       opacity: 0;
       transition: transform var(--sw-t-med) var(--sw-ease), opacity var(--sw-t-med) var(--sw-ease);
@@ -102,7 +102,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
     .thumb img[data-loaded] {
       opacity: 1;
     }
-     sourceMappingURL=[^*]**/ while the still is on its way: a quiet shimmer over the video surface */
+    /* while the still is on its way: a quiet shimmer over the video surface */
     .thumb::before {
       content: '';
       position: absolute;
@@ -263,7 +263,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
     .over time {
       color: rgba(255, 255, 255, 0.9);
     }
-     sourceMappingURL=[^*]**/ ---- the body ---- */
+    /* ---- the body ---- */
     .body {
       display: grid;
       gap: 6px;
@@ -363,7 +363,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ ---- the table row ---- */
+    /* ---- the table row ---- */
     :host([variant='row']) article {
       display: grid;
       grid-template-columns: var(--rv-cols, ${G});
@@ -384,7 +384,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       background: var(--sw-accent-soft);
       box-shadow: none;
     }
-     sourceMappingURL=[^*]**/ the selection bar sits at the reading start (right in Hebrew, left in English) */
+    /* the selection bar sits at the reading start (right in Hebrew, left in English) */
     :host([variant='row'][selected]) article::before {
       content: '';
       position: absolute;
@@ -511,7 +511,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
     .rowacts button.mark:hover {
       background: var(--sw-accent-soft);
     }
-     sourceMappingURL=[^*]**/ a narrow table (tablet portrait, phone): the row folds to the still and two text lines; the header is hidden by the screen */
+    /* a narrow table (tablet portrait, phone): the row folds to the still and two text lines; the header is hidden by the screen */
     @media (max-width: 899px) {
       :host([variant='row']) article {
         grid-template-columns: 40px 96px minmax(0, 1fr) auto;
@@ -544,7 +544,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       :host([variant='row']) .fold {
         display: contents;
       }
-       sourceMappingURL=[^*]**/ the duration has its own column on a wide table */
+      /* the duration has its own column on a wide table */
       :host([variant='row']) .fold-only {
         display: none;
       }
@@ -973,7 +973,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       cursor: pointer;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: the chosen layer is a raised key (shadow 1 + light line, heading ink, 700), its count a display numeral;
+    /* R5-INVESTIGATE-297: the chosen layer is a raised key (shadow 1 + light line, heading ink, 700), its count a display numeral;
        the keys sink on pointer-down */
     .layers button {
       font-size: var(--sw-fs-base);
@@ -1029,7 +1029,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       align-items: center;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ the list dims while a new filter is on its way; the old items stay put so nothing jumps */
+    /* the list dims while a new filter is on its way; the old items stay put so nothing jumps */
     .list {
       display: grid;
       gap: var(--sw-s-3);
@@ -1039,7 +1039,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       opacity: 0.55;
       pointer-events: none;
     }
-     sourceMappingURL=[^*]**/ the first load: the shape of the cards, not a spinner */
+    /* the first load: the shape of the cards, not a spinner */
     .skl {
       display: block;
       border-radius: var(--sw-r-md);
@@ -1066,7 +1066,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
         animation: none;
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2: the drawer's small controls answer on pointer-down (a pressed wash - a colour change, so it also holds under reduced
+    /* POLISH4-WP2: the drawer's small controls answer on pointer-down (a pressed wash - a colour change, so it also holds under reduced
        motion); the touch tap flash is off */
     .dnav button,
     .seg button,
@@ -1082,7 +1082,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
     .linkbtn:active {
       opacity: 0.7;
     }
-     sourceMappingURL=[^*]**/ the drawer's item navigation: previous / next and "2 מתוך 4", beside the heading */
+    /* the drawer's item navigation: previous / next and "2 מתוך 4", beside the heading */
     .dnav {
       display: inline-flex;
       align-items: center;
@@ -1121,7 +1121,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       padding-inline: 4px;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ the view switch and the help: a quiet segmented pair and one icon button */
+    /* the view switch and the help: a quiet segmented pair and one icon button */
     .seg {
       display: inline-flex;
       gap: 2px;
@@ -1162,14 +1162,14 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       color: var(--sw-text-2);
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2: hover only under a fine pointer (a tap must not leave a stuck hover) */
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer (a tap must not leave a stuck hover) */
     @media (hover: hover) and (pointer: fine) {
       .ib:hover {
         background: var(--sw-surface-2);
         color: var(--sw-text);
       }
     }
-     sourceMappingURL=[^*]**/ state chips: short, inline, never a paragraph */
+    /* state chips: short, inline, never a paragraph */
     .notes {
       display: flex;
       flex-wrap: wrap;
@@ -1215,7 +1215,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 268px), 1fr));
       gap: var(--sw-s-3);
     }
-     sourceMappingURL=[^*]**/ the table view: one card, a header row, the items as rows */
+    /* the table view: one card, a header row, the items as rows */
     .tbl {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
@@ -1263,7 +1263,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       cursor: pointer;
       padding: 0;
     }
-     sourceMappingURL=[^*]**/ the keys dialog: a two-column list */
+    /* the keys dialog: a two-column list */
     .keys {
       display: grid;
       grid-template-columns: max-content 1fr;
@@ -1291,7 +1291,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       text-align: center;
       direction: ltr;
     }
-     sourceMappingURL=[^*]**/ the export form */
+    /* the export form */
     .form {
       display: grid;
       gap: var(--sw-s-3);
@@ -1349,7 +1349,7 @@ import{i as E,n as u,r as c,a as R,p as o,q as r,tu as T,tv as S,tw as _,x as O,
       .toolbar .txt {
         display: none;
       }
-       sourceMappingURL=[^*]**/ the phone: one strip of filters that scrolls sideways instead of stacking three rows */
+      /* the phone: one strip of filters that scrolls sideways instead of stacking three rows */
       .filters {
         flex-wrap: nowrap;
         overflow-x: auto;

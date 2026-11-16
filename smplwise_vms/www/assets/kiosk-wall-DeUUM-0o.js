@@ -44,7 +44,7 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
     :host([data-idle]) .stats {
       opacity: 0.7;
     }
-     sourceMappingURL=[^*]**/ WALL-ANSWERS-2400 (owner 04.11, round 18 question 19): the header and the counters never shrink. The kiosk is a flex item of the
+    /* WALL-ANSWERS-2400 (owner 04.11, round 18 question 19): the header and the counters never shrink. The kiosk is a flex item of the
        shell's 100dvh <main> with min-block-size: 100%, so when its content is taller (a phone: wrapped header + 16:9 tiles packed
        from the top + counters) the host is held at 100dvh and its flex items shrink. The header's explicit min-block-size (48 px)
        replaced the automatic content minimum, so it was squeezed to 48 px while its wrapped rows (the title row, the layout select,
@@ -61,7 +61,7 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
       flex: none;
     }
     header sw-brand[kind='product'] {
-      opacity: 0.9;  sourceMappingURL=[^*]**/ NOTICEPUSH-295: the approved mockup mark (sw-brand draws it inline, 24 px), as before the mint PNG it replaces */
+      opacity: 0.9; /* NOTICEPUSH-295: the approved mockup mark (sw-brand draws it inline, 24 px), as before the mint PNG it replaces */
     }
     h1 {
       margin: 0;
@@ -201,7 +201,7 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
       grid-auto-rows: minmax(0, 1fr);
       gap: 10px;
     }
-     sourceMappingURL=[^*]**/ a cell centres its 16:9 picture (container units): a page of three rows fits the tablet's height with the counters under
+    /* a cell centres its 16:9 picture (container units): a page of three rows fits the tablet's height with the counters under
        it instead of pushing them off the screen; where the units are missing the picture fills the cell's width as before */
     .cell {
       display: grid;
@@ -216,7 +216,7 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
       border-radius: var(--sw-r-md);
       animation: k-in 0.6s var(--sw-ease) both;
     }
-     sourceMappingURL=[^*]**/ a portrait tablet cannot fill its height with 16:9 pictures: the rows pack from the top and the counters follow them */
+    /* a portrait tablet cannot fill its height with 16:9 pictures: the rows pack from the top and the counters follow them */
     @media (orientation: portrait) and (min-width: 768px) {
       .grid {
         flex: none;
@@ -298,13 +298,13 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
         opacity: 0.45;
       }
     }
-     sourceMappingURL=[^*]**/ the reference tablets (820 x 1280, 1280 x 800): the counters stay four across in landscape and become two rows in portrait */
+    /* the reference tablets (820 x 1280, 1280 x 800): the counters stay four across in landscape and become two rows in portrait */
     @media (max-width: 1023px) {
       .stats {
         grid-template-columns: repeat(2, 1fr);
       }
     }
-     sourceMappingURL=[^*]**/ the phone (mobile audit 2026-09-30): the header wraps instead of running off the screen, the tiles keep their own 16:9
+    /* the phone (mobile audit 2026-09-30): the header wraps instead of running off the screen, the tiles keep their own 16:9
        height and pack from the top (no dead space between rows), the summary tiles become one scrolling row, the targets
        are 44 px and the page keeps clear of the device's safe areas */
     @media (max-width: 767px) {
@@ -367,7 +367,7 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
         font-size: var(--sw-fs-lg);
       }
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE type scale on the wall display, read from across the room): the title 800, the clock a 32 px / 800
+    /* R5-LIVE-297 (the HOMEFABLE type scale on the wall display, read from across the room): the title 800, the clock a 32 px / 800
        display numeral, the counters 34 px / 800 tight over a 14 px label; a counter that needs someone (open alerts) is a filled danger
        field, a healthy one keeps the quiet wash; the exit is a key that tints on hover only under a fine pointer and sinks on press */
     h1 {
@@ -395,7 +395,7 @@ import{a as u,bk as x,bI as v,bz as b,K as w,aa as k,W as y,ft as z,a7 as $,qN a
       color: var(--sw-text-inverse);
     }
     .stat b {
-      font-size: var(--sw-fs-4xl);  sourceMappingURL=[^*]**/ the kiosk's display numeral, read at three metres */
+      font-size: var(--sw-fs-4xl); /* the kiosk's display numeral, read at three metres */
       font-weight: 800;
       letter-spacing: -0.03em;
     }

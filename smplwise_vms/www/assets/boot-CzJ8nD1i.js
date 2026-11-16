@@ -73,7 +73,7 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
       inset: 0;
       display: grid;
       place-items: center;
-       sourceMappingURL=[^*]**/ standalone (installed) iOS/Android: keep the card clear of the notch, status bar and home indicator */
+      /* standalone (installed) iOS/Android: keep the card clear of the notch, status bar and home indicator */
       padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
       overflow: auto;
       box-sizing: border-box;
@@ -84,7 +84,7 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
         radial-gradient(900px 500px at 0% 110%, color-mix(in srgb, var(--sw-accent) 10%, transparent), transparent 60%),
         var(--sw-bg);
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: the card is the hero of the page - wider, deeper (shadow 3 + the light line), a 26/800 title, 48 px wells for the
+    /* R5-SYSTEM-297: the card is the hero of the page - wider, deeper (shadow 3 + the light line), a 26/800 title, 48 px wells for the
        fields and a 48 px primary key; it materialises once (240 ms ease-out, fade + 10 px rise; a cross-fade under reduced motion) */
     .card {
       inline-size: min(420px, 100%);
@@ -122,7 +122,7 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
         }
       }
     }
-     sourceMappingURL=[^*]**/ LOGOS-295 (mockup v3.1): BOTH logos in the card head, centred - the company's on top (when one is set), the SmplWise logo below;
+    /* LOGOS-295 (mockup v3.1): BOTH logos in the card head, centred - the company's on top (when one is set), the SmplWise logo below;
        with no company logo the SmplWise logo alone, larger. The sizes follow the administrator's scale (sw-brand). */
     .lhead {
       display: flex;
@@ -196,15 +196,15 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading, var(--sw-text));
     }
-     sourceMappingURL=[^*]**/ a field is a well (surface-2, no resting outline); the accent ring appears on focus */
+    /* a field is a well (surface-2, no resting outline); the accent ring appears on focus */
     input {
       font: inherit;
-      font-size: max(16px, var(--sw-fs-lg));  sourceMappingURL=[^*]**/ no zoom-on-focus on iOS */
+      font-size: max(16px, var(--sw-fs-lg)); /* no zoom-on-focus on iOS */
       min-block-size: 48px;
       padding: 8px 14px;
       border-radius: var(--sw-r-md);
       border: 1px solid transparent;
-       sourceMappingURL=[^*]**/ loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
+      /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
       background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
       color: var(--sw-text);
       box-sizing: border-box;
@@ -216,7 +216,7 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
       outline: none;
       border-color: var(--sw-accent);
       background: var(--sw-surface);
-       sourceMappingURL=[^*]**/ the same focus as every field of the product (sw-field): the accent outline and a soft halo */
+      /* the same focus as every field of the product (sw-field): the accent outline and a soft halo */
       box-shadow: 0 0 0 3px var(--sw-accent-soft), 0 0 0 1px var(--sw-accent);
     }
     input.ltr {
@@ -300,7 +300,7 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
       flex: none;
       margin-block-start: 1px;
     }
-     sourceMappingURL=[^*]**/ a link-style button never takes the primary buttons' hover fill (a touch leaves :hover behind on phones,
+    /* a link-style button never takes the primary buttons' hover fill (a touch leaves :hover behind on phones,
        which turned "החלף שרת" into a blue block with invisible text - seen in the Android app) */
     button.link:hover:not(:disabled) {
       background: none;
@@ -370,13 +370,13 @@ import{g as C,A as m,l as a,i as A,n as v,r as h,e as f,a as T,h as S,o as F,b a
       justify-content: center;
       margin-block-start: -8px;
     }
-     sourceMappingURL=[^*]**/ USR2 phase 4: the passkey buttons sit under the primary action */
+    /* USR2 phase 4: the passkey buttons sit under the primary action */
     button.secondary {
       background: var(--sw-surface);
       color: var(--sw-accent-text, var(--sw-accent));
     }
     button.secondary:hover:not(:disabled) {
-       sourceMappingURL=[^*]**/ loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
+      /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
       background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
     }
     .passkey-only {

@@ -169,7 +169,7 @@ import{a as z,S as _,uY as S,uZ as T,K as c,u_ as x,u$ as R,ak as $,v0 as E,R as
       opacity: 0.75;
       font-size: 0.85em;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: the verdict is the hero of the wizard - the large radius, shadow 2, a 20/800 line, a 48 px status disc */
+    /* R5-SYSTEM-297: the verdict is the hero of the wizard - the large radius, shadow 2, a 20/800 line, a 48 px status disc */
     .summary {
       display: flex;
       align-items: center;
@@ -228,9 +228,9 @@ import{a as z,S as _,uY as S,uZ as T,K as c,u_ as x,u$ as R,ak as $,v0 as E,R as
       gap: 8px;
       flex-wrap: wrap;
     }
-     sourceMappingURL=[^*]**/ R5-SYSTEM-297: a step is a card of the ladder (the large radius, shadow 2 + the light line, a 17/700 title); its state stays a
+    /* R5-SYSTEM-297: a step is a card of the ladder (the large radius, shadow 2 + the light line, a 17/700 title); its state stays a
        filled edge and a filled pill (status as a field) */
-     sourceMappingURL=[^*]**/ loop 2 (impeccable detect: "side-tab accent border" on the 5 px edge): the status moves off the card edge into the step
+    /* loop 2 (impeccable detect: "side-tab accent border" on the 5 px edge): the status moves off the card edge into the step
        disc, a FILLED field (success / danger / warning soft + the dark ink), beside the filled status pill */
     .step {
       background: var(--sw-surface);
@@ -383,7 +383,7 @@ import{a as z,S as _,uY as S,uZ as T,K as c,u_ as x,u$ as R,ak as $,v0 as E,R as
       outline-offset: 2px;
       border-radius: var(--sw-r-2xs);
     }
-     sourceMappingURL=[^*]**/ a finger needs 44px */
+    /* a finger needs 44px */
     @media (pointer: coarse) {
       .links a,
       .linkbtn {
@@ -446,7 +446,7 @@ import{a as z,S as _,uY as S,uZ as T,K as c,u_ as x,u$ as R,ak as $,v0 as E,R as
       overflow-wrap: anywhere;
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ loop 2: a toned fact value is a FILLED pill (status as a field), not a coloured word on white */
+    /* loop 2: a toned fact value is a FILLED pill (status as a field), not a coloured word on white */
     dd.ok,
     dd.warn,
     dd.err {

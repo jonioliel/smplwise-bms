@@ -129,7 +129,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       color: var(--dv-text-2);
       margin: 0;
     }
-     sourceMappingURL=[^*]**/ ---- the week */
+    /* ---- the week */
     .week {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -210,7 +210,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     a.ev:hover {
       transform: translateY(-1px);
     }
-     sourceMappingURL=[^*]**/ the bubble skin's xl radius (42 px) would put the time and the clock of a small card in its corners */
+    /* the bubble skin's xl radius (42 px) would put the time and the clock of a small card in its corners */
     :host([data-skin='bubble']) a.ev {
       border-radius: var(--sw-r-md);
       padding: 10px 12px;
@@ -265,7 +265,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       --sw-elapsed-wrap: normal;
       max-inline-size: 100%;
     }
-     sourceMappingURL=[^*]**/ ---- the phone: one day at a time */
+    /* ---- the phone: one day at a time */
     .strip {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -344,7 +344,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       .today {
         min-block-size: 44px;
       }
-       sourceMappingURL=[^*]**/ UXFIX-A11Y-295 (UX audit 2026-10-20, finding 12): the week range wrapped to three lines between the step keys and the count, and
+      /* UXFIX-A11Y-295 (UX audit 2026-10-20, finding 12): the week range wrapped to three lines between the step keys and the count, and
          the controls took ~460 px above the first event. One line for the range (it shrinks with an ellipsis before it wraps), the
          week's count leaves the bar (the day box says the day's count), the legend keeps one line and scrolls sideways if it must. */
       .bar {
@@ -432,14 +432,14 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     .chipin .n {
       font-variant-numeric: tabular-nums;
     }
-     sourceMappingURL=[^*]**/ the list header's phone layout (tickets-list.ts, < 768 px) orders the search row 2: the chip sits there too (the host is
+    /* the list header's phone layout (tickets-list.ts, < 768 px) orders the search row 2: the chip sits there too (the host is
        display: contents, so the button is the header's flex item) */
     @media (max-width: 767px) {
       .chipin {
         order: 2;
       }
     }
-     sourceMappingURL=[^*]**/ a narrow phone keeps that row to one line: the icon and the count (the full words stay in aria-label) */
+    /* a narrow phone keeps that row to one line: the icon and the count (the full words stay in aria-label) */
     @media (max-width: 599px) {
       .chipin .lbl {
         display: none;
@@ -547,7 +547,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     background: var(--sw-menu-surface);
     border-color: var(--sw-menu-border);
   }
-   sourceMappingURL=[^*]**/ a long list scrolls inside the popover (the popover itself never overflows its own box) */
+  /* a long list scrolls inside the popover (the popover itself never overflows its own box) */
   .anchor > .pop.lst {
     max-block-size: none;
     overflow: visible;
@@ -697,7 +697,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       background: var(--dv-surface-3);
     }
   }
-   sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
   .rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true']:hover {
@@ -706,7 +706,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     border-color: transparent;
   }
 
-   sourceMappingURL=[^*]**/ the table card */
+  /* the table card */
   .tw {
     background: var(--mm-sheen), var(--dv-surface);
     -webkit-backdrop-filter: var(--dv-surface-blur);
@@ -714,14 +714,14 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     border: 1px solid var(--dv-border);
     border-radius: var(--sw-r-2xl);
     box-shadow: var(--dv-shadow-1);
-     sourceMappingURL=[^*]**/ 2.5.5: the height follows the rows (a few rows leave no empty box and no vertical bar); a tall list scrolls inside, the header stays */
+    /* 2.5.5: the height follows the rows (a few rows leave no empty box and no vertical bar); a tall list scrolls inside, the header stays */
     overflow-x: auto;
     overflow-y: auto;
     block-size: auto;
     max-block-size: max(420px, calc(100dvh - 300px));
     overscroll-behavior: contain;
   }
-   sourceMappingURL=[^*]**/ SMALL-UI-BUGS-2343: fixed column widths (the <colgroup> of screens/tickets-table.ts; tickets/table-model.ts COLUMN_WIDTH_PX), the
+  /* SMALL-UI-BUGS-2343: fixed column widths (the <colgroup> of screens/tickets-table.ts; tickets/table-model.ts COLUMN_WIDTH_PX), the
      title takes the rest; the table's min-inline-size is their sum, so the default set fits 1280 / 1440 and only columns the user adds
      can make it scroll sideways. Long text in a cell ends with an ellipsis, the full text is its tooltip. */
   table.tt {
@@ -833,7 +833,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
   td.c-title .cv {
     font-weight: 600;
   }
-   sourceMappingURL=[^*]**/ a chip never widens its cell: the sub-state is cut first */
+  /* a chip never widens its cell: the sub-state is cut first */
   table.tt td .chip {
     max-inline-size: 100%;
     min-inline-size: 0;
@@ -855,7 +855,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     color: var(--dv-text-3);
     margin-block-start: 2px;
   }
-   sourceMappingURL=[^*]**/ TKUI4: the sentence column - what is happening, in the drawer's words; two lines at most */
+  /* TKUI4: the sentence column - what is happening, in the drawer's words; two lines at most */
   td.c-sentence .cv {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -878,7 +878,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-   sourceMappingURL=[^*]**/ GATE2342-B: the fixed column (SMALL-UI-BUGS-2343) cut the running clock ("פתוחה 20 ימים 2 ש׳") mid-word without an ellipsis; the
+  /* GATE2342-B: the fixed column (SMALL-UI-BUGS-2343) cut the running clock ("פתוחה 20 ימים 2 ש׳") mid-word without an ellipsis; the
      clock (<ticket-elapsed>, its own shadow root) wraps to a second line instead of being cut */
   td.c-created {
     --sw-elapsed-wrap: normal;
@@ -897,7 +897,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     color: var(--au-warn-text);
     font-weight: 600;
   }
-   sourceMappingURL=[^*]**/ 2.5.5: the status / handler menu is a top-layer popover rendered outside the scroll box (tickets/overlay-menu.ts places it: below or
+  /* 2.5.5: the status / handler menu is a top-layer popover rendered outside the scroll box (tickets/overlay-menu.ts places it: below or
      above the trigger, its own scroll only when taller than the room) - never a child of the cell, so no ancestor can clip it */
   .pop.ov {
     position: fixed;
@@ -946,7 +946,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     padding: 10px;
   }
 
-   sourceMappingURL=[^*]**/ the bulk bar (replaces the toolbar while rows are selected) */
+  /* the bulk bar (replaces the toolbar while rows are selected) */
   .bulk {
     display: flex;
     flex-wrap: wrap;
@@ -954,7 +954,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     gap: 8px;
     padding: 8px 12px;
     border-radius: var(--sw-r-2xl);
-     sourceMappingURL=[^*]**/ TKUI4: the bar floats over the rows (sticky at the bottom of the screen), so its fill is opaque under the accent tint */
+    /* TKUI4: the bar floats over the rows (sticky at the bottom of the screen), so its fill is opaque under the accent tint */
     background: linear-gradient(var(--dv-accent-soft), var(--dv-accent-soft)), var(--dv-surface-solid);
     border: 1px solid color-mix(in srgb, var(--dv-accent) 35%, transparent);
     box-shadow: var(--dv-shadow-2);
@@ -968,7 +968,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     white-space: nowrap;
   }
 
-   sourceMappingURL=[^*]**/ the phone: a compact list (number, title, status chip, age); no selection */
+  /* the phone: a compact list (number, title, status chip, age); no selection */
   .cl {
     display: flex;
     flex-direction: column;
@@ -1043,7 +1043,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     padding-block: 6px;
   }
 
-   sourceMappingURL=[^*]**/ skeleton rows */
+  /* skeleton rows */
   .sk td {
     padding-block: 14px;
   }
@@ -1061,7 +1061,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     .tbar .count {
       flex-basis: 100%;
     }
-     sourceMappingURL=[^*]**/ a phone: a popover spans the toolbar (never past the screen's edge) */
+    /* a phone: a popover spans the toolbar (never past the screen's edge) */
     .anchor {
       position: static;
     }
@@ -1078,7 +1078,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     }
   }
 
-   sourceMappingURL=[^*]**/ Bubble: flat, larger radius, no blur (component-level, the skin sheet is at its budget) */
+  /* Bubble: flat, larger radius, no blur (component-level, the skin sheet is at its budget) */
   :host([data-skin='bubble']) .tw,
   :host([data-skin='bubble']) .cl {
     -webkit-backdrop-filter: none;
@@ -1284,7 +1284,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
     .statebox {
       padding-block: 40px;
     }
-     sourceMappingURL=[^*]**/ TKUI4: the bulk bar floats at the bottom of the screen over the rows (sticky: the selection is always one tap from its actions) */
+    /* TKUI4: the bulk bar floats at the bottom of the screen over the rows (sticky: the selection is always one tap from its actions) */
     tickets-table-bulk {
       display: block;
       position: sticky;
@@ -1299,7 +1299,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       <div class="kpi" data-my="visits"><small>${ct("myVisits")}</small><b>${t.visitsToday}</b></div>
     </div>`}};X.styles=j`
     :host { display: block; }
-     sourceMappingURL=[^*]**/ TICKETS-POLISH-2331: one quiet strip (audit §7.5.4) - the number beside its label on a desktop row of 4; on a phone a horizontal
+    /* TICKETS-POLISH-2331: one quiet strip (audit §7.5.4) - the number beside its label on a desktop row of 4; on a phone a horizontal
        strip of compact tiles (the 2 x 2 block pushed the first request below the fold) */
     .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sw-s-3); }
     .kpi { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 16px; border-radius: var(--sw-r-xl); border: 1px solid var(--dv-border); background: var(--dv-surface); -webkit-backdrop-filter: var(--dv-surface-blur); backdrop-filter: var(--dv-surface-blur); box-shadow: var(--dv-shadow-1); min-inline-size: 0; }
@@ -1435,7 +1435,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       justify-content: center;
       padding-block: 4px;
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header (the title row
+    /* NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header (the title row
        and the ONE toolbar) the numbers and the requests scroll in their own region - the page itself never scrolls and the controls stay
        in place. In the table view the region does not scroll at all: the table card fills it and scrolls its rows under its sticky head.
        On a phone the region is transparent (display: contents) and the page scrolls, the header compacting over it. */
@@ -1480,7 +1480,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
         padding-inline: 24px;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the cards view is paged - the
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the cards view is paged - the
        numbers stay, the cards take the room left (.pgbox: its height is set by the layout, never by the cards) and show the rows that fit;
        the pager is on the toolbar row. The region keeps overflow: auto only as the fallback of a window shorter than one row of cards. */
     .lpager {
@@ -1512,7 +1512,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       z-index: 40;
       box-shadow: var(--dv-shadow-2);
     }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#6): sw-page is the frame (its header row: the title, the actions slot); the toolbar under it no longer sticks or
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame (its header row: the title, the actions slot); the toolbar under it no longer sticks or
        compacts - the title it compacted moved into the frame (on a phone the page scrolls, the toolbar with it) */
     .pact {
       display: inline-flex;
@@ -1532,7 +1532,7 @@ import{$ as et,g0 as ke,a4 as at,i as j,n as h,r as p,a as V,S as ot,X as O,q as
       margin-inline-start: auto;
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ the frame's actions take their own row under the title from the first frame: the view switch grows by the manager-only views
+      /* the frame's actions take their own row under the title from the first frame: the view switch grows by the manager-only views
          when the meta arrives, and a row that fitted beside the title before then wrapped under it, pushing the whole list down
          (layout-a11y-295: CLS 0.159 on a phone). Wider than the room beside any title, never wider than the row. */
       .pact {

@@ -219,7 +219,7 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
   :host-context([dir='ltr']) .chev {
     transform: scaleX(-1);
   }
-   sourceMappingURL=[^*]**/ a phone: the station row is two lines - the dot, the name and the chevron, then the sync word and when it was last seen */
+  /* a phone: the station row is two lines - the dot, the name and the chevron, then the sync word and when it was last seen */
   @media (max-width: 767px) {
     .row.two {
       display: grid;

@@ -37,7 +37,7 @@ import{bx as m,by as t,a as g,S as x,bz as k,K as h,bA as y,ak as w,bB as $,ae a
       </div>
       <div class="body" data-view=${this.phoneView}>${this.mapPanel(e)}${this.listPanel(e)}</div>`):r(i`<div class="empty" data-state="off"><div class="art"><sw-icon name="users" size="34"></sw-icon></div><h2>${t("offTitle")}</h2><p>${t("offBody")}</p>
         ${o?i`<a href=${B} data-presence-settings>${t("offLink")}</a>`:u}</div>`):this.error?r(i`<sw-state-panel state="error" heading=${t("loadError")} hint=${this.error} data-state="error"></sw-state-panel>`):r(i`<div class="skl" style="block-size:160px" data-state="loading"></div>`)}};l.styles=[P`
-     sourceMappingURL=[^*]**/ AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its padding, its title on the --sw-h1 tokens instead of a local
+    /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its padding, its title on the --sw-h1 tokens instead of a local
        30 / 700 H1, the subtitle line, the actions at the end of the title row); the host only gives it the height of the screen */
     :host {
       display: flex; flex-direction: column; inline-size: 100%; box-sizing: border-box; min-block-size: 0; overflow: hidden;
@@ -124,7 +124,7 @@ import{bx as m,by as t,a as g,S as x,bz as k,K as h,bA as y,ak as w,bB as $,ae a
       .kpi { padding: 8px 10px; }
       .kpi b { font-size: var(--sw-fs-xl); }
     }
-     sourceMappingURL=[^*]**/ R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the counters carry display digits (26/700) and the pressed counter is a FILLED
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the counters carry display digits (26/700) and the pressed counter is a FILLED
        field in its own colour (not a 2 px ring); the map panel is the hero (large radius, shadow 2), the people rows are wells with a
        600 name; press feedback on pointer-down for the counters, the chips and the keys; hover only with a fine pointer. */
     .kpi {
@@ -134,7 +134,7 @@ import{bx as m,by as t,a as g,S as x,bz as k,K as h,bA as y,ak as w,bB as $,ae a
     }
     .kpi b { font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; }
     .kpi span.l { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); }
-     sourceMappingURL=[^*]**/ loop 2: the unpressed counters are WELLS (surface 2, no edge, no shadow) so the pressed one - a filled field in its colour with a 2 px edge
+    /* loop 2: the unpressed counters are WELLS (surface 2, no edge, no shadow) so the pressed one - a filled field in its colour with a 2 px edge
        and shadow 2 - is the one hero; the dot grows to 14 px */
     .kpi { background: var(--sw-surface-2); border: 2px solid transparent; box-shadow: none; }
     .kpi .dot { inline-size: 14px; block-size: 14px; }
@@ -143,7 +143,7 @@ import{bx as m,by as t,a as g,S as x,bz as k,K as h,bA as y,ak as w,bB as $,ae a
     @media (hover: hover) and (pointer: fine) { .kpi:not([aria-pressed='true']):not([data-k='hidden']):hover { background: var(--sw-surface-3); } }
     .kpi:active:not([data-k='hidden']), .chips button:active, .btn:active, .seg button:active { transform: scale(var(--sw-press-scale)); }
     .chips button, .btn, .seg button { transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D12): the button hover joins the fine-pointer gate (it was ungated with a (hover: none) undo) */
+    /* POLISH4 WP6 (D12): the button hover joins the fine-pointer gate (it was ungated with a (hover: none) undo) */
     @media (hover: hover) and (pointer: fine) { .btn:hover { background: var(--sw-surface-2); } }
     .panel { border-radius: var(--sw-r-lg); }
     .body > .panel:first-child { box-shadow: var(--sw-shadow-2); }

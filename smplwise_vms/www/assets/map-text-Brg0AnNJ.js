@@ -24,7 +24,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
     transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion), transform var(--sw-t-press) var(--sw-ease);
     -webkit-tap-highlight-color: transparent;
   }
-   sourceMappingURL=[^*]**/ POLISH-CLASSIC-DOMUS-297 second pass (P4): the shared hover convention (a pointer that hovers) and a small press of the card
+  /* POLISH-CLASSIC-DOMUS-297 second pass (P4): the shared hover convention (a pointer that hovers) and a small press of the card
      itself - not while a button or link inside it is the thing pressed (that control gives its own feedback) */
   @media (hover: hover) and (pointer: fine) {
     .tcard:hover {
@@ -58,7 +58,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
     font-weight: 700;
     letter-spacing: -0.015em;
     line-height: 1.25;
-     sourceMappingURL=[^*]**/ UXFIX-RTL: two lines, then an ellipsis; the title text carries dir="auto" so a Latin / Cyrillic title keeps its beginning
+    /* UXFIX-RTL: two lines, then an ellipsis; the title text carries dir="auto" so a Latin / Cyrillic title keeps its beginning
        (a one-line ellipsis in an RTL box cut the start of it) and the full text is the link's title attribute. */
     overflow: hidden;
     display: -webkit-box;
@@ -67,7 +67,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
     line-clamp: 2;
     overflow-wrap: anywhere;
     text-align: start;
-    text-overflow: ellipsis;  sourceMappingURL=[^*]**/ UXFIX-NAV-295 (same fix as UXFIX-RTL) */
+    text-overflow: ellipsis; /* UXFIX-NAV-295 (same fix as UXFIX-RTL) */
     white-space: normal;
   }
   a.name {
@@ -209,7 +209,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
     inset-inline-end: 12px;
     min-inline-size: 190px;
   }
-   sourceMappingURL=[^*]**/ 2.5.5: placed by tickets/overlay-menu.ts in the top layer (a popover), never clipped by a scroll box or a blurred ancestor */
+  /* 2.5.5: placed by tickets/overlay-menu.ts in the top layer (a popover), never clipped by a scroll box or a blurred ancestor */
   .pop.ov {
     position: fixed;
     inset: auto;
@@ -254,7 +254,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
     .tcard {
       padding: 14px 16px 12px;
     }
-     sourceMappingURL=[^*]**/ UXFIX-NAV-295: on a phone the title column was 115-200 px (the chip and the menu shared its row) and cut even short titles:
+    /* UXFIX-NAV-295: on a phone the title column was 115-200 px (the chip and the menu shared its row) and cut even short titles:
        the chip and the menu take the first row, the title gets the full width of the second */
     header {
       flex-wrap: wrap;
@@ -299,7 +299,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
   .sect > h4 .btn {
     color: var(--dv-text);
   }
-   sourceMappingURL=[^*]**/ the state strip wraps to a second row when the states do not fit (a drawer, a phone): nothing is hidden behind a scroll */
+  /* the state strip wraps to a second row when the states do not fit (a drawer, a phone): nothing is hidden behind a scroll */
   .strip {
     display: flex;
     flex-wrap: wrap;
@@ -564,7 +564,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
     font-size: var(--sw-fs-base);
     font-weight: 600;
   }
-   sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
   .prio .rc[aria-checked='true'] {
     background: var(--sw-accent-soft);
     color: var(--sw-accent-text);
@@ -592,7 +592,7 @@ import{i as p,gn as z,p as d,X as u,q as s,fo as l,go as $,gp as _,gq as C,aI as
   .similar a:hover {
     text-decoration: underline;
   }
-   sourceMappingURL=[^*]**/ TKUI7 (ONE scroll per surface): a picker list grows with its rows and the drawer / dialog / sheet body scrolls; only the searchable
+  /* TKUI7 (ONE scroll per surface): a picker list grows with its rows and the drawer / dialog / sheet body scrolls; only the searchable
      vendor / contact list (.xpick, with its search field above it) keeps a capped box of its own */
   .pick {
     display: flex;

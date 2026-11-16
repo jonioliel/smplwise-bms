@@ -163,7 +163,7 @@ import{i as m,n as h,r as w,a as x,p as b,q as l,x as v}from"./index-C5kZ9jiu.js
       outline: 2px solid var(--sw-accent);
       outline-offset: 2px;
     }
-     sourceMappingURL=[^*]**/ a finger needs 44px (the same rule as sw-button's lg size) */
+    /* a finger needs 44px (the same rule as sw-button's lg size) */
     @media (max-width: 767px) and (pointer: coarse) {
       a.btn {
         min-block-size: 44px;

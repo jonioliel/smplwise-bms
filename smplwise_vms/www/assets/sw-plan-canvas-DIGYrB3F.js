@@ -248,16 +248,16 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       cursor: crosshair;
     }
     .viewport.marquee:not(.dragging):not(.spacepan) {
-      cursor: default;  sourceMappingURL=[^*]**/ a drag on the plan draws the selection rectangle here, it does not pan (T085 multi-select) */
+      cursor: default; /* a drag on the plan draws the selection rectangle here, it does not pan (T085 multi-select) */
     }
-     sourceMappingURL=[^*]**/ the plan picture hidden: a plain sheet of the plan's size on the map ground, edged by a hairline at every zoom */
+    /* the plan picture hidden: a plain sheet of the plan's size on the map ground, edged by a hairline at every zoom */
     rect.sheet {
       fill: var(--sw-surface);
       stroke: var(--sw-border-strong);
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
     }
-     sourceMappingURL=[^*]**/ T085: the grid (a hairline at every zoom, under the drawing) and the alignment guides of a drag (over it) */
+    /* T085: the grid (a hairline at every zoom, under the drawing) and the alignment guides of a drag (over it) */
     path.grid {
       fill: none;
       stroke: var(--sw-border-strong);
@@ -327,7 +327,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
     .marker .halo {
       fill: var(--sw-accent);
       opacity: 0;
-      pointer-events: none;  sourceMappingURL=[^*]**/ an invisible halo must never steal clicks from a neighbouring pin */
+      pointer-events: none; /* an invisible halo must never steal clicks from a neighbouring pin */
       transition: opacity var(--sw-t-fast) var(--sw-ease);
     }
     .marker.selected .halo,
@@ -380,7 +380,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
     .marker.dimmed {
       opacity: 0.55;
     }
-     sourceMappingURL=[^*]**/ the label pills drawn over the plan (a device name, a room name, a temperature, a shared room, the tribune entry) are opaque (owner 2026-10-13,
+    /* the label pills drawn over the plan (a device name, a room name, a temperature, a shared room, the tribune entry) are opaque (owner 2026-10-13,
        styles/menu-surface.ts): they were glass or a white 92 % that carried the dark scheme's light ink */
     .marker .lbl-bg {
       fill: var(--sw-menu-surface);
@@ -419,7 +419,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       stroke-dasharray: 6 4;
       fill-opacity: 0.14;
     }
-     sourceMappingURL=[^*]**/ the state layer (CR-006 1b): tints over the zone's own fill, no pointer events of their own */
+    /* the state layer (CR-006 1b): tints over the zone's own fill, no pointer events of their own */
     .zone .tint {
       pointer-events: none;
       stroke: none;
@@ -428,7 +428,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       fill: var(--sw-map-lit);
       fill-opacity: 0.45;
     }
-     sourceMappingURL=[^*]**/ the full blue fill only in a room that is not lit; the inset edge band always (the same cue on a lit room) */
+    /* the full blue fill only in a room that is not lit; the inset edge band always (the same cue on a lit room) */
     .zone .tint[data-room-tint='presence'] {
       fill: var(--sw-map-presence);
       fill-opacity: calc(0.3 * var(--fade, 1));
@@ -533,7 +533,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       direction: rtl;
       unicode-bidi: plaintext;
     }
-     sourceMappingURL=[^*]**/ PRESENCE-2280 (mockup round 7): the occupancy chip - green only for "active", neutral solid for empty, dashed for "no data" */
+    /* PRESENCE-2280 (mockup round 7): the occupancy chip - green only for "active", neutral solid for empty, dashed for "no data" */
     .zone .zchip[data-tone='occupied'] rect {
       fill: color-mix(in srgb, var(--sw-success) 20%, var(--sw-menu-surface));
       stroke: var(--sw-success-text);
@@ -616,7 +616,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       fill: var(--zc);
     }
     .zone.selected.movable polygon {
-      cursor: move;  sourceMappingURL=[^*]**/ the selected zone moves as a whole by its body (0.1.87) */
+      cursor: move; /* the selected zone moves as a whole by its body (0.1.87) */
     }
     .vmid {
       fill: var(--zc);
@@ -648,7 +648,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       stroke-linecap: butt;
       stroke-linejoin: miter;
     }
-     sourceMappingURL=[^*]**/ Window walls (document 2.1): the frame band keeps the structure colour, the pane band inside is the glass colour
+    /* Window walls (document 2.1): the frame band keeps the structure colour, the pane band inside is the glass colour
        over the canvas with a diagonal hatch (the pattern sw-glass-hatch), the centre line and the mullions on top. */
     .structure .gpane {
       fill: none;
@@ -700,7 +700,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       text-anchor: middle;
       dominant-baseline: middle;
     }
-     sourceMappingURL=[^*]**/ Selection, then validation issues: same specificity, so an item that is both shows the issue red. */
+    /* Selection, then validation issues: same specificity, so an item that is both shows the issue red. */
     .structure .sel .wall {
       stroke: var(--sw-accent);
     }
@@ -726,7 +726,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
     .structure .glabel.issue {
       fill: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ T085: connectors (a wide translucent band along the polyline, an arrow, the level delta) and objects (a tinted
+    /* T085: connectors (a wide translucent band along the polyline, an arrow, the level delta) and objects (a tinted
        footprint in the item's colour, a symbol, an optional label); a lamp glows while its circuit's switch is on. */
     .structure .conn .cbody {
       fill: none;
@@ -741,7 +741,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
     .carrowhead {
       fill: var(--sw-map-structure);
     }
-     sourceMappingURL=[^*]**/ T085 stairs: flights with a line per riser, a plain landing, the walking line with its start dot and arrow, the
+    /* T085 stairs: flights with a line per riser, a plain landing, the walking line with its start dot and arrow, the
        break line across the first flight (the plan convention) */
     .structure .stair .sflight,
     .structure .stair .slanding {
@@ -830,7 +830,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       cursor: grab;
     }
     .geom-hits line.hit {
-      cursor: grab;  sourceMappingURL=[^*]**/ an opening slides along its wall, whatever the wall's direction */
+      cursor: grab; /* an opening slides along its wall, whatever the wall's direction */
     }
     .geom-hits .ohit {
       pointer-events: all;
@@ -840,7 +840,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       pointer-events: stroke;
     }
     .geom-hits .hit.whit {
-      cursor: move;  sourceMappingURL=[^*]**/ the selected wall moves as a whole by its body (0.1.87) */
+      cursor: move; /* the selected wall moves as a whole by its body (0.1.87) */
     }
     .candidates {
       pointer-events: none;
@@ -860,7 +860,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       stroke: var(--sw-map-candidate);
       stroke-dasharray: 5 4;
     }
-     sourceMappingURL=[^*]**/ detector 1.4: an object candidate (a tribune, a column) - its outline and a tribune's rows, dashed */
+    /* detector 1.4: an object candidate (a tribune, a column) - its outline and a tribune's rows, dashed */
     .candidates .cobj,
     .candidates .crow {
       fill: none;
@@ -870,7 +870,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
     .candidates .cand.rejected {
       opacity: 0.28;
     }
-     sourceMappingURL=[^*]**/ T087 review: a wall candidate outside the main structure - its own short dash in the warning colour, also when
+    /* T087 review: a wall candidate outside the main structure - its own short dash in the warning colour, also when
        selected (the selection keeps it solid-free so the flag stays readable) */
     .candidates .cand.outside .cwall,
     .candidates .cand.outside.sel .cwall {
@@ -1029,7 +1029,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       fill: rgba(154, 163, 181, 0.14);
       stroke: var(--sw-offline);
     }
-     sourceMappingURL=[^*]**/ the zoom buttons and the scale readout stand in one row at the bottom-end corner: the readout follows the buttons' real width (a skin's buttons
+    /* the zoom buttons and the scale readout stand in one row at the bottom-end corner: the readout follows the buttons' real width (a skin's buttons
        are 26, 36 or 44 px wide - Bubble's 52 px column lay 8 px over a readout fixed at 56 px). While the host's phone sheet (the side list) covers
        the bottom of the plan they stand above it (--hud-bottom, set by the floor map: map/hud-layout.ts). */
     .zoomdock {
@@ -1040,7 +1040,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       align-items: flex-end;
       gap: 10px;
       z-index: var(--sw-z-map-ui);
-      pointer-events: none;  sourceMappingURL=[^*]**/ the row's own gap takes no drag from the plan */
+      pointer-events: none; /* the row's own gap takes no drag from the plan */
     }
     .zoomdock > * {
       pointer-events: auto;
@@ -1049,7 +1049,7 @@ import{_ as d,i as It,n as m,r as H,e as Ht,a as zt,p as v,u as _,q as jt,x as W
       display: flex;
       flex-direction: column;
       gap: 2px;
-       sourceMappingURL=[^*]**/ the zoom buttons and the readout float over the drawing: opaque (owner 2026-10-13, styles/menu-surface.ts) */
+      /* the zoom buttons and the readout float over the drawing: opaque (owner 2026-10-13, styles/menu-surface.ts) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
       border-radius: 10px;

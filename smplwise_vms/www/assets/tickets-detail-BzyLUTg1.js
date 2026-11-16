@@ -18,7 +18,7 @@ import{a as h,S as m,O as f,Q as u,R as k,ak as w,u as g,q as r,a0 as c,p as b,p
       display: flex;
       flex-direction: column;
       gap: var(--sw-s-3);
-       sourceMappingURL=[^*]**/ the full ticket's own frame (ticket-detail .page: 18 / 36 / 44) so the skeleton and the ticket start at the same place */
+      /* the full ticket's own frame (ticket-detail .page: 18 / 36 / 44) so the skeleton and the ticket start at the same place */
       padding: var(--sw-s-4) var(--sw-s-8) var(--sw-s-8);
       box-sizing: border-box;
     }

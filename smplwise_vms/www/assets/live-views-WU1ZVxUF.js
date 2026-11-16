@@ -179,7 +179,7 @@ import{a as m,S as g,K as w,ft as u,ak as p,ae as f,p as n,q as a,a_ as b,qN as 
       margin-block-start: 10px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ R5-LIVE-297 (the HOMEFABLE tiers on the saved views): the card is the second tier, the 2x2 preview its framed picture (the
+    /* R5-LIVE-297 (the HOMEFABLE tiers on the saved views): the card is the second tier, the 2x2 preview its framed picture (the
        video ink, the media radius, the first shadow), the facts a WELL under it - a two-column grid of label over a bold value
        (a 20 px / 800 tile count), not a list of grey 11 px pairs; the view's name 17 px / 800 */
     .grid {
@@ -233,7 +233,7 @@ import{a as m,S as g,K as w,ft as u,ak as p,ae as f,p as n,q as a,a_ as b,qN as 
       margin-block-start: 12px;
       gap: 8px;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2 (D9): the open / kiosk links and the camera chips answer the press on pointer-down (the card itself is not a
+    /* POLISH4-WP2 (D9): the open / kiosk links and the camera chips answer the press on pointer-down (the card itself is not a
        target); the scale reads the skin's press token and stays still under reduced motion */
     .foot a {
       display: inline-flex;
@@ -259,7 +259,7 @@ import{a as m,S as g,K as w,ft as u,ak as p,ae as f,p as n,q as a,a_ as b,qN as 
         transform: none;
       }
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2 (D9): the phone. The columns / rows form stacks (two selects of 1fr at 390 cut the labels), the dialog form takes the
+    /* POLISH4-WP2 (D9): the phone. The columns / rows form stacks (two selects of 1fr at 390 cut the labels), the dialog form takes the
        sheet's width, and the card's action row wraps instead of pushing "מחיקה" past the card edge */
     @media (max-width: 767px) {
       .two {

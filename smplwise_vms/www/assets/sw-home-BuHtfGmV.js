@@ -12,7 +12,7 @@ h1, h2, h3, p { margin: 0; }
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
- sourceMappingURL=[^*]**/ the status tones (the Arx design system's own rule, which the mockup took from ds.css) */
+/* the status tones (the Arx design system's own rule, which the mockup took from ds.css) */
 [data-tone="live"], [data-tone="success"], [data-tone="ok"] { --c: var(--hs-live); --ct: var(--hs-live-text); --cs: var(--hs-live-soft); }
 [data-tone="recorded"], [data-tone="accent"], [data-tone="info"] { --c: var(--hs-accent); --ct: var(--hs-accent-text); --cs: var(--hs-accent-soft); }
 [data-tone="offline"], [data-tone="neutral"] { --c: var(--hs-offline); --ct: var(--hs-offline-text); --cs: var(--hs-offline-soft); }
@@ -1005,13 +1005,13 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
   .kp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; direction: ltr; inline-size: 100%; }
   .kp-grid .hbtn { padding: 0 !important; font-size: 22px; }
   .hs-now { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-   sourceMappingURL=[^*]**/ the status pill is 44 px tall in the strip; its hit area reaches 56 (the segmented buttons' rule) */
+  /* the status pill is 44 px tall in the strip; its hit area reaches 56 (the segmented buttons' rule) */
   .st-pill { position: relative; }
   .st-pill::after { content: ''; position: absolute; inset: -6px 0; }
   .hsw:disabled, .lamp:disabled { opacity: .45; cursor: default; }
-   sourceMappingURL=[^*]**/ HOME-SIMPLE-2421: a door the door rule does not let this person open - a quiet line instead of the button */
+  /* HOME-SIMPLE-2421: a door the door rule does not let this person open - a quiet line instead of the button */
   .dno { max-inline-size: 16ch; font-size: var(--f-sm); color: var(--hs-text-3); text-align: end; line-height: 1.3; }
-   sourceMappingURL=[^*]**/ HOME-SIMPLE-2421: the room wallpaper - the picture / gallery field under a scrim of the theme's own background (contrast kept) */
+  /* HOME-SIMPLE-2421: the room wallpaper - the picture / gallery field under a scrim of the theme's own background (contrast kept) */
   .hs.walled { position: relative; isolation: isolate; }
   .hs.walled::before, .hs.walled::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
   .hs.walled::before { background: var(--hs-wall); background-size: cover; background-position: center; }
@@ -1024,7 +1024,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
   .wall-opt[aria-checked='true'] .tick { opacity: 1; color: var(--hs-accent-text); }
   [data-wall-upload] { cursor: pointer; }
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .wall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-   sourceMappingURL=[^*]**/ HOME-V3-P1-2430: product-only pieces of the v3 screens (the rest is home-styles-v3.ts, ported from the mockup) */
+  /* HOME-V3-P1-2430: product-only pieces of the v3 screens (the rest is home-styles-v3.ts, ported from the mockup) */
   .pb-days { display: inline-flex; align-items: center; gap: 6px; }
   .pb-days .pbd { min-inline-size: 7ch; text-align: center; font-weight: 600; color: var(--hs-heading); }
   .pb-pic sw-live-player { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
@@ -1033,79 +1033,79 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
   .crow .vp.vp-ic .hi { inline-size: 28px; block-size: 28px; }
   .fld2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; inline-size: 100%; }
   .pinsheet .rb.play { color: var(--hs-on-accent, #fff); }
-   sourceMappingURL=[^*]**/ the v3 sheets keep the home interface's touch target (the mockup drew 54 px; the tablet rule is the full --hit) */
+  /* the v3 sheets keep the home interface's touch target (the mockup drew 54 px; the tablet rule is the full --hit) */
   @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) {
     .ovl .sheet.v3 .rb, .ovl .sheet.v3 .hbtn, .ovl .sheet.v3 .chip2, .ovl .sheet.v3 .seg button { min-block-size: 56px; }
     .ovl .sheet.v3 .rb { min-inline-size: 56px; }
   }
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .fld2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pb-days .pbd { min-inline-size: 5ch; font-size: 14px; } }
-   sourceMappingURL=[^*]**/ ---- HOME-V3-AUDITFIX-2437: the round-30 design audit (private/design-system-2026-10-27/round30/home-audit/FIXES.md; numbers = items) */
-   sourceMappingURL=[^*]**/ 2: a portrait tablet (701-899 px) takes the phone layout (the boundary of every phone / wide query, sw-home.ts HOME_PHONE_MQ), roomier */
+  /* ---- HOME-V3-AUDITFIX-2437: the round-30 design audit (private/design-system-2026-10-27/round30/home-audit/FIXES.md; numbers = items) */
+  /* 2: a portrait tablet (701-899 px) takes the phone layout (the boundary of every phone / wide query, sw-home.ts HOME_PHONE_MQ), roomier */
   @media (min-width: 701px) and (max-width: 899px) and (orientation: portrait) {
     :host { --hit: 56px; --f-body: 17px; --f-sm: 15px; --f-tile: 19px; }
     .hs-main { inline-size: 100%; max-inline-size: 760px; margin-inline: auto; }
     .hub { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); }
-     sourceMappingURL=[^*]**/ HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-1 a): four tiles per row (sw-home.ts sRoom packs 4 x 5); a wide tile is half a row, a
+    /* HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-1 a): four tiles per row (sw-home.ts sRoom packs 4 x 5); a wide tile is half a row, a
        tile being edited the whole row */
     .wgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .wdg.w2 { grid-column: span 2; }
     .wdg.editing { grid-column: 1 / -1; }
   }
-   sourceMappingURL=[^*]**/ 1: the phone recordings header keeps the day stepper, on its own row */
+  /* 1: the phone recordings header keeps the day stepper, on its own row */
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
     .hs-head .acts:has(.pb-days) { flex: 1 1 100%; margin-inline-start: 0; }
     .hs-head .pb-days { flex: 1 1 100%; justify-content: space-between; gap: 8px; }
     .hs-head .pb-days .rb { inline-size: 48px; block-size: 48px; }
     .hs-head .pb-days .pbd { flex: 1 1 auto; text-align: center; font-size: var(--f-body); }
-     sourceMappingURL=[^*]**/ 3: the alarm state pane takes its content's height from the top; the zones pane takes the rest */
+    /* 3: the alarm state pane takes its content's height from the top; the zones pane takes the rest */
     .alm-main { flex: 0 0 auto; justify-content: flex-start; padding-block: 16px 14px; gap: 6px; }
     .alm .pane:last-child { flex: 1 1 0; min-block-size: 0; }
     .alm-ic { inline-size: 48px; block-size: 48px; } .alm-ic .hi { inline-size: 24px; block-size: 24px; }
     .alm-acts { gap: 8px; margin-block-start: 8px; }
     .alm-main > .muted { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-     sourceMappingURL=[^*]**/ 11: the electricity / water reading in the title never truncates - the actions take the next row */
+    /* 11: the electricity / water reading in the title never truncates - the actions take the next row */
     .hs[data-screen="energy"] .hs-head .acts, .hs[data-screen="water"] .hs-head .acts { flex: 1 1 100%; justify-content: flex-start; margin-inline-start: 0; }
     .hs[data-screen="energy"] .hs-head .pg-t, .hs[data-screen="water"] .hs-head .pg-t { white-space: nowrap; text-overflow: clip; }
   }
-   sourceMappingURL=[^*]**/ 9: the camera stepper names the camera, like the day stepper names the day */
+  /* 9: the camera stepper names the camera, like the day stepper names the day */
   .pb-cams { display: inline-flex; align-items: center; gap: 6px; }
   .pb-cams .pbc { min-inline-size: 0; max-inline-size: 18ch; }
   .hs-head .acts:has(.pb-cams) { gap: 16px; }
-   sourceMappingURL=[^*]**/ 4: a wall-panel chip's status line shrinks with its chip */
+  /* 4: a wall-panel chip's status line shrinks with its chip */
   .chip3 .c3-t { min-inline-size: 0; max-inline-size: 100%; }
   .chip3 .c3-t b, .chip3 .c3-s { max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chip3 .c3-s > span { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
-   sourceMappingURL=[^*]**/ 5: the camera tile's state word follows the real picture */
+  /* 5: the camera tile's state word follows the real picture */
   .cap .live.still { --c: var(--hs-offline); }
   .cap .live.wait { opacity: .8; }
-   sourceMappingURL=[^*]**/ HOME-R32-ANSWERS-2438 (Q-HOME-3 a): the still's interval is shown, not only on hover - where the tile has the room for it */
+  /* HOME-R32-ANSWERS-2438 (Q-HOME-3 a): the still's interval is shown, not only on hover - where the tile has the room for it */
   .wg-btn.pic { container-type: inline-size; }
   .cap .lv-g { display: inline-flex; align-items: center; gap: 8px; flex: none; }
   .cap .lv-d { display: none; font-size: 14px; font-weight: 400; opacity: .85; white-space: nowrap; }
   @container (min-width: 340px) { .cap .lv-d { display: inline; } }
-   sourceMappingURL=[^*]**/ 14: the call result stays on one line */
+  /* 14: the call result stays on one line */
   .vr { min-inline-size: 0; }
   .vres { max-inline-size: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-   sourceMappingURL=[^*]**/ 15: a Latin or mixed name takes its own direction, so it truncates at its end (right-aligned like the Hebrew ones) */
+  /* 15: a Latin or mixed name takes its own direction, so it truncates at its end (right-aligned like the Hebrew ones) */
   .clamp1:not(.num), .clamp2:not(.num), .c3-t b, .tb-t h1 { unicode-bidi: plaintext; text-align: match-parent; }
-   sourceMappingURL=[^*]**/ 16: "(אני)" never truncates away */
+  /* 16: "(אני)" never truncates away */
   .pn { display: flex; align-items: baseline; gap: 6px; min-inline-size: 0; }
   .pn > b { min-inline-size: 0; } .pn .me-mark { flex: none; color: var(--hs-text-2); font-weight: 500; }
   .hv small { font-size: .85em; font-weight: 500; }
-   sourceMappingURL=[^*]**/ 18: the sheets' own type, not the shell's */
+  /* 18: the sheets' own type, not the shell's */
   .ovl { font-size: var(--f-body); line-height: 1.5; color: var(--hs-text); }
-   sourceMappingURL=[^*]**/ 22: the active media source is marked */
+  /* 22: the active media source is marked */
   .hs .md-src .chip2[aria-pressed="true"] { background: var(--hs-accent-soft); color: var(--hs-accent-text); font-weight: 600; }
-   sourceMappingURL=[^*]**/ 24: the new-ticket category icon */
+  /* 24: the new-ticket category icon */
   .chip2 .c2i { inline-size: 20px; block-size: 20px; flex: none; margin-inline-end: 6px; }
-   sourceMappingURL=[^*]**/ motion: the copy of a closing sheet (sw-home.ts ghostOverlay) never takes a touch */
+  /* motion: the copy of a closing sheet (sw-home.ts ghostOverlay) never takes a touch */
   .ovl.ghost { pointer-events: none; }
 
-   sourceMappingURL=[^*]**/ HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-6 a): a screen change is seen tens of times a day, so it only fades - 160 ms, no
+  /* HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-6 a): a screen change is seen tens of times a day, so it only fades - 160 ms, no
      movement, no stagger. The mockup's rise (home-styles.ts .hs-main.enter) stays for a screen opened from "עוד" and for the
      "עם תנועה" setting (sw-home.ts adds .rise). Reduced motion: home-styles.ts already turns either one into the same short fade. */
   .hs-main.enter.fade > *, .hs-main.enter.fade > :nth-child(n) { animation: hs-fade 160ms var(--hs-ease) both; animation-delay: 0ms; }
-   sourceMappingURL=[^*]**/ Q-HOME-2: the calendar's "השבוע" / "הימים הקרובים" switch. A day already gone is quieter; on a phone the switch shares the tabs row
+  /* Q-HOME-2: the calendar's "השבוע" / "הימים הקרובים" switch. A day already gone is quieter; on a phone the switch shares the tabs row
      with "היומן שלנו / חדרים משותפים" (each control takes its share, nothing wraps). */
   .week .wd[data-past]:not([aria-pressed="true"]) { color: var(--hs-text-2); }
   .week .wd[data-past]:not([aria-pressed="true"]) b { opacity: .7; }
@@ -1120,7 +1120,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
           ${g}
           ${a?m:r`<button class="hbtn quiet xl" data-call-ignore @click=${()=>this.hide(t)}>התעלם</button>`}
         </div>`}return r`<div class="ovl"><div class="hscrim solid"></div><section class="call" role="dialog" aria-modal="true" aria-label="אינטרקום" data-incoming-call=${t.call_id} data-state=${a?"in_call":"ringing"}>
-      <div class="call-video">${this.video(t)}${t.online?r`<span class="live onpic"><i class="dot"></i>חי</span>`:m}</div><div class="call-side">${f}</div></section></div>`}};vt.styles=[La,Oa];vt=Ei([ya("sw-home-call")],vt);const Pi=Ge`${ka(String.raw` sourceMappingURL=[^*]**/ SmplWise Arx - home interface v3 (round 27, 2026-11-11). Loaded after home.css + v2.css + themes.css.
+      <div class="call-video">${this.video(t)}${t.online?r`<span class="live onpic"><i class="dot"></i>חי</span>`:m}</div><div class="call-side">${f}</div></section></div>`}};vt.styles=[La,Oa];vt=Ei([ya("sw-home-call")],vt);const Pi=Ge`${ka(String.raw`/* SmplWise Arx - home interface v3 (round 27, 2026-11-11). Loaded after home.css + v2.css + themes.css.
    Only the added screens. Same tokens (ds.css --hs-*, the home face's --hs-* / --f-* / --hit / --r-*), same primitives (tile, pane, hbtn, rb, seg, sheet).
    Rules kept: no scrolling on any control screen (every list pages), green is status only, the picture / time axis / plan are never mirrored. */
 .clamp3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-inline-size: 0; }
@@ -1133,7 +1133,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs .rb.play:disabled { background: var(--hs-surface-3); color: var(--hs-text-2); }
 a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-radius: 999px; }
 
- sourceMappingURL=[^*]**/ ---- the hub */
+/* ---- the hub */
 .hub { flex: 1; min-block-size: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 14px; margin-block: 6px 12px; }
 .hubt { display: grid; align-content: center; justify-items: center; gap: 6px; padding: 12px 10px; text-align: center; color: var(--hs-heading); transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
 .hubt:active { transform: scale(.97); }
@@ -1143,7 +1143,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .hubt .hs2[data-tone] { color: var(--ct); } .hubt .hs2 .dot { inline-size: 8px; block-size: 8px; margin-inline-end: 6px; }
 .hub .hubt > .count { position: absolute !important; inset-block-start: 10px; inset-inline-end: 10px; min-inline-size: 24px; block-size: 24px; border-radius: 12px; background: var(--hs-accent); color: var(--hs-on-accent, #fff); font-size: 13px; font-weight: 700; display: grid; place-items: center; padding: 0 6px; }
 
- sourceMappingURL=[^*]**/ ---- recordings */
+/* ---- recordings */
 .pb-body { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 14px; }
 .hs .pb-pic { background: #000; overflow: hidden; }
 .rec-st { display: inline-flex; gap: 6px; font-weight: 500; }
@@ -1165,7 +1165,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .cf-foot { position: absolute; inset-inline: 0; inset-block-end: 0; display: flex; justify-content: center; padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px)); }
 .ovl .hbtn.onpic { background: rgba(0,0,0,.66); color: #fff; }
 
- sourceMappingURL=[^*]**/ ---- list rows (diary, calls, people, calendar, schedules) */
+/* ---- list rows (diary, calls, people, calendar, schedules) */
 .evrow, .srow, .prow, .crow, .cev { display: grid; align-items: center; gap: 14px; padding: 0 16px; }
 .evrow, .srow { grid-template-columns: var(--hit) minmax(0, 1fr) auto; }
 .crow { grid-template-columns: 96px minmax(0, 1fr); }
@@ -1187,7 +1187,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .sp.on { color: var(--hs-heading); font-weight: 600; } .sp.on i { background: var(--hs-accent-soft); color: var(--hs-accent-text); }
 .tk-note { display: flex; gap: 10px; align-items: flex-start; inline-size: 100%; background: var(--hs-surface-3); padding: 14px; border-radius: 14px; color: var(--hs-heading); } .tk-note .hi { inline-size: 20px; block-size: 20px; flex: none; color: var(--hs-text-2); margin-block-start: 2px; }
 
- sourceMappingURL=[^*]**/ ---- calendar */
+/* ---- calendar */
 .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; flex: none; }
 .wd { display: grid; justify-items: center; align-content: center; gap: 1px; min-block-size: 68px; padding: 4px 0; border-radius: var(--r-ctl); background: var(--hs-surface); color: var(--hs-text-2); font-size: var(--f-sm); transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
 .wd b { font-size: 21px; font-weight: 600; color: var(--hs-heading); line-height: 1.15; }
@@ -1200,7 +1200,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .bk .door-list { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)) auto; gap: 12px; min-block-size: 0; }
 .vrow.bkm { grid-template-columns: minmax(0, 1fr) var(--hit); } .vrow.blr { grid-template-columns: minmax(0, 1fr) auto var(--hit); }
 
- sourceMappingURL=[^*]**/ ---- notices */
+/* ---- notices */
 .transit { flex: none; display: flex; align-items: center; gap: 16px; padding: 0 18px; min-block-size: 52px; font-size: var(--f-sm); color: var(--hs-text-2); min-inline-size: 0; }
 .transit > .hi { inline-size: 20px; block-size: 20px; flex: none; } .transit > b { color: var(--hs-heading); font-weight: 600; flex: none; } .tr { flex: 0 1 auto; } .tr b { color: var(--hs-heading); font-weight: 600; }
 .ncard { display: grid; grid-template-rows: auto auto minmax(0, 1fr); align-content: start; justify-items: start; gap: 6px; padding: 16px 20px; text-align: start; overflow: hidden; color: var(--hs-text); inline-size: 100%; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
@@ -1212,7 +1212,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .nb { color: var(--hs-text-2); font-size: var(--f-sm); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .n-body { inline-size: 100%; max-block-size: min(44vh, 360px); overflow-y: auto; line-height: 1.65; padding: 10px 0; color: var(--hs-text); overscroll-behavior: contain; }
 
- sourceMappingURL=[^*]**/ ---- media */
+/* ---- media */
 .md-body { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
 .md-now { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 10px 20px; padding: 18px 20px; overflow: hidden; }
 .art { inline-size: clamp(84px, 17vh, 168px); aspect-ratio: 1; border-radius: 20px; display: grid; place-items: center; background: var(--hs-accent-soft); color: var(--hs-accent-text); } .art .hi { inline-size: 40%; block-size: 40%; }
@@ -1223,7 +1223,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .volr { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) 40px; align-items: center; gap: 12px; color: var(--hs-text-2); }
 .volr .vi .hi { inline-size: 24px; block-size: 24px; display: block; } .volr .vv { text-align: center; color: var(--hs-heading); font-weight: 600; }
 .volr input { -webkit-appearance: none; appearance: none; inline-size: 100%; block-size: var(--hit); margin: 0; background: transparent; cursor: pointer; }
-.volr input::-webkit-slider-runnable-track { block-size: 10px; border-radius: 5px; background: linear-gradient(to left, var(--hs-accent-text) var(--v, 0%), var(--hs-surface-3) var(--v, 0%));  sourceMappingURL=[^*]**/ taste-skill-ignore: a hard-stop fill for the slider's value, not a decorative gradient */ }
+.volr input::-webkit-slider-runnable-track { block-size: 10px; border-radius: 5px; background: linear-gradient(to left, var(--hs-accent-text) var(--v, 0%), var(--hs-surface-3) var(--v, 0%)); /* taste-skill-ignore: a hard-stop fill for the slider's value, not a decorative gradient */ }
 .volr input::-webkit-slider-thumb { -webkit-appearance: none; inline-size: 28px; block-size: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); margin-block-start: -9px; }
 .volr input::-moz-range-track { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); } .volr input::-moz-range-thumb { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: #fff; }
 .md-src { grid-column: 1 / -1; display: flex; gap: 8px; min-inline-size: 0; overflow: hidden; }
@@ -1233,7 +1233,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .mrow2.cur { box-shadow: inset 0 0 0 2px var(--hs-accent-text); } .mrow2.is-on .ai { background: var(--hs-accent-soft); color: var(--hs-accent-text); }
 .mrow2 .at b { font-size: var(--f-body); }
 
- sourceMappingURL=[^*]**/ ---- bill, water, systems */
+/* ---- bill, water, systems */
 .bill-now { justify-content: center; gap: 10px; }
 .huge.fit { font-size: clamp(48px, 9vw, var(--f-huge)); }
 .mprog { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); overflow: hidden; flex: none; inline-size: 100%; } .mprog i { display: block; block-size: 100%; background: var(--viz-today); transform-origin: right; } .mprog.low i { background: var(--hs-warning); }
@@ -1250,7 +1250,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .sysr { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 1 1 0; min-block-size: 44px; max-block-size: 64px; border-block-start: 1px solid var(--hs-border); min-inline-size: 0; }
 .sysr > b { flex: 1; min-inline-size: 0; font-weight: 500; color: var(--hs-heading); } .sysr .dst { flex: 0 1 auto; max-inline-size: 58%; } .sysr .st { display: inline-flex; align-items: center; gap: 8px; flex: none; } .sysr .st b { font-size: 20px; color: var(--hs-heading); }
 
- sourceMappingURL=[^*]**/ ---- the map (schematic plan, never mirrored) */
+/* ---- the map (schematic plan, never mirrored) */
 .plan-wrap { flex: 1; min-block-size: 0; display: grid; }
 .plan { position: relative; background: var(--hs-surface); border-radius: var(--r-tile); min-block-size: 0; }
 .pr { position: absolute; display: grid; align-content: center; justify-items: center; gap: 4px; padding: 6px; border-radius: 14px; background: var(--hs-off-tile); color: var(--hs-text-2); box-shadow: inset 0 0 0 1px var(--hs-border-strong); text-align: center; overflow: hidden; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
@@ -1261,7 +1261,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .pr.void { background: transparent; box-shadow: inset 0 0 0 1px var(--hs-border); }
 .plan-leg { flex: none; min-block-size: 44px; } .k.lit { inline-size: 14px; block-size: 14px; border-radius: 4px; background: var(--hs-lit); } .k.dark { inline-size: 14px; block-size: 14px; border-radius: 4px; background: var(--hs-off-tile); box-shadow: inset 0 0 0 1px var(--hs-border-strong); }
 
- sourceMappingURL=[^*]**/ ---- weather, alarm, my notifications */
+/* ---- weather, alarm, my notifications */
 .wx-body { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.5fr); gap: 14px; }
 .wx-now { grid-row: 1 / -1; align-items: center; justify-content: center; text-align: center; gap: 10px; } .wx-now > .hi { inline-size: 64px; block-size: 64px; color: var(--hs-lit); }
 .wx-t { display: grid; gap: 2px; justify-items: center; }
@@ -1277,7 +1277,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .alm-acts { display: grid; gap: 10px; inline-size: min(360px, 100%); margin-block-start: 12px; }
 .nf-body { flex: 1; min-block-size: 0; display: grid; align-content: start; gap: 18px; margin-block-start: 6px; }
 
- sourceMappingURL=[^*]**/ ---- v3 sheets (short forms; nothing here scrolls except a long notice) */
+/* ---- v3 sheets (short forms; nothing here scrolls except a long notice) */
 .sheet.dialog.v3 { gap: 10px; max-block-size: calc(100dvh - 24px); }
 .sheet.v3 .menu-h { inline-size: 100%; } .sheet.v3 .menu-h > .hi { inline-size: 28px; block-size: 28px; color: var(--hs-text-2); flex: none; }
 .sheet.v3 .mh-t b { font-size: 22px; }
@@ -1290,7 +1290,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .stp { display: inline-flex; align-items: center; gap: 6px; flex: none; } .stp b { min-inline-size: 66px; text-align: center; font-size: 20px; color: var(--hs-heading); }
 .setrow .sname.mid-l { flex: none; margin-inline-start: 10px; }
 .dlg-acts.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sheet.v3 .dlg-acts .hbtn { padding: 0 12px; }
- sourceMappingURL=[^*]**/ HOME-V3-FOLLOWUP-B-2431: the new ticket's photos - a picker label styled as a button (its file input hidden) and small previews */
+/* HOME-V3-FOLLOWUP-B-2431: the new ticket's photos - a picker label styled as a button (its file input hidden) and small previews */
 .tkpick { position: relative; cursor: pointer; } .tkpick input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; pointer-events: none; }
 .tkpick[aria-disabled="true"] { opacity: .5; pointer-events: none; } .tkpick:focus-within { outline: 2px solid var(--hs-accent); outline-offset: 2px; }
 .tkph { display: flex; align-items: center; gap: 10px; inline-size: 100%; min-inline-size: 0; } .tkph .muted { min-inline-size: 0; }
@@ -1307,7 +1307,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .rm-col { display: grid; gap: 10px; justify-items: center; } .dpad { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; place-items: center; }
 .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
 
- sourceMappingURL=[^*]**/ ---- 1024 tablets: the category row stacks icon over text so nine fit */
+/* ---- 1024 tablets: the category row stacks icon over text so nine fit */
 @media (max-width: 1100px) and (min-width: 900px), (max-width: 1100px) and (min-width: 701px) and (orientation: landscape) {
   .chips3 { gap: 8px; } .chip3 { flex-direction: column; justify-content: center; gap: 4px; padding: 6px 4px; text-align: center; }
   .chip3 > .hi { inline-size: 28px; block-size: 28px; } .c3-t { justify-items: center; } .c3-t b { font-size: 15px; } .c3-s { font-size: 13px; } .c3-s .dot { display: none; }
@@ -1317,7 +1317,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 }
 @media (max-height: 800px) and (min-width: 900px), (max-height: 800px) and (min-width: 701px) and (orientation: landscape) { .nb { -webkit-line-clamp: 2; } .wd { min-block-size: 60px; } .alm-ic { inline-size: 64px; block-size: 64px; } .alm-ic .hi { inline-size: 32px; block-size: 32px; } .art { border-radius: 16px; } }
 
- sourceMappingURL=[^*]**/ ---- phone */
+/* ---- phone */
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
   .nv-x { display: none; } .hs.v2 .hs-nav a { font-size: 11px; }
   .chip3[data-cat="more"] { display: none; }
@@ -1326,7 +1326,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .hs-head .pager .pg { min-inline-size: 48px; }
   .pb-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; gap: 8px; }
   .pb-side { grid-row: 3; grid-column: 1; } .pb-ev { flex: none; min-block-size: 48px; } .pb-ctl { grid-row: 2; flex-wrap: wrap; gap: 6px 10px; padding: 8px 10px; justify-content: space-between; }
-  .pb-ctl .tl { order: -1; flex: 1 1 100%; } .pb-ctl .hbtn { padding: 0 16px; } .hs-head .cf-nav:not(.pb-days) { display: none; }  sourceMappingURL=[^*]**/ HOME-V3-AUDITFIX-2437 item 1: the day stepper stays */
+  .pb-ctl .tl { order: -1; flex: 1 1 100%; } .pb-ctl .hbtn { padding: 0 16px; } .hs-head .cf-nav:not(.pb-days) { display: none; } /* HOME-V3-AUDITFIX-2437 item 1: the day stepper stays */
   .evrow, .srow, .prow, .crow, .cev { padding: 0 12px; gap: 10px; }
   .card-grid.evg { grid-template-rows: repeat(5, minmax(0, 1fr)); } .card-grid.callg, .card-grid.pplg, .card-grid.calg, .card-grid.schg { grid-template-rows: repeat(4, minmax(0, 1fr)); } .card-grid.ntg { grid-template-rows: repeat(3, minmax(0, 1fr)); }
   .crow { grid-template-columns: 72px minmax(0, 1fr); } .prow { grid-template-columns: 36px minmax(0, 1fr) minmax(0, .8fr); } .srow .what { display: none; }
@@ -1358,13 +1358,13 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 }
 @media (prefers-reduced-motion: reduce) { .hubt, .ncard, .wd, .pr, .arow.tkrow { transition-property: background-color, color !important; transform: none !important; } }
 
- sourceMappingURL=[^*]**/ ---- loop 1 fixes */
+/* ---- loop 1 fixes */
 .en-body:has(.wbars), .en-body:has(.bill-now) { grid-template-rows: minmax(0, 1fr); }
 .dst { max-inline-size: 100%; min-inline-size: 0; }
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .wx-now { padding-block: 8px; } .wx-now .huge { font-size: 54px; } .wx-f { gap: 14px; } }
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .sys-grid, .sys-grid.n3 { grid-template-columns: minmax(0, 1fr); } .sys-grid.n3 > :first-child { grid-row: auto; } .sys { padding-block: 6px; } .sysr { flex-wrap: nowrap; } .sysr .dst { max-inline-size: 58%; } }
 
- sourceMappingURL=[^*]**/ ---- loop 2: buttons that are tiles keep the tile surface; chips in sheets; smaller currency sign */
+/* ---- loop 2: buttons that are tiles keep the tile surface; chips in sheets; smaller currency sign */
 .hs .ncard, .hs .arow.tkrow, .hs .wd { background: var(--hs-surface); }
 .ovl .chipset .chip2, .ovl .week.mini .wd { background: var(--hs-surface-3); }
 .ovl .chipset .chip2[aria-pressed="true"], .ovl .week.mini .wd[aria-pressed="true"], .hs .wd[aria-pressed="true"] { background: var(--hs-accent-soft); color: var(--hs-accent-text); }
@@ -1374,7 +1374,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .gw { -webkit-line-clamp: 1; } }
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .en-body > .pane:has(.wbars) { flex: 1.6 1 0; } .en-body > .leak { flex: 1 1 0; } }
 
- sourceMappingURL=[^*]**/ ---- loop 2 (break-ui, worst case) */
+/* ---- loop 2 (break-ui, worst case) */
 .pb-pic > .cam-off { position: absolute !important; inset: 0; padding-block-end: 16px; }
 .pb-side .bar h2 { white-space: nowrap; }
 .md-src .chip2 { white-space: nowrap; }
@@ -1488,7 +1488,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .hs .rb.play:disabled { background: var(--hs-surface-3); color: var(--hs-text-2); }
   .cur { font-size: .7em; font-weight: 500; color: var(--hs-text-2); } .huge .cur { font-size: .4em; }
 
-   sourceMappingURL=[^*]**/ ---- media */
+  /* ---- media */
   .md-body { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
   .md-now { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 10px 20px; padding: 18px 20px; overflow: hidden; }
   .art { inline-size: clamp(84px, 17vh, 168px); aspect-ratio: 1; border-radius: 20px; display: grid; place-items: center; background: var(--hs-accent-soft); color: var(--hs-accent-text); overflow: hidden; }
@@ -1502,7 +1502,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .volr .vi .hi { inline-size: 24px; block-size: 24px; display: block; } .volr .vv { text-align: center; color: var(--hs-heading); font-weight: 600; }
   .volr input { -webkit-appearance: none; appearance: none; inline-size: 100%; block-size: var(--hit); margin: 0; background: transparent; cursor: pointer; }
   .volr input:disabled { cursor: default; opacity: .5; }
-  .volr input::-webkit-slider-runnable-track { block-size: 10px; border-radius: 5px; background: linear-gradient(to left, var(--hs-accent-text) var(--v, 0%), var(--hs-surface-3) var(--v, 0%));  sourceMappingURL=[^*]**/ taste-skill-ignore: a hard-stop fill for the slider's value, not a decorative gradient */ }
+  .volr input::-webkit-slider-runnable-track { block-size: 10px; border-radius: 5px; background: linear-gradient(to left, var(--hs-accent-text) var(--v, 0%), var(--hs-surface-3) var(--v, 0%)); /* taste-skill-ignore: a hard-stop fill for the slider's value, not a decorative gradient */ }
   .volr input::-webkit-slider-thumb { -webkit-appearance: none; inline-size: 28px; block-size: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); margin-block-start: -9px; }
   .volr input::-moz-range-track { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); } .volr input::-moz-range-thumb { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: #fff; }
   .md-src { grid-column: 1 / -1; display: flex; gap: 8px; min-inline-size: 0; overflow: hidden; }
@@ -1515,7 +1515,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .mrow2 .at b { font-size: var(--f-body); }
   .mrow2 > .ai, .mrow2 > .at { position: relative; pointer-events: none; } .mrow2 > .rb { position: relative; z-index: 1; }
 
-   sourceMappingURL=[^*]**/ ---- bill, water, systems */
+  /* ---- bill, water, systems */
   .en-body:has(.wbars), .en-body:has(.bill-now) { grid-template-rows: minmax(0, 1fr); }
   .bill-now { justify-content: center; gap: 10px; }
   .huge.fit { font-size: clamp(48px, 9vw, var(--f-huge)); }
@@ -1524,7 +1524,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .bill-fc { display: grid; gap: 2px; margin-block-start: 10px; padding-block-start: 14px; border-block-start: 1px solid var(--hs-border); }
   .blr { grid-template-columns: minmax(0, 1fr) auto; }
   .blr .at { display: grid; gap: 4px; min-inline-size: 0; }
-   sourceMappingURL=[^*]**/ HOME-V3-FOLLOWUP-A-2431: "הצג חשבון" (the latest bill in the card, an icon per previous bill) */
+  /* HOME-V3-FOLLOWUP-A-2431: "הצג חשבון" (the latest bill in the card, an icon per previous bill) */
   .blr:has(.bill-open) { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
   .bill-now .bill-open { align-self: flex-start; margin-block-start: 4px; }
   .wbars { flex: 1; min-block-size: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); gap: 10px; }
@@ -1540,7 +1540,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .sysr > b { flex: 1; min-inline-size: 0; font-weight: 500; color: var(--hs-heading); } .sysr .dst { flex: 0 1 auto; max-inline-size: 58%; }
   .sysr .st { display: inline-flex; align-items: center; gap: 8px; flex: none; } .sysr .st b { font-size: 20px; color: var(--hs-heading); }
 
-   sourceMappingURL=[^*]**/ ---- the map (schematic plan, never mirrored) */
+  /* ---- the map (schematic plan, never mirrored) */
   .plan-wrap { flex: 1; min-block-size: 0; display: grid; }
   .plan { position: relative; background: var(--hs-surface); border-radius: var(--r-tile); min-block-size: 0; }
   .plan-in { position: absolute; inset: 14px; }
@@ -1553,7 +1553,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .k.lit { inline-size: 14px; block-size: 14px; border-radius: 4px; background: var(--hs-lit); }
   .k.dark { inline-size: 14px; block-size: 14px; border-radius: 4px; background: var(--hs-off-tile); box-shadow: inset 0 0 0 1px var(--hs-border-strong); }
 
-   sourceMappingURL=[^*]**/ ---- v3 sheets (short forms; nothing here scrolls) */
+  /* ---- v3 sheets (short forms; nothing here scrolls) */
   .sheet.dialog.v3 { gap: 10px; max-block-size: calc(100dvh - 24px); }
   .sheet.v3 .menu-h { inline-size: 100%; } .sheet.v3 .menu-h > .hi { inline-size: 28px; block-size: 28px; color: var(--hs-text-2); flex: none; }
   .sheet.v3 .mh-t b { font-size: 22px; }
@@ -1568,16 +1568,16 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .rm-col { display: grid; gap: 10px; justify-items: center; } .dpad { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; place-items: center; }
   .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
   .grp-list { display: grid; gap: 4px; inline-size: 100%; }
-   sourceMappingURL=[^*]**/ the tablet's 56 px target rule inside the phase 3 sheets too (the round-27 sheets drew 54) */
+  /* the tablet's 56 px target rule inside the phase 3 sheets too (the round-27 sheets drew 54) */
   @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .sheet.v3 .rb { inline-size: 56px; block-size: 56px; } .sheet.v3 .hsw, .sheet.v3 .hbtn, .sheet.v3 .chip2, .sheet.v3 .seg button { min-block-size: 56px; } }
 
-   sourceMappingURL=[^*]**/ ---- 1024 tablets */
+  /* ---- 1024 tablets */
   @media (max-width: 1100px) and (min-width: 900px), (max-width: 1100px) and (min-width: 701px) and (orientation: landscape) {
     .md-t b { font-size: 22px; } .md-src .chip2 { padding: 0 12px !important; }
   }
   @media (max-height: 800px) and (min-width: 900px), (max-height: 800px) and (min-width: 701px) and (orientation: landscape) { .art { border-radius: 16px; } }
 
-   sourceMappingURL=[^*]**/ ---- phone */
+  /* ---- phone */
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
     .md-body { display: flex; flex-direction: column; gap: 8px; } .md-now { flex: 1 1 auto; padding: 10px 14px; gap: 6px 12px; grid-template-rows: auto auto auto auto auto; }
     .art { inline-size: 60px; border-radius: 14px; } .md-t b { font-size: 18px; } .md-prog { display: none; }

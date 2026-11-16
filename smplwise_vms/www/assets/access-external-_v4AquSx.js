@@ -97,7 +97,7 @@ import{i as se,n as q,r as h,a as te,ak as z,dE as de,O as Ee,p as c,q as i,cK a
       .plist { display: grid; max-block-size: 232px; overflow: auto; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); }
       .plist label { display: grid; grid-template-columns: 20px 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-block-end: 1px solid var(--sw-border); cursor: pointer; }
       .plist label:last-child { border-block-end: 0; }
-      @media (hover: hover) and (pointer: fine) { .plist label:hover { background: var(--sw-hover-wash); } }  sourceMappingURL=[^*]**/ POLISH4-WP8: no sticky wash after a tap */
+      @media (hover: hover) and (pointer: fine) { .plist label:hover { background: var(--sw-hover-wash); } } /* POLISH4-WP8: no sticky wash after a tap */
       .plist label.dis { cursor: not-allowed; opacity: .62; }
       .plist input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); }
       .av { inline-size: 34px; block-size: 34px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); display: grid; place-items: center; font-size: var(--sw-fs-xs); font-weight: 700; flex: none; }
@@ -423,7 +423,7 @@ import{i as se,n as q,r as h,a as te,ak as z,dE as de,O as Ee,p as c,q as i,cK a
       <div class="toasts" aria-live="polite" ${Me()}>${this.toasts.map(d=>i`<div class="toast" data-toast><sw-icon name="check" size="16"></sw-icon>${d.text}</div>`)}</div>
     `}};f.styles=[ie,qs,Ke,se`
       :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box;
-         sourceMappingURL=[^*]**/ SHAREDUI-295: every button of the screen, its drawer and dialogs is a 44 px target (the system-access screens do the same) */
+        /* SHAREDUI-295: every button of the screen, its drawer and dialogs is a 44 px target (the system-access screens do the same) */
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px)); --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px)); }
       .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; color: var(--sw-heading); }
@@ -448,7 +448,7 @@ import{i as se,n as q,r as h,a as te,ak as z,dE as de,O as Ee,p as c,q as i,cK a
       .gl-h { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: 600; background: var(--sw-surface-2); border-block-end: 1px solid var(--sw-border-strong); }
       .gl-r { border: 0; border-block-end: 1px solid var(--sw-border); background: transparent; inline-size: 100%; text-align: start; color: inherit; cursor: pointer; font: inherit; }
       .gl-r:last-child { border-block-end: 0; }
-       sourceMappingURL=[^*]**/ POLISH4-WP8: the row wash only on a fine pointer (it stuck after a tap on a tablet); a row gives on pointer-down */
+      /* POLISH4-WP8: the row wash only on a fine pointer (it stuck after a tap on a tablet); a row gives on pointer-down */
       @media (hover: hover) and (pointer: fine) { .gl-r:hover { background: var(--sw-hover-wash); } }
       .gl-r { transition: background-color var(--sw-t-hover) var(--sw-ease-color); }
       .gl-r:active { background: var(--sw-hover-wash); }
@@ -464,7 +464,7 @@ import{i as se,n as q,r as h,a as te,ak as z,dE as de,O as Ee,p as c,q as i,cK a
       .st .why { font-size: var(--sw-fs-sm); color: var(--sw-text-2); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .code { display: grid; gap: 4px; justify-items: start; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .chev { color: var(--sw-text-3); align-self: center; }
-       sourceMappingURL=[^*]**/ SHAREDUI-295: the read-back wait - an indeterminate mark (still under reduced motion), never a number */
+      /* SHAREDUI-295: the read-back wait - an indeterminate mark (still under reduced motion), never a number */
       .rb { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px; border-radius: var(--sw-r-md); background: var(--cs); }
       .rb-mark { inline-size: 28px; block-size: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-surface-solid); }
       .rb-mark i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c); animation: rbpulse 1.8s ease-in-out infinite; }
@@ -529,7 +529,7 @@ import{i as se,n as q,r as h,a as te,ak as z,dE as de,O as Ee,p as c,q as i,cK a
       .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
       .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
       .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
-       sourceMappingURL=[^*]**/ POLISH4-WP8 (D18, owner Q9a): the list card switches to its two-line rows by its OWN width (a narrow main column beside the side
+      /* POLISH4-WP8 (D18, owner Q9a): the list card switches to its two-line rows by its OWN width (a narrow main column beside the side
          panels on a tablet), not only by the window's */
       .tcard.grants { container: xgrants / inline-size; }
       @container xgrants (max-width: 860px) {
@@ -561,7 +561,7 @@ import{i as se,n as q,r as h,a as te,ak as z,dE as de,O as Ee,p as c,q as i,cK a
         .drow { grid-template-columns: 28px minmax(0, 1fr); }
         .drow .dact { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
       }
-       sourceMappingURL=[^*]**/ POLISH4-WP8 (D18, owner Q9a): from a 1024 px window up (and tall enough for a working list) the page itself never scrolls - the
+      /* POLISH4-WP8 (D18, owner Q9a): from a 1024 px window up (and tall enough for a working list) the page itself never scrolls - the
          title, the banners and the KPI filters stay put, the grants list scrolls inside its card under its filters and column head, the
          side panels scroll in their own column when they are taller than the window. 1024-1180 keeps the two columns with a narrower side
          (the list card then shows its two-line rows). A phone, a narrow or a short window keeps the page scroll. */

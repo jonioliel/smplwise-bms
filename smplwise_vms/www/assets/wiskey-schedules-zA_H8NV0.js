@@ -37,7 +37,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
     min-inline-size: 0;
   }
 
-   sourceMappingURL=[^*]**/ ---- the door list (a card on a desktop, a sheet on a phone) ---- */
+  /* ---- the door list (a card on a desktop, a sheet on a phone) ---- */
   nav.doors {
     display: flex;
     flex-direction: column;
@@ -86,7 +86,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
     text-align: start;
     cursor: pointer;
   }
-   sourceMappingURL=[^*]**/ R5-SECURITY: a hover only under a fine pointer; the row sinks on pointer-down.
+  /* R5-SECURITY: a hover only under a fine pointer; the row sinks on pointer-down.
      AUDIT30-H (finding 14): the chosen door is Blue Wash + Blue Ink + semibold, no border (DESIGN.md: a selected tree / list row),
      not a solid accent field */
   @media (hover: hover) and (pointer: fine) {
@@ -154,7 +154,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
     outline-offset: var(--sw-focus-offset);
   }
 
-   sourceMappingURL=[^*]**/ ---- the door ---- */
+  /* ---- the door ---- */
   .doorhead {
     display: flex;
     flex-wrap: wrap;
@@ -164,7 +164,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
   .doorhead h2 {
     margin: 0;
     min-inline-size: 0;
-     sourceMappingURL=[^*]**/ R5-SECURITY: the door is the heading of the page's main column - 20/800 */
+    /* R5-SECURITY: the door is the heading of the page's main column - 20/800 */
     font-size: var(--sw-fs-2xl);
     font-weight: 800;
     letter-spacing: -0.02em;
@@ -246,7 +246,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
     max-inline-size: 100%;
   }
 
-   sourceMappingURL=[^*]**/ ---- the library and the proposals ---- */
+  /* ---- the library and the proposals ---- */
   .two {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -303,7 +303,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
     .chip {
       display: inline-flex;
     }
-     sourceMappingURL=[^*]**/ the door chip already names the door on a phone: the title would repeat it */
+    /* the door chip already names the door on a phone: the title would repeat it */
     .doorhead h2 {
       display: none;
     }
@@ -496,7 +496,7 @@ import{L as E,i as Q,n as _,a as ee,p as l,q as r,cK as T,x as se,R as Z,au as t
       background: var(--sw-accent-soft, var(--sw-surface-2));
     }
     .win input {
-      inline-size: 8.8em;  sourceMappingURL=[^*]**/ room for a 12-hour browser format too (08:00 AM) */
+      inline-size: 8.8em; /* room for a 12-hour browser format too (08:00 AM) */
       border-color: transparent;
       background: transparent;
     }

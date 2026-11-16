@@ -9,7 +9,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
     --tc-acc: var(--sw-accent);
     --tc-line: var(--sw-accent);
     --tc-band: color-mix(in srgb, var(--sw-success) 14%, transparent);
-     sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: the solid fills behind white text (badges, the selected counter); the status tokens themselves stay the marks' colours */
+    /* R5-MEDIA-ENERGY-297: the solid fills behind white text (badges, the selected counter); the status tokens themselves stay the marks' colours */
     --tc-alarm-solid: #c81e1e;
     --tc-warn-solid: #b45309;
   }
@@ -24,12 +24,12 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
     display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 4px 12px; white-space: nowrap;
     background: var(--c-soft); color: var(--c-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); line-height: 1.4;
   }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (status as a filled field, not a wash): an alerting badge is a solid pill of a deep status colour under white text
+  /* R5-MEDIA-ENERGY-297 (status as a filled field, not a wash): an alerting badge is a solid pill of a deep status colour under white text
      (both at least 4.5:1 in light and dark; the raw status tokens are too light for white), with the elevators' lit top edge */
   [data-look='alarm'] .badge, .badge[data-look='alarm'] { background: var(--tc-alarm-solid); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
   [data-look='warn'] .badge, .badge[data-look='warn'] { background: var(--tc-warn-solid); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-   sourceMappingURL=[^*]**/ POLISH-CONTROL-297: the chip's word is set one step larger (the audit's smallest text was these tags) and its tone colour is the
+  /* POLISH-CONTROL-297: the chip's word is set one step larger (the audit's smallest text was these tags) and its tone colour is the
      theme's readable text token, never the raw status colour; a neutral chip reads in the full text colour */
   .chip {
     display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 3px 11px; line-height: 1.5;
@@ -45,7 +45,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .chip[data-tone='acc'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
   .chip[data-tone='ok'] { background: var(--sw-success-soft); color: var(--sw-success-text); }
 
-   sourceMappingURL=[^*]**/ the gauge */
+  /* the gauge */
   .gauge { position: relative; flex: none; display: grid; place-items: center; }
   .gauge svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
   .g-track { stroke: var(--sw-surface-3); }
@@ -56,15 +56,15 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .g-sp { stroke: var(--tc-acc); }
   .g-tick { font-size: var(--sw-fs-2xs); fill: var(--sw-text-3); }
   .gv { position: relative; display: grid; justify-items: center; gap: 1px; margin-block-start: 8px; text-align: center; }
-   sourceMappingURL=[^*]**/ round 2 (dataviz hero number): the reading is the hero of the gauge - display size, heavy, tight, tabular */
+  /* round 2 (dataviz hero number): the reading is the hero of the gauge - display size, heavy, tight, tabular */
   .gv b { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
   .gv b sup { font-size: var(--sw-fs-xs); margin-inline-start: 1px; color: var(--sw-text-2); }
   .gv small { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
   .gv .trend { font-size: var(--sw-fs-xs); color: var(--c-text); font-weight: var(--sw-fw-semibold); }
   [data-stale] .gv b { color: var(--sw-text-3); }
 
-   sourceMappingURL=[^*]**/ charts */
-   sourceMappingURL=[^*]**/ round 2 (dataviz marks): a taller sparkline on a tone step (no box), a 2 px line, the band a quiet field, the out-of-range run heavier */
+  /* charts */
+  /* round 2 (dataviz marks): a taller sparkline on a tone step (no box), a 2 px line, the band a quiet field, the out-of-range run heavier */
   .spark { block-size: 60px; border-radius: var(--sw-r-sm); overflow: hidden; background: color-mix(in srgb, var(--sw-text) 3.5%, transparent); }
   .spark svg { inline-size: 100%; block-size: 100%; display: block; }
   .c-band { fill: var(--tc-band); }
@@ -75,7 +75,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .c-out { stroke: var(--tc-alarm); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
   .c-sp { stroke: var(--sw-text-2); stroke-width: 1.4; stroke-dasharray: 5 3; }
   .c-line.big { stroke-width: 2; }
-   sourceMappingURL=[^*]**/ phase 3 (idea 10): the compared units over the main line - categorical timeline colours, dashed so the main unit stays the hero */
+  /* phase 3 (idea 10): the compared units over the main line - categorical timeline colours, dashed so the main unit stays the hero */
   .c-ov { stroke-width: 1.6; stroke-linejoin: round; stroke-dasharray: 6 3; }
   .c-ov[data-ov='0'] { stroke: var(--sw-tl-person); }
   .c-ov[data-ov='1'] { stroke: var(--sw-tl-vehicle); }
@@ -89,7 +89,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .c-crossdot { fill: var(--tc-line); stroke: var(--sw-surface-solid); }
   .axis { display: flex; justify-content: space-between; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); direction: ltr; }
 
-   sourceMappingURL=[^*]**/ the ring */
+  /* the ring */
   .r-seg[data-k='ok'] { fill: var(--tc-ok); opacity: 0.55; }
   .r-seg[data-k='warn'] { fill: var(--tc-warn); }
   .r-seg[data-k='alarm'] { fill: var(--tc-alarm); }
@@ -98,7 +98,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .r-hand { stroke: var(--sw-heading); }
   .r-hub { fill: var(--sw-heading); }
 
-   sourceMappingURL=[^*]**/ timeline bars */
+  /* timeline bars */
   .tl { display: flex; block-size: 14px; border-radius: var(--sw-r-2xs); overflow: hidden; background: var(--sw-surface-2); direction: ltr; }
   .tl > span[data-k='open'] { background: var(--tc-door); }
   .tl > span[data-k='ok'] { background: color-mix(in srgb, var(--tc-ok) 45%, transparent); }
@@ -120,7 +120,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .legend i[data-k='alarm'] { background: var(--tc-alarm); }
   .legend i[data-k='none'] { background: var(--sw-surface-3); }
 
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297 (HOMEFABLE keys): a button is a raised key - the card tone, the first shadow and a lit top edge - that sinks on
+  /* R5-MEDIA-ENERGY-297 (HOMEFABLE keys): a button is a raised key - the card tone, the first shadow and a lit top edge - that sinks on
      pointer-down (the press token, 120 ms); hover only under a pointer that hovers (mobile-native) */
   .btn {
     display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 16px; min-block-size: var(--sw-ctl-h-sm);
@@ -142,7 +142,7 @@ import{i as a}from"./index-C5kZ9jiu.js";const t=a`
   .btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
   .btn:disabled { opacity: var(--sw-disabled-opacity); cursor: default; }
   .btn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
-   sourceMappingURL=[^*]**/ R5-MEDIA-ENERGY-297: a panel is the hero tier (the ladder's second step, a lit top edge); its heading reads as a heading */
+  /* R5-MEDIA-ENERGY-297: a panel is the hero tier (the ladder's second step, a lit top edge); its heading reads as a heading */
   .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 16px 18px; box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
   .panel h4 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.01em; }
   .hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }

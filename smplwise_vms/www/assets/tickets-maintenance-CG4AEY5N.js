@@ -339,7 +339,7 @@ import{q as i,i as N,L as Z,az as jt,au as wt,ch as Ut,av as Vt,n as m,r as p,a 
       ${r}`:i`${a}<sw-state-panel icon="qr" state="empty" heading=${n("emptyTags")} hint=${n("emptyTagsBody")} data-state="empty">
         <button type="button" class="btn pri" @click=${e}><sw-icon name="plus" size="16"></sw-icon>${n("firstTag")}</button></sw-state-panel>${r}`}};x.styles=[z,N`
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 12px; }
-     sourceMappingURL=[^*]**/ stickers are always light (print) */
+    /* stickers are always light (print) */
     .sticker { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 12px; background: #fff; color: #111; text-align: center; display: grid; justify-items: center; gap: 4px; break-inside: avoid; }
     .sticker svg { inline-size: 120px; block-size: 120px; }
     .sticker .l { font-weight: var(--sw-fw-bold); }
@@ -347,7 +347,7 @@ import{q as i,i as N,L as Z,az as jt,au as wt,ch as Ut,av as Vt,n as m,r as p,a 
     .sticker .path { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); color: #555; direction: ltr; unicode-bidi: isolate; }
     .note { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
     :host { flex: 1; min-block-size: 0; }
-     sourceMappingURL=[^*]**/ owner 24.10: no page scrolling - the stickers and the table scroll inside this area */
+    /* owner 24.10: no page scrolling - the stickers and the table scroll inside this area */
     .tagscroll { flex: 1; min-block-size: 0; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
     @media print {
       .tagscroll { overflow: visible; display: block; }
@@ -523,16 +523,16 @@ import{q as i,i as N,L as Z,az as jt,au as wt,ch as Ut,av as Vt,n as m,r as p,a 
   `];at([p()],G.prototype,"data",2);at([p()],G.prototype,"error",2);at([p()],G.prototype,"filter",2);at([p()],G.prototype,"view",2);G=at([O("emergency-readiness-page")],G);var hs=Object.defineProperty,us=Object.getOwnPropertyDescriptor,dt=(t,e,a,r)=>{for(var s=r>1?void 0:r?us(e,a):e,o=t.length-1,l;o>=0;o--)(l=t[o])&&(s=(r?l(e,a,s):l(s))||s);return r&&s&&hs(e,a,s),s};let X=class extends E{constructor(){super(...arguments),this.bubbleSkin=new pe(this),this.route=null,this.access=he(),this.emergency=null}connectedCallback(){super.connectedCallback(),this.stop=ue(t=>this.access=t),ve(),q.module().then(t=>this.emergency=t,()=>this.emergency=null)}disconnectedCallback(){this.stop?.(),super.disconnectedCallback()}pages(){const t=me(this.access).map(e=>({id:e,label:n(ge[e]),href:J(e)}));return this.emergency?.enabled&&this.emergency.can.view&&t.push({id:"emergency",label:c("tab"),href:`${$e}/emergency`}),t}body(t){const e=this.route,a=e?.segments??[];return a[2]==="scan"&&a[3]?i`<maint-scan-page .token=${a[3]} .access=${this.access}></maint-scan-page>`:a[2]==="emergency"?this.emergency?.enabled&&this.emergency.can.view?i`<emergency-readiness-page></emergency-readiness-page>`:i`<sw-state-panel state="forbidden" heading=${c("forbiddenTitle")} data-state="forbidden"></sw-state-panel>`:t==="tags"?i`<maint-tags-page .access=${this.access}></maint-tags-page>`:t==="log"?i`<maint-log-page .access=${this.access}></maint-log-page>`:i`<maint-list-page .page=${t} .access=${this.access} .openTask=${e?.params.get("task")??""} .openRun=${e?.params.get("run")??""}></maint-list-page>`}render(){const t=this.access,e=xe(n("section"));if(t.enabled===null)return i`${e}<div class="skl tabs" aria-hidden="true"></div><div class="skl page" aria-busy="true" aria-label=${n("loading")} data-state="loading"></div>`;if(!t.enabled){const l=!Lt()||Mt("system.configure");return i`${e}<sw-state-panel icon="power" state="empty" heading=${n("offTitle")} hint=${n("offBody")} data-state="off">
         ${l?i`<a class="btn" href="#/system/infra/maintenance" data-maint-to-settings>${n("toSettings")}</a>`:d}</sw-state-panel>`}if(!t.view)return i`${e}<sw-state-panel state="forbidden" heading=${n("forbiddenTitle")} data-state="forbidden"></sw-state-panel>`;const r=this.route?.segments[2]==="emergency"?"emergency":fe(this.route?.segments??[]),s=this.pages(),o=this.route?.segments[2]==="scan";return i`${o?d:i`<sw-tabs .items=${s} .active=${r} .variant=${be(null,2)} group-label=${n("pagesLabel")} data-maint-pages></sw-tabs>`}
       <div class="body" data-maint-page=${o?"scan":r}>${this.body(r)}</div>`}};X.styles=[_e,N`
-     sourceMappingURL=[^*]**/ owner 24.10: a control screen never scrolls as a PAGE - the section fills the height of the screen and each page scrolls inside its
+    /* owner 24.10: a control screen never scrolls as a PAGE - the section fills the height of the screen and each page scrolls inside its
        own panel (the list's table, the log, the tags). */
     :host {
       display: flex; flex-direction: column; gap: 14px; block-size: 100%; min-block-size: 0; padding: 14px var(--sw-page-pad) 16px; max-inline-size: var(--sw-content-max);
       inline-size: 100%; box-sizing: border-box; overflow: hidden;
     }
-    sw-tabs { flex: none; }  sourceMappingURL=[^*]**/ a scroll container in a flex column would shrink to nothing on a phone */
+    sw-tabs { flex: none; } /* a scroll container in a flex column would shrink to nothing on a phone */
     .body { min-inline-size: 0; min-block-size: 0; flex: 1; display: flex; flex-direction: column; gap: 14px; }
     .body > * { flex: 1; min-block-size: 0; overflow: auto; }
-     sourceMappingURL=[^*]**/ TKSET-POLISH-2331: the loading state has the section's shape (the page row, then the page), not one short block */
+    /* TKSET-POLISH-2331: the loading state has the section's shape (the page row, then the page), not one short block */
     .skl { border-radius: var(--sw-r-md); background: var(--sw-skeleton); }
     .skl.tabs { flex: none; block-size: 40px; inline-size: min(560px, 100%); border-radius: var(--sw-r-pill); }
     .skl.page { flex: 1; min-block-size: 160px; border-radius: var(--sw-r-xl); }

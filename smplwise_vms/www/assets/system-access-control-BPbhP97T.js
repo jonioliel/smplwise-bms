@@ -797,7 +797,7 @@ import{i as C,n as R,a as j,q as r,p as c,x as E,a4 as W,r as u,K as _,bD as U,b
         color: var(--sw-text-3);
         font-size: var(--sw-fs-xs);
       }
-       sourceMappingURL=[^*]**/ a hint that is a direct line of a flush card (the opt-out note, the consent rules) takes the card's 14 px gutter: with none
+      /* a hint that is a direct line of a flush card (the opt-out note, the consent rules) takes the card's 14 px gutter: with none
          it sat on the card's edge and, as the consent card's last line, inside the rounded corner of the round skins (2.7.0 gate) */
       sw-card > .hint {
         padding-inline: 14px;
@@ -845,7 +845,7 @@ import{i as C,n as R,a as j,q as r,p as c,x as E,a4 as W,r as u,K as _,bD as U,b
         flex: 1 1 14rem;
         min-inline-size: 0;
       }
-       sourceMappingURL=[^*]**/ POLISH4-WP8 (owner Q7): the page is a long settings document; on a phone its save row stays in view while it scrolls under it
+      /* POLISH4-WP8 (owner Q7): the page is a long settings document; on a phone its save row stays in view while it scrolls under it
          (the settings kit's .foot.sticky look, styles/settings.ts) */
       @media (max-width: 767px) {
         .actions {
@@ -858,7 +858,7 @@ import{i as C,n as R,a as j,q as r,p as c,x as E,a4 as W,r as u,K as _,bD as U,b
           background: var(--sw-surface-solid);
           box-shadow: var(--sw-shadow-3);
         }
-         sourceMappingURL=[^*]**/ GATE2370-D: the sticky bar is one line of keys. The status span's 14rem basis pushed the keys onto two stacked lines under an
+        /* GATE2370-D: the sticky bar is one line of keys. The status span's 14rem basis pushed the keys onto two stacked lines under an
            empty strip (a 120 px bar over the form); on a phone the status takes its own line only while it says something */
         .actions .grow {
           flex: 1 1 100%;

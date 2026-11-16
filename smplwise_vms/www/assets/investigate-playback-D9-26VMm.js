@@ -160,7 +160,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       opacity: 0.3;
       cursor: default;
     }
-     sourceMappingURL=[^*]**/ the chevron icon points right: in RTL "previous" sits on the right and points right, "next" on the left points left */
+    /* the chevron icon points right: in RTL "previous" sits on the right and points right, "next" on the left points left */
     .nav.next sw-icon {
       transform: scaleX(-1);
     }
@@ -173,7 +173,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
     .grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-       sourceMappingURL=[^*]**/ the weekday row + six weeks, always: a month never changes the card's height */
+      /* the weekday row + six weeks, always: a month never changes the card's height */
       grid-template-rows: 22px repeat(6, var(--cell));
       gap: 2px;
       --cell: 36px;
@@ -209,7 +209,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       color: var(--sw-recorded-text, var(--sw-accent-text));
       font-weight: var(--sw-fw-semibold);
     }
-     sourceMappingURL=[^*]**/ the recorded mark is also a shape (a dot under the number), not only a colour */
+    /* the recorded mark is also a shape (a dot under the number), not only a colour */
     .day[data-state='recorded']::after {
       content: '';
       position: absolute;
@@ -436,7 +436,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
     .pick sw-field {
       inline-size: 150px;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: the stage is the hero (shadow 3) */
+    /* R5-INVESTIGATE-297: the stage is the hero (shadow 3) */
     .video {
       box-shadow: var(--sw-shadow-3);
       position: relative;
@@ -446,7 +446,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       color: var(--sw-on-video);
       background: var(--sw-video-bg);
       box-shadow: var(--sw-shadow-2);
-       sourceMappingURL=[^*]**/ 0.1.68: the whole page (controls + timeline) fits the window - no scrolling to reach the timeline (owner 3.5) */
+      /* 0.1.68: the whole page (controls + timeline) fits the window - no scrolling to reach the timeline (owner 3.5) */
       max-block-size: max(200px, calc(100dvh - 560px));
       margin-inline: auto;
       inline-size: 100%;
@@ -627,7 +627,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       background: color-mix(in srgb, var(--sw-on-video) 25%, transparent);
       margin-inline: 4px;
     }
-     sourceMappingURL=[^*]**/ The transport controls are ONE bar under the picture, never over it (owner 2026-10-02: on a phone the floating pill covered
+    /* The transport controls are ONE bar under the picture, never over it (owner 2026-10-02: on a phone the floating pill covered
        more than half of the video). Row 1 is the picture (the single video or the comparison grid), the time stamp sits on its
        bottom corner, row 2 is the bar. */
     .stage {
@@ -673,7 +673,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       min-block-size: 44px;
       min-inline-size: 44px;
     }
-     sourceMappingURL=[^*]**/ 2.0.0 stall states over the picture (single video or the comparison grid): one short line, white on the video's own dark
+    /* 2.0.0 stall states over the picture (single video or the comparison grid): one short line, white on the video's own dark
        shade in every skin and scheme; never covers the controls bar under the picture. */
     .stage .stall {
       align-self: stretch;
@@ -750,7 +750,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
     .tlwrap {
       position: relative;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: the timeline is the second object of the page (radius lg, shadow 2, a light line); the stage keeps shadow 3 */
+    /* R5-INVESTIGATE-297: the timeline is the second object of the page (radius lg, shadow 2, a light line); the stage keeps shadow 3 */
     sw-timeline {
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
@@ -763,7 +763,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       inset-block-end: calc(100% + 6px);
       transform: translateX(-50%);
       inline-size: 200px;
-       sourceMappingURL=[^*]**/ the hover preview over the timeline is a popover: opaque, never see-through (owner 2026-10-13) */
+      /* the hover preview over the timeline is a popover: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
@@ -785,7 +785,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       background: var(--sw-surface-3);
     }
     .tlpreview img.stale {
-       sourceMappingURL=[^*]**/ PLAYBACK-SCRUB-2341: the last good picture while the one under the pointer loads */
+      /* PLAYBACK-SCRUB-2341: the last good picture while the one under the pointer loads */
       opacity: 0.72;
     }
     .tlpreview .none {
@@ -804,7 +804,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ 2.0.1: the comparison picker is one dropdown (the chips of 2.0.0 took a row per camera on the phone); it never grows past the row */
+    /* 2.0.1: the comparison picker is one dropdown (the chips of 2.0.0 took a row per camera on the phone); it never grows past the row */
     .compare sw-dropdown {
       max-inline-size: 100%;
     }
@@ -831,7 +831,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
       direction: ltr;
       unicode-bidi: isolate;
     }
-     sourceMappingURL=[^*]**/ full-system sweep: on a phone the floating control pill (frame step, speeds, skip) was wider than the
+    /* full-system sweep: on a phone the floating control pill (frame step, speeds, skip) was wider than the
        screen and its end buttons were clipped; it wraps now, and speeds the relay refuses anyway (2×/4×) are
        dropped there instead of taking room as disabled buttons. */
     @media (max-width: 767px) {
@@ -841,7 +841,7 @@ import{i as Y,n as k,r as c,e as X,a as Q,q as o,p as f,x as tt,gz as rt,S as nt
         row-gap: 4px;
         max-inline-size: calc(100% - 16px);
       }
-       sourceMappingURL=[^*]**/ one row: the frame-step buttons only exist while paused */
+      /* one row: the frame-step buttons only exist while paused */
       .stage .bar .inner {
         flex-wrap: nowrap;
         max-inline-size: none;

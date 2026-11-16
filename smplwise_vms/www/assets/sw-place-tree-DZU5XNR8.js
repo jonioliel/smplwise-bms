@@ -101,7 +101,7 @@ import{i as u,n as i,a as w,q as n,p,x as f}from"./index-C5kZ9jiu.js";var b=Obje
     .dot.mixed {
       background: var(--sw-unknown);
     }
-     sourceMappingURL=[^*]**/ CR-MAINT215: a place's worst due state */
+    /* CR-MAINT215: a place's worst due state */
     .dot.alarm {
       background: var(--sw-danger);
     }

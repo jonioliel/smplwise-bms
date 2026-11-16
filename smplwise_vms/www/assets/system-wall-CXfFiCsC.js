@@ -145,7 +145,7 @@ import{i as L,n as A,r as o,a as O,ak as w,p as h,q as l,x as q,S as E,dq as j,b
       ${this.renderAdd()}${this.renderDrawer()}${this.renderRemove()}
       <sw-wall-photo-sets ?open=${this.managingPhotos} @close=${()=>this.managingPhotos=!1} @sets-changed=${()=>void this.loadPhotoSets()}></sw-wall-photo-sets>
     </sw-page>`}};d.styles=[B,L`
-       sourceMappingURL=[^*]**/ LOOK-POLISH-2331: the settings ladder (page > card > well) on the wall users page - the list sits in a card, the drawer's
+      /* LOOK-POLISH-2331: the settings ladder (page > card > well) on the wall users page - the list sits in a card, the drawer's
          sections are headed groups, every toggle chip is a real keyboard control with its full name, and the hover stays with a
          pointer that hovers. Tokens only. */
       .toolbar { display: flex; gap: var(--sw-s-2) var(--sw-s-3); align-items: center; flex-wrap: wrap; margin-block-end: var(--sw-s-3); }
@@ -155,7 +155,7 @@ import{i as L,n as A,r as o,a as O,ak as w,p as h,q as l,x as q,S as E,dq as j,b
       .msg { display: inline-flex; align-items: center; gap: 6px; min-block-size: 28px; padding: 2px 12px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); max-inline-size: 100%; overflow-wrap: anywhere; }
       .msg.err { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
       .msg sw-icon { flex: none; }
-       sourceMappingURL=[^*]**/ the list: a card with a quiet header row; the row is the unit (hover wash), the name leads */
+      /* the list: a card with a quiet header row; the row is the unit (hover wash), the name leads */
       table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-base); }
       th { text-align: start; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 12px 16px; border-block-end: 1px solid var(--sw-border); white-space: nowrap; }
       td { padding: 12px 16px; border-block-start: 1px solid var(--sw-border); vertical-align: middle; }
@@ -175,7 +175,7 @@ import{i as L,n as A,r as o,a as O,ak as w,p as h,q as l,x as q,S as E,dq as j,b
       .card .row { display: flex; justify-content: space-between; gap: var(--sw-s-2); align-items: center; min-inline-size: 0; }
       .card .acts { justify-content: flex-start; padding-block-start: var(--sw-s-2); border-block-start: 1px solid var(--sw-border); }
       @media (max-width: 720px) { .table-card { display: none; } .cards { display: grid; } }
-       sourceMappingURL=[^*]**/ the drawer: headed groups divided by a hairline; a setting line wraps its control under the label on a narrow drawer */
+      /* the drawer: headed groups divided by a hairline; a setting line wraps its control under the label on a narrow drawer */
       .sec { display: grid; gap: var(--sw-s-2); padding-block: var(--sw-s-4); border-block-start: 1px solid var(--sw-border); }
       .sec:first-child { padding-block-start: 0; border-block-start: 0; }
       .sec h3 { margin: 0 0 2px; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.005em; }
@@ -183,7 +183,7 @@ import{i as L,n as A,r as o,a as O,ak as w,p as h,q as l,x as q,S as E,dq as j,b
       .line > span:first-child { flex: 1 1 160px; min-inline-size: 0; color: var(--sw-text); }
       .line sw-field { flex: 0 1 220px; min-inline-size: 160px; }
       .sub { font-weight: var(--sw-fw-semibold); color: var(--sw-text); padding-block-start: var(--sw-s-1); }
-       sourceMappingURL=[^*]**/ WALL-ANSWERS-2400: the installation-wide row under the list (one setting line in its own card) */
+      /* WALL-ANSWERS-2400: the installation-wide row under the list (one setting line in its own card) */
       .general { display: block; margin-block-start: var(--sw-s-3); }
       .cams { display: grid; gap: 4px; }
       .cam { display: grid; grid-template-columns: auto auto 1fr auto; gap: var(--sw-s-2); align-items: center; min-block-size: 40px; padding: 2px 10px; border-radius: var(--sw-r-sm); background: var(--sw-well, var(--sw-surface-2)); }
@@ -194,7 +194,7 @@ import{i as L,n as A,r as o,a as O,ak as w,p as h,q as l,x as q,S as E,dq as j,b
       .cam .acts { gap: 2px; }
       .win { display: flex; gap: var(--sw-s-2); align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: var(--sw-r-sm); background: var(--sw-well, var(--sw-surface-2)); }
       .win sw-field { inline-size: 120px; }
-       sourceMappingURL=[^*]**/ a toggle chip: the checkbox stays in the tab order (visually hidden), the chip carries its focus ring and its full name */
+      /* a toggle chip: the checkbox stays in the tab order (visually hidden), the chip carries its focus ring and its full name */
       .days, .chips { display: flex; gap: 6px; flex-wrap: wrap; }
       .days label, .chips label { position: relative; display: inline-flex; align-items: center; justify-content: center; min-block-size: 36px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); }
       .days label { inline-size: 36px; }

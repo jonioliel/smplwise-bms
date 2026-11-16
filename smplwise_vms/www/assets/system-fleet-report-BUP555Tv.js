@@ -421,7 +421,7 @@ import{au as D,L as g,av as T,a as F,S as E,R as w,qy as C,q as i,p as m,jk as O
         background-position: -200% 0;
       }
     }
-     sourceMappingURL=[^*]**/ touch layouts: the readiness link and the folded-card summaries are 44 px targets */
+    /* touch layouts: the readiness link and the folded-card summaries are 44 px targets */
     @media (max-width: 1100px) {
       a.link {
         min-block-size: 44px;

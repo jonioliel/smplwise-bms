@@ -81,7 +81,7 @@ import{a as b,dq as k,R as y,ak as u,q as r,p as h,rK as _,i as x,r as d,x as C}
       .res-line[data-look='ok'] { color: var(--sw-success-text); }
       .res-line[data-look='warn'] { color: var(--sw-warning-text); }
       .res-line[data-look='alarm'] { color: var(--sw-danger-text); }
-       sourceMappingURL=[^*]**/ POLISH4-WP8 (D16): the two-card rows never force a card wider than a narrow screen; a long source error or time wraps in its cell */
+      /* POLISH4-WP8 (D16): the two-card rows never force a card wider than a narrow screen; a long source error or time wraps in its cell */
       .two { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
       .kv dd { min-inline-size: 0; overflow-wrap: anywhere; }
       .stop .fld { min-inline-size: 0; }
@@ -89,7 +89,7 @@ import{a as b,dq as k,R as y,ak as u,q as r,p as h,rK as _,i as x,r as d,x as C}
         .inp { min-block-size: 44px; }
         .ck { min-block-size: 44px; }
       }
-       sourceMappingURL=[^*]**/ the phone: a stop is two lines - its code and display name, then the order and remove keys - so the name field keeps its width
+      /* the phone: a stop is two lines - its code and display name, then the order and remove keys - so the name field keeps its width
          (three keys beside it squeezed it to a sliver); the toast clears the bottom bar */
       @media (max-width: 767px) {
         .stop { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'code name' 'acts acts'; row-gap: 6px; }

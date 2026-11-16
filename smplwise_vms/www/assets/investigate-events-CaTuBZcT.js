@@ -212,7 +212,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
-     sourceMappingURL=[^*]**/ EVENTS-POLISH-2331 (owner: the panel's actions sat at the bottom of the PAGE): from a tablet up the screen takes exactly the height the
+    /* EVENTS-POLISH-2331 (owner: the panel's actions sat at the bottom of the PAGE): from a tablet up the screen takes exactly the height the
        shell leaves it and never scrolls; the list scrolls inside its own box (sticky header) and the drawer - absolute in that box - is as
        tall as the box, so its footer actions are always in view. A phone keeps the page scroll (the rows are cards there) and gets a
        full-screen modal sheet. Embedded in a page that does not bound the height (the reviews tab), the box just grows as before. */
@@ -247,7 +247,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
         min-block-size: 240px;
       }
     }
-     sourceMappingURL=[^*]**/ a wide desktop: the drawer docks beside the list (the list narrows), so the selected row and its neighbours stay readable */
+    /* a wide desktop: the drawer docks beside the list (the list narrows), so the selected row and its neighbours stay readable */
     .stage {
       --sw-drawer-w: clamp(360px, 28vw, 440px);
     }
@@ -258,7 +258,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       --sw-shadow-3: var(--sw-shadow-2);
     }
     sw-drawer.evdrawer {
-       sourceMappingURL=[^*]**/ the phone's sheet covers the screen (TKUI1 hooks), the desktop panel is unchanged */
+      /* the phone's sheet covers the screen (TKUI1 hooks), the desktop panel is unchanged */
       --sw-drawer-sheet-h: 100dvh;
       --sw-drawer-sheet-max-h: 100dvh;
       --sw-drawer-modal-w: 100vw;
@@ -290,7 +290,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ a phone: the sheet's bottom bar - the primary action across, the others two by two, each a full 44 px target */
+    /* a phone: the sheet's bottom bar - the primary action across, the others two by two, each a full 44 px target */
     @media (max-width: 767px) {
       .acts {
         display: grid;
@@ -302,7 +302,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       .acts > sw-button:last-of-type:nth-of-type(even) {
         grid-column: 1 / -1;
       }
-       sourceMappingURL=[^*]**/ the fields two by two (the search and the range across): the filters took a whole screen of single rows */
+      /* the fields two by two (the search and the range across): the filters took a whole screen of single rows */
       .filters {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -321,7 +321,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       gap: 6px;
       margin-block-start: 6px;
     }
-     sourceMappingURL=[^*]**/ the filter bar: the fields on one wrapping row, then the status / view segments, the active filters with a reset, and the bulk action */
+    /* the filter bar: the fields on one wrapping row, then the status / view segments, the active filters with a reset, and the bulk action */
     .fbar {
       display: flex;
       flex-direction: column;
@@ -401,7 +401,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
         color: var(--sw-text);
       }
     }
-     sourceMappingURL=[^*]**/ the data sources / technical line: one quiet summary; the details on demand - the look is the shared techDetailsStyles
+    /* the data sources / technical line: one quiet summary; the details on demand - the look is the shared techDetailsStyles
        (styles/tech-details.ts, SHARED-POLISH-2342); only its place in the column stays here */
     details.tech {
       flex: none;
@@ -417,7 +417,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       color: var(--sw-warning-text);
       font-weight: var(--sw-fw-semibold);
     }
-     sourceMappingURL=[^*]**/ inside the drawer: the raw values as a quiet key / value list */
+    /* inside the drawer: the raw values as a quiet key / value list */
     details.evtech {
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface-2);
@@ -447,7 +447,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
     .mono {
       font-family: var(--sw-font-mono);
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: the picture is how an event is recognised - 88x56, rounded, a thumb shadow (was 64x40) */
+    /* R5-INVESTIGATE-297: the picture is how an event is recognised - 88x56, rounded, a thumb shadow (was 64x40) */
     sw-scene.thumb,
     .thumb.none {
       inline-size: 88px;
@@ -585,7 +585,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
     dd {
       margin: 0;
     }
-     sourceMappingURL=[^*]**/ the ingest status strip: one quiet line - the dot says connected, the rest is secondary */
+    /* the ingest status strip: one quiet line - the dot says connected, the rest is secondary */
     .banner {
       font-size: var(--sw-fs-xs);
       padding: 6px 10px;
@@ -666,7 +666,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
     .kpi.hot .n {
       color: var(--sw-warning-text);
     }
-     sourceMappingURL=[^*]**/ UXFIX-A11Y-295: the range toggle was 30 x 25 / 46 x 25 on a phone */
+    /* UXFIX-A11Y-295: the range toggle was 30 x 25 / 46 x 25 on a phone */
     @media (max-width: 767px), (pointer: coarse) {
       .rangepick button {
         min-block-size: 44px;
@@ -698,7 +698,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       color: var(--sw-text);
       font-size: var(--sw-fs-sm);
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row sinks on pointer-down */
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row sinks on pointer-down */
     @media (hover: hover) and (pointer: fine) {
       .wrow:hover {
         background: var(--sw-hover-wash);
@@ -714,7 +714,7 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-     sourceMappingURL=[^*]**/ M047: a ticked raw event (for a split) and the spotlight rules of the window */
+    /* M047: a ticked raw event (for a split) and the spotlight rules of the window */
     .wrow.tick {
       grid-template-columns: auto 1fr auto auto;
     }
@@ -762,13 +762,13 @@ import{a as P,S as F,br as v,qL as $,qG as u,p as o,q as a,qR as z,K as T,t0 as 
       gap: 6px;
       margin-block-start: 8px;
     }
-     sourceMappingURL=[^*]**/ hover preview over an event row (T044): the event's frame and the frames 5 s before / after it */
+    /* hover preview over an event row (T044): the event's frame and the frames 5 s before / after it */
     .rowpreview {
       position: fixed;
       z-index: var(--sw-z-popover, 40);
       inline-size: 372px;
       max-inline-size: calc(100vw - 32px);
-       sourceMappingURL=[^*]**/ a floating preview over the list is a popover: opaque, never see-through (owner 2026-10-13) */
+      /* a floating preview over the list is a popover: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);

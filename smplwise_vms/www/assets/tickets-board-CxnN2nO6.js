@@ -32,7 +32,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       grid-template-columns: 24px minmax(0, 1fr) auto;
       align-items: center;
       gap: 6px;
-       sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#14): the tree row of every tree in the product - 36 px, the small radius (it was --sw-r-lg, 28 px on the
+      /* AUDIT30-C-TICKETS (#14): the tree row of every tree in the product - 36 px, the small radius (it was --sw-r-lg, 28 px on the
          glass host: a pill per row), the chosen row in the Blue Wash pair */
       min-block-size: 36px;
       padding-inline: 8px 12px;
@@ -167,7 +167,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       flex-direction: column;
       gap: 8px;
     }
-     sourceMappingURL=[^*]**/ TICKETS-POLISH-2331 (audit §7.5.9): the tree's own head carries its hide control (it was a third button on the title row) */
+    /* TICKETS-POLISH-2331 (audit §7.5.9): the tree's own head carries its hide control (it was a third button on the title row) */
     .sidehead {
       display: flex;
       align-items: center;
@@ -213,7 +213,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       font-variant-numeric: tabular-nums;
       margin-inline-start: 6px;
     }
-     sourceMappingURL=[^*]**/ a floor's count is a small badge, never read as part of the floor's own number ("קומה 1" + 2) */
+    /* a floor's count is a small badge, never read as part of the floor's own number ("קומה 1" + 2) */
     .rc small {
       display: inline-grid;
       place-items: center;
@@ -265,13 +265,13 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       z-index: 40;
       box-shadow: var(--dv-shadow-2);
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header the board (the
+    /* NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header the board (the
        today row, the tree, the groups of cards) scrolls in its own region - the page itself never scrolls and the controls stay in place;
        the tree stays beside the cards (sticky inside the region). On a phone the region is transparent and the page scrolls. */
     .scr {
       display: contents;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#6): the page is sw-page (its own header row: the title and the actions slot). The frame's own gap and
+    /* AUDIT30-C-TICKETS (#6): the page is sw-page (its own header row: the title and the actions slot). The frame's own gap and
        padding give way to the glass page's (.page, styles/media-page.ts); the toolbar header under it no longer sticks or compacts - the
        title it compacted moved into the frame (on a phone the page scrolls, the toolbar with it). */
     .pact {
@@ -287,7 +287,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
     .dh:empty {
       display: none;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#17): a group's heading is a section title (--sw-fs-xl), a clear step below the page title - it was
+    /* AUDIT30-C-TICKETS (#17): a group's heading is a section title (--sw-fs-xl), a clear step below the page title - it was
        --sw-fs-3xl / 800 (26 px) under a 30 px title */
     .fsec > .sh h2 {
       font-size: var(--sw-fs-xl);
@@ -318,7 +318,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
         padding: 2px 36px 28px;
       }
     }
-     sourceMappingURL=[^*]**/ NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the board is paged - the "today"
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the board is paged - the "today"
        row and the banner stay, the groups take the room left (.pgbox: its height set by the layout, never by the cards) and show what fits;
        the tree scrolls inside its own column; the pager is at the end of the toolbar row. The region keeps overflow: auto only as the
        fallback of a window shorter than one group header and one row of cards. */
@@ -366,7 +366,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       .layout.with-tree {
         grid-template-columns: 240px minmax(0, 1fr);
       }
-       sourceMappingURL=[^*]**/ a portrait tablet: "סינון" and "+ חדשה" are icon buttons (their names stay in aria-label), and the toolbar may take a second line
+      /* a portrait tablet: "סינון" and "+ חדשה" are icon buttons (their names stay in aria-label), and the toolbar may take a second line
          rather than run past the screen's edge (the layout guard found both labels cut by the board at 768) */
       .tb .filterbtn .lbl,
       .pact .newbtn .lbl {
@@ -390,7 +390,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       .dh-row > [data-board-pane] {
         align-self: flex-start;
       }
-       sourceMappingURL=[^*]**/ the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable) */
+      /* the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable) */
       .fpop .seg.stf {
         inline-size: 100%;
         box-sizing: border-box;
@@ -399,7 +399,7 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
         grid-template-columns: repeat(3, minmax(0, 1fr));
         border-radius: var(--sw-r-xl);
       }
-       sourceMappingURL=[^*]**/ a key keeps its count inside it (the guard: a "3" escaped its key by 3-12 px at 320-390); the label truncates first */
+      /* a key keeps its count inside it (the guard: a "3" escaped its key by 3-12 px at 320-390); the label truncates first */
       .fpop .seg.stf button {
         min-block-size: 44px;
         min-inline-size: 0;

@@ -16,7 +16,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     :host {
       display: contents;
     }
-     sourceMappingURL=[^*]**/ the confirmations carry the sheet material, as on the automations screen */
+    /* the confirmations carry the sheet material, as on the automations screen */
     sw-dialog {
       --sw-surface: var(--mm-sheet-surface);
       --sw-glass-blur: var(--mm-sheet-blur);
@@ -142,7 +142,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       --sw-surface: var(--mm-sheet-surface);
       --sw-glass-blur: var(--mm-sheet-blur);
     }
-     sourceMappingURL=[^*]**/ the drawer's body is a flex column with a limit (the phone's bottom sheet): nothing in it may shrink to nothing */
+    /* the drawer's body is a flex column with a limit (the phone's bottom sheet): nothing in it may shrink to nothing */
     .stack {
       display: flex;
       flex-direction: column;
@@ -152,7 +152,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .stack > * {
       flex: none;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the enable row is the drawer's lead control - a raised key (shadow 1) with a heading-size label */
+    /* R5-DEVICES-297: the enable row is the drawer's lead control - a raised key (shadow 1) with a heading-size label */
     .swrow {
       display: flex;
       align-items: center;
@@ -175,7 +175,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       gap: 6px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the slot's time is a display figure */
+    /* R5-DEVICES-297: the slot's time is a display figure */
     .slot .w {
       font-weight: 800;
       font-size: var(--sw-fs-xl);
@@ -218,7 +218,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       border-color: color-mix(in srgb, var(--dv-warning) 40%, transparent);
       background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface);
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the next-run and last-run rows are wells; the time on them is bold */
+    /* R5-DEVICES-297: the next-run and last-run rows are wells; the time on them is bold */
     .li {
       display: flex;
       align-items: center;
@@ -373,12 +373,12 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       ${this.purging?a`<sw-dialog open heading=${`למחוק לצמיתות את "${this.purging.name||"תזמון ללא שם"}"?`} data-dialog="purge" @close=${()=>this.purging=null}><div class="dlgform"><p>אי אפשר יהיה לשחזר אותו.</p><div class="dlgrow"><button type="button" class="btn" @click=${()=>this.purging=null}>ביטול</button><button type="button" class="btn danger" data-purge-confirm @click=${()=>void this.doPurge()}>מחיקה</button></div></div></sw-dialog>`:r}
       <schedule-actions .status=${this.status} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @result=${this.onResult}></schedule-actions>
       ${this.note?a`<div class=${`toast${this.note.tone==="error"?" bad":""}`} popover="manual" role="status" data-sched-note>${d(this.note.tone==="error"?"warning":"check")}${this.note.text}${this.note.action?a`<button type="button" class="btn sm" data-note-action @click=${()=>{const o=this.note?.action;this.note=null,o?.run()}}>${this.note.action.label}</button>`:r}</div>`:r}`}};h.styles=[Ue,...X,ht,H`
-     sourceMappingURL=[^*]**/ AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
+    /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
       --sw-surface: var(--sw-surface-solid);
       --sw-glass-blur: none;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its title, its actions at the end of the title row); the media
+    /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its title, its actions at the end of the title row); the media
        page keeps its padding (.page) and the toolbar below the title. The title row no longer sticks: the floor chips and the toolbar
        are the first rows of the page body. */
     sw-page.page {
@@ -392,7 +392,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .dh-row.fl {
       display: flex;
     }
-     sourceMappingURL=[^*]**/ on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
+    /* on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
        a long floor list scrolls sideways inside its own strip */
     .dh-row.hdact {
       display: flex;
@@ -403,7 +403,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .dh-row.hdact .rooms {
       max-inline-size: 50vw;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
       border-color: transparent;
@@ -416,13 +416,13 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .dh-det .grow {
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ POLISH-295: narrow enough that the review chip, the filter, the search and "חדש" stay on the toolbar row at 1440 */
+    /* POLISH-295: narrow enough that the review chip, the filter, the search and "חדש" stay on the toolbar row at 1440 */
     .search {
       min-inline-size: 150px;
       flex: 1 1 150px;
       max-inline-size: 260px;
     }
-     sourceMappingURL=[^*]**/ POLISH-295: below a wide desktop the filter button is its icon (and its count), so the toolbar stays one row */
+    /* POLISH-295: below a wide desktop the filter button is its icon (and its count), so the toolbar stays one row */
     @media (min-width: 768px) and (max-width: 1600px) {
       .foldbtn .lbl {
         display: none;
@@ -446,7 +446,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .views .ic {
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ the filters behind "סינון": the same chips and dropdown chips as the header */
+    /* the filters behind "סינון": the same chips and dropdown chips as the header */
     .more {
       flex: 1 1 100%;
       display: flex;
@@ -460,7 +460,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       gap: 4px;
       max-inline-size: 100%;
     }
-     sourceMappingURL=[^*]**/ the bubble skin: the card's selection box and "..." key meet the touch dial on every width (the skin's rule) */
+    /* the bubble skin: the card's selection box and "..." key meet the touch dial on every width (the skin's rule) */
     @media (min-width: 1101px) and (pointer: fine) {
       :host([data-skin='bubble']) .pick,
       :host([data-skin='bubble']) .more-btn {
@@ -493,7 +493,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       gap: var(--dv-gap-lg, 16px);
       align-items: stretch;
     }
-     sourceMappingURL=[^*]**/ ---- "today" (the runs still to come today): one quiet glass row ---- */
+    /* ---- "today" (the runs still to come today): one quiet glass row ---- */
     .upnext {
       display: flex;
       align-items: center;
@@ -504,7 +504,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .upnext::-webkit-scrollbar {
       display: none;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: "today" is the live object of the list - its word is a heading and the next time a display figure */
+    /* R5-DEVICES-297: "today" is the live object of the list - its word is a heading and the next time a display figure */
     .upnext > b {
       flex: none;
       font-size: var(--sw-fs-lg);
@@ -538,7 +538,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       background: var(--c);
       flex: none;
     }
-     sourceMappingURL=[^*]**/ ---- the card: the automation card's shape (sw-automation-card.ts), a schedule's content ---- */
+    /* ---- the card: the automation card's shape (sw-automation-card.ts), a schedule's content ---- */
     .acard {
       position: relative;
       display: flex;
@@ -554,7 +554,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       box-shadow: var(--dv-shadow-2);
       transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the card is the top step (shadow 2 at rest); hover is for a fine pointer only */
+    /* R5-DEVICES-297: the card is the top step (shadow 2 at rest); hover is for a fine pointer only */
     @media (hover: hover) and (pointer: fine) {
       .acard:hover {
         box-shadow: var(--dv-shadow-3, var(--dv-shadow-2));
@@ -727,7 +727,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       font-weight: 800;
       font-size: var(--sw-fs-lg);
     }
-     sourceMappingURL=[^*]**/ ---- POLISH-295: the rows view (the approved preview): one row per schedule, the whole row opens the drawer ----
+    /* ---- POLISH-295: the rows view (the approved preview): one row per schedule, the whole row opens the drawer ----
        R5-DEVICES-297: the rows are wells (one tone step down, rounded, no hairlines) inside the glass panel; the name is a heading,
        the next-run time a bold figure; a disabled schedule sits a step deeper with quiet ink; the row sinks on pointer-down */
     .rlist {
@@ -743,7 +743,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
       align-items: center;
       gap: var(--sw-s-3);
-       sourceMappingURL=[^*]**/ loop 2: 56 px rows + 4 px gaps pushed the pager under the fold at 1440x900 (no scrolling in control screens): 52 + 3 keeps
+      /* loop 2: 56 px rows + 4 px gaps pushed the pager under the fold at 1440x900 (no scrolling in control screens): 52 + 3 keeps
          ten rows and the pager on one screen */
       min-block-size: 52px;
       padding-inline: var(--sw-s-4);
@@ -826,7 +826,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .lops {
       justify-content: flex-end;
     }
-     sourceMappingURL=[^*]**/ FIX2200: the menu key keeps its touch size (the column is 44 px; a flex item shrank it to 36-40 px, the 2.20.0 bubble guard) */
+    /* FIX2200: the menu key keeps its touch size (the column is 44 px; a flex item shrank it to 36-40 px, the 2.20.0 bubble guard) */
     .lops .more-btn {
       flex: none;
     }
@@ -873,13 +873,13 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       color: var(--sw-warning-text);
       font-weight: 600;
     }
-     sourceMappingURL=[^*]**/ the pager sits close under its page (the groups' 30 px gap is for groups), so a page of rows fits 1440x900 */
+    /* the pager sits close under its page (the groups' 30 px gap is for groups), so a page of rows fits 1440x900 */
     .lfoot {
       display: flex;
       justify-content: flex-end;
       margin-block-start: calc(var(--sw-s-6) * -1);
     }
-     sourceMappingURL=[^*]**/ the review chip beside the state filter (an administrator's; it replaced the banner) */
+    /* the review chip beside the state filter (an administrator's; it replaced the banner) */
     .rc.attn {
       display: inline-flex;
       align-items: center;
@@ -896,7 +896,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       background: var(--dv-warning);
       flex: none;
     }
-     sourceMappingURL=[^*]**/ "today" as a 24-hour timeline (LTR like every time bar of the product) */
+    /* "today" as a 24-hour timeline (LTR like every time bar of the product) */
     .upnext .tl {
       position: relative;
       flex: 1 1 260px;
@@ -963,11 +963,11 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       text-decoration: none;
       min-block-size: 32px;
     }
-     sourceMappingURL=[^*]**/ FIX2200: the bubble skin's touch dial is the floor of every hit target, the next-run link included (195x32 in the 2.20.0 guard) */
+    /* FIX2200: the bubble skin's touch dial is the floor of every hit target, the next-run link included (195x32 in the 2.20.0 guard) */
     :host([data-skin='bubble']) a.up {
       min-block-size: var(--sw-touch-desktop);
     }
-     sourceMappingURL=[^*]**/ FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 guard) */
+    /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 guard) */
     :host([data-skin='bubble']) sw-pager {
       --sw-ctl-h-md: var(--sw-touch-desktop);
     }
@@ -975,12 +975,12 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       a.up {
         min-block-size: 44px;
       }
-       sourceMappingURL=[^*]**/ FIX2232B: the pager's keys are 44 px touch targets at a phone width too (30x30 in the 2.23.2 guard since the cards view pages) */
+      /* FIX2232B: the pager's keys are 44 px touch targets at a phone width too (30x30 in the 2.23.2 guard since the cards view pages) */
       sw-pager {
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
         --sw-ctl-h-lg: max(44px, var(--sw-touch-desktop, 44px));
       }
-       sourceMappingURL=[^*]**/ the shared back key of the trash and the review pages (sw-page backHref) is a 44 px target at a phone width too (28x28 in
+      /* the shared back key of the trash and the review pages (sw-page backHref) is a 44 px target at a phone width too (28x28 in
          the I18N-EN-SWITCH-2438 entry check, layout-schedules-parity) */
       sw-page::part(back) {
         --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px));
@@ -1020,10 +1020,10 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       .lr > .lbar {
         display: none;
       }
-       sourceMappingURL=[^*]**/ loop 2 (break-ui at 390 px): the next-run column was 38vw and the name was cut to one word ("מאוור..."): the time keeps
+      /* loop 2 (break-ui at 390 px): the next-run column was 38vw and the name was cut to one word ("מאוור..."): the time keeps
          its weight at the base size and the name gets the room */
       .lnext {
-         sourceMappingURL=[^*]**/ R5 fix: 30vw cut the next-run line ("היום 17:00 · ב..."); the earlier 38vw shows it whole again */
+        /* R5 fix: 30vw cut the next-run line ("היום 17:00 · ב..."); the earlier 38vw shows it whole again */
         max-inline-size: 38vw;
         font-size: var(--sw-fs-sm);
       }
@@ -1038,7 +1038,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
         order: 2;
       }
     }
-     sourceMappingURL=[^*]**/ ---- the table ---- */
+    /* ---- the table ---- */
     .tbl {
       overflow: hidden;
       padding: 0;
@@ -1055,7 +1055,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
     .tr:last-child {
       border-block-end: 0;
     }
-     sourceMappingURL=[^*]**/ R5-DEVICES-297: the table's header is a heading row (bold, heading ink); a name is a heading, a disabled row a deeper well */
+    /* R5-DEVICES-297: the table's header is a heading row (bold, heading ink); a name is a heading, a disabled row a deeper well */
     .tr.h {
       background: var(--dv-surface-2);
       color: var(--sw-heading, var(--dv-text));
@@ -1151,7 +1151,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       gap: 2px;
       justify-content: flex-end;
     }
-     sourceMappingURL=[^*]**/ ---- trash, review: rows of the drawer's block style ---- */
+    /* ---- trash, review: rows of the drawer's block style ---- */
     .rows {
       display: flex;
       flex-direction: column;
@@ -1179,7 +1179,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       flex-wrap: wrap;
       margin-block-start: 6px;
     }
-     sourceMappingURL=[^*]**/ an issue is a sentence-long chip: it wraps inside the row on a narrow phone */
+    /* an issue is a sentence-long chip: it wraps inside the row on a narrow phone */
     .li .issues .chip {
       white-space: normal;
       block-size: auto;
@@ -1192,7 +1192,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       gap: 6px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ 2026-10-04: an administrator's "fine from our side" - the warning chip gives way to a small muted state */
+    /* 2026-10-04: an administrator's "fine from our side" - the warning chip gives way to a small muted state */
     .li .issues .iss {
       display: inline-flex;
       align-items: center;
@@ -1206,7 +1206,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       border: 1px solid var(--dv-line, var(--sw-border));
       font-weight: 500;
     }
-     sourceMappingURL=[^*]**/ ---- the bulk bar: the edit bar of the glass style, kept at the bottom while scrolling ---- */
+    /* ---- the bulk bar: the edit bar of the glass style, kept at the bottom while scrolling ---- */
     .bulk {
       position: sticky;
       inset-block-end: 14px;
@@ -1214,7 +1214,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       align-self: center;
       max-inline-size: 100%;
     }
-     sourceMappingURL=[^*]**/ the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them */
+    /* the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them */
     .toast[popover] {
       inset-block-start: auto;
       margin-block: 0;
@@ -1273,7 +1273,7 @@ import{i as H,r as p,n as T,a as K,h2 as J,R as S,h3 as Q,h4 as fe,h5 as we,p as
       }
     }
     @media (max-width: 767px) {
-       sourceMappingURL=[^*]**/ the phone: the view switch moves under the search row (the title row keeps the automations screen's height, so the
+      /* the phone: the view switch moves under the search row (the title row keeps the automations screen's height, so the
          segment strip stays in place when switching between the two screens) */
       .dh-row {
         grid-template-areas: 't .' 'r r';

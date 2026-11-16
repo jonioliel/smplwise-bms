@@ -16,7 +16,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
   .pages { margin-block-end: 14px; }
 
-   sourceMappingURL=[^*]**/ the counters: the temperature / elevators screens' tiles - a surface-3 well (no outline, no shadow) a tone below the cards, the number
+  /* the counters: the temperature / elevators screens' tiles - a surface-3 well (no outline, no shadow) a tone below the cards, the number
      is the hero (display size, heavy, tight, tabular), its word one quiet line that may take two; a counter that reports a problem and is not
      zero is a filled status field; a chosen filter is framed in its colour */
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-block-end: 14px; }
@@ -40,10 +40,10 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .kpi b small { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); letter-spacing: 0; color: var(--sw-text-2); }
   .kpi .l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); line-height: 1.25; }
   .kpi .d { display: block; margin-block-start: 2px; font-size: var(--sw-fs-xs); font-variant-numeric: tabular-nums; }
-   sourceMappingURL=[^*]**/ the report's figures carry a unit and a change note: one step down so "18,420 kWh" fits a tile */
+  /* the report's figures carry a unit and a change note: one step down so "18,420 kWh" fits a tile */
   .kpis.figs .kpi b { font-size: var(--sw-fs-3xl); }
   .kpi[data-look='bad'] { --c: var(--sw-danger); } .kpi[data-look='warn'] { --c: var(--sw-warning); } .kpi[data-look='ok'] { --c: var(--sw-success); } .kpi[data-look='unk'] { --c: var(--sw-unknown); }
-   sourceMappingURL=[^*]**/ A11Y-POLISHED-2342: in light the state dot read 1.75-2.97:1 on the tile (a status mark needs 3:1); light draws it in the state's
+  /* A11Y-POLISHED-2342: in light the state dot read 1.75-2.97:1 on the tile (a status mark needs 3:1); light draws it in the state's
      text ink (>= 5:1), dark keeps the state colour. light-dark() keys on the page's color-scheme; an engine without it keeps the old dot */
   .kpi { --c-ink: var(--sw-accent-text); }
   .kpi[data-look='bad'] { --c-ink: var(--sw-danger-text); } .kpi[data-look='warn'] { --c-ink: var(--sw-warning-text); } .kpi[data-look='ok'] { --c-ink: var(--sw-success-text); } .kpi[data-look='unk'] { --c-ink: var(--sw-unknown-text); }
@@ -60,7 +60,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .pad { padding: 14px 16px; }
   .title { font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
 
-   sourceMappingURL=[^*]**/ buttons: the product's pill; they answer the press (transform only, token durations - zero under reduced motion) */
+  /* buttons: the product's pill; they answer the press (transform only, token durations - zero under reduced motion) */
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text);
     border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-lg); font-weight: var(--sw-fw-semibold); cursor: pointer; white-space: nowrap; text-decoration: none;
@@ -74,7 +74,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .btn.icon { padding: 7px; inline-size: var(--sw-ctl-h-lg); }
   .btn sw-icon { --sw-icon-size: 16px; }
 
-   sourceMappingURL=[^*]**/ a segmented choice (range, language): one pill track, the chosen segment raised on it */
+  /* a segmented choice (range, language): one pill track, the chosen segment raised on it */
   .seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
   .seg button {
     border: 0; background: transparent; color: var(--sw-text-2); padding: 6px 14px; min-block-size: calc(var(--sw-ctl-h-lg) - 4px); border-radius: var(--sw-r-pill); cursor: pointer;
@@ -93,7 +93,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   button.chip:active { transform: scale(0.97); }
   .chip.sel { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
   .chip .n { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: var(--sw-fw-regular); }
-   sourceMappingURL=[^*]**/ DARK-REVIEW-2342: on the selected chip the count keeps full ink - accent-text at 0.8 over accent-soft read 4.47:1 in domus dark (3.4-4.1:1 in light) */
+  /* DARK-REVIEW-2342: on the selected chip the count keeps full ink - accent-text at 0.8 over accent-soft read 4.47:1 in domus dark (3.4-4.1:1 in light) */
   .chip.sel .n { opacity: 1; }
   .chip.off { color: var(--sw-text-3); border-style: dashed; cursor: default; }
   .chip sw-icon { --sw-icon-size: 13px; inline-size: 13px; block-size: 13px; }
@@ -136,7 +136,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   input[type='checkbox'] { accent-color: var(--sw-accent); inline-size: 18px; block-size: 18px; margin: 0; flex: none; cursor: pointer; }
   input[type='checkbox']:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
 
-   sourceMappingURL=[^*]**/ the lists: quiet column heads, tabular numbers, a row that opens says so (a chevron) and shows the keyboard focus */
+  /* the lists: quiet column heads, tabular numbers, a row that opens says so (a chevron) and shows the keyboard focus */
   table { inline-size: 100%; border-collapse: collapse; }
   th { text-align: start; font-weight: var(--sw-fw-semibold); color: var(--sw-text-3); font-size: var(--sw-fs-sm); padding: 9px 12px; border-block-end: 1px solid var(--sw-border); white-space: nowrap; }
   .card > .tw th { background: var(--sw-surface-2); }
@@ -186,7 +186,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .bars .col { flex: 1; max-inline-size: 48px; position: relative; block-size: 100%; display: flex; align-items: flex-end; }
   .bars .col i { display: block; inline-size: 100%; background: var(--sw-warning); border-radius: 2px 2px 0 0; min-block-size: 2px; }
   .bars .col u { position: absolute; inset-inline: -2px; border-block-start: 1.5px dashed var(--sw-text-3); text-decoration: none; }
-   sourceMappingURL=[^*]**/ the day labels sit under their own bars (the same columns as the chart, not spread across the width) */
+  /* the day labels sit under their own bars (the same columns as the chart, not spread across the width) */
   .axis { display: flex; gap: 10px; color: var(--sw-text-3); font-size: var(--sw-fs-xs); margin-block-start: 4px; font-variant-numeric: tabular-nums; }
   .axis span { flex: 1; max-inline-size: 48px; text-align: center; white-space: nowrap; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-block-start: 10px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
@@ -204,7 +204,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .ev sw-icon { inline-size: 13px; block-size: 13px; }
   .evs { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 6px; }
 
-   sourceMappingURL=[^*]**/ empty, error, off and forbidden: one centred answer with its mark in a soft disc */
+  /* empty, error, off and forbidden: one centred answer with its mark in a soft disc */
   .blank { display: grid; place-items: center; text-align: center; gap: 10px; padding: 46px 20px; color: var(--sw-text-2); }
   .blank > sw-icon { --sw-icon-size: 28px; inline-size: 56px; block-size: 56px; padding: 14px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-3); }
   .blank > sw-icon.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
@@ -222,7 +222,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   @keyframes ix-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
   .set { display: grid; gap: 14px; max-inline-size: 900px; }
-   sourceMappingURL=[^*]**/ a control screen: on a wide window the cards flow in two columns so the page does not run on for screens (one column below 1180 px) */
+  /* a control screen: on a wide window the cards flow in two columns so the page does not run on for screens (one column below 1180 px) */
   @media (min-width: 1180px) {
     .set { display: block; columns: 2; column-gap: 14px; max-inline-size: 1240px; }
     .set > .card { break-inside: avoid; margin-block-end: 14px; }
@@ -245,7 +245,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
   .banner.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
   .set-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-   sourceMappingURL=[^*]**/ hover is only for fine pointers - a touch must not leave a row or a tile lit */
+  /* hover is only for fine pointers - a touch must not leave a row or a tile lit */
   @media (hover: hover) and (pointer: fine) {
     .crumbs a:hover { color: var(--sw-accent-text); }
     button.kpi:hover:not([aria-pressed='true']) { border-color: var(--sw-border-strong); }
@@ -258,7 +258,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
     .rs a.muted:hover { color: var(--sw-accent-text); }
   }
 
-   sourceMappingURL=[^*]**/ touch layouts: every control is a 44 px target */
+  /* touch layouts: every control is a 44 px target */
   @media (max-width: 1100px) {
     .btn, .inp { min-block-size: 44px; }
     .btn.icon { inline-size: 44px; }
@@ -283,7 +283,7 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
     td, th { padding: 9px 8px; }
   }
   @media (max-width: 600px) {
-     sourceMappingURL=[^*]**/ the phone: two counters a row, the number one step down; the toolbar stacks - the range is one full-width track */
+    /* the phone: two counters a row, the number one step down; the toolbar stacks - the range is one full-width track */
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .kpi { gap: 10px; padding: 10px 12px; }
     .kpi .dot { inline-size: 14px; block-size: 14px; }

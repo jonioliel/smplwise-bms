@@ -209,7 +209,7 @@ import{o_ as xe,Y,p9 as ss,oY as as,Z as Ge,ag as is,_ as ns,i as F,a4 as se,n a
   :host([data-skin='bubble']) .doc {
     border-radius: var(--sw-r-md);
   }
-   sourceMappingURL=[^*]**/ TKUI3: the payment demand against the approved quote (the baseline line, the exceptional lines, the difference) */
+  /* TKUI3: the payment demand against the approved quote (the baseline line, the exceptional lines, the difference) */
   .vsq {
     display: flex;
     flex-direction: column;
@@ -263,7 +263,7 @@ import{o_ as xe,Y,p9 as ss,oY as as,Z as Ge,ag as is,_ as ns,i as F,a4 as se,n a
     unicode-bidi: isolate;
     white-space: nowrap;
   }
-   sourceMappingURL=[^*]**/ TKLAYFIX: the title, its sub-line and the on-behalf button wrap to a second row on a narrow drawer instead of crossing the panel */
+  /* TKLAYFIX: the title, its sub-line and the on-behalf button wrap to a second row on a narrow drawer instead of crossing the panel */
   .sect[data-cost-section] > h4 {
     flex-wrap: wrap;
   }
@@ -681,7 +681,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     gap: 10px;
     min-inline-size: 0;
   }
-   sourceMappingURL=[^*]**/ the sub-tabs: a segmented toggle group (aria-pressed); the team toggle takes the note colour when on */
+  /* the sub-tabs: a segmented toggle group (aria-pressed); the team toggle takes the note colour when on */
   .cv-subs {
     display: flex;
     gap: 2px;
@@ -727,7 +727,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     outline: 2px solid var(--dv-focus, var(--dv-accent));
     outline-offset: 1px;
   }
-   sourceMappingURL=[^*]**/ the feed: a plain column inside the one scroller (never max-height + overflow) */
+  /* the feed: a plain column inside the one scroller (never max-height + overflow) */
   .cv-feed {
     display: flex;
     flex-direction: column;
@@ -816,7 +816,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
   .cv-msg .mut {
     opacity: 0.8;
   }
-   sourceMappingURL=[^*]**/ messages: incoming at the start side (the vendor's), outgoing at the end side in the message colour */
+  /* messages: incoming at the start side (the vendor's), outgoing at the end side in the message colour */
   .cv-msg {
     display: flex;
     flex-direction: column;
@@ -895,7 +895,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     font-weight: 600;
     cursor: pointer;
   }
-   sourceMappingURL=[^*]**/ the team note: the warning-tinted card with the lock - "הערה פנימית" is said in text, never by colour alone */
+  /* the team note: the warning-tinted card with the lock - "הערה פנימית" is said in text, never by colour alone */
   .cv-note {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -955,7 +955,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
   .cv-ob.run .bt small {
     color: var(--au-warn-text);
   }
-   sourceMappingURL=[^*]**/ the composer: sticky at the bottom of the tab body (the drawer's one scroller); the team one is the note surface */
+  /* the composer: sticky at the bottom of the tab body (the drawer's one scroller); the team one is the note surface */
   .cv-composer {
     position: sticky;
     inset-block-end: 0;
@@ -1327,7 +1327,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     outline-offset: -2px;
     border-radius: var(--sw-r-lg);
   }
-   sourceMappingURL=[^*]**/ TKLAYFIX: a closed <details> keeps laying its body out (content-visibility hides it but the boxes still extend below the fold, outside the panel); it takes no space until opened. */
+  /* TKLAYFIX: a closed <details> keeps laying its body out (content-visibility hides it but the boxes still extend below the fold, outside the panel); it takes no space until opened. */
   .fold:not([open]) > .foldbody {
     display: none;
   }
@@ -1729,7 +1729,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     min-inline-size: 0;
     overflow-wrap: anywhere;
   }
-   sourceMappingURL=[^*]**/ a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog). As specific as a
+  /* a phone: the three kinds are rows of one column (three tiles with two lines each do not fit a 320 px dialog). As specific as a
      skin's segmented-control rule (and later in the host's sheet list), so a pill track never cuts the first and last rows' text */
   @media (max-width: 560px) {
     :host .seg.xkinds {
@@ -1750,7 +1750,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
       text-align: end;
     }
   }
-   sourceMappingURL=[^*]**/ a group that cannot be used now: dimmed, its second line says why (owner 2026-10-14) */
+  /* a group that cannot be used now: dimmed, its second line says why (owner 2026-10-14) */
   .xkinds button.off b {
     color: var(--dv-text-3);
   }
@@ -1781,7 +1781,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     text-decoration: underline;
     text-underline-offset: 2px;
   }
-   sourceMappingURL=[^*]**/ the list scrolls at its max height: its rows keep their own height (a squeezed row cut its two-line text) */
+  /* the list scrolls at its max height: its rows keep their own height (a squeezed row cut its two-line text) */
   .xpick > * {
     flex-shrink: 0;
   }
@@ -2018,7 +2018,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     </sw-dialog>`}};B.styles=[se,...re,de,he,F`
     sw-dialog { --sw-surface: var(--dv-surface-solid); --sw-glass-blur: none; }
     .stage { position: relative; inline-size: 100%; border: 1px solid var(--dv-border); border-radius: var(--sw-r-lg); overflow: hidden; background: #fff;
-      direction: ltr;  sourceMappingURL=[^*]**/ map geometry is never mirrored by RTL */ cursor: crosshair; touch-action: manipulation; }
+      direction: ltr; /* map geometry is never mirrored by RTL */ cursor: crosshair; touch-action: manipulation; }
     .stage img { display: block; inline-size: 100%; block-size: auto; user-select: none; -webkit-user-drag: none; pointer-events: none; }
     .stage svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
     .dot { cursor: pointer; }
@@ -2306,7 +2306,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
   .st-act .btn {
     min-block-size: 40px;
   }
-   sourceMappingURL=[^*]**/ the mock-up's placement (the quiet push at the start, the primary at the end) while the focus order stays primary → quiet (IA §4.5) */
+  /* the mock-up's placement (the quiet push at the start, the primary at the end) while the focus order stays primary → quiet (IA §4.5) */
   .st-act [data-primary] {
     order: 2;
     margin-inline-start: auto;
@@ -2769,7 +2769,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     sw-drawer {
       --sw-drawer-modal-w: 640px;
     }
-     sourceMappingURL=[^*]**/ the title of the header: two lines at most, then an ellipsis (IA §5) */
+    /* the title of the header: two lines at most, then an ellipsis (IA §5) */
     sw-drawer::part(title) {
       white-space: normal;
       display: -webkit-box;
@@ -2868,7 +2868,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
       align-self: center;
       min-block-size: 44px;
     }
-     sourceMappingURL=[^*]**/ CR-CAMVF-295: the live camera tile (a button beside the unchanged file-input tile) */
+    /* CR-CAMVF-295: the live camera tile (a button beside the unchanged file-input tile) */
     button.ph.add.live {
       font: inherit;
       font-size: var(--sw-fs-sm);
@@ -2887,7 +2887,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
       border-style: dashed;
       cursor: pointer;
     }
-     sourceMappingURL=[^*]**/ the "⋯" menu: a top-layer popover (tickets/overlay-menu.ts) - never a scroll box inside a tab */
+    /* the "⋯" menu: a top-layer popover (tickets/overlay-menu.ts) - never a scroll box inside a tab */
     .pop.ov {
       position: fixed;
       inset: auto;
@@ -2949,7 +2949,7 @@ ${s}`:s;return{...e,sub:"vendor",vendorDraft:a,sourceNote:t.id}}function qi(e,t=
     .pop [role='menuitem'].dz .ic {
       color: var(--dv-danger);
     }
-     sourceMappingURL=[^*]**/ ---- the full page: the status block as a hero, the same tabs in one card (IA §4.1: no columns) ---- */
+    /* ---- the full page: the status block as a hero, the same tabs in one card (IA §4.1: no columns) ---- */
     .page {
       padding: 0 36px 44px;
       display: flex;

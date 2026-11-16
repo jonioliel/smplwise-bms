@@ -278,7 +278,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       display: flex;
       flex-direction: column;
     }
-     sourceMappingURL=[^*]**/ the sheet: the low sheet shows what is open, the full one the chosen tab */
+    /* the sheet: the low sheet shows what is open, the full one the chosen tab */
     :host([place='sheet']) [data-tab] {
       display: none;
     }
@@ -778,7 +778,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       block-size: 100%;
       min-block-size: 0;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-I4: the sw-page frame fills the screen; the counts line sits under the title row with the old inset */
+    /* AUDIT30-I4: the sw-page frame fills the screen; the counts line sits under the title row with the old inset */
     sw-page.fpage {
       flex: 1;
       min-block-size: 0;
@@ -794,7 +794,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       gap: 10px 12px;
       padding: 14px 24px 12px;
     }
-     sourceMappingURL=[^*]**/ the header dropdown's lead reserve (styles/lead-reserve.ts) is ADDED to the row's own start padding, never in its place
+    /* the header dropdown's lead reserve (styles/lead-reserve.ts) is ADDED to the row's own start padding, never in its place
        (the plain snippet's padding-inline-start outranked .head and dropped the 24 / 12 px inset: classic map pixel baselines) */
     .head.lead-head {
       padding-inline-start: calc(24px + var(--sw-lead-reserve, 0px));
@@ -880,7 +880,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       max-block-size: 60%;
       overflow: auto;
     }
-     sourceMappingURL=[^*]**/ HUD panels over the plan are opaque (owner 2026-10-13, tokens: styles/menu-surface.ts): the quick floor buttons, the floor chip, the
+    /* HUD panels over the plan are opaque (owner 2026-10-13, tokens: styles/menu-surface.ts): the quick floor buttons, the floor chip, the
        level bar, the circuit buttons, the selection bar, the side list, the legend and the floor strip paint the menu surface and the strong
        hairline (Bubble's menu hairline is its own surface: no edge on the plan's ground), with no blur - a see-through panel overlaps its own
        text with the drawing behind it */
@@ -901,7 +901,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     .floorbtns button.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);  sourceMappingURL=[^*]**/ the ink of an accent fill: white on the light schemes' blue, dark on the dark schemes' light blue (--sw-on-video was white on both: 2:1 on a dark Domus / Crystal) */
+      color: var(--sw-text-inverse); /* the ink of an accent fill: white on the light schemes' blue, dark on the dark schemes' light blue (--sw-on-video was white on both: 2:1 on a dark Domus / Crystal) */
     }
     .jz {
       display: flex;
@@ -912,7 +912,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       padding: 6px 12px;
       border-block-end: 1px solid var(--sw-border);
     }
-     sourceMappingURL=[^*]**/ entity card on phones (owner round 3, 3.6): full-width actions, stacked state row */
+    /* entity card on phones (owner round 3, 3.6): full-width actions, stacked state row */
     @media (max-width: 640px) {
       .estate {
         flex-direction: column;
@@ -931,7 +931,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .eactions .actrow sw-button {
         min-inline-size: 0;
       }
-       sourceMappingURL=[^*]**/ the map keeps the screen: one scrolling row of tools, floor buttons replace the floor select, no editor entry */
+      /* the map keeps the screen: one scrolling row of tools, floor buttons replace the floor select, no editor entry */
       .tools {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -943,7 +943,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .tools sw-button[icon='edit'] {
         display: none;
       }
-       sourceMappingURL=[^*]**/ the 3D toggle stays in the scrolling tool row, never squeezed (ruling R-P4-7) */
+      /* the 3D toggle stays in the scrolling tool row, never squeezed (ruling R-P4-7) */
       .tools sw-button[data-view-3d] {
         flex: none;
       }
@@ -973,7 +973,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     .floorchip sw-icon {
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ The HUD layout contract (map/hud-layout.ts; owner 2026-10-13, the pictures of the opaque panels). The stage carries what the contract needs:
+    /* The HUD layout contract (map/hud-layout.ts; owner 2026-10-13, the pictures of the opaque panels). The stage carries what the contract needs:
          --hud-end         the inline-end inset of the free band (the edge inset, or past a docked side list / layers list); the corner's blocks
                            here and in the 3D element and the 2D canvas start there
          --hud-circuits-top  where the circuit buttons start: the edge inset, under the 3D time pill's row, or under the walk's minimap
@@ -987,7 +987,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       --hud-circuits-top: ${z}px;
       --hud-bar-top: ${Te}px;
       --hud-cols-top: calc(var(--hud-bar-top) + var(--hud-bar-h, 38px) + ${D}px);
-       sourceMappingURL=[^*]**/ the 3D element's slow-device notice stands under the bar (a skin's chips make the bar taller: Bubble's is 54 px) */
+      /* the 3D element's slow-device notice stands under the bar (a skin's chips make the bar taller: Bubble's is 54 px) */
       --hud-hint-top: calc(${z}px + var(--hud-bar-h, 38px) + ${D}px);
     }
     .stage[data-corner='pill'] {
@@ -1003,7 +1003,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
         --hud-bar-top: ${z+Me+D}px;
       }
     }
-     sourceMappingURL=[^*]**/ The level bar is centred in the free band: two logical insets (the start edge, and --hud-end) with auto margins and a fit-content size, so it
+    /* The level bar is centred in the free band: two logical insets (the start edge, and --hud-end) with auto margins and a fit-content size, so it
        is centred in RTL and LTR alike. The old inset-inline-start: 50% + translateX(-50%) shifted it LEFT by half its own width in RTL, off the
        canvas at 390 px and over the corner's blocks everywhere (the owner's pictures). One line; when the band is too narrow for it beside the floor
        chip and the corner's item it takes a row of its own under them (data-hud-row2) and, if it is still wider than the band, wraps to a second line. */
@@ -1024,7 +1024,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       display: flex;
       white-space: nowrap;
     }
-     sourceMappingURL=[^*]**/ PLAN3D-R28-UI-2433: the building / spread switch of "every level", inside the level bar after a hairline */
+    /* PLAN3D-R28-UI-2433: the building / spread switch of "every level", inside the level bar after a hairline */
     .stackswitch {
       display: inline-flex;
       align-items: center;
@@ -1035,7 +1035,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     }
     .stage[data-hud-row2] .levelbar {
       inset-block-start: var(--hud-bar-top);
-      white-space: normal;  sourceMappingURL=[^*]**/ wider than its band (a docked list, many levels): a second line, never a scrolling bar - every chip stays in view */
+      white-space: normal; /* wider than its band (a docked list, many levels): a second line, never a scrolling bar - every chip stays in view */
       text-align: center;
     }
     .circuits {
@@ -1048,7 +1048,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       z-index: var(--sw-z-map-ui);
       max-inline-size: 260px;
     }
-     sourceMappingURL=[^*]**/ the level bar's own row: the circuit buttons and the floor buttons of both columns start under it */
+    /* the level bar's own row: the circuit buttons and the floor buttons of both columns start under it */
     .stage[data-hud-row2] {
       --hud-hint-top: var(--hud-cols-top);
     }
@@ -1101,7 +1101,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     .circuits .circuit .cnote {
       color: var(--sw-stale-text);
     }
-     sourceMappingURL=[^*]**/ a button that cannot be pressed now is dimmed by its ink and its dot, not by opacity on the box: a faded box would show the plan through it */
+    /* a button that cannot be pressed now is dimmed by its ink and its dot, not by opacity on the box: a faded box would show the plan through it */
     .circuits .circuit:disabled {
       cursor: not-allowed;
       color: var(--sw-text-2);
@@ -1115,7 +1115,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
-      padding: 3px 7px;  sourceMappingURL=[^*]**/ 4 / 8 minus the hairline: the box keeps its size */
+      padding: 3px 7px; /* 4 / 8 minus the hairline: the box keeps its size */
     }
     .circuits .err {
       color: var(--sw-danger-text);
@@ -1132,16 +1132,16 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       z-index: var(--sw-z-map-ui);
       inline-size: 272px;
       max-inline-size: calc(100% - 24px);
-       sourceMappingURL=[^*]**/ the layers list opens over the plan like a popover: opaque, never see-through (owner 2026-10-13) */
+      /* the layers list opens over the plan like a popover: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 12px 14px;
-       sourceMappingURL=[^*]**/ owner bug 2026-09-30: on a phone the stage is shorter than the list and clips it (.stage is overflow: hidden), so
+      /* owner bug 2026-09-30: on a phone the stage is shorter than the list and clips it (.stage is overflow: hidden), so
          the toggles at the bottom were unreachable. The panel is capped to the stage and scrolls itself; the swipe
          stays inside it (no chaining to the page or the map behind). */
-      max-block-size: calc(100% - 50px);  sourceMappingURL=[^*]**/ the 12 px gap above and below, plus this box's own padding and border (content-box) */
+      max-block-size: calc(100% - 50px); /* the 12 px gap above and below, plus this box's own padding and border (content-box) */
       overflow-y: auto;
       overscroll-behavior: contain;
       touch-action: pan-y;
@@ -1227,7 +1227,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       gap: 6px;
       align-items: center;
     }
-     sourceMappingURL=[^*]**/ M043: the suggested adjacent cameras - its own row under the picks, dashed to read as "offered", not picked */
+    /* M043: the suggested adjacent cameras - its own row under the picks, dashed to read as "offered", not picked */
     .pickbar .suggest {
       flex-basis: 100%;
       display: inline-flex;
@@ -1260,7 +1260,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       max-inline-size: calc(100% - 24px);
       max-block-size: 60%;
       overflow: auto;
-       sourceMappingURL=[^*]**/ the shared room's members card hangs over the plan like the room card: opaque, never see-through (owner 2026-10-13) */
+      /* the shared room's members card hangs over the plan like the room card: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
@@ -1278,7 +1278,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
     }
-     sourceMappingURL=[^*]**/ A docked list: it takes the end edge's column from the top to the row of the zoom buttons (--hud-list-bottom: the floor map measures their dock,
+    /* A docked list: it takes the end edge's column from the top to the row of the zoom buttons (--hud-list-bottom: the floor map measures their dock,
        a skin's controls make it 90 px (Classic) or 144 px (Bubble) high; the 3D view has none: HUD_BELOW_LIST). It used to stop 56 px up and covered
        two of the three buttons. The corner's blocks start past it (--hud-end), so nothing but the plan stands under it. A phone gets the bottom sheet below. */
     .sidelist {
@@ -1355,7 +1355,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
-     sourceMappingURL=[^*]**/ the caption of the row under the pointer or selected stands on the row's own wash (surface-3): the body ink keeps it at 4.5:1 in every skin */
+    /* the caption of the row under the pointer or selected stands on the row's own wash (surface-3): the body ink keeps it at 4.5:1 in every skin */
     .sidelist button.it.on .st {
       color: var(--sw-text);
     }
@@ -1395,7 +1395,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       inset-inline: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-       sourceMappingURL=[^*]**/ the soft state tone laid over the opaque surface: the amber reads, the plan does not show through the text */
+      /* the soft state tone laid over the opaque surface: the amber reads, the plan does not show through the text */
       background: linear-gradient(var(--sw-stale-soft), var(--sw-stale-soft)), var(--sw-menu-surface);
       border: 1px dashed var(--sw-stale);
       border-radius: var(--sw-r-md);
@@ -1412,7 +1412,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       background: var(--sw-menu-surface);
       z-index: var(--sw-z-map-ui);
     }
-     sourceMappingURL=[^*]**/ the legend was a white 92 % pill with the light ink of the dark scheme on it (unreadable in dark) and a blur: the opaque surface, in the scheme's own ink */
+    /* the legend was a white 92 % pill with the light ink of the dark scheme on it (unreadable in dark) and a blur: the opaque surface, in the scheme's own ink */
     .legend {
       position: absolute;
       inset-inline-start: 12px;
@@ -1503,7 +1503,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-     sourceMappingURL=[^*]**/ HA entity card (R3): state first, actions as big buttons, details folded */
+    /* HA entity card (R3): state first, actions as big buttons, details folded */
     .ecard {
       display: grid;
       gap: 10px;
@@ -1602,9 +1602,9 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .legend {
         display: none;
       }
-       sourceMappingURL=[^*]**/ K88 phone pass (mobile audit rec. 5): the scrolling tool row fades at both edges instead of cutting a button */
+      /* K88 phone pass (mobile audit rec. 5): the scrolling tool row fades at both edges instead of cutting a button */
       .tools {
-         sourceMappingURL=[^*]**/ a mask reads only alpha: black is the opaque stop, not a colour of the page */
+        /* a mask reads only alpha: black is the opaque stop, not a colour of the page */
         -webkit-mask-image: linear-gradient(to right, transparent, black 18px, black calc(100% - 18px), transparent);
         mask-image: linear-gradient(to right, transparent, black 18px, black calc(100% - 18px), transparent);
         padding-inline: 14px;
@@ -1613,7 +1613,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .tools::-webkit-scrollbar {
         display: none;
       }
-       sourceMappingURL=[^*]**/ K88 phone pass (mobile audit rec. 2): the side list is a bottom sheet that leaves most of the map visible */
+      /* K88 phone pass (mobile audit rec. 2): the side list is a bottom sheet that leaves most of the map visible */
       .sidelist {
         inset: auto 0 0 0;
         inline-size: auto;
@@ -1626,7 +1626,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .sidelist.tall {
         block-size: 78%;
       }
-       sourceMappingURL=[^*]**/ the eye-level walk keeps its own bottom row (the phone's one-row sheet, the floating bar of a wider view): the list's sheet stands above it */
+      /* the eye-level walk keeps its own bottom row (the phone's one-row sheet, the floating bar of a wider view): the list's sheet stands above it */
       .stage[data-corner='minimap'] .sidelist {
         inset-block-end: calc(${$s}px + env(safe-area-inset-bottom, 0px));
       }
@@ -1636,7 +1636,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .sidelist .sh {
         padding-block: 4px 8px;
       }
-       sourceMappingURL=[^*]**/ the selection bar as one thin scrolling row (rec. 2) */
+      /* the selection bar as one thin scrolling row (rec. 2) */
       .pickbar {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -1659,7 +1659,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
         display: none;
       }
     }
-     sourceMappingURL=[^*]**/ K88 phone pass (mobile audit rec. 3): a short landscape viewport keeps the map, drops the title block */
+    /* K88 phone pass (mobile audit rec. 3): a short landscape viewport keeps the map, drops the title block */
     @media (max-height: 500px) {
       .head {
         padding: 6px 12px 4px;
@@ -1678,7 +1678,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       .tools sw-button[icon='edit'] {
         display: none;
       }
-       sourceMappingURL=[^*]**/ AUDIT30-I4: the tools sit in sw-page's actions (content-sized): capped so the title row stays one line */
+      /* AUDIT30-I4: the tools sit in sw-page's actions (content-sized): capped so the title row stays one line */
       .tools {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -1693,7 +1693,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
         border-radius: 0;
       }
     }
-     sourceMappingURL=[^*]**/ K88: the selected room's card */
+    /* K88: the selected room's card */
     .roomcard {
       position: absolute;
       inset-inline-start: 12px;
@@ -1701,7 +1701,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       z-index: var(--sw-z-map-ui);
       inline-size: 240px;
       max-inline-size: calc(100% - 24px);
-       sourceMappingURL=[^*]**/ the selected room's card hangs over the plan like a popover: opaque, never see-through (owner 2026-10-13) */
+      /* the selected room's card hangs over the plan like a popover: opaque, never see-through (owner 2026-10-13) */
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md);
@@ -1729,7 +1729,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       font-weight: 600;
       text-decoration: none;
     }
-     sourceMappingURL=[^*]**/ K88 3D round 2: the floor strip beside the 3D view */
+    /* K88 3D round 2: the floor strip beside the 3D view */
     .floorstrip {
       position: absolute;
       inset-inline-start: 12px;
@@ -1799,7 +1799,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     .floorstrip .fs-dots i.open {
       background: var(--sw-danger);
     }
-     sourceMappingURL=[^*]**/ K88: hosted inside another screen */
+    /* K88: hosted inside another screen */
     :host([embedded]) .head {
       padding: 6px 8px 4px;
     }
@@ -1815,10 +1815,10 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     :host([embedded]) .floorbtns,
     :host([embedded]) .floorstrip,
     :host([embedded]) .crumbs {
-      display: none;  sourceMappingURL=[^*]**/ hosted: the host screen chooses the floor; the map's own floor controls would leave it */
+      display: none; /* hosted: the host screen chooses the floor; the map's own floor controls would leave it */
     }
 
-     sourceMappingURL=[^*]**/ ---- R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern) ----
+    /* ---- R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern) ----
        The stage is the hero object (shadow 2) under a 26/700 title; the HUD panels over it keep the opaque menu surface (owner 2026-10-13)
        with a 14/700 floor chip and a legend in the body ink with 10 px dots. Every "on" state is a FILLED field: an active layer and the
        selected side-list row are the accent field, a lit circuit is the warm lit field over its whole button (not a glowing dot alone).
@@ -1829,7 +1829,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     }
     .stage {
       box-shadow: var(--sw-shadow-2);
-       sourceMappingURL=[^*]**/ loop 2: the map ground is a tone step down (the desk); a raster plan sheet floats on it and the opaque HUD panels read as raised */
+      /* loop 2: the map ground is a tone step down (the desk); a raster plan sheet floats on it and the opaque HUD panels read as raised */
       --sw-map-bg: var(--sw-surface-3);
       border-color: transparent;
     }
@@ -1837,7 +1837,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       padding: 8px 14px;
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-       sourceMappingURL=[^*]**/ loop 2: the "where am I" chip carries a 2 px accent edge and the accent ink - a HUD panel keeps the opaque menu surface
+      /* loop 2: the "where am I" chip carries a 2 px accent edge and the accent ink - a HUD panel keeps the opaque menu surface
          (owner 2026-10-13, unit-menu-lint rejects an accent fill on a registered panel) */
       background: var(--sw-menu-surface);
       border: 2px solid var(--sw-accent);
@@ -1901,7 +1901,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
     }
     .circuits .circuit.on {
-       sourceMappingURL=[^*]**/ the lit tone laid over the opaque surface: a circuit switched on must not show the plan through it (--sw-lit-soft alone is alpha 0.32) */
+      /* the lit tone laid over the opaque surface: a circuit switched on must not show the plan through it (--sw-lit-soft alone is alpha 0.32) */
       background: linear-gradient(var(--sw-lit-soft), var(--sw-lit-soft)), var(--sw-menu-surface);
       border-color: color-mix(in srgb, var(--sw-map-lit) 60%, var(--sw-border-strong));
       font-weight: var(--sw-fw-semibold);
@@ -1932,7 +1932,7 @@ import{i as oe,n as I,r as m,a as ne,ac as We,p as d,q as l,a_ as te,x as re,fm 
     .sidelist button.it.on .st {
       color: var(--sw-accent-text);
     }
-     sourceMappingURL=[^*]**/ POLISH4 WP6 (D12): the map is a touch-tablet control screen - hover lives only under a fine pointer, so a tap never leaves a
+    /* POLISH4 WP6 (D12): the map is a touch-tablet control screen - hover lives only under a fine pointer, so a tap never leaves a
        sticky wash (it replaces the old ungated :hover + (hover: none) undo pair); the selected row / floor keeps its own fill */
     @media (hover: hover) and (pointer: fine) {
       .crumbs a:hover {

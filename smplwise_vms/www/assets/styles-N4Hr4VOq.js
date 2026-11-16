@@ -8,7 +8,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
   [data-look='unk'] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
   .num { font-variant-numeric: tabular-nums; }
   .ltr { direction: ltr; unicode-bidi: isolate; }
-   sourceMappingURL=[^*]**/ HDRFIX-295: this row is the page's own header (the <sw-page> above it is drawn without a heading), so it keeps what the shell reserves
+  /* HDRFIX-295: this row is the page's own header (the <sw-page> above it is drawn without a heading), so it keeps what the shell reserves
      for the page's first row, as <sw-page>'s own header does: the developer / installer logos at the start (--sw-lead-reserve) and the
      floating corner at the end (--sw-float-reserve) - the title was drawn over the logos and the action button hung under the corner */
   .top { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-block-end: 14px;
@@ -42,7 +42,7 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
   table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: top; color: var(--sw-text); }
   table.t tr:last-child td { border-block-end: 0; }
   table.t tr.go { cursor: pointer; }
-   sourceMappingURL=[^*]**/ POLISH4-WP1 (HOMEEDIT-POLISH-2331 proposal 2): the row wash follows a hovering fine pointer only, at the source (a tapped row stayed
+  /* POLISH4-WP1 (HOMEEDIT-POLISH-2331 proposal 2): the row wash follows a hovering fine pointer only, at the source (a tapped row stayed
      grey on a phone; the home notices page used to cancel it locally) */
   @media (hover: hover) and (pointer: fine) {
     table.t tr.go:hover td { background: var(--sw-surface-2); }

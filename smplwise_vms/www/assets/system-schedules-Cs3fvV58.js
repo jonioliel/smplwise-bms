@@ -142,7 +142,7 @@ import{a as C,S as T,jd as g,hg as b,K as f,je as v,a7 as z,ih as O,R as $,jf as
       flex-direction: column;
       gap: 6px;
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331: the help disclosure is a real control (aria-expanded, a drawn chevron, a focus ring, a 32 px target), not a
+    /* SCHED-POLISH-2331: the help disclosure is a real control (aria-expanded, a drawn chevron, a focus ring, a 32 px target), not a
        text link with a unicode arrow */
     .link {
       display: inline-flex;
@@ -181,7 +181,7 @@ import{a as C,S as T,jd as g,hg as b,K as f,je as v,a7 as z,ih as O,R as $,jf as
     .dlgtext + sw-field {
       margin-block-start: 10px;
     }
-     sourceMappingURL=[^*]**/ the device classes: two columns of wells where the column is wide enough, the sensitive ones grouped under their own label */
+    /* the device classes: two columns of wells where the column is wide enough, the sensitive ones grouped under their own label */
     .classgrid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
@@ -234,7 +234,7 @@ import{a as C,S as T,jd as g,hg as b,K as f,je as v,a7 as z,ih as O,R as $,jf as
     .savebar {
       max-inline-size: none;
     }
-     sourceMappingURL=[^*]**/ SCHED-POLISH-2331 -> SHARED-POLISH-2342: a column narrower than a label plus a 240 px control stacks its rows (the label above
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: a column narrower than a label plus a 240 px control stacks its rows (the label above
        the control) - the shared .set-col of styles/settings.ts (the side column at 1440 / 1180) */
     @media (max-width: 1023px) {
       .cols {

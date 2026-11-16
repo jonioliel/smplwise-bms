@@ -236,7 +236,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
     padding-inline: 8px;
     font-size: var(--sw-fs-xs);
   }
-   sourceMappingURL=[^*]**/ the preferred channel: three round choices, one on */
+  /* the preferred channel: three round choices, one on */
   .chsel {
     display: inline-flex;
     gap: 2px;
@@ -393,7 +393,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
     unicode-bidi: isolate;
     text-align: start;
   }
-   sourceMappingURL=[^*]**/ the add panel and the editor form share the glass fields */
+  /* the add panel and the editor form share the glass fields */
   .addp {
     display: flex;
     flex-wrap: wrap;
@@ -611,7 +611,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
     .form .fld > .seg {
       align-self: flex-start;
       max-inline-size: 100%;
-      flex-wrap: wrap;  sourceMappingURL=[^*]**/ the four cost-claim choices (slice 9b) wrap on a 320 px phone instead of leaving the card (2.5.0 gate) */
+      flex-wrap: wrap; /* the four cost-claim choices (slice 9b) wrap on a 320 px phone instead of leaving the card (2.5.0 gate) */
     }
     .form .seg button {
       white-space: nowrap;
@@ -1060,7 +1060,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
     .dh-det .seg small {
       margin-inline-start: 4px;
     }
-     sourceMappingURL=[^*]**/ WP3 (POLISH-4): the toolbar is the list's (tickets/list-toolbar.ts); the period and the "new" key keep their places at its end, and
+    /* WP3 (POLISH-4): the toolbar is the list's (tickets/list-toolbar.ts); the period and the "new" key keep their places at its end, and
        the row wraps when the department filter, the period and the search do not share one line (a tablet) */
     .dh-det.tb {
       flex-wrap: wrap;
@@ -1072,7 +1072,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
     .newbtn {
       flex: none;
     }
-     sourceMappingURL=[^*]**/ the receipt and the error: a toast in view (the TKSET dialect) instead of an inline line under the header, out of sight when the
+    /* the receipt and the error: a toast in view (the TKSET dialect) instead of an inline line under the header, out of sight when the
        card that was changed is far below it; the error stays until it is dismissed or the next action starts */
     .toast .tx {
       min-inline-size: 0;
@@ -1117,7 +1117,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
       padding: 0;
       min-block-size: 0;
     }
-     sourceMappingURL=[^*]**/ AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
     sw-page.page .dh {
       position: static;
       padding-block-start: 0;
@@ -1134,7 +1134,7 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
       .dh-det .grow {
         display: none;
       }
-       sourceMappingURL=[^*]**/ the search, the filter and the "new" key share one 44 px row; "new" keeps its name for assistive tech and shows the plus */
+      /* the search, the filter and the "new" key share one 44 px row; "new" keeps its name for assistive tech and shows the plus */
       .dh-det .newbtn {
         order: 1;
         min-inline-size: 44px;

@@ -280,7 +280,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
       :host {
         --nt-sheet-w: 480px;
       }
-       sourceMappingURL=[^*]**/ AUDIT30-I4 / I6: the page frame is sw-page (its title, its crumb); the media page keeps its inline padding */
+      /* AUDIT30-I4 / I6: the page frame is sw-page (its title, its crumb); the media page keeps its inline padding */
       sw-page.page {
         padding-block-start: var(--sw-s-4);
       }
@@ -293,7 +293,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
       .settabs {
         align-self: stretch;
       }
-       sourceMappingURL=[^*]**/ POLISH4-WP8: hover washes only on a fine pointer (they stuck after a tap on a tablet); a key gives on pointer-down */
+      /* POLISH4-WP8: hover washes only on a fine pointer (they stuck after a tap on a tablet); a key gives on pointer-down */
       @media (hover: hover) and (pointer: fine) {
         .pick button:hover {
           background: var(--dv-surface-3);
@@ -322,7 +322,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
           transform: none;
         }
       }
-       sourceMappingURL=[^*]**/ owner Q7: the outgoing-mail form saves on its own row; on a phone that row stays in view while the form scrolls under it */
+      /* owner Q7: the outgoing-mail form saves on its own row; on a phone that row stays in view while the form scrolls under it */
       .frow.mailfoot {
         border-block-start: 0;
         justify-content: flex-end;
@@ -360,7 +360,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
         gap: 12px;
         flex-wrap: wrap;
       }
-       sourceMappingURL=[^*]**/ R5-SYSTEM-297: a section title at the card-title step of the ladder (20/700), its rows with a 15/600 label */
+      /* R5-SYSTEM-297: a section title at the card-title step of the ladder (20/700), its rows with a 15/600 label */
       .sec header h2 {
         margin: 0;
         font-size: var(--sw-fs-2xl);
@@ -445,7 +445,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
         font-size: var(--sw-fs-base);
         font-weight: 600;
       }
-       sourceMappingURL=[^*]**/ the sources matrix */
+      /* the sources matrix */
       .mxw {
         overflow-x: auto;
       }
@@ -550,7 +550,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
         justify-content: center;
         gap: 5px;
       }
-       sourceMappingURL=[^*]**/ AUDIT30-I1 (#3): left as the segmented thumb on purpose - measured readable in dark (label 15.6:1, key 11.3:1 from its track,
+      /* AUDIT30-I1 (#3): left as the segmented thumb on purpose - measured readable in dark (label 15.6:1, key 11.3:1 from its track,
          tests/evidence-sys-audit-quickfix-2437.spec.ts); the Blue Wash pair would fall under the owner-approved DARK-SEG-ALL-2380 rule
          (the chosen key at least 3:1 from its track). Recorded in docs/changes/AUDIT30-I-DEVICES.md. */
       .sevseg button[aria-pressed='true'] {
@@ -647,7 +647,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
       .scard.off .ln {
         opacity: 0.45;
       }
-       sourceMappingURL=[^*]**/ UXFIX-A11Y-295 (UX audit 2026-10-20, finding 13): on a phone the channel chips ran off both edges of the card (one nowrap row)
+      /* UXFIX-A11Y-295 (UX audit 2026-10-20, finding 13): on a phone the channel chips ran off both edges of the card (one nowrap row)
          and the severity picker showed two of its three levels as a colour dot only. Every level now carries its name (above, in
          sevSeg), the rows wrap inside the card, and the keys are 44 px. */
       .scard .ln > .chs,
@@ -665,7 +665,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
           block-size: 44px;
         }
       }
-       sourceMappingURL=[^*]**/ release 2.10.0: since every severity level carries its name (finding 13) the three keys did not fit the 15 % column of the
+      /* release 2.10.0: since every severity level carries its name (finding 13) the three keys did not fit the 15 % column of the
          desktop table and ran under the recipient select. The column is wider, the keys are compact there, and as a last
          resort the picker wraps inside its cell instead of overlapping the next one. */
       .mx .sevseg {
@@ -676,7 +676,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
         padding: 0 6px;
         gap: 4px;
       }
-       sourceMappingURL=[^*]**/ quiet hours matrix */
+      /* quiet hours matrix */
       .qmx {
         inline-size: 100%;
         border-collapse: separate;
@@ -732,7 +732,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
       .escprev .tl .ev {
         min-block-size: 40px;
       }
-       sourceMappingURL=[^*]**/ the lock screens */
+      /* the lock screens */
       .lockrow {
         display: flex;
         gap: 18px;
@@ -896,7 +896,7 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
       .pushcard .acts span.door .ic {
         color: var(--nt-sev-alert);
       }
-       sourceMappingURL=[^*]**/ the log */
+      /* the log */
       .lgw {
         overflow-x: auto;
         border-radius: var(--sw-r-lg);

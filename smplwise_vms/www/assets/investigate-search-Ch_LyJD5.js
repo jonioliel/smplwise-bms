@@ -150,7 +150,7 @@ import{a as b,S as m,K as v,tL as f,ak as w,tM as u,g3 as g,p as d,q as a,tN as 
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
     }
-     sourceMappingURL=[^*]**/ R5-INVESTIGATE-297: a match is an object - picture on top, the time as the title on a well, sinks on pointer-down */
+    /* R5-INVESTIGATE-297: a match is an object - picture on top, the time as the title on a well, sinks on pointer-down */
     .res {
       cursor: pointer;
       border-radius: var(--sw-r-lg);
@@ -204,7 +204,7 @@ import{a as b,S as m,K as v,tL as f,ak as w,tM as u,g3 as g,p as d,q as a,tN as 
     .searchrow sw-field {
       flex: 1;
     }
-     sourceMappingURL=[^*]**/ POLISH4-WP2 (D10): a result row and a match card are targets - a wash on a fine pointer only (no sticky hover on touch), the
+    /* POLISH4-WP2 (D10): a result row and a match card are targets - a wash on a fine pointer only (no sticky hover on touch), the
        press on pointer-down (a wash + the skin's press scale), a focus ring for the keyboard; still under reduced motion */
     .row {
       -webkit-tap-highlight-color: transparent;
@@ -247,7 +247,7 @@ import{a as b,S as m,K as v,tL as f,ak as w,tM as u,g3 as g,p as d,q as a,tN as 
       .results {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-       sourceMappingURL=[^*]**/ the phone: the reference picture sits above its text instead of squeezing it to a 150 px column */
+      /* the phone: the reference picture sits above its text instead of squeezing it to a 150 px column */
       .by {
         flex-direction: column;
         align-items: stretch;

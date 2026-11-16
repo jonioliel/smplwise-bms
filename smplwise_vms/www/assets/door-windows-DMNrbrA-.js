@@ -376,9 +376,9 @@ import{dJ as T,n as $,r as p,a as N,dK as he,ak as m,R as B,dL as fe,dM as s,dN 
       </div>
     </sw-dialog>`:l}};h.styles=[T,je,te`
     :host { display: block; }
-    .stack { display: grid; gap: 16px; }  sourceMappingURL=[^*]**/ round 2 loop 2: the larger titles cost 26 px of inner scroll at 1440x900 - the stack gap and the card padding give it back */
+    .stack { display: grid; gap: 16px; } /* round 2 loop 2: the larger titles cost 26 px of inner scroll at 1440x900 - the stack gap and the card padding give it back */
     section { display: grid; gap: 10px; }
-     sourceMappingURL=[^*]**/ round 2: section titles one step larger and tight; the cards carry the lit top edge of the elevation ladder; a card title is a real heading */
+    /* round 2: section titles one step larger and tight; the cards carry the lit top edge of the elevation ladder; a card title is a real heading */
     h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--sw-text); }
     .card { display: grid; gap: 8px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
     .card.alarm { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
@@ -405,7 +405,7 @@ import{dJ as T,n as $,r as p,a as N,dK as he,ak as m,R as B,dL as fe,dM as s,dN 
       font: inherit; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text);
       min-inline-size: 0;
     }
-     sourceMappingURL=[^*]**/ POLISH-CONTROL-297: a field shows where the keyboard is (there was no focus style); a choice button answers the press and the
+    /* POLISH-CONTROL-297: a field shows where the keyboard is (there was no focus style); a choice button answers the press and the
        keyboard, hover is for fine pointers only (transform and colour, token durations - zero under reduced motion) */
     input[type='text']:focus-visible, input[type='date']:focus-visible, input[type='time']:focus-visible, select:focus-visible, textarea:focus-visible {
       outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft);
@@ -431,7 +431,7 @@ import{dJ as T,n as $,r as p,a as N,dK as he,ak as m,R as B,dL as fe,dM as s,dN 
     .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .preview { display: grid; gap: 8px; }
     .radio { display: grid; gap: 6px; }
-     sourceMappingURL=[^*]**/ the toast is the product's toast (its own tokens, above the phone's bottom bar) and rises in instead of popping (zero under reduced motion) */
+    /* the toast is the product's toast (its own tokens, above the phone's bottom bar) and rises in instead of popping (zero under reduced motion) */
     .toast { position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 18px); inset-inline: 0; margin-inline: auto; inline-size: fit-content; max-inline-size: calc(100% - 32px); padding: 8px 16px; border-radius: var(--sw-r-pill);
       background: var(--sw-toast-bg, var(--sw-text)); color: var(--sw-toast-text, var(--sw-surface)); font-size: var(--sw-fs-sm); z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2);
       opacity: 1; transform: translateY(0); transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease); }

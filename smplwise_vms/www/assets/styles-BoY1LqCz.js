@@ -15,14 +15,14 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
   .btn sw-icon { flex: none; }
   @media (hover: hover) and (pointer: fine) { .btn.pri:hover { background: var(--sw-accent-hover); } }
 
-   sourceMappingURL=[^*]**/ the page head (screens/infra-temperature.ts .top) */
+  /* the page head (screens/infra-temperature.ts .top) */
   .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; color: var(--sw-heading); }
   .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
   .top .sp { flex: 1; }
   .top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-   sourceMappingURL=[^*]**/ the KPI row: each a filter (aria-pressed) */
+  /* the KPI row: each a filter (aria-pressed) */
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
   .kpi {
     display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border);
@@ -35,11 +35,11 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
   .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
   .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
 
-   sourceMappingURL=[^*]**/ the places tree beside the list; a select on phones */
+  /* the places tree beside the list; a select on phones */
   .cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; min-inline-size: 0; min-block-size: 0; flex: 1; }
   .cols > * { min-inline-size: 0; min-block-size: 0; }
   .panel.flush { padding: 0; overflow: hidden; }
-   sourceMappingURL=[^*]**/ no page scroll (owner 24.10): the places tree and the table scroll inside their panels, the header of the table stays */
+  /* no page scroll (owner 24.10): the places tree and the table scroll inside their panels, the header of the table stays */
   .cols > .tree-w { overflow: auto; }
   .cols > .panel.flush { display: flex; flex-direction: column; }
   .cols > .panel.flush > .scrollx, .cols > .panel.flush > .cards-m { flex: 1; min-block-size: 0; overflow: auto; }
@@ -53,7 +53,7 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
   .inp:focus { outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
   .inp[aria-invalid='true'] { border-color: var(--sw-danger); }
 
-   sourceMappingURL=[^*]**/ the list toolbar: search + segmented control (electricity) */
+  /* the list toolbar: search + segmented control (electricity) */
   .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-block-end: 1px solid var(--sw-border); }
   .search {
     flex: 1; min-inline-size: 180px; display: flex; align-items: center; gap: 8px; block-size: 32px; padding: 0 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm);
@@ -69,7 +69,7 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
   .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
   .seg button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
 
-   sourceMappingURL=[^*]**/ the table (electricity table.t) */
+  /* the table (electricity table.t) */
   .scrollx { overflow-x: auto; }
   table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
   table.t th {
@@ -88,7 +88,7 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
   td.act .btn + .btn { margin-inline-start: 6px; }
   .cards-m { display: none; }
   .nomatch { padding: 24px 16px; text-align: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-   sourceMappingURL=[^*]**/ tablet (<= 1100, the electricity .hide-tablet rule): the supplier / last-run / request columns leave, the phone cards keep them */
+  /* tablet (<= 1100, the electricity .hide-tablet rule): the supplier / last-run / request columns leave, the phone cards keep them */
   @media (max-width: 1100px) {
     .hide-tablet { display: none; }
     table.t th, table.t td { padding-inline: 8px; }
@@ -103,7 +103,7 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
     background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2);
   }
 
-   sourceMappingURL=[^*]**/ dialogs: the body of sw-dialog */
+  /* dialogs: the body of sw-dialog */
   .two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; align-items: start; }
   .two > * { min-inline-size: 0; display: grid; gap: 14px; align-content: start; }
   .panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
@@ -142,7 +142,7 @@ import{dI as o,i as l}from"./index-C5kZ9jiu.js";import{t as d}from"./styles-BkKh
   .item .range { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .item .range .inp { inline-size: 100px; }
 
-   sourceMappingURL=[^*]**/ phone (<= 767): the tree becomes a select, the table becomes cards, the head stacks */
+  /* phone (<= 767): the tree becomes a select, the table becomes cards, the head stacks */
   @media (max-width: 767px) {
     .top { flex-direction: column; align-items: stretch; }
     .top .sp { display: none; }

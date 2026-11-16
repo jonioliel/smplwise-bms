@@ -138,13 +138,13 @@ import{a as C,S as D,M as S,K as y,bD as $,R as z,ak as u,$ as g,cK as m,q as l,
       margin: 4px 0 0;
       padding-inline-start: 18px;
     }
-     sourceMappingURL=[^*]**/ the first answer: the shape of the page that is coming (the vendors' summary, the action bar, the claims), so nothing jumps */
+    /* the first answer: the shape of the page that is coming (the vendors' summary, the action bar, the claims), so nothing jumps */
     .skel {
       display: flex;
       flex-direction: column;
       gap: var(--sw-s-3);
     }
-     sourceMappingURL=[^*]**/ WP3 (POLISH-4, D5): the phone. The six filters take two to a row (a single column was six rows tall before the first number),
+    /* WP3 (POLISH-4, D5): the phone. The six filters take two to a row (a single column was six rows tall before the first number),
        the actions stack as full 44 px keys, and the select-all line is a real touch target. The tables are cards already (sw-table). */
     @media (max-width: 767px) {
       .filters {
