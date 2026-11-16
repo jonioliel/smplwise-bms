@@ -491,8 +491,7 @@ def e17(ctx: Ctx) -> dict[str, Any]:
     if ctx.settings is not None and getattr(ctx.settings, "go2rtc_url", None):
         from .. import health_report
 
-        cached = health_report._probe_cache.get("go2rtc")
-        go = cached[1].get("status") if cached else None
+        go = health_report.cached_status("go2rtc")
     st = model.recorders(reach, bad_disk, rec_exc, go, degraded)
     text = {"green": "המקליטים פועלים ומקליטים", "amber": "דיסק במקליט לקריאה בלבד או איטי", "red": "מקליט לא זמין, דיסק תקול או חריג הקלטה", "unknown": "אין קריאה עדכנית מהמקליטים"}[st]
     return _row(st, text, [{"key": "recorders", "value": len(recs)}], age_s=max(ages) if ages else None, href=HREF["health"], code="recorders")

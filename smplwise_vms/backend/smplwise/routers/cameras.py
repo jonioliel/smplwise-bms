@@ -27,6 +27,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings, ready_ids, settings_for
 from ..services import autosync, nvr, stream_codecs
+from ..services.ttl_cache import TtlCache
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from .anchors import camera_row
 from .settings import read_settings
@@ -306,8 +307,8 @@ def create_camera(body: CameraIn, request: Request, principal: Principal = Depen
 # ---------------------------------------------------------------- detection zones (T075, read-only)
 
 ZONES = nvr.fetch_detection_zones  # seam for tests
-_ZONES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 ZONES_TTL_S = 60
+_ZONES_CACHE: TtlCache[str, dict[str, Any]] = TtlCache(ZONES_TTL_S, maxsize=512)  # CR-HEALTH-POLLERS (03:F21): bounded, locked
 
 
 def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int, cam: Any = None) -> dict[str, int] | None:
@@ -324,23 +325,25 @@ def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int, cam: 
 @router.get("/cameras/{camera_id}/zones")
 def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The camera's detection configuration as the NVR holds it — motion grid, privacy mask, intrusion regions,
-    line-crossing lines — read-only (ISAPI GET), cached for a minute, same permission as live video. These are
+    line-crossing lines — a read (ISAPI GET), cached for a minute, same permission as live video. These are
     polygons in the camera image and have nothing to do with rooms on the floor plan; a browser overlay is not
-    an NVR mask and protects no recording. Editing needs an explicit approval and a verified write (not in the pilot)."""
+    an NVR mask and protects no recording. This route never writes: the motion grid, the smart rules
+    (`PUT /cameras/{id}/smart`) and the privacy mask have their own verified write routes, each behind the recorder's
+    writes switch and the sensitive permission nvr.config.detection."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
     ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
     now = time.time()
-    hit = _ZONES_CACHE.get(camera_id)
-    if hit and not refresh and now - hit[0] < ZONES_TTL_S:
+    hit = None if refresh else _ZONES_CACHE.entry(camera_id, ZONES_TTL_S)
+    if hit:
         data, fetched_at = hit[1], hit[0]
     else:
         with unlocked(conn):
             data = ZONES(camera_settings(settings_of(request), cam), int(cam["channel"]))
         fetched_at = now
-        _ZONES_CACHE[camera_id] = (fetched_at, data)
+        _ZONES_CACHE.put(camera_id, data, at=fetched_at)
     from ..services import nvr_write_guard
 
     writes = nvr_write_guard.writes_on(camera_settings(settings_of(request), cam))  # CR-NVR-GUARD-2438: the motion grid is a settings change
@@ -354,7 +357,7 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
         "writes_enabled": writes,
         "sensitivity_caps": _motion_caps(request, conn, int(cam["channel"]), cam) if authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed else None,
         "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "cached": bool(hit) and not refresh and now - hit[0] < ZONES_TTL_S,
+        "cached": bool(hit),
         **data,
     }
 
@@ -362,8 +365,8 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
 # ---------------------------------------------------------------- capability facts (T045 / T012, read-only)
 
 CAPS = nvr.fetch_capabilities  # seam for tests
-_CAPS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 CAPS_TTL_S = 300
+_CAPS_CACHE: TtlCache[str, dict[str, Any]] = TtlCache(CAPS_TTL_S, maxsize=512)
 
 
 @router.get("/cameras/{camera_id}/capabilities")
@@ -378,15 +381,15 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
     now = time.time()
-    hit = _CAPS_CACHE.get(camera_id)
-    cached = bool(hit) and not refresh and now - hit[0] < CAPS_TTL_S
-    if cached:
+    hit = None if refresh else _CAPS_CACHE.entry(camera_id, CAPS_TTL_S)
+    cached = bool(hit)
+    if hit:
         data, fetched_at = hit[1], hit[0]
     else:
         with unlocked(conn):
             data = CAPS(camera_settings(settings_of(request), cam), int(cam["channel"]))
         fetched_at = now
-        _CAPS_CACHE[camera_id] = (fetched_at, data)
+        _CAPS_CACHE.put(camera_id, data, at=fetched_at)
     return {
         "camera_id": camera_id,
         "channel": int(cam["channel"]),

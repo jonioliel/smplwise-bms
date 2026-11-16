@@ -42,7 +42,6 @@ import collections
 import io
 import json
 import logging
-import os
 import re
 import secrets
 import sqlite3
@@ -58,6 +57,7 @@ from ..errors import ApiError
 from . import connection_store as cs
 from . import go2rtc as g2
 from . import source_policy
+from .poller import PeriodicWorker
 
 log = logging.getLogger("smplwise.camera_sources")
 
@@ -975,33 +975,7 @@ def check_once(db: Database, settings: Settings, force: bool = False) -> int:
     return done
 
 
-class Poller:
-    def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop_evt = threading.Event()
-
-    def start(self, db: Database, settings: Settings) -> None:
-        if os.environ.get("SW_CAMERA_SOURCE_HEALTH", "1") == "0" or (self.thread and self.thread.is_alive()):
-            return
-        self.stop_evt.clear()
-        self.thread = threading.Thread(target=self._loop, args=(db, settings), name="camera-source-health", daemon=True)
-        self.thread.start()
-
-    def shutdown(self, timeout: float = 3.0) -> None:
-        self.stop_evt.set()
-        t = self.thread
-        if t is not None and t is not threading.current_thread():
-            t.join(timeout=timeout)
-
-    def _loop(self, db: Database, settings: Settings) -> None:
-        if self.stop_evt.wait(30.0):
-            return
-        while not self.stop_evt.is_set():
-            try:
-                check_once(db, settings)
-            except Exception:  # noqa: BLE001 - the poller never dies on one bad pass
-                log.exception("camera source health pass failed")
-            self.stop_evt.wait(TICK_S)
-
-
-POLLER = Poller()
+# CR-HEALTH-POLLERS: the shared thread shape (services/poller.py); name, switch, first wait and pass are as they were
+POLLER = PeriodicWorker(name="camera-source-health", env_flag="SW_CAMERA_SOURCE_HEALTH", first_delay=30.0,
+                        tick=lambda db, settings: check_once(db, settings), interval=lambda db, settings: TICK_S,
+                        default_interval=TICK_S, log=log, what="camera source health")

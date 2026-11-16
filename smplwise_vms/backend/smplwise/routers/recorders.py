@@ -430,6 +430,13 @@ def recorder_health(recorder_id: str, request: Request, principal: Principal = D
     hit = cache.get(recorder_id)
     if hit and time.monotonic() - hit[0] < HEALTH_CACHE_S:
         return {**hit[1], "cached": True}
+    # CR-HEALTH-POLLERS (03:F14): the health poller's own check of this recorder, when it answered within HEALTH_CACHE_S,
+    # is the same device call - served like a cache hit. Unreachable or older: the device is asked, as before.
+    from ..services import recorder_health as recorder_health_svc
+
+    recent = recorder_health_svc.recent_online(recorder_id, HEALTH_CACHE_S)
+    if recent is not None:
+        return {"recorder_id": recorder_id, "online": True, "model": recent["model"], "firmware": recent["firmware"], "error": None, "cached": True}
     adapter = registry.adapter_for(conn, settings_of(request), recorder_id)
     with unlocked(conn), nvr.deadline(4.0):
         try:

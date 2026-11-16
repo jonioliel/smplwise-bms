@@ -22,7 +22,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-import os
 import re
 import sqlite3
 import threading
@@ -35,6 +34,7 @@ from ..config import Settings
 from ..db import Database, get_setting, set_setting
 from .timeutil import iso_from_epoch_or_none, site_zone_name
 from ..errors import ApiError
+from .poller import PeriodicWorker
 from .recorders.base import HealthReading
 
 log = logging.getLogger("smplwise.recorder_health")
@@ -263,6 +263,19 @@ def state_of(recorder_id: str) -> RecState:
         if st is None:
             st = STORE[recorder_id] = RecState(recorder_id)
         return st
+
+
+def recent_online(recorder_id: str, max_age_s: float, now_ts: float | None = None) -> dict[str, Any] | None:
+    """CR-HEALTH-POLLERS (03:F14): the poller's last check of this recorder when it answered and is younger than `max_age_s`:
+    model, firmware, latency_ms, checked_at. None otherwise - the caller then asks the device itself, as it always did. An
+    unreachable reading is never served from here (the poller also marks a recorder unreachable when its detail read fails,
+    which a plain health check would not)."""
+    now_ts = _now_ts() if now_ts is None else now_ts
+    with _LOCK:
+        st = STORE.get(recorder_id)
+        if st is None or st.checked_at is None or st.reachable is not True or not 0 <= now_ts - st.checked_at < max_age_s:
+            return None
+        return {"model": st.model, "firmware": st.firmware, "latency_ms": st.latency_ms, "checked_at": st.checked_at}
 
 
 def fresh(state: RecState, interval_s: int, now_ts: float) -> bool:
@@ -575,39 +588,15 @@ def check_now(db: Database, settings: Settings) -> bool:
     return True
 
 
-class Poller:
-    def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop_evt = threading.Event()
-
-    def start(self, db: Database, settings: Settings) -> None:
-        if os.environ.get("SW_RECORDER_HEALTH", "1") == "0" or (self.thread and self.thread.is_alive()):
-            return
-        self.stop_evt.clear()
-        self.thread = threading.Thread(target=self._loop, args=(db, settings), name="recorder-health", daemon=True)
-        self.thread.start()
-
-    def shutdown(self, timeout: float = 3.0) -> None:
-        self.stop_evt.set()
-        t = self.thread
-        if t is not None and t is not threading.current_thread():
-            t.join(timeout=timeout)
-
-    def _loop(self, db: Database, settings: Settings) -> None:
-        if self.stop_evt.wait(15.0):
-            return
-        while not self.stop_evt.is_set():
-            interval = THRESHOLDS["interval_s"][0]
-            try:
-                with db.connection(mode="read", label="recorder_health.interval") as conn:
-                    interval = thresholds(conn)["interval_s"]
-                poll_once(db, settings)
-            except Exception:  # noqa: BLE001 - the poller never dies on one bad pass
-                log.exception("recorder health pass failed")
-            self.stop_evt.wait(interval)
+def _pass_interval(db: Database, settings: Settings) -> float:
+    with db.connection(mode="read", label="recorder_health.interval") as conn:
+        return thresholds(conn)["interval_s"]
 
 
-POLLER = Poller()
+# CR-HEALTH-POLLERS: the shared thread shape (services/poller.py); name, switch, first wait and pass are as they were
+POLLER = PeriodicWorker(name="recorder-health", env_flag="SW_RECORDER_HEALTH", first_delay=15.0,
+                        tick=lambda db, settings: poll_once(db, settings), interval=_pass_interval,
+                        default_interval=THRESHOLDS["interval_s"][0], log=log, what="recorder health")
 
 
 # ---------------------------------------------------------------- the health screen

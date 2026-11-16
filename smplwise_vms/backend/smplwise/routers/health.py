@@ -16,6 +16,7 @@ from ..services import autosync, connection_store, events_cache, events_derive, 
 from ..services import health_report as health_report_svc
 from ..services import media_reach
 from ..services import process_stats
+from ..services.ttl_cache import TtlCache
 from .storage import local_state
 
 router = APIRouter()
@@ -69,6 +70,28 @@ def _recorders_view(settings: Any) -> list[dict[str, Any]]:
     return out
 
 
+# CR-HEALTH-POLLERS (03:F13). The count of stored events is a scan of the whole events table: one scan answers every /health
+# call of the next EVENTS_COUNT_TTL_S seconds (lead decision L11: a count a few seconds old is fine on this screen). The
+# ingest's own `events_stored` counter is not the same number - it counts this process's alerts only - so it is not used.
+EVENTS_COUNT_TTL_S = 5.0
+_EVENTS_COUNT: TtlCache[str, int] = TtlCache(EVENTS_COUNT_TTL_S, maxsize=8)
+_RENDERER: dict[str, str] = {}  # PATH value -> renderer name: the directories are scanned once per PATH, not per request
+
+
+def _events_stored(conn: sqlite3.Connection, settings: Any) -> int:
+    return _EVENTS_COUNT.load(str(settings.db_path), lambda: conn.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+
+
+def _renderer() -> str:
+    path = os.environ.get("PATH", "")
+    name = _RENDERER.get(path)
+    if name is None:
+        name = "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in path.split(os.pathsep)) else "pymupdf-or-none"
+        _RENDERER.clear()
+        _RENDERER[path] = name
+    return name
+
+
 @router.get("/health")
 def health(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes.
@@ -79,6 +102,8 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
     stats = process_stats.snapshot(settings.db_path) if diagnostics else {}
     media = media_reach.REACH.view(settings)
     degraded = ["media_unreachable"] if media["state"] == media_reach.UNREACHABLE else []
+    caps = resolve_capabilities(settings, conn)  # CR-HEALTH-POLLERS (03:F13): once per request (was twice)
+    sees_recorders = may_see_recorders(permissions_anywhere(conn, principal))  # once per request (was twice)
     return {
         # HEALTH-GO2RTC-2430: `ok` = the add-on works and every configured dependency it can see answers; `degraded` = the add-on
         # works but a dependency does not (`degraded_reasons`; today only `media_unreachable`). The Supervisor watchdog reads
@@ -104,7 +129,7 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
         # CR-008 D7: how many main / sub streams play over WebRTC (ok / no / unknown), from the last discovery - counts
         # only; the cameras and their hints are in /health/report (system.configure)
         "video_codecs": stream_codecs.summary(conn),
-        "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": conn.execute("SELECT COUNT(*) FROM events").fetchone()[0],
+        "events": {"ingest": events_ingest.STATE.as_dict(), "derive": events_derive.STATE, "stored": _events_stored(conn, settings),
                    "cache": events_cache.CACHE.stats()},
         "home_assistant": {"configured": ha_client.configured(settings), **ha_sync.STATE.as_dict()},
         # T068: bounded queues and their drop / defer counters, the data disk against storage.min_free_mb (no ids, no paths)
@@ -113,12 +138,12 @@ def health(request: Request, principal: Principal = Depends(current_principal_ro
         # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
         **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if diagnostics else {}),
         # NN1 (capabilities.py): the derived capability set and whether this is a supported installation
-        "capabilities": resolve_capabilities(settings, conn).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
-        "installation": installation_block(resolve_capabilities(settings, conn)),
+        "capabilities": caps.as_dict(with_recorders=sees_recorders),
+        "installation": installation_block(caps),
         # CR-024: one entry per recorder this process runs - discovery and alert-stream state only (no address, no credential)
         # security review L2: per-recorder state (incl. error codes) only for who may see recorders, like the capability block
-        "recorders": _recorders_view(settings) if may_see_recorders(permissions_anywhere(conn, principal)) else [],
-        "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
+        "recorders": _recorders_view(settings) if sees_recorders else [],
+        "renderer": _renderer(),
     }
 
 
