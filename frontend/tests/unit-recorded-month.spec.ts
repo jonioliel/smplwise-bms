@@ -79,5 +79,6 @@ test('the playback screen wires the month view beside the date field and opens a
   expect(screen).toContain("import '../components/sw-recorded-month';");
   expect(screen).toMatch(/<sw-recorded-month data-recorded-month[^>]*@pick=\$\{\(e: CustomEvent<\{ date: string \}>\) => api && void this\.setDate\(e\.detail\.date\)\}/);
   const api = readFileSync(path.join(SRC, 'api', 'recordings.ts'), 'utf8');
-  expect(api).toContain('cameras/${cameraId}/recordings/days?month=${month}');
+  // CR-API-PATHS-2439: the path is built by the path`` tag (each segment encoded) and the month goes through query()
+  expect(api).toContain('path`cameras/${cameraId}/recordings/days` + query({ month })');
 });
