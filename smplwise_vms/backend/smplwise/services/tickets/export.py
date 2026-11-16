@@ -12,19 +12,18 @@ import csv
 import datetime as dt
 import io
 import sqlite3
-import threading
-import time
 from typing import Any, Iterator
 
 from ...db import get_setting
 from .text_hygiene import csv_cell
-from ..timeutil import parse_utc, zone
-from . import naming, present, store, table_present
+from ..timeutil import zone
+from . import fields, naming, present, store, table_present
 from .access import Seen, Viewer
 
 RATE_S = 60.0  # one export per minute per user
-_last: dict[str, float] = {}
-_lock = threading.Lock()
+# CR-TK-MONEY-UTILS (01:F-15): this module's OWN limiter instance (one successful export per RATE_S per user); the table
+# export, the costs report and the deletion never share a bucket
+_RATE = fields.RateWindow(lambda: 1, lambda: RATE_S)
 
 HEADERS: dict[str, dict[str, str]] = {
     "he": {"number": "מס׳ {ticket}", "title": "כותרת", "department": "מחלקה", "priority": "עדיפות", "status": "מצב", "assignee": "מטפל",
@@ -63,30 +62,19 @@ def _cost_text(cost: dict[str, Any] | None) -> str:
 
 def rate_check(user_id: str, now: float | None = None) -> float:
     """Seconds the user must still wait (0 = may export now). Only a successful export counts (`mark`)."""
-    now = time.monotonic() if now is None else now
-    with _lock:
-        last = _last.get(user_id)
-    return 0.0 if last is None else max(0.0, RATE_S - (now - last))
+    return _RATE.wait(user_id, 1, now)
 
 
 def mark(user_id: str, now: float | None = None) -> None:
-    with _lock:
-        _last[user_id] = time.monotonic() if now is None else now
+    _RATE.mark(user_id, now)
 
 
 def reset_rate() -> None:
     """Tests only."""
-    with _lock:
-        _last.clear()
+    _RATE.reset()
 
 
-def _local(iso: str | None, tz) -> str:
-    if not iso:
-        return ""
-    try:
-        return parse_utc(iso).astimezone(tz).strftime("%Y-%m-%d %H:%M")
-    except ValueError:
-        return ""
+_local = fields.local_minute  # CR-TK-MONEY-UTILS (01:F-15): the shared helper under this module's name
 
 
 def cell_values(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: present.Lookups, last: dict[str, str], tz, lang: str,
