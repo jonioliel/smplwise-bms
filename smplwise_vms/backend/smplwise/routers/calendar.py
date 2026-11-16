@@ -212,7 +212,7 @@ def restore_calendar(cid: str, request: Request, principal: Principal = Depends(
 
 
 @router.get("/calendar/calendars/{cid}/members")
-def get_members(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_members(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     cal = get_visible(ctx, cid)
     with _errors(conn, principal, request):

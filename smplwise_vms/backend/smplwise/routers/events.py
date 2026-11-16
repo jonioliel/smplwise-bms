@@ -704,7 +704,7 @@ def camera_events(camera_id: str, principal: Principal = Depends(current_princip
 
 
 @router.get("/events/{event_id}/thumbnail")
-def thumbnail(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)):
+def thumbnail(event_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)):
     """The event's picture from the recording: 200 image/jpeg when ready, 202 while it is being grabbed,
     404 when the recording has no usable frame (remembered for an hour)."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
@@ -789,7 +789,7 @@ def _location(conn: sqlite3.Connection, camera_id: str) -> dict[str, Any] | None
 
 
 @router.get("/events/{event_id}")
-def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_event(event_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One event with its picture state and the camera's place on the floor (event page, design M27)."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if not row:
@@ -807,7 +807,7 @@ def get_event(event_id: str, request: Request, principal: Principal = Depends(cu
 
 
 @router.get("/events/{event_id}/correlation")
-def event_correlation(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
+def event_correlation(event_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), window: int = Query(120, ge=10, le=3600)) -> dict[str, Any]:
     """Door–camera–sensor neighbourhood of an event (T053): what nearby sensors, locks, commands and cameras reported
     within ±window seconds, each with its certainty. A command is never proof; nothing here triggers an action."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
@@ -827,7 +827,7 @@ def event_correlation(event_id: str, principal: Principal = Depends(current_prin
 
 
 @router.get("/events/{event_id}/route")
-def event_route(event_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
+def event_route(event_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), window: int = Query(90, ge=10, le=900)) -> dict[str, Any]:
     """Suggested next cameras for a hypothetical path after the event (T064): same room, adjacent room, within reach —
     ranked, with the window to look at and the activity each camera reported. Never an identification; never an action."""
     row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()

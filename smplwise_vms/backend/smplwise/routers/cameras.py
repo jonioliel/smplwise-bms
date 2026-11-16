@@ -153,7 +153,7 @@ def list_cameras(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/cameras/{camera_id}/snapshot.jpg")
-def snapshot(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+def snapshot(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """Fresh JPEG from the NVR (read-only), cached in /data for `snapshots.max_age_s`; a stale copy is
     served with X-Snapshot-Stale when the NVR is unreachable. Same permission as live video."""
     settings = settings_of(request)
@@ -322,7 +322,7 @@ def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int, cam: 
 
 
 @router.get("/cameras/{camera_id}/zones")
-def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def detection_zones(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The camera's detection configuration as the NVR holds it — motion grid, privacy mask, intrusion regions,
     line-crossing lines — read-only (ISAPI GET), cached for a minute, same permission as live video. These are
     polygons in the camera image and have nothing to do with rooms on the floor plan; a browser overlay is not
@@ -367,7 +367,7 @@ CAPS_TTL_S = 300
 
 
 @router.get("/cameras/{camera_id}/capabilities")
-def camera_capabilities(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def camera_capabilities(camera_id: str, request: Request, refresh: bool = False, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the NVR says this camera can do — PTZ (supported / unsupported / unknown, with the device's reason),
     its preset list, two-way audio (available / disabled / unsupported / unknown). Read-only, cached five minutes,
     same permission as live video. Moving the camera, recalling a preset or talking are device writes: not offered

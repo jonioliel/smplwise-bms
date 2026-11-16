@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, get_conn
+from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import automation_blueprints as bps
@@ -118,7 +118,7 @@ def _expand(w: ops.W, bp: dict[str, Any], params: dict[str, Any], name: str | No
 
 
 @router.get("/automation-blueprints/status")
-def status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Never 403: whether the module is on and whether the caller can use it."""
     base._bind(request)
     ctx = scope.Ctx(conn, principal)
@@ -128,7 +128,7 @@ def status(request: Request, principal: Principal = Depends(current_principal), 
 
 
 @router.get("/automation-blueprints")
-def list_blueprints(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_blueprints(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     base._bind(request)
     _gate(conn, principal)
     _switches(base._writer(request, conn, principal))
@@ -136,7 +136,7 @@ def list_blueprints(request: Request, principal: Principal = Depends(current_pri
 
 
 @router.get("/automation-blueprints/{blueprint_id}")
-def one_blueprint(blueprint_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def one_blueprint(blueprint_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     base._bind(request)
     _gate(conn, principal)
     _switches(base._writer(request, conn, principal))

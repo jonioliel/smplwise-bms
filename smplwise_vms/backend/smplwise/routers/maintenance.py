@@ -334,6 +334,6 @@ def revoke_tag(request: Request, tag_id: str = Path(..., pattern=ID), principal:
 
 
 @router.get("/maintenance/scan/{token}")
-def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """A scanned sticker, for a signed-in person: the task or the device it opens (unknown, revoked or not visible: the same 404)."""
     return service.scan(Viewer(conn, principal), token)

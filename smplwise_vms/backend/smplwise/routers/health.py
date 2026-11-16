@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..capabilities import installation_block, may_see_recorders, resolve as resolve_capabilities
 from ..db import database_of, lock_stats, permission_revision, pool_stats, unlocked
 from ..mode import describe as describe_mode
@@ -133,7 +133,7 @@ def health_video(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/health/report")
-def health_report(request: Request, fresh: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def health_report(request: Request, fresh: bool = False, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One status per subsystem (T033). Device probes are network calls, so they run outside the request's
     write transaction; `fresh=1` drops the probe cache first."""
     require(conn, principal, "system.configure", INSTALLATION)

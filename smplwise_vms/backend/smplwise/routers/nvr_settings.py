@@ -46,7 +46,7 @@ def _can_write(conn: sqlite3.Connection, principal: Principal, camera_id: str | 
 
 
 @router.get("/nvr/recorders")
-def recorders(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def recorders(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     settings = settings_of(request)
     ensure_nvr(settings)
@@ -79,7 +79,7 @@ def camera(camera_id: str, request: Request, principal: Principal = Depends(curr
 
 @router.get("/nvr/cameras/{camera_id}/streams/{stream_ref}/options")
 def stream_options(camera_id: str, request: Request, stream_ref: str = STREAM_REF, codec: str | None = CODEC,
-                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """API 3.3: one stream's options from capability discovery; writable is a boolean here (null in the lists)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     require_camera(conn, principal, camera_id, PERMISSION)

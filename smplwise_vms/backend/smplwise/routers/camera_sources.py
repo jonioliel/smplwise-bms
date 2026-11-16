@@ -23,7 +23,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import camera_sources as svc
@@ -62,7 +62,7 @@ class StandaloneIn(BaseModel):
 
 
 @router.get("/cameras/{camera_id}/source")
-def get_source(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_source(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The camera's video source (never an address: the masked form and `has_password`)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return svc.view(conn, svc._camera(conn, camera_id))

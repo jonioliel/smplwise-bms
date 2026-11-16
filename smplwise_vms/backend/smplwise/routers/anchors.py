@@ -461,7 +461,7 @@ class AnchorPatch(BaseModel):
 
 
 @router.get("/floors/{floor_id}/anchors")
-def list_anchors(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_anchors(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()

@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
@@ -99,7 +99,7 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
 
 
 @router.get("/playback/sessions")
-def list_sessions(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     s = read_settings(conn)
     admin = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     sessions = pb.REGISTRY.active() if admin else pb.REGISTRY.by_user(principal.user_id)
@@ -107,7 +107,7 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
 
 
 @router.get("/playback/sessions/{session_id}")
-def get_session(session_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_session(session_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     session = _owned(conn, principal, session_id)
     return pb.to_dict(session, read_settings(conn)["playback.lease_s"])
 

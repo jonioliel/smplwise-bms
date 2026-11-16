@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, SecretStr
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..db import set_setting
@@ -89,7 +89,7 @@ def _path(request: Request, name: str) -> Path:
 
 
 @router.get("/backups")
-def list_backups_api(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_backups_api(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     items = svc.list_backups(settings_of(request))
     return {"backups": items, "policy": svc.KEEP, "bytes": sum(i["bytes"] for i in items), "schema_version": svc.schema_version(conn)}
@@ -132,7 +132,7 @@ def _drill_status(request: Request, conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 @router.get("/backups/drill")
-def drill_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def drill_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     return _drill_status(request, conn)
 
@@ -163,7 +163,7 @@ def drill_schedule(body: DrillScheduleIn, request: Request, principal: Principal
 
 
 @router.get("/backups/{name}")
-def get_backup(name: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_backup(name: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     p = _path(request, name)
     e = svc.entry(p)

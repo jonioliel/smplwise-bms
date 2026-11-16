@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import unlocked
 from ..errors import ApiError
@@ -181,7 +181,7 @@ def report_sync(group_id: str, body: SyncReport, principal: Principal = Depends(
 
 
 @router.get("/playback/groups/{group_id}")
-def get_group(group_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_group(group_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     group = _owned(conn, principal, group_id)
     return pg.to_dict(group, read_settings(conn)["playback.lease_s"])
 

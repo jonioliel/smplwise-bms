@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import now_iso
 from ..errors import ApiError, unauthenticated
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -498,7 +498,7 @@ async def csp_report(request: Request) -> Response:
 
 
 @router.get("/csp-reports")
-def list_csp_reports(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_csp_reports(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """הגדרות › גישה מרחוק: the counters, the mode and both policies, for the owner's review before enforcing."""
     from ..remote_channel import CSP, CSP_STRICT, csp_enforcing
 

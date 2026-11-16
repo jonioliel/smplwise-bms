@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, now_iso, set_setting, unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
@@ -192,7 +192,7 @@ def delete_background(slot: str, request: Request, principal: Principal = Depend
 
 
 @router.get("/settings/background/{slot}")
-def read_background(slot: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def read_background(slot: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     slot = _slot(slot)
     if not stored_stamps(get_setting(conn, STAMPS_KEY, "{}"))[slot]:
         raise not_found("אין תמונה.")

@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, SecretStr
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import release
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
@@ -217,7 +217,7 @@ def _target_or_404(conn: sqlite3.Connection, target_id: str) -> dict[str, Any]:
 
 
 @router.get("/backups/offbox")
-def offbox_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def offbox_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     try:
         ring = offbox_keys.load(Path(settings_of(request).data_dir)).summary()
@@ -509,8 +509,8 @@ def _audit_aside(request: Request, principal: Principal, action: str, decision: 
 
 
 @router.get("/backups/offbox/targets/{target_id}/copies")
-def list_copies_api(target_id: str, request: Request, principal: Principal = Depends(current_principal),
-                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_copies_api(target_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
+                    conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the target holds, newest first (name, bytes, the time stamp in the name). Read-only at the destination."""
     require(conn, principal, "backup.manage", INSTALLATION)
     _target_or_404(conn, target_id)

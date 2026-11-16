@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
@@ -265,7 +265,7 @@ def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), 
 
 
 @router.get("/floors/{floor_id}/plan-assets")
-def list_assets(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_assets(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.import", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM plan_assets WHERE floor_id = ? ORDER BY created_at DESC", (floor_id,)).fetchall()
@@ -273,7 +273,7 @@ def list_assets(floor_id: str, principal: Principal = Depends(current_principal)
 
 
 @router.get("/plan-assets/{asset_id}/pages/{page}/preview.png")
-def page_preview(asset_id: str, page: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), rotation: int = 0) -> FileResponse:
+def page_preview(asset_id: str, page: int, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), rotation: int = 0) -> FileResponse:
     """Page preview for the import wizard; `rotation` (0/90/180/270) returns the page as the derived version
     will see it, so the crop box drawn over it maps 1:1 onto the saved image."""
     settings = settings_of(request)
@@ -359,7 +359,7 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
 
 
 @router.get("/floors/{floor_id}/plan-versions")
-def list_versions(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_versions(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.edit", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM plan_versions WHERE floor_id = ? ORDER BY created_at DESC", (floor_id,)).fetchall()
@@ -368,7 +368,7 @@ def list_versions(floor_id: str, principal: Principal = Depends(current_principa
 
 
 @router.get("/plan-versions/{version_id}/image.png")
-def version_image(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def version_image(version_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     settings = settings_of(request)
     v = get_version(conn, version_id)
     # Viewers read published and archived versions (the historical map shows old plans); drafts need an editor (ch. 9 / T019).
@@ -404,7 +404,7 @@ def publish_version(version_id: str, request: Request, principal: Principal = De
 
 
 @router.get("/plan-versions/{version_id}/diff")
-def diff_version(version_id: str, against: str | None = None, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def diff_version(version_id: str, against: str | None = None, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Preview shown before publishing or restoring: geometry changes against the published version (or `against`)
     and what happens to every placed item (T038)."""
     v = get_version(conn, version_id)
@@ -506,14 +506,14 @@ def _readable(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row) ->
 
 
 @router.get("/plan-versions/{version_id}")
-def get_version_api(version_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_version_api(version_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     v = get_version(conn, version_id)
     _readable(conn, principal, v)
     return version_row(v)
 
 
 @router.get("/plan-versions/{version_id}/source.png")
-def version_source(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def version_source(version_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     v = get_version(conn, version_id)
     _readable(conn, principal, v)
     path = _version_file(settings_of(request), v, "image_path")
@@ -523,7 +523,7 @@ def version_source(version_id: str, request: Request, principal: Principal = Dep
 
 
 @router.get("/plan-versions/{version_id}/stylized.png")
-def version_stylized(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def version_stylized(version_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     v = get_version(conn, version_id)
     _readable(conn, principal, v)
     if not _has_stylized(v):
@@ -585,7 +585,7 @@ def _dxf_payload(settings: Settings, asset: sqlite3.Row) -> dict[str, Any]:
 
 
 @router.get("/plan-assets/{asset_id}/dxf")
-def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def dxf_info(asset_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the DXF contains (version, units, layers with drawable counts, entity counts, unsupported types, extent),
     the chosen layers/units and the last render (size, scale, skipped entities, partial flag)."""
     asset = get_asset(conn, asset_id)
@@ -661,7 +661,7 @@ def _in_pool(request: Request, fn: Any, *args: Any, **kwargs: Any) -> Any:
 
 
 @router.get("/plan-assets/{asset_id}/dxf/entities")
-def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The mapping screen's table: every layer with its drawable count, kinds, a sample and the suggested target, every
     block with its count, footprint and the suggested catalog item; the targets and the catalog choices to pick from."""
     settings = settings_of(request)

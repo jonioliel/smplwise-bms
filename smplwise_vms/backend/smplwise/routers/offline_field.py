@@ -212,7 +212,7 @@ def post_point(body: PointBody, request: Request, principal: Principal = Depends
 
 
 @router.get("/field/offline/round-points/{point_id}/tag")
-def get_tag(request: Request, point_id: str = Path(pattern=ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_tag(request: Request, point_id: str = Path(pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     require(conn, principal, MANAGE, INSTALLATION)
     if conn.execute("SELECT 1 FROM offline_round_points WHERE id = ?", (point_id,)).fetchone() is None:

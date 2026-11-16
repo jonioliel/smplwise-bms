@@ -68,7 +68,7 @@ def _cameras(conn: sqlite3.Connection, principal: Principal | None = None, permi
 
 
 @router.get("/nvr/notify")
-def notify_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+def notify_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                   recorder_id: str = Query(PRIMARY, max_length=40)) -> dict[str, Any]:
     """Which channels notify the surveillance centre for motion and for the smart events (read-only probe)."""
     _require_read(conn, principal)
@@ -201,7 +201,7 @@ def _camera_for_record(conn: sqlite3.Connection, principal: Principal, camera_id
 
 
 @router.get("/cameras/{camera_id}/record")
-def record_status(camera_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def record_status(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """A1: the manual recording the VMS started for this camera (if any) and whether the caller may start one."""
     from ..services.access import require_camera
 
@@ -239,7 +239,7 @@ def _can(conn: sqlite3.Connection, principal: Principal) -> dict[str, bool]:
 
 
 @router.get("/nvr/system")
-def system_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+def system_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                   recorder_id: str = Query(PRIMARY, max_length=40)) -> dict[str, Any]:
     """Clock + NTP, disks with S.M.A.R.T., alarm outputs - read-only, with what this user may write."""
     _require_read(conn, principal)
@@ -365,7 +365,7 @@ def _camera_row(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
 
 
 @router.get("/cameras/{camera_id}/reboot")
-def camera_reboot_status(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def camera_reboot_status(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Whether the caller may reboot this camera now and, if not, why (`not_supported` / `no_permission` / `writes_off` /
     `cooldown`). Readable by whoever sees the camera live; nothing is sent to a device."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
@@ -430,7 +430,7 @@ def _channel_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, 
 
 
 @router.get("/cameras/{camera_id}/osd")
-def get_osd(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_osd(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _require_read(conn, principal)
     cam, ch = _channel_of(conn, camera_id, principal)
     with unlocked(conn):
@@ -481,7 +481,7 @@ def _track_of(conn: sqlite3.Connection, camera_id: str, principal: Principal, wr
 
 
 @router.get("/cameras/{camera_id}/schedules")
-def get_schedules(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_schedules(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Arming schedules of motion / line crossing / intrusion and the main track's recording schedule (read-only)."""
     _require_read(conn, principal)
     cam, ch, track = _track_of(conn, camera_id, principal)
@@ -560,7 +560,7 @@ def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request
 
 
 @router.get("/cameras/{camera_id}/smart")
-def get_smart(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_smart(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _require_read(conn, principal)
     cam, ch, _track = _track_of(conn, camera_id, principal)
     settings = camera_settings(settings_of(request), cam)
@@ -636,7 +636,7 @@ def _require_stream_change(conn: sqlite3.Connection, principal: Principal, r: sq
 
 
 @router.get("/nvr/changes")
-def list_changes(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500),
+def list_changes(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), limit: int = Query(50, ge=1, le=500),
                  camera_id: str | None = Query(None, max_length=64), recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); fields is an object.
     CR-NVR-GUARD-2438: each row says whether its recorder's settings switch is on now (`writes_enabled`: the undo needs it)."""
@@ -652,7 +652,7 @@ def list_changes(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/nvr/changes/{change_id}")
-def get_change(change_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_change(change_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The change with both documents (for the "before / after" view). A stream change only for its installer (review M1)."""
     _require_read(conn, principal)
     r = nvr_write.get_change(conn, change_id)

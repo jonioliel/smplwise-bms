@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
@@ -68,7 +68,7 @@ def _fail(exc: sf.SecondFactorError) -> ApiError:
 
 
 @router.get("/auth/second-factor")
-def own_status(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def own_status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {**sf.status(conn, principal.user_id), "policy": sf.policy(conn)}
 
 
@@ -127,13 +127,13 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
 
 
 @router.get("/auth/second-factor/users")
-def list_users(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     return {"policy": sf.policy(conn), "users": [{"user_id": uid, **info} for uid, info in sorted(sf.enrolled_users(conn).items())]}
 
 
 @router.get("/auth/second-factor/overrides")
-def list_overrides(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_overrides(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     return {"policy": sf.policy(conn), **sf.overrides(conn)}
 

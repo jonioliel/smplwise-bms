@@ -131,7 +131,7 @@ def _insert(conn: sqlite3.Connection, principal: Principal, floor_id: str, versi
 
 
 @router.get("/floors/{floor_id}/zones")
-def list_zones_api(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_zones_api(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     get_floor(conn, floor_id)
     require(conn, principal, "map.read", ("floor", floor_id))
     return {"zones": floor_zones(conn, floor_id)}
