@@ -16,8 +16,7 @@ COLUMNS = ("id", "ticket_id", "assignment_id", "department_id", "contact_id", "v
 MUTABLE = frozenset(COLUMNS) - {"id", "ticket_id", "created_at", "created_by_kind", "created_by", "revision"}
 
 
-def _d(row: Any) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
+from ._sql import row_dict as _d  # noqa: E402 - CR-TK-SQL: the shared helper under its old name
 
 
 def insert_visit(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str, Any]:

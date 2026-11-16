@@ -10,13 +10,7 @@ from typing import Any, Mapping
 from ...db import new_id
 
 
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
-
-
-def _insert(conn: sqlite3.Connection, table: str, row: Mapping[str, Any]) -> None:
-    cols = list(row)
-    conn.execute(f"INSERT INTO {table}({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", tuple(row[c] for c in cols))
+from ._sql import insert as _insert, row_dict as _dict  # noqa: E402 - CR-TK-SQL: the shared helpers under their old names
 
 
 def dumps(value: Any) -> str:

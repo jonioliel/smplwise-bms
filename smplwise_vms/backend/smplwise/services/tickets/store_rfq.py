@@ -28,13 +28,7 @@ AWARD_COLUMNS = ("id", "rfq_id", "rfq_vendor_id", "quote_id", "state", "line_ind
                  "second_at", "decline_reason", "created_at", "updated_at", "revision")
 
 
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
-
-
-def _insert(conn: sqlite3.Connection, table: str, row: Mapping[str, Any]) -> None:
-    cols = list(row)
-    conn.execute(f"INSERT INTO {table}({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", tuple(row[c] for c in cols))
+from ._sql import has_table as _has_table, insert as _insert, row_dict as _dict  # noqa: E402 - CR-TK-SQL: the shared helpers under their old names
 
 
 def _update(conn: sqlite3.Connection, table: str, allowed: Iterable[str], row_id: str, fields: Mapping[str, Any], *,
@@ -549,7 +543,7 @@ def update_demand(conn: sqlite3.Connection, demand_id: str, fields: Mapping[str,
 # ---------------------------------------------------------------- CR-AWARD-NOTICE: the vendor's postponement notices (migration 0115)
 
 def has_postponements(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_postponements'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_postponements")
 
 
 def insert_postponement(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
@@ -800,7 +794,7 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
     run("ticket_rfq_awards", "DELETE FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_events", "DELETE FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,))
     # RFQPAY2: the instalment demands of the quotes deleted below (an ordered quote keeps its demands - they belong to its baseline)
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_instalment_demands'").fetchone():
+    if _has_table(conn, "ticket_rfq_instalment_demands"):
         run("ticket_rfq_instalment_demands", f"DELETE FROM ticket_rfq_instalment_demands WHERE quote_id IN (SELECT id FROM ticket_quotes "
             f"WHERE ticket_id IS NULL AND rfq_vendor_id IN {vendors})", (rfq_id,))
     run("ticket_quote_decisions", f"DELETE FROM ticket_quote_decisions WHERE quote_id IN (SELECT id FROM ticket_quotes WHERE "
@@ -858,7 +852,7 @@ ATTACHMENT_COLUMNS = ("id", "rfq_id", "folder", "kind", "name", "caption", "mime
 
 def has_attachments(conn: sqlite3.Connection) -> bool:
     """Whether 0102 is applied (a database migrated only part of the way - some tests - has no attachment tables)."""
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_attachments'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_attachments")
 
 
 def insert_attachment(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
@@ -949,7 +943,7 @@ def drop_orphan_attachments(conn: sqlite3.Connection) -> int:
 
 def has_vendor_files(conn: sqlite3.Connection) -> bool:
     """Whether 0109 is applied (a database migrated only part of the way - some tests - has no vendor-file table)."""
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_vendor_files'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_vendor_files")
 
 
 def insert_vendor_file(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:

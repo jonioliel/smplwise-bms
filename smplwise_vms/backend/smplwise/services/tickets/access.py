@@ -298,20 +298,10 @@ def visible_page(
     SCAN_FACTOR x limit rows are scanned per page (the page may come back short, with a cursor to continue)."""
     conn = viewer.conn
     limit = max(1, min(int(limit), PAGE_MAX))
-    all_depts = ALL_DEPARTMENTS in viewer.anywhere
-    member_depts = list(viewer.roles)
-    if scope == "all":
-        if not all_depts:
-            raise ApiError(403, "forbidden", text(conn, "אין הרשאה לכל המחלקות."), details={"permission": ALL_DEPARTMENTS})
-        dept_ids, user_id = None, None
-    elif scope == "department":
-        dept_ids, user_id = member_depts, None
-    elif scope == "mine":
-        dept_ids, user_id = [], viewer.uid
-    else:
-        dept_ids, user_id = (None if all_depts else member_depts), viewer.uid
-    if dept_ids is not None and not dept_ids and not user_id:
+    superset = _table_superset(viewer, scope)  # CR-TK-SQL (01:F-14): the one scope-to-superset mapping (the table's), 403 for `all` included
+    if superset is None:
         return [], None
+    dept_ids, user_id = superset
     after = store.decode_cursor(cursor)
     on = module_on(conn)  # F-01: the module switch once per page, not once per row; the walk (and its cursor) is unchanged
     out: list[Seen] = []
