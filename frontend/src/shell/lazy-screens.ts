@@ -28,6 +28,12 @@
  * module listed here must not be imported eagerly by the shell (it would land in the entry chunk again), and a tag
  * a lazy screen renders must be defined by a module it imports itself or by the entry chunk: scripts/lazy-tags-check.mjs
  * checks both statically (it is part of the frontend gate, tests/unit/lazy-screens.spec.ts).
+ *
+ * CR-HOME-LAZY-2440 (review 06:BUNDLE-1 home side, 07:F4 d): the home screen's own on-demand parts are listed too (HOME_PANELS below) -
+ * the tiles' panel and the area quick sheet (first press), the edit panels (the address ?edit=1) and the multi-building site view. The
+ * home screen (screens/devices-building, in the entry chunk) no longer imports them: it renders each tag when it is first needed and its
+ * own loadPendingScreens call (updated()) parks the element, fetches the chunk and puts it back upgraded - the GATE2342-A path above.
+ * warmHomePanels fetches the two first-press chunks while the browser is idle, so a first press rarely waits for the network.
  */
 
 type Loader = () => Promise<unknown>;
@@ -53,6 +59,13 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'wiskey-triage': () => import('../screens/wiskey-triage'), // WISKEY-CONFLICTS-2400
   'wiskey-access-diag': () => import('../screens/wiskey-access-diag'), // WISKEY-ACCESS-DIAG-2400: אבחון הרשאות
   'devices-area': () => import('../screens/devices-area'),
+  // CR-HOME-LAZY-2440: the home screen's on-demand parts (HOME_PANELS; rendered by screens/devices-building, never by a route)
+  'devices-tiles-panel': () => import('../screens/devices-tiles-panel'),
+  'area-quick-sheet': () => import('../screens/area-quick-sheet'),
+  'home-edit-panel': () => import('../screens/home-edit-panel'),
+  'home-screen-options': () => import('../screens/home-screen-options'),
+  'home-site-view': () => import('../screens/home-site-view'),
+  'home-site-off': () => import('../screens/home-site-off'),
   'devices-schedules': () => import('../screens/devices-schedules'),
   'schedule-editor': () => import('../screens/schedule-editor'), // CR-SHELL-LAZY-2436: the editor route (and the device popup's sheet)
   'system-schedules': () => import('../screens/system-schedules'),
@@ -286,6 +299,45 @@ const whenIdle = (run: () => void): void => {
   if (idle) idle(run, { timeout: 4000 });
   else setTimeout(run, 1500);
 };
+
+/** CR-HOME-LAZY-2440: the home screen's parts that are chunks of their own (see the header). */
+export const HOME_PANELS: readonly string[] = ['devices-tiles-panel', 'area-quick-sheet', 'home-edit-panel', 'home-screen-options', 'home-site-view', 'home-site-off'];
+/** The two a first press opens: fetched ahead while the browser is idle (the others open by an address or only on a multi-building site). */
+export const HOME_WARM_PANELS: readonly string[] = ['devices-tiles-panel', 'area-quick-sheet'];
+let homePanelsWarmed = false;
+
+/** Whether the element of a lazy tag is defined (its chunk landed). */
+export function screenDefined(tag: string): boolean {
+  return isDefined(tag);
+}
+
+/** Settles once the chunk of `tag` settled (at once when it is defined or is not a lazy tag); starts the fetch when needed. A caller
+ * that is not the shell's route: not counted by pendingScreens. */
+export function whenScreen(tag: string): Promise<void> {
+  if (!LAZY_SCREENS[tag] || isDefined(tag)) return Promise.resolve();
+  return new Promise((done) => void loadScreen(tag, done, true));
+}
+
+/**
+ * CR-HOME-LAZY-2440: after the home screen drew its data, fetch the chunks of its first-press panels while the browser is idle - one at
+ * a time, once per page, under the same conditions as the common screens' warm-up (the setting, data-saver, a visible tab). Nothing is
+ * counted by pendingScreens and a failed fetch never reloads the page. `landedOne` runs after each chunk that arrived.
+ */
+export function warmHomePanels(landedOne?: () => void): void {
+  if (homePanelsWarmed || !screenWarmupAllowed()) return;
+  homePanelsWarmed = true;
+  const queue = HOME_WARM_PANELS.filter((tag) => !isDefined(tag));
+  const next = (): void => {
+    const tag = queue.shift();
+    if (!tag || !screenWarmupAllowed()) return; // switched off or hidden meanwhile: the first press fetches the rest
+    const after = (): void => {
+      if (isDefined(tag)) landedOne?.();
+      whenIdle(next);
+    };
+    if (!loadScreen(tag, after, true) && !loads.has(tag)) whenIdle(next);
+  };
+  whenIdle(next);
+}
 
 /** Start the idle warm-up of the common screens once per page (see WARM_SCREENS). `first`: tags to warm before the common list. */
 export function warmCommonScreens(first: readonly string[] = []): void {

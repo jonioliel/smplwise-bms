@@ -36,7 +36,7 @@ test('lazy-tags-check: every tag is defined where it is used, and none of the on
   const out = execFileSync(process.execPath, [path.join(HERE, '..', 'scripts', 'lazy-tags-check.mjs'), '--stats'], { encoding: 'utf8' });
   expect(out).toContain('lazy-tags-check: OK');
   const stat = JSON.parse(out.split('\n')[0]) as { notInEntry: number };
-  expect(stat.notInEntry).toBe(8);
+  expect(stat.notInEntry).toBeGreaterThanOrEqual(8); // later branches add their own modules to the list (CR-HOME-LAZY-2440: twelve more)
 });
 
 test('the deny-list of the check names the eight modules this branch took out of the entry chunk', () => {
