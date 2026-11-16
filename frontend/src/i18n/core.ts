@@ -12,9 +12,9 @@ export type UiLangCode = 'he' | 'en' | 'ar' | 'ru';
 /** Values for `{name}` placeholders. */
 export type Vars = Record<string, string | number>;
 
-/** The `<html lang>` prefix (lower case), '' outside a browser. */
+/** The `<html lang>` prefix (lower case), '' outside a browser (also under a Node stub `document` without `documentElement`, as some specs install at module level). */
 export function docLangRaw(): string {
-  return typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
+  return typeof document !== 'undefined' ? (document.documentElement?.lang || '').toLowerCase() : '';
 }
 
 /** The first of `supported` that `<html lang>` starts with, else Hebrew. */

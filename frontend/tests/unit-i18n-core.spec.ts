@@ -34,6 +34,17 @@ test('docLang: prefix match in any case, Hebrew otherwise and outside a browser'
   expect(withLang(undefined, () => docLang(['en']))).toBe('he');
 });
 
+test('docLang: a Node stub document without documentElement (left by another spec at load time) reads as Hebrew, never throws', () => {
+  const prev = g.document;
+  (g as { document?: unknown }).document = { createElement: () => ({}) }; // tests/unit-plan3d-furnmerge.spec.ts installs one at module level
+  try {
+    expect(docLang(['en'])).toBe('he');
+  } finally {
+    if (prev === undefined) delete g.document;
+    else g.document = prev;
+  }
+});
+
 test('fill: named placeholders, unknown names kept, no vars = the text itself', () => {
   expect(fill('{n} of {total}', { n: 3, total: 7 })).toBe('3 of 7');
   expect(fill('{n} of {total}', { n: 3 })).toBe('3 of {total}');

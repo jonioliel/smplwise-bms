@@ -208,6 +208,11 @@ export class SwDialog extends LitElement {
     if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a as HTMLElement;
     this.layer(true);
     requestAnimationFrame(() => {
+      // a field the user (or a test) already focused inside the dialog in the frame before keeps the focus: typing into the reason box
+      // right after the dialog opened lost its caret to the first control (pixel-wiskey-access-diag, I18N-EN-SWITCH-2438 entry check)
+      for (let now: Element | null = document.activeElement; now && now !== document.body; now = now.shadowRoot?.activeElement ?? null) {
+        if (now !== this && (this.contains(now) || this.shadowRoot?.contains(now))) return;
+      }
       const pick = (root: ParentNode): HTMLElement | null => {
         for (const el of root.querySelectorAll<HTMLElement>('[autofocus], input, textarea, select, sw-button, button')) {
           if (el.hasAttribute('disabled') || (el as HTMLInputElement).type === 'hidden' || el.slot === 'footer') continue;

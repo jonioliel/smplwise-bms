@@ -19,7 +19,7 @@ export function uiLangFromPref(v: unknown): UiLang {
 
 /** The language the page is in now. */
 export function currentUiLang(): UiLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
+  const l = typeof document !== 'undefined' ? (document.documentElement?.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }
 

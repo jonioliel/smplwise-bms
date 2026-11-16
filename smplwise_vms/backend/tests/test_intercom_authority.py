@@ -82,7 +82,7 @@ def test_every_new_permission_has_a_label_and_no_platform_name():
 def test_the_frontend_label_fallback_equals_the_backend_labels():
     source = (ROOT / "frontend" / "src" / "access-control" / "access.ts").read_text(encoding="utf-8")
     block = source.split("ACCESS_CONTROL_PERMISSION_LABELS: Record<AccessControlPermission, string> = {", 1)[1].split("};", 1)[0]
-    labels = dict(re.findall(r"'([a-z.]+)': '([^']*)'", block))
+    labels = dict(re.findall(r"'([a-z.]+)': (?:tr\()?'([^']*)'", block))  # I18N-EN-SWITCH-2438: the Hebrew is wrapped in tr()
     assert labels == {p: PERMISSION_LABELS[p] for p in DEFAULTS}
     listed = re.findall(r"'([a-z.]+)'", source.split("ACCESS_CONTROL_PERMISSIONS = [", 1)[1].split("]", 1)[0])
     assert sorted(listed) == sorted(ia.NEW_PERMISSIONS) and len(listed) == len(set(listed))

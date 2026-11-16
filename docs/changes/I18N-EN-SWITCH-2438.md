@@ -81,3 +81,39 @@ NOT_RUN locally: pixel, layout and evidence suites, page unit specs (`SW_UNIT_PA
 entry check runs them. Pixels: Hebrew screens are meant to be byte-identical; the only intended Hebrew change is one more row
 ("שפה") on the account level of the user menu, which no pixel spec captures. No English pixel baselines exist, so none were
 refreshed.
+
+## Entry check round 1 (RED @ e5f78173e, 12 failures) - causes and fixes
+
+The branch touches `main.ts`, so the entry check ran the FULL frontend - the first full run over the AUDIT30-COMBINED base too.
+
+1. **Load error / zero tests / count drop (preview_desktop-tablet-mobile, 3 of the 12).** `tests/unit-plan3d-furnmerge.spec.ts`
+   (and `-level3`) put a stub `document` (`{ createElement }`, no `documentElement`) on `globalThis` at module level. Playwright
+   loads every spec file in one process, so every later module that calls `tr()` while it initialises read
+   `document.documentElement.lang` on the stub and threw: 12 load errors, 0 tests. Fix (product): `i18n/core.ts docLangRaw`,
+   `ui-lang-boot.ts currentUiLang`, `tickets/text.ts ticketsLang`, `water/i18n.ts wtLang` read `documentElement?.lang` (a stub
+   reads as Hebrew). New case in `unit-i18n-core.spec.ts`.
+2. **layout-schedules-parity :165 (4 skins).** The trash / review pages of the schedules screen show sw-page's back key
+   (AUDIT30 base); at 390 px it was 26-28 px, under the 44 px target. Fix: sw-page names the key `part="back"`; the schedules
+   screen raises it to 44 px at a phone width (`sw-page::part(back)`, the same rule as its pager keys).
+3. **evidence-menu-opaque :296 (3D view chip, classic / dark, desktop + mobile).** Classic rule 1 (AUDIT30-B-SHARED) paints the
+   selected chip `--sw-accent-soft`, translucent in dark (`rgba(91,140,255,0.2)`), so the scene showed through. Fix: over the 3D
+   canvas the bar's soft field is the same tint mixed into the opaque menu surface (`sw-plan-3d.ts`, dark only - light pixels
+   unchanged). Overlap: `map/sw-plan-3d.ts` is also edited by PLAN3D-R32-ANSWERS-2438 (one CSS block).
+4. **evidence-menu-opaque :202 (glass default / dark tree-row menu).** Since AUDIT30-A-GLASS-BRIDGE the default palette bridges
+   its solid twin to the product's unless the host paints its own backdrop; the spec set `data-devices-scheme` by hand without the
+   `data-devices-own-backdrop` flag that `devices-style.ts setScheme()` writes beside it. Fix (spec): it sets the flag the same way.
+5. **pixel-wiskey-access-diag :63 [mobile] (review dialog).** The reason box had no focus ring: sw-dialog moves the focus to its
+   first control one frame after it opens, and a fill typed in that frame lost the caret. Fix (product, `sw-dialog.ts`): a control
+   already focused inside the dialog keeps the focus.
+6. **backend test_intercom_authority::test_the_frontend_label_fallback_equals_the_backend_labels.** The spec reads the label
+   table from `access-control/access.ts` with a regex; the labels are now `tr('...')`. Fix: the regex accepts the wrapper.
+
+### Tests actually run (round 2, workstation)
+
+- `npx playwright test --list` (desktop + tablet + mobile, main config): 35,358 tests in 1,074 files, no load error (before:
+  12 TypeErrors, 0 tests).
+- `npx tsc --noEmit` clean; `npm run build` + `vite build` OK.
+- Preview (`--workers=1`): evidence-menu-opaque "tree row menu" [desktop] + "3D view ... classic / dark" [desktop, mobile]: 3 passed.
+- pixel-wiskey-access-diag [desktop, mobile]: 10 passed (no win32 baselines: the image comparison itself is NOT_RUN locally) +
+  a throw-away probe (reason box keeps the focus after an immediate fill, desktop + mobile): 2 passed, not committed.
+- Backend: `tests/test_intercom_authority.py` 27 passed (`pytest -p no:xdist`).

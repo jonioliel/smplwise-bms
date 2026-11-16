@@ -836,7 +836,7 @@ export type WtKey = Key;
 export type WtLang = 'he' | 'en';
 
 export function wtLang(): WtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
+  const l = typeof document !== 'undefined' ? (document.documentElement?.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }
 

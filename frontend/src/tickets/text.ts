@@ -791,7 +791,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
 
 /** The language of the tickets screens: the document's (English or the product's Hebrew). */
 export function ticketsLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return typeof document !== 'undefined' && (document.documentElement?.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 
 /** The raw template of a key in a language (the unit tests and the catalogue-completeness test read it). */
