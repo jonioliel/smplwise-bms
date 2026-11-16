@@ -19,15 +19,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
 
 PKG = Path(__file__).resolve().parents[1] / "smplwise"
 ROUTE_ATTRS = {"get", "post", "put", "patch", "delete", "head", "options", "api_route", "websocket", "route"}
 
 # "<module path relative to smplwise/>::<handler>" -> the branch that removes it
-PENDING = {
-    "routers/wiskey_lineage.py::resolve": "pilot/AUTH-REVOKE-GATE-2435 (02:P1-6)",
-}
+PENDING: dict[str, str] = {}  # RELEASE-2437-TRAIN: emptied - routers/wiskey_lineage.py::resolve fixed by pilot/AUTH-REVOKE-GATE-2435 (02:P1-6)
 
 
 def _is_route_decorator(dec: ast.expr) -> bool:
@@ -105,7 +102,6 @@ def test_no_async_route_opens_a_connection_on_the_loop():
     assert new == {}, "an async route opens a database connection on the server loop; make it `def`, use a dependency or run_in_threadpool: " + repr(new)
 
 
-@pytest.mark.xfail(strict=True, reason="02:P1-6 is fixed by pilot/AUTH-REVOKE-GATE-2435; after it merges, empty PENDING and remove this mark")
 def test_pending_offenders_are_fixed():
     still = sorted(k for k in offenders() if k in PENDING)
     assert still == [], still
