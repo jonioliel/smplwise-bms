@@ -29,7 +29,8 @@ import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, ty
 import { entityMarkerKind, stateLabel } from '../api/ha';
 import { geometryAt, geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
-import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
+import { loadLibrary } from '../api/plan-catalog';
+import { default3dDue, defaultViewIs3d, fallbackLevelId, hoverLabelsOf, isTypingTarget, libraryLookups, loadPlan3d, readPlanImage, sceneZonesOf, stateLampsOf, stateRoomsOf, writePlanImage } from '../map/floor-view-shared';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
 import type { ScenePreset } from '../map/scene-three';
@@ -53,7 +54,6 @@ import {
 } from '../map/history-replay';
 import { layerSignature, roomStates, type RoomStateLayer } from '../map/room-state';
 import { stateEntitiesOf, stateFactsOf, type StateFacts } from '../map/state-facts';
-import { defaultLevelId } from '../map/studio-ops';
 
 const NEAR_MIN = 10;
 /** The window choices of the time scrub's bar (minutes); the track below zooms through the same values. */
@@ -169,7 +169,7 @@ export class InvestigateHistoryMap extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     const t = e.composedPath()[0];
-    const typing = t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    const typing = isTypingTarget(t);
     if (this.scrub && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && this.onScrubKey(e, t)) return;
     if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing) {
       e.preventDefault();
@@ -1080,7 +1080,7 @@ export class InvestigateHistoryMap extends LitElement {
     if (!isApi()) return;
     // the setting map.default_view (owner 2026-09-29): a floor opens in 3D once its scene is there (no per-device memory
     // of the last view existed before, and none is added: the toggle still switches for the visit)
-    if (this.default3d && !this.view3d && this.hasScene && webglAvailable()) {
+    if (default3dDue(this.default3d, this.view3d, this.hasScene)) {
       this.default3d = false;
       void this.toggle3d();
     }
@@ -1119,14 +1119,15 @@ export class InvestigateHistoryMap extends LitElement {
       this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
       this.restorePlanImage();
       this.level = initialLevel(settings['plan.levels'], this.bundle); // 0.1.89: fixed for the floor, no level bar here
-      this.default3d = settings['map.default_view'] === '3d' && !this.view3d;
+      this.default3d = defaultViewIs3d(settings) && !this.view3d;
       this.geometry = null; // another floor or instant: no structure until its document arrives
       if (this.bundle.source === 'api') {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
-          this.catalogLookup = lookupOf(lib);
-          this.catalog3d = lookup3dOf(lib);
-          this.materials3d = lookupMaterialsOf(lib);
-          this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
+          const l = libraryLookups(lib);
+          this.catalogLookup = l.catalogLookup;
+          this.catalog3d = l.catalog3d;
+          this.materials3d = l.materials3d;
+          this.itemNames = l.itemNames;
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
       void this.updateGeometry();
@@ -1152,20 +1153,12 @@ export class InvestigateHistoryMap extends LitElement {
   /** The plan picture switch, per floor in this browser (its own key: the live map and the editor keep theirs). */
   private setPlanImage(on: boolean) {
     this.planImage = on;
-    try {
-      localStorage.setItem(`sw.history.background.${this.floorId}`, on ? '1' : '0');
-    } catch {
-      /* private mode or blocked storage: the choice lives for this page only */
-    }
+    writePlanImage('history', this.floorId, on);
   }
 
   /** A floor never switched shows its picture. */
   private restorePlanImage() {
-    try {
-      this.planImage = localStorage.getItem(`sw.history.background.${this.floorId}`) !== '0';
-    } catch {
-      this.planImage = true;
-    }
+    this.planImage = readPlanImage('history', this.floorId);
   }
 
   private async loadDay() {
@@ -1380,7 +1373,7 @@ export class InvestigateHistoryMap extends LitElement {
       polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: drawn ? drawn.states[a.resource_id] ?? null : this.stateAt(a),
       online: a.resource_type === 'camera' ? this.coverageAt(a.resource_id).state === 'historic' : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
     }));
-    const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
+    const zones = sceneZonesOf(b.zones);
     const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones, layerSignature(scrubLayer)]), g, this.catalog3d, this.level, this.itemNames, this.real3d, this.materials3d];
     if (this.sceneMemo && sameRefs(this.sceneMemo.keys, keys)) {
       this.sceneMemo = { ...this.sceneMemo, refs };
@@ -1391,10 +1384,7 @@ export class InvestigateHistoryMap extends LitElement {
       ...(scrubLayer ? { roomStates: scrubLayer } : {}),
       ...(this.real3d ? { realistic: true, materialsCatalog: this.materials3d } : {}) });
     // hover labels: anchors by their map name, objects by label or library name, zones by name
-    const labels: Record<string, string> = {};
-    for (const a of b.anchors) labels[a.id] = entityName(a);
-    for (const o of g.objects) labels[o.id] = o.label || this.itemNames.get(o.item_id) || o.item_id;
-    for (const z of b.zones) labels[z.id] = z.name;
+    const labels = hoverLabelsOf(b.anchors, entityName, g.objects, this.itemNames, b.zones);
     this.sceneMemo = { refs, keys, desc, labels };
     return desc;
   }
@@ -1412,14 +1402,13 @@ export class InvestigateHistoryMap extends LitElement {
     if (!webglAvailable() || !this.hasScene || this.threeState === 'loading') return;
     if (this.threeState !== 'ready') {
       this.threeState = 'loading';
-      try {
-        await import('../map/sw-plan-3d');
-        this.threeState = 'ready';
-      } catch (err) {
+      const failed = await loadPlan3d();
+      if (failed !== null) {
         this.threeState = 'error';
-        this.threeError = describeError(err);
+        this.threeError = failed;
         return;
       }
+      this.threeState = 'ready';
     }
     this.view3d = true;
   }
@@ -1766,8 +1755,8 @@ export class InvestigateHistoryMap extends LitElement {
     let value: RoomStateLayer | null = null;
     if (b.zones.length || facts?.openings.length) {
       const entities = stateEntitiesOf(b.anchors, drawn.states, { lastChanged: drawn.lastChanged, withAttributes: false });
-      const lamps = (facts?.lamps ?? []).map((l) => ({ x: l.x, y: l.y, level_id: l.level_id, on: (l.circuit !== null && circuits[l.circuit] === 'on') || (l.entity !== null && drawn.states[l.entity] === 'on') }));
-      const rooms = b.zones.map((z) => ({ id: z.id, polygon: z.polygon, level_id: z.level_id ?? null }));
+      const lamps = stateLampsOf(facts, circuits, drawn.states);
+      const rooms = stateRoomsOf(b.zones);
       const fallback = this.levelFallback;
       value = roomStates({ rooms, entities, openings: facts?.openings ?? [], lamps, size: [b.width, b.height], scaleMPerPx: b.scaleMPerPx, now: this.replayMs, fade: 'off', levelOf: (id) => id ?? fallback });
     }
@@ -1776,8 +1765,7 @@ export class InvestigateHistoryMap extends LitElement {
   }
 
   private get levelFallback(): string {
-    const b = this.bundle;
-    return this.geometry ? defaultLevelId(this.geometry) : (b?.levels.find((l) => l.is_default)?.id ?? 'L0');
+    return fallbackLevelId(this.geometry, this.bundle);
   }
 
   private markersMemo: { refs: unknown[]; key: string; value: PlanMarker[] } | null = null;
