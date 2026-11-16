@@ -40,6 +40,32 @@ export class SwTable extends LitElement {
    * click does - for a list whose rows open something and that has no link of its own in a cell. Opt-in, so the tab order of every
    * existing table is unchanged; a key pressed on a control inside a cell is left to that control. */
   @property({ type: Boolean, reflect: true, attribute: 'focus-rows' }) focusRows = false;
+  /** CR-UI-CONTROLLERS-2440 (review finding 07:F17, D14 component half): 28 of the 29 tables never set `focus-rows`, so their rows opened
+   * something on a click and nothing from the keyboard. A table whose host listens for `row-select` (`@row-select=${...}` in a template,
+   * or `addEventListener('row-select', ...)` on the element) now gets the same tab stops and Enter / Space as `focus-rows` on its own;
+   * a table nobody listens to gains no dead tab stop. `no-focus-rows` is the opt-out for a table whose cells already carry the row's
+   * link or button (it wins over the listener, not over an explicit `focus-rows`). Mouse behaviour and the look are unchanged: the
+   * focus ring is `:focus-visible` only. */
+  @property({ type: Boolean, reflect: true, attribute: 'no-focus-rows' }) noFocusRows = false;
+  /** how many `row-select` listeners are registered on this element itself */
+  private rowSelectListeners = 0;
+
+  /** The rows are tab stops (and answer Enter / Space). */
+  get rowsFocusable(): boolean {
+    return this.focusRows || (!this.noFocusRows && this.rowSelectListeners > 0);
+  }
+
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void {
+    if (!listener) return; // a null listener registers nothing (as the platform does)
+    super.addEventListener(type, listener, options);
+    if (type === 'row-select' && this.rowSelectListeners++ === 0) this.requestUpdate();
+  }
+
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void {
+    if (!listener) return;
+    super.removeEventListener(type, listener, options);
+    if (type === 'row-select' && this.rowSelectListeners > 0 && --this.rowSelectListeners === 0) this.requestUpdate();
+  }
 
   static styles = css`
     :host {
@@ -288,6 +314,7 @@ export class SwTable extends LitElement {
   render() {
     if (!this.rows.length) return html`<div class="empty">${this.emptyText}</div>`;
     const card = usesCardTemplate(this.columns);
+    const focusable = this.rowsFocusable;
     return html`
       <table>
         <thead>
@@ -296,7 +323,7 @@ export class SwTable extends LitElement {
         <tbody>
           ${this.rows.map(
             (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" data-row-id=${String(row[this.rowKey] ?? '')} @click=${() => this.pick(row)}
-              tabindex=${this.focusRows ? '0' : nothing} @keydown=${this.focusRows ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
+              tabindex=${focusable ? '0' : nothing} @keydown=${focusable ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
               @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
               @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
               ${this.columns.map((c) => html`<td class=${this.cellClass(c)} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}${card ? this.metaCell(row) : nothing}
