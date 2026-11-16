@@ -14,7 +14,12 @@ const code = (p: string) => src(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|
 const flush = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 };
-function deferred<T = void>() {
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (v: T) => void;
+  reject: (e: unknown) => void;
+}
+function deferred<T = void>(): Deferred<T> {
   let resolve!: (v: T) => void;
   let reject!: (e: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
@@ -78,7 +83,7 @@ test.describe('KeyedMemo: a derived value is computed once per set of inputs', (
 test.describe('SingleFlight: a refresh round never overlaps itself (RACE-6)', () => {
   function rounds() {
     const log: string[] = [];
-    const gates: Array<ReturnType<typeof deferred>> = [];
+    const gates: Array<Deferred<void>> = [];
     let active = 0;
     let maxActive = 0;
     const flight = new SingleFlight<boolean>(
@@ -204,7 +209,7 @@ test.describe('NewestApplied: the open schedule is read from two places (RACE-6)
   test('the round of devices-schedules: overlapping pushes and a drawer that moved to another schedule leave the right detail', async () => {
     // the screen's refresh path, with the same two guards and a server whose answers are released by hand
     const reads = new NewestApplied();
-    const answers: Array<{ id: string; gate: ReturnType<typeof deferred<string>> }> = [];
+    const answers: Array<{ id: string; gate: Deferred<string> }> = [];
     const getSchedule = (id: string) => {
       const gate = deferred<string>();
       answers.push({ id, gate });
@@ -241,7 +246,7 @@ test.describe('NewestApplied: the open schedule is read from two places (RACE-6)
 test.describe('OneAtATime: a step that saves is not started twice (MAPA-1)', () => {
   test('double click -> one saveState; after it finished the next press saves again only when the state changed', async () => {
     // the assistant's go() + persist(), with a server that answers when told to
-    const saves: Array<{ revision: number; gate: ReturnType<typeof deferred> }> = [];
+    const saves: Array<{ revision: number; gate: Deferred<void> }> = [];
     const stepping = new OneAtATime();
     const a = { st: { n: 1 } as object, savedSt: null as object | null, revision: 7, step: 'mark' };
     const persist = async () => {

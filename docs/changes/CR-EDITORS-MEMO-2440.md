@@ -116,17 +116,35 @@ measurement gone a drag render is a plain re-render; a flush-on-pointerup path w
 3. Privacy masks: the history section of the camera chosen second no longer disappears after a quick switch.
 
 ## Tests actually run (workstation, node 24, `--workers=1`)
-- `npx tsc --noEmit`: clean (run after the last source edit).
+- `npx tsc --noEmit` (whole project, `src` + `tests`) after the last source edit: no error in `src`; the only errors were
+  type errors in the new spec's own helper (`deferred`), fixed in the follow-up commit. After the fix: `tsc` limited to the
+  spec and everything it imports - clean. The whole-project run was not repeated after the spec fix (6.5 minutes on the
+  loaded workstation; no source file changed in between).
 - `npx playwright test -c playwright.unit.config.ts tests/unit-editors-memo-2440.spec.ts`: 37 passed.
 - Related node unit specs in one run - `unit-shell-lazy-2436`, `unit-a11y-polished-lint`, `unit-menu-lint`, `unit-token-lint`,
   `unit-lead-reserve`, `unit-dark-polish-beds`, `unit-switch-contrast-2380`, `unit-automation-builder`, `unit-automations`,
   `unit-schedules-logic`, `unit-schedule-editor-logic`, `unit-schedules-editor-logic`, `unit-privacy-mask`,
   `unit-mapping-assist-2330`, `unit-mapping-improve-2351`, `unit-scene-memo`: 226 passed, 8 skipped (the page tests the
   node config leaves out).
-- Browser evidence specs: see the follow-up commit of this note.
+- Browser evidence specs, `--project=desktop --workers=1`, against a Vite dev server of this worktree
+  (`SW_BASE_URL=http://127.0.0.1:5187/`, not a build), at the first commit of this branch (`032f4ae4c`):
+  - `evidence-automations-builder`: 50 tests - 49 passed, 1 timed out (the first test of the run, waiting 20 s for the
+    editors to be defined while the dev server compiled the app for the first time); that test and its two neighbours
+    were run again on the warm server: 3 passed.
+  - `evidence-maskui-295`, `evidence-breakui-masks`, `evidence-mapping-assist-2330`, `evidence-schedules-editor`,
+    `evidence-schedules-list` in one run: 106 passed.
+  The evidence screenshots these specs rewrite under `docs/evidence/` and `docs/design/evidence/` (104 files) were restored
+  and are not part of the branch.
 
 ## NOT_RUN
-See the follow-up commit of this note.
+- Tablet and mobile projects of the evidence specs; every layout and pixel spec (`pixel-access-schedules`,
+  `pixel-wiskey-schedule-writes`, `layout-*`); the evidence specs against a real build (`vite preview`). Runner work.
+- `evidence-automations-list`, `evidence-door-automation`, `evidence-audit30i-devices`, `evidence-access-schedules`,
+  `evidence-wiskey-schedule-writes` (they mount the same editors from other screens).
+- `npm run build`, the bundle budget, ESLint. The runner entry check (not for this batch).
+- No browser test drives the new paths themselves (a burst of pushes on the schedules screen, a quick camera switch on
+  the privacy masks, a double click on the assistant's "continue"): they are covered by the node tests of the guards and
+  by source assertions, not by an element test.
 
 ## Pixels to refresh
 None expected: no markup, class, text or style changed (the dialog footers render the same element). No PNG was
