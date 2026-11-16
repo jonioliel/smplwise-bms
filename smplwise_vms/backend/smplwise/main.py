@@ -448,8 +448,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import skin_switch as _skin_switch
 
         with app.state.db.connection(label="skin_switch.run_once") as conn:
-            moved = _skin_switch.run_once(conn)
-            conn.commit()
+            moved = _skin_switch.run_once(conn)  # the connection's own exit commits (the write gate: no commit by hand)
         if moved == "moved":
             log.info("look: the saved classic skin was moved to domus (once; classic stays selectable)")
     except Exception:  # noqa: BLE001 - never block the start; the step has written no marker and runs again at the next start

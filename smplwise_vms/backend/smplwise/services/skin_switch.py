@@ -30,7 +30,7 @@ TO_SKIN = "domus"
 
 def run_once(conn: sqlite3.Connection) -> str | None:
     """Move a stored classic skin to domus unless this installation was already handled. Returns "moved" / "kept" on the run that
-    handled it and None on every later one. The caller commits."""
+    handled it and None on every later one. The caller's transaction commits (db.connection does at its exit)."""
     if get_setting(conn, MARKER) is not None:
         return None
     if get_setting(conn, "ui.skin") == FROM_SKIN:
