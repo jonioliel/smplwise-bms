@@ -171,7 +171,7 @@ export class MediaQueueList extends LitElement {
         all: unset;
         cursor: pointer;
         padding: 6px 12px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         font-weight: 600;
         font-size: var(--sw-fs-sm);
       }

@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-tabs';
+import '../components/sw-page';
 import '../components/sw-dropdown';
 import '../components/sw-state-panel';
 import '../components/sw-icon';
@@ -18,18 +20,16 @@ import { describeError } from '../api/client';
 import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type DevicesResponse, type GenDevice } from '../api/generator';
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
 import { fill, fmtDateTime } from '../generator/gen-logic';
-import { INFRA_TABS, applyGeneratorLog, infraPageTabs, tabStyleOf, visibleTabs } from '../shell/nav';
+import { applyGeneratorLog, infraPageTabs, tabStyleOf } from '../shell/nav';
 import { TabsModeController } from '../shell/tabs-mode';
 import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
-import { canNav, isApi } from '../api/session';
+import { isApi } from '../api/session';
 import { he } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { genCss } from '../generator/gen-styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { leadReserveStyles } from '../styles/lead-reserve'; // LOGOFIX-295: the page row keeps the developer / installer logos' room free
-import { srHeading, srHeadingCss } from '../components/sr-heading';
 
 const G = he.generator;
 // GENLOG092-295: 'log' (the run log) is offered only while its switch is on (log_enabled of the devices list; default off)
@@ -64,8 +64,10 @@ export class InfraGenerator extends LitElement {
   /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
   private pagesChip: PairChip | null = null;
 
-  static styles = [elecCss, genCss, srHeadingCss, leadReserveStyles, css`
-    :host { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
+  /* AUDIT30-E2 (round-30 audit #6, #9): the page is a <sw-page> (header, padding, width from the shared component) */
+  static styles = [elecCss, genCss, css`
+    :host { display: flex; flex-direction: column; min-block-size: 100%; inline-size: 100%; }
+    sw-page { flex: 1 1 auto; min-block-size: 0; }
     .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .body { min-inline-size: 0; }
     .body > * { display: block; }
@@ -166,24 +168,23 @@ export class InfraGenerator extends LitElement {
     const m = this.access.manage;
     return html`<div class="card" data-state="not-found"><div class="empty"><div class="ic"><sw-icon name="bolt" size="26"></sw-icon></div><h3>${G.notFound.title}</h3>
       <div class="mut measure">${G.notFound.body}${this.list?.last_detect_at ? ` ${fill(G.notFound.checked, { t: fmtDateTime(this.list.last_detect_at) })}` : ''}</div>
-      ${m ? html`<div class="row" style="justify-content:center"><button class="btn pri" ?disabled=${this.detecting} @click=${() => this.detect()} data-retry><sw-icon name="refresh" size="16"></sw-icon> ${this.detecting ? G.notFound.detecting : G.notFound.retry}</button>
+      ${m ? html`<div class="row" style="justify-content:center"><sw-button variant="primary" icon="refresh" ?disabled=${this.detecting} @click=${() => this.detect()} data-retry>${this.detecting ? G.notFound.detecting : G.notFound.retry}</sw-button>
         <a class="btn" href="#/system/infra/generator/routing">${G.notFound.toSettings}</a></div>` : nothing}</div></div>
       <div class="card"><div class="hd"><span class="h3">${G.notFound.howTitle}</span></div><dl class="kv">${G.notFound.how.map((t, i) => html`<dt>${i + 1}</dt><dd>${t}</dd>`)}</dl></div>`;
   }
 
-  /** UXFIX-NAV-295: one h1 on every state of the page (visually hidden; the navigation label names the page). */
+  /** UXFIX-NAV-295 / AUDIT30-E2: one h1 on every state of the page - sw-page's heading, the navigation label of the page. */
   render() {
-    return html`${srHeading(G.tab, true)}${this.renderPage()}`;
+    return html`<sw-page heading=${G.tab} data-infra-page="generator">${this.renderPage()}</sw-page>`;
   }
 
   private renderPage() {
     this.pagesChip = null;
-    const l1 =isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'error' && !this.list) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => this.loadList()} data-state="error"></sw-state-panel>`;
     if (this.phase === 'loading' && !this.list) return html`<div class="col" data-state="loading" aria-busy="true"><div class="skl sk-tabs"></div><div class="hero"><div class="card"><div class="skl sk-hero"></div></div><div class="card"><div class="skl sk-line"></div><div class="skl sk-line"></div></div></div></div>`;
     const ds = this.shown();
-    if (!ds.length) return html`<div class="rows lead-head">${l1}</div><div class="body">${this.notFound()}</div>`;
+    if (!ds.length) return html`<div class="body">${this.notFound()}</div>`;
     const d = this.device;
     const page = pageOf(this.route?.segments ?? []);
     const q = d ? `?device=${encodeURIComponent(d.id)}` : '';
@@ -205,7 +206,7 @@ export class InfraGenerator extends LitElement {
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.generator')} data-infra-pages></sw-tabs>`;
-    return html`<div class="rows lead-head" data-gen-shell>${l1}${row}${pick}${d ? html`<maint-cert-row kind="generator" subjectId=${d.id}></maint-cert-row>` : nothing}</div><div class="body" data-page=${page}>${body}</div>`;
+    return html`<div class="rows" data-gen-shell>${row}${pick}${d ? html`<maint-cert-row kind="generator" subjectId=${d.id}></maint-cert-row>` : nothing}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 }
 

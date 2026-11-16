@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-dialog';
+import './sw-dropdown';
+import type { DropdownChange } from './sw-dropdown';
 import './sw-field';
 import './sw-icon';
 import './wk-action-button';
@@ -120,8 +122,7 @@ export class WkAnnounceDialog extends LitElement {
       text-overflow: ellipsis;
     }
     .chip:focus-visible,
-    textarea:focus-visible,
-    select:focus-visible {
+    textarea:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
@@ -175,18 +176,6 @@ export class WkAnnounceDialog extends LitElement {
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: var(--sw-s-3);
     }
-    .engine select {
-      box-sizing: border-box;
-      inline-size: 100%;
-      min-block-size: var(--sw-touch-desktop, 44px);
-      padding-inline: var(--sw-s-3);
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-    }
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
@@ -213,8 +202,7 @@ export class WkAnnounceDialog extends LitElement {
       color: var(--sw-danger-text);
     }
     @media (max-width: 1100px) {
-      .chip,
-      .engine select {
+      .chip {
         min-block-size: 44px;
       }
     }
@@ -435,16 +423,15 @@ export class WkAnnounceDialog extends LitElement {
                   : nothing}
                 ${this.engines?.engines.length
                   ? html`<sw-field label=${t.engine}>
-                        <select data-wk-engine .value=${this.engine} @change=${(e: Event) => this.pickEngine((e.target as HTMLSelectElement).value)}>
-                          ${!this.engine ? html`<option value="" selected disabled>${tt.pickEngine}</option>` : nothing}
-                          ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.engine}>${x.engine_id === this.fixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name}</option>`)}
-                        </select>
+                        <sw-dropdown block data-wk-engine label=${t.engine} placeholder=${tt.pickEngine} .value=${this.engine}
+                          .items=${this.engines.engines.map((x) => ({ id: x.engine_id, label: x.engine_id === this.fixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name }))}
+                          @change=${(e: CustomEvent<DropdownChange>) => this.pickEngine(e.detail.id)}></sw-dropdown>
                       </sw-field>
                       ${langs.length
                         ? html`<sw-field label=${t.language}>
-                            <select data-wk-language .value=${this.language} @change=${(e: Event) => (this.language = (e.target as HTMLSelectElement).value)}>
-                              ${langs.map((l) => html`<option value=${l} ?selected=${l === this.language}>${languageName(l)}</option>`)}
-                            </select>
+                            <sw-dropdown block data-wk-language label=${t.language} .value=${this.language}
+                              .items=${langs.map((l) => ({ id: l, label: languageName(l) }))}
+                              @change=${(e: CustomEvent<DropdownChange>) => (this.language = e.detail.id)}></sw-dropdown>
                           </sw-field>`
                         : nothing}`
                   : html`<span class="note">${this.enginesNote || t.enginesLoading}</span>`}

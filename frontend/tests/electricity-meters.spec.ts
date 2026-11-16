@@ -29,7 +29,9 @@ test.describe('electricity: navigation', () => {
     await expect(nav).toContainText('תשתיות');
     await nav.click();
     await ready(page);
-    await expect(page.locator('sw-app [data-infra-l1]')).toContainText('מוני חשמל');
+    // AUDIT30-E2: no area row of one tab (it repeated the title); the page title says where the user is
+    await expect(page.locator('sw-app [data-infra-l1]')).toHaveCount(0);
+    await expect(page.locator('sw-app infra-electricity sw-page[data-infra-page="electricity"] h1')).toHaveText('מוני חשמל');
     const tabs = page.locator('sw-app [data-infra-pages]');
     for (const l of ['מונים', 'חשבונות', 'חיובים', 'לקוחות']) await expect(tabs).toContainText(l);
     expect(await page.evaluate(() => document.documentElement.getAttribute('dir') ?? getComputedStyle(document.body).direction)).toBe('rtl');
@@ -90,13 +92,15 @@ test.describe('electricity: meters overview', () => {
     } else {
       const tree = page.locator(`${PAGE} [data-area-tree]`);
       await expect(tree).toBeVisible();
-      await expect(tree.locator('[data-area="a-bakery"]')).toBeVisible();
-      await tree.locator('[data-floor="f-0"]').click(); // collapse the ground floor
-      await expect(tree.locator('[data-area="a-bakery"]')).toHaveCount(0);
-      await tree.locator('[data-floor="f-0"]').click();
-      await tree.locator('[data-area="a-bakery"]').click();
+      // AUDIT30-E5: the shared places tree (sw-place-tree): a floor has a fold button and a pick of its own
+      await expect(tree.locator('[data-place-pick="a-bakery"]')).toBeVisible();
+      await tree.locator('[data-place-fold="floor:f-0"]').click(); // collapse the ground floor
+      await expect(tree.locator('[data-place-pick="a-bakery"]')).toHaveCount(0);
+      await tree.locator('[data-place-fold="floor:f-0"]').click();
+      await tree.locator('[data-place-pick="a-bakery"]').click();
       await expect(visibleRows(page)).toHaveCount(3);
-      await tree.locator('[data-area=""]').click();
+      await expect(tree.locator('[data-place-pick="a-bakery"]')).toHaveAttribute('aria-current', 'true');
+      await tree.locator('[data-place-pick="all"]').click();
       await expect(visibleRows(page)).toHaveCount(12);
     }
     await page.locator(`${PAGE} [data-meters-search]`).fill('מאפייה');
@@ -110,7 +114,7 @@ test.describe('electricity: meters overview', () => {
     await ready(page);
     await expect(visibleRows(page)).toHaveCount(12);
     await expect(page.locator(`${PAGE} [data-month]`)).toHaveText('-');
-    if (!isPhone(page)) await expect(page.locator(`${PAGE} [data-area-tree] [data-floor="_none"]`)).toBeVisible();
+    if (!isPhone(page)) await expect(page.locator(`${PAGE} [data-area-tree] [data-place-row="floor:_none"]`)).toBeVisible();
   });
 
   test('table and cards views', async ({ page }) => {

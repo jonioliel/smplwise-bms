@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-badge';
 import '../components/sw-button';
 import { ApiError } from '../api/client';
@@ -108,6 +110,9 @@ export class WiskeyStationPermissions extends LitElement {
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
+    }
+    sw-dropdown {
+      flex: 1 1 10rem;
     }
     select {
       flex: 1 1 10rem;
@@ -238,10 +243,9 @@ export class WiskeyStationPermissions extends LitElement {
       ${p.stations.length ? html`<ul>${p.stations.map((s) => this.renderRow(s))}</ul>` : html`<span class="sub" data-sp-empty>${spt('empty')}</span>`}
       ${choices.length
         ? html`<div class="add">
-            <select aria-label=${spt('addPick')} data-sp-add-pick .value=${this.pick} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
-              <option value="">${spt('addPick')}</option>
-              ${choices.map((c) => html`<option value=${c.station_id}>${c.name || this.stationNames[c.station_id] || c.station_id}</option>`)}
-            </select>
+            <sw-dropdown label=${spt('addPick')} data-sp-add-pick .value=${this.pick}
+              .items=${[{ id: '', label: spt('addPick') }, ...choices.map((c) => ({ id: c.station_id, label: c.name || this.stationNames[c.station_id] || c.station_id }))]}
+              @change=${(e: CustomEvent<DropdownChange>) => (this.pick = e.detail.id)}></sw-dropdown>
             <sw-button size="sm" icon="plus" data-sp-add ?disabled=${!this.pick || !!this.busy} @click=${() => this.addStation()}>${spt('add')}</sw-button>
           </div>`
         : nothing}

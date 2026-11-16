@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -36,7 +38,7 @@ import {
   type IntercomTtsEngines,
   type IntercomTtsStatus,
 } from '../api/intercom';
-import { formatTime, t, UTC_ZONE } from './wiskey-format';
+import { formatLocalTime, t, UTC_ZONE } from './wiskey-format';
 import { productSettings } from '../api/prefs';
 import { TTS_FIXED_NONE, languageFor, languageName, parseTtsFixed, resolveTtsPick, type TtsFixed } from '../api/tts-default';
 import { fill as tfill, ttt } from '../i18n/tts-default';
@@ -481,10 +483,10 @@ export class WiskeyOverview extends LitElement {
   render() {
     if (!isApi()) return this.renderPage({ state: 'ready', configured: true, fresh: true, fetched_at: null, last_error: null, overview: DEMO }, true);
     if (this.forbidden) {
-      return html`<sw-page heading="WisKey" subheading="מרכז הכניסה"><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${t('wk4_entry_center')}><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
     if (!this.feed) {
-      return html`<sw-page heading="WisKey" subheading="מרכז הכניסה">${this.error
+      return html`<sw-page heading=${t('wk4_entry_center')}>${this.error
         ? html`<sw-state-panel data-wiskey-state="load_error" state="error" heading="לא ניתן לטעון את מרכז הכניסה" hint=${this.error}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
     }
@@ -495,7 +497,7 @@ export class WiskeyOverview extends LitElement {
     const ov = feed.overview;
     this.cameraAccess = feed.camera_access ?? {};
     const sub = `${t('wk4_entry_intro')}${this.canAct() || Object.values(this.feed?.door_access ?? {}).some(Boolean) ? '' : ' · צפייה בלבד'}${demo ? ' · נתוני הדגמה' : ''}`;
-    return html`<sw-page heading="WisKey · ${t('wk4_entry_center')}" subheading=${sub} wide>
+    return html`<sw-page heading=${t('wk4_entry_center')} subheading=${sub} wide>
       ${this.renderFeedBadge(feed, demo)}
       ${ov && feed.state !== 'ready' ? this.renderStaleNote(feed) : nothing}
       ${this.error ? html`<div class="note err" role="status">${this.error}</div>` : nothing}
@@ -534,16 +536,15 @@ export class WiskeyOverview extends LitElement {
           : nothing}
         ${this.engines?.engines.length
           ? html`<sw-field label="מנוע הקראה (תשתית המערכת)" hint=${this.ttsEngine && this.ttsPreselected && this.ttsEngine !== this.ttsPreselected ? tt.overridden : ''}>
-                <select data-wiskey-tts-engine .value=${this.ttsEngine} @change=${(e: Event) => this.pickEngine((e.target as HTMLSelectElement).value)}>
-                  ${!this.ttsEngine ? html`<option value="" selected disabled>${tt.pickEngine}</option>` : nothing}
-                  ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.ttsEngine}>${x.engine_id === this.ttsFixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name}</option>`)}
-                </select>
+                <sw-dropdown block data-wiskey-tts-engine label="מנוע הקראה" placeholder=${tt.pickEngine} .value=${this.ttsEngine}
+                  .items=${this.engines.engines.map((x) => ({ id: x.engine_id, label: x.engine_id === this.ttsFixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name }))}
+                  @change=${(e: CustomEvent<DropdownChange>) => this.pickEngine(e.detail.id)}></sw-dropdown>
               </sw-field>
               ${langs.length
                 ? html`<sw-field label="שפה">
-                    <select data-wiskey-tts-language .value=${this.ttsLanguage} @change=${(e: Event) => (this.ttsLanguage = (e.target as HTMLSelectElement).value)}>
-                      ${langs.map((l) => html`<option value=${l} ?selected=${l === this.ttsLanguage}>${l}</option>`)}
-                    </select>
+                    <sw-dropdown block data-wiskey-tts-language label="שפה" .value=${this.ttsLanguage}
+                      .items=${langs.map((l) => ({ id: l, label: l }))}
+                      @change=${(e: CustomEvent<DropdownChange>) => (this.ttsLanguage = e.detail.id)}></sw-dropdown>
                   </sw-field>`
                 : nothing}
               <sw-field label="ההודעה" hint=${`${length}/${TTS_MAX}`}>
@@ -574,7 +575,7 @@ export class WiskeyOverview extends LitElement {
   private renderStaleNote(feed: IntercomFeed) {
     return html`<div class="note stale" role="status" data-wiskey-stale>
       <sw-icon name="offline" size=${16}></sw-icon>
-      <span>${FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state].heading}. מוצג המידע האחרון שהתקבל${feed.fetched_at ? html` (<bdi>${formatTime(feed.fetched_at, 'he-IL', feed.overview?.default_zone ?? UTC_ZONE)}</bdi>)` : nothing} - ייתכן שאינו עדכני.</span>
+      <span>${FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state].heading}. מוצג המידע האחרון שהתקבל${feed.fetched_at ? html` (<bdi>${formatLocalTime(feed.fetched_at, 'he-IL', feed.overview?.default_zone ?? UTC_ZONE)}</bdi>)` : nothing} - ייתכן שאינו עדכני.</span>
     </div>`;
   }
 
@@ -594,9 +595,10 @@ export class WiskeyOverview extends LitElement {
     const zone = o.default_zone ?? UTC_ZONE;
     // panel.ts sorts the legacy grid ringing-first; the WisKey 04 grid keeps WisKey's own order
     return html`
+      <!-- AUDIT30-H (finding 7): the two summary tiles are the shared compact <sw-kpi> (60 px, DESIGN.md "KPI tile"), not the tall cards tile -->
       <div class="stats" data-wiskey-stats aria-label="סיכום">
-        <sw-kpi icon="door" tone=${all.length && all.every((s) => s.online) ? 'live' : all.some((s) => !s.online) ? 'offline' : 'neutral'} label=${t('online_stations')} value=${`⁦${all.filter((s) => s.online).length} / ${all.length}⁩`}></sw-kpi>
-        <sw-kpi icon="bell" tone=${ringing.length ? 'stale' : 'neutral'} label=${t('ringing_now')} value=${String(ringing.length)}></sw-kpi>
+        <sw-kpi layout="compact" icon="door" tone=${all.length && all.every((s) => s.online) ? 'live' : all.some((s) => !s.online) ? 'offline' : 'neutral'} label=${t('online_stations')} value=${`⁦${all.filter((s) => s.online).length} / ${all.length}⁩`}></sw-kpi>
+        <sw-kpi layout="compact" icon="bell" tone=${ringing.length ? 'stale' : 'neutral'} label=${t('ringing_now')} value=${String(ringing.length)}></sw-kpi>
       </div>
       <div class=${attention.length ? 'layout with-side' : 'layout'}>
         <div class="main">
@@ -621,7 +623,8 @@ export class WiskeyOverview extends LitElement {
         ${attention.length
           ? html`<aside class="side">
               <sw-card heading=${t('access_attention')} data-wiskey-attention>
-                <sw-badge slot="actions" kind="stale" label=${String(attention.length)}></sw-badge>
+                <!-- AUDIT30-H2 (owner/lead: like "מצלצל"): the count is a filled amber field, solid edge, not the dashed stale-data look -->
+                <sw-badge slot="actions" kind="stale" filled data-wiskey-attention-count label=${String(attention.length)}></sw-badge>
                 ${attention.slice(0, 5).map((s) => html`<div class="attn"><strong>${s.name}</strong><small>${!s.online ? t('offline') : s.last_error || t('pending_sync')}</small></div>`)}
               </sw-card>
             </aside>`
@@ -632,6 +635,8 @@ export class WiskeyOverview extends LitElement {
 
   private renderDoor(s: IntercomStation, zone: typeof UTC_ZONE) {
     const status = !s.online ? 'offline' : s.call_state === 'ringing' ? 'ringing' : 'online';
+    // AUDIT30-H (finding 12): ringing is a FILLED amber field (sw-badge has no 'warning' kind; 'stale' is its amber), so the dashed
+    // edge - reserved for "unknown" / stale data - is never on a ringing door
     const kind: StateKind = status === 'offline' ? 'offline' : status === 'ringing' ? 'stale' : 'live';
     return html`<article class="door ${status}" data-wiskey-door=${s.id} data-status=${status}>
       <div class="door-head">
@@ -639,10 +644,10 @@ export class WiskeyOverview extends LitElement {
         <div class="title">
           <b title=${s.name}>${s.name}</b>
           <small>${!s.online && s.last_seen
-            ? html`${t('last_seen')}: <bdi>${formatTime(s.last_seen, 'he-IL', zone)}</bdi>`
+            ? html`${t('last_seen')}: <bdi>${formatLocalTime(s.last_seen, 'he-IL', zone)}</bdi>`
             : t('access_by_permissions')}</small>
         </div>
-        <sw-badge kind=${kind} label=${t(status)}></sw-badge>
+        <sw-badge kind=${kind} ?filled=${status === 'ringing'} data-wiskey-door-badge=${status} label=${t(status)}></sw-badge>
       </div>
       ${status === 'ringing' ? html`<div class="ring" role="status"><sw-icon name="bell" size=${14}></sw-icon>${t('ringing')}</div>` : nothing}
       ${this.renderStill(s)}
@@ -732,7 +737,7 @@ export class WiskeyOverview extends LitElement {
   static styles = css`
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 240px));
+      grid-template-columns: repeat(auto-fill, minmax(var(--sw-kpi-compact-col-min, 168px), 240px));
       gap: 12px;
     }
     @media (max-width: 600px) {

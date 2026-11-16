@@ -7,6 +7,7 @@
  * the forbidden state.
  */
 import { html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
 import { ApiError } from '../api/client';
@@ -211,7 +212,7 @@ export class ElecSettingsPrices extends ElecBase {
       ${this.error && !this.tOpen && !this.vOpen ? alertBox('err', this.error) : nothing}
       ${!cur ? alertBox('warn', 'לא הוגדר שיעור מע״מ. בלי שיעור אי אפשר להפיק חיובים.') : nothing}
       <div class="cols side-l">
-        <div class="card ${this.phone ? '' : 'flush'}"><div class="hd"><b class="h3">תעריפים</b><span class="sp"></span>${edit ? html`<button type="button" class="btn pri sm" data-new-tariff @click=${() => this.openTariff(null)}>+ תעריף</button>` : nothing}</div>
+        <div class="card ${this.phone ? '' : 'flush'}"><div class="hd"><b class="h3">תעריפים</b><span class="sp"></span>${edit ? html`<sw-button variant="primary" size="sm" data-new-tariff @click=${() => this.openTariff(null)}>+ תעריף</sw-button>` : nothing}</div>
           ${!this.tariffs.length ? stateBox('empty', 'bolt', 'אין תעריפים עדיין', edit ? { label: '+ תעריף', primary: true, run: () => this.openTariff(null) } : undefined)
             : this.phone
               ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} data-kind=${t.kind} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">${t.kind === 'tou' ? html`${touSummary(t)} · ` : nothing}הוזן ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · מ-${n(fmtDate(t.current?.effective_from ?? ''))}</div></div>${t.kind === 'tou' ? html`<span class="chip c-acc nodot">לפי שעות</span>` : html`<b class="num">${f4(t.current?.price ?? 0)} ₪</b>`}</button>`)}</div>`
@@ -225,7 +226,7 @@ export class ElecSettingsPrices extends ElecBase {
                 })}</tbody></table></div>`}
         </div>
         <div class="col">
-          <div class="card" data-card="vat"><div class="hd"><b class="h3">שיעור מע״מ</b><span class="sp"></span>${edit ? html`<button type="button" class="btn sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>+ שיעור חדש</button>` : nothing}</div>
+          <div class="card" data-card="vat"><div class="hd"><b class="h3">שיעור מע״מ</b><span class="sp"></span>${edit ? html`<sw-button size="sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>+ שיעור חדש</sw-button>` : nothing}</div>
             ${cur ? html`<div class="row" style="align-items:baseline"><span style="font-size:var(--sw-fs-3xl);font-weight:700" data-vat-rate>${n(cur.rate_percent + '%')}</span><span class="mut">מ-${n(fmtDate(cur.effective_from))}</span></div>` : html`<div class="mut">לא הוגדר</div>`}
             ${vh.slice(1).map((v, i) => html`<div class="ver" style="margin-block-start:8px"><span class="num">${v.rate_percent}%</span><span>עד ${n(fmtDate(addDays(vh[i].effective_from, -1)))}</span></div>`)}</div>
           <div class="card" data-card="mode"><div class="hd"><b class="h3">ברירת מחדל להזנת מחיר</b></div><div class="list" role="radiogroup" aria-label="ברירת מחדל להזנת מחיר">
@@ -247,8 +248,8 @@ export class ElecSettingsPrices extends ElecBase {
         ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">גרסאות</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver" data-version=${v.id} aria-current=${this.tVer?.id === v.id ? 'true' : 'false'}><span class="num">${v.definition ? 'לפי שעות' : `${f4(v.price ?? 0)} ₪`}</span><span>${v.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'} · מ-${n(fmtDate(v.effective_from))}</span>${energyAccess().manage ? html`<button type="button" class="btn ghost sm" data-version-edit=${v.id} aria-label="תיקון המחיר" @click=${() => this.editVersion(v)}>תיקון</button>` : nothing}</div>`)}</div>` : nothing}
         ${this.tPlan ? alertBox('warn', this.planText(this.tPlan)) : nothing}
         ${this.error ? alertBox('err', this.error) : nothing}
-        <button slot="actions" type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>${this.tPlan ? 'אישור והחלפה' : this.tVer ? 'שמירת תיקון' : 'שמירה'}</button>
-        <button slot="actions" type="button" class="btn" @click=${() => (this.tOpen = false)}>ביטול</button>
+        <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>${this.tPlan ? 'אישור והחלפה' : this.tVer ? 'שמירת תיקון' : 'שמירה'}</sw-button>
+        <sw-button slot="actions" @click=${() => (this.tOpen = false)}>ביטול</sw-button>
       </elec-dialog>
       <elec-dialog heading="שיעור מע״מ חדש" ?open=${this.vOpen} data-dialog="vat" @close=${() => (this.vOpen = false)}>
         <div class="form">
@@ -256,8 +257,8 @@ export class ElecSettingsPrices extends ElecBase {
           <div class="fld"><label for="vf">בתוקף מתאריך</label><input id="vf" type="date" lang=${dateInputLang()} class="ltr ${this.vErr.effective_from ? 'err' : ''}" data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert">${this.vErr.effective_from}</div>` : nothing}</div>
         </div>
         ${this.error ? alertBox('err', this.error) : nothing}
-        <button slot="actions" type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.saveVat()}>שמירה</button>
-        <button slot="actions" type="button" class="btn" @click=${() => (this.vOpen = false)}>ביטול</button>
+        <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveVat()}>שמירה</sw-button>
+        <sw-button slot="actions" @click=${() => (this.vOpen = false)}>ביטול</sw-button>
       </elec-dialog>
     </div>`;
   }
@@ -390,7 +391,7 @@ export class ElecSettingsBusiness extends ElecBase {
         <div class="fld wide"><span class="lbl">לוגו</span><div class="row">
           <div class="chip c-mut nodot" style="inline-size:96px;block-size:96px;padding:0;justify-content:center;border-radius:var(--sw-r-lg);overflow:hidden" data-logo>${logoSrc ? html`<img src=${logoSrc} alt="לוגו" style="max-inline-size:100%;max-block-size:100%" />` : html`<span class="mut">אין לוגו</span>`}</div>
           <div><label class="btn" style="cursor:pointer">${s.logo ? 'החלפה' : 'העלאת לוגו'}<input type="file" accept="image/png,image/jpeg" data-logo-input style="position:absolute;inline-size:1px;block-size:1px;opacity:0" @change=${(e: Event) => void this.logo((e.target as HTMLInputElement).files?.[0])} /></label>
-            ${s.logo ? html` <button type="button" class="btn ghost" data-logo-remove @click=${() => void this.removeLogo()}>הסרה</button>` : nothing}<div class="mut" style="margin-block-start:6px">PNG או JPEG, עד 1MB</div></div></div></div>
+            ${s.logo ? html` <sw-button variant="ghost" data-logo-remove @click=${() => void this.removeLogo()}>הסרה</sw-button>` : nothing}<div class="mut" style="margin-block-start:6px">PNG או JPEG, עד 1MB</div></div></div></div>
         ${this.fld('name', 'שם העסק', { wide: true })}${this.fld('registration_no', 'ח.פ. / ע.מ.', { ltr: true })}${this.fld('phone', 'טלפון', { ltr: true })}${this.fld('address', 'כתובת', { wide: true })}${this.fld('email', 'דוא״ל', { ltr: true })}
         <div class="fld"><span class="lbl" id="acc">צבע המותג</span><div class="row" role="group" aria-labelledby="acc" data-accent>
           ${swatches.map((c) => html`<button type="button" class="tok swatch" data-swatch=${c} aria-label=${`צבע ${c}`} aria-pressed=${this.biz.accent_color.toLowerCase() === c} style="background:${c};border:2px solid ${this.biz.accent_color.toLowerCase() === c ? 'var(--sw-text)' : 'transparent'}" @click=${() => (this.biz = { ...this.biz, accent_color: c })}></button>`)}
@@ -406,7 +407,7 @@ export class ElecSettingsBusiness extends ElecBase {
         <div class="fld wide"><label for="dl">יצירת טיוטה אוטומטית</label><div class="unit"><input id="dl" class="ltr ${this.errs.delay_hours ? 'err' : ''}" data-delay type="number" min="0" max="72" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => { this.delay = (e.target as HTMLInputElement).value; this.errs = { ...this.errs, delay_hours: '' }; }} /><span>שעות אחרי סוף התקופה</span></div>${this.errs.delay_hours ? html`<div class="msg" role="alert" data-field-error="delay_hours">${this.errs.delay_hours}</div>` : nothing}</div>
       </div></fieldset>
       ${this.error ? alertBox('err', this.error) : nothing}${this.ok ? alertBox('ok', 'ההגדרות נשמרו') : nothing}
-      ${edit ? html`<div class="row" style="margin-block-start:14px"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</button></div>` : nothing}</div>
+      ${edit ? html`<div class="row" style="margin-block-start:14px"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button></div>` : nothing}</div>
       <div class="card"><div class="hd"><b class="h3">תצוגה מקדימה</b></div><div style="overflow:hidden;max-block-size:320px;border-radius:var(--sw-r-sm)" data-preview><elec-bill-paper .snapshot=${sample(this.biz, t, !!s.logo)} .logo=${logoSrc} hash=""></elec-bill-paper></div></div></div>
     </div>`;
   }

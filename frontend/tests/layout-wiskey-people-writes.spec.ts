@@ -3,6 +3,7 @@ import { summarize, type Finding } from './layout-guard';
 import { install, newMock } from './wiskey-people-mock';
 import { installWrites, newWrites } from './wiskey-writes-mock';
 import { skinsUnderTest } from './helpers/frozen-skins';
+import { pickOption } from './helpers/wk-choose';
 
 // CR-036 S11: the layout guard over the person WRITES of the native people screen - the actions dialog (the menu, a question with a
 // reason, a result, the cards with a removal question and the add form, the photo), the result line under the person's page header,
@@ -180,7 +181,7 @@ test.describe('layout guard: the person writes', () => {
         // a visitor's temporary cancel: the reason
         await openActions('p8');
         await page.locator(`${ACTIONS} [data-person-action="temporary_cancel"]`).click();
-        await expect(page.locator(`${ACTIONS} select[data-action-reason]`)).toBeVisible();
+        await expect(page.locator(`${ACTIONS} [data-action-reason]`)).toBeVisible();
         await layerCheck(page, results, `${ctx} reason`, ACTIONS);
         await ownTargets(page, results, `${ctx} reason`);
         await leave();
@@ -189,8 +190,8 @@ test.describe('layout guard: the person writes', () => {
         await page.locator(`${SCREEN} [data-person-row="p2"]`).click();
         await page.locator('wiskey-person-drawer [data-wiskey-person-edit]').click();
         await expect(page.locator('wiskey-person-editor [data-wiskey-editor-name]')).toBeVisible({ timeout: 15_000 });
-        await page.locator('wiskey-person-editor [data-wiskey-editor-category]').selectOption('contractor');
-        await page.locator('wiskey-person-editor [data-wiskey-editor-timing-select]').selectOption('weekly');
+        await pickOption(page.locator('wiskey-person-editor [data-wiskey-editor-category]'), 'contractor');
+        await pickOption(page.locator('wiskey-person-editor [data-wiskey-editor-timing-select]'), 'weekly');
         await page.locator('wiskey-person-editor [data-timing-add-period]').click();
         await page.locator('wiskey-person-editor [data-wiskey-editor-section="timing"]').scrollIntoViewIfNeeded();
         await layerCheck(page, results, `${ctx} editor timing`, 'wiskey-person-editor');

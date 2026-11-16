@@ -15,6 +15,10 @@ import { tallDesktop } from './helpers/tall-desktop';
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/tickets-s6');
 const B = 'sw-app tickets-board';
 const isPhone = (p: Page) => (p.viewportSize()?.width ?? 1440) < 768;
+/** AUDIT30-C-TICKETS (#9, Q14 option 1): on a phone the state strip lives in the "סינון" sheet - open it first */
+async function openStrip(p: Page) {
+  if (isPhone(p) && !(await p.locator(`${B} [data-filter-panel]`).count())) await p.locator(`${B} [data-filter-toggle]`).click();
+}
 
 async function go(page: Page, hash: string, o: BoardMockOptions = {}, scheme: 'light' | 'dark' = 'light', skin = 'classic'): Promise<BoardMock> {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -52,6 +56,7 @@ test.describe('tickets board evidence', () => {
     await expect(page.locator(`${B} [data-section="handling"] ticket-card`)).toHaveCount(4);
     await expect(page.locator(`${B} [data-section="handling"] [data-assignee]`)).toHaveCount(3);
     await expect(page.locator(`${B} [data-section="closed"] ticket-card`)).toHaveCount(0); // collapsed
+    await openStrip(page);
     await expect(page.locator(`${B} [data-state-strip] [data-state="all"] small`)).toHaveText('9');
     await expect(page.locator(`${B} [data-state-strip] [data-state="closed"]`)).toContainText('סגורות (הכול)');
     await expect(page.locator(`${B} [data-stuck-banner]`)).toContainText('2 תקועות');
@@ -80,6 +85,7 @@ test.describe('tickets board evidence', () => {
     await expect(page.locator(`${B} [data-section]`)).toHaveCount(0);
     expect(mock.calls.some((c) => c.path.startsWith('tickets/board?state=stuck'))).toBe(true);
     await shot(page, 'board-stuck');
+    await openStrip(page);
     await page.locator(`${B} [data-state="closed"]`).click();
     await expect(page.locator(`${B} [data-cards="flat"] ticket-card`)).toHaveCount(3);
   });
@@ -92,6 +98,7 @@ test.describe('tickets board evidence', () => {
     }
     await expect(page.locator(`${B} ticket-board-tree`)).toHaveCount(0);
     await expect(page.locator(`${B} [data-tree-toggle]`)).toHaveCount(0); // the tree is fully off for the installation
+    await openStrip(page);
     await expect(page.locator(`${B} [data-state-strip] [data-state="closed"]`)).toContainText('נסגרו השבוע');
     await expect(page.locator(`${B} [data-cards="flat"]`)).toHaveCount(1);
     await page.locator(`${B} [data-floor-chips] [data-place="floor:f1"]`).click();
@@ -162,7 +169,7 @@ test.describe('tickets board evidence', () => {
   test('a rename reaches the board (D33)', async ({ page }) => {
     await go(page, '/tickets/board', { name: { one: 'פנייה', many: 'פניות', gender: 'f' } });
     await page.waitForSelector(`${B} ticket-card`);
-    await expect(page.locator(`${B} [data-tickets-title]`)).toHaveText('פניות');
+    await expect(page.locator(`${B} [data-tickets-title]`)).toHaveAttribute('heading', 'פניות'); // AUDIT30-C-TICKETS (#6): the title is sw-page's
     const text = await page.locator(B).evaluate((el) => (el.shadowRoot?.textContent ?? '') + document.body.innerText);
     expect(text).not.toMatch(/קריא(ה|ות)/);
   });

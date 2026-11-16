@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -185,9 +187,9 @@ export class SwWiskeyRelayMap extends LitElement {
           const current = d[r.api_relay] ?? null;
           return html`<label data-relay-map-row=${r.api_relay}>
             <span>ממסר API ${r.api_relay}</span>
-            <select aria-label=${`${s.name}: ממסר API ${r.api_relay}`} ?disabled=${!editable || this.busy} @change=${(e: Event) => this.pick(s, r.api_relay, (e.target as HTMLSelectElement).value)}>
-              ${choices.map((o) => html`<option value=${o.value} ?selected=${o.value === (current === null ? OFF : String(current))}>${o.label}</option>`)}
-            </select>
+            <sw-dropdown label=${`${s.name}: ממסר API ${r.api_relay}`} data-relay-map-pick=${r.api_relay} .value=${current === null ? OFF : String(current)}
+              .items=${choices.map((o) => ({ id: o.value, label: o.label }))} ?inert=${!editable || this.busy} aria-disabled=${(!editable || this.busy) ? 'true' : nothing} style=${(!editable || this.busy) ? 'opacity: var(--sw-disabled-opacity)' : ''}
+              @change=${(e: CustomEvent<DropdownChange>) => this.pick(s, r.api_relay, e.detail.id)}></sw-dropdown>
           </label>`;
         })}
       </div>

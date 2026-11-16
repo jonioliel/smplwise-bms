@@ -6,6 +6,9 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import '../components/sw-dropdown';
+import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
+import type { IconName } from '../components/sw-icon';
 import '../components/sw-avatar';
 import '../components/wk-deep-links';
 import './wiskey-person-editor';
@@ -808,14 +811,14 @@ export class WiskeyPeople extends LitElement {
     </div>`;
   }
 
-  private selectChip(name: string, label: string, value: string, options: [string, string][], on: (v: string) => void): TemplateResult {
-    return html`<label class="fchip${value ? ' on' : ''}" data-people-chip=${name}>
-      <span class="k">${label}</span>
-      <select name=${name} data-wiskey-people-filter=${name} aria-label=${label} .value=${value} ?disabled=${!isApi()} @change=${(e: Event) => on((e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${!value}>${pt('filter.any')}</option>
-        ${options.map(([v, l]) => html`<option value=${v} ?selected=${v === value}>${l}</option>`)}
-      </select>
-    </label>`;
+  /** AUDIT30-H (finding 16): every filter is the shared <sw-dropdown> (an opaque listbox, 44 px options, keys, a search field from
+   * 8 options) instead of a native <select> styled inside a pill - the same control as the activity screen's filters. The "any"
+   * option names its filter ("קבוצה: הכול") so a row of untouched filters still says which is which; `icon` tells them apart once
+   * one is chosen. `any: false` = a list with no "any" choice (the sort). */
+  private selectChip(name: string, label: string, value: string, options: [string, string][], on: (v: string) => void, icon: IconName, any = true): TemplateResult {
+    const items: DropdownItem[] = [...(any ? [{ id: '', label: `${label}: ${pt('filter.any')}` }] : []), ...options.map(([id, l]) => ({ id, label: l }))];
+    return html`<sw-dropdown tall data-people-chip=${name} data-wiskey-people-filter=${name} label=${label} icon=${icon}
+      .items=${items} .value=${value} ?inert=${!isApi()} aria-disabled=${isApi() ? nothing : 'true'} @change=${(e: CustomEvent<DropdownChange>) => on(e.detail.id)}></sw-dropdown>`;
   }
 
   private renderFilters(): TemplateResult {
@@ -826,32 +829,28 @@ export class WiskeyPeople extends LitElement {
     const sorts = SORTS.filter((s) => s !== 'employee' || this.employeeNoVisible);
     const sortValue = f.sort ?? this.page?.sort ?? (this.employeeNoVisible ? 'employee' : 'name');
     return html`<div class="filters" role="group" aria-label=${pt('filter.bar')} data-people-filters>
-      ${this.groups.length ? this.selectChip('group', pt('filter.group'), f.group ?? '', this.groups.filter((g) => g.enabled).map((g): [string, string] => [g.id, g.label]), (v) => this.setFilter('group', v)) : nothing}
-      ${this.stations.length ? this.selectChip('station', pt('filter.station'), f.station ?? '', this.stations.map((s): [string, string] => [s.id, s.name]), (v) => this.setFilter('station', v)) : nothing}
-      ${this.selectChip('state', pt('filter.state'), f.state ?? '', STATES.map((s): [string, string] => [s, pt(`state.${s}`)]), (v) => this.setFilter('state', v))}
-      ${this.selectChip('rights', pt('filter.rights'), f.rights ?? '', RIGHTS.map((r): [string, string] => [r, pt(`rights.${r}`)]), (v) => this.setFilter('rights', v))}
-      ${sensitive ? this.selectChip('credential', pt('filter.credential'), f.credential ?? '', CREDENTIALS.map((c): [string, string] => [c, pt(`credential.${c}`)]), (v) => this.setFilter('credential', v)) : nothing}
+      ${this.groups.length ? this.selectChip('group', pt('filter.group'), f.group ?? '', this.groups.filter((g) => g.enabled).map((g): [string, string] => [g.id, g.label]), (v) => this.setFilter('group', v), 'users') : nothing}
+      ${this.stations.length ? this.selectChip('station', pt('filter.station'), f.station ?? '', this.stations.map((s): [string, string] => [s.id, s.name]), (v) => this.setFilter('station', v), 'door') : nothing}
+      ${this.selectChip('state', pt('filter.state'), f.state ?? '', STATES.map((s): [string, string] => [s, pt(`state.${s}`)]), (v) => this.setFilter('state', v), 'check')}
+      ${this.selectChip('rights', pt('filter.rights'), f.rights ?? '', RIGHTS.map((r): [string, string] => [r, pt(`rights.${r}`)]), (v) => this.setFilter('rights', v), 'shield')}
+      ${sensitive ? this.selectChip('credential', pt('filter.credential'), f.credential ?? '', CREDENTIALS.map((c): [string, string] => [c, pt(`credential.${c}`)]), (v) => this.setFilter('credential', v), 'lock') : nothing}
       ${sensitive && profileFields.length
         ? html`${Object.entries(f.profile ?? {}).map(([k, v]) => html`<button type="button" class="fchip on" data-people-profile-clear=${k} @click=${() => { this.filters = setProfileFilter(this.filters, k, ''); this.restart(); }}><span class="k">${profileFields.find((x) => x.id === k)?.label ?? k}</span><span class="v">${v}</span><sw-icon name="close" size=${12}></sw-icon></button>`)}
-          <label class="fchip" data-people-chip="profile"><span class="k">${pt('filter.profile')}</span>
-            <select data-people-profile-field aria-label=${pt('filter.profile')} .value=${this.profileDraft.field} @change=${(e: Event) => (this.profileDraft = { field: (e.target as HTMLSelectElement).value, value: '' })}>
-              <option value="">${pt('filter.any')}</option>${profileFields.map((x) => html`<option value=${x.id} ?selected=${x.id === this.profileDraft.field}>${x.label}</option>`)}
-            </select></label>
+          <sw-dropdown tall data-people-chip="profile" data-people-profile-field label=${pt('filter.profile')} icon="list"
+            .items=${[{ id: '', label: `${pt('filter.profile')}: ${pt('filter.any')}` }, ...profileFields.map((x): DropdownItem => ({ id: x.id, label: x.label }))]}
+            .value=${this.profileDraft.field} @change=${(e: CustomEvent<DropdownChange>) => (this.profileDraft = { field: e.detail.id, value: '' })}></sw-dropdown>
           ${draftField
             ? html`<label class="fchip on" data-people-chip="profile-value"><span class="k">${pt('filter.profile_value')}</span>
                 ${draftField.type === 'select' && draftField.options.length
-                  ? html`<select data-people-profile-value aria-label=${pt('filter.profile_value')} .value=${this.profileDraft.value} @change=${(e: Event) => { this.profileDraft = { ...this.profileDraft, value: (e.target as HTMLSelectElement).value }; this.applyProfile(); }}>
-                      <option value="">${pt('filter.any')}</option>${draftField.options.map((o) => html`<option value=${o}>${o}</option>`)}
-                    </select>`
+                  ? html`<sw-dropdown tall data-people-profile-value label=${pt('filter.profile_value')}
+                      .items=${[{ id: '', label: pt('filter.any') }, ...draftField.options.map((o): DropdownItem => ({ id: o, label: o }))]}
+                      .value=${this.profileDraft.value} @change=${(e: CustomEvent<DropdownChange>) => { this.profileDraft = { ...this.profileDraft, value: e.detail.id }; this.applyProfile(); }}></sw-dropdown>`
                   : html`<input data-people-profile-value type="text" maxlength="100" aria-label=${pt('filter.profile_value')} .value=${this.profileDraft.value}
                       @input=${(e: Event) => (this.profileDraft = { ...this.profileDraft, value: (e.target as HTMLInputElement).value })} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.applyProfile()} @change=${() => this.applyProfile()} />`}
               </label>`
             : nothing}`
         : nothing}
-      <label class="fchip" data-people-chip="sort"><span class="k">${pt('filter.sort')}</span>
-        <select name="sort" data-wiskey-people-filter="sort" aria-label=${pt('filter.sort')} .value=${sortValue} @change=${(e: Event) => this.setFilter('sort', (e.target as HTMLSelectElement).value)}>
-          ${sorts.map((s) => html`<option value=${s} ?selected=${s === sortValue}>${pt(`sort.${s}`)}</option>`)}
-        </select></label>
+      ${this.selectChip('sort', pt('filter.sort'), sortValue, sorts.map((s): [string, string] => [s, pt(`sort.${s}`)]), (v) => this.setFilter('sort', v), 'list', false)}
       ${filterCount(this.query, this.filters) > 0 ? html`<button type="button" class="clear" data-wiskey-people-clear @click=${() => this.clearAll()}>${pt('action.clear')}</button>` : nothing}
     </div>`;
   }
@@ -1104,7 +1103,6 @@ export class WiskeyPeople extends LitElement {
       font-size: var(--sw-fs-md);
     }
     .search input:focus-visible,
-    .fchip select:focus-visible,
     .fchip input:focus-visible,
     .seg button:focus-visible,
     .cbx:focus-visible,
@@ -1176,7 +1174,6 @@ export class WiskeyPeople extends LitElement {
     .fchip.on .k {
       color: inherit;
     }
-    .fchip select,
     .fchip input {
       min-block-size: 44px;
       max-inline-size: 11rem;
@@ -1660,7 +1657,9 @@ export class WiskeyPeople extends LitElement {
         padding-block-end: 4px;
         scrollbar-width: none;
       }
-      .fchip {
+      .fchip,
+      .filters > sw-dropdown {
+        /* AUDIT30-H: the filter dropdowns keep their width in the one scrolling line (they shrank to a letter column) */
         flex-shrink: 0;
       }
     }

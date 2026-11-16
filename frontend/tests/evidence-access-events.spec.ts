@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installAccessMock, NOW, SKINS, url, type AccessMock, type MockOptions } from './access-control-mocks';
 import { settlePage } from './pixel-settle';
+import { pickOption } from './helpers/wk-choose';
 
 // CR-036 S8: the native entry log ("פעילות", #/wiskey/events) against the mocked backend (tests/access-control-mocks.ts: the wire shapes of the
 // typed reads GET /api/v1/access-control/..., checked against the real endpoints by backend/tests/test_access_control_wire.py). The app runs for
@@ -343,7 +344,7 @@ test.describe('the entry log: behaviour', () => {
     await dialog.locator('[data-ev-export-go]').click();
     await expect(dialog.locator('[data-ev-export-result="station_required"]')).toContainText('יש לבחור תחנה לייצוא');
     await expect(dialog.locator('[data-ev-export-go]')).toHaveAttribute('disabled', ''); // until a station is chosen
-    await dialog.locator('[data-ev-export-station]').selectOption('entry-a');
+    await pickOption(dialog.locator('[data-ev-export-station]'), 'entry-a');
     const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('[data-ev-export-go]').click()]);
     expect(download.suggestedFilename()).toMatch(/^access-events-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(mock.exports.map((e) => e.station_id)).toEqual([undefined, 'entry-a']);

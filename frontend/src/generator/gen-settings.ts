@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-tabs';
 import '../components/sw-dropdown';
@@ -140,17 +141,17 @@ export class GenSettings_ extends LitElement {
     const l = this.list!;
     if (!d) {
       return html`<div class="card" data-detection="none"><div class="det"><div class="ic err"><sw-icon name="close" size="22"></sw-icon></div><div><b>${S.detectionNone}</b><small>${S.detectionNoneBody}${l.last_detect_at ? ` ${fill(S.lastCheck, { t: fmtDateTime(l.last_detect_at) })}` : ''}</small></div>
-        <div class="row"><button class="btn" ?disabled=${this.busy} @click=${() => this.rescan()} data-rescan><sw-icon name="refresh" size="16"></sw-icon> ${S.rescan}</button><button class="btn" @click=${() => this.openPick()} data-manual>${S.manualPick}</button></div></div></div>`;
+        <div class="row"><sw-button icon="refresh" ?disabled=${this.busy} @click=${() => this.rescan()} data-rescan>${S.rescan}</sw-button><sw-button @click=${() => this.openPick()} data-manual>${S.manualPick}</sw-button></div></div></div>`;
     }
     const c = d.capabilities;
     return html`<div class="card" data-detection=${d.core_met ? 'ok' : 'partial'}><div class="det"><div class="ic ${d.core_met ? '' : 'err'}"><sw-icon name=${d.core_met ? 'check' : 'warning'} size="22"></sw-icon></div>
       <div><b>${d.name} · ${d.core_met ? S.detectionOk : S.detectionPartial}</b><small>${fill(S.detectionCounts, { n: c.values, total: c.values_total, m: c.alert_types, mt: c.alert_types_total })}${l.last_detect_at ? ` · ${fill(S.lastCheck, { t: fmtDateTime(l.last_detect_at) })}` : ''}</small></div>
-      <div class="row"><button class="btn sm" ?disabled=${this.busy} @click=${() => this.rescan()} data-rescan><sw-icon name="refresh" size="16"></sw-icon> ${S.rescan}</button><button class="btn sm" @click=${() => this.openPick()} data-manual>${S.manualPick}</button></div></div>
+      <div class="row"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.rescan()} data-rescan>${S.rescan}</sw-button><sw-button size="sm" @click=${() => this.openPick()} data-manual>${S.manualPick}</sw-button></div></div>
       <div class="form" style="margin-block-start:12px">
         <div class="fld"><label for="gname">${S.name}</label><input id="gname" .value=${this.nameEdit} maxlength="80" @input=${(e: Event) => (this.nameEdit = (e.target as HTMLInputElement).value)} /></div>
         <div class="fld"><label for="gkw">${S.rated}</label><input id="gkw" type="number" min="0" .value=${this.ratedEdit} @input=${(e: Event) => (this.ratedEdit = (e.target as HTMLInputElement).value)} /></div>
         <div class="fld"><label for="gkva">${S.ratedKva}</label><input id="gkva" type="number" min="0" .value=${this.ratedKvaEdit} @input=${(e: Event) => (this.ratedKvaEdit = (e.target as HTMLInputElement).value)} /></div>
-        <div class="fld"><label>&nbsp;</label><button class="btn pri" ?disabled=${this.busy || !this.nameEdit.trim()} @click=${() => this.saveMeta()} data-save-meta>${S.save}</button></div></div></div>`;
+        <div class="fld"><label>&nbsp;</label><sw-button variant="primary" ?disabled=${this.busy || !this.nameEdit.trim()} @click=${() => this.saveMeta()} data-save-meta>${S.save}</sw-button></div></div></div>`;
   }
   private async rescan() {
     await this.run(async () => {
@@ -183,7 +184,7 @@ export class GenSettings_ extends LitElement {
     return html`<div class="card" data-manual-list><div class="hd"><span class="h3">${S.manualPick}</span></div>
       <input type="search" placeholder=${S.manualSearch} .value=${this.candQ} @input=${(e: Event) => { this.candQ = (e.target as HTMLInputElement).value; void this.searchCands(); }} />
       <div class="list" style="flex-direction:column;margin-block-start:8px;max-block-size:300px;overflow:auto">${this.cands.length ? this.cands.map((c) => html`<div class="li"><div class="grow"><div class="t1">${c.name}</div><div class="t2">${fill(S.manualRoles, { n: c.mapped_roles })}</div></div>
-        <button class="btn sm" ?disabled=${c.registered || this.busy} @click=${() => this.run(async () => { const g = await addDevice(c.ha_device_id); this.picking = false; await this.load(); this.go(this.sub(), g.id); })}>${c.registered ? S.manualRegistered : S.manualAdd}</button></div>`) : html`<div class="mut">${S.manualNone}</div>`}</div></div>`;
+        <sw-button size="sm" ?disabled=${c.registered || this.busy} @click=${() => this.run(async () => { const g = await addDevice(c.ha_device_id); this.picking = false; await this.load(); this.go(this.sub(), g.id); })}>${c.registered ? S.manualRegistered : S.manualAdd}</sw-button></div>`) : html`<div class="mut">${S.manualNone}</div>`}</div></div>`;
   }
 
   private mapping() {
@@ -199,7 +200,7 @@ export class GenSettings_ extends LitElement {
             <option value="" ?selected=${!cur}>${r.mapped ? S.mapClear : S.mapNone}</option>${opts.map((o) => html`<option value=${o.entity_id} ?selected=${o.entity_id === cur}>${o.name}${o.unit ? ` (${o.unit})` : ''}</option>`)}</select>
           <span class="chip c-${r.mapped ? (r.mapped_by === 'manual' ? 'acc' : 'ok') : 'mut'} nodot">${r.mapped ? (r.mapped_by === 'manual' ? S.mapManual : S.mapAuto) : S.mapNone}</span></div>`;
       })}</div>
-      <div class="row"><button class="btn pri" ?disabled=${this.busy || !dirty} @click=${() => this.run(async () => { this.device = await putRoles(this.device!.id, this.roleEdits); this.roleEdits = {}; await this.loadRoles(); })} data-save-mapping>${S.save}</button></div></div>`;
+      <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !dirty} @click=${() => this.run(async () => { this.device = await putRoles(this.device!.id, this.roleEdits); this.roleEdits = {}; await this.loadRoles(); })} data-save-mapping>${S.save}</sw-button></div></div>`;
   }
 
   private thresholds() {
@@ -211,12 +212,12 @@ export class GenSettings_ extends LitElement {
       <div class="th-grid">${keys.map((k) => { const lim = s.threshold_limits[k] ?? [0, 1e6]; return html`<div class="fld"><label for=${`th-${k}`}>${(S.th as Record<string, string>)[k] ?? k}</label>
         <input id=${`th-${k}`} type="number" step="any" min=${lim[0]} max=${lim[1]} .value=${val(k)} @input=${(e: Event) => (this.thEdits = { ...this.thEdits, [k]: (e.target as HTMLInputElement).value })} />
         <span class="mut">${fill(S.thDefault, { n: s.threshold_defaults[k] })}</span></div>`; })}</div>
-      <div class="row"><button class="btn pri" ?disabled=${this.busy || !Object.keys(this.thEdits).length || !this.device} @click=${() => this.run(async () => {
+      <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.thEdits).length || !this.device} @click=${() => this.run(async () => {
         const body: Record<string, number> = {};
         for (const k of keys) { const v = Number(val(k)); if (Number.isFinite(v) && v !== s.threshold_defaults[k]) body[k] = v; }
         this.device = await updateDevice(this.device!.id, { thresholds: body });
         this.thEdits = {};
-      })} data-save-thresholds>${S.save}</button></div></div>`;
+      })} data-save-thresholds>${S.save}</sw-button></div></div>`;
   }
 
   private retention() {
@@ -224,12 +225,12 @@ export class GenSettings_ extends LitElement {
     const rows: [string, string, number][] = [['alert_retention_days', S.retAlerts, s.alert_retention_days], ['history_retention_days', S.retHistory, s.history_retention_days], ['stale_after_s', S.retStale, s.stale_after_s]];
     return html`<div class="col" data-section="retention"><div class="mut">${fill(S.retInfo, { a: s.alert_retention_days, h: s.history_retention_days })}</div>
       <div class="th-grid">${rows.map(([k, label, cur]) => { const lim = s.limits[k] ?? [0, 1e6]; return html`<div class="fld"><label for=${`rt-${k}`}>${label}</label><input id=${`rt-${k}`} type="number" min=${lim[0]} max=${lim[1]} .value=${k in this.retEdits ? this.retEdits[k] : String(cur)} @input=${(e: Event) => (this.retEdits = { ...this.retEdits, [k]: (e.target as HTMLInputElement).value })} /></div>`; })}</div>
-      <div class="row"><button class="btn pri" ?disabled=${this.busy || !Object.keys(this.retEdits).length} @click=${() => this.run(async () => {
+      <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.retEdits).length} @click=${() => this.run(async () => {
         const body: Record<string, number> = {};
         for (const [k, v] of Object.entries(this.retEdits)) body[k] = Number(v);
         this.settings = await putSettings(body);
         this.retEdits = {};
-      })} data-save-retention>${S.save}</button></div></div>`;
+      })} data-save-retention>${S.save}</sw-button></div></div>`;
   }
 
   /** GENLOG092-295: the run log - its page switch (default off) and every threshold and window (installation-wide, not per generator). */
@@ -247,7 +248,7 @@ export class GenSettings_ extends LitElement {
           <input id=${`lg-${k}`} type="number" step=${sp.type === 'float' ? '0.5' : '1'} min=${sp.min ?? ''} max=${sp.max ?? ''} .value=${String(val(k) ?? '')} data-log-set=${k}
             @input=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: (e.target as HTMLInputElement).value })} />
           <span class="mut">${fill(S.thDefault, { n: String(sp.default) })}</span></div>`)}</div>
-      <div class="row"><button class="btn pri" ?disabled=${this.busy || !Object.keys(this.logEdits).length} data-save-log @click=${() => this.run(async () => {
+      <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.logEdits).length} data-save-log @click=${() => this.run(async () => {
         const log: Record<string, number | boolean> = {};
         for (const [k, v] of Object.entries(this.logEdits)) {
           if (k === 'log_enabled') continue;
@@ -255,7 +256,7 @@ export class GenSettings_ extends LitElement {
         }
         this.settings = await putSettings({ ...('log_enabled' in this.logEdits ? { log_enabled: Boolean(this.logEdits.log_enabled) } : {}), ...(Object.keys(log).length ? { log } : {}) });
         this.logEdits = {};
-      })}>${S.save}</button></div></div>`;
+      })}>${S.save}</sw-button></div></div>`;
   }
 
   render() {

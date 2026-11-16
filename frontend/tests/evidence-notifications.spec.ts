@@ -463,9 +463,12 @@ async function openSettings(page: Page, sc: Scenario = {}) {
   await open(page, '/system/notifications');
   await expect(sys(page).locator('[data-notify-settings]')).toBeVisible();
 }
-async function scrollTo(page: Page, id: string) {
-  await sec(page, id).evaluate((el) => el.scrollIntoView({ block: 'start' }));
-  await page.waitForTimeout(250);
+// AUDIT30-I6: the sections are underline tabs (sw-tabs) at every width; one section is shown at a time
+const TAB_LABEL: Record<string, string> = { sources: 'מקורות והרשאות – מה נשלח', quiet: 'שעות שקט ומה עובר', esc: 'הסלמה', lock: 'פרטיות מסך נעול', keep: 'שמירה', mail: 'דואר יוצא', wa: 'וואטסאפ', chan: 'ערוצים', log: 'יומן מסירה וכשלים' };
+const tabs = (page: Page) => sys(page).locator('[data-set-tabs] [role="tab"]');
+async function tab(page: Page, id: string) {
+  await sys(page).locator('[data-set-tabs]').getByRole('tab', { name: TAB_LABEL[id], exact: true }).click();
+  await expect(sys(page).locator('[data-set-panel]')).toHaveAttribute('data-set-panel', id);
 }
 
 test.describe('הגדרות › התראות (notify.manage)', () => {
@@ -473,11 +476,12 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await openSettings(page);
     await expect(sys(page).locator('[data-set-state="ready"]')).toBeVisible();
     await expect(page.locator('sw-app .subnav sw-tabs [aria-current="page"]')).toHaveText('התראות');
+    // AUDIT30-I6: the nine sections are underline tabs in this order (NOTIFWA: the WhatsApp tab after the mail); one section at a time
+    expect(await tabs(page).evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()))).toEqual([
+      'מקורות והרשאות – מה נשלח', 'שעות שקט ומה עובר', 'הסלמה', 'פרטיות מסך נעול', 'שמירה', 'דואר יוצא', 'וואטסאפ', 'ערוצים', 'יומן מסירה וכשלים',
+    ]);
+    expect(await sys(page).locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources']);
     if (!narrow(page, info)) {
-      expect(await sys(page).locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources', 'quiet', 'quiet-windows', 'esc', 'lock', 'keep', 'mail', 'wa', 'chan', 'log']); // NOTIFWA: the WhatsApp section after the mail; release/2380-train: the quiet-window card is its own glass section right under the quiet hours (same nav entry)
-      expect(await sys(page).locator('[data-set-nav]').evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()))).toEqual([
-        'מקורות והרשאות – מה נשלח', 'שעות שקט ומה עובר', 'הסלמה', 'פרטיות מסך נעול', 'שמירה', 'דואר יוצא', 'וואטסאפ', 'ערוצים', 'יומן מסירה וכשלים',
-      ]);
       await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28); // every source of CR §5
       await expect(sys(page).locator('[data-pol-count]')).toHaveText('24 מתוך 28 פעילים'); // the rule-only sources and alarm.state are off by default
     }
@@ -490,15 +494,15 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     if (!narrow(page, info)) {
       await sys(page).evaluate((el) => el.setAttribute('data-devices-scheme', 'dark'));
       await shot(page, 'settings-1440-dark');
-      await scrollTo(page, 'quiet');
+      await tab(page, 'quiet');
       await shot(page, 'settings-scroll-quiet-esc-1440-dark');
-      await scrollTo(page, 'lock');
+      await tab(page, 'lock');
       await shot(page, 'settings-lock-1440-dark');
       await sys(page).evaluate((el) => el.setAttribute('data-devices-scheme', 'light'));
-      await scrollTo(page, 'mail');
+      await tab(page, 'mail');
       await shot(page, 'settings-scroll-mail-log-1440-light');
       await page.setViewportSize({ width: 820, height: 1180 }); // below 1100 px: the compact form, one section at a time
-      await sys(page).locator('[data-set-nav="sources"]').click();
+      await tab(page, 'sources');
       await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28);
       await shot(page, 'settings-820-light');
     }
@@ -506,7 +510,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
 
   test('NOTIFWA: the WhatsApp section - off by default, the switch, the cap, the no-repeat window, the own-number test; the source chip and the quiet column', async ({ page }, info) => {
     await openSettings(page);
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="wa"]').click();
+    await tab(page, 'wa');
     const wa = sys(page).locator('notify-whatsapp-section [data-wa-section]');
     await expect(wa).toHaveAttribute('data-wa-phase', 'ready');
     await expect(wa).toHaveAttribute('data-wa-enabled', 'false'); // the master switch is OFF by default
@@ -536,16 +540,18 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await sys(page).evaluate((el) => el.setAttribute('data-devices-scheme', 'light'));
     if (!narrow(page, info)) {
       // the per-source chip is a real switch now, and the quiet-hours matrix has a WhatsApp column (critical passes by default)
+      await tab(page, 'sources');
       const chip = sys(page).locator('[data-pol-ch="sensor.leak:whatsapp"]');
       await expect(chip).toHaveAttribute('aria-pressed', 'false');
       await chip.click();
       await expect.poll(() => mockState(page, (m) => m.policyRows.find((p) => p.source === 'sensor.leak')!.channels.whatsapp)).toBe(true);
+      await tab(page, 'quiet');
       await expect(sec(page, 'quiet').locator('[data-pass="critical:whatsapp"]')).toHaveAttribute('aria-checked', 'true');
       await expect(sec(page, 'quiet').locator('[data-pass="alert:whatsapp"]')).toHaveAttribute('aria-checked', 'false');
       await expect(sys(page)).not.toContainText('WhatsApp – בקרוב');
     }
     // review F1 / F2: the administrator's OWN row - not opted in by default; the confirm is the user's own act
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="chan"]').click();
+    await tab(page, 'chan');
     const mine = sys(page).locator('notify-whatsapp-mine [data-wa-mine]');
     await expect(mine).toHaveAttribute('data-wa-mine-state', 'off');
     await expect(mine.locator('[data-wa-mine-number]')).toHaveText('····0191');
@@ -595,25 +601,25 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(sys(page).locator('[data-pol-row="sensor.leak"] [data-pol-on]')).toHaveAttribute('aria-checked', 'false');
   });
 
-  test('the phone shows one card per source and one section at a time', async ({ page }, info) => {
-    test.skip(!narrow(page, info), 'the phone form');
+  test('AUDIT30-I6 (#18): one section at a time at every width, chosen by the underline tabs (was one 6,699 px page on a desktop)', async ({ page }, info) => {
     await openSettings(page);
     await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28);
     expect(await sys(page).locator('[data-set-section]').count()).toBe(1);
-    await expect(sys(page).locator('[data-set-nav="sources"]')).toHaveAttribute('aria-current', 'true');
+    await expect(sys(page).locator('[data-set-tabs]')).toHaveAttribute('data-variant', 'underline');
+    await expect(tabs(page).and(page.locator('[aria-selected="true"]'))).toHaveText(TAB_LABEL.sources);
     for (const [id, name] of [['quiet', 'sec-quiet'], ['esc', 'sec-esc'], ['lock', 'sec-lock'], ['mail', 'sec-mail'], ['log', 'sec-log']]) {
-      await sys(page).locator(`[data-set-nav="${id}"]`).click();
+      await tab(page, id);
       await expect(sys(page).locator(`#${name}`)).toBeVisible();
       // release/2380-train: "שעות שקט" also shows the quiet-window card's section (#sec-quiet-windows) under the quiet hours - one nav entry
       expect(await sys(page).locator('[data-set-section]').count()).toBe(id === 'quiet' ? 2 : 1);
       if (id === 'quiet') await expect(sys(page).locator('#sec-quiet-windows system-quiet-windows')).toBeAttached();
-      await shot(page, `settings-${id}-390-light`);
+      await shot(page, `settings-${id}-${vp(info)}-light`);
     }
   });
 
-  test('quiet hours: switch, times, days, the pass-through matrix; equal times are refused before the server is asked', async ({ page }, info) => {
+  test('quiet hours: switch, times, days, the pass-through matrix; equal times are refused before the server is asked', async ({ page }) => {
     await openSettings(page, { quietNow: true });
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="quiet"]').click();
+    await tab(page, 'quiet');
     const q = sec(page, 'quiet');
     // default: only critical passes on push and mail
     expect(await mockState(page, (m) => [m.wouldSend('critical', 'webpush'), m.wouldSend('alert', 'webpush')])).toEqual([true, false]);
@@ -643,7 +649,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
 
   test('escalation: minutes, steps, whom; the preview follows; named users through the picker', async ({ page }, info) => {
     await openSettings(page);
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="esc"]').click();
+    await tab(page, 'esc');
     const e = sec(page, 'esc');
     await expect(e.locator('[data-esc-min]')).toContainText('5');
     expect(await e.locator('[data-esc-preview] .ev').count()).toBe(4); // first send, 2 steps, the stop
@@ -674,7 +680,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
 
   test('lock-screen privacy: three phone previews built by the push code, the selected one marked; nothing carries a name or an image', async ({ page }, info) => {
     await openSettings(page);
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="lock"]').click();
+    await tab(page, 'lock');
     const l = sec(page, 'lock');
     const text = async (level: string) => (await l.locator(`[data-lock-phone="${level}"]`).innerText()).replace(/\s+/g, ' ');
     if (!narrow(page, info)) {
@@ -706,12 +712,12 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
 
   test('retention, outgoing mail (validation, the write-only password, the test button and its result), the channels and the centre layout', async ({ page }, info) => {
     await openSettings(page);
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="keep"]').click();
+    await tab(page, 'keep');
     await sec(page, 'keep').locator('[data-keep="60"]').click();
     await expect.poll(() => mockState(page, (m) => m.settingsRow.retention_days)).toBe(60);
     await expect(sec(page, 'keep')).toContainText('14');
     // mail
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="mail"]').click();
+    await tab(page, 'mail');
     const m = sec(page, 'mail');
     await expect(m.locator('[data-mail-last]')).toContainText('נבדק 09:12 · תקין');
     await expect(m.locator('[data-mail-host]')).toHaveValue('mail.example.net');
@@ -742,7 +748,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     expect(await mockState(page, (s) => s.settingsRow.email.link_base)).toBe('https://arx.example.net/'); // the link base reached the save
     await shot(page, `settings-mail-${vp(info)}-light`);
     // channels: the center, push, mail, and the two slots that are only slots; the centre layout is a choice here
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="chan"]').click();
+    await tab(page, 'chan');
     const c = sec(page, 'chan');
     await expect(c.locator('[data-channel="inbox"]')).toContainText('פעיל תמיד');
     await expect(c.locator('[data-channel="ha_mobile"]')).toContainText('בקרוב');
@@ -762,7 +768,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
 
   test('the delivery log: the failures panel by channel, the table, "רק כשלים"', async ({ page }, info) => {
     await openSettings(page);
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="log"]').click();
+    await tab(page, 'log');
     const l = sec(page, 'log');
     await expect(l.locator('[data-fail-card="webpush"]')).toContainText('נכשלו');
     await expect(l.locator('[data-fail-card="webpush"] b')).toHaveText('2'); // the last 24 h; the table below reaches back 14 days
@@ -788,6 +794,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     test.skip(narrow(page, info), 'logic is the same on the phone');
     await openSettings(page);
     await mockState(page, (m) => { m.settingsRow.revision += 5; m.settingsRow.retention_days = 90; return 1; });
+    await tab(page, 'keep');
     await sec(page, 'keep').locator('[data-keep="14"]').click();
     await expect(page.locator('sw-app system-notifications [data-set-toast]')).toContainText('ההגדרות עודכנו במקום אחר');
     await expect(sec(page, 'keep').locator('[data-keep="90"]')).toHaveAttribute('aria-pressed', 'true');
@@ -797,16 +804,16 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await openSettings(page, { viewer: 'operator' });
     await expect(sys(page).locator('[data-set-state="user"]')).toBeVisible();
     await expect(sys(page).locator('[data-set-section]')).toHaveCount(0);
-    await expect(sys(page).locator('[data-set-nav]')).toHaveCount(0);
+    await expect(sys(page).locator('[data-set-tabs]')).toHaveCount(0);
     await expect(sys(page).locator('arx-notifications-settings')).toHaveCount(1);
     await expect(sys(page).locator('arx-notifications-settings [data-push-cat]')).toHaveCount(0); // no personal categories (owner 4ב)
     await expect(sys(page).locator('arx-notifications-settings [data-push-save]')).toHaveCount(0);
     await shot(page, `settings-user-${vp(info)}-light`);
   });
 
-  test('mail not configured: "לא מוגדר", an empty form, the test waits for a saved configuration; the channel card says so', async ({ page }, info) => {
+  test('mail not configured: "לא מוגדר", an empty form, the test waits for a saved configuration; the channel card says so', async ({ page }) => {
     await openSettings(page, { emailConfigured: false });
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="mail"]').click();
+    await tab(page, 'mail');
     const m = sec(page, 'mail');
     await expect(m.locator('[data-mail-last]')).toHaveText('לא מוגדר');
     await expect(m.locator('[data-mail-host]')).toHaveValue('');
@@ -822,7 +829,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(m.locator('[data-mail-test]')).toBeEnabled();
     await expect(m.locator('[data-mail-password]')).toHaveValue('••••••••••');
     expect(await sys(page).evaluate((el) => el.shadowRoot!.innerHTML.includes('s3cret-value'))).toBe(false);
-    if (narrow(page, info)) await sys(page).locator('[data-set-nav="chan"]').click();
+    await tab(page, 'chan');
     await expect(sec(page, 'chan').locator('[data-channel="email"]')).toContainText('פעיל');
   });
 });

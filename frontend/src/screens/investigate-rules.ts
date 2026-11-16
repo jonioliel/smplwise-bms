@@ -28,6 +28,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
+import { t as vt } from '../i18n/he';
 
 /** POLISH4-WP2 (D7): the icon tile takes skin tokens, so it follows the scheme (the hex pairs of before were pastel tiles in dark).
     A rule's kind is a category, never a status, so none of them is green (green is for status only); "move" takes the neutral well. */
@@ -210,7 +211,7 @@ export class InvestigateRules extends LitElement {
     if (!e) return nothing;
     const b = e.body;
     const dry = this.dry;
-    return html`<sw-dialog open heading=${e.id ? 'עריכת חוק' : 'חוק חדש'} subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני שמירה" data-rule-dialog @close=${() => (this.editing = null)}>
+    return html`<sw-dialog open heading=${e.id ? 'עריכת חוק' : 'חוק חדש'} subheading="מפעיל → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני שמירה" data-rule-dialog @close=${() => (this.editing = null)}>
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
       ${!e.id ? html`<sw-field label="תבניות (ממלאות את הטופס; אפשר לשנות אחר כך)"><div class="chips">${RULE_TEMPLATES.map((t) => html`<sw-chip data-rule-template=${t.id} @click=${() => this.edit((x) => Object.assign(x, JSON.parse(JSON.stringify(t.body))))}>${t.label}</sw-chip>`)}</div></sw-field>` : nothing}
       <sw-field label="שם"><input data-rule-name .value=${b.name} @input=${(ev: Event) => this.edit((x) => (x.name = (ev.target as HTMLInputElement).value))} /></sw-field>
@@ -260,7 +261,7 @@ export class InvestigateRules extends LitElement {
   private renderApi() {
     if (this.error && !this.rules.length && !this.editing) return html`<sw-page heading="התראות וחוקי אוטומציה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
     return html`
-      <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים">
+      <sw-page heading="התראות וחוקי אוטומציה" subheading="מפעיל → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים">
         ${this.rulesForbidden ? nothing : html`<sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>חוק חדש</sw-button>`}
         <sw-tabs .items=${this.rulesForbidden ? [{ id: 'alerts', label: 'התראות', count: this.unacked }] : [{ id: 'rules', label: 'חוקים', count: this.rules.length }, { id: 'alerts', label: 'התראות', count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.error && !this.editing ? html`<div class="err">${this.error}</div>` : nothing}
@@ -467,9 +468,9 @@ export class InvestigateRules extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="התראות וחוקי אוטומציה" subheading="Trigger → היקף → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה">
+      <sw-page heading="התראות וחוקי אוטומציה" subheading="מפעיל → היקף → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה">
         <sw-button slot="actions" variant="primary" icon="plus" @click=${() => navigate('/investigate/rules/new')}>חוק חדש</sw-button>
-        <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: demoRules.length }, { id: 'notif', label: 'התראות' }, { id: 'sched', label: 'לוחות זמנים' }, { id: 'trig', label: 'Triggers' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: demoRules.length }, { id: 'notif', label: 'התראות' }, { id: 'sched', label: 'לוחות זמנים' }, { id: 'trig', label: vt('videoCopy.triggers') }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.tab === 'rules'
           ? html`<sw-card class="rulecard list"><div class="list">
               ${demoRules.map((r) => {
@@ -484,7 +485,7 @@ export class InvestigateRules extends LitElement {
                 </div>`;
               })}
             </div></sw-card>`
-          : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך תשתית המערכת, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? 'לוחות זמנים בזמן האתר (Asia/Jerusalem), שעון קיץ לפי התאריך.' : 'Triggers זמינים: אירועי NVR (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב התקן (allowlist).'}</div></sw-card>`}
+          : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך תשתית המערכת, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? vt('videoCopy.schedEmpty') : vt('videoCopy.triggersEmpty')}</div></sw-card>`}
       </sw-page>
     `;
   }
@@ -550,12 +551,12 @@ export class InvestigateRuleEditor extends LitElement {
       <sw-page heading=${r.name} subheading="עורך חוק · גרסה 2 · נתוני הדגמה" crumbs="אירועים | חוקים והתראות">
         <sw-button slot="actions" icon="play">בדיקה יבשה</sw-button>
         <sw-button slot="actions" variant="primary" icon="check">שמירה</sw-button>
-        <sw-steps .steps=${['Trigger', 'היקף', 'תנאים', 'פעולה']} .current=${1}></sw-steps>
+        <sw-steps .steps=${['מפעיל', 'היקף', 'תנאים', 'פעולה']} .current=${1}></sw-steps>
         <div class="layout">
           <div class="stack">
-            <sw-card heading="Trigger">
+            <sw-card heading="מפעיל">
               <div class="two">
-                <sw-field label="מקור"><select><option>אירוע NVR</option><option>שינוי התקן</option></select></sw-field>
+                <sw-field label="מקור"><select><option>אירוע מקליט</option><option>שינוי התקן</option></select></sw-field>
                 <sw-field label="סוג"><select><option>${r.trigger}</option><option>זיהוי רכב</option><option>תנועה</option></select></sw-field>
               </div>
             </sw-card>
@@ -574,7 +575,7 @@ export class InvestigateRuleEditor extends LitElement {
                 <sw-field label="פעולה"><select><option>${r.action}</option><option>Push דרך תשתית המערכת</option><option>פתיחת תצוגת מצלמות</option></select></sw-field>
                 <sw-field label="Cooldown"><input value="5 דקות" /></sw-field>
               </div>
-              <div class="hint">unlock / disarm אינם מופעלים על סמך תוצאת AI. שליטה אוטומטית היא opt-in לפי allowlist.</div>
+              <div class="hint">פתיחת נעילה וניטרול אזעקה אינם מופעלים על סמך תוצאת זיהוי. שליטה אוטומטית מופעלת רק בבחירה מפורשת, לפי רשימת התקנים מאושרים.</div>
             </sw-card>
           </div>
           <div class="stack">
@@ -582,7 +583,7 @@ export class InvestigateRuleEditor extends LitElement {
               <div class="dry" data-fire><span>10:14 · כניסה ראשית</span><sw-badge filled kind="live" label="היה מפעיל"></sw-badge></div>
               <div class="dry"><span>09:42 · חצר</span><sw-badge filled kind="unknown" label="מחוץ ללוח הזמנים"></sw-badge></div>
               <div class="dry" data-fire><span>אתמול 23:10 · לובי</span><sw-badge filled kind="live" label="היה מפעיל"></sw-badge></div>
-              <div class="hint" style="margin-block-start:8px">2 הפעלות · 0 כפילויות · correlation id לכל אירוע · מניעת לולאה: פעולה שיצרה אירוע לא מפעילה את אותו חוק.</div>
+              <div class="hint" style="margin-block-start:8px">2 הפעלות · 0 כפילויות · מזהה קישור לכל אירוע · מניעת לולאה: פעולה שיצרה אירוע לא מפעילה את אותו חוק.</div>
             </sw-card>
           </div>
         </div>

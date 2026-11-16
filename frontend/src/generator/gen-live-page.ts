@@ -171,7 +171,7 @@ export class GenLivePage extends LitElement {
       ? html`<div class="banner err" role="alert" data-banner="offline"><sw-icon name="warning" size="18"></sw-icon><b>${G.live.offlineTitle}</b><span>${fill(G.live.lastSeen, { t: fmtDateTime(d.last_seen_at) })} · ${G.live.offlineBody}</span></div>`
       : availability === 'stale' ? html`<div class="banner" role="status" data-banner="stale"><sw-icon name="warning" size="18"></sw-icon><b>${G.live.staleTitle}</b><span>${G.live.staleBody}</span></div>` : nothing;
     const failed = this.pollFailed
-      ? html`<div class="banner" role="status" data-banner="poll-failed"><sw-icon name="warning" size="18"></sw-icon><b>${G.loadError}</b><div class="sp"></div><button type="button" class="btn sm" data-retry @click=${() => void this.poll()}>${t('states.retry')}</button></div>`
+      ? html`<div class="banner" role="status" data-banner="poll-failed"><sw-icon name="warning" size="18"></sw-icon><b>${G.loadError}</b><div class="sp"></div><sw-button size="sm" data-retry @click=${() => void this.poll()}>${t('states.retry')}</sw-button></div>`
       : nothing;
     const chip = !plan.showMains || plan.mainsOn === null ? nothing
       : plan.onGen && plan.showAts ? html`<span class="sev alert">${G.live.mainsLostChip}</span>` : plan.mode === 'test' ? html`<span class="sev info">${G.live.testChip}</span>` : plan.mainsOn ? html`<span class="sev cleared">${G.live.mainsOkChip}</span>` : html`<span class="sev alert">${G.live.mainsLostChip}</span>`;

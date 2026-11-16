@@ -51,7 +51,8 @@ export const calCss = css`
   @media (hover: hover) and (pointer: fine) { .btn:not([disabled]):hover { background: var(--sw-hover-wash); } .btn.pri:not([disabled]):hover { background: var(--sw-accent-hover); } }
   .chipb { font: inherit; font-size: var(--sw-fs-md); display: inline-flex; align-items: center; gap: 6px; min-block-size: var(--sw-ctl-h-lg); padding: 0 16px;
     border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface-solid); color: var(--sw-heading); cursor: pointer; white-space: nowrap; }
-  .chipb[aria-pressed='true'] { background: var(--sw-heading); color: var(--sw-surface-solid); border-color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
+  /* AUDIT30-F1 (#4, owner Q3 option A assumed): a selected chip is the Blue Wash pair of the design document (sw-chip's look), never a black pill */
+  .chipb[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); box-shadow: none; }
   .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 10px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold);
     background: var(--sw-surface-3); color: var(--sw-text-2); white-space: nowrap; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }
   .chip.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
@@ -123,6 +124,12 @@ export const calCss = css`
   .note.warn { background: var(--sw-warning-soft); }
   .note.bad { background: var(--sw-danger-soft); }
   .note b { display: block; color: var(--sw-heading); font-size: var(--sw-fs-md); }
+
+  /* AUDIT30-F5 (touch): on a coarse pointer every control of the module is a 44 px target (COMPONENT_RULES §1) */
+  @media (pointer: coarse) {
+    .btn, .btn.sm, .chipb, .seg button { min-block-size: 44px; }
+    .btn.icon, .pager .btn { inline-size: 44px; }
+  }
 
   @media (max-width: 699px) {
     .fld { grid-template-columns: minmax(0, 1fr); gap: 4px; }

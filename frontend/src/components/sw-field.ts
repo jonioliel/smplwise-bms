@@ -1,5 +1,5 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, property, query } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 import { fitSchedule, fitSelectElement } from './fit-text';
@@ -16,6 +16,17 @@ export class SwField extends LitElement {
   @property({ attribute: 'dd-size', reflect: true }) ddSize = 'md';
   /** capsule only: the icon at the start of the control (the dropdown's `icon`). */
   @property() icon: IconName | '' = '';
+  /** AUDIT30-B-SHARED (audit round 30, finding 16): `type="search"` makes the field THE search box of the product - it draws its own
+   * input (leading search icon, a clear key while there is text, 34 px, --sw-r-sm; 44 px and 16 px text under a coarse pointer).
+   * Read `value`; listen to `input` (every keystroke, composed from the inner input - `e.target` is this field) and `search-clear`
+   * (the clear key or Escape emptied it; an `input` event fires too). The accessible name is `label`, else `placeholder`.
+   * Unset: the field is the plain slotted form field exactly as before. */
+  @property({ reflect: true }) type: '' | 'search' = '';
+  @property() value = '';
+  @property() placeholder = '';
+  /** search: the clear key's name (the i18n catalogue belongs to another branch, so the default is set here). */
+  @property({ attribute: 'clear-label' }) clearLabel = 'נקה חיפוש';
+  @query('input.search') private searchInput?: HTMLInputElement;
 
   static styles = css`
     :host {
@@ -188,6 +199,127 @@ export class SwField extends LitElement {
         border-color: ButtonText;
       }
     }
+    /* ---- AUDIT30-B-SHARED (finding 16): the search box (type="search"). Measured before: pill, r10, r16 and r0 search inputs across
+       the modules. One shape now: the field's own outline and well, the icon at the start, the clear key at the end. ---- */
+    .sbox {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-inline-size: 0;
+    }
+    input.search {
+      -webkit-appearance: none;
+      appearance: none;
+      inline-size: 100%;
+      box-sizing: border-box;
+      block-size: 34px;
+      margin: 0;
+      padding-block: 0;
+      padding-inline: 32px 30px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      box-shadow: inset 0 1px 2px color-mix(in srgb, var(--sw-text) 6%, transparent);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+    }
+    input.search::placeholder {
+      color: var(--sw-text-3);
+      opacity: 1;
+    }
+    input.search::-webkit-search-cancel-button,
+    input.search::-webkit-search-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      input.search:hover:not(:focus):not(:disabled) {
+        border-color: color-mix(in srgb, var(--sw-text-3) 45%, var(--sw-border-strong));
+      }
+    }
+    input.search:focus {
+      outline: none;
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    input.search:disabled {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-3);
+      cursor: not-allowed;
+    }
+    .sico {
+      position: absolute;
+      inset-inline-start: 10px;
+      inset-block-start: 50%;
+      translate: 0 -50%;
+      display: inline-flex;
+      color: var(--sw-text-3);
+      pointer-events: none;
+    }
+    .sclr {
+      position: absolute;
+      inset-inline-end: 4px;
+      inset-block-start: 50%;
+      translate: 0 -50%;
+      display: grid;
+      place-items: center;
+      inline-size: 26px;
+      block-size: 26px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: var(--sw-r-xs, var(--sw-r-sm));
+      background: transparent;
+      color: var(--sw-text-2);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), scale var(--sw-t-press) var(--sw-ease);
+    }
+    /* a 44 px hit area around the 26 px key (touch target) without growing the field */
+    .sclr::after {
+      content: '';
+      position: absolute;
+      inset: -9px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .sclr:hover {
+        background: var(--sw-hover-wash);
+        color: var(--sw-text);
+      }
+    }
+    .sclr:active {
+      scale: var(--sw-press-scale);
+    }
+    .sclr:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 0;
+    }
+    @media (pointer: coarse) {
+      input.search {
+        block-size: 44px;
+        font-size: max(16px, var(--sw-fs-sm)); /* under 16 px the phone zooms the page into the field */
+        padding-inline: 38px 44px;
+      }
+      .sico {
+        inset-inline-start: 12px;
+      }
+      .sclr {
+        inline-size: 36px;
+        block-size: 36px;
+      }
+      .sclr::after {
+        inset: -4px;
+      }
+    }
+    @media (forced-colors: active) {
+      input.search {
+        border-color: ButtonText;
+      }
+    }
     ::slotted([data-ltr]) {
       direction: ltr;
       text-align: left;
@@ -282,7 +414,48 @@ export class SwField extends LitElement {
     void document.fonts?.ready.then(this.fitLater);
   }
 
+  private onSearchInput = (e: Event) => {
+    this.value = (e.target as HTMLInputElement).value; // runs before the event reaches this host's own listeners
+  };
+
+  private clearSearch = () => {
+    const el = this.searchInput;
+    if (!el) return;
+    el.value = '';
+    this.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('search-clear', { bubbles: true, composed: true }));
+    el.focus();
+  };
+
+  private onSearchKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.value) {
+      e.preventDefault();
+      e.stopPropagation(); // an open drawer / dialog keeps its place: Escape first empties the box
+      this.clearSearch();
+    }
+  };
+
+  /** The search box: its own input, so every module gets the same one (finding 16). */
+  private renderSearch() {
+    const name = this.label || this.placeholder;
+    return html`
+      ${this.label ? html`<label for="q">${this.label}</label>` : ''}
+      <div class="sbox">
+        <input id="q" class="search" type="search" part="input" enterkeyhint="search" autocomplete="off" spellcheck="false"
+          .value=${this.value} placeholder=${this.placeholder} aria-label=${name || nothing}
+          @input=${this.onSearchInput} @keydown=${this.onSearchKey} />
+        <span class="sico" aria-hidden="true"><sw-icon name="search" size=${15}></sw-icon></span>
+        ${this.value
+          ? html`<button type="button" class="sclr" data-search-clear aria-label=${this.clearLabel} title=${this.clearLabel} @click=${this.clearSearch}><sw-icon name="close" size=${14}></sw-icon></button>`
+          : ''}
+      </div>
+      ${this.hint ? html`<div class="hint">${this.hint}</div>` : ''}
+    `;
+  }
+
   render() {
+    if (this.type === 'search') return this.renderSearch();
     const size = { sm: 14, md: 16, lg: 18 }[this.ddSize as 'sm' | 'md' | 'lg'] ?? 16;
     const ico = { sm: 17, md: 20, lg: 24 }[this.ddSize as 'sm' | 'md' | 'lg'] ?? 20;
     return html`

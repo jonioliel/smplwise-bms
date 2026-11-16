@@ -485,7 +485,7 @@ test.describe('notifications, live against the fixture backend (CR-018 S5)', () 
     await page.setViewportSize({ width: 1440, height: 900 });
     await openApp(page, '/system/notifications');
     await expect(page.locator('sw-app system-notifications [data-notify-settings]')).toBeVisible();
-    await page.locator('sw-app system-notifications [data-set-section="log"]').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await page.locator('sw-app system-notifications [data-set-tabs]').getByRole('tab', { name: 'יומן מסירה וכשלים', exact: true }).click(); // AUDIT30-I6: one tab per section
     await expect(page.locator('sw-app system-notifications [data-log-row]').first()).toBeVisible();
     const logText = await page.locator('sw-app system-notifications [data-set-section="log"]').innerText();
     // the screen's log shows the channel and the outcome of the mail, never an address (masked or not): the masked form is in the API's `target`
@@ -542,7 +542,7 @@ test.describe('notifications, live against the fixture backend (CR-018 S5)', () 
       const sys = page.locator('sw-app system-notifications');
       await expect(sys.locator('[data-set-state="user"]')).toBeVisible();
       await expect(sys.locator('[data-set-section]')).toHaveCount(0);
-      await expect(sys.locator('[data-set-nav]')).toHaveCount(0);
+      await expect(sys.locator('[data-set-tabs]')).toHaveCount(0);
       await expect(sys.locator('[data-pol-row]')).toHaveCount(0);
       await expect(sys.locator('arx-notifications-settings')).toHaveCount(1);
       await expect(sys.locator('arx-notifications-settings [data-push-cat]')).toHaveCount(0);
@@ -559,17 +559,22 @@ test.describe('notifications, live against the fixture backend (CR-018 S5)', () 
     await openApp(page, '/system/notifications');
     const sys = page.locator('sw-app system-notifications');
     await expect(sys.locator('[data-set-state="ready"]')).toBeVisible();
-    expect(await sys.locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources', 'quiet', 'esc', 'lock', 'keep', 'mail', 'chan', 'log']);
+    // AUDIT30-I6: the sections are underline tabs, one section at a time
+    const LABEL: Record<string, string> = { sources: 'מקורות והרשאות – מה נשלח', quiet: 'שעות שקט ומה עובר', esc: 'הסלמה', lock: 'פרטיות מסך נעול', keep: 'שמירה', mail: 'דואר יוצא', chan: 'ערוצים', log: 'יומן מסירה וכשלים' };
+    const tab = (id: string) => sys.locator('[data-set-tabs]').getByRole('tab', { name: LABEL[id], exact: true }).click();
+    expect(await sys.locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources']);
     await expect(sys.locator('[data-pol-row]')).toHaveCount(28);
+    const sources = await sys.locator('[data-set-section="sources"]').innerText();
     // what scenarios 1-6 saved is what the screen shows (read back from the server, not from a mock)
+    await tab('mail');
     await expect(sys.locator('[data-set-section="mail"] [data-mail-host]')).toHaveValue('127.0.0.1');
+    await tab('esc');
     await expect(sys.locator('[data-set-section="esc"] [data-esc-min]')).toContainText('1');
     for (const id of ['sources', 'quiet', 'esc', 'lock', 'keep', 'mail', 'chan', 'log']) {
-      await sys.locator(`[data-set-section="${id}"]`).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await tab(id);
       await page.waitForTimeout(300);
       await shot(page, `live-9-settings-${id}-1440`);
     }
-    const sources = await sys.locator('[data-set-section="sources"]').innerText();
     expect(sources).not.toMatch(/Home Assistant|Ingress|\bHA\b/);
   });
 });

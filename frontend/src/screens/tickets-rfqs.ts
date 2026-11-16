@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-page'; // AUDIT30-C-TICKETS (#6): the one page frame
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/rfq-new';
 import '../tickets/rfq-board';
@@ -27,6 +28,7 @@ import { rIcon } from '../tickets/rfq-icons';
 import { tt, ticketsLang } from '../tickets/text';
 import { lt } from '../tickets/org-locations-text';
 import { showOnMapHref } from '../tickets/org-locations-model'; // ORGPLAN2-291
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off' | 'unavailable';
 
@@ -73,8 +75,18 @@ export class TicketsRfqsPage extends LitElement {
    * start in the first screen, the failed toast's mark is red, the error state says why, "load more" sits under the list's centre.
    */
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, rfqStyles, css`
-    .dh-row .newbtn {
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
+    .newbtn {
       flex: none;
+    }
+    .dh {
+      position: static;
+      padding-block-start: 0;
+    }
+    .crumbs {
+      font-size: var(--sw-fs-sm);
+      color: var(--dv-text-2);
+      margin-block-end: 2px;
     }
     .statebox .why {
       max-inline-size: 52ch;
@@ -98,13 +110,6 @@ export class TicketsRfqsPage extends LitElement {
       }
     }
     @media (max-width: 767px) {
-      .dh-row .grow {
-        display: none;
-      }
-      .dh-row .newbtn {
-        grid-area: f;
-        align-self: center;
-      }
       .kpis {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: var(--sw-s-2);
@@ -122,7 +127,7 @@ export class TicketsRfqsPage extends LitElement {
         font-size: var(--sw-fs-lg);
       }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -233,12 +238,11 @@ export class TicketsRfqsPage extends LitElement {
     const depts = this.meta?.departments ?? [];
     const base = this.items.filter((i) => !this.r.dept || i.department.id === this.r.dept);
     const strip = stripCounts(base, RFQ_FILTERS).filter((s) => s.id === 'open' || s.id === 'all' || s.count > 0 || s.id === this.r.state);
-    return html`<header class="dh" data-rfq-header>
-      <div class="dh-row">
-        <div class="titles"><div class="crumbs"><a href="#/tickets">${tt('area')}</a></div><h1 data-rfq-page-title>${rt('navTitle')}</h1></div>
-        <span class="grow"></span>
-        ${this.screen === 'ready' && this.canCreate() ? html`<button type="button" class="btn primary newbtn" data-rfq-new-btn @click=${() => go(rfqHref({ ...this.r, creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : nothing}
-      </div>
+    // AUDIT30-C-TICKETS (#6): the title is sw-page's, its crumb (a link back) in the frame's crumbs slot, "+ חדשה" in its actions (#8 / B6:
+    // the `primary` slot once branch B adds it); this header is the controls row under the frame's header
+    return html`<div class="crumbs" slot="crumbs"><a href="#/tickets">${tt('area')}</a></div>
+      ${this.screen === 'ready' && this.canCreate() ? html`<button type="button" slot="actions" class="btn primary newbtn" data-rfq-new-btn @click=${() => go(rfqHref({ ...this.r, creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : nothing}
+      <header class="dh" data-rfq-header>
       ${this.screen === 'ready' ? html`<div class="dh-det">
         ${depts.length > 1 ? html`<div class="rooms" role="group" aria-label=${rt('departmentsGroup')} data-rfq-depts>
           <button type="button" class="rc" aria-pressed=${String(!this.r.dept)} data-dept="" @click=${() => go(rfqHref({ ...this.r, dept: '' }))}>${rt('allDepartments')}</button>
@@ -354,7 +358,7 @@ export class TicketsRfqsPage extends LitElement {
       ? html`<tickets-rfq-board .rfqId=${r.id} .meta=${this.meta} @notice=${this.onNotice} @gone=${() => go(rfqHref({}))}></tickets-rfq-board>`
       : ready && r.view === 'compare'
         ? html`<tickets-rfq-compare .rfqId=${r.id} .meta=${this.meta} @notice=${this.onNotice}></tickets-rfq-compare>`
-        : html`<div class="page" data-screen="tickets-rfqs">${this.header()}${this.list()}</div>`;
+        : html`<sw-page wide class="page" data-screen="tickets-rfqs" heading=${rt('navTitle')} data-rfq-page-title=${rt('navTitle')}>${this.header()}${this.list()}</sw-page>`;
     return html`${body}
       ${ready && this.canCreate() ? html`<tickets-rfq-new .open=${r.creating} .meta=${this.meta} .sourceTicket=${r.from}
         @close=${() => go(rfqHref({ ...r, creating: false, from: '' }), true)} @rfq-saved=${this.onSaved}></tickets-rfq-new>` : nothing}

@@ -1,5 +1,6 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+import { ddValue } from './helpers/wk-choose';
 
 // The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
 useSmplwiseWiskeyScreens();
@@ -268,10 +269,10 @@ test.describe('WisKey physical actions (T054 phase 3, access.release)', () => {
     await lobby.locator('[data-wiskey-speak]').click();
     const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
     await expect(dialog.locator('[role="dialog"]')).toBeVisible();
-    const engine = dialog.locator('select[data-wiskey-tts-engine]');
-    await expect(engine.locator('option')).toHaveCount(2, { timeout: 15000 });
-    await expect(engine).toHaveValue('tts.piper');
-    await expect(dialog.locator('select[data-wiskey-tts-language]')).toHaveValue('he');
+    const engine = dialog.locator('[data-wiskey-tts-engine]');
+    await expect.poll(() => engine.evaluate((n) => (n as HTMLElement & { items: unknown[] }).items.length), { timeout: 15000 }).toBe(2);
+    await expect.poll(() => ddValue(engine)).toBe('tts.piper');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-language]'))).toBe('he');
     await expect(dialog.locator('[data-wiskey-tts-external]')).toContainText('אם זהו שירות ענן, הטקסט יוצא מהמבנה');
     await expect(dialog.locator('[data-wiskey-tts-send] button')).toBeDisabled();
     await dialog.locator('textarea[data-wiskey-tts-message]').fill('  נא להמתין,   השליח בדרך  ');

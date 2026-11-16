@@ -21,6 +21,13 @@ const HREF = '#/wiskey/people';
 const RAIL = 'sw-app nav.rail';
 const BOTTOM = 'sw-app nav.bottom';
 const SCREEN = 'wiskey-people';
+/** AUDIT30-H (finding 16): the people filters are <sw-dropdown> (no native <select>): open the chip, press the option. */
+const pickIn = async (page: Page, dropdown: string, id: string) => {
+  const dd = page.locator(dropdown);
+  await dd.locator('[data-dropdown-chip]').click();
+  await dd.locator(`[role="option"][data-id="${id}"]`).click();
+};
+
 
 async function open(page: Page, hash: string, design: 'a' | 'b' = 'a') {
   await page.goto(`/?design=${design}#${hash}`);
@@ -290,14 +297,14 @@ test.describe('WisKey people directory against the fixture WisKey (CR-005 phase 
   test('filters and sort go to WisKey as its own filter keys, each change from offset 0; the rows match', async ({ page, request }, testInfo) => {
     await openPeople(page);
     const screen = page.locator(SCREEN);
-    await screen.locator('[data-wiskey-people-filter="state"]').selectOption('inactive');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="state"]`, 'inactive');
     await expect(results(page)).toHaveAttribute('data-wiskey-people-results', '14', { timeout: 15000 });
     expect((await queried()).at(-1)).toMatchObject({ query: '', filters: { state: 'inactive', sort: 'employee' }, offset: 0 });
     for (const r of await rows(page).all()) await expect(r.locator('[data-wiskey-person-active]')).toHaveAttribute('data-wiskey-person-active', 'false');
 
-    await screen.locator('[data-wiskey-people-filter="state"]').selectOption('');
-    await screen.locator('[data-wiskey-people-filter="station"]').selectOption('lobby');
-    await screen.locator('[data-wiskey-people-filter="rights"]').selectOption('assigned');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="state"]`, '');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="station"]`, 'lobby');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="rights"]`, 'assigned');
     await expect.poll(async () => (await queried()).at(-1)?.filters).toEqual({ station: 'lobby', rights: 'assigned', sort: 'employee' });
     const direct = await (await request.get('/api/v1/intercom/people?station=lobby&rights=assigned&limit=50')).json();
     const expected = direct.people.total as number;
@@ -305,7 +312,7 @@ test.describe('WisKey people directory against the fixture WisKey (CR-005 phase 
     await expect(results(page)).toHaveAttribute('data-wiskey-people-results', String(expected), { timeout: 15000 });
     await expect(rows(page)).toHaveCount(Math.min(50, expected));
     // the sort select: name descending puts the Hebrew names first (WisKey sorts by casefolded name)
-    await screen.locator('[data-wiskey-people-filter="sort"]').selectOption('name_desc');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="sort"]`, 'name_desc');
     await expect.poll(async () => (await queried()).at(-1)?.filters).toEqual({ station: 'lobby', rights: 'assigned', sort: 'name_desc' });
     await expect(rows(page).first().locator('[data-wiskey-person-name]')).toHaveText('דנה כהן', { timeout: 15000 });
     // WisKey's credential and profile filters are not offered (the projection has nothing to filter on)

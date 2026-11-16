@@ -164,6 +164,7 @@ test.describe('HDRFIX-295: sources', () => {
   });
 
   test('the infrastructure screens draw their h1 visibly', () => {
-    for (const f of ['infra-electricity', 'infra-water', 'infra-generator']) expect(read(`screens/${f}.ts`), f).toMatch(/srHeading\(.*, true\)/);
+    // AUDIT30-E2: the visible h1 is <sw-page>'s heading (it keeps the logos' reserve itself)
+    for (const f of ['infra-electricity', 'infra-water', 'infra-generator', 'infra-temperature']) expect(read(`screens/${f}.ts`), f).toMatch(/<sw-page heading=\$\{/);
   });
 });

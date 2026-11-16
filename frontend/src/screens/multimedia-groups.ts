@@ -7,6 +7,7 @@ import '../components/media-preset-editor';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-pager';
+import '../components/sw-page';
 import { PageFit } from './multimedia-page-fit';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import type { MediaPresetEditor } from '../components/media-preset-editor';
@@ -25,7 +26,7 @@ import { applyMultimediaKinds } from '../shell/nav';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
-import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
+import { mediaPageStyles } from '../styles/media-page';
 import { glyphIcon, mIcon, nameText } from '../components/media-icons';
 import { playerView } from '../components/media-player-now';
 import { runPlayerCommand } from '../components/media-player-run';
@@ -64,7 +65,6 @@ export class MultimediaGroups extends LitElement {
   @state() private groups: MediaGroup[] = [];
   @state() private presets: GroupPreset[] = [];
   @state() private status: PlayerStatus | null = null;
-  @state() private compactHeader = false;
   @state() private staleError = '';
   @state() private toast = '';
   @state() private phone = window.matchMedia('(max-width: 767px)').matches;
@@ -247,7 +247,7 @@ export class MultimediaGroups extends LitElement {
       background: var(--dv-text);
       color: var(--mm-text-inverse);
       box-shadow: var(--dv-shadow-control);
-      transition: transform var(--sw-t-press, 120ms) var(--mm-ease);
+      transition: transform var(--sw-t-press) var(--mm-ease);
     }
     .pk .ic {
       font-size: var(--sw-fs-2xl);
@@ -352,7 +352,7 @@ export class MultimediaGroups extends LitElement {
       inset-block: 18px;
       inset-inline-end: calc(var(--cap) - 1px);
       inline-size: 2px;
-      border-radius: 1px;
+      border-radius: var(--sw-r-pill);
       background: var(--dv-warning);
       pointer-events: none;
       opacity: 0.9;
@@ -495,7 +495,7 @@ export class MultimediaGroups extends LitElement {
       font-weight: 600;
     }
     .gfoot .btn.pend .ic {
-      animation: mm-spin 0.8s linear infinite;
+      animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }
     /* POLISH4-WP5: the edit chips sit at the card's end (the shared place) and the title row keeps clear of them while editing, so
        a long group name ends in an ellipsis before the chips instead of running under them (they covered the icon and the first
@@ -512,7 +512,7 @@ export class MultimediaGroups extends LitElement {
     /* POLISH4-WP5 (emil-design-eng): a link answers the press like the keys do, the slider's thumb lifts while it is held, and hover
        is for a pointer that hovers (a touch never leaves it lit) */
     .lnk {
-      transition: transform var(--sw-t-press, 120ms) var(--mm-ease), color var(--mm-motion);
+      transition: transform var(--sw-t-press) var(--mm-ease), color var(--mm-motion);
     }
     .lnk:active {
       transform: scale(var(--sw-press-scale, 0.97));
@@ -548,15 +548,14 @@ export class MultimediaGroups extends LitElement {
         block-size: 100%;
         min-block-size: 0;
         padding-block-end: 0;
-        gap: var(--sw-s-4);
       }
       :host([data-fit]) .scr {
         display: block;
         flex: 1 1 auto;
         min-block-size: 0;
         overflow: hidden;
-        margin-inline: -36px;
-        padding: var(--sw-s-1) 36px var(--sw-s-5);
+        margin-inline: calc(-1 * var(--mm-pad));
+        padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-5);
       }
       :host([data-fit]) .groups {
         gap: var(--sw-s-5);
@@ -600,7 +599,7 @@ export class MultimediaGroups extends LitElement {
     }
     @media (prefers-reduced-motion: reduce) {
       .gfoot .btn.pend .ic {
-        animation-duration: 3s;
+        animation-duration: calc(var(--sw-t-med) * 8);
       }
       .gcard,
       .pk,
@@ -615,7 +614,6 @@ export class MultimediaGroups extends LitElement {
     void applyMediaGlass(this);
     this.stopped = false;
     this.phoneMq.addEventListener('change', this.onPhone);
-    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offEdit = registerScreenEdit({
       id: 'multimedia-groups-edit',
       label: 'עריכת הקבוצות השמורות',
@@ -652,7 +650,6 @@ export class MultimediaGroups extends LitElement {
     super.disconnectedCallback();
     this.stopped = true;
     this.phoneMq.removeEventListener('change', this.onPhone);
-    this.removeEventListener('scroll', this.onScroll);
     this.offEdit?.();
     this.offRoute?.();
     this.offPush?.();
@@ -662,7 +659,6 @@ export class MultimediaGroups extends LitElement {
   }
 
   protected updated() {
-    measureHeaderBar(this.renderRoot, this.phone);
     if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
       this.editHandled = true;
       if (this.canEdit) this.enterEdit(true);
@@ -734,12 +730,6 @@ export class MultimediaGroups extends LitElement {
     p.delete(name);
     replaceRoute(PATH, p);
   }
-
-  private onScroll = () => {
-    const y = this.scrollTop;
-    if (!this.compactHeader && y > 60) this.compactHeader = true;
-    else if (this.compactHeader && y < 12) this.compactHeader = false;
-  };
 
   private enterEdit(fromRoute = false) {
     if (!this.canEdit || this.editing) return;
@@ -1059,14 +1049,17 @@ export class MultimediaGroups extends LitElement {
     </article>`;
   }
 
-  private header(): TemplateResult {
+  /** AUDIT30-D3: the one-line summary under the title (sw-page's subheading): live groups and saved groups */
+  private summary(): string {
+    if (this.phase !== 'ready' || this.editing) return '';
     const { live } = splitGroups(this.groups, this.devices);
     const n = this.presets.length;
-    const sub = [live.length ? html`${live.length === 1 ? html`<em>קבוצה אחת</em> פועלת` : html`<em><span class="n">${live.length}</span></em> קבוצות פועלות`}` : null, n ? html`<span class="n">${n}</span> שמורות` : null].filter(Boolean);
-    return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
-      <div class="dh-row"><h1>קבוצות</h1><span class="grow"></span>${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</div>
-      ${this.phase === 'ready' && !this.editing && sub.length ? html`<div class="dh-det"><span class="amb">${sub.map((s, i) => html`${i ? ' · ' : ''}${s}`)}</span></div>` : nothing}
-    </header>`;
+    return [live.length ? (live.length === 1 ? 'קבוצה אחת פועלת' : `${live.length} קבוצות פועלות`) : '', n ? `${n} שמורות` : ''].filter(Boolean).join(' · ');
+  }
+
+  /** AUDIT30-D3: the pager sits at the end of sw-page's title row (slot "actions"). */
+  private pagerAction(): TemplateResult | typeof nothing {
+    return this.fit.pages > 1 ? html`<sw-pager slot="actions" data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing;
   }
 
   private skeleton(): TemplateResult {
@@ -1130,7 +1123,7 @@ export class MultimediaGroups extends LitElement {
 
   render() {
     const body = this.body(); // first: it tells the pager in the header how many cards there are
-    return html`<div class="page" data-screen="multimedia-groups">${this.header()}${this.editing ? body : html`<div class="scr" data-mm-region>${body}</div>`}</div>
+    return html`<sw-page class="page" wide heading="קבוצות" subheading=${this.summary()} data-screen="multimedia-groups">${this.pagerAction()}${this.editing ? body : html`<div class="scr" data-mm-region>${body}</div>`}</sw-page>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     <media-preset-editor .devices=${this.devices} @preset-saved=${() => { this.say('נשמר'); void this.load(); }} @preset-stale=${() => void this.load()}></media-preset-editor>
     ${this.deleteDialog()}

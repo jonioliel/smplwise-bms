@@ -1,6 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import '../components/sw-tabs';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -15,8 +14,6 @@ import { ElevatorHistoryPress } from '../elevators/history-press';
 import { doorIcon, elevatorCss, stateBadge } from '../elevators/styles';
 import { elt, type EltKey } from '../i18n/elevators';
 import { registerScreenEdit } from '../shell/screen-edit';
-import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
-import { canNav, isApi } from '../api/session';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -262,12 +259,12 @@ export class InfraElevators extends LitElement {
   }
 
   render() {
-    const l1 = isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'elevators')} active="elevators" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
+    // AUDIT30-E2: no area row of one tab (it only repeated the page title); the navigation draws it from two tabs up
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (!this.data) {
       return this.error
-        ? html`${l1}<sw-state-panel state="error" heading=${elt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`
-        : html`${l1}<div class="skl" data-state="loading" aria-busy="true" aria-label=${elt('title')}>
+        ? html`<sw-state-panel state="error" heading=${elt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`
+        : html`<div class="skl" data-state="loading" aria-busy="true" aria-label=${elt('title')}>
             <div class="sk-top"><div class="sk sk-h1"></div><div class="sk sk-sub"></div></div>
             <div class="kpis">${[0, 1, 2, 3, 4].map(() => html`<div class="sk sk-kpi"></div>`)}</div>
             <div class="grid">${[0, 1, 2].map(() => html`<div class="sk sk-card"></div>`)}</div>
@@ -288,7 +285,7 @@ export class InfraElevators extends LitElement {
         ? html`<div class="grid"><a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add data-state="empty"><div><b>+</b>${elt('addCard')}</div></a></div>`
         : html`<sw-state-panel icon="elevator" state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`}`;
     }
-    return html`${l1}${top}${this.kpis(list, stale)}
+    return html`${top}${this.kpis(list, stale)}
       <div class="grid" data-elevators>
         ${list.map((e, i) => this.card(e, stale, now, i))}
         ${aff.addCard ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}

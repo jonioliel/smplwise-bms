@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-badge';
 import './sw-button';
 import './sw-dialog';
+import './sw-dropdown';
+import type { DropdownChange } from './sw-dropdown';
 import './sw-drawer';
 import './sw-icon';
 import type { StateKind } from './sw-badge';
@@ -261,16 +263,6 @@ export class WkTriagePanel extends LitElement {
       border-radius: var(--sw-r-lg);
       font-size: var(--sw-fs-sm);
     }
-    .notify select,
-    .dlg select {
-      font: inherit;
-      min-block-size: 36px;
-      padding: 4px 8px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-    }
     /* the review drawer */
     .rv {
       display: flex;
@@ -336,7 +328,8 @@ export class WkTriagePanel extends LitElement {
       font-size: var(--sw-fs-sm);
       line-height: 1.5;
     }
-    .dlg label:not(.chk) {
+    .dlg label:not(.chk),
+    .dlg div.f {
       display: grid;
       gap: 4px;
     }
@@ -720,14 +713,14 @@ export class WkTriagePanel extends LitElement {
         ${snooze
           ? html`<label class="chk"><input type="checkbox" data-wkt-whole-station .checked=${d.kind === 'maintenance'}
                 @change=${(e: Event) => (this.draft = { ...d, kind: (e.target as HTMLInputElement).checked ? 'maintenance' : d.alert.kind })} />${tt.alerts.stationSnooze}</label>
-              <label>${tt.alerts.durationLabel}
-                <select data-wkt-duration @change=${(e: Event) => (this.draft = { ...d, duration: Number((e.target as HTMLSelectElement).value) })}>
-                  ${DURATIONS.map((m) => html`<option value=${m} ?selected=${d.duration === m}>${tt.alerts.duration[m]}</option>`)}
-                </select></label>
-              <label>${tt.alerts.reasonLabel}
-                <select data-wkt-reason @change=${(e: Event) => (this.draft = { ...d, reason: (e.target as HTMLSelectElement).value as SnoozeReason })}>
-                  ${REASONS.map((r) => html`<option value=${r} ?selected=${d.reason === r}>${tt.alerts.reasons[r]}</option>`)}
-                </select></label>`
+              <div class="f"><span>${tt.alerts.durationLabel}</span>
+                <sw-dropdown block data-wkt-duration label=${tt.alerts.durationLabel} .value=${String(d.duration)}
+                  .items=${DURATIONS.map((m) => ({ id: String(m), label: tt.alerts.duration[m] }))}
+                  @change=${(e: CustomEvent<DropdownChange>) => (this.draft = { ...d, duration: Number(e.detail.id) })}></sw-dropdown></div>
+              <div class="f"><span>${tt.alerts.reasonLabel}</span>
+                <sw-dropdown block data-wkt-reason label=${tt.alerts.reasonLabel} .value=${d.reason}
+                  .items=${REASONS.map((r) => ({ id: r, label: tt.alerts.reasons[r] }))}
+                  @change=${(e: CustomEvent<DropdownChange>) => (this.draft = { ...d, reason: e.detail.id as SnoozeReason })}></sw-dropdown></div>`
           : d.kind === 'maintenance'
             ? html`<div>${tt.alerts.kind.maintenance}</div>`
             : nothing}
@@ -759,11 +752,17 @@ export class WkTriagePanel extends LitElement {
     if (!n || this.mode !== 'full') return nothing;
     return html`<div class="notify" data-wkt-notify=${n.enabled ? 'on' : 'off'}>
       <div class="main"><b>${tt.notify.label}</b><span class="sub">${tt.notify.hint}</span>${n.can_edit ? nothing : html`<span class="sub">${tt.notify.noEdit}</span>`}</div>
-      <select data-wkt-notify-select ?disabled=${!n.can_edit || this.notifyBusy} @change=${(e: Event) => this.setNotify((e.target as HTMLSelectElement).value === 'on')}>
-        <option value="off" ?selected=${!n.enabled}>${tt.notify.off}</option>
-        <option value="on" ?selected=${n.enabled}>${tt.notify.on}</option>
-      </select>
+      ${this.renderNotifyPick(n.enabled, !n.can_edit || this.notifyBusy)}
     </div>`;
+  }
+
+  /** AUDIT30-WK (audit round 30, #16): the shared sw-dropdown, not a native select. sw-dropdown has no disabled state (branch B's
+   * file), so a locked pick is `inert` + `aria-disabled` and fades with `--sw-disabled-opacity`. */
+  private renderNotifyPick(on: boolean, locked: boolean): TemplateResult {
+    return html`<sw-dropdown data-wkt-notify-select label=${tt.notify.label} .value=${on ? 'on' : 'off'}
+      .items=${[{ id: 'off', label: tt.notify.off }, { id: 'on', label: tt.notify.on }]}
+      ?inert=${locked} aria-disabled=${locked ? 'true' : nothing} style=${locked ? 'opacity: var(--sw-disabled-opacity)' : ''}
+      @change=${(e: CustomEvent<DropdownChange>) => this.setNotify(e.detail.id === 'on')}></sw-dropdown>`;
   }
 
   render() {

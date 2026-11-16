@@ -84,7 +84,7 @@ async function mountDialog(page: Page, w: number, h: number) {
     el.open = true;
     document.body.append(el);
   });
-  await page.locator('schedule-create-dialog [data-create-dialog]').waitFor();
+  await page.locator('schedule-create-dialog [data-template]').first().waitFor(); // AUDIT30-I3: the shared sw-dialog's host has no box of its own
   await page.waitForTimeout(600);
 }
 
