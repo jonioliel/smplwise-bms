@@ -6,8 +6,10 @@
  * return to normal", never "the door is closed" (CR-039 18.2). `{name}` placeholders are filled by `dwt(key, { name })`.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { NAV_DWT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
-  tab: 'חלונות פתיחה',
+  tab: NAV_DWT.he.tab,
   title: 'חלונות פתיחה',
   sub: 'דלתות שנשארות פתוחות בשעות קבועות, עם חזרה מובטחת למצב רגיל בסוף.',
   newRule: 'חלון חדש',
@@ -217,7 +219,7 @@ export type DwtKey = keyof typeof he;
 export type DwtLang = 'he' | 'en' | 'ar' | 'ru';
 
 const en: Record<DwtKey, string> = {
-  tab: 'Door windows',
+  tab: NAV_DWT.en.tab,
   title: 'Door windows',
   sub: 'Doors held open at set hours, with a guaranteed return to normal at the end.',
   newRule: 'New window',
@@ -423,7 +425,7 @@ const en: Record<DwtKey, string> = {
 };
 
 const ar: Record<DwtKey, string> = {
-  tab: 'نوافذ فتح الأبواب',
+  tab: NAV_DWT.ar.tab,
   title: 'نوافذ فتح الأبواب',
   sub: 'أبواب تبقى مفتوحة في ساعات محددة، مع عودة مضمونة إلى الوضع العادي في النهاية.',
   newRule: 'نافذة جديدة',
@@ -629,7 +631,7 @@ const ar: Record<DwtKey, string> = {
 };
 
 const ru: Record<DwtKey, string> = {
-  tab: 'Окна открытия',
+  tab: NAV_DWT.ru.tab,
   title: 'Окна открытия дверей',
   sub: 'Двери, открытые в заданные часы, с гарантированным возвратом в обычный режим в конце.',
   newRule: 'Новое окно',

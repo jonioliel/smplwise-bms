@@ -478,8 +478,9 @@ def prune(conn, now: dt.datetime) -> None:
     try:
         conn.execute("DELETE FROM ticket_portal_tech_requests WHERE (state != 'pending' AND decided_at < ?) OR (state = 'pending' AND created_at < ?)",
                      (_iso(now - KEEP_DECIDED), _iso(now - KEEP_PENDING)))
-    except Exception:  # noqa: BLE001 - a database before 0112
-        pass
+    except Exception as exc:  # noqa: BLE001 - a database before 0112 is silent; any other failure is logged, the janitor goes on
+        if not store.table_missing(exc):
+            log.warning("portal technician request retention failed: %s", type(exc).__name__)
 
 
 def forget_contact(conn, contact_id: str) -> None:
@@ -488,8 +489,9 @@ def forget_contact(conn, contact_id: str) -> None:
     try:
         conn.execute("DELETE FROM ticket_portal_tech_requests WHERE vendor_id = ? OR sender_contact_id = ? OR replaces_contact_id = ?",
                      (contact_id, contact_id, contact_id))
-    except Exception:  # noqa: BLE001 - a database before 0112
-        pass
+    except Exception as exc:  # a database before 0112 has nothing to erase; any other failure fails the erase (F-03)
+        if not store.table_missing(exc):
+            raise
 
 
 def sanitized_rfq(item: Mapping[str, Any]) -> bool:

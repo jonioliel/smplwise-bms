@@ -3,8 +3,8 @@
  * (smplwise_vms/backend/smplwise/routers/temperature.py). Read-only against the infrastructure: nothing is ever sent to a device.
  * Operator routes carry friendly sensor names; entity ids come only to holders of infra.temperature.manage (owner decision 7).
  */
-import { api, ApiError, apiUrl, del, get, post, put, type ApiErrorBody } from './client';
-import { dispositionName, saveBlob } from './tickets-costs';
+import { api, apiBlob, del, get, post, put } from './client';
+import { dispositionName, saveBlob } from './download';
 
 export type UnitKind = 'fridge' | 'freezer' | 'coldroom' | 'pharma' | 'server' | 'room';
 export const UNIT_KINDS: readonly UnitKind[] = ['fridge', 'freezer', 'coldroom', 'pharma', 'server', 'room'];
@@ -465,17 +465,8 @@ export const openTicket = (id: string, body: { department_id: string; title?: st
 
 /** The alert log as CSV (the browser's own download). */
 export async function downloadLogCsv(q: LogQuery, lang: 'he' | 'en' = 'he'): Promise<void> {
-  const res = await fetch(apiUrl(`${B}/events.csv${logQs({ ...q, limit: undefined, offset: undefined }, { lang })}`), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: ApiErrorBody | null = null;
-    try {
-      body = (await res.json()) as ApiErrorBody;
-    } catch {
-      body = null;
-    }
-    throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
-  }
-  saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), 'temperature-log.csv'));
+  const { blob, headers } = await apiBlob(`${B}/events.csv${logQs({ ...q, limit: undefined, offset: undefined }, { lang })}`);
+  saveBlob(blob, dispositionName(headers.get('Content-Disposition'), 'temperature-log.csv'));
 }
 
 // ---------------------------------------------------------------- phase 2: the report (PDF) and the WhatsApp text summary
@@ -677,15 +668,6 @@ export const sendReportLink = (id: string) => post<LinkSendResponse>(`${B}/repor
 
 /** The PDF (the browser's own download). */
 export async function downloadReportPdf(p: ReportParams): Promise<void> {
-  const res = await fetch(apiUrl(`${B}/report.pdf${reportQs(p)}`), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: ApiErrorBody | null = null;
-    try {
-      body = (await res.json()) as ApiErrorBody;
-    } catch {
-      body = null;
-    }
-    throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
-  }
-  saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), 'temperature-report.pdf'));
+  const { blob, headers } = await apiBlob(`${B}/report.pdf${reportQs(p)}`);
+  saveBlob(blob, dispositionName(headers.get('Content-Disposition'), 'temperature-report.pdf'));
 }

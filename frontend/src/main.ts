@@ -7,9 +7,8 @@ import './styles/focus-policy'; // mobile audit 2026-09-30: one focus ring for e
 import { REMOTE } from './arx/pre-gate';
 import './shell/sw-app';
 import { syncUiLang } from './i18n/ui-lang';
-import { bootRemote } from './arx/boot';
-
-if (REMOTE) void bootRemote();
+// CR-SHELL-LAZY-2436 (review 07:F4 c): the remote start-up (sign-in, welcome, local identity words) is a chunk of its own, fetched only on the remote channel
+if (REMOTE) void import('./arx/boot').then((m) => m.bootRemote());
 void syncUiLang(); // the server's choice wins over this browser's copy (one reload when they differ)
 import './pwa/arx-pwa-prompts'; // CR-008 P3: service worker, install prompt, iOS hint, update notice
 import { installOverflowDebug } from './debug/overflow';

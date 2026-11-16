@@ -5,11 +5,13 @@
  * are filled by `ix(key, { x }, lang)`. Operator screens never name the home platform and carry no hint paragraphs.
  */
 import { docLang, fill, registerCatalogue } from './core';
+import { NAV_IX } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
   // navigation
   crumbArea: 'ניהול שירות',
   crumbSection: 'סקירה ודוחות',
-  pageBuilding: 'דוחות בניין',
+  pageBuilding: NAV_IX.he.pageBuilding,
   subReport: '{month} · קובץ PDF לפי דרישה',
   subDoors: '{range} · {place}',
   subWaste: '{range} · {place}',
@@ -256,7 +258,7 @@ const he = {
 const en: Partial<Record<keyof typeof he, string>> = {
   crumbArea: 'Service management',
   crumbSection: 'Review and reports',
-  pageBuilding: 'Building reports',
+  pageBuilding: NAV_IX.en.pageBuilding,
   subReport: '{month} · PDF on demand',
   subDoors: '{range} · {place}',
   subWaste: '{range} · {place}',

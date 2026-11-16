@@ -61,7 +61,7 @@ test.describe('HOME-V3-P2-2431 family and building', () => {
   test('who is home: the household, and my own hide switch', async ({ page }) => {
     const m = await open(page, 'presence');
     await expect(home(page).locator('.prow')).toHaveCount(4);
-    await expect(home(page).locator('.prow[data-person="me"] b')).toContainText('(אני)');
+    await expect(home(page).locator('.prow[data-person="me"] .pn')).toContainText('(אני)'); // HOME-V3-AUDITFIX-2437: the mark sits beside the name
     await home(page).locator('[data-act="p2ShowMe"]').click();
     await expect.poll(() => m.calls.filter((c) => c.path === 'home/presence/me').map((c) => JSON.stringify(c.body))).toContain('{"hidden":true}');
     await expect(home(page).locator('.prow[data-person="me"]')).toContainText('מוסתר מהאחרים');

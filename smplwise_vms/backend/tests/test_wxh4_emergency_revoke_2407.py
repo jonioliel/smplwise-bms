@@ -523,10 +523,10 @@ def test_end_to_end_the_discovery_re_pair_path_ends_the_revocation(world):
 
 def test_bridge_version_is_0_10_6_in_both_copies_with_reconfigure():
     const = h._load("const")
-    assert const.VERSION == "0.10.6"
+    assert const.VERSION == "0.10.7"
     assert "WXH4-EMERGENCY-REVOKE-2407" in Path(BACKEND.parent.parent / "custom_components" / "smplwise_bridge" / "const.py").read_text(encoding="utf-8").split("# 0.10.5", 1)[0]
     for root in (ROOT / "custom_components" / "smplwise_bridge", ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.6"
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.7"
         assert "async_step_reconfigure" in (root / "config_flow.py").read_text(encoding="utf-8")
         for name in ("strings.json", "translations/en.json", "translations/he.json"):
             cfg = json.loads((root / name).read_text(encoding="utf-8"))["config"]

@@ -16,7 +16,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field
 
-from ..auth import current_principal, get_conn, get_read_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import quiet_windows as qw
@@ -41,7 +41,7 @@ class SettingsBody(BaseModel):
 
 
 @router.get("/quiet/windows")
-def list_windows(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def list_windows(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     now = qw.now_utc()
     return {"enabled": qw.enabled(conn), "windows": qw.list_for(conn, principal, now), "now": iso_utc(now),
             "can_configure": authorize(conn, principal, qw.CONFIGURE, INSTALLATION).allowed}
@@ -59,7 +59,7 @@ def stop_window(request: Request, window_id: str = Path(min_length=1, max_length
 
 
 @router.get("/quiet/settings")
-def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {"settings": qw.settings_view(conn)}
 
 

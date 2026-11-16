@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, get_read_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import commit_now, rollback_and_restart
 from ..errors import ApiError
 from ..remote_channel import is_remote
@@ -94,7 +94,7 @@ def _occ_view(r: sqlite3.Row, labels: dict[str, dw.Door], rule_names: dict[str, 
 
 
 @router.get("/doors/windows/state")
-def windows_state(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def windows_state(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Everything the door-windows screen shows to this person: the switch and tier, the doors they may see (and which they may manage or
     override), the rules touching those doors, and the occurrences of the next 7 days plus every open alarm on them."""
     visible = dw.visible_doors(conn, principal)
@@ -412,7 +412,7 @@ def foreign_handled(body: ConfirmBody, request: Request, station_id: str = Path(
 
 @router.get("/doors/windows/doors/{station_id}/{relay}/program/preview")
 def program_preview(request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
-                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                    principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The dry run of the door's program write: what Arx would write, whether it is valid, what the engine holds now and what the write
     would do (pause first? inside a running window?). Writes nothing (only a refusal is audited). `access.windows.manage` on the door."""
     dw.require_doors(conn, principal, [(station_id, relay)], dw.MANAGE, "door.window.program_preview")
@@ -466,7 +466,7 @@ def program_apply(body: ProgramApplyBody, request: Request, station_id: str = Pa
 
 
 @router.get("/doors/windows/calendar")
-def get_calendar(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def get_calendar(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:
         raise ApiError(403, "forbidden", "אין הרשאה.")
     start = (now_utc() - dt.timedelta(days=1)).date()
@@ -513,7 +513,7 @@ def put_calendar(body: CalendarBody, request: Request, principal: Principal = De
 
 
 @router.get("/doors/windows/settings")
-def get_window_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def get_window_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     return {"settings": dw.settings_view(conn), "go_live_permitted": dwe.program_ready(), "program_engine_built": dwe.program_engine_built()}
 
@@ -564,7 +564,7 @@ def _any(conn: sqlite3.Connection, principal: Principal, permission: str) -> boo
 
 
 @router.get("/doors/emergency/state")
-def emergency_state(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def emergency_state(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The visible state (CR-039 8.1): the active incident (the red strip) for everyone who sees doors, and - for the holders of an
     emergency permission - the switches, the scopes they may press in and the recent history."""
     perms = permissions_anywhere(conn, principal)
@@ -706,7 +706,7 @@ class RevokeGrantBody(BaseModel):
 
 
 @router.get("/doors/emergency/grants")
-def emergency_grants(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def emergency_grants(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """EMROLE-295: who holds the emergency-open role, and the people / places a grant may name (system administrators and security managers)."""
     return deg.view(conn, principal)
 
@@ -728,7 +728,7 @@ def emergency_grant_revoke(body: RevokeGrantBody, request: Request, binding_id: 
 
 
 @router.get("/doors/emergency/incidents/{incident_id}")
-def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal_ro),
                        conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     perms = permissions_anywhere(conn, principal)
     if de.LOCK not in perms and de.OPEN not in perms:
@@ -740,7 +740,7 @@ def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), pri
 
 
 @router.get("/doors/emergency/settings")
-def get_emergency_settings(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def get_emergency_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     return {"settings": de.settings_view(conn, settings_of(request))}
 

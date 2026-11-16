@@ -9,7 +9,7 @@ import { html, nothing } from 'lit';
 import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
-  AUTO_LABEL, elec, elecErrorText, elecFieldErrors, elecMeters, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type PriceMode, type Tariff, type VatRates,
+  AUTO_LABEL, elec, elecCustomerNumberError, elecErrorText, elecFieldErrors, elecMeters, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type PriceMode, type Tariff, type VatRates,
   type BillingSettings,
 } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -223,7 +223,7 @@ export class ElecAccountWizard extends ElecBase {
           } catch (e) {
             const f = elecFieldErrors(e);
             this.ncErr = Object.keys(f).length ? f : { customer_number: elecErrorText(e) };
-            if (!Object.keys(f).length && !/מספר/.test(elecErrorText(e))) this.ncErr = { name: elecErrorText(e) };
+            if (!Object.keys(f).length && !elecCustomerNumberError(e)) this.ncErr = { name: elecErrorText(e) };
             this.step = 5;
             return;
           }

@@ -18,7 +18,7 @@
 import { post, put } from './client';
 import { isApi } from './session';
 import type { CostMode, LineInput, LineKind, StoredLine, VatMode } from './tickets-costs';
-import { mockQuotes } from './tickets-costs-mock';
+import { lazyAdapter } from './demo-load';
 
 export type QuoteState = 'submitted' | 'fix_requested' | 'approved' | 'partially_approved' | 'rejected' | 'superseded' | 'withdrawn' | 'not_awarded';
 export type QuoteAction = 'approve' | 'request-fix' | 'reject';
@@ -120,7 +120,10 @@ const rest: QuotesBackend = {
   setKinds: (id, kinds) => put<QuotesAnswer>(`tickets/${enc(id)}/allowed-line-kinds`, { kinds }),
 };
 
+/** CR-MOCKS-LAZY-2436 (review 07:F2): the demo store is fetched on the first demo call - with a backend it is never loaded. */
+const demo = lazyAdapter<QuotesBackend>(() => import('./tickets-costs-mock').then((m) => m.mockQuotes), {});
+
 /** The backend in force: REST with a server, the demo store without one. */
 export function ticketQuotesApi(): QuotesBackend {
-  return isApi() ? rest : mockQuotes;
+  return isApi() ? rest : demo;
 }
