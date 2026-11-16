@@ -18,6 +18,7 @@
  * - Starts (section 4.4): the saved walk positions in order, the first exterior door facing inward, every room's centre
  *   facing its longest wall, every camera at its mount height and tilt; `defaultStart` follows the CR's preference order.
  */
+import { isNum, r4z } from './num';
 import { buildPrimitives, effectiveScale, floorHeight, objectCorners, stairPlan, stairRise, type GeomConnector, type GeomLevel, type GeomOpening, type Pt } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { isOpenState } from './coverage';
@@ -125,10 +126,9 @@ export interface WalkCatalogItem {
 }
 export type WalkCatalogLookup = (itemId: string) => WalkCatalogItem | undefined;
 
-export const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4 + 0;
+export const r4 = r4z;
 const p4 = (p: readonly [number, number]): [number, number] => [r4(p[0]), r4(p[1])];
 const byId = <T extends { id: string }>(a: T, b: T): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const LOCKED = new Set(['locked', 'locking', 'jammed']);
 const UNLOCKED = new Set(['unlocked', 'unlocking', 'open', 'opening']);
 const STALE = new Set(['unavailable', 'unknown']);

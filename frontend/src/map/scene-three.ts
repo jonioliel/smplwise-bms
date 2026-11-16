@@ -17,6 +17,7 @@
  * camera is far. Colours come from the element's computed design tokens - the description carries names only. This is
  * the only module that imports the three bundle (the lazy chunk).
  */
+import { rad } from './num';
 import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, FogExp2, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NeutralToneMapping, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, NO_INSETS, PERSP_DIR, azimuthDeg, clampThumb, contentExtent, cutBox, cutawayIds, glowPoolWanted, insetFractions, isoFitFrame, isoFrame, levelExtent, perspFit, quantiseAzimuth, sceneExtent, type Extent, type FrameInsets, type IsoFrame } from './scene-frame';
@@ -191,7 +192,6 @@ const NIGHT_FILL_DIR: Vec3 = [0.55, 0.45, 0.7];
 const THUMB_W = 160;
 const THUMB_H = 100;
 
-const rad = (d: number): number => (d * Math.PI) / 180;
 const SKY_TMP = new Vector3();
 const extentKey = (e: Extent): string => [e.x0, e.x1, e.z0, e.z1, e.y0, e.y1].map((v) => v.toFixed(2)).join(',');
 /** The night fill of levels 1-2 (NIGHT_FILL_*): a shadowless directional light from the overview cameras' side. */

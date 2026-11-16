@@ -9,6 +9,7 @@
  * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
+import { deg, isNum, r4, rad } from './num';
 import { buildPrimitives, sampledWall, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type StairFlightPlan, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { glassVerticals, glazingOf, panelStateId, type GlazingPrim } from './glass-wall';
@@ -270,9 +271,8 @@ export function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
 }
 
 /** Half-up to 0.1 mm, the r2 rule of the primitives one digit further (metres, not pixels). */
-export const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4;
+export { r4 };
 const v3 = (a: number, b: number, c: number): Vec3 => [r4(a), r4(b), r4(c)];
-const deg = (rad: number): number => (rad * 180) / Math.PI;
 
 /** How far a run of a wall part grows past its joint i with the next run (metres; `t` the wall thickness): half the thickness at a straight wall's bend (the runs overlap inside, the outer corner is filled); on a
  * curved part's sampled arc only the mitre its turn needs (half the thickness times tan of half the turn), so the band
@@ -283,10 +283,8 @@ function jointGrow(p: WallPrim, i: number, t: number): number {
   const turn = Math.abs(Math.atan2((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]), (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])));
   return Math.min(t / 2, (t / 2) * Math.tan(turn / 2));
 }
-const rad = (d: number): number => (d * Math.PI) / 180;
 const byId = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const groupKey = (shape: PartShape, color: string, opacity: number): string => `${shape}|${color}|${opacity}`;
-const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 /** A low wall and a railing read lighter than the structure; its lintels, sills and heads take the same token. */
 const wallColor = (w: GeomWall): string => (w.kind === 'railing' || w.kind === 'low' ? 'map-wall' : 'map-structure');
 /** The yaw of a symmetric box lying along the unit direction (dx, dz), folded into (-90, 90] (a box turned by 180 deg is

@@ -69,5 +69,8 @@ test('the screen wires the controller, a visible button alternative, and no text
   expect(src).toContain('-webkit-touch-callout: none');
   expect(src).toContain('user-select: none');
   const ctl = readFileSync(join(SRC, 'elevators/history-press.ts'), 'utf8');
-  for (const s of ['contextmenu', 'pointercancel', "'ContextMenu'", 'altKey', 'swallowUntil']) expect(ctl).toContain(s);
+  // CR-MAP-NUM-PRESS-2440: the listener set and the click guard live in the shared controller; the keys stay here
+  for (const s of ['extends PressController', "'ContextMenu'", 'altKey']) expect(ctl).toContain(s);
+  const base = readFileSync(join(SRC, 'components/press-controller.ts'), 'utf8');
+  for (const s of ["'contextmenu'", "'pointercancel'", 'swallowUntil']) expect(base).toContain(s);
 });
