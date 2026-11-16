@@ -52,6 +52,10 @@ MAX_FAV_ROOMS = 200
 MAX_ROOM_LIST = 500
 LAYOUT_START = ("home", "last", "fixed")
 SCHEMES = ("dark", "light", "auto")
+# HOME-R32-ANSWERS-2438 (owner round 32): the screen-entry motion (Q-HOME-6; "fade" = default) and the calendar week strip
+# (Q-HOME-2: "next" = seven days from today, the default; "week" = the week from its first day)
+LAYOUT_MOTION = ("fade", "rise")
+LAYOUT_CAL_WEEK = ("next", "week")
 THEME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 KIOSK_CODE_RE = re.compile(r"^[0-9]{4,8}$")
 KIOSK_CODE_KEY = "home.kiosk_exit_code"
@@ -597,6 +601,11 @@ def clean_layout(v: Any) -> dict[str, Any]:
     for k in ("big_text", "welcomed"):
         if k in v:
             out[k] = bool(v[k])
+    for k, allowed, what in (("motion", LAYOUT_MOTION, "התנועה"), ("cal_week", LAYOUT_CAL_WEEK, "תצוגת השבוע")):
+        if k in v:
+            if v[k] not in allowed:
+                raise HomeInterfaceError(422, "validation", f"{what} אינה מוכרת.")
+            out[k] = v[k]
     if "wallpapers" in v:  # HOME-SIMPLE-2421: {room_key: "g:<gallery name>" | "img"}; an empty value = no wallpaper
         w = v["wallpapers"]
         if not isinstance(w, dict) or len(w) > MAX_ROOM_LIST:

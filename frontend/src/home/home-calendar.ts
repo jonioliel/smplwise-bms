@@ -10,7 +10,7 @@ import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { wallEvent } from './home-fb-api';
 import { cancelEvent, createEvent, listCalendars, myCalendar, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
-import { errText, has, iso, localInstant, plural, stepper, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
+import { errText, has, iso, localInstant, plural, stepper, thisWeekDays, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 
 interface Draft { title: string; day: string; from: number; to: number; cal: string; room: string }
 const st: {
@@ -26,8 +26,11 @@ function load(h: HomeHost, force = false) {
   if (!has('calendar') || st.loading || (!force && st.at && Date.now() - st.at < 60_000)) return;
   st.loading = true;
   const now = new Date();
-  const from = localInstant(ymd(now), 0);
-  const to = new Date(from.getTime() + 7 * 86_400_000);
+  // HOME-R32-ANSWERS-2438: from the week's first day (the "השבוע" strip) to a week from today (the "הימים הקרובים" strip) - both strips
+  // and the switch between them need no second request
+  const today0 = localInstant(ymd(now), 0);
+  const from = localInstant(thisWeekDays(now)[0][2], 0);
+  const to = new Date(today0.getTime() + 7 * 86_400_000);
   void (async () => {
     try {
       st.cals = (await listCalendars()).calendars;
@@ -52,6 +55,11 @@ function load(h: HomeHost, force = false) {
     }
   })();
 }
+
+/** HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-2 a): the strip is seven days from today unless the person chose "השבוע" (kept in their
+ * own layout, like the other display choices). */
+const weekMode = (h: HomeHost): 'next' | 'week' => (h.myLayout().cal_week === 'week' ? 'week' : 'next');
+const stripDays = (h: HomeHost) => (weekMode(h) === 'week' ? thisWeekDays(h.now) : weekDays(h.now));
 
 const calName = (id: string) => st.cals.find((c) => c.id === id)?.name ?? '';
 const dayOf = (o: Occurrence) => ymd(new Date(o.start));
@@ -100,18 +108,20 @@ registerScreen((h: HomeHost) => ({
     const sg = tabs.length > 1 ? h.seg('p2CalTab', tabs, st.tab, 'תצוגה') : nothing;
     if (st.error && !st.at) return html`${h.head('יומן', '')}${h.empty('x', 'לא הצלחנו לטעון את היומן', st.error)}`;
     if (st.tab === 'book') return book(h, sg);
-    const days = weekDays(h.now);
-    const today = days[0][2];
+    const days = stripDays(h);
+    const today = ymd(h.now);
     const day = st.day && days.some((d) => d[2] === st.day) ? st.day : today;
+    const wk = weekMode(h);
+    const wkSeg = h.seg('p2CalWeek', [['week', 'השבוע'], ['next', 'הימים הקרובים']], wk, 'ימים בפס');
     const list = st.occ.filter((o) => dayOf(o) === day);
     const pg = paged(list, h.phone ? 4 : 6, h.pg('cal'));
     const canNew = family().some(bookable); // HOME-V3-FOLLOWUP-B-2431: a wall panel too (its own route below)
     const d0 = days.find((d) => d[2] === day)!;
-    return html`${h.headT(day === today ? 'היום ביומן' : `יום ${d0[0]}, ${d0[1]} בחודש`, list.length ? plural(list.length, 'אירוע אחד', 'אירועים') : 'יום פנוי', sg,
+    return html`${h.headT(day === today ? 'היום ביומן' : `יום ${d0[0]}, ${d0[1]} בחודש`, list.length ? plural(list.length, 'אירוע אחד', 'אירועים') : 'יום פנוי', html`${sg}${wkSeg}`,
       html`${h.pager('cal', pg.pages)}${canNew ? html`<button class="hbtn strong" data-act="p2CalNew">${hi('plus')}<span class="bt">אירוע חדש</span></button>` : nothing}`)}
       <div class="week" role="group" aria-label="ימי השבוע">${days.map(([l, n, s]) => {
         const k = st.occ.filter((o) => dayOf(o) === s).length;
-        return html`<button class="wd" data-act="p2CalDay" data-v=${s} aria-pressed=${String(s === day)} data-today=${s === today ? '1' : nothing} aria-label=${`יום ${l}, ${n}, ${k} אירועים`}><span class="wdl">${l}</span><b class="num">${n}</b><span class="wk">${k ? html`<i></i>${k > 1 ? html`<i></i>` : nothing}${k > 2 ? html`<i></i>` : nothing}` : nothing}</span></button>`;
+        return html`<button class="wd" data-act="p2CalDay" data-v=${s} aria-pressed=${String(s === day)} data-today=${s === today ? '1' : nothing} data-past=${s < today ? '1' : nothing} aria-label=${`יום ${l}, ${n}, ${k} אירועים`}><span class="wdl">${l}</span><b class="num">${n}</b><span class="wk">${k ? html`<i></i>${k > 1 ? html`<i></i>` : nothing}${k > 2 ? html`<i></i>` : nothing}` : nothing}</span></button>`;
       })}</div>
       <div class="card-grid calg">${pg.items.length ? pg.items.map((e) => html`<div class="tile cev"><span class="ct"><b class="num">${e.all_day ? 'כל היום' : timeOf(e.start)}</b>${e.all_day ? nothing : html`<span class="muted num">${timeOf(e.end)}</span>`}</span><span class="at"><b class="clamp2">${e.title ?? 'תפוס'}</b><span class="muted clamp1">${[e.organizer?.name, calName(e.calendar_id)].filter(Boolean).join(' · ')}</span></span></div>`)
         : h.empty('cal', st.loading ? 'טוענים…' : 'אין אירועים ביום הזה', canNew ? 'אפשר להוסיף אירוע בכפתור "אירוע חדש".' : '')}</div>`;
@@ -134,6 +144,7 @@ registerScreen((h: HomeHost) => ({
   },
   acts: {
     p2CalTab: (el) => { st.tab = el.dataset.v as 'day' | 'book'; h.page = { ...h.page, cal: 0 }; h.go('calendar/' + st.tab); },
+    p2CalWeek: (el) => { h.saveMyLayout({ cal_week: el.dataset.v === 'week' ? 'week' : 'next' }); h.page = { ...h.page, cal: 0 }; },
     p2CalDay: (el) => { st.day = el.dataset.v ?? null; h.page = { ...h.page, cal: 0 }; h.requestUpdate(); },
     p2CalNew: () => {
       const cals = family().filter(bookable);
