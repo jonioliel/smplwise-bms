@@ -28,7 +28,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .bill_pdf_logo import LogoError, sanitize_logo
 from .child_env import minimal_env
@@ -189,6 +189,41 @@ def _run_child(job: Mapping[str, Any], timeout_s: float) -> tuple[bytes, str | N
     if proc.returncode != 0 or not out.startswith(b"%PDF-"):
         log.error("bill pdf: render failed (exit %s): %s", proc.returncode, tail[-400:])
         raise BillPdfError("pdf_render_failed")
+    m = re.search(r"engine=(weasyprint|fpdf2)", tail)
+    return out, (m.group(1) if m else None)
+
+
+def run_report_child(job: Mapping[str, Any], timeout_s: float, *, module: str, what: str, error: Callable[[str], Exception],
+                     logger: logging.Logger) -> tuple[bytes, str | None]:
+    """CR-PDF-CHILD (review 04:F11): the launch the report PDFs share (services/building_report_pdf.py, services/temperature_pdf.py
+    were copies): one render child `python -s -m <module>` with the bill child's process model - the scrubbed environment, its own
+    process group, the JSON job on stdin, the timeout, the kill of the whole group. Returns (pdf bytes, the engine it used).
+    Raises `error(code)`: `pdf_unavailable` (cannot start, or the child failed), `pdf_timeout`, `pdf_page_limit`, `pdf_too_large`.
+    `what` names the report in the log lines ("temperature pdf")."""
+    payload = json.dumps(job, default=str).encode("utf-8")
+    kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "cwd": _PACKAGE_PARENT}
+    if os.name == "posix":
+        kwargs["start_new_session"] = True
+    try:
+        proc = subprocess.Popen([sys.executable, "-s", "-m", module], env=minimal_env(_child_extra()), **kwargs)
+    except OSError as exc:
+        logger.error("%s: cannot start the render process: %s", what, exc)
+        raise error("pdf_unavailable") from exc
+    try:
+        out, err = proc.communicate(payload, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _kill_group(proc)
+        proc.communicate()
+        raise error("pdf_timeout") from None
+    finally:
+        if proc.poll() is None:
+            _kill_group(proc)
+    tail = err.decode("utf-8", "replace")[-_STDERR_KEEP:].strip()
+    if proc.returncode == 3:
+        raise error("pdf_too_large" if "pdf_too_large" in tail else "pdf_page_limit")
+    if proc.returncode != 0 or not out.startswith(b"%PDF-"):
+        logger.error("%s: render failed (exit %s): %s", what, proc.returncode, tail[-400:])
+        raise error("pdf_unavailable")
     m = re.search(r"engine=(weasyprint|fpdf2)", tail)
     return out, (m.group(1) if m else None)
 
