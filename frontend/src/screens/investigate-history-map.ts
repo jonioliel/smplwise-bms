@@ -39,7 +39,8 @@ import { REPLAY_VIEW, replayStates } from '../map/replay-3d';
 import { boundItemOf } from '../map/part-select';
 import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
-import { sameRefs } from '../map/memo';
+import { RefMemo, sameRefs } from '../map/memo';
+import { Latest } from '../api/latest';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
@@ -156,6 +157,13 @@ export class InvestigateHistoryMap extends LitElement {
   private rangeMaxDays = 7;
   private snapSeq = 0;
   private rangeSeq = 0;
+  /** CR-INV-PLAYBACK-2440 (06:RACE-2): `init()` (another floor or instant from the address) and `loadDay()` (another date) had no token
+   * beside the four above - only the newest read of each is drawn (api/latest.ts). */
+  private initReads = new Latest();
+  private dayReads = new Latest();
+  /** 06:PERF-2: playback sets `minute` every animation frame; what the frame hands to the timeline, the canvas and the 3D view keeps
+   * its identity while the day's data, the selection and the bundle are the same. */
+  private memo = new RefMemo();
   private rangeKey = '';
   private rangeTimer = 0;
   private raf = 0;
@@ -1090,10 +1098,12 @@ export class InvestigateHistoryMap extends LitElement {
   // ---- data ----
 
   private async init() {
+    const current = this.initReads.begin(); // 06:RACE-2
     this.loading = true;
     this.error = '';
     try {
       const [settings, tree] = await Promise.all([productSettings(), this.tree ? Promise.resolve(this.tree) : loadTree()]);
+      if (!current()) return;
       this.tz = settings['time.zone'] ?? this.tz;
       this.tree = tree;
       // CR-TIMESCRUB101: the flag (default off = today's screen unchanged) and the cap of one range request
@@ -1116,7 +1126,9 @@ export class InvestigateHistoryMap extends LitElement {
       const start = this.at ? new Date(this.at) : new Date();
       this.date = dateInZone(start, this.tz);
       this.minute = minuteInZone(start, this.tz);
-      this.bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      const bundle = await loadMap(this.floorId, false, this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      if (!current()) return;
+      this.bundle = bundle;
       this.restorePlanImage();
       this.level = initialLevel(settings['plan.levels'], this.bundle); // 0.1.89: fixed for the floor, no level bar here
       this.default3d = defaultViewIs3d(settings) && !this.view3d;
@@ -1144,9 +1156,10 @@ export class InvestigateHistoryMap extends LitElement {
       }
       await this.loadDay();
     } catch (err) {
+      if (!current()) return;
       this.error = describeError(err);
     } finally {
-      this.loading = false;
+      if (current()) this.loading = false; // a newer init owns the loading state
     }
   }
 
@@ -1165,10 +1178,12 @@ export class InvestigateHistoryMap extends LitElement {
     const b = this.bundle;
     if (!b) return;
     const camIds = b.anchors.filter((a) => a.resource_type === 'camera').map((a) => a.resource_id);
+    const current = this.dayReads.begin(); // 06:RACE-2: two dates picked quickly - the later one's day is the one shown
     const [ev, recs] = await Promise.all([
       listEvents({ date: this.date, limit: 1000 }).then((r) => r.events.filter((e) => e.camera_id && camIds.includes(e.camera_id))).catch(() => [] as VmsEvent[]),
       Promise.allSettled(camIds.map((id) => recordingsForDay(id, this.date))),
     ]);
+    if (!current()) return;
     this.events = ev;
     const m = new Map<string, RecordingsResponse | null>();
     camIds.forEach((id, i) => {
@@ -1184,14 +1199,50 @@ export class InvestigateHistoryMap extends LitElement {
 
   /** Whole-day minutes of a recording segment list for one camera (null = search failed / unknown). */
   private segmentsFor(cameraId: string): DemoSegment[] | null {
-    const r = this.recordings.get(cameraId);
-    if (!r) return null;
-    return r.segments.map((s) => {
-      const a = minuteInZone(new Date(s.start_at), this.tz);
-      let bMin = minuteInZone(new Date(s.end_at), this.tz);
-      if (bMin < a) bMin = 1440;
-      return { startMin: a, endMin: bMin, kind: s.kind === 'continuous' ? 'continuous' : 'motion' };
-    });
+    const { recordings, tz } = this;
+    // 06:PERF-2: per camera, once per day's data (it was rebuilt for every camera on every frame of a playback)
+    const byCamera = this.memo.get('segmentsByCamera', [recordings, tz], () => new Map<string, DemoSegment[] | null>());
+    if (byCamera.has(cameraId)) return byCamera.get(cameraId) ?? null;
+    const r = recordings.get(cameraId);
+    const out: DemoSegment[] | null = !r
+      ? null
+      : r.segments.map((s) => {
+          const a = minuteInZone(new Date(s.start_at), tz);
+          let bMin = minuteInZone(new Date(s.end_at), tz);
+          if (bMin < a) bMin = 1440;
+          return { startMin: a, endMin: bMin, kind: s.kind === 'continuous' ? 'continuous' : 'motion' };
+        });
+    byCamera.set(cameraId, out);
+    return out;
+  }
+
+  /** 06:PERF-2: the timeline's segments - the selected camera's, or every camera's; the same array while the day's data and the
+   * selection are the same. `on` false = the cameras layer is switched off (the time scrub). */
+  private timelineSegments(camera: string | null, on = true): DemoSegment[] {
+    const { recordings, tz } = this;
+    return this.memo.get('tlSegments', [recordings, tz, camera, on], () =>
+      !on ? [] : camera !== null ? this.segmentsFor(camera) ?? [] : Array.from(recordings.keys()).flatMap((id) => this.segmentsFor(id) ?? []));
+  }
+
+  /** 06:PERF-2: the timeline's event markers, memoised the same way (`on` false = the events layer is switched off). */
+  private timelineEvents(camera: string | null, on = true): TimelineEvent[] {
+    const { events, tz } = this;
+    return this.memo.get('tlEvents', [events, tz, camera, on], () =>
+      !on ? [] : (camera !== null ? events.filter((e) => e.camera_id === camera) : events).map((e) => ({ minute: minuteInZone(new Date(e.occurred_at), tz), kind: markerKind(e.type), label: `${EVENT_LABEL[e.type] ?? e.type}${e.count > 1 ? ` ×${e.count}` : ''}` })));
+  }
+
+  /** 06:PERF-2: the 3D view's camera list and the canvas's zones, one array per bundle. */
+  private camerasOf(b: MapBundle): { id: string; label: string }[] {
+    return this.memo.get('cameras3d', [b], () => b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) })));
+  }
+
+  private anchorPositionsOf(b: MapBundle): Record<string, AnchorPosition> {
+    return this.memo.get('anchorPositions', [b.anchors], () =>
+      Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition])));
+  }
+
+  private zonesOf(b: MapBundle) {
+    return this.memo.get('zones', [b.zones], () => zonesWithChips(b.zones));
   }
 
   private coverageAt(cameraId: string): { state: 'historic' | 'unknown'; segment?: DemoSegment } {
@@ -1477,8 +1528,9 @@ export class InvestigateHistoryMap extends LitElement {
     if (this.error && !b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
     if (!b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
     const sel = this.selectedAnchor;
-    const segs = sel?.resource_type === 'camera' ? this.segmentsFor(sel.resource_id) ?? [] : Array.from(this.recordings.keys()).flatMap((id) => this.segmentsFor(id) ?? []);
-    const tlEvents: TimelineEvent[] = (sel?.resource_type === 'camera' ? this.events.filter((e) => e.camera_id === sel.resource_id) : this.events).map((e) => ({ minute: minuteInZone(new Date(e.occurred_at), this.tz), kind: markerKind(e.type), label: `${EVENT_LABEL[e.type] ?? e.type}${e.count > 1 ? ` ×${e.count}` : ''}` }));
+    const selCamera = sel?.resource_type === 'camera' ? sel.resource_id : null;
+    const segs = this.timelineSegments(selCamera);
+    const tlEvents: TimelineEvent[] = this.timelineEvents(selCamera);
     return html`
       <div class="head lead-head">
         <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
@@ -1499,12 +1551,12 @@ export class InvestigateHistoryMap extends LitElement {
           <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
           ${this.shows3d && this.sceneDescription
             ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
-                .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
+                .cameras=${this.camerasOf(b)} exportName=${`plan-3d-${b.floorName}-${this.date}`}
                 .sunAt=${this.instant.getTime()} .walkable=${REPLAY_VIEW.walkable} .stillsAvailable=${REPLAY_VIEW.stillsAvailable}
                 @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) this.real3d = e.detail.on; }}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}
-          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${zonesWithChips(b.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${this.zonesOf(b)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${this.anchorPositionsOf(b)} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
@@ -2019,8 +2071,9 @@ export class InvestigateHistoryMap extends LitElement {
     const gap = coverage ? gapAt(coverage.gaps, tMs) : null;
     const camsOn = this.switches.cameras && status.cameras !== 'not_permitted';
     const eventsOn = this.switches.events && status.events !== 'not_permitted';
-    const segs = !camsOn ? [] : sel?.resource_type === 'camera' ? this.segmentsFor(sel.resource_id) ?? [] : Array.from(this.recordings.keys()).flatMap((id) => this.segmentsFor(id) ?? []);
-    const tlEvents: TimelineEvent[] = !eventsOn ? [] : (sel?.resource_type === 'camera' ? this.events.filter((e) => e.camera_id === sel.resource_id) : this.events).map((e) => ({ minute: minuteInZone(new Date(e.occurred_at), this.tz), kind: markerKind(e.type), label: `${EVENT_LABEL[e.type] ?? e.type}${e.count > 1 ? ` ×${e.count}` : ''}` }));
+    const selCamera = sel?.resource_type === 'camera' ? sel.resource_id : null;
+    const segs = this.timelineSegments(selCamera, camsOn);
+    const tlEvents: TimelineEvent[] = this.timelineEvents(selCamera, eventsOn);
     const when = `${this.date} ${secondLabel(this.minute)}`;
     const winFrom = this.winFromMs;
     const winTo = this.msAt(this.winStart + this.winMinutes);
@@ -2065,12 +2118,12 @@ export class InvestigateHistoryMap extends LitElement {
           <div class="hist ${gap ? 'gap' : ''}" data-history-tag>מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
           ${this.shows3d && this.sceneDescription
             ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
-                .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
+                .cameras=${this.camerasOf(b)} exportName=${`plan-3d-${b.floorName}-${this.date}`}
                 .sunAt=${tMs} .walkable=${REPLAY_VIEW.walkable} .stillsAvailable=${REPLAY_VIEW.stillsAvailable}
                 @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) this.real3d = e.detail.on; }}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}
-          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.scrubMarkers} .selectedId=${this.selectedId} .zones=${zonesWithChips(b.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${drawn.states} .roomStates=${layer} dimEntities
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.scrubMarkers} .selectedId=${this.selectedId} .zones=${this.zonesOf(b)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${this.anchorPositionsOf(b)} .entityStates=${drawn.states} .roomStates=${layer} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
