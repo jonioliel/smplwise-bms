@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { html, css, nothing, type TemplateResult } from 'lit';
 import { liftRef } from '../components/top-layer';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -9,30 +9,26 @@ import '../components/sw-button';
 import '../components/sw-pager';
 import '../components/sw-page';
 import { PageFit } from '../components/page-fit';
+import { MediaScreenBase } from './multimedia-base';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import type { MediaPresetEditor } from '../components/media-preset-editor';
 import { draftOf } from '../components/media-preset-editor';
-import { ApiError, describeError } from '../api/client';
-import { subscribeHa } from '../api/ha';
+import type { HaPush } from '../api/ha';
 import { isApi } from '../api/session';
 import {
   PLAYER_KINDS, confirmPreview, effectiveCeiling, errorCode, isPlaying, memberOutcomeLine, playerErrorText, players, previewNames, resolveLeader, sendApplyPreset, sendGroupVolume,
   sendLeave, unmuteCeiling, type GroupPreset, type GroupPreview, type GroupRecord, type MediaGroup, type PlayerDevice, type PlayerLive, type PlayerStatus,
 } from '../api/media-players';
 import { artworkUrl } from '../api/media-screens';
-import { onRouteChange, parseRoute, replaceRoute } from '../router';
-import { registerScreenEdit } from '../shell/screen-edit';
-import { applyMultimediaKinds } from '../shell/nav';
+import { parseRoute, replaceRoute } from '../router';
 import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
-import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
+import { mediaGlassStyles } from '../styles/media-glass';
 import { mediaPageStyles } from '../styles/media-page';
 import { glyphIcon, mIcon, nameText } from '../components/media-icons';
 import { playerView } from '../components/media-player-now';
 import { runPlayerCommand } from '../components/media-player-run';
 import { capPercent, presetFloors, presetIsLive, presetRooms, splitGroups, summarizeRecord } from './multimedia-players-layout';
-
-type Phase = 'loading' | 'ready' | 'error' | 'forbidden' | 'disabled';
 
 const PATH = '/multimedia/groups';
 const asLive = (l: unknown) => l as PlayerLive;
@@ -57,45 +53,30 @@ interface PresetRun {
  * Nothing is shown that `can` does not allow; every result is the server's, per room, never an optimistic "done".
  */
 @customElement('multimedia-groups')
-export class MultimediaGroups extends LitElement {
+export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice> {
   /** `?player=<key>` of the address (the panel is the players page's; this page only keeps the parameter). */
   @property() playerKey = '';
-  @state() private phase: Phase = 'loading';
-  @state() private devices: PlayerDevice[] = [];
   @state() private groups: MediaGroup[] = [];
   @state() private presets: GroupPreset[] = [];
-  @state() private status: PlayerStatus | null = null;
-  @state() private staleError = '';
-  @state() private toast = '';
-  @state() private phone = window.matchMedia('(max-width: 767px)').matches;
-  @state() private editing = false;
   @state() private byRoom = '';
   @state() private runs = new Map<string, PresetRun>();
   /** The last outcome of a group volume / leave, by room, per leader key (a short line under the room's name). */
   @state() private notes = new Map<string, Map<string, { text: string; bad: boolean }>>();
   @state() private deleting: GroupPreset | null = null;
-  @state() private busy = false;
   @state() private actionError = '';
   /** Values of sliders while the finger is down (the server's answer replaces them). */
   @state() private local = new Map<string, number>();
   @query('media-group-dialog') private dialog?: MediaGroupDialog;
   @query('media-preset-editor') private editor?: MediaPresetEditor;
 
-  private phoneMq = window.matchMedia('(max-width: 767px)');
   /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (components/page-fit.ts) */
-  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
-  private onPhone = () => (this.phone = this.phoneMq.matches);
-  private offRoute: (() => void) | null = null;
-  private offEdit: (() => void) | null = null;
-  private offPush: (() => void) | null = null;
-  private refreshTimer = 0;
-  private pollTimer = 0;
-  private toastTimer = 0;
+  protected fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
   private sliderTimers = new Map<string, number>();
-  private wantsEdit = false;
-  private editHandled = false;
-  private loading = false;
   private stopped = false;
+
+  protected readonly path = PATH;
+  protected readonly tab = 'groups';
+  protected readonly editEntry = { id: 'multimedia-groups-edit', label: 'עריכת הקבוצות השמורות' };
 
   static styles = [mediaGlassStyles, mediaPageStyles, css`
     .ggrid {
@@ -617,65 +598,32 @@ export class MultimediaGroups extends LitElement {
   `];
 
   connectedCallback() {
-    super.connectedCallback();
-    void applyMediaGlass(this);
     this.stopped = false;
-    this.phoneMq.addEventListener('change', this.onPhone);
-    this.offEdit = registerScreenEdit({
-      id: 'multimedia-groups-edit',
-      label: 'עריכת הקבוצות השמורות',
-      icon: 'edit',
-      can: () => this.canEdit && !this.editing,
-      run: () => this.enterEdit(),
-    });
-    this.offRoute = onRouteChange((r) => {
-      if (r.mode !== 'multimedia' || r.segments[1] !== 'groups') return;
-      this.wantsEdit = r.params.get('edit') === '1';
-      if (!this.wantsEdit) {
-        this.editHandled = false;
-        this.editing = false;
-      }
-      this.requestUpdate();
-    });
-    this.wantsEdit = parseRoute().params.get('edit') === '1';
-    void this.load();
-    if (isApi()) {
-      this.offPush = subscribeHa(
-        (m) => {
-          if (m.type === 'media_state') this.devices = this.devices.map((d) => (d.key === m.device_key ? { ...d, live: asLive(m.live) } : d));
-          else if (m.type === 'media_devices_changed' || m.type === 'media_groups_changed') this.scheduleRefresh(200);
-        },
-        (connected) => {
-          if (connected) this.scheduleRefresh(200);
-        },
-      );
-    }
-    this.pollTimer = window.setInterval(() => void this.load(), 30_000);
+    super.connectedCallback();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.stopped = true;
-    this.phoneMq.removeEventListener('change', this.onPhone);
-    this.offEdit?.();
-    this.offRoute?.();
-    this.offPush?.();
-    this.offEdit = this.offRoute = this.offPush = null;
-    for (const t of [this.refreshTimer, this.toastTimer, ...this.sliderTimers.values()]) window.clearTimeout(t);
-    window.clearInterval(this.pollTimer);
+    for (const t of this.sliderTimers.values()) window.clearTimeout(t);
   }
 
-  protected updated() {
-    if (this.wantsEdit && !this.editHandled && this.phase === 'ready') {
-      this.editHandled = true;
-      if (this.canEdit) this.enterEdit(true);
-      else this.dropParam('edit');
-    }
+  protected atConnect() {
+    this.wantsEdit = parseRoute().params.get('edit') === '1';
+  }
+
+  protected routeLeftEdit() {
+    this.editing = false;
+  }
+
+  protected pushed(m: HaPush) {
+    if (m.type === 'media_state') this.devices = this.devices.map((d) => (d.key === m.device_key ? { ...d, live: asLive(m.live) } : d));
+    else if (m.type === 'media_devices_changed' || m.type === 'media_groups_changed') this.scheduleRefresh(200);
   }
 
   // ------------------------------------------------------------------------------------------------ data
 
-  private get canEdit(): boolean {
+  protected get canEdit(): boolean {
     return this.phase === 'ready' && !!this.status?.can.layout && !phoneRestricted('layout_editor');
   }
   private get canGroup(): boolean {
@@ -685,60 +633,24 @@ export class MultimediaGroups extends LitElement {
     return !!this.status?.can.control;
   }
 
-  private async load() {
-    if (this.loading) return;
-    this.loading = true;
-    try {
-      const st = await players().status();
-      this.status = st;
-      applyMultimediaKinds(st.counts);
-      if (!st.enabled) {
-        this.phase = 'disabled';
-        return;
-      }
-      if (!st.can.read) {
-        this.phase = 'forbidden';
-        return;
-      }
-      const [list, groups, presets] = await Promise.all([players().list({ kind: PLAYER_KINDS }), players().groups(), players().presets()]);
-      this.devices = list.devices;
-      this.groups = groups;
-      this.presets = presets;
-      this.local = new Map();
-      this.phase = 'ready';
-      this.staleError = '';
-      for (const p of presets) if (p.running && !this.runs.has(p.id)) void this.followPreset(p.id, p.running.bulk_id);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) this.phase = 'forbidden';
-      else if (err instanceof ApiError && err.code === 'feature_disabled') this.phase = 'disabled';
-      else if (this.phase === 'ready') this.staleError = describeError(err);
-      else {
-        this.phase = 'error';
-        this.staleError = describeError(err);
-      }
-    } finally {
-      this.loading = false;
-    }
+  protected readStatus() {
+    return players().status();
   }
 
-  private scheduleRefresh(ms: number) {
-    window.clearTimeout(this.refreshTimer);
-    this.refreshTimer = window.setTimeout(() => void this.load(), ms);
+  protected async readContent() {
+    const [list, groups, presets] = await Promise.all([players().list({ kind: PLAYER_KINDS }), players().groups(), players().presets()]);
+    this.devices = list.devices;
+    this.groups = groups;
+    this.presets = presets;
+    this.local = new Map();
   }
 
-  private say(text: string) {
-    this.toast = text;
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = ''), 3200);
+  /** A preset that is still being applied (started here or elsewhere) is followed to its end. */
+  protected loaded() {
+    for (const p of this.presets) if (p.running && !this.runs.has(p.id)) void this.followPreset(p.id, p.running.bulk_id);
   }
 
-  private dropParam(name: string) {
-    const p = new URLSearchParams(parseRoute().params);
-    p.delete(name);
-    replaceRoute(PATH, p);
-  }
-
-  private enterEdit(fromRoute = false) {
+  protected enterEdit(fromRoute = false) {
     if (!this.canEdit || this.editing) return;
     this.editing = true;
     this.editHandled = true;
@@ -1124,6 +1036,7 @@ export class MultimediaGroups extends LitElement {
       </div></sw-dialog>`;
   }
 
+  /** overrides the base (which marks the host while the pages are in force): this screen's region also fits while the long lists scroll */
   protected willUpdate() {
     this.toggleAttribute('data-fit', this.fit.fits); // PAGING-SETTING-2439: the region pages, or scrolls inside itself when the long lists scroll
   }
