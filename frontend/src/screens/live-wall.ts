@@ -32,6 +32,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, countBadge, keyHint, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
 import { t as vt } from '../i18n/he';
+import { PollController } from '../components/poll-controller';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -83,7 +84,9 @@ export class LiveWall extends LitElement {
   /** cache-buster of the snapshot-only tiles: they refresh every max(10 s, snapshots.max_age_s) - the server caches a
    * snapshot that long - while the tab is visible (live tiles keep the minute) */
   @state() private snapBust = Date.now();
-  private snapTimer: number | undefined;
+  /** CR-POLL-SCREENS-B-2440: the two picture refreshes (snapshots, posters) tick through the shared poll - nothing behind a hidden tab
+   * (N3, as before), one refresh on return, and nothing left ticking on an element that left the page (06:LW-1). */
+  private poller = new PollController(this);
   /** the tiles inside the observed area right now (a snapshot tile out of view keeps its picture, it does not poll) */
   private inView = new Set<string>();
   /** N1: a tile the server refused for the cap sits out REFUSED_MS as a snapshot, and the working budget drops to what
@@ -106,7 +109,6 @@ export class LiveWall extends LitElement {
   @state() private settings: ProductSettings | null = null;
   @state() private error = '';
   @state() private posterBust = Date.now();
-  private posterTimer: number | undefined;
 
   /** Gated on `sources.configure` (the same permission and `can_sync` flag system-devices already uses) - the
    * owner can reorder the grid and set panoramic cameras to span more than one column (T091). */
@@ -795,11 +797,12 @@ export class LiveWall extends LitElement {
     this.reallocate();
   }
 
+  /** (Re)start the snapshots' refresh with the period the settings give (called again once they are read). */
   private restartSnapTimer() {
-    window.clearInterval(this.snapTimer);
-    this.snapTimer = window.setInterval(() => {
-      if (!document.hidden) this.snapBust = Date.now(); // N3: no polling behind a hidden tab
-    }, snapshotRefreshMs(Number(this.settings?.['snapshots.max_age_s'] ?? 60)));
+    if (!this.isConnected) return; // 06:LW-1: never armed for an element that left the page
+    this.poller.every('snap', snapshotRefreshMs(Number(this.settings?.['snapshots.max_age_s'] ?? 60)), () => {
+      this.snapBust = Date.now();
+    });
   }
 
   /** The stream the wall plays: this device's choice, else the installation's (`remote.wall_profile` on the remote
@@ -833,9 +836,9 @@ export class LiveWall extends LitElement {
     super.connectedCallback();
     this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
     void this.load();
-    this.posterTimer = window.setInterval(() => {
-      if (!document.hidden) this.posterBust = Date.now();
-    }, 60_000);
+    this.poller.every('poster', 60_000, () => {
+      this.posterBust = Date.now();
+    });
     this.restartSnapTimer();
   }
 
@@ -843,8 +846,8 @@ export class LiveWall extends LitElement {
     super.disconnectedCallback();
     this.offScreenEdit?.();
     this.offScreenEdit = null;
-    window.clearInterval(this.posterTimer);
-    window.clearInterval(this.snapTimer);
+    this.poller.cancel('poster');
+    this.poller.cancel('snap');
     this.io?.disconnect();
     this.io = undefined;
     this.ioMargin = -1;
@@ -878,6 +881,7 @@ export class LiveWall extends LitElement {
     if (!isApi()) return;
     try {
       const [list, settings] = await Promise.all([listCameras(), productSettings()]);
+      if (!this.isConnected) return; // 06:LW-1: the wall left the page while the read was pending - nothing to draw, no timer to arm
       this.error = ''; // N6: a stale error panel must not linger once a retry actually succeeds
       this.allCams = list.cameras;
       this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false); // CR-024: a disabled recorder leaves the wall at once

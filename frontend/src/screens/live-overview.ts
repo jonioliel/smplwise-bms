@@ -30,6 +30,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncErrorText } from '../api/ha-sync-status';
 import { attentionFit } from './live-overview-logic';
 import { timeText } from '../api/day-format';
+import { PollController } from '../components/poll-controller';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
 interface RawHealth {
@@ -87,7 +88,7 @@ export class LiveOverview extends LitElement {
   private spotCount = -1;
   /** UXREST-295: every call of the first read failed (server away): an error with a retry, not zeros and "reading the system state" for ever. */
   @state() private loadFailed = false;
-  private timer = 0;
+  private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
   private clockTimer = 0;
   /** Owner 2026-09-29: the tiles' shape (ui.tile_layout) - compact rectangles on a phone by default. */
   private tiles = new TileLayoutController(this);
@@ -96,15 +97,14 @@ export class LiveOverview extends LitElement {
     super.connectedCallback();
     if (!isApi()) return;
     void this.load();
-    this.timer = window.setInterval(() => void this.load(), 60_000);
+    this.poller.every('overview', 60_000, () => this.load());
     this.clockTimer = window.setInterval(() => (this.now = new Date()), 30_000);
   }
 
   disconnectedCallback() {
     this.spotObserver?.disconnect();
     this.spotObserver = null;
-    window.clearInterval(this.timer);
-    window.clearInterval(this.clockTimer);
+    window.clearInterval(this.clockTimer); // the local clock of the header: no request, a plain timer
     super.disconnectedCallback();
   }
 

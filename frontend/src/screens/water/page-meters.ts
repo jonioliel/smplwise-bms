@@ -18,6 +18,7 @@ import { wt } from '../../water/i18n';
 import { fmtM3 } from '../../water/billing-format';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { PollController } from '../../components/poll-controller';
 
 const VIEW_KEY = 'sw.water.meters.view';
 const COLLAPSE_KEY = 'sw.water.meters.collapsed';
@@ -56,7 +57,7 @@ export class WaterMetersPage extends LitElement {
   @state() private adding = false;
   @state() private addError = '';
   private stop?: () => void;
-  private poll = 0;
+  private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
   private candTimer = 0;
 
   static styles = [
@@ -183,12 +184,11 @@ export class WaterMetersPage extends LitElement {
     super.connectedCallback();
     this.stop = onWaterAccess((a) => (this.access = a));
     void this.load(true);
-    this.poll = window.setInterval(() => void this.load(false), POLL_MS);
+    this.poller.every('rows', POLL_MS, () => this.load(false));
   }
 
   disconnectedCallback() {
     this.stop?.();
-    window.clearInterval(this.poll);
     window.clearTimeout(this.candTimer);
     super.disconnectedCallback();
   }

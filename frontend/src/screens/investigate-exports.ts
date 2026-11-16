@@ -16,6 +16,7 @@ import { dayMonthText, timeText } from '../api/day-format';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
+import { PollController } from '../components/poll-controller';
 
 const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק', paused_disk_full: 'מושהה · אין מקום בדיסק' };
 const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
@@ -36,7 +37,7 @@ export class InvestigateExports extends LitElement {
   /** INVREST-POLISH-2331: deleting a job removes its files - asked first (it used to go on one click). */
   @state() private confirmDelete: ExportJob | null = null;
   @state() private busy = false;
-  private timer: number | undefined;
+  private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
 
   static styles = [css`
     /* INVREST-POLISH-2331: from a tablet up the screen takes the height the shell leaves it and never scrolls - the summary and the
@@ -264,13 +265,8 @@ export class InvestigateExports extends LitElement {
     super.connectedCallback();
     if (isApi()) {
       void this.load();
-      this.timer = window.setInterval(() => this.poll(), 3000);
+      this.poller.every('jobs', 3000, () => this.poll());
     }
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.clearInterval(this.timer);
   }
 
   private async load() {
@@ -288,14 +284,16 @@ export class InvestigateExports extends LitElement {
 
   private pausedPolledAt = 0;
 
-  private poll() {
+  /** The tick of the list: returns the read it started (the poller arms the next tick after it), or nothing when no job moves. */
+  private poll(): Promise<void> | undefined {
     // every 3 s while something moves; every 30 s while the only waiting jobs are paused for a full disk (they resume
     // on their own, at the earliest after a 15 s back-off)
-    if (this.jobs?.some((j) => j.state === 'queued' || j.state === 'running')) void this.load();
-    else if (this.jobs?.some((j) => j.state === 'paused_disk_full') && Date.now() - this.pausedPolledAt >= 30_000) {
+    if (this.jobs?.some((j) => j.state === 'queued' || j.state === 'running')) return this.load();
+    if (this.jobs?.some((j) => j.state === 'paused_disk_full') && Date.now() - this.pausedPolledAt >= 30_000) {
       this.pausedPolledAt = Date.now();
-      void this.load();
+      return this.load();
     }
+    return undefined;
   }
 
   /** "01.11 · 11:43:16–11:53:16" on one day; both days when the range crosses midnight. */

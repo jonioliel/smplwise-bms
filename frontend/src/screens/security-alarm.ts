@@ -23,6 +23,8 @@ import {
 } from '../api/alarm';
 import { ApiError, describeError } from '../api/client';
 import { awaitAction, subscribeHa, type HaActionRecord } from '../api/ha';
+import { Latest } from '../api/latest';
+import { PollController } from '../components/poll-controller';
 import { noteAlarmPanels } from '../api/alarm-presence';
 import { isApi, onSession } from '../api/session';
 import { navigate, parseRoute } from '../router';
@@ -106,7 +108,12 @@ export class SecurityAlarm extends LitElement {
   private stopHa?: () => void;
   private stopSession?: () => void;
   private refetchTimer = 0;
-  private pollTimer = 0;
+  /** CR-POLL-SCREENS-B-2440 (D2): the 15 s fallback read goes through the shared poll (visible only, never two at once). */
+  private poller = new PollController(this);
+  /** 06:ALARM-1: the poll, the push refetch and the reads after a command overlap - only the newest read's answer is drawn. */
+  private reads = new Latest();
+  /** 06:ALARM-1: the follow-up of the last command (api/ha awaitAction), stopped when another command is sent or the screen leaves. */
+  private actionSignal: { stopped: boolean } | null = null;
   private toastTimer = 0;
   private watched = new Set<string>();
 
@@ -987,7 +994,7 @@ export class SecurityAlarm extends LitElement {
           if (m.type === 'structure_changed') this.scheduleRefetch();
         });
         // a fallback for anything the push does not carry (a floor-scoped reader's unplaced zones, a dropped socket)
-        this.pollTimer = window.setInterval(() => void this.load(true), 15_000);
+        this.poller.every('panels', 15_000, () => this.load(true));
       }
     });
   }
@@ -995,8 +1002,12 @@ export class SecurityAlarm extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.stopHa?.();
+    this.stopHa = undefined; // 06:ALARM-1: a screen put back on the page subscribes (and polls) again
     this.stopSession?.();
-    window.clearInterval(this.pollTimer);
+    this.poller.cancel('panels');
+    this.reads.cancel(); // an answer still in flight is not drawn on a screen that left
+    if (this.actionSignal) this.actionSignal.stopped = true;
+    this.actionSignal = null;
     window.clearTimeout(this.refetchTimer);
     window.clearTimeout(this.toastTimer);
     window.clearTimeout(this.flashTimer);
@@ -1036,16 +1047,20 @@ export class SecurityAlarm extends LitElement {
   }
 
   private async load(quiet = false) {
+    const current = this.reads.begin(); // 06:ALARM-1: an older answer that arrives after a newer read began is dropped
     if (!quiet) this.loading = !this.data;
     try {
-      this.data = isApi() ? await alarmPanels() : DEMO_ALARM;
+      const data = isApi() ? await alarmPanels() : DEMO_ALARM;
+      if (!current()) return;
+      this.data = data;
       if (isApi()) noteAlarmPanels(this.data.panels.length); // the navigation's "is there a panel" answer, refreshed for free
       this.error = '';
       this.watched = new Set(this.data.panels.flatMap((p) => [p.entity_id, ...p.zones.flatMap((z) => [z.entity_id, ...z.aux, ...(z.bypass ? [z.bypass.entity_id] : [])]), ...p.unpaired_controls.map((c) => c.entity_id)]));
     } catch (err) {
+      if (!current()) return;
       if (!quiet || !this.data) this.error = describeError(err);
     } finally {
-      this.loading = false;
+      if (current()) this.loading = false; // the newest read ends the loading state (a dropped one leaves it to the newer)
     }
   }
 
@@ -1131,10 +1146,16 @@ export class SecurityAlarm extends LitElement {
       this.closeDialog();
       const label = p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? `עקיפת ${p.zone!.name}` : `החזרת ${p.zone!.name} להגנה`;
       this.sent = { label, record: rec as unknown as HaActionRecord, entity: rec.entity_id };
+      if (this.actionSignal) this.actionSignal.stopped = true; // 06:ALARM-1: the previous command's follow-up stops here
       const signal = { stopped: false };
+      this.actionSignal = signal;
       void awaitAction(rec.id, (a) => {
         if (this.sent && this.sent.record && this.sent.record.id === a.id) this.sent = { ...this.sent, record: a };
-      }, signal).then(() => this.load(true));
+      }, signal)
+        .then(() => (signal.stopped ? undefined : this.load(true)))
+        // 06:ALARM-1: a failed read of the action (getAction rejected) was an unhandled rejection; the panel's own state - the read
+        // below, the push and the 15 s poll - still shows what the command did
+        .catch(() => undefined);
       void this.load(true);
     } catch (err) {
       const code = err instanceof ApiError ? err.body.code : '';

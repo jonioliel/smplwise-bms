@@ -18,6 +18,7 @@ import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { PollController } from '../../components/poll-controller';
 
 const VIEW_KEY = 'sw.elec.meters.view';
 const COLLAPSE_KEY = 'sw.elec.meters.collapsed';
@@ -67,7 +68,7 @@ export class ElecMetersPage extends LitElement {
   @state() private addErrors: string[] = [];
   @state() private notice = '';
   private stopAccess?: () => void;
-  private poll = 0;
+  private poller = new PollController(this); // CR-POLL-SCREENS-B-2440 (D2): the shared poll - visible only, never two reads at once, one catch-up read on return
   private noticeTimer = 0;
 
   static styles = [
@@ -231,12 +232,11 @@ export class ElecMetersPage extends LitElement {
     super.connectedCallback();
     this.stopAccess = onEnergyAccess((a) => (this.access = a));
     void this.load(true);
-    this.poll = window.setInterval(() => void this.load(false), POLL_MS);
+    this.poller.every('rows', POLL_MS, () => this.load(false));
   }
 
   disconnectedCallback() {
     this.stopAccess?.();
-    window.clearInterval(this.poll);
     window.clearTimeout(this.noticeTimer);
     super.disconnectedCallback();
   }
