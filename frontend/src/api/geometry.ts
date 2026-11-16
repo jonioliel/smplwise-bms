@@ -3,7 +3,7 @@
  * reference), the historical map by the version's publish timeline; the editor works on the draft through the studio
  * controller.
  */
-import { ApiError, apiUrl, get, patch, post, put, resourceUrl, upload, type ApiErrorBody } from './client';
+import { apiBlob, get, patch, post, put, resourceUrl, upload } from './client';
 import type { GeomConnector, GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from '../map/geometry';
 import type { LinkTargetFloor } from '../map/connector-targets';
 import type { MapBundle } from './maps';
@@ -263,21 +263,12 @@ const packageForm = (file: File | Blob) => {
 /** The signed package of the draft (or the published structure) as a file to save; map.edit. `dxf` (PLN2): the package
  * also carries assets/plan.dxf beside the plan picture its IMAGE names (an importer before PLN2 refuses that file). */
 export async function exportPlanPackage(versionId: string, draft: boolean, opts: { dxf?: boolean } = {}): Promise<{ blob: Blob; name: string }> {
-  const res = await fetch(apiUrl(`plan-versions/${versionId}/package`), {
-    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.dxf ? { draft, dxf: true } : { draft }),
+  const { blob, headers } = await apiBlob(`plan-versions/${versionId}/package`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.dxf ? { draft, dxf: true } : { draft }),
   });
-  if (!res.ok) {
-    let body: ApiErrorBody;
-    try {
-      body = (await res.json()) as ApiErrorBody;
-    } catch {
-      body = { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} };
-    }
-    throw new ApiError(res.status, body);
-  }
-  const cd = res.headers.get('content-disposition') ?? '';
+  const cd = headers.get('content-disposition') ?? '';
   const name = /filename="([^"]+)"/.exec(cd)?.[1] ?? `plan-${versionId}.swplan.zip`;
-  return { blob: await res.blob(), name };
+  return { blob, name };
 }
 /** The dry run of an import: nothing is written. */
 /** A package signed by another system (or by a retired key of this one) answers 409 `package_foreign` with

@@ -4,8 +4,10 @@
  * to the Hebrew until a native translation exists). `{x}` placeholders are filled by `pt(key, { x })`. Operator screens never name the
  * home platform.
  */
+import { NAV_PT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
-  tab: 'מי במבנה',
+  tab: NAV_PT.he.tab,
   title: 'מי במבנה',
   subtitle: 'מפה · {n} במבנה · עודכן {ago}',
   subtitleOff: 'מפה · שיתוף הנתונים מהאפליקציה כבוי',
@@ -117,7 +119,7 @@ const he = {
 type Key = keyof typeof he;
 
 const en: Partial<Record<Key, string>> = {
-  tab: 'Who is in', title: 'Who is in the building', subtitle: 'Map · {n} inside · updated {ago}', subtitleOff: 'Map · app data sharing is off',
+  tab: NAV_PT.en.tab, title: 'Who is in the building', subtitle: 'Map · {n} inside · updated {ago}', subtitleOff: 'Map · app data sharing is off',
   loadError: 'Could not load who is in', refresh: 'Refresh', places: 'Places and thresholds', kpiInside: 'Inside', kpiFloors: 'On a floor',
   kpiSite: 'On site, no floor', kpiHidden: 'Asked not to appear', allFloors: 'All floors', siteOnly: 'No floor', floorFilter: 'Filter by floor',
   search: 'Search name or area', listTitle: 'People inside', listCount: '{n} people', listEmpty: 'Nobody to show', countsOnly: 'Counts only, no names',

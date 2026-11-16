@@ -32,6 +32,7 @@ import {
   type AccessStationInfo,
 } from '../api/access-events';
 import { accessControlAccess } from '../access-control/access';
+import { PollController } from '../components/poll-controller';
 import { EventsFeed, type FeedSnapshot } from '../access-control/events-feed';
 import {
   activeFilterCount,
@@ -135,7 +136,8 @@ export class WiskeyEvents extends LitElement {
   private known: { start?: string | null; end?: string | null } = {};
   private feed: EventsFeed;
   private stop: (() => void) | null = null;
-  private poll = 0;
+  /** CR-POLL-SCREENS-A-2436: the 30 s re-read while the change notices are down - paused while hidden, no overlap, caught up on resume. */
+  private poll = new PollController(this);
   private searchTimer = 0;
   private stationsBusy = false;
   private stationsAgain = false;
@@ -195,11 +197,11 @@ export class WiskeyEvents extends LitElement {
     this.apply();
     this.stop = subscribeIntercom(
       (m) => {
-        if (m.type === 'intercom_refresh' || m.type === 'intercom_state') this.onChangeNotice();
+        if (m.type === 'intercom_refresh' || m.type === 'intercom_state') void this.onChangeNotice();
       },
       (connected) => {
         this.setPolling(!connected);
-        if (connected) this.onChangeNotice(); // notices sent while the socket was down are gone: catch up now
+        if (connected) void this.onChangeNotice(); // notices sent while the socket was down are gone: catch up now
       },
     );
   }
@@ -209,8 +211,8 @@ export class WiskeyEvents extends LitElement {
   };
 
   private setPolling(on: boolean) {
-    window.clearInterval(this.poll);
-    this.poll = on ? window.setInterval(() => this.onChangeNotice(), POLL_MS) : 0;
+    if (on) this.poll.every('notices', POLL_MS, () => this.onChangeNotice());
+    else this.poll.cancel('notices');
   }
 
   // ------------------------------------------------------------------ data
@@ -265,10 +267,11 @@ export class WiskeyEvents extends LitElement {
     if ('filters' in w) this.feed.setFilters(w.filters);
   }
 
-  private onChangeNotice() {
-    void this.loadStations();
+  /** Resolves when both reads are done (the poll arms its next tick after that: no overlap). */
+  private onChangeNotice(): Promise<unknown> {
+    const stations = this.loadStations();
     this.fresh();
-    void this.feed.notice();
+    return Promise.all([stations, this.feed.notice()]);
   }
 
   private refresh() {

@@ -19,11 +19,12 @@ export function diaryWord(type: string, camera: string | null): { text: string; 
 
 export type CallTone = 'ok' | 'warn' | 'neutral';
 
-/** The result of one doorbell call in words: who opened, who answered, or that nobody did. */
+/** The result of one doorbell call in words: who opened, who answered, or that nobody did. HOME-V3-AUDITFIX-2437 (audit item 12): no
+ * gendered slash - the sentence is about the call / the door, the person's name follows it. */
 export function callResult(v: { outcome: string | null; answered_by_name: string | null; door_opened_by_name: string | null; door_opened_at: string | null }): { text: string; tone: CallTone } {
-  if (v.door_opened_by_name) return { text: `${v.door_opened_by_name} פתח/ה את הדלת`, tone: 'ok' };
+  if (v.door_opened_by_name) return { text: `הדלת נפתחה · ${v.door_opened_by_name}`, tone: 'ok' };
   if (v.door_opened_at) return { text: 'הדלת נפתחה', tone: 'ok' };
-  if (v.outcome === 'answered') return { text: v.answered_by_name ? `${v.answered_by_name} ענה/תה` : 'נענתה', tone: 'ok' };
+  if (v.outcome === 'answered') return { text: v.answered_by_name ? `נענתה · ${v.answered_by_name}` : 'נענתה', tone: 'ok' };
   if (v.outcome === 'missed') return { text: 'לא נענתה', tone: 'warn' };
   if (v.outcome === 'rejected') return { text: 'נדחתה', tone: 'neutral' };
   return { text: 'הסתיימה', tone: 'neutral' };

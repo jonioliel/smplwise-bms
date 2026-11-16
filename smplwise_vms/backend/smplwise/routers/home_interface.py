@@ -449,7 +449,7 @@ def _wall_room(conn: sqlite3.Connection, room_key: str) -> None:
 
 
 @router.put("/home/wallpaper/{room_key}")
-async def put_wallpaper(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
+def put_wallpaper(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Upload the caller's own picture for one room's screen (JPEG / PNG, <= 2 MB; re-encoded: pixels rebuilt, EXIF dropped, long side
     <= 1920 px). Only when the installation offers personal pictures (403 wallpaper_image_off). Audited (never the picture)."""
@@ -461,7 +461,7 @@ async def put_wallpaper(room_key: str, request: Request, file: UploadFile = File
     _wall_room(conn, room_key)
     if hi.install_settings(conn)["wallpaper"] != "gallery_image":
         raise hi.HomeInterfaceError(403, "wallpaper_image_off", "תמונה אישית לרקע אינה פעילה בהתקנה הזו.")
-    raw = await file.read(hi.WALL_IMAGE_BYTES + 1)
+    raw = file.file.read(hi.WALL_IMAGE_BYTES + 1)
     try:
         mime, data = sanitize_image(raw, max_bytes=hi.WALL_IMAGE_BYTES, max_side=hi.WALL_IMAGE_SIDE)
     except LogoError as exc:

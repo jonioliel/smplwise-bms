@@ -32,7 +32,7 @@ export const homeExtraStyles = css`
   .wall-opt .tick { position: absolute; inset-block-start: 12px; inset-inline-end: 12px; opacity: 0; }
   .wall-opt[aria-checked='true'] .tick { opacity: 1; color: var(--hs-accent-text); }
   [data-wall-upload] { cursor: pointer; }
-  @media (max-width: 700px) { .wall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .wall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   /* HOME-V3-P1-2430: product-only pieces of the v3 screens (the rest is home-styles-v3.ts, ported from the mockup) */
   .pb-days { display: inline-flex; align-items: center; gap: 6px; }
   .pb-days .pbd { min-inline-size: 7ch; text-align: center; font-weight: 600; color: var(--hs-heading); }
@@ -43,9 +43,81 @@ export const homeExtraStyles = css`
   .fld2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; inline-size: 100%; }
   .pinsheet .rb.play { color: var(--hs-on-accent, #fff); }
   /* the v3 sheets keep the home interface's touch target (the mockup drew 54 px; the tablet rule is the full --hit) */
-  @media (min-width: 701px) {
+  @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) {
     .ovl .sheet.v3 .rb, .ovl .sheet.v3 .hbtn, .ovl .sheet.v3 .chip2, .ovl .sheet.v3 .seg button { min-block-size: 56px; }
     .ovl .sheet.v3 .rb { min-inline-size: 56px; }
   }
-  @media (max-width: 700px) { .fld2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pb-days .pbd { min-inline-size: 5ch; font-size: 14px; } }
+  @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .fld2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pb-days .pbd { min-inline-size: 5ch; font-size: 14px; } }
+  /* ---- HOME-V3-AUDITFIX-2437: the round-30 design audit (private/design-system-2026-10-27/round30/home-audit/FIXES.md; numbers = items) */
+  /* 2: a portrait tablet (701-899 px) takes the phone layout (the boundary of every phone / wide query, sw-home.ts HOME_PHONE_MQ), roomier */
+  @media (min-width: 701px) and (max-width: 899px) and (orientation: portrait) {
+    :host { --hit: 56px; --f-body: 17px; --f-sm: 15px; --f-tile: 19px; }
+    .hs-main { inline-size: 100%; max-inline-size: 760px; margin-inline: auto; }
+    .hub { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); }
+    /* HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-1 a): four tiles per row (sw-home.ts sRoom packs 4 x 5); a wide tile is half a row, a
+       tile being edited the whole row */
+    .wgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .wdg.w2 { grid-column: span 2; }
+    .wdg.editing { grid-column: 1 / -1; }
+  }
+  /* 1: the phone recordings header keeps the day stepper, on its own row */
+  @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
+    .hs-head .acts:has(.pb-days) { flex: 1 1 100%; margin-inline-start: 0; }
+    .hs-head .pb-days { flex: 1 1 100%; justify-content: space-between; gap: 8px; }
+    .hs-head .pb-days .rb { inline-size: 48px; block-size: 48px; }
+    .hs-head .pb-days .pbd { flex: 1 1 auto; text-align: center; font-size: var(--f-body); }
+    /* 3: the alarm state pane takes its content's height from the top; the zones pane takes the rest */
+    .alm-main { flex: 0 0 auto; justify-content: flex-start; padding-block: 16px 14px; gap: 6px; }
+    .alm .pane:last-child { flex: 1 1 0; min-block-size: 0; }
+    .alm-ic { inline-size: 48px; block-size: 48px; } .alm-ic .hi { inline-size: 24px; block-size: 24px; }
+    .alm-acts { gap: 8px; margin-block-start: 8px; }
+    .alm-main > .muted { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    /* 11: the electricity / water reading in the title never truncates - the actions take the next row */
+    .hs[data-screen="energy"] .hs-head .acts, .hs[data-screen="water"] .hs-head .acts { flex: 1 1 100%; justify-content: flex-start; margin-inline-start: 0; }
+    .hs[data-screen="energy"] .hs-head .pg-t, .hs[data-screen="water"] .hs-head .pg-t { white-space: nowrap; text-overflow: clip; }
+  }
+  /* 9: the camera stepper names the camera, like the day stepper names the day */
+  .pb-cams { display: inline-flex; align-items: center; gap: 6px; }
+  .pb-cams .pbc { min-inline-size: 0; max-inline-size: 18ch; }
+  .hs-head .acts:has(.pb-cams) { gap: 16px; }
+  /* 4: a wall-panel chip's status line shrinks with its chip */
+  .chip3 .c3-t { min-inline-size: 0; max-inline-size: 100%; }
+  .chip3 .c3-t b, .chip3 .c3-s { max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip3 .c3-s > span { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* 5: the camera tile's state word follows the real picture */
+  .cap .live.still { --c: var(--hs-offline); }
+  .cap .live.wait { opacity: .8; }
+  /* HOME-R32-ANSWERS-2438 (Q-HOME-3 a): the still's interval is shown, not only on hover - where the tile has the room for it */
+  .wg-btn.pic { container-type: inline-size; }
+  .cap .lv-g { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+  .cap .lv-d { display: none; font-size: 14px; font-weight: 400; opacity: .85; white-space: nowrap; }
+  @container (min-width: 340px) { .cap .lv-d { display: inline; } }
+  /* 14: the call result stays on one line */
+  .vr { min-inline-size: 0; }
+  .vres { max-inline-size: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 15: a Latin or mixed name takes its own direction, so it truncates at its end (right-aligned like the Hebrew ones) */
+  .clamp1:not(.num), .clamp2:not(.num), .c3-t b, .tb-t h1 { unicode-bidi: plaintext; text-align: match-parent; }
+  /* 16: "(אני)" never truncates away */
+  .pn { display: flex; align-items: baseline; gap: 6px; min-inline-size: 0; }
+  .pn > b { min-inline-size: 0; } .pn .me-mark { flex: none; color: var(--hs-text-2); font-weight: 500; }
+  .hv small { font-size: .85em; font-weight: 500; }
+  /* 18: the sheets' own type, not the shell's */
+  .ovl { font-size: var(--f-body); line-height: 1.5; color: var(--hs-text); }
+  /* 22: the active media source is marked */
+  .hs .md-src .chip2[aria-pressed="true"] { background: var(--hs-accent-soft); color: var(--hs-accent-text); font-weight: 600; }
+  /* 24: the new-ticket category icon */
+  .chip2 .c2i { inline-size: 20px; block-size: 20px; flex: none; margin-inline-end: 6px; }
+  /* motion: the copy of a closing sheet (sw-home.ts ghostOverlay) never takes a touch */
+  .ovl.ghost { pointer-events: none; }
+
+  /* HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-6 a): a screen change is seen tens of times a day, so it only fades - 160 ms, no
+     movement, no stagger. The mockup's rise (home-styles.ts .hs-main.enter) stays for a screen opened from "עוד" and for the
+     "עם תנועה" setting (sw-home.ts adds .rise). Reduced motion: home-styles.ts already turns either one into the same short fade. */
+  .hs-main.enter.fade > *, .hs-main.enter.fade > :nth-child(n) { animation: hs-fade 160ms var(--hs-ease) both; animation-delay: 0ms; }
+  /* Q-HOME-2: the calendar's "השבוע" / "הימים הקרובים" switch. A day already gone is quieter; on a phone the switch shares the tabs row
+     with "היומן שלנו / חדרים משותפים" (each control takes its share, nothing wraps). */
+  .week .wd[data-past]:not([aria-pressed="true"]) { color: var(--hs-text-2); }
+  .week .wd[data-past]:not([aria-pressed="true"]) b { opacity: .7; }
+  .hs.v2 .tabsrow:has(> .seg + .seg) { flex-wrap: nowrap; gap: 6px; }
+  .hs.v2 .tabsrow > .seg + .seg, .hs.v2 .tabsrow > .seg:has(+ .seg) { inline-size: auto; flex: 1 1 auto; min-inline-size: 0; }
 `;

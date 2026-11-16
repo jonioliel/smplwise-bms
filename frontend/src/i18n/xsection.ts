@@ -4,6 +4,8 @@
  * screens never name the home platform, and nothing here claims that fire detection exists: every fire word is paired with "demo" or
  * "not connected".
  */
+import { NAV_XS } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
   // section
   sectionTitle: 'חתך הבניין',
@@ -40,7 +42,7 @@ const he = {
   linksPending: '(התאום עדיין לא פורסם)',
   linksFolded: '{n} קשרים · הקווים מסומנים בחתך',
   // synoptic
-  synTab: 'מפה סינופטית',
+  synTab: NAV_XS.he.synTab,
   synTitle: 'מפה סינופטית',
   synSub: 'כל הבניין כלוח מצב · {n} קומות',
   synAll: 'כל המבנה',
@@ -266,7 +268,7 @@ const en: Partial<Record<XtKey, string>> = {
   floorLabel: '{name}: {temp}, lights {lit}{alert}', noTemp: 'No temperature data', degrees: '{n} degrees', litOf: '{lit} of {lights}', openFloor: 'Open {name}',
   tileFor: 'Section: {name}', linksTitle: 'Links between floors', linksSub: 'Stairs and lifts that connect floors (published structure)',
   linksPending: '(the twin is not published yet)', linksFolded: '{n} links · the lines are drawn on the section',
-  synTab: 'Synoptic map', synTitle: 'Synoptic map', synSub: 'The whole building as a status board · {n} floors', synAll: 'Whole building', synFloor: 'Floor',
+  synTab: NAV_XS.en.synTab, synTitle: 'Synoptic map', synSub: 'The whole building as a status board · {n} floors', synAll: 'Whole building', synFloor: 'Floor',
   colLight: 'Lighting', colTemp: 'Temperature', colPresence: 'Presence', colCameras: 'Cameras', colDoors: 'Open doors', colAlerts: 'Alerts', colFire: 'Fire detection',
   unknown: 'Unknown', noSource: 'No data source for this floor yet', presenceOff: 'Presence is off', camsOf: '{n} cameras', camsShared: '+{n} shared', doorsOpen: '{n} open',
   alertsNone: 'No alert source per floor', open: 'Open', openMap: 'Floor map', openCameras: 'Cameras in the zone', events: 'Latest events', eventsNone: 'No events to show',

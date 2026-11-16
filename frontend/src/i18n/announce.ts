@@ -2,6 +2,8 @@
 // the column; keys are the same in all of them. No product names of the infrastructure appear here (UI_COPY_RULES). ANNOUNCE-295 (stage A): the announce
 // screen, the templates editor, the engine selector and the quiet-hours modes. The Russian and Arabic columns are an initial, unreviewed translation
 // (ANNOUNCE_DEV_MARKED), like the other tables that carry them. Arabic is screen text only: announcements are SPOKEN in Hebrew, English or Russian.
+import { NAV_ANNOUNCE } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
   tab: 'הכרזות קוליות',
   sub: 'דיבור ברמקולים לפי חדר או רמקול',
@@ -80,7 +82,7 @@ const he = {
   tplText: 'טקסט',
   tplProblem: { count: 'יותר מדי תבניות.', id: 'מזהה התבנית אינו תקין או כפול.', he: 'שם וטקסט בעברית נדרשים בכל תבנית.', length: 'שם או טקסט ארוכים מדי.' } as Record<string, string>,
   // the announce screen
-  title: 'הכרזות',
+  title: NAV_ANNOUNCE.he.title,
   where: 'יעד',
   wholeBuilding: 'כל הבניין',
   languages: 'שפות',
@@ -207,7 +209,7 @@ const en: typeof he = {
   tplName: 'Name',
   tplText: 'Text',
   tplProblem: { count: 'Too many templates.', id: 'A template id is invalid or duplicated.', he: 'Every template needs a Hebrew name and text.', length: 'A name or text is too long.' },
-  title: 'Announcements',
+  title: NAV_ANNOUNCE.en.title,
   where: 'Target',
   wholeBuilding: 'Whole building',
   languages: 'Languages',
@@ -334,7 +336,7 @@ const ru: typeof he = {
   tplName: 'Название',
   tplText: 'Текст',
   tplProblem: { count: 'Слишком много шаблонов.', id: 'Идентификатор шаблона неверен или повторяется.', he: 'В каждом шаблоне нужны название и текст на иврите.', length: 'Название или текст слишком длинные.' },
-  title: 'Объявления',
+  title: NAV_ANNOUNCE.ru.title,
   where: 'Назначение',
   wholeBuilding: 'Всё здание',
   languages: 'Языки',
@@ -461,7 +463,7 @@ const ar: typeof he = {
   tplName: 'الاسم',
   tplText: 'النص',
   tplProblem: { count: 'عدد القوالب كبير جدًا.', id: 'معرّف القالب غير صالح أو مكرر.', he: 'كل قالب يحتاج اسمًا ونصًا بالعبرية.', length: 'الاسم أو النص طويل جدًا.' },
-  title: 'الإعلانات',
+  title: NAV_ANNOUNCE.ar.title,
   where: 'الوجهة',
   wholeBuilding: 'المبنى كله',
   languages: 'اللغات',

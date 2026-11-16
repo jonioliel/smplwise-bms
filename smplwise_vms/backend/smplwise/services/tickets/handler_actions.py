@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ...db import get_setting, new_id
-from . import brand, handler_links, model, naming, notify_bridge, org_locations, settings_doc, sla, store, store_links
+from . import brand, device_context, handler_links, model, naming, notify_bridge, org_locations, settings_doc, sla, store, store_links
 from .public_ports import LinkRecord, StoredImage
 from .public_store import audit_link, fold
 
@@ -36,9 +36,6 @@ REASON_MAX = model.REASON_MAX
 LANGS = ("he", "en", "ar", "ru")
 RTL = frozenset({"he", "ar"})
 HISTORY_LINES = 10
-# D3 / D23: these domains' histories say when a building was unlocked, disarmed or opened - never shown outside, whatever any
-# setting or a client says (spec 12.3; slice 3's device_context.EXTERNAL_HISTORY_NEVER is the same list)
-EXTERNAL_HISTORY_NEVER = frozenset({"lock", "alarm_control_panel", "cover", "camera"})
 HISTORY_ACTORS = frozenset({"automation", "schedule", "system", "device", "user", "manual", "unknown"})
 OPEN_ACCESS_GAP = dt.timedelta(minutes=5)
 PHOTO_ROUTE = "/t/api/photo"
@@ -333,7 +330,9 @@ def _history(conn, ticket: dict[str, Any], assignment: dict[str, Any]) -> list[d
     never a person's name or an attribute dump."""
     if not assignment.get("share_history") or not ticket.get("entity_id"):
         return None
-    if str(ticket["entity_id"]).split(".", 1)[0] in EXTERNAL_HISTORY_NEVER:
+    # D3 / D23: a security domain's history says when a building was unlocked, disarmed or opened - never shown outside, whatever
+    # any setting or a client says (spec 12.3; the one list is policy.NEVER_SHARED_DOMAINS)
+    if not device_context.history_domain_allowed(str(ticket["entity_id"])):
         return None
     ctx = store_links.device_context(conn, ticket["id"])
     if ctx is None or ctx.get("withheld") or ctx.get("source") == "none":

@@ -1,0 +1,193 @@
+{
+ "energy": {
+  "check_correctable_ok": [
+   "SELECT * FROM energy_bills WHERE replaces_bill_id = 'g-1' AND state = 'draft'"
+  ],
+  "check_correctable_open": [
+   "SELECT * FROM energy_bills WHERE replaces_bill_id = 'g-1' AND state = 'draft'",
+   "-- ApiError 409 bill_state כבר קיימת טיוטת תיקון לחיוב זה. [('bill_id', 'g-2'), ('state', 'paid')]"
+  ],
+  "get_bill_missing": [
+   "SELECT * FROM energy_bills WHERE id = 'nope'",
+   "-- ApiError 404 not_found החיוב לא נמצא. []"
+  ],
+  "mark_paid": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "UPDATE energy_bills SET state = 'paid', paid_at = '2026-10-04', paid_ref = 'ref', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO energy_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'paid', 'user', 'u-joni', 'יוני', NULL)",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'energy.bill.paid', 'energy_bill', 'g-1', 'allowed', NULL, 'rq', 1, NULL)"
+  ],
+  "mark_paid_state": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "-- ApiError 409 bill_state אי אפשר לסמן כשולם חיוב במצב שולם. [('state', 'paid')]"
+  ],
+  "mark_sent": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "UPDATE energy_bills SET state = 'sent', sent_at = '2026-10-03', sent_how = 'email', sent_note = 'n', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO energy_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'sent', 'user', 'u-joni', 'יוני', '{\"how\": \"email\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'energy.bill.sent', 'energy_bill', 'g-1', 'allowed', NULL, 'rq', 1, '{\"how\": \"email\"}')"
+  ],
+  "mark_sent_conflict": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "-- ApiError 409 revision_conflict החיוב שונה בינתיים. יש לרענן ולנסות שוב. [('current_revision', 2)]"
+  ],
+  "number_for": [
+   "SELECT MAX(number_seq) FROM energy_bill_numbers WHERE number_base = '2026-09-0042'",
+   "SELECT MAX(number_seq) FROM energy_bills WHERE number_base = '2026-09-0042'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2'",
+   "SELECT 1 FROM energy_bills WHERE number = '2026-09-0042/2'"
+  ],
+  "number_for_taken": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2-2'",
+   "-- ApiError 409 number_taken מספר החיוב כבר נוצל. יש לנסות שוב. [('number', '2026-09-0042/2-2')]"
+  ],
+  "seal": [
+   "SELECT * FROM energy_accounts WHERE id = 'acc-energy'",
+   "SELECT * FROM energy_bills WHERE account_id = 'acc-energy' AND state IN ('issued','sent','paid') AND period_start < '2026-10-01' AND period_end > '2026-09-01'",
+   "SELECT MAX(number_seq) FROM energy_bill_numbers WHERE number_base = '2026-09-0042'",
+   "SELECT MAX(number_seq) FROM energy_bills WHERE number_base = '2026-09-0042'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2'",
+   "SELECT 1 FROM energy_bills WHERE number = '2026-09-0042/2'",
+   "UPDATE energy_bills SET state = 'issued', number = '2026-09-0042/2', number_base = '2026-09-0042', number_seq = 2, kwh = '10.000', total = '100.00', snapshot_json = '{\"customer\": {\"customer_number\": \"0042\", \"name\": \"דני\"}, \"bill\": {\"revision\": 1, \"payment_terms\": {\"mode\": \"net_days\", \"days\": 30}, \"id\": \"g-1\", \"number\": \"2026-09-0042/2\", \"state\": \"issued\", \"issue_date\": \"2026-10-02\", \"due_date\": \"2026-11-01\", \"expected_due_date\": \"2026-11-01\", \"issued_at\": \"<TS>\", \"issued_by\": {\"kind\": \"user\", \"display_name\": \"יוני\"}}}', snapshot_sha256 = '<HEX>', issue_date = '2026-10-02', due_date = '2026-11-01', issued_by = 'u-joni', issued_at = '<TS>', issue_request_id = 'cr-g-1', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES ('2026-09-0042/2', '2026-09-0042', 2, 1, 'g-1', '<TS>')",
+   "INSERT INTO energy_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'issue', 'user', 'u-joni', 'יוני', '{\"number\": \"2026-09-0042/2\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'energy.bill.issue', 'energy_bill', 'g-1', 'allowed', NULL, 'rq-1', 1, '{\"number\": \"2026-09-0042/2\", \"sha256\": \"<HEX>\", \"account_id\": null}')",
+   "SELECT number FROM energy_bills WHERE id = 'g-1'"
+  ],
+  "seal_correction": [
+   "SELECT * FROM energy_accounts WHERE id = 'acc-energy'",
+   "SELECT * FROM energy_bills WHERE account_id = 'acc-energy' AND state IN ('issued','sent','paid') AND period_start < '2026-10-01' AND period_end > '2026-09-01'",
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2-2'",
+   "SELECT 1 FROM energy_bills WHERE number = '2026-09-0042/2-2'",
+   "UPDATE energy_bills SET state = 'issued', number = '2026-09-0042/2-2', number_base = '2026-09-0042', number_seq = 2, kwh = '10.000', total = '100.00', snapshot_json = '{\"customer\": {\"customer_number\": \"0042\", \"name\": \"דני\"}, \"bill\": {\"revision\": 2, \"payment_terms\": {\"mode\": \"net_days\", \"days\": 30}, \"id\": \"g-2\", \"number\": \"2026-09-0042/2-2\", \"state\": \"issued\", \"issue_date\": \"2026-10-02\", \"due_date\": \"2026-11-01\", \"expected_due_date\": \"2026-11-01\", \"issued_at\": \"<TS>\", \"issued_by\": {\"kind\": \"system\"}}}', snapshot_sha256 = '<HEX>', issue_date = '2026-10-02', due_date = '2026-11-01', issued_by = NULL, issued_at = '<TS>', issue_request_id = 'cr-g-2', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-2'",
+   "INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES ('2026-09-0042/2-2', '2026-09-0042', 2, 2, 'g-2', '<TS>')",
+   "INSERT INTO energy_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-2', '<TS>', 'auto_issue', 'system', NULL, NULL, '{\"number\": \"2026-09-0042/2-2\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', NULL, NULL, 'energy.bill.auto_issue', 'energy_bill', 'g-2', 'allowed', NULL, 'rq-1', 1, '{\"number\": \"2026-09-0042/2-2\", \"sha256\": \"<HEX>\", \"account_id\": null}')",
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "UPDATE energy_bills SET state = 'void', void_reason = 'הוחלף ב-2026-09-0042/2-2', voided_at = '<TS>', replaced_by_bill_id = 'g-2', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO energy_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'void', 'system', NULL, NULL, '{\"reason\": \"הוחלף ב-2026-09-0042/2-2\", \"replaced_by\": \"2026-09-0042/2-2\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', NULL, NULL, 'energy.bill.void', 'energy_bill', 'g-1', 'allowed', NULL, 'rq-1', 1, '{\"replaced_by\": \"2026-09-0042/2-2\"}')",
+   "SELECT number FROM energy_bills WHERE id = 'g-2'"
+  ],
+  "void": [
+   "SELECT * FROM energy_bills WHERE id = 'g-3'",
+   "SELECT * FROM energy_bills WHERE id = 'g-3'",
+   "UPDATE energy_bills SET state = 'void', void_reason = 'סיבה', voided_at = '<TS>', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-3'",
+   "INSERT INTO energy_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-3', '<TS>', 'void', 'user', 'u-joni', 'יוני', '{\"reason\": \"סיבה\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'energy.bill.void', 'energy_bill', 'g-3', 'allowed', NULL, 'rq', 1, NULL)"
+  ],
+  "void_no_reason": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "-- ApiError 422 reason_required חובה לציין סיבת ביטול. []"
+  ],
+  "void_state": [
+   "SELECT * FROM energy_bills WHERE id = 'g-1'",
+   "-- ApiError 409 bill_state אי אפשר לבטל חיוב במצב שולם. [('state', 'paid')]"
+  ]
+ },
+ "water": {
+  "check_correctable_ok": [
+   "SELECT id FROM water_bills WHERE replaces_bill_id = 'g-1' AND state = 'draft'"
+  ],
+  "check_correctable_open": [
+   "SELECT id FROM water_bills WHERE replaces_bill_id = 'g-1' AND state = 'draft'",
+   "-- ApiError 409 bill_state כבר קיימת טיוטת תיקון לחיוב זה. [('bill_id', 'g-2'), ('state', 'paid')]"
+  ],
+  "get_bill_missing": [
+   "SELECT * FROM water_bills WHERE id = 'nope'",
+   "-- ApiError 404 not_found החיוב לא נמצא. []"
+  ],
+  "mark_paid": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "UPDATE water_bills SET state = 'paid', paid_at = '2026-10-04', paid_ref = 'ref', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'paid', 'user', 'u-joni', 'יוני', NULL)",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'infra.water.bill.paid', 'water_bill', 'g-1', 'allowed', NULL, 'rq', 1, NULL)"
+  ],
+  "mark_paid_state": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "-- ApiError 409 bill_state אי אפשר לסמן כשולם חיוב במצב שולם. [('state', 'paid')]"
+  ],
+  "mark_sent": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "UPDATE water_bills SET state = 'sent', sent_at = '2026-10-03', sent_how = 'email', sent_note = 'n', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'sent', 'user', 'u-joni', 'יוני', '{\"how\": \"email\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'infra.water.bill.sent', 'water_bill', 'g-1', 'allowed', NULL, 'rq', 1, '{\"how\": \"email\"}')"
+  ],
+  "mark_sent_conflict": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "-- ApiError 409 revision_conflict החיוב שונה בינתיים. יש לרענן ולנסות שוב. [('current_revision', 2)]"
+  ],
+  "number_for": [
+   "SELECT MAX(number_seq) FROM energy_bill_numbers WHERE number_base = '2026-09-0042'",
+   "SELECT MAX(number_seq) FROM energy_bills WHERE number_base = '2026-09-0042'",
+   "SELECT MAX(number_seq) FROM water_bills WHERE number_base = '2026-09-0042'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2'",
+   "SELECT 1 FROM energy_bills WHERE number = '2026-09-0042/2'",
+   "SELECT 1 FROM water_bills WHERE number = '2026-09-0042/2'"
+  ],
+  "number_for_taken": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2-2'",
+   "-- ApiError 409 number_taken מספר החיוב כבר נוצל. יש לנסות שוב. [('number', '2026-09-0042/2-2')]"
+  ],
+  "seal": [
+   "SELECT * FROM water_bills WHERE account_id = 'acc-water' AND state IN ('issued','sent','paid') AND period_start < '2026-10-01' AND period_end > '2026-09-01'",
+   "SELECT MAX(number_seq) FROM energy_bill_numbers WHERE number_base = '2026-09-0042'",
+   "SELECT MAX(number_seq) FROM energy_bills WHERE number_base = '2026-09-0042'",
+   "SELECT MAX(number_seq) FROM water_bills WHERE number_base = '2026-09-0042'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2'",
+   "SELECT 1 FROM energy_bills WHERE number = '2026-09-0042/2'",
+   "SELECT 1 FROM water_bills WHERE number = '2026-09-0042/2'",
+   "UPDATE water_bills SET state = 'issued', number = '2026-09-0042/2', number_base = '2026-09-0042', number_seq = 2, m3 = '10.000', total = '100.00', snapshot_json = '{\"customer\": {\"customer_number\": \"0042\", \"name\": \"דני\"}, \"bill\": {\"revision\": 1, \"payment_terms\": {\"mode\": \"net_days\", \"days\": 30}, \"id\": \"g-1\", \"number\": \"2026-09-0042/2\", \"state\": \"issued\", \"issue_date\": \"2026-10-02\", \"due_date\": \"2026-11-01\", \"expected_due_date\": \"2026-11-01\", \"issued_at\": \"<TS>\", \"issued_by\": {\"kind\": \"user\", \"display_name\": \"יוני\"}}}', snapshot_sha256 = '<HEX>', issue_date = '2026-10-02', due_date = '2026-11-01', issued_by = 'u-joni', issued_at = '<TS>', issue_request_id = 'cr-g-1', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES ('2026-09-0042/2', '2026-09-0042', 2, 1, 'g-1', '<TS>')",
+   "INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'issue', 'user', 'u-joni', 'יוני', '{\"number\": \"2026-09-0042/2\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'infra.water.bill.issue', 'water_bill', 'g-1', 'allowed', NULL, 'rq-1', 1, '{\"number\": \"2026-09-0042/2\", \"sha256\": \"<HEX>\", \"account_id\": \"acc-water\"}')",
+   "SELECT number FROM water_bills WHERE id = 'g-1'"
+  ],
+  "seal_correction": [
+   "SELECT * FROM water_bills WHERE account_id = 'acc-water' AND state IN ('issued','sent','paid') AND period_start < '2026-10-01' AND period_end > '2026-09-01'",
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "SELECT 1 FROM energy_bill_numbers WHERE number = '2026-09-0042/2-2'",
+   "SELECT 1 FROM energy_bills WHERE number = '2026-09-0042/2-2'",
+   "SELECT 1 FROM water_bills WHERE number = '2026-09-0042/2-2'",
+   "UPDATE water_bills SET state = 'issued', number = '2026-09-0042/2-2', number_base = '2026-09-0042', number_seq = 2, m3 = '10.000', total = '100.00', snapshot_json = '{\"customer\": {\"customer_number\": \"0042\", \"name\": \"דני\"}, \"bill\": {\"revision\": 2, \"payment_terms\": {\"mode\": \"net_days\", \"days\": 30}, \"id\": \"g-2\", \"number\": \"2026-09-0042/2-2\", \"state\": \"issued\", \"issue_date\": \"2026-10-02\", \"due_date\": \"2026-11-01\", \"expected_due_date\": \"2026-11-01\", \"issued_at\": \"<TS>\", \"issued_by\": {\"kind\": \"system\"}}}', snapshot_sha256 = '<HEX>', issue_date = '2026-10-02', due_date = '2026-11-01', issued_by = NULL, issued_at = '<TS>', issue_request_id = 'cr-g-2', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-2'",
+   "INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES ('2026-09-0042/2-2', '2026-09-0042', 2, 2, 'g-2', '<TS>')",
+   "INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-2', '<TS>', 'auto_issue', 'system', NULL, NULL, '{\"number\": \"2026-09-0042/2-2\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', NULL, NULL, 'infra.water.bill.auto_issue', 'water_bill', 'g-2', 'allowed', NULL, 'rq-1', 1, '{\"number\": \"2026-09-0042/2-2\", \"sha256\": \"<HEX>\", \"account_id\": \"acc-water\"}')",
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "UPDATE water_bills SET state = 'void', void_reason = 'הוחלף ב-2026-09-0042/2-2', voided_at = '<TS>', replaced_by_bill_id = 'g-2', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-1'",
+   "INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-1', '<TS>', 'void', 'system', NULL, NULL, '{\"reason\": \"הוחלף ב-2026-09-0042/2-2\", \"replaced_by\": \"2026-09-0042/2-2\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', NULL, NULL, 'infra.water.bill.void', 'water_bill', 'g-1', 'allowed', NULL, 'rq-1', 1, '{\"replaced_by\": \"2026-09-0042/2-2\"}')",
+   "SELECT number FROM water_bills WHERE id = 'g-2'"
+  ],
+  "void": [
+   "SELECT * FROM water_bills WHERE id = 'g-3'",
+   "SELECT * FROM water_bills WHERE id = 'g-3'",
+   "UPDATE water_bills SET state = 'void', void_reason = 'סיבה', voided_at = '<TS>', row_version = row_version + 1, updated_at = '<TS>' WHERE id = 'g-3'",
+   "INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES ('<HEX>', 'g-3', '<TS>', 'void', 'user', 'u-joni', 'יוני', '{\"reason\": \"סיבה\"}')",
+   "SELECT value FROM settings WHERE key = 'permission_revision'",
+   "INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json) VALUES ('<TS>', 'u-joni', 'joni', 'infra.water.bill.void', 'water_bill', 'g-3', 'allowed', NULL, 'rq', 1, NULL)"
+  ],
+  "void_no_reason": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "-- ApiError 422 reason_required חובה לציין סיבת ביטול. []"
+  ],
+  "void_state": [
+   "SELECT * FROM water_bills WHERE id = 'g-1'",
+   "-- ApiError 409 bill_state אי אפשר לבטל חיוב במצב שולם. [('state', 'paid')]"
+  ]
+ }
+}

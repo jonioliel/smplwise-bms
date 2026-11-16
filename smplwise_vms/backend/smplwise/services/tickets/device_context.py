@@ -25,12 +25,14 @@ from typing import Any
 from ...rbac import Principal
 from .. import device_activity, ha_scope
 from ..timeutil import iso_utc
-from . import store
+from . import policy, store
 
 WINDOW_H = 24
 LIMIT = 200
 PREVIEW_LINES = 5
-EXTERNAL_HISTORY_NEVER = frozenset({"lock", "alarm_control_panel", "cover", "camera"})
+# The security domains live in policy.NEVER_SHARED_DOMAINS (one list, code review 01:F-04); this name is kept as an alias for readers
+# of the older notes. Logic reads policy.NEVER_SHARED_DOMAINS at call time (history_domain_allowed), never this alias.
+EXTERNAL_HISTORY_NEVER = policy.NEVER_SHARED_DOMAINS
 READ = "devices.read"
 _SCALAR = (str, int, float, bool, type(None))
 
@@ -141,7 +143,13 @@ def share_history_allowed(entity_id: str | None, snapshot: dict[str, Any] | None
         return False
     if snapshot.get("withheld") or snapshot.get("source") == "none":
         return False
-    return entity_id.split(".", 1)[0] not in EXTERNAL_HISTORY_NEVER
+    return history_domain_allowed(entity_id)
+
+
+def history_domain_allowed(entity_id: str) -> bool:
+    """D3: the domain half of the rule - False for a lock, an alarm panel, a cover or a camera (policy.NEVER_SHARED_DOMAINS).
+    The one domain test of every layer that shows a device history to a handler (external.history_option, handler_actions._history)."""
+    return entity_id.split(".", 1)[0] not in policy.NEVER_SHARED_DOMAINS
 
 
 def share_history_default(department: dict[str, Any] | None, contact_default: int | None = None) -> bool:
@@ -154,7 +162,8 @@ def share_history_default(department: dict[str, Any] | None, contact_default: in
 def resolve_share_history(entity_id: str | None, snapshot: dict[str, Any] | None, requested: bool | None, department: dict[str, Any] | None,
                           contact_default: int | None = None) -> bool:
     """The value an assignment stores (slices 4 / 7 call this): the manager's per-ticket choice, else the D23 default - and always False
-    where `share_history_allowed` says never (a client cannot turn it on for a lock, an alarm panel, a cover or a camera)."""
+    where `share_history_allowed` says never (a client cannot turn it on for a lock, an alarm panel, a cover or a camera).
+    Referenced by tests only today (code review 01:F-04): kept until the owner decides which layer is the contract."""
     if not share_history_allowed(entity_id, snapshot):
         return False
     return bool(requested) if requested is not None else share_history_default(department, contact_default)

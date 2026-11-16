@@ -11,7 +11,7 @@ import '../components/sw-button';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
 import { ApiError } from '../api/client';
-import { elec, elecErrorText, elecFieldErrors, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type TariffKind, type TariffVersion, type TariffVersionPlan, type VatRates } from '../api/electricity-billing';
+import { elec, elecErrorText, elecFieldErrors, elecForbidden, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type TariffKind, type TariffVersion, type TariffVersionPlan, type VatRates } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
@@ -71,7 +71,7 @@ export class ElecSettingsPrices extends ElecBase {
       [this.tariffs, this.vat, this.settings] = await Promise.all([b.listTariffs(), b.getVat(), b.getSettings().catch(() => null)]);
       this.st = 'ready';
     } catch (e) {
-      this.st = /הרשאה/.test(elecErrorText(e)) ? 'forbidden' : 'error';
+      this.st = elecForbidden(e) ? 'forbidden' : 'error';
     }
   }
 
@@ -306,7 +306,7 @@ export class ElecSettingsBusiness extends ElecBase {
       this.apply(await elec().getSettings());
       this.st = 'ready';
     } catch (e) {
-      this.st = /הרשאה/.test(elecErrorText(e)) ? 'forbidden' : 'error';
+      this.st = elecForbidden(e) ? 'forbidden' : 'error';
     }
   }
   private apply(s: BillingSettings) {

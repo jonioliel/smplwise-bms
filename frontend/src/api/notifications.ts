@@ -24,7 +24,7 @@ import { commandId } from './request-id';
 import { isApi } from './session';
 import type { PushSupport } from '../pwa/push';
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: a ticket / RFQ row offers no "open" while the module is off
-import { tt } from '../tickets/text'; // CR-038 (spec 13.4 names this file): the `tickets` category's label is the module's configured name
+import { navTt } from '../i18n/nav-labels'; // CR-038 (spec 13.4 names this file): the `tickets` category's label is the module's configured name (CR-NAV-LABELS-2436: not the whole tickets catalogue)
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
@@ -259,7 +259,7 @@ export const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile']; // NOTIFWA: 
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   safety: 'בטיחות', device_faults: 'תקלות', system: 'מערכת', doors: 'דלתות וכניסה', automations: 'אוטומציות ותזמונים', security: 'אבטחת חשבון', alerts: 'מצלמות (חוקים)',
-  get tickets() { return tt('area'); }, // CR-038 D33: the tickets module's configured plural
+  get tickets() { return navTt('area'); }, // CR-038 D33: the tickets module's configured plural
   maintenance: 'תחזוקה ובקרה', // CR-MAINT215 (owner answer 24.10 q20): a category of its own
   building: 'הודעות לבניין', // NOTICEPUSH-295: the notice board's push
 };

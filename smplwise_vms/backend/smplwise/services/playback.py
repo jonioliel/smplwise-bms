@@ -16,7 +16,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
-from urllib.parse import quote
 
 from ..config import Settings
 from ..errors import ApiError
@@ -146,10 +145,8 @@ def _hikvision_playback_rtsp_url(settings: Settings, track_id: int, start: dt.da
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     tz = zone(tz_name)
-    return (
-        f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}"
-        f"/Streaming/tracks/{int(track_id)}?starttime={compact_wall(start, tz)}&endtime={compact_wall(end, tz)}"
-    )
+    return g2.rtsp_url(settings.nvr_host, settings.nvr_rtsp_port, f"/Streaming/tracks/{int(track_id)}", settings.nvr_user, settings.nvr_password,
+                       query=f"starttime={compact_wall(start, tz)}&endtime={compact_wall(end, tz)}")
 
 
 def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datetime) -> None:
@@ -164,7 +161,9 @@ def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datet
 
     if vendor_io.handles(rs):
         src = vendor_io.go2rtc_source(rs, src)  # CR-025 live finding: go2rtc plays this NVR through its ffmpeg source
-    client.ensure_stream(name, src)
+    # CR-GO2RTC-ADAPTER-2436 (review 03 F03): a generation's name is new by construction - written without listing go2rtc first
+    create = getattr(client, "create_stream", None) or client.ensure_stream
+    create(name, src)
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))
 
