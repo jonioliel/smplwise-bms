@@ -280,7 +280,7 @@ def visible_to(conn: sqlite3.Connection, entity_visible: Any, elevator_id: str |
 def mirror_connected() -> bool:
     from . import ha_sync
 
-    return bool(ha_sync.STATE.connected)
+    return ha_sync.connected()
 
 
 def summary(states: list[str]) -> dict[str, int]:

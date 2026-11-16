@@ -29,6 +29,13 @@ from ..db import now_iso
 _FIELDS = frozenset({"roles", "users", "groups"})
 
 
+def as_lists(rec: Any) -> dict[str, list[str]]:
+    """A stored recipients document read tolerantly: always the three lists, strings only (CR-BE-TWINS-2440: the `_rec_of` of
+    temperature_alerts and water_alerts)."""
+    rec = rec if isinstance(rec, dict) else {}
+    return {x: [y for y in (rec.get(x) or []) if isinstance(y, str)] for x in ("roles", "users", "groups")}
+
+
 def active_user_ids(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
 

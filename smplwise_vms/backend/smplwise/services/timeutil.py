@@ -85,6 +85,17 @@ def iso_from_epoch_or_none(ts: float | None) -> str | None:
     return None if ts is None else iso_from_epoch(ts)
 
 
+def epoch_or_none(iso: str | None) -> float | None:
+    """A stored instant as Unix seconds; None for no value or one that does not parse (CR-BE-TWINS-2440: the `_ts` of
+    temperature_explain, temperature_runtime and water_runtime)."""
+    if not iso:
+        return None
+    try:
+        return parse_utc(iso).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
 def utc_to_nvr_wall(value: dt.datetime, tz: ZoneInfo) -> str:
     """UTC → the NVR's search format: local wall clock digits with a (meaningless) Z suffix."""
     local = value.astimezone(tz).replace(microsecond=0, tzinfo=None)

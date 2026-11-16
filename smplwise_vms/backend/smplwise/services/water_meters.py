@@ -8,7 +8,6 @@ integer millilitres inside; the API answers litres (and m3 for display). Nothing
 the state mirror (`ha_entities`), readings come from water.db. No valve, no shut-off, no device write - ever (owner Q6)."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict
 from ..rbac import Principal
 from . import energy_counter as ec
+from . import energy_meters as em
 from . import energy_store as st
 from . import ha_scope
 from . import water_settings as ws
@@ -73,12 +73,7 @@ class Verdict:
     unit_factor: int | None
 
 
-def _attrs(row: Any) -> dict[str, Any]:
-    try:
-        a = json.loads(row["attributes_json"] or "{}")
-    except (ValueError, TypeError, KeyError, IndexError):
-        return {}
-    return a if isinstance(a, dict) else {}
+_attrs = em._attrs  # CR-BE-TWINS-2440 (review 04:F20): one reader of a mirror row's attributes, on the energy side
 
 
 def _is_flow_unit(unit: str) -> bool:
@@ -472,7 +467,4 @@ def month_start(ts: int, tz: Any) -> int:
     return st.day_bounds(st.local_date(ts, tz).replace(day=1), tz)[0]
 
 
-def epoch_to_iso(ts: int | None) -> str | None:
-    if ts is None:
-        return None
-    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+epoch_to_iso = em.epoch_to_iso

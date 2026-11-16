@@ -37,7 +37,7 @@ from . import notify
 from . import temperature as t
 from . import temperature_defrost as learner
 from . import temperature_vendor_reports  # noqa: F401 - registers the vendor-report provider `temperature` (TEMPVENDOR-295) at startup, before any queued report is sent
-from .timeutil import iso_from_epoch, parse_utc
+from .timeutil import epoch_or_none, iso_from_epoch
 
 log = logging.getLogger("smplwise.temperature")
 
@@ -60,13 +60,7 @@ def reset() -> None:
 _iso = iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
-def _ts(iso: str | None) -> float | None:
-    if not iso:
-        return None
-    try:
-        return parse_utc(iso).timestamp()
-    except (ValueError, TypeError):
-        return None
+_ts = epoch_or_none  # CR-BE-TWINS-2440 (review 04:F20): was one of three identical copies
 
 
 def fmt(v: float | None) -> str:

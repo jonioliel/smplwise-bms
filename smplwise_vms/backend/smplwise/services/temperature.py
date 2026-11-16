@@ -23,6 +23,7 @@ import sqlite3
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
+from ..errors import ServiceInvalid
 from .timeutil import DEFAULT_ZONE, iso_utc, parse_utc, zone
 from .timeutil import site_zone as _site_zone  # this module's own site_zone wraps it
 
@@ -185,9 +186,11 @@ MESSAGES: dict[str, dict[str, str]] = {
 }
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-TWINS-2440 (T7, review 04:F16): on the common base; the constructor, `code`, `fields` and `str()` are as before."""
+
     def __init__(self, code: str, fields: list[str] | None = None) -> None:
-        super().__init__(code)
+        ValueError.__init__(self, code)
         self.code, self.fields = code, fields or []
 
 
@@ -630,7 +633,7 @@ def recipients_of(u: sqlite3.Row) -> dict[str, list[str]] | None:
 def mirror_connected() -> bool:
     from . import ha_sync
 
-    return bool(ha_sync.STATE.connected)
+    return ha_sync.connected()
 
 
 # ---------------------------------------------------------------- history: samples, rollup, query, statistics

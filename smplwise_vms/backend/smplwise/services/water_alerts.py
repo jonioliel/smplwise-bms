@@ -24,6 +24,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from ..db import now_iso
+from ..errors import ServiceInvalid
 from . import notify_policy
 from . import notify_recipients
 
@@ -71,9 +72,11 @@ SNOOZE_LIMITS = {"min": 5, "max": 43200, "count": 12}  # 5 minutes .. 30 days, a
 _HHMM = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
-class AlertsInvalid(ValueError):
+class AlertsInvalid(ServiceInvalid):
+    """CR-BE-TWINS-2440 (T7, review 04:F16): on the common base; the constructor, the attributes and `str()` are as before."""
+
     def __init__(self, code: str, message: str, message_en: str, details: dict[str, Any] | None = None) -> None:
-        super().__init__(code)
+        ValueError.__init__(self, code)
         self.code, self.message, self.message_en, self.details = code, message, message_en, details or {}
 
 
@@ -130,9 +133,7 @@ def _row(conn: sqlite3.Connection) -> sqlite3.Row | None:
         return None
 
 
-def _rec_of(rec: Any) -> dict[str, list[str]]:
-    rec = rec if isinstance(rec, dict) else {}
-    return {x: [y for y in (rec.get(x) or []) if isinstance(y, str)] for x in ("roles", "users", "groups")}
+_rec_of = notify_recipients.as_lists  # CR-BE-TWINS-2440 (review 04:F20): was one of two identical copies
 
 
 def load(conn: sqlite3.Connection) -> dict[str, Any]:
