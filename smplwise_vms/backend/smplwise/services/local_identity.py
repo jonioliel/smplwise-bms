@@ -202,7 +202,7 @@ def role_refusal(conn, role_id: str) -> str | None:
     """Why a role can never be bound to a local identity (owner answer Q3: any role except system_admin - and so no role
     carrying a system permission, which only system_admin holds, or identity.local.manage); None when it may be."""
     from ..rbac import all_roles
-    from ..routers.access import SYSTEM_PERMISSIONS
+    from .rbac_admin import SYSTEM_PERMISSIONS
 
     roles = all_roles(conn)
     if role_id not in roles:

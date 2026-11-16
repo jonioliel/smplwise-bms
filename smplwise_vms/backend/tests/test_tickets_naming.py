@@ -225,7 +225,7 @@ def test_the_rename_lint_catches_a_planted_line():
 ARTICLE_BEFORE_TOKEN = re.compile(r"(?<![א-ת])ה\{tickets?\}")
 
 
-@pytest.mark.parametrize("path", _module_sources() + [BACKEND / "routers" / "access.py", BACKEND / "roles.json"], ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _module_sources() + [BACKEND / "services" / "rbac_admin.py", BACKEND / "roles.json"], ids=lambda p: p.name)
 def test_no_text_puts_the_article_in_front_of_a_name_token(path):
     """'ה' + {ticket} renders 'הבקשת שירות' with a two-word name: the article tokens {the_ticket} / {the_tickets} are the only way."""
     hits = [f"{i}: {ln.strip()[:100]}" for i, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1) if ARTICLE_BEFORE_TOKEN.search(ln)]

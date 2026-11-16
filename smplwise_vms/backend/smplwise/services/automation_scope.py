@@ -451,7 +451,7 @@ GRANT_FOR = {"alarm_control_panel.alarm_disarm": "alarm.disarm", "lock.unlock": 
 
 def grant_reasons(ctx: Ctx, steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The manual-control grants of every sensitive typed step (owner decision 6ג): the same permission, at the same entity, manual control asks for."""
-    from ..routers.access import PERMISSION_LABELS
+    from .rbac_admin import PERMISSION_LABELS
 
     a = ctx.access
     out: list[dict[str, Any]] = []

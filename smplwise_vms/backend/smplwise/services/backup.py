@@ -942,7 +942,7 @@ def _prune_role_permissions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     no longer has (nvr.config.stream, removed by migration 0050) or one that only built-in roles may hold. Such a role would
     grant nothing for it and its next edit would fail (422 permission_unknown), so the permission is dropped here - the same
     rule migration 0050 applied - and the role's revision moves. Returns [{role_id, removed}] for the answer and the audit row."""
-    from ..routers.access import PERMISSION_LABELS, SYSTEM_PERMISSIONS  # local import: the permission catalogue lives with the roles API
+    from .rbac_admin import PERMISSION_LABELS, SYSTEM_PERMISSIONS  # local import: the permission catalogue (services/rbac_admin.py)
 
     def keep(p: Any) -> bool:
         return isinstance(p, str) and p in PERMISSION_LABELS and p not in SYSTEM_PERMISSIONS
