@@ -162,6 +162,7 @@ const rules = `
 :host(sw-button[variant='primary']) button { background: linear-gradient(180deg, var(--sw-accent), var(--sw-accent-hover)); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28); }
 :host(sw-button[variant='ghost']) button { box-shadow: none; }
 :host(sw-button[size='sm']) button { border-radius: var(--sw-r-sm); min-block-size: 30px; }
+:host(sw-button[size='sm'][data-page-back]) button { min-block-size: max(30px, var(--sw-ctl-h-sm)); }
 :host(sw-chip) button { border-radius: var(--sw-r-pill); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: var(--sw-surface-2); border-color: var(--sw-border-strong); border-radius: var(--sw-r-sm); }
 /* crystal 7 - the switch and the segmented / tab rails: a glass track, a solid luminous thumb */
