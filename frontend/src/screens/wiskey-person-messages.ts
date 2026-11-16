@@ -10,6 +10,7 @@ import { pt } from '../i18n/access-people';
 import { formatClock } from '../access-control/people-logic';
 import type { MessageHistoryItem, MessagingTransport, PersonMessages } from '../access-control/messaging-logic';
 import { UTC_ZONE } from './wiskey-format';
+import { switchTrackStyles, switchBody } from '../messaging/policy-switch';
 
 /** An outcome as a badge: "sent" is what the service accepted (never "delivered"), "not sent" a refusal, "unknown" a send whose answer is lost. */
 export function outcomeBadge(outcome: MessageHistoryItem['outcome']): { kind: StateKind; label: string } {
@@ -43,7 +44,7 @@ export class WiskeyPersonMessages extends LitElement {
   @state() private failed = false;
   private generation = 0;
 
-  static styles = css`
+  static styles = [switchTrackStyles, css`
     :host {
       display: block;
     }
@@ -74,63 +75,12 @@ export class WiskeyPersonMessages extends LitElement {
       text-align: start;
       cursor: pointer;
     }
-    .sw:disabled {
-      cursor: default;
-      opacity: var(--sw-disabled-opacity);
-    }
     .sw:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-    .sw .txt {
-      flex: 1;
-      min-inline-size: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
     .sw .t {
       font-weight: var(--sw-fw-medium);
-    }
-    .sw .x {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
-    .track {
-      flex: none;
-      position: relative;
-      inline-size: 42px;
-      block-size: 24px;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-toggle-off);
-      transition: background var(--sw-t-fast) var(--sw-ease);
-    }
-    .track::after {
-      content: '';
-      position: absolute;
-      inset-block-start: 3px;
-      inset-inline-start: 3px;
-      inline-size: 18px;
-      block-size: 18px;
-      border-radius: 50%;
-      background: var(--sw-toggle-thumb);
-      box-shadow: var(--sw-shadow-1);
-      transition: transform var(--sw-t-fast) var(--sw-ease);
-    }
-    .sw[aria-checked='true'] .track {
-      background: var(--sw-toggle-on);
-    }
-    .sw[aria-checked='true'] .track::after {
-      transform: translateX(-18px);
-    }
-    :host-context([dir='ltr']) .sw[aria-checked='true'] .track::after {
-      transform: translateX(18px);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .track,
-      .track::after {
-        transition: none;
-      }
     }
     ul {
       list-style: none;
@@ -199,7 +149,7 @@ export class WiskeyPersonMessages extends LitElement {
     sw-button {
       min-block-size: 44px;
     }
-  `;
+  `];
 
   protected willUpdate(changed: PropertyValues<this>) {
     if ((changed.has('personId') || changed.has('rev') || changed.has('transport')) && this.personId) void this.load();
@@ -270,8 +220,7 @@ export class WiskeyPersonMessages extends LitElement {
     const locked = on && d.can_clear_opt_out === false; // review F6: clearing is the administrator's
     return html`<section data-person-section="messages" data-msg-history-state="ready">
       <button type="button" class="sw" role="switch" aria-checked=${String(on)} data-msg-optout ?data-locked=${locked} ?disabled=${this.busy || locked} @click=${() => void this.toggleOptOut()}>
-        <span class="txt"><span class="t">${pt('optout.label')}</span>${on ? html`<span class="x" data-msg-optout-by>${this.optOutText(d)}${locked ? ` · ${pt('optout.admin_only')}` : ''}</span>` : nothing}</span>
-        <span class="track" aria-hidden="true"></span>
+        ${switchBody(pt('optout.label'), on ? html`<span class="x" data-msg-optout-by>${this.optOutText(d)}${locked ? ` · ${pt('optout.admin_only')}` : ''}</span>` : nothing)}
       </button>
       ${this.failed ? html`<div class="err" role="alert" data-msg-optout-error><sw-icon name="warning" size=${16}></sw-icon><span>${pt('optout.error')}</span></div>` : nothing}
       <h4>${pt('hist.list')}</h4>

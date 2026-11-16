@@ -18,6 +18,7 @@ import {
 } from '../api/access-messaging';
 import { insertAt, problemsAt, settingsProblems, DEFAULT_LIMITS } from '../access-control/messaging-templates';
 import { statusStyles } from '../access-control/status-css';
+import { policySwitchStyles, switchBody } from '../messaging/policy-switch';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { accessPanelPolish } from './system-access-polish-css';
@@ -150,84 +151,8 @@ export class SystemAccessMessaging extends LitElement {
 
   static styles = [
     statusStyles,
+    policySwitchStyles,
     css`
-      .sw {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        inline-size: 100%;
-        min-block-size: max(64px, var(--_t));
-        padding: 10px 14px;
-        box-sizing: border-box;
-        border: 0;
-        border-block-start: 1px solid var(--sw-border);
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        text-align: start;
-        cursor: pointer;
-      }
-      .sw:disabled {
-        cursor: default;
-        opacity: var(--sw-disabled-opacity);
-      }
-      .sw:not(:disabled):hover {
-        background: var(--sw-hover-wash);
-      }
-      .sw:focus-visible {
-        outline-offset: -2px;
-      }
-      .sw .txt {
-        flex: 1;
-        min-inline-size: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .sw .t {
-        font-weight: var(--sw-fw-semibold);
-        color: var(--sw-heading);
-      }
-      .sw .x {
-        color: var(--sw-text-3);
-        font-size: var(--sw-fs-sm);
-      }
-      .track {
-        flex: none;
-        position: relative;
-        inline-size: 42px;
-        block-size: 24px;
-        border-radius: var(--sw-r-pill);
-        background: var(--sw-toggle-off);
-        transition: background var(--sw-t-fast) var(--sw-ease);
-      }
-      .track::after {
-        content: '';
-        position: absolute;
-        inset-block-start: 3px;
-        inset-inline-start: 3px;
-        inline-size: 18px;
-        block-size: 18px;
-        border-radius: 50%;
-        background: var(--sw-toggle-thumb);
-        box-shadow: var(--sw-shadow-1);
-        transition: transform var(--sw-t-fast) var(--sw-ease);
-      }
-      .sw[aria-checked='true'] .track {
-        background: var(--sw-toggle-on);
-      }
-      .sw[aria-checked='true'] .track::after {
-        transform: translateX(-18px);
-      }
-      :host-context([dir='ltr']) .sw[aria-checked='true'] .track::after {
-        transform: translateX(18px);
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .track,
-        .track::after {
-          transition: none;
-        }
-      }
       .svc {
         display: flex;
         align-items: center;
@@ -560,8 +485,7 @@ export class SystemAccessMessaging extends LitElement {
     return html`<sw-card flush data-msg-settings-card="consent">
       <div class="ch"><div><h3>${mt('consent.title')}</h3><div class="sub">${mt('consent.sub')}</div></div></div>
       <button type="button" class="sw" role="switch" aria-checked=${String(d.consent_by_link)} data-msg-setting="consent_by_link" @click=${() => this.set({ consent_by_link: !d.consent_by_link }, 'consent_by_link')}>
-        <span class="txt"><span class="t">${mt('consent.switch')}</span><span class="x">${d.consent_by_link ? mt('consent.on') : mt('consent.off')}</span></span>
-        <span class="track" aria-hidden="true"></span>
+        ${switchBody(mt('consent.switch'), d.consent_by_link ? mt('consent.on') : mt('consent.off'))}
       </button>
       ${this.problemLine('consent_by_link')}
       ${d.consent_by_link && problem ? html`<div class="note err" role="alert" data-msg-consent-problem=${problem}><sw-icon name="warning" size=${16}></sw-icon><span>${mt(consentProblemKey(problem))}</span></div>` : nothing}
@@ -611,12 +535,10 @@ export class SystemAccessMessaging extends LitElement {
         <div class="ch"><div><h3>${mt('title')}</h3><div class="sub">${mt('sub')}</div></div></div>
         ${this.serviceLine(r)}
         <button type="button" class="sw" role="switch" aria-checked=${String(d.enabled)} data-msg-setting="enabled" @click=${() => this.set({ enabled: !d.enabled })}>
-          <span class="txt"><span class="t">${mt('enabled.title')}</span><span class="x">${d.enabled ? mt('enabled.on') : mt('enabled.off')}</span></span>
-          <span class="track" aria-hidden="true"></span>
+          ${switchBody(mt('enabled.title'), d.enabled ? mt('enabled.on') : mt('enabled.off'))}
         </button>
         <button type="button" class="sw" role="switch" aria-checked=${String(d.free_text)} data-msg-setting="free_text" @click=${() => this.set({ free_text: !d.free_text })}>
-          <span class="txt"><span class="t">${mt('free.title')}</span><span class="x">${d.free_text ? mt('free.on') : mt('free.off')}</span></span>
-          <span class="track" aria-hidden="true"></span>
+          ${switchBody(mt('free.title'), d.free_text ? mt('free.on') : mt('free.off'))}
         </button>
         <div class="hint" data-msg-optout-note>${mt('optout.note')}</div>
         <div class="fields">
@@ -637,8 +559,7 @@ export class SystemAccessMessaging extends LitElement {
           ${this.capField('per_station_per_hour', 'station', limits.per_station_per_hour ?? [1, 1000])}
           <div data-msg-send-hours>
             <button type="button" class="sw" role="switch" aria-checked=${String(d.hours_on)} data-msg-setting="send_hours" @click=${() => this.set({ hours_on: !d.hours_on }, 'send_hours')}>
-              <span class="txt"><span class="t">${mt('hours.title')}</span><span class="x">${d.hours_on ? mt('hours.on') : mt('hours.off')}</span></span>
-              <span class="track" aria-hidden="true"></span>
+              ${switchBody(mt('hours.title'), d.hours_on ? mt('hours.on') : mt('hours.off'))}
             </button>
             ${d.hours_on
               ? html`<div class="fields">

@@ -1,11 +1,10 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
-import { get, post, describeError } from '../api/client';
-import { parseRoute } from '../router';
+import { get, describeError } from '../api/client';
 import { bidi, ltrNum } from '../i18n/bidi';
 import {
   CONFIRM, NO_FILTERS, STATUS_TEXT, actionIds, apiAction, applyFilters, chunks, confirmQuestion, countsLine, filtersActive, rangeIds, readOnly, resultLine, statusOf, suggestedIds,
@@ -14,8 +13,7 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
-
-const PAGE = 100;
+import { DevicesOverrideListAdmin, OVERRIDE_PAGE as PAGE, overrideListStyles, overrideTableStyles } from './devices-override-admin';
 
 interface ListReply {
   switches: ProtectedSwitchRow[];
@@ -34,25 +32,19 @@ interface ListReply {
  * under 600 px; 100 rows at a time ("הצג עוד"). Wording keeps to "תשתית המערכת" - no product names.
  */
 @customElement('devices-protected-switches')
-export class DevicesProtectedSwitches extends LitElement {
+export class DevicesProtectedSwitches extends DevicesOverrideListAdmin<ProtectedSwitchRow, Filters> {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
-  @state() private rows: ProtectedSwitchRow[] | null = null;
   @state() private summary: ProtectedSummary | null = null;
   @state() private categories: ProtectedCategory[] = [];
-  @state() private error = '';
-  @state() private f: Filters = { ...NO_FILTERS };
-  @state() private selected = new Set<string>();
-  @state() private shown = PAGE;
+  @state() protected f: Filters = { ...NO_FILTERS };
   @state() private confirm: { action: ProtectAction; ids: string[] } | null = null;
-  @state() private busy = false;
-  @state() private result = '';
-  private last: string | null = null;
+  protected readonly heading = 'מתגים מוגנים';
+  protected readonly sections = ['protected-switches', 'bulk-safe'];
+  protected range = rangeIds;
+  protected chunk = (ids: readonly string[]) => chunks(ids);
 
-  static styles = [css`
-    :host {
-      display: block;
-    }
+  static styles = [overrideListStyles, overrideTableStyles, css`
     .strip {
       display: flex;
       flex-wrap: wrap;
@@ -69,64 +61,6 @@ export class DevicesProtectedSwitches extends LitElement {
     .strip .grow {
       flex: 1;
       min-inline-size: 200px;
-    }
-    .bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-block-end: 8px;
-    }
-    input[type='search'],
-    select {
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      min-block-size: 36px;
-      padding: 0 10px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-    }
-    input[type='search'] {
-      flex: 1;
-      min-inline-size: 180px;
-    }
-    .note,
-    .muted {
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
-    }
-    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold; a state is a filled
-       chip, not a coloured word */
-    table {
-      inline-size: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: var(--sw-fs-base);
-    }
-    th,
-    td {
-      text-align: start;
-      padding: 10px 10px;
-      border-block-end: 1px solid var(--sw-border);
-      vertical-align: middle;
-    }
-    th {
-      background: var(--sw-surface-2);
-      color: var(--sw-heading, var(--sw-text));
-      font-weight: var(--sw-fw-bold);
-      white-space: nowrap;
-    }
-    th:first-child {
-      border-start-start-radius: var(--sw-r-md);
-    }
-    th:last-child {
-      border-start-end-radius: var(--sw-r-md);
-    }
-    td:nth-child(2) {
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-heading, var(--sw-text));
     }
     th button {
       font: inherit;
@@ -162,20 +96,6 @@ export class DevicesProtectedSwitches extends LitElement {
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
     }
-    input[type='checkbox'] {
-      inline-size: 18px;
-      block-size: 18px;
-    }
-    .cards {
-      display: none;
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      padding-block: 8px;
-    }
     .warn {
       padding: 8px 10px;
       margin-block: 8px;
@@ -183,76 +103,13 @@ export class DevicesProtectedSwitches extends LitElement {
       background: var(--sw-warning-soft);
       font-size: var(--sw-fs-sm);
     }
-    @media (max-width: 599px) {
-      table {
-        display: none;
-      }
-      .cards {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      .card {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        gap: 2px 10px;
-        align-items: center;
-        padding: 10px 12px;
-        border: 0;
-        background: var(--sw-surface-2);
-        border-radius: var(--sw-r-md);
-        min-block-size: 48px;
-        font-weight: var(--sw-fw-semibold);
-      }
-      .card .sub {
-        grid-column: 2;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-regular);
-        color: var(--sw-text-2);
-      }
-      .actions.bulk {
-        position: sticky;
-        inset-block-end: 0;
-        background: var(--sw-surface);
-        border-block-start: 1px solid var(--sw-border);
-        z-index: 1;
-      }
-    }
   `, bubbleChrome];
 
-  connectedCallback() {
-    super.connectedCallback();
-    void this.load().then(() => {
-      const section = parseRoute().params.get('section');
-      if (section === 'protected-switches' || section === 'bulk-safe') requestAnimationFrame(() => this.scrollIntoView({ block: 'start' }));
-    });
-  }
-
-  private async load() {
-    try {
-      const r = await get<ListReply>('devices/bulk-protected');
-      this.rows = r.switches;
-      this.summary = r.summary;
-      this.categories = r.categories ?? [];
-      this.error = '';
-    } catch (err) {
-      this.error = describeError(err);
-    }
-  }
-
-  private setFilter(patch: Partial<Filters>) {
-    this.f = { ...this.f, ...patch };
-    this.shown = PAGE;
-  }
-
-  /** `on` is the box's state AFTER the native toggle (the click is not cancelled: cancelling a checkbox click makes the browser
-   * restore the old `checked` after Lit re-rendered, so a selected row showed an empty box). */
-  private toggle(id: string, on: boolean, shift: boolean, list: ProtectedSwitchRow[]) {
-    const next = new Set(this.selected);
-    const ids = shift && this.last ? rangeIds(list, this.last, id) : [id];
-    for (const x of ids) (on ? next.add(x) : next.delete(x));
-    this.last = id;
-    this.selected = next;
+  protected async fetchRows() {
+    const r = await get<ListReply>('devices/bulk-protected');
+    this.summary = r.summary;
+    this.categories = r.categories ?? [];
+    return r.switches;
   }
 
   private ask(action: ProtectAction, ids: string[]) {
@@ -265,13 +122,7 @@ export class DevicesProtectedSwitches extends LitElement {
     if (!c) return;
     this.busy = true;
     try {
-      let changed = 0;
-      let refused = 0;
-      for (const part of chunks(c.ids)) {
-        const r = await post<{ changed: number; refused: number }>('devices/bulk-protected', { entity_ids: part, action: apiAction(c.action) });
-        changed += r.changed;
-        refused += r.refused;
-      }
+      const { changed, refused } = await this.postChunks('devices/bulk-protected', c.ids, { action: apiAction(c.action) });
       this.result = resultLine(c.action, changed, refused);
       this.selected = new Set();
       this.confirm = null;
@@ -287,17 +138,17 @@ export class DevicesProtectedSwitches extends LitElement {
 
   render() {
     const rows = this.rows;
-    const head = 'מתגים מוגנים';
-    if (this.error) return html`<sw-card heading=${head}><sw-state-panel compact state="error" heading="לא ניתן לטעון את המתגים" hint=${this.error}></sw-state-panel></sw-card>`;
-    if (!rows) return html`<sw-card heading=${head}><sw-state-panel compact state="loading"></sw-state-panel></sw-card>`;
+    const head = this.heading;
+    if (this.error) return this.errorCard('לא ניתן לטעון את המתגים');
+    if (!rows) return this.loadingCard();
     const f = this.f;
     const list = applyFilters(rows, f);
     const page = list.slice(0, this.shown);
-    const floors = [...new Map(rows.filter((r) => r.floor_id).map((r) => [r.floor_id!, r.floor_name ?? r.floor_id!])).entries()];
-    const areas = [...new Map(rows.filter((r) => r.area_id && (!f.floor || r.floor_id === f.floor)).map((r) => [r.area_id!, r.area_name ?? r.area_id!])).entries()];
+    const floors = this.floorOptions(rows);
+    const areas = this.areaOptions(rows);
     const selectable = list.filter((r) => !readOnly(r));
     const waiting = suggestedIds(rows).length;
-    const place = (r: ProtectedSwitchRow) => [r.floor_name, r.area_name].filter(Boolean).join(' ‹ ') || 'ללא שיוך';
+    const place = (r: ProtectedSwitchRow) => this.place(r);
     const status = (r: ProtectedSwitchRow) => {
       const s = statusOf(r);
       return html`<span class=${s === 'protected' ? 'yes' : s === 'suggested' ? 'wait' : 'no'} data-status=${s}>${STATUS_TEXT[s]}</span>`;
