@@ -438,6 +438,40 @@ class TalkLease(CameraLease):
 CLOSE_CODES = {"expired": 4408, "access_lost": 4403, "upstream_unavailable": 4503, "busy": 4423, "upstream_closed": 1000, "stopped": 1000, "ended": 1000}
 
 
+async def run_until_first(tasks: list["asyncio.Task[str]"], *, what: str, ref: str, log: logging.Logger) -> str:
+    """CR-INTERCOM-SHARED (review 02:P2-6, 02:P3-3): the tail the talk pump (below) and the listen pump (routers/intercom_listen.py)
+    share. Waits for the first of `tasks` to finish, then cancels the others and joins them ALL - shielded: a cancellation of the
+    caller is remembered and re-raised only after the join, so no task of a session outlives its socket.
+
+    The session's outcome, in a fixed order (it used to be whichever member of the `done` set the loop met first):
+      1. a finished task raised: logged, `upstream_closed`;
+      2. the first finished task, in the order of `tasks`, whose result is not `ended` - a stop reason (`expired`, `access_lost`,
+         `stopped`, `upstream_closed`, ...) wins over the browser's plain disconnect when both happen together;
+      3. `ended`.
+    The loops themselves (what a frame is, who may send) stay per direction."""
+    try:
+        done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        finished = [task for task in tasks if task in done]
+        for task in finished:
+            if task.exception() is not None:
+                log.warning("%s session %s ended by an error: %s", what, ref, type(task.exception()).__name__)
+                return "upstream_closed"
+        return next((result for result in (task.result() for task in finished) if result != "ended"), "ended")
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        joined = asyncio.gather(*tasks, return_exceptions=True)
+        cancelled = False
+        while not joined.done():
+            try:
+                await asyncio.shield(joined)
+            except asyncio.CancelledError:
+                cancelled = True
+        if cancelled:
+            raise asyncio.CancelledError
+
+
 async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel, lease: TalkLease) -> str:
     """Browser frames -> the talk channel while the floor is held; the session's watch (expiry, stop, lease) every second."""
     held = False
@@ -533,26 +567,7 @@ async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel
 
     tasks = [asyncio.create_task(from_browser()), asyncio.create_task(upstream()),
              asyncio.create_task(watch()), asyncio.create_task(from_station())]
-    try:
-        done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            if task.exception() is not None:
-                log.warning("talk session %s ended by an error: %s", t.ref, type(task.exception()).__name__)
-                return "upstream_closed"
-        return next(iter(done)).result() if done else "ended"
-    finally:
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-        joined = asyncio.gather(*tasks, return_exceptions=True)
-        cancelled = False
-        while not joined.done():
-            try:
-                await asyncio.shield(joined)
-            except asyncio.CancelledError:
-                cancelled = True
-        if cancelled:
-            raise asyncio.CancelledError
+    return await run_until_first(tasks, what="talk", ref=t.ref, log=log)
 
 
 @router.websocket("/access-control/talk/{session_id}/ws")
