@@ -207,11 +207,11 @@ def parse_active(text: str) -> bool:
 
 
 def _person_data_check(data: dict[str, Any]) -> list[str]:
-    """The S11 editor's own draft model (routers/access_control.PersonData) over the scalar part of `data`: the codes of the fields it
+    """The S11 editor's own draft model (services/access_control_core.PersonData) over the scalar part of `data`: the codes of the fields it
     refuses (field names only)."""
     from pydantic import ValidationError
 
-    from ..routers.access_control import PersonData
+    from .access_control_core import PersonData
 
     try:
         PersonData.model_validate({k: v for k, v in data.items() if k != "group_ids"})

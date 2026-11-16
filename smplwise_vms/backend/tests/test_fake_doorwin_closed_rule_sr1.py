@@ -41,9 +41,9 @@ ENGINE_WRITE_PRIMITIVES = frozenset({"stations/technical_program_save", "station
 
 # today's sites (origin/main 19dbbbcc, release 2.4.10) - extend deliberately, see the module docstring
 PINNED = frozenset({
-    ("smplwise/routers/access_control.py", "call:release_door"),  # open_door: a person's confirmed click (SR-1's one allowed path)
-    ("smplwise/routers/access_control.py", "call:open_door"),  # the release route and the devices tile, both a person's click
-    ("smplwise/routers/access_control.py", "door_open"),
+    ("smplwise/routers/access_control_door.py", "call:release_door"),  # open_door: a person's confirmed click (SR-1's one allowed path)
+    ("smplwise/routers/access_control_door.py", "call:open_door"),  # the release route and the devices tile, both a person's click
+    ("smplwise/routers/access_control_door.py", "door_open"),
     ("smplwise/services/door_run_guard.py", "call:open_door"),  # a converted item's run (CR-033 R-17), refused today (2.4.9 decision 5)
     ("smplwise/services/intercom_client.py", "stations/test_unlock"),  # the release_door wrapper itself
     ("smplwise/services/trusted_door.py", "door_open"),  # the signed transport behind open_door

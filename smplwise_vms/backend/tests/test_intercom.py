@@ -1310,7 +1310,7 @@ import sqlite3  # noqa: E402
 import uuid  # noqa: E402
 
 from smplwise.db import Database  # noqa: E402
-from smplwise.routers import access_control  # noqa: E402
+from smplwise.routers import access_control, access_control_command  # noqa: E402
 from smplwise.routers.access import SENSITIVE  # noqa: E402
 
 
@@ -2012,7 +2012,7 @@ def test_after_a_timeout_the_relay_stays_held_until_wiskey_answers_and_a_little_
     The relay stays busy until WisKey's own answer arrives, and UNKNOWN_HOLD_S longer - a guard pressing release again
     straight after the 504 gets a 409 and no second frame is sent. Then a legitimate next release goes through."""
     monkeypatch.setattr(intercom_sync, "ACTION_TIMEOUT_S", 0.3)
-    monkeypatch.setattr(access_control, "UNKNOWN_HOLD_S", 0.6)
+    monkeypatch.setattr(access_control_command, "UNKNOWN_HOLD_S", 0.6)
     held: list[tuple[dict[str, Any], FakeHa]] = []
 
     def script_answer(msg: dict[str, Any]) -> list[Any] | None:
@@ -2072,12 +2072,12 @@ def test_command_envelope_expiry_and_duplicates(feed, monkeypatch):
     assert len(sent(fakes, "stations/test_unlock")) == 2
 
     # the send-time check: the command is handed over, but by the time it reaches the feed's loop it is too late
-    monkeypatch.setattr(access_control, "SEND_WITHIN_S", -1.0)  # deterministic: the deadline is already in the past
+    monkeypatch.setattr(access_control_command, "SEND_WITHIN_S", -1.0)  # deterministic: the deadline is already in the past
     r = release(c, user="joni")
     assert r.status_code == 409 and r.json()["code"] == "expired" and r.json()["details"]["outcome"] == "not_sent"
     assert len(sent(fakes, "stations/test_unlock")) == 2, "not sent"
     assert audit_rows(s, "intercom.release", "outcome")[-1]["details"]["outcome"] == "not_sent"
-    monkeypatch.setattr(access_control, "SEND_WITHIN_S", 15.0)
+    monkeypatch.setattr(access_control_command, "SEND_WITHIN_S", 15.0)
     assert release(c, user="joni").status_code == 200, "and it did not hold the relay"
 
 
@@ -2243,7 +2243,7 @@ def test_send_time_expiry_is_deterministic(feed, monkeypatch):
 
     assert websockets.connect is not None and intercom_sync.RETRY_S == 0.05, "the feed fixture's patches are intact"
     assert intercom_sync.datetime.datetime is dt.datetime, "and the clock is real again"
-    monkeypatch.setattr(access_control, "SEND_WITHIN_S", -1.0)
+    monkeypatch.setattr(access_control_command, "SEND_WITHIN_S", -1.0)
     for _ in range(5):
         r = release(c, user="joni")
         assert r.status_code == 409 and r.json()["code"] == "expired" and r.json()["details"]["outcome"] == "not_sent"
