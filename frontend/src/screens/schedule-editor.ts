@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { KeyedMemo } from './editor-guards';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-button';
@@ -823,6 +824,7 @@ export class ScheduleEditor extends LitElement {
   willUpdate() {
     this.valCache = null;
     this.ebuCache = null;
+    this.viewCache = null;
     // the route decides what opens: an id, or nothing / "new" plus the template and preset of the create flow
     const key = `${this.scheduleId}|${this.template}|${this.preset}`;
     if (key !== this.loadedKey) {
@@ -871,8 +873,13 @@ export class ScheduleEditor extends LitElement {
 
   private get dirty(): boolean {
     if (this.loading || !this.loadedFor) return false;
-    return !!this.override || !sameDraft(this.currentDraft(), this.baseline);
+    if (this.override) return true;
+    // CR-EDITORS-MEMO-2440 (06:PERF-6): two canonical stringifies per call, and it is called by every render, every click anywhere in
+    // the document and the unload guard; the draft and the baseline are REPLACED on every change, so identity says "nothing moved"
+    const { draft, baseline, creating } = this;
+    return this.dirtyMemo.get([draft, baseline, creating], () => !sameDraft(this.currentDraft(), baseline));
   }
+  private readonly dirtyMemo = new KeyedMemo<boolean>();
 
   private get classOf() {
     return (id: string | null) => classOfEntity(this.meta, id);
@@ -1036,13 +1043,18 @@ export class ScheduleEditor extends LitElement {
   /** A change made elsewhere: quietly adopt it when nothing is unsaved here, else offer the choices. */
   private async refreshRemote() {
     if (this.creating || !this.scheduleId || this.loading || this.saving) return;
+    // CR-EDITORS-MEMO-2440 (06:RACE-7): the shell re-uses the editor when only the id in the address changes. An answer for the
+    // schedule that was open when the push came must not be adopted into, raise a conflict on, or mark as deleted the one open now.
+    const id = this.scheduleId;
+    const stillOpen = () => this.scheduleId === id && this.loadedFor === id && !this.loading;
     try {
-      const fresh = await getSchedule(this.scheduleId);
+      const fresh = await getSchedule(id);
+      if (!stillOpen()) return;
       if (fresh.revision === this.baseRevision) return;
       if (!this.dirty) this.adopt(fresh);
       else this.conflict = { current: fresh };
     } catch (e) {
-      if (e instanceof ApiError && e.status === 404) this.gone = true;
+      if (stillOpen() && e instanceof ApiError && e.status === 404) this.gone = true;
     }
   }
 
@@ -1088,6 +1100,7 @@ export class ScheduleEditor extends LitElement {
   private mark() {
     this.valCache = null;
     this.ebuCache = null;
+    this.viewCache = null;
     this.saveError = '';
     this.savedOk = false;
     this.previewToken += 1; // a preview still in flight answers for the draft before this edit: it must not land on the new one
@@ -1581,7 +1594,7 @@ export class ScheduleEditor extends LitElement {
       sensitive,
       lowering,
       invalid: this.showErrors && bad,
-      conflict: this.kavConflictUids().has(s.uid),
+      conflict: this.views().conflicts.has(s.uid),
       aria: `משבצת ${order + 1} מתוך ${count}: ${title}, ${timeLabel}${lowering ? ', פותח או מנטרל' : sensitive ? ', פעולה רגישה' : ''}${locked ? ', לקריאה בלבד' : ''}`,
     };
   }
@@ -1608,8 +1621,18 @@ export class ScheduleEditor extends LitElement {
     this.setWork(r.slots, s.uid);
   }
 
+  /** CR-EDITORS-MEMO-2440 (06:PERF-6): the view models of one update. Linked days show the same slot list, so its views are built once
+   * (not once per day), and the conflict marks once (not once per slot). Forgotten in `willUpdate` and on every edit (`mark`). */
+  private viewCache: { conflicts: Set<string>; bySlots: Map<EditSlot[], GridSlotView[]> } | null = null;
+  private views() {
+    return (this.viewCache ??= { conflicts: this.kavConflictUids(), bySlots: new Map() });
+  }
+
   private slotViews(slots: EditSlot[]): GridSlotView[] {
-    return slots.map((s, i) => this.slotView(s, i, slots.length));
+    const by = this.views().bySlots;
+    let v = by.get(slots);
+    if (!v) by.set(slots, (v = slots.map((s, i) => this.slotView(s, i, slots.length))));
+    return v;
   }
 
   private gridRows(): GridRowView[] {
