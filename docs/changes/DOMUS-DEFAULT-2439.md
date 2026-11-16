@@ -140,3 +140,69 @@ Revert the branch's commits. Data: an installation that was moved has `ui.skin.d
   dropdown-phone-choice, dropdown-styles, dropdown-capsule component specs, smoke-skinfound-297, evidence-design-foundation (20 passed, 1 brand-colours
   failure that passed twice alone on rerun: a load flake, unrelated).
 - NOT_RUN locally: specs that import `/src/*` modules (they need the Vite dev server; the gate runs those on dev), the rest of the suite.
+
+## Entry-check fix (round 3): the train merged in, the 27 failures of 3f876e61d
+
+**Merge.** `origin/release/2437-train` (d849af79c: 2.43.7 and the gate fixes) is merged with `--no-ff` (ca60027fe). Conflicts:
+- `routers/settings.py`: the train moved the settings registry to `services/settings_store.py` (CR-SETTINGS-STORE-2436). The train's file
+  is taken and this branch's changes are carried over: `DEFAULTS["ui.skin"] = "domus"`, the `ui.chip_selected` default, its read-time
+  normaliser and its `NORMALISED_KEYS` entry now live in `settings_store.py`; the PATCH field stays in the router.
+- Six phone baselines (`pixel-home-fb-2431` x4, `pixel-home-gaps-2436` x2): this branch's Domus re-takes are kept. Neither side is right
+  after the merge (the train changed the same screens under the classic default): see "Pixels to refresh".
+
+**The failures, one by one.** Every one was reproduced on the workstation on the merged branch before anything was changed
+(`vite build` preview, one worker), except the phone timeouts, which pass there.
+
+| Failure | Cause | What was done |
+|---|---|---|
+| `evidence-nav-size:81` desktop + tablet ("rail = item + padding + border") | Intended: the Domus rail is a floating panel with a border all round (2 px, classic 1) and a 12 px margin | Spec: the frame is measured (border 2, margin 12) instead of the constant 15 |
+| `evidence-nav-size:121` desktop + tablet (the user menu beside the rail) | **Bug**: `--sw-rail-w` was the rail's box only, so in Domus everything placed beside the rail ignored its 12 px margin - the user menu overlapped the rail by 2 px, the notification sheet stood 2 px from it (12 in classic), the alert banner and the start-side logos began 12 px inside | `shell/sw-app.ts`: `--sw-rail-w` = the rail's box plus its inline margins; the border box is observed, so a skin switch updates it. The spec asserts the offset = rail + margin |
+| `evidence-notifications:107` desktop + tablet | The 12 px above, and a race in the spec: the sheet slides in from 32 px and under the software renderer the Domus page (glass over the whole page) starts that slide later than the fixed 350 ms wait (measured: still at +32 px after 570 ms at 1440, landed by 1 s; classic lands at once) | Product: the rail offset above. Spec: the landing is polled (5 s) |
+| `evidence-multibuilding-home-2330:89` tablet (2 px vertical overflow) | **Bug** (a race the Domus heights exposed): the home's fit was measured only after the screen's own updates; a card that grew a pixel or two afterwards left the building level scrolling by 2 px at the loosest packing, for good (4 of 19 loads on the workstation; a manual re-measure cleared it) | `screens/devices-building.ts`: a ResizeObserver on the page body schedules the same fit measurement. After it: 0 of 10 loads stuck; half of them still read 2 px for one frame, so the spec polls the fit (3 s) |
+| `unit-devices-tiles:330` x3 (dark panel reads light) | **Bug**: the Domus rule for the dialog / drawer sheet painted the product's solid surface inside a device screen whose scheme differs from the product's, while the text there is the palette's: light text on a light sheet | `skins/domus.ts`: the sheet reads `--dv-surface-solid` when the device palette has one (unchanged everywhere else); `styles/devices-themes.ts`: the product-scheme sheen is left out on such a screen (`--dv-sheet-sheen`). Spec unchanged. The same pattern exists in the crystal and tesla skins and is NOT changed here |
+| `evidence-timeline-colors:104`, `:166` x3 | Intended: the recording colour is the skin's accent; the spec pinned the classic blue | Spec: the Domus accent `#2458e6` |
+| `evidence-brand-logos:51` desktop + tablet | Intended: the Domus rail tile is the accent gradient and carries the white mark (`sw-app.ts`, since the skin exists) | Spec: white in the default skin, and the brand tone is still asserted with `?skin=classic` |
+| `unit-plan-3d-determinism:193` x3 | Intended as far as the code goes: the 3D scene takes its colours from the skin's tokens (`sw-plan-3d.ts` `color: --sw-<token>`), and the style guide now opens in Domus. No file under `src/map/` is changed by this branch | Nothing; see "Pixels to refresh". Owner call if the 3D floor should keep the classic palette under Domus |
+| `evidence-media-players:121`, `:144`, `:351` phone (60 s) | Time, not behaviour: pass on the workstation before and after. A phone screenshot of the players page costs about a quarter more in Domus than in classic under the software renderer (2.6-3.3 s against 2.0-2.5 s, measured), and on the runner the passing tests of this file already took 30-52 s of the 60 in that run (median 27.5 s; 12-15 s in six other branches' runs) | Spec: `test.slow()` for the phone project of this file. This is a longer budget, not a speed-up |
+| `evidence-tickets:113`, `evidence-tickets-create-assign:43` phone (60 s) | Not caused by the default skin as far as could be found: both specs pin the skin in the address (`?skin=classic`; `:113` also loops domus, as on main). Both pass on the workstation before and after. In the same runner run every phone spec measured ran about twice its usual time (above), and `I18N-EN-SWITCH-2438` shows the same timeout on `:113` in its run | **Nothing changed.** If they time out again on a quiet runner, that is a separate finding |
+| backend `test_db_gate::test_no_manual_transaction_control_outside_db_py` | **Bug** of this branch, not fixed by the merge: `main.py` called `conn.commit()` inside `db.connection()` for the one-time skin move | The line is removed (the context manager commits at its exit); e51bf4df4 |
+
+**Side effects of the rail offset (Domus and any skin that floats the rail):** the user menu, the notification sheet (sheet and page
+presentations), the alert banner and the start-side logos move 12 px away from the screen edge. No baseline-owning spec opens any of
+them (searched), so no pixel change is expected from it.
+
+### Pixels to refresh (on the runner, by the lead; nothing was regenerated here)
+- `docs/evidence/T087/visual/` - the 3D determinism baselines of `unit-plan-3d-determinism.spec.ts` (desktop, tablet, mobile;
+  `SW_UPDATE_VISUAL=1`), if the Domus palette in 3D is accepted.
+- `pixel-home-fb-2431` (8), `pixel-home-gaps-2436` (11), `pixel-home-auditfix-2437` (10): the train re-took or added these under the
+  classic default; they open the default skin. Six of them are the merge conflicts above.
+- Not expected to change, not verified: any Domus baseline that shows a dialog or a drawer inside a device screen whose scheme differs
+  from the product's.
+
+### Tests run for round 3 (workstation, one worker, `vite build` preview on its own port)
+
+| Run | Result |
+|---|---|
+| `npx tsc --noEmit` after the merge, after each product change and on the final tree | exit 0 (four times) |
+| Before (merged branch, nothing changed): the 23 browser failures by `file:line`, each for its project | 17 failed as on the runner (desktop 7 of 7, tablet 7 of 8, phone 3 of 8); 6 passed: `evidence-notifications:107` tablet (the race) and the five phone timeouts |
+| After: the same 23 | 23 passed (desktop 7, tablet 8, phone 8) |
+| Neighbours, whole files, desktop: `evidence-nav-size`, `evidence-notifications`, `evidence-multibuilding-home-2330`, `evidence-brand-logos`, `layout-logo-side-295`, `layout-header-logo-295`, `smoke-skinfound-297`, `unit-devices-tiles`, `evidence-audit30a-glass-bridge`, `layout-page-background`, `layout-overlay-no-shift`, `evidence-timeline-colors` | 102 passed, 9 skipped |
+| Neighbours, tablet: `evidence-nav-size`, `evidence-multibuilding-home-2330`, `evidence-notifications`, `layout-overlay-no-shift` | 43 passed, 4 skipped |
+| Neighbours, phone: `evidence-nav-size`, `evidence-notifications`, `evidence-multibuilding-home-2330` | 42 passed, 3 skipped |
+| Node unit specs (`playwright.unit.config.ts`): `unit-glass-bridge-audit30a`, `unit-page-background`, `unit-chip-selected-2439`, `unit-skinfound-297`, `unit-uxfix-nav-295` | 28 passed |
+| Node unit specs that read the settings sources and the skin tokens: `unit-designtokens-297`, `unit-design-tokens`, `unit-tabset-registry`, `unit-tts-default-2400`, `unit-brand-colors`, `unit-bubble-freeze-295`, `unit-menu-surfaces` | 54 passed |
+| The home fit, a script outside the suite (tablet 1024x768, a building of a site, 10 loads each) | before the observer: 2 of 10 loads stuck at 2 px; after: 0 of 10 |
+| Backend after the merge (`-p no:xdist`): `test_db_gate.py`, `test_skin_switch_2439.py`, `test_ui_settings.py`, `test_setting_value_parity.py`, `test_ui_background.py` | 76 passed, 1 failed (`test_no_manual_transaction_control_outside_db_py`: `main.py:452: conn.commit()`) |
+| Backend after the fix: that test and `test_skin_switch_2439.py` | 14 passed |
+| Backend on the final code: `test_ui_settings.py`, `test_ui_background.py`, `test_setting_value_parity.py`, `test_map3d_r28_settings_2433.py`, `test_db_template.py`, `test_skin_switch_2439.py`, and the db-gate test above | 57 passed |
+
+`unit-chip-selected-2439.spec.ts` reads the default skin, the chip default and the normaliser from `services/settings_store.py` now
+(the registry moved there with the train); the PATCH field is still read from the router.
+
+NOT_RUN (round 3):
+- No runner job and no entry check (the lead queues it). The runner was only read: the verdict and the logs of the 3f876e61d check.
+- `unit-plan-3d-determinism:193`: not run; its baselines are Linux runner pixels and are listed above.
+- The full frontend and backend suites; pixel specs (Linux baselines); the dev-server lane (specs that import `/src/*`).
+- The phone timeouts on the runner itself: the longer budget of the players evidence is not proven there, and the two tickets tests are unchanged.
+- The Domus sheet inside a dark device screen was checked by the spec's computed colours only, not looked at on a real screen.
+- crystal and tesla: the same sheet rule as Domus was, not changed and not tested here.

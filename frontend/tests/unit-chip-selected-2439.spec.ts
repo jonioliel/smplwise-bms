@@ -20,6 +20,8 @@ const SRC = path.resolve(HERE, '../src');
 const read = (f: string) => readFileSync(path.join(SRC, f), 'utf8');
 const flat = (f: string) => read(f).replace(/\s+/g, ' ');
 const PY = readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/routers/settings.py'), 'utf8');
+// CR-SETTINGS-STORE-2436 (merged with the 2.43.7 train): the registry - DEFAULTS and read_settings - lives in the settings store; the PATCH model stays in the router
+const STORE = readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/services/settings_store.py'), 'utf8');
 
 type Scheme = 'light' | 'dark';
 function resolver(id: (typeof SKIN_IDS)[number], scheme: Scheme) {
@@ -34,12 +36,12 @@ function resolver(id: (typeof SKIN_IDS)[number], scheme: Scheme) {
 
 test('Q-DES-1 / Q-DES-20: Domus is the default skin on both sides; every other live skin stays selectable; a saved classic moves once', () => {
   expect(DEFAULT_SKIN).toBe('domus');
-  expect(PY).toMatch(/^ {4}"ui\.skin": "domus",$/m);
+  expect(STORE).toMatch(/^ {4}"ui\.skin": "domus",$/m);
   expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft']);
   expect(SKINS.domus.stage).toBe('stable');
   // a stored row wins over the default (read_settings: stored.get(key, default)); the unknown-value fallback is the same default
-  expect(PY).toContain('value = stored.get(key, default) or default');
-  expect(PY).toContain('else DEFAULTS["ui.skin"]');
+  expect(STORE).toContain('value = stored.get(key, default) or default');
+  expect(STORE).toContain('else DEFAULTS["ui.skin"]');
   // Q-DES-20: the one-time move of a saved classic is a guarded start-up step with a done-marker (backend tests/test_skin_switch_2439.py)
   const step = readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/services/skin_switch.py'), 'utf8');
   expect(step).toContain('MARKER = "ui.skin.domus_switch"');
@@ -54,9 +56,9 @@ test('Q-DES-3: the setting - the same four values, the same default, in the fron
   expect(DEFAULT_CHIP_ON).toBe('strong');
   expect(isChipOn('soft')).toBe(true);
   expect(isChipOn('blue')).toBe(false);
-  expect(PY).toContain('"ui.chip_selected": "strong",');
+  expect(STORE).toContain('"ui.chip_selected": "strong",');
   expect(PY).toContain('ui_chip_selected: str | None = Field(default=None, pattern="^(strong|soft|filled|dark)$", alias="ui.chip_selected")');
-  expect(PY).toContain('if out.get("ui.chip_selected") not in ("strong", "soft", "filled", "dark"):');
+  expect(STORE).toContain('if out.get("ui.chip_selected") not in ("strong", "soft", "filled", "dark"):');
   // one block per alternative, none for the default (the default is the fragment's own fallbacks)
   for (const m of CHIP_ON_MODES.filter((x) => x !== DEFAULT_CHIP_ON)) expect(CHIP_ON_CSS).toContain(`:root[data-chip-on="${m}"]`);
   expect(CHIP_ON_CSS).not.toContain('data-chip-on="strong"');
