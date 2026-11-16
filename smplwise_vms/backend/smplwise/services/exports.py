@@ -17,7 +17,6 @@ import datetime as dt
 import hashlib
 import json
 import logging
-import os
 import re
 import shutil
 import sqlite3
@@ -601,6 +600,12 @@ class Worker:
                     f.state = "failed"
                     f.error = type(exc).__name__
                     log.exception("export %s file %s crashed", job_id, f.name)
+            except subprocess.SubprocessError as exc:
+                # CR-EXPORTS-HOUSEKEEPING (05:P3-06): a subprocess error carries its command line, and a download's command line
+                # holds the source URL with its credentials - the type only, never the text or a traceback
+                f.state = "failed"
+                f.error = type(exc).__name__
+                log.error("export %s file %s crashed: %s", job_id, f.name, type(exc).__name__)
             except Exception as exc:  # unexpected
                 f.state = "failed"
                 f.error = type(exc).__name__

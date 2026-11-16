@@ -30,7 +30,7 @@ import logging
 import secrets
 import sqlite3
 import time
-from typing import Any
+from typing import Any, Callable
 
 from ..audit import audit
 from ..db import Database, get_setting, new_id, set_setting
@@ -39,7 +39,7 @@ from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal, permissions_anywhere
 from . import app_refresh_key as dk
 from . import device_attestation as att
 
-log =logging.getLogger("smplwise.app_refresh")
+log = logging.getLogger("smplwise.app_refresh")
 
 FEATURE_KEY = "security.app_refresh"
 REFRESH_PREFIX = "arxr_"
@@ -1208,10 +1208,12 @@ def remote_anchor(s: Any) -> tuple[str, str]:
 
 
 def hook(fn_name: str, *args: Any, **kw: Any) -> int:
-    """The other modules' revocation paths call this (never raises: a failure is logged and the primary revocation stands; the family
-    then still ends at its next refresh through the same checks - user state, anchor, device)."""
+    """The other modules' revocation paths call this by name (`HOOKS`). A failure of the revocation itself never raises: it is
+    logged and the primary revocation stands; the family then still ends at its next refresh through the same checks - user state,
+    anchor, device. A name that is not in `HOOKS` is a programming error and raises KeyError at the call."""
+    fn = HOOKS[fn_name]  # CR-EXPORTS-HOUSEKEEPING (03:F18): a mistyped name is a KeyError at the call, not a warning line
     try:
-        return globals()[fn_name](*args, **kw)
+        return fn(*args, **kw)
     except Exception:  # noqa: BLE001
         log.warning("app refresh revocation %s failed", fn_name, exc_info=True)
         return 0
@@ -1294,3 +1296,16 @@ __all__ = ["FEATURE_KEY", "Refused", "enabled", "enabled_db", "policy", "setting
            "DEVICE_KEY_KEY", "DEVICE_KEY_MODES", "device_key_mode", "mode_rank", "challenge", "peek_device_family",
            "pinned_key", "key_status", "approve_key_reset", "withdraw_key_reset", "release_pins", "NOTICE_TITLE_KEY", "NOTICE_BODY_KEY", "RELEASED_TITLE_KEY", "RELEASED_BODY_KEY",
            "RESET_WINDOW_S"]
+
+
+# CR-EXPORTS-HOUSEKEEPING (03:F18): the revocations `hook(name, ...)` may be asked for, by name. It was `globals()[name]` inside the
+# guard: a mistyped name anywhere became a warning line and a revocation that never happened, and static tools saw these functions
+# as unused. tests/test_app_refresh_hooks_2440.py checks every name a caller uses against this table.
+HOOKS: dict[str, Callable[..., int]] = {
+    "revoke_family": revoke_family,
+    "revoke_device": revoke_device,
+    "revoke_user": revoke_user,
+    "revoke_anchor": revoke_anchor,
+    "revoke_all": revoke_all,
+    "revoke_kind": revoke_kind,
+}
