@@ -3,8 +3,10 @@
  * Hebrew first; English follows the document language (a missing key falls back to the Hebrew). `{x}` placeholders are filled by `tr(key, { x })`.
  * The TV page has its own few strings (src/notice-tv/transit-logic.ts). Operator screens never name the home platform.
  */
+import { NAV_TR } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
-  tab: 'תחבורה ציבורית',
+  tab: NAV_TR.he.tab,
   title: 'תחבורה ציבורית',
   sub: 'זמני אוטובוסים בתחנות ליד הבניין, בלוחות ההודעות (לפי לוח זמנים)',
   forbidden: 'אין הרשאה',
@@ -133,7 +135,7 @@ const he = {
 };
 
 const en: Partial<Record<keyof typeof he, string>> = {
-  tab: 'Public transport',
+  tab: NAV_TR.en.tab,
   title: 'Public transport',
   sub: 'Bus times at the stops near the building, on the notice boards (scheduled times)',
   forbidden: 'No permission',

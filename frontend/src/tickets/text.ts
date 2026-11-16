@@ -8,7 +8,8 @@
  * screen); tests/unit-tickets-naming.spec.ts fails when it is. Variables of a text are `{name}`-style and are filled AFTER the
  * name tokens, so a value (a title someone typed) is never read as a token.
  */
-import { DEFAULT_TICKET_NAMES, ticketNames, tn, type TicketLang } from './naming';
+import { tn, type TicketLang } from './naming';
+import { NAV_TT, ticketsLang, ticketsSectionLabel } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's labels live there
 import { S4_EN, S4_HE } from './text-s4';
 import { UI6_EN, UI6_HE } from './text-ui6';
 import { OTP_EN, OTP_HE } from './text-otp';
@@ -17,24 +18,24 @@ import { NR_EN, NR_HE } from './text-needsreview';
 
 const he = {
   // the area, the navigation, the settings index
-  area: '{module}',
-  settingsTab: '{module}',
+  area: NAV_TT.he.area,
+  settingsTab: NAV_TT.he.settingsTab,
   settingsKeywords: '{module} {ticket} {tickets} תקלות שירות אחזקה מחלקות קטגוריות עדיפויות מטפלים חברים הרשאות שם המודול תצוגה',
-  tabMine: 'שלי',
-  tabDepartment: 'המחלקה',
-  tabAll: 'הכול',
+  tabMine: NAV_TT.he.tabMine,
+  tabDepartment: NAV_TT.he.tabDepartment,
+  tabAll: NAV_TT.he.tabAll,
   // SERVICEIA1-295 (owner 24.10): the four sections of the area (the level-1 row) and their short phone labels. "בקשות" is the owner's
   // name for the requests section while the item names are the defaults; after a rename the section takes the configured plural (D33)
-  secRequests: 'בקשות',
-  secRequestsShort: 'בקשות',
-  secRequestsNamed: '{tickets}',
-  secMaintenance: 'תחזוקה ובקרה',
-  secMaintenanceShort: 'תחזוקה',
-  secVendors: 'ספקים וכספים',
-  secVendorsShort: 'ספקים',
-  secReports: 'סקירה ודוחות',
-  secReportsShort: 'סקירה',
-  pageList: 'רשימה', // SERVICEIA2-295: the request list page of the requests section (the scopes are its filter)
+  secRequests: NAV_TT.he.secRequests,
+  secRequestsShort: NAV_TT.he.secRequestsShort,
+  secRequestsNamed: NAV_TT.he.secRequestsNamed,
+  secMaintenance: NAV_TT.he.secMaintenance,
+  secMaintenanceShort: NAV_TT.he.secMaintenanceShort,
+  secVendors: NAV_TT.he.secVendors,
+  secVendorsShort: NAV_TT.he.secVendorsShort,
+  secReports: NAV_TT.he.secReports,
+  secReportsShort: NAV_TT.he.secReportsShort,
+  pageList: NAV_TT.he.pageList, // SERVICEIA2-295: the request list page of the requests section (the scopes are its filter)
 
   // the list
   newShort: '{f:חדשה|m:חדש}',
@@ -419,22 +420,22 @@ export type TicketTextKey = keyof typeof he;
 
 /** The English column (a missing key falls back to the Hebrew). The same tokens: the English name is configured too (D33). */
 const en: Partial<Record<TicketTextKey, string>> = {
-  area: '{module}',
-  settingsTab: '{module}',
+  area: NAV_TT.en.area,
+  settingsTab: NAV_TT.en.settingsTab,
   settingsKeywords: '{module} {ticket} {tickets} faults service maintenance departments categories priorities handlers members permissions name display',
-  tabMine: 'Mine',
-  tabDepartment: 'Department',
-  tabAll: 'All',
-  secRequests: 'Requests',
-  secRequestsShort: 'Requests',
-  secRequestsNamed: '{tickets}',
-  secMaintenance: 'Maintenance & checks',
-  secMaintenanceShort: 'Maintenance',
-  secVendors: 'Vendors & finance',
-  secVendorsShort: 'Vendors',
-  secReports: 'Overview & reports',
-  secReportsShort: 'Overview',
-  pageList: 'List',
+  tabMine: NAV_TT.en.tabMine,
+  tabDepartment: NAV_TT.en.tabDepartment,
+  tabAll: NAV_TT.en.tabAll,
+  secRequests: NAV_TT.en.secRequests,
+  secRequestsShort: NAV_TT.en.secRequestsShort,
+  secRequestsNamed: NAV_TT.en.secRequestsNamed,
+  secMaintenance: NAV_TT.en.secMaintenance,
+  secMaintenanceShort: NAV_TT.en.secMaintenanceShort,
+  secVendors: NAV_TT.en.secVendors,
+  secVendorsShort: NAV_TT.en.secVendorsShort,
+  secReports: NAV_TT.en.secReports,
+  secReportsShort: NAV_TT.en.secReportsShort,
+  pageList: NAV_TT.en.pageList,
   newShort: 'New',
   newTitle: 'New {ticket}',
   mapCreate: 'Open a {ticket}',
@@ -788,10 +789,9 @@ const en: Partial<Record<TicketTextKey, string>> = {
   ...NR_EN, // NEEDSREVIEW (tickets/text-needsreview.ts)
 };
 
-/** The language of the tickets screens: the document's (English or the product's Hebrew). */
-export function ticketsLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
-}
+/** The language of the tickets screens: the document's (English or the product's Hebrew). CR-NAV-LABELS-2436: defined in i18n/nav-labels.ts
+ * (the shell's labels read it without this catalogue) and re-exported here for every caller. */
+export { ticketsLang };
 
 /** The raw template of a key in a language (the unit tests and the catalogue-completeness test read it). */
 export function template(key: TicketTextKey, lang: 'he' | 'en' = ticketsLang()): string {
@@ -807,20 +807,9 @@ export function tt(key: TicketTextKey, vars?: Record<string, string | number>): 
   return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
 }
 
-/** SERVICEIA1-295: the name of one section of the area (`short` = the phone label). The requests section is "בקשות" while the item names
- * are the defaults, else the configured plural (D33: a renamed module renames its first section too). */
-export function ticketsSectionLabel(section: 'requests' | 'maintenance' | 'vendors' | 'reports' | string, short = false): string {
-  if (section === 'requests') {
-    const lang = ticketsLang();
-    const n = ticketNames(lang as TicketLang);
-    const d = DEFAULT_TICKET_NAMES[lang as TicketLang];
-    if (n.one !== d.one || n.many !== d.many) return tt('secRequestsNamed');
-    return tt(short ? 'secRequestsShort' : 'secRequests');
-  }
-  const key = section === 'maintenance' ? 'secMaintenance' : section === 'vendors' ? 'secVendors' : section === 'reports' ? 'secReports' : null;
-  if (!key) return section;
-  return tt(short ? (`${key}Short` as TicketTextKey) : key);
-}
+/** SERVICEIA1-295: the name of one section of the area (`short` = the phone label). CR-NAV-LABELS-2436: defined in i18n/nav-labels.ts beside
+ * the four section names it reads (the navigation needs it), re-exported here. */
+export { ticketsSectionLabel };
 
 /** Every key of the Hebrew catalogue (the completeness test compares the English column with it). */
 export const TICKET_TEXT_KEYS = Object.keys(he) as TicketTextKey[];

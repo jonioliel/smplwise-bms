@@ -556,9 +556,8 @@ def _audit_keys(conn: sqlite3.Connection, principal: Principal, request_id: str 
         conn.execute("UPDATE audit_log SET details_json = ? WHERE id = ?", (json.dumps({"counts": win["counts"], "window_s": int(_KEY_WINDOW_S)}), win["row"]))
         return
     counts = {key: 1}
-    audit(conn, actor=principal, action="media.keys", decision="allowed", resource_type="media_device", resource_id=item.key, request_id=request_id,
-          details={"counts": counts, "window_s": int(_KEY_WINDOW_S)})
-    row = conn.execute("SELECT MAX(id) FROM audit_log WHERE action = 'media.keys' AND actor_user_id = ? AND resource_id = ?", (principal.user_id, item.key)).fetchone()[0]
+    row = audit(conn, actor=principal, action="media.keys", decision="allowed", resource_type="media_device", resource_id=item.key, request_id=request_id,
+                details={"counts": counts, "window_s": int(_KEY_WINDOW_S)})
     if row is not None:
         _KEY_WINDOWS[(principal.user_id, item.key)] = {"start": now, "row": row, "counts": counts}
     if len(_KEY_WINDOWS) > 500:
@@ -638,9 +637,8 @@ def _audit_limited(conn: sqlite3.Connection, principal: Principal, request_id: s
             if w.execute("UPDATE audit_log SET details_json = ? WHERE id = ?", (json.dumps({"counts": win["counts"], "scope": scope, "window_s": int(_KEY_WINDOW_S)}), win["row"])).rowcount:
                 return
         counts = {command: 1}
-        audit(w, actor=principal, action="media.rate_limited", decision="denied", resource_type="media_device", resource_id=key, reason="rate_limited", request_id=request_id,
-              details={"counts": counts, "scope": scope, "window_s": int(_KEY_WINDOW_S)})
-        row = w.execute("SELECT MAX(id) FROM audit_log WHERE action = 'media.rate_limited' AND actor_user_id = ? AND resource_id = ?", (principal.user_id, key)).fetchone()[0]
+        row = audit(w, actor=principal, action="media.rate_limited", decision="denied", resource_type="media_device", resource_id=key, reason="rate_limited", request_id=request_id,
+                    details={"counts": counts, "scope": scope, "window_s": int(_KEY_WINDOW_S)})
     if row is not None:
         _LIMIT_WINDOWS[(principal.user_id, key)] = {"start": now, "row": row, "counts": counts}
     if len(_LIMIT_WINDOWS) > 500:

@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope_name
@@ -150,7 +150,7 @@ def _row(conn: sqlite3.Connection, r: sqlite3.Row, principal: Principal) -> dict
 
 
 @router.get("/ha-users")
-def list_managed(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_managed(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     rows = conn.execute("SELECT * FROM ha_managed_users WHERE state IN ('active', 'inactive', 'needs_repair') ORDER BY created_at").fetchall()
     roles = all_roles(conn) if acc.full_authority(conn, principal) else {r: [] for r in acc.delegable_roles(conn)}

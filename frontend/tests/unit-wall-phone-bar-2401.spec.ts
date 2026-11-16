@@ -7,6 +7,7 @@ import {
   WALL_PHONE_BAR_MODES, WALL_PHONE_BAR_OPTIONS, colsBadge, countBadge, keyHint, wallPhoneBarMode,
 } from '../src/screens/wall-phone-bar';
 import { COUNT_ALL } from '../src/screens/wall-count';
+import { SETTINGS_ROUTER, SETTINGS_STORE } from './backend-settings-source';
 
 // WALL-PHONE-TOOLBAR-2401 (owner 04.11 evening): the camera wall's toolbar on a phone - ONE row of icon keys by default, the full labels in two
 // rows as an installation setting (ui.wall_phone_bar). Node only: the rules are a pure module (screens/wall-phone-bar.ts); the wiring of the
@@ -19,7 +20,6 @@ const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
 const WALL = read('src/screens/live-wall.ts');
 const SETTINGS = read('src/screens/system-diagnostics.ts');
 const DROPDOWN = read('src/components/sw-dropdown.ts');
-const BACKEND = read('../smplwise_vms/backend/smplwise/routers/settings.py');
 const MEDIA = read('src/api/media.ts');
 
 test.describe('the setting', () => {
@@ -52,8 +52,8 @@ test.describe('the setting', () => {
   });
 
   test('the server knows the key: default icons, only the two values', () => {
-    expect(BACKEND).toMatch(/"ui\.wall_phone_bar": "icons"/);
-    expect(BACKEND).toMatch(/ui_wall_phone_bar: str \| None = Field\(default=None, pattern="\^\(icons\|labels\)\$", alias="ui\.wall_phone_bar"\)/);
+    expect(SETTINGS_STORE).toMatch(/"ui\.wall_phone_bar": "icons"/);
+    expect(SETTINGS_ROUTER).toMatch(/ui_wall_phone_bar: str \| None = Field\(default=None, pattern="\^\(icons\|labels\)\$", alias="ui\.wall_phone_bar"\)/);
   });
 });
 

@@ -16,8 +16,7 @@
  */
 import { post } from './client';
 import { isApi } from './session';
-import { ticketsApi, type TicketDetail } from './tickets';
-import { mockStore } from './tickets-mock';
+import { ticketsApi, ticketsMock, type TicketDetail } from './tickets';
 
 export interface VendorMessageAnswer {
   item?: unknown;
@@ -26,7 +25,8 @@ export interface VendorMessageAnswer {
 
 const enc = encodeURIComponent;
 
-function demoMessage(id: string, text: string, fromNote: string | null): TicketDetail {
+async function demoMessage(id: string, text: string, fromNote: string | null): Promise<TicketDetail> {
+  const { mockStore } = await ticketsMock(); // CR-MOCKS-LAZY-2436: the demo store loads on its first demo call
   const t = mockStore.find(id);
   t.events.push(mockStore.event('note', new Date().toISOString(), { ...mockStore.me, me: true }, { body: text, external: true, data: fromNote ? { from_note_id: fromNote } : {} }));
   mockStore.touch(t);
@@ -48,8 +48,8 @@ const rest: ConversationBackend = {
 };
 
 const demo: ConversationBackend = {
-  vendorMessage: async (id, text) => (demoMessage(id, text, null), {}),
-  forwardNote: async (id, eventId, text) => (demoMessage(id, text, eventId), {}),
+  vendorMessage: async (id, text) => (await demoMessage(id, text, null), {}),
+  forwardNote: async (id, eventId, text) => (await demoMessage(id, text, eventId), {}),
   teamNote: (id, text) => ticketsApi().note(id, text, false),
 };
 

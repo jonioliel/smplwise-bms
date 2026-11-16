@@ -2,6 +2,7 @@ import { test, type Page } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { loadLazyChunk } from './lazy-chunk';
 
 // SCHED-POLISH-2331 shoot harness (design review only, not a gate spec): the schedules / automations settings pages, the slot panel,
 // the table view and the create dialog at 1920 / 1440 / 1180 / 1024 / 390, demo mode. SHOT_PHASE=before|after picks the folder.
@@ -55,7 +56,7 @@ async function mountEditor(page: Page, w: number, h: number, id: string, view: '
   }, view);
   await page.goto('about:blank');
   await page.goto(`/?design=a#/devices/building`);
-  await page.waitForFunction(() => !!customElements.get('schedule-editor'));
+  await loadLazyChunk(page, 'schedule-editor', 'schedule-editor', '/src/screens/schedule-editor.ts'); // CR-SHELL-LAZY-2436: a chunk of its own
   await page.evaluate((sid) => {
     document.querySelector('sw-app')?.remove();
     const el = document.createElement('schedule-editor') as HTMLElement & { scheduleId?: string };

@@ -245,7 +245,9 @@ def _probe_get(url: str) -> int:
         return PROBE_GET[0](url)
     import httpx
 
-    with httpx.Client(timeout=3.0, follow_redirects=False) as c:
+    from .nvr import _ssl_context  # review 03 F04: the shared TLS context (a client without it loads the CA bundle again)
+
+    with httpx.Client(timeout=3.0, follow_redirects=False, verify=_ssl_context()) as c:
         return c.get(url).status_code
 
 
