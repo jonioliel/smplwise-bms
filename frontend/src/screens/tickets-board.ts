@@ -1,5 +1,5 @@
-import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/ticket-card';
 import { parseAssignParam, withAssign } from '../tickets/create-assign-model'; // TKUI1: the new-request sheet's vendor flow
@@ -9,17 +9,13 @@ import '../tickets/board-tree';
 import './tickets-handlers'; // CR-DEPT-MANAGER-HANDLERS: the board's "מטפלים וספקים" pane
 import '../components/sw-pager';
 import '../components/sw-page';
-import { PAGED_MQ, gridCols, packPages, rowGap, type PackGroup, type PackSection, type PageSection } from './tickets-pages';
+import { gridCols, packPages, rowGap, type PackGroup, type PackSection, type PageSection } from './tickets-pages';
 import { LongListsController } from '../api/long-lists';
 import { automationsStyles } from '../styles/automations-glass';
-import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
-import { applyAutomationsGlass } from '../api/automations-demo';
-import { SkinController } from '../design/skin';
+import { mediaPageStyles } from '../styles/media-page';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
-import { ApiError, describeError } from '../api/client';
-import { replaceRoute, type RouteState } from '../router';
-import { ticketsApi, type Meta, type ModuleState, type TicketDetail } from '../api/tickets';
+import { ticketsApi, type ModuleState, type TicketDetail } from '../api/tickets';
 import { saveBoardPrefs } from '../api/tickets-table';
 import { boardApi, boardUiOf, type BoardItem, type BoardResponse, type BoardUi } from '../api/tickets-board';
 import { relTime, ticketHref, listHref } from '../tickets/model';
@@ -28,34 +24,21 @@ import { tt } from '../tickets/text';
 import { bt } from '../tickets/board-text';
 import { ot } from '../tickets/overview-text';
 import { tIcon } from '../tickets/icons';
-import { onTicketNames, setTicketNames } from '../tickets/naming';
 import { ageOf, boardHref, floorChips, floorsLayout, groupingOn, parseBoardRoute, placeLabel, sections, stripItems, type BoardRoute } from '../tickets/board-model';
-import type { TicketCardAction } from '../tickets/ticket-card';
 import { dlt } from '../tickets/delete-text';
 import { LiveRefresh } from '../tickets/live-refresh';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
 import { setCalendarWanted } from '../tickets/calendar-mode';
-import { applyCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
+import { applyCardFilters, NO_CARD_FILTERS } from '../tickets/list-filters';
 import { cardFilterChips, filterRow } from '../tickets/list-filter-row';
-import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
+import { activeChips, filterPanel, filterToggle, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
+import { TicketsViewBase, ticketViewStyles, writeHref } from '../tickets/list-view-base'; // CR-DUP-TICKETS-VIEWS: the plumbing shared with the list page
 import { roleFor, avatarPair } from '../tickets/list-card-model';
 import { loadMeter, todayEntries } from '../tickets/board-today';
 import { lt } from '../tickets/list-text';
 import { oldestOpenText } from '../tickets/elapsed-model';
 import { ticketBoardV5Styles, ticketListFrameStyles } from '../tickets/list-styles';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
-
-type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
-
-function writeHref(href: string, replace: boolean): void {
-  if (!replace) {
-    window.location.hash = href;
-    return;
-  }
-  const raw = href.replace(/^#/, '');
-  const [path, query = ''] = raw.split('?');
-  replaceRoute(path, new URLSearchParams(query));
-}
 
 /**
  * CR-038 slice 6, the manager board (`#/tickets/board`, section 13.5; mock-up v2 "לוח"): the large title, the department chips with
@@ -67,46 +50,22 @@ function writeHref(href: string, replace: boolean): void {
  * 30 s while the tab is visible. States: loading, empty, no match, error, not a manager, the module off.
  */
 @customElement('tickets-board')
-export class TicketsBoard extends LitElement {
-  readonly bubbleSkin = new SkinController(this);
-  @property({ attribute: false }) route: RouteState | null = null;
+export class TicketsBoard extends TicketsViewBase {
   @state() private r: BoardRoute = parseBoardRoute(new URLSearchParams());
-  @state() private module: ModuleState | null = null;
-  @state() private meta: Meta | null = null;
   @state() private data: BoardResponse | null = null;
-  @state() private screen: Screen = 'loading';
-  @state() private failed = '';
-  @state() private phone = window.matchMedia('(max-width: 767px)').matches;
   @state() private treeHidden = false;
-  @state() private filterOpen = false;
   @state() private showClosed = false;
-  @state() private drawerUsed = false;
-  @state() private now = new Date();
-  @state() private q = '';
-  @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
-  /** TKUI4: the card filters over the held cards (TICKETS-POLISH-2331: in the one "סינון" panel), and the title that compacts while the page scrolls */
-  @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
-  /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
-  readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
-  private pendingQ: string | null = null;
   private key = '';
-  private seq = 0;
-  private phoneMq = window.matchMedia('(max-width: 767px)');
-  private onPhone = () => (this.phone = this.phoneMq.matches);
   /** NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5, owner option 1): on a desktop the board's groups are
    *  cut into pages that fit the room under the "today" row and the banner - whole card rows, a group's header counted, a group that runs
    *  over the page edge continues on the next page under its header. The pager sits on the toolbar row. `fit` = the measured room and
    *  sizes (null until measured: the first draw shows everything once, to measure it). */
-  @state() private paged = window.matchMedia(PAGED_MQ).matches;
-  @state() private cardPage = 1;
   @state() private fit: { room: number; cols: number; rowH: number; gap: number; headH: number; subH: number; secGap: number; inGap: number; blkGap: number; crH: number; crPad: number } | null = null;
-  private pagedMq = window.matchMedia(PAGED_MQ);
-  private onPaged = () => {
-    this.paged = this.pagedMq.matches;
+  protected resetFit(): void {
     this.fit = null;
     this.maxH = { row: 0, head: 0, sub: 0, cr: 0 };
     this.cardH.clear();
-  };
+  }
   /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages; the cards scroll inside their own region (.scr). */
   private lists = new LongListsController(this, () => {
     this.cardPage = 1;
@@ -114,17 +73,8 @@ export class TicketsBoard extends LitElement {
   });
   /** the tallest card / header / handler line / closed row seen so far: they only grow, so the pages never overflow and never loop */
   private maxH = { row: 0, head: 0, sub: 0, cr: 0 };
-  /** the tallest each card was seen (by request id): a row of the pages is as tall as its tallest card */
-  private cardH = new Map<string, number>();
-  private fitObserver: ResizeObserver | null = null;
-  private fitBox: Element | null = null;
-  private pageCount = 1;
-  private pageKey = '';
-  private qTimer = 0;
-  private live = new LiveRefresh(() => { this.now = new Date(); if (this.screen === 'ready') void this.load(true); }); // 2.5.4: shared poller
-  private toastTimer = 0;
-  private offNames: (() => void) | null = null;
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketBoardV5Styles, ticketToolbarStyles, css`
+  protected live = new LiveRefresh(() => { this.now = new Date(); if (this.screen === 'ready') void this.load(true); }); // 2.5.4: shared poller
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketBoardV5Styles, ticketToolbarStyles, ticketViewStyles, css`
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -161,12 +111,6 @@ export class TicketsBoard extends LitElement {
     .treeshow {
       flex: none;
       margin-inline-start: auto;
-    }
-    .cgrid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-      gap: var(--dv-gap-lg, 16px);
-      align-items: stretch;
     }
     .cnt {
       display: inline-grid;
@@ -228,36 +172,12 @@ export class TicketsBoard extends LitElement {
       color: var(--dv-text-2);
       text-align: center;
     }
-    .flt {
-      position: fixed;
-      inset-block-end: 24px;
-      inset-inline: 0;
-      margin-inline: auto;
-      inline-size: fit-content;
-      max-inline-size: calc(100% - 32px);
-      box-sizing: border-box;
-      z-index: 40;
-      box-shadow: var(--dv-shadow-2);
-    }
     /* NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header the board (the
        today row, the tree, the groups of cards) scrolls in its own region - the page itself never scrolls and the controls stay in place;
        the tree stays beside the cards (sticky inside the region). On a phone the region is transparent and the page scrolls. */
-    .scr {
-      display: contents;
-    }
     /* AUDIT30-C-TICKETS (#6): the page is sw-page (its own header row: the title and the actions slot). The frame's own gap and
        padding give way to the glass page's (.page, styles/media-page.ts); the toolbar header under it no longer sticks or compacts - the
        title it compacted moved into the frame (on a phone the page scrolls, the toolbar with it). */
-    .pact {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .dh {
-      position: static;
-      padding-block-start: 0;
-    }
     .dh:empty {
       display: none;
     }
@@ -267,30 +187,6 @@ export class TicketsBoard extends LitElement {
       font-size: var(--sw-fs-xl);
       font-weight: var(--sw-fw-bold);
       letter-spacing: -0.01em;
-    }
-    @media (min-width: 768px) {
-      :host {
-        overflow: hidden;
-      }
-      .page {
-        block-size: 100%;
-        min-block-size: 0;
-        box-sizing: border-box;
-        padding-block-end: 0;
-        gap: 18px;
-      }
-      .scr {
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-        flex: 1 1 auto;
-        min-block-size: 0;
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: var(--dv-border-strong) transparent;
-        margin-inline: -36px;
-        padding: 2px 36px 28px;
-      }
     }
     /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the board is paged - the "today"
        row and the banner stay, the groups take the room left (.pgbox: its height set by the layout, never by the cards) and show what fits;
@@ -333,10 +229,6 @@ export class TicketsBoard extends LitElement {
       }
     }
     @media (min-width: 768px) and (max-width: 1023px) {
-      .scr {
-        margin-inline: -24px;
-        padding-inline: 24px;
-      }
       .layout.with-tree {
         grid-template-columns: 240px minmax(0, 1fr);
       }
@@ -382,61 +274,19 @@ export class TicketsBoard extends LitElement {
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      .flt {
-        inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
-      }
     }
   `, ticketChipSelected];
-
-  connectedCallback() {
-    super.connectedCallback();
-    applyAutomationsGlass(this);
-    this.phoneMq.addEventListener('change', this.onPhone);
-    this.pagedMq.addEventListener('change', this.onPaged);
-    this.offNames = onTicketNames(() => this.requestUpdate());
-    this.live.start();
-    void this.boot();
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this.phoneMq.removeEventListener('change', this.onPhone);
-    this.pagedMq.removeEventListener('change', this.onPaged);
-    this.fitObserver?.disconnect();
-    this.fitObserver = null;
-    this.fitBox = null;
-    this.offNames?.();
-    this.live.stop();
-    window.clearTimeout(this.qTimer);
-    window.clearTimeout(this.toastTimer);
-  }
-
-  protected updated(): void {
-    measureHeaderBar(this.renderRoot, this.phone);
-    this.watchFit();
-  }
 
   /** The board's cards are paged: a desktop, the board pane, the board drawn. */
   private pagedBoard(): boolean {
     return this.paged && this.lists.paged && this.screen === 'ready' && this.r.pane !== 'handlers' && !!this.data?.items.length;
   }
 
-  /** Observe the pages box (its height is the room the layout leaves it, not its content) and measure after every draw. */
-  private watchFit() {
-    const box = this.pagedBoard() ? this.renderRoot.querySelector('[data-board-pages]') : null;
-    if (box !== this.fitBox) {
-      this.fitObserver?.disconnect();
-      this.fitObserver = null;
-      this.fitBox = box;
-      if (box && typeof ResizeObserver !== 'undefined') {
-        this.fitObserver = new ResizeObserver(() => this.measureFit());
-        this.fitObserver.observe(box);
-      }
-    }
-    if (box) this.measureFit();
+  protected fitTarget(): Element | null {
+    return this.pagedBoard() ? this.renderRoot.querySelector('[data-board-pages]') : null;
   }
 
-  private measureFit() {
+  protected measureFit() {
     const box = this.fitBox as HTMLElement | null;
     if (!box || !box.isConnected) return;
     const grid = box.querySelector('.cgrid');
@@ -445,14 +295,7 @@ export class TicketsBoard extends LitElement {
     const tallest = (sel: string) => Math.max(0, ...[...box.querySelectorAll<HTMLElement>(sel)].map((e) => e.offsetHeight));
     const m = this.maxH;
     m.row = Math.max(m.row, ...cards.map((c) => c.offsetHeight));
-    let grew = false;
-    for (const c of cards) {
-      const id = (c as unknown as { item?: { id?: string } }).item?.id;
-      if (id && c.offsetHeight > (this.cardH.get(id) ?? 0)) {
-        this.cardH.set(id, c.offsetHeight);
-        grew = true;
-      }
-    }
+    const grew = this.noteCardHeights(cards);
     m.head = Math.max(m.head, tallest('.fsec > .sh'));
     m.sub = Math.max(m.sub, tallest('.assignee-block > .sub'));
     m.cr = Math.max(m.cr, tallest('.closedrows > .cr'));
@@ -496,17 +339,10 @@ export class TicketsBoard extends LitElement {
     if (changed.has('route') && this.route) {
       this.r = parseBoardRoute(this.route.params);
       if (this.r.ticketId) this.drawerUsed = true;
-      if (this.pendingQ === null || this.r.q !== this.pendingQ.trim()) {
-        this.q = this.r.q;
-        this.pendingQ = null;
-      }
+      this.syncSearch(this.r.q);
       if (this.screen === 'ready' || this.screen === 'error') this.reloadIfNeeded();
       // a new filter starts at the first page (opening a request - the drawer's address - keeps the page)
-      const key = [this.r.q, this.r.dept, this.r.place, this.r.state, this.r.pane].join('|');
-      if (key !== this.pageKey) {
-        this.pageKey = key;
-        this.cardPage = 1;
-      }
+      this.firstPageOn([this.r.q, this.r.dept, this.r.place, this.r.state, this.r.pane].join('|'));
     }
     const c = changed as Map<PropertyKey, unknown>; // private states: not in PropertyValues<this>
     if (c.has('filters') || c.has('showClosed')) this.cardPage = 1;
@@ -514,38 +350,17 @@ export class TicketsBoard extends LitElement {
 
   // ---------------------------------------------------------------- data
 
-  private async boot(): Promise<void> {
-    try {
-      const m = await ticketsApi().module();
-      this.module = m;
-      setTicketNames(m.name);
-      if (!m.enabled) {
-        this.screen = 'off';
-        return;
-      }
-      const [meta, hidden] = await Promise.all([ticketsApi().meta(), boardApi().treeHidden().catch(() => false)]);
-      this.meta = meta;
-      this.treeHidden = hidden;
-      this.reloadIfNeeded(true);
-    } catch (e) {
-      this.fail(e);
-    }
-  }
-
-  private fail(e: unknown): void {
-    if (e instanceof ApiError && e.status === 403) this.screen = 'forbidden';
-    else if (e instanceof ApiError && e.status === 404 && e.body.code === 'feature_disabled') this.screen = 'off';
-    else {
-      this.failed = describeError(e);
-      this.screen = 'error';
-    }
+  protected async loadMeta(): Promise<void> {
+    const [meta, hidden] = await Promise.all([ticketsApi().meta(), boardApi().treeHidden().catch(() => false)]);
+    this.meta = meta;
+    this.treeHidden = hidden;
   }
 
   private queryKey(): string {
     return `${this.r.state}|${this.r.dept}|${this.r.place}|${this.r.q.trim()}|${this.r.assignee ?? ''}`;
   }
 
-  private reloadIfNeeded(force = false): void {
+  protected reloadIfNeeded(force = false): void {
     const k = this.queryKey();
     if (!force && k === this.key) return;
     this.key = k;
@@ -568,12 +383,6 @@ export class TicketsBoard extends LitElement {
     }
   }
 
-  private say(text: string, tone: 'ok' | 'bad' = 'ok'): void {
-    this.toast = { text, tone };
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = null), tone === 'bad' ? 7000 : 3500);
-  }
-
   /** MGRDASH: the name on the chip of the handler filter (a row of the overview's load card opens the board filtered to one handler). */
   private assigneeName(): string {
     const key = this.r.assignee ?? '';
@@ -592,34 +401,17 @@ export class TicketsBoard extends LitElement {
     writeHref(boardHref({ ...this.r, ...patch }, { t: this.r.ticketId || undefined }), replace);
   }
 
-  private onSearch(v: string): void {
-    this.q = v;
-    this.pendingQ = v;
-    window.clearTimeout(this.qTimer);
-    this.qTimer = window.setTimeout(() => this.go({ q: v }, true), 300);
+  protected searchTo(v: string): void {
+    this.go({ q: v }, true);
   }
 
-  private detailMode() {
-    return this.module?.ui.detail ?? 'drawer_fullscreen';
+  protected openHref(id: string): string {
+    return boardHref(this.r, { t: id });
   }
 
-  private hrefOf(id: string, timeline = false): string {
-    if (this.detailMode() === 'fullscreen') return ticketHref(id);
-    const href = boardHref(this.r, { t: id });
-    return timeline ? `${href}${href.includes('?') ? '&' : '?'}view=timeline` : href;
+  protected plainHref(): string {
+    return boardHref(this.r);
   }
-
-  private onCardAction = (e: CustomEvent<{ item: BoardItem; action: TicketCardAction }>) => {
-    const { item, action } = e.detail;
-    if (action === 'open') writeHref(this.hrefOf(item.id), false);
-    else if (action === 'full') writeHref(ticketHref(item.id), false);
-    else if (action === 'copy') {
-      const url = `${location.origin}${location.pathname}${location.search}${ticketHref(item.id)}`;
-      void navigator.clipboard?.writeText(url).then(() => this.say(tt('linkCopied'))).catch(() => this.say(url));
-    }
-  };
-
-  private closeDrawer = () => this.isConnected && writeHref(boardHref(this.r), false);
 
   /** 2.5.4: gone or deleted - the drawer closes, a deleted request leaves the board at once (confirmation shown), then a quiet re-read. */
   private onGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {
@@ -739,10 +531,6 @@ export class TicketsBoard extends LitElement {
     </header>`;
   }
 
-  private stateBox(icon: Parameters<typeof tIcon>[0], title: string, kind: string, action?: TemplateResult): TemplateResult {
-    return html`<div class="statebox glass" role="status" data-tickets-state=${kind}><span class="ring">${tIcon(icon)}</span><b>${title}</b>${action ?? nothing}</div>`;
-  }
-
   private card(t: BoardItem): TemplateResult {
     const fullScreen = this.detailMode() !== 'drawer';
     return html`<ticket-card .item=${t} .board=${true} .role=${roleFor(t, this.meta)} .now=${this.now} .href=${this.hrefOf(t.id)} .timelineHref=${this.hrefOf(t.id, true)} .fullScreen=${fullScreen} ?data-picked=${this.r.ticketId === t.id} @card-action=${this.onCardAction}></ticket-card>`;
@@ -845,7 +633,7 @@ export class TicketsBoard extends LitElement {
     const all = this.packSections(items, closed);
     const pages = packPages(all, { room: f.room, headH: f.headH, subH: f.subH, secGap: f.secGap, inGap: f.inGap, blkGap: f.blkGap });
     this.pageCount = Math.max(1, pages.length);
-    const at = Math.min(Math.max(1, this.cardPage), this.pageCount);
+    const at = this.pageAt();
     const page: PageSection<BoardItem>[] = pages[at - 1] ?? [];
     const s = sections(items);
     const count = (id: string) => (id === 'waiting' ? s.waiting.length : id === 'stuck' ? s.stuck.length : id === 'handling' ? s.handling.length : closed.length);
@@ -871,7 +659,7 @@ export class TicketsBoard extends LitElement {
   /** NOSCROLL-1366-2437: the board's pages on the toolbar row (nothing when one page holds the board). */
   private pagerRow(): TemplateResult | typeof nothing {
     if (this.pageCount <= 1) return nothing;
-    const at = Math.min(Math.max(1, this.cardPage), this.pageCount);
+    const at = this.pageAt();
     return html`<sw-pager class="bpager" data-board-pager .page=${at} .pages=${this.pageCount} @page-change=${(e: CustomEvent<{ page: number }>) => (this.cardPage = e.detail.page)}></sw-pager>`;
   }
 
@@ -907,7 +695,7 @@ export class TicketsBoard extends LitElement {
         </aside>` : nothing}
         <div class="groups" data-board-main>
           ${banner}
-          ${this.pagedBoard() ? html`<div class="pgbox" data-board-pages data-page=${Math.min(Math.max(1, this.cardPage), this.pageCount)} data-pages=${this.pageCount}>${this.cards()}</div>` : this.cards()}
+          ${this.pagedBoard() ? html`<div class="pgbox" data-board-pages data-page=${this.pageAt()} data-pages=${this.pageCount}>${this.cards()}</div>` : this.cards()}
           ${d.truncated ? html`<div class="note" data-truncated>${bt('truncated')}</div>` : nothing}
         </div>
       </div>`;
@@ -934,7 +722,7 @@ export class TicketsBoard extends LitElement {
         writeHref(x.assignContact && x.result === 'created' ? withAssign(href, x.assignContact) : href, true); // TKUI1: the vendor flow, step two
         void this.load(false);
       }}></ticket-create>` : nothing}
-    ${this.toast ? html`<div class=${`banner flt ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-tickets-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div>${this.toast.text}</div></div>` : nothing}`;
+    ${this.toastView()}`;
   }
 }
 
