@@ -7,6 +7,7 @@
  * they go into the draft through POST /plan-versions/{id}/detect/accept, rooms are spatial zones (api/zones.ts) and their floors
  * are document 2.2 room materials (map/studio6-fields.ts setSurface); nothing here invents a new storage shape.
  */
+import { tr } from '../i18n/msg/plan-wizard';
 import type { CandidateSet } from '../map/candidates';
 import { allIds, withParents } from '../map/candidates';
 import type { GeometryDoc, GeomObject, GeomOpening, GeomWall, OpeningKind, Pt, Swing } from '../map/geometry';
@@ -97,26 +98,26 @@ export function detectedChoice(set: CandidateSet, id: string): Choice | null {
 }
 
 export const WALL_CHOICES: readonly { id: WallChoice; he: string }[] = [
-  { id: 'wall', he: 'קיר' },
-  { id: 'railing', he: 'מעקה או קיר נמוך' },
-  { id: 'none', he: 'אין כאן קיר' },
+  { id: 'wall', he: tr('קיר') },
+  { id: 'railing', he: tr('מעקה או קיר נמוך') },
+  { id: 'none', he: tr('אין כאן קיר') },
 ];
 export const OPENING_CHOICES: readonly { id: OpeningChoice; he: string }[] = [
-  { id: 'sliding', he: 'דלת הזזה' },
-  { id: 'door', he: 'דלת רגילה' },
-  { id: 'passage', he: 'מעבר פתוח' },
-  { id: 'window', he: 'חלון' },
-  { id: 'none', he: 'אין כאן פתח' },
+  { id: 'sliding', he: tr('דלת הזזה') },
+  { id: 'door', he: tr('דלת רגילה') },
+  { id: 'passage', he: tr('מעבר פתוח') },
+  { id: 'window', he: tr('חלון') },
+  { id: 'none', he: tr('אין כאן פתח') },
 ];
 
-const KIND_HE: Record<'wall' | OpeningKind, string> = { wall: 'קיר', door: 'דלת', window: 'חלון', passage: 'מעבר פתוח' };
+const KIND_HE: Record<'wall' | OpeningKind, string> = { wall: tr('קיר'), door: tr('דלת'), window: tr('חלון'), passage: tr('מעבר פתוח') };
 
 /** "זוהה כמעבר פתוח" - what the detector thought, in the wizard's words. */
 export function detectedText(set: CandidateSet, id: string): string {
   const o = set.openings.find((x) => x.id === id);
-  if (o) return o.kind === 'door' && o.swing === 'sliding' ? 'זוהה כדלת הזזה' : o.kind === 'passage' ? 'זוהה כמעבר פתוח' : `זוהה כ${KIND_HE[o.kind]}`;
+  if (o) return o.kind === 'door' && o.swing === 'sliding' ? tr('זוהה כדלת הזזה') : o.kind === 'passage' ? tr('זוהה כמעבר פתוח') : tr('זוהה כ{kind}', { kind: KIND_HE[o.kind] });
   const w = set.walls.find((x) => x.id === id);
-  return w?.kind === 'railing' ? 'זוהה כמעקה' : 'זוהה כקיר';
+  return w?.kind === 'railing' ? tr('זוהה כמעקה') : tr('זוהה כקיר');
 }
 
 /** The edit an opening choice sends (only document-v2 editable fields; the server ignores the rest). */
@@ -235,22 +236,22 @@ export interface RoomType {
   words: string[];
 }
 export const ROOM_TYPES: readonly RoomType[] = [
-  { id: 'entrance', he: 'כניסה', kind: 'room', tags: ['entrance'], words: ['כניסה', 'לובי', 'מבואה'] },
-  { id: 'corridor', he: 'מעבר', kind: 'corridor', tags: ['corridor'], words: ['מסדרון', 'מעבר', 'פרוזדור'] },
-  { id: 'living', he: 'סלון', kind: 'room', tags: ['living'], words: ['סלון', 'מגורים', 'אירוח'] },
-  { id: 'kitchen', he: 'מטבח', kind: 'room', tags: ['kitchen'], words: ['מטבח', 'מטבחון', 'פינת אוכל'] },
-  { id: 'bedroom', he: 'חדר שינה', kind: 'room', tags: ['bedroom'], words: ['שינה', 'הורים', 'ילדים'] },
-  { id: 'office', he: 'חדר עבודה', kind: 'room', tags: ['office'], words: ['עבודה', 'משרד', 'מחשב'] },
-  { id: 'meeting', he: 'חדר ישיבות', kind: 'room', tags: ['meeting'], words: ['ישיבות', 'כנסים'] },
-  { id: 'wc', he: 'שירותים', kind: 'room', tags: ['wc'], words: ['שירותים', 'אורחים'] },
-  { id: 'bath', he: 'אמבטיה', kind: 'room', tags: ['bath'], words: ['אמבטיה', 'מקלחת', 'רחצה'] },
-  { id: 'stairs', he: 'חדר מדרגות', kind: 'corridor', tags: ['stairs'], words: ['מדרגות'] },
-  { id: 'service', he: 'חדר שירות', kind: 'service', tags: ['service'], words: ['שירות', 'כביסה'] },
-  { id: 'storage', he: 'מחסן', kind: 'service', tags: ['storage'], words: ['מחסן', 'אחסון'] },
-  { id: 'technical', he: 'חדר טכני', kind: 'service', tags: ['technical'], words: ['טכני', 'שרתים', 'חשמל', 'תקשורת'] },
-  { id: 'balcony', he: 'מרפסת', kind: 'outdoor', tags: ['balcony'], words: ['מרפסת'] },
-  { id: 'parking', he: 'חניה', kind: 'outdoor', tags: ['parking'], words: ['חניה', 'חנייה', 'חניון'] },
-  { id: 'other', he: 'אחר', kind: 'zone', tags: [], words: [] },
+  { id: 'entrance', he: tr('כניסה'), kind: 'room', tags: ['entrance'], words: ['כניסה', 'לובי', 'מבואה'] },
+  { id: 'corridor', he: tr('מעבר'), kind: 'corridor', tags: ['corridor'], words: ['מסדרון', 'מעבר', 'פרוזדור'] },
+  { id: 'living', he: tr('סלון'), kind: 'room', tags: ['living'], words: ['סלון', 'מגורים', 'אירוח'] },
+  { id: 'kitchen', he: tr('מטבח'), kind: 'room', tags: ['kitchen'], words: ['מטבח', 'מטבחון', 'פינת אוכל'] },
+  { id: 'bedroom', he: tr('חדר שינה'), kind: 'room', tags: ['bedroom'], words: ['שינה', 'הורים', 'ילדים'] },
+  { id: 'office', he: tr('חדר עבודה'), kind: 'room', tags: ['office'], words: ['עבודה', 'משרד', 'מחשב'] },
+  { id: 'meeting', he: tr('חדר ישיבות'), kind: 'room', tags: ['meeting'], words: ['ישיבות', 'כנסים'] },
+  { id: 'wc', he: tr('שירותים'), kind: 'room', tags: ['wc'], words: ['שירותים', 'אורחים'] },
+  { id: 'bath', he: tr('אמבטיה'), kind: 'room', tags: ['bath'], words: ['אמבטיה', 'מקלחת', 'רחצה'] },
+  { id: 'stairs', he: tr('חדר מדרגות'), kind: 'corridor', tags: ['stairs'], words: ['מדרגות'] },
+  { id: 'service', he: tr('חדר שירות'), kind: 'service', tags: ['service'], words: ['שירות', 'כביסה'] },
+  { id: 'storage', he: tr('מחסן'), kind: 'service', tags: ['storage'], words: ['מחסן', 'אחסון'] },
+  { id: 'technical', he: tr('חדר טכני'), kind: 'service', tags: ['technical'], words: ['טכני', 'שרתים', 'חשמל', 'תקשורת'] },
+  { id: 'balcony', he: tr('מרפסת'), kind: 'outdoor', tags: ['balcony'], words: ['מרפסת'] },
+  { id: 'parking', he: tr('חניה'), kind: 'outdoor', tags: ['parking'], words: ['חניה', 'חנייה', 'חניון'] },
+  { id: 'other', he: tr('אחר'), kind: 'zone', tags: [], words: [] },
 ];
 export const roomType = (id: string | null | undefined): RoomType => ROOM_TYPES.find((t) => t.id === id) ?? ROOM_TYPES[ROOM_TYPES.length - 1];
 
@@ -297,16 +298,16 @@ export interface Kit {
 /** Round 28 question 11, recommended answer: the apartment, the office and the empty kit in the first phase. */
 export const KITS: readonly Kit[] = [
   {
-    id: 'apartment', he: 'דירה', note: 'פרקט, קירות בהירים, ריהוט בית', level: 'oak',
+    id: 'apartment', he: tr('דירה'), note: tr('פרקט, קירות בהירים, ריהוט בית'), level: 'oak',
     floors: { default: 'oak', kitchen: 'tiles_grey', wc: 'tiles_grey', bath: 'tiles_grey', service: 'tiles_grey', stairs: 'tiles_grey', balcony: 'tiles_grey', storage: 'concrete', technical: 'concrete', parking: 'asphalt' },
     furniture: { living: ['sofa.3', 'table.side'], kitchen: ['table.dining'], bedroom: ['wardrobe'], office: ['table.desk', 'chair.office'], meeting: ['table.meeting'], wc: ['toilet.standard'], bath: ['bathtub', 'sink.bathroom'], entrance: ['coat.rack'] },
   },
   {
-    id: 'office', he: 'משרד', note: 'שטיח, שולחנות עבודה, חדרי ישיבות', level: 'carpet',
+    id: 'office', he: tr('משרד'), note: tr('שטיח, שולחנות עבודה, חדרי ישיבות'), level: 'carpet',
     floors: { default: 'carpet', entrance: 'tiles_grey', corridor: 'tiles_grey', kitchen: 'tiles_grey', wc: 'tiles_grey', bath: 'tiles_grey', stairs: 'tiles_grey', balcony: 'tiles_grey', storage: 'concrete', technical: 'concrete', service: 'concrete', parking: 'asphalt' },
     furniture: { office: ['table.desk', 'chair.office'], living: ['sofa.2', 'table.side'], meeting: ['table.meeting'], kitchen: ['table.round'], wc: ['toilet.standard'], bath: ['sink.bathroom'], entrance: ['bench.indoor'], technical: ['rack.server'] },
   },
-  { id: 'empty', he: 'ריק', note: 'חומרים בלבד, בלי ריהוט', level: 'concrete', floors: { default: 'concrete', parking: 'asphalt' }, furniture: {} },
+  { id: 'empty', he: tr('ריק'), note: tr('חומרים בלבד, בלי ריהוט'), level: 'concrete', floors: { default: 'concrete', parking: 'asphalt' }, furniture: {} },
 ];
 export const kitOf = (id: KitId): Kit => KITS.find((k) => k.id === id) ?? KITS[0];
 export const kitFloor = (kit: Kit, typeId: string): string => kit.floors[typeId] ?? kit.floors.default;
@@ -481,9 +482,9 @@ export function cameraPlacements(cameras: readonly PlaceCamera[]): Placement[] {
 
 export const isCamera = (p: Pick<Placement, 'resource'>): boolean => p.resource === 'camera';
 
-export const WHERE_HE: Record<PlaceWhere, string> = { door: 'ליד הדלת שזוהתה', window: 'ליד החלון שזוהה', centre: 'מרכז החדר', manual: 'בחר ולחץ על המפה', none: 'לא יוצב' };
+export const WHERE_HE: Record<PlaceWhere, string> = { door: tr('ליד הדלת שזוהתה'), window: tr('ליד החלון שזוהה'), centre: tr('מרכז החדר'), manual: tr('בחר ולחץ על המפה'), none: tr('לא יוצב') };
 /** A camera the person clicked onto the plan (its `where` turns from 'manual' to 'centre' internally). */
-export const CAMERA_PLACED_HE = 'הוצבה במקום שסימנת';
+export const CAMERA_PLACED_HE = tr('הוצבה במקום שסימנת');
 
 /** The rooms of a wizard draft read back from the floor's zones (resume): the type from the zone's tags. */
 export function roomTypeOfTags(tags: readonly string[] | null | undefined): string {
