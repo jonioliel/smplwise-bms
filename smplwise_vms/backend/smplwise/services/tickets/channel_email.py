@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html
 import logging
+import sqlite3
 from pathlib import Path
 from typing import Any, Callable
 
@@ -32,7 +33,7 @@ def mail_config(conn: Any, data_dir: Path | None) -> Any | None:
 
     try:
         e = notify_settings.email_internal(conn)
-    except Exception:  # noqa: BLE001 - a missing notification table (an old test database) means "not configured"
+    except sqlite3.Error:  # CR-TK-SQL (01:F-10): a missing notification table (an old test database) means "not configured"; a programming error is no longer hidden
         return None
     if not (e.get("host") and e.get("from") and e.get("port")):
         return None

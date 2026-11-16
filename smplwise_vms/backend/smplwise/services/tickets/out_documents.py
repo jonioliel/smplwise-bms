@@ -28,6 +28,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from . import handler_links, links, settings_doc
+from ._sql import has_table
 from .timeutil import iso_ms, parse_naive_local
 
 log = logging.getLogger("smplwise.tickets.out_documents")
@@ -270,7 +271,7 @@ def revoke_recipient(conn: sqlite3.Connection, recipient_kind: str, recipient_id
     """A contact's number / e-mail changed or the contact was erased: every document sent to them dies at once."""
     if reason not in REVOKE_REASONS:
         raise ValueError("reason")
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
+    if not has_table(conn, "outbound_documents"):
         return 0  # a database before 0128
     return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE recipient_kind = ? AND recipient_id = ? "
                         "AND revoked_at IS NULL", (iso(now), reason, recipient_kind, recipient_id)).rowcount
@@ -282,7 +283,7 @@ def revoke_sent_to_user(conn: sqlite3.Connection, user_id: str, reason: str, now
     dialog (`source_id` NULL) never went to his number and is left alone."""
     if reason not in REVOKE_REASONS:
         raise ValueError("reason")
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
+    if not has_table(conn, "outbound_documents"):
         return 0
     return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE recipient_kind = 'user' AND recipient_id = ? "
                         "AND source_id IS NOT NULL AND revoked_at IS NULL", (iso(now), reason, user_id)).rowcount
@@ -297,7 +298,7 @@ def revoke_for_inactive_users(conn: sqlite3.Connection, now: dt.datetime) -> int
     `deleted_at` set). A sweep over the inactive users, so one call serves every identity path (Arx-only users, Home Assistant users managed
     from Arx, the Home Assistant directory push) and the janitor's safety net. Re-enabling the user never brings a link back. Returns how many
     links it stopped (expired or used-up rows are not counted)."""
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
+    if not has_table(conn, "outbound_documents"):
         return 0
     at = iso(now)
     return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE recipient_kind = 'user' AND revoked_at IS NULL "
@@ -324,7 +325,7 @@ def revoke_all_live(conn: sqlite3.Connection, reason: str, now: dt.datetime) -> 
     """The module key rotation (spec 7.4): every document link still live dies with the old key, like every ticket and RFQ link."""
     if reason not in REVOKE_REASONS:
         raise ValueError("reason")
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
+    if not has_table(conn, "outbound_documents"):
         return 0
     return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE revoked_at IS NULL AND purged_at IS NULL",
                         (iso(now), reason)).rowcount
