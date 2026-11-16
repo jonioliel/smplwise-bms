@@ -390,16 +390,9 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   ['screens/schedule-entity-picker.ts', ".seg button[aria-pressed='true']"],
   ['screens/security-alarm.ts', ".vt button[aria-pressed='true']"],
   ['screens/system-brand-installer.ts', ".tabs button[aria-selected='true']"],
-  ['screens/system-brand-logos.ts', ".seg button[aria-pressed='true']"],
   ['screens/system-brand-logos.ts', ".tabs button[aria-selected='true']"],
-  ['screens/system-building-presence.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-design.ts', ".seg button[aria-pressed='true']"],
   ['screens/system-home-screen.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-look.ts', ".seg button[aria-pressed='true']"],
   ['screens/system-mapping.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-nav-size.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-palette-editor.ts', ".seg button[aria-pressed='true']"],
-  ['screens/system-presence.ts', ".seg button[aria-pressed='true']"],
   ['screens/system-readiness.ts', ".panes button[aria-selected='true']"],
   ['screens/system-timeline-colors.ts', ".seg button[aria-checked='true']"],
   ['screens/system-update.ts', ".seg button[aria-pressed='true']"],
@@ -409,6 +402,10 @@ const SEG_INVENTORY: [file: string, chosen: string][] = [
   ['shell/sw-app.ts', ":host([data-design='a']) nav.secrow a.on .pill"],
   ['shell/sw-home-personal.ts', ".seg button[aria-pressed='true']"],
   ['shell/sw-user-menu.ts', "li.view .seg button[aria-pressed='true']"],
+  // CR-CSS-FRAGMENTS-2440: the chosen key of system-brand-logos, system-design, system-look, system-nav-size, system-palette-editor
+  // (segThumbStyles) and of system-presence, system-building-presence (segThumbPlainStyles, through settingsPillSegKeyStyles) is the
+  // shared rule of styles/fragments.ts now - the screens interpolate it where their own copy stood
+  ['styles/fragments.ts', ".seg button[aria-pressed='true']"],
   ['styles/settings.ts', ".seg button[aria-selected='true']"],
   ['temperature/detail.ts', ".seg button[aria-pressed='true']"],
   ['temperature/report.ts', ".seg button[aria-pressed='true']"],

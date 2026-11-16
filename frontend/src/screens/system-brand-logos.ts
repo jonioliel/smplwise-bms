@@ -30,6 +30,7 @@ import {
 } from '../design/brand-logo';
 import { t, type I18nKey } from '../i18n/he';
 import { settingsStyles } from '../styles/settings';
+import { segThumbStyles } from '../styles/fragments';
 
 type Tab = 'files' | 'look' | 'title' | 'preview';
 const ACCEPT = 'image/png,image/svg+xml,image/webp,image/jpeg,.png,.svg,.webp,.jpg,.jpeg';
@@ -250,12 +251,7 @@ export class SystemBrandLogos extends LitElement {
       font-weight: var(--sw-fw-medium);
       white-space: nowrap;
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
+    ${segThumbStyles}
     .seg button[disabled] {
       cursor: default;
     }

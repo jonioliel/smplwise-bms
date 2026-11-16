@@ -15,6 +15,8 @@ import {
 } from '../shell/nav-size';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsPlainRowStyles, settingsStackLabelStyles, settingsMutedHintStyles, settingsWrapFootStyles } from '../styles/settings';
+import { segTrackStyles, segThumbStyles } from '../styles/fragments';
 
 /** The preview's tabs (the same icons and labels as the rail; shell/nav.ts NAV_A). */
 const PREVIEW_TABS = [
@@ -50,40 +52,13 @@ export class SystemNavSize extends LitElement {
   private stop?: () => void;
 
   static styles = [css`
-    :host {
-      display: block;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
+    ${settingsPlainRowStyles}
     .row:last-of-type {
       border-block-end: 0;
     }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-weight: var(--sw-fw-medium);
-    }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-regular);
-    }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-      flex-wrap: wrap;
-    }
+    ${settingsStackLabelStyles}
+    ${settingsMutedHintStyles}
+    ${segTrackStyles}
     .seg button {
       all: unset;
       box-sizing: border-box;
@@ -99,12 +74,7 @@ export class SystemNavSize extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
+    ${segThumbStyles}
     .seg button:focus-visible,
     input:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -207,13 +177,7 @@ export class SystemNavSize extends LitElement {
     .nolabels .lbl {
       display: none;
     }
-    .foot {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-block-start: 12px;
-    }
+    ${settingsWrapFootStyles}
     .ok {
       color: var(--sw-live);
       font-size: var(--sw-fs-sm);

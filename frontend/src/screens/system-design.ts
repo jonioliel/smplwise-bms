@@ -15,6 +15,8 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { t } from '../i18n/he';
 import { BACKGROUND_MODES, BACKGROUND_SLOTS, customBackgroundUrl, installationBackground, onBackground, ownBackgroundChoice, saveDemoBackground, saveOwnBackground, setInstallationBackground, type BackgroundMode, type BackgroundSlot } from '../design/background';
 import { deleteBackground, uploadBackground } from '../api/background';
+import { settingsPlainRowStyles, settingsStackLabelStyles, settingsMutedHintStyles, settingsSegKeyStateStyles, settingsFootStatusStyles } from '../styles/settings';
+import { segTrackStyles, segThumbStyles } from '../styles/fragments';
 
 const SCHEME_LABEL: Record<Scheme, string> = { light: 'בהיר', dark: 'כהה', auto: 'אוטומטי' };
 const MOTION_LABEL: Record<MotionMode, string> = { auto: 'אוטומטי', full: 'מלא', reduced: 'מופחת' };
@@ -63,34 +65,14 @@ export class SystemDesign extends LitElement {
   private stop?: () => void;
 
   static styles = [css`
-    :host {
-      display: block;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
+    ${settingsPlainRowStyles}
     .row.col {
       align-items: stretch;
       flex-direction: column;
       flex-wrap: nowrap;
     }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-weight: var(--sw-fw-medium);
-    }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-regular);
-    }
+    ${settingsStackLabelStyles}
+    ${settingsMutedHintStyles}
     .skins {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -260,14 +242,7 @@ export class SystemDesign extends LitElement {
       border-radius: var(--m-r-sm);
       background: var(--m-accent);
     }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-      flex-wrap: wrap;
-    }
+    ${segTrackStyles}
     .seg button {
       all: unset;
       box-sizing: border-box;
@@ -281,35 +256,9 @@ export class SystemDesign extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button[disabled] {
-      cursor: default;
-      opacity: 0.6;
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 1px;
-    }
-    .foot {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding-block-start: 12px;
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${segThumbStyles}
+    ${settingsSegKeyStateStyles}
+    ${settingsFootStatusStyles}
     /* CRY: the two picture slots of the custom background */
     .slots {
       display: grid;

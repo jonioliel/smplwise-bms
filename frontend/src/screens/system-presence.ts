@@ -17,6 +17,8 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { parseRoute, replaceRoute } from '../router';
 import { pt } from '../i18n/presence';
 import { BP } from '../i18n/building-presence';
+import { settingsWrapFootStyles, settingsPillSegKeyStyles } from '../styles/settings';
+import { okLineStyles, errLineStyles } from '../styles/fragments';
 import './system-presence-places'; // WHOIN034-295: the place editors and the "מי במבנה" thresholds
 
 /** WHOIN034-295: the pages of הגדרות › אפליקציה לנייד. */
@@ -104,22 +106,10 @@ export class SystemPresence extends LitElement {
       color: inherit;
       box-sizing: border-box;
     }
-    .foot {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-block-start: 12px;
-    }
+    ${settingsWrapFootStyles}
     /* POLISH4-WP8: the message inks are the -text tokens (the live-video dot and the bare state colours were below text contrast) */
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${okLineStyles}
+    ${errLineStyles}
     .warn {
       color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);
@@ -197,26 +187,7 @@ export class SystemPresence extends LitElement {
       background: var(--sw-surface-2);
       flex-wrap: wrap;
     }
-    .seg button {
-      border: 0;
-      background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      padding: 4px 14px;
-      border-radius: var(--sw-r-pill);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
-    }
+    ${settingsPillSegKeyStyles}
     @media (max-width: 767px) {
       .row {
         flex-direction: column;

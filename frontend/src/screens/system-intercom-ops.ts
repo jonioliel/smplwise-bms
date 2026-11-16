@@ -6,7 +6,7 @@ import '../components/sw-kpi';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/wk-ops-charts';
-import { settingsStyles } from '../styles/settings';
+import { settingsStyles, settingsTabNavStyles, settingsFieldLabelStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import type { DisplayZone } from '../api/intercom';
 import {
@@ -33,6 +33,7 @@ import {
   type TimelinePage,
 } from '../api/intercom-ops';
 import { formatTime, UTC_ZONE } from './wiskey-format';
+import { isoZ } from '../api/day-format';
 import {
   ACTION_HE,
   ALERT_HE,
@@ -107,43 +108,7 @@ export class SystemIntercomOps extends LitElement {
   static styles = [
     settingsStyles,
     css`
-      :host {
-        display: block;
-      }
-      nav.tabs {
-        display: flex;
-        gap: 4px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        margin-block-end: 16px;
-        border-block-end: 1px solid var(--sw-border);
-      }
-      nav.tabs::-webkit-scrollbar {
-        display: none;
-      }
-      nav.tabs a {
-        flex: none;
-        padding: 10px 14px;
-        color: var(--sw-text-2);
-        text-decoration: none;
-        font-weight: var(--sw-fw-medium);
-        border-block-end: 2px solid transparent;
-        margin-block-end: -1px;
-        white-space: nowrap;
-      }
-      nav.tabs a[aria-current='page'] {
-        color: var(--sw-accent-text);
-        border-block-end-color: var(--sw-accent);
-      }
-      nav.tabs a:focus-visible {
-        outline: var(--sw-focus-w) solid var(--sw-focus);
-        outline-offset: -2px;
-      }
-      @media (hover: hover) and (pointer: fine) {
-        nav.tabs a:hover {
-          color: var(--sw-text);
-        }
-      }
+      ${settingsTabNavStyles}
       section.part {
         background: var(--sw-surface);
         border: 1px solid var(--sw-border);
@@ -191,14 +156,7 @@ export class SystemIntercomOps extends LitElement {
         align-items: flex-end;
         margin-block-end: 12px;
       }
-      label.f {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        font-size: var(--sw-fs-sm);
-        color: var(--sw-text-2);
-        min-inline-size: 0;
-      }
+      ${settingsFieldLabelStyles}
       label.f select,
       label.f input {
         font: inherit;
@@ -542,7 +500,7 @@ export class SystemIntercomOps extends LitElement {
   private async loadTimeline(): Promise<void> {
     this.timeline = { s: 'loading' };
     const f = this.tlFilter;
-    const start = f.period ? new Date(Date.now() - f.period * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') : undefined;
+    const start = f.period ? isoZ(Date.now() - f.period * DAY_MS) : undefined;
     try {
       const r = await getInvestigations({ source: f.source, station_id: f.station_id || undefined, query: f.query || undefined, start, offset: f.offset, limit: 25 });
       this.timeline = { s: 'ready', v: r.data };
@@ -568,7 +526,7 @@ export class SystemIntercomOps extends LitElement {
   private async loadReport(): Promise<void> {
     this.report = { s: 'loading' };
     const f = this.evFilter;
-    const start = new Date(Date.now() - f.period * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const start = isoZ(Date.now() - f.period * DAY_MS);
     try {
       this.report = { s: 'ready', v: await getEventsReport({ station_id: f.station_id || undefined, start }) };
     } catch (err) {

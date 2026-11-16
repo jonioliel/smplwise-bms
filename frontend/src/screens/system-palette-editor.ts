@@ -13,6 +13,8 @@ import {
 } from '../design/palette';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButtonStyles } from '../styles/settings';
+import { segThumbStyles } from '../styles/fragments';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
@@ -64,18 +66,7 @@ export class SystemPaletteEditor extends LitElement {
   private stop?: () => void;
 
   static styles = [css`
-    :host {
-      display: block;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
+    ${settingsPlainRowStyles}
     .lbl {
       font-weight: var(--sw-fw-medium);
     }
@@ -104,12 +95,7 @@ export class SystemPaletteEditor extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
+    ${segThumbStyles}
     .seg button:focus-visible,
     select:focus-visible,
     input:focus-visible {
@@ -252,11 +238,7 @@ export class SystemPaletteEditor extends LitElement {
       gap: var(--sw-gap-grid);
       direction: rtl;
     }
-    .pv-col {
-      display: grid;
-      gap: var(--sw-gap);
-      align-content: start;
-    }
+    ${settingsPreviewColStyles}
     .pv-sheet {
       border-radius: var(--sw-r-xl);
       background: rgba(var(--sw-sheet-rgb), var(--pv-alpha, 0.72));
@@ -275,18 +257,7 @@ export class SystemPaletteEditor extends LitElement {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
-    .pv-btn {
-      min-block-size: var(--sw-touch-desktop);
-      padding: 0 16px;
-      border: 0;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-      font: inherit;
-      font-weight: var(--sw-fw-semibold);
-      justify-self: start;
-      pointer-events: none;
-    }
+    ${settingsPreviewButtonStyles}
     .pv-link {
       color: var(--sw-accent-text);
       font-size: var(--sw-fs-sm);
