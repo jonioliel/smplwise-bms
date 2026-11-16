@@ -14,12 +14,13 @@ import { homePath } from './base';
 import { brandMark } from './brand';
 import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, rawCall } from './api';
 import { h, icon, img } from './dom';
+import { bannerEl, centerScreen, codeCard, langPicker, messageContent, themeToggle } from './page-frame'; // CR-PUBLIC-FRAME-2440: the frame shared with the RFQ page
 import { mapBlock } from './map-block';
 import { afterFailure, afterStep, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
 import { holdForLang } from './lang-packs';
-import { LANG_SELF, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
-import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
+import { isLang, preferredLang, RTL, text, type Key, type Lang } from './strings';
+import { applyMode, resolveMode, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
 
 // TKRFQVP: an RFQ link keeps its own token / code session / quote draft (the RFQ chunk reads them through RfqHost)
@@ -520,58 +521,39 @@ class Page {
 
   /** TK259: one tap flips light / dark and is remembered in this browser (theme.ts). */
   private themeToggle(): HTMLElement {
-    const dark = this.theme === 'dark' || (this.theme === 'auto' && prefersDark());
-    return h('button', { class: 'icon-btn', attrs: { type: 'button', 'data-theme-toggle': dark ? 'dark' : 'light', 'aria-label': this.t(dark ? 'themeToLight' : 'themeToDark') },
-      on: { click: () => { const c = nextChoice(this.theme, prefersDark()); saveChoice(c); this.theme = c; applyMode(c); this.render(); } } }, icon(dark ? 'sun' : 'moon'));
+    return themeToggle(this.theme, this.frameText, (c) => { this.theme = c; applyMode(c); this.render(); });
   }
 
   private langPicker(): HTMLElement {
-    const sel = h('select', { class: 'lang', attrs: { 'aria-label': this.t('language'), 'data-lang-picker': true },
-      on: { change: (e) => { const value = (e.target as HTMLSelectElement).value; if (isLang(value)) this.setLang(value); } } });
-    for (const l of LANGS) {
-      const o = h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, LANG_SELF[l].langName);
-      sel.appendChild(o);
-    }
-    return sel;
+    return langPicker(this.lang, this.frameText, (lang) => this.setLang(lang));
   }
 
+  /** CR-PUBLIC-FRAME-2440: this page's words as the shared frame asks for them (page-frame.ts). */
+  private readonly frameText = (key: string, vars?: Record<string, string | number>): string => this.t(key, vars);
+
   private screen(head: HTMLElement | null, content: (Node | null)[]): HTMLElement {
-    return h('div', { class: 'page' }, head, h('main', { class: 'center' }, h('section', { class: 'card msg' }, ...content)));
+    return centerScreen('page', head, content);
   }
 
   private message(title: Key, bodyKey: Key, ic: string, retry = false): HTMLElement {
-    return this.screen(this.view ? this.header() : null, [
-      h('div', { class: 'msg-icon' }, icon(ic)),
-      h('h1', { class: 'msg-title', attrs: { 'data-state-title': title } }, this.t(title)),
-      h('p', { class: 'msg-body' }, this.t(bodyKey)),
-      retry && this.creds.token ? h('button', { class: 'btn block', attrs: { type: 'button' }, on: { click: () => void this.load() } }, this.t('retry')) : null,
-    ]);
+    return this.screen(this.view ? this.header() : null, messageContent(this.frameText, title, bodyKey, ic, retry && this.creds.token ? () => void this.load() : null));
   }
 
   private bannerEl(): HTMLElement | null {
-    const b = this.banner;
-    if (!b) return null;
-    return h('div', { class: `banner ${b.tone}`, attrs: { role: b.tone === 'bad' ? 'alert' : 'status', 'data-banner': b.key } }, this.t(b.key, { n: b.n ?? '' }));
+    return bannerEl(this.banner, this.frameText);
   }
 
   private codeScreen(): HTMLElement {
     const v = this.view;
-    const m = this.code.message;
-    const input = h('input', { class: 'input code', attrs: { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 9, 'aria-label': this.t('codeInput'),
-      'data-code-input': true, dir: 'ltr' }, on: { input: (e) => { this.code.value = (e.target as HTMLInputElement).value; } } });
-    input.value = this.code.value;
     return h('div', { class: 'page' }, this.header(), h('main', { class: 'col' },
-      h('section', { class: 'card code' },
-        h('div', { class: 'msg-icon' }, icon('lock')),
-        h('h1', { class: 'msg-title' }, this.t('codeTitle')),
-        h('p', { class: 'msg-body' }, this.t('codeBody')),
-        v ? h('p', { class: 'msg-sub' }, `${this.t('number', { number: v.number })}${v.department ? ` · ${v.department}` : ''}`) : null,
-        m ? h('div', { class: `banner ${m.key.startsWith('codeSent') ? 'ok' : 'bad'}`, attrs: { role: 'status', 'data-code-message': m.key } }, this.t(m.key, { n: m.n ?? '' })) : null,
-        this.code.sent ? h('div', { class: 'row' }, input,
-          h('button', { class: 'btn primary', attrs: { type: 'button', disabled: this.busy, 'data-code-verify': true }, on: { click: () => void this.codeVerify() } }, this.t('codeVerify'))) : null,
-        h('button', { class: `btn ${this.code.sent ? 'ghost' : 'primary'} block`, attrs: { type: 'button', disabled: this.busy, 'data-code-send': true },
-          on: { click: () => void this.codeSend() } }, this.t(this.code.sent ? 'codeResend' : 'codeSend')),
-      ),
+      codeCard({
+        t: this.frameText,
+        code: this.code,
+        busy: this.busy,
+        sub: v ? h('p', { class: 'msg-sub' }, `${this.t('number', { number: v.number })}${v.department ? ` · ${v.department}` : ''}`) : null,
+        onSend: () => void this.codeSend(),
+        onVerify: () => void this.codeVerify(),
+      }),
       this.footer()));
   }
 
