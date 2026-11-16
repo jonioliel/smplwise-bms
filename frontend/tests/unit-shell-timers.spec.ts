@@ -330,6 +330,9 @@ const LOCAL_CLOCKS: Record<string, number> = {
   'components/sw-camera-tile.ts': 1, // the 1 s still scheduler: stillDue() requests only when visible, in view and due
   'components/sw-demo-banner.ts': 1, // a 15 s clock
   'components/sw-incoming-call.ts': 2, // the call clock; the door picture refresh (skips while hidden)
+  // FE-WAVE2-COMBINED-2440: the 3D room card (PLAN3D-R28-UI-2433, on main since 2.43.4) was not in this branch's base. Its STILL_MS
+  // snapshot refresh only bumps the image's cache key, and only when the card shows a still and the tab is visible (like the door picture).
+  'components/sw-room-card.ts': 1,
   'components/update-run.ts': 1, // the 1 s clock
   'components/wk-announce-dialog.ts': 1, // the retry countdown
   'components/wk-installer-confirm.ts': 1, // the elapsed seconds
