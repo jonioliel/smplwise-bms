@@ -21,6 +21,7 @@ installation (the hand that sets the cost mode). Everything is behind the module
 from __future__ import annotations
 
 import datetime as dt
+import sqlite3
 from typing import Any, Mapping
 
 from ...errors import ApiError
@@ -187,7 +188,7 @@ def scope_label(conn, b: Mapping[str, Any]) -> str:
         return str((store.category_any(conn, sid) or {}).get("name") or "")
     try:
         row = conn.execute(f"SELECT name FROM {'sites' if kind == 'site' else 'buildings'} WHERE id = ?", (sid,)).fetchone()
-    except Exception:  # noqa: BLE001
+    except sqlite3.Error:  # a database without the sites / buildings table (a unit fixture): no name (CR-TK-EXCEPT-LOG (01:F-11): narrowed)
         row = None
     return str(row[0]) if row else ""
 
