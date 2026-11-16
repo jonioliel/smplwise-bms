@@ -10,6 +10,7 @@ import {
   type RuleKind, type Summary, type TableRow, type Target, type TokenKind,
 } from '../api/mapping-engine';
 import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../api/mapping';
+import { OneAtATime } from './editor-guards';
 
 /**
  * MAPPING-ASSIST-2330 `<mapping-assistant>` - the approved round-10 mockup v3: one question first ("איך הבניין מסומן בשמות שלכם?"), the
@@ -71,7 +72,11 @@ export class MappingAssistant extends LitElement {
   private revision = 0;
   private seeded = false;
   private sugg: ReturnType<typeof suggestSpec> | null = null;
-  private memo: { st: MappingState; det: Detection; rows: TableRow[]; res: Map<string, Res>; qs: Question[]; sum: Summary; lq: LevelQuestion[] } | null = null;
+  /** CR-EDITORS-MEMO-2440 (06:MAPA-1): a step change saves the draft first; a second press while that save is in flight is dropped
+   * (it used to send a second save with the same revision), and a state the server already holds is not sent again. */
+  private readonly stepping = new OneAtATime();
+  private savedSt: MappingState | null = null;
+  private memo: { st: MappingState; data: MappingData; det: Detection; rows: TableRow[]; res: Map<string, Res>; qs: Question[]; sum: Summary; lq: LevelQuestion[] } | null = null;
 
   static styles = css`
     :host {
@@ -1196,6 +1201,8 @@ export class MappingAssistant extends LitElement {
       this.multiOn = this.data.multi_building;
       this.sugg = suggestSpec(this.data.mapItems);
       this.st = this.data.state ? this.data.parsed : { ...this.data.parsed, spec: { ...this.sugg.spec } };
+      // what the server holds: the stored draft as it was read (nothing stored yet: the first step saves)
+      this.savedSt = this.data.state ? this.st : null;
       this.step = this.start;
       if (this.advancedOpen) this.st = { ...this.st, advanced: true };
     }
@@ -1226,7 +1233,7 @@ export class MappingAssistant extends LitElement {
   }
 
   model() {
-    if (this.memo && this.memo.st === this.st) return this.memo;
+    if (this.memo && this.memo.st === this.st && this.memo.data === this.data) return this.memo;
     const items = this.data.mapItems;
     const det = detect(items, this.st.spec);
     const rows = tableRows(det, this.st, this.refs);
@@ -1234,7 +1241,7 @@ export class MappingAssistant extends LitElement {
     const qs = questions(items, res);
     const sum = summarize(items, res, this.refs, rows);
     const lq = levelQuestions(items, res, this.refs, this.data.ourFloors, this.data.links, this.st.levels);
-    this.memo = { st: this.st, det, rows, res, qs, sum, lq };
+    this.memo = { st: this.st, data: this.data, det, rows, res, qs, sum, lq };
     return this.memo;
   }
 
@@ -1263,26 +1270,31 @@ export class MappingAssistant extends LitElement {
   }
 
   private async persist() {
+    const st = this.st;
+    if (st === this.savedSt) return; // every edit REPLACES the state, so the same object is the same content
     try {
-      const r = await saveState(this.data.site.id, this.st, this.revision);
+      const r = await saveState(this.data.site.id, st, this.revision);
       this.revision = r.revision;
+      this.savedSt = st;
     } catch (err) {
       this.error = describeError(err);
       throw err;
     }
   }
 
-  private async go(step: Step) {
-    this.error = '';
-    this.notice = '';
-    try {
-      if (!this.busy) await this.persist(); // the draft is kept on the server between steps (nothing is applied)
-    } catch {
-      return;
-    }
-    if (step === 'decide' && !this.withDecisions) step = this.afterDecide;
-    if (step === 'levels' && !this.model().lq.length) step = 'summary';
-    this.step = step;
+  private go(step: Step): Promise<boolean> {
+    return this.stepping.run(async () => {
+      this.error = '';
+      this.notice = '';
+      try {
+        if (!this.busy) await this.persist(); // the draft is kept on the server between steps (nothing is applied)
+      } catch {
+        return;
+      }
+      if (step === 'decide' && !this.withDecisions) step = this.afterDecide;
+      if (step === 'levels' && !this.model().lq.length) step = 'summary';
+      this.step = step;
+    });
   }
 
   /** After the decisions: "קומות ללא מפלס" when a floor waits for its level, else the summary. */
@@ -1335,7 +1347,9 @@ export class MappingAssistant extends LitElement {
         const decisions = Object.fromEntries(Object.entries(this.st.decisions).map(([k, t]) => [k, fix(t)!]));
         this.st = { ...this.st, tokens, decisions, rules: this.st.rules.map((x) => ({ ...x, to: fix(x.to) })) };
         try {
-          this.revision = (await saveState(this.data.site.id, this.st, this.revision)).revision;
+          const st = this.st;
+          this.revision = (await saveState(this.data.site.id, st, this.revision)).revision;
+          this.savedSt = st;
         } catch {
           /* the version is applied; the table keeps "new" names until the next save */
         }
@@ -1451,7 +1465,7 @@ export class MappingAssistant extends LitElement {
     const sel: Position | 'advanced' = this.st.advanced ? 'advanced' : this.st.spec.position;
     const pick = (p: Position | 'advanced') => {
       if (p === 'advanced') this.setState({ ...this.st, advanced: true, rules: this.st.rules.length ? this.st.rules : [{ ...TABLE_RULE }] }, true);
-      else this.setState({ ...this.st, advanced: false, spec: { ...this.st.spec, position: p, seps: p === 'end' || p === 'start' ? this.st.spec.seps : this.st.spec.seps } }, true);
+      else this.setState({ ...this.st, advanced: false, spec: { ...this.st.spec, position: p } }, true);
     };
     const fit = (p: Position | 'advanced') => {
       if (p === 'advanced') return html`רשימת כללים בשפה פשוטה`;
