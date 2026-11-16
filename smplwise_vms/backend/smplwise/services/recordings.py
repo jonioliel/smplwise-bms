@@ -19,6 +19,7 @@ from ..config import Settings
 from ..errors import ApiError
 from . import nvr
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, utc_to_nvr_wall, zone
+from .ttl_cache import TtlCache
 
 PAGE_SIZE = 40
 MAX_PAGES = 25  # 1000 matches per window; beyond that the result is marked partial
@@ -48,10 +49,10 @@ class SearchResult:
     note: str = ""
 
 
-_cache: dict[tuple[str, str, str], tuple[float, SearchResult]] = {}
+# CR-HEALTH-POLLERS (03:F21): the shared TTL cache - bounded at 512 (the oldest quarter goes), one search per key at a time
+# and followers reuse the result (T068). The TTL is per read: 30 s for a window that touches now, 600 s for the past.
+_cache: TtlCache[tuple[str, str, str, str], SearchResult] = TtlCache(600, maxsize=512)
 _search_lock = threading.Lock()
-_inflight: dict[tuple[str, str, str], threading.Lock] = {}  # one search per key at a time; followers reuse the result (T068)
-_inflight_guard = threading.Lock()
 
 
 def _kind(record_type: str) -> str:
@@ -121,22 +122,16 @@ def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sq
     if (end - start) > dt.timedelta(days=7):
         raise ApiError(422, "validation", "טווח חיפוש מקסימלי: 7 ימים.")
     key = (cam["id"], iso_utc(start), iso_utc(end), tz_name)  # CR-024: a recorder's own zone is part of the question
-    now = time.time()
     touches_now = end >= dt.datetime.now(UTC) - dt.timedelta(minutes=1)
     ttl = 30 if touches_now else 600
-    hit = _cache.get(key)
-    if hit and now - hit[0] < ttl:
+    hit = _cache.entry(key, ttl)
+    if hit:
         return hit[1]
-    with _inflight_guard:
-        lock = _inflight.setdefault(key, threading.Lock())
-    with lock:
-        hit = _cache.get(key)
-        if hit and time.time() - hit[0] < ttl:
+    with _cache.flight(key):
+        hit = _cache.entry(key, ttl)
+        if hit:
             return hit[1]  # a concurrent identical search already answered
-        result = _search_uncached(settings, cam, start, end, tz_name, key, ttl)
-    with _inflight_guard:
-        _inflight.pop(key, None)
-    return result
+        return _search_uncached(settings, cam, start, end, tz_name, key, ttl)
 
 
 def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, key: tuple[str, str, str], ttl: int) -> SearchResult:
@@ -147,7 +142,7 @@ def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, e
     rs = camera_settings(settings, cam)
     if vendor_io.handles(rs):  # CR-025 P3: the Provision search (cursor paging, device clock, DST-safe ends)
         result = vendor_io.search(rs, cam["recorder_id"], cam["channel"], start, end, tz_name)
-        _cache[key] = (now, result)
+        _cache.put(key, result, at=now)
         return result
     tz = zone(tz_name)
     matches, coverage, pages = list_matches(settings, cam, start, end, tz_name)
@@ -160,17 +155,12 @@ def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, e
         segments.append(Segment(start_at=iso_utc(max(s_utc, start)), end_at=iso_utc(min(e_utc, end)), kind=_kind(m.record_type), track_id=m.track_id, start_raw=m.start_raw, end_raw=m.end_raw))
     note = f"page cap ({MAX_PAGES} × {PAGE_SIZE}) reached" if coverage == "partial" else ""
     result = SearchResult(segments=merge(segments), coverage=coverage, matches=len(matches), pages=pages, searched_at=iso_utc(dt.datetime.now(UTC)), timezone=tz_name, note=note)
-    _cache[key] = (now, result)
-    if len(_cache) > 512:  # bounded
-        for old in sorted(_cache, key=lambda k: _cache[k][0])[:128]:
-            _cache.pop(old, None)
+    _cache.put(key, result, at=now)
     return result
 
 
 def invalidate(camera_id: str | None = None) -> None:
-    for k in list(_cache):
-        if camera_id is None or k[0] == camera_id:
-            _cache.pop(k, None)
+    _cache.discard(lambda k: camera_id is None or k[0] == camera_id)
 
 
 def as_dict(result: SearchResult) -> dict:

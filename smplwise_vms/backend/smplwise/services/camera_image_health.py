@@ -35,7 +35,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-import os
 import re
 import sqlite3
 import threading
@@ -48,6 +47,7 @@ import numpy as np
 from ..config import Settings
 from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError
+from .poller import PeriodicWorker
 
 log = logging.getLogger("smplwise.camera_image_health")
 
@@ -576,36 +576,11 @@ def check_now(db: Database, settings: Settings) -> bool:
     return True
 
 
-class Poller:
-    def __init__(self) -> None:
-        self.thread: threading.Thread | None = None
-        self.stop_evt = threading.Event()
-
-    def start(self, db: Database, settings: Settings) -> None:
-        if os.environ.get("SW_CAMERA_IMAGE_HEALTH", "1") == "0" or (self.thread and self.thread.is_alive()):
-            return
-        self.stop_evt.clear()
-        self.thread = threading.Thread(target=self._loop, args=(db, settings), name="camera-image-health", daemon=True)
-        self.thread.start()
-
-    def shutdown(self, timeout: float = 3.0) -> None:
-        self.stop_evt.set()
-        t = self.thread
-        if t is not None and t is not threading.current_thread():
-            t.join(timeout=timeout)
-
-    def _loop(self, db: Database, settings: Settings) -> None:
-        if self.stop_evt.wait(20.0):
-            return
-        while not self.stop_evt.is_set():
-            try:
-                poll_once(db, settings)  # returns at once while the switch is off
-            except Exception:  # noqa: BLE001 - the poller never dies on one bad pass
-                log.exception("camera image health pass failed")
-            self.stop_evt.wait(TICK_S)
-
-
-POLLER = Poller()
+# CR-HEALTH-POLLERS: the shared thread shape (services/poller.py); name, switch, first wait and pass are as they were.
+# The pass returns at once while the switch is off.
+POLLER = PeriodicWorker(name="camera-image-health", env_flag="SW_CAMERA_IMAGE_HEALTH", first_delay=20.0,
+                        tick=lambda db, settings: poll_once(db, settings), interval=lambda db, settings: TICK_S,
+                        default_interval=TICK_S, log=log, what="camera image health")
 
 
 # ---------------------------------------------------------------- the notification pass (inside notify_sources.tick)

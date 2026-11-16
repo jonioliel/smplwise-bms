@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
-import threading
 import time
 from dataclasses import asdict, dataclass, field
 
@@ -25,6 +24,7 @@ from ..config import Settings
 from ..errors import ApiError
 from . import nvr, recordings
 from .timeutil import UTC, iso_utc, local_day_bounds, zone
+from .ttl_cache import TtlCache
 
 WINDOW_DAYS = 7  # recordings.search_segments refuses windows above seven days
 TTL_CURRENT_S = 60
@@ -44,9 +44,8 @@ class MonthDays:
     note: str = ""
 
 
-_cache: dict[tuple[str, str, str], tuple[float, MonthDays]] = {}
-_inflight: dict[tuple[str, str, str], threading.Lock] = {}
-_guard = threading.Lock()
+# CR-HEALTH-POLLERS (03:F21): the shared TTL cache - bounded at CACHE_MAX (the oldest quarter goes), one read per key at a time
+_cache: TtlCache[tuple[str, str, str], MonthDays] = TtlCache(TTL_PAST_S, maxsize=CACHE_MAX, clock=lambda: time.time())
 
 
 def parse_month(value: str) -> tuple[int, int]:
@@ -92,22 +91,15 @@ def days_in_month(settings: Settings, cam: sqlite3.Row, month: str, tz_name: str
     first, nxt = month_span(year, mon)
     key = (str(cam["id"]), f"{year:04d}-{mon:02d}", tz_name)
     ttl = TTL_CURRENT_S if first <= today < nxt else TTL_PAST_S
-    hit = _cache.get(key)
-    if hit and time.time() - hit[0] < ttl:
+    hit = _cache.entry(key, ttl)
+    if hit:
         return hit[1]
-    with _guard:
-        lock = _inflight.setdefault(key, threading.Lock())
-    with lock:
-        hit = _cache.get(key)
-        if hit and time.time() - hit[0] < ttl:
+    with _cache.flight(key):
+        hit = _cache.entry(key, ttl)
+        if hit:
             return hit[1]  # a concurrent identical request already answered
         result = _uncached(settings, cam, year, mon, tz_name, now)
-        _cache[key] = (time.time(), result)
-        if len(_cache) > CACHE_MAX:
-            for old in sorted(_cache, key=lambda k: _cache[k][0])[: CACHE_MAX // 4]:
-                _cache.pop(old, None)
-    with _guard:
-        _inflight.pop(key, None)
+        _cache.put(key, result)
     return result
 
 
@@ -171,9 +163,7 @@ def _from_search(settings: Settings, cam: sqlite3.Row, first: dt.date, through: 
 
 
 def invalidate(camera_id: str | None = None) -> None:
-    for k in list(_cache):
-        if camera_id is None or k[0] == camera_id:
-            _cache.pop(k, None)
+    _cache.discard(lambda k: camera_id is None or k[0] == camera_id)
 
 
 def as_dict(result: MonthDays) -> dict:

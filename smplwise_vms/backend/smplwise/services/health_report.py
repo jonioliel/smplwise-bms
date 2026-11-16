@@ -6,7 +6,6 @@ from __future__ import annotations
 import os
 import shutil
 import sqlite3
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -20,14 +19,15 @@ from ..db import get_setting, now_iso, permission_revision
 from ..errors import reason_of
 from . import autosync, events_derive, events_ingest, ha_bridge, ha_client, ha_sync, media_store, thumbnails
 from . import backup as backup_svc
+from .ttl_cache import TtlCache
 from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
 
 PROBE_TTL_S = 20
 HA_GRACE_S = 60  # NVR-less mode: a Home Assistant disconnection longer than this is an error
 STORAGE_ERROR_FREE = 512 * 1024**2  # less free space than this on /data is an error (the report's storage check and the top-bar summary)
 STARTED = time.time()
-_probe_lock = threading.Lock()
-_probe_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+# CR-HEALTH-POLLERS (03:F21, F14): the shared TTL cache; one probe per key at a time, so two report builds probe once
+_probe_cache: TtlCache[str, dict[str, Any]] = TtlCache(PROBE_TTL_S)
 
 
 def _check(id: str, label: str, status: str, detail: str, **meta: Any) -> dict[str, Any]:
@@ -68,20 +68,30 @@ def _age_s(iso: str | None) -> float | None:
 
 
 def _cached(key: str, fn) -> dict[str, Any]:
-    now = time.time()
-    with _probe_lock:
-        hit = _probe_cache.get(key)
-        if hit and now - hit[0] < PROBE_TTL_S:
-            return hit[1]
-    result = fn()
-    with _probe_lock:
-        _probe_cache[key] = (time.time(), result)
-    return result
+    return _probe_cache.load(key, fn, ttl=PROBE_TTL_S)
 
 
 def invalidate() -> None:
-    with _probe_lock:
-        _probe_cache.clear()
+    _probe_cache.clear()
+
+
+def cached_status(key: str) -> str | None:
+    """The status of the last probe of `key` ("nvr" | "go2rtc") at any age, None before the first one. Never probes."""
+    hit = _probe_cache.peek(key)
+    return hit[1].get("status") if hit else None
+
+
+def _recent_reading(recorder_id: str) -> dict[str, Any] | None:
+    """CR-HEALTH-POLLERS (03:F14): the recorder-health poller's reading of this recorder when it is online and younger than the
+    probe TTL - the same device call the probe would repeat. Anything else (no reading, old, unreachable) returns None and the
+    probe runs as before."""
+    from . import recorder_health
+
+    hit = recorder_health.recent_online(recorder_id, PROBE_TTL_S)
+    if hit is None:
+        return None
+    return {"status": "ok", "detail": f"מחובר · {hit['model'] or 'דגם לא ידוע'} · קושחה {hit['firmware'] or '?'}", "configured": True, "model": hit["model"],
+            "firmware": hit["firmware"], "ms": hit["latency_ms"]}
 
 
 def _probe_nvr(settings: Settings) -> dict[str, Any]:
@@ -89,6 +99,9 @@ def _probe_nvr(settings: Settings) -> dict[str, Any]:
 
     if not (settings.nvr_host and settings.nvr_user):
         return {"status": "warn", "detail": "ה־NVR לא מוגדר בהגדרות התוסף.", "configured": False}
+    recent = _recent_reading(getattr(settings, "nvr_recorder_id", None) or "nvr-1")
+    if recent is not None:
+        return recent
     t0 = time.time()
     from .recorders import vendor_io
 
