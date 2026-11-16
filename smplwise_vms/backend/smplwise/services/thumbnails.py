@@ -17,7 +17,7 @@ from typing import Any, Iterable
 
 from ..config import Settings
 from ..db import Database
-from . import events_ingest, playback
+from . import events_ingest, playback, redact
 from .child_env import minimal_env
 from .timeutil import parse_utc
 
@@ -154,11 +154,7 @@ def status_for(settings: Settings, event_id: str) -> str:
 
 
 def _redact(text: str, url: str, settings: Settings) -> str:
-    out = text.replace(url, "<rtsp-url>")
-    for secret in (settings.nvr_password, settings.nvr_user, settings.nvr_host):
-        if secret:
-            out = out.replace(str(secret), "***")
-    return out
+    return redact.text_without(text, url, (settings.nvr_password, settings.nvr_user, settings.nvr_host))
 
 
 def _grab(url: str, out: Path, settings: Settings, timeout_s: int = 40) -> bool:

@@ -5,11 +5,13 @@ go2rtc (intercom, other projects) is never listed as ours, modified or deleted. 
 NVR credentials and therefore never leave the server: they are written to go2rtc's API and nothing
 else. Browser media goes through the add-on's WebSocket relay (see routers/media.py).
 
-Known limit (to be verified on the lab's go2rtc version): go2rtc may persist a stream created through `PUT /api/streams` -
-its source, credentials included - into its own configuration file on the go2rtc host, and this adapter cannot see or remove
-that. Deleting the stream through the API is what `delete_stream` does; whether the file entry goes with it depends on the
-go2rtc version. The credentials of every source written here (NVR, WisKey stations, Home Assistant cameras) therefore also live
-on the go2rtc host, which is the owner's own machine; protect that file like the secrets it holds.
+Known limit (verified on the lab, go2rtc 1.9.14: docs/operations/G0_INTAKE.md, docs/legacy/KNOWN_QUIRKS.md section 4): go2rtc
+persists a stream created through `PUT /api/streams` - its source, credentials included - into its own configuration file on
+the go2rtc host, and this adapter cannot see that file. Deleting the stream through the API (`delete_stream`) removed the file
+entry too on that version; what happens across a go2rtc restart was not measured. Since 1.9.15 the API no longer shows a
+source's user and password (see "source comparison" below); the file still holds them. The credentials of every source written
+here (NVR, WisKey stations, Home Assistant cameras) therefore also live on the go2rtc host, which is the owner's own machine;
+protect that file like the secrets it holds.
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ import httpx
 
 from ..config import Settings
 from ..errors import ApiError
+from . import redact
 
 log = logging.getLogger("smplwise.go2rtc")
 
@@ -154,8 +157,7 @@ def redact_ha_source(url: str) -> str:
     """The source of a Home Assistant camera stream, for anything that leaves the server: the scheme only. The address,
     the credentials (`user:pass@`, but also a bare user, a token in the path or the query) and the path are all hidden -
     nothing about such a source is safe to show, log or audit."""
-    m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]{0,15})://", url or "")
-    return f"{m.group(1).lower()}://***" if m else "***"
+    return redact.url_scheme_only(url)
 
 
 def redact_source(name: str, url: str) -> str:
@@ -166,13 +168,13 @@ def redact_source(name: str, url: str) -> str:
         # CAMERA-STREAM-SOURCES-2410: a camera's own RTSP address may carry a secret in its query too - the scheme only, like an HA camera's
         return redact_ha_source(url)
     if name.startswith(f"{STREAM_PREFIX}wiskey_"):
-        return re.sub(r"://[^/\s]*", "://***", url, count=1)
+        return redact.url_host(url)
     return redact_url(url)
 
 
 def redact_url(url: str) -> str:
     """rtsp://user:pass@host → rtsp://***@host (for logs and audit details)."""
-    return re.sub(r"://[^/@\s]+:[^/@\s]+@", "://***@", url)
+    return redact.url_userinfo(url)
 
 
 @dataclass

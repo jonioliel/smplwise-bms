@@ -66,6 +66,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
+from . import redact
 from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
 from .wiskey_access_state import EVIDENCE_UNVERIFIED
 
@@ -735,8 +736,7 @@ def _parse_any(text: Any) -> datetime | None:
 
 
 def mask_number(contact: dict[str, Any] | None) -> str | None:
-    digits = (contact or {}).get("phone_e164") or ""
-    return f"····{digits[-2:]}" if len(digits) >= 2 else None
+    return redact.phone_tail2_dots((contact or {}).get("phone_e164") or "")
 
 
 def code_due(conn: sqlite3.Connection, valid_from: str, at: datetime) -> str:

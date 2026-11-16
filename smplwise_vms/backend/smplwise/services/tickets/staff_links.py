@@ -38,6 +38,7 @@ from typing import Any
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, require
+from .. import redact
 from . import access, codes as codes_mod, handler_links, model, notify_bridge, phone_verify, settings_doc, store, store_links
 from .access import Viewer, text
 from .module_key import ModuleKeyError
@@ -306,7 +307,7 @@ def my_view(conn, user_id: str) -> dict[str, Any]:
     pv = phone_verify.view(conn, row)
     confirmed = pv["confirmed"]
     # TKNOTIFOTP: while verification is required the number is confirmed by typing the code (no one-tap token is offered)
-    return {"has_phone": bool(phone), "phone": f"•••• {phone[-4:]}" if phone else None, "confirmed": confirmed,
+    return {"has_phone": bool(phone), "phone": redact.phone_tail4_bullets(phone), "confirmed": confirmed,
             "confirm": confirm_token(row) if row and phone and not confirmed and not pv["verify_required"] else None,
             "verify_required": pv["verify_required"], "code_pending": pv["code_pending"], "confirmed_via": pv["confirmed_via"],
             "notify_whatsapp": bool((row or {}).get("notify_whatsapp", 1)), "lang": (row or {}).get("lang") or "he"}
