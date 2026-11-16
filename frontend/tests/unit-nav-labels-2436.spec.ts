@@ -45,10 +45,8 @@ function resolve(from: string, to: string): string {
   return to.startsWith('.') ? `${path.posix.normalize(path.posix.join(path.posix.dirname(from), to)).replace(/\.ts$/, '')}.ts` : to;
 }
 /** A dictionary module: a table of words (every i18n/ module but the two shell ones, every tickets text catalogue). */
-// Merged onto CR-I18N-CORE / I18N-EN-SWITCH-2438: i18n/core.ts and i18n/msg.ts are the shared helpers (no words), and i18n/msg/shell.ts is the
-// shell's OWN source-text table (the English of the labels written in nav.ts itself) - none of them is another screen's dictionary.
-const SHELL_OWN = /^i18n\/(nav-labels|nav-label-bridges|core|msg|msg\/shell)\.ts$/;
-const isDictionary = (r: string): boolean => (/^i18n\//.test(r) && !SHELL_OWN.test(r)) || /^tickets\/([\w-]+-)?text(-[\w-]+)?\.ts$/.test(r);
+// merge with I18N-EN-SWITCH-2438 / CR-I18N-CORE: i18n/core.ts (the shared detector and filler, no words) and i18n/msg/shell.ts (the shell's OWN words) are not feature dictionaries
+const isDictionary = (r: string): boolean => (/^i18n\//.test(r) && !/^i18n\/(nav-label(s|-bridges)|core|msg\/shell)\.ts$/.test(r)) || /^tickets\/([\w-]+-)?text(-[\w-]+)?\.ts$/.test(r);
 
 test('the classifier knows a dictionary from a shell label module', () => {
   for (const r of ['i18n/he.ts', 'i18n/access-external.ts', 'tickets/text.ts', 'tickets/text-s4.ts', 'tickets/rfq-text.ts', 'tickets/board-text.ts']) expect(isDictionary(r), r).toBe(true);
@@ -62,8 +60,7 @@ test('nav.ts imports no dictionary module (its labels come from i18n/nav-labels.
 });
 
 test('nav-labels.ts is a leaf (only tickets/naming.ts, which imports nothing); the bridges read exactly the two dictionaries this branch leaves alone', () => {
-  // i18n/core.ts since the merge onto CR-I18N-CORE: the one language detector and `{name}` filler (unit-i18n-core.spec.ts forbids a copy); core imports nothing
-  expect(runtimeImports('i18n/nav-labels.ts')).toEqual(['tickets/naming.ts', 'i18n/core.ts']);
+  expect(runtimeImports('i18n/nav-labels.ts')).toEqual(['tickets/naming.ts', 'i18n/core.ts']); // core.ts: the shared detector and filler
   expect(runtimeImports('i18n/core.ts')).toEqual([]);
   expect(runtimeImports('tickets/naming.ts')).toEqual([]);
   expect(runtimeImports('i18n/nav-label-bridges.ts').sort()).toEqual(['i18n/he.ts', 'tickets/nav-text.ts']); // CR-SHELL-LAZY-2436: the RFQ word moved to nav-text

@@ -13,7 +13,7 @@ import {
   navAnnounce, navBt, navCt, navDwt, navIt, navIx, navMt, navOt, navPt, navTr, navTst as tst, navTt as tt, navXs, navXt, ticketsSectionLabel as sectionLabel,
 } from '../i18n/nav-labels';
 import { navGeneratorPage, navRfqTitle } from '../i18n/nav-label-bridges'; // the two labels whose dictionaries (i18n/he.ts, tickets/rfq-text.ts) stay as they are
-import { tr } from '../i18n/msg/shell';
+import { tr } from '../i18n/msg/shell'; // I18N-EN-SWITCH-2438: the shell's own words (areas, sections, tabs written here)
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant

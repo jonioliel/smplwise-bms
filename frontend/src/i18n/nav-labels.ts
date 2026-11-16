@@ -8,24 +8,25 @@
  * missing column falls back to the Hebrew, `{var}`s are filled last, and the tickets families render the module's configured name
  * with tn() (owner decision D33).
  *
- * It imports nothing but tickets/naming.ts and i18n/core.ts (the detector and the filler; both import nothing): a dictionary imports this module, so this module must never
+ * It imports nothing but tickets/naming.ts (which imports nothing): a dictionary imports this module, so this module must never
  * import a dictionary (a cycle would read a table before it exists). The two labels whose dictionaries this branch may not edit
  * (`i18n/he.ts`, `tickets/rfq-text.ts`) are read through `i18n/nav-label-bridges.ts`.
  */
 import { DEFAULT_TICKET_NAMES, ticketNames, tn, type TicketLang } from '../tickets/naming';
-import { docLang, fill } from './core'; // merge of CR-NAV-LABELS-2436 onto CR-I18N-CORE: the one detector and filler (core imports nothing)
+// merge of main into the i18n branches (CR-I18N-CAL-ELEC-2441): the detector and the filler are core's (CR-I18N-CORE; core.ts imports nothing, so this module stays cycle-free)
+import { docLangRaw as docLang, fill, type Vars } from './core';
 
 type Lang2 = 'he' | 'en';
 type Lang4 = 'he' | 'en' | 'ar' | 'ru';
-type Vars = Record<string, string | number>;
 
 /** The two-column rule (insights, transit, cross-section, presence, incidents, the tickets screens): English or the product's Hebrew. */
 function lang2(): Lang2 {
-  return docLang(['en']);
+  return docLang().startsWith('en') ? 'en' : 'he';
 }
 /** The four-column rule (external access, door windows, announce, tab registry, maintenance). */
 function lang4(): Lang4 {
-  return docLang(['en', 'ar', 'ru']);
+  const l = docLang();
+  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }
 /** A tickets-family template: the document's column (Hebrew when English lacks it), the module's name rendered, then `{var}`s. */
 function named<K extends string>(table: Record<Lang2, Partial<Record<K, string>>>, key: K, vars?: Vars): string {
@@ -36,7 +37,7 @@ function named<K extends string>(table: Record<Lang2, Partial<Record<K, string>>
 
 /** The language of the tickets screens: the document's (English or the product's Hebrew). tickets/text.ts re-exports it. */
 export function ticketsLang(): 'he' | 'en' {
-  return docLang(['en']);
+  return lang2();
 }
 
 /** tickets/text.ts (+ hdTitle of tickets/text-s4.ts): the area, its scopes, its four sections and two pages - templates rendered by tn(). */
