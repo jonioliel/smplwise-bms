@@ -32,6 +32,8 @@ from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
+from ._common import canonical
+
 PROTOCOL = "wiskey-capture-lease-v1"
 MAX_MESSAGE_BYTES = 8192
 MAX_LIFETIME_S = 15
@@ -369,8 +371,7 @@ def check_schema(m: dict[str, Any]) -> tuple[int, int]:
 
 # ---------------------------------------------------------------- stages 1-8
 
-def _canonical(body: dict[str, Any]) -> str:
-    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+_canonical = canonical  # the one canonical JSON of the bridge (_common.py, CR-BRIDGE-COMMON-2440)
 
 
 def validate(kind: str, service_data: Any, verifier: Verifier, now: Any) -> LeaseDTO:

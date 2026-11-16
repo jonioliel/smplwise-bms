@@ -27,6 +27,7 @@ from typing import Any, Mapping
 
 from . import schedule_fence
 from . import schedule_policy as policy
+from ._common import PERMISSION_UNAVAILABLE, UNREADABLE, entity_policy_refusal, group_members, refusal as _refusal
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ COMPONENT_CALLS: dict[str, tuple[str, str]] = {
 ID_POLL_INTERVAL_S = 0.25
 ID_POLL_TIMEOUT_S = 5.0
 
-_PERMISSION_UNAVAILABLE = "permission_check_unavailable"
+_PERMISSION_UNAVAILABLE = PERMISSION_UNAVAILABLE
 
 # After an add / copy whose new id could not be learned the component may still register that switch a moment later;
 # a following create would then see it as its own. For this long every learned id is answered id_unknown instead.
@@ -98,10 +99,7 @@ def _registry(hass: Any) -> Any:
 
 
 def _refuse(msg: Mapping[str, Any], error: str, path: str | None = None) -> dict[str, Any]:
-    out: dict[str, Any] = {"ok": False, "request_id": msg.get("request_id"), "error": error}
-    if path:
-        out["path"] = path
-    return out
+    return _refusal(msg, error, path)
 
 
 def _scheduler_entries(registry: Any) -> dict[str, str]:
@@ -120,19 +118,7 @@ def _check_permissions(user: Any, ha: SimpleNamespace, entity_ids: list[str]) ->
     """None when the person may control every entity (an administrator always may), else the refusal code. The
     component's add / edit are plain services, not entity services, so Home Assistant would not check the entities
     named inside the payload: this check does, with the user's own policy (contract 8.3 item 6)."""
-    if getattr(user, "is_admin", False):
-        return None
-    check = getattr(getattr(user, "permissions", None), "check_entity", None)
-    if not callable(check) or ha.POLICY_CONTROL is None:
-        return _PERMISSION_UNAVAILABLE
-    for entity_id in entity_ids:
-        try:
-            allowed = check(entity_id, ha.POLICY_CONTROL)
-        except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: closed
-            return _PERMISSION_UNAVAILABLE
-        if not allowed:
-            return "unauthorized"
-    return None
+    return entity_policy_refusal(user, ha.POLICY_CONTROL, entity_ids)
 
 
 _CLOCK_RE = re.compile(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$")
@@ -345,13 +331,10 @@ def _members_refusal(hass: Any, registry: Any, entity_id: str, depth: int, seen:
     if entity_id in seen:
         return None
     seen.add(entity_id)
-    state = hass.states.get(entity_id)
-    members = (getattr(state, "attributes", None) or {}).get("entity_id") if state is not None else None
+    members = group_members(hass.states.get(entity_id))
     if members is None:
         return None
-    if isinstance(members, str):
-        members = [members]
-    if not isinstance(members, (list, tuple)):
+    if members is UNREADABLE:
         return "scheduler_group_unverifiable"
     if depth >= GROUP_DEPTH:
         return "scheduler_group_unverifiable"

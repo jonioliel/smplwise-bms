@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import secrets
 import time
 from typing import Any
+
+from ._common import canonical
 
 SIGNATURE_WINDOW_S = 60
 
@@ -16,8 +17,7 @@ SIGNATURE_WINDOW_S = 60
 def sign(secret: str, body: dict[str, Any], ts: int | None = None, nonce: str | None = None) -> dict[str, Any]:
     ts = ts or int(time.time())
     nonce = nonce or secrets.token_hex(8)
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    digest = hmac.new(secret.encode(), f"{ts}.{nonce}.{hashlib.sha256(canonical.encode()).hexdigest()}".encode(), hashlib.sha256).hexdigest()
+    digest = hmac.new(secret.encode(), f"{ts}.{nonce}.{hashlib.sha256(canonical(body).encode()).hexdigest()}".encode(), hashlib.sha256).hexdigest()
     return {**body, "ts": ts, "nonce": nonce, "sig": digest}
 
 

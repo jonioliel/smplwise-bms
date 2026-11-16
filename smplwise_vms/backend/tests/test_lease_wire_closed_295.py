@@ -14,10 +14,8 @@ only where the package is installed (NOT_RUN otherwise)."""
 from __future__ import annotations
 
 import copy
-import importlib.util
 import json
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -44,11 +42,9 @@ PAIRING = "synthetic-pairing-secret-0003"
 
 
 def _load(name: str):
-    spec = importlib.util.spec_from_file_location(f"_sw_lease295_{name}", BRIDGE / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    import bridge_loader  # a private copy inside a package: the bridge modules import `._common` (CR-BRIDGE-COMMON-2440)
+
+    return bridge_loader.load_private(name, "lease295")
 
 
 keyset_mod = _load("keyset")

@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
 from . import config_policy as policy
+from ._common import entity_policy_refusal, refusal as _refusal
 from .config_store import ConfigStore, StoreError
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,11 +119,7 @@ def _write_state(hass: Any) -> _WriteState:
 
 
 def _refuse(msg: Mapping[str, Any], error: str, path: str | None = None, **extra: Any) -> dict[str, Any]:
-    out: dict[str, Any] = {"ok": False, "request_id": msg.get("request_id"), "error": error}
-    if path:
-        out["path"] = path
-    out.update(extra)
-    return out
+    return _refusal(msg, error, path, **extra)
 
 
 def _entries(registry: Any) -> list[Any]:
@@ -149,19 +146,7 @@ def entity_of(registry: Any, domain: str, platform: str, unique_id: str) -> str 
 def _check_permissions(user: Any, deps: SimpleNamespace, entity_ids: list[str]) -> str | None:
     """None when the person may control every entity (an administrator always may), else the refusal code. The config API's writes are not entity services,
     so Home Assistant would not check the entities named inside the item: this check does, with the user's own policy."""
-    if getattr(user, "is_admin", False):
-        return None
-    check = getattr(getattr(user, "permissions", None), "check_entity", None)
-    if not callable(check) or deps.POLICY_CONTROL is None:
-        return "permission_check_unavailable"
-    for entity_id in entity_ids:
-        try:
-            allowed = check(entity_id, deps.POLICY_CONTROL)
-        except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: closed
-            return "permission_check_unavailable"
-        if not allowed:
-            return "unauthorized"
-    return None
+    return entity_policy_refusal(user, deps.POLICY_CONTROL, entity_ids)
 
 
 # ---------------------------------------------------------------- the handler
