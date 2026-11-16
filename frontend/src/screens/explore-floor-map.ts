@@ -2277,7 +2277,7 @@ export class ExploreFloorMap extends LitElement {
     const states = this.entityStates3d;
     const anchors = b.anchors.filter((a) => a.resource_type === 'ha_entity' && this.anchorShown(a)).map((a) => this.pillAnchor(a, states));
     const fb = this.fallbackLevel;
-    const rooms = summarizeRooms(b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })), anchors, layer, (id) => id ?? fb);
+    const rooms = summarizeRooms(sceneZonesOf(b.zones), anchors, layer, (id) => id ?? fb);
     this.roomsMemo = { bundle: b, layer, layers: this.layers, rooms };
     return rooms;
   }

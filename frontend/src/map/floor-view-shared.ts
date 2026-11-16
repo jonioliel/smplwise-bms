@@ -64,7 +64,7 @@ export async function loadPlan3d(): Promise<string | null> {
 }
 
 /** The setting map.default_view asks for the 3D. */
-export function defaultViewIs3d(settings: Readonly<Record<string, unknown>>): boolean {
+export function defaultViewIs3d(settings: { readonly 'map.default_view'?: unknown }): boolean {
   return settings['map.default_view'] === '3d';
 }
 
