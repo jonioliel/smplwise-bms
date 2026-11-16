@@ -174,6 +174,40 @@ def test_a_reused_lease_does_not_read_its_busy_timeout_back(db, monkeypatch):
     assert not any("busy_timeout" in s for s in seen), seen
 
 
+def test_a_few_milliseconds_in_the_queue_do_not_shorten_the_busy_timeout(db, monkeypatch):
+    """CR-WAVE2-COMBINED-2439: on the runner's clock the uncontended BEGIN always measured a few microseconds of queue time, so
+    `_begin_immediate` set busy_timeout 1 ms lower and back on every write (the test above failed there, never on Windows, whose
+    monotonic clock is coarse). Here the clock advances 2 ms per read: still no busy_timeout statement on a reused lease."""
+    import time as real_time
+
+    class FastClock:
+        def __init__(self) -> None:
+            self.t = real_time.monotonic()
+
+        def monotonic(self) -> float:
+            self.t += 0.002
+            return self.t
+
+        def __getattr__(self, name):
+            return getattr(real_time, name)
+
+    with db.connection():
+        pass
+    seen: list[str] = []
+    real = PooledConnection.execute
+
+    def spy(self, *args, **kwargs):
+        if args and isinstance(args[0], str):
+            seen.append(args[0])
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(db_mod, "time", FastClock())
+    monkeypatch.setattr(PooledConnection, "execute", spy)
+    with db.connection():
+        pass
+    assert not any("busy_timeout" in s for s in seen), seen
+
+
 def test_a_lease_that_sets_its_busy_timeout_is_read_again(db):
     with db.connection():
         pass

@@ -168,6 +168,81 @@ After the shutdown fix and the 2.43.6 merge (same workstation, one file at a tim
 `sync_integration --check` up to date; API inventory 1,908 routes, no diff. The runner reproduction was NOT_RUN (the machine was
 held by another entry check; `run_guarded` refused).
 
+## Entry check 1 (`97080bbc4`, RED, 12 failures) - fixes
+
+Runner verdict `~/smplwise-results/entry_pilot-CR-WAVE2-COMBINED-2439_97080bbc4.md`: 12 backend failures (all "failed twice"), the 26
+Playwright items FLAKY only (passed alone). Every one is a merge interaction: a guard or a pin written before a wave-2 branch changed
+the code it reads, and none of the wave-2 branches had run its own entry check (they were cancelled for this combined one). One is a
+real product inefficiency that only the runner's clock shows (item 3). No guard was loosened; each change says why below.
+
+1. `test_async_routes_no_inline_db::test_pending_offenders_are_fixed` (XPASS strict): the guard's `PENDING` entry
+   `routers/wiskey_lineage.py::resolve` was fixed by AUTH-REVOKE-GATE-2435, merged here. As the guard's own docstring asks: `PENDING`
+   emptied and the strict xfail mark removed (the test now asserts the list holds no live offender; the main guard is unchanged).
+2. `test_capmap_295::test_the_receiver_source_is_the_one_the_vectors_were_made_from`: CR-TIMEUTIL-2438 replaced `trusted_caller.iso`'s
+   body with the shared `timeutil.iso_utc` (same name). Read: both produce `YYYY-MM-DDTHH:MM:SSZ` from `astimezone(UTC)` for every aware
+   datetime the module signs; nothing else in the file changed. Recorded as a REVIEWED_SUCCESSORS entry (old -> new hash, with the
+   reason), the mechanism the test provides; WisKey's vectors file stays byte-identical. Once past it the same test found the second
+   drifted source: `custom_components/smplwise_bridge/keyset.py` (CR-BRIDGE-GAPS-2438): `sign()` without a key raises `NoSigningKey`
+   (a `ValueError` subclass, same text) and `handle_control()` (rotation) refuses a message with an answer's keys. `verify()` /
+   `_check()`, the path `lease_contract.validate` takes for the vectors, is unchanged, and none of the 8 vector messages carries
+   `reply_to` / `ok` (checked). Second REVIEWED_SUCCESSORS entry. `lease_contract.py` is unchanged; `ha_bridge.py` was already reviewed.
+3. `test_core_helpers_2438::test_a_reused_lease_does_not_read_its_busy_timeout_back` (passes on Windows, fails on the runner):
+   `_begin_immediate` shortened SQLite's busy_timeout to "budget minus the gate-queue wait" whenever that was below the full value. On
+   Linux the uncontended BEGIN always measures a few microseconds, so every write ran `PRAGMA busy_timeout=9999` and `=10000` around
+   `BEGIN IMMEDIATE` - exactly what CR-CORE-HELPERS (05:P3-04) meant to remove; Windows' coarse monotonic clock hid it. Product fix
+   (`db.py`): a queue wait under `BUSY_SHORTEN_SLACK_MS` (50 ms) leaves busy_timeout as it is; the total wait can exceed the budget by
+   at most 50 ms. A real queue wait (the review M3 case, `test_db_gate::test_one_attempt_never_waits_longer_than_the_busy_timeout`)
+   is still shortened. Regression test `test_a_few_milliseconds_in_the_queue_do_not_shorten_the_busy_timeout` (a clock advancing 2 ms
+   per read): fails without the fix on the workstation (`PRAGMA busy_timeout=9996`), passes with it.
+4. `test_db_template::test_no_product_code_reads_the_schema_cookie`: CR-CORE-HELPERS-2438 added a second reader of
+   `PRAGMA schema_version` in `db.py` (the `has_table` / `has_column` cache key) plus a comment naming it. The guard's rule ("the value
+   never matters; only a same-file, same-process comparison") still holds: the key is (path, file identity, version), so a template
+   copy or a restored file never shares an entry. Guard updated: comment lines are not reads, exactly two reads in `db.py`, the pool's
+   `schema != seen` and the cache key's shape are both asserted.
+5. `test_messaging_accounts_runtime::test_the_main_janitor_runs_the_step`, 6. `test_wiskey_adopt_2272_installer::
+   test_start_up_activation_is_wired_and_gated`, 7. `test_tickets_s4_wiring::test_w14_w15_..._guards_the_janitor`: CR-JANITOR-REGISTRY-2438
+   moved the housekeeping steps from `main.janitor_tick` into the `services/janitors.STEPS` registry; these three source pins still
+   read `main.py`. They now check the registry: exactly one step with that target, its arguments, a failure text (= guarded), and that
+   it resolves to the real function. The other halves (router include, `activate_software` at start-up, the listener in a worker
+   thread) still read `main.py`.
+8. `test_alarm::test_a_failure_inside_send_never_leaves_the_typed_slot_stuck`, 9. `test_nvr_stream_write_locks::
+   test_busy_database_at_relock_leaves_the_pending_row_for_the_janitor`: both expected a raw `sqlite3.OperationalError("database is
+   locked")` out of the TestClient. CR-MAIN-RUNTIME-2438 (05:P1-07, lead decision L1) answers it with the retryable envelope
+   (500 `database_busy`, Retry-After). The tests now assert that envelope; what they protect (the typed slot released; the pending
+   row left for the janitor and settled by a read) is unchanged and still asserted.
+10. `test_no_ip_literals::test_no_unlisted_private_ip_literals`: `test_ha_client_2438.py` (CR-HA-CLIENT-2438) echoed a specific private address in a
+    refusal text. Replaced with the RFC 5737 placeholder `192.0.2.9` (the assertions check the whole text and "rtsp", not the address).
+11. `test_gate_always_run::test_every_package_scanner_is_listed_or_reviewed`: `test_active_user_rest_2438.py` (CR-ACTIVE-USER-REST-2438)
+    walks the package (its no-drift guard) and was not listed. Added to `gate_always_run.json` "backend" with its reason.
+12. `test_t06_admission_295::test_the_installed_client_sends_only_the_pinned_installation_and_read_commands`: CR-DEAD-CODE-BE-2438
+    deleted `wiskey_auto_install.send_installed_template_v3` (no caller; `wiskey_wa_queue` sends `whatsapp/template_send_v3` itself,
+    pinned in `test_the_2400_signing_callers_send_only_their_pinned_commands`). The module now puts one command fewer on the signing
+    seam; the pin was narrowed to match (a tightening) and its docstring says why.
+
+### Tests actually run for these fixes (Windows workstation, `.venv`, `-p no:xdist`, one file at a time)
+
+- The 12 failing tests plus the new regression test, in one process before the keyset entry: 12 passed, 1 failed (`test_capmap_295`,
+  the second drifted source, fixed next). The new regression test fails without the `db.py` fix and passes with it.
+- Whole files after all fixes, every test passed (skips / xfails as before): `test_async_routes_no_inline_db`, `test_capmap_295`,
+  `test_core_helpers_2438`, `test_db_template`, `test_messaging_accounts_runtime`, `test_wiskey_adopt_2272_installer` (3 skipped),
+  `test_alarm`, `test_no_ip_literals`, `test_gate_always_run`, `test_nvr_stream_write_locks`, `test_t06_admission_295` (3 xfailed),
+  `test_tickets_s4_wiring`, `test_ha_client_2438`, `test_db_gate`, `test_db_conn_pool`, `test_janitor`, `test_active_user_rest_2438`.
+- `test_db_locking`: all passed except `test_ha_state_event_gives_up_within_the_busy_deadline` (1.3 s against its 0.9 s bound). It
+  fails the same way with the `db.py` change stashed, so it is the loaded workstation, not this fix; it passed in the runner entry
+  check at `97080bbc4`. The first `test_tickets_s4_wiring` run printed a thread dump at its end (machine load); the re-run passed (exit 0).
+- NOT_RUN locally: the full backend suite, Playwright, pixel / layout runs (the runner entry check runs them).
+
+### Follow-ups (unchanged decision: one separate branch stacked on this one, only AFTER a GREEN entry check; not implemented here)
+
+- `routers/wiskey_lineage.py::_gate` -> `rbac.require_system_admin(conn, principal, action=..., text=..., request_id=_rid(request),
+  resource_type="wiskey_lineage")`. Care: the lineage gate has a third step `require_system_admin` does not have - the
+  `interactive_only` refusal for the three write actions - and its text depends on `interactive`. Keep that step in `_gate` after the
+  shared call (same audit action, `resource_type="wiskey_lineage"`, reasons and Hebrew texts the lineage tests pin).
+- `services/notify_recipients.active_user_ids` -> delegate to `services/active_users.active_user_ids` (owner O16 a). It feeds
+  `expand`, `Known` and `active_principals`, so every alert module's recipients change for users disabled on the Home Assistant side
+  only (they stop receiving). Other local copies of the same list exist and are a separate decision: `routers/access.py`,
+  `services/tickets/store.py`, `services/tickets/store_rfq.py` (`CR-ACTIVE-USER-REST`'s no-drift guard only covers per-id reads).
+
 ## Entry check
 
 Queued on the runner 14.11.2026 (`ENTRY_TOTAL_SECS=14400`, log `~/pre/entry_crw2comb.log`), position 10 of 10 behind a running

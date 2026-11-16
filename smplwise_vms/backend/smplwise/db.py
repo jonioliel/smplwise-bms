@@ -51,6 +51,7 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, TypeVar
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 GUARDED_MIGRATIONS = ("0036", "0037")  # verified by their objects at start-up, whatever schema_migrations says (Database.ensure_migration_objects)
 BUSY_TIMEOUT_S = 10.0  # how long a writer waits for the write lock before "database is locked"
+BUSY_SHORTEN_SLACK_MS = 50  # a gate-queue wait shorter than this does not shorten SQLite's own busy wait (_begin_immediate)
 SLOW_HOLD_S = float(os.environ.get("SW_DB_SLOW_HOLD_S", "3"))  # a longer write-lock hold is logged with its holder
 # the janitor truncates the WAL file once it grew past this (at a quiet moment); also SQLite's journal_size_limit
 WAL_TRUNCATE_BYTES = int(float(os.environ.get("SW_DB_WAL_TRUNCATE_MB", "64")) * 1024 * 1024)
@@ -426,9 +427,12 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
                     LOCK_STATS["gate_timeouts"] += 1
                 raise _busy(label, sqlite3.OperationalError("database is locked"))
             _gate_tokens[key] = (gate, token, conn)
-        # one attempt never waits longer than its budget (BUSY_TIMEOUT_S) in total: SQLite gets what the gate queue left of it
+        # one attempt never waits longer than its budget (BUSY_TIMEOUT_S) in total: SQLite gets what the gate queue left of it.
+        # A queue wait under BUSY_SHORTEN_SLACK_MS leaves busy_timeout as it is (the total may then pass the budget by that much at
+        # most): on a fast clock the uncontended BEGIN always took some microseconds, so every write paid two PRAGMAs to set the
+        # timeout 1 ms lower and back (CR-WAVE2-COMBINED-2439: the runner showed it, 05:P3-04 meant the write path to carry none)
         remaining_ms = max(1, int((budget - (time.monotonic() - started)) * 1000))
-        shortened = remaining_ms < full_ms
+        shortened = remaining_ms < full_ms - BUSY_SHORTEN_SLACK_MS
         try:
             if shortened:
                 conn.execute(f"PRAGMA busy_timeout={remaining_ms}")

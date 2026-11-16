@@ -11,23 +11,22 @@ The check is static (AST over smplwise/routers/*.py and smplwise/main.py): an as
 Nested `def`s and lambdas are skipped (they are what gets passed to `run_in_threadpool`), and so is a function passed as an argument
 rather than called.
 
-`PENDING` lists the offenders known on 2026-11-13. They are fixed by another branch; the first test passes while every offender is in
-that list, the second (xfail, strict) starts passing when the list can be emptied - then remove the entry and the mark.
+`PENDING` lists offenders that another branch is known to fix: the first test passes while every offender is in that list, the
+second asserts the list holds no live offender (add an entry together with a strict xfail mark on the second test, and remove both
+when the fixing branch merges). The 2026-11-13 entry (`routers/wiskey_lineage.py::resolve`, 02:P1-6) was fixed by
+pilot/AUTH-REVOKE-GATE-2435 and removed in CR-WAVE2-COMBINED-2439, where that branch merged.
 """
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
-import pytest
 
 PKG = Path(__file__).resolve().parents[1] / "smplwise"
 ROUTE_ATTRS = {"get", "post", "put", "patch", "delete", "head", "options", "api_route", "websocket", "route"}
 
 # "<module path relative to smplwise/>::<handler>" -> the branch that removes it
-PENDING = {
-    "routers/wiskey_lineage.py::resolve": "pilot/AUTH-REVOKE-GATE-2435 (02:P1-6)",
-}
+PENDING: dict[str, str] = {}
 
 
 def _is_route_decorator(dec: ast.expr) -> bool:
@@ -105,7 +104,6 @@ def test_no_async_route_opens_a_connection_on_the_loop():
     assert new == {}, "an async route opens a database connection on the server loop; make it `def`, use a dependency or run_in_threadpool: " + repr(new)
 
 
-@pytest.mark.xfail(strict=True, reason="02:P1-6 is fixed by pilot/AUTH-REVOKE-GATE-2435; after it merges, empty PENDING and remove this mark")
 def test_pending_offenders_are_fixed():
     still = sorted(k for k in offenders() if k in PENDING)
     assert still == [], still

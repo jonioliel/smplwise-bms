@@ -8,6 +8,7 @@
   "reviewed in 'not_scanners'. Add the file in the same commit as the scanner; the value is the scanner test and what it pins."
  ],
  "backend": {
+  "test_active_user_rest_2438.py": "package walk: no module reads users.active for one id outside services/active_users (CR-ACTIVE-USER-REST-2438)",
   "test_adoptr6_295.py": "package walk: only the join and its module call the resolve read",
   "test_async_routes_hold_no_write_conn.py": "router registry: no async route depends on the write connection (CR-UPLOAD-SYNC-2436)",
   "test_async_routes_no_inline_db.py": "package walk: no async route body opens db.connection (CR-BE-GATES-2436)",

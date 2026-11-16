@@ -18,7 +18,7 @@ from smplwise.errors import ApiError
 from smplwise.services import bridge_rotation, ha_client, ha_sync
 
 REAL_CLIENT = httpx.Client  # the genuine class, captured before any patching
-ECHO = "refused: rtsp://admin:pw@10.0.0.9/stream"  # what a refusal text could echo - never in an error
+ECHO = "refused: rtsp://admin:pw@192.0.2.9/stream"  # what a refusal text could echo - never in an error
 
 
 @pytest.fixture()
