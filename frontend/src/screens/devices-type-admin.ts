@@ -1,11 +1,10 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
-import { get, post, put, describeError } from '../api/client';
-import { parseRoute } from '../router';
+import { get, put, describeError } from '../api/client';
 import { bidi, ltrNum } from '../i18n/bidi';
 import {
   BULK_ON_SENSITIVE, KIND_HE, KIND_ORDER, NO_TYPE_FILTERS, applyTypeFilters, bulkTargets, chunks, confirmQuestion, rangeIds, resultLine, settingLabel, typeFiltersActive,
@@ -14,8 +13,7 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
-
-const PAGE = 100;
+import { DevicesOverrideListAdmin, OVERRIDE_PAGE as PAGE, overrideListStyles, overrideTableStyles } from './devices-override-admin';
 
 /**
  * הגדרות › חשמל והתקנים › סוגי התקנים (DEVTYPE, owner 2026-10-09): the type of every switch-wired device - a boiler, a tap, a light on a
@@ -25,101 +23,24 @@ const PAGE = 100;
  * it - they only show the resulting icon, wording and equipment card. A table on a wide screen, cards with a sticky action bar under 600 px.
  */
 @customElement('devices-type-admin')
-export class DevicesTypeAdmin extends LitElement {
+export class DevicesTypeAdmin extends DevicesOverrideListAdmin<DeviceTypeRow, TypeFilters> {
   readonly bubbleSkin = new SkinController(this);
-  @state() private rows: DeviceTypeRow[] | null = null;
-  @state() private error = '';
-  @state() private f: TypeFilters = { ...NO_TYPE_FILTERS };
-  @state() private selected = new Set<string>();
-  @state() private shown = PAGE;
+  @state() protected f: TypeFilters = { ...NO_TYPE_FILTERS };
   @state() private bulkKind: TypeSetting = 'water_heater';
   @state() private confirm: { kind: TypeSetting; ids: string[] } | null = null;
-  @state() private busy = false;
   @state() private busyId = '';
-  @state() private result = '';
-  private last: string | null = null;
+  protected readonly heading = 'סוגי התקנים';
+  protected readonly sections = ['device-types'];
+  protected range = rangeIds;
+  protected chunk = (ids: readonly string[]) => chunks(ids);
 
-  static styles = [css`
-    :host {
-      display: block;
-    }
-    .bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-block-end: 8px;
-    }
-    input[type='search'],
-    select {
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      min-block-size: 36px;
-      padding: 0 10px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-    }
-    input[type='search'] {
-      flex: 1;
-      min-inline-size: 180px;
-    }
-    .note,
-    .muted {
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
-    }
+  static styles = [overrideListStyles, overrideTableStyles, css`
     .manual {
       font-weight: var(--sw-fw-bold);
       color: var(--sw-accent-text, var(--sw-text));
     }
-    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
-    table {
-      inline-size: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: var(--sw-fs-base);
-    }
-    th,
-    td {
-      text-align: start;
-      padding: 10px 10px;
-      border-block-end: 1px solid var(--sw-border);
-      vertical-align: middle;
-    }
-    th {
-      background: var(--sw-surface-2);
-      color: var(--sw-heading, var(--sw-text));
-      font-weight: var(--sw-fw-bold);
-      white-space: nowrap;
-    }
-    th:first-child {
-      border-start-start-radius: var(--sw-r-md);
-    }
-    th:last-child {
-      border-start-end-radius: var(--sw-r-md);
-    }
-    td:nth-child(2) {
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-heading, var(--sw-text));
-    }
     td select {
       min-inline-size: 180px;
-    }
-    input[type='checkbox'] {
-      inline-size: 18px;
-      block-size: 18px;
-    }
-    .cards {
-      display: none;
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      padding-block: 8px;
     }
     .err {
       color: var(--sw-danger);
@@ -132,74 +53,19 @@ export class DevicesTypeAdmin extends LitElement {
       min-block-size: 32px;
     }
     @media (max-width: 599px) {
-      table {
-        display: none;
-      }
-      .cards {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
       .card {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
         gap: 4px 10px;
-        align-items: center;
-        padding: 10px 12px;
-        border: 0;
-        background: var(--sw-surface-2);
-        border-radius: var(--sw-r-md);
-        min-block-size: 48px;
-        font-weight: var(--sw-fw-semibold);
-      }
-      .card .sub {
-        grid-column: 2;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-regular);
-        color: var(--sw-text-2);
       }
       .card select,
       .card .bulk-on {
         grid-column: 2;
         inline-size: 100%;
       }
-      .actions.bulk {
-        position: sticky;
-        inset-block-end: 0;
-        background: var(--sw-surface);
-        border-block-start: 1px solid var(--sw-border);
-        z-index: 1;
-      }
     }
   `, bubbleChrome];
 
-  connectedCallback() {
-    super.connectedCallback();
-    void this.load().then(() => {
-      if (parseRoute().params.get('section') === 'device-types') requestAnimationFrame(() => this.scrollIntoView({ block: 'start' }));
-    });
-  }
-
-  private async load() {
-    try {
-      this.rows = (await get<{ devices: DeviceTypeRow[] }>('devices/device-types')).devices;
-      this.error = '';
-    } catch (err) {
-      this.error = describeError(err);
-    }
-  }
-
-  private setFilter(patch: Partial<TypeFilters>) {
-    this.f = { ...this.f, ...patch };
-    this.shown = PAGE;
-  }
-
-  /** `on` is the box's state AFTER the native toggle (as the protected-switches list: the click is never cancelled). */
-  private toggle(id: string, on: boolean, shift: boolean, list: DeviceTypeRow[]) {
-    const next = new Set(this.selected);
-    for (const x of shift && this.last ? rangeIds(list, this.last, id) : [id]) (on ? next.add(x) : next.delete(x));
-    this.last = id;
-    this.selected = next;
+  protected async fetchRows() {
+    return (await get<{ devices: DeviceTypeRow[] }>('devices/device-types')).devices;
   }
 
   private async chooseOne(r: DeviceTypeRow, kind: TypeSetting) {
@@ -221,13 +87,7 @@ export class DevicesTypeAdmin extends LitElement {
     if (!c) return;
     this.busy = true;
     try {
-      let changed = 0;
-      let refused = 0;
-      for (const part of chunks(c.ids)) {
-        const r = await post<{ changed: number; refused: number }>('devices/device-types', { entity_ids: part, kind: c.kind });
-        changed += r.changed;
-        refused += r.refused;
-      }
+      const { changed, refused } = await this.postChunks('devices/device-types', c.ids, { kind: c.kind });
       this.result = resultLine(c.kind, changed, refused);
       this.selected = new Set();
     } catch (err) {
@@ -269,16 +129,16 @@ export class DevicesTypeAdmin extends LitElement {
   }
 
   render() {
-    const head = 'סוגי התקנים';
+    const head = this.heading;
     const rows = this.rows;
-    if (this.error && !rows) return html`<sw-card heading=${head}><sw-state-panel compact state="error" heading="לא ניתן לטעון את ההתקנים" hint=${this.error}></sw-state-panel></sw-card>`;
-    if (!rows) return html`<sw-card heading=${head}><sw-state-panel compact state="loading"></sw-state-panel></sw-card>`;
+    if (this.error && !rows) return this.errorCard('לא ניתן לטעון את ההתקנים');
+    if (!rows) return this.loadingCard();
     const f = this.f;
     const list = applyTypeFilters(rows, f);
     const page = list.slice(0, this.shown);
-    const floors = [...new Map(rows.filter((r) => r.floor_id).map((r) => [r.floor_id!, r.floor_name ?? r.floor_id!])).entries()];
-    const areas = [...new Map(rows.filter((r) => r.area_id && (!f.floor || r.floor_id === f.floor)).map((r) => [r.area_id!, r.area_name ?? r.area_id!])).entries()];
-    const place = (r: DeviceTypeRow) => [r.floor_name, r.area_name].filter(Boolean).join(' ‹ ') || 'ללא שיוך';
+    const floors = this.floorOptions(rows);
+    const areas = this.areaOptions(rows);
+    const place = (r: DeviceTypeRow) => this.place(r);
     const source = (r: DeviceTypeRow) => {
       if (r.set === null) return html`<span class="muted" data-type-source="auto">אוטומטי</span>`;
       const when = r.set_at ? dayTimeText(new Date(r.set_at)) : '';

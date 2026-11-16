@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
+import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-icon';
@@ -6,6 +6,7 @@ import '../components/sw-state-panel';
 import { describeError, get, patch } from '../api/client';
 import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
+import { policySwitchStyles, switchBody } from '../messaging/policy-switch';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
 import { POLICY_DEFAULT, POLICY_KEYS, policyValue, type PolicyKey } from '../access-control/status-logic';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -47,85 +48,7 @@ export class SystemAccessPolicy extends LitElement {
 
   static styles = [
     statusStyles,
-    css`
-      .sw {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        inline-size: 100%;
-        min-block-size: max(64px, var(--_t));
-        padding: 10px 14px;
-        box-sizing: border-box;
-        border: 0;
-        border-block-start: 1px solid var(--sw-border);
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        text-align: start;
-        cursor: pointer;
-      }
-      .sw:disabled {
-        cursor: default;
-        opacity: var(--sw-disabled-opacity);
-      }
-      .sw:not(:disabled):hover {
-        background: var(--sw-hover-wash);
-      }
-      .sw:focus-visible {
-        outline-offset: -2px;
-      }
-      .sw .txt {
-        flex: 1;
-        min-inline-size: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .sw .t {
-        font-weight: var(--sw-fw-semibold);
-        color: var(--sw-heading);
-      }
-      .sw .x {
-        color: var(--sw-text-3);
-        font-size: var(--sw-fs-sm);
-      }
-      .track {
-        flex: none;
-        position: relative;
-        inline-size: 42px;
-        block-size: 24px;
-        border-radius: var(--sw-r-pill);
-        background: var(--sw-toggle-off);
-        transition: background var(--sw-t-fast) var(--sw-ease);
-      }
-      .track::after {
-        content: '';
-        position: absolute;
-        inset-block-start: 3px;
-        inset-inline-start: 3px;
-        inline-size: 18px;
-        block-size: 18px;
-        border-radius: 50%;
-        background: var(--sw-toggle-thumb);
-        box-shadow: var(--sw-shadow-1);
-        transition: transform var(--sw-t-fast) var(--sw-ease);
-      }
-      .sw[aria-checked='true'] .track {
-        background: var(--sw-toggle-on);
-      }
-      .sw[aria-checked='true'] .track::after {
-        transform: translateX(-18px);
-      }
-      :host-context([dir='ltr']) .sw[aria-checked='true'] .track::after {
-        transform: translateX(18px);
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .track,
-        .track::after {
-          transition: none;
-        }
-      }
-    `,
+    policySwitchStyles,
     accessPanelPolish,
     bubbleChrome,
   ];
@@ -191,8 +114,7 @@ export class SystemAccessPolicy extends LitElement {
         <div class="ch"><div><h3>${st('policyTitle')}</h3><div class="sub">${this.canEdit ? st('policySub') : st('policyNote')}</div></div></div>
         ${POLICY_KEYS.map(
           (key) => html`<button type="button" class="sw" role="switch" aria-checked=${String(v[key])} data-access-policy=${key} data-default=${String(POLICY_DEFAULT[key])} ?disabled=${!this.canEdit || !!this.busy} @click=${() => void this.flip(key)}>
-            <span class="txt"><span class="t">${st(WORDS[key].title)}</span><span class="x">${st(WORDS[key].text)}</span></span>
-            <span class="track" aria-hidden="true"></span>
+            ${switchBody(st(WORDS[key].title), st(WORDS[key].text))}
           </button>`,
         )}
         ${this.error ? html`<div class="note err" role="alert" data-access-policy-error><sw-icon name="warning" size=${16}></sw-icon><span>${this.error}</span></div>` : nothing}
