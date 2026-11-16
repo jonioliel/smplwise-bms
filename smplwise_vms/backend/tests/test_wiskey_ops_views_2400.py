@@ -15,7 +15,6 @@ from __future__ import annotations
 import csv
 import io
 import json
-import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -30,17 +29,9 @@ from fastapi.testclient import TestClient
 from smplwise.db import Database
 from smplwise.services import intercom_sync, wiskey_channels
 from smplwise.services import wiskey_ops_views as ov
+from support.waiting import wait_for
 
 API = "/api/v1/access-control/operations"
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 def env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:

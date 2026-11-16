@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import copy
 import json
-import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -34,6 +33,7 @@ from smplwise.db import Database
 from smplwise.services import intercom_authority as ia
 from smplwise.services import intercom_sync, wiskey_channels
 from smplwise.services import wiskey_station_ops as ops
+from support.waiting import wait_for
 
 API = "/api/v1/access-control/stations"
 AUTH_ROWS = [
@@ -83,15 +83,6 @@ class OpsFake(FakeWiskey):
 
 def env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:
     return {"client_request_id": uuid.uuid4().hex, "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%SZ"), **fields}
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 @pytest.fixture()
