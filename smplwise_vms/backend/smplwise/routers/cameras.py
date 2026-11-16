@@ -30,6 +30,7 @@ from ..services import autosync, nvr, stream_codecs
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from .anchors import camera_row
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -172,7 +173,7 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
 
     if is_disabled(cam["recorder_id"]):  # CR-024: disabled now - not even a cached picture
         raise recorder_unavailable(cam["recorder_id"])
-    max_age = read_settings(conn)["snapshots.max_age_s"]
+    max_age = setting_value(conn, "snapshots.max_age_s")
     folder = settings.data_dir / "snapshots"
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{camera_id}.jpg"

@@ -190,9 +190,9 @@ def generate(db: Database, settings: Settings, event_id: str) -> bool:
         row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
         ev = events_ingest.row_to_event(row) if row else None
         cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (ev["camera_id"],)).fetchone() if ev and ev.get("camera_id") else None
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
 
-        tz_name = read_settings(conn)["time.zone"]
+        tz_name = setting_value(conn, "time.zone")
     out = path_for(settings, event_id)
     ok = False
     if ev and cam and cam["main_track"] and eligible(ev):

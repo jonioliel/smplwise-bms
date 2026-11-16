@@ -16,7 +16,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import rules as svc
 from ..services.access import require_camera, row_scope
 from ._common import rid as _rid
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -205,7 +205,7 @@ def dry_run(body: DryRunIn, principal: Principal = Depends(current_principal), c
         rule = svc.row_to_rule(_get(conn, body.rule_id))
     else:
         raise ApiError(422, "validation", "יש לשלוח חוק או מזהה חוק.")
-    return {"rule_name": rule["name"], **svc.dry_run(conn, rule, body.hours, read_settings(conn)["time.zone"])}
+    return {"rule_name": rule["name"], **svc.dry_run(conn, rule, body.hours, setting_value(conn, "time.zone"))}
 
 
 @router.get("/rules/{rule_id}")

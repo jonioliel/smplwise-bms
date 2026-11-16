@@ -26,6 +26,7 @@ from ..services.timeutil import iso_utc, parse_utc
 from .playback import SeekBody, _segment_for
 from .recordings import camera_for_playback
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 GAP_TOLERANCE_S = 60  # a member whose next recording starts later than this is a gap, not a late starter
@@ -51,7 +52,7 @@ def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Princip
     CR-024 experimental cross-recorder group (`group.clocks` set): each member is searched and played in its recorder's zone and
     clock offset - the search asks for [start + offset) on the recorder's clock and the segment it answers is turned back into
     server time (- offset); a recorder whose clock was refused leaves its members missing with the reason."""
-    max_seeks = int(read_settings(conn).get("playback.max_seeks_per_min", pb.DEFAULT_MAX_SEEKS_PER_MIN))  # PLAYBACK-SCRUB-2341, per member session
+    max_seeks = int(setting_value(conn, "playback.max_seeks_per_min"))  # PLAYBACK-SCRUB-2341, per member session
     waits = [w for w in (pb.seek_retry_after(x, max_seeks) for x in existing.values()) if w is not None]
     if waits:  # all members or none: a group never seeks some tiles and leaves one behind on the rate cap
         raise pb.seek_rate_error(max_seeks, max(waits))
@@ -96,7 +97,7 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
         raise ApiError(409, "no_track", "לאחת המצלמות אין track הקלטה ידוע.")
     recorders = sorted({str(c["recorder_id"]) for c in cams})
     cross = len(recorders) > 1
-    if cross and str(read_settings(conn).get("playback.cross_recorder_sync", "false")) != "true":
+    if cross and str(setting_value(conn, "playback.cross_recorder_sync")) != "true":
         # CR-024 section 3: each recorder has its own clock, zone and drift, and no measurement of anchors / seek generations /
         # rendered time on two real recorders exists (AGENTS) - off unless an administrator turns the experimental setting on
         raise ApiError(409, "sync_cross_recorder_unproven", "ניגון מסונכרן אפשרי רק למצלמות של אותו NVR.", details={"recorders": recorders})
@@ -183,7 +184,7 @@ def report_sync(group_id: str, body: SyncReport, principal: Principal = Depends(
 @router.get("/playback/groups/{group_id}")
 def get_group(group_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     group = _owned(conn, principal, group_id)
-    return pg.to_dict(group, read_settings(conn)["playback.lease_s"])
+    return pg.to_dict(group, setting_value(conn, "playback.lease_s"))
 
 
 @router.post("/playback/groups/{group_id}/close")

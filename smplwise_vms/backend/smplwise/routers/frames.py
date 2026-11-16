@@ -29,7 +29,7 @@ from ..rbac import Principal
 from ..services import playback, recordings, thumbnails
 from ..services.access import require_camera
 from ..services.timeutil import UTC, iso_utc, parse_utc
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -260,7 +260,7 @@ def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_leng
         raise ApiError(404, "frame_unavailable", "אין הקלטה בזמן זה.")
     if not cam["main_track"]:
         raise ApiError(404, "frame_unavailable", "למצלמה אין מסלול הקלטה ידוע.")
-    tz_name = read_settings(conn)["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     from ..recorder_scope import camera_settings
 
     rs = camera_settings(settings, cam)  # CR-024: the camera's recorder

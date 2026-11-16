@@ -884,9 +884,9 @@ class DigestJob:
 
 
 def _tz(conn: Any) -> str:
-    from ..routers.settings import read_settings
+    from .settings_store import setting_value
 
-    return read_settings(conn)["time.zone"]
+    return setting_value(conn, "time.zone")
 
 
 # ---------------------------------------------------------------- a mail job (the first attempt and every retry)

@@ -58,7 +58,7 @@ from ..services.intercom_capture import CAPTURES, POLLED
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, raw_body as _raw_body
 from .media import _principal_for_ws
-from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom")
@@ -305,7 +305,7 @@ def camera_snapshot(
     username, password = wiskey_camera.credentials(conn, settings, station_id)
     source = g2.wiskey_rtsp_url(host, username, password)
     client = g2.Go2rtc(settings)
-    max_age = read_settings(conn)["snapshots.max_age_s"]
+    max_age = setting_value(conn, "snapshots.max_age_s")
     path = _still_path(settings, station_id)
     cached = _read_still(path)
     if cached is not None and time.time() - cached[1] < max_age:

@@ -36,6 +36,7 @@ from ..services.access import camera_decision, require_camera
 from ..services.leases import CameraLease
 from ..services.relay import relay_ws
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 log = logging.getLogger("smplwise.media")
 router = APIRouter()
@@ -322,7 +323,7 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
             {"id": s.id, "camera_id": s.camera_id, "stream": s.stream, "username": s.username, "seconds": int(now - s.started_at), "bytes_down": s.bytes_down}
             for s in REGISTRY.sessions.values()
         ],
-        "max_live_sessions": read_settings(conn)["media.max_live_sessions"],
+        "max_live_sessions": setting_value(conn, "media.max_live_sessions"),
     }
 
 

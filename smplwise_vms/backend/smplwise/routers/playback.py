@@ -34,6 +34,7 @@ from ..services.timeutil import UTC, iso_utc, parse_utc
 from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 log = logging.getLogger("smplwise.playback")
 router = APIRouter()
@@ -109,7 +110,7 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
 @router.get("/playback/sessions/{session_id}")
 def get_session(session_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     session = _owned(conn, principal, session_id)
-    return pb.to_dict(session, read_settings(conn)["playback.lease_s"])
+    return pb.to_dict(session, setting_value(conn, "playback.lease_s"))
 
 
 @router.post("/playback/sessions/{session_id}/seek")

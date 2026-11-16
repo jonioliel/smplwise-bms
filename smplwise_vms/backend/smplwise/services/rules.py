@@ -145,9 +145,9 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
     """Run every enabled local rule against a freshly stored event; write the alerts. Never raises into ingestion.
     deliver=False leaves the HA notifications for deliver_pending() after the caller's commit."""
     if tz_name is None:
-        from ..routers.settings import read_settings  # local import: settings live in the routers package
+        from .settings_store import setting_value  # local import: the store imports many services
 
-        tz_name = read_settings(conn)["time.zone"]
+        tz_name = setting_value(conn, "time.zone")
     fired: list[dict[str, Any]] = []
     for r in conn.execute("SELECT * FROM rules WHERE enabled = 1 AND owner = 'local' ORDER BY created_at").fetchall():
         rule = row_to_rule(r)

@@ -49,11 +49,11 @@ def _remote_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
     streams running under remote sign-ins and the per-sign-in cap (no ids, no addresses)."""
     from ..services import ha_user_auth
     from .media import remote_live_by_chain
-    from .settings import read_settings
+    from ..services.settings_store import setting_value
 
     live = remote_live_by_chain()
     return {"enabled": bool(settings.remote_access), **ha_user_auth.STORE.stats(), "live_streams": sum(live.values()),
-            "max_live_streams_per_sign_in": read_settings(conn)["remote.max_live_streams"]}
+            "max_live_streams_per_sign_in": setting_value(conn, "remote.max_live_streams")}
 
 
 def _recorders_view(settings: Any) -> list[dict[str, Any]]:

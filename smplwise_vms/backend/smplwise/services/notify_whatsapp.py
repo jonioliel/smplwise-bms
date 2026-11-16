@@ -717,11 +717,11 @@ def still_wanted(conn: sqlite3.Connection, job: Job) -> str | None:
         rec = conn.execute("SELECT snoozed_until FROM notification_recipients WHERE notification_id = ? AND user_id = ?", (job.nid, job.user_id)).fetchone()
         if rec is not None and rec["snoozed_until"] and rec["snoozed_until"] > iso_utc(notify.now_utc()):
             return "snoozed"
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
         from . import notify_settings as nsettings
 
         st = nsettings.load(conn)
-        if nsettings.in_quiet_hours(st["quiet"], notify.now_utc(), read_settings(conn)["time.zone"]) \
+        if nsettings.in_quiet_hours(st["quiet"], notify.now_utc(), setting_value(conn, "time.zone")) \
                 and not st["pass_through"].get(n["severity"], {}).get(CHANNEL):
             return "quiet_hours"
         from . import quiet_windows  # CR-QUIET103: a window that began while the job waited (never for critical / safety, see its rule)

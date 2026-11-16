@@ -26,6 +26,7 @@ from ..services.access import RowScope, camera_allowed, require_camera, row_scop
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 TYPES = ("motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other")
@@ -802,7 +803,7 @@ def get_event(event_id: str, request: Request, principal: Principal = Depends(cu
     _with_thumbs(settings_of(request), [ev], queue_first=1)
     _with_names(conn, [ev])
     ev["location"] = _location(conn, ev["camera_id"]) if ev["camera_id"] else None
-    ev["timezone"] = read_settings(conn)["time.zone"]
+    ev["timezone"] = setting_value(conn, "time.zone")
     return ev
 
 

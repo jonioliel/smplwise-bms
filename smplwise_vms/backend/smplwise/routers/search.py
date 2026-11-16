@@ -17,6 +17,7 @@ from ..services import ha_scope
 from ..services import semantic
 from ..services.access import camera_scope, visible_camera_ids
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ def search_allowed(conn: sqlite3.Connection, principal: Principal) -> bool:
     """TOPPILL-295: may this caller use the global search at all? `ui.global_search` is off by default. When on, a system
     administrator (system.configure) passes; `admins` stops there, `all` admits every signed-in user, `roles` admits the holders
     of a listed role (a binding of the user or of one of their groups; a deny binding never admits)."""
-    mode = read_settings(conn)["ui.global_search"]
+    mode = setting_value(conn, "ui.global_search")
     if mode not in ("admins", "roles", "all"):
         return False
     if authorize(conn, principal, "system.configure", INSTALLATION).allowed:
@@ -44,7 +45,7 @@ def search_allowed(conn: sqlite3.Connection, principal: Principal) -> bool:
         return True
     if mode == "admins":
         return False
-    listed = {r.strip() for r in str(read_settings(conn)["ui.global_search_roles"] or "").split(",") if r.strip()}
+    listed = {r.strip() for r in str(setting_value(conn, "ui.global_search_roles") or "").split(",") if r.strip()}
     return any(b["role_id"] in listed for b in bindings_of(conn, principal) if b.get("effect") != "deny")
 
 

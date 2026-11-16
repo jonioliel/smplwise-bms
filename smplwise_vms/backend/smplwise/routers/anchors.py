@@ -21,6 +21,7 @@ from .catalog import building_row, floor_row, get_building, get_floor, get_site,
 from ..services.timeutil import parse_utc
 from .plans import needs_alignment, version_at, version_row
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -239,12 +240,12 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
     if entity_ids:
         can_control = authorize(conn, principal, "ha.entity.control", ("floor", floor_id)).allowed
         states_at = ha_history.state_at(conn, entity_ids, at_iso) if at_iso else {}
-        if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
+        if at_iso and str(setting_value(conn, "history.ha_secondary")) == "true":
             # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
             missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
             if missing:
                 states_at.update(ha_history.recorder_state_at(missing, at_iso))
-        if at_iso and str(read_settings(conn).get("history.ha_secondary", "false")) == "true":
+        if at_iso and str(setting_value(conn, "history.ha_secondary")) == "true":
             # S2: the Home Assistant recorder fills what the local history does not know (marked as a secondary source)
             missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
             if missing:

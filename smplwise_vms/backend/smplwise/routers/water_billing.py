@@ -126,9 +126,9 @@ _bills = _gate(BILLS)
 
 
 def _tz(conn: sqlite3.Connection) -> str:
-    from .settings import read_settings
+    from ..services.settings_store import setting_value
 
-    return read_settings(conn)["time.zone"]
+    return setting_value(conn, "time.zone")
 
 
 def _today(tz: str) -> dt.date:

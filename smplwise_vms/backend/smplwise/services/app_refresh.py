@@ -692,9 +692,9 @@ def _until_text(conn: sqlite3.Connection, ts: float) -> str:
 
     tz = "Asia/Jerusalem"
     try:
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
 
-        tz = read_settings(conn).get("time.zone") or tz
+        tz = setting_value(conn, "time.zone") or tz
     except Exception:  # noqa: BLE001 - the notice still goes out, in the default zone
         pass
     return _dt.datetime.fromtimestamp(ts, zone(tz)).strftime("%d/%m/%Y %H:%M")

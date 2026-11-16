@@ -44,6 +44,7 @@ from ..services.events_ingest import row_to_event
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .events import _with_names, _with_thumbs
 from .settings import read_settings
+from ..services.settings_store import setting_value
 
 router = APIRouter()
 
@@ -180,7 +181,7 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
 def _items(settings: Settings, conn: sqlite3.Connection, case_id: str, scope: set[str] | None, check: bool) -> tuple[list[dict[str, Any]], int]:
     rows = conn.execute("SELECT * FROM case_items WHERE case_id = ? ORDER BY created_at, sort_order", (case_id,)).fetchall()
     cams = {r["id"]: r for r in conn.execute("SELECT * FROM cameras").fetchall()}
-    tz_name = read_settings(conn)["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     ev_ids = [r["event_id"] for r in rows if r["event_id"]]
     events: dict[str, dict[str, Any]] = {}
     if ev_ids:
@@ -294,7 +295,7 @@ def list_bookmarks(
         day = dt.date.fromisoformat(date)
     except ValueError:
         raise ApiError(422, "validation", "תאריך לא תקין.") from None
-    tz_name = read_settings(conn)["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     start, end = local_day_bounds(day, zone(tz_name))
     rows = conn.execute(
         "SELECT ci.*, c.title AS case_title, c.status AS case_status FROM case_items ci JOIN cases c ON c.id = ci.case_id "
@@ -499,7 +500,7 @@ def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, princip
             raise conflict("case_closed", "התיק סגור; פתח אותו מחדש כדי להוסיף פריטים.")
         cid, created = case["id"], False
     else:
-        local = parse_utc(ev["occurred_at"]).astimezone(zone(read_settings(conn)["time.zone"])).strftime("%d.%m %H:%M")
+        local = parse_utc(ev["occurred_at"]).astimezone(zone(setting_value(conn, "time.zone"))).strftime("%d.%m %H:%M")
         title = (body.title or "").strip() or f"מסלול מוצע · {ev.get('camera_name') or 'אירוע'} · {local}"
         cid, created = new_id(), True
         conn.execute(
@@ -682,7 +683,7 @@ def create_bundle(case_id: str, request: Request, principal: Principal = Depends
     r = _get(conn, case_id)
     items, hidden = _items(settings, conn, case_id, scope, False)
     case = case_row(r, _counts(conn, [case_id])[case_id])
-    tz_name = read_settings(conn)["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     iid = bundle_svc.installation_id(conn, create=True)  # names the producer in the manifest (T050 import)
     with unlocked(conn):
         desc = bundle_svc.build(settings, conn, case, items, principal, tz_name, installation=iid)
@@ -738,7 +739,7 @@ def _bundle_importer(principal: Principal = Depends(current_principal_ro), conn:
 
 
 def _upload_cap(conn: sqlite3.Connection) -> int:
-    return int(read_settings(conn)["cases.import_max_mb"]) * MB
+    return int(setting_value(conn, "cases.import_max_mb")) * MB
 
 
 def _limits(cap: int) -> bundle_svc.Limits:
@@ -759,7 +760,7 @@ def _busy() -> ApiError:
 
 
 def _min_free(conn: sqlite3.Connection) -> int:
-    return int(read_settings(conn)["storage.min_free_mb"]) * MB
+    return int(setting_value(conn, "storage.min_free_mb")) * MB
 
 
 def _no_space(free: int, need: int, min_free: int) -> ApiError:
