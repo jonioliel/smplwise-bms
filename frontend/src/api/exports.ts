@@ -1,5 +1,6 @@
 /** Export jobs (chapter 27): estimate → durable job → progress → scoped download. */
 import { apiUrl, del, get, post } from './client';
+import { formatByteSize } from '../format/bytes';
 
 export interface ExportFile {
   name: string;
@@ -62,9 +63,8 @@ export const deleteExport = (id: string) => del(`exports/${id}`);
 export const exportDownloadUrl = (id: string) => apiUrl(`exports/${id}/download`);
 export const exportManifestUrl = (id: string) => apiUrl(`exports/${id}/manifest`);
 
+/** "313 KB" / "12.4 MB" / "1.25 GB"; an em dash when the size is not known. CR-FORMAT-2440: the arithmetic is format/bytes.ts. */
 export function formatBytes(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  return formatByteSize(n, { gb: true });
 }

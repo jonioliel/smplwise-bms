@@ -5,6 +5,8 @@
  */
 import type { Grant, GrantState } from '../api/access-grants';
 import { dateInZone, instantInZone, minuteInZone } from '../api/recordings';
+import { addDays, daysInclusive } from '../format/day-key';
+import { hhmm } from '../format/pad';
 
 export type UiState = 'draft' | 'pending' | 'pushing' | 'verified' | 'accepted' | 'sync' | 'unknown' | 'revoking' | 'revoked' | 'revoked_unverified' | 'ended' | 'refused' | 'failed' | 'gone';
 export type Bucket = 'attention' | 'waiting' | 'moving' | 'active' | 'history';
@@ -208,18 +210,14 @@ export function hoursText(g: Pick<Grant, 'timing' | 'valid_from' | 'valid_until'
   if (periods.length) return periods.map((p) => `${p.start}-${p.end}`).join(', ');
   const hm = (iso: string) => {
     const m = Math.round(minuteInZone(new Date(iso), tz));
-    return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    return hhmm(Math.floor(m / 60) % 24, m % 60);
   };
   return `${hm(g.valid_from)}-${hm(g.valid_until)}`;
 }
 
-function addDays(date: string, n: number): string {
-  const t = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))) + n * 86400_000;
-  return new Date(t).toISOString().slice(0, 10);
-}
-
+/** Inclusive number of calendar days. CR-FORMAT-2440: the day arithmetic of this file is format/day-key.ts. */
 export function daysBetween(from: string, until: string): number {
-  return Math.round((Date.UTC(+until.slice(0, 4), +until.slice(5, 7) - 1, +until.slice(8, 10)) - Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10))) / 86400_000) + 1;
+  return daysInclusive(from, until);
 }
 
 export type WindowError = 'before' | 'too_long' | 'outside' | null;

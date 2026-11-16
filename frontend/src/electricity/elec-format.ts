@@ -1,4 +1,6 @@
 /** CR-023: number, money and date formatting shared by the electricity screens and the mock store (pure, no DOM). Dates travel as ISO `YYYY-MM-DD`; money as text decimals. */
+import { addDays, daysInclusive } from '../format/day-key';
+import { dayKey } from '../format/pad';
 
 export const r2 = (x: number): number => Math.round(x * 100 + 1e-9) / 100;
 const nf = (min: number, max: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: min, maximumFractionDigits: max });
@@ -48,12 +50,8 @@ export const monthName = (iso: string): string => `${MONTHS_FULL[Number(iso.slic
 export const monthShort = (iso: string): string => `${MONTHS_SHORT[Number(iso.slice(5, 7)) - 1]} ${iso.slice(2, 4)}`;
 export const MONTH_NAMES = MONTHS_FULL;
 
-const DAY = 86_400_000;
-const toUtc = (iso: string): number => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
-const fromUtc = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-export const addDays = (iso: string, n: number): string => fromUtc(toUtc(iso) + n * DAY);
-/** inclusive day count of from..to */
-export const daysInclusive = (from: string, to: string): number => Math.round((toUtc(to) - toUtc(from)) / DAY) + 1;
+// CR-FORMAT-2440: the day arithmetic is format/day-key.ts; re-exported under the names this module always had
+export { addDays, daysInclusive };
 export const daysInMonth = (y: number, m: number): number => new Date(Date.UTC(y, m, 0)).getUTCDate();
 export const isIsoDate = (s: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
 export const cmpDate = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -72,11 +70,11 @@ export function periodContaining(on: string, months: 1 | 2, anchorDay: number, a
   }
   const sy = Math.floor(idx / 12);
   const sm = (idx % 12) + 1;
-  const from = `${sy}-${String(sm).padStart(2, '0')}-${String(anchorDay).padStart(2, '0')}`;
+  const from = dayKey(sy, sm, anchorDay);
   const nextIdx = idx + months;
   const ny = Math.floor(nextIdx / 12);
   const nm = (nextIdx % 12) + 1;
-  const nextStart = `${ny}-${String(nm).padStart(2, '0')}-${String(anchorDay).padStart(2, '0')}`;
+  const nextStart = dayKey(ny, nm, anchorDay);
   return { from, to: addDays(nextStart, -1) };
 }
 

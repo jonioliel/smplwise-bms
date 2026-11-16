@@ -8,6 +8,8 @@ import type {
   ClaimStatus, CostClaim, CostMode, CostStatus, LineInput, LineKind, ReportGroupRow, ReportTotal, StoredLine, TicketCostBlock, VatMode,
 } from '../api/tickets-costs';
 import { ct, type CostTextKey } from './cost-text';
+import { formatByteSize } from '../format/bytes';
+import { dayKey } from '../format/pad';
 
 // ---------------------------------------------------------------- minor units <-> decimal strings (string arithmetic, no float)
 
@@ -90,15 +92,12 @@ export function formatMoney(minor: number | null | undefined, currency: string |
 
 /** A byte size for a file row ('312 KB', '1.4 MB'). */
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return formatByteSize(bytes, { showBytes: true }); // CR-FORMAT-2440: the arithmetic is format/bytes.ts
 }
 
 /** A local date (YYYY-MM-DD) of today, for a date input's default and max. */
 export function todayIso(now: Date = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  return dayKey(now.getFullYear(), now.getMonth() + 1, now.getDate());
 }
 
 export type Tone = '' | 'info' | 'warn' | 'ok' | 'bad';
