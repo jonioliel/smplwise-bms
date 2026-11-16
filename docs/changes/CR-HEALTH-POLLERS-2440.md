@@ -60,4 +60,18 @@ Outside my rows: none.
 
 ## Tests actually run
 
-See the end of this file (filled after the run).
+Workstation, Python 3.12 (`.venv`), `pytest -p no:xdist`, one process, on the final code of this branch:
+
+- `tests/test_health_pollers_2440.py` (new: the worker starts once, stops in time, survives a raising tick; the TTL
+  cache; the reused recorder reading), `test_health_report.py`, `test_recorder_health.py`,
+  `test_recorder_health_nn6.py`, `test_camera_sources_2410.py`, `test_camhealth091_295.py`,
+  `test_health_go2rtc_2430.py`, `test_health_summary.py`, `test_health_process_stats.py`, `test_security_lows.py`,
+  `test_recorded_days.py`, `test_recordings.py`, `test_zones_nvr.py`, `test_capabilities.py`,
+  `test_emergency_readiness_295.py`: **237 passed, 0 failed** (exit 0).
+- An earlier run of the same files failed one test (`test_recorded_days.py::test_cache_ttl_is_short_for_the_current_month`:
+  the test patches `recorded_days.time`, which the first version of this change no longer imported). Fixed, then the
+  run above.
+- `ruff check` (rule set F) on the touched files: no new finding (four findings that were there before remain in
+  `routers/cameras.py`, `routers/recorders.py`, `services/emergency/engine.py`).
+
+NOT_RUN: the full backend suite, the frontend, pixels, the runner entry check (the lead combines the batch).
