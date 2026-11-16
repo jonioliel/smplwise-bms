@@ -1027,14 +1027,19 @@ def test_review_m4_a_shared_room_is_not_deleted_or_replaced_under_the_share(sett
     assert r.status_code == 201 and w["hall"] in {z["id"] for z in r.json()["zones"]}
 
 
-def test_history_and_camera_only_readers(settings):
+def test_history_and_camera_only_readers(settings, monkeypatch):
     w = _world(settings)
     c = w["c"]
     before = now_iso()
-    import time
+    # the share's stamp has one-second resolution: it is moved five seconds ahead of `before` instead of sleeping past it (05:P2-18)
+    import datetime as dt
 
-    time.sleep(1.1)
-    _share(w)
+    from smplwise.routers import zones as zones_router
+
+    later = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=5)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    with monkeypatch.context() as m:
+        m.setattr(zones_router, "now_iso", lambda: later)
+        _share(w)
     m = c.get(f"/api/v1/floors/{w['f3']}/map?at={before}").json()
     assert not any(a.get("shared") for a in m["anchors"])
     c.get("/api/v1/me", headers=as_user("cam"))
