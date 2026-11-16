@@ -12,7 +12,7 @@ import '../components/media-now-hero';
 import './multimedia-edit-panel';
 import '../components/sw-pager';
 import '../components/sw-page';
-import { PageFit } from './multimedia-page-fit';
+import { PageFit } from '../components/page-fit';
 import { SkinController } from '../design/skin';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import { ApiError, describeError } from '../api/client';
@@ -102,7 +102,7 @@ export class MultimediaPlayers extends LitElement {
   private homeFloorsLoaded = false;
   /** Bubble phase C: the skin in force (the now-playing hero above the groups, the cards as pill rows). */
   private skin = new SkinController(this);
-  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
+  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (components/page-fit.ts) */
   private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
 
   static styles = [mediaGlassStyles, mediaPageStyles, css`

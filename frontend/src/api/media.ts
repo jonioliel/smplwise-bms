@@ -152,6 +152,9 @@ export interface ProductSettings {
   'ui.design_names'?: string;
   /** Owner 2026-09-29: the summary tiles' shape (Live overview, devices screens) - api/tile-layout.ts. */
   'ui.tile_layout'?: 'auto' | 'cards' | 'compact';
+  /** POLISH-CONTROL-297 / PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists of the control screens - `paged` (the default) or
+   * `scroll` (every item drawn, the list's own panel scrolls; the page itself never does) - api/long-lists.ts. */
+  'ui.long_lists'?: 'paged' | 'scroll';
   /** Owner-set defaults (0.1.61): wall tile count, kiosk page layout, hidden AI search tab. */
   'ui.wall_count'?: number | string;
   'ui.kiosk_cols'?: number | string;

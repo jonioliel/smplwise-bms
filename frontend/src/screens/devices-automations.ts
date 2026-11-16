@@ -10,6 +10,7 @@ import '../components/sw-automation-card';
 import '../components/sw-automation-row';
 import '../components/sw-pager';
 import { AUTOMATIONS_VIEW_DEFAULT, PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measureFitItems, pageCount, pageSlice, type AutomationsView } from '../api/screen-display';
+import { LongListsController, perPageFor } from '../api/long-lists';
 import { pl } from '../i18n/polish';
 import './automation-drawer';
 import './scenes-panel';
@@ -131,6 +132,12 @@ export class DevicesAutomations extends LitElement {
   @state() private page = 1;
   /** NOSCROLL-295: the automations that fit the screen's height (null: not measured); the page size setting stays the maximum. */
   @state() private fitRows: number | null = null;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the installation's long-lists setting - pages (the default) or every item drawn, the
+   * screen's own scroller scrolling (api/long-lists.ts). A change starts again at page 1 and measures the fit anew. */
+  private lists = new LongListsController(this, () => {
+    this.page = 1;
+    this.fitRows = null;
+  });
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
@@ -145,6 +152,25 @@ export class DevicesAutomations extends LitElement {
   private fieldsFor = '';
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* PAGING-SETTING-2439 (owner round 32, Q-SYS-4 a: the page itself never moves): with the long lists set to scroll (הגדרות › כללי) the
+       screen keeps its box on a desktop - the title, the chips, the toolbar and the banner stay - and only the list panel (.lwrap) scrolls */
+    @media (min-width: 1024px) {
+      :host([data-list-panel]) {
+        overflow: hidden;
+      }
+      :host([data-list-panel]) sw-page.page {
+        block-size: 100%;
+        min-block-size: 0;
+      }
+      :host([data-list-panel]) .lwrap {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+    }
     /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 bubble guard) */
     :host([data-skin='bubble']) sw-pager {
       --sw-ctl-h-md: var(--sw-touch-desktop);
@@ -461,6 +487,12 @@ export class DevicesAutomations extends LitElement {
     window.clearTimeout(this.pushTimer);
   }
 
+  /** PAGING-SETTING-2439: the list panel scrolls, not the screen (the lists scroll; the automations and scripts lists). */
+  protected willUpdate() {
+    const seg = this.scenView ? '' : this.segment();
+    this.toggleAttribute('data-list-panel', !this.lists.paged && (seg === 'automations' || seg === 'scripts') && !!this.items?.length);
+  }
+
   protected updated(c: PropertyValues) {
     measureHeaderBar(this.renderRoot, this.phone);
     this.measureFit();
@@ -477,6 +509,7 @@ export class DevicesAutomations extends LitElement {
   /** NOSCROLL-295 (the FIX2200 mechanism of the schedules list): the automations that fit between the top of the list and the bottom of
    * the screen, less the pager's band, in the rows and the cards views alike (a grid takes whole rows of cards). */
   private measureFit(): void {
+    if (!this.lists.paged) return; // PAGING-SETTING-2439: every item is drawn, nothing to fit
     const seg = this.scenView ? '' : this.segment();
     const scripts = seg === 'scripts' ? this.renderRoot.querySelector<HTMLElement & { updateComplete: Promise<unknown> }>('scripts-panel') : null;
     const list = seg === 'automations' ? this.renderRoot.querySelector<HTMLElement>('[data-auto-grid]') : null;
@@ -903,7 +936,7 @@ export class DevicesAutomations extends LitElement {
     } else if (seg === 'scripts') {
       // NOSCROLL-295: the scripts take no more than fit the screen's height (measureFit), the rest behind the pager (no page size setting:
       // until measured, all of them)
-      const per = fittedPageSize(Math.max(1, rows.length), this.fitRows);
+      const per = perPageFor(this.lists.paged, fittedPageSize(Math.max(1, rows.length), this.fitRows), rows.length); // PAGING-SETTING-2439
       const pages = pageCount(rows.length, per);
       const page = clampPage(this.page, rows.length, per);
       const shownScripts = pageSlice(rows, page, per);
@@ -914,7 +947,7 @@ export class DevicesAutomations extends LitElement {
       // POLISH-295: one page at a time (control screens never scroll); rows by default (the approved preview), cards by this browser's choice
       // NOSCROLL-295: no more than fit the screen's height (measureFit); the page size setting is the maximum
       const sizes = this.view === 'cards' ? this.perPage.cards : this.perPage.rows;
-      const per = fittedPageSize(this.phone ? sizes.phone : sizes.wide, this.fitRows);
+      const per = perPageFor(this.lists.paged, fittedPageSize(this.phone ? sizes.phone : sizes.wide, this.fitRows), rows.length); // PAGING-SETTING-2439
       const pages = pageCount(rows.length, per);
       const page = clampPage(this.page, rows.length, per);
       const shown = pageSlice(rows, page, per);

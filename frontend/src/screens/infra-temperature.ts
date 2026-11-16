@@ -22,6 +22,7 @@ import { registerScreenEdit } from '../shell/screen-edit';
 import { applyInfraTemperature } from '../shell/nav';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { LongListsController } from '../api/long-lists';
 
 const POLL_MS = 30_000;
 const LONG_PRESS_MS = 480;
@@ -76,6 +77,11 @@ export class InfraTemperature extends LitElement {
   @state() private per = 0;
   private desk = window.matchMedia('(min-width: 1101px)');
   private onDesk = () => this.refit();
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages, every card drawn in the screen's own box. */
+  private lists = new LongListsController(this, () => {
+    this.page = 1;
+    this.refit();
+  });
   private fitObserver?: ResizeObserver;
   private contentObserver?: ResizeObserver;
 
@@ -226,6 +232,17 @@ export class InfraTemperature extends LitElement {
       :host { gap: 12px; }
       .grid { gap: 14px; }
     }
+    /* PAGING-SETTING-2439: the long lists scroll (הגדרות › כללי) - the screen keeps its box, the counters and the floors stay, and the
+       unit cards scroll inside their own region (measured: layout-noscroll-1366 case temperature-many) */
+    @media (min-width: 1101px) {
+      :host([data-long-lists='scroll']) { block-size: 100%; min-block-size: 0; }
+      :host([data-long-lists='scroll']) sw-page { block-size: 100%; min-block-size: 0; }
+      :host([data-long-lists='scroll']) [data-temp-grid],
+      :host([data-long-lists='scroll']) [data-temp-groups] { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; }
+      /* a card clips its overflow, so its rows would shrink to the box instead of overflowing it: rows keep their content height */
+      :host([data-long-lists='scroll']) [data-temp-grid],
+      :host([data-long-lists='scroll']) [data-temp-groups] { grid-auto-rows: max-content; }
+    }
     @media (min-width: 1101px) and (max-height: 820px) {
       :host { padding-block: 10px 16px; }
       .kpi { padding: 8px 14px; gap: 12px; }
@@ -305,7 +322,7 @@ export class InfraTemperature extends LitElement {
   }
 
   private fitCheck() {
-    if (!this.desk.matches || this.isLog() || !this.data?.units.length) return;
+    if (!this.desk.matches || !this.lists.paged || this.isLog() || !this.data?.units.length) return;
     const grid = this.renderRoot.querySelector<HTMLElement>('[data-temp-grid]');
     if (!grid) return;
     const cols = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length);
@@ -427,7 +444,7 @@ export class InfraTemperature extends LitElement {
 
   private pagesOf(shown: TempUnit[]): number {
     const n = this.ordered(shown).length;
-    return this.desk.matches && this.per > 0 ? Math.max(1, Math.ceil(n / this.per)) : 1;
+    return this.desk.matches && this.lists.paged && this.per > 0 ? Math.max(1, Math.ceil(n / this.per)) : 1;
   }
 
   private pageNo(shown: TempUnit[]): number {

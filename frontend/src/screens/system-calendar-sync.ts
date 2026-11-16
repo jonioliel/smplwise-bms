@@ -14,6 +14,7 @@ import { PROVIDER_LABEL, colorVar, hm, pageOf, whenText } from '../calendars/mod
 import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
 import { tablistKeydown } from '../components/a11y-keys';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 const ORDER: ProviderCard[] = ['ical', 'google', 'microsoft'];
 const STAGE: Record<ProviderCard, string> = { ical: 'ראשון · ללא חשבון', google: 'שני', microsoft: 'שלישי' };
@@ -55,6 +56,8 @@ export function agoText(iso: string | null, now: Date): string {
 @customElement('system-calendar-sync')
 export class SystemCalendarSync extends LitElement {
   static styles = [calCss, leadReserveStyles, liftedReset, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .flags { max-block-size: 40vh; overflow-y: auto; overscroll-behavior: contain; }
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     .panel { flex: 1; }
     /* CALMSG-POLISH-2331: the title row sits above the panel like Settings › יומנים and every sw-page settings screen (crumb, the skin's h1) */
@@ -119,6 +122,9 @@ export class SystemCalendarSync extends LitElement {
   @state() private removing: Connection | null = null;
   @state() private newOpen = false;
   @state() private flagPage = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.flagPage = 1));
   @state() private toastText = '';
   @state() private compact = window.innerWidth < 1180 || window.innerHeight < 820;
   @state() private phone = window.innerWidth < 700;
@@ -274,7 +280,7 @@ export class SystemCalendarSync extends LitElement {
   private flagsBlock(now: Date) {
     if (!this.flags.length) return html`<h3 data-flags-empty>סומנו להחלטה <span class="chip ok">אין</span></h3>`;
     const per = this.phone ? 2 : this.compact ? 2 : 3;
-    const p = pageOf(this.flags, this.flagPage, per);
+    const p = pageOf(this.flags, this.flagPage, perPageFor(this.lists.paged, per, this.flags.length));
     return html`<h3>סומנו להחלטה <span class="count num" data-flags-count>${this.flags.length}</span></h3>
       <div class="flags">${p.items.map((f) => html`<div class="flag" data-flag=${f.event_id}><span class="warnico"><sw-icon name="warning" size="16"></sw-icon></span>
         <div class="grow"><div class="name ell" title=${f.title ?? ''}>${f.flag === 'deleted_external' ? `"${f.title ?? 'אירוע'}" נמחק ביומן החיצוני` : f.title ?? 'התנגשות'}${f.flag === 'conflict' ? html` <span class="num ltr">${hm(f.start)}–${hm(f.end)}</span>` : nothing}</div>

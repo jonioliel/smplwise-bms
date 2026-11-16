@@ -7,6 +7,7 @@ import type { CalRequest, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
 import { addDays, colorVar, ddmm, DAY_SHORT, hm, pageOf, queueOrder, rowsThatFit, startOfDay, whenText } from './model';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 /** One decision the viewer made in this session (the "הוחלטו לאחרונה" segment). */
 interface Decided { r: CalRequest; decision: 'approve' | 'reject'; at: Date; displaced: boolean }
@@ -27,6 +28,8 @@ interface Lane { id: string; title: string; who: string; start: string; end: str
 @customElement('cal-view-approvals')
 export class CalViewApprovals extends LitElement {
   static styles = [calCss, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .list { overflow-y: auto !important; overscroll-behavior: contain; }
     :host { display: flex; gap: 14px; min-block-size: 0; min-inline-size: 0; position: relative; }
     .main { flex: 1; }
     .list { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
@@ -91,6 +94,9 @@ export class CalViewApprovals extends LitElement {
   @state() private error = '';
   @state() private seg: 'pending' | 'decided' = 'pending';
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private selId = '';
   @state() private choice: 'approve' | 'keep' = 'approve';
   @state() private pick = '';
@@ -295,7 +301,7 @@ export class CalViewApprovals extends LitElement {
       return html`<div class="reqs-empty" data-cal-state="empty"><sw-state-panel icon="calendar" state="empty" heading="אין בקשות שממתינות לך"
         hint="כשמישהו יבקש חדר ביומן שבאחריותך, הבקשה תופיע כאן ותקבל התראה."></sw-state-panel></div>`;
     }
-    const pg = pageOf(list, this.page, this.perPage());
+    const pg = pageOf(list, this.page, perPageFor(this.lists.paged, this.perPage(), list.length));
     return html`<div class="list" data-req-list>${pg.items.map((q) => this.card(q))}</div>${this.pager(pg.page, pg.pages)}`;
   }
 
@@ -342,7 +348,7 @@ export class CalViewApprovals extends LitElement {
     if (!this.decided.length) {
       return html`<div class="reqs-empty" data-cal-state="decided-empty"><sw-state-panel icon="check" state="empty" heading="עוד לא הוחלט דבר מאז שנפתח המסך" hint="החלטות שתקבל כאן יופיעו ברשימה הזאת."></sw-state-panel></div>`;
     }
-    const pg = pageOf(this.decided, this.page, this.perPage() + 2);
+    const pg = pageOf(this.decided, this.page, perPageFor(this.lists.paged, this.perPage() + 2, this.decided.length));
     return html`<div class="list">${pg.items.map((d) => html`<div class="row" data-decided=${d.r.event_id}>
       <span class="dot" style=${`--h:${colorVar(d.r.calendar.color)}`}></span>
       <div class="grow"><div class="name ell">${d.r.title ?? 'בקשה'}</div><div class="sub ell">${d.r.calendar.name} · ${whenText(d.r.start, d.r.end, this.ctx?.now ?? new Date())}</div></div>
@@ -351,6 +357,7 @@ export class CalViewApprovals extends LitElement {
   }
 
   private pager(page: number, pages: number) {
+    if (!this.lists.paged) return nothing; // PAGING-SETTING-2439: the list scrolls, no pager
     return html`<div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
       <span class="num" data-page>${page} / ${pages}</span>
       <button type="button" class="btn" aria-label="הבא" ?disabled=${page >= pages} @click=${() => (this.page = page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>`;

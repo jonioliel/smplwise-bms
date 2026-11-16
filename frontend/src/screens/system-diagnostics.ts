@@ -39,6 +39,8 @@ import { TabsModeController, settingsNavOf } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, regenHint, regenMessage, type BridgePairing, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
+import { LONG_LISTS, LONG_LISTS_DEFAULT, type LongLists } from '../api/screen-display';
+import { isLongLists, setLongListsMode } from '../api/long-lists';
 import { bpt } from '../i18n/backup-password';
 import { obr, obrApiError } from '../i18n/backup-offbox-restore';
 import { localSafetyOn, safetyBody, scopeFromSetting } from '../api/backup-offbox';
@@ -1042,7 +1044,10 @@ export class SystemDiagnostics extends LitElement {
 
   private renderDesign() {
     if (!isApi()) return nothing;
-    const dirty = 'ui.tile_layout' in this.draft;
+    const dirty = 'ui.tile_layout' in this.draft || 'ui.long_lists' in this.draft;
+    // PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists of every control screen - pages (the default) or a list that scrolls
+    // inside its own panel (the page itself never scrolls, Q-SYS-4)
+    const longLists = isLongLists(this.value('ui.long_lists')) ? (this.value('ui.long_lists') as LongLists) : LONG_LISTS_DEFAULT;
     // owner 2026-09-29: the summary tiles' shape (Live overview, devices screens) - installation default + this browser
     const tileSetting = (this.value('ui.tile_layout') as TileLayoutSetting | undefined) ?? 'auto';
     const tileOverride = tileLayoutOverride();
@@ -1051,6 +1056,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<sw-card heading="עיצוב הממשק">
       <div class="row" data-tile-layout-row><span class="lbl">פריסת אריחים<span class="muted">אריחי הסיכום בתמונת המצב ובחשמל והתקנים: כרטיסים גבוהים, או קומפקטיים - מלבן עם הסמל לצד הערך. אוטומטי: קומפקטי בטלפון, כרטיסים במסך רחב. חל על כל המשתמשים אחרי שמירה; דפדפן שכבר פתוח מקבל את השינוי בטעינה הבאה של הדף</span></span><span class="ctl" style="display:flex;flex-direction:column;align-items:stretch;gap:4px"><sw-field><select data-set-tile-layout ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.tile_layout', (e.target as HTMLSelectElement).value as TileLayoutSetting)}>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileSetting === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field>${tileOverride ? html`<span class="muted" data-tile-override-note>עקיפה מקומית פעילה בדפדפן הזה: ${TILE_LAYOUT_LABEL[tileOverride]} · <sw-button size="sm" variant="ghost" data-tile-override-clear @click=${() => { setTileLayoutOverride(null); this.requestUpdate(); }}>בטל עקיפה</sw-button></span>` : nothing}</span></div>
       <div class="row"><span class="lbl">פריסת אריחים בדפדפן הזה<span class="muted">עקיפה אישית שנשמרת במכשיר; לא משנה את ברירת המחדל</span></span><sw-field class="ctl"><select data-set-tile-override @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; setTileLayoutOverride((TILE_LAYOUTS as readonly string[]).includes(v) ? (v as TileLayoutSetting) : null); this.requestUpdate(); }}><option value="" ?selected=${!tileOverride}>לפי ברירת המחדל</option>${TILE_LAYOUTS.map((v) => html`<option value=${v} ?selected=${tileOverride === v}>${TILE_LAYOUT_LABEL[v]}</option>`)}</select></sw-field></div>
+      <div class="row" data-long-lists-row><span class="lbl">${t('longLists.label')}<span class="muted">${t('longLists.hint')}</span></span><sw-field class="ctl"><select data-set-long-lists ?disabled=${!this.canEdit} @change=${(e: Event) => this.set('ui.long_lists', isLongLists((e.target as HTMLSelectElement).value) ? ((e.target as HTMLSelectElement).value as LongLists) : LONG_LISTS_DEFAULT)}>${LONG_LISTS.map((v) => html`<option value=${v} ?selected=${longLists === v}>${t(`longLists.${v}`)}</option>`)}</select></sw-field></div>
       <div class="tile-preview" data-tile-preview=${previewLayout} aria-label=${`תצוגה מקדימה: ${previewLayout === 'compact' ? 'קומפקטי' : 'כרטיסים'}`}>
         <sw-kpi icon="bolt" value="0/33" label="מתגים פעילים" tone="neutral" layout=${previewLayout}></sw-kpi>
         <sw-kpi icon="lock" value="8/8" label="מנעולים נעולים" detail="הכול נעול" tone="live" layout=${previewLayout}></sw-kpi>
@@ -1062,6 +1068,7 @@ export class SystemDiagnostics extends LitElement {
   private async saveDesign() {
     await this.save();
     if (this.settings) setInstallationTileLayout(this.settings['ui.tile_layout']); // open screens follow at once
+    if (this.settings) setLongListsMode(this.settings['ui.long_lists']); // PAGING-SETTING-2439: the open control screens follow at once
   }
 
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */

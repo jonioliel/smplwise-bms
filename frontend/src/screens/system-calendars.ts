@@ -15,6 +15,7 @@ import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
 import { calCss } from '../calendars/styles';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', 'חפיפת תחזוקה', 'חפיפה'], ['behavior', 'התנהגות', 'התנהגות'], ['approval', 'אישור לכל יומן', 'אישור'], ['perm', 'הרשאות', 'הרשאות'], ['retention', 'פרטי אורחים', 'אורחים']];
@@ -101,6 +102,8 @@ const OVERLAP_HINT: Record<OverlapMode, string> = {
 @customElement('system-calendars')
 export class SystemCalendars extends LitElement {
   static styles = [calCss, liftedReset, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .fitbox { overflow-y: auto !important; overscroll-behavior: contain; }
     /* AUDIT30-F4 (#18, owner Q11 option A assumed): one settings structure - the shared page (crumb, title, the module switch at the row's
        end), underline tabs, the tab's content in one card. The card fills the page and pages its rows (no page scroll, owner rule 2026-10-24). */
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; overflow: hidden; }
@@ -210,6 +213,9 @@ export class SystemCalendars extends LitElement {
   @state() private error = '';
   @state() private saveError = '';
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private per = 6;
   @state() private draftRetention: number | null = null;
   @state() private confirm: 'retention' | 'purge' | null = null;
@@ -504,7 +510,7 @@ export class SystemCalendars extends LitElement {
   private behaviorTab() {
     const attendees = this.group === 'attendees';
     const rows: unknown[] = attendees ? this.attendeeRows() : (this.group === 'all' ? BEHAVIOR_ROWS : BEHAVIOR_ROWS.filter((r) => r.group === this.group)).map((r) => this.settingRow(r));
-    const p = pageOf(rows, this.page, this.per);
+    const p = pageOf(rows, this.page, perPageFor(this.lists.paged, this.per, rows.length));
     const changed = (g: BehaviorGroup | 'all') => BEHAVIOR_ROWS.filter((r) => (g === 'all' || r.group === g) && !r.static && this.s?.[r.key as keyof CalSettings] !== CAL_DEFAULTS[r.key as keyof CalSettings]).length;
     const pick = (g: BehaviorGroup | 'all') => {
       if (g === this.group) return;
@@ -564,7 +570,7 @@ export class SystemCalendars extends LitElement {
 
   private approvalTab() {
     const list = this.cals.filter((c) => c.type === 'room' || c.type === 'team' || c.type === 'event');
-    const p = pageOf(list, this.page, this.per);
+    const p = pageOf(list, this.page, perPageFor(this.lists.paged, this.per, list.length));
     const scope = (this.s as CalSettings).override_scope;
     const inst = (this.s as CalSettings).maintenance_overlap;
     const modes = (['first_holds', 'override_notify', 'block', 'ask'] as OverlapMode[]).filter((m) => scope === 'both' || STRICTNESS[m] >= STRICTNESS[inst]);
@@ -612,7 +618,7 @@ export class SystemCalendars extends LitElement {
       ['יומנים: חלונות תחזוקה', 'מנהל אתר, מנהל מערכת', true], ['יומנים: פרטי אורחים (שם וטלפון)', 'מנהל מערכת, ומנהל היומן ביומן שלו', true],
       ['יומנים: חיבור יומנים חיצוניים', 'מנהל מערכת, ומי שהבעלים מעניק לו', true], ['יומנים: הגדרות', 'מנהל מערכת', true],
     ];
-    const p = pageOf(this.cals, this.page, this.per);
+    const p = pageOf(this.cals, this.page, perPageFor(this.lists.paged, this.per, this.cals.length));
     return html`<h2>הרשאות</h2><p class="lead">לכל יומן תפקידים משלו. התפקיד ביומן לא נותן יותר מההרשאות של המשתמש במערכת.</p>
       <div class="rolechips">${(['view', 'book', 'edit', 'manage'] as const).map((r) => html`<div class="row"><b class="name">${ROLE_LABEL[r]}</b><span class="sub">${ROLE_HINT[r]}</span></div>`)}</div>
       <div class="twocol" style="flex:1;min-block-size:0">

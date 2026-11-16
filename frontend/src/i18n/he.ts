@@ -1077,6 +1077,13 @@ export const he = {
     light: 'תמיד בהיר',
     dark: 'תמיד כהה',
   },
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists of the control screens (הגדרות › כללי › עיצוב הממשק, `ui.long_lists`). */
+  longLists: {
+    label: 'רשימות ארוכות במסכי השליטה',
+    hint: 'עמודים (ברירת המחדל): רשימה ארוכה מתחלקת לעמודים עם מעבר ‹ 2 / 5 ›, והמסך עצמו אף פעם לא נגלל. גלילה: כל הפריטים מוצגים והרשימה נגללת בתוך המסגרת שלה. חל על כל המשתמשים אחרי שמירה.',
+    paged: 'עמודים',
+    scroll: 'גלילה בתוך הרשימה',
+  },
   /** 2.4.4: the CR-021 self-update switch (הגדרות › עדכונים, `update.apply_enabled`). */
   selfUpdate: {
     heading: 'עדכון מתוך Arx',

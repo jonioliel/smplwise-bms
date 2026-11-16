@@ -10,6 +10,7 @@ import './tickets-handlers'; // CR-DEPT-MANAGER-HANDLERS: the board's "מטפל�
 import '../components/sw-pager';
 import '../components/sw-page';
 import { PAGED_MQ, gridCols, packPages, rowGap, type PackGroup, type PackSection, type PageSection } from './tickets-pages';
+import { LongListsController } from '../api/long-lists';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -106,6 +107,11 @@ export class TicketsBoard extends LitElement {
     this.maxH = { row: 0, head: 0, sub: 0, cr: 0 };
     this.cardH.clear();
   };
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages; the cards scroll inside their own region (.scr). */
+  private lists = new LongListsController(this, () => {
+    this.cardPage = 1;
+    this.onPaged();
+  });
   /** the tallest card / header / handler line / closed row seen so far: they only grow, so the pages never overflow and never loop */
   private maxH = { row: 0, head: 0, sub: 0, cr: 0 };
   /** the tallest each card was seen (by request id): a row of the pages is as tall as its tallest card */
@@ -412,7 +418,7 @@ export class TicketsBoard extends LitElement {
 
   /** The board's cards are paged: a desktop, the board pane, the board drawn. */
   private pagedBoard(): boolean {
-    return this.paged && this.screen === 'ready' && this.r.pane !== 'handlers' && !!this.data?.items.length;
+    return this.paged && this.lists.paged && this.screen === 'ready' && this.r.pane !== 'handlers' && !!this.data?.items.length;
   }
 
   /** Observe the pages box (its height is the room the layout leaves it, not its content) and measure after every draw. */

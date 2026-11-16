@@ -8,6 +8,7 @@ import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
 import { PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measureFitItems, pageCount, pageSlice } from '../api/screen-display';
+import { LongListsController, perPageFor } from '../api/long-lists';
 import { pl } from '../i18n/polish';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
@@ -170,6 +171,12 @@ export class DevicesSchedules extends LitElement {
   /** FIX2200: the schedules that fit the screen's height in the rows view (NOSCROLL-295: and the table and cards views; null: not measured). The page size setting stays the maximum;
    * a shorter window (1366x768, a tablet) takes fewer rows a page instead of scrolling (owner rule: control screens never scroll). */
   @state() private fitRows: number | null = null;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the installation's long-lists setting - pages (the default) or every item drawn, the
+   * screen's own scroller scrolling (api/long-lists.ts). A change starts again at page 1 and measures the fit anew. */
+  private lists = new LongListsController(this, () => {
+    this.page = 1;
+    this.fitRows = null;
+  });
   /** POLISH-295: the selection boxes show only in selection mode (the user menu's "בחירה מרובה") or while something is picked. */
   @state() private selecting = false;
   @state() private filtersOpen = false;
@@ -200,6 +207,25 @@ export class DevicesSchedules extends LitElement {
   private noteTimer = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* PAGING-SETTING-2439 (owner round 32, Q-SYS-4 a: the page itself never moves): with the long lists set to scroll (הגדרות › כללי) the
+       screen keeps its box on a desktop - the title, the chips, the toolbar and the upcoming strip stay - and only the list panel (.groups) scrolls */
+    @media (min-width: 1024px) {
+      :host([data-list-panel]) {
+        overflow: hidden;
+      }
+      :host([data-list-panel]) sw-page.page {
+        block-size: 100%;
+        min-block-size: 0;
+      }
+      :host([data-list-panel]) .groups {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+    }
     /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
       --sw-surface: var(--sw-surface-solid);
@@ -1238,6 +1264,11 @@ export class DevicesSchedules extends LitElement {
     window.clearTimeout(this.noteTimer);
   }
 
+  /** PAGING-SETTING-2439: the list panel scrolls, not the screen (the lists scroll; the rows, table or cards views of the main list). */
+  protected willUpdate() {
+    this.toggleAttribute('data-list-panel', !this.lists.paged && this.view !== 'week' && this.sub !== 'trash' && this.sub !== 'review' && !!this.items?.length);
+  }
+
   protected updated(_c: PropertyValues) {
     measureHeaderBar(this.renderRoot, this.phone);
     this.measureFit();
@@ -1255,7 +1286,7 @@ export class DevicesSchedules extends LitElement {
    * NOSCROLL-295: the rows, the table and the cards views alike (a grid takes whole rows of cards); the ungrouped list only. */
   private measureFit(): void {
     const sel = this.view === 'rows' ? '[data-sched-rows]' : this.view === 'table' ? '[data-sched-table]' : this.view === 'cards' ? '[data-sched-grid]' : '';
-    const list = sel && !this.filters.group && !this.sub ? this.renderRoot.querySelector<HTMLElement>(sel) : null;
+    const list = sel && !this.filters.group && !this.sub && this.lists.paged ? this.renderRoot.querySelector<HTMLElement>(sel) : null;
     const fit = measureFitItems({ host: this, list, itemSelector: '[data-schedule]', pager: this.renderRoot.querySelector<HTMLElement>('[data-sched-pager]'), padded: [this.renderRoot.querySelector<HTMLElement>('.page')] });
     if (fit !== null && (this.fitRows === null || fit < this.fitRows)) this.fitRows = fit; // only ever smaller until a reset (no oscillation)
   }
@@ -1889,7 +1920,8 @@ export class DevicesSchedules extends LitElement {
     const sorted = sortSchedules(rows, this.filters.sort);
     const setting = this.phone ? this.perPage.phone : this.perPage.wide;
     // FIX2200 / NOSCROLL-295: the rows, table and cards views take no more than fit the screen's height (measureFit); the setting is the maximum
-    const per = !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting;
+    // PAGING-SETTING-2439: the long lists scroll -> every schedule on one page (no pager)
+    const per = perPageFor(this.lists.paged, !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting, sorted.length);
     const pages = pageCount(sorted.length, per);
     const page = clampPage(this.page, sorted.length, per);
     const groups = groupSchedules(pageSlice(sorted, page, per), this.filters.group);

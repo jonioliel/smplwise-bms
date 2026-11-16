@@ -8,7 +8,7 @@ import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-pager';
 import '../components/sw-page';
-import { PageFit } from './multimedia-page-fit';
+import { PageFit } from '../components/page-fit';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import type { MediaPresetEditor } from '../components/media-preset-editor';
 import { draftOf } from '../components/media-preset-editor';
@@ -82,7 +82,7 @@ export class MultimediaGroups extends LitElement {
   @query('media-preset-editor') private editor?: MediaPresetEditor;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
-  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
+  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (components/page-fit.ts) */
   private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private offRoute: (() => void) | null = null;
@@ -556,6 +556,13 @@ export class MultimediaGroups extends LitElement {
         overflow: hidden;
         margin-inline: calc(-1 * var(--mm-pad));
         padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-5);
+      }
+      /* PAGING-SETTING-2439: the long lists scroll (הגדרות › כללי): every card is drawn and the region scrolls inside itself */
+      :host([data-fit][data-long-lists='scroll']) .scr {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
       }
       :host([data-fit]) .groups {
         gap: var(--sw-s-5);
@@ -1118,7 +1125,7 @@ export class MultimediaGroups extends LitElement {
   }
 
   protected willUpdate() {
-    this.toggleAttribute('data-fit', this.fit.on);
+    this.toggleAttribute('data-fit', this.fit.fits); // PAGING-SETTING-2439: the region pages, or scrolls inside itself when the long lists scroll
   }
 
   render() {

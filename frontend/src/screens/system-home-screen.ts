@@ -8,7 +8,7 @@ import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { DIRECTION_DEFAULT, DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, homeSettingsOf, SIDE_LABEL, SIDES, type Direction, type Side } from '../api/home';
 import { SkinController } from '../design/skin';
-import { BULK_IDLE, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES, FLOOR_TITLE_LINES_DEFAULT, LONG_LISTS, LONG_LISTS_DEFAULT, screenDisplayOf, type BulkIdle, type FloorTitleLines, type InfoStyle, type LongLists } from '../api/screen-display';
+import { BULK_IDLE, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES, FLOOR_TITLE_LINES_DEFAULT, screenDisplayOf, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import { demoScreenOverrides, homeScreenOf, screenFormBody } from '../api/home-screen';
 import { getDevicesTree } from '../api/devices';
 import { loadTree as loadCatalogTree } from '../api/catalog';
@@ -57,7 +57,6 @@ export class SystemHomeScreen extends LitElement {
   /** POLISH-CONTROL-297 (owner decisions on the worst-case report, 2026-10-27): the floor-name clamp, huge lists paged or scrolled, idle
    * bulk buttons disabled or clickable (the bulk item stays open for the owner's design talk). */
   @state() private floorTitleLines: FloorTitleLines = FLOOR_TITLE_LINES_DEFAULT;
-  @state() private longLists: LongLists = LONG_LISTS_DEFAULT;
   @state() private bulkIdle: BulkIdle = BULK_IDLE_DEFAULT;
   @state() private canEdit = false;
   @state() private busy = false;
@@ -190,7 +189,6 @@ export class SystemHomeScreen extends LitElement {
         const sd = screenDisplayOf(raw);
         this.form = { screen: homeScreenOf(raw['home.screen']), info: sd.infoStyle, view: raw['devices.default_view'] === 'tiles' ? 'tiles' : 'cards' };
         this.floorTitleLines = sd.floorTitleLines;
-        this.longLists = sd.longLists;
         this.bulkIdle = sd.bulkIdle;
       })
       .catch(() => undefined);
@@ -228,12 +226,12 @@ export class SystemHomeScreen extends LitElement {
     }
   }
 
-  /** POLISH-CONTROL-297: one of the three worst-case choices, saved at once. */
-  private async saveChoice(key: 'home.floor_title_lines' | 'ui.long_lists' | 'home.bulk_idle', value: string) {
+  /** POLISH-CONTROL-297: one of the worst-case choices, saved at once. PAGING-SETTING-2439: the long lists (`ui.long_lists`) are a system
+   * setting of every control screen now and moved to הגדרות › כללי › עיצוב הממשק (system-diagnostics.ts renderDesign). */
+  private async saveChoice(key: 'home.floor_title_lines' | 'home.bulk_idle', value: string) {
     if (!this.canEdit || this.busy || !isApi()) return;
-    const before = { floorTitleLines: this.floorTitleLines, longLists: this.longLists, bulkIdle: this.bulkIdle };
+    const before = { floorTitleLines: this.floorTitleLines, bulkIdle: this.bulkIdle };
     if (key === 'home.floor_title_lines') this.floorTitleLines = value as FloorTitleLines;
-    else if (key === 'ui.long_lists') this.longLists = value as LongLists;
     else this.bulkIdle = value as BulkIdle;
     this.busy = true;
     this.error = '';
@@ -244,7 +242,6 @@ export class SystemHomeScreen extends LitElement {
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.floorTitleLines = before.floorTitleLines;
-      this.longLists = before.longLists;
       this.bulkIdle = before.bulkIdle;
       this.error = describeError(err);
     } finally {
@@ -297,7 +294,6 @@ export class SystemHomeScreen extends LitElement {
       <h3 class="hs-h" data-home-screen-options-heading>${hs('heading')}</h3>
       <home-screen-options .value=${this.form} .areas=${this.areas} .buildings=${this.buildings} ?editable=${!ro && !this.busy} @hs-change=${(e: CustomEvent<HomeScreenForm>) => void this.saveForm(e.detail)}></home-screen-options>
       ${this.choiceRow('שם קומה ארוך בכותרת כרטיס', 'floor-title-lines', FLOOR_TITLE_LINES, { '2': 'שתי שורות', '3': 'שלוש שורות', '1': 'שורה אחת עם ...' } as Record<FloorTitleLines, string>, this.floorTitleLines, ro, (v) => void this.saveChoice('home.floor_title_lines', v))}
-      ${this.choiceRow('רשימות ארוכות מאוד', 'long-lists', LONG_LISTS, { paged: 'עמודים', scroll: 'גלילה מלאה' } as Record<LongLists, string>, this.longLists, ro, (v) => void this.saveChoice('ui.long_lists', v))}
       ${this.choiceRow('כפתור "כבה הכל" כשאין מה לכבות', 'bulk-idle', BULK_IDLE, { disabled: 'מושבת', enabled: 'לחיץ תמיד' } as Record<BulkIdle, string>, this.bulkIdle, ro, (v) => void this.saveChoice('home.bulk_idle', v))}
       <div class="row">
         <sw-button size="sm" icon="edit" data-home-edit-link @click=${() => (location.hash = '#/devices/building?edit=1')} ?disabled=${ro}>עריכת המסך הראשי</sw-button>

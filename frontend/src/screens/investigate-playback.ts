@@ -225,6 +225,21 @@ export class InvestigatePlayback extends LitElement {
     .grid.one {
       grid-template-columns: 1fr;
     }
+    /* PAGING-SETTING-2439 (code review 06:PLAY-2, owner O12 a / round 32 Q-SYS-4 a): the comparison grid had no height cap, so two rows of
+       16:9 tiles pushed the timeline below the window while the single video keeps the 0.1.68 budget. The grid takes the same budget:
+       its width is capped so that its rows (16:9 tiles, the 6 px gaps and padding) end within it, centred like the single video. */
+    .grid {
+      --pb-stage-h: max(200px, calc(100dvh - 560px));
+      margin-inline: auto;
+      inline-size: 100%;
+      max-inline-size: calc(2 * (var(--pb-stage-h) - 12px) * 16 / 9 + 18px);
+    }
+    .grid.one {
+      max-inline-size: calc((var(--pb-stage-h) - 12px) * 16 / 9 + 12px);
+    }
+    .grid.rows2 {
+      max-inline-size: calc((var(--pb-stage-h) - 18px) * 16 / 9 + 18px);
+    }
     .tile {
       position: relative;
       aspect-ratio: 16 / 9;
@@ -1404,7 +1419,7 @@ export class InvestigatePlayback extends LitElement {
     const inGap = !live && !this.inRecording(this.cursor);
     if (this.groupMode) {
       const members = this.members;
-      return html`<div class="grid ${members.length === 1 ? 'one' : ''}">
+      return html`<div class="grid ${members.length === 1 ? 'one' : members.length > 2 ? 'rows2' : ''}" data-pb-grid=${members.length}>
         ${members.map((cid) => {
           const sess = this.group?.sessions.find((s) => s.camera_id === cid);
           const missing = this.group?.missing[cid];

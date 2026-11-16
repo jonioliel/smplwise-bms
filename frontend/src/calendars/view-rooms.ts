@@ -9,6 +9,7 @@ import { DAY_LONG, MONTHS, addDays, colorVar, hm, isoDate, markOf, pad, pageOf, 
 import { calCss } from './styles';
 import { EQUIPMENT_LABEL, firstFree, parseDateParam, readHashParam, trackLanes, writeHashParams } from './booking-logic';
 import { axisFit } from './rooms-axis';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 const CAPACITY_STEPS = [0, 6, 10, 20, 50];
 
@@ -22,6 +23,8 @@ const CAPACITY_STEPS = [0, 6, 10, 20, 50];
 @customElement('cal-view-rooms')
 export class CalViewRooms extends LitElement {
   static styles = [calCss, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .rows { overflow-y: auto !important; overscroll-behavior: contain; }
     :host { display: flex; min-block-size: 0; min-inline-size: 0; }
     .main { flex: 1; min-inline-size: 0; }
     .big { font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); white-space: nowrap; }
@@ -86,6 +89,9 @@ export class CalViewRooms extends LitElement {
   @state() private equipment = new Set<Equipment>();
   @state() private eqOpen = false;
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private per = 8;
   @state() private shift = 0;
   /** the measured axis (ROUND4-LEFTOVERS-2390 D22): its width, the now pill's width and the widest hour label; 0 = not yet measured */
@@ -205,7 +211,7 @@ export class CalViewRooms extends LitElement {
     const base = timelineWindow(phone, ctx.now);
     const win = phone ? { from: Math.min(Math.max(base.from + this.shift, 0), 18), to: Math.min(Math.max(base.from + this.shift, 0), 18) + 6 } : base;
     const rooms = this.filtered();
-    const pg = pageOf(rooms, this.page, this.per);
+    const pg = pageOf(rooms, this.page, perPageFor(this.lists.paged, this.per, rooms.length));
     const today = sameDay(this.day, ctx.now);
     const title = phone ? `${DAY_LONG[this.day.getDay()]}, ${this.day.getDate()}.${pad(this.day.getMonth() + 1)}` : `${DAY_LONG[this.day.getDay()]}, `;
     return html`<section class="panel main" data-cal-rooms>

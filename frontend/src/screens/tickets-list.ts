@@ -13,6 +13,7 @@ import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top o
 import '../components/sw-pager';
 import '../components/sw-page';
 import { PAGED_MQ, gridCols, packPages, rowGap } from './tickets-pages';
+import { LongListsController } from '../api/long-lists';
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
@@ -101,6 +102,11 @@ export class TicketsList extends LitElement {
     this.rowMax = 0;
     this.cardH.clear();
   };
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages; the cards scroll inside their own region (.scr). */
+  private lists = new LongListsController(this, () => {
+    this.cardPage = 1;
+    this.onPaged();
+  });
   private rowMax = 0;
   /** the tallest each card was seen (by request id): a row of the pages is as tall as its tallest card */
   private cardH = new Map<string, number>();
@@ -307,7 +313,7 @@ export class TicketsList extends LitElement {
 
   /** The cards are paged: a desktop, the cards view (not the calendar, not the table), the list drawn. */
   private pagedCards(): boolean {
-    return this.paged && this.view !== 'table' && !this.cal && this.screen === 'ready';
+    return this.paged && this.lists.paged && this.view !== 'table' && !this.cal && this.screen === 'ready';
   }
 
   /** Observe the pages box (its height is the room the layout leaves it, not its content) and measure after every draw. */

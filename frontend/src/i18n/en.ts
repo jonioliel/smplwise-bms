@@ -130,6 +130,12 @@ export const en = {
     light: 'Always light',
     dark: 'Always dark',
   },
+  longLists: {
+    label: 'Long lists on the control screens',
+    hint: 'Pages (the default): a long list is split into pages with a ‹ 2 / 5 › switch, and the screen itself never scrolls. Scrolling: every item is shown and the list scrolls inside its own frame. Applies to every user after saving.',
+    paged: 'Pages',
+    scroll: 'Scroll inside the list',
+  },
   selfUpdate: {
     heading: 'Updating from Arx',
     switchLabel: 'Install updates from Arx',

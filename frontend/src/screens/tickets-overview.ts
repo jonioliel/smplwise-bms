@@ -38,6 +38,7 @@ import { timeText, dayMonthText } from '../api/day-format';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
+import { LongListsController } from '../api/long-lists';
 /** OVERVIEWFIT-297: a drawn widget with what the pages need - its grid span, its title (the pager's labels) and whether it carries a red count */
 interface OverviewWidget { key: CardKey; title: string; span: number; alert: boolean; fill?: number; make: (span?: number) => TemplateResult }
 
@@ -112,6 +113,9 @@ export class TicketsOverview extends LitElement {
   @state() private paymentsFailed = false;
   /** OVERVIEWFIT-297: on a desktop the widgets are cut into pages of two rows (no page scroll); the page on screen */
   @state() private paged = TicketsOverview.pagedMq.matches;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> on a desktop the screen keeps its box and the
+   * widgets are one page that scrolls vertically inside the track (the page itself never moves, Q-SYS-4). */
+  private lists = new LongListsController(this, () => (this.pageIdx = 0));
   @state() private pageIdx = 0;
   private pageOfKey = new Map<CardKey, number>();
   private pageCount = 0;
@@ -318,6 +322,9 @@ export class TicketsOverview extends LitElement {
     .paged .wpages::-webkit-scrollbar { display: none; }
     .paged .pg { box-sizing: border-box; min-inline-size: 0; min-block-size: 0; padding: 2px 36px 22px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: var(--dv-gap-lg, 18px); scroll-snap-align: start; scroll-snap-stop: always; }
     .paged .pg > .w { min-block-size: 0; overflow: hidden; }
+    /* PAGING-SETTING-2439: the long lists scroll - one page of every widget, rows of a fixed height, the track scrolls vertically */
+    .paged.scrolls .wpages { overflow-x: hidden; overflow-y: auto; scroll-snap-type: none; overscroll-behavior-y: contain; scrollbar-width: thin; }
+    .paged.scrolls .pg { grid-template-rows: none; grid-auto-rows: minmax(300px, 38vh); scroll-snap-align: none; }
     .paged .pg > .w.folded { align-self: start; }
     .paged .w > .wb { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; margin-inline: -6px; padding-inline: 6px; padding-block-end: 14px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
     /* break-ui: a reference number never splits over two lines in a third-wide card */
@@ -1220,10 +1227,10 @@ export class TicketsOverview extends LitElement {
   render() {
     const ws = this.widgets();
     const fill = ws ? filledSpans(ws.list.map((x) => x.span), 3) : [];
-    const pages = this.paged && ws ? packPages(ws.list.map((x) => x.span), 3).map((p) => p.map((i) => ({ ...ws.list[i], fill: fill[i] }))) : null;
+    const pages = this.paged && ws ? (this.lists.paged ? packPages(ws.list.map((x) => x.span), 3).map((p) => p.map((i) => ({ ...ws.list[i], fill: fill[i] }))) : [ws.list.map((x, i) => ({ ...x, fill: fill[i] }))]) : null;
     this.pageCount = pages?.length ?? 0;
     this.pageOfKey = new Map((pages ?? []).flatMap((p, i) => p.map((x) => [x.key, i] as const)));
-    return html`<sw-page wide class=${`page${this.offline ? ' stale' : ''}${this.paged ? ' paged' : ''}`} data-screen="tickets-overview" heading=${ot('title')} crumbs=${tt('area')} data-overview-title=${ot('title')}>
+    return html`<sw-page wide class=${`page${this.offline ? ' stale' : ''}${this.paged ? ' paged' : ''}${this.paged && !this.lists.paged ? ' scrolls' : ''}`} data-screen="tickets-overview" heading=${ot('title')} crumbs=${tt('area')} data-overview-title=${ot('title')}>
       ${this.header(pages)}
       ${this.body(ws, pages)}
     </sw-page>`;
