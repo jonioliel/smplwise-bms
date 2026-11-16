@@ -29,7 +29,8 @@ from smplwise.main import create_app
 API = "/api/v1"
 HERE = Path(__file__).resolve().parent
 ACCESS_MODULES = (
-    "door_windows", "schedules", "door_automations", "access", "doors", "local_identity",
+    "door_windows", "schedules", "door_automations", "doors", "local_identity",
+    "access_directory", "access_roles", "access_bindings", "access_audit", "access_custom_roles",  # CR-SPLIT-ACCESS-2440: the parts of access (it re-exports them)
     "access_control_entry", "access_control_stills", "access_control_credentials", "access_control_calls", "access_control_people",
     "access_control_capture",  # CR-SPLIT-ACCESS-CONTROL-2440: the parts of access_control that declare a GET route (it re-exports them)
     "wiskey_relay_map", "access_groups", "ha_users", "service_identity", "quiet",

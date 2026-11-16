@@ -1,0 +1,55 @@
+"""Role bindings: list, create, revoke. The checks and the writes themselves are in services/rbac_admin.py.
+
+CR-SPLIT-ACCESS-2440 (review 05:P2-08): moved unchanged out of routers/access.py, which still exports every name."""
+from __future__ import annotations
+
+import sqlite3
+from typing import Any
+
+from fastapi import APIRouter, Depends, Request
+
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..db import now_iso, permission_revision
+from ..errors import ApiError
+from ..rbac import INSTALLATION, Principal, require
+from ..services import revocation
+from ..services.rbac_admin import BindingBody, _active_bindings_sql, _binding_dict, _terminate, affected_users, assigns_anywhere, delegated_sees, full_authority, insert_binding, revoke_one, validate_binding
+
+router = APIRouter()
+
+
+# ---------------------------------------------------------------- bindings
+
+
+@router.get("/access/bindings")
+def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    if not assigns_anywhere(conn, principal):
+        require(conn, principal, "rbac.assign", INSTALLATION)
+    rows = conn.execute(_active_bindings_sql(), (now_iso(),)).fetchall()
+    if not full_authority(conn, principal):
+        rows = [b for b in rows if delegated_sees(conn, principal, b)]
+    return {"bindings": [_binding_dict(conn, b) for b in rows], "revision": permission_revision(conn)}
+
+
+@router.post("/access/bindings", status_code=201)
+def create_binding(body: BindingBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    validate_binding(conn, principal, body, request)
+    bid, rev = insert_binding(conn, principal, request, body)
+    if body.effect == "deny":
+        _terminate(conn, settings_of(request), affected_users(conn, body.subject_kind, body.subject_id))
+    else:
+        revocation.changed(affected_users(conn, body.subject_kind, body.subject_id))  # the shell shows what was granted
+    row = conn.execute("SELECT * FROM bindings WHERE id = ?", (bid,)).fetchone()
+    return {**_binding_dict(conn, row), "revision": rev}
+
+
+@router.delete("/access/bindings/{binding_id}")
+def revoke_binding(binding_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    if not assigns_anywhere(conn, principal):
+        require(conn, principal, "rbac.assign", INSTALLATION)
+    b = conn.execute("SELECT * FROM bindings WHERE id = ? AND revoked_at IS NULL", (binding_id,)).fetchone()
+    if not b:
+        raise ApiError(404, "not_found", "השיוך לא נמצא או כבר בוטל.")
+    rev = revoke_one(conn, principal, request, b)
+    _terminate(conn, settings_of(request), affected_users(conn, b["subject_kind"], b["subject_id"]))
+    return {"revoked": binding_id, "revision": rev}
