@@ -42,7 +42,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
@@ -139,7 +139,7 @@ def _self(request: Request, principal: Principal, conn: sqlite3.Connection) -> l
 
 
 @router.get("/auth/passkeys")
-def own_passkeys(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def own_passkeys(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     s = _self(request, principal, conn)
     return {**lpk.summary(conn, s.user_id), "recent_auth": lpk.recent_auth(conn, s),
             "recent_auth_left_s": max(0, int(lpk.RECENT_AUTH_S - (time.time() - s.chain_started_at))), "totp": sf.is_enrolled(conn, s.user_id)}
@@ -257,7 +257,7 @@ def admin_only(user_id: str, body: OnlyBody, request: Request, principal: Princi
 
 
 @router.get("/identity/local-users/{user_id}/passkeys")
-def user_passkeys(user_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def user_passkeys(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     _user_row(conn, user_id)
     return {"user_id": user_id, **lpk.summary(conn, user_id)}

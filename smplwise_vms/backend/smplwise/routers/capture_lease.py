@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
@@ -56,7 +56,7 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 @router.get("/access/capture-lease/settings")
-def get_lease_settings(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_lease_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     if not is_system_admin(conn, principal.user_id):  # CR 7.3 / review L6: system administrator, like the PUT
         audit(conn, actor=principal, action="settings.read", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",

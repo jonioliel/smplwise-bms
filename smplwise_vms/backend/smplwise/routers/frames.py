@@ -21,7 +21,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..config import Settings
 from ..db import unlocked
 from ..errors import ApiError, not_found
@@ -231,7 +231,7 @@ def _grab_once(camera_id: str, key: str, url: str, out: Path, rs: Settings) -> b
 
 
 @router.get("/cameras/{camera_id}/frame")
-def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_length=10, max_length=40), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_length=10, max_length=40), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """JPEG frame from the camera's recording nearest to `at` (UTC, within SEARCH_WINDOW_S in the same recording); the picture's own
     instant is in `X-Frame-At`. 404 when no recording lies within that window."""
     require_camera(conn, principal, camera_id, "video.playback")  # T055: audited, and 403 before 404

@@ -67,7 +67,7 @@ def _today(conn: sqlite3.Connection) -> dt.date:
 @router.get("/tickets/costs/budgets")
 def list_budgets(request: Request, scope_kind: str | None = Query(None, max_length=16), scope_id: str | None = Query(None, max_length=64),
                  period_kind: str | None = Query(None, max_length=8), currency: str | None = Query(None, max_length=3),
-                 principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                 principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     _money(conn, viewer, "tickets.budget.list", _rid(request))
     if scope_kind is not None and scope_kind not in budgets.SCOPES or period_kind is not None and period_kind not in budgets.PERIODS:
@@ -81,7 +81,7 @@ def list_budgets(request: Request, scope_kind: str | None = Query(None, max_leng
 
 @router.get("/tickets/costs/budgets/summary")
 def budget_summary(request: Request, period_kind: str | None = Query(None, max_length=8), day: str | None = Query(None, max_length=10),
-                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     _money(conn, viewer, "tickets.budget.summary", _rid(request))
     if period_kind is not None and period_kind not in budgets.PERIODS:

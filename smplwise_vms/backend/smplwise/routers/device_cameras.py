@@ -84,7 +84,7 @@ def disable_ha_live(request: Request, entity_id: str = Path(..., pattern=cc.HA_C
 
 
 @router.get("/devices/camera-card/still")
-def still(request: Request, entity_id: str = Query(..., pattern=cc.HA_CAMERA_RE.pattern), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+def still(request: Request, entity_id: str = Query(..., pattern=cc.HA_CAMERA_RE.pattern), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """The picture of a Home Assistant camera that is not an NVR channel. Needs video.live installation-wide (no camera
     scope exists for it) and devices.read on the entity; a camera that IS an NVR channel is served by
     `GET /cameras/{id}/snapshot.jpg` under its own camera scope, never here (409)."""

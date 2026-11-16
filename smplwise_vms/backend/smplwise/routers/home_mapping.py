@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -127,7 +127,7 @@ def _labels(conn: sqlite3.Connection) -> tuple[dict[str, list[str]], list[dict[s
 # ---------------------------------------------------------------------------------------------------------------------------------- read
 
 @router.get("/sites/{site_id}/mapping")
-def read_mapping(site_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def read_mapping(site_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Everything the assistant needs: its stored state and settings, the versions, the item keys the last apply saw, the platform's floors
     and areas (the registry - complete, independent of the caller's device reach), our buildings with their floors, and the current rows."""
     site = get_site(conn, site_id)

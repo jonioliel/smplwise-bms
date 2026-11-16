@@ -25,7 +25,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER
 from ..db import now_iso, unlocked
 from ..errors import ApiError
@@ -182,7 +182,7 @@ def _primary_present(conn: sqlite3.Connection) -> bool:
 # ---------------------------------------------------------------- routes
 
 @router.get("/recorders")
-def list_recorders(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+def list_recorders(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                    include_removed: bool = False) -> dict[str, Any]:
     """Every recorder of the installation with its status, camera counts and declared capabilities (removed ones on request)."""
     _may_read(conn, principal)
@@ -196,7 +196,7 @@ def list_recorders(request: Request, principal: Principal = Depends(current_prin
 
 
 @router.get("/recorders/{recorder_id}")
-def get_recorder(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_recorder(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """One recorder (status, cameras, capabilities; the connection detail for system.configure only)."""
     _may_read(conn, principal)
     admin = authorize(conn, principal, PERMISSION, INSTALLATION).allowed
@@ -342,7 +342,7 @@ def remove_recorder(recorder_id: str, request: Request, background: BackgroundTa
 
 
 @router.get("/recorders/{recorder_id}/connection")
-def get_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The recorder's stored connection (the shape of GET /nvr/connection; never the password)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _known(conn, recorder_id)
@@ -399,7 +399,7 @@ def _writes_admin(conn: sqlite3.Connection, principal: Principal) -> None:
 
 
 @router.get("/recorders/{recorder_id}/writes")
-def get_recorder_writes(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_recorder_writes(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The switch "אפשר שינויי הגדרות ב־NVR" of one recorder (on / off, the vendor default, who changed it last and when)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _known(conn, recorder_id)
@@ -421,7 +421,7 @@ def set_recorder_writes(recorder_id: str, request: Request, principal: Principal
 
 
 @router.get("/recorders/{recorder_id}/health")
-def recorder_health(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def recorder_health(recorder_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """A live, read-only check of one recorder (one deviceInfo GET, at most 4 s). Model, firmware and the outcome code only."""
     _may_read(conn, principal)
     _known(conn, recorder_id)

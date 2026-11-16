@@ -47,7 +47,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from ..auth import _track, current_principal, get_conn, settings_of
+from ..auth import _track, current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, Principal, authorize, require
@@ -185,7 +185,7 @@ def _remote(request: Request) -> bool:
 
 
 @router.get("/calendar/feeds")
-def list_feeds(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_feeds(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CALCONNECT-2330: the outgoing iCal feeds (never their tokens) and whether `feeds_enabled` is on. Round 14: per feed `can_remote`
     (may THIS caller change the remote switch now), `detail_effective`, `expires_at`; `local` (false on the remote channel, where the
     switch is refused) and `default_max_age_days` (the expiry a new or renewed address gets, 0 = no limit)."""

@@ -33,7 +33,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
@@ -283,7 +283,7 @@ def cost_export(request: Request, group_by: str = Query("vendor", max_length=16)
 # ---------------------------------------------------------------- one ticket's claims
 
 @router.get("/tickets/{ticket_id}/costs")
-def get_costs(ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_costs(ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return _answer(conn, Viewer(conn, principal), ticket_id)
 
 
@@ -603,7 +603,7 @@ def _need_configure(conn, viewer: Viewer, action: str, rid: str | None) -> None:
 
 
 @router.get("/tickets/costs/departments")
-def get_department_costs(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_department_costs(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     _need_configure(conn, viewer, "ticket.department.costs", _rid(request))
     s = costs.cost_settings(conn)

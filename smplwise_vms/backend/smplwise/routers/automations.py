@@ -294,7 +294,7 @@ def catalog(request: Request, principal: Principal = Depends(current_principal),
 
 
 @router.get("/automations/templates")
-def templates(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def templates(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 5 - the gallery (manage)."""
     _bind(request)
     _require_any(conn, principal, (scope.MANAGE,))
@@ -302,7 +302,7 @@ def templates(request: Request, principal: Principal = Depends(current_principal
 
 
 @router.get("/automations/trash")
-def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 20 - the trash the caller may see (30 days, setting `automations.trash_days`)."""
     return ops.trash_list(_writer(request, conn, principal))
 
@@ -510,7 +510,7 @@ def get_run(kind: str, item_id: str, run_id: str, request: Request, principal: P
 
 
 @router.get("/automations/{kind}/{item_id}/versions")
-def list_versions(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_versions(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 19 - the history (last `automations.versions_keep`)."""
     return ops.versions_list(_writer(request, conn, principal), _kind(kind), item_id)
 

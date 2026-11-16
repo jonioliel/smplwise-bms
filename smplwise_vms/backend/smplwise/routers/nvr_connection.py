@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER, Settings
 from ..db import unlocked
 from ..errors import ApiError
@@ -358,13 +358,13 @@ def _require_revision(if_revision: int | None, conn: sqlite3.Connection, rid: st
 # ---------------------------------------------------------------- routes
 
 @router.get("/nvr/vendors")
-def vendors(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def vendors(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     return {"vendors": registry.catalogue()}
 
 
 @router.get("/nvr/connection")
-def get_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_connection(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     return connection_view(conn, request)
 

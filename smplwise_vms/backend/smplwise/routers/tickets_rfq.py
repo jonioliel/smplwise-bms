@@ -563,7 +563,7 @@ def post_award_confirm(body: AwardConfirmBody, request: Request, rfq_id: str = P
 
 @router.get("/tickets/rfqs/{rfq_id}/vendors/{vendor_id}/award-notice")
 def get_award_notice(request: Request, rfq_id: str = Path(..., pattern=ID), vendor_id: str = Path(..., pattern=ID),
-                     principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                     principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CR-AWARD-NOTICE (contract 20.16): the award dialog's notice block - the setting, the EXACT text the vendor would get (the link as a
     placeholder), the channel and why it cannot go now. No side effect (a refusal of the role is audited)."""
     viewer = Viewer(conn, principal)
@@ -721,7 +721,7 @@ def post_order(body: OrderBody, request: Request, rfq_id: str = Path(..., patter
 @router.get("/tickets/rfqs/{rfq_id}/awards/{award_id}/order/preview")
 def get_order_preview(request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
                       work_from: str | None = Query(None, max_length=40), work_to: str | None = Query(None, max_length=40),
-                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                      principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The exact text of the order message, its channel and every refusal - no side effect (a refusal of the role is audited)."""
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)

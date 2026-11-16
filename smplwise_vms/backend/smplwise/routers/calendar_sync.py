@@ -125,7 +125,7 @@ def _out(conn: sqlite3.Connection, row: sqlite3.Row, data_dir: Any = None) -> di
 
 
 @router.get("/calendar/connections")
-def list_connections(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_connections(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     d = settings_of(request).data_dir
     return {"connections": [_out(conn, r, d) for r in conn.execute("SELECT * FROM cal_connections ORDER BY created_at, id").fetchall()],
@@ -292,7 +292,7 @@ def authorize_cancel(cid: str, request: Request, principal: Principal = Depends(
 
 
 @router.get("/calendar/connections/{cid}/calendars")
-def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     row = _connection(conn, cid)
     ad = registry.get(row["provider"])

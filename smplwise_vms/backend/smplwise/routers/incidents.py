@@ -207,7 +207,7 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
 # ---------------------------------------------------------------- one incident
 
 @router.get("/incidents/{incident_id}")
-def get_incident(incident_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_incident(incident_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     row = _incident(conn, principal, incident_id, READ)
     out = svc.serialize(conn, row, principal)
@@ -218,7 +218,7 @@ def get_incident(incident_id: str, principal: Principal = Depends(current_princi
 
 
 @router.get("/incidents/{incident_id}/cameras")
-def incident_cameras(incident_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def incident_cameras(incident_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     row = _incident(conn, principal, incident_id, READ)
     out = svc.cameras_panel(conn, row, principal)
@@ -228,7 +228,7 @@ def incident_cameras(incident_id: str, principal: Principal = Depends(current_pr
 
 
 @router.get("/incidents/{incident_id}/doors")
-def incident_doors(incident_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def incident_doors(incident_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     row = _incident(conn, principal, incident_id, READ)
     return svc.doors_panel(conn, row, principal)

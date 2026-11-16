@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Query, Request, WebSocket
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, maybe_bootstrap, resolve_principal, settings_of, touch_user
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, maybe_bootstrap, resolve_principal, settings_of, touch_user
 from ..config import Settings
 from ..db import Database, retry_locked, unlocked
 from ..errors import ApiError
@@ -291,7 +291,7 @@ def sync_streams(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/media/streams")
-def list_streams(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_streams(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
     ensure_capability(settings_of(request), "go2rtc")  # NN1: no go2rtc = 409 capability_unavailable, never a 503
     client = g2.Go2rtc(settings_of(request))
@@ -307,7 +307,7 @@ def list_streams(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/media/sessions")
-def list_sessions(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     now = time.time()
     return {
@@ -332,7 +332,7 @@ def video_policy_for(conn: sqlite3.Connection, principal: Principal, channel: st
 
 
 @router.get("/media/video-policy")
-def video_policy(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def video_policy(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """VIDEO-TRANSPORT-2400: how every live player of the caller travels on this channel (`choice` auto | webrtc | mse, its `source`
     personal | installation | default, the ordered `order`, the remote settings that shape a remote plan). The one decision every
     player executes; an explicit choice is never overridden. Any signed-in caller (it reads only the caller's own preference and
@@ -343,7 +343,7 @@ def video_policy(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/media/live/{camera_id}")
-def live_info(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), profile: str = Query("sub", pattern="^(sub|main)$")) -> dict[str, Any]:
+def live_info(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), profile: str = Query("sub", pattern="^(sub|main)$")) -> dict[str, Any]:
     """What the player needs before opening the socket: permission, transport default and the relay path."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
     from ..services import camera_sources

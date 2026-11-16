@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -77,7 +77,7 @@ def _points(item: MaskItemIn) -> list[list[list[int]]]:
 
 
 @router.get("/cameras/{camera_id}/privacy-mask")
-def get_privacy_mask(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_privacy_mask(camera_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The channel's privacy mask as the NVR holds it (read-only): master switch, regions with the parser's active verdict, etag, limits."""
     _require_read(conn, principal)
     _camera_config_scope(conn, principal, camera_id, None)  # T055: 403 before 404

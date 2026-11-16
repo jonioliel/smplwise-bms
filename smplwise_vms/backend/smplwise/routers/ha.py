@@ -59,7 +59,7 @@ def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- catalogue
 
 @router.get("/ha/status")
-def status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     paired_at = get_setting(conn, "bridge.paired_at") or None
     return {
@@ -73,8 +73,8 @@ def status(request: Request, principal: Principal = Depends(current_principal), 
 
 @router.get("/ha/entities")
 def list_entities(
-    principal: Principal = Depends(current_principal),
-    conn: sqlite3.Connection = Depends(get_conn),
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
     domain: str | None = Query(None, pattern="^[a-z_]+$"),
     q: str | None = None,
     area: str | None = None,
@@ -146,7 +146,7 @@ def list_entities(
 
 
 @router.get("/ha/entities/{entity_id}")
-def get_entity(entity_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_entity(entity_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not _entity_allowed(conn, principal, entity_id, "entity.state.read"):
         require(conn, principal, "entity.state.read", INSTALLATION)
     e = _entity(conn, entity_id)
