@@ -80,10 +80,52 @@ test('no catalogue under src/i18n keeps its own copy of the detector or the fill
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.ts') || f === 'core.ts' || f === 'ui-lang-boot.ts') continue; // the boot module sets <html lang> before core is loaded
     const src = readFileSync(new URL(f, dir), 'utf8');
-    if (/documentElement\.lang/.test(src)) own.push(`${f}: reads <html lang> itself`);
-    if (/\.replace\(\/\\\{\(\\w\+\)\\\}\/g, \(m, k: string\) => \(k in \w+ \? String/.test(src)) own.push(`${f}: own {name} filler`);
+    // CR-I18N-CORE-2441: also the optional-chained form core.ts itself has used since the stub-document fix
+    if (/documentElement\??\.lang/.test(src)) own.push(`${f}: reads <html lang> itself`);
+    // any `{name}` replace at all, whatever its callback looks like
+    if (!OWN_FILLER_RULE.has(f) && src.includes(PLACEHOLDER_REPLACE)) own.push(`${f}: own {name} filler`);
   }
   expect(own).toEqual([]);
+});
+
+/** Not copies: in these two a name without a value is dropped (''), where core's `fill` leaves `{name}` as written. They keep their own. */
+const OWN_FILLER_RULE = new Set(['door-windows-widget.ts', 'wiskey-triage.ts']);
+const PLACEHOLDER_REPLACE = String.raw`.replace(/\{(\w+)\}/g`;
+
+test('core fill and the placeholder rule are the ones the copies had (same regular expression, same order of lookups)', () => {
+  // the expression every copy carried, applied the way every copy applied it
+  const legacy = (raw: string, vars?: Record<string, string | number>) =>
+    vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  const texts = ['{a}', '{a}{a} {b}', '{ a }', '{a-b}', '{a.b}', '{}', '{{a}}', '{a_1} {1}', 'א {שם} {n}', '{toString}', 'no names', ''];
+  const sets: Record<string, string | number>[] = [{}, { a: 'x' }, { a: 0, b: '' }, { a: '{b}', b: 'y' }, { a_1: 1, 1: 'one' }, { n: 5, a: '$&' }];
+  for (const text of texts) {
+    expect(fill(text)).toBe(legacy(text));
+    for (const vars of sets) expect(fill(text, vars), `${text} / ${JSON.stringify(vars)}`).toBe(legacy(text, vars));
+  }
+  // language -> Hebrew -> key, then the filling
+  const c = createCatalogue('test/core-order', { both: 'עב {n}', heOnly: 'רק {n}' } as Record<'both' | 'heOnly', string>, { en: { both: 'both {n}' }, ru: {} });
+  expect(c.t('both', { n: 1 }, 'en')).toBe('both 1');
+  expect(c.t('heOnly', { n: 1 }, 'en')).toBe('רק 1');
+  expect(c.t('both', { n: 1 }, 'ru')).toBe('עב 1');
+  expect(c.t('absent {n}' as never, { n: 1 }, 'en')).toBe('absent 1');
+});
+
+test('every *_DEV_MARKED constant under src/i18n is kept and handed to the registry (code review verify list: 12 were never read)', () => {
+  const dir = new URL('../src/i18n/', import.meta.url);
+  const unread: string[] = [];
+  let seen = 0;
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.ts')) continue;
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    for (const m of src.matchAll(/export const (\w+_DEV_MARKED)\b/g)) {
+      seen += 1;
+      if (!src.split('\n').some((line) => line.startsWith('registerCatalogue(') && line.includes(`, ${m[1]})`))) unread.push(`${f}: ${m[1]}`);
+    }
+  }
+  expect(unread).toEqual([]);
+  expect(seen).toBeGreaterThanOrEqual(30);
+  const marked = registeredCatalogues().filter((r) => r.devMarked.length > 0).map((r) => r.name);
+  expect(marked).toEqual(expect.arrayContaining(['i18n/elevators', 'i18n/door-windows']));
 });
 
 test('every catalogue module registers its tables (the missing-keys report reads the registry)', () => {
