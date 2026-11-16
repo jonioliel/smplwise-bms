@@ -41,6 +41,7 @@ from urllib.parse import urlsplit
 
 from ..config import Settings
 from ..db import get_setting, set_setting
+from ..test_reset import register_reset
 from . import self_update
 from .timeutil import iso_utc
 
@@ -72,6 +73,9 @@ def reset_for_tests() -> None:
     with _lock:
         _cache.update(at=0.0, view=None, fresh_at=0.0)
     self_update.remember_video_addons([])
+
+
+register_reset(__name__, ("_cache",), reset_for_tests)
 
 
 # ---------------------------------------------------------------- the notice delay

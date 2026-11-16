@@ -32,6 +32,7 @@
   "test_security_review_246_poc.py": "package walk: only image_guard sets Pillow's process-wide threshold",
   "test_self_update_s3.py": "package walk: the HTTP supervisor appears only in the known modules",
   "test_self_update_s3_fixes.py": "package walk: minimal child-process environment; nothing writes the add-on options",
+  "test_singletons_registered.py": "package walk: every module-level singleton has a registered per-test reset or is recorded",
   "test_splitswitch_297.py": "package walk: no reader uses the legacy combined flag",
   "test_t06_admission_295.py": "package + routers walk: the signing-call reachers and the router -> writer join are pinned",
   "test_t06_work_states_297.py": "package walk: no module reads features status as a go-live; the read-only probe is unwired",

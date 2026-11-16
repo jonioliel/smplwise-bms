@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import replace
 from typing import Any
 
@@ -24,6 +23,7 @@ from intercom_station_scope import station_scope  # noqa: F401 - a fixture
 
 from smplwise.db import Database
 from smplwise.services import intercom_adapter, intercom_authority as ia, intercom_sync
+from support.waiting import wait_for
 
 API = "/api/v1/access-control"
 NEVER = ("192.0.2.10", "last_access", "1234", "pin_configured", "card_count", "masked", "user_ref", "ha-user-0001", "Secret Department",
@@ -61,15 +61,6 @@ def ac(settings, monkeypatch, station_scope):  # noqa: F811
     if intercom_sync.SYNC.thread is not None:
         intercom_sync.SYNC.thread.join(timeout=5)
     intercom_sync.SYNC.reset()
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 def get(c: TestClient, path: str, user: str, **params: Any) -> Any:

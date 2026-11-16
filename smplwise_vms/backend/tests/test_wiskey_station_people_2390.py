@@ -250,7 +250,7 @@ def test_the_station_list_is_the_callers_station_scope(wx):
     assert c.get(f"{API}/access-control/station-people/stations", headers=as_user("otto")).status_code == 403
 
 
-def test_a_station_lists_only_its_unmanaged_users_with_presence_never_values(wx):
+def test_a_station_lists_only_its_unmanaged_users_with_presence_never_values(wx, monkeypatch):
     fake, c, s = wx
     r = users(c, "entry-a")
     assert r.status_code == 200, r.text
@@ -269,7 +269,10 @@ def test_a_station_lists_only_its_unmanaged_users_with_presence_never_values(wx)
     first = people["2001"]["first_seen_at"]
     again = users(c, "entry-a").json()
     assert again["cached"] is True and len(sent(fake, "stations/inventory")) == 1
-    time.sleep(1.1)
+    # the stamps have one-second resolution: the one a re-read stores is moved ahead instead of sleeping past the second (05:P2-18),
+    # so a first_seen_at overwritten by the refresh would show
+    later = (datetime.now(timezone.utc) + timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    monkeypatch.setattr(sp, "now_iso", lambda: later)
     fresh = users(c, "entry-a", refresh=True).json()
     assert fresh["cached"] is False and len(sent(fake, "stations/inventory")) == 2
     by = {p["employee_no"]: p for p in fresh["people"]}

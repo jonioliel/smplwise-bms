@@ -39,6 +39,7 @@ from typing import Any, Iterator
 from ..config import Settings
 from ..db import Database, get_setting, now_iso, set_setting, unlocked
 from ..errors import ApiError
+from ..test_reset import register_reset
 from . import bridge_keys as bk
 from . import ha_client
 
@@ -251,3 +252,6 @@ def directory_refusals() -> dict[str, Any] | None:
 
 def reset_for_tests() -> None:
     note_directory_accepted()
+
+
+register_reset(__name__, ("REFUSALS",), reset_for_tests)

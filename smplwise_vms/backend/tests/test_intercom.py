@@ -23,6 +23,7 @@ from smplwise.main import create_app
 from smplwise.rbac import ROLES
 from smplwise.routers.access import PERMISSION_LABELS
 from smplwise.services import intercom_sync, wiskey_background
+from support.waiting import wait_for
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -188,15 +189,6 @@ def feed(settings, monkeypatch):
     if intercom_sync.SYNC.thread is not None:
         intercom_sync.SYNC.thread.join(timeout=5)
     intercom_sync.SYNC.reset()
-
-
-def wait_for(pred: Callable[[], bool], timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 # ---------------------------------------------------------------- permission

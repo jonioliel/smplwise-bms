@@ -37,7 +37,7 @@ def test_read_connection_is_query_only_and_unlocked_restarts_deferred(settings):
         assert conn.execute("SELECT value FROM settings WHERE key = 'aside'").fetchone()[0] == "1"
 
 
-def test_refusal_on_a_read_request_is_audited_and_touch_is_throttled(settings):
+def test_refusal_on_a_read_request_is_audited_and_touch_is_throttled(settings, monkeypatch):
     app = create_app(settings)
     c = TestClient(app)
     seed_tree(c)
@@ -50,17 +50,21 @@ def test_refusal_on_a_read_request_is_audited_and_touch_is_throttled(settings):
         seen = conn.execute("SELECT last_seen_at FROM users WHERE id = 'dev-ron'").fetchone()[0]
     assert denied == 1, "the refusal on a read-mode request is kept"
     assert seen, "the user row exists after the first sight"
-    time.sleep(1.1)
+    # the row's stamp has one-second resolution: instead of sleeping past the second, the stamp a touch would store from here
+    # on is moved ahead (05:P2-18) - a rewrite inside the throttle window would show, and the one after it is recognised
+    from smplwise import auth
+
+    later = "2099-01-01T00:00:00Z"
+    monkeypatch.setattr(auth, "now_iso", lambda: later)
     assert c.get("/api/v1/me", headers=as_user("ron")).status_code == 200
     with app.state.db.connection() as conn:
         seen2 = conn.execute("SELECT last_seen_at FROM users WHERE id = 'dev-ron'").fetchone()[0]
     assert seen2 == seen, "within a minute the user row is not rewritten on every request"
     app.state.db.touched.clear()
-    time.sleep(1.1)
     assert c.get("/api/v1/me", headers=as_user("ron")).status_code == 200
     with app.state.db.connection() as conn:
         seen3 = conn.execute("SELECT last_seen_at FROM users WHERE id = 'dev-ron'").fetchone()[0]
-    assert seen3 >= seen, "once the throttle window passed the touch is written again"
+    assert seen3 == later, "once the throttle window passed the touch is written again"
 
 
 def test_bootstrap_grant_lands_on_a_read_mode_first_request(settings, tmp_path):

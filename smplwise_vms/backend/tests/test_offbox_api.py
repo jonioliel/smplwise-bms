@@ -5,6 +5,7 @@ import on a new installation), the restore drill of the newest encrypted copy, a
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import json
 import time
 from dataclasses import replace
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from conftest import as_user, bind, seed_tree
+from conftest import as_user, bind, datetime_shim, seed_tree
 from fastapi.testclient import TestClient
 from test_offbox_s3 import AK, SK, FakeS3Service
 
@@ -154,7 +155,7 @@ def test_the_daily_loop_pushes_after_its_backup(world):
     assert list(w.share.glob("auto-daily-*.zip.swxb")), "the daily backup's copy reached the enabled target"
 
 
-def test_key_export_once_rotation_and_import(world, tmp_path):
+def test_key_export_once_rotation_and_import(world, tmp_path, monkeypatch):
     w = world
     t = w.c.post(f"{URL}/targets", json={"name": "USB", "kind": "local", "enabled": True, "config": {"path": str(w.share)}}).json()
     first = _backup(w)
@@ -171,7 +172,8 @@ def test_key_export_once_rotation_and_import(world, tmp_path):
     # rotation: a new active key; the copy sealed with the old one still opens
     rot = w.c.post(f"{URL}/key/rotate", json={"confirm": "ROTATE"}).json()
     assert rot["active"] != old_kid and {k["id"] for k in rot["keys"]} >= {old_kid}
-    time.sleep(1.1)
+    # archive and object names carry the second: the backup clock is moved two seconds ahead instead of sleeping past it (05:P2-18)
+    monkeypatch.setattr(backup_svc, "dt", datetime_shim(lambda: dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=2)))
     second = _backup(w)
     assert offbox_runtime.run_push(w.db, w.settings, t["id"], trigger="manual")["ok"]
     ring = offbox_keys.load(Path(w.settings.data_dir)).key_map()

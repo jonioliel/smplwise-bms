@@ -18,6 +18,7 @@ from fake_wiskey import FIXTURES, HA_ERROR_CODES, PREFIX, SEPARATE_HANDLERS, Fak
 from fastapi.testclient import TestClient
 
 from smplwise.services import intercom_client, intercom_sync, wiskey_background
+from support.waiting import wait_for
 
 PERSON_MARKERS = ("Dana", "1001", "+972500000000", "****1234", "person_name", "employee_no", "last_access", "Drift Person")
 
@@ -237,15 +238,6 @@ def wiskey(settings, monkeypatch):
             thread.join(timeout=5)
     wbf.FEED.reset()
     intercom_sync.SYNC.reset()
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 def test_schema_drift_never_reaches_the_entry_center_or_the_background_projection(wiskey):
