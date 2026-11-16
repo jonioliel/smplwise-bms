@@ -42,6 +42,8 @@ import logging
 import re
 from typing import Any
 
+from ._common import refusal as _refusal
+
 _LOGGER = logging.getLogger(__name__)
 
 LOCAL_ID_RE = re.compile(r"l_[0-9A-HJKMNP-TV-Z]{26}")
@@ -284,7 +286,7 @@ def user_refusal(user: Any) -> str | None:
 
 def _refuse(msg: dict[str, Any], bridge_service: str, error: str) -> dict[str, Any]:
     _LOGGER.warning("smplwise_bridge.%s refused: %s", bridge_service, error)
-    return {"ok": False, "request_id": msg.get("request_id"), "error": error}
+    return _refusal(msg, error)
 
 
 async def screen(hass: Any, verifier: Any, msg: dict[str, Any], bridge_service: str, service_user_id: Any,

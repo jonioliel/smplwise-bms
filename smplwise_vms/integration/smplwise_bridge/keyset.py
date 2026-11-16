@@ -27,11 +27,12 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import json
 import re
 import secrets
 import time
 from typing import Any, Awaitable, Callable
+
+from ._common import canonical  # the one canonical JSON of the bridge (CR-BRIDGE-COMMON-2440); `keyset.canonical` stays its name here
 
 KID_RE = re.compile(r"^g[0-9]{1,9}-(legacy|[0-9a-f]{8})$")
 LEGACY_KID = "g0-legacy"
@@ -59,10 +60,6 @@ ANSWER_ONLY = ("reply_to", "ok")
 class NoSigningKey(ValueError):
     """`KeySet.sign` with no key to sign with (CR-BRIDGE-GAPS-2436, review 05 P2-21): a ValueError as before, now told apart from a
     transport failure by the directory push (`push_health.NO_SIGNING_KEY`)."""
-
-
-def canonical(body: dict[str, Any]) -> str:
-    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def _mac(material: str, data: bytes) -> str:

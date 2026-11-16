@@ -14,9 +14,7 @@ Fakes and synthetic data only; nothing contacts a bridge, WisKey or Home Assista
 from __future__ import annotations
 
 import ast
-import importlib.util
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -42,11 +40,9 @@ API = "/api/v1"
 
 
 def _load(name: str):
-    spec = importlib.util.spec_from_file_location(f"_sw_bridge_wxh_{name}", BRIDGE / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    import bridge_loader  # a private copy inside a package: the bridge modules import `._common` (CR-BRIDGE-COMMON-2440)
+
+    return bridge_loader.load_private(name, "wxh")
 
 
 keyset_mod = _load("keyset")

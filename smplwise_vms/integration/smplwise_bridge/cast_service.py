@@ -17,6 +17,7 @@ from collections import deque
 from typing import Any
 
 from . import cast_policy
+from ._common import refusal as _refusal, window_full
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,9 +56,7 @@ def current_origin(now: float | None = None) -> str | None:
 
 
 def _rate_limited(now: float) -> bool:
-    while _calls and now - _calls[0] > RATE_WINDOW_S:
-        _calls.popleft()
-    if len(_calls) >= RATE_MAX:
+    if window_full(_calls, now, RATE_WINDOW_S, RATE_MAX):
         return True
     _calls.append(now)
     return False
@@ -83,8 +82,7 @@ async def _local_addresses(hass: Any) -> list[str] | None:
 
 
 def _refuse(msg: dict[str, Any], error: str) -> dict[str, Any]:
-    request_id = msg.get("request_id")
-    return {"ok": False, "request_id": request_id if isinstance(request_id, str) else None, "error": error}
+    return _refusal(msg, error, text_id=True)
 
 
 async def async_handle_cast_stream(hass: Any, verifier: Any, msg: dict[str, Any], platform_of: Any, call_service: Any = None) -> dict[str, Any]:

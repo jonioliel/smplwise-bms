@@ -43,6 +43,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from ._common import entity_policy_refusal
 from .config_policy import has_template
 from .config_service import PLATFORM, entity_of, ha_deps
 from .config_store import StoreError
@@ -360,19 +361,7 @@ def analyse(kind: str, config: Any, level: int = 0) -> Facts:
 def policy_refusal(user: Any, policy_control: Any, entity_ids: Iterable[str], refused: str = POLICY_REFUSED) -> str | None:
     """The service user's own Home Assistant entity policy (`check_entity(entity_id, POLICY_CONTROL)`) for every entity - S2. Never skipped for
     an administrator: the service user is never one (service_identity.user_refusal), and an administrator here would be a fault - closed."""
-    if getattr(user, "is_admin", True):
-        return POLICY_UNAVAILABLE
-    check = getattr(getattr(user, "permissions", None), "check_entity", None)
-    if not callable(check) or policy_control is None:
-        return POLICY_UNAVAILABLE
-    for entity_id in entity_ids:
-        try:
-            allowed = check(entity_id, policy_control)
-        except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: closed
-            return POLICY_UNAVAILABLE
-        if allowed is not True:
-            return refused
-    return None
+    return entity_policy_refusal(user, policy_control, entity_ids, strict=True, unavailable=POLICY_UNAVAILABLE, refused=refused)
 
 
 async def _load_item(hass: Any, deps: Any, entity_id: str, cache: dict[str, Any] | None = None) -> tuple[str, Any]:
