@@ -345,6 +345,14 @@ def test_go2rtc_session_through_the_existing_engine_stays_in_the_namespace(setti
         return real_ensure(self, name, src, check)
 
     monkeypatch.setattr(pb.g2.Go2rtc, "ensure_stream", ensure)
+    # CR-GO2RTC-ADAPTER-2436: a playback generation is written with create_stream (no listing first); spy on it the same way
+    real_create = pb.g2.Go2rtc.create_stream
+
+    def create(self, name, src):
+        sources.append(src)
+        return real_create(self, name, src)
+
+    monkeypatch.setattr(pb.g2.Go2rtc, "create_stream", create)
 
     class P:
         user_id, username = "dev-joni", "joni"

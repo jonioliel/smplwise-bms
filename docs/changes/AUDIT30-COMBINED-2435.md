@@ -146,3 +146,61 @@ tsc, build, release check, add-on build and spec lint passed. Every round-1 fail
 
 Stopped after two RED rounds, as instructed. Note: `origin/main` moved to 2.43.5 (`0a8fb55e1`) while round 2 ran; this branch is
 cut from `665ec8f24` and needs a merge of main before it boards the next train.
+
+## 6. Merge of main 2.43.5 and the round-2 failure (before round 3)
+
+### Merge
+
+`origin/main` `0a8fb55e1` (2.43.5: LIVECAM-DRAFT-RESET, NOSCROLL, FLAKY-G2R, HEALTH-GO2RTC-FOLLOWUP) merged in `7a7e3dbb8`. One text
+conflict, `frontend/src/screens/live-camera.ts` (three hunks): main's camera-switch guards (`camGen`, `cam.id`, `e.camId`) kept with
+this branch's operator wording (lead Q1 = a: "מקליט", not "NVR"); main's new draft-reset message worded the same way. No binary
+conflict, so no baseline re-take. No spec checks those messages.
+
+### `evidence-pwa-push.spec.ts:139` [desktop]: cause (PWA-UPDATE-STALL-2435)
+
+Not caused by this branch. Runner jobs (`run_remote.sh preview`, one test, one worker, `--trace off`, `--repeat-each`), with a
+throwaway instrumented copy of the test (not committed): in-page listeners, a wrapped worker script that logs every fetch /
+respondWith / waitUntil per worker instance and version, and CDP `ServiceWorker.workerVersionUpdated` events.
+
+| Build | Result |
+|---|---|
+| branch `7a7e3dbb8`, the test with `--trace on` | 1 passed (a trace changes the timing and hides it, as locally in round 2) |
+| branch `7a7e3dbb8`, the test, no trace, x3 | 2 passed, 1 failed |
+| branch `7a7e3dbb8`, instrumented, x6 / x10 | 1 of 6 and 2 of 10 stalled |
+| main `0a8fb55e1`, instrumented, x10 | **7 of 10 stalled** |
+
+What happens: the notice of a new release shows right after load, while the start-up warm-up (WARMUP-POLISH-2421,
+`shell/lazy-screens.ts`) fetches the screens' chunks through the old worker. On "רענון" the new worker calls `skipWaiting()`;
+Chromium hands over by stopping the old worker first (CDP: old version `stopping` -> `stopped`). A warm-up chunk fetch arriving in
+that moment starts the old worker again (`starting` -> `running`, a fresh evaluation of the old script handles the fetch) and the
+activation is dropped: the new worker stays `installed`, no `controllerchange`, no reload (the test waits until its 180 s timeout).
+A second skip-waiting request changes nothing (measured). A plain reload does make Chromium hand over (old -> `redundant`, new ->
+`activated`, the old cache deleted), but in 2 of 10 runs the reload's own navigation reached the old worker just before Chromium
+stopped it and never finished. The main nightly passing in 12 s was a lucky run, and the round-1 local reading ("pre-existing on
+main") was right; the waiting-worker poll added in `7b3a90ee8` did not touch the cause.
+
+### Fix (product, `66e43c114` + `35fa2cc45`)
+
+`pwa/register.ts applyUpdate`: (1) stop the warm-up and let the screen chunks in flight settle (`lazy-screens.ts quietScreenLoads`,
+at most 2 s); (2) ask the new worker to skip waiting, `controllerchange` reloads; (3) reload anyway when the new worker has not
+started activating after 3 s (`UPDATE_STALL_MS`); (4) ask again when a reload is still pending after 8 s, at most twice. The test is
+unchanged apart from its comment (not quarantined). A real user pressing "רענון" during the warm-up had the same stall (the page did
+not reload for minutes).
+
+### Receipts (runner, one worker)
+
+| Job | Result |
+|---|---|
+| `66e43c114` (fallback reload only): the test x10, desktop | 8 passed, 2 failed (the pending-reload case above) |
+| `66e43c114`: evidence-pwa-push + unit-live-camera-switch + evidence-audit30g-video, 3 projects | 99 passed, 5 skipped, 1 failed (the same test, desktop) |
+| `35fa2cc45`: the test x10 + the instrumented copy x10, desktop | 20 passed (load 7-10 at the time; every hand-over clean after the quiet step) |
+| `35fa2cc45`: evidence-pwa-push + unit-live-camera-switch + evidence-audit30g-video + evidence-warmup-polish-2421, 3 projects | 121 passed, 5 skipped, 0 failed (load 13-24) |
+
+Local: `tsc --noEmit` exit 0 (merge, `66e43c114`, `35fa2cc45`); unit-warmup-polish-2421 + unit-perf-home-devices (unit config, one worker): 17 passed.
+
+Not run: the full suites (the entry check, round 3, runs them); the PWA test was not re-run under the heavy load (30-45) of the
+earlier jobs after `35fa2cc45` - the runner was quiet by then.
+
+### Round 3
+
+Queued on the head of this note; verdict file `~/smplwise-results/entry_pilot-AUDIT30-COMBINED-2435_<sha9>.md`.

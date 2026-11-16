@@ -23,6 +23,7 @@ from typing import Any
 from ..audit import audit
 from ..db import now_iso
 from . import notify_policy
+from . import notify_recipients
 
 SOURCE_PREFIX = "temperature."
 # phase 3: `health` (temperature.health - a low battery, a frozen reading, a suspected cooling fault) joins the routable kinds; the
@@ -105,20 +106,10 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def validate_recipients(conn: sqlite3.Connection, rec: Any, field: str) -> dict[str, list[str]]:
-    if not isinstance(rec, dict) or set(rec) - {"roles", "users", "groups"}:
-        raise AlertsInvalid("validation", "נמענים לא תקינים.", "Invalid recipients.", {"fields": [field]})
-    roles, users, grps = rec.get("roles") or [], rec.get("users") or [], rec.get("groups") or []
-    if not all(isinstance(x, list) for x in (roles, users, grps)) or len(users) > USERS_MAX or len(grps) > GROUPS_MAX or len(roles) > len(ROUTABLE_ROLES):
-        raise AlertsInvalid("validation", "נמענים לא תקינים.", "Invalid recipients.", {"fields": [field]})
-    if any(r not in ROUTABLE_ROLES for r in roles):
-        raise AlertsInvalid("recipient_role", "תפקיד שלא יכול לקבל התראות טמפרטורה.", "This role cannot receive temperature alerts.", {"fields": [f"{field}.roles"]})
-    active = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    if any(u not in active for u in users):
-        raise AlertsInvalid("recipient_user", "משתמש לא מוכר.", "Unknown user.", {"fields": [f"{field}.users"]})
-    groups = {r[0] for r in conn.execute("SELECT id FROM groups").fetchall()}
-    if any(g not in groups for g in grps):
-        raise AlertsInvalid("recipient_group", "קבוצה לא מוכרת.", "Unknown group.", {"fields": [f"{field}.groups"]})
-    return {"roles": [r for r in ROUTABLE_ROLES if r in roles], "users": sorted(set(users)), "groups": sorted(set(grps))}
+    """A `{roles, users, groups}` body in canonical form (CR-RECIPIENTS-2436: the shared validation, this module's texts and limits)."""
+    return notify_recipients.validate(conn, rec, field, ROUTABLE_ROLES, error=AlertsInvalid,
+                                      role_message=("תפקיד שלא יכול לקבל התראות טמפרטורה.", "This role cannot receive temperature alerts."),
+                                      users_max=USERS_MAX, groups_max=GROUPS_MAX)
 
 
 def _validate_escalation(conn: sqlite3.Connection, esc: Any, cur: dict[str, Any]) -> dict[str, Any]:
@@ -219,23 +210,8 @@ def escalation_step(conn: sqlite3.Connection, level: int) -> dict[str, Any] | No
 
 
 def _expand(conn: sqlite3.Connection, rec: dict[str, list[str]]) -> list[str]:
-    out: list[str] = list(rec.get("users") or [])
-    grps = rec.get("groups") or []
-    if grps:
-        marks = ",".join("?" * len(grps))
-        out += [r[0] for r in conn.execute(f"SELECT user_id FROM group_members WHERE group_id IN ({marks})", grps).fetchall()]
-    roles = [r for r in (rec.get("roles") or []) if r in ROUTABLE_ROLES]
-    if roles:
-        marks = ",".join("?" * len(roles))
-        now = now_iso()
-        out += [r[0] for r in conn.execute(
-            f"""SELECT DISTINCT b.subject_id FROM bindings b WHERE b.subject_kind = 'user' AND b.role_id IN ({marks})
-                AND b.revoked_at IS NULL AND b.effect = 'allow' AND (b.expires_at IS NULL OR b.expires_at > ?)""", (*roles, now)).fetchall()]
-        out += [r[0] for r in conn.execute(
-            f"""SELECT DISTINCT m.user_id FROM bindings b JOIN group_members m ON m.group_id = b.subject_id WHERE b.subject_kind = 'group' AND b.role_id IN ({marks})
-                AND b.revoked_at IS NULL AND b.effect = 'allow' AND (b.expires_at IS NULL OR b.expires_at > ?)""", (*roles, now)).fetchall()]
-    active = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    return [u for u in dict.fromkeys(out) if u in active]
+    """Named users, group members and role holders (direct and through a group, live bindings), active users only (services/notify_recipients)."""
+    return notify_recipients.expand(conn, rec, ROUTABLE_ROLES)
 
 
 def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:

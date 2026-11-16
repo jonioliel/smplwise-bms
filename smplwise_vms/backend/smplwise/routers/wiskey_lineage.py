@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
-from ..rbac import Principal, is_system_admin
+from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import intercom_writes as iw
 from ..services import wiskey_direct_join as wkj
 
@@ -39,17 +39,34 @@ def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
+def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, *, action: str, interactive: bool) -> None:
+    """The administrator gate of every lineage route, as on the sibling administrator routers (routers/wiskey_managed.py
+    _admin_or_403): rbac.require("system.configure") first - the inactive user, an explicit deny and the local second-factor rule,
+    audited by require() - then the system_admin binding, then (the three actions) an interactive session. Code review 2026-11-13
+    P1-2: is_system_admin alone leaves the active flag and a deny to its caller."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    reason = None
+    if not is_system_admin(conn, principal.user_id):
+        reason = "not_system_admin"
+    elif interactive and not iw.interactive(principal):
+        reason = "interactive_only"
+    if reason is not None:
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="wiskey_lineage", resource_id="*", reason=reason,
+              request_id=_rid(request))
+        raise ApiError(403, reason, "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו." if interactive else "רק מנהל מערכת.")
+
+
 def _admin(request: Request, principal: Principal, *, action: str, interactive: bool) -> None:
+    """The gate on its own write connection (a refusal's audit row commits with the 403). Blocking: an async route awaits it in the
+    thread pool (code review 2026-11-13 P1-6)."""
     with request.app.state.db.connection(label="wiskey_lineage.gate") as conn:
-        reason = None
-        if not is_system_admin(conn, principal.user_id):
-            reason = "not_system_admin"
-        elif interactive and not iw.interactive(principal):
-            reason = "interactive_only"
-        if reason is not None:
-            audit(conn, actor=principal, action=action, decision="denied", resource_type="wiskey_lineage", resource_id="*", reason=reason,
-                  request_id=_rid(request))
-            raise ApiError(403, reason, "רק מנהל מערכת בהפעלה אינטראקטיבית יכול לבצע פעולה זו." if interactive else "רק מנהל מערכת.")
+        _gate(conn, request, principal, action=action, interactive=interactive)
+
+
+def _audit_allowed(request: Request, principal: Principal, *, action: str, resource_id: str, details: dict[str, Any]) -> None:
+    with request.app.state.db.connection(label=action.replace("wiskey.lineage.", "wiskey_lineage.")) as conn:
+        audit(conn, actor=principal, action=action, decision="allowed", resource_type="wiskey_lineage", resource_id=resource_id,
+              request_id=_rid(request), details=details)
 
 
 def _join() -> wkj.DirectJoin:
@@ -65,8 +82,7 @@ def _actor_ref(principal: Principal) -> str:
 
 @router.get(BASE)
 def view(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    if not is_system_admin(conn, principal.user_id):
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת.")
+    _gate(conn, request, principal, action="wiskey.lineage.view", interactive=False)  # read mode: audit() writes the refusal aside
     join = wkj.installed()
     if join is None:
         return {"installed": False, "lineage": None}
@@ -75,7 +91,10 @@ def view(request: Request, principal: Principal = Depends(current_principal_ro),
 
 @router.post(f"{BASE}/{{operation_id}}/resolve")
 async def resolve(request: Request, operation_id: str = Path(..., pattern=_OP), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
-    _admin(request, principal, action="wiskey.lineage.resolve", interactive=True)
+    from starlette.concurrency import run_in_threadpool
+
+    # P1-6: the gate and the allowed audit row open write connections (which may wait for the write lock): off the event loop
+    await run_in_threadpool(lambda: _admin(request, principal, action="wiskey.lineage.resolve", interactive=True))
     join = _join()
     from ..services.wiskey_native_write import NativeWriteError
     from ..services.wiskey_write_lineage import LineageError
@@ -86,9 +105,8 @@ async def resolve(request: Request, operation_id: str = Path(..., pattern=_OP), 
         raise ApiError(404 if exc.code == "unknown_operation" else 409, exc.code, "הפעולה לא נמצאה ברישום.") from None
     except NativeWriteError as exc:
         raise ApiError(409, exc.code, "לא ניתן לברר פעולה זו.") from None
-    with request.app.state.db.connection(label="wiskey_lineage.resolve") as conn:
-        audit(conn, actor=principal, action="wiskey.lineage.resolve", decision="allowed", resource_type="wiskey_lineage", resource_id=operation_id,
-              request_id=_rid(request), details={"state": out.state, "code": out.code})
+    await run_in_threadpool(lambda: _audit_allowed(request, principal, action="wiskey.lineage.resolve", resource_id=operation_id,
+                                                   details={"state": out.state, "code": out.code}))
     return {"operation_id": operation_id, "state": out.state, "code": out.code, "person_revision": out.person_revision, "resent": False}
 
 

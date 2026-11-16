@@ -7,7 +7,7 @@
  * Reply shape of the JSON reads: `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null unless `state` is
  * `ready`; `state` `unsupported` = this build of the access-control service does not offer the read (nothing was sent).
  */
-import { ApiError, apiUrl, get } from './client';
+import { ApiError, apiResponse, get } from './client';
 import type { IntercomFeedState } from './intercom';
 import { peopleQueryString, type PeopleRequest } from '../access-control/people-logic';
 
@@ -151,7 +151,7 @@ export const getAcPerson = (id: string) => get<AcPersonReply>(`access-control/pe
 export async function fetchPersonPhoto(id: string): Promise<{ url: string } | { error: 'forbidden' | 'missing' | 'unavailable' }> {
   let res: Response;
   try {
-    res = await fetch(apiUrl(`access-control/people/${encodeURIComponent(id)}/photo`), { credentials: 'same-origin', cache: 'no-store' });
+    res = await apiResponse(`access-control/people/${encodeURIComponent(id)}/photo`, { cache: 'no-store' });
   } catch {
     return { error: 'unavailable' };
   }

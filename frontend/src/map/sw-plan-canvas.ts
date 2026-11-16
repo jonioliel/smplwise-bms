@@ -13,7 +13,7 @@ import { curveT } from '../i18n/plan-curves';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { curveThrough, levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
-import { tribuneEntrances } from './shared-space';
+import { otherOutlineIsUpper, tribuneEntrances } from './shared-space';
 import { affineAttr, affineFromCorners, type Corners } from './floor-image';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
@@ -1747,7 +1747,7 @@ export class SwPlanCanvas extends LitElement {
       </g>`;
     })}${entries.map((e) => {
       const pts = e.other_polygon!.map((p) => `${(p.x * this.planWidth).toFixed(1)},${(p.y * this.planHeight).toFixed(1)}`).join(' ');
-      const upper = e.other_label === 'מפלס עליון';
+      const upper = otherOutlineIsUpper(e);
       const top = e.other_polygon!.reduce((a, p) => (p.y < a.y ? p : a), e.other_polygon![0]);
       const label = e.other_label ?? '';
       const lw = Math.max(40, label.length * 6.2 + 12);

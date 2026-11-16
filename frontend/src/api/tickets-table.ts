@@ -11,10 +11,9 @@
  * The inline status and assignee changes use slice 1's single-ticket routes (api/tickets.ts). Without a backend (static preview,
  * design review) every call is answered by the demo store below, built on slice 1's demo store (api/tickets-mock.ts).
  */
-import { ApiError, apiUrl, get, patch, post, put, api } from './client';
+import { ApiError, apiBlob, get, patch, post, put, api } from './client';
 import { isApi } from './session';
-import { mockBackend } from './tickets-mock';
-import type { TicketItem, TicketStatus } from './tickets';
+import type { TicketItem, TicketsBackend, TicketStatus } from './tickets';
 import type { CostStatus } from './tickets-costs';
 
 export type ColumnKey = 'number' | 'title' | 'department' | 'priority' | 'status' | 'assignee' | 'place' | 'device' | 'created' | 'activity' | 'stuck' | 'sla'
@@ -103,20 +102,8 @@ const qs = (o: Record<string, string>): string => {
   return s ? `?${s}` : '';
 };
 
-/** A binary answer (the CSV) with the same credentials and error model as `api()`. */
-async function blobOf(path: string): Promise<{ blob: Blob; headers: Headers }> {
-  const res = await fetch(apiUrl(path), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: Partial<ApiError['body']> = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
-    }
-    throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: body.retryable ?? false, correlation_id: body.correlation_id ?? '', details: body.details ?? {} });
-  }
-  return { blob: await res.blob(), headers: res.headers };
-}
+/** A binary answer (the CSV): the client's `apiBlob`, with the same credentials, 401 retry and error model as `api()`. */
+const blobOf = (path: string) => apiBlob(path);
 
 const rest: TableBackend = {
   page: (params) => get<TablePage>(`${T}/table${qs(params)}`),
@@ -171,8 +158,12 @@ function demoKey(r: TableRow, key: ColumnKey): string | number {
   }
 }
 
+/** CR-API-BLOB-2436 (review 07:F2): slice 1's demo store is fetched on the first demo call - with a backend it is never loaded. */
+const demoTickets = (): Promise<TicketsBackend> => import('./tickets-mock').then((m) => m.mockBackend);
+
 const mock: TableBackend = {
   async page(params) {
+    const mockBackend = await demoTickets();
     const all = await mockBackend.list({ scope: (params.scope as 'mine') || 'visible', status: 'all', limit: 200 });
     const statuses = !params.status || params.status === 'all' ? null : GROUPS[params.status] ?? params.status.split(',');
     const depts = params.department ? params.department.split(',') : [];
@@ -206,6 +197,7 @@ const mock: TableBackend = {
     return { items: rows, next_cursor: null, sort: params.sort || 'activity:desc', limit: Number(params.limit || 50) };
   },
   async bulk(body) {
+    const mockBackend = await demoTickets();
     const results: BulkAnswer['results'] = [];
     for (const item of body.items) {
       let result: BulkResult = 'ok';

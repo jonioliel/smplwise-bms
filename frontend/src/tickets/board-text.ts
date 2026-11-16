@@ -8,9 +8,10 @@
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
 import { registerCatalogue } from '../i18n/core';
+import { NAV_BT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
 
 const he = {
-  tabBoard: 'לוח מנהל',
+  tabBoard: NAV_BT.he.tabBoard,
   kindTicket: '{ticket}',
   openTicket: 'פתיחת {the_ticket}',
 
@@ -116,7 +117,7 @@ const he = {
 export type BoardTextKey = keyof typeof he;
 
 const en: Partial<Record<BoardTextKey, string>> = {
-  tabBoard: 'Board',
+  tabBoard: NAV_BT.en.tabBoard,
   kindTicket: '{ticket}',
   openTicket: 'Open the {ticket}',
   stAll: 'All',

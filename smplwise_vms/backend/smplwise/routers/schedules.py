@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import schedule_model as model
@@ -192,7 +192,16 @@ def _viewer(request: Request, principal: Principal = Depends(current_principal),
     return principal
 
 
-def _manager(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+def _viewer_ro(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """`_viewer` on the request's read-mode connection, for the reads that do not refresh the mirror (CR-READCONN-A-2436); a
+    refusal's audit row is still written (rbac.require -> audit's write-aside). `_viewer` stays for the reads that call
+    store.MIRROR.ensure (tests/get_write_allowlist_access.txt)."""
+    _bind(request)
+    view.require_view(conn, principal)
+    return principal
+
+
+def _manager(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     """The permission before the body: schedule.manage somewhere (the audited 403), before anything the caller sent is read."""
     _bind(request)
     if view.MANAGE not in set(view.permissions_anywhere(conn, principal)):
@@ -273,7 +282,7 @@ def list_schedules(
 
 
 @router.get("/schedules/catalog")
-def catalog(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), q: str | None = Query(None, max_length=80),
+def catalog(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_read_conn), q: str | None = Query(None, max_length=80),
             floor: str | None = Query(None, max_length=100), area: str | None = Query(None, max_length=100), cls: str | None = Query(None, alias="class", pattern="^(light|switch|cover|climate|fan|alarm|lock|door|script|scene|helper|humidifier|vacuum|siren|media|number|select)$")) -> dict[str, Any]:
     """§3.4 - the editor's action-entity picker (one server-side source of classes, allow-list and door / alarm rules)."""
     ctx = _ctx(request, conn, principal, sync=False)
@@ -282,7 +291,7 @@ def catalog(request: Request, principal: Principal = Depends(_manager), conn: sq
 
 
 @router.get("/schedules/condition-candidates")
-def condition_candidates(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), q: str | None = Query(None, max_length=80),
+def condition_candidates(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), q: str | None = Query(None, max_length=80),
                          domain: Literal["binary_sensor", "sensor", "sun", "input_boolean"] | None = None) -> dict[str, Any]:
     """§3.4b - entities usable in conditions: manage anywhere, or system.configure (the Shabbat-sensor picker)."""
     _bind(request)
@@ -311,7 +320,7 @@ def create_schedule(request: Request, principal: Principal = Depends(_manager_ga
 
 
 @router.get("/schedules/trash")
-def list_trash(request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_trash(request: Request, principal: Principal = Depends(_viewer_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.13 - the 30-day trash the caller may see (the snapshot's action entities follow the same visibility rule)."""
     return ops.trash_list(_writer(request, conn, principal))
 
@@ -369,7 +378,7 @@ def review(request: Request, principal: Principal = Depends(_viewer), conn: sqli
 
 
 @router.get("/schedules/scripts")
-def scripts(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def scripts(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Owner decision 2 (2026-10-04): the scripts a schedule may run, the ones that need a system administrator's "allowed in schedules" mark,
     and the marks (who, when, lapsed because the script changed)."""
     return view.scripts_payload(_ctx(request, conn, principal, sync=False))

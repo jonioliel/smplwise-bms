@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, svg, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, svg, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -16,6 +16,7 @@ import { isOn, media, type MediaDevice } from '../api/media-screens';
 import { isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { hwf } from '../i18n/home-widget-failure'; // UXREST2-295: a widget whose own read failed says so, with a retry
 import '../components/sw-state-panel';
+import { PollController } from '../components/poll-controller'; // CR-HOME-RELOAD-2436: the media poll (visible-only, no overlap)
 import { SkinController } from '../design/skin';
 import { LookController } from '../design/look';
 import '../components/sw-pill';
@@ -218,6 +219,9 @@ const GHOST_MSG: Record<Exclude<Avail, 'ok'>, string> = {
  * The element draws what it is given: `items` (config/home-config.ts resolveWidgets), `config` and `data`. Events:
  * home-widget-size {id, size}, home-widget-toggle {id}, home-widget-move {id, to}, home-widget-edit {id}, home-quick {action}.
  */
+/** CR-HOME-RELOAD-2436: the media widget's poll period (as before: 10 s, while the page is visible). */
+const MEDIA_POLL_MS = 10_000;
+
 @customElement('home-widgets')
 export class HomeWidgetsView extends LitElement {
   @property({ attribute: false }) items: WidgetItem[] = [];
@@ -265,7 +269,11 @@ export class HomeWidgetsView extends LitElement {
   @state() private remoteKey = '';
   @state() private remoteKind = '';
   @state() private remoteOpen = false;
-  private mediaTimer = 0;
+  /** CR-HOME-RELOAD-2436 (06:HOME-1 a): the media poll runs only while a media widget is placed, one read at a time (an ask while one
+   * runs is folded into one more read right after it). */
+  private poll = new PollController(this);
+  private mediaBusy = false;
+  private mediaAgain = false;
   /** CLOCK-293: the shared wall-clock ticker (api/clock-ticker.ts); a render never touches it, so a live data refresh cannot freeze the clock. */
   private ticker = createClockSubscription((now) => (this.now = now));
   /** Bubble phase C: the skin in force (the quick actions are pills there). */
@@ -1679,14 +1687,14 @@ export class HomeWidgetsView extends LitElement {
     super.connectedCallback();
     this.now = new Date();
     this.syncTicker();
-    void this.loadScreens();
-    this.mediaTimer = window.setInterval(() => document.visibilityState === 'visible' && void this.loadScreens(), 10_000);
+    // CR-HOME-RELOAD-2436: the media read starts with a placed media widget (willUpdate -> syncMediaPoll); a reconnect starts it again here
+    if (this.hasUpdated) this.syncMediaPoll();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.ticker.stop();
-    window.clearInterval(this.mediaTimer);
+    this.poll.cancel('media'); // the controller pauses on disconnect anyway; dropped so a reconnect registers it afresh
     this.barRo?.disconnect();
   }
 
@@ -1710,7 +1718,39 @@ export class HomeWidgetsView extends LitElement {
 
   /** The screens and (CR-016) the speakers, players and receivers of the installation that this user may see (media.read; the demo has
    * the mocks). Null when there are none. */
-  private async loadScreens() {
+  /** CR-HOME-RELOAD-2436 (06:HOME-1 a): read the media now and every MEDIA_POLL_MS while a media widget is placed (any availability: the
+   * remote and the edit ghost need the read); without a media widget there is no media request at all. */
+  private syncMediaPoll() {
+    if (this.items.some((i) => i.id === 'media')) {
+      if (!this.poll.has('media')) {
+        void this.loadScreens();
+        this.poll.every('media', MEDIA_POLL_MS, () => this.loadScreens());
+      }
+    } else this.poll.cancel('media');
+  }
+
+  protected willUpdate(changed: PropertyValues<this>) {
+    if (changed.has('items')) this.syncMediaPoll();
+  }
+
+  private async loadScreens(): Promise<void> {
+    if (this.mediaBusy) {
+      this.mediaAgain = true; // a change or a retry during a read: one more read right after it, never two at once
+      return;
+    }
+    this.mediaBusy = true;
+    try {
+      await this.readScreens();
+    } finally {
+      this.mediaBusy = false;
+    }
+    if (this.mediaAgain) {
+      this.mediaAgain = false;
+      await this.loadScreens();
+    }
+  }
+
+  private async readScreens() {
     if (isApi() && !canAnywhere('media.read')) {
       this.screens = null;
       this.speakers = null;

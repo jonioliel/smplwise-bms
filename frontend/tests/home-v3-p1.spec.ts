@@ -240,7 +240,7 @@ test.describe('HOME-V3-P1-2430 behaviour', () => {
   test('intercom: the call history; guests hidden unless the administrator marked the person', async ({ page }) => {
     await open(page, 'intercom');
     await expect(inHome(page).locator('.crow')).toHaveCount(2);
-    await expect(inHome(page).locator('.crow').first()).toContainText('נועה פתח/ה את הדלת');
+    await expect(inHome(page).locator('.crow').first()).toContainText('הדלת נפתחה · נועה');
     await expect(inHome(page).locator('[data-act="icTab"][data-v="guests"]')).toHaveCount(0);
     await expect(inHome(page).locator('[data-act="icTab"][data-v="people"]')).toHaveCount(1);
   });

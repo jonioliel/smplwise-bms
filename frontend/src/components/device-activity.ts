@@ -8,7 +8,7 @@ import './sw-button';
 import './sw-toggle';
 import './sw-dropdown';
 import './sw-state-panel';
-import '../screens/schedule-editor';
+// CR-SHELL-LAZY-2436 (review 07:F4 a, 06:BUNDLE-1): <schedule-editor> and <ticket-create> are chunks of their own (loadPart below)
 import { t, tf } from '../i18n/he';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { IconName } from './sw-icon';
@@ -22,7 +22,6 @@ import { ApiError } from '../api/client';
 import { can } from '../api/session';
 import { OPEN_EVENT, type ActivityOpen, type ActivityTab, type ActivityTarget } from './device-activity-press';
 import '../tickets/device-tickets-tab';
-import '../tickets/ticket-create';
 import type { TabStatus } from '../tickets/device-tickets-tab';
 import { ticketsApi, type EntityTickets, type Meta, type NewTicketMode } from '../api/tickets';
 import { dt } from '../tickets/device-text';
@@ -38,6 +37,29 @@ import {
 } from './device-card-logic';
 
 type Tab = ActivityTab;
+
+/**
+ * CR-SHELL-LAZY-2436 (review 07:F4 a, 06:BUNDLE-1, 08:F02): the schedule editor family and the new-ticket form open only from this popup,
+ * so they are not in the entry chunk. `loadPart` fetches a part's chunk once (a failed fetch may be retried by the next press); the popup
+ * sets the state that renders the tag only after the chunk landed (GATE2342: an element is never upgraded in place - its properties
+ * arrive before connectedCallback, exactly as when the part was imported eagerly).
+ */
+type LazyPart = 'schedule-editor' | 'ticket-create';
+const PART_LOADERS: Record<LazyPart, () => Promise<unknown>> = {
+  'schedule-editor': () => import('../screens/schedule-editor'),
+  'ticket-create': () => import('../tickets/ticket-create'),
+};
+const partLoads = new Map<LazyPart, Promise<unknown>>();
+function loadPart(part: LazyPart): Promise<unknown> {
+  if (customElements.get(part)) return Promise.resolve();
+  let p = partLoads.get(part);
+  if (!p) {
+    p = PART_LOADERS[part]();
+    partLoads.set(part, p);
+    p.catch(() => partLoads.delete(part));
+  }
+  return p;
+}
 
 function readView(): ActivityView {
   try {
@@ -110,6 +132,8 @@ export class DeviceActivity extends LitElement {
   private offNames: (() => void) | null = null;
 
   private opener: HTMLElement | null = null;
+  /** CR-SHELL-LAZY-2436: bumped on every open and close, so a part chunk that lands after the popup moved on opens nothing. */
+  private popupSeq = 0;
   private token = 0;
   private schedToken = 0;
   private rowToken = 0;
@@ -162,6 +186,7 @@ export class DeviceActivity extends LitElement {
     if (!tabs.length) return;
     if (!tabs.includes(tab)) tab = tabs[0];
     this.menu = null;
+    this.popupSeq++;
     this.tab = tab;
     this.creating = false;
     if (this.ticketsOn) {
@@ -190,6 +215,7 @@ export class DeviceActivity extends LitElement {
   }
 
   private closePopup() {
+    this.popupSeq++;
     this.open = false;
     this.editing = null;
     this.token++;
@@ -225,6 +251,17 @@ export class DeviceActivity extends LitElement {
 
   /** "Open a {ticket}" (the tab's button or the menu item): the create form over the window, with the device (D22 decides sheet / dialog). */
   private async startCreate() {
+    if (!customElements.get('ticket-create')) {
+      // CR-SHELL-LAZY-2436: the form's chunk first (the popup stays as it is meanwhile); a popup closed or reopened meanwhile opens nothing
+      const seq = this.popupSeq;
+      try {
+        await loadPart('ticket-create');
+      } catch (err) {
+        console.warn('ticket form chunk failed to load', err);
+        return;
+      }
+      if (seq !== this.popupSeq) return;
+    }
     this.creating = true;
     if (this.meta) return;
     try {
@@ -249,7 +286,7 @@ export class DeviceActivity extends LitElement {
 
   private renderCreate() {
     const tg = this.target;
-    if (!this.creating || !tg) return nothing;
+    if (!this.creating || !tg || !customElements.get('ticket-create')) return nothing;
     return html`<ticket-create .open=${true} .meta=${this.meta} mode=${this.newMode} data-device-create
       .device=${{ id: tg.id, name: tg.name, data: this.tdata }} .mapElement=${{ pick: { resource: { type: 'ha_entity', id: tg.id } }, name: tg.name, floorName: '' }}
       @created=${this.onCreated} @close=${this.onCreateClosed}></ticket-create>`; // TKMAP1: the device's place on the map is attached too (when it has one)
@@ -414,6 +451,11 @@ export class DeviceActivity extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('menu') && this.menu) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLButtonElement>('.menu button')?.focus());
+    // CR-SHELL-LAZY-2436: the tab that offers a part fetches its chunk when it is first shown, so the press that opens it rarely waits
+    if ((changed.has('tab') || changed.has('open')) && this.open) {
+      const part: LazyPart | null = this.tab === 'schedules' ? 'schedule-editor' : this.tab === 'tickets' ? 'ticket-create' : null;
+      if (part && !customElements.get(part)) loadPart(part).catch(() => undefined); // a failure is reported when the press waits for it
+    }
   }
 
   private renderPopup(tg: ActivityTarget) {
@@ -799,7 +841,7 @@ export class DeviceActivity extends LitElement {
   private renderSchedules() {
     const canManage = can('schedule.manage');
     const add = canManage || this.sched.some((s) => s.can.edit)
-      ? html`<div class="addrow"><sw-button size="sm" icon="plus" data-sched-add @click=${() => (this.editing = { id: '' })}>${t('deviceActivity.schedAdd')}</sw-button></div>`
+      ? html`<div class="addrow"><sw-button size="sm" icon="plus" data-sched-add @click=${() => this.openEditor('')}>${t('deviceActivity.schedAdd')}</sw-button></div>`
       : nothing;
     if (this.schedStatus === 'loading') return html`<div class="skels" data-sched-state="loading" role="status" aria-label=${t('deviceActivity.schedLoading')}>${[0, 1].map(() => html`<div class="sk"><span><i class="skel a"></i><i class="skel b"></i></span><i class="skel d"></i></div>`)}</div>`;
     if (this.schedStatus === 'forbidden') return html`<sw-state-panel state="forbidden" heading=${t('deviceActivity.schedForbidden')} compact data-sched-state="forbidden"></sw-state-panel>`;
@@ -816,14 +858,30 @@ export class DeviceActivity extends LitElement {
       <div class="c"><div class="nm">${bidi(s.display_name)}${roTag ? html` <span class="tag" data-readonly><sw-icon name="lock" size=${11}></sw-icon>${t('deviceActivity.schedReadOnly')}</span>` : nothing}${more ? html` <span class="tag">${t('deviceActivity.schedMore')}</span>` : nothing}</div>
         <div class="nx"><span>${nextRunLabel(s)}</span><span class="dy"> · ${daysLabel(s.days.tokens)}</span></div></div>
       <sw-toggle .checked=${s.enabled} ?disabled=${!s.can.toggle || this.busy.has(s.id)} label=${s.enabled ? t('deviceActivity.schedEnabled') : t('deviceActivity.schedDisabled')} labelHidden data-sched-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggle(s, e.detail.checked)}></sw-toggle>
-      <sw-button iconOnly size="sm" variant="ghost" icon=${ro ? 'eye' : 'edit'} label=${ro ? t('deviceActivity.schedView') : t('deviceActivity.schedEdit')} data-sched-edit @click=${() => (this.editing = { id: s.id })}></sw-button>
+      <sw-button iconOnly size="sm" variant="ghost" icon=${ro ? 'eye' : 'edit'} label=${ro ? t('deviceActivity.schedView') : t('deviceActivity.schedEdit')} data-sched-edit @click=${() => this.openEditor(s.id)}></sw-button>
     </div>`;
+  }
+
+  /** CR-SHELL-LAZY-2436: open the editor sheet - at once when <schedule-editor> is defined, else when its chunk landed (the popup
+   * stays as it is meanwhile; a popup closed or reopened meanwhile opens nothing). */
+  private openEditor(id: string) {
+    if (customElements.get('schedule-editor')) {
+      this.editing = { id };
+      return;
+    }
+    const seq = this.popupSeq;
+    loadPart('schedule-editor').then(
+      () => {
+        if (seq === this.popupSeq) this.editing = { id };
+      },
+      (err: unknown) => console.warn('schedule editor chunk failed to load', err),
+    );
   }
 
   private renderEditor() {
     const e = this.editing;
     const tg = this.target;
-    if (!e || !tg) return nothing;
+    if (!e || !tg || !customElements.get('schedule-editor')) return nothing;
     return html`<sw-sheet open wide heading=${e.id ? t('deviceActivity.schedEditTitle') : t('deviceActivity.schedNewTitle')} data-device-activity-editor @close=${() => { this.editing = null; this.open = true; void this.loadSched(); }}>
       <schedule-editor .scheduleId=${e.id} .entity=${tg.id} @saved=${this.onSaved}></schedule-editor>
     </sw-sheet>`;

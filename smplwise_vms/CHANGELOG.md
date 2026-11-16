@@ -1,5 +1,45 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.7 (pilot) - Home interface round 32; one design language on the management screens; faster loading and code-review fixes
+
+### חדש - New
+- ממשק ביתי: בטאבלט לאורך מוצג מבנה הטלפון עם הסרגל התחתון וארבע אריחים בשורה. - Home interface: a portrait tablet shows the phone layout with the bottom bar and four tiles per row.
+- ממשק ביתי: ביומן מתג "השבוע" / "הימים הקרובים" (שבעה ימים מהיום), והבחירה נשמרת. - Home interface: the calendar has a "this week" / "the coming days" switch (seven days from today), and the choice is remembered.
+- ממשק ביתי: מעבר בין מסכים מהיר (דהייה קצרה); מסך שנפתח מ"עוד" עולה למקומו. הגדרה חדשה "הגדרות › תצוגה › מעבר בין מסכים". - Home interface: a quick screen change (a short fade); a screen opened from "more" rises into place. New setting "Settings › Display › screen transition".
+- ממשק ביתי: מצלמה בלי וידאו חי מציגה "תמונה" עם נקודה אפורה ואת זמן הרענון האמיתי. - Home interface: a camera without live video shows "still" with a grey dot and its real refresh interval.
+
+### שופר - Improved
+- מסכי הניהול (פניות, מולטימדיה, תשתיות, יומנים, וידאו וחקירה, WisKey, התקנים, תזמונים, אוטומציות והגדרות התראות) עברו לרכיבים המשותפים של שפת העיצוב: אותה מסגרת עמוד, אותם כפתורים, תגים ובוררים, וניגודיות קריאה בתגים ובכרטיסיות הנבחרות במצב כהה. - The management screens (tickets, multimedia, infrastructure, calendars, video and investigation, WisKey, devices, schedules, automations and notification settings) now use the shared components of the design language: the same page frame, buttons, badges and selectors, and readable contrast in badges and selected tabs in dark mode.
+- טעינה מהירה יותר: מסכים, נתוני הדגמה ותכונות שלא צריך מיד נטענים רק כשנפתחים. - Faster loading: screens, demo data and features that are not needed at once load only when they are opened.
+- רשימות הפניות, שליחת ההתראות ומסכי ההרשאות קוראים פחות מבסיס הנתונים ולא ממתינים לכתיבות; העלאות קבצים לא עוצרות את השרת. - The tickets lists, notification sending and the access screens read the database less and no longer wait behind writes; file uploads no longer hold up the server.
+- מסך ההגדרות › כללי מציג את בריאות המערכת האמיתית; שגיאת גיבוי (יצירה, העלאה, מחיקה, שחזור, סיסמה שגויה) מוצגת בלשונית הגיבוי; כל לשונית מציגה את השגיאות שלה. - Settings › General shows the real system health; a backup error (create, upload, delete, restore, a wrong password) is shown on the backup tab; each tab shows its own errors.
+- עורך התוכניות מגיב מהר יותר בתוכניות גדולות. - The plan editor responds faster on large plans.
+
+### תוקן - Fixed
+- לחיצה על "רענון" בהודעת גרסה חדשה בזמן שהמסכים עדיין נטענים ברקע לא נתקעת יותר (הדף נטען מחדש). - Pressing "refresh" on the new-release notice while the screens still load in the background no longer stalls (the page reloads).
+- ממשק ביתי: הקלטה שהתנגנה נסגרת כשיוצאים מהמסך, ובקשה שנכשלה לא חוזרת בלולאה. - Home interface: a playing recording is closed when the screen is left, and a failed request no longer repeats in a loop.
+- אבטחה: חיבור חי שנפתח בדיוק כשההתחברות בוטלה נסגר. - Security: a live connection opened at the moment its sign-in was revoked is closed.
+- מחיקת פרטי איש קשר בפורטל הספקים מדווחת על כישלון במקום "נמחק" כשהמחיקה לא הצליחה. - Erasing a contact in the vendor portal reports a failure instead of "erased" when the erase did not succeed.
+- חשמל, חתך הבניין, המפה והפניות מחליטים לפי נתונים ולא לפי נוסח הטקסט המוצג. - Electricity, the building cross-section, the map and tickets decide by data, not by the wording of a displayed text.
+
+### התקנה - Install
+- גשר 0.10.7: נדרשת הפעלה מחדש אחת של מערכת הבית כדי לטעון אותו. מיגרציה 0216 (אינדקסים בלבד) רצה לבד בהפעלת התוסף. - Bridge 0.10.7: one home-system restart is needed to load it. Migration 0216 (indexes only) runs by itself when the add-on starts.
+
+## 2.43.6 (pilot) - 3D map: one pill per room and the room card; no demo when the server is briefly unavailable
+
+### חדש - New
+- מפת התלת־ממד: תווית אחת לכל חדר (מה פתוח, נוכחות, אורות דולקים, טמפרטורה) במקום תווית לכל מכשיר; המכשירים מוצגים אחד־אחד כשמתקרבים לחדר. לחיצה על התווית פותחת חלון פרטים קטן, וממנו את כרטיס החדר. - 3D map: one pill per room (what is open, presence, lights on, temperature) instead of one per device; devices are shown one by one when you come close to a room. A tap on the pill opens a small detail popover, and from it the room card.
+- מפת התלת־ממד: כרטיס חדר - מצלמה (תמונה מתעדכנת כל 5 שניות, וידאו חי בלחיצה), אורות עם "כבה הכול", אקלים, דלתות, חלונות ותריסים. בשולחן העבודה ובטאבלט הכרטיס נפתח בפאנל צד והחדר עובר למרכז; בטלפון כגיליון תחתון. דלתות, שערים והאזעקה מבקשים אישור לפני פעולה; בלי הרשאה מוצג "אין הרשאה". - 3D map: the room card - camera (a still refreshed every 5 seconds, live video on a tap), lights with "turn all off", climate, doors, windows and shutters. On desktop and tablet it opens in a side panel and the room moves to the centre; on a phone as a bottom sheet. Doors, gates and the alarm ask for confirmation first; without a permission it shows "no permission".
+- מפת התלת־ממד: מתג "בניין / פרוס" ליד בחירת הקומות - "פרוס" מרחיק את הקומות זו מזו עם תווית וסיכום לכל קומה; לחיצה ראשונה מגדילה קומה, לחיצה שנייה נכנסת אליה. - 3D map: a "building / spread" switch beside the level chips - "spread" moves the levels apart with a tag and a summary per level; a first tap enlarges a level, a second tap enters it.
+- הגדרות › מפה › "המפה בתלת־ממד": שמונה הגדרות חדשות לכל הבחירות האלה (תווית לחדר או למכשיר, מה קורה בלחיצה, חדר שקט, מיקום הכרטיס, מה מבקש אישור, המצלמה בכרטיס, רקע התצוגה הפרוסה, בחירת קומה). ברירות המחדל הן המתוארות למעלה. - Settings › Map › "3D map": eight new settings for all of these choices (pill per room or per device, what a tap does, a quiet room, where the card opens, what asks for confirmation, the camera in the card, the spread view backdrop, picking a level). The defaults are the ones described above.
+
+### שופר - Improved
+- כשהשרת לא זמין לרגע (למשל בזמן הפעלה מחדש של התוסף) המסך לא עובר יותר למצב הדגמה עם נתונים מדומים: מוצג "אין חיבור לשרת", "מנסה להתחבר שוב…" וכפתור "נסה עכשיו", וכל הפעולות כבויות עד שהשרת עונה. - When the server is briefly unavailable (for example while the add-on restarts) the screen no longer switches to the demo with made-up data: it shows "no connection to the server", "trying to reconnect…" and a "try now" button, and every action stays off until the server answers.
+- חיבור ההרשאות וההתראות החיות מתחדש לבד אחרי שינה של טלפון או ניתוק שקט, וגם כשחוזרים ללשונית. - The live permissions and notifications connection reconnects by itself after a phone sleep or a silent disconnect, and when you return to the tab.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
 ## 2.43.5 (pilot) - Control screens that fit without scrolling; a camera change that never writes to the wrong camera; choosing the video service
 
 ### חדש - New

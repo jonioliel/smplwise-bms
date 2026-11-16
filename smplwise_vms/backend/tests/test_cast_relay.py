@@ -206,3 +206,85 @@ def test_the_real_listener_on_localhost_with_cors_and_no_store():
         cr.INDEX.drop("s" * 32)
         srv.stop()
     assert not srv.running
+
+
+# ---------------------------------------------------------------------- CR-GO2RTC-ADAPTER-2436 (review 03 F04): go2rtc through the adapter
+
+
+class _Settings:
+    def __init__(self, url: str | None = "http://go2rtc.example.invalid:1984", user: str | None = None, password: str | None = None) -> None:
+        self.go2rtc_url, self.go2rtc_user, self.go2rtc_password = url, user, password
+
+
+def _adapter_transport(monkeypatch, handler, built: list):
+    from smplwise.services import go2rtc as g2
+
+    def client_for(self, timeout_s: float) -> httpx.Client:
+        built.append(timeout_s)
+        return httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, transport=httpx.MockTransport(handler), event_hooks=g2._REACH_HOOKS)
+
+    monkeypatch.setattr(g2.Go2rtc, "_client_for", client_for)
+
+
+def test_the_cast_fetch_goes_through_the_adapter_client(monkeypatch):
+    from smplwise.services import media_reach
+
+    seen: list[tuple[str, dict, str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.path, dict(request.url.params), request.headers.get("authorization")))
+        if request.url.path == "/api/stream.m3u8":
+            return httpx.Response(200, content=MASTER)
+        if request.url.path == "/api/hls/segment.m4s":
+            return httpx.Response(200, content=b"x" * (cr.SEGMENT_MAX + 5))
+        return httpx.Response(404, content=b"not found")
+
+    built: list[float] = []
+    _adapter_transport(monkeypatch, handler, built)
+    oks: list[int] = []
+    monkeypatch.setattr(media_reach.REACH, "record_ok", lambda: oks.append(1))
+    fetch = cr.go2rtc_fetch(_Settings(user="api", password="pw"))
+    assert fetch("/api/stream.m3u8", {"src": STREAM, "mp4": ""}) == (200, MASTER)
+    status, body = fetch("/api/hls/segment.m4s", {"id": "Gx01", "n": "1"})
+    assert status == 200 and cr.SEGMENT_MAX < len(body) <= cr.SEGMENT_MAX + 5, "over the cap: answered as read so far, the caller refuses it"
+    assert fetch("/api/hls/playlist.m3u8", {"id": "Gx01"}) == (404, b""), "an error answer's body is never passed on"
+    assert built == [cr.UPSTREAM_TIMEOUT_S] * 3, "the adapter's client factory, with the relay's own timeout"
+    assert seen[0] == ("/api/stream.m3u8", {"src": STREAM, "mp4": ""}, seen[0][2]) and seen[0][2] and seen[0][2].startswith("Basic ")
+    assert len(oks) == 3, "a go2rtc answer seen by the cast relay reaches /health/video"
+
+
+def test_the_cast_fetch_on_a_go2rtc_outage_is_503_and_recorded(monkeypatch):
+    from smplwise.services import media_reach
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    _adapter_transport(monkeypatch, handler, [])
+    failures: list[str] = []
+    monkeypatch.setattr(media_reach.REACH, "record_failure", lambda kind: failures.append(kind))
+    fetch = cr.go2rtc_fetch(_Settings())
+    assert fetch("/api/stream.m3u8", {"src": STREAM}) == (503, b"")
+    assert failures == ["ConnectError"], "the outage reaches /health/video"
+
+
+def test_the_cast_fetch_without_a_go2rtc_address_is_503():
+    fetch = cr.go2rtc_fetch(_Settings(url=None))
+    assert fetch("/api/stream.m3u8", {"src": STREAM}) == (503, b"")
+    assert cr.go2rtc_fetch(_Settings(url=""))("/api/hls/segment.ts", {"id": "x"}) == (503, b"")
+
+
+def test_the_origin_check_uses_the_shared_tls_context(monkeypatch):
+    from smplwise.services import cast_sessions, nvr
+
+    seen: list[object] = []
+    real_client = httpx.Client
+
+    class Client(real_client):  # type: ignore[misc, valid-type]
+        def __init__(self, *a, **k):
+            seen.append((k.get("verify"), k.get("timeout"), k.get("follow_redirects")))
+            super().__init__(*a, **{**k, "transport": httpx.MockTransport(lambda r: httpx.Response(204))})
+
+    monkeypatch.setattr(httpx, "Client", Client)
+    monkeypatch.setattr(cast_sessions, "PROBE_GET", [])
+    assert cast_sessions._probe_get("https://arx.example.invalid:8443/cast/probe/abc") == 204
+    assert seen == [(nvr._ssl_context(), 3.0, False)]

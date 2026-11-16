@@ -7,9 +7,10 @@
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
 import { registerCatalogue } from '../i18n/core';
+import { NAV_OT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
 
 const he = {
-  tab: 'סקירה',
+  tab: NAV_OT.he.tab,
   title: 'סקירה',
   toBoard: 'לוח מנהל',
   updated: 'עודכן {when}',
@@ -235,7 +236,7 @@ const he = {
 export type OverviewTextKey = keyof typeof he;
 
 const en: Partial<Record<OverviewTextKey, string>> = {
-  tab: 'Overview',
+  tab: NAV_OT.en.tab,
   title: 'Overview',
   toBoard: 'Board',
   updated: 'Updated {when}',

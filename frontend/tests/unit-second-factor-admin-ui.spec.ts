@@ -185,8 +185,9 @@ test('user drawer: the policy override select offers inherit / optional / requir
   await select.selectOption('required');
   await expect(select).toHaveValue('required');
   await guideShot(page, 'tfa2-user-policy'); // SW_SHOTS only
-  expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/user/u-dana', body: { policy: 'required' } }]);
-  expect(mock.overrides.user['u-dana']).toBe('required');
+  // the PUT leaves after the change event; poll for it (a plain read raced it on a loaded runner, gate 2.43.6)
+  await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/user/u-dana', body: { policy: 'required' } }]);
+  await expect.poll(() => mock.overrides.user['u-dana']).toBe('required');
   // another user shows their own stored value, not the previous user's
   await page.getByRole('button', { name: 'סגור' }).click();
   await page.locator('sw-app system-access sw-table tbody tr', { hasText: 'רון לוי' }).first().click();

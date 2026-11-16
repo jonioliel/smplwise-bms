@@ -25,6 +25,7 @@ import { multiBuildingOn } from '../api/mapping';
 import { floorScreenBuilding } from '../api/home-site';
 import { alarmFloors, floorLightsTarget, litPercent, onXsOptions, phoneBoardColumns, phoneColumns, phoneGridTemplate, phoneLightGauge, phoneSummaryParts, PHONE_DENSE_FLOORS, signalsOf, synBoardColumns, tempState, totalsOf, unassignedLights, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsColumn, type XsOptions } from '../xsection/xs-model';
 import type { XtKey } from '../i18n/xsection';
+import { PollController } from '../components/poll-controller';
 
 const REFRESH_MS = 30_000;
 const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp', presence: 'colPresence', cameras: 'colCameras', doors: 'colDoors', alerts: 'colAlerts', fire: 'colFire' };
@@ -57,6 +58,8 @@ export class DevicesSynoptic extends LitElement {
   /** BUILDING-SCOPE-CONTROL-2351: the multi-building switch (home.multi_building) - the floor lights popup names its building to the server. */
   @state() private multiOn = false;
   private timers: number[] = [];
+  /** CR-POLL-SCREENS-A-2436: the board re-read every 30 s - paused while hidden, no overlap, caught up on resume (the clock stays a plain timer). */
+  private poll = new PollController(this);
   private stops: Array<() => void> = [];
   private readonly onResize = () => this.requestUpdate();
 
@@ -175,7 +178,8 @@ export class DevicesSynoptic extends LitElement {
     this.stops.push(onXsOptions(() => this.requestUpdate()), onFire(() => this.requestUpdate()));
     window.addEventListener('resize', this.onResize);
     void this.load();
-    this.timers.push(window.setInterval(() => (this.now = clock()), 15_000), window.setInterval(() => void this.refresh(), REFRESH_MS));
+    this.timers.push(window.setInterval(() => (this.now = clock()), 15_000));
+    this.poll.every('board', REFRESH_MS, () => this.refresh());
   }
   disconnectedCallback() {
     window.removeEventListener('resize', this.onResize);
