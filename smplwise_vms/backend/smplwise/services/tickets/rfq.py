@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 from ...audit import audit
 from ...errors import ApiError
 from ...rbac import INSTALLATION, Principal
-from . import access, model, money, org_locations, quotes, rfq_award_notice, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
+from . import access, fields, model, money, org_locations, quotes, rfq_award_notice, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
 from .costs import COSTS, COSTS_VIEW, CostRefused, cost_settings, iso, now_utc, parse
 from .text_hygiene import clean_text
@@ -286,16 +286,9 @@ def visible_page(viewer: Viewer, *, state: str = "open", department_id: str | No
 # ---------------------------------------------------------------- time, states
 
 def _instant(conn, value: Any, field_name: str, now: dt.datetime, *, future: bool = False) -> str | None:
-    if value is None or value == "":
-        return None
-    if not isinstance(value, str):
-        raise invalid(conn, field_name, "type")
-    at = parse(value)
-    if at is None:
-        raise invalid(conn, field_name, "format")
-    if (future and at <= now) or at < now - dt.timedelta(days=1) or at > now + dt.timedelta(days=DUE_HORIZON_DAYS):
-        raise invalid(conn, field_name, "range")
-    return iso(at)
+    # CR-TK-MONEY-UTILS (01:F-15): the shared check; the refusal keeps this module's 422 envelope
+    return fields.instant(value, field_name, now, horizon_days=DUE_HORIZON_DAYS, future=future,
+                          refuse=lambda code, name: invalid(conn, name, code))
 
 
 def _due_passed(row: Mapping[str, Any], now: dt.datetime) -> bool:
@@ -693,7 +686,7 @@ def _local(conn, value: str | None, fmt: str) -> str:
         return ""
     from .messaging import time_zone
 
-    return at.astimezone(time_zone(conn)).strftime(fmt)
+    return fields.local_text(at, time_zone(conn), fmt) or ""  # CR-TK-MONEY-UTILS (01:F-15)
 
 
 def message_params(conn, row: Mapping[str, Any], contact: Mapping[str, Any]) -> dict[str, str]:
