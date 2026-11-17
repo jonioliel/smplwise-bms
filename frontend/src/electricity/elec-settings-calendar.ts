@@ -13,11 +13,12 @@ import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './ele
 import { fmtDate, isIsoDate } from './elec-format';
 import { WEEK, WEEK_HE } from './elec-tou';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/electricity';
 
 const KINDS: { id: CalendarDay['kind']; label: string }[] = [
-  { id: 'holiday', label: 'חג (כמו שבת)' },
-  { id: 'holiday_eve', label: 'ערב חג (כמו שישי)' },
-  { id: 'regular', label: 'יום רגיל' },
+  { id: 'holiday', label: tr('חג (כמו שבת)') },
+  { id: 'holiday_eve', label: tr('ערב חג (כמו שישי)') },
+  { id: 'regular', label: tr('יום רגיל') },
 ];
 const weekday = (iso: string): string => WEEK_HE[WEEK[new Date(`${iso}T12:00:00Z`).getUTCDay()]];
 
@@ -59,7 +60,7 @@ export class ElecSettingsCalendar extends ElecBase {
       const r = await fn();
       this.data = r.year === this.year ? r : await elec().getCalendar(this.year);
       const k = r.drafts_to_recalculate ?? 0;
-      this.note = k ? `${k === 1 ? 'טיוטה אחת מושפעת' : `${k} טיוטות מושפעות`} מהשינוי. השינוי יופיע בהן אחרי "חישוב מחדש".` : '';
+      this.note = k ? (k === 1 ? tr('טיוטה אחת מושפעת מהשינוי. השינוי יופיע בהן אחרי "חישוב מחדש".') : tr('{n} טיוטות מושפעות מהשינוי. השינוי יופיע בהן אחרי "חישוב מחדש".', { n: k })) : '';
     } catch (e) {
       this.error = elecErrorText(e);
     } finally {
@@ -78,7 +79,7 @@ export class ElecSettingsCalendar extends ElecBase {
   }
   private addDay() {
     const a = this.add;
-    this.addErr = isIsoDate(a.date) ? '' : 'צריך לבחור תאריך';
+    this.addErr = isIsoDate(a.date) ? '' : tr('צריך לבחור תאריך');
     if (this.addErr || !this.data) return;
     const rev = this.data.revision;
     void this.run(async () => {
@@ -91,10 +92,10 @@ export class ElecSettingsCalendar extends ElecBase {
 
   render() {
     const perms = energyAccess();
-    if (!perms.view && !perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-calendar" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה')}</div>`;
+    if (!perms.view && !perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-calendar" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה'))}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="settings-calendar" data-state="loading">${skeleton(5)}</div>`;
-    if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-calendar" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה')}</div>`;
-    if (this.st === 'error' || !this.data) return html`<div class="page" data-elec="settings-calendar" data-state="error">${stateBox('error', 'warning', 'לא ניתן לטעון את הימים המיוחדים', { label: 'נסה שוב', run: () => void this.load() })}</div>`;
+    if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-calendar" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה'))}</div>`;
+    if (this.st === 'error' || !this.data) return html`<div class="page" data-elec="settings-calendar" data-state="error">${stateBox('error', 'warning', tr('לא ניתן לטעון את הימים המיוחדים'), { label: tr('נסה שוב'), run: () => void this.load() })}</div>`;
     const d = this.data;
     const edit = perms.manage;
     const rows = d.days;
@@ -102,36 +103,36 @@ export class ElecSettingsCalendar extends ElecBase {
       ${this.error ? alertBox('err', this.error) : nothing}
       ${this.note ? alertBox('info', this.note) : nothing}
       <div class="card ${this.phone ? '' : 'flush'}">
-        <div class="hd"><b class="h3">ימים מיוחדים</b>
-          <div class="row" role="group" aria-label="שנה"><sw-button variant="ghost" size="sm" iconOnly icon="chevronBack" label="השנה הקודמת" data-year-prev @click=${() => this.setYear(this.year - 1)}></sw-button><b class="num" data-year>${this.year}</b><sw-button variant="ghost" size="sm" iconOnly icon="chevron" label="השנה הבאה" data-year-next @click=${() => this.setYear(this.year + 1)}></sw-button></div>
+        <div class="hd"><b class="h3">${tr('ימים מיוחדים')}</b>
+          <div class="row" role="group" aria-label=${tr('שנה')}><sw-button variant="ghost" size="sm" iconOnly icon="chevronBack" label=${tr('השנה הקודמת')} data-year-prev @click=${() => this.setYear(this.year - 1)}></sw-button><b class="num" data-year>${this.year}</b><sw-button variant="ghost" size="sm" iconOnly icon="chevron" label=${tr('השנה הבאה')} data-year-next @click=${() => this.setYear(this.year + 1)}></sw-button></div>
           <span class="sp"></span>
-          <div class="seg" role="group" aria-label="מקור החגים"><button type="button" data-generator="israel" aria-pressed=${d.generator === 'israel'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'israel' && void this.run(() => elec().setCalendarGenerator('israel', d.revision, this.year))}>חגי ישראל מחושבים</button><button type="button" data-generator="none" aria-pressed=${d.generator === 'none'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'none' && void this.run(() => elec().setCalendarGenerator('none', d.revision, this.year))}>ימים ידניים בלבד</button></div>
+          <div class="seg" role="group" aria-label=${tr('מקור החגים')}><button type="button" data-generator="israel" aria-pressed=${d.generator === 'israel'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'israel' && void this.run(() => elec().setCalendarGenerator('israel', d.revision, this.year))}>${tr('חגי ישראל מחושבים')}</button><button type="button" data-generator="none" aria-pressed=${d.generator === 'none'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'none' && void this.run(() => elec().setCalendarGenerator('none', d.revision, this.year))}>${tr('ימים ידניים בלבד')}</button></div>
         </div>
-        ${!rows.length ? html`<div class="mut" style="padding:0 16px 16px" data-calendar-empty>אין ימים מיוחדים בשנה הזו.</div>`
+        ${!rows.length ? html`<div class="mut" style="padding:0 16px 16px" data-calendar-empty>${tr('אין ימים מיוחדים בשנה הזו.')}</div>`
           : this.phone
-            ? html`<div class="list" data-calendar>${rows.map((x) => html`<div class="li" data-day=${x.date} data-kind=${x.kind} style="flex-wrap:wrap"><div class="grow"><div class="t1">${x.name_he || x.kind_he}</div><div class="t2">${n(fmtDate(x.date))} · יום ${weekday(x.date)} · ${x.source === 'manual' ? 'ידני' : 'מחושב'}</div></div>${this.kindCell(x, edit)}
-                ${edit && x.source === 'manual' ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? 'החזרה לחישוב' : 'הסרה'}</sw-button>` : nothing}</div>`)}</div>`
-            : html`<div class="scrollx"><table class="t" data-calendar><thead><tr><th>תאריך</th><th>יום</th><th>שם</th><th>נחשב</th><th>מקור</th><th></th></tr></thead><tbody>
+            ? html`<div class="list" data-calendar>${rows.map((x) => html`<div class="li" data-day=${x.date} data-kind=${x.kind} style="flex-wrap:wrap"><div class="grow"><div class="t1">${x.name_he || x.kind_he}</div><div class="t2">${n(fmtDate(x.date))} · ${tr('יום {weekday}', { weekday: weekday(x.date) })} · ${x.source === 'manual' ? tr('ידני') : tr('מחושב')}</div></div>${this.kindCell(x, edit)}
+                ${edit && x.source === 'manual' ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? tr('החזרה לחישוב') : tr('הסרה')}</sw-button>` : nothing}</div>`)}</div>`
+            : html`<div class="scrollx"><table class="t" data-calendar><thead><tr><th>${tr('תאריך')}</th><th>${tr('יום')}</th><th>${tr('שם')}</th><th>${tr('נחשב')}</th><th>${tr('מקור')}</th><th></th></tr></thead><tbody>
               ${rows.map((x) => html`<tr data-day=${x.date} data-kind=${x.kind}><td class="num" style="text-align:start">${fmtDate(x.date)}</td><td>${weekday(x.date)}</td><td class="b">${x.name_he || (x.generated?.name_he ?? '')}</td><td>${this.kindCell(x, edit)}</td>
-                <td>${x.source === 'manual' ? html`<span class="chip c-warn nodot">ידני</span>` : html`<span class="chip c-mut nodot">מחושב</span>`}</td>
+                <td>${x.source === 'manual' ? html`<span class="chip c-warn nodot">${tr('ידני')}</span>` : html`<span class="chip c-mut nodot">${tr('מחושב')}</span>`}</td>
                 <td>${edit ? (x.source === 'manual'
-                  ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? 'החזרה לחישוב' : 'הסרה'}</sw-button>`
+                  ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? tr('החזרה לחישוב') : tr('הסרה')}</sw-button>`
                   : nothing) : nothing}</td></tr>`)}</tbody></table></div>`}
       </div>
-      ${edit ? html`<div class="card" data-calendar-add><div class="hd"><b class="h3">הוספת יום</b></div>
+      ${edit ? html`<div class="card" data-calendar-add><div class="hd"><b class="h3">${tr('הוספת יום')}</b></div>
         <div class="form">
-          <div class="fld"><label for="cd">תאריך</label><input id="cd" type="date" lang=${dateInputLang()} class="ltr ${this.addErr ? 'err' : ''}" data-add-date .value=${this.add.date} @change=${(e: Event) => { this.add = { ...this.add, date: (e.target as HTMLInputElement).value }; this.addErr = ''; }} />${this.addErr ? html`<div class="msg" role="alert">${this.addErr}</div>` : nothing}</div>
-          <div class="fld"><label for="ck">נחשב</label><select id="ck" data-add-kind @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as CalendarDay['kind'] })}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === this.add.kind}>${k.label}</option>`)}</select></div>
-          <div class="fld wide"><label for="cn">שם (לא חובה)</label><input id="cn" data-add-name maxlength="60" .value=${this.add.name} @input=${(e: Event) => (this.add = { ...this.add, name: (e.target as HTMLInputElement).value })} /></div>
+          <div class="fld"><label for="cd">${tr('תאריך')}</label><input id="cd" type="date" lang=${dateInputLang()} class="ltr ${this.addErr ? 'err' : ''}" data-add-date .value=${this.add.date} @change=${(e: Event) => { this.add = { ...this.add, date: (e.target as HTMLInputElement).value }; this.addErr = ''; }} />${this.addErr ? html`<div class="msg" role="alert">${this.addErr}</div>` : nothing}</div>
+          <div class="fld"><label for="ck">${tr('נחשב')}</label><select id="ck" data-add-kind @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as CalendarDay['kind'] })}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === this.add.kind}>${k.label}</option>`)}</select></div>
+          <div class="fld wide"><label for="cn">${tr('שם (לא חובה)')}</label><input id="cn" data-add-name maxlength="60" .value=${this.add.name} @input=${(e: Event) => (this.add = { ...this.add, name: (e.target as HTMLInputElement).value })} /></div>
         </div>
-        <div class="row" style="margin-block-start:12px"><sw-button variant="primary" data-add-day ?disabled=${this.busy} @click=${() => this.addDay()}>הוספה</sw-button></div></div>` : nothing}
+        <div class="row" style="margin-block-start:12px"><sw-button variant="primary" data-add-day ?disabled=${this.busy} @click=${() => this.addDay()}>${tr('הוספה')}</sw-button></div></div>` : nothing}
       <div class="mut">${d.note_he}</div>
     </div>`;
   }
 
   private kindCell(x: CalendarDay, edit: boolean) {
     if (!edit) return html`<span>${x.kind_he}</span>`;
-    return html`<select aria-label=${`סוג היום ${fmtDate(x.date)}`} data-kind-select=${x.date} ?disabled=${this.busy} @change=${(e: Event) => this.setKind(x, (e.target as HTMLSelectElement).value as CalendarDay['kind'])}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === x.kind}>${k.label}</option>`)}</select>`;
+    return html`<select aria-label=${tr('סוג היום {date}', { date: fmtDate(x.date) })} data-kind-select=${x.date} ?disabled=${this.busy} @change=${(e: Event) => this.setKind(x, (e.target as HTMLSelectElement).value as CalendarDay['kind'])}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === x.kind}>${k.label}</option>`)}</select>`;
   }
 }
 
