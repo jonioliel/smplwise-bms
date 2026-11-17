@@ -78,6 +78,10 @@ L12 recommends "commit the generator". **There is no generator to commit**, so t
   entrance without a call) is most likely never offered, while the specs pass. Fixing it turns a feature on in production and
   needs the mock changed, so it is a decision, not part of a text move. `api/types.ts` was not edited (outside this row's
   files): `Camera` still lacks `area_id`.
+- **Fixed 17.11 (owner approved, commit `fix(home): TALK-OVERVIEW-FIX`):** `loadTalk` now reads
+  `feed.overview?.stations`; `tests/home-simple-mocks.ts` sends the real reply shape (`overview: { stations }`). Run:
+  `npx tsc --noEmit` exit 0; `home-simple-2420.spec.ts` --workers=1 22 passed, 44 skipped (one-size tests); the talk test
+  fails on the old code with the new mock (button never appears) and passes on the fix. NOT_RUN: a real station in the lab.
 
 ### 4. 08:F21 - favourites save
 

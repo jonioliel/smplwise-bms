@@ -32,7 +32,7 @@ import { subscribeHa } from '../api/ha';
 import { relTime } from './home-api';
 import { alarmPanels, panelAction, type AlarmAction, type AlarmPanel } from '../api/alarm';
 import { canAnywhere } from '../api/session';
-import { getIntercomOverview, type IntercomFeed } from '../api/intercom';
+import { getIntercomOverview } from '../api/intercom';
 import { keyedDebounce } from './keyed-debounce';
 import { getStationMedia, type StationMediaTalk } from '../api/station-media';
 import { get } from '../api/client';
@@ -263,11 +263,9 @@ export class SwHome extends LitElement implements P3Host {
   private async loadTalk() {
     try {
       const feed = await getIntercomOverview();
-      // Review 08:F19: read through a declared shape instead of a cast through `unknown`. NOTE for the lead (not changed here, behaviour
-      // kept): api/intercom.ts IntercomFeed and the backend carry the stations under `overview.stations`; this reads a top-level
-      // `stations`, which only the home test mocks send - see docs/changes/CR-I18N-HOME-2441.md.
-      const flat: IntercomFeed & { stations?: { id: string; name: string; online: boolean }[] } = feed;
-      for (const s of flat.stations ?? []) {
+      // TALK-OVERVIEW-FIX: the reply carries the stations under `overview.stations` (routers/access_control.py); the old
+      // top-level read matched only the home test mocks, so the button never showed in a real install.
+      for (const s of feed.overview?.stations ?? []) {
         if (!s.online) continue;
         const m = await getStationMedia(s.id).catch(() => null);
         if (m?.talk?.available) {
