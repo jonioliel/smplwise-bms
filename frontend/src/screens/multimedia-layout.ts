@@ -72,7 +72,7 @@ export function filtersToParams(f: Filters, into: URLSearchParams = new URLSearc
   return into;
 }
 
-export const floorIdOf = (d: Pick<MediaDevice, 'floor_id'>): string => d.floor_id ?? NO_FLOOR;
+const floorIdOf = (d: Pick<MediaDevice, 'floor_id'>): string => d.floor_id ?? NO_FLOOR;
 
 export function stateOf(d: Pick<MediaDevice, 'live'>): Exclude<StateFilter, 'all'> {
   const p = d.live.power;

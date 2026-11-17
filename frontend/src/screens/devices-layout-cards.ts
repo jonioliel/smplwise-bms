@@ -16,7 +16,7 @@ export const CARDS_VERSION = 3;
 /** The library's card types (keep in step with CUSTOM_TYPES in routers/device_layouts.py - a backend test compares them):
  * the seven built-in domain cards, plus locks and gates, energy and the free card. */
 export const CARD_TYPE_IDS = ['lighting', 'switches', 'climate', 'heating', 'covers', 'security', 'media', 'sensors', 'locks', 'energy', 'free', 'camera'] as const;
-export type CardTypeId = (typeof CARD_TYPE_IDS)[number];
+type CardTypeId = (typeof CARD_TYPE_IDS)[number];
 
 /** A device of the area as the editor lists it (from the area's own cards - already what this caller may see). */
 export interface AreaEntity {
@@ -31,7 +31,7 @@ export interface AreaEntity {
   door?: boolean;
 }
 
-export interface CardTypeInfo {
+interface CardTypeInfo {
   id: CardTypeId;
   label: string;
   desc: string;

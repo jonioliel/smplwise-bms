@@ -39,7 +39,7 @@ export function inPlace(name: string): string {
   return /^[֐-׿]/.test(n) ? `ב${n}` : `ב־${n}`;
 }
 
-export type StationStatus = 'offline' | 'ringing' | 'in_call' | 'ending' | 'online';
+type StationStatus = 'offline' | 'ringing' | 'in_call' | 'ending' | 'online';
 
 /** One word per station for the card's look: offline wins; an active call next; otherwise online. */
 export function statusOf(s: Pick<AccessStation, 'online' | 'call_state'>): StationStatus {
@@ -381,7 +381,7 @@ export function weeklyLines(weekly: Partial<Record<WeekdayName, Period[]>> | nul
   return out;
 }
 
-export interface ProgramView {
+interface ProgramView {
   /** The relay (physical index) this row is about. */
   door: number;
   name: string;
@@ -526,7 +526,7 @@ export function stationSchedulesHref(station: AccessStation, schedulesNative: bo
 
 // ---------------------------------------------------------------- feed states
 
-export type FeedPanel = { panel: PanelState; heading: string; settings?: boolean };
+type FeedPanel = { panel: PanelState; heading: string; settings?: boolean };
 
 /** The honest message for a feed state the screen cannot show stations in, without naming the platform. `ready` has none. */
 export function feedPanel(state: Exclude<IntercomFeedState | 'unsupported', 'ready'>, text: StationsText = ws()): FeedPanel {

@@ -24,7 +24,7 @@ const SWATCH_GROUPS: Record<MaterialHost, readonly string[]> = {
   object: ['object', 'door', 'window'],
 };
 const GROUP_HE: Record<string, string> = { wall: 'קירות', ceiling: 'תקרות', floor: 'רצפות', outdoor: 'חוץ', object: 'עצמים', door: 'דלתות', window: 'חלונות וזכוכית' };
-export const STYLE_HE: Record<VisualStyle, string> = { light: 'בהיר', dark: 'כהה' };
+const STYLE_HE: Record<VisualStyle, string> = { light: 'בהיר', dark: 'כהה' };
 
 /** The swatch materials of a host, in library order (the groups of SWATCH_GROUPS first, each group kept together). */
 export function swatchMaterials(host: MaterialHost): readonly (typeof MATERIALS)[number][] {
@@ -32,7 +32,7 @@ export function swatchMaterials(host: MaterialHost): readonly (typeof MATERIALS)
   return [...MATERIALS].filter((m) => groups.includes(m.group)).sort((a, b) => groups.indexOf(a.group) - groups.indexOf(b.group));
 }
 
-export interface MaterialFieldView {
+interface MaterialFieldView {
   /** The hook `data-material-field` (collection:id), also the aria group's id. */
   key: string;
   label: string;
@@ -45,13 +45,13 @@ export interface MaterialFieldView {
   style: VisualStyle;
   disabled?: boolean;
 }
-export interface MaterialFieldActions {
+interface MaterialFieldActions {
   pick(id: string | null): void;
   setStyle(style: VisualStyle): void;
 }
 
 const tintOf = (id: string, style: VisualStyle): string => materialDef(id)?.tint[style] ?? 'transparent';
-export const materialName = (id: string): string => materialDef(id)?.he ?? id;
+const materialName = (id: string): string => materialDef(id)?.he ?? id;
 
 export function renderMaterialField(v: MaterialFieldView, a: MaterialFieldActions): TemplateResult {
   const current = v.value ?? v.defaultId;
@@ -85,7 +85,7 @@ export function renderMaterialField(v: MaterialFieldView, a: MaterialFieldAction
 
 // ---------------------------------------------------------------- north
 
-export interface NorthView {
+interface NorthView {
   /** The plan's north: the bearing of plan-up, clockwise from true north (0 = plan up is north). */
   northDeg: number | null;
   /** The site for the sun preview (the defaults with `known` false when the installation has no location). */
@@ -94,7 +94,7 @@ export interface NorthView {
   nowMs: number;
   disabled?: boolean;
 }
-export interface NorthActions {
+interface NorthActions {
   set(deg: number | null): void;
 }
 
@@ -170,7 +170,7 @@ export function renderNorthCard(v: NorthView, a: NorthActions): TemplateResult {
 
 // ---------------------------------------------------------------- saved walk positions
 
-export interface WalkCardView {
+interface WalkCardView {
   positions: readonly WalkPosition[];
   levels: readonly GeomLevel[];
   /** The plan's size in pixels and its scale (m / px) for the metres caption. */
@@ -184,7 +184,7 @@ export interface WalkCardView {
   focused: string | null;
   disabled?: boolean;
 }
-export interface WalkCardActions {
+interface WalkCardActions {
   arm(id: string | 'new' | null): void;
   rename(id: string, name: string): void;
   setLevel(id: string, levelId: string): void;

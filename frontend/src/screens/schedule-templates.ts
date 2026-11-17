@@ -7,12 +7,12 @@ import { DAY_LONG, DAY_ORDER, PRESET_LABEL, emptyDraft, presetConditions, type C
 import { actionForIntent, motzashDraft, type EntityMeta, type Intent, type IntentSlot } from './schedule-edit-logic';
 import { tokensOf } from './schedule-grid-logic';
 
-export type TemplateId = 'weekly' | 'sunset' | 'season' | 'ac' | 'once' | 'shabbat_climate' | 'motzash' | 'blank';
+type TemplateId = 'weekly' | 'sunset' | 'season' | 'ac' | 'once' | 'shabbat_climate' | 'motzash' | 'blank';
 
 /** A draft whose slots may still carry intents. */
 export type TemplateDraft = Omit<ScheduleDraft, 'slots'> & { slots: IntentSlot[] };
 
-export interface TemplateContext {
+interface TemplateContext {
   /** The configured "issur melacha" sensor entity id, or null. */
   sensor: string | null;
   defaultRepeat: ScheduleDraft['repeat'];
@@ -220,7 +220,7 @@ export function quickActions(e: EntityMeta | undefined): QuickAction[] {
   }
 }
 
-export interface QuickChoice {
+interface QuickChoice {
   entities: EntityMeta[];
   action: QuickAction | null;
   time: QuickTime | null;

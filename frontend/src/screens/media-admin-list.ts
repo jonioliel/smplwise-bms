@@ -23,7 +23,7 @@ import {
 import { integrationName, integrationTitle } from './media-integration-names';
 import { castChip } from './media-cast-label';
 
-export const SORT_LABEL: Record<SortKey, string> = { name: 'שם', type: 'סוג', integration: 'אינטגרציה', area: 'חדר', id: 'מזהה', status: 'מצב' };
+const SORT_LABEL: Record<SortKey, string> = { name: 'שם', type: 'סוג', integration: 'אינטגרציה', area: 'חדר', id: 'מזהה', status: 'מצב' };
 const GROUP_LABEL: Record<GroupKey, string> = { none: 'ללא קיבוץ', integration: 'לפי אינטגרציה', area: 'לפי חדר', type: 'לפי סוג' };
 
 // ------------------------------------------------------------------------------------------------ the toolbar
@@ -352,7 +352,7 @@ export class MediaAdminToolbar extends LitElement {
 
 // ------------------------------------------------------------------------------------------------ the table
 
-export interface TableCtx {
+interface TableCtx {
   scope: string;
   devices: AdminDevice[];
   view: ListView;

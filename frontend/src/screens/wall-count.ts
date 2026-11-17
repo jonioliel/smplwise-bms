@@ -3,7 +3,7 @@
  * cameras the user may see on the wall (every recorder, camera scope and disabled recorders already applied by the caller), plus a
  * final "all" option. Pure logic: unit-tested without a page.
  */
-export const COUNT_STEPS: readonly number[] = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32, 40, 48, 64, 80, 100];
+const COUNT_STEPS: readonly number[] = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32, 40, 48, 64, 80, 100];
 /** The stored / in-memory value of "all". */
 export const COUNT_ALL = 9999;
 export const COUNT_ALL_ID = 'all';

@@ -20,7 +20,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 // the other UI branch needs no edit here (docs/architecture/ELECTRICITY_UI_SHELL.md).
 import.meta.glob('./electricity/{page,settings}-*.ts', { eager: true });
 
-export type ElectricityPage = 'meters' | 'accounts' | 'bills' | 'customers';
+type ElectricityPage = 'meters' | 'accounts' | 'bills' | 'customers';
 
 interface PageDef {
   id: ElectricityPage;
@@ -32,7 +32,7 @@ interface PageDef {
 
 /** TABSET-293: ids, labels and the money flag come from the tab registry (shell/nav.ts INFRA_ELECTRICITY_PAGES), which the tabs editor
  * lists as `infra.electricity`; this screen adds the element of each page. */
-export const ELECTRICITY_PAGES: PageDef[] = INFRA_ELECTRICITY_PAGES.map((p) => ({ id: p.id as ElectricityPage, label: p.label, tag: `elec-${p.id}-page`, money: INFRA_MONEY_PAGES.includes(p.id) }));
+const ELECTRICITY_PAGES: PageDef[] = INFRA_ELECTRICITY_PAGES.map((p) => ({ id: p.id as ElectricityPage, label: p.label, tag: `elec-${p.id}-page`, money: INFRA_MONEY_PAGES.includes(p.id) }));
 
 /** The page a route names (`#/infra/electricity/<page>`); the meters page by default. */
 export function pageOf(segments: readonly string[]): ElectricityPage {

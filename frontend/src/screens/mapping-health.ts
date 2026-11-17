@@ -28,7 +28,7 @@ const refsOf = (d: MappingData) => d.buildings.map((b) => ({ id: b.id, name: b.n
 export { healthOf }; // CR-HOME-LAZY-2440: lives beside the chip (screens/mapping-health-chip), which the home screen imports alone
 
 /** "אשר" (or auto-insert): only the given new names, as their own version. */
-export async function confirmFresh(d: MappingData, items: MapItem[], kind: 'confirm' | 'auto'): Promise<number> {
+async function confirmFresh(d: MappingData, items: MapItem[], kind: 'confirm' | 'auto'): Promise<number> {
   const res = resolve(d.mapItems, d.parsed, { buildings: refsOf(d), settings: d.settings });
   const keys = new Set(items.map(itemKey));
   const plan = subsetPlan(buildPlan(d.mapItems, res, refsOf(d), d.ourFloors, d.links, d.parsed.levels), keys);
@@ -44,7 +44,7 @@ function where(d: MappingData, it: MapItem): string {
 }
 
 /** HA-LABELS-SYNC-2351: the coverage by label of the current mapping. */
-export function coverageOf(d: MappingData): LabelCoverage {
+function coverageOf(d: MappingData): LabelCoverage {
   const refs = refsOf(d);
   const res = resolve(d.mapItems, d.parsed, { buildings: refs, settings: d.settings });
   return labelCoverage(d.mapItems, res, d.parsed, refs, d.haLabels);

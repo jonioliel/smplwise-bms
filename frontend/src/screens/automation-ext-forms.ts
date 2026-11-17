@@ -25,11 +25,11 @@ import { newUid } from '../api/automations';
 
 const typed = <T extends object>(b: T): Block => ({ uid: newUid(), kind: 'typed', raw: null, sentence: '', ...b }) as unknown as Block;
 
-export const BUTTON_TYPE: BlockTypeDef = {
+const BUTTON_TYPE: BlockTypeDef = {
   id: 'button', label: 'כפתור קיר', hint: 'לחיצה על מפסק', icon: 'button', available: (e) => !!e.catalog.extension?.wall_buttons,
   make: () => typed({ type: 'button', device_id: '', domain: '', ha_type: 'remote_button_short_press', ha_subtype: 'button_1', button: 1, press: 'short', extra: {} }),
 };
-export const PRESENCE_TYPE: BlockTypeDef = {
+const PRESENCE_TYPE: BlockTypeDef = {
   id: 'presence_in', label: 'מי במבנה', hint: 'יש מישהו · אין אף אחד', icon: 'users', available: (e) => !!e.catalog.extension?.presence,
   make: () => typed({ type: 'presence', mode: 'nobody', where: 'building' }),
 };
@@ -50,7 +50,7 @@ const buttonsOf = (id: string, itemId: string | null): Promise<DeviceButtons> =>
 };
 
 /** The words of `press` on `button` of the loaded switch (the integration's own `type` / `subtype`), or null when it does not offer it. */
-export function wordsFor(info: DeviceButtons | null, button: number, press: PressKind): { ha_type: string; ha_subtype: string; domain: string; discovery_id?: string } | null {
+function wordsFor(info: DeviceButtons | null, button: number, press: PressKind): { ha_type: string; ha_subtype: string; domain: string; discovery_id?: string } | null {
   const p = info?.buttons.find((b) => b.button === button)?.presses.find((x) => x.press === press);
   return p ? { ha_type: p.ha_type, ha_subtype: p.ha_subtype, domain: p.domain, ...(p.discovery_id ? { discovery_id: p.discovery_id } : {}) } : null;
 }
@@ -170,7 +170,7 @@ function presenceForm(fc: FormCtx): TemplateResult {
 // ------------------------------------------------------------------------------------------------ critical sound on a notify step (state 6)
 
 const SOURCE_WORD: Record<string, string> = { 'sensor.leak': 'הצפה', 'sensor.smoke': 'עשן', 'sensor.gas': 'גז', 'sensor.co': 'פחמן חד־חמצני', 'alarm.triggered': 'אזעקה' };
-export function criticalReason(sources: readonly string[]): string {
+function criticalReason(sources: readonly string[]): string {
   const words = sources.map((s) => SOURCE_WORD[s] ?? s);
   return words.length ? `מותר כי ״${words.join('״, ״')}״ ${words.length === 1 ? 'מסומנת' : 'מסומנות'} כאירוע בטיחות בהגדרות ‹ התראות.` : 'רק לאירועי בטיחות שהופעלו בהגדרות ‹ התראות.';
 }

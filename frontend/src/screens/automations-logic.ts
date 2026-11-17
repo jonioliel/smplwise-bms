@@ -12,7 +12,7 @@ import {
 // ------------------------------------------------------------------------------------------------ segments and the route
 
 export type Segment = 'automations' | 'scenes' | 'scripts';
-export interface SegmentDef { id: Segment; kind: ItemKind; label: string; newLabel: string; searchLabel: string }
+interface SegmentDef { id: Segment; kind: ItemKind; label: string; newLabel: string; searchLabel: string }
 export const SEGMENTS: readonly SegmentDef[] = [
   { id: 'automations', kind: 'automation', label: 'אוטומציות', newLabel: 'חדש', searchLabel: 'חיפוש אוטומציה או מכשיר' },
   { id: 'scenes', kind: 'scene', label: 'סצנות', newLabel: 'סצנה חדשה', searchLabel: 'חיפוש סצנה' },
@@ -141,7 +141,7 @@ export const countsOf = (items: readonly Item[]): Record<ItemKind, number> => ({
 
 // ------------------------------------------------------------------------------------------------ the card
 
-export const ALL_HOUSE = 'כל הבית';
+const ALL_HOUSE = 'כל הבית';
 /** "קומה 1" / "קומת קרקע · קומה 1" / "קומת קרקע · קומה 1 +1"; an item with no floor is "כל הבית". */
 export function floorLine(i: Pick<Item, 'floors'>): string {
   const n = i.floors.map((f) => f.name);
@@ -171,7 +171,7 @@ export function whenText(iso: string, now: Date, timeZone?: string): string {
   return `${day}/${month} ${hhmm(d, timeZone)}`;
 }
 
-export type RunTone = 'ok' | 'bad' | 'run' | 'none';
+type RunTone = 'ok' | 'bad' | 'run' | 'none';
 /** The footer line of a card: "רצה לפני 12 דק׳ · 38 ריצות", "נכשלה היום 05:30 · 19 ריצות", "עוד לא רצה". */
 export function runLine(i: Pick<Item, 'last_run' | 'runs_7d' | 'kind'>, now: Date, timeZone?: string): { text: string; tone: RunTone; title: string } {
   const last = i.last_run;
@@ -205,7 +205,7 @@ export function cardChips(i: Item, opts: { sensitiveWarning?: boolean } = {}): C
 
 // ------------------------------------------------------------------------------------------------ scenes and scripts
 
-export interface SceneGroup { id: string; title: string; sub: string; items: Item[] }
+interface SceneGroup { id: string; title: string; sub: string; items: Item[] }
 const NO_AREA = 'ללא חדר';
 /** The scenes panel: "מועדפות" first (a favourite is listed there only), then one section per area; hidden scenes never. */
 export function groupScenes(items: readonly Item[]): SceneGroup[] {
@@ -283,7 +283,7 @@ export function newButton(status: AutomationsStatus | null, kind: ItemKind): { s
 
 // ------------------------------------------------------------------------------------------------ runs
 
-export interface RunRow { run_id: string; label: string; tone: RunTone; sentence: string; result: RunSummary['result'] }
+interface RunRow { run_id: string; label: string; tone: RunTone; sentence: string; result: RunSummary['result'] }
 /** The run chips / rows: the time ("היום 18:42"), a tone by result and the sentence. */
 export function runRows(runs: readonly RunSummary[], now: Date, timeZone?: string): RunRow[] {
   return runs.map((r) => ({ run_id: r.run_id, label: whenText(r.at, now, timeZone), tone: r.result === 'ok' ? 'ok' : r.result === 'error' ? 'bad' : r.result === 'running' ? 'run' : 'none', sentence: r.sentence, result: r.result }));
@@ -372,7 +372,7 @@ export function missingFields(fields: readonly ScriptField[], values: Record<str
 // ------------------------------------------------------------------------------------------------ scene members (the capture table)
 
 type Attr = SceneMember['attributes'][string];
-export interface AttrDef { key: string; unit: string; min: number; max: number; step: number; toUi?: (v: number) => number; fromUi?: (v: number) => number }
+interface AttrDef { key: string; unit: string; min: number; max: number; step: number; toUi?: (v: number) => number; fromUi?: (v: number) => number }
 
 export const ON_OFF = [{ value: 'on', label: 'דלוק' }, { value: 'off', label: 'כבוי' }];
 /** The states a captured member may hold, per domain (Hebrew). */
@@ -431,7 +431,7 @@ export function templateRows(seen: readonly TplRef[], known: readonly TplRef[], 
  * `run` opens the run confirmation (the run itself needs the user's tap on it), `copy` the copy-name dialog, `delete` the delete
  * confirmation; each only with the item's own right. Anything else - another value, a right the caller lacks, no value - opens nothing.
  * The address may come from any link (a card's menu, but also `arx://open` from another app), so it is never an instruction. */
-export type AddressAction = 'run' | 'copy' | 'delete';
+type AddressAction = 'run' | 'copy' | 'delete';
 export function addressAction(action: string | null | undefined, can: Pick<Item['can'], 'run' | 'copy' | 'delete'>): AddressAction | null {
   if (action === 'run' && can.run) return 'run';
   if (action === 'copy' && can.copy) return 'copy';

@@ -7,7 +7,7 @@ import { bidi } from '../i18n/bidi';
 import { entityLabel, TECH_ID_ATTR } from '../i18n/entity-label';
 import { DevicesOverrideAdmin, overrideTableStyles } from './devices-override-admin';
 
-export type ClimateKindSetting = 'auto' | 'ac' | 'heating';
+type ClimateKindSetting = 'auto' | 'ac' | 'heating';
 
 interface ClimateKindRow {
   entity_id: string;

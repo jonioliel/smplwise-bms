@@ -17,7 +17,7 @@ export interface Rect {
 }
 
 /** One region of the draft. `rect` is null for a free-shape polygon (kept as the device holds it: it can be deleted, not reshaped here). */
-export interface DraftRegion {
+interface DraftRegion {
   key: string;
   rect: Rect | null;
   points: number[][];
@@ -74,7 +74,7 @@ export function clampRect(r: Rect, f: Frame): Rect {
 /** The keyboard step: one percent of the frame (at least one unit); `big` = ten percent. */
 export const stepOf = (f: Frame, big = false) => ({ x: Math.max(1, Math.round(f.width / (big ? 10 : 100))), y: Math.max(1, Math.round(f.height / (big ? 10 : 100))) });
 
-export type ArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
+type ArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
 export const isArrow = (k: string): k is ArrowKey => k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown';
 
 /** Arrow = move, Shift+arrow = resize from the top-left corner (width / height). The picture is never mirrored: Left is always smaller x. */
@@ -123,14 +123,14 @@ export function defaultRect(f: Frame, count: number): Rect {
 
 /** The canonical form the server compares (points sorted, regions sorted): two shapes that are the same polygon are equal. */
 const canon = (points: number[][]) => JSON.stringify(points.map((p) => [p[0], p[1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]));
-export const canonRegions = (regions: { points: number[][] }[]): string[] => regions.map((r) => canon(r.points)).sort();
+const canonRegions = (regions: { points: number[][] }[]): string[] => regions.map((r) => canon(r.points)).sort();
 
-export function sameState(a: { enabled: boolean; regions: { points: number[][] }[] }, b: { enabled: boolean; regions: { points: number[][] }[] }): boolean {
+function sameState(a: { enabled: boolean; regions: { points: number[][] }[] }, b: { enabled: boolean; regions: { points: number[][] }[] }): boolean {
   return a.enabled === b.enabled && JSON.stringify(canonRegions(a.regions)) === JSON.stringify(canonRegions(b.regions));
 }
 
 /** The points a draft region sends: its rectangle once it has one (an edited rectangle's stored `points` are the device's old ones). */
-export const pointsOfRegion = (r: DraftRegion): number[][] => (r.rect ? rectPoints(r.rect) : r.points);
+const pointsOfRegion = (r: DraftRegion): number[][] => (r.rect ? rectPoints(r.rect) : r.points);
 const shapeOf = (d: Draft) => ({ enabled: d.enabled, regions: d.regions.map((r) => ({ points: pointsOfRegion(r) })) });
 
 export const isChanged = (original: Draft, draft: Draft): boolean => !sameState(shapeOf(original), shapeOf(draft));

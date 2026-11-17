@@ -52,7 +52,7 @@ export interface FormCtx {
   editTemplate: (uid: string, text: string) => void;
 }
 
-export type FormFn = (fc: FormCtx) => TemplateResult;
+type FormFn = (fc: FormCtx) => TemplateResult;
 
 // ------------------------------------------------------------------------------------------------ control helpers
 

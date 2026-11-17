@@ -29,7 +29,7 @@ export function hasStills(b: MapBundle | null, level: string): boolean {
 }
 
 /** The style a still is shown in: the person's dial, `auto` = the UI theme (light -> architectural, dark -> digital twin). */
-export function stillsStyle(style: PlanViewDials['style']): StillStyle {
+function stillsStyle(style: PlanViewDials['style']): StillStyle {
   if (style === 'light' || style === 'dark') return style;
   const theme = typeof document !== 'undefined' ? document.documentElement.getAttribute('data-theme') : null;
   if (theme === 'dark') return 'dark';
@@ -39,7 +39,7 @@ export function stillsStyle(style: PlanViewDials['style']): StillStyle {
 
 /** What `renderStills` adds for a kiosk (CR-029 S5-B): the named slot of a `sw-plan-3d` it fills as that view's idle still, and
  * whether the still follows the time of day on its own (an idle wall gets no host re-render to change its band). */
-export interface StillsView {
+interface StillsView {
   slot?: string;
   autoBand?: boolean;
   site?: { latitude: number; longitude: number } | null;
@@ -55,7 +55,7 @@ export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer 
     .rooms=${rooms} .openOpenings=${layer?.openOpenings ?? []}></sw-plan-stills>`;
 }
 
-export interface BakeContext {
+interface BakeContext {
   bundle: MapBundle;
   geometry: GeometryDoc;
   catalog: Catalog3DLookup | null;

@@ -21,7 +21,7 @@ export interface PackageImportState {
   foreign?: PackageOrigin | null;
 }
 
-export interface PackageImportActions {
+interface PackageImportActions {
   setMode(mode: PackageMode): void;
   setAcceptForeign(on: boolean): void;
   confirm(): void;

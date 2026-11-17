@@ -343,7 +343,7 @@ export interface LoweringSummary {
   lowering: boolean;
 }
 
-export function slotTimeLabel(slot: DraftSlot): string {
+function slotTimeLabel(slot: DraftSlot): string {
   const a = formatTime(parseTime(slot.start));
   return a;
 }
@@ -374,7 +374,7 @@ export function loweringSummary(draft: ScheduleDraft, meta: MetaMap): LoweringSu
 
 // ------------------------------------------------------------------------------------------------ validation (§5.4, §5.7, §5.8)
 
-export interface ValidationCtx {
+interface ValidationCtx {
   creating: boolean;
   meta: MetaMap;
   sun: SunTimes | null;
@@ -511,13 +511,13 @@ function normalDraft(d: ScheduleDraft) {
 
 // ------------------------------------------------------------------------------------------------ the day split (decision 6a)
 
-export interface SplitOverride {
+interface SplitOverride {
   /** The days that differ from the rest (a strict subset of the schedule's days). */
   days: DayId[];
   slots: DraftSlot[];
 }
 
-export type SplitPlan =
+type SplitPlan =
   | { ok: false; error: string }
   | {
       ok: true;
@@ -766,7 +766,7 @@ export function defaultDataFor(specs: ArgSpec[], meta: EntityMeta | undefined): 
 
 export type TimeKind = 'fixed' | 'sunrise' | 'sunset' | 'end' | 'none';
 
-export interface TimeParts {
+interface TimeParts {
   kind: TimeKind;
   /** "HH:MM" for a fixed time. */
   time: string;
@@ -798,7 +798,7 @@ export function timeFromParts(p: TimeParts): string | null {
 
 // ------------------------------------------------------------------------------------------------ comparing two versions (the conflict dialog)
 
-export interface DraftDifference {
+interface DraftDifference {
   label: string;
   mine: string;
   theirs: string;

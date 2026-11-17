@@ -186,7 +186,7 @@ export function compact(n: number): string {
 export const BAR_MAX = 24;
 export const GAP = 2;
 
-export interface StackBar {
+interface StackBar {
   key: string;
   x: number;
   w: number;

@@ -10,7 +10,7 @@ import { integrationName } from './media-integration-names';
 
 export type SortKey = 'name' | 'type' | 'integration' | 'area' | 'id' | 'status';
 export type GroupKey = 'none' | 'integration' | 'area' | 'type';
-export type TypeBucket = 'screen' | 'speaker' | 'other';
+type TypeBucket = 'screen' | 'speaker' | 'other';
 export type ApprovalFilter = 'all' | 'approved' | 'pending';
 export type AvailFilter = 'all' | 'available' | 'unavailable';
 
@@ -34,7 +34,7 @@ export interface ListView {
 /** The optional columns (name, the edit key, approval are always there). `room` shows "floor › room" until `floor` has a column of its own.
  * `cast` (CR-028 prep) is the "שידור" marking: whether the device could receive a cast of our video. */
 export type ColKey = 'type' | 'integration' | 'entityId' | 'deviceId' | 'room' | 'floor' | 'status' | 'cast' | 'connections';
-export type ColPrefs = Partial<Record<ColKey, boolean>>;
+type ColPrefs = Partial<Record<ColKey, boolean>>;
 export const COL_KEYS: ColKey[] = ['type', 'integration', 'entityId', 'deviceId', 'room', 'floor', 'status', 'cast', 'connections'];
 export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 'אינטגרציה', entityId: 'מזהה ישות', deviceId: 'מזהה התקן', room: 'חדר', floor: 'קומה', status: 'מצב', cast: 'שידור', connections: 'חיבורים' };
 /** Table widths: `wide` above 1280 px, `md` (tablet) from 861 to 1280 px; at 860 px and below the rows are cards and every column choice is ignored. */
@@ -106,8 +106,8 @@ export const hasColPrefs = (prefs: ColPrefs): boolean => Object.keys(prefs).leng
 export const NO_AREA = '__none__';
 export const NO_INTEGRATION = '__none__';
 export const DEFAULT_VIEW: ListView = { q: '', integrations: [], area: '', type: '', approval: 'all', avail: 'all', sort: 'name', dir: 'asc', group: 'none', collapsed: [], cols: {} };
-export const SORT_KEYS: SortKey[] = ['name', 'type', 'integration', 'area', 'id', 'status'];
-export const GROUP_KEYS: GroupKey[] = ['none', 'integration', 'area', 'type'];
+const SORT_KEYS: SortKey[] = ['name', 'type', 'integration', 'area', 'id', 'status'];
+const GROUP_KEYS: GroupKey[] = ['none', 'integration', 'area', 'type'];
 
 /** What a row needs beyond the device itself; `live` is the players' richer status (the live power), absent for screens. */
 export interface RowFacts {
@@ -138,7 +138,7 @@ export function integrationsOf(d: AdminDevice): string[] {
   return [...new Set([...fromEndpoints, ...server])];
 }
 
-export function entityIdOf(d: AdminDevice): string {
+function entityIdOf(d: AdminDevice): string {
   return d.anchor_entity_id || d.endpoints[0]?.endpoint_id.replace(/^ha:/, '') || '';
 }
 

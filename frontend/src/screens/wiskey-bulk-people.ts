@@ -33,7 +33,7 @@ import { attention, codesText, editRequest, EMPTY_EDIT, precheckFile, previewCou
 import { bt, btDynamic, btLang } from '../i18n/bulk-people';
 import { dateInputLang } from '../api/day-format';
 
-export interface BulkStation {
+interface BulkStation {
   id: string;
   name: string;
   locks: number[];

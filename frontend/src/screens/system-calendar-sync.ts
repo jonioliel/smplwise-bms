@@ -26,7 +26,7 @@ const STATE: Record<Connection['state'], [string, string]> = {
 };
 
 /** The words of a binding: direction (and "ייעודי" for a dedicated two-way calendar) and what leaves. */
-export function bindingText(b: Connection['bindings'][number]): string {
+function bindingText(b: Connection['bindings'][number]): string {
   const dir = DIRECTION[b.direction] ?? b.direction;
   return b.direction === 'two_way' ? `${dir}${b.dedicated ? ' · ייעודי' : ''}` : b.direction === 'export' ? `${dir} · ${DETAIL[b.detail] ?? b.detail}` : dir;
 }

@@ -16,11 +16,11 @@ import { CONDITION_TYPES, TRIGGER_TYPES, type BlockTypeDef } from './automation-
 const typed = <T extends object>(b: T): Block => ({ uid: newUid(), kind: 'typed', raw: null, sentence: '', ...b }) as unknown as Block;
 const tagged = (e: { catalog: { extension?: { building_presence?: { sensors: string[] } } } }): string[] => e.catalog.extension?.building_presence?.sensors ?? [];
 
-export const BUILDING_EMPTY_TYPE: BlockTypeDef = {
+const BUILDING_EMPTY_TYPE: BlockTypeDef = {
   id: 'building_empty', label: 'נוכחות במבנה', hint: 'מבנה ריק · חדר פעיל', icon: 'users', available: (e) => tagged(e).length > 0,
   make: (e) => typed({ type: 'building_empty', sensors: tagged(e), minutes: 15 }),
 };
-export const ROOM_OCCUPIED_TYPE: BlockTypeDef = {
+const ROOM_OCCUPIED_TYPE: BlockTypeDef = {
   id: 'room_occupied', label: 'נוכחות במבנה', hint: 'המבנה ריק / יש נוכחות', icon: 'users', available: (e) => tagged(e).length > 0,
   make: (e) => typed({ type: 'room_occupied', mode: 'occupied', sensors: tagged(e) }),
 };

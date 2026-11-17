@@ -23,13 +23,13 @@ const HA_LIVE_RETRY_MS = 60_000;
 
 /** `camera-open`: the card was pressed (`detail.source`, `detail.cameraId` - absent for a picture-only card). Cancelable: the
  * default action opens the single-camera view (#/live/cameras/<id>). */
-export interface CameraOpenDetail {
+interface CameraOpenDetail {
   source: CameraSource;
   cameraId: string | null;
 }
 /** `camera-expand`: the enlarge button was pressed. Cancelable: the default action opens the card's own larger view (the main
  * stream in a dialog; the card lets go of its own stream meanwhile). */
-export type CameraExpandDetail = CameraOpenDetail;
+type CameraExpandDetail = CameraOpenDetail;
 
 /**
  * What the layout editor's card library needs to offer a camera card (owner 2026-09-30). The library owns the "add card"
@@ -61,7 +61,7 @@ export interface CameraCardDefinition {
 }
 
 /** The layout item of a camera card: the generic item (screens/devices-layout.ts LayoutItem) plus its source. */
-export interface CameraLayoutItem {
+interface CameraLayoutItem {
   x: number;
   y: number;
   w: number;

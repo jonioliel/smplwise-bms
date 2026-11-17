@@ -12,8 +12,8 @@ import { getOverview, type InstallerOverview, type ToolName } from '../api/insta
 import { installerText as T } from '../i18n/wiskey-installer';
 
 /** The tools of the area, in the order an installer meets them. */
-export const INSTALLER_TOOLS: readonly ToolName[] = ['clock', 'technical', 'lifecycle', 'platform'];
-export const INSTALLER_HREF = '#/system/intercom-installer';
+const INSTALLER_TOOLS: readonly ToolName[] = ['clock', 'technical', 'lifecycle', 'platform'];
+const INSTALLER_HREF = '#/system/intercom-installer';
 
 /**
  * WISKEY-INSTALLER-NATIVE-2400 (owner decision 03.11, Q7 "ג"): הגדרות › התקנה ותחזוקת מערכת האינטרקום - WisKey's installer tools,

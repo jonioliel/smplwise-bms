@@ -29,7 +29,7 @@ const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan
 export const ARM_MS = 4000;
 
 /** A robot vacuum's states in words (the same words the activity feed uses, device-activity-logic.ts STATE_HE). */
-export const VACUUM_HE: Record<string, string> = { docked: 'בעגינה', cleaning: 'מנקה', paused: 'מושהה', returning: 'חוזר לעגינה', idle: 'ממתין', error: 'תקלה', unavailable: 'לא זמין', unknown: 'לא ידוע' };
+const VACUUM_HE: Record<string, string> = { docked: 'בעגינה', cleaning: 'מנקה', paused: 'מושהה', returning: 'חוזר לעגינה', idle: 'ממתין', error: 'תקלה', unavailable: 'לא זמין', unknown: 'לא ידוע' };
 
 /** CARD1: the domains the switches card lists read-only - their controls live in the activity window's equipment card. */
 export const EQUIPMENT_DOMAINS = new Set(['vacuum', 'valve', 'water_heater']);

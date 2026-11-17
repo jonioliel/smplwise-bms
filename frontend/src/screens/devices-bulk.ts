@@ -43,7 +43,7 @@ export interface BulkRequest {
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
  * preview is what the dialog states and what is sent). */
-export function activeFor(kind: BulkKind, c: DeviceCounts): number {
+function activeFor(kind: BulkKind, c: DeviceCounts): number {
   if (kind === 'lights_off') return c.lights_on;
   if (kind === 'lights_on') return Math.max(0, c.lights - c.lights_on); // ALLON: the lights that are not on (an unavailable one too - the preview counts it apart)
   if (kind === 'switches_on') return Math.max(0, c.switches - c.switches_on);
@@ -56,7 +56,7 @@ export function activeFor(kind: BulkKind, c: DeviceCounts): number {
 
 /** Owner feedback 2026-09-29 ("hide empty domains"): a quick action for a domain the scope has no entity of at all
  * is not offered (no covers → no "סגור תריסים"); "כבה הכל" always is. The server's preview still decides what is sent. */
-export function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
+function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
   if (kind === 'lights_off' || kind === 'lights_on') return c.lights > 0;
   if (kind === 'switches_off' || kind === 'switches_on') return c.switches > 0;
   if (kind === 'covers_close' || kind === 'covers_open' || kind === 'covers_stop' || kind === 'covers_position') return c.covers > 0;

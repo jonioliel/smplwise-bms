@@ -118,7 +118,7 @@ export interface ConfirmModel {
 export const countLabel = (n: number): string => (n === 1 ? 'שינוי אחד' : `${n} שינויים`);
 
 /** The value the stream holds for a field, in the same shape the request uses. */
-export function currentValue(s: StreamEncoding, f: EncodingField): unknown {
+function currentValue(s: StreamEncoding, f: EncodingField): unknown {
   if (f === 'fps') return s.fps_full ? 'full' : s.fps;
   return s[f as keyof StreamEncoding];
 }

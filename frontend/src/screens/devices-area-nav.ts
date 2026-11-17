@@ -8,7 +8,7 @@ import { bidi } from '../i18n/bidi';
 import { TabsModeController } from '../shell/tabs-mode';
 
 /** One switcher entry: a floor or an area of the current floor, with its device count. */
-export interface NavOption {
+interface NavOption {
   id: string;
   name: string;
   count: number;

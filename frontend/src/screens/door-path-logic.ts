@@ -8,7 +8,7 @@
  */
 import type { DoorSettings } from '../api/doors';
 
-export interface LockRowLike {
+interface LockRowLike {
   entity_id: string;
   locked?: boolean;
   wiskey_door?: boolean;

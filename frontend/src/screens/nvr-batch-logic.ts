@@ -178,7 +178,7 @@ export const inCameras = (n: number): string => (n === 1 ? 'במצלמה אחת'
 const inStreamsOf = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
 export const isEncoding = (b: Pick<Batch, 'mode'>): boolean => b.mode === 'encoding';
 /** "in N cameras" for an SVC batch, "in N streams" for an encoding batch. */
-export const inUnits = (b: Pick<Batch, 'mode'>, n: number): string => (isEncoding(b) ? inStreamsOf(n) : inCameras(n));
+const inUnits = (b: Pick<Batch, 'mode'>, n: number): string => (isEncoding(b) ? inStreamsOf(n) : inCameras(n));
 
 /** The icon of a row. */
 export function toneOf(i: BatchItem): Tone {
@@ -236,7 +236,7 @@ export function focusIndex(b: Batch): number {
 
 // ------------------------------------------------------------------------------------------------ the dialog's words
 
-export interface BatchView {
+interface BatchView {
   tone: 'running' | 'done' | 'warn' | 'error';
   title: string;
   /** One line under the title (counts); empty when there is nothing to add. */
@@ -338,10 +338,10 @@ export function startErrorLine(e: { status: number; code: string; user_message?:
 
 // ------------------------------------------------------------------------------------------------ the confirmations
 
-export const CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
-export const UNDO_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה ותעצור בשגיאה הראשונה.';
+const CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
+const UNDO_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה ותעצור בשגיאה הראשונה.';
 
-export interface BatchConfirm {
+interface BatchConfirm {
   heading: string;
   lead: string;
   count: string;

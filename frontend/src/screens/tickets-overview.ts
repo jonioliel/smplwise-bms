@@ -44,10 +44,10 @@ interface OverviewWidget { key: CardKey; title: string; span: number; alert: boo
 
 /** the board and the numbers row every minute while visible (spec 5); the requests for quotation, the payment dates, the handled counts and
  * the cost claims - which do not change minute by minute - every ten minutes */
-export const OVERVIEW_REFRESH_MS = 60_000;
-export const SLOW_REFRESH_MS = 600_000;
+const OVERVIEW_REFRESH_MS = 60_000;
+const SLOW_REFRESH_MS = 600_000;
 /** at most this many awarded requests are read in detail for their payment dates (one request each) */
-export const DETAIL_CAP = 12;
+const DETAIL_CAP = 12;
 const DEPT_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 const KPI_STORE = 'sw.tickets.overview.kpis.';
 

@@ -7,9 +7,9 @@ export type UnlockReason = 'ok' | 'no_permission' | 'door_not_mapped' | 'alarm_m
 
 /** Settings › חיבורים: the "שיוך דלתות" card sits on this page (system administrator only). */
 export const DOOR_MAP_HREF = '#/system/setup';
-export const DOOR_MAP_LINK_LABEL = 'לשיוך דלתות';
+const DOOR_MAP_LINK_LABEL = 'לשיוך דלתות';
 
-export interface UnlockReasonText {
+interface UnlockReasonText {
   /** The short sentence shown in place of the open button. */
   text: string;
   /** The longer tooltip. */
@@ -61,7 +61,7 @@ export function dimmedActionTitle(action: { id: string; grant?: string | null; r
 }
 
 /** The note under "הרשאות אפקטיביות" when the shown permissions include a door opening one: intercom doors also need a door mapping. */
-export const DOOR_PERMISSION_NOTE = 'פתיחת דלת אינטרקום דורשת גם שיוך של הדלת לתחנה וממסר ב"שיוך דלתות" - ההרשאה לבדה אינה מספיקה.';
+const DOOR_PERMISSION_NOTE = 'פתיחת דלת אינטרקום דורשת גם שיוך של הדלת לתחנה וממסר ב"שיוך דלתות" - ההרשאה לבדה אינה מספיקה.';
 const DOOR_PERMISSIONS = ['door.unlock', 'access.doors.open', 'access.release'];
 
 export function doorPermissionNote(shown: readonly string[], canConfigure: boolean): { text: string; link: { href: string; label: string } | null } | null {

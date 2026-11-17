@@ -26,7 +26,7 @@ import { navigate } from '../router';
  * devices sit in a grid of `--sw-grid-min` columns (the density dial; `row` = one column, the list view).
  */
 
-export interface BubbleAreaHost {
+interface BubbleAreaHost {
   ctl: DeviceControls;
   /** Opens the device's sheet (the pill's ring, or a plain pill's tap). */
   openSheet(r: DeviceRow, card: CardId): void;

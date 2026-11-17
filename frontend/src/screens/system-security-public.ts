@@ -13,7 +13,7 @@ import { parseCap, parseRetention } from '../access-external/pending-model';
 import { spt } from '../i18n/security-public';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
-export const UNIFORM_404_KEY = 'access.unknown_person_uniform_404';
+const UNIFORM_404_KEY = 'access.unknown_person_uniform_404';
 
 interface SettingsReply {
   settings: Record<string, unknown>;

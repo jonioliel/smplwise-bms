@@ -21,12 +21,12 @@ import type { FloorRef } from './multimedia-layout';
 
 // ------------------------------------------------------------------------------------------------ the layout of a tab
 
-export type PlayerTab = 'players' | 'groups';
+type PlayerTab = 'players' | 'groups';
 
 /** One tab's layout: how its cards are grouped, their order, the "מועדפים" row and which are hidden (only `on: false` is written). The server stores each
  * tab as a full layout (`MediaLayout` without `version`): it fills `floor_order` and every card's `size` / `phone_on` / `phone_size` on write, and the page reads
  * back what it needs (`on`); the floors' order of these tabs is the document's own `floor_order`. */
-export interface TabLayout {
+interface TabLayout {
   group_by: GroupBy;
   order: string[];
   pinned: string[];
@@ -109,7 +109,7 @@ export function matchesPlayerFilters(d: PlayerDevice, f: PlayerFilters): boolean
 }
 export const filterPlayers = (devices: readonly PlayerDevice[], f: PlayerFilters): PlayerDevice[] => devices.filter((d) => matchesPlayerFilters(d, f));
 
-export interface PlayerCounts {
+interface PlayerCounts {
   total: number;
   playing: number;
   unavailable: number;
@@ -156,9 +156,9 @@ export interface PlayerGroup {
 /** Section / filter ids: the unplaced bucket (no room) and the rooms that have no floor in an installation that has floors. */
 export const UNPLACED_ID = 'none';
 export const NOFLOOR_ID = 'nofloor';
-export const PINNED_LABEL = 'מועדפים';
-export const NO_FLOOR_LABEL = 'ללא קומה';
-export const ALL_PLAYERS_LABEL = 'כל הנגנים';
+const PINNED_LABEL = 'מועדפים';
+const NO_FLOOR_LABEL = 'ללא קומה';
+const ALL_PLAYERS_LABEL = 'כל הנגנים';
 
 /**
  * The players tab's sections: "מועדפים" first, then by floor / room / one list as the layout says, with "לא משויכים" (no room)
@@ -215,7 +215,7 @@ export const isFloorSection = (g: Pick<PlayerGroup, 'id'>, groupBy: GroupBy, flo
 
 // ------------------------------------------------------------------------------------------------ the groups tab
 
-export type GroupType = 'live' | 'static' | 'helper';
+type GroupType = 'live' | 'static' | 'helper';
 
 /** A group of `GET /multimedia/groups`: live (the leader's members), static (a device of kind `group`) or a helper shortcut (a
  * `group` helper entity: a fan-out with no grouping of its own, CR §5.3 - its device is not in the players list at all). */
@@ -275,7 +275,7 @@ export function summarizeRecord(rec: Pick<GroupRecord, 'status' | 'members'> | n
 // ------------------------------------------------------------------------------------------------ the saved group's editor
 
 export const PRESET_NAME_MAX = 40;
-export const PRESET_MEMBERS_MAX = 16;
+const PRESET_MEMBERS_MAX = 16;
 
 export interface PresetDraft {
   /** '' = a new group. */

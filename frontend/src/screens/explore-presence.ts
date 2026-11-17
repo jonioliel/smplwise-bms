@@ -18,8 +18,8 @@ import { segThumbPlainStyles } from '../styles/fragments';
 type Kpi = 'all' | 'floors' | 'site';
 const SOURCE_KEY: Record<PeopleSource, PtKey> = { beacon: 'srcBeacon', wifi: 'srcWifi', geofence: 'srcGeofence' };
 const SOURCE_ICON: Record<PeopleSource, string> = { beacon: 'signal', wifi: 'wifi', geofence: 'map' };
-export const PRESENCE_SETTINGS_HREF = '#/system/diagnostics?tab=mobile';
-export const PRESENCE_PLACES_HREF = '#/system/diagnostics?tab=mobile&page=places';
+const PRESENCE_SETTINGS_HREF = '#/system/diagnostics?tab=mobile';
+const PRESENCE_PLACES_HREF = '#/system/diagnostics?tab=mobile&page=places';
 
 /** The static demo (no backend): two people on the demo ground floor and one on the site. */
 const DEMO: PeopleResponse = {

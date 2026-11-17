@@ -23,12 +23,12 @@ import { onDesign, resolvedTheme } from '../design/apply';
 export const devicesStyleTokens = [devicesThemes, devicesPalettes, devicesLayoutCss];
 
 export type DevicesStyle = 'smplwise' | 'glass';
-export type DevicesDensity = 'comfortable' | 'compact';
-export type DevicesView = 'cards' | 'tiles';
+type DevicesDensity = 'comfortable' | 'compact';
+type DevicesView = 'cards' | 'tiles';
 /** CR-007 6b: the device area's colour scheme (glass style). `auto` follows the viewer's operating system. */
 export type DevicesScheme = 'light' | 'dark' | 'auto';
 /** 2.4.4 (owner 2026-10-10, `devices.glass_scheme`): the glass screens follow the product's scheme (default), or are always light / dark. */
-export type GlassScheme = 'follow' | 'light' | 'dark';
+type GlassScheme = 'follow' | 'light' | 'dark';
 export const GLASS_SCHEMES: readonly GlassScheme[] = ['follow', 'light', 'dark'];
 export const glassSchemeOf = (v: unknown): GlassScheme => (v === 'light' || v === 'dark' ? v : 'follow');
 

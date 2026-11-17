@@ -125,13 +125,13 @@ export function activeFilterCount(f: ListFilters): number {
 }
 
 /** What a free-text search looks through: the name, the devices, their areas and floors, the conditions and the tags. */
-export function searchText(s: Schedule): string {
+function searchText(s: Schedule): string {
   return [s.display_name, ...s.entities.flatMap((e) => [e.name, e.entity_id, e.area_name ?? '', e.floor_name ?? '']), ...s.conditions.items.map((c) => c.name), s.conditions.summary ?? '', ...s.tags]
     .join(' \n ')
     .toLowerCase();
 }
 
-export function matchesFilters(s: Schedule, f: ListFilters): boolean {
+function matchesFilters(s: Schedule, f: ListFilters): boolean {
   const words = f.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length) {
     const hay = searchText(s);
@@ -171,7 +171,7 @@ export function sortSchedules(items: Schedule[], sort: ListSort): Schedule[] {
   return out;
 }
 
-export interface ScheduleGroup {
+interface ScheduleGroup {
   key: string;
   label: string;
   items: Schedule[];
@@ -206,7 +206,7 @@ export function groupSchedules(items: Schedule[], group: ListGroup): ScheduleGro
   return [...named, ...labels.filter((l) => catchAll.has(l))].map((label) => ({ key: label, label, items: map.get(label) ?? [] }));
 }
 
-export interface FilterOption {
+interface FilterOption {
   value: string;
   label: string;
 }
@@ -263,7 +263,7 @@ export function slotTone(slot: Pick<ScheduleSlot, 'actions'>): Tone {
   return tones.find((t) => t !== 'off' && t !== 'other') ?? tones[0];
 }
 
-export interface BarSegment {
+interface BarSegment {
   index: number;
   /** Percent of the day, 00:00 at the start of the (left-to-right) axis. */
   from: number;
@@ -292,12 +292,12 @@ export function slotSegments(slots: ScheduleSlot[], sun: SunTimes | null = null)
 }
 
 /** The name a schedule's action shows: the entity's name from the schedule's own list, the id as a last resort. */
-export function entityNameOf(s: Pick<Schedule, 'entities'>, id: string | null): string {
+function entityNameOf(s: Pick<Schedule, 'entities'>, id: string | null): string {
   if (!id) return 'ללא התקן';
   return s.entities.find((e) => e.entity_id === id)?.name ?? id;
 }
 
-export interface ActionChip {
+interface ActionChip {
   label: string;
   tone: Tone;
   /** The devices this label applies to in the slot (names). */
@@ -320,7 +320,7 @@ export function slotChips(slot: ScheduleSlot, s: Pick<Schedule, 'entities'>): Ac
 }
 
 /** "כיבוי מיזוג · מזגן סלון", "קירור 25° · מזגן משרדים ועוד 2" - one slot in one line. */
-export function slotActionText(slot: ScheduleSlot, nameOf: (id: string | null) => string): string {
+function slotActionText(slot: ScheduleSlot, nameOf: (id: string | null) => string): string {
   if (!slot.actions.length) return '';
   const first = slot.actions[0];
   const more = slot.actions.length - 1;
@@ -329,7 +329,7 @@ export function slotActionText(slot: ScheduleSlot, nameOf: (id: string | null) =
 
 // ------------------------------------------------------------------------------------------------ days
 
-export interface DayChipState {
+interface DayChipState {
   id: DayId;
   short: string;
   on: boolean;
@@ -359,7 +359,7 @@ export function periodLabel(s: Pick<Schedule, 'start_date' | 'end_date'>): strin
 
 // ------------------------------------------------------------------------------------------------ the summary strip (mockup 01)
 
-export interface UpcomingToday {
+interface UpcomingToday {
   scheduleId: string;
   name: string;
   at: string;
@@ -513,12 +513,12 @@ export function devicesLine(s: Pick<Schedule, 'entities'>): string {
 }
 
 /** "נמחק לפני 3 ימים · נשמר עוד 27 ימים" pieces for the trash view. */
-export function daysUntil(iso: string, now: Date = new Date()): number {
+function daysUntil(iso: string, now: Date = new Date()): number {
   const t = new Date(iso).getTime();
   return Number.isNaN(t) ? 0 : Math.max(0, Math.ceil((t - now.getTime()) / 86_400_000));
 }
 
-export function daysSince(iso: string, now: Date = new Date()): number {
+function daysSince(iso: string, now: Date = new Date()): number {
   const t = new Date(iso).getTime();
   return Number.isNaN(t) ? 0 : Math.max(0, Math.floor((now.getTime() - t) / 86_400_000));
 }

@@ -20,7 +20,7 @@ import { elt } from '../i18n/elevators';
 import { settingsSegStyles } from '../styles/settings';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
-export interface HomeEditFloor {
+interface HomeEditFloor {
   id: string;
   name: string;
 }

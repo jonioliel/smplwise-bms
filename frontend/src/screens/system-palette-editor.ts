@@ -19,7 +19,7 @@ import { segThumbStyles, okLineStyles } from '../styles/fragments';
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
 /** The key colours the editor offers (path inside a scheme, Hebrew name), the accent first. The rest of a palette (states, rings, gradients, slider) is the base palette's. */
-export const KEY_COLORS: readonly (readonly [string, string])[] = [
+const KEY_COLORS: readonly (readonly [string, string])[] = [
   ['accent', 'צבע הדגש'],
   ['accentContrast', 'טקסט על הדגש'],
   ['accentText', 'טקסט בצבע הדגש'],

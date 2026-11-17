@@ -46,9 +46,9 @@ import { bulkSelect, CARD_TYPES, CARDS_VERSION, findSlot, groupPicks, isCardType
  * derives the tile order from the desktop one (one column: every tile full width) and can then be arranged on its own.
  */
 
-export type LayoutScope = 'building' | 'area';
-export type LayoutVariant = 'desktop' | 'phone';
-export type LayoutText = 'sm' | 'md' | 'lg';
+type LayoutScope = 'building' | 'area';
+type LayoutVariant = 'desktop' | 'phone';
+type LayoutText = 'sm' | 'md' | 'lg';
 
 /** The icons a card may carry (keep in step with ICONS in routers/device_layouts.py - a backend test compares them). */
 export const LAYOUT_ICONS = [
@@ -56,7 +56,7 @@ export const LAYOUT_ICONS = [
   'lock', 'door', 'camera', 'eye', 'bell', 'clock', 'calendar', 'wifi', 'volume', 'users', 'map', 'grid', 'dashboard',
   'star', 'sparkle', 'cube', 'hand', 'info',
 ] as const satisfies readonly IconName[];
-export type LayoutIcon = (typeof LAYOUT_ICONS)[number];
+type LayoutIcon = (typeof LAYOUT_ICONS)[number];
 
 /** The palette roles a card's colours may take (ROLES in routers/device_layouts.py; resolved in devices-palettes.ts). */
 export const LAYOUT_ROLES = ['accent', 'warm', 'cool', 'success', 'warning', 'danger', 'neutral'] as const satisfies readonly LayoutRoleId[];
@@ -92,7 +92,7 @@ export interface TileEntry {
 export const TILE_COLS: Record<string, number> = { lighting: 2, switches: 2, climate: 2, heating: 2, covers: 2, security: 2, media: 2, sensors: 2 };
 /** The layout schema this editor writes (1 = 6b; 2 = 6c, device tiles). routers/device_layouts.py LAYOUT_VERSION. */
 export const LAYOUT_VERSION = 2;
-export const SIZE_HE: Record<TileSize, string> = { s: 'קטן', m: 'רגיל', l: 'גדול' };
+const SIZE_HE: Record<TileSize, string> = { s: 'קטן', m: 'רגיל', l: 'גדול' };
 
 export interface LayoutItem {
   x: number;
@@ -130,14 +130,14 @@ export interface Layout {
   items: Record<string, LayoutItem>;
 }
 
-export interface LayoutVariantRecord {
+interface LayoutVariantRecord {
   layout: Layout;
   revision: number;
   updated_by: string | null;
   updated_at: string;
 }
 
-export interface LayoutRecord {
+interface LayoutRecord {
   scope: LayoutScope;
   id: string;
   desktop: LayoutVariantRecord | null;
@@ -149,17 +149,17 @@ export interface LayoutRecord {
 
 export const COLS: Record<LayoutVariant, number> = { desktop: 12, phone: 4 };
 /** One grid row, in px. */
-export const ROW_PX = 8;
+const ROW_PX = 8;
 /** The gap left between cards the editor places (2 rows = 16 px). */
-export const GAP_ROWS = 2;
+const GAP_ROWS = 2;
 const PHONE_MQ = '(max-width: 767px)';
 
 const path = (scope: LayoutScope, id: string) => `devices/layouts/${scope}/${encodeURIComponent(id)}`;
-export const getLayout = (scope: LayoutScope, id: string) => api<LayoutRecord>(path(scope, id));
+const getLayout = (scope: LayoutScope, id: string) => api<LayoutRecord>(path(scope, id));
 export const putLayout = (scope: LayoutScope, id: string, variant: LayoutVariant, revision: number, layout: Layout) => put<LayoutRecord>(path(scope, id), { variant, revision, layout });
 export const resetLayout = (scope: LayoutScope, id: string, variant: LayoutVariant | 'all', revision?: number) =>
   api<LayoutRecord>(`${path(scope, id)}?variant=${variant}${revision !== undefined ? `&revision=${revision}` : ''}`, { method: 'DELETE' });
-export const copyLayoutToAllAreas = (id: string, revision: number) => post<{ copied_to: number; source: LayoutRecord }>(`${path('area', id)}/copy-to-all-areas`, { revision });
+const copyLayoutToAllAreas = (id: string, revision: number) => post<{ copied_to: number; source: LayoutRecord }>(`${path('area', id)}/copy-to-all-areas`, { revision });
 
 // ------------------------------------------------------------------------------------------------ pure geometry
 
@@ -203,7 +203,7 @@ function overlap(a: LayoutItem, b: LayoutItem): boolean {
 
 /** `fixed` stays where it is; every peer it (or a peer pushed by it) now covers moves down below it, keeping the
  * 16 px gap. Peers are the keys of the same grid; everything else is left alone. */
-export function resolveCollisions(items: Record<string, LayoutItem>, fixed: string, peers: string[]): Record<string, LayoutItem> {
+function resolveCollisions(items: Record<string, LayoutItem>, fixed: string, peers: string[]): Record<string, LayoutItem> {
   const out: Record<string, LayoutItem> = { ...items };
   const placed = [fixed];
   const rest = peers.filter((k) => k !== fixed && out[k]).sort((a, b) => out[a].y - out[b].y || out[a].x - out[b].x);
@@ -238,7 +238,7 @@ function phoneTiles(key: string, d: LayoutItem): Partial<LayoutItem> {
  * the devices the card has now (a stored tile of a device gone from the card is left out). Hidden = the tile's own flag
  * or the card's hidden_entities (one set).
  */
-export function orderedTiles(it: LayoutItem | null | undefined, ids: string[], span: number): TileEntry[] {
+function orderedTiles(it: LayoutItem | null | undefined, ids: string[], span: number): TileEntry[] {
   const stored = it?.tiles ?? {};
   const hide = new Set(it?.hidden_entities ?? []);
   const known = ids.filter((id) => stored[id]).sort((a, b) => stored[a].order - stored[b].order);
@@ -255,7 +255,7 @@ export function arranged(it: LayoutItem | null | undefined): boolean {
 }
 
 /** The automatic phone layout: one column, in the desktop's reading order, each grid on its own. */
-export function derivePhone(desktop: Layout, grids: string[][]): Layout {
+function derivePhone(desktop: Layout, grids: string[][]): Layout {
   const items: Record<string, LayoutItem> = {};
   const seen = new Set<string>();
   const prefix = (k: string) => k.slice(0, k.indexOf(':') + 1);
@@ -289,7 +289,7 @@ export interface MeasuredGrid {
   items: { key: string; el: HTMLElement }[];
 }
 
-export function deriveFromDom(grid: MeasuredGrid, cols: number): Record<string, LayoutItem> {
+function deriveFromDom(grid: MeasuredGrid, cols: number): Record<string, LayoutItem> {
   const g = grid.el.getBoundingClientRect();
   const cs = getComputedStyle(grid.el);
   const rtl = cs.direction === 'rtl';
@@ -359,7 +359,7 @@ export interface LayoutGrid {
   keys: string[];
 }
 
-export interface LayoutOptions {
+interface LayoutOptions {
   scope: LayoutScope;
   /** The record's id: "main" for the building, the area id on the area screen. */
   id: () => string;

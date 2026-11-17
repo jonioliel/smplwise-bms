@@ -18,7 +18,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsLadderStyles } from '../styles/settings';
 
 /** Tells the shell's "השלם את ההתקנה" hint what the wizard just learned, so it does not wait for its own next read. */
-export function announceSetup(s: SetupState) {
+function announceSetup(s: SetupState) {
   window.dispatchEvent(new CustomEvent('sw-setup-state', { detail: summarizeSetup(s) satisfies SetupSummary }));
 }
 

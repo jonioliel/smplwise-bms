@@ -174,7 +174,7 @@ export abstract class DevicesOverrideAdmin<Row extends { entity_id: string }> ex
 }
 
 /** A row of a long list: where the entity is. */
-export interface PlacedRow {
+interface PlacedRow {
   entity_id: string;
   floor_id?: string | null;
   floor_name?: string | null;

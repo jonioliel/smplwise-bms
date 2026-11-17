@@ -19,7 +19,7 @@ import type { LoweringSummary } from './schedule-edit-logic';
  * (schedule-edit-logic.ts: kinds and a times string) and S3's (schedules-logic.ts: `{entities, times[], text}`, the sentence
  * already written). `text`, when given, is shown as is; otherwise the sentence is built from the rest.
  */
-export interface LoweringDialogSummary {
+interface LoweringDialogSummary {
   entities: string[];
   times?: string | string[];
   text?: string;

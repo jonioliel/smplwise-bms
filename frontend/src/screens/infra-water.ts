@@ -22,7 +22,7 @@ import { openAlertCount, onOpenAlertCount } from '../api/water';
 // Every page file of the module registers itself (`screens/water/page-*.ts`), as the electricity shell does.
 import.meta.glob('./water/page-*.ts', { eager: true });
 
-export type WaterPage = 'meters' | 'usage' | 'alerts' | 'accounts' | 'bills' | 'customers' | 'settings';
+type WaterPage = 'meters' | 'usage' | 'alerts' | 'accounts' | 'bills' | 'customers' | 'settings';
 
 interface PageDef {
   id: WaterPage;
@@ -35,16 +35,16 @@ interface PageDef {
 }
 
 /** Ids, labels and the gates come from the tab registry (shell/nav.ts INFRA_WATER_PAGES, `infra.water` in the tabs editor). */
-export const WATER_PAGES: PageDef[] = INFRA_WATER_PAGES.map((p) => ({ id: p.id as WaterPage, label: p.label, tag: `water-${p.id}-page`, money: INFRA_WATER_MONEY_PAGES.includes(p.id), manage: INFRA_WATER_MANAGE_PAGES.includes(p.id) }));
+const WATER_PAGES: PageDef[] = INFRA_WATER_PAGES.map((p) => ({ id: p.id as WaterPage, label: p.label, tag: `water-${p.id}-page`, money: INFRA_WATER_MONEY_PAGES.includes(p.id), manage: INFRA_WATER_MANAGE_PAGES.includes(p.id) }));
 
 /** The page a route names (`#/infra/water/<page>`); the meters page by default. */
-export function waterPageOf(segments: readonly string[]): WaterPage {
+function waterPageOf(segments: readonly string[]): WaterPage {
   const id = segments[1] === 'water' ? segments[2] : undefined;
   return WATER_PAGES.find((p) => p.id === id)?.id ?? 'meters';
 }
 
 /** Whether this viewer may open a page (the row offers only these; a deep link to another one shows the lock panel). */
-export function pageAllowed(p: Pick<PageDef, 'money' | 'manage'>, a: WaterAccess): boolean {
+function pageAllowed(p: Pick<PageDef, 'money' | 'manage'>, a: WaterAccess): boolean {
   return a.view && (!p.money || a.bills) && (!p.manage || canSettings(a));
 }
 

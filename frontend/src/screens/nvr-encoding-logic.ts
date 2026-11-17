@@ -74,11 +74,11 @@ export function encodingStreams(cameras: NvrCamera[], details: Map<string, Camer
 
 // ------------------------------------------------------------------------------------------------ filters and selection
 
-export type EncCodecFilter = '' | 'h264' | 'h265' | 'other';
+type EncCodecFilter = '' | 'h264' | 'h265' | 'other';
 /** '' = every stream; the role choice of the owner's request: main, sub or both. */
-export type EncRoleFilter = '' | 'main' | 'sub';
-export type EncSvcFilter = '' | 'on' | 'off' | 'none';
-export type EncVerdictFilter = '' | Verdict;
+type EncRoleFilter = '' | 'main' | 'sub';
+type EncSvcFilter = '' | 'on' | 'off' | 'none';
+type EncVerdictFilter = '' | Verdict;
 
 export interface EncFilters {
   q: string;
@@ -149,7 +149,7 @@ export const EMPTY_DRAFT: EncDraft = { codec: '', resolution: '', fps: '', bitra
 
 export const LEAVE = 'ללא שינוי';
 
-export interface EncChoices {
+interface EncChoices {
   codec: string[];
   resolution: string[];
   fps: number[];
@@ -286,9 +286,9 @@ export function startRequest(p: EncodingPreview, onRefusal?: RefusalPolicy): Enc
   };
 }
 
-export const inStreams = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
+const inStreams = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
 
-export const ENC_CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
+const ENC_CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
 
 /** The ONE confirmation (the S2C rules: one dialog, the count, two buttons, the streams under "פרטים"; no typed word). */
 export function encodingConfirmModel(p: EncodingPreview, nameOf: (it: PlanItem) => string, onRefusal?: RefusalPolicy): ConfirmModel {

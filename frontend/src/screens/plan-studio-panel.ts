@@ -43,11 +43,11 @@ const OPENING_DRAG_HINT = 'גרירת פתח קיים מזיזה אותו לאו
 
 /** The select mode's help (hotfix 0.1.87): a wall moves as a whole by its body, but only once it is selected, so a first
  * press never moves anything. The select tool shows the same line. */
-export const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה. במסך מגע כל פריט זז רק אחרי שנבחר, כך שהזזת המפה באצבע לא מזיזה פריטים.';
+const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה. במסך מגע כל פריט זז רק אחרי שנבחר, כך שהזזת המפה באצבע לא מזיזה פריטים.';
 
 /** The "סמן דלת" tool (T087): a click on a door symbol in the plan proposes the door from the drawing. */
-export const MARK_DOOR_HINT = 'לחץ על סמל דלת בתוכנית (או על הקיר במקום הדלת): תוצג הצעה מקווקוות - רוחב, ציר וכיוון פתיחה לפי הסמל. Enter או לחיצה על ההצעה מאשרים, לחיצה על סמל הבא מאשרת ומציעה את הבאה, Esc מבטל.';
-export const MARK_DOOR_TIP = 'סמן דלת (D): לחיצה על סמל דלת בשרטוט מציעה את הדלת לפי הסמל';
+const MARK_DOOR_HINT = 'לחץ על סמל דלת בתוכנית (או על הקיר במקום הדלת): תוצג הצעה מקווקוות - רוחב, ציר וכיוון פתיחה לפי הסמל. Enter או לחיצה על ההצעה מאשרים, לחיצה על סמל הבא מאשרת ומציעה את הבאה, Esc מבטל.';
+const MARK_DOOR_TIP = 'סמן דלת (D): לחיצה על סמל דלת בשרטוט מציעה את הדלת לפי הסמל';
 
 /** The chips of the structure tool (WALLP, owner request 2026-10-08): the three wall tools first - straight, curved
  * through points, glass - then the openings and the label. The bend mode has no chip (`chip: false`): it is reached from
@@ -141,7 +141,7 @@ export function fmtArea(m2: number, estimated: boolean, show = true): string {
   return `${estimated ? '≈' : ''}${m2 < 100 ? m2.toFixed(1) : m2.toFixed(0)} מ״ר`;
 }
 
-export interface StudioView {
+interface StudioView {
   doc: GeometryDoc;
   W: number;
   H: number;
@@ -176,7 +176,7 @@ export interface StudioView {
   materialStyle?: VisualStyle;
 }
 
-export interface StudioActions {
+interface StudioActions {
   setMode(mode: StudioMode): void;
   setWallDefaults(d: WallDefaults): void;
   setGlassDraw?(d: GlassDraw): void;
@@ -560,7 +560,7 @@ function renderCopy(cands: CopyCandidate[], a: StudioActions, busy: boolean) {
   </div>`;
 }
 
-export interface CalibView {
+interface CalibView {
   a: Pt | null;
   b: Pt | null;
   metres: string;
@@ -641,7 +641,7 @@ export interface DetectOpts {
 }
 
 /** The detect panel's rule checkboxes after the hollow walls (detector 1.4): option key, data attribute, label. */
-export const DETECT_RULES: readonly { key: 'sectionLines' | 'joinGaps' | 'stepsRegions' | 'columns'; attr: string; label: string }[] = [
+const DETECT_RULES: readonly { key: 'sectionLines' | 'joinGaps' | 'stepsRegions' | 'columns'; attr: string; label: string }[] = [
   { key: 'sectionLines', attr: 'section', label: 'קווי חתך החוצים את המבנה אינם קירות' },
   { key: 'joinGaps', attr: 'join', label: 'רווח קטן מ־30 ס״מ בלי סימון - קיר אחד' },
   { key: 'stepsRegions', attr: 'steps', label: 'הצע טריבונה משורות מקבילות' },
@@ -667,7 +667,7 @@ export interface DetectAcceptError {
   /** 409 stale_revision: the draft changed elsewhere; the candidates stay while the draft reloads. */
   stale: boolean;
 }
-export interface DetectCandidatesView {
+interface DetectCandidatesView {
   source: CandSource;
   set: CandidateSet;
   states: Record<string, CandState>;
@@ -688,7 +688,7 @@ export interface DetectReplaceAsk {
   /** Openings of another source (manual) sitting on unlocked walls of the candidates' source: they go with their wall. */
   manualOnAuto: number;
 }
-export interface DetectView {
+interface DetectView {
   opts: DetectOpts;
   run: DetectRunState;
   cands: DetectCandidatesView | null;
@@ -711,7 +711,7 @@ export interface DetectView {
   ask: DetectReplaceAsk | null;
   acceptError: DetectAcceptError | null;
 }
-export interface DetectActions {
+interface DetectActions {
   setOpts(o: DetectOpts): void;
   run(): void;
   retryLighter(): void;
@@ -731,7 +731,7 @@ export interface DetectActions {
   importRooms(): void;
 }
 
-export const CAND_KIND_LABEL: Record<CandKind, string> = { wall: 'קיר', door: 'דלת', window: 'חלון', passage: 'מעבר' };
+const CAND_KIND_LABEL: Record<CandKind, string> = { wall: 'קיר', door: 'דלת', window: 'חלון', passage: 'מעבר' };
 const CAND_KIND_ONLY: Record<CandKind, string> = { wall: 'רק קירות', door: 'רק דלתות', window: 'רק חלונות', passage: 'רק מעברים' };
 const SOURCE_BADGE: Record<string, string> = { auto: 'זוהה אוטומטית', imported: 'יובא מ־DXF' };
 /** The candidate list shows this many rows; the map shows them all. */
@@ -740,7 +740,7 @@ const CAND_ROWS = 300;
 export const lighterStrength = (s: number): number => Math.max(0.3, Math.round((s - 0.2) * 100) / 100);
 
 /** The badge of a wall or opening that a detector or an import produced (phase 3): source and confidence. */
-export function renderSourceBadge(item: { source: string; confidence: number }): TemplateResult | typeof nothing {
+function renderSourceBadge(item: { source: string; confidence: number }): TemplateResult | typeof nothing {
   if (item.source === 'manual') return nothing;
   return html`<span class="badge" data-auto-badge=${item.source}>${SOURCE_BADGE[item.source] ?? item.source} · ביטחון ${item.confidence.toFixed(2)}</span>`;
 }
@@ -867,7 +867,7 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
 
 // ---------------------------------------------------------------- the library and the object inspector (T085)
 
-export interface LibraryView {
+interface LibraryView {
   lib: CatalogLibrary;
   q: string;
   /** null = every category; 'recent' and 'favorites' are the two special shelves. */
@@ -881,7 +881,7 @@ export interface LibraryView {
   canManage: boolean;
 }
 
-export interface LibraryActions {
+interface LibraryActions {
   setQuery(q: string): void;
   setCategory(id: string | null): void;
   pick(item: CatalogItem): void;
@@ -935,7 +935,7 @@ export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateR
   </sw-card>`;
 }
 
-export interface ObjectView {
+interface ObjectView {
   o: GeomObject;
   item: CatalogItem | undefined;
   levels: GeomLevel[];
@@ -952,7 +952,7 @@ export interface ObjectView {
   materialStyle?: VisualStyle;
 }
 
-export interface ObjectActions {
+interface ObjectActions {
   patch(id: string, patch: Partial<GeomObject>): void;
   unbind(id: string): void;
   remove(id: string): void;
@@ -1015,7 +1015,7 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
 
 // ---------------------------------------------------------------- groups, arrays and custom items (T085)
 
-export interface GroupActions {
+interface GroupActions {
   select(objectId: string): void;
   askDelete(groupId: string): void;
 }
@@ -1039,11 +1039,11 @@ export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או א�
 
 // ---------------------------------------------------------------- keyboard shortcuts help (T085, owner request 2026-09-27)
 
-export interface ShortcutEntry {
+interface ShortcutEntry {
   keys: string;
   desc: string;
 }
-export interface ShortcutGroup {
+interface ShortcutGroup {
   title: string;
   items: ShortcutEntry[];
 }
@@ -1052,7 +1052,7 @@ export interface ShortcutGroup {
  * `explore-plan-editor.ts`'s `handleKey` / `handleMultiKey` / `handleStudioKey` / `nudgeGeom` and `sw-plan-canvas.ts`'s
  * pan and drag handlers) - a pure data structure so the help dialog and a future test can both read it. Keep this in
  * sync by hand: nothing here is generated from the handler. */
-export const SHORTCUT_GROUPS: ShortcutGroup[] = [
+const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'בחירה',
     items: [
@@ -1115,7 +1115,7 @@ export function renderShortcutsDialog(onClose: () => void): TemplateResult {
 // ---------------------------------------------------------------- tags (T085)
 
 /** One chip of a tags editor: the tag, and in the bulk panel how many of the selected items carry it. */
-export interface TagChip {
+interface TagChip {
   tag: string;
   count?: number;
 }
@@ -1167,7 +1167,7 @@ export function renderTagPicker(tags: TagChip[], onPick: (tag: string) => void):
   </select>`;
 }
 
-export interface MultiView {
+interface MultiView {
   walls: number;
   objects: number;
   zones: number;
@@ -1189,7 +1189,7 @@ export interface MultiView {
    * show from two (distribute from three); walls and zones of the selection stay where they are. */
   alignable: number;
 }
-export interface MultiActions {
+interface MultiActions {
   duplicate(): void;
   remove(): void;
   clear(): void;
@@ -1227,7 +1227,7 @@ function renderAlignActions(v: MultiView, a: MultiActions): TemplateResult {
 /** The grid options of the layers tool (T085): the switch and the spacing. The spacing is in metres on the plan's scale -
  * before calibration on the estimated one, marked "≈" as every estimated distance of the editor, or, when the setting
  * `plan.estimates` hides estimated metres, named by size only. */
-export interface GridOptionsView {
+interface GridOptionsView {
   on: boolean;
   stepM: number;
   steps: readonly number[];
@@ -1400,7 +1400,7 @@ export interface LevelDialogView {
   error: string;
 }
 
-export interface LevelDialogActions {
+interface LevelDialogActions {
   change(patch: Partial<LevelDialogView>): void;
   /** Create (a new level) or save (edit mode). */
   submit(): void;
@@ -1434,7 +1434,7 @@ export function renderLevelDialog(v: LevelDialogView, a: LevelDialogActions): Te
 
 export const CONNECTOR_LABEL: Record<ConnectorKind, string> = { stairs: 'מדרגות', ramp: 'רמפה', tribune: 'טריבונה', elevator: 'מעלית', ladder: 'סולם' };
 
-export interface ConnectorView {
+interface ConnectorView {
   doc: GeometryDoc;
   mode: ConnectorKind | null;
   start: Pt | null;
@@ -1448,7 +1448,7 @@ export interface ConnectorView {
   phone: boolean;
 }
 
-export interface ConnectorActions {
+interface ConnectorActions {
   setMode(kind: ConnectorKind | null): void;
   select(id: string): void;
   patch(id: string, patch: Partial<GeomConnector>): void;
@@ -1646,7 +1646,7 @@ function connectorLabelOf(doc: GeometryDoc, c: GeomConnector): string {
 
 // ---------------------------------------------------------------- circuits (T085)
 
-export interface CircuitView {
+interface CircuitView {
   doc: GeometryDoc;
   sel: GeomCircuit | undefined;
   membersMode: boolean;
@@ -1660,7 +1660,7 @@ export interface CircuitView {
   placing: CatalogItem | null;
 }
 
-export interface CircuitActions {
+interface CircuitActions {
   select(id: string | null): void;
   startNew(): void;
   cancelNew(): void;
@@ -1674,7 +1674,7 @@ export interface CircuitActions {
 }
 
 /** Members mode (owner report 2026-09-26: "add lamps" placed nothing on a click on the map): both of its interactions. */
-export const CIRCUIT_MEMBERS_HINT = 'לחץ על מנורה קיימת כדי להוסיף או להסיר אותה מהמעגל, או בחר סוג מנורה למטה ולחץ על התוכנית כדי להציב מנורה חדשה שכבר מחוברת למעגל';
+const CIRCUIT_MEMBERS_HINT = 'לחץ על מנורה קיימת כדי להוסיף או להסיר אותה מהמעגל, או בחר סוג מנורה למטה ולחץ על התוכנית כדי להציב מנורה חדשה שכבר מחוברת למעגל';
 
 /** The hint while a lamp type is armed: the next click on the plan places it, already on the circuit. */
 export const circuitPlacingHint = (item: CatalogItem): string => `לחץ על התוכנית כדי להציב ${item.names.he} ישירות במעגל · Esc לביטול`;

@@ -18,8 +18,8 @@ import { PollController } from '../components/poll-controller';
  * its meter card.
  */
 
-export type MetersView = 'table' | 'cards';
-export type MetersPhase = 'loading' | 'ready' | 'error';
+type MetersView = 'table' | 'cards';
+type MetersPhase = 'loading' | 'ready' | 'error';
 /** The frame's state (the `data-state` of the page's outer box); `forbidden` is the module's own panel. */
 export type MetersFrameState = 'loading' | 'error' | 'empty' | 'ready';
 type Slot = TemplateResult | typeof nothing;
@@ -42,20 +42,20 @@ export function store(key: string, value: unknown): void {
 }
 
 /** A floor of the areas tree with its areas (the shape both `buildAreaTree` and `buildWaterAreaTree` give). */
-export interface MetersFloorNode {
+interface MetersFloorNode {
   floor_id: string;
   name: string;
   count: number;
   areas: { area_id: string; name: string; count: number }[];
 }
 
-export interface MetersAccess {
+interface MetersAccess {
   view: boolean;
   manage: boolean;
 }
 
 /** What a module fixes once: where its choices are stored, its route, and its permissions. */
-export interface MetersPageConfig<A extends MetersAccess> {
+interface MetersPageConfig<A extends MetersAccess> {
   viewKey: string;
   collapseKey: string;
   /** the page's route (`/infra/<module>/meters`): the filters live in its query */

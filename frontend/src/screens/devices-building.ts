@@ -104,11 +104,11 @@ import { devicesBuildingStyles } from './devices-building-css';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
-export const EDIT_PARAM = 'edit';
+const EDIT_PARAM = 'edit';
 
 /** How tight the screen is packed to fit the viewport without a vertical scroll (owner notes 2026-09-30, item 7): 0 = as
  * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring. */
-export type FitLevel = 0 | 1 | 2;
+type FitLevel = 0 | 1 | 2;
 /** The packed layout is for a desktop-width screen; a phone scrolls. */
 export const FIT_MIN_WIDTH = 900;
 
@@ -134,7 +134,7 @@ const SITE_BULK_HOLD = 'פעולה קבוצתית זמינה בתוך בניין
 
 /** The panel's deep link on the building screen (owner 2026-09-29): `#/devices/building?domain=<kind>[&floor=<id> |
  * &area=<id>][&filter=active|inactive|unavailable]` - the hash-query convention of the other screens (router.ts). */
-export function panelFromParams(p: URLSearchParams): { kind: TileKind; scope: ItemsScope; id: string; filter: ItemsFilter } | null {
+function panelFromParams(p: URLSearchParams): { kind: TileKind; scope: ItemsScope; id: string; filter: ItemsFilter } | null {
   const kind = p.get('domain') as TileKind | null;
   if (!kind || !TILE_KINDS.includes(kind)) return null;
   const floor = p.get('floor');
@@ -143,7 +143,7 @@ export function panelFromParams(p: URLSearchParams): { kind: TileKind; scope: It
   return { kind, scope: area ? 'area' : floor ? 'floor' : 'building', id: area ?? floor ?? '', filter: f && PANEL_FILTERS.includes(f) ? f : 'all' };
 }
 
-export function panelParams(kind: TileKind, scope: ItemsScope, id: string, filter: ItemsFilter): URLSearchParams {
+function panelParams(kind: TileKind, scope: ItemsScope, id: string, filter: ItemsFilter): URLSearchParams {
   const q = new URLSearchParams({ domain: kind });
   if (scope === 'floor') q.set('floor', id);
   if (scope === 'area') q.set('area', id);
@@ -163,7 +163,7 @@ const INFO_CHOICES: readonly ('bar' | 'cards')[] = ['bar', 'cards']; // HOMEINFO
 const MANUAL_PUSH_GRACE_MS = 1000;
 
 /** "<what> עכשיו / לפני …": seconds under a minute, then minutes, hours, else the date. '' for no / bad time. */
-export function agoHe(what: string, iso: string | null | undefined, now: number = Date.now()): string {
+function agoHe(what: string, iso: string | null | undefined, now: number = Date.now()): string {
   if (!iso) return '';
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return '';
@@ -179,7 +179,7 @@ export function agoHe(what: string, iso: string | null | undefined, now: number 
 
 /** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
  * was last CHECKED against Home Assistant (last_registry_at - every refresh, changed or not). */
-export function structureTiming(sync: HaSyncState | null | undefined, now: number = Date.now()): { changed: string; checked: string } {
+function structureTiming(sync: HaSyncState | null | undefined, now: number = Date.now()): { changed: string; checked: string } {
   if (!sync?.last_registry_at) return { changed: 'המבנה טרם נטען', checked: '' };
   return {
     changed: agoHe('המבנה עודכן', sync.last_structure_at, now) || 'המבנה לא השתנה מאז ההפעלה',
@@ -188,7 +188,7 @@ export function structureTiming(sync: HaSyncState | null | undefined, now: numbe
 }
 
 /** What a tile / floor row shows for each kind that exists there: icon, "on/total", and whether "on" is the warm state. */
-export interface CountPill {
+interface CountPill {
   key: keyof DeviceCounts;
   icon: IconName;
   label: string;
@@ -264,7 +264,7 @@ function sumCounts(list: DeviceCounts[]): DeviceCounts {
 /** HOME-295: the approved mockup's demo site (3 floors, 8 areas) for `?hs_state=` in demo mode - the evidence specs' states: `site`
  * (normal), `alarm` (the garden's alarm triggered), `offline` (no connection), `empty` (no floors yet), `many` (six floors). The plain
  * demo (no hs_state) keeps DEMO_DEVICES_TREE, which older specs and baselines read. */
-export function demoTreeFor(state: string): DeviceTree {
+function demoTreeFor(state: string): DeviceTree {
   if (!state) return DEMO_DEVICES_TREE;
   if (state === 'empty') return { ...DEMO_DEVICES_TREE, floors: [], unassigned: { area_id: 'unassigned', name: 'ללא שיוך', counts: { ...ZERO, entities: 14, switches: 14 } }, building: { ...ZERO }, building_climate: [] };
   const alarm = state === 'alarm';
@@ -294,7 +294,7 @@ export function demoTreeFor(state: string): DeviceTree {
   return { ...DEMO_DEVICES_TREE, floors, unassigned: { area_id: 'unassigned', name: 'ללא שיוך', counts: { ...ZERO, entities: 3, lights: 1, switches: 1, sensors: 1 } }, building, building_climate: floors.flatMap((f) => f.climate), can_bulk: true };
 }
 
-export type BuildingLayout = 'cards' | 'tiles' | 'plan';
+type BuildingLayout = 'cards' | 'tiles' | 'plan';
 export const LAYOUT_KEY = 'sw.devices.layout';
 
 /** The viewer's own choice, or null when they never toggled (then הגדרות › חשמל והתקנים › devices.default_view decides). */
@@ -316,7 +316,7 @@ function writeLayout(l: BuildingLayout) {
 }
 
 /** The tree panel's collapsed floors (a JSON array of floor ids), per user and device; default: every floor open. */
-export const TREE_COLLAPSED_KEY = 'sw.devices.treeCollapsed';
+const TREE_COLLAPSED_KEY = 'sw.devices.treeCollapsed';
 
 function readCollapsed(): Set<string> {
   try {
