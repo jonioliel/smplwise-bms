@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from './modal-stack';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -503,6 +504,7 @@ export class NotifyCenter extends LitElement {
   disconnectedCallback() {
     this.phoneMq.removeEventListener('change', this.onMq);
     window.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
     this.stop?.();
     window.clearInterval(this.tickTimer);
     window.clearTimeout(this.toastTimer);
@@ -539,6 +541,7 @@ export class NotifyCenter extends LitElement {
     }
   }
   protected updated(changed: Map<string, unknown>) {
+    syncLayer(this, this.open, NO_TRAP); // CR-MODAL-STACK-B-2442: the open centre is a layer of the shared modal stack
     this.toggleAttribute('data-phone', this.phone);
     this.setAttribute('data-presentation', centerPresentation({ center_layout: this.st.layout }, this.phone));
     if (changed.has('open') && this.open) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('.panel')?.focus({ preventScroll: true }));
@@ -552,6 +555,7 @@ export class NotifyCenter extends LitElement {
       return;
     }
     if (e.key !== 'Escape') return;
+    if (!takesEscape(this, e)) return; // CR-MODAL-STACK-B-2442: a layer above the centre (the door dialog, a confirmation) takes the key
     e.stopPropagation();
     if (this.door.phase === 'confirm' || this.door.phase === 'step_up') this.door = reduceDoorOpen(this.door, { type: 'cancel' });
     else if (this.door.phase === 'done' || this.door.phase === 'failed') this.door = reduceDoorOpen(this.door, { type: 'dismiss' });

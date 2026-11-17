@@ -100,6 +100,7 @@ import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 import { dayTimeText, timeText } from '../api/day-format';
 import { modalKeydown } from '../components/a11y-keys';
+import { removeLayer, syncLayer } from '../components/modal-stack';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -2279,7 +2280,11 @@ export class DevicesBuilding extends LitElement {
     writeCollapsed(next);
   }
 
+  /** CR-MODAL-STACK-B-2442: the phone's tree sheet in the shared modal stack. */
+  private readonly treeLayer = {};
+
   protected updated() {
+    syncLayer(this.treeLayer, !!this.renderRoot.querySelector('[data-tree-sheet]'));
     loadPendingScreens(this.renderRoot, () => this.requestUpdate(), true); // the plan view's map chunk (not the shell's route: data-shell-ready does not wait for it)
     if (this.treeSheet !== this.treeSheetShown) {
       this.treeSheetShown = this.treeSheet;
@@ -3393,6 +3398,7 @@ export class DevicesBuilding extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    removeLayer(this.treeLayer);
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offXs?.();
@@ -4227,7 +4233,7 @@ export class DevicesBuilding extends LitElement {
     if (this.treeSheet) {
       return html`<div class="scrim" @click=${() => (this.treeSheet = false)}></div>
         <div class="hsheet" role="dialog" aria-modal="true" aria-label=${hs('treeTitle')} data-tree-sheet
-          @keydown=${(e: KeyboardEvent) => modalKeydown(e, e.currentTarget as Element, () => ((this.treeSheetByKey = true), (this.treeSheet = false)))}
+          @keydown=${(e: KeyboardEvent) => modalKeydown(e, e.currentTarget as Element, () => ((this.treeSheetByKey = true), (this.treeSheet = false)), this.treeLayer)}
           @click=${(e: Event) => { if ((e.composedPath() as Element[]).some((n) => n instanceof HTMLElement && n.dataset?.treeSelect !== undefined)) this.treeSheet = false; }}>
           <div class="grab" aria-hidden="true"></div>
           <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${(e: MouseEvent) => ((this.treeSheetByKey = e.detail === 0), (this.treeSheet = false))}><sw-icon name="close" size=${15}></sw-icon></button></div>

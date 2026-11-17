@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { automationsStyles } from '../styles/automations-glass';
@@ -78,6 +79,12 @@ export class TicketsTableToolbar extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('pointerdown', this.onOutside, true);
     window.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
+  }
+
+  /** CR-MODAL-STACK-B-2442: the open popover (columns, views, report, filters) is a layer of the shared modal stack. */
+  protected updated() {
+    syncLayer(this, !!this.pop, NO_TRAP);
   }
 
   private onOutside = (e: PointerEvent) => {
@@ -88,6 +95,7 @@ export class TicketsTableToolbar extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (this.pop && e.key === 'Escape') {
+      if (!takesEscape(this, e)) return; // only the top layer answers Escape
       e.stopPropagation();
       const btn = this.renderRoot.querySelector(`[data-open="${this.pop}"]`) as HTMLElement | null;
       this.close();

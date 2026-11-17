@@ -1,3 +1,5 @@
+import { deepActive, holdsTab, pushLayer, removeLayer, takesEscape, trapTab } from '../components/modal-stack';
+import { deepFocusables } from '../components/sw-drawer';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -159,8 +161,14 @@ export class CalQuickCreate extends LitElement {
   @property({ attribute: false }) seriesClash: number | null = null;
   @state() private shown = false;
 
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    removeLayer(this);
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
+    pushLayer(this, { traps: () => this.sheet }); // CR-MODAL-STACK-B-2442: mounted only while open; the phone's sheet keeps Tab inside
     if (this.instant) this.shown = true;
     else requestAnimationFrame(() => requestAnimationFrame(() => (this.shown = true)));
   }
@@ -185,8 +193,12 @@ export class CalQuickCreate extends LitElement {
   private onKey(e: KeyboardEvent): void {
     const t = e.target as HTMLElement;
     if (e.key === 'Escape') {
+      if (!takesEscape(this, e)) return; // a layer above takes the key
       e.stopPropagation();
       fire(this, 'qc-close');
+    } else if (e.key === 'Tab' && this.sheet && holdsTab(this)) {
+      const box = e.currentTarget as Element;
+      trapTab(e, deepFocusables(box), deepActive(), true);
     } else if (e.key === 'Enter' && !['TEXTAREA', 'BUTTON', 'SELECT'].includes(t.tagName)) {
       e.preventDefault();
       fire(this, 'qc-save');
@@ -340,8 +352,14 @@ export class CalPeek extends LitElement {
   @property({ attribute: false }) displaceAsk: { title: string | null; start: string; end: string } | null = null;
   @state() private shown = false;
 
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    removeLayer(this);
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
+    pushLayer(this, { traps: () => this.sheet }); // CR-MODAL-STACK-B-2442: mounted only while open; the phone's sheet keeps Tab inside
     requestAnimationFrame(() => requestAnimationFrame(() => (this.shown = true)));
   }
 
@@ -382,8 +400,12 @@ export class CalPeek extends LitElement {
 
   private onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
+      if (!takesEscape(this, e)) return; // a layer above takes the key
       e.stopPropagation();
       fire(this, 'pk-close');
+    } else if (e.key === 'Tab' && this.sheet && holdsTab(this)) {
+      const box = e.currentTarget as Element;
+      trapTab(e, deepFocusables(box), deepActive(), true);
     }
   }
 

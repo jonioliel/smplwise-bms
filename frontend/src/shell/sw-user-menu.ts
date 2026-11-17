@@ -1,3 +1,4 @@
+import { holdsTab, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-avatar';
@@ -405,12 +406,13 @@ export class SwUserMenu extends LitElement {
   private onKey = (e: KeyboardEvent) => {
     if (!this.open) return;
     if (e.key === 'Escape') {
+      if (!takesEscape(this, e)) return; // CR-MODAL-STACK-B-2442: only the top layer answers Escape
       e.stopPropagation();
       if (this.level === 'account') this.goLevel('main');
       else this.close();
       return;
     }
-    if (e.key !== 'Tab') return;
+    if (e.key !== 'Tab' || !holdsTab(this)) return;
     // keep the keyboard inside the open menu (a modal on the phone, and a small popover elsewhere)
     const items = this.focusables();
     if (!items.length) return;
@@ -466,6 +468,7 @@ export class SwUserMenu extends LitElement {
 
   disconnectedCallback() {
     window.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
     super.disconnectedCallback();
   }
 
@@ -477,6 +480,7 @@ export class SwUserMenu extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
+    syncLayer(this, this.open); // CR-MODAL-STACK-B-2442: the open menu is a layer of the shared modal stack
     if (changed.has('open') && this.open) {
       // the first item, not the ✕: the menu is for going somewhere
       requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('ul a[href], ul button')?.focus({ preventScroll: true }));

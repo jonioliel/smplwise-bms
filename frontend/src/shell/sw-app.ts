@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -2301,7 +2302,11 @@ export class SwApp extends LitElement {
     if (scrolled !== this.hasAttribute('data-scrolled')) this.toggleAttribute('data-scrolled', scrolled);
   };
 
+  /** CR-MODAL-STACK-B-2442: the search panel / the system-status popover in the shared modal stack (one entry: they never stack). */
+  private readonly popLayer = {};
+
   protected updated() {
+    syncLayer(this.popLayer, this.searchPanel || this.sysPop, NO_TRAP);
     // The first load is over: the session is known and, with a backend, the product settings (ui.tabs, the start screen, the
     // hidden areas) are applied. Nothing in the UI reads this; specs wait for it instead of sleeping.
     // PERF-HOME-DEVICES-2342: a route screen rendered before its lazy chunk arrived starts the chunk here; the shell is not "ready"
@@ -2366,6 +2371,7 @@ export class SwApp extends LitElement {
   disconnectedCallback() {
     window.clearInterval(this.ddTimer);
     this.bannerObs?.disconnect();
+    removeLayer(this.popLayer);
     super.disconnectedCallback();
     this.stopDesign?.();
     this.stopDeviceClass?.();
@@ -2548,6 +2554,7 @@ export class SwApp extends LitElement {
       this.openSearch();
       return;
     }
+    if (e.key === 'Escape' && (this.searchPanel || this.sysPop) && !takesEscape(this.popLayer, e)) return; // CR-MODAL-STACK-B-2442: only the top layer answers
     if (e.key === 'Escape' && this.searchPanel) this.closeSearchPanel();
     if (e.key === 'Escape' && this.sysPop) this.closeSysPop(true);
   };

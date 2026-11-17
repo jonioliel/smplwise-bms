@@ -43,6 +43,19 @@ export function removeLayer(layer: object): void {
   if (at >= 0) STACK.splice(at, 1);
 }
 
+/**
+ * CR-MODAL-STACK-B-2442: `layer` is open or not, said after every render (a hand-built box calls this from `updated()`). It enters the
+ * stack once, when it opens, and keeps its place while it stays open; it leaves when it closes.
+ */
+export function syncLayer(layer: object, open: boolean, options: LayerOptions = {}): void {
+  const at = STACK.findIndex((e) => e.layer === layer);
+  if (open && at < 0) STACK.push({ layer, traps: options.traps ?? always });
+  else if (!open && at >= 0) STACK.splice(at, 1);
+}
+
+/** Options of a layer that does not keep Tab inside itself (an anchored popover: the page beside it stays in reach). */
+export const NO_TRAP: LayerOptions = { traps: () => false };
+
 /** The layer opened last that is still in the page, or null. */
 export function topLayer(): object | null {
   for (let i = STACK.length - 1; i >= 0; i--) if (live(STACK[i].layer)) return STACK[i].layer;
