@@ -64,6 +64,7 @@ from typing import Any, Callable, Iterable
 from ..db import Database, get_setting, now_iso, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
+from . import confirm_words
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
 from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
@@ -99,8 +100,9 @@ MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
 DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off",
             PENDING_RETENTION_KEY: "90", PENDING_CAP_KEY: "10"}
-REVOKE_ALL_WORD = "בטל הכל"
-DELETE_WORD = "מחק"
+# CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
+REVOKE_ALL_WORD = confirm_words.he("access_revoke_all")
+DELETE_WORD = confirm_words.he("access_delete_person")
 
 LIVE = ("requested", "approved", "provisioning", "active", "revoking", "unknown")
 DECIDED = ("approved", "provisioning", "active", "unknown")  # an approval stands behind it
@@ -1203,13 +1205,14 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
         if not is_system_admin(conn, principal.user_id):
             _audit(conn, principal, "access.grant.revoke_all", "*", decision="denied", reason="not_system_admin", request_id=request_id, resource_type="installation")
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבטל את כל הגישות.")
-        if (confirm or "").strip() != REVOKE_ALL_WORD:
+        confirm_word = confirm_words.typed_lang("access_revoke_all", confirm)
+        if confirm_word is None:
             raise ApiError(422, "confirm_required", f"כדי לבטל את כל הגישות יש להקליד \"{REVOKE_ALL_WORD}\".", details={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks})", LIVE).fetchall()]
         for g in rows:
             mark_revoking(conn, g, "feature_off", actor=principal, request_id=request_id)
-        _audit(conn, principal, "access.grant.revoke_all", "*", request_id=request_id, resource_type="installation", count=len(rows))
+        _audit(conn, principal, "access.grant.revoke_all", "*", request_id=request_id, resource_type="installation", count=len(rows), confirm_word=confirm_word)
     WORKER.run_once(db)
     return len(rows)
 
@@ -1308,7 +1311,8 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
             raise forbidden(permission=PERMISSION, target_type="installation", target_id="*", reason="no_binding")
         if link["origin"] != "created_from_arx":
             raise _conflict("access_person_not_ours", "האדם נוצר במערכת הכניסה ולא על ידי Arx; מחיקה רק ממסך האנשים.")
-        if (confirm or "").strip() != DELETE_WORD:
+        confirm_word = confirm_words.typed_lang("access_delete_person", confirm)
+        if confirm_word is None:
             raise ApiError(422, "confirm_required", f"כדי למחוק יש להקליד \"{DELETE_WORD}\".", details={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         for r in conn.execute(f"SELECT * FROM access_grants WHERE link_id = ? AND state IN ({marks})", (link_id, *LIVE)).fetchall():
@@ -1332,7 +1336,7 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
     with db.connection(label="access_grants.delete_person.done") as conn:
         conn.execute("DELETE FROM access_person_links WHERE id = ?", (link_id,))
         _audit(conn, principal, "access.person_link.delete", link_id, resource_type="access_person_link", request_id=request_id,
-               wiskey_person_id=link["wiskey_person_id"], outcome=outcome)
+               wiskey_person_id=link["wiskey_person_id"], outcome=outcome, confirm_word=confirm_word)
     return {"link_id": link_id, "outcome": outcome, "pending": outcome == "accepted"}
 
 

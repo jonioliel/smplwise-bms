@@ -456,3 +456,26 @@ def test_revoke_all_visitors_needs_the_word(env):
     assert r.status_code == 200 and r.json()["revoked"] == 1
     env.run()
     assert env.grant(v["grant_id"])["state"] in ("revoked", "ended")
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_revoke_all_visitors_takes_the_hebrew_or_the_english_word_only(env, lang):
+    _visitors_on(env)
+    v = _invite(env).json()["visitor"]
+    env.run()
+    for text in bad("visitors_revoke_all"):
+        r = env.c.post(f"{API}/access/visitors/revoke-all", json={"confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_word", text
+    assert env.grant(v["grant_id"])["state"] not in ("revoking", "revoked", "ended")
+    r = env.c.post(f"{API}/access/visitors/revoke-all", json={"confirm": good("visitors_revoke_all", lang)})
+    assert r.status_code == 200 and r.json()["revoked"] == 1, r.text
+    with env.db.connection(mode="read") as conn:
+        (row,) = conn.execute("SELECT details_json FROM audit_log WHERE action = 'access.visitor.revoke_all' AND decision = 'allowed'").fetchall()
+    assert json.loads(row["details_json"]) == {"count": 1, "confirm_word": lang}

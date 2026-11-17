@@ -21,11 +21,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from . import confirm_words
 from . import wiskey_feature_exec as fx
 
 API_RELAYS = (1, 2)  # wiskey_relay_map.api_relay CHECK (api_relay IN (1, 2))
 PHYSICAL_RELAYS = (1, 2)  # wiskey_relay_map.physical_relay CHECK (physical_relay IN (1, 2))
-CONFIRM_WORD = "אשר"  # the typed confirmation of a change that touches a door with a door automation
+CONFIRM_WORD = confirm_words.he("relay_map_confirm")  # "אשר" (or its English counterpart): the typed confirmation of a change that touches a door with a door automation
 
 
 class RelayMapError(Exception):
@@ -124,6 +125,7 @@ class SaveResult:
     after: dict[int, int | None]
     affected: list[int]
     automated: list[int]
+    confirm_word: str | None = None  # "he" / "en" when the typed word was needed (services/confirm_words.py)
 
 
 def save(conn: sqlite3.Connection, *, station_id: str, rows: Any, expected_revision: Any, by: str, known_relays: Iterable[int],
@@ -141,7 +143,8 @@ def save(conn: sqlite3.Connection, *, station_id: str, rows: Any, expected_revis
         raise RelayMapError("relay_map_unchanged")
     affected = affected_doors(before, after)
     automated = sorted(set(affected) & set(automated_doors(conn, station_id)))
-    if automated and (confirm_text or "").strip() != CONFIRM_WORD:
+    confirm_word = confirm_words.typed_lang("relay_map_confirm", confirm_text) if automated else None  # "he" / "en", for the audit row
+    if automated and confirm_word is None:
         raise RelayMapError("confirm_required", {"doors": automated, "word": CONFIRM_WORD})
     at = now or _now()
     for api in API_RELAYS:
@@ -161,4 +164,4 @@ def save(conn: sqlite3.Connection, *, station_id: str, rows: Any, expected_revis
     conn.execute("INSERT INTO wiskey_relay_map_stations(station_id, revision, approved_by, approved_at) VALUES (?,?,?,?) "
                  "ON CONFLICT(station_id) DO UPDATE SET revision = excluded.revision, approved_by = excluded.approved_by, approved_at = excluded.approved_at",
                  (station_id, new, by, at))
-    return SaveResult(new, expected_revision, before, after, affected, automated)
+    return SaveResult(new, expected_revision, before, after, affected, automated, confirm_word)

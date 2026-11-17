@@ -37,7 +37,7 @@ import httpx
 
 from ..config import Settings
 from ..errors import ApiError
-from . import ha_client
+from . import confirm_words, ha_client
 from . import intercom_adapter as ad
 from .wiskey_installer import WRITE_TIMEOUT_S, Op
 
@@ -48,7 +48,7 @@ FLOW_ID = re.compile(r"[A-Za-z0-9]{8,64}")
 HOST = re.compile(r"[A-Za-z0-9.:\-\[\]]{1,255}")
 LOCK_MODES = ("camera_only", "map_active_relay", "keep_confirmed_mapping")
 MAPPING_RESULTS = ("released_and_returned", "choose_again", "camera_only")
-PULSE_PHRASE = "פתיחת דלת לבדיקה"
+PULSE_PHRASE = confirm_words.he("installer_pulse")  # "פתיחת דלת לבדיקה" (or its English counterpart, services/confirm_words.py)
 FLOW_ERRORS = frozenset({"invalid_auth", "unsupported_device", "invalid_response", "cannot_connect", "access_removal_pending", "test_required", "invalid_mapping",
                          "unlock_failed", "confirmation_required", "base"})
 ABORT_REASONS = frozenset({"already_configured", "unique_id_mismatch", "reconfigure_successful", "reauth_successful", "already_in_progress"})

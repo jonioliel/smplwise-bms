@@ -36,6 +36,7 @@ from ..db import Database, get_setting, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin
 from . import access_grants as ag
+from . import confirm_words
 
 PERMISSION = "access.visitor.invite"
 FLAG_KEY = "access.visitors"
@@ -51,7 +52,7 @@ SINGLE_DEFAULT_KEY = "access.visitors.single_entry_default"
 PURPOSES = ("guest", "meeting", "delivery", "service", "other")
 MODES = ag.CODE_MODES
 NAME_MAX = 40
-REVOKE_ALL_WORD = "בטל מבקרים"
+REVOKE_ALL_WORD = confirm_words.he("visitors_revoke_all")  # "בטל מבקרים" (or its English counterpart, services/confirm_words.py)
 TOMBSTONE = "מבקר (נמחק)"
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -443,14 +444,15 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
         if not is_system_admin(conn, principal.user_id):
             ag._audit(conn, principal, "access.visitor.revoke_all", "*", decision="denied", reason="not_system_admin", resource_type="installation", request_id=request_id)
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבטל את כל המבקרים.")
-        if (confirm or "").strip() != REVOKE_ALL_WORD:
+        confirm_word = confirm_words.typed_lang("visitors_revoke_all", confirm)
+        if confirm_word is None:
             raise ApiError(422, "confirm_word", f"יש להקליד \"{REVOKE_ALL_WORD}\" לאישור.")
         marks = ",".join("?" * len(ag.LIVE))
         rows = [dict(r) for r in conn.execute(f"SELECT g.* FROM access_grants g JOIN access_visitor_invites vi ON vi.grant_id = g.id WHERE g.state IN ({marks})",
                                               ag.LIVE).fetchall()]
         for g in rows:
             ag.mark_revoking(conn, g, "manual", actor=principal, request_id=request_id)
-        ag._audit(conn, principal, "access.visitor.revoke_all", "*", resource_type="installation", request_id=request_id, count=len(rows))
+        ag._audit(conn, principal, "access.visitor.revoke_all", "*", resource_type="installation", request_id=request_id, count=len(rows), confirm_word=confirm_word)
         return len(rows)
 
 

@@ -1057,3 +1057,40 @@ def test_an_approved_amendment_writes_the_timing_and_the_credential_not_only_doo
 def env_audits(env, action: str) -> list[dict]:
     with env.db.connection(mode="read") as conn:
         return [dict(r) for r in conn.execute("SELECT * FROM audit_log WHERE action = ? ORDER BY rowid", (action,)).fetchall()]
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_revoke_all_takes_the_hebrew_or_the_english_word_only(env, lang):
+    g1 = env.active_grant()
+    for text in bad("access_revoke_all"):
+        r = env.post("/access-grants/revoke-all", {"confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required", text
+    assert env.grant(g1)["end_reason"] is None and env_audits(env, "access.grant.revoke_all") == []
+    bind(env.c, env.settings, "sa2", "site_admin", "installation", "*")  # the English word does not replace the system-administrator rule
+    assert env.post("/access-grants/revoke-all", {"confirm": good("access_revoke_all", "en")}, user="sa2").status_code == 403
+    r = env.post("/access-grants/revoke-all", {"confirm": good("access_revoke_all", lang)})
+    assert r.status_code == 200 and r.json()["revoked"] == 1, r.text
+    row = [a for a in env_audits(env, "access.grant.revoke_all") if a["decision"] == "allowed"][-1]
+    assert json.loads(row["details_json"]) == {"count": 1, "confirm_word": lang}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_delete_person_takes_the_hebrew_or_the_english_word_only(env, lang):
+    gid = env.active_grant()
+    link_id = env.grant(gid)["link_id"]
+    pid = env.person_of(gid)["id"]
+    for text in bad("access_delete_person"):
+        r = env.post(f"/access-grants/links/{link_id}/delete-person", {"confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required", text
+    assert pid not in env.engine.deleted and env.grant(gid)["end_reason"] is None
+    r = env.post(f"/access-grants/links/{link_id}/delete-person", {"confirm": good("access_delete_person", lang)})
+    assert r.status_code == 200 and r.json()["pending"] is True and pid in env.engine.deleted, r.text
+    row = [a for a in env_audits(env, "access.person_link.delete") if a["decision"] == "allowed"][-1]
+    assert json.loads(row["details_json"])["confirm_word"] == lang

@@ -55,7 +55,7 @@ def test_the_startup_switch_needs_the_managed_switch_and_its_phrase_and_goes_off
     assert r.status_code == 200 and r.json()["switches"] == {"enabled": "on", "core_risk": "off", "startup": "on"}
     assert r.json()["phrases"]["startup"] == PHRASE_ON
     rows = [json.loads(x["details_json"]) for x in _audit_rows(world["db"], "settings.changed") if x["decision"] == "allowed"]
-    assert {"key": wmi.K_STARTUP, "before": "off", "after": "on"} in rows
+    assert {"key": wmi.K_STARTUP, "before": "off", "after": "on", "confirm_word": "he"} in rows  # CR-I18N-CONFIRM-WORDS-2442: which phrase
     assert world["platform"].calls == [], "switching on reads, stops and installs nothing"
     r = world["client"].put(API + "/switch", json={"switch": "enabled", "value": "off"})
     assert r.json()["switches"] == {"enabled": "off", "core_risk": "off", "startup": "off"}

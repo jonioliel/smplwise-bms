@@ -469,7 +469,7 @@ def test_an_unreachable_nvr_is_saved_only_with_the_typed_confirmation(world, fak
     assert r.status_code == 503 and r.json()["code"] == "source_unavailable" and r.json()["details"]["can_save_untested"] is True
     r = j(c, "put", json={**GOOD, "save_untested": True})
     assert r.status_code == 422 and r.json()["code"] == "confirm_required"
-    r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": "save"})
+    r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": "yes"})  # CR-I18N-CONFIRM-WORDS-2442: "save" is now the English word
     assert r.status_code == 422 and r.json()["code"] == "confirm_required"
     assert rows(settings, "SELECT * FROM recorder_connections") == []
     r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": "שמור"})
@@ -494,7 +494,7 @@ def test_vendor_change_with_cameras_needs_remove_first(world, fake, settings):
     r = j(c, "put", json={"vendor": "none"})
     assert r.status_code == 409 and r.json()["code"] == "remove_first"
     assert j(c, "get").json()["vendor_locked"] is True
-    assert j(c, "delete", json={"confirm_text": "remove"}).json()["code"] == "confirm_required"
+    assert j(c, "delete", json={"confirm_text": "delete"}).json()["code"] == "confirm_required"  # CR-I18N-CONFIRM-WORDS-2442: "remove" is now the English word
     r = j(c, "delete", json={"confirm_text": "הסר"})
     assert r.status_code == 200 and r.json()["cameras_disabled"] == 1 and r.json()["revision"] == 2
     (cam,) = rows(settings, "SELECT id, enabled FROM cameras")
@@ -756,3 +756,57 @@ def test_connection_test_refuses_port_80_on_the_ha_host_and_allows_an_nvr_on_80(
     assert rows(settings, "SELECT * FROM recorder_connections") == [], "never saved"
     r = c.post(API + "/test", json=GOOD, headers={**as_user("joni"), "X-Forwarded-Host": "other-ha.test"})
     assert r.status_code == 200 and r.json()["code"] == "ok", "an NVR on port 80 is legitimate"
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_an_untested_save_takes_the_hebrew_or_the_english_word_only(world, fake, settings, lang):
+    app, c = world
+    app.state.connection_probe_limiter = connection_probe.Limiter(per_user=50, total=50, window_s=60)  # every attempt below runs the server-side test
+    fake.nvr["up"] = False
+    for text in bad("nvr_save_untested"):
+        r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "confirm_text"}, text
+    assert rows(settings, "SELECT * FROM recorder_connections") == [], "nothing is saved on a wrong word or a near-miss"
+    typed = good("nvr_save_untested", lang)
+    r = j(c, "put", json={**GOOD, "save_untested": True, "confirm_text": typed})
+    assert r.status_code == 200 and r.json()["untested"] is True and r.json()["device"] is None, r.text
+    upd = [json.loads(a["details_json"]) for a in audit_rows(settings, "nvr.connection.update") if a["decision"] == "allowed"]
+    assert upd[-1]["untested"] is True and upd[-1]["confirm_word"] == lang
+    assert typed.strip() not in json.dumps(audit_rows(settings), ensure_ascii=False), "which word, never the typed text"
+
+
+def test_cw2442_the_word_never_saves_what_the_test_refused_and_a_tested_save_records_no_word(world, fake, settings):
+    _, c = world
+    r = j(c, "put", json={**GOOD, "confirm_text": "save"})  # reachable: tested, the word plays no part
+    assert r.status_code == 200 and r.json()["untested"] is False
+    upd = [json.loads(a["details_json"]) for a in audit_rows(settings, "nvr.connection.update") if a["decision"] == "allowed"]
+    assert "confirm_word" not in upd[-1]
+    fake.nvr["auth"] = False  # bad credentials are never saved untested, in any language
+    for lang in LANGS:
+        r = j(c, "put", json={**GOOD, "password": OTHER, "save_untested": True, "confirm_text": good("nvr_save_untested", lang)})
+        assert r.status_code == 502 and r.json()["code"] == "source_forbidden" and r.json()["details"]["can_save_untested"] is False
+    fake.nvr["auth"] = True
+    fake.nvr["up"] = False  # unreachable, but without `save_untested` the word alone saves nothing
+    r = j(c, "put", json={**GOOD, "password": OTHER, "confirm_text": "save"})
+    assert r.status_code == 503 and rows(settings, "SELECT revision FROM recorder_connections")[0]["revision"] == 1
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_remove_nvr_takes_the_hebrew_or_the_english_word_only(world, fake, settings, lang):
+    _, c = world
+    assert j(c, "put", json=GOOD).status_code == 200
+    for text in bad("nvr_remove"):
+        r = j(c, "delete", json={"confirm_text": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required", text
+    assert rows(settings, "SELECT vendor FROM recorder_connections") == [{"vendor": "hikvision"}] and audit_rows(settings, "nvr.connection.remove") == []
+    r = j(c, "delete", json={"confirm_text": good("nvr_remove", lang)})
+    assert r.status_code == 200 and r.json()["removed"] is True, r.text
+    (row,) = audit_rows(settings, "nvr.connection.remove")
+    assert row["decision"] == "allowed" and json.loads(row["details_json"])["confirm_word"] == lang

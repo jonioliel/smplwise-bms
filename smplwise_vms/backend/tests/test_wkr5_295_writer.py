@@ -257,3 +257,28 @@ def test_routes_without_an_installed_join_touch_nothing(settings, monkeypatch: A
     assert c.get(BASE).json() == {"installed": False, "lineage": None}
     r = c.post(f"{BASE}/{uuid.uuid4()}/close", json={"code": "x", "confirm": True})
     assert r.status_code == 409 and r.json()["code"] == "wiskey_direct_not_installed"
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_reinitialise_takes_the_hebrew_or_the_english_word_only(app_world: Any, lang: str, monkeypatch: Any) -> None:
+    import json
+
+    a = app_world
+    calls: list[str] = []
+    monkeypatch.setattr(a.join, "reinitialise", lambda actor_ref: calls.append(actor_ref))  # the lineage itself is tested in test_wkwrite_295
+    for text in bad("lineage_reinit"):
+        r = a.c.post(f"{BASE}/reinitialise", json={"confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_mismatch", text
+    assert calls == []
+    r = a.c.post(f"{BASE}/reinitialise", json={"confirm": good("lineage_reinit", lang)})
+    assert r.status_code == 200 and len(calls) == 1, r.text
+    with a.c.app.state.db.connection(mode="read") as conn:
+        (row,) = conn.execute("SELECT decision, details_json FROM audit_log WHERE action = 'wiskey.lineage.reinitialise' AND decision = 'allowed'").fetchall()
+    assert json.loads(row["details_json"])["confirm_word"] == lang

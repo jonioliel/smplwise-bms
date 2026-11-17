@@ -237,7 +237,7 @@ def test_removing_a_recorder_keeps_its_history_hides_its_cameras_and_never_reuse
         conn.execute("INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, received_at, state, count, severity, confidence, dedup_key, created_at, recorder_id) "
                      "VALUES ('ev-old', 'alertstream', 'VMD', 'motion', ?, 1, ?, ?, 'inactive', 1, 'info', 'measured', 'k-old', ?, 'nvr-2')", (cam2, now_iso(), now_iso(), now_iso()))
     rev = c.get("/api/v1/recorders/nvr-2/connection").json()["revision"]
-    assert c.request("DELETE", "/api/v1/recorders/nvr-2", json={"confirm_text": "remove", "if_revision": rev}).json()["code"] == "confirm_required"
+    assert c.request("DELETE", "/api/v1/recorders/nvr-2", json={"confirm_text": "delete", "if_revision": rev}).json()["code"] == "confirm_required"  # CR-I18N-CONFIRM-WORDS-2442: "remove" is now the English word
     r = c.request("DELETE", "/api/v1/recorders/nvr-2", json={"confirm_text": "הסר", "if_revision": rev})
     assert r.status_code == 200 and r.json()["cameras_disabled"] == 4 and r.json()["restart_required"] is True
     assert len(rows(base, "SELECT id FROM cameras WHERE recorder_id = 'nvr-2' AND enabled = 0")) == 4, "the rows stay, disabled"
@@ -517,3 +517,24 @@ def test_settings_for_an_unknown_recorder_never_reaches_a_device(base):
     assert exc.value.code == "recorder_unavailable"
     assert recorder_scope.next_id(["nvr-1", "nvr-2", "nvr-9", "x"]) == "nvr-10"
     assert recorder_scope.next_id([]) == "nvr-2"
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_remove_a_recorder_takes_the_hebrew_or_the_english_word_only(base, fakes, lang):
+    app, c = two_recorders(base, fakes)
+    rev = c.get("/api/v1/recorders/nvr-2/connection").json()["revision"]
+    for text in bad("nvr_remove"):
+        r = c.request("DELETE", "/api/v1/recorders/nvr-2", json={"confirm_text": text, "if_revision": rev})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required", text
+    assert rows(base, "SELECT id FROM cameras WHERE recorder_id = 'nvr-2' AND enabled = 0") == [], "nothing removed on a wrong word or a near-miss"
+    r = c.request("DELETE", "/api/v1/recorders/nvr-2", json={"confirm_text": good("nvr_remove", lang), "if_revision": rev})
+    assert r.status_code == 200 and r.json()["cameras_disabled"] == 4, r.text
+    (row,) = rows(base, "SELECT decision, details_json FROM audit_log WHERE action = 'nvr.recorder.remove'")
+    assert row["decision"] == "allowed" and json.loads(row["details_json"])["confirm_word"] == lang

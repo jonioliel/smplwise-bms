@@ -25,13 +25,14 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..services import confirm_words
 from ..services import intercom_writes as iw
 from ..services import wiskey_direct_join as wkj
 
 router = APIRouter()
 BASE = "/access-control/wiskey-lineage"
 _OP = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-REINIT_WORD = "אתחול"
+REINIT_WORD = confirm_words.he("lineage_reinit")  # "אתחול" (or its English counterpart, services/confirm_words.py)
 _CODE = re.compile(r"^[a-z0-9_:-]{1,64}$")
 
 
@@ -142,7 +143,8 @@ class ReinitIn(BaseModel):
 @router.post(f"{BASE}/reinitialise")
 def reinitialise(body: ReinitIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     _admin(request, principal, action="wiskey.lineage.reinitialise", interactive=True)
-    if body.confirm.strip() != REINIT_WORD:
+    confirm_word = confirm_words.typed_lang("lineage_reinit", body.confirm)
+    if confirm_word is None:
         raise ApiError(422, "confirm_mismatch", "יש להקליד את מילת האישור.")
     join = _join()
     from ..services.wiskey_write_lineage import LineageError
@@ -154,5 +156,5 @@ def reinitialise(body: ReinitIn, request: Request, principal: Principal = Depend
         raise ApiError(409, exc.code, "הרישום אינו במצב שמצריך אתחול.") from None
     with request.app.state.db.connection(label="wiskey_lineage.reinit") as conn:
         audit(conn, actor=principal, action="wiskey.lineage.reinitialise", decision="allowed", resource_type="wiskey_lineage", resource_id="*",
-              request_id=_rid(request), details={"before": before, "after": join.lineage.status})  # type: ignore[union-attr]
+              request_id=_rid(request), details={"before": before, "after": join.lineage.status, "confirm_word": confirm_word})  # type: ignore[union-attr]
     return {"status": join.lineage.status, "resent": False}  # type: ignore[union-attr]

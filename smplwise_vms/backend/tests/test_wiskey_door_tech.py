@@ -390,7 +390,7 @@ def test_replace_and_clear_need_the_current_code_and_wrong_current_is_unknown_no
 
 def test_a_code_needs_the_typed_confirmation_and_valid_digits(wx):
     fake, c, s, *_ = wx
-    for text in (None, "", "קוד 3", "code 2", "אישור"):
+    for text in (None, "", "קוד 3", "code 3", "code2", "אישור"):  # CR-I18N-CONFIRM-WORDS-2442: "code 2" is now the English phrase of slot 2
         r = post(c, "entry-a/codes/2", **code_body(confirm_text=text))
         assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required", text
     for bad in ("12", "12345678901234567", "12a4", "١٢٣٤"):
@@ -586,3 +586,25 @@ def test_project_relays_and_codes_keep_no_value():
     out = dt.project_code_write(2)({"status": {"states": {"public2Configured": True}, "new_pin": "999999"}, "capabilities": {"slots": [2]}, "acknowledged": True,
                                     "old_pin": "111111"})
     assert out["configured"] is True and "999999" not in json.dumps(out) and "111111" not in json.dumps(out)
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_a_code_write_takes_the_hebrew_or_the_english_phrase_of_its_own_slot_only(wx, lang):
+    fake, c, s, *_ = wx
+    other_slot = [good("door_code", "he", slot=3), good("door_code", "en", slot=3), "code 12", "code 02", "code2"]
+    for text in bad("door_code", slot=2) + other_slot:
+        r = post(c, "entry-c/codes/2", **code_body(door=2, confirm_text=text))
+        assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required" and r.json()["details"]["phrase"] == "קוד 2", text
+    assert not sent(fake, "stations/technical_codes_write"), "nothing is sent on a wrong phrase or a near-miss"
+    r = post(c, "entry-c/codes/2", **code_body(door=2, confirm_text=good("door_code", lang, slot=2)))
+    assert r.status_code == 200 and len(sent(fake, "stations/technical_codes_write")) == 1, r.text
+    allowed = [row for row in rows(s) if row["decision"] == "allowed" and row["details"].get("code_action") == "set"]
+    assert allowed and all(row["details"]["confirm_word"] == lang for row in allowed)
+    assert NEW_CODE not in all_audit_text(s)
