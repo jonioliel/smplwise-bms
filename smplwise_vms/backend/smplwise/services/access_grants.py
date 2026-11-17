@@ -61,7 +61,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
-from ..db import Database, get_setting, now_iso, permission_revision, set_setting
+from ..db import Database, get_setting, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia

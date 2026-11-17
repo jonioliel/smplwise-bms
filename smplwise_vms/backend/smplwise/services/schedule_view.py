@@ -1189,7 +1189,7 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
         if info is None:
             continue
         eid = info["entity_id"]
-        cls, refusal = info["class"], info["refusal"]
+        cls = info["class"]
         if cls is None:
             continue  # scheduler switches, alarm-managed controls, plain buttons, unknown domains ... never appear
         if cls is not None and cls not in ctx.enabled_classes():

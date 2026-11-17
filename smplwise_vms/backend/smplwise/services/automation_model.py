@@ -32,7 +32,8 @@ from typing import Any, Callable, Iterable, Mapping
 from . import automation_policy as pol
 from . import building_presence_blocks as bpb
 from . import wall_buttons as wb
-from .automation_policy import MASK, has_mask, has_template, first_template, is_entity_id, is_number, mask_secrets, secret_kind
+from .automation_policy import MASK  # noqa: F401 - re-export: tests read it as this module's attribute (tests/test_automations_mirror.py)
+from .automation_policy import has_mask, has_template, first_template, is_entity_id, is_number, mask_secrets, secret_kind
 from .automation_text import (  # noqa: F401  (re-exported for the callers)
     ModelContext, action_sentence, automation_sentence, block_sentence, condition_sentence, draft_sentence, duration_text, join_names, locked_label,
     scene_sentence, script_sentence, trigger_sentence,

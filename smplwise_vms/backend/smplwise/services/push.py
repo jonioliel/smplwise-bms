@@ -556,7 +556,6 @@ def record(db: Database, job: Job, outcome: Outcome, final: bool) -> str:
     """Store what the push service said. 2xx → sent; 404/410 → the subscription is gone and removed; retryable while
     attempts remain → retry (nothing stored yet); anything else counts a failure (dropped after DROP_AFTER_FAILURES).
     A notification delivery (CR-018) also updates its delivery-log row in the same short transaction."""
-    st = outcome.status
     with db.connection(label="push.record") as conn:
         result = _record(conn, job, outcome, final)
         if job.delivery_id:

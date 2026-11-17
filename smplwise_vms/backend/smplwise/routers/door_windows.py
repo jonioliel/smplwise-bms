@@ -20,7 +20,7 @@ import secrets
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit

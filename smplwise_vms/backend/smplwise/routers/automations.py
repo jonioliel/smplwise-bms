@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, require
 from ..services import automation_ops as ops
 from ..services import automation_policy as pol
 from ..services import automation_runs as runs

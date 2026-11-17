@@ -27,7 +27,7 @@ from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_a
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import bridge_discovery, push_queue, service_identity
 from ..services import devices as dsvc
-from ..services.timeutil import iso_utc, parse_utc
+from ..services.timeutil import parse_utc
 from .media import _principal_for_ws
 
 router = APIRouter()
@@ -386,12 +386,13 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
             # again on a door that may already be open (the bulk path and the door path read the same transport names)
             maybe_sent = exc.code == "ha_unavailable" and (exc.details or {}).get("error") not in NOT_SENT_TRANSPORT_ERRORS
             row_status = "unknown" if maybe_sent else "failed"
+            err_code = exc.code  # bound here: `exc` is unbound when the except block ends, a closure must not read it
 
             def _failed() -> None:
                 with db.write_aside(label="ha.action failed") as w:
                     w.execute(insert_sql, row_args)
-                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (row_status, exc.code, now_iso(), aid))
-                    audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (row_status, err_code, now_iso(), aid))
+                    audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=err_code,
                           request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": row_status})
 
             retry_locked(_failed, what="ha.action failed row", attempts=3, base_s=0.25)
@@ -474,7 +475,7 @@ def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, reques
         return
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_alarm_screen",
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
-    raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (הגדרות › אבטחה › אזעקה).", details={"action": action_id, "route": f"/security/alarm"})
+    raise ApiError(409, "use_alarm_screen", "הפעולה נעשית ממסך האזעקה (הגדרות › אבטחה › אזעקה).", details={"action": action_id, "route": "/security/alarm"})
 
 
 def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:

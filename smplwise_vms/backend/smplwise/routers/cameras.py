@@ -8,7 +8,6 @@ CR-024 (multi-NVR): every camera carries its `recorder_id`; device calls use the
 (default: every active recorder / the first recorder)."""
 from __future__ import annotations
 
-import json
 import datetime as dt
 import sqlite3
 import time

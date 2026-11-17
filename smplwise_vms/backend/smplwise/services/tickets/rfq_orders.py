@@ -22,7 +22,6 @@ import datetime as dt
 import json
 from typing import Any, Mapping
 
-from ...audit import audit
 from ...errors import ApiError
 from . import access, model, money, quotes, rfq, store, store_links, store_quotes, store_rfq
 from .access import Viewer, text

@@ -31,7 +31,7 @@ from ...db import new_id
 from ...errors import ApiError
 from . import access, create, intake_rules as rules, model, settings_doc, store
 from .access import Viewer, text
-from .channel import keyed_hash, phone_digits
+from .channel import keyed_hash
 from .text_hygiene import clean_text
 from .timeutil import iso_s, parse_naive_local
 

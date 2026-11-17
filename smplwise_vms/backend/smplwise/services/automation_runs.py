@@ -17,14 +17,13 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import automation_draft as drafts
 from . import automation_model as model
-from . import automation_policy as pol
 from . import automation_scope as scope
 from . import automation_trace as trace
 from . import automation_transport as tr
 from . import automation_view as view
 from . import automations as store
 from . import ha_scope
-from .timeutil import iso_utc, parse_utc, zone
+from .timeutil import parse_utc, zone
 
 log = logging.getLogger("smplwise.automations")
 

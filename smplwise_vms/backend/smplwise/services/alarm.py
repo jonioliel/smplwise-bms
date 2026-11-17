@@ -19,7 +19,6 @@ The per-integration shapes are the INTEGRATIONS table below (docs/changes/CR-010
 was read). This module never calls Home Assistant and never sees a code."""
 from __future__ import annotations
 
-import json
 import re
 import sqlite3
 import unicodedata

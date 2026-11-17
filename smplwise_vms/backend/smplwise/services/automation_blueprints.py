@@ -20,7 +20,6 @@ import copy
 import re
 from typing import Any
 
-from . import automation_policy as pol
 
 SCHEMA_VERSION = 1
 LIBRARY_VERSION = 1

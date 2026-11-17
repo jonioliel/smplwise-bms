@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import get_setting, get_settings_many  # noqa: F401 - get_settings_many: kept as this module's attribute (tests patch it)
 from ..rbac import INSTALLATION, Principal, authorize, require
-from . import settings_patch, ui_background
+from . import settings_patch
 from ..services import app_download, nvr_capacity, dd_style
 # CR-SETTINGS-STORE-2436: the registry lives in services/settings_store.py; these names are re-exported so every caller
 # (`from ..routers.settings import read_settings, DEFAULTS, ...`) keeps working unchanged.

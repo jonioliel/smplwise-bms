@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
+from ..auth import get_conn, get_read_conn, read_gate, settings_of
 from ..audit import audit
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require

@@ -1165,15 +1165,15 @@ def stream_document(element: str, changes: dict[str, object]) -> str:
     if "bitrate_kbps" in changes:
         kbps_v = _int_value("bitrate_kbps", changes["bitrate_kbps"], 1)
         video = _set_text(video, "constantBitRate" if mode == "CBR" else "vbrUpperCap", str(kbps_v), "bitrate_kbps")
-    for field, tag in (("quality", "fixedQuality"), ("gop", "GovLength")):
-        if field in changes:
-            video = _set_text(video, tag, str(_int_value(field, changes[field])), field)
-    for field, block in (("svc", "SVC"), ("smart_codec", "SmartCodec")):
-        if field in changes:
-            v = changes[field]
+    for key, tag in (("quality", "fixedQuality"), ("gop", "GovLength")):
+        if key in changes:
+            video = _set_text(video, tag, str(_int_value(key, changes[key])), key)
+    for key, block in (("svc", "SVC"), ("smart_codec", "SmartCodec")):
+        if key in changes:
+            v = changes[key]
             if not isinstance(v, bool):
-                raise _not_allowed(field)
-            video = _set_flag(video, block, v, field)
+                raise _not_allowed(key)
+            video = _set_flag(video, block, v, key)
     return element[: vm.start(2)] + video + element[vm.end(2):]
 
 

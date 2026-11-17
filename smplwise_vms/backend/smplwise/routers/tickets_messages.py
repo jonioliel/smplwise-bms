@@ -19,7 +19,7 @@ import json
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit

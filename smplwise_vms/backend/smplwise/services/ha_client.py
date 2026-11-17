@@ -13,7 +13,7 @@ import os
 import re
 import socket
 import threading
-from typing import Any, AsyncIterator, Callable
+from typing import Any, Callable
 
 import httpx
 

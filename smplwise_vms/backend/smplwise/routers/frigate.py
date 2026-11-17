@@ -24,7 +24,7 @@ import sqlite3
 import threading
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 

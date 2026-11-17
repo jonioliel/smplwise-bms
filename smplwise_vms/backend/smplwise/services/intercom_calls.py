@@ -38,7 +38,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from ..db import Database, get_setting, now_iso, retry_locked, set_setting
+from ..db import Database, get_setting, retry_locked, set_setting
 from ..rbac import Principal, _active_bindings
 from .timeutil import iso_utc_ms, parse_utc
 

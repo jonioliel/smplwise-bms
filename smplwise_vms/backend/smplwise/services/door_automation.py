@@ -35,7 +35,7 @@ from typing import Any, Callable, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..audit import audit
-from ..db import Database, get_setting, now_iso, set_setting
+from ..db import Database, get_setting, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize, permissions_anywhere, role_permissions
 from ..rbac import _active_bindings as rbac_active_bindings

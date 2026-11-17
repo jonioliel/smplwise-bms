@@ -53,7 +53,7 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable
 
 from ..config import Settings

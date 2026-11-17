@@ -507,7 +507,6 @@ def list_for(conn: sqlite3.Connection, principal: Principal, *, state: str = "al
         params.append(before)
     reach = Reach(conn, principal)
     out: list[dict[str, Any]] = []
-    cursor = None
     last_at = None
     while len(out) < limit:  # rows hidden by a revoked scope are skipped, not counted
         page = conn.execute(
@@ -516,7 +515,6 @@ def list_for(conn: sqlite3.Connection, principal: Principal, *, state: str = "al
             (*params, *([last_at] if last_at else []), limit * 2),
         ).fetchall()
         if not page:
-            cursor = None
             break
         for row in page:
             last_at = row["last_at"]

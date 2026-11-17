@@ -30,7 +30,7 @@ from typing import Any, Callable, Sequence
 import anyio
 
 from ...audit import audit
-from ...db import Database, get_setting
+from ...db import Database
 from ...errors import ApiError
 from ..tickets.public_http import final_headers, is_json_type
 from ..tickets.ratelimit import ScopedRateLimiter, classify_client, client_address, forwarded_values

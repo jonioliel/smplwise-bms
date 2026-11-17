@@ -19,7 +19,7 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of

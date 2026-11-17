@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from ...audit import audit
-from ...db import Database, new_id
+from ...db import Database
 from . import image_intake, links, store_links
 from .public_ports import CodeRecord, FailureRecord, LinkRecord, PhotoCounts, PhotoFile, SessionRecord, StoredImage, StoredResponse
 

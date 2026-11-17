@@ -30,7 +30,7 @@ from ..services import recordings
 from ..services.access import require_camera
 from ..services.leases import CameraLease
 from ..services.relay import close_with_error, relay_ws
-from ..services.timeutil import UTC, iso_utc, parse_utc
+from ..services.timeutil import iso_utc, parse_utc
 from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
 from .settings import read_settings

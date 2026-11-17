@@ -8,12 +8,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..rbac import Principal, require
+from ..rbac import Principal
 from ..services import recorded_days, recordings
-from ..services.access import camera_allowed, require_camera
+from ..services.access import require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from ..services.settings_store import setting_value
 

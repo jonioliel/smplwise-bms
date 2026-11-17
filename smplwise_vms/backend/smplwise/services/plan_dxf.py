@@ -59,7 +59,6 @@ def sniff(head: bytes) -> bool:
 
 def _load(path: Path):
     try:
-        import ezdxf
         from ezdxf import recover
     except ImportError as exc:  # pragma: no cover - the dependency is declared
         raise DxfError("dxf_unavailable", "ezdxf is not installed") from exc

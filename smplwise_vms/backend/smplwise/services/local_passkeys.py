@@ -656,7 +656,7 @@ def passwordless_sign_in(db: Any, settings: Any, conn_like: Any, body: Any, requ
         rec = take(wa.challenge_of(cred.client_data))
     except wa.WebAuthnError:
         cred, rec = None, None
-    principal = value = s = cred_row = row = user = None
+    principal = value = s = row = user = None
     reason: str | None = None
     with db.connection(label="local passkey sign-in") as conn:
         if not first_enabled(conn):

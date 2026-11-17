@@ -20,7 +20,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Mapping
+from typing import Any, Callable, Mapping
 
 from ..db import commit_now, rollback_now
 
