@@ -3084,7 +3084,6 @@ export class ExploreFloorMap extends LitElement {
   /** CR-029 S3: the editor's "prepare stills and lighting" run (progress / result line). */
   @state() private bakeBusy = false;
   @state() private bakeNote = '';
-  private bakeCancel = false;
   /** CR-029 S0 / S3: the person's effective look dials (wall display live / stills, style). */
   @state() private viewDials: PlanViewDials = DEFAULT_VIEW;
   /** CR-029 S2: the site the stills' time band follows (the home's location, an override or the fallback). */
@@ -3411,11 +3410,10 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !this.geometry || this.bakeBusy) return;
     this.bakeBusy = true;
-    this.bakeCancel = false;
     this.bakeNote = 'מכין תמונות ותאורה…';
     try {
       this.bakeNote = await runFloorBake({ bundle: b, geometry: this.geometry, catalog: this.catalog3d, live: this.sceneMemo?.all ?? null,
-        onProgress: (t) => { this.bakeNote = t; }, cancelled: () => this.bakeCancel || !this.isConnected || this.bundle?.floorId !== b.floorId });
+        onProgress: (t) => { this.bakeNote = t; }, cancelled: () => !this.isConnected || this.bundle?.floorId !== b.floorId });
       if (this.isConnected && this.bundle?.floorId === b.floorId) this.bundle = { ...b, bakes: (await loadMap(b.floorId)).bakes ?? null };
     } finally {
       this.bakeBusy = false;
