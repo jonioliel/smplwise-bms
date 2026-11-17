@@ -1,5 +1,6 @@
 /** Alarm rules with a dry run (T052): trigger × scope × window × cooldown → a VMS notification; never a device command. */
 import { del, get, patch, post } from './client';
+import { tr } from '../i18n/msg/api-automation';
 
 export interface RuleTrigger {
   types: string[];
@@ -109,4 +110,4 @@ export const listAlerts = (unacked = false) => get<{ alerts: RuleAlert[]; unacke
 export const ackAlert = (id: string) => post<RuleAlert>(`rules/alerts/${id}/ack`);
 
 export const DAY_LABEL: Record<string, string> = { mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳', sun: 'א׳' };
-export const SOURCE_LABEL_RULE: Record<string, string> = { alertstream: 'התראת NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' };
+export const SOURCE_LABEL_RULE: Record<string, string> = { alertstream: tr('התראת NVR'), recording: tr('נגזר מהקלטה'), system: tr('מערכת'), ha: tr('חיישן התקן') };

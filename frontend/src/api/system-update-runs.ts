@@ -5,6 +5,7 @@
  */
 import { ApiError, api, get, post } from './client';
 import { t } from '../i18n/he';
+import { tr } from '../i18n/msg/api-system';
 
 export type RunKind = 'update' | 'platform_restart';
 export type RunState = 'requested' | 'backing_up' | 'updating' | 'restarting' | 'verifying' | 'succeeded' | 'failed' | 'abandoned';
@@ -114,20 +115,20 @@ export function classifyRunError(err: unknown): RunFailure {
 /** Plain-language text of a refused request. */
 export function runFailureRequestText(f: RunFailure, what: 'update' | 'restart' = 'update'): string {
   switch (f.kind) {
-    case 'in_progress': return 'עדכון או הפעלה מחדש אחרת עדיין מתבצעים.';
-    case 'update_running': return 'מתבצע עדכון, נסו שוב בסיום.';
-    case 'not_available': return 'אין עדכון זמין. בדקו שוב אם יש עדכון.';
-    case 'version_mismatch': return 'הגרסה האחרונה השתנתה. בדקו שוב אם יש עדכון.';
-    case 'busy': return 'תשתית המערכת עסוקה כרגע. נסו שוב בעוד כמה דקות.';
-    case 'nvr_write': return 'מתבצעת כעת פעולה במכשירי ההקלטה. נסו שוב כשתסתיים.';
-    case 'key_reused': return 'הבקשה כבר נשלחה. רעננו את העמוד.';
-    case 'too_soon': return f.wait ? `עדכון הופעל לאחרונה. נסו שוב בעוד ${Math.max(1, Math.ceil(f.wait / 60))} דקות.` : 'עדכון הופעל לאחרונה. נסו שוב בעוד כמה דקות.';
-    case 'not_permitted': return what === 'update' ? 'ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.' : 'חסרה הרשאה בתשתית המערכת, ולכן אי אפשר להפעיל אותה מחדש.';
-    case 'unreachable': return 'תשתית המערכת אינה זמינה כרגע.';
-    case 'forbidden': return 'אין הרשאה לבצע את הפעולה.';
-    case 'manual': return 'אי אפשר להפעיל מחדש מכאן. יש להפעיל את השירות ידנית.';
+    case 'in_progress': return tr('עדכון או הפעלה מחדש אחרת עדיין מתבצעים.');
+    case 'update_running': return tr('מתבצע עדכון, נסו שוב בסיום.');
+    case 'not_available': return tr('אין עדכון זמין. בדקו שוב אם יש עדכון.');
+    case 'version_mismatch': return tr('הגרסה האחרונה השתנתה. בדקו שוב אם יש עדכון.');
+    case 'busy': return tr('תשתית המערכת עסוקה כרגע. נסו שוב בעוד כמה דקות.');
+    case 'nvr_write': return tr('מתבצעת כעת פעולה במכשירי ההקלטה. נסו שוב כשתסתיים.');
+    case 'key_reused': return tr('הבקשה כבר נשלחה. רעננו את העמוד.');
+    case 'too_soon': return f.wait ? tr('עדכון הופעל לאחרונה. נסו שוב בעוד {v} דקות.', { v: Math.max(1, Math.ceil(f.wait / 60)) }) : tr('עדכון הופעל לאחרונה. נסו שוב בעוד כמה דקות.');
+    case 'not_permitted': return what === 'update' ? tr('ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.') : tr('חסרה הרשאה בתשתית המערכת, ולכן אי אפשר להפעיל אותה מחדש.');
+    case 'unreachable': return tr('תשתית המערכת אינה זמינה כרגע.');
+    case 'forbidden': return tr('אין הרשאה לבצע את הפעולה.');
+    case 'manual': return tr('אי אפשר להפעיל מחדש מכאן. יש להפעיל את השירות ידנית.');
     case 'disabled': return t('selfUpdate.disabledRefused');
-    default: return f.message || 'הפעולה נכשלה. נסו שוב.';
+    default: return f.message || tr('הפעולה נכשלה. נסו שוב.');
   }
 }
 
@@ -136,15 +137,15 @@ export interface RunStep {
   label: string;
 }
 const UPDATE_STEPS: RunStep[] = [
-  { id: 'backup', label: 'גיבוי' },
-  { id: 'install', label: 'הורדה והתקנה' },
-  { id: 'restart', label: 'הפעלה מחדש' },
-  { id: 'verify', label: 'בדיקת תקינות' },
+  { id: 'backup', label: tr('גיבוי') },
+  { id: 'install', label: tr('הורדה והתקנה') },
+  { id: 'restart', label: tr('הפעלה מחדש') },
+  { id: 'verify', label: tr('בדיקת תקינות') },
 ];
 const PLATFORM_STEPS: RunStep[] = [
-  { id: 'config', label: 'בדיקת תצורה' },
-  { id: 'platform', label: 'הפעלה מחדש של תשתית המערכת' },
-  { id: 'verify', label: 'בדיקת תקינות' },
+  { id: 'config', label: tr('בדיקת תצורה') },
+  { id: 'platform', label: tr('הפעלה מחדש של תשתית המערכת') },
+  { id: 'verify', label: tr('בדיקת תקינות') },
 ];
 
 /** The steps of a run (no backup step when none was taken) and the index of the one in progress (steps.length once all are done). */
@@ -161,25 +162,25 @@ export function runSteps(run: Pick<RunView, 'kind' | 'state'> & { backup?: boole
 
 /** Why a finished run did not succeed, in plain Hebrew (the codes are the backend's fixed vocabulary). */
 export function runFailureText(run: Pick<RunView, 'kind' | 'state' | 'error_code'>): string {
-  if (run.state === 'abandoned') return run.kind === 'update' ? 'העדכון לא הסתיים בזמן. ייתכן שהוא עדיין מתבצע או שנעצר באמצע.' : 'ההפעלה מחדש לא הסתיימה בזמן.';
+  if (run.state === 'abandoned') return run.kind === 'update' ? tr('העדכון לא הסתיים בזמן. ייתכן שהוא עדיין מתבצע או שנעצר באמצע.') : tr('ההפעלה מחדש לא הסתיימה בזמן.');
   switch (run.error_code) {
-    case 'platform_not_permitted': return 'ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.';
-    case 'infrastructure_unreachable': return 'תשתית המערכת אינה זמינה, ולכן הפעולה לא בוצעה.';
-    case 'infrastructure_busy': return 'תשתית המערכת עסוקה. הפעולה לא בוצעה. נסו שוב בעוד כמה דקות.';
-    case 'infrastructure_error': return 'תשתית המערכת החזירה שגיאה, והפעולה לא הושלמה.';
-    case 'update_job_failed': return 'ההורדה או ההתקנה נכשלו. הגרסה הקודמת נשארה במקומה.';
-    case 'version_unchanged': return 'העדכון לא הוחל: המערכת חזרה באותה גרסה.';
-    case 'version_unexpected': return 'המערכת חזרה בגרסה לא צפויה.';
-    case 'interrupted': return 'הפעולה נקטעה לפני שהסתיימה.';
-    case 'restart_loop': return 'הגרסה החדשה לא עולה כראוי והמערכת מופעלת מחדש שוב ושוב.';
-    case 'health_check_failed': return 'המערכת התעדכנה אך בדיקת התקינות נכשלה.';
-    case 'timeout': return 'הפעולה לא הסתיימה בזמן.';
-    case 'platform_config_invalid': return 'בדיקת התצורה של תשתית המערכת נכשלה, ולכן לא בוצעה הפעלה מחדש. תקנו את התצורה ונסו שוב.';
-    case 'restart_not_observed': return 'לא נצפתה הפעלה מחדש של תשתית המערכת, ולכן לא ידוע אם בוצעה. בדקו את מצב המערכת ונסו שוב אם צריך.';
-    case 'platform_not_back': return 'תשתית המערכת לא חזרה לפעולה בזמן.';
-    case 'bridge_not_loaded': return 'תשתית המערכת חזרה, אך הגשר שלה לא נטען.';
+    case 'platform_not_permitted': return tr('ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.');
+    case 'infrastructure_unreachable': return tr('תשתית המערכת אינה זמינה, ולכן הפעולה לא בוצעה.');
+    case 'infrastructure_busy': return tr('תשתית המערכת עסוקה. הפעולה לא בוצעה. נסו שוב בעוד כמה דקות.');
+    case 'infrastructure_error': return tr('תשתית המערכת החזירה שגיאה, והפעולה לא הושלמה.');
+    case 'update_job_failed': return tr('ההורדה או ההתקנה נכשלו. הגרסה הקודמת נשארה במקומה.');
+    case 'version_unchanged': return tr('העדכון לא הוחל: המערכת חזרה באותה גרסה.');
+    case 'version_unexpected': return tr('המערכת חזרה בגרסה לא צפויה.');
+    case 'interrupted': return tr('הפעולה נקטעה לפני שהסתיימה.');
+    case 'restart_loop': return tr('הגרסה החדשה לא עולה כראוי והמערכת מופעלת מחדש שוב ושוב.');
+    case 'health_check_failed': return tr('המערכת התעדכנה אך בדיקת התקינות נכשלה.');
+    case 'timeout': return tr('הפעולה לא הסתיימה בזמן.');
+    case 'platform_config_invalid': return tr('בדיקת התצורה של תשתית המערכת נכשלה, ולכן לא בוצעה הפעלה מחדש. תקנו את התצורה ונסו שוב.');
+    case 'restart_not_observed': return tr('לא נצפתה הפעלה מחדש של תשתית המערכת, ולכן לא ידוע אם בוצעה. בדקו את מצב המערכת ונסו שוב אם צריך.');
+    case 'platform_not_back': return tr('תשתית המערכת לא חזרה לפעולה בזמן.');
+    case 'bridge_not_loaded': return tr('תשתית המערכת חזרה, אך הגשר שלה לא נטען.');
     case 'self_update_disabled': return t('selfUpdate.disabledRun');
-    default: return 'הפעולה נכשלה.';
+    default: return tr('הפעולה נכשלה.');
   }
 }
 
@@ -188,15 +189,15 @@ export const needsRollbackGuidance = (run: Pick<RunView, 'kind' | 'state' | 'err
   run.kind === 'update' && (run.state === 'abandoned' || ['version_unchanged', 'version_unexpected', 'interrupted', 'restart_loop', 'health_check_failed', 'timeout', 'update_job_failed'].includes(run.error_code ?? ''));
 
 /** The rollback guidance (CR-021 section 3.3 / design section 6): text only, no restore button (owner decision). */
-const GUIDE_PLATFORM_BACKUP = 'בדפי הגיבויים של תשתית המערכת, בחרו את הגיבוי "לפני העדכון" ושחזרו ממנו את התוסף SmplWise Arx. השחזור מחזיר יחד את הגרסה והנתונים.';
-const GUIDE_ARX_COPY = 'התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות ‹ גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".';
-const GUIDE_NOT_UP = 'אם Arx אינו עולה: בדפי התוספים של תשתית המערכת הפעילו אותו.';
+const GUIDE_PLATFORM_BACKUP = tr('בדפי הגיבויים של תשתית המערכת, בחרו את הגיבוי "לפני העדכון" ושחזרו ממנו את התוסף SmplWise Arx. השחזור מחזיר יחד את הגרסה והנתונים.');
+const GUIDE_ARX_COPY = tr('התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות ‹ גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".');
+const GUIDE_NOT_UP = tr('אם Arx אינו עולה: בדפי התוספים של תשתית המערכת הפעילו אותו.');
 
 /** Restoring from the infrastructure's backup is offered only when that backup was CONFIRMED (`backup_state: 'confirmed'`); a backup that was only asked for is said so. */
 export function rollbackSteps(backupState: BackupState | null | undefined): { note: string | null; steps: string[] } {
-  if (backupState === 'confirmed') return { note: null, steps: [GUIDE_PLATFORM_BACKUP, `לחלופין: ${GUIDE_ARX_COPY}`, `${GUIDE_NOT_UP} או שחזרו את הגיבוי.`] };
+  if (backupState === 'confirmed') return { note: null, steps: [GUIDE_PLATFORM_BACKUP, tr('לחלופין: {GUIDE_ARX_COPY}', { GUIDE_ARX_COPY }), tr('{GUIDE_NOT_UP} או שחזרו את הגיבוי.', { GUIDE_NOT_UP })] };
   return {
-    note: backupState === 'requested' ? 'ביקשתם גיבוי, אך תשתית המערכת לא אישרה שהוא נוצר. אל תסתמכו עליו.' : null,
+    note: backupState === 'requested' ? tr('ביקשתם גיבוי, אך תשתית המערכת לא אישרה שהוא נוצר. אל תסתמכו עליו.') : null,
     steps: [GUIDE_ARX_COPY, GUIDE_NOT_UP],
   };
 }

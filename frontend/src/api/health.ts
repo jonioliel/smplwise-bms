@@ -1,5 +1,6 @@
 /** Health report (T033): one check per subsystem with its own status, detail and numbers. */
 import { get } from './client';
+import { tr } from '../i18n/msg/api-core';
 
 /** off: not part of this installation (NVR-less mode) - neutral, never lowers the overall status. */
 export type CheckStatus = 'ok' | 'warn' | 'error' | 'off';
@@ -31,7 +32,7 @@ export interface HealthReport {
   mode?: 'full' | 'ha_only';
 }
 
-export const STATUS_LABEL: Record<CheckStatus, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'שגיאה', off: 'לא מוגדר' };
+export const STATUS_LABEL: Record<CheckStatus, string> = { ok: tr('תקין'), warn: tr('לתשומת לב'), error: tr('שגיאה'), off: tr('לא מוגדר') };
 export const STATUS_KIND: Record<CheckStatus, 'live' | 'stale' | 'offline' | 'neutral'> = { ok: 'live', warn: 'stale', error: 'offline', off: 'neutral' };
 
 export const healthReport = (fresh = false) => get<HealthReport>(`health/report${fresh ? '?fresh=1' : ''}`);

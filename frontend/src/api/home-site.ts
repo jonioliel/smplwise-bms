@@ -18,6 +18,7 @@
 import type { ClimateSummary, DeviceArea, DeviceCounts, DeviceFloor, DeviceTree } from './devices';
 import type { Building, Floor } from './types';
 import { matchFloors, type MatchLinks } from '../xsection/xs-model';
+import { tr } from '../i18n/msg/api-home';
 
 export const SITE_LEVEL = 'site';
 
@@ -210,8 +211,8 @@ export function sectionLevels(buildings: SiteBuilding[]): number[] {
 /** The scope tag of the widgets and counters that follow the level: "אתר" at the site level, else the building's name. */
 export function scopeTag(m: SiteModel | null, level: string): string {
   if (!m) return '';
-  if (level === SITE_LEVEL) return 'אתר';
-  return m.buildings.find((b) => b.id === level)?.name ?? 'אתר';
+  if (level === SITE_LEVEL) return tr('אתר');
+  return m.buildings.find((b) => b.id === level)?.name ?? tr('אתר');
 }
 
 /** BUILDING-SCOPE-CONTROL-2351: the building id the home's "הצג ושלוט" (the tiles' panel, the floor chips, the floor / area off

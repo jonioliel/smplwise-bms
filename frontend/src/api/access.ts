@@ -5,6 +5,7 @@
 import { del, get, patch, post, put } from './client';
 import { ltrIsolate } from '../i18n/bidi';
 import { dayTimeText } from './day-format';
+import { tr } from '../i18n/msg/api-devices';
 
 export interface AccessBinding {
   id: string;
@@ -210,30 +211,30 @@ export const listAudit = (opts: { prefix?: string; actor?: string; resourceId?: 
 };
 
 export const SYNC_LABEL: Record<DirectoryUser['sync_status'], string> = {
-  verified: 'מסונכרן',
-  stale: 'סנכרון מיושן',
-  removed: 'מושבת / נמחק ב־HA',
-  unavailable: 'לא בספריית HA',
-  unknown: 'טרם סונכרן',
-  dev: 'משתמש פיתוח',
+  verified: tr('מסונכרן'),
+  stale: tr('סנכרון מיושן'),
+  removed: tr('מושבת / נמחק ב־HA'),
+  unavailable: tr('לא בספריית HA'),
+  unknown: tr('טרם סונכרן'),
+  dev: tr('משתמש פיתוח'),
 };
 
 export const ACTION_LABEL: Record<string, string> = {
-  'rbac.bind': 'שיוך תפקיד',
-  'rbac.unbind': 'ביטול שיוך',
-  'rbac.group_create': 'יצירת קבוצה',
-  'rbac.group_members': 'שינוי חברי קבוצה',
-  'rbac.group_delete': 'מחיקת קבוצה',
-  'rbac.group_rename': 'שינוי שם קבוצה',
-  'rbac.bind_bulk': 'שיוך מרובה',
-  'rbac.delegation.update': 'עדכון רשימת ההאצלה',
-  'rbac.role.create': 'יצירת תפקיד',
-  'rbac.role.update': 'עדכון תפקיד',
-  'rbac.role.delete': 'מחיקת תפקיד',
-  'rbac.bootstrap_admin': 'מנהל ראשון (bootstrap)',
-  'identity.user_disabled': 'משתמש הושבת (HA)',
-  'identity.user_enabled': 'משתמש הופעל (HA)',
-  'identity.sync': 'סנכרון ספרייה',
+  'rbac.bind': tr('שיוך תפקיד'),
+  'rbac.unbind': tr('ביטול שיוך'),
+  'rbac.group_create': tr('יצירת קבוצה'),
+  'rbac.group_members': tr('שינוי חברי קבוצה'),
+  'rbac.group_delete': tr('מחיקת קבוצה'),
+  'rbac.group_rename': tr('שינוי שם קבוצה'),
+  'rbac.bind_bulk': tr('שיוך מרובה'),
+  'rbac.delegation.update': tr('עדכון רשימת ההאצלה'),
+  'rbac.role.create': tr('יצירת תפקיד'),
+  'rbac.role.update': tr('עדכון תפקיד'),
+  'rbac.role.delete': tr('מחיקת תפקיד'),
+  'rbac.bootstrap_admin': tr('מנהל ראשון (bootstrap)'),
+  'identity.user_disabled': tr('משתמש הושבת (HA)'),
+  'identity.user_enabled': tr('משתמש הופעל (HA)'),
+  'identity.sync': tr('סנכרון ספרייה'),
 };
 
 export function fmtWhen(iso: string | null | undefined): string {

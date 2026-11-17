@@ -7,6 +7,7 @@
 import { ApiError, get, post } from './client';
 import { isApi } from './session';
 import { FIXTURE_NOW } from '../electricity/fixtures';
+import { tr } from '../i18n/msg/api-electricity';
 
 export type ReadingUnit = 'kWh' | 'Wh' | 'MWh';
 /** allocation: the reading closed or re-split a reporting gap; record: kept for comparison only. */
@@ -256,13 +257,13 @@ export function isoToLocalInput(d: Date): string {
 
 /** The short label of what a reading did. */
 export const EFFECT_LABEL: Record<EffectReason, string> = {
-  open_gap: 'השלימה פער',
-  closed_gap: 'חילקה פער',
-  head_gap: 'קריאת פתיחה',
-  reported: 'להשוואה',
-  outside_counter: 'להשוואה',
-  no_counter_data: 'להשוואה',
-  counter_events: 'להשוואה',
-  implausible: 'להשוואה',
-  billed: 'להשוואה',
+  open_gap: tr('השלימה פער'),
+  closed_gap: tr('חילקה פער'),
+  head_gap: tr('קריאת פתיחה'),
+  reported: tr('להשוואה'),
+  outside_counter: tr('להשוואה'),
+  no_counter_data: tr('להשוואה'),
+  counter_events: tr('להשוואה'),
+  implausible: tr('להשוואה'),
+  billed: tr('להשוואה'),
 };

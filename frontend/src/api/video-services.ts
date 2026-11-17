@@ -7,6 +7,7 @@
  * platform; the address shown is host:port only.
  */
 import { api, get, put } from './client';
+import { tr } from '../i18n/msg/api-video';
 
 export type ServiceState = 'started' | 'stopped' | 'startup' | 'error' | 'unknown';
 export type ProbeOutcome = 'ok' | 'auth_required' | 'unreachable' | 'error' | 'not_probed';
@@ -57,29 +58,29 @@ export const clearVideoService = () => forget(api<VideoServicesView>('system/vid
 /** Owner 11.11 answer 1: the delay before the administrators' notice, minutes; 15 by default. */
 export const NOTICE_AFTER_CHOICES = [1, 5, 15, 30, 60] as const;
 export const NOTICE_AFTER_DEFAULT = 15;
-export const noticeAfterLabel = (m: number): string => (m === 1 ? 'דקה אחת' : m === 60 ? 'שעה' : `${m} דקות`);
+export const noticeAfterLabel = (m: number): string => (m === 1 ? tr('דקה אחת') : m === 60 ? tr('שעה') : tr('{m} דקות', { m }));
 export const noticeAfterValue = (v: unknown): number => {
   const n = Number(v);
   return (NOTICE_AFTER_CHOICES as readonly number[]).includes(n) ? n : NOTICE_AFTER_DEFAULT;
 };
 
-export const STATE_LABEL: Record<ServiceState, string> = { started: 'פועל', stopped: 'כבוי', startup: 'עולה', error: 'בתקלה', unknown: 'מצב לא ידוע' };
+export const STATE_LABEL: Record<ServiceState, string> = { started: tr('פועל'), stopped: tr('כבוי'), startup: tr('עולה'), error: tr('בתקלה'), unknown: tr('מצב לא ידוע') };
 export const PROBE_LABEL: Record<ProbeOutcome, string> = {
-  ok: 'עונה',
-  auth_required: 'עונה, דורש סיסמה',
-  unreachable: 'לא עונה',
-  error: 'עונה עם שגיאה',
-  not_probed: 'לא נבדק',
+  ok: tr('עונה'),
+  auth_required: tr('עונה, דורש סיסמה'),
+  unreachable: tr('לא עונה'),
+  error: tr('עונה עם שגיאה'),
+  not_probed: tr('לא נבדק'),
 };
 export const SOURCE_LABEL: Record<VideoServicesView['current']['source'], string> = {
-  selection: 'נבחר כאן',
-  option: 'מתצורת התוסף',
-  none: 'לא הוגדר',
+  selection: tr('נבחר כאן'),
+  option: tr('מתצורת התוסף'),
+  none: tr('לא הוגדר'),
 };
 export const REASON_TEXT: Record<NonNullable<VideoServicesView['reason']>, string> = {
-  no_supervisor: 'בהתקנה הזאת אי אפשר לזהות שירותי וידאו; הכתובת נקבעת בתצורת התוסף.',
-  forbidden: 'אין הרשאה לקרוא את רשימת השירותים המותקנים.',
-  unreachable: 'רשימת השירותים המותקנים אינה זמינה כרגע.',
+  no_supervisor: tr('בהתקנה הזאת אי אפשר לזהות שירותי וידאו; הכתובת נקבעת בתצורת התוסף.'),
+  forbidden: tr('אין הרשאה לקרוא את רשימת השירותים המותקנים.'),
+  unreachable: tr('רשימת השירותים המותקנים אינה זמינה כרגע.'),
 };
 
 /** The sw-badge kind of a candidate: running and answering = live, running but not answering = stale, stopped = neutral. */
@@ -94,7 +95,7 @@ export function candidateLine(c: VideoServiceCandidate): string {
   const parts = [STATE_LABEL[c.state] ?? STATE_LABEL.unknown];
   if (c.state === 'started') parts.push(PROBE_LABEL[c.probe] ?? PROBE_LABEL.not_probed);
   const v = c.go2rtc_version || c.version;
-  if (v) parts.push(`גרסה ${v}`);
+  if (v) parts.push(tr('גרסה {v}', { v }));
   return parts.join(' · ');
 }
 
@@ -109,6 +110,6 @@ export function sortCandidates(list: VideoServiceCandidate[]): VideoServiceCandi
 
 /** The confirmation before switching: what changes, in plain words. */
 export function confirmText(c: VideoServiceCandidate): string {
-  const tail = c.state === 'started' ? '' : ' השירות כבוי כרגע: הווידאו יחזור רק אחרי שיופעל.';
-  return `לעבור לשירות הווידאו "${c.name}"? כל הווידאו החי וההקלטות יעברו דרכו מיד; הבחירה גוברת על הכתובת שבתצורת התוסף.${tail}`;
+  const tail = c.state === 'started' ? '' : tr(' השירות כבוי כרגע: הווידאו יחזור רק אחרי שיופעל.');
+  return tr('לעבור לשירות הווידאו "{name}"? כל הווידאו החי וההקלטות יעברו דרכו מיד; הבחירה גוברת על הכתובת שבתצורת התוסף.{tail}', { name: c.name, tail });
 }

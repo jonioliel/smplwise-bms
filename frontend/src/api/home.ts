@@ -18,11 +18,12 @@ import {
   configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, ELEVATOR_MODES, PHONE_LAYOUTS, SIDES, SIZES, WIDGET_IDS, elevatorIds, sameConfig, defaultConfig,
   type Direction, type ElevatorMode, type HomeCandidates, type HomeConfig, type PhoneLayout, type Side, type Size, type WidgetId,
 } from './home-config';
+import { tr } from '../i18n/msg/api-home';
 
 export * from './home-config';
 
 /** UXFIX-NAV-295: the default title of the home screen is its navigation label ("ראשי", shell/nav.ts) - the page and the nav never disagree. */
-export const HOME_TITLE_DEFAULT = 'ראשי';
+export const HOME_TITLE_DEFAULT = tr('ראשי');
 export const HOME_TITLE_MAX = 60;
 
 /** The settings, as edit mode edits them (and as the screen reads them). */

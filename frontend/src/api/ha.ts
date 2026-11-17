@@ -10,6 +10,7 @@ import type { MarkerKind } from '../map/sw-plan-canvas';
 import type { MediaLive } from './media-screens';
 import type { PlayerLive } from './media-players';
 import { dayTimeText } from './day-format';
+import { tr } from '../i18n/msg/api-devices';
 
 export interface HaActionArgSpec {
   name: string;
@@ -181,15 +182,15 @@ export interface BridgePairing { pairing_code: string | null; key_set?: boolean;
 export const bridgePairing = (regenerate = false) => get<BridgePairing>(`ha/bridge/pairing${regenerate ? '?regenerate=true' : ''}`);
 /** BRIDGE-STALE-DISCOVERY-2383: the regenerate row and its result tell the truth for each case. */
 export function regenHint(announcePath: boolean | undefined): string {
-  if (announcePath === true) return 'מבטל את הצימוד הקיים; הקוד החדש נשלח לגשר הקיים אוטומטית, והגשר מחליף אותו רק אחרי ש־Arx מאשר אותו';
-  if (announcePath === false) return 'מבטל את הצימוד הקיים; בהתקנה הזו הקוד לא נשלח אוטומטית - מזינים אותו בגשר בתשתית המערכת';
-  return 'מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה';
+  if (announcePath === true) return tr('מבטל את הצימוד הקיים; הקוד החדש נשלח לגשר הקיים אוטומטית, והגשר מחליף אותו רק אחרי ש־Arx מאשר אותו');
+  if (announcePath === false) return tr('מבטל את הצימוד הקיים; בהתקנה הזו הקוד לא נשלח אוטומטית - מזינים אותו בגשר בתשתית המערכת');
+  return tr('מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה');
 }
 
 export function regenMessage(announced: boolean | undefined): string {
   return announced
-    ? 'נוצר קוד צימוד חדש והוא נשלח לגשר הקיים. בתוך דקה הצימוד אמור לחזור ל"מצומד".'
-    : 'נוצר קוד צימוד חדש. הוא לא נשלח לגשר אוטומטית: בתשתית המערכת מחקו את SMPLWISE Bridge והוסיפו אותה שוב עם הכתובת והקוד שמוצגים כאן.';
+    ? tr('נוצר קוד צימוד חדש והוא נשלח לגשר הקיים. בתוך דקה הצימוד אמור לחזור ל"מצומד".')
+    : tr('נוצר קוד צימוד חדש. הוא לא נשלח לגשר אוטומטית: בתשתית המערכת מחקו את SMPLWISE Bridge והוסיפו אותה שוב עם הכתובת והקוד שמוצגים כאן.');
 }
 export const getAction = (id: string) => get<HaActionRecord>(`ha/actions/${id}`);
 export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install');
@@ -287,94 +288,94 @@ export function waitEntityPush(entityId: string, ms: number, since = performance
 
 /** Why an action ended denied or failed, in words (the code stays in the record for the audit). */
 export const ACTION_ERROR_LABEL: Record<string, string> = {
-  ha_unauthorized: 'תשתית המערכת דחתה את הפעולה: למשתמש שלך אין הרשאה להתקן זה',
-  ha_unknown_user: 'תשתית המערכת אינה מכירה את המשתמש שמאחורי ההפעלה הזו',
-  bridge_not_paired: 'הגשר אינו מצומד',
-  bridge_error: 'הגשר החזיר שגיאה',
-  ha_unavailable: 'תשתית המערכת אינה זמינה',
-  service_not_allowed: 'הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? גרסה 0.2.4 הוסיפה את פקדי חשמל והתקנים: מיקום תריס, עוצמת מאוורר, מצב מאוורר במזגן, כיבוי מזגן, הדלקה / כיבוי / השתקה של מסך — הפעילו מחדש את תשתית המערכת כדי לטעון את הגרסה החדשה)',
-  unknown_user: 'תשתית המערכת אינה מכירה את המשתמש',
+  ha_unauthorized: tr('תשתית המערכת דחתה את הפעולה: למשתמש שלך אין הרשאה להתקן זה'),
+  ha_unknown_user: tr('תשתית המערכת אינה מכירה את המשתמש שמאחורי ההפעלה הזו'),
+  bridge_not_paired: tr('הגשר אינו מצומד'),
+  bridge_error: tr('הגשר החזיר שגיאה'),
+  ha_unavailable: tr('תשתית המערכת אינה זמינה'),
+  service_not_allowed: tr('הגשר סירב: השירות אינו ברשימת הפעולות המאושרות (גשר ישן? גרסה 0.2.4 הוסיפה את פקדי חשמל והתקנים: מיקום תריס, עוצמת מאוורר, מצב מאוורר במזגן, כיבוי מזגן, הדלקה / כיבוי / השתקה של מסך — הפעילו מחדש את תשתית המערכת כדי לטעון את הגרסה החדשה)'),
+  unknown_user: tr('תשתית המערכת אינה מכירה את המשתמש'),
 };
 
 export const ACTION_STATUS_LABEL: Record<HaActionStatus, string> = {
-  pending: 'נשלח · ממתין לעדכון מתשתית המערכת',
-  confirmed: 'אושר · המצב התעדכן',
-  unknown: 'לא ידוע · לא התקבל עדכון מצב',
-  failed: 'נכשל',
-  denied: 'נדחה · אין הרשאה בתשתית המערכת',
+  pending: tr('נשלח · ממתין לעדכון מתשתית המערכת'),
+  confirmed: tr('אושר · המצב התעדכן'),
+  unknown: tr('לא ידוע · לא התקבל עדכון מצב'),
+  failed: tr('נכשל'),
+  denied: tr('נדחה · אין הרשאה בתשתית המערכת'),
 };
 
 const ACTIVE = new Set(['on', 'open', 'opening', 'unlocked', 'unlocking', 'playing', 'home', 'heat', 'cool', 'heat_cool', 'dry', 'fan_only', 'cleaning', 'active', 'detected', 'problem', 'running']);
 
 const STATE_HE: Record<string, string> = {
-  on: 'דולק',
-  off: 'כבוי',
-  locked: 'נעול',
-  unlocked: 'פתוח',
-  locking: 'נועל…',
-  unlocking: 'פותח…',
-  jammed: 'תקוע',
-  open: 'פתוח',
-  closed: 'סגור',
-  opening: 'נפתח…',
-  closing: 'נסגר…',
-  unavailable: 'לא זמין',
-  unknown: 'לא ידוע',
-  idle: 'לא פעיל',
-  home: 'בבית',
-  not_home: 'מחוץ לבית',
-  playing: 'מנגן',
-  paused: 'מושהה',
-  standby: 'המתנה',
-  heat: 'חימום',
-  cool: 'קירור',
-  heat_cool: 'חימום/קירור',
-  auto: 'אוטומטי',
-  dry: 'ייבוש',
-  fan_only: 'מאוורר',
-  docked: 'בתחנה',
-  cleaning: 'מנקה',
-  returning: 'חוזר',
+  on: tr('דולק'),
+  off: tr('כבוי'),
+  locked: tr('נעול'),
+  unlocked: tr('פתוח'),
+  locking: tr('נועל…'),
+  unlocking: tr('פותח…'),
+  jammed: tr('תקוע'),
+  open: tr('פתוח'),
+  closed: tr('סגור'),
+  opening: tr('נפתח…'),
+  closing: tr('נסגר…'),
+  unavailable: tr('לא זמין'),
+  unknown: tr('לא ידוע'),
+  idle: tr('לא פעיל'),
+  home: tr('בבית'),
+  not_home: tr('מחוץ לבית'),
+  playing: tr('מנגן'),
+  paused: tr('מושהה'),
+  standby: tr('המתנה'),
+  heat: tr('חימום'),
+  cool: tr('קירור'),
+  heat_cool: tr('חימום/קירור'),
+  auto: tr('אוטומטי'),
+  dry: tr('ייבוש'),
+  fan_only: tr('מאוורר'),
+  docked: tr('בתחנה'),
+  cleaning: tr('מנקה'),
+  returning: tr('חוזר'),
 };
 
 const BINARY_HE: Record<string, [string, string]> = {
-  motion: ['תנועה', 'ללא תנועה'],
-  occupancy: ['נוכחות', 'ללא נוכחות'],
-  presence: ['נוכח', 'לא נוכח'],
-  door: ['פתוחה', 'סגורה'],
-  window: ['פתוח', 'סגור'],
-  opening: ['פתוח', 'סגור'],
-  garage_door: ['פתוח', 'סגור'],
-  lock: ['פתוח', 'נעול'],
-  connectivity: ['מחובר', 'מנותק'],
-  power: ['פועל', 'כבוי'],
-  problem: ['תקלה', 'תקין'],
-  safety: ['לא בטוח', 'בטוח'],
-  smoke: ['עשן', 'ללא עשן'],
-  moisture: ['רטוב', 'יבש'],
-  battery: ['סוללה חלשה', 'סוללה תקינה'],
-  running: ['פועל', 'לא פועל'],
-  sound: ['רעש', 'שקט'],
-  vibration: ['רטט', 'ללא רטט'],
-  update: ['עדכון זמין', 'מעודכן'],
+  motion: [tr('תנועה'), tr('ללא תנועה')],
+  occupancy: [tr('נוכחות'), tr('ללא נוכחות')],
+  presence: [tr('נוכח'), tr('לא נוכח')],
+  door: [tr('פתוחה'), tr('סגורה')],
+  window: [tr('פתוח'), tr('סגור')],
+  opening: [tr('פתוח'), tr('סגור')],
+  garage_door: [tr('פתוח'), tr('סגור')],
+  lock: [tr('פתוח'), tr('נעול')],
+  connectivity: [tr('מחובר'), tr('מנותק')],
+  power: [tr('פועל'), tr('כבוי')],
+  problem: [tr('תקלה'), tr('תקין')],
+  safety: [tr('לא בטוח'), tr('בטוח')],
+  smoke: [tr('עשן'), tr('ללא עשן')],
+  moisture: [tr('רטוב'), tr('יבש')],
+  battery: [tr('סוללה חלשה'), tr('סוללה תקינה')],
+  running: [tr('פועל'), tr('לא פועל')],
+  sound: [tr('רעש'), tr('שקט')],
+  vibration: [tr('רטט'), tr('ללא רטט')],
+  update: [tr('עדכון זמין'), tr('מעודכן')],
 };
 
 /** Hebrew state text with the unit for numeric sensors. Unknown states are shown as-is. */
 export function stateLabel(e: Pick<HaEntity, 'domain' | 'state' | 'unit' | 'device_class' | 'attributes'>): string {
   const s = e.state;
-  if (s === null || s === undefined) return 'לא ידוע';
+  if (s === null || s === undefined) return tr('לא ידוע');
   if (s === 'unavailable' || s === 'unknown') return STATE_HE[s];
   if (e.domain === 'binary_sensor') {
     const pair = BINARY_HE[e.device_class ?? ''];
     if (pair) return s === 'on' ? pair[0] : pair[1];
-    return s === 'on' ? 'פעיל' : 'לא פעיל';
+    return s === 'on' ? tr('פעיל') : tr('לא פעיל');
   }
   if (e.domain === 'sensor' || e.domain === 'number' || e.domain === 'input_number') {
     const n = Number(s);
     if (!Number.isNaN(n) && s.trim() !== '') return `${Number.isInteger(n) ? n : n.toFixed(Math.min(2, (s.split('.')[1] ?? '').length))}${e.unit ? ` ${e.unit}` : ''}`;
     return s;
   }
-  if (e.domain === 'light' && s === 'on' && typeof e.attributes.brightness === 'number') return `דולק · ${Math.round((e.attributes.brightness / 255) * 100)}%`;
+  if (e.domain === 'light' && s === 'on' && typeof e.attributes.brightness === 'number') return tr('דולק · {v}%', { v: Math.round((e.attributes.brightness / 255) * 100) });
   if (e.domain === 'cover' && typeof e.attributes.current_position === 'number' && (s === 'open' || s === 'closed')) return `${STATE_HE[s]} · ${e.attributes.current_position}%`;
   if (e.domain === 'climate' && typeof e.attributes.current_temperature === 'number') return `${STATE_HE[s] ?? s} · ${e.attributes.current_temperature}°`;
   return STATE_HE[s] ?? s;
@@ -397,29 +398,29 @@ export function entityMarkerKind(layerId: string, domain?: string): MarkerKind {
 
 export function domainLabel(domain: string): string {
   const m: Record<string, string> = {
-    light: 'תאורה',
-    switch: 'מתג',
-    lock: 'מנעול',
-    cover: 'תריס / שער',
-    binary_sensor: 'חיישן בינארי',
-    sensor: 'חיישן',
-    fan: 'מאוורר',
-    climate: 'אקלים',
-    camera: 'מצלמת התקן',
-    button: 'כפתור',
-    script: 'סקריפט',
-    scene: 'סצנה',
-    automation: 'אוטומציה',
-    media_player: 'נגן',
-    event: 'אירוע',
-    number: 'מספר',
-    select: 'בחירה',
-    input_boolean: 'דגל',
-    alarm_control_panel: 'אזעקה',
-    siren: 'צופר',
-    vacuum: 'שואב',
-    weather: 'מזג אוויר',
-    sun: 'שמש',
+    light: tr('תאורה'),
+    switch: tr('מתג'),
+    lock: tr('מנעול'),
+    cover: tr('תריס / שער'),
+    binary_sensor: tr('חיישן בינארי'),
+    sensor: tr('חיישן'),
+    fan: tr('מאוורר'),
+    climate: tr('אקלים'),
+    camera: tr('מצלמת התקן'),
+    button: tr('כפתור'),
+    script: tr('סקריפט'),
+    scene: tr('סצנה'),
+    automation: tr('אוטומציה'),
+    media_player: tr('נגן'),
+    event: tr('אירוע'),
+    number: tr('מספר'),
+    select: tr('בחירה'),
+    input_boolean: tr('דגל'),
+    alarm_control_panel: tr('אזעקה'),
+    siren: tr('צופר'),
+    vacuum: tr('שואב'),
+    weather: tr('מזג אוויר'),
+    sun: tr('שמש'),
   };
   return m[domain] ?? domain;
 }

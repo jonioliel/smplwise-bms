@@ -7,6 +7,8 @@
  * Without a backend (the static demo) every capability is on. An older backend that sends no `capabilities` block is read
  * through its `mode` (`ha_only` = no NVR), which is what the shell did before this block existed.
  */
+import { tr } from '../i18n/msg/api-core';
+
 export type CapabilityName = 'nvr' | 'go2rtc' | 'ha' | 'live_video' | 'playback' | 'events_recorder' | 'events_ha' | 'ha_cameras_still' | 'ha_cameras_live' | 'cameras_available';
 
 export interface RecorderCaps {
@@ -47,7 +49,7 @@ export function resolveCapabilities(me: { capabilities?: Partial<Capabilities> |
 }
 
 /** Operator wording (no infrastructure branding) for the installation that has an NVR but no media server. */
-export const UNSUPPORTED_NVR_WITHOUT_GO2RTC = 'התקנה עם NVR אינה נתמכת בלי שרת המדיה (go2rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות.';
+export const UNSUPPORTED_NVR_WITHOUT_GO2RTC = tr('התקנה עם NVR אינה נתמכת בלי שרת המדיה (go2rtc): בלעדיו אין וידאו חי ואין ניגון הקלטות.');
 
 /** A notification source that exists only with an NVR (the recorder's own faults, a camera channel that lost its video): the
  * notification matrix does not list it without one. */

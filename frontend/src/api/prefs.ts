@@ -4,6 +4,7 @@ import { getSettings, type ProductSettings, type Transport } from './media';
 import { isApi } from './session';
 import { cachedVideoPolicy, loadVideoPolicy } from './video-transport';
 import { normalizeChoice } from './video-policy';
+import { tr } from '../i18n/msg/api-core';
 
 let cached: ProductSettings | null = null;
 let cachedAt = 0;
@@ -56,5 +57,5 @@ export function effectiveTransport(settings: ProductSettings | null): Transport 
 
 /** The installation's choice as the settings screen and the camera page name it (owner 2026-10-05: "MSE בלבד" is a deliberate choice). */
 export function transportLabel(t: Transport | null | undefined): string {
-  return t === 'webrtc' ? 'WebRTC בלבד' : t === 'mse' ? 'MSE בלבד' : 'אוטומטי (WebRTC, ואם אינו זמין MSE)';
+  return t === 'webrtc' ? tr('WebRTC בלבד') : t === 'mse' ? tr('MSE בלבד') : tr('אוטומטי (WebRTC, ואם אינו זמין MSE)');
 }

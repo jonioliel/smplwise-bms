@@ -12,6 +12,7 @@
 import { ApiError, api, get, post, put } from './client';
 import { isApi } from './session';
 import { unwrapOptions } from './nvr-options';
+import { tr } from '../i18n/msg/api-video';
 
 export type Vendor = 'hikvision' | 'provision_isr' | 'frigate';
 /** Hikvision: N01 main, N02 sub, N03 third, N04+ other. */
@@ -321,11 +322,11 @@ function fail(status: number, code: string, user_message: string, details: Recor
 }
 
 const FIELD_LABEL: Record<EncodingField, string> = {
-  codec: 'קידוד', profile: 'פרופיל', resolution: 'רזולוציה', fps: 'FPS', bitrate_mode: 'סוג קצב', bitrate_kbps: 'קצב', quality: 'איכות', gop: 'GOP',
+  codec: tr('קידוד'), profile: tr('פרופיל'), resolution: tr('רזולוציה'), fps: 'FPS', bitrate_mode: tr('סוג קצב'), bitrate_kbps: tr('קצב'), quality: tr('איכות'), gop: 'GOP',
   svc: 'SVC', smart_codec: 'Smart codec', b_frames: 'B-frames',
 };
 export const fieldLabel = (f: EncodingField): string => FIELD_LABEL[f];
-export const ROLE_LABEL: Record<StreamRole, string> = { main: 'ראשי', sub: 'משני', third: 'שלישי', other: 'נוסף' };
+export const ROLE_LABEL: Record<StreamRole, string> = { main: tr('ראשי'), sub: tr('משני'), third: tr('שלישי'), other: tr('נוסף') };
 
 interface DemoChange {
   id: string;

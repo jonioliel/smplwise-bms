@@ -10,6 +10,7 @@
  * - on recovery every waiting tile reconnects.
  */
 import { get } from './client';
+import { tr } from '../i18n/msg/api-video';
 
 export type VideoServiceState = 'reachable' | 'unreachable' | 'not_configured' | 'unknown';
 
@@ -26,10 +27,10 @@ export interface VideoServiceView {
 }
 
 /** The one message every camera, live and playback screen shows while the service is down (no component name). */
-export const VIDEO_SERVICE_DOWN_HE = 'שירות הווידאו לא זמין';
+export const VIDEO_SERVICE_DOWN_HE = tr('שירות הווידאו לא זמין');
 /** Administrators (system.configure) may see where to look. */
-export const VIDEO_SERVICE_HINT_ADMIN = 'בדקו שהשירות פועל ואת הגדרת שירות הווידאו (go2rtc_url) בתצורת התוסף';
-export const VIDEO_SERVICE_HINT_OTHER = 'ננסה שוב אוטומטית; אם זה נמשך, פנו למנהל המערכת';
+export const VIDEO_SERVICE_HINT_ADMIN = tr('בדקו שהשירות פועל ואת הגדרת שירות הווידאו (go2rtc_url) בתצורת התוסף');
+export const VIDEO_SERVICE_HINT_OTHER = tr('ננסה שוב אוטומטית; אם זה נמשך, פנו למנהל המערכת');
 /** The relay's error values that mean the service itself is down / absent (routers/media.refuse_media). */
 export const MEDIA_DOWN_VALUES: ReadonlySet<string> = new Set(['media_unavailable', 'media_not_configured']);
 

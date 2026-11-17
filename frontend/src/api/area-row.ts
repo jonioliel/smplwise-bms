@@ -10,6 +10,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from './session';
 import { getMyPrefs, putMyPrefs } from './me-prefs';
 import { ALARM_HE, HVAC_HE, type ClimateSummary, type DeviceArea, type DeviceCounts } from './devices';
+import { tr } from '../i18n/msg/api-home';
 
 export const AREA_ITEMS = ['climate', 'temperature', 'lights', 'switches', 'covers', 'media', 'openings', 'locks', 'alarm'] as const;
 export type AreaItem = (typeof AREA_ITEMS)[number];
@@ -20,32 +21,32 @@ export type ClimateDisplay = (typeof CLIMATE_DISPLAYS)[number];
 /** With several A/C in one area: the mean of the running ones and their number, or one LEADING unit's own temperature and mode. */
 export const CLIMATE_MODES = ['mean', 'lead'] as const;
 export type ClimateMode = (typeof CLIMATE_MODES)[number];
-export const CLIMATE_MODE_LABEL: Record<ClimateMode, string> = { mean: 'ממוצע', lead: 'מוביל' };
+export const CLIMATE_MODE_LABEL: Record<ClimateMode, string> = { mean: tr('ממוצע'), lead: tr('מוביל') };
 /** The items that have an idle state the row may hide ("show only when active"). */
 export const ACTIVE_ITEMS: readonly AreaItem[] = ['lights', 'switches', 'covers', 'media', 'openings', 'locks'];
 
 export const AREA_ITEM_LABEL: Record<AreaItem, string> = {
-  climate: 'מזגן',
-  temperature: 'טמפרטורה בחדר',
-  lights: 'תאורה דולקת',
-  switches: 'מתגים פעילים',
-  covers: 'תריסים פתוחים',
-  media: 'מדיה מנגנת',
-  openings: 'דלתות וחלונות פתוחים',
-  locks: 'מנעולים לא נעולים',
-  alarm: 'אזעקה',
+  climate: tr('מזגן'),
+  temperature: tr('טמפרטורה בחדר'),
+  lights: tr('תאורה דולקת'),
+  switches: tr('מתגים פעילים'),
+  covers: tr('תריסים פתוחים'),
+  media: tr('מדיה מנגנת'),
+  openings: tr('דלתות וחלונות פתוחים'),
+  locks: tr('מנעולים לא נעולים'),
+  alarm: tr('אזעקה'),
 };
 export const FLOOR_ITEM_LABEL: Record<FloorItem, string> = {
-  lights: 'תאורה',
-  switches: 'מתגים',
-  covers: 'תריסים',
-  climate: 'מזגנים',
-  media: 'מדיה',
-  locks: 'מנעולים',
-  sensors: 'חיישנים',
-  cameras: 'מצלמות',
+  lights: tr('תאורה'),
+  switches: tr('מתגים'),
+  covers: tr('תריסים'),
+  climate: tr('מזגנים'),
+  media: tr('מדיה'),
+  locks: tr('מנעולים'),
+  sensors: tr('חיישנים'),
+  cameras: tr('מצלמות'),
 };
-export const CLIMATE_DISPLAY_LABEL: Record<ClimateDisplay, string> = { icon: 'סמל בלבד', temp: 'סמל וטמפרטורה', mode: 'סמל ומצב' };
+export const CLIMATE_DISPLAY_LABEL: Record<ClimateDisplay, string> = { icon: tr('סמל בלבד'), temp: tr('סמל וטמפרטורה'), mode: tr('סמל ומצב') };
 
 export interface AreaRow {
   /** In this order; an item that is not listed is not shown on the row (the opened area has everything). */
@@ -232,7 +233,7 @@ export function climateIndicator(a: DeviceArea, display: ClimateDisplay, mode: C
     const c = a.counts;
     if (!c.climate) return null;
     const active = c.climate_active;
-    return { id: 'climate', icon: 'fan', text: active > 1 ? String(active) : '', title: `מיזוג ואקלים: ${active} מתוך ${c.climate} פועלים`, warm: active > 0, dim: active === 0 };
+    return { id: 'climate', icon: 'fan', text: active > 1 ? String(active) : '', title: tr('מיזוג ואקלים: {active} מתוך {climate} פועלים', { active, climate: c.climate }), warm: active > 0, dim: active === 0 };
   }
   let usable = list.filter((c) => c.available);
   let on = usable.filter((c) => c.hvac_mode && c.hvac_mode !== 'off');
@@ -251,7 +252,7 @@ export function climateIndicator(a: DeviceArea, display: ClimateDisplay, mode: C
   const main = display === 'temp' ? temp : display === 'mode' ? modeWord : '';
   const many = on.length > 1 ? `(${on.length})` : '';
   const text = [main, many].filter(Boolean).join(' ');
-  const head = lead ? `${lead.name}${on.length ? '' : usable.length ? ' (כבוי)' : ' (לא זמין)'}` : list.length > 1 ? `מזגנים: ${on.length} מתוך ${list.length} פועלים` : on.length ? 'מזגן פועל' : usable.length ? 'מזגן כבוי' : 'מזגן לא זמין';
+  const head = lead ? `${lead.name}${on.length ? '' : usable.length ? tr(' (כבוי)') : tr(' (לא זמין)')}` : list.length > 1 ? tr('מזגנים: {length} מתוך {length2} פועלים', { length: on.length, length2: list.length }) : on.length ? tr('מזגן פועל') : usable.length ? tr('מזגן כבוי') : tr('מזגן לא זמין');
   const parts = [head, modeWord, temp].filter(Boolean);
   return { id: 'climate', icon: DOMINANT_ICON[dom], text, title: parts.join(' · '), warm: !dim, dim };
 }
@@ -265,26 +266,26 @@ export function areaIndicators(a: DeviceArea, row: AreaRow): Indicator[] {
   const idleShown = (id: AreaItem) => row.show_empty && !row.only_active.includes(id);
   const count = (id: AreaItem, icon: IconName, on: number, total: number, title: string) => {
     if (total <= 0 || (on <= 0 && !idleShown(id))) return;
-    out.push({ id, icon, text: String(on), title: `${title}: ${on} מתוך ${total}`, warm: on > 0, dim: false });
+    out.push({ id, icon, text: String(on), title: tr('{title}: {on} מתוך {total}', { title, on, total }), warm: on > 0, dim: false });
   };
   for (const id of row.items) {
     if (id === 'climate') {
       const i = climateIndicator(a, row.climate, row.climate_mode, row.climate_lead[a.area_id] ?? '');
       if (i) out.push(i);
     } else if (id === 'temperature') {
-      if (typeof a.temperature === 'number') out.push({ id, icon: 'thermometer', text: degrees(a.temperature), title: 'טמפרטורה בחדר', warm: false, dim: false });
-    } else if (id === 'lights') count(id, 'light', c.lights_on, c.lights, 'תאורה דולקת');
-    else if (id === 'switches') count(id, 'bolt', c.switches_on, c.switches, 'מתגים פעילים');
-    else if (id === 'covers') count(id, 'layers', c.covers_open, c.covers, 'תריסים פתוחים');
-    else if (id === 'media') count(id, 'play', c.media_on, c.media, 'מדיה מנגנת');
+      if (typeof a.temperature === 'number') out.push({ id, icon: 'thermometer', text: degrees(a.temperature), title: tr('טמפרטורה בחדר'), warm: false, dim: false });
+    } else if (id === 'lights') count(id, 'light', c.lights_on, c.lights, tr('תאורה דולקת'));
+    else if (id === 'switches') count(id, 'bolt', c.switches_on, c.switches, tr('מתגים פעילים'));
+    else if (id === 'covers') count(id, 'layers', c.covers_open, c.covers, tr('תריסים פתוחים'));
+    else if (id === 'media') count(id, 'play', c.media_on, c.media, tr('מדיה מנגנת'));
     else if (id === 'openings') {
       const n = a.open_count ?? 0;
-      if (n > 0 || (idleShown(id) && c.sensors > 0)) out.push({ id, icon: 'door', text: String(n), title: `דלתות וחלונות פתוחים: ${n}`, warm: n > 0, dim: false });
+      if (n > 0 || (idleShown(id) && c.sensors > 0)) out.push({ id, icon: 'door', text: String(n), title: tr('דלתות וחלונות פתוחים: {n}', { n }), warm: n > 0, dim: false });
     } else if (id === 'locks') {
       const unlocked = c.locks - c.locks_locked;
-      if (c.locks > 0 && (unlocked > 0 || idleShown(id))) out.push({ id, icon: unlocked > 0 ? 'unlock' : 'lock', text: `${c.locks_locked}/${c.locks}`, title: `מנעולים נעולים: ${c.locks_locked} מתוך ${c.locks}`, warm: unlocked > 0, dim: false });
+      if (c.locks > 0 && (unlocked > 0 || idleShown(id))) out.push({ id, icon: unlocked > 0 ? 'unlock' : 'lock', text: `${c.locks_locked}/${c.locks}`, title: tr('מנעולים נעולים: {locks_locked} מתוך {locks}', { locks_locked: c.locks_locked, locks: c.locks }), warm: unlocked > 0, dim: false });
     } else if (id === 'alarm') {
-      if (c.alarm) out.push({ id, icon: 'shield', text: ALARM_HE[c.alarm] ?? c.alarm, title: 'אזעקה', warm: c.alarm !== 'disarmed', dim: false });
+      if (c.alarm) out.push({ id, icon: 'shield', text: ALARM_HE[c.alarm] ?? c.alarm, title: tr('אזעקה'), warm: c.alarm !== 'disarmed', dim: false });
     }
   }
   return out;

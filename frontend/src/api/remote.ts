@@ -1,8 +1,9 @@
 /** CR-008 P2: the remote sign-ins (SmplWise Arx sessions) - one's own, or everyone's for a system administrator. */
 import { api, get } from './client';
 import { dayMonthTimeText } from './day-format';
+import { tr } from '../i18n/msg/api-core';
 import { uiLocale } from '../i18n/locale';
-import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442
 
 export interface RemoteSession {
   /** A hash of the sign-in (never the cookie value); what the revoke endpoint takes. */
@@ -56,13 +57,13 @@ export function whereLabel(s: Pick<RemoteSession, 'country' | 'address'>): strin
       country = s.country;
     }
   }
-  return [country, s.address].filter(Boolean).join(' · ') || 'כתובת לא ידועה';
+  return [country, s.address].filter(Boolean).join(' · ') || tr('כתובת לא ידועה');
 }
 
 export function whenLabel(iso: string): string {
   const d = new Date(iso);
   const mins = Math.round((Date.now() - d.getTime()) / 60_000);
-  if (mins < 2) return tr('עכשיו');
-  if (mins < 60) return tr('לפני {n} דק׳', { n: mins });
+  if (mins < 2) return trTime('עכשיו');
+  if (mins < 60) return trTime('לפני {n} דק׳', { n: mins });
   return dayMonthTimeText(d);
 }

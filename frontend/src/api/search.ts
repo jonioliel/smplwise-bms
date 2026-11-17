@@ -4,6 +4,7 @@
  */
 import { get } from './client';
 import type { IconName } from '../components/sw-icon';
+import { tr } from '../i18n/msg/api-video';
 
 /** page (CR-010): a screen of the app itself (the security sections), matched in the browser - never sent to the server. */
 export type SearchKind = 'zone' | 'camera' | 'floor' | 'building' | 'entity' | 'object' | 'page';
@@ -35,7 +36,7 @@ export interface SearchResponse {
   counts: Partial<Record<SearchKind, number>>;
 }
 
-export const KIND_LABEL: Record<SearchKind, string> = { zone: 'חדר / אזור', camera: 'מצלמה', floor: 'קומה', building: 'מבנה', entity: 'התקן', object: 'עצם', page: 'מסך' };
+export const KIND_LABEL: Record<SearchKind, string> = { zone: tr('חדר / אזור'), camera: tr('מצלמה'), floor: tr('קומה'), building: tr('מבנה'), entity: tr('התקן'), object: tr('עצם'), page: tr('מסך') };
 export const KIND_ICON: Record<SearchKind, IconName> = { zone: 'map', camera: 'camera', floor: 'floor', building: 'building', entity: 'light', object: 'grid', page: 'shield' };
 
 export const search = (q: string, limit = 8) => get<SearchResponse>(`search?q=${encodeURIComponent(q)}&limit=${limit}`);
@@ -99,5 +100,5 @@ export interface ProvidersResponse {
 }
 export const semanticSearch = (q: string, limit = 30) => get<SemanticResponse>(`search/semantic?q=${encodeURIComponent(q)}&limit=${limit}`);
 export const searchProviders = () => get<ProvidersResponse>('search/providers');
-export const OBJECT_LABEL: Record<string, string> = { person: 'אדם', vehicle: 'רכב', motion: 'תנועה', door: 'דלת', line: 'חציית קו', field: 'חדירה' };
+export const OBJECT_LABEL: Record<string, string> = { person: tr('אדם'), vehicle: tr('רכב'), motion: tr('תנועה'), door: tr('דלת'), line: tr('חציית קו'), field: tr('חדירה') };
 

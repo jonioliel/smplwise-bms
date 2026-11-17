@@ -7,33 +7,35 @@
  * Colours are applied only after validation here too: a value that is not a palette name or "#rrggbb" reads as the default.
  */
 
+import { tr } from '../i18n/msg/api-video';
+
 export const TIMELINE_OPTIONS = ['recording', 'motion', 'person', 'vehicle', 'door', 'line', 'offline'] as const;
 export type TimelineOption = (typeof TIMELINE_OPTIONS)[number];
 export type TimelineColors = Record<TimelineOption, string>;
 
 /** The option's name in the settings card and the legend (short). */
 export const TIMELINE_OPTION_LABEL: Readonly<Record<TimelineOption, string>> = {
-  recording: 'הקלטה',
-  motion: 'תנועה',
-  person: 'אדם',
-  vehicle: 'רכב',
-  door: 'דלת',
-  line: 'חציית קו',
-  offline: 'אובדן וידאו',
+  recording: tr('הקלטה'),
+  motion: tr('תנועה'),
+  person: tr('אדם'),
+  vehicle: tr('רכב'),
+  door: tr('דלת'),
+  line: tr('חציית קו'),
+  offline: tr('אובדן וידאו'),
 };
 
 /** The swatches. Mid-tones that read on the light surface and on a dark one; keep the names in step with the backend. */
 export const TIMELINE_PALETTE: Readonly<Record<string, { hex: string; label: string }>> = {
-  accent: { hex: '#2767ed', label: 'כחול' },
-  red: { hex: '#ef4444', label: 'אדום' },
-  orange: { hex: '#ea580c', label: 'כתום' },
-  amber: { hex: '#f59e0b', label: 'ענבר' },
-  green: { hex: '#22c55e', label: 'ירוק' },
-  teal: { hex: '#14b8a6', label: 'טורקיז' },
-  cyan: { hex: '#06b6d4', label: 'תכלת' },
-  purple: { hex: '#8b5cf6', label: 'סגול' },
-  pink: { hex: '#ec4899', label: 'ורוד' },
-  gray: { hex: '#6b7280', label: 'אפור' },
+  accent: { hex: '#2767ed', label: tr('כחול') },
+  red: { hex: '#ef4444', label: tr('אדום') },
+  orange: { hex: '#ea580c', label: tr('כתום') },
+  amber: { hex: '#f59e0b', label: tr('ענבר') },
+  green: { hex: '#22c55e', label: tr('ירוק') },
+  teal: { hex: '#14b8a6', label: tr('טורקיז') },
+  cyan: { hex: '#06b6d4', label: tr('תכלת') },
+  purple: { hex: '#8b5cf6', label: tr('סגול') },
+  pink: { hex: '#ec4899', label: tr('ורוד') },
+  gray: { hex: '#6b7280', label: tr('אפור') },
 };
 
 /** The defaults the backend applies (and what the app uses until the settings arrive); the person is no longer the recording's blue. */

@@ -1,6 +1,7 @@
 // WISKEY-LIVE-VALIDATION-2390 (WisKey plan T16): the station acceptance tool's API (routers/wiskey_validation.py). Typed calls only;
 // the Hebrew reason lines come from the server (one source for the screen and the CSV export).
 import { apiBlob, get, post } from './client';
+import { tr } from '../i18n/msg/api-devices';
 
 export type CheckStatus = 'pending' | 'running' | 'pass' | 'fail' | 'unsupported' | 'not_run';
 export type RunState = 'running' | 'done' | 'cancelled' | 'interrupted';
@@ -120,21 +121,21 @@ export function confirmMatches(station: Pick<ValidationStation, 'id' | 'name'>, 
   return typed.trim() === expected && expected.length > 0;
 }
 
-const DOOR_RESULT: Record<string, string> = { pass: 'עבר', fail: 'נכשל', not_run: 'לא הורץ', unsupported: 'לא נתמך' };
+const DOOR_RESULT: Record<string, string> = { pass: tr('עבר'), fail: tr('נכשל'), not_run: tr('לא הורץ'), unsupported: tr('לא נתמך') };
 
 /** A short, plain line for a check's detail (numbers and codes the server kept), for the screen and the printed record. */
 export function detailLine(c: Pick<CheckResult, 'check' | 'detail'>): string {
   const d = c.detail || {};
   const parts: string[] = [];
-  if (c.check === 'clock' && typeof d.skew_seconds === 'number') parts.push(`סטייה ${(d.skew_seconds as number).toFixed(1)} שנ׳`);
-  if (c.check === 'events' && typeof d.stream === 'string') parts.push(`זרם: ${d.stream}`);
-  if ((c.check === 'media_arx' || c.check === 'media_wiskey') && typeof d.bytes === 'number') parts.push(`תמונה ${Math.round((d.bytes as number) / 1024)} KB`);
-  if (c.check === 'talk' && typeof d.transport === 'string') parts.push(`${d.transport}${d.busy ? ' · תפוס כרגע' : ''}`);
-  if (Array.isArray(d.doors)) parts.push((d.doors as Array<{ door: number; result: string }>).map((x) => `דלת ${x.door}: ${DOOR_RESULT[x.result] ?? x.result}`).join(', '));
+  if (c.check === 'clock' && typeof d.skew_seconds === 'number') parts.push(tr('סטייה {v} שנ׳', { v: (d.skew_seconds as number).toFixed(1) }));
+  if (c.check === 'events' && typeof d.stream === 'string') parts.push(tr('זרם: {stream}', { stream: d.stream }));
+  if ((c.check === 'media_arx' || c.check === 'media_wiskey') && typeof d.bytes === 'number') parts.push(tr('תמונה {v} KB', { v: Math.round((d.bytes as number) / 1024) }));
+  if (c.check === 'talk' && typeof d.transport === 'string') parts.push(`${d.transport}${d.busy ? tr(' · תפוס כרגע') : ''}`);
+  if (Array.isArray(d.doors)) parts.push((d.doors as Array<{ door: number; result: string }>).map((x) => tr('דלת {door}: {v}', { door: x.door, v: DOOR_RESULT[x.result] ?? x.result })).join(', '));
   if (c.check === 'pulse') {
-    if (typeof d.door === 'number') parts.push(`דלת ${d.door}`);
-    if (typeof d.witness_name === 'string') parts.push(`עד: ${d.witness_name}`);
+    if (typeof d.door === 'number') parts.push(tr('דלת {door}', { door: d.door }));
+    if (typeof d.witness_name === 'string') parts.push(tr('עד: {witness_name}', { witness_name: d.witness_name }));
   }
-  if (typeof d.source === 'string' && (c.check === 'events' || c.check === 'clock')) parts.push(d.source === 'feed' ? 'מהעותק השמור' : 'קריאה עדכנית');
+  if (typeof d.source === 'string' && (c.check === 'events' || c.check === 'clock')) parts.push(d.source === 'feed' ? tr('מהעותק השמור') : tr('קריאה עדכנית'));
   return parts.join(' · ');
 }

@@ -8,6 +8,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere } from './session';
 import { activateScene, automations, runScriptNow, type ItemKind } from './automations';
 import { navigate } from '../router';
+import { tr } from '../i18n/msg/api-home';
 
 export type LaunchKind = 'route' | 'scene' | 'script' | 'quick';
 export interface LaunchItem {
@@ -18,7 +19,7 @@ export interface LaunchItem {
   label: string;
 }
 export const LAUNCH_KINDS: LaunchKind[] = ['route', 'scene', 'script', 'quick'];
-export const LAUNCH_KIND_LABEL: Record<LaunchKind, string> = { route: 'מסך', scene: 'סצנה', script: 'סקריפט', quick: 'פעולה מהירה' };
+export const LAUNCH_KIND_LABEL: Record<LaunchKind, string> = { route: tr('מסך'), scene: tr('סצנה'), script: tr('סקריפט'), quick: tr('פעולה מהירה') };
 export const LAUNCHER_ITEMS_MAX = 12;
 
 export interface LaunchRoute {
@@ -32,18 +33,18 @@ export interface LaunchRoute {
 
 /** The product's own screens a launch button may open (ids = the backend's LAUNCH_ROUTES). No platform name anywhere (UI_COPY_RULES). */
 export const LAUNCH_ROUTES: LaunchRoute[] = [
-  { id: 'home', label: 'חשמל והתקנים', icon: 'home', hash: '/devices/building', perms: ['devices.read'] },
-  { id: 'live', label: 'לייב', icon: 'camera', hash: '/live/wall', perms: ['video.live'] },
-  { id: 'events', label: 'אירועים', icon: 'history', hash: '/investigate/events', perms: ['events.read'] },
-  { id: 'map', label: 'מפה', icon: 'map', hash: '/explore', perms: ['map.read'] },
-  { id: 'alarm', label: 'אזעקה', icon: 'shield', hash: '/security/alarm', perms: ['alarm.view'] },
-  { id: 'screens', label: 'מסכים', icon: 'media', hash: '/multimedia/screens', perms: ['media.read'] },
-  { id: 'players', label: 'נגנים', icon: 'play', hash: '/multimedia/players', perms: ['media.read'] },
-  { id: 'schedules', label: 'תזמונים', icon: 'clock', hash: '/devices/schedules', perms: ['schedule.view'] },
-  { id: 'automations', label: 'אוטומציות', icon: 'rule', hash: '/devices/automations', perms: ['automation.manage', 'scene.manage', 'script.run', 'script.manage'] },
-  { id: 'wiskey', label: 'בקרת כניסה', icon: 'door', hash: '/wiskey', perms: ['access.read'] },
-  { id: 'energy', label: 'חשמל', icon: 'bolt', hash: '/infra/electricity/meters', perms: ['energy.view'] },
-  { id: 'settings', label: 'הגדרות', icon: 'system', hash: '/system', perms: ['system.configure'] },
+  { id: 'home', label: tr('חשמל והתקנים'), icon: 'home', hash: '/devices/building', perms: ['devices.read'] },
+  { id: 'live', label: tr('לייב'), icon: 'camera', hash: '/live/wall', perms: ['video.live'] },
+  { id: 'events', label: tr('אירועים'), icon: 'history', hash: '/investigate/events', perms: ['events.read'] },
+  { id: 'map', label: tr('מפה'), icon: 'map', hash: '/explore', perms: ['map.read'] },
+  { id: 'alarm', label: tr('אזעקה'), icon: 'shield', hash: '/security/alarm', perms: ['alarm.view'] },
+  { id: 'screens', label: tr('מסכים'), icon: 'media', hash: '/multimedia/screens', perms: ['media.read'] },
+  { id: 'players', label: tr('נגנים'), icon: 'play', hash: '/multimedia/players', perms: ['media.read'] },
+  { id: 'schedules', label: tr('תזמונים'), icon: 'clock', hash: '/devices/schedules', perms: ['schedule.view'] },
+  { id: 'automations', label: tr('אוטומציות'), icon: 'rule', hash: '/devices/automations', perms: ['automation.manage', 'scene.manage', 'script.run', 'script.manage'] },
+  { id: 'wiskey', label: tr('בקרת כניסה'), icon: 'door', hash: '/wiskey', perms: ['access.read'] },
+  { id: 'energy', label: tr('חשמל'), icon: 'bolt', hash: '/infra/electricity/meters', perms: ['energy.view'] },
+  { id: 'settings', label: tr('הגדרות'), icon: 'system', hash: '/system', perms: ['system.configure'] },
 ];
 export const LAUNCH_ROUTE_IDS = LAUNCH_ROUTES.map((r) => r.id);
 export const launchRoute = (id: string): LaunchRoute | undefined => LAUNCH_ROUTES.find((r) => r.id === id);
@@ -89,7 +90,7 @@ export async function runLaunch(item: LaunchItem): Promise<void> {
   const kind: ItemKind = item.kind;
   const { items } = await automations().list({ kind, limit: 500 });
   const found = items.find((x) => x.entity_id === item.id);
-  if (!found) throw new Error(item.kind === 'scene' ? 'הסצנה לא נמצאה' : 'הסקריפט לא נמצא');
+  if (!found) throw new Error(item.kind === 'scene' ? tr('הסצנה לא נמצאה') : tr('הסקריפט לא נמצא'));
   if (item.kind === 'scene') await activateScene(found.id);
   else await runScriptNow(found.id);
 }
