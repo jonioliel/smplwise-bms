@@ -847,10 +847,6 @@ def seal(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, *, actor: 
             clock=lambda: now_utc())
 
 
-def _check_version(row: sqlite3.Row, row_version: int | None) -> None:
-    bl.check_version(row, row_version)
-
-
 def mark_sent(conn: sqlite3.Connection, bid: str, at: str, how: str, note: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
     bl.mark_sent(KIND, conn, bid, at, how, note, actor, request_id, row_version)
 
@@ -870,14 +866,6 @@ def check_correctable(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
 # ====================================================================== automatic generation and retention (the shared keys)
 
 AutoOutcome = bl.AutoOutcome  # created / issued / failed / skipped of one pass (shared with electricity)
-
-
-def _due_periods(conn: sqlite3.Connection, acc: sqlite3.Row, now: dt.datetime, delay: dt.timedelta) -> list[per.Period]:
-    return bl.due_periods(KIND, conn, acc, now, delay, AUTO_MAX_PER_ACCOUNT)
-
-
-def _record_run(conn: sqlite3.Connection, acc_id: str, p: per.Period, status: str, bill_id: str | None, error: str | None, now: dt.datetime) -> None:
-    bl.record_run(KIND, conn, acc_id, p, status, bill_id, error, now, AUTO_RETRY)
 
 
 def auto_generate(db: Database, settings: Any, now: dt.datetime | None = None) -> AutoOutcome:
