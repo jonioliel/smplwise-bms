@@ -33,6 +33,7 @@ import {
   CLOSE_MS, OPEN_MS, SPRING_FLICK, SPRING_OPEN, controllableRows, detentHeight, dragOffset, flipFrom, flipTransform, peekSections, releaseDetent, sectionsFor, sensorRows,
   sideSectionsAllowed, springLinear, type Box, type Detent, type QuickMode, type QuickSection,
 } from './area-quick-logic';
+import { FrameCoalescer } from '../components/frame-coalescer';
 import { areaQuickSheetStyles } from './area-quick-sheet-css';
 
 const reducedMotion = () => {
@@ -153,6 +154,7 @@ export class AreaQuickSheet extends LitElement {
   disconnectedCallback() {
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('resize', this.onResize);
+    this.resizeFrame.cancel();
     this.stopLive();
     this.releaseScroll?.();
     this.releaseScroll = null;
@@ -278,9 +280,16 @@ export class AreaQuickSheet extends LitElement {
     this.style.setProperty('--qc-rest', `${rest}px`);
   }
 
-  private onResize = () => {
+  /** CR-FE-NITS-2442 (06:RESIZE-1): the sheet is placed again once per animation frame, and only while it is open. */
+  private resizeFrame = new FrameCoalescer(() => {
+    if (!this.open) return; // closed between the event and the frame
     this.applyRest();
     this.requestUpdate();
+  });
+
+  private onResize = () => {
+    // a closed sheet has nothing to place: updated() places it (applyRest) when it opens
+    if (this.open) this.resizeFrame.schedule();
   };
 
   close() {

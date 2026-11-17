@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { FrameCoalescer, type FrameEnv } from '../src/components/frame-coalescer';
 import { browserSession, browserStorage, dropStored, readStoredJson, storeText, storedText, writeStoredJson, type StorageLike } from '../src/api/safe-storage';
 
 // CR-FE-NITS-2442 (code review 06, frontend chain step FE-4): the small findings NOOP-1, STORE-1, TIMER-1 (rest), RESIZE-1 (rest), RTL-1.
@@ -214,4 +215,115 @@ test('TIMER-1: the wall arms its size watch in connectedCallback, where disconne
   // nothing else adds the listener or builds the observer
   expect(wall.match(/addEventListener\('resize', this\.measure\)/g)?.length).toBe(1);
   expect(wall.match(/new ResizeObserver\(/g)?.length).toBe(1);
+});
+
+// ------------------------------------------------------------------------------------------------ 06:RESIZE-1 (the rest)
+
+/** Animation frames by hand: `frame()` runs what was booked, as the browser does once per frame. */
+function fakeFrames() {
+  let seq = 0;
+  const booked = new Map<number, () => void>();
+  const env: FrameEnv = {
+    request: (run) => {
+      booked.set(++seq, run);
+      return seq;
+    },
+    cancel: (h) => void booked.delete(h),
+  };
+  const frame = () => {
+    const due = [...booked.values()];
+    booked.clear();
+    for (const run of due) run();
+  };
+  return { env, frame, booked: () => booked.size, requests: () => seq };
+}
+
+test('RESIZE-1: a run of calls inside one frame is one run, and the next frame starts a new count', () => {
+  const f = fakeFrames();
+  let runs = 0;
+  const c = new FrameCoalescer(() => runs++, f.env);
+  expect(c.pending).toBe(false);
+  for (let i = 0; i < 40; i++) c.schedule(); // a window dragged by its edge: many resize events before the frame
+  expect(runs).toBe(0); // nothing runs inside the event
+  expect(f.requests()).toBe(1); // one frame booked, not forty
+  expect(c.pending).toBe(true);
+  f.frame();
+  expect(runs).toBe(1);
+  expect(c.pending).toBe(false);
+  f.frame(); // an idle frame runs nothing
+  expect(runs).toBe(1);
+  c.schedule();
+  c.schedule();
+  f.frame();
+  expect(runs).toBe(2);
+  expect(f.requests()).toBe(2);
+});
+
+test('RESIZE-1: cancel drops the booked frame (disconnect), and the coalescer works again afterwards (re-attach)', () => {
+  const f = fakeFrames();
+  let runs = 0;
+  const c = new FrameCoalescer(() => runs++, f.env);
+  c.schedule();
+  c.cancel();
+  expect(f.booked()).toBe(0); // the frame itself is released, not only ignored
+  expect(c.pending).toBe(false);
+  f.frame();
+  expect(runs).toBe(0); // nothing runs on an element that left the page
+  c.cancel(); // twice is harmless
+  c.schedule();
+  f.frame();
+  expect(runs).toBe(1);
+});
+
+test('RESIZE-1: a call made by the run itself books the next frame, not a loop in this one', () => {
+  const f = fakeFrames();
+  let runs = 0;
+  const c: FrameCoalescer = new FrameCoalescer(() => {
+    if (++runs === 1) c.schedule();
+  }, f.env);
+  c.schedule();
+  f.frame();
+  expect(runs).toBe(1);
+  expect(c.pending).toBe(true);
+  f.frame();
+  expect(runs).toBe(2);
+  expect(c.pending).toBe(false);
+});
+
+test('RESIZE-1: schedule is usable as the listener itself (detached from its object)', () => {
+  const f = fakeFrames();
+  let runs = 0;
+  const { schedule } = new FrameCoalescer(() => runs++, f.env);
+  schedule();
+  schedule();
+  f.frame();
+  expect(runs).toBe(1);
+});
+
+test('RESIZE-1: the four screens coalesce their window resize work and cancel it on disconnect', () => {
+  const SCREENS: [file: string, listener: string][] = [
+    ['screens/devices-building.ts', 'onResize'],
+    ['screens/devices-area.ts', 'onFitResize'],
+    ['screens/devices-schedules.ts', 'onResize'],
+    ['screens/area-quick-sheet.ts', 'onResize'],
+  ];
+  for (const [f, listener] of SCREENS) {
+    const code = src(f);
+    expect(code, f).toContain("import { FrameCoalescer } from '../components/frame-coalescer';");
+    expect(code, f).toContain('private resizeFrame = new FrameCoalescer(() =>');
+    expect(code, f).toContain(`window.addEventListener('resize', this.${listener});`);
+    const off = member(code, '  disconnectedCallback() {');
+    expect(off, f).toContain(`window.removeEventListener('resize', this.${listener});`);
+    expect(off, f).toContain('this.resizeFrame.cancel();');
+  }
+  // the three screens: the listener IS the coalescer (no work in the raw event)
+  expect(src('screens/devices-building.ts')).toContain('private onResize = this.resizeFrame.schedule;');
+  expect(src('screens/devices-area.ts')).toContain('private onFitResize = this.resizeFrame.schedule;');
+  expect(src('screens/devices-schedules.ts')).toContain('private onResize = this.resizeFrame.schedule;');
+  // the quick sheet: nothing at all while it is closed - in the event and again in the frame (it may close in between)
+  const qs = src('screens/area-quick-sheet.ts');
+  expect(qs).toMatch(/private onResize = \(\) => \{\n(?:\s+\/\/[^\n]*\n)*\s+if \(this\.open\) this\.resizeFrame\.schedule\(\);\n {2}\};/);
+  expect(qs).toMatch(/private resizeFrame = new FrameCoalescer\(\(\) => \{\n\s+if \(!this\.open\) return;/);
+  // updated() still places the sheet on every update, so the one that opens it uses the current viewport
+  expect(member(qs, '  protected updated(changed: PropertyValues<this>) {')).toContain('this.applyRest();');
 });

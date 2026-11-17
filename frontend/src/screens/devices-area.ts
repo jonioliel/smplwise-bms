@@ -47,6 +47,7 @@ import { getAreaPresence, type AreaPresence } from '../api/building-presence'; /
 import { areaLineView, POLL_MS as PRESENCE_POLL_MS } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 import { LongListsController } from '../api/long-lists';
+import { FrameCoalescer } from '../components/frame-coalescer';
 
 export { rowLabel };
 
@@ -923,9 +924,9 @@ export class DevicesArea extends LitElement {
     if (!this.fitRaf) this.fitRaf = window.requestAnimationFrame(this.measureFit);
   }
 
-  private onFitResize = () => {
-    this.requestUpdate();
-  };
+  /** CR-FE-NITS-2442 (06:RESIZE-1): a run of window resize events asks for one render per animation frame (was one request per event). */
+  private resizeFrame = new FrameCoalescer(() => this.requestUpdate());
+  private onFitResize = this.resizeFrame.schedule;
 
   /** A custom card's devices: the rows of the area it lists (one that left the area is skipped), in the order it lists. */
   private customRows(key: string): DeviceRow[] {
@@ -1361,6 +1362,7 @@ export class DevicesArea extends LitElement {
     this.presenceTimer = 0;
     this.phoneMq?.removeEventListener('change', this.onPhone);
     window.removeEventListener('resize', this.onFitResize);
+    this.resizeFrame.cancel();
     this.bandMq.removeEventListener('change', this.onBandMq);
     this.bandRo?.disconnect();
     this.bandRo = undefined;

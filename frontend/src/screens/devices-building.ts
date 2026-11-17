@@ -99,6 +99,7 @@ import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 import { dayTimeText, timeText } from '../api/day-format';
 import { modalKeydown } from '../components/a11y-keys';
+import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesBuildingStyles } from './devices-building-css';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
@@ -1391,9 +1392,9 @@ export class DevicesBuilding extends LitElement {
     });
   };
 
-  private onResize = () => {
-    this.requestUpdate();
-  };
+  /** CR-FE-NITS-2442 (06:RESIZE-1): a run of window resize events asks for one render per animation frame (was one request per event). */
+  private resizeFrame = new FrameCoalescer(() => this.requestUpdate());
+  private onResize = this.resizeFrame.schedule;
 
   private viewKey = '';
   private offView: (() => void) | null = null;
@@ -1632,6 +1633,7 @@ export class DevicesBuilding extends LitElement {
     window.cancelAnimationFrame(this.fitTimer);
     this.noteTimer = this.fitTimer = 0;
     window.removeEventListener('resize', this.onResize);
+    this.resizeFrame.cancel();
     this.live.stop();
     for (const id of ['elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'tree']) this.live.remove(id);
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);

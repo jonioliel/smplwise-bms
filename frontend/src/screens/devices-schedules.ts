@@ -88,6 +88,7 @@ import { toneColor } from '../components/sw-schedule-bar';
 import { SkinController } from '../design/skin';
 import { tablistKeydown } from '../components/a11y-keys';
 import { readStoredJson, storedText, writeStoredJson } from '../api/safe-storage';
+import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesSchedulesStyles } from './devices-schedules-css';
 
 const VIEW_KEY = 'sw.schedules.view';
@@ -234,6 +235,7 @@ export class DevicesSchedules extends LitElement {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
     window.removeEventListener('resize', this.onResize);
+    this.resizeFrame.cancel();
     this.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('pointerdown', this.onOutside, true);
     window.removeEventListener('keydown', this.onKey);
@@ -276,10 +278,12 @@ export class DevicesSchedules extends LitElement {
     if (fit !== null && (this.fitRows === null || fit < this.fitRows)) this.fitRows = fit; // only ever smaller until a reset (no oscillation)
   }
 
-  private onResize = () => {
+  /** CR-FE-NITS-2442 (06:RESIZE-1): a run of window resize events restarts the fit once per animation frame (was once per event). */
+  private resizeFrame = new FrameCoalescer(() => {
     this.fitRows = null;
     this.requestUpdate();
-  };
+  });
+  private onResize = this.resizeFrame.schedule;
 
   private onScroll = () => {
     const compact = this.scrollTop > 40;
