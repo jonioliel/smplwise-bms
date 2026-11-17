@@ -237,9 +237,11 @@ def test_icons_and_roles_match_the_frontend():
     assert icons and roles
     assert tuple(re.findall(r"'([a-z]+)'", icons.group(1))) == mod.ICONS
     assert tuple(re.findall(r"'([a-z]+)'", roles.group(1))) == mod.ROLES
-    icon_src = (ROOT / "frontend" / "src" / "components" / "sw-icon.ts").read_text(encoding="utf-8")
+    # CR-ICONS-PALETTE-2440 moved the path table to components/icon-paths.ts (sw-icon.ts re-exports it): read both.
+    comp = ROOT / "frontend" / "src" / "components"
+    icon_src = "\n".join(f.read_text(encoding="utf-8") for f in (comp / "icon-paths.ts", comp / "sw-icon.ts") if f.exists())
     for name in mod.ICONS:
-        assert re.search(rf"^\s+{name}: svg`", icon_src, re.M), name  # every allowed icon exists in the product's set
+        assert re.search(rf"^\s+{name}: (svg`|')", icon_src, re.M), name  # every allowed icon exists in the product's set (a string path since CR-ICONS-PALETTE-2440)
 
 
 def test_floor_scoped_viewer_sees_only_their_floors_keys(dev_app):  # noqa: F811
