@@ -206,3 +206,21 @@ NOT_RUN (round 3):
 - The phone timeouts on the runner itself: the longer budget of the players evidence is not proven there, and the two tickets tests are unchanged.
 - The Domus sheet inside a dark device screen was checked by the spec's computed colours only, not looked at on a real screen.
 - crystal and tesla: the same sheet rule as Domus was, not changed and not tested here.
+
+## Home phone baselines refreshed on the runner (17.11)
+
+`origin/main` (2.43.7, cc69447f1) merged first (c32ebd2c3, no conflicts). All runs: `private/runner/run_smart.py preview
+pilot/DOMUS-DEFAULT-2439 tests/pixel-home-fb-2431.spec.ts tests/pixel-home-gaps-2436.spec.ts tests/pixel-home-auditfix-2437.spec.ts
+--project=desktop --project=mobile ... --machine runner`.
+
+| Run | Commit | Result |
+|---|---|---|
+| `-u --workers=1` | c32ebd2c3 | 24 passed, 4 skipped (per-project); 8 phone baselines rewritten, the other 22 unchanged; committed fe2f981fa |
+| `--workers=1 --repeat-each=2`, no `-u` | fe2f981fa | 48 passed, 8 skipped (per-project) |
+
+Rewritten (all `-390-mobile-linux.png`): `home-fb-ticket-photos` light + dark 358x474 -> 358x530, `home-fb-wall-event` light + dark
+358x506 -> 358x510, `home-gaps-fault-sheet` light + dark 358x402 -> 358x458, `auditfix-cameras` light + dark 390x652 (same size).
+The first six are the merge-conflict files of round 3. No desktop baseline changed.
+
+Not refreshed, on purpose: `docs/evidence/T087/visual/` (`unit-plan-3d-determinism`) - the 3D palette under Domus awaits the owner's
+decision, so `unit-plan-3d-determinism:193` x3 stays red on the runner. Not run: the entry check (not queued until that decision).
