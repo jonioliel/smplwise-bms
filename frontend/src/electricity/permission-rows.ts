@@ -4,6 +4,7 @@ import type { RolesResponse } from '../api/access';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 import { ENERGY_PERMISSIONS, energyPermissionLabel } from './access';
+import { tr } from '../i18n/msg/electricity';
 
 interface Row {
   id: string;
@@ -77,7 +78,7 @@ export class ElecPermissionRows extends LitElement {
     const label = (id: string) => this.roles?.labels[id] ?? energyPermissionLabel(id) ?? id;
     return [
       ...ENERGY_PERMISSIONS.map((id): Row => ({ id, label: label(id), tag: id === 'energy.bills' && (sensitive.has(id) || !this.roles?.sensitive) ? 'sensitive' : '' })),
-      { id: 'system.configure', label: 'הגדרות שמירת נתונים', tag: 'existing' },
+      { id: 'system.configure', label: tr('הגדרות שמירת נתונים'), tag: 'existing' },
     ];
   }
 
@@ -86,8 +87,8 @@ export class ElecPermissionRows extends LitElement {
   }
 
   private chip(tag: Row['tag']) {
-    if (tag === 'sensitive') return html`<span class="chip c-warn nodot">רגישה</span>`;
-    if (tag === 'existing') return html`<span class="chip nodot">קיימת</span>`;
+    if (tag === 'sensitive') return html`<span class="chip c-warn nodot">${tr('רגישה')}</span>`;
+    if (tag === 'existing') return html`<span class="chip nodot">${tr('קיימת')}</span>`;
     return nothing;
   }
 
@@ -95,15 +96,15 @@ export class ElecPermissionRows extends LitElement {
     const roles = this.roles;
     if (!roles?.roles.length) return nothing;
     const rows = this.rows();
-    return html`<section data-energy-permissions aria-label="הרשאות חשמל">
-      <h3>חשמל</h3>
+    return html`<section data-energy-permissions aria-label=${tr('הרשאות חשמל')}>
+      <h3>${tr('חשמל')}</h3>
       <div class="card flush scrollx wide"><table class="t" data-energy-matrix>
-        <thead><tr><th>הרשאה</th>${roles.roles.map((r) => html`<th class="c">${r.name}</th>`)}</tr></thead>
+        <thead><tr><th>${tr('הרשאה')}</th>${roles.roles.map((r) => html`<th class="c">${r.name}</th>`)}</tr></thead>
         <tbody>${rows.map((row) => html`<tr data-energy-row=${row.id}><td><b>${row.label}</b> ${this.chip(row.tag)}<div class="code">${row.id}</div></td>
-          ${roles.roles.map((r) => html`<td class="c" data-role=${r.id}>${this.holds(r, row.id) ? html`<span class="tick on" aria-label="יש">✓</span>` : html`<span class="tick" aria-label="אין"></span>`}</td>`)}</tr>`)}</tbody></table></div>
+          ${roles.roles.map((r) => html`<td class="c" data-role=${r.id}>${this.holds(r, row.id) ? html`<span class="tick on" aria-label=${tr('יש')}>✓</span>` : html`<span class="tick" aria-label=${tr('אין')}></span>`}</td>`)}</tr>`)}</tbody></table></div>
       <div class="list phone" style="flex-direction:column">${rows.map((row) => html`<div class="li" style="flex-direction:column;align-items:stretch" data-energy-row-phone=${row.id}>
         <div class="row"><b>${row.label}</b>${this.chip(row.tag)}</div>
-        <div class="t2 wrap">${roles.roles.filter((r) => this.holds(r, row.id)).map((r) => r.name).join(', ') || 'אין תפקיד'}</div></div>`)}</div>
+        <div class="t2 wrap">${roles.roles.filter((r) => this.holds(r, row.id)).map((r) => r.name).join(', ') || tr('אין תפקיד')}</div></div>`)}</div>
     </section>`;
   }
 }

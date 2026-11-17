@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { tr } from '../i18n/msg/components';
 
 export interface TableColumn<Row = Record<string, unknown>> {
   key: string;
@@ -34,7 +35,7 @@ export class SwTable extends LitElement {
   @property({ attribute: false }) rows: Record<string, unknown>[] = [];
   @property() rowKey = 'id';
   @property() selected: string | null = null;
-  @property() emptyText = 'אין שורות להצגה';
+  @property() emptyText = tr('אין שורות להצגה');
   @property({ type: Boolean, reflect: true }) dense = false;
   /** SHARED-POLISH-2342 (INVREST-POLISH-2331 proposal): every row is a tab stop and Enter / Space on it fires the same `row-select` a
    * click does - for a list whose rows open something and that has no link of its own in a cell. Opt-in, so the tab order of every

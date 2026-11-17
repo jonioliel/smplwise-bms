@@ -1,5 +1,6 @@
 import type { CardId } from '../api/devices';
 import type { IconName } from '../components/sw-icon';
+import { tr } from '../i18n/msg/devices';
 import { cameraCardDefinition } from './devices-camera-card';
 
 /**
@@ -45,17 +46,17 @@ export interface CardTypeInfo {
 const cameraDef = cameraCardDefinition();
 
 export const CARD_TYPES: Record<CardTypeId, CardTypeInfo> = {
-  lighting: { id: 'lighting', label: 'תאורה', desc: 'מנורות וספוטים: הדלקה, כיבוי ועוצמה', icon: 'light', tiles: true, match: (e) => e.card === 'lighting' },
-  switches: { id: 'switches', label: 'מתגים', desc: 'שקעים, מתגים ומעגלים חשמליים', icon: 'bolt', tiles: true, match: (e) => e.card === 'switches' },
-  climate: { id: 'climate', label: 'אקלים', desc: 'מזגנים, מאווררים ומכשירי לחות', icon: 'activity', tiles: false, match: (e) => e.card === 'climate' },
-  heating: { id: 'heating', label: 'חימום', desc: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי', icon: 'activity', tiles: false, match: (e) => e.card === 'heating' },
-  covers: { id: 'covers', label: 'תריסים', desc: 'תריסים, וילונות ושליטה במיקום', icon: 'layers', tiles: false, match: (e) => e.card === 'covers' && !e.door },
-  security: { id: 'security', label: 'מצלמות ואבטחה', desc: 'מצלמות, אזעקה וחיישני מגע ותנועה', icon: 'shield', tiles: false, match: (e) => e.card === 'security' && e.domain !== 'lock' },
-  media: { id: 'media', label: 'מדיה', desc: 'מסכים: מצב, הפעלה, עוצמה ושלט (כרטיס אחד לכל מסך)', icon: 'play', tiles: false, match: (e) => e.card === 'media' },
-  sensors: { id: 'sensors', label: 'חיישנים', desc: 'טמפרטורה, לחות, סוללה ושאר החיישנים', icon: 'sensor', tiles: true, match: (e) => e.card === 'sensors' },
-  locks: { id: 'locks', label: 'מנעולים ושערים', desc: 'מנעולי דלתות, שערים ודלתות חניה', icon: 'lock', tiles: false, match: (e) => e.domain === 'lock' || (e.card === 'covers' && !!e.door) },
-  energy: { id: 'energy', label: 'אנרגיה', desc: 'צריכת חשמל, הספק ומדי אנרגיה', icon: 'bolt', tiles: true, match: (e) => e.card === 'sensors' && e.group === 'power' },
-  free: { id: 'free', label: 'כרטיס חופשי', desc: 'כרטיס ריק שבוחרים לו התקנים ושם בעצמכם', icon: 'grid', tiles: false, match: () => false },
+  lighting: { id: 'lighting', label: tr('תאורה'), desc: tr('מנורות וספוטים: הדלקה, כיבוי ועוצמה'), icon: 'light', tiles: true, match: (e) => e.card === 'lighting' },
+  switches: { id: 'switches', label: tr('מתגים'), desc: tr('שקעים, מתגים ומעגלים חשמליים'), icon: 'bolt', tiles: true, match: (e) => e.card === 'switches' },
+  climate: { id: 'climate', label: tr('אקלים'), desc: tr('מזגנים, מאווררים ומכשירי לחות'), icon: 'activity', tiles: false, match: (e) => e.card === 'climate' },
+  heating: { id: 'heating', label: tr('חימום'), desc: tr('תרמוסטטים, משאבות חום וחימום תת־רצפתי'), icon: 'activity', tiles: false, match: (e) => e.card === 'heating' },
+  covers: { id: 'covers', label: tr('תריסים'), desc: tr('תריסים, וילונות ושליטה במיקום'), icon: 'layers', tiles: false, match: (e) => e.card === 'covers' && !e.door },
+  security: { id: 'security', label: tr('מצלמות ואבטחה'), desc: tr('מצלמות, אזעקה וחיישני מגע ותנועה'), icon: 'shield', tiles: false, match: (e) => e.card === 'security' && e.domain !== 'lock' },
+  media: { id: 'media', label: tr('מדיה'), desc: tr('מסכים: מצב, הפעלה, עוצמה ושלט (כרטיס אחד לכל מסך)'), icon: 'play', tiles: false, match: (e) => e.card === 'media' },
+  sensors: { id: 'sensors', label: tr('חיישנים'), desc: tr('טמפרטורה, לחות, סוללה ושאר החיישנים'), icon: 'sensor', tiles: true, match: (e) => e.card === 'sensors' },
+  locks: { id: 'locks', label: tr('מנעולים ושערים'), desc: tr('מנעולי דלתות, שערים ודלתות חניה'), icon: 'lock', tiles: false, match: (e) => e.domain === 'lock' || (e.card === 'covers' && !!e.door) },
+  energy: { id: 'energy', label: tr('אנרגיה'), desc: tr('צריכת חשמל, הספק ומדי אנרגיה'), icon: 'bolt', tiles: true, match: (e) => e.card === 'sensors' && e.group === 'power' },
+  free: { id: 'free', label: tr('כרטיס חופשי'), desc: tr('כרטיס ריק שבוחרים לו התקנים ושם בעצמכם'), icon: 'grid', tiles: false, match: () => false },
   // the camera card (screens/devices-camera-card.ts) is added as a `camera:<slug>` layout item with a picked camera, not as a
   // `card:c-` custom card; it is in the library like every type, and offered where cameras exist and the user may watch
   camera: { id: 'camera', label: cameraDef.label, desc: cameraDef.description, icon: cameraDef.icon, tiles: false, match: () => false },

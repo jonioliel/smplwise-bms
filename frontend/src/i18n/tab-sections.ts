@@ -4,6 +4,7 @@
  * language (a missing key falls back to the Hebrew). The Arabic and Russian columns are an INITIAL translation and need a native review
  * (dev-marked). `{name}` placeholders are filled by `tst(key, { name })`. Operator wording only: no platform name.
  */
+import { docLang, fill, registerCatalogue } from './core';
 import { NAV_TST } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's labels live there
 
 const he = {
@@ -186,8 +187,7 @@ export type TstKey = Key;
 export type TstLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function tstLang(): TstLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<TstLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -196,8 +196,10 @@ export const TST_DEV_MARKED: readonly TstLang[] = ['ar', 'ru'];
 
 export function tst(key: Key, vars?: Record<string, string | number>, lang: TstLang = tstLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const TST_KEYS = Object.keys(he) as Key[];
 export const TST_TABLES = TABLES;
+
+registerCatalogue('i18n/tab-sections', { he, en, ar, ru }, TST_DEV_MARKED);

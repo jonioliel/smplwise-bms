@@ -6,6 +6,7 @@
  * written here (tests/unit-tickets-device.spec.ts and the D33 lint fail when it is).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   tab: '{tickets}',
@@ -119,3 +120,5 @@ export const dt = catalogue.t;
 
 export const DEVICE_TEXT_KEYS = catalogue.KEYS;
 export const DEVICE_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/device-text', { he, en });

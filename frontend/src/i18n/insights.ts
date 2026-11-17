@@ -4,6 +4,7 @@
  * report can be read and downloaded in either language, so the preview speaks the report's language, not the page's). `{x}` placeholders
  * are filled by `ix(key, { x }, lang)`. Operator screens never name the home platform and carry no hint paragraphs.
  */
+import { docLang, fill, registerCatalogue } from './core';
 import { NAV_IX } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
 
 const he = {
@@ -259,6 +260,8 @@ const en: Partial<Record<keyof typeof he, string>> = {
   crumbSection: 'Review and reports',
   pageBuilding: NAV_IX.en.pageBuilding,
   subReport: '{month} · PDF on demand',
+  subDoors: '{range} · {place}',
+  subWaste: '{range} · {place}',
   tabReport: 'Building report',
   tabDoors: 'Doors',
   tabWaste: 'Energy consumption',
@@ -268,6 +271,8 @@ const en: Partial<Record<keyof typeof he, string>> = {
   prevMonth: 'Previous month',
   nextMonth: 'Next month',
   language: 'Language',
+  langHe: 'Hebrew',
+  langEn: 'English',
   sectionsGroup: 'Sections',
   download: 'Download PDF',
   downloading: 'Preparing the file',
@@ -380,6 +385,7 @@ const en: Partial<Record<keyof typeof he, string>> = {
   places: 'Places',
   noPlace: 'No place',
   emptyDoorsTitle: 'No unexplained openings',
+  emptyDoorsBody: '{range} · {place}',
   noDoorsConfigured: 'No doors are set',
   moreItems: '{n} more not shown',
   timelineLabel: 'Timeline around the opening',
@@ -497,11 +503,12 @@ export const IX_KEYS = Object.keys(he) as IxKey[];
 
 /** The page language (the document's `lang`); the report preview passes the report's own language instead. */
 export function ixLang(): IxLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function ix(key: IxKey, vars?: Record<string, string | number>, lang: IxLang = ixLang()): string {
   const raw = IX_TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/insights', { he, en });

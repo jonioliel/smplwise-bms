@@ -7,6 +7,7 @@ import { createClockSubscription } from '../api/clock-ticker';
 import { calendarText, clockParts, hasValue, valueText, WEATHER_HE, type HomeConfig, type HomeData, type WidgetId, type WidgetItem } from '../api/home-config';
 import { ltrNum } from '../i18n/bidi';
 import { pl } from '../i18n/polish';
+import { tr } from '../i18n/msg/screens';
 
 /** The widgets the thin bar carries in place of their large cards (POLISH-295). */
 export const AMBIENT_WIDGETS: readonly WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm'];
@@ -162,7 +163,7 @@ export class HomeAmbientBar extends LitElement {
     const parts = [this.clockPart(), this.weatherPart(), this.shabbatPart(), this.alarmPart()].filter((p) => p !== nothing);
     if (!parts.length) return nothing;
     // BUILDING-PRESENCE-2271: one more quiet part, last; it renders nothing at all unless sensors are tagged and the caller may see them
-    return html`<div class="bar" role="group" aria-label="מידע כללי" data-home-ambient>${parts}<building-presence-chip></building-presence-chip></div>`;
+    return html`<div class="bar" role="group" aria-label=${tr('מידע כללי')} data-home-ambient>${parts}<building-presence-chip></building-presence-chip></div>`;
   }
 
   private clockPart() {

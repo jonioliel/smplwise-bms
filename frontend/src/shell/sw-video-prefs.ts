@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { transportLabel } from '../api/prefs';
 import { cachedVideoPolicy, loadVideoPolicy, setPersonalTransport } from '../api/video-transport';
 import { normalizeChoice, type TransportChoice, type VideoPolicy } from '../api/video-policy';
+import { tr } from '../i18n/msg/shell';
 
 /**
  * החשבון שלי › וידאו (VIDEO-TRANSPORT-2400, owner decision 2026-11-04): the viewer's own live-video transport, stored on the server per
@@ -84,15 +85,15 @@ export class SwVideoPrefs extends LitElement {
     const choices: TransportChoice[] = ['auto', 'webrtc', 'mse'];
     return html`
       <div class="row">
-        <label for="vid-transport">העברת וידאו חי</label>
+        <label for="vid-transport">${tr('העברת וידאו חי')}</label>
         <select id="vid-transport" data-my-video-transport ?disabled=${this.busy || !p} @change=${(e: Event) => void this.pick(e.target as HTMLSelectElement)}>
-          <option value="" ?selected=${own === ''}>כמו ההגדרה של המערכת (${transportLabel(p?.installation ?? 'auto')})</option>
+          <option value="" ?selected=${own === ''}>${tr('כמו ההגדרה של המערכת ({mode})', { mode: transportLabel(p?.installation ?? 'auto') })}</option>
           ${choices.map((c) => html`<option value=${c} ?selected=${own === c}>${transportLabel(c)}</option>`)}
         </select>
       </div>
-      <p class="note" data-my-video-note>חל על כל המסכים ועל כל מכשיר שבו נכנסים בחשבון הזה.</p>
-      ${!p ? html`<p class="note" data-my-video-unavailable>ההגדרה האישית אינה זמינה כרגע</p>` : nothing}
-      ${this.failed ? html`<p class="err" role="alert" data-my-video-error>השמירה נכשלה</p>` : nothing}
+      <p class="note" data-my-video-note>${tr('חל על כל המסכים ועל כל מכשיר שבו נכנסים בחשבון הזה.')}</p>
+      ${!p ? html`<p class="note" data-my-video-unavailable>${tr('ההגדרה האישית אינה זמינה כרגע')}</p>` : nothing}
+      ${this.failed ? html`<p class="err" role="alert" data-my-video-error>${tr('השמירה נכשלה')}</p>` : nothing}
     `;
   }
 }

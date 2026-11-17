@@ -55,17 +55,18 @@ import {
 } from '../map/history-replay';
 import { layerSignature, roomStates, type RoomStateLayer } from '../map/room-state';
 import { stateEntitiesOf, stateFactsOf, type StateFacts } from '../map/state-facts';
+import { tr } from '../i18n/msg/investigate';
 
 const NEAR_MIN = 10;
 /** The window choices of the time scrub's bar (minutes); the track below zooms through the same values. */
 const SCRUB_WINDOWS: { label: string; minutes: number }[] = [
-  { label: 'יום', minutes: 1440 },
-  { label: '6 שע׳', minutes: 360 },
-  { label: 'שעה', minutes: 60 },
-  { label: '10 דק׳', minutes: 10 },
+  { label: tr('יום'), minutes: 1440 },
+  { label: tr('6 שע׳'), minutes: 360 },
+  { label: tr('שעה'), minutes: 60 },
+  { label: tr('10 דק׳'), minutes: 10 },
 ];
 /** The elevator states the evaluator records (services/elevators_runtime.py), in the elevators screen's words. */
-const ELEVATOR_STATE: Record<string, string> = { ok: 'תקין', fault: 'תקלה', fire_service: 'שירות כבאים', out_of_service: 'מושבת', unknown: 'לא ידוע' };
+const ELEVATOR_STATE: Record<string, string> = { ok: tr('תקין'), fault: tr('תקלה'), fire_service: tr('שירות כבאים'), out_of_service: tr('מושבת'), unknown: tr('לא ידוע') };
 /** While playing, the plan's states follow the cursor at most this often (CR section 5: cursor debounce 150 ms during play). */
 const PLAY_STATE_MS = 150;
 
@@ -1267,7 +1268,7 @@ export class InvestigateHistoryMap extends LitElement {
         const cov = this.coverageAt(a.resource_id);
         const near = this.eventsNear(a.resource_id, 5).length;
         const name = a.camera?.name ?? a.label ?? a.resource_id;
-        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${near} אירועים` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, level: a.level_id ?? null, state: cov.state };
+        return { id: a.id, kind: 'camera' as const, label: near ? `${name} · ${tr('{n} אירועים', { n: near })}` : name, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? undefined, radius: a.coverage_radius ?? undefined, polygon: a.coverage_polygon ? a.coverage_polygon.map(([x, y]) => ({ x, y })) : undefined, labelPos: a.label_pos ?? undefined, level: a.level_id ?? null, state: cov.state };
       }
       const sa = a.entity?.state_at;
       const name = entityName(a);
@@ -1348,14 +1349,14 @@ export class InvestigateHistoryMap extends LitElement {
 
   private renderEntityStates(b: MapBundle) {
     const ents = b.anchors.filter((a) => a.resource_type === 'ha_entity');
-    if (!ents.length) return html`אין ישויות מוצבות בקומה`;
+    if (!ents.length) return html`${tr('אין ישויות מוצבות בקומה')}`;
     const known = ents.filter((a) => a.entity?.state_at?.known);
     const cov = b.haHistory;
-    return html`${known.length} מתוך ${ents.length} ידועות בזמן זה${cov?.from ? html` <span class="note">(היסטוריה מקומית מ־<span class="ltr">${this.fmtWhen(cov.from)}</span>, ${cov.retention_days} ימים)</span>` : html` <span class="note">(אין עדיין היסטוריה מקומית)</span>`}
+    return html`${tr('{n} מתוך {total} ידועות בזמן זה', { n: known.length, total: ents.length })}${cov?.from ? html` <span class="note">${tr('(היסטוריה מקומית מ־')}<span class="ltr">${this.fmtWhen(cov.from)}</span>, ${tr('{n} ימים)', { n: String(cov.retention_days) })}</span>` : html` <span class="note">${tr('(אין עדיין היסטוריה מקומית)')}</span>`}
       <div class="evl" style="margin-block-start:4px">${ents.slice(0, 8).map((a) => {
         const sa = a.entity?.state_at;
         const name = entityName(a);
-        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'} data-source=${sa?.source ?? 'vms'}><span>${name}${sa?.source === 'ha_recorder' ? html` <span class="note" title="המצב מגיע מהיסטוריית המערכת (מקור משני)">· מקור משני</span>` : nothing}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · מ־<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`לא ידוע${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">(אחרון: ${sa.state})</span>` : ''}`}</span></div>`;
+        return html`<div data-history-entity data-known=${sa?.known ? 'true' : 'false'} data-source=${sa?.source ?? 'vms'}><span>${name}${sa?.source === 'ha_recorder' ? html` <span class="note" title=${tr('המצב מגיע מהיסטוריית המערכת (מקור משני)')}>· ${tr('מקור משני')}</span>` : nothing}</span><span class="note">${sa?.known && sa.state ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: sa.state })} · ${tr('מ־')}<span class="ltr">${sa.changed_at ? this.fmt(sa.changed_at) : ''}</span>` : html`${tr('לא ידוע')}${sa?.reason ? ` · ${sa.reason}` : ''}${sa?.state ? html` <span class="ltr">${tr('(אחרון: {state})', { state: sa.state })}</span>` : ''}`}</span></div>`;
       })}</div>`;
   }
 
@@ -1496,59 +1497,59 @@ export class InvestigateHistoryMap extends LitElement {
     const near = x?.eventsOff ? [] : this.eventsNear(undefined, NEAR_MIN);
     const tISO = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
     return html`
-      <sw-card heading="בנקודת הזמן שנבחרה" subheading="זמן ונתונים מאותו רגע" data-history-panel>
+      <sw-card heading=${tr('בנקודת הזמן שנבחרה')} subheading=${tr('זמן ונתונים מאותו רגע')} data-history-panel>
         <dl>
-          <dt>זמן</dt><dd><span class="ltr" data-history-time>${this.date} ${secondLabel(this.minute)}</span> <span class="note">${this.tz}</span></dd>
-          <dt>מצלמה נבחרת</dt><dd data-history-camera>${cam ? cam.camera?.name ?? cam.resource_id : 'לחץ על מצלמה במפה'}</dd>
+          <dt>${tr('זמן')}</dt><dd><span class="ltr" data-history-time>${this.date} ${secondLabel(this.minute)}</span> <span class="note">${this.tz}</span></dd>
+          <dt>${tr('מצלמה נבחרת')}</dt><dd data-history-camera>${cam ? cam.camera?.name ?? cam.resource_id : tr('לחץ על מצלמה במפה')}</dd>
           ${cam
-            ? html`<dt>הקלטה</dt><dd>${recs === undefined ? 'טוען…' : recs === null ? 'לא ניתן לבדוק מול המקליט' : cov?.segment ? html`יש הקלטה · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? 'רציף' : 'תנועה'}` : 'אין הקלטה בזמן זה (פער)'}</dd>
-                <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
+            ? html`<dt>${tr('הקלטה')}</dt><dd>${recs === undefined ? tr('טוען…') : recs === null ? tr('לא ניתן לבדוק מול המקליט') : cov?.segment ? html`${tr('יש הקלטה')} · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? tr('רציף') : tr('תנועה')}` : tr('אין הקלטה בזמן זה (פער)')}</dd>
+                <dt>${tr('אירועים ±5 דק׳')}</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
             : nothing}
-          <dt>התקנים</dt><dd data-history-entities>${x ? x.entities : this.renderEntityStates(b)}</dd>
+          <dt>${tr('התקנים')}</dt><dd data-history-entities>${x ? x.entities : this.renderEntityStates(b)}</dd>
           ${x ? x.rows : nothing}
-          ${cam && this.frameAt ? html`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>אין פריים בהקלטה בזמן זה</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
-          <dt>גרסת תוכנית</dt><dd data-history-plan-version data-history-mode=${b.history ?? 'live'}>${b.history === 'exact' && b.planPublishedAt ? html`בתוקף באותו זמן · פורסמה <span class="ltr">${this.fmtWhen(b.planPublishedAt)}</span>${b.planArchivedAt ? html` · הוחלפה <span class="ltr">${this.fmtWhen(b.planArchivedAt)}</span>` : ''}` : b.historyFrom ? html`המפה הנוכחית · היסטוריית המפה מתחילה <span class="ltr">${this.fmtWhen(b.historyFrom)}</span>` : 'המפה הנוכחית'}</dd>
+          ${cam && this.frameAt ? html`<dt>${tr('פריים')}</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>${tr('אין פריים בהקלטה בזמן זה')}</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt=${tr('פריים מההקלטה בזמן שנבחר')} @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
+          <dt>${tr('גרסת תוכנית')}</dt><dd data-history-plan-version data-history-mode=${b.history ?? 'live'}>${b.history === 'exact' && b.planPublishedAt ? html`${tr('בתוקף באותו זמן · פורסמה')} <span class="ltr">${this.fmtWhen(b.planPublishedAt)}</span>${b.planArchivedAt ? html` · ${tr('הוחלפה')} <span class="ltr">${this.fmtWhen(b.planArchivedAt)}</span>` : ''}` : b.historyFrom ? html`${tr('המפה הנוכחית · היסטוריית המפה מתחילה')} <span class="ltr">${this.fmtWhen(b.historyFrom)}</span>` : tr('המפה הנוכחית')}</dd>
         </dl>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-block-start:10px">
-          ${cam ? html`<sw-button variant="primary" size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: cam.resource_id, t: tISO })}>נגן מכאן</sw-button>` : nothing}
+          ${cam ? html`<sw-button variant="primary" size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: cam.resource_id, t: tISO })}>${tr('נגן מכאן')}</sw-button>` : nothing}
           ${x ? x.actions : nothing}
-          <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!cam} title=${cam ? 'קטע של המצלמה הנבחרת סביב הזמן שנבחר (15 שניות לפני, 45 אחרי)' : 'בחר מצלמה במפה'} @click=${() => { if (cam) this.casePick = { kind: 'clip', camera_id: cam.resource_id, ...clipAround(this.instant) }; }}>הוסף לתיק</sw-button>
+          <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!cam} title=${cam ? tr('קטע של המצלמה הנבחרת סביב הזמן שנבחר (15 שניות לפני, 45 אחרי)') : tr('בחר מצלמה במפה')} @click=${() => { if (cam) this.casePick = { kind: 'clip', camera_id: cam.resource_id, ...clipAround(this.instant) }; }}>${tr('הוסף לתיק')}</sw-button>
         </div>
       </sw-card>
       <sw-case-picker .item=${this.casePick} subheading=${cam ? `${cam.camera?.name ?? cam.resource_id} · ${this.date} ${secondLabel(this.minute)}` : ''} @close=${() => (this.casePick = null)}></sw-case-picker>
-      <sw-card heading="אירועים סביב הזמן" subheading=${`±${NEAR_MIN} דקות · מצלמות הקומה`}>
+      <sw-card heading=${tr('אירועים סביב הזמן')} subheading=${`${tr('±{n} דקות', { n: NEAR_MIN })} · ${tr('מצלמות הקומה')}`}>
         ${near.length
-          ? html`<div class="evl" data-history-events>${near.slice(0, 8).map((e) => html`<a class=${cam && e.camera_id === cam.resource_id ? 'hit' : ''} href=${`#/investigate/events/${e.id}`}><span>${EVENT_LABEL[e.type] ?? e.type} · ${e.camera_name ?? e.channel ?? ''}<div class="s">${e.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מהמקליט'}${e.acked_at ? ' · טופל' : ''}</div></span><span class="ltr">${this.fmt(e.occurred_at)}</span></a>`)}</div>`
-          : html`<div class="note">${x?.eventsOff ?? 'אין אירועים בחלון הזה.'}</div>`}
+          ? html`<div class="evl" data-history-events>${near.slice(0, 8).map((e) => html`<a class=${cam && e.camera_id === cam.resource_id ? 'hit' : ''} href=${`#/investigate/events/${e.id}`}><span>${EVENT_LABEL[e.type] ?? e.type} · ${e.camera_name ?? e.channel ?? ''}<div class="s">${e.confidence === 'inferred' ? tr('נגזר מהקלטה') : tr('התראה מהמקליט')}${e.acked_at ? ` · ${tr('טופל')}` : ''}</div></span><span class="ltr">${this.fmt(e.occurred_at)}</span></a>`)}</div>`
+          : html`<div class="note">${x?.eventsOff ?? tr('אין אירועים בחלון הזה.')}</div>`}
       </sw-card>`;
   }
 
   private renderApi() {
     const b = this.bundle;
-    if (this.error && !b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
-    if (!b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
+    if (this.error && !b) return html`<div class="head lead-head"><h1>${tr('מפה היסטורית')}</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
+    if (!b) return html`<div class="head lead-head"><h1>${tr('מפה היסטורית')}</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
     const sel = this.selectedAnchor;
     const selCamera = sel?.resource_type === 'camera' ? sel.resource_id : null;
     const segs = this.timelineSegments(selCamera);
     const tlEvents: TimelineEvent[] = this.timelineEvents(selCamera);
     return html`
       <div class="head lead-head">
-        <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
+        <div><h1>${tr('המפה בזמן שנבחר')} · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
         <span class="grow"></span>
-        ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
+        ${this.floors.length > 1 ? html`<sw-field><select aria-label=${tr('קומה')} @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
         ${b.imageUrl
-          ? html`<sw-button icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? 'הסתר את תמונת התוכנית' : 'הצג את תמונת התוכנית'} @click=${() => this.setPlanImage(!this.planImage)}>תמונת התוכנית</sw-button>`
+          ? html`<sw-button icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? tr('הסתר את תמונת התוכנית') : tr('הצג את תמונת התוכנית')} @click=${() => this.setPlanImage(!this.planImage)}>${tr('תמונת התוכנית')}</sw-button>`
           : nothing}
         <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
-          title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם בזמן הזה' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+          title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? tr('אין מבנה מפורסם בזמן הזה') : tr('מקש 3')} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
         ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
-        <sw-button icon="live" data-back-live @click=${() => navigate(`/explore/floors/${b.floorId}`)}>חזרה למצב חי</sw-button>
+        <sw-button icon="live" data-back-live @click=${() => navigate(`/explore/floors/${b.floorId}`)}>${tr('חזרה למצב חי')}</sw-button>
       </div>
-      <div class="bar"><sw-icon name="clock" size=${14}></sw-icon><span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>${this.loading ? html`<span class="note">טוען הקלטות ואירועים…</span>` : nothing}</div>
+      <div class="bar"><sw-icon name="clock" size=${14}></sw-icon><span>${tr('מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.')}</span>${this.loading ? html`<span class="note">${tr('טוען הקלטות ואירועים…')}</span>` : nothing}</div>
       <div class="layout">
         <div class="stage">
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-          <div class="hist">מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
+          <div class="hist">${tr('מצב היסטורי')} · <span class="ltr">${secondLabel(this.minute)}</span></div>
           ${this.shows3d && this.sceneDescription
             ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
                 .cameras=${this.camerasOf(b)} exportName=${`plan-3d-${b.floorName}-${this.date}`}
@@ -1558,9 +1559,9 @@ export class InvestigateHistoryMap extends LitElement {
             : nothing}
           <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${this.zonesOf(b)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${this.anchorPositionsOf(b)} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
-          ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
-          ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
-          ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = אין הקלטה / לא ידוע</span><span>התקנים = מצב מההיסטוריה המקומית או לא ידוע</span></div>`}
+          ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>${tr('טוען תלת-ממד…')}</div>` : nothing}
+          ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>${tr('תלת-ממד לא נטען: {error}', { error: this.threeError })}</div>` : nothing}
+          ${this.shows3d ? nothing : html`<div class="legend"><span>${tr('כחול = יש הקלטה בזמן זה')}</span><span>${tr('מקווקו = אין הקלטה / לא ידוע')}</span><span>${tr('התקנים = מצב מההיסטוריה המקומית או לא ידוע')}</span></div>`}
         </div>
         ${this.renderPanel(b)}
       </div>
@@ -1568,10 +1569,10 @@ export class InvestigateHistoryMap extends LitElement {
         <div class="tlbar">
           <sw-badge kind="historic"></sw-badge>
           <span class="time">${this.date} ${secondLabel(this.minute)}</span>
-          <sw-chip @click=${() => this.setMinute(this.minute - 60)}>-1 שעה</sw-chip><sw-chip @click=${() => this.setMinute(this.minute - 5)}>-5 דק׳</sw-chip><sw-chip @click=${() => this.setMinute(this.minute + 5)}>+5 דק׳</sw-chip><sw-chip @click=${() => this.setMinute(this.minute + 60)}>+1 שעה</sw-chip>
+          <sw-chip @click=${() => this.setMinute(this.minute - 60)}>${tr('-1 שעה')}</sw-chip><sw-chip @click=${() => this.setMinute(this.minute - 5)}>${tr('-5 דק׳')}</sw-chip><sw-chip @click=${() => this.setMinute(this.minute + 5)}>${tr('+5 דק׳')}</sw-chip><sw-chip @click=${() => this.setMinute(this.minute + 60)}>${tr('+1 שעה')}</sw-chip>
           <span class="grow"></span>
-          <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
-          <span class="note">${sel?.resource_type === 'camera' ? `ציר הזמן: ${sel.camera?.name ?? ''}` : 'ציר הזמן: כל מצלמות הקומה'}</span>
+          <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label=${tr('תאריך')} @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
+          <span class="note">${sel?.resource_type === 'camera' ? tr('ציר הזמן: {name}', { name: sel.camera?.name ?? '' }) : tr('ציר הזמן: כל מצלמות הקומה')}</span>
         </div>
         <sw-timeline .segments=${segs} .events=${tlEvents} .cursor=${this.minute} .limit=${this.limitMinute} .follow=${false} precision="estimated" @seek=${(e: CustomEvent<{ minute: number }>) => this.setMinute(e.detail.minute)} @scrub=${(e: CustomEvent<{ minute: number }>) => this.setMinute(e.detail.minute)}></sw-timeline>
       </div>
@@ -1715,7 +1716,7 @@ export class InvestigateHistoryMap extends LitElement {
       const code = apiErrorCode(err);
       this.range = null;
       this.rangeKey = '';
-      this.rangeNote = code === 'range_too_large' ? 'יותר מדי שינויים בחלון - בחרו חלון קצר יותר' : code === 'range_too_long' ? 'החלון ארוך מהמותר - בחרו חלון קצר יותר' : `פסי השכבות לא נטענו: ${describeError(err)}`;
+      this.rangeNote = code === 'range_too_large' ? tr('יותר מדי שינויים בחלון - בחרו חלון קצר יותר') : code === 'range_too_long' ? tr('החלון ארוך מהמותר - בחרו חלון קצר יותר') : tr('פסי השכבות לא נטענו: {error}', { error: describeError(err) });
     }
   }
 
@@ -1966,18 +1967,18 @@ export class InvestigateHistoryMap extends LitElement {
     const camIds = (this.bundle?.anchors ?? []).filter((a) => a.resource_type === 'camera').map((a) => a.resource_id);
     const covered = camIds.filter((id) => this.coverageAt(id).state === 'historic').length;
     return html`<div class="lcard" data-history-layers>
-      <div class="lhd"><h2>שכבות</h2><span class="grow"></span>${this.range?.bucket_s ? html`<span class="note">דגימה כל ${Math.max(1, Math.round(this.range.bucket_s / 60))} דק׳</span>` : nothing}</div>
-      <div class="layers" role="group" aria-label="שכבות">
+      <div class="lhd"><h2>${tr('שכבות')}</h2><span class="grow"></span>${this.range?.bucket_s ? html`<span class="note">${tr('דגימה כל {n} דק׳', { n: Math.max(1, Math.round(this.range.bucket_s / 60)) })}</span>` : nothing}</div>
+      <div class="layers" role="group" aria-label=${tr('שכבות')}>
         ${LAYER_IDS.map((id) => {
           const st = status[id];
           const locked = st === 'not_permitted';
           const on = !!this.switches[id] && !locked;
           const s = layerStatusText(st);
           let text = s.text;
-          if (!st) text = this.snapLoading ? '…' : 'לא ידוע';
-          else if (id === 'elevators' && st === 'ok') text = 'מצב בלבד';
-          else if (id === 'cameras' && st === 'ok') text = `${covered} מ־${camIds.length}`;
-          const cov = id === 'cameras' ? '· לפי המקליט' : coverageText(retention[id]);
+          if (!st) text = this.snapLoading ? '…' : tr('לא ידוע');
+          else if (id === 'elevators' && st === 'ok') text = tr('מצב בלבד');
+          else if (id === 'cameras' && st === 'ok') text = tr('{n} מ־{total}', { n: covered, total: camIds.length });
+          const cov = id === 'cameras' ? tr('· לפי המקליט') : coverageText(retention[id]);
           return html`<div class="lyr" data-layer=${id} data-off=${on ? 'false' : 'true'} data-status=${st ?? ''}>
             <button class="sw" type="button" role="switch" aria-checked=${on ? 'true' : 'false'} aria-label=${LAYER_NAME[id]} ?disabled=${locked} @click=${() => this.toggleLayer(id)}></button>
             <span class="nm"><i style=${`background:${LAYER_COLOR[id]}`}></i>${LAYER_NAME[id]}${cov ? html` <span class="cov">${cov}</span>` : nothing}</span>
@@ -1991,11 +1992,11 @@ export class InvestigateHistoryMap extends LitElement {
   private reasonText(reason: string | null): string {
     switch (reason) {
       case 'gap':
-        return 'פער בהקלטה';
+        return tr('פער בהקלטה');
       case 'forward_fill_exceeded':
-        return 'אין שינוי מוקלט קרוב';
+        return tr('אין שינוי מוקלט קרוב');
       case 'before_history':
-        return 'לפני תחילת ההיסטוריה';
+        return tr('לפני תחילת ההיסטוריה');
       default:
         return reason ?? '';
     }
@@ -2009,8 +2010,8 @@ export class InvestigateHistoryMap extends LitElement {
     const known = ents.filter((a) => drawn.states[a.resource_id] !== null && drawn.states[a.resource_id] !== undefined);
     const cov = rep?.coverage ?? this.snapshot?.coverage ?? null;
     const entities = !ents.length
-      ? html`אין ישויות מוצבות בקומה`
-      : html`${known.length} מתוך ${ents.length} ידועות בזמן זה${cov?.from ? html` <span class="note">(היסטוריה מקומית מ־<span class="ltr">${this.fmtWhen(cov.from)}</span>)</span>` : html` <span class="note">(אין עדיין היסטוריה מקומית)</span>`}
+      ? html`${tr('אין ישויות מוצבות בקומה')}`
+      : html`${tr('{n} מתוך {total} ידועות בזמן זה', { n: known.length, total: ents.length })}${cov?.from ? html` <span class="note">${tr('(היסטוריה מקומית מ־')}<span class="ltr">${this.fmtWhen(cov.from)}</span>)</span>` : html` <span class="note">${tr('(אין עדיין היסטוריה מקומית)')}</span>`}
         <div class="evl" style="margin-block-start:4px">${ents.filter((a) => this.scrubVisible(a)).slice(0, 8).map((a) => {
           const layer = this.layerOfAnchor(a);
           const locked = status[layer] === 'not_permitted';
@@ -2018,50 +2019,50 @@ export class InvestigateHistoryMap extends LitElement {
           const e = rep?.entities[a.resource_id];
           const name = entityName(a);
           return html`<div data-history-entity data-known=${s !== null ? 'true' : 'false'} data-layer=${layer}><span>${name}</span><span class="note">${locked
-            ? 'לא מורשה'
+            ? tr('לא מורשה')
             : s !== null
-              ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: s })}${e?.changedAt ? html` · מ־<span class="ltr">${this.fmt(e.changedAt)}</span>` : ''}${e?.changedDuring ? ' · השתנה בתוך הדגימה' : ''}`
-              : html`לא ידוע${e?.reason ? ` · ${this.reasonText(e.reason)}` : ''}`}</span></div>`;
+              ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: s })}${e?.changedAt ? html` · ${tr('מ־')}<span class="ltr">${this.fmt(e.changedAt)}</span>` : ''}${e?.changedDuring ? ` · ${tr('השתנה בתוך הדגימה')}` : ''}`
+              : html`${tr('לא ידוע')}${e?.reason ? ` · ${this.reasonText(e.reason)}` : ''}`}</span></div>`;
         })}</div>`;
     const rk = roomsKnown(b.zones, ents.map((a) => ({ x: a.position.x, y: a.position.y, level_id: a.level_id ?? null, state: drawn.states[a.resource_id] ?? null })), (id) => id ?? this.levelFallback);
     const alarmPanels = Object.entries(rep?.entities ?? {}).filter(([, e]) => e.layer === 'alarm');
     const alarmKnown = alarmPanels.find(([, e]) => e.known && e.state !== null);
     const alarm = status.alarm === 'not_permitted'
-      ? html`<sw-icon name="lock" size=${12}></sw-icon> לא מורשה`
+      ? html`<sw-icon name="lock" size=${12}></sw-icon> ${tr('לא מורשה')}`
       : !this.switches.alarm
-        ? 'השכבה כבויה'
+        ? tr('השכבה כבויה')
         : status.alarm === 'empty'
-          ? 'אין לוח אזעקה בקומה'
+          ? tr('אין לוח אזעקה בקומה')
           : alarmKnown
-            ? html`${stateLabel({ domain: 'alarm_control_panel', unit: null, device_class: null, attributes: {}, state: alarmKnown[1].state })}${alarmKnown[1].changedAt ? html` · מ־<span class="ltr">${this.fmt(alarmKnown[1].changedAt)}</span>` : ''}`
-            : 'לא ידוע';
+            ? html`${stateLabel({ domain: 'alarm_control_panel', unit: null, device_class: null, attributes: {}, state: alarmKnown[1].state })}${alarmKnown[1].changedAt ? html` · ${tr('מ־')}<span class="ltr">${this.fmt(alarmKnown[1].changedAt)}</span>` : ''}`
+            : tr('לא ידוע');
     const elevItems = Object.entries(rep?.elevators ?? {});
     const showElev = status.elevators !== undefined && status.elevators !== 'empty';
     const elevators = status.elevators === 'not_permitted'
-      ? html`<sw-icon name="lock" size=${12}></sw-icon> לא מורשה`
+      ? html`<sw-icon name="lock" size=${12}></sw-icon> ${tr('לא מורשה')}`
       : !this.switches.elevators
-        ? 'השכבה כבויה'
-        : html`<div class="elev">${elevItems.length ? elevItems.map(([id, it]) => html`<sw-chip data-elevator=${id}>${it.name} · ${it.known && it.state ? ELEVATOR_STATE[it.state] ?? it.state : 'לא ידוע'}</sw-chip>`) : html`<span>לא ידוע</span>`}</div><div class="note">מיקום התא לא מוקלט</div>`;
+        ? tr('השכבה כבויה')
+        : html`<div class="elev">${elevItems.length ? elevItems.map(([id, it]) => html`<sw-chip data-elevator=${id}>${it.name} · ${it.known && it.state ? ELEVATOR_STATE[it.state] ?? it.state : tr('לא ידוע')}</sw-chip>`) : html`<span>${tr('לא ידוע')}</span>`}</div><div class="note">${tr('מיקום התא לא מוקלט')}</div>`;
     const rows = html`
-      <dt>חדרים</dt><dd data-history-rooms>${rk.total ? `${rk.known} מתוך ${rk.total} ידועים` : 'אין חדרים מסומנים בקומה'}</dd>
-      <dt>אזעקה</dt><dd data-history-alarm>${alarm}</dd>
-      ${showElev ? html`<dt>מעליות</dt><dd data-history-elevators>${elevators}</dd>` : nothing}`;
+      <dt>${tr('חדרים')}</dt><dd data-history-rooms>${rk.total ? tr('{n} מתוך {total} ידועים', { n: rk.known, total: rk.total }) : tr('אין חדרים מסומנים בקומה')}</dd>
+      <dt>${tr('אזעקה')}</dt><dd data-history-alarm>${alarm}</dd>
+      ${showElev ? html`<dt>${tr('מעליות')}</dt><dd data-history-elevators>${elevators}</dd>` : nothing}`;
     const camsLocked = status.cameras === 'not_permitted';
     const snapCams = this.snapshot?.layers.cameras?.camera_ids;
     const camIds = camsLocked || !this.switches.cameras ? [] : (snapCams && snapCams.length ? snapCams : b.anchors.filter((a) => a.resource_type === 'camera').map((a) => a.resource_id));
     const tISO = isoZ(this.instant);
     // the synchronized playback of the floor's cameras at the instant: the playback screen with its `extra` cameras (the
     // sync screen #/investigate/playback/sync reads no query parameters today); up to four cameras play together
-    const actions = html`<sw-button size="sm" icon="camera" data-history-all-cameras ?disabled=${!camIds.length} title=${camIds.length > 4 ? 'ארבע המצלמות הראשונות של הקומה' : 'כל מצלמות הקומה מהזמן שנבחר'}
-      @click=${() => { if (camIds.length) navigate('/investigate/playback', { camera: camIds[0], t: tISO, ...(camIds.length > 1 ? { extra: camIds.slice(1, 4).join(',') } : {}) }); }}>כל מצלמות הקומה מכאן</sw-button>`;
-    const eventsOff = status.events === 'not_permitted' ? 'לא מורשה' : !this.switches.events ? 'השכבה כבויה' : null;
+    const actions = html`<sw-button size="sm" icon="camera" data-history-all-cameras ?disabled=${!camIds.length} title=${camIds.length > 4 ? tr('ארבע המצלמות הראשונות של הקומה') : tr('כל מצלמות הקומה מהזמן שנבחר')}
+      @click=${() => { if (camIds.length) navigate('/investigate/playback', { camera: camIds[0], t: tISO, ...(camIds.length > 1 ? { extra: camIds.slice(1, 4).join(',') } : {}) }); }}>${tr('כל מצלמות הקומה מכאן')}</sw-button>`;
+    const eventsOff = status.events === 'not_permitted' ? tr('לא מורשה') : !this.switches.events ? tr('השכבה כבויה') : null;
     return { entities, rows, actions, eventsOff };
   }
 
   private renderScrub() {
     const b = this.bundle;
-    if (this.error && !b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
-    if (!b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
+    if (this.error && !b) return html`<div class="head lead-head"><h1>${tr('מפה היסטורית')}</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
+    if (!b) return html`<div class="head lead-head"><h1>${tr('מפה היסטורית')}</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
     const sel = this.selectedAnchor;
     const rep = this.replay;
     const status = this.layerStatus;
@@ -2089,33 +2090,33 @@ export class InvestigateHistoryMap extends LitElement {
     const parts = this.scrubPanelParts(b, rep, status);
     return html`
       <div class="head lead-head">
-        <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${when}</span> · ${this.tz}</div></div>
+        <div><h1>${tr('המפה בזמן שנבחר')} · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${when}</span> · ${this.tz}</div></div>
         <span class="grow"></span>
         <div class="acts-h">
-          ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
+          ${this.floors.length > 1 ? html`<sw-field><select aria-label=${tr('קומה')} @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
           ${b.imageUrl
-            ? html`<sw-button icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? 'הסתר את תמונת התוכנית' : 'הצג את תמונת התוכנית'} @click=${() => this.setPlanImage(!this.planImage)}><span class="lbl">תמונת התוכנית</span></sw-button>`
+            ? html`<sw-button icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? tr('הסתר את תמונת התוכנית') : tr('הצג את תמונת התוכנית')} @click=${() => this.setPlanImage(!this.planImage)}><span class="lbl">${tr('תמונת התוכנית')}</span></sw-button>`
             : nothing}
           <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
-            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם בזמן הזה' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? tr('אין מבנה מפורסם בזמן הזה') : tr('מקש 3')} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
           ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
-          <sw-button icon="live" data-back-live title="חזרה למצב חי" @click=${() => navigate(`/explore/floors/${b.floorId}`)}><span class="lbl">חזרה למצב חי</span></sw-button>
-          <sw-button class="details-btn" icon="inbox" data-history-details title="פרטים" aria-expanded=${this.detailsOpen ? 'true' : 'false'} @click=${() => (this.detailsOpen = !this.detailsOpen)}>פרטים</sw-button>
+          <sw-button icon="live" data-back-live title=${tr('חזרה למצב חי')} @click=${() => navigate(`/explore/floors/${b.floorId}`)}><span class="lbl">${tr('חזרה למצב חי')}</span></sw-button>
+          <sw-button class="details-btn" icon="inbox" data-history-details title=${tr('פרטים')} aria-expanded=${this.detailsOpen ? 'true' : 'false'} @click=${() => (this.detailsOpen = !this.detailsOpen)}>${tr('פרטים')}</sw-button>
         </div>
       </div>
       <div class="bar">
         <sw-icon name="clock" size=${14}></sw-icon>
-        <span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>
+        <span>${tr('מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.')}</span>
         <span class="grow"></span>
         ${this.rangeNote ? html`<span class="pill warn" data-history-range-note>${this.rangeNote}</span>` : nothing}
         ${this.mode === 'play'
-          ? html`<span class="pill" data-history-mode="play">ניגון · <span class="ltr">${this.fmtHm(winFrom)}–${this.fmtHm(Math.min(winTo, limitMs))}</span>${this.range?.bucket_s ? ` · דגימה כל ${Math.max(1, Math.round(this.range.bucket_s / 60))} דק׳` : ''}</span>`
-          : html`<span class="pill" data-history-mode="snapshot">רגע אחד</span>`}
+          ? html`<span class="pill" data-history-mode="play">${tr('ניגון')} · <span class="ltr">${this.fmtHm(winFrom)}–${this.fmtHm(Math.min(winTo, limitMs))}</span>${this.range?.bucket_s ? ` · ${tr('דגימה כל {n} דק׳', { n: Math.max(1, Math.round(this.range.bucket_s / 60)) })}` : ''}</span>`
+          : html`<span class="pill" data-history-mode="snapshot">${tr('רגע אחד')}</span>`}
       </div>
       <div class="layout ts">
         <div class="stage">
           <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-          <div class="hist ${gap ? 'gap' : ''}" data-history-tag>מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
+          <div class="hist ${gap ? 'gap' : ''}" data-history-tag>${tr('מצב היסטורי')} · <span class="ltr">${secondLabel(this.minute)}</span></div>
           ${this.shows3d && this.sceneDescription
             ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
                 .cameras=${this.camerasOf(b)} exportName=${`plan-3d-${b.floorName}-${this.date}`}
@@ -2125,21 +2126,21 @@ export class InvestigateHistoryMap extends LitElement {
             : nothing}
           <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.scrubMarkers} .selectedId=${this.selectedId} .zones=${this.zonesOf(b)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${this.anchorPositionsOf(b)} .entityStates=${drawn.states} .roomStates=${layer} dimEntities
             @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
-          ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
-          ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
-          ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה</span><span>מקווקו = לא ידוע / לא מוקלט</span><span>צהוב = מואר</span><span>כחול בהיר = נוכחות</span></div>`}
-          ${gap ? html`<div class="gapbar" data-history-gap role="status"><sw-icon name="warning" size=${14}></sw-icon><span>פער בהקלטה <span class="ltr">${this.fmtHm(Date.parse(gap.from))}–${this.fmtHm(Date.parse(gap.to))}</span> — המערכת לא הייתה מחוברת. מצבי ההתקנים לא ידועים, המצלמות לפי המקליט.</span></div>` : nothing}
-          ${this.snapLoading && !rep && !this.snapError ? html`<div class="cover" data-history-loading><sw-state-panel state="loading" heading="טוען את מצב הקומה…" hint="היסטוריה מקומית, הקלטות ואירועים."></sw-state-panel></div>` : nothing}
-          ${this.snapError && !rep ? html`<div class="cover" data-history-error><sw-state-panel state="error" heading="לא ניתן לטעון את המצב ההיסטורי" hint="המפה הנוכחית מוצגת ללא מצבים. נסו שוב." actionLabel="ניסיון חוזר" @action=${() => { this.snapshot = null; void this.fetchSnapshot(); }}></sw-state-panel></div>` : nothing}
+          ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>${tr('טוען תלת-ממד…')}</div>` : nothing}
+          ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>${tr('תלת-ממד לא נטען: {error}', { error: this.threeError })}</div>` : nothing}
+          ${this.shows3d ? nothing : html`<div class="legend"><span>${tr('כחול = יש הקלטה')}</span><span>${tr('מקווקו = לא ידוע / לא מוקלט')}</span><span>${tr('צהוב = מואר')}</span><span>${tr('כחול בהיר = נוכחות')}</span></div>`}
+          ${gap ? html`<div class="gapbar" data-history-gap role="status"><sw-icon name="warning" size=${14}></sw-icon><span>${tr('פער בהקלטה')} <span class="ltr">${this.fmtHm(Date.parse(gap.from))}–${this.fmtHm(Date.parse(gap.to))}</span> — ${tr('המערכת לא הייתה מחוברת. מצבי ההתקנים לא ידועים, המצלמות לפי המקליט.')}</span></div>` : nothing}
+          ${this.snapLoading && !rep && !this.snapError ? html`<div class="cover" data-history-loading><sw-state-panel state="loading" heading=${tr('טוען את מצב הקומה…')} hint=${tr('היסטוריה מקומית, הקלטות ואירועים.')}></sw-state-panel></div>` : nothing}
+          ${this.snapError && !rep ? html`<div class="cover" data-history-error><sw-state-panel state="error" heading=${tr('לא ניתן לטעון את המצב ההיסטורי')} hint=${tr('המפה הנוכחית מוצגת ללא מצבים. נסו שוב.')} actionLabel=${tr('ניסיון חוזר')} @action=${() => { this.snapshot = null; void this.fetchSnapshot(); }}></sw-state-panel></div>` : nothing}
           ${noHistory && !this.snapLoading && !this.playing
-            ? html`<div class="cover" data-history-none><sw-state-panel icon="history" state="empty" heading="אין עדיין היסטוריה לקומה הזאת" hint=${historyFrom !== null ? `ההיסטוריה המקומית מתחילה ${this.fmtWhen(coverage!.from!)}. לפני כן מוצגת התוכנית בלבד, ההקלטות לפי המקליט.` : 'לפני תחילת ההיסטוריה המקומית מוצגת התוכנית בלבד, ההקלטות לפי המקליט.'}
-                actionLabel=${historyFrom !== null && historyFrom > tMs ? 'לרגע הראשון המוקלט' : ''} @action=${() => { if (historyFrom !== null) this.goTo(historyFrom); }}></sw-state-panel></div>`
+            ? html`<div class="cover" data-history-none><sw-state-panel icon="history" state="empty" heading=${tr('אין עדיין היסטוריה לקומה הזאת')} hint=${historyFrom !== null ? tr('ההיסטוריה המקומית מתחילה {time}. לפני כן מוצגת התוכנית בלבד, ההקלטות לפי המקליט.', { time: this.fmtWhen(coverage!.from!) }) : tr('לפני תחילת ההיסטוריה המקומית מוצגת התוכנית בלבד, ההקלטות לפי המקליט.')}
+                actionLabel=${historyFrom !== null && historyFrom > tMs ? tr('לרגע הראשון המוקלט') : ''} @action=${() => { if (historyFrom !== null) this.goTo(historyFrom); }}></sw-state-panel></div>`
             : nothing}
         </div>
         <div class="panel">
           ${this.renderLayers(status, retention)}
           <div class="details ${this.detailsOpen ? 'open' : ''}" data-history-details-sheet>
-            <div class="sheet-hd"><span>פרטים</span><span class="grow"></span><sw-button size="sm" @click=${() => (this.detailsOpen = false)}>סגירה</sw-button></div>
+            <div class="sheet-hd"><span>${tr('פרטים')}</span><span class="grow"></span><sw-button size="sm" @click=${() => (this.detailsOpen = false)}>${tr('סגירה')}</sw-button></div>
             ${this.panelCards(b, parts)}
           </div>
         </div>
@@ -2148,19 +2149,19 @@ export class InvestigateHistoryMap extends LitElement {
         <div class="tlrow">
           <sw-badge kind="historic"></sw-badge>
           <span class="time" data-history-time-bar>${when}</span>
-          <div class="seg" role="group" aria-label="אופן">
-            <button type="button" aria-pressed=${this.mode === 'snapshot' ? 'true' : 'false'} data-mode="snapshot" @click=${() => this.setMode('snapshot')}>רגע אחד</button>
-            <button type="button" aria-pressed=${this.mode === 'play' ? 'true' : 'false'} data-mode="play" @click=${() => this.setMode('play')}>ניגון תקופה</button>
+          <div class="seg" role="group" aria-label=${tr('אופן')}>
+            <button type="button" aria-pressed=${this.mode === 'snapshot' ? 'true' : 'false'} data-mode="snapshot" @click=${() => this.setMode('snapshot')}>${tr('רגע אחד')}</button>
+            <button type="button" aria-pressed=${this.mode === 'play' ? 'true' : 'false'} data-mode="play" @click=${() => this.setMode('play')}>${tr('ניגון תקופה')}</button>
           </div>
           ${this.mode === 'play'
-            ? html`<button type="button" class="play" data-play aria-label=${this.playing ? 'השהיה' : 'ניגון'} aria-pressed=${this.playing ? 'true' : 'false'} @click=${() => this.togglePlay()}><sw-icon name=${this.playing ? 'pause' : 'play'} size=${18}></sw-icon></button>
-              <div class="seg speed" role="group" aria-label="מהירות">${SPEEDS.map((s) => html`<button type="button" data-speed=${s} aria-pressed=${this.speed === s ? 'true' : 'false'} @click=${() => (this.speed = s)}>×${s}</button>`)}</div>`
+            ? html`<button type="button" class="play" data-play aria-label=${this.playing ? tr('השהיה') : tr('ניגון')} aria-pressed=${this.playing ? 'true' : 'false'} @click=${() => this.togglePlay()}><sw-icon name=${this.playing ? 'pause' : 'play'} size=${18}></sw-icon></button>
+              <div class="seg speed" role="group" aria-label=${tr('מהירות')}>${SPEEDS.map((s) => html`<button type="button" data-speed=${s} aria-pressed=${this.speed === s ? 'true' : 'false'} @click=${() => (this.speed = s)}>×${s}</button>`)}</div>`
             : nothing}
-          <sw-chip data-step="-60" @click=${() => this.setMinute(this.minute - 60)}>-1 שעה</sw-chip><sw-chip data-step="-5" @click=${() => this.setMinute(this.minute - 5)}>-5 דק׳</sw-chip><sw-chip data-step="5" @click=${() => this.setMinute(this.minute + 5)}>+5 דק׳</sw-chip><sw-chip data-step="60" @click=${() => this.setMinute(this.minute + 60)}>+1 שעה</sw-chip>
+          <sw-chip data-step="-60" @click=${() => this.setMinute(this.minute - 60)}>${tr('-1 שעה')}</sw-chip><sw-chip data-step="-5" @click=${() => this.setMinute(this.minute - 5)}>${tr('-5 דק׳')}</sw-chip><sw-chip data-step="5" @click=${() => this.setMinute(this.minute + 5)}>${tr('+5 דק׳')}</sw-chip><sw-chip data-step="60" @click=${() => this.setMinute(this.minute + 60)}>${tr('+1 שעה')}</sw-chip>
           <span class="grow"></span>
-          <div class="seg win" role="group" aria-label="חלון">${SCRUB_WINDOWS.map((w) => html`<button type="button" data-window=${w.minutes} aria-pressed=${this.winMinutes === w.minutes ? 'true' : 'false'} @click=${() => this.setWindow(w.minutes)}>${w.label}</button>`)}</div>
-          <span class="dateq"><sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} min=${minDate ?? ''} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field></span>
-          ${this.mode === 'play' ? html`<span class="note keys"><span class="kbd">רווח</span> ניגון · <span class="kbd">←</span><span class="kbd">→</span> צעד</span>` : nothing}
+          <div class="seg win" role="group" aria-label=${tr('חלון')}>${SCRUB_WINDOWS.map((w) => html`<button type="button" data-window=${w.minutes} aria-pressed=${this.winMinutes === w.minutes ? 'true' : 'false'} @click=${() => this.setWindow(w.minutes)}>${w.label}</button>`)}</div>
+          <span class="dateq"><sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} min=${minDate ?? ''} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label=${tr('תאריך')} @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field></span>
+          ${this.mode === 'play' ? html`<span class="note keys"><span class="kbd">${tr('רווח')}</span> ${tr('ניגון')} · <span class="kbd">←</span><span class="kbd">→</span> ${tr('צעד')}</span>` : nothing}
         </div>
         <div class="track">
           <sw-history-lanes .lanes=${lanes} .gaps=${gaps} .from=${winFrom} .to=${winTo} .cursor=${cursorMs} .limit=${limitMs < winTo ? limitMs : null} @seek=${(e: CustomEvent<{ ms: number }>) => this.setMinute(this.minuteOfMs(e.detail.ms))}></sw-history-lanes>
@@ -2186,21 +2187,21 @@ export class InvestigateHistoryMap extends LitElement {
     const floor = demoFloors.find((f) => f.id === this.floorId) ?? demoFloors[0];
     return html`
       <div class="head lead-head">
-        <div><h1>מפה היסטורית · ${bidi(floor.name)}</h1><div class="sub">מצב המפה בזמן נבחר · פעולות פיזיות כבויות בחקירה · נתוני הדגמה</div></div>
+        <div><h1>${tr('מפה היסטורית')} · ${bidi(floor.name)}</h1><div class="sub">${tr('מצב המפה בזמן נבחר · פעולות פיזיות כבויות בחקירה · נתוני הדגמה')}</div></div>
         <span class="grow"></span>
-        <a href="#/explore/floors/${floor.id}"><sw-button icon="live">חזרה ל־Live</sw-button></a>
+        <a href="#/explore/floors/${floor.id}"><sw-button icon="live">${tr('חזרה ל־Live')}</sw-button></a>
       </div>
       <div class="bar">
         <sw-badge kind="historic"></sw-badge>
         <span class="time">2026-09-14 ${minuteLabel(this.minute)}</span>
-        <input type="range" min="0" max="1439" .value=${String(this.minute)} @input=${(e: Event) => (this.minute = Number((e.target as HTMLInputElement).value))} aria-label="זמן" />
-        <sw-chip @click=${() => (this.minute = Math.max(0, this.minute - 60))}>-1 שעה</sw-chip><sw-chip @click=${() => (this.minute = Math.min(1439, this.minute + 60))}>+1 שעה</sw-chip>
+        <input type="range" min="0" max="1439" .value=${String(this.minute)} @input=${(e: Event) => (this.minute = Number((e.target as HTMLInputElement).value))} aria-label=${tr('זמן')} />
+        <sw-chip @click=${() => (this.minute = Math.max(0, this.minute - 60))}>${tr('-1 שעה')}</sw-chip><sw-chip @click=${() => (this.minute = Math.min(1439, this.minute + 60))}>${tr('+1 שעה')}</sw-chip>
         <span class="grow"></span>
-        <span style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">גרסת מפה 3 (תקפה מ־01.09)</span>
+        <span style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">${tr('גרסת מפה 3 (תקפה מ־01.09)')}</span>
       </div>
       <div class="stage alone">
         <sw-plan-canvas .planWidth=${floor.planWidth} .planHeight=${floor.planHeight} .plan=${demoPlan(floor.id)} .markers=${this.demoMarkers}></sw-plan-canvas>
-        <div class="legend"><span>כחול = יש הקלטה בזמן זה</span><span>מקווקו = לא ידוע / פער</span><span>ישות: מצב ידוע אחרון</span></div>
+        <div class="legend"><span>${tr('כחול = יש הקלטה בזמן זה')}</span><span>${tr('מקווקו = לא ידוע / פער')}</span><span>${tr('ישות: מצב ידוע אחרון')}</span></div>
       </div>
     `;
   }

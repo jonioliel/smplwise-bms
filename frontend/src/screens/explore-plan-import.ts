@@ -19,8 +19,9 @@ import { getDxfEntities, importDxfGeometry, type DetectResult, type DxfEntities,
 import { stashDxfCandidates } from '../map/candidates';
 import type { PlanAsset, PlanVersion } from '../api/types';
 import { dayTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/media';
 
-const STEPS = ['קובץ', 'עמוד', 'חיתוך וסיבוב', 'שם והערות', 'שמירה ופרסום'];
+const STEPS = [tr('קובץ'), tr('עמוד'), tr('חיתוך וסיבוב'), tr('שם והערות'), tr('שמירה ופרסום')];
 
 /** T086: a refused DXF mapping call, in the screen's words (code from ApiError; the server's own Hebrew otherwise). */
 interface DxfMapError {
@@ -35,19 +36,19 @@ function dxfMapError(err: unknown, action: 'load' | 'import'): DxfMapError {
   const list = (k: string) => (Array.isArray(d?.[k]) ? (d?.[k] as unknown[]).map(String).join(', ') : '');
   switch (err.code) {
     case 'dxf_timeout': {
-      const s = typeof d?.timeout_s === 'number' ? ` (${d.timeout_s} שנ׳)` : '';
-      return { code: err.code, text: action === 'load' ? `קריאת השרטוט לא הסתיימה בזמן${s}. נסה שוב.` : `הייבוא לא הסתיים בזמן${s}. נסה שוב, או מפה פחות שכבות (סמן "התעלם" לשכבות שאינן מבנה).`, retry: true };
+      const s = typeof d?.timeout_s === 'number' ? tr(' ({timeout_s} שנ׳)', { timeout_s: d.timeout_s }) : '';
+      return { code: err.code, text: action === 'load' ? tr('קריאת השרטוט לא הסתיימה בזמן{s}. נסה שוב.', { s }) : tr('הייבוא לא הסתיים בזמן{s}. נסה שוב, או מפה פחות שכבות (סמן "התעלם" לשכבות שאינן מבנה).', { s }), retry: true };
     }
     case 'unknown_item':
-      return { code: err.code, text: `פריט שנבחר לבלוק לא קיים בספרייה${list('items') ? `: ${list('items')}` : ''}. בחר פריט אחר (או "עצם כללי") ונסה שוב.`, retry: false };
+      return { code: err.code, text: tr('פריט שנבחר לבלוק לא קיים בספרייה{list}. בחר פריט אחר (או "עצם כללי") ונסה שוב.', { list: list('items') ? `: ${list('items')}` : '' }), retry: false };
     case 'unknown_layer':
-      return { code: err.code, text: `שכבה במיפוי לא קיימת בקובץ${list('unknown') ? `: ${list('unknown')}` : ''}. המיפוי נטען מחדש מהשרטוט.`, retry: false };
+      return { code: err.code, text: tr('שכבה במיפוי לא קיימת בקובץ{list}. המיפוי נטען מחדש מהשרטוט.', { list: list('unknown') ? `: ${list('unknown')}` : '' }), retry: false };
     case 'no_layers':
-      return { code: err.code, text: 'יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").', retry: false };
+      return { code: err.code, text: tr('יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").'), retry: false };
     case 'not_dxf':
-      return { code: err.code, text: 'הגרסה השמורה לא נוצרה מקובץ DXF, ולכן אין מה למפות.', retry: false };
+      return { code: err.code, text: tr('הגרסה השמורה לא נוצרה מקובץ DXF, ולכן אין מה למפות.'), retry: false };
     case 'dxf_unitless':
-      return { code: err.code, text: 'לקובץ אין יחידות: בחר יחידות בכרטיס "DXF · שכבות, יחידות וקנה מידה" לפני הייבוא.', retry: false };
+      return { code: err.code, text: tr('לקובץ אין יחידות: בחר יחידות בכרטיס "DXF · שכבות, יחידות וקנה מידה" לפני הייבוא.'), retry: false };
     default:
       return { code: err.code || 'failed', text: describeError(err), retry: !!err.body.retryable };
   }
@@ -531,7 +532,7 @@ export class ExplorePlanImport extends LitElement {
     if (!v || !ent || this.importing) return;
     const body = this.importBody(ent);
     if (!Object.keys(body.layer_map).length) {
-      this.dxfMapErr = { code: 'no_layers', text: 'יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").', retry: false, action: 'import' };
+      this.dxfMapErr = { code: 'no_layers', text: tr('יש למפות לפחות שכבה אחת (יעד שאינו "התעלם").'), retry: false, action: 'import' };
       return;
     }
     // a re-render, a new version or another asset during the request makes its answer stale (resetDxfMap / applyDxf bump it)
@@ -635,18 +636,18 @@ export class ExplorePlanImport extends LitElement {
     const skipped = Object.entries(d.render?.skipped ?? d.info.unsupported);
     const m = d.render?.meters_per_px;
     const unitsKnown = d.render?.units && d.render.units !== 'unitless';
-    return html`<sw-card heading="DXF · שכבות, יחידות וקנה מידה" subheading=${`${d.adapter.library} (${d.adapter.license}) · המקור נשמר כפי שהועלה; התצוגה נגזרת ממנו`} data-dxf>
-      <div class="note">גרסה ${d.info.version} · יחידות בקובץ: <strong data-dxf-units>${d.info.units}</strong>${ext ? html` · היקף ${ext.width.toFixed(0)} × ${ext.height.toFixed(0)} יחידות` : nothing}${unitsKnown && ext && m ? html` · כ־${((ext.width * (m * (d.render!.px_per_unit))) ).toFixed(1)} × ${((ext.height * (m * (d.render!.px_per_unit)))).toFixed(1)} מ׳` : nothing}</div>
-      <div class="note">ישויות: ${Object.entries(d.info.entity_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
-      ${skipped.length ? html`<div class="err" data-dxf-partial>המרה חלקית: ${skipped.map(([k, v]) => `${v} × ${k}`).join(', ')} לא מצוירים (טקסטים, מילויים, מידות וגופים תלת־ממדיים אינם מומרים). הדבר יוצג גם על הגרסה.</div>` : html`<div class="note">כל הישויות בקובץ מצוירות.</div>`}
-      <div class="note" style="margin-block-start:6px">שכבות (${chosen.length} מתוך ${all.length}):</div>
+    return html`<sw-card heading=${tr('DXF · שכבות, יחידות וקנה מידה')} subheading=${tr('{library} ({license}) · המקור נשמר כפי שהועלה; התצוגה נגזרת ממנו', { library: d.adapter.library, license: d.adapter.license })} data-dxf>
+      <div class="note">${tr('גרסה {version} · יחידות בקובץ:', { version: d.info.version })} <strong data-dxf-units>${d.info.units}</strong>${ext ? html` · ${tr('היקף {w} × {h} יחידות', { w: ext.width.toFixed(0), h: ext.height.toFixed(0) })}` : nothing}${unitsKnown && ext && m ? html` · ${tr('כ־{w} × {h} מ׳', { w: ((ext.width * (m * (d.render!.px_per_unit))) ).toFixed(1), h: ((ext.height * (m * (d.render!.px_per_unit)))).toFixed(1) })}` : nothing}</div>
+      <div class="note">${tr('ישויות:')} ${Object.entries(d.info.entity_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
+      ${skipped.length ? html`<div class="err" data-dxf-partial>${tr('המרה חלקית: {list} לא מצוירים (טקסטים, מילויים, מידות וגופים תלת־ממדיים אינם מומרים). הדבר יוצג גם על הגרסה.', { list: skipped.map(([k, v]) => `${v} × ${k}`).join(', ') })}</div>` : html`<div class="note">${tr('כל הישויות בקובץ מצוירות.')}</div>`}
+      <div class="note" style="margin-block-start:6px">${tr('שכבות ({n} מתוך {total}):', { n: chosen.length, total: all.length })}</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px 12px">${d.info.layers.map((l) => html`<label style="display:flex;gap:6px;align-items:center;font-size:var(--sw-fs-sm)"><input type="checkbox" data-dxf-layer=${l.name} .checked=${chosen.includes(l.name)} ?disabled=${l.drawable === 0} @change=${() => this.toggleDxfLayer(l.name)} /> <span class="ltr">${l.name}</span> <span class="note">(${l.drawable})</span></label>`)}</div>
       <div class="row" style="margin-block-start:8px;align-items:center;gap:8px">
-        <sw-field label="יחידות השרטוט"><select data-dxf-units-select @change=${(e: Event) => (this.dxfUnits = (e.target as HTMLSelectElement).value || null)}><option value="" ?selected=${!this.dxfUnits}>לפי הקובץ (${d.info.units})</option>${d.units_choices.map((u) => html`<option value=${u} ?selected=${this.dxfUnits === u}>${u}</option>`)}</select></sw-field>
-        <sw-button size="sm" variant="primary" data-dxf-apply ?disabled=${this.dxfBusy || chosen.length === 0} @click=${() => this.applyDxf()}>החל ורנדר מחדש</sw-button>
+        <sw-field label=${tr('יחידות השרטוט')}><select data-dxf-units-select @change=${(e: Event) => (this.dxfUnits = (e.target as HTMLSelectElement).value || null)}><option value="" ?selected=${!this.dxfUnits}>${tr('לפי הקובץ ({units})', { units: d.info.units })}</option>${d.units_choices.map((u) => html`<option value=${u} ?selected=${this.dxfUnits === u}>${u}</option>`)}</select></sw-field>
+        <sw-button size="sm" variant="primary" data-dxf-apply ?disabled=${this.dxfBusy || chosen.length === 0} @click=${() => this.applyDxf()}>${tr('החל ורנדר מחדש')}</sw-button>
       </div>
-      ${d.render ? html`<div class="note" style="margin-block-start:6px" data-dxf-render>רונדר: ${d.render.width}×${d.render.height} px · ${d.render.rendered} ישויות מ־${d.render.layers.length} שכבות${m ? ` · ${(m * 100).toFixed(2)} ס״מ לפיקסל (מיחידות ${d.render.units}; ייכנס לגרסה כקנה מידה)` : ' · קנה מידה לא ידוע: הקובץ ללא יחידות, בחר יחידות או כייל מאוחר יותר'}</div>` : nothing}
-      <div class="note">DWG אינו נתמך (פורמט סגור) — יש להמיר ל־DXF לפני הייבוא.</div>
+      ${d.render ? html`<div class="note" style="margin-block-start:6px" data-dxf-render>${tr('רונדר: {w}×{h} px · {n} ישויות מ־{layers} שכבות', { w: d.render.width, h: d.render.height, n: d.render.rendered, layers: d.render.layers.length })}${m ? tr(' · {cm} ס״מ לפיקסל (מיחידות {units}; ייכנס לגרסה כקנה מידה)', { cm: (m * 100).toFixed(2), units: d.render.units }) : tr(' · קנה מידה לא ידוע: הקובץ ללא יחידות, בחר יחידות או כייל מאוחר יותר')}</div>` : nothing}
+      <div class="note">${tr('DWG אינו נתמך (פורמט סגור) — יש להמיר ל־DXF לפני הייבוא.')}</div>
     </sw-card>`;
   }
 
@@ -660,14 +661,14 @@ export class ExplorePlanImport extends LitElement {
     const busy = this.dxfEntLoading || this.importing;
     const errLine = err
       ? html`<div class="err" role="alert" data-dxf-map-error=${err.code}>${err.text}${err.retry
-          ? html` <sw-button size="sm" variant="ghost" icon="refresh" data-dxf-retry ?disabled=${busy} @click=${() => (err.action === 'load' ? void this.loadDxfEntities(a.id) : void this.importDxf())}>נסה שוב</sw-button>`
+          ? html` <sw-button size="sm" variant="ghost" icon="refresh" data-dxf-retry ?disabled=${busy} @click=${() => (err.action === 'load' ? void this.loadDxfEntities(a.id) : void this.importDxf())}>${tr('נסה שוב')}</sw-button>`
           : nothing}</div>`
       : nothing;
-    const heading = 'DXF · מיפוי שכבות ובלוקים למבנה';
-    const sub = 'שכבות → קירות / דלתות / חלונות / עצמים / חדרים; בלוקים → פריטי ספרייה. התוצאה נכנסת לעורך כמועמדים, לא לטיוטה';
+    const heading = tr('DXF · מיפוי שכבות ובלוקים למבנה');
+    const sub = tr('שכבות → קירות / דלתות / חלונות / עצמים / חדרים; בלוקים → פריטי ספרייה. התוצאה נכנסת לעורך כמועמדים, לא לטיוטה');
     if (!ent)
       return html`<sw-card heading=${heading} subheading=${sub} data-dxf-map aria-busy=${busy ? 'true' : 'false'}>
-        ${this.dxfEntLoading ? html`<div class="note" data-dxf-map-loading>קורא את השכבות והבלוקים של השרטוט…</div>` : nothing}${errLine}
+        ${this.dxfEntLoading ? html`<div class="note" data-dxf-map-loading>${tr('קורא את השכבות והבלוקים של השרטוט…')}</div>` : nothing}${errLine}
       </sw-card>`;
     const unitless = ent.metres_per_unit === null;
     const mapped = Object.values(this.layerMap).filter((t) => t !== 'ignore').length;
@@ -676,21 +677,21 @@ export class ExplorePlanImport extends LitElement {
     const r = this.imported;
     return html`<sw-card heading=${heading} subheading=${sub} data-dxf-map aria-busy=${busy ? 'true' : 'false'}>
       ${unitless
-        ? html`<div class="err" data-dxf-map-units>לקובץ אין יחידות: בחר יחידות בכרטיס "DXF · שכבות, יחידות וקנה מידה", לחץ "החל ורנדר מחדש" ושמור גרסה חדשה - רק אז המידות במטרים אמיתיים.</div>`
-        : html`<div class="note">יחידות: <span class="ltr">${ent.units}</span> · המידות ייכנסו במטרים אמיתיים (מדוד)</div>`}
+        ? html`<div class="err" data-dxf-map-units>${tr('לקובץ אין יחידות: בחר יחידות בכרטיס "DXF · שכבות, יחידות וקנה מידה", לחץ "החל ורנדר מחדש" ושמור גרסה חדשה - רק אז המידות במטרים אמיתיים.')}</div>`
+        : html`<div class="note">${tr('יחידות:')} <span class="ltr">${ent.units}</span> · ${tr('המידות ייכנסו במטרים אמיתיים (מדוד)')}</div>`}
       ${this.dxfStale
-        ? html`<div class="err" data-dxf-map-stale>השרטוט רונדר מחדש אחרי שמירת הגרסה, והגרסה השמורה כבר לא תואמת אותו. שמור גרסה חדשה לפני הייבוא.
-            <sw-button size="sm" variant="primary" icon="check" data-dxf-map-resave ?disabled=${this.busy} @click=${() => this.save()}>שמור גרסה חדשה</sw-button></div>`
+        ? html`<div class="err" data-dxf-map-stale>${tr('השרטוט רונדר מחדש אחרי שמירת הגרסה, והגרסה השמורה כבר לא תואמת אותו. שמור גרסה חדשה לפני הייבוא.')}
+            <sw-button size="sm" variant="primary" icon="check" data-dxf-map-resave ?disabled=${this.busy} @click=${() => this.save()}>${tr('שמור גרסה חדשה')}</sw-button></div>`
         : nothing}
       <div class="mapwrap" data-dxf-map-layers>
         <table class="map">
-          <thead><tr><th scope="col">שכבה</th><th scope="col">ישויות</th><th scope="col" class="sample">דוגמה</th><th scope="col">יעד</th></tr></thead>
+          <thead><tr><th scope="col">${tr('שכבה')}</th><th scope="col">${tr('ישויות')}</th><th scope="col" class="sample">${tr('דוגמה')}</th><th scope="col">${tr('יעד')}</th></tr></thead>
           <tbody>
             ${ent.layers.map((l, i) => html`<tr data-dxf-map-row=${l.name} class=${l.count ? '' : 'muted'}>
-              <td><label for=${`dxf-map-layer-${i}`} class="ltr">${l.name}</label>${l.in_render ? nothing : html` <span class="note">(לא מצוירת)</span>`}</td>
+              <td><label for=${`dxf-map-layer-${i}`} class="ltr">${l.name}</label>${l.in_render ? nothing : html` <span class="note">${tr('(לא מצוירת)')}</span>`}</td>
               <td><span class="ltr">${l.count}</span>${l.count ? html` <span class="note ltr kinds">${Object.entries(l.kinds).map(([k, n]) => `${k} ${n}`).join(', ')}</span>` : nothing}</td>
               <td class="ltr sample">${l.sample}</td>
-              <td><select id=${`dxf-map-layer-${i}`} data-dxf-map-target aria-label=${`יעד לשכבה ${l.name}`} ?disabled=${!l.count || this.importing} @change=${(e: Event) => this.setLayerTarget(l.name, (e.target as HTMLSelectElement).value as DxfTarget)}>
+              <td><select id=${`dxf-map-layer-${i}`} data-dxf-map-target aria-label=${tr('יעד לשכבה {name}', { name: l.name })} ?disabled=${!l.count || this.importing} @change=${(e: Event) => this.setLayerTarget(l.name, (e.target as HTMLSelectElement).value as DxfTarget)}>
                 ${ent.targets.map((t) => html`<option value=${t.id} ?selected=${(this.layerMap[l.name] ?? 'ignore') === t.id}>${t.label}</option>`)}
               </select></td>
             </tr>`)}
@@ -698,17 +699,17 @@ export class ExplorePlanImport extends LitElement {
         </table>
       </div>
       ${ent.blocks.length
-        ? html`<div class="note" style="margin-block-start:8px">בלוקים (${ent.blocks.length}) - נכנסים כעצמים רק מתוך שכבות שמופו ל"עצמים"${objectsMapped ? '' : ' (כרגע אף שכבה לא ממופה ל"עצמים")'}; בלוק בלי התאמה נכנס כ"עצם כללי", בלוק של דלת או חלון אינו עצם:</div>
+        ? html`<div class="note" style="margin-block-start:8px">${tr('בלוקים ({n}) - נכנסים כעצמים רק מתוך שכבות שמופו ל"עצמים"', { n: ent.blocks.length })}${objectsMapped ? '' : tr(' (כרגע אף שכבה לא ממופה ל"עצמים")')}${tr('; בלוק בלי התאמה נכנס כ"עצם כללי", בלוק של דלת או חלון אינו עצם:')}</div>
             <div class="mapwrap" data-dxf-map-blocks>
               <table class="map">
-                <thead><tr><th scope="col">בלוק</th><th scope="col">מופעים</th><th scope="col" data-dxf-block-size-unit=${unitless ? 'drawing' : 'm'}>${unitless ? 'מידות (יחידות שרטוט)' : 'מידות (מ׳)'}</th><th scope="col">פריט</th></tr></thead>
+                <thead><tr><th scope="col">${tr('בלוק')}</th><th scope="col">${tr('מופעים')}</th><th scope="col" data-dxf-block-size-unit=${unitless ? 'drawing' : 'm'}>${unitless ? tr('מידות (יחידות שרטוט)') : tr('מידות (מ׳)')}</th><th scope="col">${tr('פריט')}</th></tr></thead>
                 <tbody>
                   ${ent.blocks.map((b, i) => html`<tr data-dxf-block-row=${b.name}>
                     <td><label for=${`dxf-map-block-${i}`} class="ltr">${b.name}</label></td>
                     <td class="ltr">${b.count}</td>
                     <td class="ltr nowrap">${b.size_m[0].toFixed(2)} × ${b.size_m[1].toFixed(2)}</td>
-                    <td><select id=${`dxf-map-block-${i}`} data-dxf-block-target aria-label=${`פריט לבלוק ${b.name}`} ?disabled=${this.importing} @change=${(e: Event) => this.setBlockItem(b.name, (e.target as HTMLSelectElement).value || null)}>
-                      ${b.suggested.catalog_id === null ? html`<option value="" data-dxf-block-none ?selected=${(this.blockMap[b.name] ?? null) === null}>לא עצם (דלת/חלון)</option>` : nothing}
+                    <td><select id=${`dxf-map-block-${i}`} data-dxf-block-target aria-label=${tr('פריט לבלוק {name}', { name: b.name })} ?disabled=${this.importing} @change=${(e: Event) => this.setBlockItem(b.name, (e.target as HTMLSelectElement).value || null)}>
+                      ${b.suggested.catalog_id === null ? html`<option value="" data-dxf-block-none ?selected=${(this.blockMap[b.name] ?? null) === null}>${tr('לא עצם (דלת/חלון)')}</option>` : nothing}
                       ${ent.catalog_choices.filter((c) => c.id !== null).map((c) => html`<option value=${c.id ?? ''} ?selected=${this.blockMap[b.name] === c.id}>${c.name}</option>`)}
                     </select></td>
                   </tr>`)}
@@ -717,22 +718,22 @@ export class ExplorePlanImport extends LitElement {
             </div>`
         : nothing}
       <div class="row" style="margin-block-start:8px">
-        <sw-button variant="primary" size="sm" icon="sparkle" data-dxf-import aria-busy=${this.importing ? 'true' : 'false'} ?disabled=${unitless || this.dxfStale || busy || !mapped} @click=${() => this.importDxf()}>${this.importing ? `מייבא… ${this.importSecs} שנ׳` : 'ייבא כמועמדים'}</sw-button>
-        <span class="note" data-dxf-map-count>${mapped ? `${mapped} שכבות ממופות` : 'אף שכבה לא ממופה - בחר יעד לשכבה אחת לפחות'}${rooms ? ` · חדרים נכנסים דרך קבלת האזורים, לא כמבנה` : ''}</span>
+        <sw-button variant="primary" size="sm" icon="sparkle" data-dxf-import aria-busy=${this.importing ? 'true' : 'false'} ?disabled=${unitless || this.dxfStale || busy || !mapped} @click=${() => this.importDxf()}>${this.importing ? tr('מייבא… {importSecs} שנ׳', { importSecs: this.importSecs }) : tr('ייבא כמועמדים')}</sw-button>
+        <span class="note" data-dxf-map-count>${mapped ? tr('{mapped} שכבות ממופות', { mapped }) : tr('אף שכבה לא ממופה - בחר יעד לשכבה אחת לפחות')}${rooms ? tr(' · חדרים נכנסים דרך קבלת האזורים, לא כמבנה') : ''}</span>
       </div>
-      ${this.importing ? html`<div class="note" data-dxf-importing>קורא את השרטוט בשרת; שרטוט גדול עשוי לקחת עד דקה.</div>` : nothing}
+      ${this.importing ? html`<div class="note" data-dxf-importing>${tr('קורא את השרטוט בשרת; שרטוט גדול עשוי לקחת עד דקה.')}</div>` : nothing}
       ${errLine}
       ${r
-        ? html`<div class="ok" data-dxf-imported>נמצאו מועמדים: קירות ${r.walls.length} · פתחים ${r.openings.length} · עצמים ${r.objects?.length ?? 0} · <span data-dxf-imported-rooms>חדרים: ${r.rooms?.length ?? 0} (דרך קבלת האזורים)</span></div>
+        ? html`<div class="ok" data-dxf-imported>${tr('נמצאו מועמדים: קירות {walls} · פתחים {openings} · עצמים {objects}', { walls: r.walls.length, openings: r.openings.length, objects: r.objects?.length ?? 0 })} · <span data-dxf-imported-rooms>${tr('חדרים: {rooms} (דרך קבלת האזורים)', { rooms: r.rooms?.length ?? 0 })}</span></div>
             ${r.existing_auto.walls + r.existing_auto.openings + (r.existing_auto.objects ?? 0)
-              ? html`<div class="note" data-dxf-imported-existing>בטיוטת המבנה כבר יש פריטים מיובאים: קירות ${r.existing_auto.walls} · פתחים ${r.existing_auto.openings} · עצמים ${r.existing_auto.objects ?? 0}; בעורך אפשר להחליף אותם.</div>`
+              ? html`<div class="note" data-dxf-imported-existing>${tr('בטיוטת המבנה כבר יש פריטים מיובאים: קירות {walls} · פתחים {openings} · עצמים {objects}; בעורך אפשר להחליף אותם.', { walls: r.existing_auto.walls, openings: r.existing_auto.openings, objects: r.existing_auto.objects ?? 0 })}</div>`
               : nothing}
             ${this.canStructure
               ? html`<div class="row" style="margin-block-start:6px">
-                  <sw-button variant="primary" size="sm" icon="edit" data-dxf-open-editor @click=${() => this.openEditorWithCandidates()}>המשך לעורך</sw-button>
-                  <span class="note">העורך ייפתח בכלי "זיהוי" עם המועמדים בשכבה מקווקווה; שם מאשרים או דוחים. שום דבר לא נשמר עד האישור.</span>
+                  <sw-button variant="primary" size="sm" icon="edit" data-dxf-open-editor @click=${() => this.openEditorWithCandidates()}>${tr('המשך לעורך')}</sw-button>
+                  <span class="note">${tr('העורך ייפתח בכלי "זיהוי" עם המועמדים בשכבה מקווקווה; שם מאשרים או דוחים. שום דבר לא נשמר עד האישור.')}</span>
                 </div>`
-              : html`<div class="note" data-dxf-no-edit>${this.canStructure === null ? 'בודק הרשאות עריכה…' : 'אין לך הרשאת עריכת מבנה בקומה זו, ולכן אי אפשר לאשר את המועמדים. עורך הקומה יכול לייבא אותם מהמסך הזה.'}</div>`}`
+              : html`<div class="note" data-dxf-no-edit>${this.canStructure === null ? tr('בודק הרשאות עריכה…') : tr('אין לך הרשאת עריכת מבנה בקומה זו, ולכן אי אפשר לאשר את המועמדים. עורך הקומה יכול לייבא אותם מהמסך הזה.')}</div>`}`
         : nothing}
     </sw-card>`;
   }
@@ -802,20 +803,20 @@ export class ExplorePlanImport extends LitElement {
     if (!p) return nothing;
     const d = p.data;
     const an = d?.anchors;
-    return html`<sw-dialog open heading="פרסום התוכנית" subheading="מה ישתנה לצופים במפה" data-import-publish-preview ?locked=${this.busy} @close=${() => (this.preview = null)}>
+    return html`<sw-dialog open heading=${tr('פרסום התוכנית')} subheading=${tr('מה ישתנה לצופים במפה')} data-import-publish-preview ?locked=${this.busy} @close=${() => (this.preview = null)}>
       ${p.error ? html`<div class="err">${p.error}</div>` : nothing}
       ${!d && !p.error ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
       ${d
         ? html`<ul class="steps" data-import-publish-summary>
-            <li>${d.from ? `מחליפה את הגרסה שפורסמה ב-${dayTimeText(new Date(d.from.published_at ?? d.from.created_at))}` : 'הרקע הראשון של הקומה'}</li>
-            <li>${an?.total ? `${an.total} פריטים מוצבים: ${an.carried} עוברים כמו שהם${an.needs_alignment ? `, ${an.needs_alignment} דורשים בדיקת מיקום על הרקע החדש` : ''}` : 'אין פריטים מוצבים על הקומה'}</li>
-            <li>${d.geometry.same ? 'המבנה (קירות, פתחים, עצמים) נשאר כפי שהוא' : `המבנה משתנה (${d.geometry.changes.length} שדות)`}</li>
+            <li>${d.from ? tr('מחליפה את הגרסה שפורסמה ב-{when}', { when: dayTimeText(new Date(d.from.published_at ?? d.from.created_at)) }) : tr('הרקע הראשון של הקומה')}</li>
+            <li>${an?.total ? `${tr('{total} פריטים מוצבים: {carried} עוברים כמו שהם', { total: an.total, carried: an.carried })}${an.needs_alignment ? tr(', {n} דורשים בדיקת מיקום על הרקע החדש', { n: an.needs_alignment }) : ''}` : tr('אין פריטים מוצבים על הקומה')}</li>
+            <li>${d.geometry.same ? tr('המבנה (קירות, פתחים, עצמים) נשאר כפי שהוא') : tr('המבנה משתנה ({length} שדות)', { length: d.geometry.changes.length })}</li>
           </ul>
           ${an?.items.filter((i) => i.outcome === 'needs_alignment').slice(0, 8).map((i) => html`<div class="note">· ${i.name}</div>`)}`
         : nothing}
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
-        <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => (this.preview = null)}>ביטול</sw-button>
-        <sw-button variant="primary" icon="check" data-import-publish-confirm ?disabled=${this.busy || !d} @click=${() => this.publish()}>פרסם</sw-button>
+        <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => (this.preview = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="primary" icon="check" data-import-publish-confirm ?disabled=${this.busy || !d} @click=${() => this.publish()}>${tr('פרסם')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -874,92 +875,92 @@ export class ExplorePlanImport extends LitElement {
             <input type="file" accept=".pdf,.png,.jpg,.jpeg,.dxf,application/pdf,image/png,image/jpeg,image/vnd.dxf" @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} />
             <div>
               <div class="ic"><sw-icon name="upload" size=${20}></sw-icon></div>
-              <strong>${this.busy ? 'מעלה…' : 'גרור לכאן PDF, תמונה או DXF של התוכנית, או לחץ לבחירה'}</strong>
-              <small>PDF עד 20 עמודים, PNG / JPG, DXF (AutoCAD; DWG יש להמיר) · עד 40 MB · הזיהוי לפי תוכן הקובץ · המקור נשמר ללא שינוי</small>
+              <strong>${this.busy ? tr('מעלה…') : tr('גרור לכאן PDF, תמונה או DXF של התוכנית, או לחץ לבחירה')}</strong>
+              <small>${tr('PDF עד 20 עמודים, PNG / JPG, DXF (AutoCAD; DWG יש להמיר) · עד 40 MB · הזיהוי לפי תוכן הקובץ · המקור נשמר ללא שינוי')}</small>
             </div>
           </label>
           ${this.assets.length
-            ? html`<div class="assets"><div class="note" style="margin-block-end:4px">קבצים שכבר הועלו לקומה זו:</div>${this.assets.map((x) => html`<button @click=${() => { this.asset = x; this.page = 1; this.step = x.page_count > 1 ? 1 : 2; }}><span>${x.original_name}</span><span class="ltr">${x.page_count} עמ׳ · ${fmtSize(x.bytes)}</span></button>`)}</div>`
+            ? html`<div class="assets"><div class="note" style="margin-block-end:4px">${tr('קבצים שכבר הועלו לקומה זו:')}</div>${this.assets.map((x) => html`<button @click=${() => { this.asset = x; this.page = 1; this.step = x.page_count > 1 ? 1 : 2; }}><span>${x.original_name}</span><span class="ltr">${tr('{n} עמ׳', { n: x.page_count })} · ${fmtSize(x.bytes)}</span></button>`)}</div>`
             : nothing}`;
       case 1:
-        return html`<div class="note">בחר את העמוד שמכיל את התוכנית של הקומה.</div>
-          <div class="pages">${a?.pages.map((p) => html`<button class="pg ${p.page === this.page ? 'on' : ''}" @click=${() => (this.page = p.page)}><img src=${resourceUrl(p.preview_url)} alt=${`עמוד ${p.page}`} loading="lazy" />עמוד ${p.page}</button>`)}</div>`;
+        return html`<div class="note">${tr('בחר את העמוד שמכיל את התוכנית של הקומה.')}</div>
+          <div class="pages">${a?.pages.map((p) => html`<button class="pg ${p.page === this.page ? 'on' : ''}" @click=${() => (this.page = p.page)}><img src=${resourceUrl(p.preview_url)} alt=${tr('עמוד {page}', { page: p.page })} loading="lazy" />${tr('עמוד {page}', { page: p.page })}</button>`)}</div>`;
       case 2: {
         const c = this.crop;
         const full = c.x === 0 && c.y === 0 && c.w === 1 && c.h === 1;
         return html`
           <div class="preview">
             <div class="frame" @pointerdown=${this.startCrop}>
-              <img src=${this.previewUrl()} alt="תצוגה מקדימה (אחרי סיבוב)" />
+              <img src=${this.previewUrl()} alt=${tr('תצוגה מקדימה (אחרי סיבוב)')} />
               ${full ? nothing : html`<div class="cropbox" style="left:${c.x * 100}%;top:${c.y * 100}%;width:${c.w * 100}%;height:${c.h * 100}%"></div>`}
-              <div class="hint">${full ? 'גרור מלבן על התוכנית כדי לחתוך' : `חיתוך ${Math.round(c.w * 100)}%×${Math.round(c.h * 100)}% · גרור שוב כדי לשנות`}</div>
+              <div class="hint">${full ? tr('גרור מלבן על התוכנית כדי לחתוך') : tr('חיתוך {w}%×{h}% · גרור שוב כדי לשנות', { w: Math.round(c.w * 100), h: Math.round(c.h * 100) })}</div>
             </div>
           </div>
           <div class="row">
-            <sw-button size="sm" icon="refresh" @click=${() => { this.rotation = (this.rotation + 90) % 360; this.crop = { x: 0, y: 0, w: 1, h: 1 }; }}>סובב 90°</sw-button>
-            <sw-badge kind="neutral" label=${`סיבוב ${this.rotation}°`}></sw-badge>
-            <sw-button size="sm" variant="ghost" icon="fit" ?disabled=${full} @click=${() => (this.crop = { x: 0, y: 0, w: 1, h: 1 })}>אפס חיתוך</sw-button>
-            <span class="note">התצוגה כבר מסובבת; המלבן המקווקו הוא בדיוק מה שיישמר. אפשר גם להזין אחוזים.</span>
+            <sw-button size="sm" icon="refresh" @click=${() => { this.rotation = (this.rotation + 90) % 360; this.crop = { x: 0, y: 0, w: 1, h: 1 }; }}>${tr('סובב 90°')}</sw-button>
+            <sw-badge kind="neutral" label=${tr('סיבוב {rotation}°', { rotation: this.rotation })}></sw-badge>
+            <sw-button size="sm" variant="ghost" icon="fit" ?disabled=${full} @click=${() => (this.crop = { x: 0, y: 0, w: 1, h: 1 })}>${tr('אפס חיתוך')}</sw-button>
+            <span class="note">${tr('התצוגה כבר מסובבת; המלבן המקווקו הוא בדיוק מה שיישמר. אפשר גם להזין אחוזים.')}</span>
           </div>
           <div class="two">
-            <sw-field label="שמאל %"><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(c.x * 100))} @change=${(e: Event) => this.setCrop('x', Number((e.target as HTMLInputElement).value))} /></sw-field>
-            <sw-field label="עליון %"><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(c.y * 100))} @change=${(e: Event) => this.setCrop('y', Number((e.target as HTMLInputElement).value))} /></sw-field>
-            <sw-field label="רוחב %"><input type="number" min="2" max="100" data-ltr .value=${String(Math.round(c.w * 100))} @change=${(e: Event) => this.setCrop('w', Number((e.target as HTMLInputElement).value))} /></sw-field>
-            <sw-field label="גובה %"><input type="number" min="2" max="100" data-ltr .value=${String(Math.round(c.h * 100))} @change=${(e: Event) => this.setCrop('h', Number((e.target as HTMLInputElement).value))} /></sw-field>
+            <sw-field label=${tr('שמאל %')}><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(c.x * 100))} @change=${(e: Event) => this.setCrop('x', Number((e.target as HTMLInputElement).value))} /></sw-field>
+            <sw-field label=${tr('עליון %')}><input type="number" min="0" max="98" data-ltr .value=${String(Math.round(c.y * 100))} @change=${(e: Event) => this.setCrop('y', Number((e.target as HTMLInputElement).value))} /></sw-field>
+            <sw-field label=${tr('רוחב %')}><input type="number" min="2" max="100" data-ltr .value=${String(Math.round(c.w * 100))} @change=${(e: Event) => this.setCrop('w', Number((e.target as HTMLInputElement).value))} /></sw-field>
+            <sw-field label=${tr('גובה %')}><input type="number" min="2" max="100" data-ltr .value=${String(Math.round(c.h * 100))} @change=${(e: Event) => this.setCrop('h', Number((e.target as HTMLInputElement).value))} /></sw-field>
           </div>`;
       }
       case 3:
         return html`
-          <sw-field label="קומה"><input .value=${this.floor?.floor.name ?? ''} disabled /></sw-field>
-          <sw-field label="הערות לגרסה (אופציונלי)" hint="למשל: תוכנית מעודכנת אחרי שיפוץ 2026"><input .value=${this.notes} @input=${(e: Event) => (this.notes = (e.target as HTMLInputElement).value)} /></sw-field>
-          <div class="note">קנה מידה (מטרים לפיקסל) יכויל בעורך בשתי נקודות ומרחק ידוע; עד אז מרחקים מוצגים כמשוערים.</div>`;
+          <sw-field label=${tr('קומה')}><input .value=${this.floor?.floor.name ?? ''} disabled /></sw-field>
+          <sw-field label=${tr('הערות לגרסה (אופציונלי)')} hint=${tr('למשל: תוכנית מעודכנת אחרי שיפוץ 2026')}><input .value=${this.notes} @input=${(e: Event) => (this.notes = (e.target as HTMLInputElement).value)} /></sw-field>
+          <div class="note">${tr('קנה מידה (מטרים לפיקסל) יכויל בעורך בשתי נקודות ומרחק ידוע; עד אז מרחקים מוצגים כמשוערים.')}</div>`;
       default:
         return html`
           ${this.version
-            ? html`<div class="ok"><sw-icon name="check" size=${14}></sw-icon>הגרסה נשמרה (${this.version.width_px}×${this.version.height_px} px) · ${this.version.status === 'published' ? 'פורסמה — היא הרקע של הקומה' : 'טיוטה — עורכי הקומה רואים אותה, צופים עדיין לא'}</div>
-                <div class="preview" style="min-block-size:220px"><img src=${resourceUrl(this.version.image_url)} alt="רקע התוכנית" /></div>`
-            : html`<div class="note">סיכום: ${a?.original_name} · עמוד ${this.page} · סיבוב ${this.rotation}° · חיתוך ${Math.round(this.crop.w * 100)}%×${Math.round(this.crop.h * 100)}%. השמירה מייצרת רקע נגזר; המקור לא משתנה.</div>`}
+            ? html`<div class="ok"><sw-icon name="check" size=${14}></sw-icon>${tr('הגרסה נשמרה ({w}×{h} px)', { w: this.version.width_px, h: this.version.height_px })} · ${this.version.status === 'published' ? tr('פורסמה — היא הרקע של הקומה') : tr('טיוטה — עורכי הקומה רואים אותה, צופים עדיין לא')}</div>
+                <div class="preview" style="min-block-size:220px"><img src=${resourceUrl(this.version.image_url)} alt=${tr('רקע התוכנית')} /></div>`
+            : html`<div class="note">${tr('סיכום: {name} · עמוד {page} · סיבוב {rotation}° · חיתוך {w}%×{h}%. השמירה מייצרת רקע נגזר; המקור לא משתנה.', { name: a?.original_name ?? '', page: this.page, rotation: this.rotation, w: Math.round(this.crop.w * 100), h: Math.round(this.crop.h * 100) })}</div>`}
           <div class="row">
-            ${!this.version ? html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.save()}>שמור כטיוטה</sw-button>` : nothing}
-            ${this.version && this.version.status === 'draft' ? html`<sw-button variant="primary" icon="check" data-import-publish ?disabled=${this.busy} @click=${() => void this.openPublish()}>פרסום</sw-button>` : nothing}
+            ${!this.version ? html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.save()}>${tr('שמור כטיוטה')}</sw-button>` : nothing}
+            ${this.version && this.version.status === 'draft' ? html`<sw-button variant="primary" icon="check" data-import-publish ?disabled=${this.busy} @click=${() => void this.openPublish()}>${tr('פרסום')}</sw-button>` : nothing}
             ${this.renderPublishPreview()}
-            ${this.version ? html`<sw-button icon="map" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>פתח במפה</sw-button><sw-button variant="ghost" icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>הצב מצלמות</sw-button>` : nothing}
+            ${this.version ? html`<sw-button icon="map" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>${tr('פתח במפה')}</sw-button><sw-button variant="ghost" icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>${tr('הצב מצלמות')}</sw-button>` : nothing}
           </div>
           ${a?.kind === 'dxf' ? this.renderDxfMap() : nothing}`;
     }
   }
 
   private renderDemo() {
-    return html`<sw-card><sw-state-panel icon="map" state="empty" heading="ייבוא תוכנית עובד מול השרת" hint="בתצוגת ההדגמה אין שרת מחובר. במערכת המותקנת המסך מעלה PDF/PNG, בוחר עמוד, מסובב וחותך, ומפרסם גרסה."></sw-state-panel></sw-card>`;
+    return html`<sw-card><sw-state-panel icon="map" state="empty" heading=${tr('ייבוא תוכנית עובד מול השרת')} hint=${tr('בתצוגת ההדגמה אין שרת מחובר. במערכת המותקנת המסך מעלה PDF/PNG, בוחר עמוד, מסובב וחותך, ומפרסם גרסה.')}></sw-state-panel></sw-card>`;
   }
 
   render() {
     const f = this.floor;
     const canNext = this.step === 0 ? !!this.asset : this.step === 1 ? !!this.asset : true;
     return html`
-      <sw-page heading=${f ? `ייבוא תוכנית ל${f.floor.name}` : 'ייבוא תוכנית'} subheading="המקור נשמר ללא שינוי; כל תיקון הוא שכבה נגזרת" crumbs=${f ? `אתרים | ${f.site.name} | ${f.building.name} | ${f.floor.name}` : 'אתרים'}>
-        ${f && !f.floor.has_plan && !f.floor.draft_version_id ? html`<sw-button slot="actions" variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>` : nothing}
+      <sw-page heading=${f ? tr('ייבוא תוכנית ל{name}', { name: f.floor.name }) : tr('ייבוא תוכנית')} subheading=${tr('המקור נשמר ללא שינוי; כל תיקון הוא שכבה נגזרת')} crumbs=${f ? `${tr('אתרים')} | ${f.site.name} | ${f.building.name} | ${f.floor.name}` : tr('אתרים')}>
+        ${f && !f.floor.has_plan && !f.floor.draft_version_id ? html`<sw-button slot="actions" variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>${tr('בקשה לאדריכל')}</sw-button>` : nothing}
         ${!isApi()
           ? this.renderDemo()
           : !this.floorId || (this.tree && !f)
-            ? html`<sw-state-panel icon="map" state="empty" heading="בחר קומה" hint="ייבוא תוכנית מתחיל מדף הקומות."><div style="margin-block-start:10px"><sw-button variant="primary" @click=${() => navigate('/explore/sites')}>לאתרים</sw-button></div></sw-state-panel>`
+            ? html`<sw-state-panel icon="map" state="empty" heading=${tr('בחר קומה')} hint=${tr('ייבוא תוכנית מתחיל מדף הקומות.')}><div style="margin-block-start:10px"><sw-button variant="primary" @click=${() => navigate('/explore/sites')}>${tr('לאתרים')}</sw-button></div></sw-state-panel>`
             : html`
                 <sw-card><sw-steps .steps=${STEPS} .current=${this.step}></sw-steps></sw-card>
                 <div class="layout">
                   <div class="stage">${this.renderStep()}${this.error ? html`<div class="err">${this.error}</div>` : nothing}</div>
                   <div class="side">
-                    <sw-card heading="קובץ">
+                    <sw-card heading=${tr('קובץ')}>
                       ${this.asset
-                        ? html`<div class="note">${this.asset.original_name}</div><div class="row" style="margin-block-start:6px"><sw-badge kind="neutral" label=${`${this.asset.mime.split('/')[1].toUpperCase()} · ${fmtSize(this.asset.bytes)} · ${this.asset.page_count} עמ׳`}></sw-badge></div><div class="note ltr" style="margin-block-start:6px">sha256 ${this.asset.sha256.slice(0, 16)}…</div>`
-                        : html`<div class="note">עדיין לא נבחר קובץ.</div>`}
+                        ? html`<div class="note">${this.asset.original_name}</div><div class="row" style="margin-block-start:6px"><sw-badge kind="neutral" label=${`${this.asset.mime.split('/')[1].toUpperCase()} · ${fmtSize(this.asset.bytes)} · ${tr('{n} עמ׳', { n: this.asset.page_count })}`}></sw-badge></div><div class="note ltr" style="margin-block-start:6px">sha256 ${this.asset.sha256.slice(0, 16)}…</div>`
+                        : html`<div class="note">${tr('עדיין לא נבחר קובץ.')}</div>`}
                     </sw-card>
                     ${this.renderDxf()}
-                    <sw-card heading="בטיחות">
-                      <div class="note">הקובץ מזוהה לפי תוכנו; PDF מרונדר בתהליך נפרד עם מגבלת זמן; SVG נדחה עד sanitization. תוכן טקסטואלי בתוך הקובץ הוא נתון בלבד.</div>
+                    <sw-card heading=${tr('בטיחות')}>
+                      <div class="note">${tr('הקובץ מזוהה לפי תוכנו; PDF מרונדר בתהליך נפרד עם מגבלת זמן; SVG נדחה עד sanitization. תוכן טקסטואלי בתוך הקובץ הוא נתון בלבד.')}</div>
                     </sw-card>
                     <div class="foot">
-                      <sw-button variant="ghost" icon="chevron" ?disabled=${this.step === 0 || this.busy} @click=${() => (this.step = Math.max(0, this.step - 1))}>הקודם</sw-button>
-                      ${this.step < STEPS.length - 1 ? html`<sw-button variant="primary" ?disabled=${!canNext || this.busy} @click=${() => (this.step = Math.min(STEPS.length - 1, this.step + 1))}>הבא</sw-button>` : nothing}
+                      <sw-button variant="ghost" icon="chevron" ?disabled=${this.step === 0 || this.busy} @click=${() => (this.step = Math.max(0, this.step - 1))}>${tr('הקודם')}</sw-button>
+                      ${this.step < STEPS.length - 1 ? html`<sw-button variant="primary" ?disabled=${!canNext || this.busy} @click=${() => (this.step = Math.min(STEPS.length - 1, this.step + 1))}>${tr('הבא')}</sw-button>` : nothing}
                     </div>
                   </div>
                 </div>`}

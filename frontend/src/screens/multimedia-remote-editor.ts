@@ -12,6 +12,7 @@ import { ICON, SECTION_SHORT, glyphPath, tint } from '../components/media-remote
 import { moveSection, setMore, toggleSection } from '../components/media-remote-logic';
 import { remoteStyles } from '../components/media-remote-css';
 import { integrationName, integrationTitle } from './media-integration-names';
+import { tr } from '../i18n/msg/media';
 
 /**
  * "עריכת השלט" (CR-015 §7.3): the remote's editor, drawn inside the open remote (media-remote.ts) instead of the pad. Reached from
@@ -32,12 +33,12 @@ const itemOf = (s: SourceItem): Item => ({ id: s.id, orig: s.default_label ?? s.
 type Item = { id: string; orig: string; label: string; hidden: boolean; kind: SourceItem['kind']; glyph: Glyph; hue: number | null };
 
 const GLYPH_NAMES: Partial<Record<Glyph, string>> = {
-  antenna: 'טלוויזיה', hdmi: 'כניסה', gamepad: 'משחקים', speaker: 'שמע', image: 'תמונות', film: 'סרטים', playRect: 'וידאו', sparkle: 'כוכב', music: 'מוזיקה',
-  ball: 'ספורט', news: 'חדשות', smile: 'ילדים', globe: 'רשת', app: 'כללי',
+  antenna: tr('טלוויזיה'), hdmi: tr('כניסה'), gamepad: tr('משחקים'), speaker: tr('שמע'), image: tr('תמונות'), film: tr('סרטים'), playRect: tr('וידאו'), sparkle: tr('כוכב'), music: tr('מוזיקה'),
+  ball: tr('ספורט'), news: tr('חדשות'), smile: tr('ילדים'), globe: tr('רשת'), app: tr('כללי'),
 };
 
-const CONTROL_LABEL: Record<string, string> = { power: 'הפעלה', volume: 'עוצמה', mute: 'השתקה', sources: 'מקורות', apps: 'אפליקציות', keys: 'מקשים', now_playing: 'מה מתנגן' };
-const ROLE_LABEL: Record<string, string> = { vendor: 'חיבור ראשי', remote: 'שלט', cast: 'הקרנה', dlna: 'רשת ביתית', smartthings: 'ענן', ma_export: 'נגן מוזיקה', ma_import: 'נגן מוזיקה', ma_native: 'נגן מוזיקה', ma_universal: 'נגן מוזיקה', other: 'אחר' };
+const CONTROL_LABEL: Record<string, string> = { power: tr('הפעלה'), volume: tr('עוצמה'), mute: tr('השתקה'), sources: tr('מקורות'), apps: tr('אפליקציות'), keys: tr('מקשים'), now_playing: tr('מה מתנגן') };
+const ROLE_LABEL: Record<string, string> = { vendor: tr('חיבור ראשי'), remote: tr('שלט'), cast: tr('הקרנה'), dlna: tr('רשת ביתית'), smartthings: tr('ענן'), ma_export: tr('נגן מוזיקה'), ma_import: tr('נגן מוזיקה'), ma_native: tr('נגן מוזיקה'), ma_universal: tr('נגן מוזיקה'), other: tr('אחר') };
 
 interface Conn {
   platform: string;
@@ -496,10 +497,10 @@ export class MediaRemoteEditor extends LitElement {
       const behind = this.cfg.more.includes(s.id);
       return html`<div class="row ${s.on ? '' : 'off'}" data-ed-section=${s.id} draggable="true" @dragstart=${d.start} @dragover=${d.over} @drop=${d.drop}>
         <span class="grip" aria-hidden="true">${ic('grip')}</span><span class="nm">${SECTION_SHORT[s.id]}</span>
-        <label class="fold"><input type="checkbox" .checked=${behind} ?disabled=${!s.on} aria-label=${`מאחורי "עוד מקשים": ${SECTION_SHORT[s.id]}`} @change=${(e: Event) => (this.cfg = setMore(this.cfg, s.id, (e.target as HTMLInputElement).checked))} />מקופל</label>
-        <button type="button" class="ib" aria-label=${`הקדם: ${SECTION_SHORT[s.id]}`} ?disabled=${i === 0} @click=${() => this.moveIn('sections', index, rows[i - 1].index)}>${ic('up')}</button>
-        <button type="button" class="ib" aria-label=${`אחר: ${SECTION_SHORT[s.id]}`} ?disabled=${i === rows.length - 1} @click=${() => this.moveIn('sections', index, rows[i + 1].index)}>${ic('down')}</button>
-        <button type="button" class="tog" role="switch" aria-checked=${String(s.on)} aria-label=${`הצג: ${SECTION_SHORT[s.id]}`} @click=${() => (this.cfg = toggleSection(this.cfg, s.id, !s.on))}></button>
+        <label class="fold"><input type="checkbox" .checked=${behind} ?disabled=${!s.on} aria-label=${tr('מאחורי "עוד מקשים": {name}', { name: SECTION_SHORT[s.id] })} @change=${(e: Event) => (this.cfg = setMore(this.cfg, s.id, (e.target as HTMLInputElement).checked))} />${tr('מקופל')}</label>
+        <button type="button" class="ib" aria-label=${tr('הקדם: {name}', { name: SECTION_SHORT[s.id] })} ?disabled=${i === 0} @click=${() => this.moveIn('sections', index, rows[i - 1].index)}>${ic('up')}</button>
+        <button type="button" class="ib" aria-label=${tr('אחר: {name}', { name: SECTION_SHORT[s.id] })} ?disabled=${i === rows.length - 1} @click=${() => this.moveIn('sections', index, rows[i + 1].index)}>${ic('down')}</button>
+        <button type="button" class="tog" role="switch" aria-checked=${String(s.on)} aria-label=${tr('הצג: {name}', { name: SECTION_SHORT[s.id] })} @click=${() => (this.cfg = toggleSection(this.cfg, s.id, !s.on))}></button>
       </div>`;
     });
   }
@@ -517,11 +518,11 @@ export class MediaRemoteEditor extends LitElement {
       return html`<div class="row ${x.hidden ? 'off' : ''}" data-ed-item=${x.id} draggable="true" @dragstart=${d.start} @dragover=${d.over} @drop=${d.drop}>
         <span class="grip" aria-hidden="true">${ic('grip')}</span>
         <span class=${x.kind === 'app' ? 'gi' : 'gi src'} style=${x.kind === 'app' ? `--a1:${t.a1};--a2:${t.a2}` : ''}>${ic('', glyphPath(x.glyph))}</span>
-        <input type="text" .value=${x.label} maxlength="40" placeholder=${x.orig} aria-label=${`שם: ${x.orig}`} @input=${(e: Event) => patch(i, { label: (e.target as HTMLInputElement).value })} />
-        <select aria-label=${`סמל: ${x.orig}`} @change=${(e: Event) => patch(i, { glyph: (e.target as HTMLSelectElement).value as Glyph })}>${(Object.keys(GLYPH_NAMES) as Glyph[]).map((g) => html`<option value=${g} ?selected=${x.glyph === g}>${GLYPH_NAMES[g]}</option>`)}</select>
-        <button type="button" class="ib" aria-label=${`הקדם: ${x.orig}`} ?disabled=${i === 0} @click=${() => this.moveIn(list, i, i - 1)}>${ic('up')}</button>
-        <button type="button" class="ib" aria-label=${`אחר: ${x.orig}`} ?disabled=${i === items.length - 1} @click=${() => this.moveIn(list, i, i + 1)}>${ic('down')}</button>
-        <button type="button" class="tog" role="switch" aria-checked=${String(!x.hidden)} aria-label=${`הצג: ${x.orig}`} @click=${() => patch(i, { hidden: !x.hidden })}></button>
+        <input type="text" .value=${x.label} maxlength="40" placeholder=${x.orig} aria-label=${tr('שם: {orig}', { orig: x.orig })} @input=${(e: Event) => patch(i, { label: (e.target as HTMLInputElement).value })} />
+        <select aria-label=${tr('סמל: {orig}', { orig: x.orig })} @change=${(e: Event) => patch(i, { glyph: (e.target as HTMLSelectElement).value as Glyph })}>${(Object.keys(GLYPH_NAMES) as Glyph[]).map((g) => html`<option value=${g} ?selected=${x.glyph === g}>${GLYPH_NAMES[g]}</option>`)}</select>
+        <button type="button" class="ib" aria-label=${tr('הקדם: {orig}', { orig: x.orig })} ?disabled=${i === 0} @click=${() => this.moveIn(list, i, i - 1)}>${ic('up')}</button>
+        <button type="button" class="ib" aria-label=${tr('אחר: {orig}', { orig: x.orig })} ?disabled=${i === items.length - 1} @click=${() => this.moveIn(list, i, i + 1)}>${ic('down')}</button>
+        <button type="button" class="tog" role="switch" aria-checked=${String(!x.hidden)} aria-label=${tr('הצג: {orig}', { orig: x.orig })} @click=${() => patch(i, { hidden: !x.hidden })}></button>
       </div>`;
     });
   }
@@ -530,21 +531,21 @@ export class MediaRemoteEditor extends LitElement {
     if (!this.device) return nothing;
     const dev = this.scope === 'device';
     return html`<div class="ed" data-mr-editor>
-      <div class="bar"><span class="t">${ic('edit')}עריכת השלט</span>
-        <button type="button" class="btn quiet" data-ed-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>ביטול</button>
-        <button type="button" class="btn primary" data-ed-save ?disabled=${this.busy} @click=${() => void this.save()}>${ic('check')}שמירה</button></div>
+      <div class="bar"><span class="t">${ic('edit')}${tr('עריכת השלט')}</span>
+        <button type="button" class="btn quiet" data-ed-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${tr('ביטול')}</button>
+        <button type="button" class="btn primary" data-ed-save ?disabled=${this.busy} @click=${() => void this.save()}>${ic('check')}${tr('שמירה')}</button></div>
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
-      <div class="seg sm" role="radiogroup" aria-label="היקף השינוי">
-        <button type="button" role="radio" aria-checked=${String(dev)} data-ed-scope="device" @click=${() => void this.setScope('device')}>למסך הזה</button>
-        <button type="button" role="radio" aria-checked=${String(!dev)} data-ed-scope="default" @click=${() => void this.setScope('default')}>ברירת מחדל לכל המסכים</button>
+      <div class="seg sm" role="radiogroup" aria-label=${tr('היקף השינוי')}>
+        <button type="button" role="radio" aria-checked=${String(dev)} data-ed-scope="device" @click=${() => void this.setScope('device')}>${tr('למסך הזה')}</button>
+        <button type="button" role="radio" aria-checked=${String(!dev)} data-ed-scope="default" @click=${() => void this.setScope('default')}>${tr('ברירת מחדל לכל המסכים')}</button>
       </div>
-      <div class="grp"><h4>חלקי השלט</h4>${this.sectionRows()}</div>
-      ${dev && this.sources.length ? html`<div class="grp"><h4>מקורות · סדר, שם והצגה</h4>${this.itemRows('sources')}</div>` : nothing}
-      ${dev && this.apps.length ? html`<div class="grp"><h4>אפליקציות · סדר, שם והצגה</h4>${this.itemRows('apps')}</div>` : nothing}
+      <div class="grp"><h4>${tr('חלקי השלט')}</h4>${this.sectionRows()}</div>
+      ${dev && this.sources.length ? html`<div class="grp"><h4>${tr('מקורות · סדר, שם והצגה')}</h4>${this.itemRows('sources')}</div>` : nothing}
+      ${dev && this.apps.length ? html`<div class="grp"><h4>${tr('אפליקציות · סדר, שם והצגה')}</h4>${this.itemRows('apps')}</div>` : nothing}
       ${dev && this.canConfigure && this.conns?.length
-        ? html`<div class="grp"><h4>חיבורים</h4><div class="conn" data-ed-conns>${this.conns.map((c) => html`<span>${c.primary_for.map((p) => CONTROL_LABEL[p] ?? p).join(', ') || (c.hidden ? 'מוסתר' : '—')}</span><span>${ROLE_LABEL[c.role] ?? c.role} · <bdi title=${integrationTitle(c.platform)}>${integrationName(c.platform)}</bdi></span>`)}</div></div>`
+        ? html`<div class="grp"><h4>${tr('חיבורים')}</h4><div class="conn" data-ed-conns>${this.conns.map((c) => html`<span>${c.primary_for.map((p) => CONTROL_LABEL[p] ?? p).join(', ') || (c.hidden ? tr('מוסתר') : '—')}</span><span>${ROLE_LABEL[c.role] ?? c.role} · <bdi title=${integrationTitle(c.platform)}>${integrationName(c.platform)}</bdi></span>`)}</div></div>`
         : nothing}
-      ${dev && this.device.remote.scope === 'device' ? html`<button type="button" class="btn quiet" data-ed-reset ?disabled=${this.busy} @click=${() => void this.resetDevice()}>חזרה לברירת המחדל</button>` : nothing}
+      ${dev && this.device.remote.scope === 'device' ? html`<button type="button" class="btn quiet" data-ed-reset ?disabled=${this.busy} @click=${() => void this.resetDevice()}>${tr('חזרה לברירת המחדל')}</button>` : nothing}
     </div>`;
   }
 }

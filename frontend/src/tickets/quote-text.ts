@@ -7,6 +7,7 @@
  * work a payment demand ("דרישת תשלום"); a request for quotes from several vendors is an RFQ ("בקשת הצעות מחיר", its own screen).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the tab's header: the stage chip (contract 4.3 flow.stage) and the read-only stepper
@@ -341,3 +342,5 @@ export const qt = catalogue.t;
 
 export const QUOTE_TEXT_KEYS = catalogue.KEYS;
 export const QUOTE_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/quote-text', { he, en });

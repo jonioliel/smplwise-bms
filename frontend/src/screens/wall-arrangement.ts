@@ -9,6 +9,7 @@
  * sort_order (0..N-1), so a hidden camera keeps a place of its own and comes back where it was left.
  */
 import type { Camera } from '../api/types';
+import { tr } from '../i18n/msg/media';
 
 export interface LayoutRow {
   id: string;
@@ -38,7 +39,7 @@ export const wallCameras = <T extends Pick<Camera, 'wall_hidden'>>(cams: T[]): T
 /** The footer of the wall (owner 2026-09-30): only the cameras meant to be shown count - hidden ones are out of both numbers.
  * "N מצלמות" when they are all on screen, "מוצגות N מתוך M מצלמות" when the layout shows fewer (M = cameras not hidden). */
 export function wallFooterCount(shown: number, visible: number): string {
-  return shown >= visible ? `${shown} מצלמות` : `מוצגות ${shown} מתוך ${visible} מצלמות`;
+  return shown >= visible ? tr('{shown} מצלמות', { shown }) : tr('מוצגות {shown} מתוך {visible} מצלמות', { shown, visible });
 }
 
 /** The dialog's rows from the cameras in their saved order: shown ones first, hidden ones at the end (stable within each). */

@@ -9,6 +9,7 @@
  *
  * Neither mode ends a label in an ellipsis. Installation-wide setting `ui.wall_phone_bar` (הגדרות › כללי › וידאו ומדיה). Pure module: no DOM.
  */
+import { tr } from '../i18n/msg/media';
 
 export const WALL_PHONE_BAR_KEY = 'ui.wall_phone_bar';
 export const WALL_PHONE_BAR_MODES = ['icons', 'labels'] as const;
@@ -16,11 +17,11 @@ export type WallPhoneBarMode = (typeof WALL_PHONE_BAR_MODES)[number];
 export const WALL_PHONE_BAR_DEFAULT: WallPhoneBarMode = 'icons';
 
 /** The settings row: its label, its short explanation and the two choices (the default first). */
-export const WALL_PHONE_BAR_LABEL = 'סרגל קיר המצלמות בטלפון';
-export const WALL_PHONE_BAR_HINT = 'הכפתורים מעל הקיר בטלפון. בשורה אחת: אייקונים, והשם המלא בלחיצה ארוכה';
+export const WALL_PHONE_BAR_LABEL = tr('סרגל קיר המצלמות בטלפון');
+export const WALL_PHONE_BAR_HINT = tr('הכפתורים מעל הקיר בטלפון. בשורה אחת: אייקונים, והשם המלא בלחיצה ארוכה');
 export const WALL_PHONE_BAR_OPTIONS: readonly (readonly [WallPhoneBarMode, string])[] = [
-  ['icons', 'שורה אחת עם אייקונים (ברירת מחדל)'],
-  ['labels', 'שתי שורות עם שמות מלאים'],
+  ['icons', tr('שורה אחת עם אייקונים (ברירת מחדל)')],
+  ['labels', tr('שתי שורות עם שמות מלאים')],
 ];
 
 /** Any stored / received value in its canonical form: an unknown value reads as the default. */

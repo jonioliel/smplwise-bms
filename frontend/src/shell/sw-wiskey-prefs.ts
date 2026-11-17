@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { WISKEY_AUTO, WISKEY_DENSITIES, WISKEY_WALLS } from '../wiskey/embed-view';
 import { installWiskeyChoices, ownWiskeyChoices, refreshWiskeyView, saveWiskeyChoice, type WiskeyChoiceKey } from '../wiskey/wiskey-prefs';
+import { tr } from '../i18n/msg/shell';
 
 /**
  * החשבון שלי › WisKey (WisKey rc.37): the user's own start choices for the embedded panel - how many cards the overview
@@ -77,7 +78,7 @@ export class SwWiskeyPrefs extends LitElement {
   }
 
   private defaultLabel(value: string): string {
-    return value === WISKEY_AUTO ? 'ברירת מחדל' : `ברירת מחדל (${value})`;
+    return value === WISKEY_AUTO ? tr('ברירת מחדל') : tr('ברירת מחדל ({value})', { value });
   }
 
   render() {
@@ -87,22 +88,22 @@ export class SwWiskeyPrefs extends LitElement {
     const wall = own.wall ?? '';
     return html`
       <div class="row">
-        <label for="wk-density">כרטיסים בסקירה</label>
+        <label for="wk-density">${tr('כרטיסים בסקירה')}</label>
         <select id="wk-density" data-my-wiskey-density ?disabled=${this.busy} @change=${(e: Event) => void this.pick('density', e.target as HTMLSelectElement)}>
-          <option value="" ?selected=${density === ''}>${base.density === WISKEY_AUTO ? 'ברירת מחדל (אוטומטי)' : this.defaultLabel(base.density)}</option>
-          <option value=${WISKEY_AUTO} ?selected=${density === WISKEY_AUTO}>אוטומטי</option>
+          <option value="" ?selected=${density === ''}>${base.density === WISKEY_AUTO ? tr('ברירת מחדל (אוטומטי)') : this.defaultLabel(base.density)}</option>
+          <option value=${WISKEY_AUTO} ?selected=${density === WISKEY_AUTO}>${tr('אוטומטי')}</option>
           ${WISKEY_DENSITIES.map((n) => html`<option value=${n} ?selected=${density === n}>${n}</option>`)}
         </select>
       </div>
       <div class="row">
-        <label for="wk-wall">מצלמות בקיר</label>
+        <label for="wk-wall">${tr('מצלמות בקיר')}</label>
         <select id="wk-wall" data-my-wiskey-wall ?disabled=${this.busy} @change=${(e: Event) => void this.pick('wall', e.target as HTMLSelectElement)}>
           <option value="" ?selected=${wall === ''}>${this.defaultLabel(base.wall)}</option>
           ${WISKEY_WALLS.map((n) => html`<option value=${n} ?selected=${wall === n}>${n}</option>`)}
         </select>
       </div>
-      <p class="note" data-my-wiskey-note>נקודת פתיחה בכל טעינה. שינוי בתוך WisKey אינו נשמר.</p>
-      ${this.failed ? html`<p class="err" role="alert" data-my-wiskey-error>השמירה נכשלה</p>` : nothing}
+      <p class="note" data-my-wiskey-note>${tr('נקודת פתיחה בכל טעינה. שינוי בתוך WisKey אינו נשמר.')}</p>
+      ${this.failed ? html`<p class="err" role="alert" data-my-wiskey-error>${tr('השמירה נכשלה')}</p>` : nothing}
     `;
   }
 }

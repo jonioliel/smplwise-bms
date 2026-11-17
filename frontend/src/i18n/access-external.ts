@@ -5,6 +5,7 @@
  * Russian columns are an INITIAL translation that needs a native review (dev-marked). Operator texts never name the home platform.
  * `{name}` placeholders are filled by `xt(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 import { NAV_XT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
 
 const he = {
@@ -2230,17 +2231,18 @@ export const XT_KEYS = Object.keys(he) as XtKey[];
 export const XT_TABLES = TABLES;
 
 export function xtLang(): XtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function xt(key: XtKey, vars?: Record<string, string | number>, lang: XtLang = xtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`st_<state>`, `reason_<end reason>`...), or the fallback when there is none. */
 export function xtDynamic(key: string, fallback: XtKey, vars?: Record<string, string | number>): string {
   return key in he ? xt(key as XtKey, vars) : xt(fallback, vars);
 }
+
+registerCatalogue('i18n/access-external', { he, en, ar, ru }, XT_DEV_MARKED);

@@ -3,6 +3,7 @@
  * Hebrew first; the English column follows the document language (a missing key falls back to the Hebrew). `{n}` placeholders are
  * filled by `cit(key, { n })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'תמונת המצלמות',
   off: 'כבוי',
@@ -119,10 +120,11 @@ export type CitKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
 
 export function cit(key: Key, vars?: Record<string, string | number>): string {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  const raw = TABLES[l.startsWith('en') ? 'en' : 'he'][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  const raw = TABLES[docLang(['en'])][key] ?? he[key] ?? key;
+  return fill(raw, vars);
 }
 
 export const CIT_KEYS = Object.keys(he) as Key[];
 export const CIT_TABLES = TABLES;
+
+registerCatalogue('i18n/camera-image-health', { he, en });

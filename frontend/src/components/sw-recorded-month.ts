@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import './sw-icon';
 import { WEEKDAYS_HE, WEEKDAY_NAMES_HE, canGoNext, dayLabel, monthGrid, monthOf, monthTitle, shiftMonth, summaryText, type MonthCell } from './recorded-month-logic';
+import { tr } from '../i18n/msg/components';
 
 export interface MonthAnswer {
   days: string[];
@@ -399,7 +400,7 @@ export class SwRecordedMonth extends LitElement {
       this.cache.set(month, a);
       if (seq === this.seq) this.answer = a;
     } catch (err) {
-      if (seq === this.seq) this.error = err instanceof Error && err.message ? err.message : 'בדיקת ההקלטות נכשלה';
+      if (seq === this.seq) this.error = err instanceof Error && err.message ? err.message : tr('בדיקת ההקלטות נכשלה');
     }
   }
 
@@ -482,8 +483,8 @@ export class SwRecordedMonth extends LitElement {
 
   private renderFoot() {
     if (this.error)
-      return html`<div class="foot" data-error role="status"><span class="msg">${this.error}</span><button class="retry" @click=${() => { this.cache.delete(this.month); void this.load(this.month); }}>נסה שוב</button></div>`;
-    if (!this.answer) return html`<div class="foot" role="status"><span class="msg">בודק אילו ימים הוקלטו…</span></div>`;
+      return html`<div class="foot" data-error role="status"><span class="msg">${this.error}</span><button class="retry" @click=${() => { this.cache.delete(this.month); void this.load(this.month); }}>${tr('נסה שוב')}</button></div>`;
+    if (!this.answer) return html`<div class="foot" role="status"><span class="msg">${tr('בודק אילו ימים הוקלטו…')}</span></div>`;
     return html`<div class="foot" role="status" ?data-partial=${this.answer.coverage === 'partial'}><span class="msg" data-summary>${summaryText(this.answer.days.length, this.answer.coverage)}</span></div>`;
   }
 
@@ -494,21 +495,21 @@ export class SwRecordedMonth extends LitElement {
         type="button"
         aria-haspopup="dialog"
         aria-expanded=${this.open ? 'true' : 'false'}
-        aria-label="לוח חודשי · ימים עם הקלטות"
-        title="לוח חודשי · ימים עם הקלטות"
+        aria-label=${tr('לוח חודשי · ימים עם הקלטות')}
+        title=${tr('לוח חודשי · ימים עם הקלטות')}
         ?disabled=${this.disabled}
         @pointerdown=${() => (this.openAtPress = this.open)}
         @click=${() => this.toggle()}
       >
         <sw-icon name="calendar" size="18"></sw-icon>
       </button>
-      <div class="pop ${this.sheet ? 'sheet' : ''}" popover="auto" role="dialog" aria-label="ימים עם הקלטות" @toggle=${(e: Event) => this.onToggle(e)}>
+      <div class="pop ${this.sheet ? 'sheet' : ''}" popover="auto" role="dialog" aria-label=${tr('ימים עם הקלטות')} @toggle=${(e: Event) => this.onToggle(e)}>
         ${this.open
           ? html`
               <div class="head">
-                <button class="nav prev" type="button" aria-label="החודש הקודם" @click=${() => this.go(-1)}><sw-icon name="chevron" size="18"></sw-icon></button>
+                <button class="nav prev" type="button" aria-label=${tr('החודש הקודם')} @click=${() => this.go(-1)}><sw-icon name="chevron" size="18"></sw-icon></button>
                 <h2 class="title" id="t" aria-live="polite">${monthTitle(this.month)}</h2>
-                <button class="nav next" type="button" aria-label="החודש הבא" ?disabled=${!canGoNext(this.month, this.today)} @click=${() => this.go(1)}><sw-icon name="chevron" size="18"></sw-icon></button>
+                <button class="nav next" type="button" aria-label=${tr('החודש הבא')} ?disabled=${!canGoNext(this.month, this.today)} @click=${() => this.go(1)}><sw-icon name="chevron" size="18"></sw-icon></button>
               </div>
               ${this.renderGrid()} ${this.renderFoot()}
             `

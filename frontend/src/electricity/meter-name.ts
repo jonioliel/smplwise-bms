@@ -1,3 +1,5 @@
+import { tr } from '../i18n/msg/electricity';
+
 /**
  * How a meter or a candidate sensor is named on screen. Many sensors are called just "Energy"; what tells them apart is the device they belong to.
  * `primary` is the device's name (the user's name for the device, else its own); `secondary` is the sensor's own name, only when it differs. A sensor
@@ -45,12 +47,12 @@ export function checkMeterName(raw: string, others: readonly string[]): NameChec
   const name = raw.trim();
   const key = name.toLocaleLowerCase();
   const duplicate = !!name && others.some((o) => o.trim().toLocaleLowerCase() === key);
-  if (!name) return { name, error: 'צריך להזין שם למונה', duplicate: false };
-  if (name.length > METER_NAME_MAX) return { name, error: `השם ארוך מדי (עד ${METER_NAME_MAX} תווים)`, duplicate };
+  if (!name) return { name, error: tr('צריך להזין שם למונה'), duplicate: false };
+  if (name.length > METER_NAME_MAX) return { name, error: tr('השם ארוך מדי (עד {max} תווים)', { max: METER_NAME_MAX }), duplicate };
   if (duplicate) return { name, error: DUPLICATE_NAME_ERROR, duplicate };
   return { name, error: '', duplicate };
 }
 
 /** Meter names are unique (case-insensitive, paused meters included); the server refuses a colliding name with the code `meter_name_taken`. */
-export const DUPLICATE_NAME_ERROR = 'קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם';
-export const RENAME_HINT = 'השם החדש יופיע במסמכים חדשים. חשבוניות שכבר הונפקו לא ישתנו.';
+export const DUPLICATE_NAME_ERROR = tr('קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם');
+export const RENAME_HINT = tr('השם החדש יופיע במסמכים חדשים. חשבוניות שכבר הונפקו לא ישתנו.');

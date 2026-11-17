@@ -15,6 +15,7 @@ import { PhoneWidth, isPhoneWidth } from '../shell/phone';
 import { isOnWall } from './wall-arrangement';
 import { timeText } from '../api/day-format';
 import '../components/sw-brand';
+import { tr } from '../i18n/msg/media';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
@@ -669,29 +670,29 @@ export class KioskWall extends LitElement {
     return html`
       <header>
         <sw-brand kind="product" scheme="dark" .h=${24} data-kiosk-product-logo></sw-brand>
-        <h1>ניטור חי</h1>
+        <h1>${tr('ניטור חי')}</h1>
         <sw-brand kind="company" scheme="dark" .h=${24} .maxw=${120} data-kiosk-company-logo></sw-brand>
         <span class="spacer"></span>
-        <sw-badge kind="live" label=${`${api ? this.selected.length : demo.length} מצלמות · ${online} חיות`}></sw-badge>
-        ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>עמוד ${pageIndex + 1}/${this.pages}${this.view.rotate ? ` · כל ${this.view.rotate} שנ׳` : ''}</span>` : nothing}
-        ${api ? html`<select class="layout" data-kiosk-layout aria-label="פריסה" @change=${(e: Event) => this.setLayout((e.target as HTMLSelectElement).value)}>
-          ${this.layoutChoices().map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${c * r} מצלמות בעמוד</option>`)}
+        <sw-badge kind="live" label=${tr('{n} מצלמות · {online} חיות', { n: api ? this.selected.length : demo.length, online })}></sw-badge>
+        ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>${tr('עמוד {page}/{pages}', { page: pageIndex + 1, pages: this.pages })}${this.view.rotate ? tr(' · כל {rotate} שנ׳', { rotate: this.view.rotate }) : ''}</span>` : nothing}
+        ${api ? html`<select class="layout" data-kiosk-layout aria-label=${tr('פריסה')} @change=${(e: Event) => this.setLayout((e.target as HTMLSelectElement).value)}>
+          ${this.layoutChoices().map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${tr('{n} מצלמות בעמוד', { n: c * r })}</option>`)}
         </select>` : nothing}
-        ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
+        ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>${tr('מערכת:')} ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
         <span class="clock" data-kiosk-clock><b>${this.clock.time || '—'}</b><span>${this.clock.date}</span></span>
-        <a class="exit" href="#/live/wall" data-kiosk-exit title="חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)">יציאה</a>
+        <a class="exit" href="#/live/wall" data-kiosk-exit title=${tr('חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)')}>${tr('יציאה')}</a>
       </header>
-      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected><span class="mark"><sw-icon name="warning" size=${28}></sw-icon></span><b>אין קשר לשרת Arx</b><span>הזרמים אינם חיים · מנסה להתחבר מחדש</span></div>` : nothing}
+      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected><span class="mark"><sw-icon name="warning" size=${28}></sw-icon></span><b>${tr('אין קשר לשרת Arx')}</b><span>${tr('הזרמים אינם חיים · מנסה להתחבר מחדש')}</span></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
           ? real.map((c, i) => html`<div class="cell"><sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && c.live_kind !== 'still' && i < cap && i < this.started} .stillRefresh=${c.live_kind === 'still' && c.status !== 'offline' ? c.still_refresh_s ?? 10 : 0} cameraId=${c.id} profile="sub" autoProfile transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile></div>`)
           : demo.map((c) => html`<div class="cell"><sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile></div>`)}
       </div>
       <div class="stats">
-        <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${api ? `${online}/${real.length}` : '7/9'}</b><span>מצלמות מחוברות</span></div></div>
-        <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>${api ? real.filter((c) => c.status === 'offline').length : 3}</b><span>${api ? 'מצלמות מנותקות' : 'התראות פתוחות'}</span></div></div>
-        <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${api ? Math.min(real.length, cap) : 2}</b><span>${api ? 'זרמים חיים במקביל' : 'מבנים'}</span></div></div>
-        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b data-word>${api ? 'פעיל' : 'חלקי'}</b><span>${api ? 'go2rtc + NVR' : 'מצב מערכת · גשר לא רענן'}</span></div></div>
+        <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${api ? `${online}/${real.length}` : '7/9'}</b><span>${tr('מצלמות מחוברות')}</span></div></div>
+        <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>${api ? real.filter((c) => c.status === 'offline').length : 3}</b><span>${api ? tr('מצלמות מנותקות') : tr('התראות פתוחות')}</span></div></div>
+        <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${api ? Math.min(real.length, cap) : 2}</b><span>${api ? tr('זרמים חיים במקביל') : tr('מבנים')}</span></div></div>
+        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b data-word>${api ? tr('פעיל') : tr('חלקי')}</b><span>${api ? 'go2rtc + NVR' : tr('מצב מערכת · גשר לא רענן')}</span></div></div>
       </div>
     `;
   }

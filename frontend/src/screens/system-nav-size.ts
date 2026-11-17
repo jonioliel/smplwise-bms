@@ -17,6 +17,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsStackLabelStyles, settingsMutedHintStyles, settingsWrapFootStyles } from '../styles/settings';
 import { segTrackStyles, segThumbStyles } from '../styles/fragments';
+import { tr } from '../i18n/msg/system-b';
 
 /** The preview's tabs (the same icons and labels as the rail; shell/nav.ts NAV_A). */
 const PREVIEW_TABS = [
@@ -236,7 +237,7 @@ export class SystemNavSize extends LitElement {
         setInstallationNavSize(r.settings['ui.nav_size']);
       }
       this.draft = this.storedOf(this.target);
-      this.message = 'גודל הניווט נשמר';
+      this.message = tr('גודל הניווט נשמר');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -252,7 +253,7 @@ export class SystemNavSize extends LitElement {
     try {
       await saveOwnNavSize(null);
       this.draft = this.storedOf('own');
-      this.message = 'הניווט חזר לברירת המחדל של המערכת';
+      this.message = tr('הניווט חזר לברירת המחדל של המערכת');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -264,9 +265,9 @@ export class SystemNavSize extends LitElement {
   private renderRel() {
     const cur = this.applied.mode === 'rel' ? this.applied.preset : null;
     const sel = this.draft.mode === 'rel' ? this.draft.preset : null;
-    return html`<div class="row" data-nav-rel><span class="lbl">גודל<span class="muted">כל חלקי הניווט מוגדלים ומוקטנים יחד</span></span>
-      <span class="seg" role="group" aria-label="גודל הניווט">${NAV_PRESETS.map(
-        (p) => html`<button type="button" data-nav-preset=${p} aria-pressed=${sel === p ? 'true' : 'false'} @click=${() => { this.draft = { mode: 'rel', preset: p }; this.message = ''; }}>${NAV_PRESET_LABEL[p]}${cur === p ? html`<span class="cur" data-nav-current>נוכחי</span>` : nothing}</button>`,
+    return html`<div class="row" data-nav-rel><span class="lbl">${tr('גודל')}<span class="muted">${tr('כל חלקי הניווט מוגדלים ומוקטנים יחד')}</span></span>
+      <span class="seg" role="group" aria-label=${tr('גודל הניווט')}>${NAV_PRESETS.map(
+        (p) => html`<button type="button" data-nav-preset=${p} aria-pressed=${sel === p ? 'true' : 'false'} @click=${() => { this.draft = { mode: 'rel', preset: p }; this.message = ''; }}>${NAV_PRESET_LABEL[p]}${cur === p ? html`<span class="cur" data-nav-current>${tr('נוכחי')}</span>` : nothing}</button>`,
       )}</span></div>`;
   }
 
@@ -274,12 +275,12 @@ export class SystemNavSize extends LitElement {
     const d = navDims(this.draft);
     const vars = Object.entries(navCssVars(d)).map(([k, v]) => `${k}:${v}`).join(';');
     return html`<div class="stage ${classMap({ nolabels: !d.labels })}" style=${vars} data-nav-preview data-icon=${d.icon} data-label=${d.labels ? d.label : 0} data-item=${d.item}>
-      <div><h4>סרגל צד</h4>
+      <div><h4>${tr('סרגל צד')}</h4>
         <div class="mini-rail" data-preview-rail>
           ${PREVIEW_TABS.map((t, i) => html`<span class="it ${i === 0 ? 'on' : ''}" data-preview-item><sw-icon name=${t.icon} size=${d.icon}></sw-icon><span class="lbl">${t.label}</span></span>`)}
           <span class="it" data-preview-item><sw-avatar name="יוני" size=${d.avatar}></sw-avatar><span class="lbl">יוני</span></span>
         </div></div>
-      <div><h4>סרגל תחתון בטלפון</h4>
+      <div><h4>${tr('סרגל תחתון בטלפון')}</h4>
         <div class="mini-bar" data-preview-bar>
           ${PREVIEW_TABS.map((t, i) => html`<span class="it ${i === 0 ? 'on' : ''}"><span class="ic"><sw-icon name=${t.icon} size=${d.pIcon}></sw-icon></span><span class="lbl">${t.label}</span></span>`)}
           <span class="it"><span class="ic"><sw-avatar name="יוני" size=${d.pAvatar}></sw-avatar></span><span class="lbl">יוני</span></span>
@@ -289,19 +290,19 @@ export class SystemNavSize extends LitElement {
 
   render() {
     const both = this.canEdit && isApi();
-    return html`<sw-card heading="גודל הניווט" subheading="סרגל הצד במחשב והסרגל התחתון בטלפון" data-nav-size>
+    return html`<sw-card heading=${tr('גודל הניווט')} subheading=${tr('סרגל הצד במחשב והסרגל התחתון בטלפון')} data-nav-size>
       ${both
-        ? html`<div class="row"><span class="lbl">מה לערוך<span class="muted">הגדרה אישית גוברת על ברירת המחדל של המערכת</span></span>
-            <span class="seg" role="group" aria-label="מה לערוך">
-              <button type="button" data-nav-target="own" aria-pressed=${this.target === 'own' ? 'true' : 'false'} @click=${() => this.setTarget('own')}>שלי</button>
-              <button type="button" data-nav-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => this.setTarget('installation')}>ברירת מחדל של המערכת</button>
+        ? html`<div class="row"><span class="lbl">${tr('מה לערוך')}<span class="muted">${tr('הגדרה אישית גוברת על ברירת המחדל של המערכת')}</span></span>
+            <span class="seg" role="group" aria-label=${tr('מה לערוך')}>
+              <button type="button" data-nav-target="own" aria-pressed=${this.target === 'own' ? 'true' : 'false'} @click=${() => this.setTarget('own')}>${tr('שלי')}</button>
+              <button type="button" data-nav-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => this.setTarget('installation')}>${tr('ברירת מחדל של המערכת')}</button>
             </span></div>`
         : nothing}
       ${this.renderRel()}
       ${this.renderPreview()}
       <div class="foot">
-        <sw-button variant="primary" size="sm" icon="check" data-nav-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>
-        ${this.target === 'own' ? html`<sw-button size="sm" data-nav-reset ?disabled=${ownNavSize() === null || this.busy} @click=${() => void this.useSystemDefault()}>ברירת מחדל של המערכת</sw-button>` : nothing}
+        <sw-button variant="primary" size="sm" icon="check" data-nav-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
+        ${this.target === 'own' ? html`<sw-button size="sm" data-nav-reset ?disabled=${ownNavSize() === null || this.busy} @click=${() => void this.useSystemDefault()}>${tr('ברירת מחדל של המערכת')}</sw-button>` : nothing}
         ${this.message ? html`<span class="ok" role="status" data-nav-message>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
       </div>

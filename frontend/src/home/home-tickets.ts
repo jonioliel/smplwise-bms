@@ -12,8 +12,9 @@ import { registerMoreTile } from './more-registry';
 import { myTickets, newTicket, rid, ticketNote, type Ticket, type TicketCat } from './home-p2-api';
 import { errText, has, plural, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 import { PHOTOS_MAX, PHOTO_TYPES, photoProblem, ticketPhoto } from './home-fb-api';
+import { tr } from '../i18n/msg/home';
 
-const STEPS = ['התקבלה', 'בטיפול', 'טופלה'];
+const STEPS = [tr('התקבלה'), tr('בטיפול'), tr('טופלה')];
 const st: {
   items: Ticket[]; cats: TicketCat[]; canCreate: boolean; tab: 'open' | 'all'; at: number; loading: boolean; error: string;
   draft: { cat: number; where: string; text: string; note: string; crid: string }; busy: boolean; photos: { file: File; url: string }[];
@@ -66,14 +67,14 @@ export function newTicketFor(h: HomeHost, where: string, subject?: RegExp) {
   const i = subject ? st.cats.findIndex((c) => subject.test(c.name)) : -1;
   if (i >= 0) st.draft.cat = i;
 }
-const word = (t: Ticket) => (t.status === 'cancelled' ? 'בוטלה' : STEPS[t.step]);
+const word = (t: Ticket) => (t.status === 'cancelled' ? tr('בוטלה') : STEPS[t.step]);
 // HOME-V3-AUDITFIX-2437 (audit item 23): the mockup's tints - received = blue, in progress = warm, done = quiet
 const tone = (t: Ticket) => (t.step === 2 ? 'neutral' : t.step === 1 ? 'warn' : 'info');
 /** audit item 24: the new-ticket category chip's icon, from the category's own name (the mockup's drop, bolt, thermometer, door, sparkle, dots) */
 const catIcon = (name: string) => (/אינסטל|מים|נזיל|ביוב/.test(name) ? 'drop' : /חשמל|תאור/.test(name) ? 'bolt' : /מיזוג|חימום|אקלים|מזגן/.test(name) ? 'thermo'
   : /דלת|מנעול|כניס|שער/.test(name) ? 'door' : /ניקי|גינ|ניקוי/.test(name) ? 'spark' : 'more');
-const steps = (t: Ticket) => html`<span class="steps" aria-label=${'מצב: ' + word(t)}>${STEPS.map((_, i) => html`<i class=${i <= t.step ? 'on' : ''}></i>`)}</span>`;
-const noteOf = (t: Ticket) => (t.step === 2 ? 'הפנייה טופלה.' : t.eta_at ? `מטפל יגיע ב${whenText(t.eta_at)}` : t.step === 1 ? 'מישהו כבר מטפל בפנייה.' : 'הפנייה התקבלה. נעדכן כשמישהו יתחיל לטפל.');
+const steps = (t: Ticket) => html`<span class="steps" aria-label=${tr('מצב: ') + word(t)}>${STEPS.map((_, i) => html`<i class=${i <= t.step ? 'on' : ''}></i>`)}</span>`;
+const noteOf = (t: Ticket) => (t.step === 2 ? tr('הפנייה טופלה.') : t.eta_at ? tr('מטפל יגיע ב{v1}', { v1: whenText(t.eta_at) }) : t.step === 1 ? tr('מישהו כבר מטפל בפנייה.') : tr('הפנייה התקבלה. נעדכן כשמישהו יתחיל לטפל.'));
 
 /** Opens the new-ticket sheet (also from other screens, e.g. a leak). */
 export function openNewTicket(h: HomeHost, where = '') {
@@ -83,10 +84,10 @@ export function openNewTicket(h: HomeHost, where = '') {
 }
 
 registerMoreTile({
-  id: 'tickets', order: 65, href: 'tickets', label: 'פניות שירות', icon: 'wrench',
+  id: 'tickets', order: 65, href: 'tickets', label: tr('פניות שירות'), icon: 'wrench',
   visible: (h) => seen(h) && has('tickets'),
   warm: (h) => load(h),
-  line: () => { const n = open().length; return { text: n ? plural(n, 'פנייה אחת פתוחה', 'פניות פתוחות') : 'אין פניות פתוחות' }; },
+  line: () => { const n = open().length; return { text: n ? plural(n, tr('פנייה אחת פתוחה'), tr('פניות פתוחות')) : tr('אין פניות פתוחות') }; },
 });
 
 registerScreen((h: HomeHost) => ({
@@ -94,36 +95,36 @@ registerScreen((h: HomeHost) => ({
   names: ['tickets'],
   enter: () => { warmFamily(h); load(h, true); },
   render() {
-    if (!has('tickets')) return offScreen(h, 'פניות שירות');
+    if (!has('tickets')) return offScreen(h, tr('פניות שירות'));
     if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
-    if (st.error && !st.at) return html`${h.head('פניות שירות', '')}${h.empty('x', 'לא הצלחנו לטעון את הפניות', st.error)}`;
+    if (st.error && !st.at) return html`${h.head(tr('פניות שירות'), '')}${h.empty('x', tr('לא הצלחנו לטעון את הפניות'), st.error)}`;
     const n = open().length;
     const list = st.tab === 'open' ? open() : st.items;
     const pg = paged(list, h.phone ? 3 : 4, h.pg('tk'));
     const canNew = st.canCreate && !h.kioskLocked();
-    return html`${h.headT('פניות שירות', n ? plural(n, 'פנייה אחת פתוחה', 'פניות פתוחות') : 'אין פניות פתוחות', h.seg('p2TkTab', [['open', 'פתוחות'], ['all', 'הכל']], st.tab, 'סינון'),
-      html`${h.pager('tk', pg.pages)}${canNew ? html`<button class="hbtn strong" data-act="p2TkNew">${hi('plus')}<span class="bt">פנייה חדשה</span></button>` : nothing}`)}
-      <div class="alert-list">${pg.items.length ? pg.items.map((t) => html`<button class="tile arow tkrow" data-act="p2Ticket" data-id=${t.id}><span class="ai" data-tone=${tone(t)}>${hi('wrench')}</span><span class="at"><b class="clamp1">${t.title}</b><span class="muted clamp1">${[t.place_text, 'נפתחה ' + whenText(t.created_at, h.now)].filter(Boolean).join(' · ')}</span></span><span class="tks">${steps(t)}<span class="muted">${word(t)}</span></span></button>`)
-        : h.empty('wrench', st.loading ? 'טוענים…' : st.tab === 'open' ? 'אין פניות פתוחות' : 'עוד לא פתחתם פנייה', canNew ? 'משהו לא עובד? פותחים פנייה בכפתור "פנייה חדשה" ועוקבים אחריה מכאן.' : '')}</div>`;
+    return html`${h.headT(tr('פניות שירות'), n ? plural(n, tr('פנייה אחת פתוחה'), tr('פניות פתוחות')) : tr('אין פניות פתוחות'), h.seg('p2TkTab', [['open', tr('פתוחות')], ['all', tr('הכל')]], st.tab, tr('סינון')),
+      html`${h.pager('tk', pg.pages)}${canNew ? html`<button class="hbtn strong" data-act="p2TkNew">${hi('plus')}<span class="bt">${tr('פנייה חדשה')}</span></button>` : nothing}`)}
+      <div class="alert-list">${pg.items.length ? pg.items.map((t) => html`<button class="tile arow tkrow" data-act="p2Ticket" data-id=${t.id}><span class="ai" data-tone=${tone(t)}>${hi('wrench')}</span><span class="at"><b class="clamp1">${t.title}</b><span class="muted clamp1">${[t.place_text, tr('נפתחה ') + whenText(t.created_at, h.now)].filter(Boolean).join(' · ')}</span></span><span class="tks">${steps(t)}<span class="muted">${word(t)}</span></span></button>`)
+        : h.empty('wrench', st.loading ? tr('טוענים…') : st.tab === 'open' ? tr('אין פניות פתוחות') : tr('עוד לא פתחתם פנייה'), canNew ? tr('משהו לא עובד? פותחים פנייה בכפתור "פנייה חדשה" ועוקבים אחריה מכאן.') : '')}</div>`;
   },
   ovl(o: ExtOvl) {
-    const x = html`<button class="rb" data-act="close" aria-label="סגור">${hi('x')}</button>`;
+    const x = html`<button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button>`;
     const dr = st.draft;
     if (o.kind === 'new') {
-      return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label="פנייה חדשה" data-sheet="tkNew"><header class="menu-h">${hi('wrench')}<span class="mh-t"><b>פנייה חדשה</b><span class="muted">מה לא עובד?</span></span>${x}</header>
-        ${st.cats.length > 1 ? html`<div class="chipset" role="radiogroup" aria-label="נושא">${st.cats.slice(0, 8).map((c, i) => html`<button class="chip2" role="radio" data-act="p2TkCat" data-v=${String(i)} aria-checked=${String(dr.cat === i)} aria-pressed=${String(dr.cat === i)}>${hi(catIcon(c.name), 'c2i')}<span class="clamp1">${c.name}</span></button>`)}</div>` : nothing}
-        <label class="fld"><span>איפה</span><input class="inp" .value=${dr.where} maxlength="200" placeholder="למשל: מטבח" enterkeyhint="next" @input=${(e: Event) => { dr.where = (e.target as HTMLInputElement).value; }}></label>
-        <label class="fld"><span>מה קרה</span><textarea class="inp" rows="2" maxlength="4000" placeholder="כמה מילים שיעזרו למי שמטפל" .value=${dr.text} @input=${(e: Event) => { dr.text = (e.target as HTMLTextAreaElement).value; }}></textarea></label>
-        ${st.photos.length ? html`<div class="tkph" role="list" aria-label="תמונות מצורפות">${st.photos.map((p, i) => html`<span class="ph" role="listitem"><img src=${p.url} alt=${`תמונה ${i + 1}`}><button class="rb" data-act="p2TkPhDel" data-v=${String(i)} aria-label=${`הסר את תמונה ${i + 1}`}>${hi('x')}</button></span>`)}<span class="muted">${st.photos.length === 1 ? 'תמונה אחת תצורף' : `${st.photos.length} תמונות יצורפו`}</span></div>` : nothing}
-        <div class="dlg-acts three"><label class="hbtn tkpick" aria-disabled=${String(st.photos.length >= PHOTOS_MAX || st.busy)}>${hi('photo')}<span class="bt">צרף תמונה</span><input type="file" accept=${PHOTO_TYPES.join(',')} multiple ?disabled=${st.photos.length >= PHOTOS_MAX || st.busy} @change=${(e: Event) => pickPhotos(h, e.target as HTMLInputElement)}></label><button class="hbtn strong" data-act="p2TkSend" ?disabled=${st.busy}>שלח פנייה</button><button class="hbtn" data-act="close">ביטול</button></div></section>`;
+      return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label="${tr('פנייה חדשה')}" data-sheet="tkNew"><header class="menu-h">${hi('wrench')}<span class="mh-t"><b>${tr('פנייה חדשה')}</b><span class="muted">${tr('מה לא עובד?')}</span></span>${x}</header>
+        ${st.cats.length > 1 ? html`<div class="chipset" role="radiogroup" aria-label="${tr('נושא')}">${st.cats.slice(0, 8).map((c, i) => html`<button class="chip2" role="radio" data-act="p2TkCat" data-v=${String(i)} aria-checked=${String(dr.cat === i)} aria-pressed=${String(dr.cat === i)}>${hi(catIcon(c.name), 'c2i')}<span class="clamp1">${c.name}</span></button>`)}</div>` : nothing}
+        <label class="fld"><span>${tr('איפה')}</span><input class="inp" .value=${dr.where} maxlength="200" placeholder="${tr('למשל: מטבח')}" enterkeyhint="next" @input=${(e: Event) => { dr.where = (e.target as HTMLInputElement).value; }}></label>
+        <label class="fld"><span>${tr('מה קרה')}</span><textarea class="inp" rows="2" maxlength="4000" placeholder="${tr('כמה מילים שיעזרו למי שמטפל')}" .value=${dr.text} @input=${(e: Event) => { dr.text = (e.target as HTMLTextAreaElement).value; }}></textarea></label>
+        ${st.photos.length ? html`<div class="tkph" role="list" aria-label="${tr('תמונות מצורפות')}">${st.photos.map((p, i) => html`<span class="ph" role="listitem"><img src=${p.url} alt=${tr('תמונה {v1}', { v1: i + 1 })}><button class="rb" data-act="p2TkPhDel" data-v=${String(i)} aria-label=${tr('הסר את תמונה {v1}', { v1: i + 1 })}>${hi('x')}</button></span>`)}<span class="muted">${st.photos.length === 1 ? tr('תמונה אחת תצורף') : tr('{length} תמונות יצורפו', { length: st.photos.length })}</span></div>` : nothing}
+        <div class="dlg-acts three"><label class="hbtn tkpick" aria-disabled=${String(st.photos.length >= PHOTOS_MAX || st.busy)}>${hi('photo')}<span class="bt">${tr('צרף תמונה')}</span><input type="file" accept=${PHOTO_TYPES.join(',')} multiple ?disabled=${st.photos.length >= PHOTOS_MAX || st.busy} @change=${(e: Event) => pickPhotos(h, e.target as HTMLInputElement)}></label><button class="hbtn strong" data-act="p2TkSend" ?disabled=${st.busy}>${tr('שלח פנייה')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div></section>`;
     }
     const t = st.items.find((k) => k.id === o.id);
     if (!t) return nothing;
     return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label=${t.title} data-sheet="ticket"><header class="menu-h"><span class="mh-t"><span class="muted clamp1">${[t.category?.name ?? t.department, t.place_text].filter(Boolean).join(' · ')}</span><b class="clamp2">${t.title}</b></span>${x}</header>
-      <div class="steps big">${STEPS.map((s, i) => html`<span class=${'sp' + (i <= t.step ? ' on' : '')}><i>${i <= t.step ? hi('check') : nothing}</i>${s}</span>`)}</div><p class="tk-note clamp3">${hi('bell')}${noteOf(t)}</p><span class="muted">נפתחה ${whenText(t.created_at, h.now)}</span>
-      ${o.kind === 'note' ? html`<label class="fld"><span>הערה למטפל</span><textarea class="inp" rows="2" maxlength="4000" .value=${dr.note} @input=${(e: Event) => { dr.note = (e.target as HTMLTextAreaElement).value; }}></textarea></label>
-        <div class="dlg-acts"><button class="hbtn strong" data-act="p2TkNoteSend" data-id=${t.id} ?disabled=${st.busy}>שלח הערה</button><button class="hbtn" data-act="close">ביטול</button></div>`
-        : html`<div class="dlg-acts">${t.step < 2 ? html`<button class="hbtn" data-act="p2TkNote" data-id=${t.id}>${hi('edit')}הוסף הערה</button>` : nothing}<button class="hbtn" data-act="close">סגור</button></div>`}</section>`;
+      <div class="steps big">${STEPS.map((s, i) => html`<span class=${'sp' + (i <= t.step ? ' on' : '')}><i>${i <= t.step ? hi('check') : nothing}</i>${s}</span>`)}</div><p class="tk-note clamp3">${hi('bell')}${noteOf(t)}</p><span class="muted">${tr('נפתחה')} ${whenText(t.created_at, h.now)}</span>
+      ${o.kind === 'note' ? html`<label class="fld"><span>${tr('הערה למטפל')}</span><textarea class="inp" rows="2" maxlength="4000" .value=${dr.note} @input=${(e: Event) => { dr.note = (e.target as HTMLTextAreaElement).value; }}></textarea></label>
+        <div class="dlg-acts"><button class="hbtn strong" data-act="p2TkNoteSend" data-id=${t.id} ?disabled=${st.busy}>${tr('שלח הערה')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div>`
+        : html`<div class="dlg-acts">${t.step < 2 ? html`<button class="hbtn" data-act="p2TkNote" data-id=${t.id}>${hi('edit')}${tr('הוסף הערה')}</button>` : nothing}<button class="hbtn" data-act="close">${tr('סגור')}</button></div>`}</section>`;
   },
   acts: {
     p2TkTab: (el) => { st.tab = el.dataset.v as 'open' | 'all'; h.page = { ...h.page, tk: 0 }; h.requestUpdate(); },
@@ -135,8 +136,9 @@ registerScreen((h: HomeHost) => ({
     p2TkSend: () => {
       const d = st.draft;
       const c = st.cats.length === 1 ? st.cats[0] : st.cats[d.cat];
-      if (!c) return h.toast('בחרו נושא לפנייה.');
+      if (!c) return h.toast(tr('בחרו נושא לפנייה.'));
       const text = d.text.trim();
+      // the default title is saved with the request and read by the staff: it stays Hebrew in every interface language
       const title = (text ? text.split('\n')[0] : `תקלה: ${c.name}`).slice(0, 120);
       st.busy = true;
       h.requestUpdate();
@@ -146,7 +148,7 @@ registerScreen((h: HomeHost) => ({
           const failed = n && r?.id ? await sendPhotos(r.id) : 0;
           dropPhotos();
           h.ovl = null; st.tab = 'open'; h.page = { ...h.page, tk: 0 };
-          h.toast(failed ? (failed === n ? 'הפנייה נשלחה, אבל התמונה לא צורפה.' : 'הפנייה נשלחה, אבל חלק מהתמונות לא צורפו.') : n ? 'הפנייה נשלחה עם התמונות' : 'הפנייה נשלחה');
+          h.toast(failed ? (failed === n ? tr('הפנייה נשלחה, אבל התמונה לא צורפה.') : tr('הפנייה נשלחה, אבל חלק מהתמונות לא צורפו.')) : n ? tr('הפנייה נשלחה עם התמונות') : tr('הפנייה נשלחה'));
           load(h, true); if (!location.hash.endsWith('/tickets')) h.go('tickets');
         })
         .catch((e) => h.toast(errText(e)))
@@ -154,9 +156,9 @@ registerScreen((h: HomeHost) => ({
     },
     p2TkNoteSend: (el) => {
       const text = st.draft.note.trim();
-      if (!text) return h.toast('כתבו את ההערה.');
+      if (!text) return h.toast(tr('כתבו את ההערה.'));
       st.busy = true;
-      void ticketNote(el.dataset.id ?? '', text).then(() => { h.ovl = null; h.toast('ההערה נשלחה למטפל'); load(h, true); })
+      void ticketNote(el.dataset.id ?? '', text).then(() => { h.ovl = null; h.toast(tr('ההערה נשלחה למטפל')); load(h, true); })
         .catch((e) => h.toast(errText(e)))
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },

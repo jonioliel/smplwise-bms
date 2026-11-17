@@ -7,6 +7,7 @@ import { ApiError, describeError } from '../api/client';
 import type { CalRequest, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, ddmm, DAY_SHORT, hm, pageOf, queueOrder, rowsThatFit, startOfDay, whenText } from './model';
 import { LongListsController, perPageFor } from '../api/long-lists';
 
@@ -211,11 +212,11 @@ export class CalViewApprovals extends LitElement {
       const held = occurrences.filter((o) => o.state === 'confirmed' && o.start < r.end && o.end > r.start && o.kind !== 'holiday' && !rivals.some((q) => q.event_id === o.event_id));
       const color = this.ctx.cals.find((c) => c.id === h)?.color ?? r.calendar.color;
       this.lanes = [
-        ...held.map((o): Lane => ({ id: o.event_id, title: o.title ?? 'תפוס', who: o.organizer?.name ?? o.on_behalf_label ?? '', start: o.start, end: o.end, holder: true, req: null, color })),
-        ...rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? 'בקשה', who: [q.organizer?.name, q.headcount ? `${q.headcount.toLocaleString('he-IL')} משתתפים` : ''].filter(Boolean).join(' · '), start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color })),
+        ...held.map((o): Lane => ({ id: o.event_id, title: o.title ?? tr('תפוס'), who: o.organizer?.name ?? o.on_behalf_label ?? '', start: o.start, end: o.end, holder: true, req: null, color })),
+        ...rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? tr('בקשה'), who: [q.organizer?.name, q.headcount ? tr('{n} משתתפים', { n: q.headcount.toLocaleString('he-IL') }) : ''].filter(Boolean).join(' · '), start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color })),
       ];
     } catch {
-      this.lanes = rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? 'בקשה', who: q.organizer?.name ?? '', start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color }));
+      this.lanes = rivals.map((q): Lane => ({ id: q.event_id, title: q.title ?? tr('בקשה'), who: q.organizer?.name ?? '', start: q.start, end: q.end, holder: false, req: q, color: q.calendar.color }));
     }
   }
 
@@ -227,8 +228,8 @@ export class CalViewApprovals extends LitElement {
       await this.ctx.api.decide(r.event_id, { decision, revision: r.revision, room_calendar_id: r.room_calendar_id, note: opts.note || undefined, displace_existing: opts.displace || undefined,
         except_occurrences: opts.except?.length ? opts.except : undefined });
       this.decided = [{ r, decision, at: new Date(), displaced: !!opts.displace }, ...this.decided].slice(0, 50);
-      const t = r.title ?? 'הבקשה';
-      emit(this, CAL_EVENTS.toast, decision === 'approve' ? (opts.displace ? `"${t}" אושרה; ההזמנה שהחזיקה את החלון נדחקה` : `"${t}" אושרה`) : `"${t}" נדחתה`);
+      const t = r.title ?? tr('הבקשה');
+      emit(this, CAL_EVENTS.toast, decision === 'approve' ? (opts.displace ? tr('"{title}" אושרה; ההזמנה שהחזיקה את החלון נדחקה', { title: t }) : tr('"{title}" אושרה', { title: t })) : tr('"{title}" נדחתה', { title: t }));
       emit(this, CAL_EVENTS.changed);
       this.overlay = false;
       await this.load();
@@ -245,10 +246,10 @@ export class CalViewApprovals extends LitElement {
 
   private errText(e: unknown): string {
     if (e instanceof ApiError) {
-      if (e.code === 'slot_held') return 'החלון כבר תפוס על ידי הזמנה שאושרה קודם. אפשר לאשר עם דחיקה או לדחות.';
-      if (e.code === 'displace_disabled') return 'בהתקנה הזאת אי אפשר לדחוק הזמנה שאושרה. אפשר לדחות את הבקשה.';
-      if (e.status === 403) return 'דחיקה של הזמנה מאושרת דורשת את אישור מנהל היומן עצמו.';
-      if (e.code === 'stale') return 'הבקשה עודכנה בינתיים. הרשימה רועננה.';
+      if (e.code === 'slot_held') return tr('החלון כבר תפוס על ידי הזמנה שאושרה קודם. אפשר לאשר עם דחיקה או לדחות.');
+      if (e.code === 'displace_disabled') return tr('בהתקנה הזאת אי אפשר לדחוק הזמנה שאושרה. אפשר לדחות את הבקשה.');
+      if (e.status === 403) return tr('דחיקה של הזמנה מאושרת דורשת את אישור מנהל היומן עצמו.');
+      if (e.code === 'stale') return tr('הבקשה עודכנה בינתיים. הרשימה רועננה.');
     }
     return describeError(e);
   }
@@ -268,7 +269,7 @@ export class CalViewApprovals extends LitElement {
   render() {
     if (!this.ctx) return nothing;
     if (this.error && !this.reqs) {
-      return html`<section class="panel main" data-cal-state="error"><sw-state-panel state="error" heading="הבקשות לא נטענו" hint=${this.error} actionLabel="לנסות שוב" @action=${() => void this.load()}></sw-state-panel></section>`;
+      return html`<section class="panel main" data-cal-state="error"><sw-state-panel state="error" heading=${tr('הבקשות לא נטענו')} hint=${this.error} actionLabel=${tr('לנסות שוב')} @action=${() => void this.load()}></sw-state-panel></section>`;
     }
     if (!this.reqs) return html`<section class="panel main" aria-busy="true">${Array.from({ length: 4 }, () => html`<div class="skel" style="block-size:96px"></div>`)}</section>`;
     const r = this.reqs.find((x) => x.event_id === this.selId) ?? null;
@@ -276,9 +277,9 @@ export class CalViewApprovals extends LitElement {
     return html`
       <section class="panel main" data-approvals>
         <div class="ph">
-          <div class="seg" role="group" aria-label="בקשות">
-            <button type="button" aria-pressed=${String(this.seg === 'pending')} data-seg="pending" @click=${() => { this.seg = 'pending'; this.page = 1; }}>ממתינות <span class="num">${this.reqs.length}</span></button>
-            <button type="button" aria-pressed=${String(this.seg === 'decided')} data-seg="decided" @click=${() => { this.seg = 'decided'; this.page = 1; }}>הוחלטו לאחרונה</button>
+          <div class="seg" role="group" aria-label=${tr('בקשות')}>
+            <button type="button" aria-pressed=${String(this.seg === 'pending')} data-seg="pending" @click=${() => { this.seg = 'pending'; this.page = 1; }}>${tr('ממתינות')} <span class="num">${this.reqs.length}</span></button>
+            <button type="button" aria-pressed=${String(this.seg === 'decided')} data-seg="decided" @click=${() => { this.seg = 'decided'; this.page = 1; }}>${tr('הוחלטו לאחרונה')}</button>
           </div>
           <span class="sp"></span>
           ${this.device === 'phone' ? nothing : this.managedDots()}
@@ -293,14 +294,14 @@ export class CalViewApprovals extends LitElement {
 
   private managedDots() {
     const mine = (this.ctx?.cals ?? []).filter((c) => c.my_role === 'manage');
-    return html`<span class="hintline">יומנים שבניהולך: ${mine.slice(0, 8).map((c) => html`<span class="dot" style=${`--h:${colorVar(c.color)}`}></span>`)}<span class="num">${mine.length}</span></span>`;
+    return html`<span class="hintline">${tr('יומנים שבניהולך:')} ${mine.slice(0, 8).map((c) => html`<span class="dot" style=${`--h:${colorVar(c.color)}`}></span>`)}<span class="num">${mine.length}</span></span>`;
   }
 
   private pendingList() {
     const list = this.reqs ?? [];
     if (!list.length) {
-      return html`<div class="reqs-empty" data-cal-state="empty"><sw-state-panel icon="calendar" state="empty" heading="אין בקשות שממתינות לך"
-        hint="כשמישהו יבקש חדר ביומן שבאחריותך, הבקשה תופיע כאן ותקבל התראה."></sw-state-panel></div>`;
+      return html`<div class="reqs-empty" data-cal-state="empty"><sw-state-panel icon="calendar" state="empty" heading=${tr('אין בקשות שממתינות לך')}
+        hint=${tr('כשמישהו יבקש חדר ביומן שבאחריותך, הבקשה תופיע כאן ותקבל התראה.')}></sw-state-panel></div>`;
     }
     const pg = pageOf(list, this.page, perPageFor(this.lists.paged, this.perPage(), list.length));
     return html`<div class="list" data-req-list>${pg.items.map((q) => this.card(q))}</div>${this.pager(pg.page, pg.pages)}`;
@@ -316,22 +317,22 @@ export class CalViewApprovals extends LitElement {
         @click=${(e: Event) => { if (!(e.target as HTMLElement).closest('button')) void this.select(q); }}
         @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && e.target === e.currentTarget) void this.select(q); }}>
       <div class="info">
-        <div class="ttl"><span class="dot" style=${`--h:${colorVar(q.calendar.color)}`}></span><span class="ell" title=${q.title ?? ''}>${q.title ?? 'בקשה'}</span></div>
-        <div class="when"><span>${day} · <span class="ltr num">${span}</span></span>${q.recurring ? html`<span class="chip"><sw-icon name="refresh" size="12"></sw-icon><span class="ell">${q.recurring_summary ?? 'סדרה'}</span></span>` : nothing}</div>
+        <div class="ttl"><span class="dot" style=${`--h:${colorVar(q.calendar.color)}`}></span><span class="ell" title=${q.title ?? ''}>${q.title ?? tr('בקשה')}</span></div>
+        <div class="when"><span>${day} · <span class="ltr num">${span}</span></span>${q.recurring ? html`<span class="chip"><sw-icon name="refresh" size="12"></sw-icon><span class="ell">${q.recurring_summary ?? tr('סדרה')}</span></span>` : nothing}</div>
         <div class="meta">
           <span title=${q.calendar.name}>${q.calendar.name}</span>${q.organizer?.name ? html`<span title=${q.organizer.name}>${q.organizer.name}</span>` : nothing}
-          <span title=${q.on_behalf_label ?? ''}>${q.on_behalf_label ? `בשם: ${q.on_behalf_label}` : html`<span class="muted">ללא תווית</span>`}</span>
-          ${q.headcount ? html`<span class="num">${q.headcount.toLocaleString('he-IL')} משתתפים</span>` : nothing}
-          ${q.conflicts_now && q.competing_count <= 1 ? html`<span class="chip bad" data-chip="conflict"><sw-icon name="warning" size="12"></sw-icon>חופף להזמנה מאושרת</span>` : nothing}
-          ${hours > 0 && left >= 0 && left <= 12 ? html`<span class="chip warn num" data-chip="deadline">נשארו ${left} שע׳ להחלטה</span>` : nothing}
-          ${q.competing_count > 1 ? html`<span class="chip warn num" data-chip="contest"><sw-icon name="users" size="12"></sw-icon>${q.competing_count.toLocaleString('he-IL')} מבקשים לחלון</span>` : nothing}
-          ${q.guests_count ? html`<span class="chip num" data-chip="guests"><sw-icon name="lock" size="12"></sw-icon>פרטי אורח: ${q.guests_count}</span>` : nothing}
-          ${q.suggested && this.ctx?.access.ui.contested_order !== 'manual' ? html`<span class="chip acc" data-chip="first">ראשון בתור</span>` : nothing}
+          <span title=${q.on_behalf_label ?? ''}>${q.on_behalf_label ? tr('בשם: {name}', { name: q.on_behalf_label }) : html`<span class="muted">${tr('ללא תווית')}</span>`}</span>
+          ${q.headcount ? html`<span class="num">${tr('{n} משתתפים', { n: q.headcount.toLocaleString('he-IL') })}</span>` : nothing}
+          ${q.conflicts_now && q.competing_count <= 1 ? html`<span class="chip bad" data-chip="conflict"><sw-icon name="warning" size="12"></sw-icon>${tr('חופף להזמנה מאושרת')}</span>` : nothing}
+          ${hours > 0 && left >= 0 && left <= 12 ? html`<span class="chip warn num" data-chip="deadline">${tr('נשארו {n} שע׳ להחלטה', { n: left })}</span>` : nothing}
+          ${q.competing_count > 1 ? html`<span class="chip warn num" data-chip="contest"><sw-icon name="users" size="12"></sw-icon>${tr('{n} מבקשים לחלון', { n: q.competing_count.toLocaleString('he-IL') })}</span>` : nothing}
+          ${q.guests_count ? html`<span class="chip num" data-chip="guests"><sw-icon name="lock" size="12"></sw-icon>${tr('פרטי אורח: {n}', { n: q.guests_count })}</span>` : nothing}
+          ${q.suggested && this.ctx?.access.ui.contested_order !== 'manual' ? html`<span class="chip acc" data-chip="first">${tr('ראשון בתור')}</span>` : nothing}
         </div>
       </div>
       <div class="acts">
-        <button type="button" class="btn yes" ?disabled=${this.busy} data-approve=${q.event_id} @click=${() => void this.quickApprove(q)}><sw-icon name="check" size="14"></sw-icon>אישור</button>
-        <button type="button" class="btn no" ?disabled=${this.busy} data-reject=${q.event_id} @click=${() => { this.rejecting = q; this.note = ''; this.actErr = ''; }}><sw-icon name="close" size="14"></sw-icon>דחייה</button>
+        <button type="button" class="btn yes" ?disabled=${this.busy} data-approve=${q.event_id} @click=${() => void this.quickApprove(q)}><sw-icon name="check" size="14"></sw-icon>${tr('אישור')}</button>
+        <button type="button" class="btn no" ?disabled=${this.busy} data-reject=${q.event_id} @click=${() => { this.rejecting = q; this.note = ''; this.actErr = ''; }}><sw-icon name="close" size="14"></sw-icon>${tr('דחייה')}</button>
       </div>
     </div>`;
   }
@@ -347,37 +348,37 @@ export class CalViewApprovals extends LitElement {
 
   private decidedList() {
     if (!this.decided.length) {
-      return html`<div class="reqs-empty" data-cal-state="decided-empty"><sw-state-panel icon="check" state="empty" heading="עוד לא הוחלט דבר מאז שנפתח המסך" hint="החלטות שתקבל כאן יופיעו ברשימה הזאת."></sw-state-panel></div>`;
+      return html`<div class="reqs-empty" data-cal-state="decided-empty"><sw-state-panel icon="check" state="empty" heading=${tr('עוד לא הוחלט דבר מאז שנפתח המסך')} hint=${tr('החלטות שתקבל כאן יופיעו ברשימה הזאת.')}></sw-state-panel></div>`;
     }
     const pg = pageOf(this.decided, this.page, perPageFor(this.lists.paged, this.perPage() + 2, this.decided.length));
     return html`<div class="list">${pg.items.map((d) => html`<div class="row" data-decided=${d.r.event_id}>
       <span class="dot" style=${`--h:${colorVar(d.r.calendar.color)}`}></span>
-      <div class="grow"><div class="name ell">${d.r.title ?? 'בקשה'}</div><div class="sub ell">${d.r.calendar.name} · ${whenText(d.r.start, d.r.end, this.ctx?.now ?? new Date())}</div></div>
-      ${d.displaced ? html`<span class="chip warn">נדחקה הזמנה</span>` : nothing}
-      <span class=${`chip ${d.decision === 'approve' ? 'ok' : 'bad'}`}>${d.decision === 'approve' ? 'אושר' : 'נדחה'} · <span class="num">${hm(d.at)}</span></span></div>`)}</div>${this.pager(pg.page, pg.pages)}`;
+      <div class="grow"><div class="name ell">${d.r.title ?? tr('בקשה')}</div><div class="sub ell">${d.r.calendar.name} · ${whenText(d.r.start, d.r.end, this.ctx?.now ?? new Date())}</div></div>
+      ${d.displaced ? html`<span class="chip warn">${tr('נדחקה הזמנה')}</span>` : nothing}
+      <span class=${`chip ${d.decision === 'approve' ? 'ok' : 'bad'}`}>${d.decision === 'approve' ? tr('אושר') : tr('נדחה')} · <span class="num">${hm(d.at)}</span></span></div>`)}</div>${this.pager(pg.page, pg.pages)}`;
   }
 
   private pager(page: number, pages: number) {
     if (!this.lists.paged) return nothing; // PAGING-SETTING-2439: the list scrolls, no pager
-    return html`<div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
+    return html`<div class="pager" data-pager><button type="button" class="btn" aria-label=${tr('הקודם')} ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
       <span class="num" data-page>${page} / ${pages}</span>
-      <button type="button" class="btn" aria-label="הבא" ?disabled=${page >= pages} @click=${() => (this.page = page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>`;
+      <button type="button" class="btn" aria-label=${tr('הבא')} ?disabled=${page >= pages} @click=${() => (this.page = page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>`;
   }
 
   private detail(r: CalRequest, overlay: boolean) {
     const contested = this.lanes.length > 1 || r.competing_count > 1;
     const series = r.recurring && !contested;
-    const head = contested ? `${r.calendar.name} · ${whenText(r.start, r.end, this.ctx?.now ?? new Date()).split(' · ')[0]}` : r.title ?? 'בקשה';
-    return html`<aside class=${`panel ${overlay ? 'overlay' : ''}`} role=${overlay ? 'dialog' : 'complementary'} aria-label="פרטי הבקשה" data-detail=${contested ? 'contested' : series ? 'series' : 'single'}>
+    const head = contested ? `${r.calendar.name} · ${whenText(r.start, r.end, this.ctx?.now ?? new Date()).split(' · ')[0]}` : r.title ?? tr('בקשה');
+    return html`<aside class=${`panel ${overlay ? 'overlay' : ''}`} role=${overlay ? 'dialog' : 'complementary'} aria-label=${tr('פרטי הבקשה')} data-detail=${contested ? 'contested' : series ? 'series' : 'single'}>
       <div class="ph"><h2 class="ell" title=${head}>${head}</h2>
-        ${overlay ? html`<span class="sp"></span><button type="button" class="btn icon sm" aria-label="סגירה" data-detail-close @click=${() => (this.overlay = false)}><sw-icon name="close" size="14"></sw-icon></button>` : nothing}</div>
+        ${overlay ? html`<span class="sp"></span><button type="button" class="btn icon sm" aria-label=${tr('סגירה')} data-detail-close @click=${() => (this.overlay = false)}><sw-icon name="close" size="14"></sw-icon></button>` : nothing}</div>
       ${series ? this.seriesBody(r) : this.contestBody(r)}
       ${this.actErr ? html`<div class="err" role="alert" data-act-error>${this.actErr}</div>` : nothing}
     </aside>`;
   }
 
   private contestBody(r: CalRequest) {
-    const lanes = this.lanes.length ? this.lanes : [{ id: r.event_id, title: r.title ?? 'בקשה', who: r.organizer?.name ?? '', start: r.start, end: r.end, holder: false, req: r, color: r.calendar.color }];
+    const lanes = this.lanes.length ? this.lanes : [{ id: r.event_id, title: r.title ?? tr('בקשה'), who: r.organizer?.name ?? '', start: r.start, end: r.end, holder: false, req: r, color: r.calendar.color }];
     const a = new Date(Math.min(...lanes.map((l) => new Date(l.start).getTime())));
     a.setMinutes(0, 0, 0);
     a.setHours(a.getHours() - 1);
@@ -396,33 +397,33 @@ export class CalViewApprovals extends LitElement {
     const mid = new Date((a.getTime() + b.getTime()) / 2);
     const needPick = choice === 'approve' && !target;
     return html`
-      <div class="muted"><b class="num" style="color:var(--sw-heading)">${reqs.length}</b> ${reqs.length === 1 ? 'מבקש' : 'מבקשים'} לאותו חלון${holder ? ' · מי שאושר ראשון מחזיק' : ''}
-        · ${order === 'manual' ? 'הסדר: המנהל בוחר' : order === 'by_kind' ? 'הסדר: לפי סוג' : 'הסדר: לפי סדר הגעה'}</div>
+      <div class="muted"><b class="num" style="color:var(--sw-heading)">${reqs.length}</b> ${reqs.length === 1 ? tr('מבקש לאותו חלון') : tr('מבקשים לאותו חלון')}${holder ? ` · ${tr('מי שאושר ראשון מחזיק')}` : ''}
+        · ${order === 'manual' ? tr('הסדר: המנהל בוחר') : order === 'by_kind' ? tr('הסדר: לפי סוג') : tr('הסדר: לפי סדר הגעה')}</div>
       <div class="lanes" data-lanes>${lanes.map((l) => html`<div class="lane" data-lane=${l.holder ? 'holder' : 'request'} data-lane-id=${l.id}>
         <div class="ln"><b class="ell" title=${l.title}>${l.title}</b><span class="ell" title=${l.who}>${l.who}</span></div>
         <div class="mini"><div class="ev" data-mark=${l.holder ? 'ok' : 'pending'} style=${`--h:${colorVar(l.color)};left:${pos(l.start)}%;width:${Math.max(2, pos(l.end) - pos(l.start))}%`}></div></div>
-        <span class="chipcell">${l.holder ? html`<span class="chip ok">מאושר · מחזיק את החלון</span>`
-          : html`<span class="chip dash num">בקשה ${reqs.indexOf(l) + 1}${l.req?.requested_at ? html` · ${hm(l.req.requested_at)}` : nothing}</span>${l.req?.suggested && order !== 'manual' ? html`<span class="chip acc" data-first-in-line>ראשון בתור</span>` : nothing}`}</span></div>`)}</div>
+        <span class="chipcell">${l.holder ? html`<span class="chip ok">${tr('מאושר · מחזיק את החלון')}</span>`
+          : html`<span class="chip dash num">${tr('בקשה {n}', { n: reqs.indexOf(l) + 1 })}${l.req?.requested_at ? html` · ${hm(l.req.requested_at)}` : nothing}</span>${l.req?.suggested && order !== 'manual' ? html`<span class="chip acc" data-first-in-line>${tr('ראשון בתור')}</span>` : nothing}`}</span></div>`)}</div>
       <div class="axis"><span class="num">${hm(a)}</span><span class="num">${hm(mid)}</span><span class="num">${hm(b)}</span></div>
-      ${reqs.length > 1 && choice === 'approve' ? html`<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">איזו בקשה לאשר</span><select class="inp" data-pick @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
-        ${order === 'manual' ? html`<option value="" ?selected=${!this.pick}>בחירה…</option>` : nothing}
+      ${reqs.length > 1 && choice === 'approve' ? html`<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">${tr('איזו בקשה לאשר')}</span><select class="inp" data-pick @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
+        ${order === 'manual' ? html`<option value="" ?selected=${!this.pick}>${tr('בחירה…')}</option>` : nothing}
         ${reqs.map((l, i) => html`<option value=${l.id} ?selected=${l.id === this.pick}>${i + 1}. ${l.title}</option>`)}</select></label>` : nothing}
-      <div role="radiogroup" aria-label="מה לעשות" style="display:flex;flex-direction:column;gap:8px">
+      <div role="radiogroup" aria-label=${tr('מה לעשות')} style="display:flex;flex-direction:column;gap:8px">
         <button type="button" class="opt" role="radio" aria-checked=${String(choice === 'approve')} aria-disabled=${String(approveBlocked)} data-choice="approve"
           @click=${() => { if (!approveBlocked) this.choice = 'approve'; }}><span class="rad"></span><span>
-          <b>${target ? `לאשר את "${target.title ?? 'הבקשה'}"` : 'לאשר את הבקשה שתבחר'}${holder ? ' ולדחוק' : ''}</b>
-          <small>${approveBlocked ? 'בהתקנה הזאת דחיקה של הזמנה מאושרת כבויה (הגדרות ‹ יומנים). אפשר רק לדחות את הבקשות.'
-            : holder ? `"${holder.title}" נדחקת ולא נמחקת; ${holder.who || 'המארגן'} יבחר זמן חלופי מתוך 3 הצעות.${reqs.length > 1 ? ' שאר הבקשות נשארות ממתינות.' : ''}`
-            : reqs.length > 1 ? 'הבקשה מאושרת; שאר הבקשות לחלון נשארות ממתינות ויוכרעו מול ההזמנה שאושרה.' : 'הבקשה מאושרת והמבקש מקבל הודעה.'}</small></span></button>
+          <b>${target ? tr('לאשר את "{title}"', { title: target.title ?? tr('הבקשה') }) : tr('לאשר את הבקשה שתבחר')}${holder ? ` ${tr('ולדחוק')}` : ''}</b>
+          <small>${approveBlocked ? tr('בהתקנה הזאת דחיקה של הזמנה מאושרת כבויה (הגדרות ‹ יומנים). אפשר רק לדחות את הבקשות.')
+            : holder ? `${tr('"{title}" נדחקת ולא נמחקת; {who} יבחר זמן חלופי מתוך 3 הצעות.', { title: holder.title, who: holder.who || tr('המארגן') })}${reqs.length > 1 ? ` ${tr('שאר הבקשות נשארות ממתינות.')}` : ''}`
+            : reqs.length > 1 ? tr('הבקשה מאושרת; שאר הבקשות לחלון נשארות ממתינות ויוכרעו מול ההזמנה שאושרה.') : tr('הבקשה מאושרת והמבקש מקבל הודעה.')}</small></span></button>
         <button type="button" class="opt" role="radio" aria-checked=${String(choice === 'keep')} data-choice="keep" @click=${() => (this.choice = 'keep')}><span class="rad"></span><span>
-          <b>${holder ? 'להשאיר למחזיק ולדחות את הבקשות' : 'לדחות את כל הבקשות לחלון'}</b>
-          <small>${reqs.length > 1 ? `${reqs.length} הבקשות נדחות עם הערה` : 'הבקשה נדחית עם הערה'} והמבקשים מקבלים הצעות לזמן אחר.</small></span></button>
+          <b>${holder ? tr('להשאיר למחזיק ולדחות את הבקשות') : tr('לדחות את כל הבקשות לחלון')}</b>
+          <small>${reqs.length > 1 ? tr('{n} הבקשות נדחות עם הערה', { n: reqs.length }) : tr('הבקשה נדחית עם הערה')} ${tr('והמבקשים מקבלים הצעות לזמן אחר.')}</small></span></button>
       </div>
-      <div class="hintline"><sw-icon name="shield" size="14"></sw-icon>${ui?.displace_approver === 'any_manager' ? 'מחליט: מנהל היומן, מנהל האזור או מנהל המערכת' : 'מחליט: מנהל היומן. דחיקה רק באישור מנהל היומן עצמו'}</div>
+      <div class="hintline"><sw-icon name="shield" size="14"></sw-icon>${ui?.displace_approver === 'any_manager' ? tr('מחליט: מנהל היומן, מנהל האזור או מנהל המערכת') : tr('מחליט: מנהל היומן. דחיקה רק באישור מנהל היומן עצמו')}</div>
       <div class="foot">
         <button type="button" class="btn yes" ?disabled=${this.busy || needPick} data-apply @click=${() => { this.choice = choice; void this.applyChoice(r); }}>
-          <sw-icon name="check" size="14"></sw-icon>${choice === 'keep' ? 'דחיית הבקשות' : holder ? 'אישור ודחיקה' : 'אישור'}</button>
-        <button type="button" class="btn no" ?disabled=${this.busy || !target} @click=${() => { if (target) { this.rejecting = target; this.note = ''; } }}>דחייה עם הערה</button>
+          <sw-icon name="check" size="14"></sw-icon>${choice === 'keep' ? tr('דחיית הבקשות') : holder ? tr('אישור ודחיקה') : tr('אישור')}</button>
+        <button type="button" class="btn no" ?disabled=${this.busy || !target} @click=${() => { if (target) { this.rejecting = target; this.note = ''; } }}>${tr('דחייה עם הערה')}</button>
       </div>`;
   }
 
@@ -434,35 +435,35 @@ export class CalViewApprovals extends LitElement {
     const occ = this.series;
     const first = occ[0];
     return html`
-      <div class="muted">${r.calendar.name}${r.organizer?.name ? ` · ביקש/ה ${r.organizer.name}` : ''}</div>
-      ${first ? html`<div style="font-weight:700;color:var(--sw-heading)">המועד הראשון: <span class="num">${DAY_SHORT[new Date(first.start).getDay()]} ${ddmm(new Date(first.start))} · <span class="ltr">${hm(first.start)}–${hm(first.end)}</span></span></div>` : nothing}
-      <div style="font-weight:700;color:var(--sw-heading)">${occ.length ? html`<span class="num">${occ.length}</span> מועדים` : r.recurring_summary ?? 'סדרה'}</div>
+      <div class="muted">${r.calendar.name}${r.organizer?.name ? ` · ${tr('ביקש/ה {name}', { name: r.organizer.name })}` : ''}</div>
+      ${first ? html`<div style="font-weight:700;color:var(--sw-heading)">${tr('המועד הראשון:')} <span class="num">${DAY_SHORT[new Date(first.start).getDay()]} ${ddmm(new Date(first.start))} · <span class="ltr">${hm(first.start)}–${hm(first.end)}</span></span></div>` : nothing}
+      <div style="font-weight:700;color:var(--sw-heading)">${occ.length ? html`<span class="num">${occ.length}</span> ${tr('מועדים')}` : r.recurring_summary ?? tr('סדרה')}</div>
       ${occ.length ? html`<div class="dates" data-dates>${occ.map((o) => {
         const k = this.localKey(o);
         const off = this.skip.has(k);
-        return html`<button type="button" class="date" aria-pressed=${String(off)} title=${off ? 'יידחה' : 'יאושר'} data-date=${k}
+        return html`<button type="button" class="date" aria-pressed=${String(off)} title=${off ? tr('יידחה') : tr('יאושר')} data-date=${k}
           @click=${() => { const s = new Set(this.skip); if (off) s.delete(k); else s.add(k); this.skip = s; }}>
-          <span class="num">${ddmm(new Date(o.start))}</span>${o.contested && !off ? html`<span class="chip bad">מתנגש</span>` : off ? html`<sw-icon name="close" size="12"></sw-icon>` : html`<sw-icon class="ok-ic" name="check" size="12"></sw-icon>`}</button>`;
+          <span class="num">${ddmm(new Date(o.start))}</span>${o.contested && !off ? html`<span class="chip bad">${tr('מתנגש')}</span>` : off ? html`<sw-icon name="close" size="12"></sw-icon>` : html`<sw-icon class="ok-ic" name="check" size="12"></sw-icon>`}</button>`;
       })}</div>` : nothing}
-      <div class="note"><sw-icon name="info" size="16"></sw-icon><div><b>אפשר לאשר את הסדרה ולדחות מועדים בודדים</b><span class="muted">לחיצה על תאריך מוציאה אותו. המבקש יראה "אושר למעט N מועדים".</span></div></div>
+      <div class="note"><sw-icon name="info" size="16"></sw-icon><div><b>${tr('אפשר לאשר את הסדרה ולדחות מועדים בודדים')}</b><span class="muted">${tr('לחיצה על תאריך מוציאה אותו. המבקש יראה "אושר למעט N מועדים".')}</span></div></div>
       <div class="foot">
         <button type="button" class="btn yes" ?disabled=${this.busy} data-apply @click=${() => void this.decide(r, 'approve', { except: [...this.skip] })}>
-          <sw-icon name="check" size="14"></sw-icon>${this.skip.size ? html`אישור למעט <span class="num">${this.skip.size}</span>` : 'אישור הסדרה'}</button>
-        <button type="button" class="btn no" ?disabled=${this.busy} @click=${() => { this.rejecting = r; this.note = ''; }}>דחייה עם הערה</button>
+          <sw-icon name="check" size="14"></sw-icon>${this.skip.size ? html`${tr('אישור למעט')} <span class="num">${this.skip.size}</span>` : tr('אישור הסדרה')}</button>
+        <button type="button" class="btn no" ?disabled=${this.busy} @click=${() => { this.rejecting = r; this.note = ''; }}>${tr('דחייה עם הערה')}</button>
       </div>`;
   }
 
   private rejectDialog(r: CalRequest) {
     // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog instead of a local panel pinned to a corner
-    return html`<sw-dialog open heading=${`לדחות את "${r.title ?? 'הבקשה'}"?`} subheading=${`${r.calendar.name} · ${whenText(r.start, r.end, this.ctx?.now ?? new Date())}`}
+    return html`<sw-dialog open heading=${tr('לדחות את "{title}"?', { title: r.title ?? tr('הבקשה') })} subheading=${`${r.calendar.name} · ${whenText(r.start, r.end, this.ctx?.now ?? new Date())}`}
         @close=${(e: Event) => { e.stopPropagation(); this.rejecting = null; }}>
         <div class="rj" data-reject-dialog>
-          <label class="lbl" for="note">הערה למבקש (לא חובה, עד 300 תווים)</label>
+          <label class="lbl" for="note">${tr('הערה למבקש (לא חובה, עד 300 תווים)')}</label>
           <textarea id="note" class="inp" maxlength="300" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLTextAreaElement).value)} data-reject-note></textarea>
           ${this.actErr ? html`<div class="err" role="alert">${this.actErr}</div>` : nothing}
         </div>
-        <button slot="footer" type="button" class="btn" @click=${() => (this.rejecting = null)}>ביטול</button>
-        <button slot="footer" type="button" class="btn bad fill" ?disabled=${this.busy} data-reject-confirm @click=${async () => { if (await this.decide(r, 'reject', { note: this.note })) this.rejecting = null; }}>דחייה</button>
+        <button slot="footer" type="button" class="btn" @click=${() => (this.rejecting = null)}>${tr('ביטול')}</button>
+        <button slot="footer" type="button" class="btn bad fill" ?disabled=${this.busy} data-reject-confirm @click=${async () => { if (await this.decide(r, 'reject', { note: this.note })) this.rejecting = null; }}>${tr('דחייה')}</button>
       </sw-dialog>`;
   }
 }

@@ -4,6 +4,7 @@
  * English, switched by the document's `lang` like i18n/tts-default.ts. UI_COPY_RULES: short plain words, no internal codes.
  * `{x}` placeholders filled by `fill`.
  */
+import { docLang, fill as coreFill, registerCatalogue } from './core';
 const he = {
   layout: {
     label: 'סידור הלשונית',
@@ -138,12 +139,14 @@ const en: SettingsCardsText = {
 };
 
 export function sct(): SettingsCardsText {
-  return (globalThis.document?.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
+  return coreFill(template, values);
 }
 
 export const heSettingsCardsText: SettingsCardsText = he;
 export const enSettingsCardsText: SettingsCardsText = en;
+
+registerCatalogue('i18n/settings-cards', { he, en });

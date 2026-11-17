@@ -20,6 +20,7 @@ import {
   type IntercomEditorPerson,
 } from '../api/intercom';
 import { t } from './wiskey-format';
+import { tr } from '../i18n/msg/wiskey';
 
 type Step = 'choose' | 'confirm' | 'session' | 'confirm_save' | 'start_unknown';
 type Busy = '' | 'readers' | 'start' | 'cancel' | 'save';
@@ -143,7 +144,7 @@ export class WiskeyCardCapture extends LitElement {
         this.reader = r.readers.readers[0] ?? 0;
       } else {
         const code = r.last_error ?? r.state;
-        this.setError(t(code) !== code.replaceAll('_', ' ') ? t(code) : `לא ניתן לקרוא את יכולות הקורא (${code}).`, code);
+        this.setError(t(code) !== code.replaceAll('_', ' ') ? t(code) : tr('לא ניתן לקרוא את יכולות הקורא ({code}).', { code }), code);
       }
     } catch (err) {
       if (epoch === this.epoch) this.setError(describeError(err), err instanceof ApiError ? err.code : 'error');
@@ -231,7 +232,7 @@ export class WiskeyCardCapture extends LitElement {
       if (epoch !== this.epoch) return;
       const view = err instanceof ApiError ? (err.body?.details?.capture as IntercomCapture | undefined) : undefined;
       const outcome = actionOutcome(err);
-      this.setError(outcome === 'unknown' ? `לא ידוע אם הביטול התקבל: ${describeError(err)}` : wiskeyText(err), err instanceof ApiError ? err.code : 'error', outcome);
+      this.setError(outcome === 'unknown' ? tr('לא ידוע אם הביטול התקבל: {error}', { error: describeError(err) }) : wiskeyText(err), err instanceof ApiError ? err.code : 'error', outcome);
       this.show(view ?? c);
     } finally {
       if (epoch === this.epoch) this.busy = '';
@@ -329,17 +330,17 @@ export class WiskeyCardCapture extends LitElement {
             @change=${(e: CustomEvent<DropdownChange>) => (this.reader = Number(e.detail.id))}></sw-dropdown>
         </sw-field>
       </div>
-      ${usable.length ? nothing : html`<p class="note err" data-wiskey-capture-no-station>אין כרגע אינטרקום מחובר עם מנעול מנוהל שאפשר לקרוא בו כרטיס.</p>`}
+      ${usable.length ? nothing : html`<p class="note err" data-wiskey-capture-no-station>${tr('אין כרגע אינטרקום מחובר עם מנעול מנוהל שאפשר לקרוא בו כרטיס.')}</p>`}
       <p role="status" data-wiskey-capture-status>${this.busy === 'readers' ? t('loading') : t('capture_state_choose')}</p>`;
   }
 
   private renderConfirm() {
     const name = this.stationName(this.station);
     return html`<div class="confirm" data-wiskey-capture-confirm-step>
-      <p><b>להפעיל את קורא הכרטיסים בעמדה ${name}?</b></p>
-      <p>הקורא בעמדה ייכנס עכשיו למצב קריאת כרטיס, לעד ${COLLECT_S} שניות. בקשו מ־<b>${this.person.display_name}</b> (או ממי שמחזיק את הכרטיס) לעמוד ליד העמדה ולהצמיד <b>כרטיס אחד</b> לקורא כשתופיע כאן ההנחיה "הצמד כעת כרטיס".</p>
-      <p>המספר שנקרא יוצג כאן ממוסך, ורק אחרי אישורכם הוא יתווסף למשתמש ויסונכרן לתחנות שלו. ${t('capture_hint').split('. ').slice(-1)[0]}</p>
-      <p class="muted">הפעולה נרשמת ביומן הביקורת של Arx בשמך.</p>
+      <p><b>${tr('להפעיל את קורא הכרטיסים בעמדה {station}?', { station: name })}</b></p>
+      <p>${tr('הקורא בעמדה ייכנס עכשיו למצב קריאת כרטיס, לעד {n} שניות.', { n: COLLECT_S })} ${tr('בקשו מ־')}<b>${this.person.display_name}</b> ${tr('(או ממי שמחזיק את הכרטיס) לעמוד ליד העמדה ולהצמיד')} <b>${tr('כרטיס אחד')}</b> ${tr('לקורא כשתופיע כאן ההנחיה "הצמד כעת כרטיס".')}</p>
+      <p>${tr('המספר שנקרא יוצג כאן ממוסך, ורק אחרי אישורכם הוא יתווסף למשתמש ויסונכרן לתחנות שלו.')} ${t('capture_hint').split('. ').slice(-1)[0]}</p>
+      <p class="muted">${tr('הפעולה נרשמת ביומן הביקורת של Arx בשמך.')}</p>
     </div>`;
   }
 
@@ -347,9 +348,9 @@ export class WiskeyCardCapture extends LitElement {
     const left = Math.max(0, Math.ceil((this.holdUntil - this.now) / 1000));
     return html`<div class="note warn" role="alert" data-wiskey-capture-error=${this.errorCode} data-wiskey-capture-outcome="unknown">
       <sw-icon name="warning" size=${16}></sw-icon>
-      <span>לא ידוע אם הקורא נכנס למצב קריאה. ${this.error}</span>
+      <span>${tr('לא ידוע אם הקורא נכנס למצב קריאה.')} ${this.error}</span>
     </div>
-    <p data-wiskey-capture-countdown=${left}>${left > 0 ? `ייתכן שהקורא בעמדה ${this.stationName(this.station)} ממתין לכרטיס עוד עד ${left} שניות (עד שיפוג זמן הקריאה). שום כרטיס לא יתווסף בלי אישורכם.` : 'זמן הקריאה הסתיים. אפשר לנסות שוב.'}</p>`;
+    <p data-wiskey-capture-countdown=${left}>${left > 0 ? tr('ייתכן שהקורא בעמדה {station} ממתין לכרטיס עוד עד {n} שניות (עד שיפוג זמן הקריאה). שום כרטיס לא יתווסף בלי אישורכם.', { station: this.stationName(this.station), n: left }) : tr('זמן הקריאה הסתיים. אפשר לנסות שוב.')}</p>`;
   }
 
   private renderSession(c: IntercomCapture) {
@@ -362,7 +363,7 @@ export class WiskeyCardCapture extends LitElement {
       <p role="status" class="status ${collecting ? 'live' : ''}" data-wiskey-capture-status>
         ${collecting ? html`<span class="pulse" aria-hidden="true"></span>` : nothing}${this.stateText(c)}
       </p>
-      ${collecting ? html`<p data-wiskey-capture-countdown=${collectLeft}>זמן שנותר לקריאה: <b>${collectLeft}</b> שניות</p>` : nothing}
+      ${collecting ? html`<p data-wiskey-capture-countdown=${collectLeft}>${tr('זמן שנותר לקריאה:')} <b>${collectLeft}</b> ${tr('שניות')}</p>` : nothing}
       ${c.state === 'error' && c.error ? html`<p class="note err" data-wiskey-capture-wiskey-error=${c.error}>${t(c.error)}</p>` : nothing}
       ${c.card && (c.state === 'captured' || c.state === 'applying')
         ? html`<div class="card" data-wiskey-capture-card>
@@ -372,13 +373,13 @@ export class WiskeyCardCapture extends LitElement {
               <input maxlength="64" data-wiskey-capture-label .value=${live(this.label)} ?disabled=${this.step === 'confirm_save' || this.busy === 'save'} @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)} />
             </sw-field>
             <p class="muted">${t('capture_targets')}: ${targets.join(', ') || t('csv_no_stations')}</p>
-            ${c.state === 'captured' ? html`<p class="muted" data-wiskey-capture-session-left=${sessionLeft}>הכרטיס ממתין לאישור עוד ${sessionLeft} שניות; אחר כך הקריאה נמחקת.</p>` : nothing}`
+            ${c.state === 'captured' ? html`<p class="muted" data-wiskey-capture-session-left=${sessionLeft}>${tr('הכרטיס ממתין לאישור עוד {n} שניות; אחר כך הקריאה נמחקת.', { n: sessionLeft })}</p>` : nothing}`
         : nothing}
       ${this.step === 'confirm_save' && c.state === 'captured'
-        ? html`<div class="note info" data-wiskey-capture-save-prompt>${t('capture_confirm_prompt').replace('{name}', this.person.display_name)} הכרטיס יישמר ויפתח את הדלתות שהמשתמש משויך אליהן.</div>`
+        ? html`<div class="note info" data-wiskey-capture-save-prompt>${t('capture_confirm_prompt').replace('{name}', this.person.display_name)} ${tr('הכרטיס יישמר ויפתח את הדלתות שהמשתמש משויך אליהן.')}</div>`
         : nothing}
       ${c.reader_may_be_collecting && !collecting
-        ? html`<p class="note warn" data-wiskey-capture-maybe-collecting>ייתכן שהקורא בעמדה עדיין במצב קריאה עד שיפוג הזמן (עד ${sessionLeft} שניות; זמן ההמתנה של הקורא עצמו נקבע בקושחה). שום כרטיס לא יתווסף בלי אישורכם.</p>`
+        ? html`<p class="note warn" data-wiskey-capture-maybe-collecting>${tr('ייתכן שהקורא בעמדה עדיין במצב קריאה עד שיפוג הזמן (עד {n} שניות; זמן ההמתנה של הקורא עצמו נקבע בקושחה). שום כרטיס לא יתווסף בלי אישורכם.', { n: sessionLeft })}</p>`
         : nothing}
     </div>`;
   }
@@ -386,7 +387,7 @@ export class WiskeyCardCapture extends LitElement {
   private stateText(c: IntercomCapture): string {
     switch (c.state) {
       case 'cancel_unknown':
-        return c.reason === 'abandoned' ? `${t('capture_state_abandoned')} לא ידוע אם הביטול התקבל.` : 'לא ידוע אם הביטול התקבל.';
+        return c.reason === 'abandoned' ? `${t('capture_state_abandoned')} ${tr('לא ידוע אם הביטול התקבל.')}` : tr('לא ידוע אם הביטול התקבל.');
       case 'unconfirmed':
         return t('capture_state_unconfirmed');
       case 'cancelled':
@@ -402,10 +403,10 @@ export class WiskeyCardCapture extends LitElement {
     const busy = this.busy;
     const closeButton = html`<sw-button variant="ghost" data-wiskey-capture-close ?disabled=${busy === 'save'} @click=${() => this.close()}>${t('close')}</sw-button>`;
     if (this.step === 'choose') {
-      return html`${closeButton}<sw-button variant="primary" data-wiskey-capture-next ?disabled=${!!busy || !this.station || !this.readers?.length} @click=${() => { this.setError(''); this.step = 'confirm'; }}>המשך</sw-button>`;
+      return html`${closeButton}<sw-button variant="primary" data-wiskey-capture-next ?disabled=${!!busy || !this.station || !this.readers?.length} @click=${() => { this.setError(''); this.step = 'confirm'; }}>${tr('המשך')}</sw-button>`;
     }
     if (this.step === 'confirm') {
-      return html`<sw-button variant="ghost" data-wiskey-capture-back ?disabled=${busy === 'start'} @click=${() => (this.step = 'choose')}>חזרה</sw-button>
+      return html`<sw-button variant="ghost" data-wiskey-capture-back ?disabled=${busy === 'start'} @click=${() => (this.step = 'choose')}>${tr('חזרה')}</sw-button>
         <sw-button variant="primary" icon="wifi" data-wiskey-capture-start ?disabled=${busy === 'start'} @click=${() => void this.start()}>${busy === 'start' ? t('wait') : t('capture_start')}</sw-button>`;
     }
     if (this.step === 'start_unknown') {
@@ -413,18 +414,18 @@ export class WiskeyCardCapture extends LitElement {
     }
     if (!c) return closeButton;
     if (this.step === 'confirm_save') {
-      return html`<sw-button variant="ghost" data-wiskey-capture-save-back ?disabled=${busy === 'save'} @click=${() => (this.step = 'session')}>חזרה</sw-button>
+      return html`<sw-button variant="ghost" data-wiskey-capture-save-back ?disabled=${busy === 'save'} @click=${() => (this.step = 'session')}>${tr('חזרה')}</sw-button>
         <sw-button variant="primary" icon="check" data-wiskey-capture-save-confirm ?disabled=${busy === 'save' || c.state !== 'captured'} @click=${() => void this.save()}>${busy === 'save' ? t('wait') : t('capture_save')}</sw-button>`;
     }
     const cancel = CANCELLABLE.has(c.state)
-      ? html`<sw-button variant="danger" data-wiskey-capture-cancel ?disabled=${!!busy} @click=${() => void this.cancel()}>${busy === 'cancel' ? t('wait') : 'ביטול הקריאה'}</sw-button>`
+      ? html`<sw-button variant="danger" data-wiskey-capture-cancel ?disabled=${!!busy} @click=${() => void this.cancel()}>${busy === 'cancel' ? t('wait') : tr('ביטול הקריאה')}</sw-button>`
       : nothing;
     const again = ['error', 'captured', 'cancelled', 'expired', 'lost', 'closed', 'revoked'].includes(c.state)
       ? html`<sw-button data-wiskey-capture-again ?disabled=${!!busy} @click=${() => this.again()}>${t('capture_again')}</sw-button>`
       : nothing;
     const save = c.state === 'captured' ? html`<sw-button variant="primary" icon="check" data-wiskey-capture-save ?disabled=${!!busy} @click=${() => { this.setError(''); this.step = 'confirm_save'; }}>${t('capture_save')}</sw-button>` : nothing;
     const reload = c.state === 'unconfirmed'
-      ? html`<sw-button icon="refresh" data-wiskey-capture-reload @click=${() => { this.clear(); this.dispatchEvent(new CustomEvent('capture-reload', { bubbles: true, composed: true })); }}>טען מחדש את הרשומה</sw-button>`
+      ? html`<sw-button icon="refresh" data-wiskey-capture-reload @click=${() => { this.clear(); this.dispatchEvent(new CustomEvent('capture-reload', { bubbles: true, composed: true })); }}>${tr('טען מחדש את הרשומה')}</sw-button>`
       : nothing;
     return html`${closeButton}${cancel}${again}${reload}${save}`;
   }

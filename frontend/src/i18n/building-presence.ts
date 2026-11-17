@@ -1,4 +1,5 @@
 import { ptLang } from './presence';
+import { registerCatalogue } from './core';
 
 /** PRESENCE-DESIGN-2300: a count with the locale's group separator (1,284), never a raw number. */
 const num = (n: number) => new Intl.NumberFormat(ptLang() === 'en' ? 'en-US' : 'he-IL').format(n);
@@ -168,3 +169,5 @@ export const BP: typeof he = new Proxy(he, {
     return (table as Record<string, unknown>)[key] ?? (target as Record<string, unknown>)[key];
   },
 });
+
+registerCatalogue('i18n/building-presence', { he, en });

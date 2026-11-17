@@ -3,6 +3,7 @@ import { customElement, property, query } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 import { fitSchedule, fitSelectElement } from './fit-text';
+import { tr } from '../i18n/msg/components';
 
 /** Labelled form field wrapper; the control (input/select/textarea) is slotted and styled here. */
 @customElement('sw-field')
@@ -25,7 +26,7 @@ export class SwField extends LitElement {
   @property() value = '';
   @property() placeholder = '';
   /** search: the clear key's name (the i18n catalogue belongs to another branch, so the default is set here). */
-  @property({ attribute: 'clear-label' }) clearLabel = 'נקה חיפוש';
+  @property({ attribute: 'clear-label' }) clearLabel = tr('נקה חיפוש');
   @query('input.search') private searchInput?: HTMLInputElement;
 
   static styles = css`

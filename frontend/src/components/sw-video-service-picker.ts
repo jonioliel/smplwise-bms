@@ -19,6 +19,7 @@ import {
   type VideoServicesView,
 } from '../api/video-services';
 import { videoService } from '../api/video-service';
+import { tr } from '../i18n/msg/components';
 
 /**
  * HEALTH-GO2RTC-FOLLOWUP-2431: "שירות וידאו" - the video services found on this installation, their state, and "use this".
@@ -83,7 +84,7 @@ export class SwVideoServicePicker extends LitElement {
     try {
       this.view = await selectVideoService(c.slug);
       this.confirming = null;
-      this.done = `נבחר "${c.name}". הווידאו עובר דרכו מעכשיו.`;
+      this.done = tr('נבחר "{name}". הווידאו עובר דרכו מעכשיו.', { name: c.name });
       void videoService.check(); // every waiting tile hears the recovery through the shared watch
       this.dispatchEvent(new CustomEvent('video-service-changed', { detail: { slug: c.slug }, bubbles: true, composed: true }));
     } catch (e) {
@@ -99,7 +100,7 @@ export class SwVideoServicePicker extends LitElement {
     this.done = '';
     try {
       this.view = await clearVideoService();
-      this.done = 'חזרה לכתובת שבתצורת התוסף.';
+      this.done = tr('חזרה לכתובת שבתצורת התוסף.');
       void videoService.check();
       this.dispatchEvent(new CustomEvent('video-service-changed', { detail: { slug: null }, bubbles: true, composed: true }));
     } catch (e) {
@@ -113,7 +114,7 @@ export class SwVideoServicePicker extends LitElement {
     this.busy = true;
     try {
       await restartArx();
-      this.done = 'המערכת מופעלת מחדש…';
+      this.done = tr('המערכת מופעלת מחדש…');
     } catch (e) {
       this.error = describeError(e);
     } finally {
@@ -124,18 +125,18 @@ export class SwVideoServicePicker extends LitElement {
   private row(c: VideoServiceCandidate) {
     const confirming = this.confirming === c.slug;
     return html`<div class="cand" data-video-candidate=${c.slug} ?data-current=${c.current}>
-        <sw-badge kind=${candidateKind(c)} label=${c.current ? 'בשימוש' : ''}></sw-badge>
+        <sw-badge kind=${candidateKind(c)} label=${c.current ? tr('בשימוש') : ''}></sw-badge>
         <div class="main">
           <span class="name" data-candidate-name>${c.name}</span>
           <span class="line" data-candidate-line>${candidateLine(c)}${!this.compact && c.address ? html` · <span class="addr">${c.address}</span>` : nothing}</span>
         </div>
         ${canUse(c) && !confirming
-          ? html`<sw-button size="sm" variant=${c.state === 'started' ? 'primary' : 'secondary'} ?disabled=${this.busy} data-use-service=${c.slug} @click=${() => (this.confirming = c.slug)}>השתמש בזה</sw-button>`
+          ? html`<sw-button size="sm" variant=${c.state === 'started' ? 'primary' : 'secondary'} ?disabled=${this.busy} data-use-service=${c.slug} @click=${() => (this.confirming = c.slug)}>${tr('השתמש בזה')}</sw-button>`
           : nothing}
       </div>
       ${confirming
         ? html`<div class="confirm" data-use-confirm=${c.slug}><span>${confirmText(c)}</span>
-            <span class="end"><sw-button size="sm" variant="primary" ?disabled=${this.busy} data-use-confirm-yes @click=${() => this.use(c)}>אישור</sw-button><sw-button size="sm" ?disabled=${this.busy} @click=${() => (this.confirming = null)}>ביטול</sw-button></span></div>`
+            <span class="end"><sw-button size="sm" variant="primary" ?disabled=${this.busy} data-use-confirm-yes @click=${() => this.use(c)}>${tr('אישור')}</sw-button><sw-button size="sm" ?disabled=${this.busy} @click=${() => (this.confirming = null)}>${tr('ביטול')}</sw-button></span></div>`
         : nothing}`;
   }
 
@@ -149,18 +150,18 @@ export class SwVideoServicePicker extends LitElement {
     return html`<div data-video-services>
       <div class="head">
         <span class="muted" data-video-current>${v
-          ? html`בשימוש: ${v.current.address ? html`<span class="addr">${v.current.address}</span>` : 'אין'} · ${SOURCE_LABEL[v.current.source]}`
-          : this.loading ? 'טוען…' : ''}</span>
-        <span class="end"><sw-button size="sm" icon="refresh" ?disabled=${this.loading || this.busy} data-video-refresh @click=${() => this.load(true)}>חיפוש מחדש</sw-button>
-          ${v?.selection ? html`<sw-button size="sm" ?disabled=${this.busy} data-video-back-to-option @click=${() => this.backToOption()}>חזרה לכתובת מתצורת התוסף</sw-button>` : nothing}</span>
+          ? html`${tr('בשימוש:')} ${v.current.address ? html`<span class="addr">${v.current.address}</span>` : tr('אין')} · ${SOURCE_LABEL[v.current.source]}`
+          : this.loading ? tr('טוען…') : ''}</span>
+        <span class="end"><sw-button size="sm" icon="refresh" ?disabled=${this.loading || this.busy} data-video-refresh @click=${() => this.load(true)}>${tr('חיפוש מחדש')}</sw-button>
+          ${v?.selection ? html`<sw-button size="sm" ?disabled=${this.busy} data-video-back-to-option @click=${() => this.backToOption()}>${tr('חזרה לכתובת מתצורת התוסף')}</sw-button>` : nothing}</span>
       </div>
       ${v && !v.supported && v.reason ? html`<div class="muted" data-video-unsupported>${REASON_TEXT[v.reason]}</div>` : nothing}
-      ${v && v.supported && !v.candidates.length ? html`<div class="muted" data-video-none>לא נמצאו שירותי וידאו מותקנים.</div>` : nothing}
+      ${v && v.supported && !v.candidates.length ? html`<div class="muted" data-video-none>${tr('לא נמצאו שירותי וידאו מותקנים.')}</div>` : nothing}
       ${v && v.candidates.length ? html`<div class="list">${sortCandidates(v.candidates).map((c) => this.row(c))}</div>` : nothing}
       ${this.done ? html`<div class="ok" data-use-done>${this.done}</div>` : nothing}
       ${v?.restart_recommended
-        ? html`<div class="muted" data-video-restart>החיפוש התקופתי של המצלמות וסנכרון הזרמים יעברו לשירות שנבחר אחרי הפעלה מחדש של המערכת.
-            <sw-button size="sm" ?disabled=${this.busy} data-video-restart-now @click=${() => this.restart()}>הפעלה מחדש עכשיו</sw-button></div>`
+        ? html`<div class="muted" data-video-restart>${tr('החיפוש התקופתי של המצלמות וסנכרון הזרמים יעברו לשירות שנבחר אחרי הפעלה מחדש של המערכת.')}
+            <sw-button size="sm" ?disabled=${this.busy} data-video-restart-now @click=${() => this.restart()}>${tr('הפעלה מחדש עכשיו')}</sw-button></div>`
         : nothing}
       ${this.error ? html`<div class="err" data-video-error>${this.error}</div>` : nothing}
     </div>`;

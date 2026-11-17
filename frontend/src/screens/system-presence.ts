@@ -19,6 +19,7 @@ import { pt } from '../i18n/presence';
 import { BP } from '../i18n/building-presence';
 import { settingsWrapFootStyles, settingsPillSegKeyStyles } from '../styles/settings';
 import { okLineStyles, errLineStyles } from '../styles/fragments';
+import { tr } from '../i18n/msg/system-b';
 import './system-presence-places'; // WHOIN034-295: the place editors and the "מי במבנה" thresholds
 
 /** WHOIN034-295: the pages of הגדרות › אפליקציה לנייד. */
@@ -277,7 +278,7 @@ export class SystemPresence extends LitElement {
       });
       this.saved = r.settings;
       this.draft = structuredClone(r.settings);
-      this.message = 'ההגדרות נשמרו';
+      this.message = tr('ההגדרות נשמרו');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -294,7 +295,7 @@ export class SystemPresence extends LitElement {
       this.saved = { ...this.saved, break_glass: r.break_glass };
       this.draft = { ...this.draft, break_glass: r.break_glass };
       this.glassReason = '';
-      this.message = hours ? 'הדרישה הושעתה' : 'ההשעיה הסתיימה';
+      this.message = hours ? tr('הדרישה הושעתה') : tr('ההשעיה הסתיימה');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -306,17 +307,17 @@ export class SystemPresence extends LitElement {
   private renderDevices() {
     if (this.devices === null) return nothing;
     const fmt = (iso: string | null | undefined) => (iso ? dayTimeText(iso) : '—');
-    return html`<sw-card heading="מכשירים רשומים" subheading=${this.devices.length ? `${this.devices.length} מכשירים` : 'אין מכשירים רשומים'} data-presence-devices>
+    return html`<sw-card heading=${tr('מכשירים רשומים')} subheading=${this.devices.length ? tr('{n} מכשירים', { n: this.devices.length }) : tr('אין מכשירים רשומים')} data-presence-devices>
       ${this.devices.length
         ? html`<div class="wrap"><table>
-            <thead><tr><th>משתמש</th><th>מכשיר</th><th>משתף</th><th>במבנה</th><th>דיווח אחרון</th><th>התראות</th></tr></thead>
+            <thead><tr><th>${tr('משתמש')}</th><th>${tr('מכשיר')}</th><th>${tr('משתף')}</th><th>${tr('במבנה')}</th><th>${tr('דיווח אחרון')}</th><th>${tr('התראות')}</th></tr></thead>
             <tbody>${this.devices.map((d) => html`<tr data-presence-device=${d.device_id}>
               <td>${d.user?.display_name ?? ''}</td>
               <td>${d.name}<div class="muted">${d.platform === 'ios' ? 'iPhone' : 'Android'} · ${d.app_version ?? ''}</div></td>
               <td>${SENSOR_KEYS.filter((k) => d.status.sensors[k] === 'on').map((k) => SENSOR_LABEL[k]).join(', ') || '—'}</td>
-              <td>${d.presence.inside === true ? 'כן' : d.presence.inside === false ? 'לא' : '—'}</td>
+              <td>${d.presence.inside === true ? tr('כן') : d.presence.inside === false ? tr('לא') : '—'}</td>
               <td>${fmt(d.last_event_at ?? d.last_seen_at)}</td>
-              <td>${d.push.registered ? 'רשום' : '—'}</td>
+              <td>${d.push.registered ? tr('רשום') : '—'}</td>
             </tr>`)}</tbody>
           </table></div>`
         : nothing}
@@ -355,43 +356,43 @@ export class SystemPresence extends LitElement {
     const req = d.required_sensors;
     const problem = policyProblem(d);
     const glass = d.break_glass.until ? dayTimeText(d.break_glass.until) : null;
-    return html`<sw-card heading="שיתוף נתונים מהאפליקציה" subheading="כבוי כברירת מחדל; הטלפונים לא אוספים דבר עד ההפעלה" data-presence-card>
-        <div class="row" data-presence-row="enabled"><span class="lbl">שיתוף פעיל<span class="muted">מופעל רק אחרי שההודעה לעובדים נשלחה</span></span>
-          <sw-toggle ?checked=${d.enabled} ?disabled=${!editable || this.busy} label="שיתוף פעיל" labelHidden data-presence-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>
-        <div class="row" data-presence-row="sensors"><span class="lbl">חיישנים מאושרים<span class="muted">העובד בוחר באפליקציה מתוך הרשימה הזו בלבד</span></span></div>
+    return html`<sw-card heading=${tr('שיתוף נתונים מהאפליקציה')} subheading=${tr('כבוי כברירת מחדל; הטלפונים לא אוספים דבר עד ההפעלה')} data-presence-card>
+        <div class="row" data-presence-row="enabled"><span class="lbl">${tr('שיתוף פעיל')}<span class="muted">${tr('מופעל רק אחרי שההודעה לעובדים נשלחה')}</span></span>
+          <sw-toggle ?checked=${d.enabled} ?disabled=${!editable || this.busy} label=${tr('שיתוף פעיל')} labelHidden data-presence-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>
+        <div class="row" data-presence-row="sensors"><span class="lbl">${tr('חיישנים מאושרים')}<span class="muted">${tr('העובד בוחר באפליקציה מתוך הרשימה הזו בלבד')}</span></span></div>
         <div class="grid" data-presence-sensors>${SENSOR_KEYS.map((k) => html`<label class="chk"><input type="checkbox" data-presence-sensor=${k} .checked=${d.sensors_allowed.includes(k)} ?disabled=${!editable || this.busy} @change=${(e: Event) => this.toggleSensor(k, (e.target as HTMLInputElement).checked)} /> ${SENSOR_LABEL[k]}</label>`)}</div>
-        <div class="row" data-presence-row="wifi-mode"><span class="lbl">התאמת Wi-Fi לאתר<span class="muted">בטלפון: הטלפון שולח רק "מחובר לרשת אתר"; בשרת: הטלפון שולח גיבוב של שם הרשת והשרת משווה</span></span>
+        <div class="row" data-presence-row="wifi-mode"><span class="lbl">${tr('התאמת Wi-Fi לאתר')}<span class="muted">${tr('בטלפון: הטלפון שולח רק "מחובר לרשת אתר"; בשרת: הטלפון שולח גיבוב של שם הרשת והשרת משווה')}</span></span>
           <sw-field><select data-presence-wifi-mode ?disabled=${!editable || this.busy} @change=${(e: Event) => this.patch({ wifi_match_mode: (e.target as HTMLSelectElement).value as 'phone' | 'server' })}>
-            <option value="phone" ?selected=${(d.wifi_match_mode ?? 'phone') === 'phone'}>בטלפון (ברירת מחדל)</option>
-            <option value="server" ?selected=${d.wifi_match_mode === 'server'}>בשרת (גיבוב)</option>
+            <option value="phone" ?selected=${(d.wifi_match_mode ?? 'phone') === 'phone'}>${tr('בטלפון (ברירת מחדל)')}</option>
+            <option value="server" ?selected=${d.wifi_match_mode === 'server'}>${tr('בשרת (גיבוב)')}</option>
           </select></sw-field></div>
         <div class="row" data-presence-row="value-check"><span class="lbl">${pt('valueCheck')}<span class="muted">${pt('valueCheckHint')}</span></span>
           <div class="seg" role="group" aria-label=${pt('valueCheck')} data-presence-value-check>${VALUE_CHECK_MODES.map((m: ValueCheck) => html`<button type="button" data-v=${m} aria-pressed=${String(valueCheckOf(d.value_check) === m)} ?disabled=${!editable || this.busy} @click=${() => this.patch({ value_check: m })}>${pt(`valueCheck_${m}`)}</button>`)}</div></div>
-        <div class="row" data-presence-row="notice"><span class="lbl">הודעה לעובדים<span class="muted">גרסה ${d.notice_version}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש</span></span></div>
-        <textarea data-presence-notice placeholder="טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)" .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
-        <div class="row" data-presence-row="retention"><span class="lbl">שמירת יומן הדיווחים</span>
+        <div class="row" data-presence-row="notice"><span class="lbl">${tr('הודעה לעובדים')}<span class="muted">${tr('גרסה {n}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש', { n: d.notice_version })}</span></span></div>
+        <textarea data-presence-notice placeholder=${tr('טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)')} .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
+        <div class="row" data-presence-row="retention"><span class="lbl">${tr('שמירת יומן הדיווחים')}</span>
           <sw-field><select data-presence-retention ?disabled=${!editable || this.busy} @change=${(e: Event) => this.patch({ retention_days: Number((e.target as HTMLSelectElement).value) })}>
-            ${RETENTION_CHOICES.map((n) => html`<option value=${n} ?selected=${d.retention_days === n}>${n} ימים</option>`)}
+            ${RETENTION_CHOICES.map((n) => html`<option value=${n} ?selected=${d.retention_days === n}>${tr('{n} ימים', { n })}</option>`)}
           </select></sw-field></div>
       </sw-card>
-      <sw-card heading="חיישנים נדרשים לשימוש מהאפליקציה" subheading="מי שלא הפעיל חיישן נדרש לא ייכנס מהאפליקציה; מנהלי מערכת לעולם לא נחסמים" data-presence-policy>
-        <div class="row" data-presence-row="policy"><span class="lbl">הדרישה פעילה<span class="muted">חלה על הפעלות מהאפליקציה בלבד, אלא אם סומן אחרת</span></span>
-          <sw-toggle ?checked=${req.enabled} ?disabled=${!editable || this.busy} label="הדרישה פעילה" labelHidden data-presence-policy-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ required_sensors: { ...req, enabled: e.detail.checked } })}></sw-toggle></div>
+      <sw-card heading=${tr('חיישנים נדרשים לשימוש מהאפליקציה')} subheading=${tr('מי שלא הפעיל חיישן נדרש לא ייכנס מהאפליקציה; מנהלי מערכת לעולם לא נחסמים')} data-presence-policy>
+        <div class="row" data-presence-row="policy"><span class="lbl">${tr('הדרישה פעילה')}<span class="muted">${tr('חלה על הפעלות מהאפליקציה בלבד, אלא אם סומן אחרת')}</span></span>
+          <sw-toggle ?checked=${req.enabled} ?disabled=${!editable || this.busy} label=${tr('הדרישה פעילה')} labelHidden data-presence-policy-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ required_sensors: { ...req, enabled: e.detail.checked } })}></sw-toggle></div>
         <div class="grid" data-presence-required>${SENSOR_KEYS.map((k) => html`<label class="chk"><input type="checkbox" data-presence-required-sensor=${k} .checked=${req.sensors.includes(k)} ?disabled=${!editable || this.busy || !req.enabled} @change=${(e: Event) => this.toggleRequired(k, (e.target as HTMLInputElement).checked)} /> ${SENSOR_LABEL[k]}</label>`)}</div>
-        <div class="row" data-presence-row="hardware"><span class="lbl">חומרה שחובה בשרת זה</span></div>
+        <div class="row" data-presence-row="hardware"><span class="lbl">${tr('חומרה שחובה בשרת זה')}</span></div>
         <div class="grid" data-presence-hardware>${SENSOR_KEYS.map((k) => html`<label class="chk"><input type="checkbox" data-presence-hardware-sensor=${k} .checked=${(req.hardware_required ?? []).includes(k)} ?disabled=${!editable || this.busy || !req.enabled} @change=${(e: Event) => this.toggleHardware(k, (e.target as HTMLInputElement).checked)} /> ${SENSOR_LABEL[k]}</label>`)}</div>
-        <div class="row" data-presence-row="web"><span class="lbl">גם בדפדפן<span class="muted">משתמש בלי האפליקציה ייחסם גם בדפדפן</span></span>
-          <sw-toggle ?checked=${req.apply_to_web} ?disabled=${!editable || this.busy || !req.enabled} label="גם בדפדפן" labelHidden data-presence-policy-web @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ required_sensors: { ...req, apply_to_web: e.detail.checked } })}></sw-toggle></div>
+        <div class="row" data-presence-row="web"><span class="lbl">${tr('גם בדפדפן')}<span class="muted">${tr('משתמש בלי האפליקציה ייחסם גם בדפדפן')}</span></span>
+          <sw-toggle ?checked=${req.apply_to_web} ?disabled=${!editable || this.busy || !req.enabled} label=${tr('גם בדפדפן')} labelHidden data-presence-policy-web @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ required_sensors: { ...req, apply_to_web: e.detail.checked } })}></sw-toggle></div>
         ${problem && req.enabled ? html`<div class="warn" role="status" data-presence-policy-problem>${problem}</div>` : nothing}
         ${editable
-          ? html`<div class="row" data-presence-row="glass"><span class="lbl">השעיה זמנית<span class="muted">${glass ? `מושעה עד ${glass}${this.saved.break_glass.reason ? ` · ${this.saved.break_glass.reason}` : ''}` : 'פותח את הכניסה לכולם ל־24 שעות, עם סיבה'}</span></span>
+          ? html`<div class="row" data-presence-row="glass"><span class="lbl">${tr('השעיה זמנית')}<span class="muted">${glass ? `${tr('מושעה עד {time}', { time: glass })}${this.saved.break_glass.reason ? ` · ${this.saved.break_glass.reason}` : ''}` : tr('פותח את הכניסה לכולם ל־24 שעות, עם סיבה')}</span></span>
               <span class="glass">${glass
-                ? html`<sw-button size="sm" data-presence-glass-end ?disabled=${this.busy} @click=${() => void this.glass(0)}>סיים השעיה</sw-button>`
-                : html`<input type="text" data-presence-glass-reason placeholder="סיבה" maxlength="200" .value=${this.glassReason} @input=${(e: Event) => (this.glassReason = (e.target as HTMLInputElement).value)} /><sw-button size="sm" data-presence-glass ?disabled=${this.busy || this.glassReason.trim().length < 3} @click=${() => void this.glass(24)}>השעה ל־24 שעות</sw-button>`}</span></div>`
+                ? html`<sw-button size="sm" data-presence-glass-end ?disabled=${this.busy} @click=${() => void this.glass(0)}>${tr('סיים השעיה')}</sw-button>`
+                : html`<input type="text" data-presence-glass-reason placeholder=${tr('סיבה')} maxlength="200" .value=${this.glassReason} @input=${(e: Event) => (this.glassReason = (e.target as HTMLInputElement).value)} /><sw-button size="sm" data-presence-glass ?disabled=${this.busy || this.glassReason.trim().length < 3} @click=${() => void this.glass(24)}>${tr('השעה ל־24 שעות')}</sw-button>`}</span></div>`
           : nothing}
         ${editable
           ? html`<div class="foot">
-              <sw-button variant="primary" size="sm" icon="check" data-presence-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>
+              <sw-button variant="primary" size="sm" icon="check" data-presence-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
               ${this.message ? html`<span class="ok" role="status" data-presence-message>${this.message}</span>` : nothing}
               ${this.error ? html`<span class="err" role="alert" data-presence-error>${this.error}</span>` : nothing}
             </div>`

@@ -12,6 +12,7 @@ import type { DisplayZone, IntercomFeedState, IntercomLock } from '../api/interc
 import { doorsOf } from '../access-control/schedules-logic';
 import { fill, ws, type StationsText } from '../i18n/wiskey-stations';
 import { offsetAt, UTC_ZONE } from './wiskey-format';
+import { tr } from '../i18n/msg/wiskey';
 
 /** WisKey's own limit for an announcement, after collapsing whitespace (audio_tts.py). */
 export const TTS_MAX = 500;
@@ -36,7 +37,7 @@ export function plural(one: string, many: string, n: number): string {
 /** "ב<name>" - with the maqaf before a name that does not start with a Hebrew letter ("ב־Main gate"). */
 export function inPlace(name: string): string {
   const n = name.trim();
-  return /^[֐-׿]/.test(n) ? `ב${n}` : `ב־${n}`;
+  return /^[֐-׿]/.test(n) ? tr('ב{name}', { name: n }) : tr('ב־{name}', { name: n });
 }
 
 export type StationStatus = 'offline' | 'ringing' | 'in_call' | 'ending' | 'online';

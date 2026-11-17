@@ -4,13 +4,14 @@
  * tests/unit-wiskey-visits.spec.ts). Operator text never names the vendor or the platform ("מערכת בקרת הכניסה").
  */
 import type { GuestTemplate, LinkState, VisitCapability, VisitCapabilityName, VisitLink, VisitStatus, WiskeyVisit } from '../api/wiskey-visits';
+import { tr } from '../i18n/msg/misc';
 
 export type Tone = 'ok' | 'acc' | 'warn' | 'err' | 'off';
 
 export const CAPABILITY_LABEL: Record<VisitCapabilityName, string> = {
-  visits: 'הצגת ביקורים ממערכת בקרת הכניסה',
-  templates: 'תבניות אורחים',
-  push: 'רישום הזמנות Arx במערכת בקרת הכניסה',
+  visits: tr('הצגת ביקורים ממערכת בקרת הכניסה'),
+  templates: tr('תבניות אורחים'),
+  push: tr('רישום הזמנות Arx במערכת בקרת הכניסה'),
 };
 
 export interface CapabilityLine {
@@ -24,20 +25,20 @@ export interface CapabilityLine {
 export function capabilityLines(caps: Record<VisitCapabilityName, VisitCapability>): CapabilityLine[] {
   return (['visits', 'templates', 'push'] as VisitCapabilityName[]).map((name) => {
     const c = caps[name];
-    if (c?.available) return { name, label: CAPABILITY_LABEL[name], tone: 'ok', text: 'זמין' };
-    const text = c?.message || (c?.reason ? `לא זמין (${c.reason})` : 'לא זמין');
+    if (c?.available) return { name, label: CAPABILITY_LABEL[name], tone: 'ok', text: tr('זמין') };
+    const text = c?.message || (c?.reason ? tr('לא זמין ({reason})', { reason: c.reason }) : tr('לא זמין'));
     const tone: Tone = c?.reason === 'push_off' ? 'off' : 'warn';
     return { name, label: CAPABILITY_LABEL[name], tone, text };
   });
 }
 
 const STATUS_TEXT: Record<VisitStatus, [string, Tone]> = {
-  pending: ['ממתין לאישור', 'warn'],
-  approved: ['מאושר', 'ok'],
-  rejected: ['נדחה', 'err'],
-  cancelled: ['בוטל', 'off'],
-  superseded: ['הוחלף', 'off'],
-  unknown: ['לא ידוע', 'off'],
+  pending: [tr('ממתין לאישור'), 'warn'],
+  approved: [tr('מאושר'), 'ok'],
+  rejected: [tr('נדחה'), 'err'],
+  cancelled: [tr('בוטל'), 'off'],
+  superseded: [tr('הוחלף'), 'off'],
+  unknown: [tr('לא ידוע'), 'off'],
 };
 
 export function statusText(status: VisitStatus): { text: string; tone: Tone } {
@@ -47,7 +48,7 @@ export function statusText(status: VisitStatus): { text: string; tone: Tone } {
 
 /** Where the visit is managed: an Arx invitation (its own card in Arx) or the access-control system's own panel (read only here). */
 export function originText(v: Pick<WiskeyVisit, 'origin'>): { text: string; tone: Tone } {
-  return v.origin === 'arx' ? { text: 'הזמנה של Arx', tone: 'acc' } : { text: 'נוצר במערכת בקרת הכניסה · צפייה בלבד', tone: 'off' };
+  return v.origin === 'arx' ? { text: tr('הזמנה של Arx'), tone: 'acc' } : { text: tr('נוצר במערכת בקרת הכניסה · צפייה בלבד'), tone: 'off' };
 }
 
 export type LinkAction = 'push' | 'reconcile' | 'none';
@@ -59,12 +60,12 @@ export interface LinkPlan {
 }
 
 const LINK_TEXT: Record<LinkState, [string, Tone]> = {
-  never: ['לא נרשם', 'off'],
-  sending: ['בשליחה', 'acc'],
-  pushed: ['נרשם', 'ok'],
-  refused: ['נדחה', 'err'],
-  not_sent: ['לא נשלח', 'off'],
-  unknown: ['תוצאה לא ברורה', 'warn'],
+  never: [tr('לא נרשם'), 'off'],
+  sending: [tr('בשליחה'), 'acc'],
+  pushed: [tr('נרשם'), 'ok'],
+  refused: [tr('נדחה'), 'err'],
+  not_sent: [tr('לא נשלח'), 'off'],
+  unknown: [tr('תוצאה לא ברורה'), 'warn'],
 };
 
 /** What the operator may do with one invitation's record. `unknown` is only ever settled by a check, never by sending again. */
@@ -74,7 +75,7 @@ export function linkPlan(link: VisitLink, pushAvailable: boolean): LinkPlan {
   if (link.state === 'sending') return { action: 'none', text: base, tone };
   if (link.state === 'pushed' && link.in_sync) return { action: 'none', text: base, tone };
   const outdated = link.state === 'pushed' && !link.in_sync;
-  const text = outdated ? 'נרשם · יש עדכון לשליחה' : base;
+  const text = outdated ? tr('נרשם · יש עדכון לשליחה') : base;
   if (!pushAvailable || !link.pushable) return { action: 'none', text, tone: outdated ? 'warn' : tone };
   return { action: 'push', text, tone: outdated ? 'warn' : tone };
 }
@@ -100,7 +101,7 @@ export function presetFromTemplate(t: GuestTemplate, startMs: number): InvitePre
 
 export function durationText(minutes: number | null): string {
   if (!minutes) return '—';
-  if (minutes % 1440 === 0) return minutes === 1440 ? 'יום' : `${minutes / 1440} ימים`;
-  if (minutes % 60 === 0) return minutes === 60 ? 'שעה' : `${minutes / 60} שעות`;
-  return `${minutes} דקות`;
+  if (minutes % 1440 === 0) return minutes === 1440 ? tr('יום') : tr('{n} ימים', { n: minutes / 1440 });
+  if (minutes % 60 === 0) return minutes === 60 ? tr('שעה') : tr('{n} שעות', { n: minutes / 60 });
+  return tr('{n} דקות', { n: minutes });
 }

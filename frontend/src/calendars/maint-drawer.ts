@@ -8,14 +8,15 @@ import { dateInputLang } from '../api/day-format';
 import type { MaintPreview, OverlapMode } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx, type NewMaintDetail } from './ctx';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, ddmm, hm, isoDate, OVERLAP_LABEL, sameDay, STATE_LABEL } from './model';
 
 /** What saving does in each overlap mode (contract section 8, C3; the warning itself is shown in every mode). */
 const MODE_TEXT: Record<OverlapMode, string> = {
-  first_holds: 'החלון יישמר כממתין ומסומן "מתחרה". אף הזמנה לא נדחקת עד שמנהלי החדרים מחליטים.',
-  override_notify: 'ההזמנות החופפות יעברו ל"נדחק" (לא נמחקות) והמארגנים יקבלו הודעה עם 3 זמנים חלופיים.',
-  block: 'השמירה חסומה. הזיזו את החלון או בחרו זמן פנוי.',
-  ask: 'בחרו מה יקרה להזמנות החופפות.',
+  first_holds: tr('החלון יישמר כממתין ומסומן "מתחרה". אף הזמנה לא נדחקת עד שמנהלי החדרים מחליטים.'),
+  override_notify: tr('ההזמנות החופפות יעברו ל"נדחק" (לא נמחקות) והמארגנים יקבלו הודעה עם 3 זמנים חלופיים.'),
+  block: tr('השמירה חסומה. הזיזו את החלון או בחרו זמן פנוי.'),
+  ask: tr('בחרו מה יקרה להזמנות החופפות.'),
 };
 
 /**
@@ -151,7 +152,7 @@ export class CalMaintDrawer extends LitElement {
     const sp = this.span();
     if (!this.ctx || !sp) return;
     if (!this.evTitle.trim()) {
-      this.err = 'צריך כותרת לחלון.';
+      this.err = tr('צריך כותרת לחלון.');
       return;
     }
     const mode = this.preview?.mode;
@@ -162,12 +163,12 @@ export class CalMaintDrawer extends LitElement {
       const out = await this.ctx.api.maintPlace({ calendar_id: this.calId, title: this.evTitle.trim(), rooms: this.rooms, ...sp, notes: this.devices.trim() || undefined,
         overlap_decision: mode === 'ask' && overlaps ? this.decision : undefined });
       const n = out.displaced.length;
-      emit(this, CAL_EVENTS.toast, out.event.state === 'pending' ? 'החלון נשמר כממתין להחלטת מנהלי החדרים' : n ? `החלון הוצב; ${n} הזמנות נדחקו והמארגנים קיבלו הודעה` : 'חלון התחזוקה הוצב');
+      emit(this, CAL_EVENTS.toast, out.event.state === 'pending' ? tr('החלון נשמר כממתין להחלטת מנהלי החדרים') : n ? tr('החלון הוצב; {n} הזמנות נדחקו והמארגנים קיבלו הודעה', { n }) : tr('חלון התחזוקה הוצב'));
       emit(this, CAL_EVENTS.changed);
       this.close();
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'maintenance_overlap') this.err = 'אי אפשר להציב את החלון מעל הזמנה. בחרו אחד מהזמנים הפנויים.';
-      else if (e instanceof ApiError && e.code === 'overlap_decision_required') this.err = 'יש חפיפה עם הזמנות קיימות. יש לבחור מה לעשות.';
+      if (e instanceof ApiError && e.code === 'maintenance_overlap') this.err = tr('אי אפשר להציב את החלון מעל הזמנה. בחרו אחד מהזמנים הפנויים.');
+      else if (e instanceof ApiError && e.code === 'overlap_decision_required') this.err = tr('יש חפיפה עם הזמנות קיימות. יש לבחור מה לעשות.');
       else this.err = describeError(e);
       void this.runPreview();
     } finally {
@@ -192,47 +193,47 @@ export class CalMaintDrawer extends LitElement {
     const blocked = !!overlaps.length && (mode === 'block' || (mode === 'ask' && this.decision === 'block'));
     const now = this.ctx?.now ?? new Date();
     const sp = this.span();
-    const dayText = sp ? (sameDay(new Date(sp.start), now) ? 'היום' : ddmm(new Date(sp.start))) : '';
-    const label = blocked ? 'אי אפשר לשמור' : overlaps.length && mode === 'first_holds' ? 'שמירה כממתין להחלטה' : 'הצבת החלון';
+    const dayText = sp ? (sameDay(new Date(sp.start), now) ? tr('היום') : ddmm(new Date(sp.start))) : '';
+    const label = blocked ? tr('אי אפשר לשמור') : overlaps.length && mode === 'first_holds' ? tr('שמירה כממתין להחלטה') : tr('הצבת החלון');
     const shown = overlaps.slice(0, this.ctx?.device === 'phone' ? 2 : 3);
     const roomName = (id: string) => this.ctx?.cals.find((c) => c.id === id)?.name ?? '';
-    return html`<sw-drawer modal open heading="חלון תחזוקה חדש" subheading=${`${this.rooms.length} ${this.rooms.length === 1 ? 'חדר' : 'חדרים'}${dayText ? ` · ${dayText}` : ''}`}
+    return html`<sw-drawer modal open heading=${tr('חלון תחזוקה חדש')} subheading=${`${this.rooms.length === 1 ? tr('{n} חדר', { n: this.rooms.length }) : tr('{n} חדרים', { n: this.rooms.length })}${dayText ? ` · ${dayText}` : ''}`}
         data-maint-drawer data-mode=${mode} @close=${this.onDrawerClose}>
         <div class="content">
-          ${!cals.length ? html`<div class="note warn" data-no-maint-cal><div><b>אין יומן אחזקה שאפשר להציב בו</b><span class="muted">מנהל המערכת יוצר יומן מסוג אחזקה במסך ניהול יומנים.</span></div></div>` : nothing}
-          <div class="fld"><label for="mc">יומן</label><select id="mc" class="inp" .value=${this.calId} @change=${(e: Event) => { this.calId = (e.target as HTMLSelectElement).value; this.schedule(); }}>
+          ${!cals.length ? html`<div class="note warn" data-no-maint-cal><div><b>${tr('אין יומן אחזקה שאפשר להציב בו')}</b><span class="muted">${tr('מנהל המערכת יוצר יומן מסוג אחזקה במסך ניהול יומנים.')}</span></div></div>` : nothing}
+          <div class="fld"><label for="mc">${tr('יומן')}</label><select id="mc" class="inp" .value=${this.calId} @change=${(e: Event) => { this.calId = (e.target as HTMLSelectElement).value; this.schedule(); }}>
             ${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select></div>
-          <div class="fld"><label for="mt">כותרת</label><input id="mt" class="inp" maxlength="120" placeholder="למשל: החלפת גוף תאורה ובדיקת גלאים" .value=${this.evTitle}
+          <div class="fld"><label for="mt">${tr('כותרת')}</label><input id="mt" class="inp" maxlength="120" placeholder=${tr('למשל: החלפת גוף תאורה ובדיקת גלאים')} .value=${this.evTitle}
             @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)} data-maint-title></div>
-          <div class="fld"><span class="lbl">מתי</span><div class="ctls">
-            <input class="inp num" type="date" lang=${dateInputLang()} aria-label="תאריך" .value=${this.date} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; this.schedule(); }}>
-            <input class="inp num" type="time" lang=${dateInputLang()} step="900" aria-label="משעה" .value=${this.from} @change=${(e: Event) => { this.from = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-from>
-            <input class="inp num" type="time" lang=${dateInputLang()} step="900" aria-label="עד שעה" .value=${this.to} @change=${(e: Event) => { this.to = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-to></div></div>
-          <div class="fld"><span class="lbl">חדרים</span><div class="rooms" role="group" aria-label="חדרים">${rooms.slice(0, this.ctx?.device === 'phone' ? 6 : 10).map((c) => {
+          <div class="fld"><span class="lbl">${tr('מתי')}</span><div class="ctls">
+            <input class="inp num" type="date" lang=${dateInputLang()} aria-label=${tr('תאריך')} .value=${this.date} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; this.schedule(); }}>
+            <input class="inp num" type="time" lang=${dateInputLang()} step="900" aria-label=${tr('משעה')} .value=${this.from} @change=${(e: Event) => { this.from = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-from>
+            <input class="inp num" type="time" lang=${dateInputLang()} step="900" aria-label=${tr('עד שעה')} .value=${this.to} @change=${(e: Event) => { this.to = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-to></div></div>
+          <div class="fld"><span class="lbl">${tr('חדרים')}</span><div class="rooms" role="group" aria-label=${tr('חדרים')}>${rooms.slice(0, this.ctx?.device === 'phone' ? 6 : 10).map((c) => {
             const on = this.rooms.includes(c.id);
             return html`<button type="button" class="room" aria-pressed=${String(on)} data-room=${c.id} title=${c.name}
               @click=${() => { this.rooms = on ? this.rooms.filter((x) => x !== c.id) : [...this.rooms, c.id]; this.schedule(); }}><span class="dot" style=${`--h:${colorVar(c.color)}`}></span><span class="ell">${c.name}</span></button>`;
           })}</div></div>
-          <div class="fld"><label for="md">מכשירים</label><input id="md" class="inp" maxlength="200" placeholder='למשל: תאורה ו-2 גלאי עשן · "צפויה חריגה"' .value=${this.devices}
+          <div class="fld"><label for="md">${tr('מכשירים')}</label><input id="md" class="inp" maxlength="200" placeholder=${tr('למשל: תאורה ו-2 גלאי עשן · "צפויה חריגה"')} .value=${this.devices}
             @input=${(e: Event) => (this.devices = (e.target as HTMLInputElement).value)}></div>
           ${overlaps.length ? html`<div class=${`ovl ${mode === 'block' ? 'bad' : ''}`} data-overlaps>
-            <b><sw-icon name="warning" size="16"></sw-icon>החלון חופף ל-<span class="num">${overlaps.length}</span> ${overlaps.length === 1 ? 'הזמנה' : 'הזמנות'}</b>
-            ${shown.map((o) => html`<div class="orow" data-overlap=${o.event_id}><div class="grow"><div class="t ell" title=${o.title ?? 'תפוס'}>${o.title ?? 'תפוס'}</div>
+            <b><sw-icon name="warning" size="16"></sw-icon>${tr('החלון חופף ל-')}<span class="num">${overlaps.length}</span> ${overlaps.length === 1 ? tr('הזמנה') : tr('הזמנות')}</b>
+            ${shown.map((o) => html`<div class="orow" data-overlap=${o.event_id}><div class="grow"><div class="t ell" title=${o.title ?? tr('תפוס')}>${o.title ?? tr('תפוס')}</div>
               <div class="s ell">${roomName(o.calendar_id)}${o.organizer?.name ? ` · ${o.organizer.name}` : ''}</div></div>
-              <b class="num ltr">${hm(o.start)}–${hm(o.end)}</b><span class=${`chip ${o.state === 'confirmed' ? 'ok' : 'dash'}`}>${o.state === 'confirmed' ? 'מאושר' : STATE_LABEL[o.state]}</span></div>`)}
-            ${overlaps.length > shown.length ? html`<span class="more num">ועוד ${overlaps.length - shown.length}</span>` : nothing}</div>
-            <div class="modeline"><sw-icon name="info" size="14"></sw-icon>לפי ההגדרה: <b>${OVERLAP_LABEL[mode]}</b></div>
-            ${mode === 'ask' ? html`<div role="radiogroup" aria-label="מה יקרה להזמנות" style="display:flex;flex-direction:column;gap:6px">
-                <button type="button" class="opt" role="radio" aria-checked=${String(this.decision === 'override_notify')} data-decision="override_notify" @click=${() => (this.decision = 'override_notify')}><span class="rad"></span><span><b>התחזוקה גוברת</b><small>ההזמנות נדחקות והמארגנים מקבלים הודעה</small></span></button>
-                <button type="button" class="opt" role="radio" aria-checked=${String(this.decision === 'block')} data-decision="block" @click=${() => (this.decision = 'block')}><span class="rad"></span><span><b>לא להציב</b><small>לחזור ולבחור זמן אחר</small></span></button></div>`
+              <b class="num ltr">${hm(o.start)}–${hm(o.end)}</b><span class=${`chip ${o.state === 'confirmed' ? 'ok' : 'dash'}`}>${o.state === 'confirmed' ? tr('מאושר') : STATE_LABEL[o.state]}</span></div>`)}
+            ${overlaps.length > shown.length ? html`<span class="more num">${tr('ועוד {n}', { n: overlaps.length - shown.length })}</span>` : nothing}</div>
+            <div class="modeline"><sw-icon name="info" size="14"></sw-icon>${tr('לפי ההגדרה:')} <b>${OVERLAP_LABEL[mode]}</b></div>
+            ${mode === 'ask' ? html`<div role="radiogroup" aria-label=${tr('מה יקרה להזמנות')} style="display:flex;flex-direction:column;gap:6px">
+                <button type="button" class="opt" role="radio" aria-checked=${String(this.decision === 'override_notify')} data-decision="override_notify" @click=${() => (this.decision = 'override_notify')}><span class="rad"></span><span><b>${tr('התחזוקה גוברת')}</b><small>${tr('ההזמנות נדחקות והמארגנים מקבלים הודעה')}</small></span></button>
+                <button type="button" class="opt" role="radio" aria-checked=${String(this.decision === 'block')} data-decision="block" @click=${() => (this.decision = 'block')}><span class="rad"></span><span><b>${tr('לא להציב')}</b><small>${tr('לחזור ולבחור זמן אחר')}</small></span></button></div>`
               : html`<div class="muted" data-mode-text>${MODE_TEXT[mode]}</div>`}
             ${blocked && pv?.alternatives.length ? html`<div class="sugg" data-alternatives>${pv.alternatives.slice(0, 3).map((a) => html`<button type="button" class="btn sm" @click=${() => this.useAlt(a)}>
               ${sameDay(new Date(a.start), now) ? '' : `${ddmm(new Date(a.start))} `}<span class="num ltr">${hm(a.start)}–${hm(a.end)}</span></button>`)}</div>` : nothing}`
-          : pv ? html`<div class="note" data-no-overlap><sw-icon name="check" size="16"></sw-icon><div><b>אין חפיפה עם הזמנות</b><span class="muted">החלון יוצב מיד.</span></div></div>` : nothing}
+          : pv ? html`<div class="note" data-no-overlap><sw-icon name="check" size="16"></sw-icon><div><b>${tr('אין חפיפה עם הזמנות')}</b><span class="muted">${tr('החלון יוצב מיד.')}</span></div></div>` : nothing}
           ${this.err ? html`<div class="err" role="alert" data-maint-error>${this.err}</div>` : nothing}
         </div>
         <sw-button slot="footer" variant="primary" icon="wrench" ?disabled=${blocked || this.busy || !cals.length || !this.rooms.length} data-maint-save @click=${() => void this.save()}>${label}</sw-button>
-        <sw-button slot="footer" variant="secondary" data-maint-cancel @click=${() => this.close()}>ביטול</sw-button>
+        <sw-button slot="footer" variant="secondary" data-maint-cancel @click=${() => this.close()}>${tr('ביטול')}</sw-button>
       </sw-drawer>`;
   }
 }

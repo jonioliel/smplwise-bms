@@ -5,6 +5,7 @@ import { icon } from './automation-builder-icons';
 import { AutomationEditorBase } from './automation-editor-base';
 import { ROOT } from './automation-editor-logic';
 import './door-automation-block'; // CR-AUTODOORS-295: the "open a door" block (renders nothing without access.doors.automate)
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 S4: the automation builder (CR §4.2.1; mockups 14-33): the three stacked sections כאשר · אם · אז with a block card per trigger, condition
@@ -18,9 +19,9 @@ import './door-automation-block'; // CR-AUTODOORS-295: the "open a door" block (
 @customElement('automation-builder')
 export class AutomationBuilder extends AutomationEditorBase {
   protected get kind() { return 'automation' as const; }
-  protected get nameLabel() { return 'שם האוטומציה'; }
+  protected get nameLabel() { return tr('שם האוטומציה'); }
   protected get startsWithGallery() { return true; }
-  protected subtitleNew() { return 'אוטומציה חדשה'; }
+  protected subtitleNew() { return tr('אוטומציה חדשה'); }
   protected blankDraft(): AutomationDraft {
     return { alias: '', description: '', mode: 'single', max: null, triggers: [], conditions: [], actions: [] };
   }
@@ -30,15 +31,15 @@ export class AutomationBuilder extends AutomationEditorBase {
     const t = d.triggers.length;
     return html`${this.renderConflict()}${this.renderBanners()}${this.renderSentence()}${this.renderValidation()}
       <section class="bsec2" data-section="trigger">
-        <h4><span class="k when">${icon('bolt', 14)}</span>כאשר<small>${t === 0 ? 'מה מפעיל' : t === 1 ? 'טריגר אחד' : `${t} טריגרים · אחד מהם מספיק`}</small></h4>
+        <h4><span class="k when">${icon('bolt', 14)}</span>${tr('כאשר')}<small>${t === 0 ? tr('מה מפעיל') : t === 1 ? tr('טריגר אחד') : tr('{n} טריגרים · אחד מהם מספיק', { n: t })}</small></h4>
         ${this.renderList(ROOT, 'triggers', 'trigger')}
       </section>
       <section class="bsec2" data-section="condition">
-        <h4><span class="k if">${icon('question', 14)}</span>אם<small>${d.conditions.length ? 'כל התנאים צריכים להתקיים' : 'לא חובה'}</small></h4>
+        <h4><span class="k if">${icon('question', 14)}</span>${tr('אם')}<small>${d.conditions.length ? tr('כל התנאים צריכים להתקיים') : tr('לא חובה')}</small></h4>
         ${this.renderList(ROOT, 'conditions', 'condition')}
       </section>
       <section class="bsec2" data-section="action">
-        <h4><span class="k then">${icon('play', 14)}</span>אז<small>${d.actions.length ? `${d.actions.length} צעדים, לפי הסדר` : 'מה לעשות'}</small></h4>
+        <h4><span class="k then">${icon('play', 14)}</span>${tr('אז')}<small>${d.actions.length ? tr('{n} צעדים, לפי הסדר', { n: d.actions.length }) : tr('מה לעשות')}</small></h4>
         ${this.renderList(ROOT, 'actions', 'action')}
         ${this.isNew ? nothing : html`<door-automation-block .automationId=${this.itemId}></door-automation-block>`}
       </section>

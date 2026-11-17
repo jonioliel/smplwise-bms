@@ -6,6 +6,7 @@
  * The product never says "delivered" or "read" - only that a message was handed over ("מסירה לא ידועה", D14).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the ticket's delivery block (D14) and its actions (D29)
@@ -300,3 +301,5 @@ export const MESSAGE_TEXT_EN_KEYS = catalogue.EN_KEYS;
 /** A text of the message screens: the document's language, the module's name rendered (D33), then `{var}`s (a typed value is never
  * read as a token: the variables are filled after the name). `{link}` / `{code}` in the template texts are literal placeholders. */
 export const mtt = catalogue.t;
+
+registerCatalogue('tickets/messages-text', { he, en });

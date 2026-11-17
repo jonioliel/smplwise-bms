@@ -6,6 +6,7 @@
  */
 import type { DwtLang } from './door-windows';
 import { dwtLang } from './door-windows';
+import { fill, registerCatalogue } from './core';
 
 const ROWS = {
   // ---- event rules
@@ -145,10 +146,12 @@ export const DWE_TABLES: Record<DwtLang, Record<DweKey, string>> = (['he', 'en',
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function dwe(key: DweKey, vars?: Record<string, string | number>, lang: DwtLang = dwtLang()): string {
   const raw = DWE_TABLES[lang][key] ?? DWE_TABLES.he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`reason_<code>`, `dec_<decision>`, `dk_<kind>`...), or the fallback when there is none. */
 export function dweDynamic(key: string, fallback: DweKey, vars?: Record<string, string | number>): string {
   return key in ROWS ? dwe(key as DweKey, vars) : dwe(fallback, vars);
 }
+
+registerCatalogue('i18n/door-windows-events', DWE_TABLES, ['ar', 'ru']);

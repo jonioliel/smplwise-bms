@@ -8,6 +8,7 @@
  * "delivered" or "read" (D14) - the only receipt is "the link was opened after the message".
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // ---- the two sub-tabs (IA §4.2): the toggle group, its captions, the badges
@@ -182,3 +183,5 @@ export const cvt = catalogue.t;
 
 export const CONV_TEXT_KEYS = catalogue.KEYS;
 export const CONV_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/conversation-text', { he, en });

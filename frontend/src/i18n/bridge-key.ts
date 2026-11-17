@@ -3,6 +3,7 @@
  * Russian follow the document language (a missing key falls back to the Hebrew). The Arabic and Russian columns are an INITIAL
  * translation and need a native review (dev-marked). Short texts only; no home-system branding.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'מפתח הגשר',
   stateOff: 'כבוי',
@@ -429,8 +430,7 @@ export type BktKey = Key;
 export type BktLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function bktLang(): BktLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<BktLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -439,7 +439,7 @@ export const BKT_DEV_MARKED: readonly BktLang[] = ['ar', 'ru'];
 
 export function bkt(key: Key, vars?: Record<string, string | number>, lang: BktLang = bktLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A state / blocked-by code as text (an unknown code falls back to the code itself). */
@@ -451,3 +451,5 @@ export function bktCode(prefix: 'st_' | 'bl_' | 'wd_', code: string | null | und
 
 export const BKT_KEYS = Object.keys(he) as Key[];
 export const BKT_TABLES = TABLES;
+
+registerCatalogue('i18n/bridge-key', { he, en, ar, ru }, BKT_DEV_MARKED);

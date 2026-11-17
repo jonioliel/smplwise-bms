@@ -2,7 +2,8 @@
  * The text itself is frontend/src/content/architect-request.he.txt, a verbatim copy of docs/operations/ARCHITECT_PLANS_REQUEST_HE.md
  * (a unit test fails when the two drift). */
 
-export const REQUEST_TITLE = 'בקשה לאדריכל';
+import { tr } from '../i18n/msg/components';
+export const REQUEST_TITLE = tr('בקשה לאדריכל');
 export const REQUEST_FILE_NAME = 'בקשה_לאדריכל.txt';
 /** A mailto: link longer than this is unreliable in mail clients and browsers (the practical ceiling is ~2000 characters). */
 export const MAILTO_MAX = 1800;

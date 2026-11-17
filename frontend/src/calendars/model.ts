@@ -4,23 +4,24 @@
  * No DOM, no network: unit-tested in Node (tests/unit-calendars-ui.spec.ts).
  */
 import type { ApprovedMove, CalColor, CalRole, CalType, Calendar, EntryState, Occurrence, OverlapMode } from '../api/calendars';
+import { tr } from '../i18n/msg/calendars';
 
-export const TYPE_LABEL: Record<CalType, string> = { room: 'חדר', team: 'צוות', maintenance: 'אחזקה', event: 'אירועים' };
-export const TYPE_GROUP: Record<CalType, string> = { room: 'חדרים', team: 'צוותים', maintenance: 'אחזקה', event: 'אירועים' };
-export const ROLE_LABEL: Record<CalRole, string> = { view: 'צפייה', book: 'יצירת אירועים שלי', edit: 'עריכת הכול', manage: 'ניהול ואישור' };
+export const TYPE_LABEL: Record<CalType, string> = { room: tr('חדר'), team: tr('צוות'), maintenance: tr('אחזקה'), event: tr('אירועים') };
+export const TYPE_GROUP: Record<CalType, string> = { room: tr('חדרים'), team: tr('צוותים'), maintenance: tr('אחזקה'), event: tr('אירועים') };
+export const ROLE_LABEL: Record<CalRole, string> = { view: tr('צפייה'), book: tr('יצירת אירועים שלי'), edit: tr('עריכת הכול'), manage: tr('ניהול ואישור') };
 export const ROLE_HINT: Record<CalRole, string> = {
-  view: 'רואה את היומן לפי הנראות', book: 'יוצר, משנה ומבטל הזמנות שלו', edit: 'משנה ומבטל כל הזמנה, גם מחוץ למגבלות הזמן', manage: 'מאשר ודוחה בקשות, קובע כללים וחברים',
+  view: tr('רואה את היומן לפי הנראות'), book: tr('יוצר, משנה ומבטל הזמנות שלו'), edit: tr('משנה ומבטל כל הזמנה, גם מחוץ למגבלות הזמן'), manage: tr('מאשר ודוחה בקשות, קובע כללים וחברים'),
 };
 export const STATE_LABEL: Record<EntryState, string> = {
-  pending: 'ממתין לאישור', confirmed: 'מאושר', rejected: 'נדחה', withdrawn: 'בוטל על ידי המבקש', expired: 'פג', cancelled: 'בוטל', displaced: 'נדחק', done: 'הסתיים',
+  pending: tr('ממתין לאישור'), confirmed: tr('מאושר'), rejected: tr('נדחה'), withdrawn: tr('בוטל על ידי המבקש'), expired: tr('פג'), cancelled: tr('בוטל'), displaced: tr('נדחק'), done: tr('הסתיים'),
 };
 export const OVERLAP_LABEL: Record<OverlapMode, string> = {
-  first_holds: 'הראשון שאושר מחזיק, התחזוקה מחכה להחלטה', override_notify: 'התחזוקה גוברת ומודיעים למארגנים', block: 'אי אפשר להציב תחזוקה מעל הזמנה', ask: 'לשאול בכל חלון',
+  first_holds: tr('הראשון שאושר מחזיק, התחזוקה מחכה להחלטה'), override_notify: tr('התחזוקה גוברת ומודיעים למארגנים'), block: tr('אי אפשר להציב תחזוקה מעל הזמנה'), ask: tr('לשאול בכל חלון'),
 };
-export const OVERLAP_SHORT: Record<OverlapMode, string> = { first_holds: 'הראשון מחזיק', override_notify: 'התחזוקה גוברת', block: 'אי אפשר להציב', ask: 'לשאול בכל חלון' };
-export const APPROVAL_LABEL: Record<Calendar['approval_mode'], string> = { none: 'ללא אישור', always: 'כל בקשה באישור', outside_hours: 'באישור מחוץ לשעות', on_behalf: 'באישור כשמזמינים בשם אחרים' };
+export const OVERLAP_SHORT: Record<OverlapMode, string> = { first_holds: tr('הראשון מחזיק'), override_notify: tr('התחזוקה גוברת'), block: tr('אי אפשר להציב'), ask: tr('לשאול בכל חלון') };
+export const APPROVAL_LABEL: Record<Calendar['approval_mode'], string> = { none: tr('ללא אישור'), always: tr('כל בקשה באישור'), outside_hours: tr('באישור מחוץ לשעות'), on_behalf: tr('באישור כשמזמינים בשם אחרים') };
 /** CAL-GRID-EDIT-2343 (owner answer 3C): what happens when an approved booking in a room that needs approval is moved. */
-export const APPROVED_MOVE_LABEL: Record<ApprovedMove, string> = { reapproval: 'באישור מחדש', managers: 'רק מנהל החדר' };
+export const APPROVED_MOVE_LABEL: Record<ApprovedMove, string> = { reapproval: tr('באישור מחדש'), managers: tr('רק מנהל החדר') };
 export const PROVIDER_LABEL: Record<string, string> = { ical: 'iCal', ics_in: 'iCal', ics_out: 'iCal', google: 'Google', microsoft: 'Microsoft' };
 /** Order of the strictness of the maintenance-overlap modes (stricter protects an existing entry more). */
 export const STRICTNESS: Record<OverlapMode, number> = { override_notify: 0, first_holds: 1, ask: 2, block: 3 };
@@ -38,9 +39,9 @@ export function markOf(o: Pick<Occurrence, 'state' | 'kind' | 'title'>): Mark {
 }
 
 export const pad = (n: number) => String(n).padStart(2, '0');
-export const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-export const DAY_LONG = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-export const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+export const DAY_SHORT = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
+export const DAY_LONG = [tr('ראשון'), tr('שני'), tr('שלישי'), tr('רביעי'), tr('חמישי'), tr('שישי'), tr('שבת')];
+export const MONTHS = [tr('ינואר'), tr('פברואר'), tr('מרץ'), tr('אפריל'), tr('מאי'), tr('יוני'), tr('יולי'), tr('אוגוסט'), tr('ספטמבר'), tr('אוקטובר'), tr('נובמבר'), tr('דצמבר')];
 
 /** Local wall-clock helpers: the browser runs in the installation's zone (the shell sets nothing else; the specs pin Asia/Jerusalem). */
 export function startOfDay(d: Date): Date {
@@ -65,7 +66,7 @@ export const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
 /** "היום · 17:00–21:00", "ג׳ 03.11 · 16:00–17:30" */
 export function whenText(start: string, end: string, now: Date): string {
   const s = new Date(start);
-  const day = sameDay(s, now) ? 'היום' : sameDay(s, addDays(now, 1)) ? 'מחר' : `${DAY_SHORT[s.getDay()]} ${ddmm(s)}`;
+  const day = sameDay(s, now) ? tr('היום') : sameDay(s, addDays(now, 1)) ? tr('מחר') : `${DAY_SHORT[s.getDay()]} ${ddmm(s)}`;
   return `${day} · ${hm(start)}–${hm(end)}`;
 }
 

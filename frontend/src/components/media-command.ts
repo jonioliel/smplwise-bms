@@ -11,6 +11,7 @@ import { ApiError } from '../api/client';
 import { getAction } from '../api/ha';
 import { isApi } from '../api/session';
 import { CONFIRM_TIMEOUT_MS, ERROR_LABEL, sendCommand, type MediaCommand } from '../api/media-screens';
+import { tr } from '../i18n/msg/components';
 
 export type Outcome = 'confirmed' | 'sent' | 'not_confirmed' | 'refused' | 'rate_limited';
 
@@ -26,8 +27,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The sentence for an error code (client ERROR_LABEL), else the server's own message. */
 export function errorText(err: unknown): { code: string | null; message: string } {
-  if (err instanceof ApiError) return { code: err.code, message: ERROR_LABEL[err.code] ?? err.body.user_message ?? 'הפעולה נכשלה' };
-  return { code: null, message: 'אין חיבור לשרת' };
+  if (err instanceof ApiError) return { code: err.code, message: ERROR_LABEL[err.code] ?? err.body.user_message ?? tr('הפעולה נכשלה') };
+  return { code: null, message: tr('אין חיבור לשרת') };
 }
 
 export async function runCommand(key: string, cmd: MediaCommand, onSent?: () => void): Promise<CommandOutcome> {
@@ -40,7 +41,7 @@ export async function runCommand(key: string, cmd: MediaCommand, onSent?: () => 
   }
   onSent?.();
   if (result.status === 'refused') {
-    return { outcome: 'refused', message: (result.error && ERROR_LABEL[result.error]) || 'המסך דחה את הפקודה', code: result.error };
+    return { outcome: 'refused', message: (result.error && ERROR_LABEL[result.error]) || tr('המסך דחה את הפקודה'), code: result.error };
   }
   if (result.status === 'sent' || result.confirm === 'none') return { outcome: 'sent', message: '', code: null };
   if (!result.action_id || !isApi()) return { outcome: 'confirmed', message: '', code: null };
@@ -50,7 +51,7 @@ export async function runCommand(key: string, cmd: MediaCommand, onSent?: () => 
     try {
       const a = await getAction(result.action_id);
       if (a.status === 'confirmed') return { outcome: 'confirmed', message: '', code: null };
-      if (a.status === 'failed' || a.status === 'denied') return { outcome: 'refused', message: a.status === 'denied' ? ERROR_LABEL.forbidden : 'המסך דחה את הפקודה', code: a.error };
+      if (a.status === 'failed' || a.status === 'denied') return { outcome: 'refused', message: a.status === 'denied' ? ERROR_LABEL.forbidden : tr('המסך דחה את הפקודה'), code: a.error };
       if (a.status === 'unknown') break;
     } catch {
       /* the poll itself failed: keep waiting until the deadline, then say "not confirmed" */

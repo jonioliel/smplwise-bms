@@ -22,6 +22,7 @@ import {
 } from '../api/system-update';
 import { notifyUpdateState } from '../shell/update-marker';
 import { dayTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/system-b';
 
 /**
  * הגדרות › עדכונים (CR-021 S2, installation scope, `system.update`: system administrators). The installed and the latest
@@ -51,9 +52,9 @@ function keepRun(id: string): void {
 
 /** The one-time manual step while the add-on's role is still the default (CR-021 section 4; text only). */
 const MANUAL_STEPS = [
-  'בתשתית המערכת: הגדרות ‹ תוספים ‹ SmplWise Arx ‹ בדיקת עדכונים.',
-  'סמנו "גיבוי לפני העדכון" ולחצו על עדכון. ההתקנה נמשכת כמה דקות.',
-  'חזרו לכאן ולחצו "בדוק אם יש עדכון". מכאן והלאה העדכונים יתבצעו מתוך Arx.',
+  tr('בתשתית המערכת: הגדרות ‹ תוספים ‹ SmplWise Arx ‹ בדיקת עדכונים.'),
+  tr('סמנו "גיבוי לפני העדכון" ולחצו על עדכון. ההתקנה נמשכת כמה דקות.'),
+  tr('חזרו לכאן ולחצו "בדוק אם יש עדכון". מכאן והלאה העדכונים יתבצעו מתוך Arx.'),
 ];
 
 @customElement('system-update')
@@ -429,35 +430,35 @@ export class SystemUpdate extends LitElement {
   private failureText(f: CheckFailure): string {
     switch (f.kind) {
       case 'rate_limited':
-        return f.wait ? `הבדיקה בוצעה זה עתה. נסו שוב בעוד ${f.wait} שניות.` : 'הבדיקה בוצעה זה עתה. נסו שוב בעוד רגע.';
+        return f.wait ? tr('הבדיקה בוצעה זה עתה. נסו שוב בעוד {n} שניות.', { n: f.wait }) : tr('הבדיקה בוצעה זה עתה. נסו שוב בעוד רגע.');
       case 'not_permitted':
-        return 'חסרה הרשאה בתשתית המערכת, ולכן אי אפשר לבדוק עדכונים.';
+        return tr('חסרה הרשאה בתשתית המערכת, ולכן אי אפשר לבדוק עדכונים.');
       case 'unreachable':
-        return 'תשתית המערכת אינה זמינה כרגע.';
+        return tr('תשתית המערכת אינה זמינה כרגע.');
       default:
-        return f.message || 'הבדיקה נכשלה. נסו שוב.';
+        return f.message || tr('הבדיקה נכשלה. נסו שוב.');
     }
   }
 
   private renderStatus(d: UpdateState) {
-    if (!d.checked_at) return html`<span class="status" data-update-status="never">טרם בוצעה בדיקה</span>`;
-    if (d.update_available) return html`<span class="status avail" data-update-status="available"><sw-icon name="info" size=${16}></sw-icon>יש גרסה חדשה</span>`;
-    if (d.check_result === 'not_permitted') return html`<span class="status" data-update-status="not-permitted">אין הרשאה לבדוק</span>`;
-    if (d.check_result === 'unreachable' || d.check_result === 'error') return html`<span class="status" data-update-status="failed">לא ניתן לבדוק</span>`;
-    return html`<span class="status up" data-update-status="current"><sw-icon name="check" size=${16}></sw-icon>הגרסה מעודכנת</span>`;
+    if (!d.checked_at) return html`<span class="status" data-update-status="never">${tr('טרם בוצעה בדיקה')}</span>`;
+    if (d.update_available) return html`<span class="status avail" data-update-status="available"><sw-icon name="info" size=${16}></sw-icon>${tr('יש גרסה חדשה')}</span>`;
+    if (d.check_result === 'not_permitted') return html`<span class="status" data-update-status="not-permitted">${tr('אין הרשאה לבדוק')}</span>`;
+    if (d.check_result === 'unreachable' || d.check_result === 'error') return html`<span class="status" data-update-status="failed">${tr('לא ניתן לבדוק')}</span>`;
+    return html`<span class="status up" data-update-status="current"><sw-icon name="check" size=${16}></sw-icon>${tr('הגרסה מעודכנת')}</span>`;
   }
 
   private renderNotes(d: UpdateState) {
     if (!d.update_available) return nothing;
     const notes = d.notes ?? [];
-    return html`<sw-card heading="מה חדש" data-update-notes>
+    return html`<sw-card heading=${tr('מה חדש')} data-update-notes>
       ${notes.length
         ? notes.map(
             (n) => html`<div class="note" data-update-note><h4 class="ver">${n.version}</h4>
               ${n.he ? html`<div class="txt" lang="he">${n.he}</div>` : nothing}${n.en ? html`<div class="txt" lang="en">${n.en}</div>` : nothing}
-              ${n.platform_restart ? html`<div class="txt" data-update-note-restart>דורש הפעלה מחדש של תשתית המערכת</div>` : nothing}</div>`,
+              ${n.platform_restart ? html`<div class="txt" data-update-note-restart>${tr('דורש הפעלה מחדש של תשתית המערכת')}</div>` : nothing}</div>`,
           )
-        : html`<p class="msg" data-update-notes-empty>אין פירוט זמין</p>`}
+        : html`<p class="msg" data-update-notes-empty>${tr('אין פירוט זמין')}</p>`}
       ${this.renderApply(d)}
     </sw-card>`;
   }
@@ -467,8 +468,8 @@ export class SystemUpdate extends LitElement {
     const blocked = d.permitted === 'no' || this.failure?.kind === 'not_permitted' || (!this.failure && d.check_result === 'not_permitted');
     if (blocked) {
       return html`<div class="apply" data-update-blocked>
-        <p class="msg err">ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.</p>
-        <div class="foot"><sw-button size="sm" data-update-manual-open aria-expanded=${this.manualOpen ? 'true' : 'false'} @click=${() => (this.manualOpen = !this.manualOpen)}>הוראות</sw-button></div>
+        <p class="msg err">${tr('ל-Arx אין הרשאה לעדכן את עצמו. נדרש שינוי חד-פעמי בהגדרות ההתקנה.')}</p>
+        <div class="foot"><sw-button size="sm" data-update-manual-open aria-expanded=${this.manualOpen ? 'true' : 'false'} @click=${() => (this.manualOpen = !this.manualOpen)}>${tr('הוראות')}</sw-button></div>
         ${this.manualOpen ? html`<ol class="how" data-update-manual>${MANUAL_STEPS.map((s) => html`<li>${s}</li>`)}</ol>` : nothing}
       </div>`;
     }
@@ -476,20 +477,20 @@ export class SystemUpdate extends LitElement {
       // 2.4.4: switched off by an administrator - no button that cannot work; the manual path stays described
       return html`<div class="apply" data-update-disabled><p class="msg" role="status">${t('selfUpdate.disabledNotice')}</p></div>`;
     }
-    return html`<div class="foot"><sw-button variant="primary" icon="download" data-update-apply @click=${() => this.openConfirm()}>עדכן</sw-button></div>`;
+    return html`<div class="foot"><sw-button variant="primary" icon="download" data-update-apply @click=${() => this.openConfirm()}>${tr('עדכן')}</sw-button></div>`;
   }
 
   private renderConfirm(d: UpdateState) {
-    return html`<sw-dialog ?open=${this.confirmOpen} ?locked=${this.applying} heading="לעדכן את SmplWise Arx?" data-update-dialog @close=${() => (this.confirmOpen = false)}>
+    return html`<sw-dialog ?open=${this.confirmOpen} ?locked=${this.applying} heading=${tr('לעדכן את SmplWise Arx?')} data-update-dialog @close=${() => (this.confirmOpen = false)}>
       <div class="col">
-        <div class="msg ver-line" data-update-dialog-versions>מגרסה <span class="ver">${d.installed ?? '—'}</span> לגרסה <span class="ver">${d.latest ?? '—'}</span></div>
-        <div class="msg">המערכת לא תהיה זמינה כמה דקות</div>
-        <label class="chk"><input type="checkbox" data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = (e.target as HTMLInputElement).checked)} /><span class="box" aria-hidden="true"></span><span>צור גיבוי לפני העדכון</span></label>
+        <div class="msg ver-line" data-update-dialog-versions>${tr('מגרסה')} <span class="ver">${d.installed ?? '—'}</span> ${tr('לגרסה')} <span class="ver">${d.latest ?? '—'}</span></div>
+        <div class="msg">${tr('המערכת לא תהיה זמינה כמה דקות')}</div>
+        <label class="chk"><input type="checkbox" data-update-backup .checked=${this.backup} ?disabled=${this.applying} @change=${(e: Event) => (this.backup = (e.target as HTMLInputElement).checked)} /><span class="box" aria-hidden="true"></span><span>${tr('צור גיבוי לפני העדכון')}</span></label>
         ${this.applyError ? html`<p class="msg err" role="alert" data-update-apply-error>${this.applyError}</p>` : nothing}
       </div>
       <div slot="footer">
-        <sw-button variant="primary" data-update-confirm ?disabled=${this.applying} @click=${() => void this.confirmApply()}>עדכן עכשיו</sw-button>
-        <sw-button variant="ghost" data-update-cancel ?disabled=${this.applying} @click=${() => (this.confirmOpen = false)}>ביטול</sw-button>
+        <sw-button variant="primary" data-update-confirm ?disabled=${this.applying} @click=${() => void this.confirmApply()}>${tr('עדכן עכשיו')}</sw-button>
+        <sw-button variant="ghost" data-update-cancel ?disabled=${this.applying} @click=${() => (this.confirmOpen = false)}>${tr('ביטול')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -500,18 +501,18 @@ export class SystemUpdate extends LitElement {
 
   render() {
     if (this.notHolder()) {
-      return html`<sw-page crumbs="הגדרות" heading="עדכונים"><sw-state-panel state="forbidden" data-update-forbidden></sw-state-panel></sw-page>`;
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('עדכונים')}><sw-state-panel state="forbidden" data-update-forbidden></sw-state-panel></sw-page>`;
     }
     const d = this.data;
     if (!d) {
-      return html`<sw-page crumbs="הגדרות" heading="עדכונים">
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('עדכונים')}>
         ${this.loadError
-          ? html`<sw-state-panel state="error" heading="לא ניתן לטעון את מצב העדכונים" hint=${this.loadError} actionLabel="נסו שוב" data-update-load-error @action=${() => void this.load()}></sw-state-panel>`
+          ? html`<sw-state-panel state="error" heading=${tr('לא ניתן לטעון את מצב העדכונים')} hint=${this.loadError} actionLabel=${tr('נסו שוב')} data-update-load-error @action=${() => void this.load()}></sw-state-panel>`
           : html`<sw-state-panel state="loading" data-update-loading></sw-state-panel>`}
       </sw-page>`;
     }
     if (this.runId) {
-      return html`<sw-page crumbs="הגדרות" heading="עדכונים">
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('עדכונים')}>
         <div class="col" data-system-update data-update-run-page>
           <sw-update-run .runId=${this.runId} .initial=${this.runHint} @run-dismiss=${() => this.endRun()}></sw-update-run>
         </div>
@@ -519,29 +520,29 @@ export class SystemUpdate extends LitElement {
     }
     const interval = d.interval_hours ?? 6;
     const notPermitted = this.failure?.kind === 'not_permitted' || (!this.failure && d.check_result === 'not_permitted');
-    const last = d.checked_at ? `${this.when(d.checked_at)} · ${resultLabel(d.check_result, d.update_available)}` : 'טרם בוצעה בדיקה';
-    return html`<sw-page crumbs="הגדרות" heading="עדכונים">
+    const last = d.checked_at ? `${this.when(d.checked_at)} · ${resultLabel(d.check_result, d.update_available)}` : tr('טרם בוצעה בדיקה');
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('עדכונים')}>
       <div class="col" data-system-update>
-        <sw-card heading="גרסה">
+        <sw-card heading=${tr('גרסה')}>
           <div class="rows">
-            <div class="row"><span class="lbl">גרסה מותקנת</span><span class="val ver" data-update-installed>${d.installed ?? '—'}</span></div>
-            <div class="row"><span class="lbl">הגרסה האחרונה</span><span class="val ver" data-update-latest>${d.latest ?? '—'}</span></div>
-            <div class="row"><span class="lbl">בדיקה אחרונה</span><span class="val" data-update-last>${last}</span></div>
+            <div class="row"><span class="lbl">${tr('גרסה מותקנת')}</span><span class="val ver" data-update-installed>${d.installed ?? '—'}</span></div>
+            <div class="row"><span class="lbl">${tr('הגרסה האחרונה')}</span><span class="val ver" data-update-latest>${d.latest ?? '—'}</span></div>
+            <div class="row"><span class="lbl">${tr('בדיקה אחרונה')}</span><span class="val" data-update-last>${last}</span></div>
             <div class="row">${this.renderStatus(d)}</div>
           </div>
           <div class="foot">
-            <sw-button variant="primary" size="sm" icon="refresh" data-update-check ?disabled=${this.checking} @click=${() => void this.check()}>${this.checking ? 'בודק…' : 'בדוק אם יש עדכון'}</sw-button>
+            <sw-button variant="primary" size="sm" icon="refresh" data-update-check ?disabled=${this.checking} @click=${() => void this.check()}>${this.checking ? tr('בודק…') : tr('בדוק אם יש עדכון')}</sw-button>
           </div>
           ${this.failure
             ? html`<p class="msg err" role="alert" data-update-failure=${this.failure.kind}>${this.failureText(this.failure)}</p>`
             : notPermitted
               ? html`<p class="msg err" data-update-failure="not_permitted">${this.failureText({ kind: 'not_permitted' })}</p>`
               : this.degraded
-                ? html`<p class="msg" role="status" data-update-degraded>הרשימה לא רועננה, והבדיקה נעשתה לפי המצב הנוכחי. ייתכן שגרסה חדשה עוד לא מופיעה.</p>`
+                ? html`<p class="msg" role="status" data-update-degraded>${tr('הרשימה לא רועננה, והבדיקה נעשתה לפי המצב הנוכחי. ייתכן שגרסה חדשה עוד לא מופיעה.')}</p>`
                 : nothing}
         </sw-card>
-        <sw-card heading="בדיקה אוטומטית" data-update-interval-card>
-          <div class="seg" role="group" aria-label="תדירות בדיקה אוטומטית" data-update-interval>
+        <sw-card heading=${tr('בדיקה אוטומטית')} data-update-interval-card>
+          <div class="seg" role="group" aria-label=${tr('תדירות בדיקה אוטומטית')} data-update-interval>
             ${INTERVAL_CHOICES.map(
               (h) => html`<button type="button" data-update-interval-option=${h} aria-pressed=${interval === h ? 'true' : 'false'} ?disabled=${this.savingInterval} @click=${() => void this.pickInterval(h)}>${intervalLabel(h)}</button>`,
             )}

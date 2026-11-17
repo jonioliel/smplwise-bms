@@ -4,8 +4,9 @@
  */
 import type { Equipment, OnBehalfKind, Occurrence, RoomDay } from '../api/calendars';
 import { DAY_LONG, addDays, ddmm, sameDay, startOfDay } from './model';
+import { tr } from '../i18n/msg/calendars';
 
-export const EQUIPMENT_LABEL: Record<Equipment, string> = { screen: 'מסך', projector: 'מקרן', video_call: 'שיחת וידאו', whiteboard: 'לוח', kitchen: 'מטבחון', accessible: 'נגיש' };
+export const EQUIPMENT_LABEL: Record<Equipment, string> = { screen: tr('מסך'), projector: tr('מקרן'), video_call: tr('שיחת וידאו'), whiteboard: tr('לוח'), kitchen: tr('מטבחון'), accessible: tr('נגיש') };
 /** Lanes of one room's track: overlapping entries (a maintenance window over a displaced booking) get their own band. */
 export function trackLanes(entries: Pick<Occurrence, 'start' | 'end'>[]): number[] {
   const lanes: number[] = [];
@@ -43,7 +44,7 @@ export function firstFree(rooms: Pick<RoomDay, 'calendar_id' | 'open' | 'entries
   return null;
 }
 
-export const BEHALF_LABEL: Record<OnBehalfKind, string> = { self: 'אני', team: 'צוות', class: 'חוג', customer: 'לקוח', department: 'מחלקה', vendor: 'ספק' };
+export const BEHALF_LABEL: Record<OnBehalfKind, string> = { self: tr('אני'), team: tr('צוות'), class: tr('חוג'), customer: tr('לקוח'), department: tr('מחלקה'), vendor: tr('ספק') };
 export type Repeat = 'none' | 'daily' | 'weekly';
 
 /** The recurrence rule of the drawer's three choices (contract section 4: RFC 5545 RRULE, COUNT-bounded here). */
@@ -53,10 +54,10 @@ export function rruleOf(repeat: Repeat, count: number): string | undefined {
 }
 /** "כל שלישי עד 29.12 · 9 מועדים" */
 export function repeatSummary(repeat: Repeat, count: number, start: Date): string {
-  if (repeat === 'none' || count < 2) return 'פעם אחת';
+  if (repeat === 'none' || count < 2) return tr('פעם אחת');
   const n = Math.min(Math.max(count, 2), 104);
   const last = addDays(start, repeat === 'daily' ? n - 1 : (n - 1) * 7);
-  return `${repeat === 'daily' ? 'כל יום' : `כל ${DAY_LONG[start.getDay()]}`} עד ${ddmm(last)} · ${n} מועדים`;
+  return tr('{rule} עד {date} · {n} מועדים', { rule: repeat === 'daily' ? tr('כל יום') : tr('כל {day}', { day: DAY_LONG[start.getDay()] }), date: ddmm(last), n });
 }
 /** A local date ("YYYY-MM-DD") and a local time ("HH:MM") as an instant. */
 export function localInstant(date: string, time: string): Date | null {

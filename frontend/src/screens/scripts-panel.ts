@@ -10,6 +10,7 @@ import { mapAutomationError, runNeedsConfirm, runScriptNow, stopScriptNow, type 
 import type { DrawerResult } from './automation-drawer';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 `<scripts-panel .items .status .now>`: the script runner (CR §4.4). A big "הפעל" button per script; a script that has fields opens its sheet
@@ -199,7 +200,7 @@ export class ScriptsPanel extends LitElement {
     this.busy = new Set([...this.busy, i.id]);
     try {
       await runScriptNow(i.id, {}, { confirm: confirmed || undefined });
-      this.say('הסקריפט הופעל');
+      this.say(tr('הסקריפט הופעל'));
       this.fire('changed', { id: i.id });
     } catch (err) {
       const f = mapAutomationError(err);
@@ -215,7 +216,7 @@ export class ScriptsPanel extends LitElement {
     this.busy = new Set([...this.busy, i.id]);
     try {
       await stopScriptNow(i.id);
-      this.say('הסקריפט נעצר');
+      this.say(tr('הסקריפט נעצר'));
       this.fire('changed', { id: i.id });
     } catch (err) {
       this.say(mapAutomationError(err).message, 'error');
@@ -233,12 +234,12 @@ export class ScriptsPanel extends LitElement {
     return html`<article class=${`pcard${running ? ' running' : ''}`} data-script=${i.id} data-state=${i.state}>
       <header>
         <div class="ttl">
-          <h3><a class="name" href=${this.hrefOf(i.id)} data-script-open>${bidi(i.name)}</a>${running ? html`<span class="chip live" data-script-running>${aIcon('play')}רץ עכשיו</span>` : nothing}</h3>
+          <h3><a class="name" href=${this.hrefOf(i.id)} data-script-open>${bidi(i.name)}</a>${running ? html`<span class="chip live" data-script-running>${aIcon('play')}${tr('רץ עכשיו')}</span>` : nothing}</h3>
           <div class="where">${aIcon('layers')}<b>${bidi(floorLine(i))}</b>${areas ? html`<span>${bidi(areas)}</span>` : nothing}</div>
         </div>
         <div class="go">
-          ${running && i.can.run ? html`<button type="button" class="btn danger" data-script-stop ?disabled=${this.busy.has(i.id)} @click=${() => void this.stop(i)}>${aIcon('stop')}עצור</button>`
-            : i.can.run ? html`<button type="button" class="btn primary" data-script-run ?disabled=${this.busy.has(i.id)} @click=${() => void this.run(i)}>${aIcon('play')}${fields ? 'הפעל…' : 'הפעל'}</button>` : nothing}
+          ${running && i.can.run ? html`<button type="button" class="btn danger" data-script-stop ?disabled=${this.busy.has(i.id)} @click=${() => void this.stop(i)}>${aIcon('stop')}${tr('עצור')}</button>`
+            : i.can.run ? html`<button type="button" class="btn primary" data-script-run ?disabled=${this.busy.has(i.id)} @click=${() => void this.run(i)}>${aIcon('play')}${fields ? tr('הפעל…') : tr('הפעל')}</button>` : nothing}
         </div>
       </header>
       ${i.sentence ? html`<p data-script-sentence>${i.sentence}</p>` : nothing}
@@ -252,7 +253,7 @@ export class ScriptsPanel extends LitElement {
   render() {
     const c = this.confirm;
     return html`<div class="grid" data-scripts-panel>${this.items.map((i) => this.card(i))}</div>
-      ${c ? html`<sw-dialog open heading="להפעיל עכשיו?" data-dialog="run-script" @close=${() => (this.confirm = null)}><div class="dlgform">${confirmLine(c) ? html`<p>${confirmLine(c)}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>ביטול</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.run(c, true)}>הפעל</button></div></div></sw-dialog>` : nothing}`;
+      ${c ? html`<sw-dialog open heading=${tr('להפעיל עכשיו?')} data-dialog="run-script" @close=${() => (this.confirm = null)}><div class="dlgform">${confirmLine(c) ? html`<p>${confirmLine(c)}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.run(c, true)}>${tr('הפעל')}</button></div></div></sw-dialog>` : nothing}`;
   }
 }
 

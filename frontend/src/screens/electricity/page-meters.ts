@@ -15,21 +15,22 @@ import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { MetersPageBase, metersGridCss, metersResponsiveCss, type MetersFrameState, type MetersPageTexts } from '../meters-page-base';
+import { tr } from '../../i18n/msg/screens';
 
 /** The words of the shared parts of the page (screens/meters-page-base.ts). */
 const TEXTS: MetersPageTexts = {
-  search: 'חיפוש מונה',
-  view: 'תצוגה',
-  cards: 'כרטיסים',
-  table: 'טבלה',
-  area: 'אזור',
-  areas: 'אזורים',
-  allAreas: 'כל האזורים',
-  fold: 'כיווץ',
-  unfold: 'הרחבה',
-  addMeter: 'הוספת מונה',
-  loadError: 'לא ניתן לטעון את המונים',
-  retry: 'נסה שוב',
+  search: tr('חיפוש מונה'),
+  view: tr('תצוגה'),
+  cards: tr('כרטיסים'),
+  table: tr('טבלה'),
+  area: tr('אזור'),
+  areas: tr('אזורים'),
+  allAreas: tr('כל האזורים'),
+  fold: tr('כיווץ'),
+  unfold: tr('הרחבה'),
+  addMeter: tr('הוספת מונה'),
+  loadError: tr('לא ניתן לטעון את המונים'),
+  retry: tr('נסה שוב'),
 };
 
 /**
@@ -186,7 +187,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
     this.adding = false;
     if (res.added.length) {
       await this.load(false);
-      this.flash(res.added.length === 1 ? 'המונה נוסף' : `${res.added.length} מונים נוספו`);
+      this.flash(res.added.length === 1 ? tr('המונה נוסף') : tr('{n} מונים נוספו', { n: res.added.length }));
     }
     if (res.failed.length) {
       this.addErrors = res.failed.map((f) => f.message);
@@ -202,7 +203,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   }
 
   private staleNote(m: Meter) {
-    return m.status === 'stale' && m.last_report_at ? html` <span class="mut">מ-<span class="num">${fmtTime(m.last_report_at)}</span></span>` : nothing;
+    return m.status === 'stale' && m.last_report_at ? html` <span class="mut">${tr('מ-')}<span class="num">${fmtTime(m.last_report_at)}</span></span>` : nothing;
   }
 
   protected openMeter(m: Meter) {
@@ -212,17 +213,17 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   protected renderTiles() {
     const s = summarize(this.meters);
     return html`<div class="tiles" data-tiles>
-      <div class="tile"><div class="k">היום</div><div class="v"><span class="num">${fmtInt(s.today_kwh)}</span><span class="u">קוט״ש</span></div></div>
-      <div class="tile"><div class="k">מתחילת החודש</div><div class="v"><span class="num" data-month>${this.meters.some((m) => m.month_kwh != null) ? fmtInt(s.month_kwh) : '-'}</span><span class="u">קוט״ש</span></div></div>
-      <div class="tile"><div class="k">מדווחים</div><div class="v"><span class="num" data-count="reporting">${s.reporting}</span><span class="u">מתוך ${s.total}</span></div></div>
-      <div class="tile" ?data-warn=${s.stale > 0}><div class="k">לא מדווחים</div><div class="v" style=${s.stale ? 'color:var(--sw-warning-text)' : ''}><span class="num" data-count="stale">${s.stale}</span></div></div>
+      <div class="tile"><div class="k">${tr('היום')}</div><div class="v"><span class="num">${fmtInt(s.today_kwh)}</span><span class="u">${tr('קוט״ש')}</span></div></div>
+      <div class="tile"><div class="k">${tr('מתחילת החודש')}</div><div class="v"><span class="num" data-month>${this.meters.some((m) => m.month_kwh != null) ? fmtInt(s.month_kwh) : '-'}</span><span class="u">${tr('קוט״ש')}</span></div></div>
+      <div class="tile"><div class="k">${tr('מדווחים')}</div><div class="v"><span class="num" data-count="reporting">${s.reporting}</span><span class="u">${tr('מתוך {n}', { n: s.total })}</span></div></div>
+      <div class="tile" ?data-warn=${s.stale > 0}><div class="k">${tr('לא מדווחים')}</div><div class="v" style=${s.stale ? 'color:var(--sw-warning-text)' : ''}><span class="num" data-count="stale">${s.stale}</span></div></div>
     </div>`;
   }
 
   /** The sensor's name under the device's name, only when it differs. */
   private entityLine(m: Meter, cls: string) {
     const s = meterNames(m).secondary;
-    return s ? html`<div class="${cls} ent" data-meter-entity title="שם הישות">${s}</div>` : nothing;
+    return s ? html`<div class="${cls} ent" data-meter-entity title=${tr('שם הישות')}>${s}</div>` : nothing;
   }
 
   private nameOf(m: Meter) {
@@ -232,7 +233,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   protected renderTable(list: Meter[]) {
     const showAcc = list.some((m) => m.accounts_count != null);
     return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
-      <thead><tr><th>שם</th><th>אזור</th><th class="n">קריאה נוכחית (קוט״ש)</th><th class="n">היום</th><th class="n">מתחילת החודש</th><th>מצב</th>${showAcc ? html`<th class="dsk">בחשבונות</th>` : nothing}</tr></thead>
+      <thead><tr><th>${tr('שם')}</th><th>${tr('אזור')}</th><th class="n">${tr('קריאה נוכחית (קוט״ש)')}</th><th class="n">${tr('היום')}</th><th class="n">${tr('מתחילת החודש')}</th><th>${tr('מצב')}</th>${showAcc ? html`<th class="dsk">${tr('בחשבונות')}</th>` : nothing}</tr></thead>
       <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
         <td class="b">${this.nameOf(m)}</td><td>${m.area_name ?? '-'}<span class="mut dsk"> · ${m.floor_name ?? ''}</span></td>
         <td class="n"><span class="num">${fmtKwh(m.reading_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.today_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.month_kwh)}</span></td>
@@ -244,13 +245,13 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
       <div class="row"><b>${meterNames(m).primary}</b><span class="sp"></span>${this.statusChip(m)}</div>
       ${this.entityLine(m, 'mut')}
       <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}</div>
-      <div class="row" style="align-items:baseline"><span class="big num">${fmtKwh(m.today_kwh)}</span><span class="mut">קוט״ש היום</span><span class="sp"></span><span class="mut num">${fmtKwh(m.reading_kwh)}</span></div></div>`)}</div>`;
+      <div class="row" style="align-items:baseline"><span class="big num">${fmtKwh(m.today_kwh)}</span><span class="mut">${tr('קוט״ש היום')}</span><span class="sp"></span><span class="mut num">${fmtKwh(m.reading_kwh)}</span></div></div>`)}</div>`;
   }
 
   /** The phone's list (the same rows as the table, one line of context). */
   protected renderRows(list: Meter[]) {
     return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-      <div class="grow"><div class="t1">${meterNames(m).primary}</div>${this.entityLine(m, 't2')}<div class="t2">${m.area_name ?? ''} · היום <span class="num">${fmtKwh(m.today_kwh)}</span> קוט״ש</div></div>
+      <div class="grow"><div class="t1">${meterNames(m).primary}</div>${this.entityLine(m, 't2')}<div class="t2">${m.area_name ?? ''} · ${tr('היום')} <span class="num">${fmtKwh(m.today_kwh)}</span> ${tr('קוט״ש')}</div></div>
       <div style="text-align:end">${this.statusChip(m)}<div class="t2 num" style="margin-block-start:4px">${fmtKwh(m.reading_kwh)}</div></div></div>`)}</div>`;
   }
 
@@ -259,7 +260,7 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
       ${this.nameChecks().map((c, i) => {
         const show = c.error && (this.nameTouched || c.duplicate);
         return html`<div class="fld">
-          <label for="mn${i}">${this.picked.length > 1 ? `שם המונה ${i + 1}` : 'שם המונה'}</label>
+          <label for="mn${i}">${this.picked.length > 1 ? tr('שם המונה {n}', { n: i + 1 }) : tr('שם המונה')}</label>
           <div class="inp ${show ? 'err' : ''}"><input id="mn${i}" data-add-name=${c.id} autocomplete="off" aria-invalid=${show ? 'true' : 'false'} .value=${this.pickedNames[c.id] ?? ''}
             @input=${(e: Event) => (this.pickedNames = { ...this.pickedNames, [c.id]: (e.target as HTMLInputElement).value })} /></div>
           ${show ? html`<div class="msg" role="alert" data-add-name-error>${c.error}</div>` : nothing}
@@ -270,12 +271,12 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
 
   protected renderAdd() {
     const open = this.params.get('add') === '1' && this.access.manage;
-    return html`<sw-dialog ?open=${open} wide heading="הוספת מונה" data-add-dialog @close=${() => this.closeAdd()}>
+    return html`<sw-dialog ?open=${open} wide heading=${tr('הוספת מונה')} data-add-dialog @close=${() => this.closeAdd()}>
       ${open ? html`<elec-meter-picker mode="register" multi .selected=${this.picked} @change=${(e: CustomEvent<{ selected: string[]; names?: Record<string, string> }>) => this.onPick(e)}></elec-meter-picker>` : nothing}
       ${open && this.picked.length ? this.renderNames() : nothing}
       ${this.addErrors.length ? html`<div class="errs" data-add-errors>${this.addErrors.map((m) => html`<div class="alert err" role="alert">${m}</div>`)}</div>` : nothing}
-      <sw-button slot="footer" variant="primary" data-add-confirm ?disabled=${!this.picked.length || this.adding || this.nameChecks().some((c) => c.duplicate)} @click=${() => void this.confirmAdd()}>הוספה${this.picked.length > 1 ? ` (${this.picked.length})` : ''}</sw-button>
-      <sw-button slot="footer" data-add-cancel @click=${() => this.closeAdd()}>ביטול</sw-button>
+      <sw-button slot="footer" variant="primary" data-add-confirm ?disabled=${!this.picked.length || this.adding || this.nameChecks().some((c) => c.duplicate)} @click=${() => void this.confirmAdd()}>${tr('הוספה')}${this.picked.length > 1 ? ` (${this.picked.length})` : ''}</sw-button>
+      <sw-button slot="footer" data-add-cancel @click=${() => this.closeAdd()}>${tr('ביטול')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -292,11 +293,11 @@ export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   }
 
   protected renderEmpty(addButton: TemplateResult | typeof nothing) {
-    return html`<sw-state-panel icon="bolt" state="empty" heading="אין מונים עדיין">${addButton}</sw-state-panel>`;
+    return html`<sw-state-panel icon="bolt" state="empty" heading=${tr('אין מונים עדיין')}>${addButton}</sw-state-panel>`;
   }
 
   protected renderNoResults() {
-    return html`<sw-state-panel icon="bolt" state="empty" compact heading="לא נמצאו מונים" data-no-results></sw-state-panel>`;
+    return html`<sw-state-panel icon="bolt" state="empty" compact heading=${tr('לא נמצאו מונים')} data-no-results></sw-state-panel>`;
   }
 
   protected renderCard(meterId: string) {

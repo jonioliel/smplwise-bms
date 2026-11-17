@@ -9,6 +9,7 @@
  * The retired term of the cost flow is not used: before the work = "הצעת מחיר", after the work = "דרישת תשלום" (IA §3.4).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // ---- the status block (IA §3.2): the sentence per state, manager view; {name} = the handler, {when} = a relative time
@@ -247,6 +248,7 @@ const en: Partial<Record<DrawerTextKey, string>> = {
   eta_today: 'today {time}',
   eta_tomorrow: 'tomorrow {time}',
   handlerWord: 'The handler',
+  you: 'you',
   w_send_failed: 'The message was not sent · send again',
   w_link_expired: 'The link expired · send a new link',
   w_code_locked: 'Code locked · send a new link',
@@ -389,3 +391,5 @@ export const dwt = catalogue.t;
 
 export const DRAWER_TEXT_KEYS = catalogue.KEYS;
 export const DRAWER_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/drawer-text', { he, en });

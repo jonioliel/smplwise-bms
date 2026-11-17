@@ -3,6 +3,7 @@
  * product language) and English, switched by the document's `lang` like i18n/wiskey-station-media.ts. UI_COPY_RULES: an operator
  * screen never names the platform or a protocol and never shows an internal code; short words, no explanatory paragraphs.
  */
+import { docLang, fill as coreFill, registerCatalogue } from './core';
 const he = {
   banner: {
     region: 'שיחה נכנסת',
@@ -171,12 +172,14 @@ const en: IncomingCallText = {
 };
 
 export function ict(): IncomingCallText {
-  return (document.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export const heIncomingCallText: IncomingCallText = he;
 export const enIncomingCallText: IncomingCallText = en;
 
 export function fill(template: string, vars: Record<string, string | number> = {}): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+  return coreFill(template, vars);
 }
+
+registerCatalogue('i18n/incoming-calls', { he, en });

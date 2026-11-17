@@ -11,6 +11,7 @@ import { nIcon } from './notify-icons';
 import { ticketsEnabled } from '../tickets/gate';
 import { notifyControls } from './notify-css';
 import { detailDelivery, iconOf, placeText, severityText, whereText } from './notify-logic';
+import { tr } from '../i18n/msg/components';
 
 export type DetailAction = 'open' | 'ack' | 'snooze' | 'snooze_morning' | 'door';
 
@@ -332,28 +333,28 @@ export class NotifyDetail extends LitElement {
     const line = detailDelivery(n, this.tz);
     const door = doorButtonVisible(n);
     const crit = n.severity === 'critical' && n.state === 'open';
-    const stTag = n.state === 'open' ? html`<span class="tag warn" data-detail-state="open">פתוח</span>` : n.state === 'acknowledged' ? html`<span class="tag ok" data-detail-state="acknowledged">${nIcon('check')}${stateText(n)}</span>` : html`<span class="tag" data-detail-state="resolved">${nIcon('check')}נפתר</span>`;
+    const stTag = n.state === 'open' ? html`<span class="tag warn" data-detail-state="open">${tr('פתוח')}</span>` : n.state === 'acknowledged' ? html`<span class="tag ok" data-detail-state="acknowledged">${nIcon('check')}${stateText(n)}</span>` : html`<span class="tag" data-detail-state="resolved">${nIcon('check')}${tr('נפתר')}</span>`;
     const hasMain = n.state === 'open' && (n.can_ack || door);
     return html`<div class=${classMap({ ndet: true, [`s-${n.severity}`]: true })} data-notify-detail=${n.id}>
       <div class=${classMap({ dhead: true, crit })}><span class="ring">${nIcon(iconOf(n))}</span>
         <div class="tx"><h4>${n.title}${n.place_name || n.subject.area_id || n.subject.kind === 'door' ? html` · ${place}` : nothing}</h4>
-          <div class="meta"><span class="sevtag" data-detail-severity=${n.severity}>${severityText(n.severity)}</span>${stTag}${n.count > 1 ? html`<span class="tag n">${foldLabel(n)}</span>` : nothing}${n.me.snoozed_until && a.snooze === false && n.state === 'open' ? html`<span class="tag soon">${nIcon('snooze')}הושתק עד ${clockText(n.me.snoozed_until, this.tz)}</span>` : nothing}</div></div></div>
+          <div class="meta"><span class="sevtag" data-detail-severity=${n.severity}>${severityText(n.severity)}</span>${stTag}${n.count > 1 ? html`<span class="tag n">${foldLabel(n)}</span>` : nothing}${n.me.snoozed_until && a.snooze === false && n.state === 'open' ? html`<span class="tag soon">${nIcon('snooze')}${tr('הושתק עד {time}', { time: clockText(n.me.snoozed_until, this.tz) })}</span>` : nothing}</div></div></div>
       ${n.has_snapshot && this.snapshot
-        ? html`<div class="snap" data-detail-snapshot><span class="pil">${nIcon('cam')}${whereText(n, this.areas)}</span>${this.snapFailed ? nothing : html`<img alt="" src=${this.snapshot} @error=${() => (this.snapFailed = true)} />`}<div class="ctr">${nIcon('image')}<span>תמונה מהמצלמה · <span class="n">${clockText(n.last_at, this.tz)}</span></span></div></div>`
+        ? html`<div class="snap" data-detail-snapshot><span class="pil">${nIcon('cam')}${whereText(n, this.areas)}</span>${this.snapFailed ? nothing : html`<img alt="" src=${this.snapshot} @error=${() => (this.snapFailed = true)} />`}<div class="ctr">${nIcon('image')}<span>${tr('תמונה מהמצלמה')} · <span class="n">${clockText(n.last_at, this.tz)}</span></span></div></div>`
         : nothing}
       <section class="glass dcard"><div class="kv">
-        <span class="k">מה קרה</span><span class="v">${n.body}</span>
-        <span class="k">איפה</span><span class="v">${a.open ? html`<button type="button" class="lnk" data-detail-where @click=${() => this.act('open')}>${nIcon(n.subject.kind === 'door' ? 'door' : n.subject.kind === 'camera' ? 'cam' : iconOf(n))}${whereText(n, this.areas)}${nIcon('chevronBack')}</button>` : whereText(n, this.areas)}</span>
-        <span class="k">מתי</span><span class="v">${this.renderWhen(n)}</span>
+        <span class="k">${tr('מה קרה')}</span><span class="v">${n.body}</span>
+        <span class="k">${tr('איפה')}</span><span class="v">${a.open ? html`<button type="button" class="lnk" data-detail-where @click=${() => this.act('open')}>${nIcon(n.subject.kind === 'door' ? 'door' : n.subject.kind === 'camera' ? 'cam' : iconOf(n))}${whereText(n, this.areas)}${nIcon('chevronBack')}</button>` : whereText(n, this.areas)}</span>
+        <span class="k">${tr('מתי')}</span><span class="v">${this.renderWhen(n)}</span>
       </div>${line ? html`<div class="dline ${line.tone === 'ok' ? '' : line.tone}" data-detail-delivery=${line.tone}>${nIcon(line.tone === 'bad' ? 'warning' : line.tone === 'held' ? 'moon' : line.tone === 'pending' ? 'clock' : 'check')}<span>${line.text}</span></div>` : nothing}</section>
       ${n.digest ? this.renderDigest(n.digest) : nothing}
       ${showsTimeline(n) ? this.renderTimeline(n) : nothing}
       <div class="dacts" data-detail-actions>
-        <button type="button" class=${classMap({ btn: true, primary: true, span2: !hasMain })} data-detail-act="open" @click=${() => this.act('open')}>${nIcon('open')}פתח</button>
-        ${a.ack ? html`<button type="button" class="btn" data-detail-act="ack" @click=${() => this.act('ack')}>${nIcon('checkAll')}אישור</button>` : nothing}
-        ${a.snooze ? html`<button type="button" class=${classMap({ btn: true, quiet: true, span2: !hasMain && !a.snoozeMorning })} data-detail-act="snooze" @click=${() => this.act('snooze')}>${nIcon('snooze')}השתק לשעה</button>` : nothing}
-        ${a.snoozeMorning ? html`<button type="button" class="btn quiet" data-detail-act="snooze_morning" @click=${() => this.act('snooze_morning')}>${nIcon('moon')}עד הבוקר</button>` : nothing}
-        ${door ? html`<button type="button" class="btn door span2" data-detail-act="door" @click=${() => this.act('door')}>${nIcon('doorOpen')}פתח דלת</button>` : nothing}
+        <button type="button" class=${classMap({ btn: true, primary: true, span2: !hasMain })} data-detail-act="open" @click=${() => this.act('open')}>${nIcon('open')}${tr('פתח')}</button>
+        ${a.ack ? html`<button type="button" class="btn" data-detail-act="ack" @click=${() => this.act('ack')}>${nIcon('checkAll')}${tr('אישור')}</button>` : nothing}
+        ${a.snooze ? html`<button type="button" class=${classMap({ btn: true, quiet: true, span2: !hasMain && !a.snoozeMorning })} data-detail-act="snooze" @click=${() => this.act('snooze')}>${nIcon('snooze')}${tr('השתק לשעה')}</button>` : nothing}
+        ${a.snoozeMorning ? html`<button type="button" class="btn quiet" data-detail-act="snooze_morning" @click=${() => this.act('snooze_morning')}>${nIcon('moon')}${tr('עד הבוקר')}</button>` : nothing}
+        ${door ? html`<button type="button" class="btn door span2" data-detail-act="door" @click=${() => this.act('door')}>${nIcon('doorOpen')}${tr('פתח דלת')}</button>` : nothing}
       </div>
     </div>`;
   }

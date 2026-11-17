@@ -4,6 +4,7 @@
  * the Hebrew). The Arabic and Russian columns are an INITIAL translation and need a native review (dev-marked, like the elevators).
  * Short labels only: operator screens carry no hint paragraphs; the server's refusal text (user_message) explains a refusal.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   onlyLabel: 'כניסה עם מפתח גישה בלבד',
   onlyOn: 'כניסה עם מפתח גישה בלבד: פעילה',
@@ -46,8 +47,7 @@ export type PoKey = Key;
 export type PoLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function poLang(): PoLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<PoLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -60,3 +60,5 @@ export function po(key: Key, lang: PoLang = poLang()): string {
 
 export const PO_KEYS = Object.keys(he) as Key[];
 export const PO_TABLES = TABLES;
+
+registerCatalogue('i18n/passkey-only', { he, en, ar, ru }, PO_DEV_MARKED);

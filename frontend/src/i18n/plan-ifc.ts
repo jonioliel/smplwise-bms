@@ -4,6 +4,7 @@
  * lookup), so the summary builders run in node (tests/unit-plan-ifc.spec.ts).
  */
 import type { IfcImportReport } from '../api/geometry';
+import { docLang, registerCatalogue } from './core';
 
 const he = {
   ifc: 'IFC',
@@ -93,8 +94,7 @@ const en: Record<Key, string> = {
 export const PLAN_IFC_STRINGS = { he, en } as const;
 
 export function ifcLang(): 'he' | 'en' {
-  const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';
-  return lang.toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function ifcT(key: Key, lang: 'he' | 'en' = ifcLang()): string {
@@ -128,3 +128,5 @@ export function ifcSkippedLines(r: IfcImportReport, max = 8, lang: 'he' | 'en' =
   if (rest) lines.push(`${ifcT('more', lang)} ${rest}`);
   return lines;
 }
+
+registerCatalogue('i18n/plan-ifc', { he, en });

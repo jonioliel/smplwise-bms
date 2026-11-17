@@ -5,6 +5,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { CLASS_LABEL, getScheduleCatalog, type CatalogEntity, type ScheduleClass } from '../api/schedules';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: "בחירת התקנים" (mockup 08): the devices a schedule may act on, by room or by type, with multi-select. The list is
@@ -199,7 +200,7 @@ export class ScheduleEntityPicker extends LitElement {
     try {
       this.entities = (await getScheduleCatalog()).entities;
     } catch (e) {
-      this.error = e instanceof Error ? e.message : 'לא הצלחנו לטעון את ההתקנים.';
+      this.error = e instanceof Error ? e.message : tr('לא הצלחנו לטעון את ההתקנים.');
     }
     this.loading = false;
   }
@@ -229,28 +230,28 @@ export class ScheduleEntityPicker extends LitElement {
     const shown = this.entities.filter((e) => !q || e.name.toLowerCase().includes(q) || (e.area_name ?? '').toLowerCase().includes(q) || e.entity_id.toLowerCase().includes(q));
     const groups = new Map<string, CatalogEntity[]>();
     for (const e of shown) {
-      const key = this.by === 'area' ? e.area_name ?? 'ללא אזור' : CLASS_LABEL[e.class];
+      const key = this.by === 'area' ? e.area_name ?? tr('ללא אזור') : CLASS_LABEL[e.class];
       groups.set(key, [...(groups.get(key) ?? []), e]);
     }
-    return html`<sw-drawer modal ?open=${this.open} heading="בחירת התקנים" subheading="התקנים ברשותכם בלבד. התקנים שאינם ניתנים לתזמון מסומנים עם הסיבה." data-entity-picker @close=${this.close}>
+    return html`<sw-drawer modal ?open=${this.open} heading=${tr('בחירת התקנים')} subheading=${tr('התקנים ברשותכם בלבד. התקנים שאינם ניתנים לתזמון מסומנים עם הסיבה.')} data-entity-picker @close=${this.close}>
       <div class="tools">
-        <div class="search"><input type="search" data-picker-search placeholder="חיפוש התקן או אזור" aria-label="חיפוש התקן" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /><sw-icon name="search" size="15"></sw-icon></div>
-        <div class="seg" role="group" aria-label="קיבוץ">
-          <button type="button" aria-pressed=${this.by === 'area'} @click=${() => (this.by = 'area')}>אזור</button>
-          <button type="button" aria-pressed=${this.by === 'class'} data-picker-by-class @click=${() => (this.by = 'class')}>סוג</button>
+        <div class="search"><input type="search" data-picker-search placeholder=${tr('חיפוש התקן או אזור')} aria-label=${tr('חיפוש התקן')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /><sw-icon name="search" size="15"></sw-icon></div>
+        <div class="seg" role="group" aria-label=${tr('קיבוץ')}>
+          <button type="button" aria-pressed=${this.by === 'area'} @click=${() => (this.by = 'area')}>${tr('אזור')}</button>
+          <button type="button" aria-pressed=${this.by === 'class'} data-picker-by-class @click=${() => (this.by = 'class')}>${tr('סוג')}</button>
         </div>
       </div>
       <div class="chosen" data-picker-chosen>
         ${this.picked.size
-          ? [...this.picked].map((id) => html`<span class="chip">${this.nameOf(id)}<button type="button" aria-label="הסרת ${this.nameOf(id)}" @click=${() => this.toggle(id)}><sw-icon name="close" size="12"></sw-icon></button></span>`)
-          : html`<span class="none">לא נבחר דבר</span>`}
+          ? [...this.picked].map((id) => html`<span class="chip">${this.nameOf(id)}<button type="button" aria-label=${tr('הסרת {name}', { name: this.nameOf(id) })} @click=${() => this.toggle(id)}><sw-icon name="close" size="12"></sw-icon></button></span>`)
+          : html`<span class="none">${tr('לא נבחר דבר')}</span>`}
       </div>
       ${this.loading
-        ? html`<div class="state">טוען…</div>`
+        ? html`<div class="state">${tr('טוען…')}</div>`
         : this.error
           ? html`<div class="state err">${this.error}</div>`
           : !shown.length
-            ? html`<div class="state">לא נמצאו התקנים</div>`
+            ? html`<div class="state">${tr('לא נמצאו התקנים')}</div>`
             : [...groups.entries()].map(
                 ([name, list]) => html`<h4>${name}<span>${list.length}</span></h4>
                   ${list.map((e) => {
@@ -264,8 +265,8 @@ export class ScheduleEntityPicker extends LitElement {
                   })}`,
               )}
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%">
-        <sw-button data-picker-cancel @click=${this.close}>ביטול</sw-button>
-        <sw-button variant="primary" data-picker-ok @click=${this.confirm}>אישור (${this.picked.size})</sw-button>
+        <sw-button data-picker-cancel @click=${this.close}>${tr('ביטול')}</sw-button>
+        <sw-button variant="primary" data-picker-ok @click=${this.confirm}>${tr('אישור ({n})', { n: this.picked.size })}</sw-button>
       </div>
     </sw-drawer>`;
   }

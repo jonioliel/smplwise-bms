@@ -5,6 +5,7 @@ import '../components/sw-sheet';
 import '../components/sw-icon';
 import { LOOK_DIALS, LookController, type Popup } from '../design/look';
 import { currentSkin, resolvedTheme } from '../design/apply';
+import { tr } from '../i18n/msg/screens';
 
 interface DemoDevice {
   id: string;
@@ -351,41 +352,41 @@ export class BubbleDemo extends LitElement {
   private pill(d: DemoDevice) {
     const pct = Math.round((d.v ?? 0) * 100);
     if (d.kind === 'light') {
-      return html`<sw-pill variant="slider" .icon=${d.icon} .label=${d.name} .state=${d.state ?? (d.on ? `דולק · ${pct}%` : 'כבוי')} .value=${d.v ?? 0} ?on=${!!d.on} .hue=${d.hue} ?unavailable=${!!d.unavailable} data-dev=${d.id}
+      return html`<sw-pill variant="slider" .icon=${d.icon} .label=${d.name} .state=${d.state ?? (d.on ? `${tr('דולק')} · ${pct}%` : tr('כבוי'))} .value=${d.v ?? 0} ?on=${!!d.on} .hue=${d.hue} ?unavailable=${!!d.unavailable} data-dev=${d.id}
         @toggle=${(e: CustomEvent<{ on: boolean }>) => this.set(d.id, { on: e.detail.on })} @input=${(e: CustomEvent<{ value: number }>) => this.set(d.id, { v: e.detail.value, on: e.detail.value > 0 })}
         @icon-click=${() => (this.sheet = 'light')}></sw-pill>`;
     }
     if (d.kind === 'switch') {
-      return html`<sw-pill variant="toggle" .icon=${d.icon} .label=${d.name} .state=${d.on ? 'פועל' : 'כבוי'} ?on=${!!d.on} ?accent=${!!d.on} .hue=${d.hue} data-dev=${d.id} @toggle=${(e: CustomEvent<{ on: boolean }>) => this.set(d.id, { on: e.detail.on })}></sw-pill>`;
+      return html`<sw-pill variant="toggle" .icon=${d.icon} .label=${d.name} .state=${d.on ? tr('פועל') : tr('כבוי')} ?on=${!!d.on} ?accent=${!!d.on} .hue=${d.hue} data-dev=${d.id} @toggle=${(e: CustomEvent<{ on: boolean }>) => this.set(d.id, { on: e.detail.on })}></sw-pill>`;
     }
     if (d.kind === 'cover') {
-      return html`<sw-pill variant="slider" .icon=${d.icon} .label=${d.name} .state=${pct ? `פתוח · ${pct}%` : 'סגור'} .value=${d.v ?? 0} ?on=${(d.v ?? 0) > 0} fill-color="var(--sw-accent-soft)" .hue=${d.hue} data-dev=${d.id}
+      return html`<sw-pill variant="slider" .icon=${d.icon} .label=${d.name} .state=${pct ? `${tr('פתוח')} · ${pct}%` : tr('סגור')} .value=${d.v ?? 0} ?on=${(d.v ?? 0) > 0} fill-color="var(--sw-accent-soft)" .hue=${d.hue} data-dev=${d.id}
         @input=${(e: CustomEvent<{ value: number }>) => this.set(d.id, { v: e.detail.value })} @toggle=${() => this.set(d.id, { v: (d.v ?? 0) > 0 ? 0 : 1 })}>
-        <button slot="subs" class="sb" aria-label="פתח" @click=${() => this.set(d.id, { v: 1 })}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
-        <button slot="subs" class="sb" aria-label="עצור"><sw-icon name="pause" size=${18}></sw-icon></button>
-        <button slot="subs" class="sb" aria-label="סגור" @click=${() => this.set(d.id, { v: 0 })}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+        <button slot="subs" class="sb" aria-label=${tr('פתח')} @click=${() => this.set(d.id, { v: 1 })}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+        <button slot="subs" class="sb" aria-label=${tr('עצור')}><sw-icon name="pause" size=${18}></sw-icon></button>
+        <button slot="subs" class="sb" aria-label=${tr('סגור')} @click=${() => this.set(d.id, { v: 0 })}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
       </sw-pill>`;
     }
     if (d.kind === 'climate') {
       return html`<sw-pill variant="plain" .icon=${d.icon} .label=${d.name} .state=${d.state ?? ''} ?on=${!!d.on} fill-color="var(--sw-cool)" .hue=${d.hue} data-dev=${d.id} @activate=${() => (this.sheet = 'light')}>
-        <button slot="subs" class="sb" aria-label="הנמך"><sw-icon name="minus" size=${18}></sw-icon></button>
-        <button slot="subs" class="chip" aria-label="יעד 23 מעלות">23°</button>
-        <button slot="subs" class="sb" aria-label="הגבה"><sw-icon name="plus" size=${18}></sw-icon></button>
+        <button slot="subs" class="sb" aria-label=${tr('הנמך')}><sw-icon name="minus" size=${18}></sw-icon></button>
+        <button slot="subs" class="chip" aria-label=${tr('יעד 23 מעלות')}>23°</button>
+        <button slot="subs" class="sb" aria-label=${tr('הגבה')}><sw-icon name="plus" size=${18}></sw-icon></button>
       </sw-pill>`;
     }
     return html`<sw-pill variant="plain" .icon=${d.icon} .label=${d.name} .state=${d.state ?? ''} .hue=${d.hue} data-dev=${d.id}></sw-pill>`;
   }
 
   private tree() {
-    return html`<nav class="tree" aria-label="קומות ואזורים" data-demo-tree>
-      <h3>הבית</h3>
+    return html`<nav class="tree" aria-label=${tr('קומות ואזורים')} data-demo-tree>
+      <h3>${tr('הבית')}</h3>
       ${FLOORS.map((f) => {
         const col = this.collapsed.has(f.id);
         return html`<div class="floor" data-collapsed=${String(col)}>
           <div class="floor-head">
-            <button type="button" class="chev" aria-expanded=${String(!col)} aria-label=${`${col ? 'הרחב' : 'כווץ'} ${f.name}`} @click=${() => { const n = new Set(this.collapsed); n.has(f.id) ? n.delete(f.id) : n.add(f.id); this.collapsed = n; }}><sw-icon name="chevronDown" size=${16}></sw-icon></button>
+            <button type="button" class="chev" aria-expanded=${String(!col)} aria-label=${col ? tr('הרחב {name}', { name: f.name }) : tr('כווץ {name}', { name: f.name })} @click=${() => { const n = new Set(this.collapsed); n.has(f.id) ? n.delete(f.id) : n.add(f.id); this.collapsed = n; }}><sw-icon name="chevronDown" size=${16}></sw-icon></button>
             <span class="t">${f.name}</span>
-            <button type="button" class="sub" aria-label=${`תפריט ${f.name}`}><sw-icon name="more" size=${16}></sw-icon></button>
+            <button type="button" class="sub" aria-label=${tr('תפריט {name}', { name: f.name })}><sw-icon name="more" size=${16}></sw-icon></button>
           </div>
           <div class="areas">${f.areas.map((a) => html`<button type="button" class="tree-row" aria-current=${a === this.area ? 'true' : 'false'} tabindex=${col ? -1 : 0} @click=${() => { this.area = a; if (this.sheet === 'inline') this.sheet = ''; }}><span class="dot"><sw-icon name="home" size=${16}></sw-icon></span><span class="n">${a}</span></button>`)}</div>
         </div>`;
@@ -397,50 +398,50 @@ export class BubbleDemo extends LitElement {
     const l = this.look.value;
     const popup = l.popup as Popup;
     const lights = this.devices.filter((d) => d.kind === 'light');
-    return html`<h1>Bubble · רכיבי היסוד</h1>
-      <div class="status" data-demo-status>סקין ${currentSkin()} · ${resolvedTheme()} · ${LOOK_DIALS.density.labelHe[l.density]} · ${LOOK_DIALS.surface.labelHe[l.surface]} · ${LOOK_DIALS.popup.labelHe[popup]} · ${LOOK_DIALS.radius.labelHe[l.radius]} · ${l.transparency}% · ${l.scale}% · ${l.touch}px</div>
+    return html`<h1>${tr('Bubble · רכיבי היסוד')}</h1>
+      <div class="status" data-demo-status>${tr('סקין')} ${currentSkin()} · ${resolvedTheme()} · ${LOOK_DIALS.density.labelHe[l.density]} · ${LOOK_DIALS.surface.labelHe[l.surface]} · ${LOOK_DIALS.popup.labelHe[popup]} · ${LOOK_DIALS.radius.labelHe[l.radius]} · ${l.transparency}% · ${l.scale}% · ${l.touch}px</div>
       <div class="actions">
-        <button type="button" class="btn primary" data-open-area @click=${() => (this.sheet = 'area')}><sw-icon name="home" size=${18}></sw-icon>פתח אזור</button>
-        <button type="button" class="btn" data-open-confirm @click=${() => (this.sheet = 'confirm')}>אישור ממורכז</button>
-        <button type="button" class="btn" data-open-inline @click=${() => (this.sheet = 'inline')}>פתח בתוך הדף</button>
+        <button type="button" class="btn primary" data-open-area @click=${() => (this.sheet = 'area')}><sw-icon name="home" size=${18}></sw-icon>${tr('פתח אזור')}</button>
+        <button type="button" class="btn" data-open-confirm @click=${() => (this.sheet = 'confirm')}>${tr('אישור ממורכז')}</button>
+        <button type="button" class="btn" data-open-inline @click=${() => (this.sheet = 'inline')}>${tr('פתח בתוך הדף')}</button>
       </div>
       <div class="frame">
         ${this.tree()}
         <div>
-          <sw-sheet kind="inline" heading=${`${this.area} · בתוך הדף`} ?open=${this.sheet === 'inline'} data-sheet-inline @close=${() => (this.sheet = '')}>
+          <sw-sheet kind="inline" heading=${`${this.area} · ${tr('בתוך הדף')}`} ?open=${this.sheet === 'inline'} data-sheet-inline @close=${() => (this.sheet = '')}>
             <div class="grid">${lights.slice(0, 2).map((d) => this.pill(d))}</div>
-            <button slot="footer" type="button" class="btn" @click=${() => (this.sheet = '')}>סגור</button>
+            <button slot="footer" type="button" class="btn" @click=${() => (this.sheet = '')}>${tr('סגור')}</button>
           </sw-sheet>
-          <h2>תאורה</h2>
+          <h2>${tr('תאורה')}</h2>
           <div class="grid" data-demo-grid>${this.devices.filter((d) => d.kind === 'light' || d.kind === 'switch').map((d) => this.pill(d))}</div>
-          <h2>אקלים ותריסים</h2>
+          <h2>${tr('אקלים ותריסים')}</h2>
           <div class="grid">${this.devices.filter((d) => d.kind === 'cover' || d.kind === 'climate').map((d) => this.pill(d))}</div>
-          <h2>רשימה</h2>
+          <h2>${tr('רשימה')}</h2>
           <div class="grid list" data-demo-list>${this.devices.filter((d) => d.kind === 'sensor' || d.kind === 'switch').map((d) => html`${this.pill({ ...d, id: `r-${d.id}` })}`)}</div>
         </div>
       </div>
 
       <sw-sheet wide heading=${this.area} ?open=${this.sheet === 'area'} data-sheet-area @close=${() => (this.sheet = '')}>
         <sw-pill slot="head" variant="plain" icon="home" .label=${this.area} state="3 דולקים · 25.5°" .hue=${2}>
-          <button slot="subs" class="chip" aria-label="בהירות האזור">72%</button>
-          <button slot="subs" class="sb" aria-label="כבה הכול"><sw-icon name="power" size=${18}></sw-icon></button>
+          <button slot="subs" class="chip" aria-label=${tr('בהירות האזור')}>72%</button>
+          <button slot="subs" class="sb" aria-label=${tr('כבה הכול')}><sw-icon name="power" size=${18}></sw-icon></button>
         </sw-pill>
-        <h2>תאורה</h2>
+        <h2>${tr('תאורה')}</h2>
         <div class="grid">${lights.map((d) => this.pill(d))}</div>
-        <h2>תריסים</h2>
+        <h2>${tr('תריסים')}</h2>
         <div class="grid">${this.devices.filter((d) => d.kind === 'cover').map((d) => this.pill(d))}</div>
-        <div class="kv"><div><span class="k">טמפרטורה</span><div class="v">25.5°</div></div><div><span class="k">לחות</span><div class="v">48%</div></div><div><span class="k">תנועה</span><div class="v">לפני 2 דק׳</div></div></div>
+        <div class="kv"><div><span class="k">${tr('טמפרטורה')}</span><div class="v">25.5°</div></div><div><span class="k">${tr('לחות')}</span><div class="v">48%</div></div><div><span class="k">${tr('תנועה')}</span><div class="v">לפני 2 דק׳</div></div></div>
       </sw-sheet>
 
-      <sw-sheet kind="centred" narrow heading="לכבות את כל התאורה?" ?open=${this.sheet === 'confirm'} data-sheet-confirm @close=${() => (this.sheet = '')}>
-        <div>4 מנורות ייכבו ב${this.area}.</div>
-        <button slot="footer" type="button" class="btn" @click=${() => (this.sheet = '')}>ביטול</button>
-        <button slot="footer" type="button" class="btn danger" data-confirm-off @click=${() => { this.devices = this.devices.map((d) => (d.kind === 'light' ? { ...d, on: false } : d)); this.sheet = ''; }}>כבה</button>
+      <sw-sheet kind="centred" narrow heading=${tr('לכבות את כל התאורה?')} ?open=${this.sheet === 'confirm'} data-sheet-confirm @close=${() => (this.sheet = '')}>
+        <div>${tr('4 מנורות ייכבו ב{area}.', { area: this.area })}</div>
+        <button slot="footer" type="button" class="btn" @click=${() => (this.sheet = '')}>${tr('ביטול')}</button>
+        <button slot="footer" type="button" class="btn danger" data-confirm-off @click=${() => { this.devices = this.devices.map((d) => (d.kind === 'light' ? { ...d, on: false } : d)); this.sheet = ''; }}>${tr('כבה')}</button>
       </sw-sheet>
 
       <sw-sheet heading="תאורה מרכזית" ?open=${this.sheet === 'light'} data-sheet-light @close=${() => (this.sheet = '')}>
-        <div class="big" role="slider" tabindex="0" aria-label="בהירות" aria-valuemin="0" aria-valuemax="100" aria-valuenow="72" style="--v:0.72"><span>בהירות</span><span style="margin-inline-start:auto">72%</span></div>
-        <div class="actions"><button type="button" class="chip" aria-pressed="true">חם</button><button type="button" class="chip">ניטרלי</button><button type="button" class="chip">קר</button></div>
+        <div class="big" role="slider" tabindex="0" aria-label=${tr('בהירות')} aria-valuemin="0" aria-valuemax="100" aria-valuenow="72" style="--v:0.72"><span>${tr('בהירות')}</span><span style="margin-inline-start:auto">72%</span></div>
+        <div class="actions"><button type="button" class="chip" aria-pressed="true">${tr('חם')}</button><button type="button" class="chip">${tr('ניטרלי')}</button><button type="button" class="chip">${tr('קר')}</button></div>
         ${nothing}
       </sw-sheet>`;
   }

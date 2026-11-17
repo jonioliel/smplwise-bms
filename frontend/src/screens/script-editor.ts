@@ -4,6 +4,7 @@ import type { ScriptDraft, ScriptField } from '../api/automations';
 import { icon } from './automation-builder-icons';
 import { AutomationEditorBase } from './automation-editor-base';
 import { FIELD_KIND_LABEL, ROOT, clone, fieldSummary, newField, type FieldKind } from './automation-editor-logic';
+import { tr } from '../i18n/msg/automation';
 
 const FIELD_ICON: Record<string, string> = { number: 'thermo', entity: 'layers', boolean: 'check', select: 'list', text: 'edit', locked: 'lock' };
 const FIELD_KINDS: FieldKind[] = ['number', 'boolean', 'select', 'text', 'entity'];
@@ -21,8 +22,8 @@ export class ScriptEditor extends AutomationEditorBase {
   @state() private adding = false;
 
   protected get kind() { return 'script' as const; }
-  protected get nameLabel() { return 'שם הסקריפט'; }
-  protected subtitleNew() { return 'סקריפט חדש'; }
+  protected get nameLabel() { return tr('שם הסקריפט'); }
+  protected subtitleNew() { return tr('סקריפט חדש'); }
   protected blankDraft(): ScriptDraft {
     return { alias: '', description: '', icon: null, mode: 'single', max: null, fields: [], sequence: [] };
   }
@@ -136,21 +137,21 @@ export class ScriptEditor extends AutomationEditorBase {
       @change=${(e: Event) => { const t = (e.target as HTMLInputElement).value.trim().replace(',', '.'); const n = t === '' ? undefined : Number(t); on(n !== undefined && Number.isFinite(n) ? n : undefined); }} /></label>`;
     return html`<div class="edit" data-field-edit=${i}>
       <div class="frow">
-        <div class="fld"><label>שם השדה</label><label class="inp"><input data-fld="field.name" aria-label="שם השדה" dir="auto" .value=${f.name} @input=${(e: Event) => set((x) => { x.name = (e.target as HTMLInputElement).value; })} /></label></div>
-        <div class="fld"><label>מפתח (לטינית)</label><label class="inp"><input data-fld="field.key" aria-label="מפתח" dir="ltr" .value=${f.key} @change=${(e: Event) => set((x) => { x.key = (e.target as HTMLInputElement).value.trim(); })} /></label></div>
+        <div class="fld"><label>${tr('שם השדה')}</label><label class="inp"><input data-fld="field.name" aria-label=${tr('שם השדה')} dir="auto" .value=${f.name} @input=${(e: Event) => set((x) => { x.name = (e.target as HTMLInputElement).value; })} /></label></div>
+        <div class="fld"><label>${tr('מפתח (לטינית)')}</label><label class="inp"><input data-fld="field.key" aria-label=${tr('מפתח')} dir="ltr" .value=${f.key} @change=${(e: Event) => set((x) => { x.key = (e.target as HTMLInputElement).value.trim(); })} /></label></div>
       </div>
       <div class="frow">
-        <div class="fld"><label>סוג</label><select class="selx" data-fld="field.kind" aria-label="סוג" @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as FieldKind; set((x) => { x.selector = newField(k, []).selector; x.default = undefined; }); }}>
+        <div class="fld"><label>${tr('סוג')}</label><select class="selx" data-fld="field.kind" aria-label=${tr('סוג')} @change=${(e: Event) => { const k = (e.target as HTMLSelectElement).value as FieldKind; set((x) => { x.selector = newField(k, []).selector; x.default = undefined; }); }}>
           ${FIELD_KINDS.map((k) => html`<option value=${k} ?selected=${s.kind === k}>${FIELD_KIND_LABEL[k]}</option>`)}</select></div>
-        <div class="fld sm"><label>חובה</label><div class="rolechips"><button type="button" aria-pressed=${f.required} data-field-required @click=${() => set((x) => { x.required = !x.required; })}>${f.required ? 'חובה' : 'לא חובה'}</button></div></div>
+        <div class="fld sm"><label>${tr('חובה')}</label><div class="rolechips"><button type="button" aria-pressed=${f.required} data-field-required @click=${() => set((x) => { x.required = !x.required; })}>${f.required ? tr('חובה') : tr('לא חובה')}</button></div></div>
       </div>
-      ${s.kind === 'number' ? html`<div class="frow"><div class="fld sm"><label>מינימום</label>${num(s.min, (n) => set((x) => { if (x.selector.kind === 'number') x.selector.min = n ?? 0; }), 'field.min')}</div>
-        <div class="fld sm"><label>מקסימום</label>${num(s.max, (n) => set((x) => { if (x.selector.kind === 'number') x.selector.max = n ?? 100; }), 'field.max')}</div>
-        <div class="fld sm"><label>צעד</label>${num(s.step, (n) => set((x) => { if (x.selector.kind === 'number') { if (n) x.selector.step = n; else delete x.selector.step; } }), 'field.step')}</div>
-        <div class="fld sm"><label>ברירת מחדל</label>${num(typeof f.default === 'number' ? f.default : undefined, (n) => set((x) => { x.default = n; }), 'field.default')}</div></div>` : nothing}
-      ${s.kind === 'select' ? html`<div class="fld full"><label>אפשרויות (אחת בכל שורה)</label><label class="inp area"><textarea rows="3" data-fld="field.options" aria-label="אפשרויות" .value=${s.options.join('\n')}
+      ${s.kind === 'number' ? html`<div class="frow"><div class="fld sm"><label>${tr('מינימום')}</label>${num(s.min, (n) => set((x) => { if (x.selector.kind === 'number') x.selector.min = n ?? 0; }), 'field.min')}</div>
+        <div class="fld sm"><label>${tr('מקסימום')}</label>${num(s.max, (n) => set((x) => { if (x.selector.kind === 'number') x.selector.max = n ?? 100; }), 'field.max')}</div>
+        <div class="fld sm"><label>${tr('צעד')}</label>${num(s.step, (n) => set((x) => { if (x.selector.kind === 'number') { if (n) x.selector.step = n; else delete x.selector.step; } }), 'field.step')}</div>
+        <div class="fld sm"><label>${tr('ברירת מחדל')}</label>${num(typeof f.default === 'number' ? f.default : undefined, (n) => set((x) => { x.default = n; }), 'field.default')}</div></div>` : nothing}
+      ${s.kind === 'select' ? html`<div class="fld full"><label>${tr('אפשרויות (אחת בכל שורה)')}</label><label class="inp area"><textarea rows="3" data-fld="field.options" aria-label=${tr('אפשרויות')} .value=${s.options.join('\n')}
         @change=${(e: Event) => set((x) => { if (x.selector.kind === 'select') x.selector.options = (e.target as HTMLTextAreaElement).value.split('\n').map((o) => o.trim()).filter(Boolean); })}></textarea></label></div>` : nothing}
-      ${s.kind === 'entity' ? html`<div class="fld full"><label>סוגי מכשיר (לטינית, מופרדים בפסיק; ריק = הכל)</label><label class="inp"><input data-fld="field.domains" aria-label="סוגי מכשיר" dir="ltr" .value=${s.domains.join(', ')}
+      ${s.kind === 'entity' ? html`<div class="fld full"><label>${tr('סוגי מכשיר (לטינית, מופרדים בפסיק; ריק = הכל)')}</label><label class="inp"><input data-fld="field.domains" aria-label=${tr('סוגי מכשיר')} dir="ltr" .value=${s.domains.join(', ')}
         @change=${(e: Event) => set((x) => { if (x.selector.kind === 'entity') x.selector.domains = (e.target as HTMLInputElement).value.split(',').map((o) => o.trim()).filter(Boolean); })} /></label></div>` : nothing}
     </div>`;
   }
@@ -160,25 +161,25 @@ export class ScriptEditor extends AutomationEditorBase {
     const by = this.issues;
     return html`${this.renderConflict()}${this.renderBanners()}${this.renderSentence()}${this.renderValidation()}
       <section class="bsec2" data-section="fields">
-        <h4><span class="k if">${icon('list', 14)}</span>שדות<small>${d.fields.length ? d.fields.length : 'אין'}</small></h4>
+        <h4><span class="k if">${icon('list', 14)}</span>${tr('שדות')}<small>${d.fields.length ? d.fields.length : tr('אין')}</small></h4>
         <div class="fieldlist">${d.fields.map((f, i) => {
           const open = this.openField === i;
           const bad = by.some((x) => x.path === `fields.${i}`);
           return html`<div class="frow2 ${open ? 'open' : ''} ${bad ? 'bad' : ''}" data-field=${f.key}>
             <div class="h">
               <button class="main" type="button" aria-expanded=${open} data-field-main @click=${() => (this.openField = open ? null : i)}>
-                <span class="rg">${icon(FIELD_ICON[f.selector.kind] ?? 'list')}</span><span class="nm">${f.name || 'שדה חדש'}<small>${fieldSummary(f)}</small></span><code>${f.key}</code></button>
-              ${this.hardReadOnly ? nothing : html`<button class="x" type="button" aria-label="מחיקת השדה" data-field-remove @click=${() => { this.setFields((l) => l.splice(i, 1)); this.openField = null; }}>${icon('close')}</button>`}
+                <span class="rg">${icon(FIELD_ICON[f.selector.kind] ?? 'list')}</span><span class="nm">${f.name || tr('שדה חדש')}<small>${fieldSummary(f)}</small></span><code>${f.key}</code></button>
+              ${this.hardReadOnly ? nothing : html`<button class="x" type="button" aria-label=${tr('מחיקת השדה')} data-field-remove @click=${() => { this.setFields((l) => l.splice(i, 1)); this.openField = null; }}>${icon('close')}</button>`}
             </div>
-            ${open && f.selector.kind !== 'locked' ? this.fieldEditor(f, i) : open ? html`<div class="edit"><div class="codenote">${icon('lock')}שדה מתקדם – נשמר כמו שהוא.</div></div>` : nothing}
+            ${open && f.selector.kind !== 'locked' ? this.fieldEditor(f, i) : open ? html`<div class="edit"><div class="codenote">${icon('lock')}${tr('שדה מתקדם – נשמר כמו שהוא.')}</div></div>` : nothing}
           </div>`;
         })}</div>
         ${this.hardReadOnly || d.fields.length >= 12 ? nothing : this.adding
           ? html`<div class="rolechips" data-field-kinds>${FIELD_KINDS.map((k) => html`<button type="button" data-field-kind=${k} @click=${() => { this.adding = false; this.setFields((l) => l.push(newField(k, l.map((x) => x.key)))); this.openField = d.fields.length; }}>${FIELD_KIND_LABEL[k]}</button>`)}</div>`
-          : html`<button class="addblk" type="button" data-add-field @click=${() => (this.adding = true)}>${icon('plus')}הוסף שדה</button>`}
+          : html`<button class="addblk" type="button" data-add-field @click=${() => (this.adding = true)}>${icon('plus')}${tr('הוסף שדה')}</button>`}
       </section>
       <section class="bsec2" data-section="action">
-        <h4><span class="k then">${icon('play', 14)}</span>אז<small>${d.sequence.length ? `${d.sequence.length} צעדים` : 'מה לעשות'}</small></h4>
+        <h4><span class="k then">${icon('play', 14)}</span>${tr('אז')}<small>${d.sequence.length ? tr('{n} צעדים', { n: d.sequence.length }) : tr('מה לעשות')}</small></h4>
         ${this.renderList(ROOT, 'sequence', 'action')}
       </section>
       ${this.renderOptionsBox(this.renderDeleteRow())}`;

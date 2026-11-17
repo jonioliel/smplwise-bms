@@ -3,6 +3,8 @@
  * group change sends and the result line. The server owns the rule (GET /devices/device-types lists the switch-wired devices with the
  * types each may take); this module never guesses a type from a name. No Lit and no DOM, so the unit specs import it directly.
  */
+import { tr } from '../i18n/msg/devices';
+
 export type FixedKind = 'switch' | 'outlet' | 'light' | 'fan' | 'heater' | 'water_heater' | 'valve';
 export type TypeSetting = FixedKind | 'auto';
 
@@ -39,13 +41,13 @@ export const BULK_ON_SENSITIVE: readonly FixedKind[] = ['valve', 'water_heater']
 
 export const KIND_ORDER: readonly FixedKind[] = ['switch', 'outlet', 'light', 'fan', 'heater', 'water_heater', 'valve'];
 export const KIND_HE: Record<FixedKind, string> = {
-  switch: 'מתג',
-  outlet: 'שקע',
-  light: 'תאורה',
-  fan: 'מאוורר',
-  heater: 'תנור חימום',
-  water_heater: 'דוד מים',
-  valve: 'ברז / השקיה',
+  switch: tr('מתג'),
+  outlet: tr('שקע'),
+  light: tr('תאורה'),
+  fan: tr('מאוורר'),
+  heater: tr('תנור חימום'),
+  water_heater: tr('דוד מים'),
+  valve: tr('ברז / השקיה'),
 };
 
 export type SourceFilter = '' | 'auto' | 'manual';
@@ -98,13 +100,13 @@ export function chunks<T>(ids: readonly T[], size = CHUNK): T[][] {
   return out;
 }
 
-export const settingLabel = (kind: TypeSetting): string => (kind === 'auto' ? 'אוטומטי' : KIND_HE[kind]);
+export const settingLabel = (kind: TypeSetting): string => (kind === 'auto' ? tr('אוטומטי') : KIND_HE[kind]);
 
 export function confirmQuestion(kind: TypeSetting, count: number): string {
-  return kind === 'auto' ? `להחזיר ${count} התקנים לסוג אוטומטי (לפי השם)?` : `לקבוע את הסוג "${KIND_HE[kind]}" ל־${count} התקנים?`;
+  return kind === 'auto' ? tr('להחזיר {n} התקנים לסוג אוטומטי (לפי השם)?', { n: count }) : tr('לקבוע את הסוג "{type}" ל־{n} התקנים?', { type: KIND_HE[kind], n: count });
 }
 
 export function resultLine(kind: TypeSetting, changed: number, refused: number): string {
-  const head = kind === 'auto' ? `${changed} התקנים חזרו לסוג אוטומטי` : `נקבע הסוג "${KIND_HE[kind]}" ל־${changed} התקנים`;
-  return refused ? `${head}. ${refused} לא שונו.` : `${head}.`;
+  const head = kind === 'auto' ? tr('{n} התקנים חזרו לסוג אוטומטי', { n: changed }) : tr('נקבע הסוג "{type}" ל־{n} התקנים', { type: KIND_HE[kind], n: changed });
+  return refused ? `${head}. ${tr('{n} לא שונו.', { n: refused })}` : `${head}.`;
 }

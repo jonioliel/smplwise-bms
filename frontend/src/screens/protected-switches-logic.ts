@@ -5,6 +5,7 @@
  * Owner decision 2026-10-02: a switch is excluded from group actions ONLY when an administrator protected it. The classifier
  * merely SUGGESTS ("מוצע להגנה"): a suggestion is not protected and is still included until the administrator approves it.
  */
+import { tr } from '../i18n/msg/media';
 
 export interface ProtectedSwitchRow {
   entity_id: string;
@@ -71,12 +72,12 @@ export function statusOf(r: ProtectedSwitchRow): RowStatus {
 }
 
 export const STATUS_TEXT: Record<RowStatus, string> = {
-  alarm: 'נשלט ממסך האזעקה',
-  doors: 'בשכבת הדלתות',
-  media: 'נשלט ממסך המולטימדיה',
-  suggested: 'מוצע להגנה',
-  protected: 'מוגן',
-  unprotected: 'לא מוגן',
+  alarm: tr('נשלט ממסך האזעקה'),
+  doors: tr('בשכבת הדלתות'),
+  media: tr('נשלט ממסך המולטימדיה'),
+  suggested: tr('מוצע להגנה'),
+  protected: tr('מוגן'),
+  unprotected: tr('לא מוגן'),
 };
 
 export interface Filters {
@@ -115,7 +116,7 @@ export const suggestedIds = (rows: readonly ProtectedSwitchRow[]): string[] => r
 export function countsLine(shown: number, rows: readonly ProtectedSwitchRow[], summary: ProtectedSummary | null): string {
   const protectedN = summary?.protected ?? rows.filter((r) => r.protected).length;
   const suggestedN = summary?.suggested ?? rows.filter(isSuggested).length;
-  return `${shown} מתוך ${summary?.switches ?? rows.length} מתגים · ${protectedN} מוגנים${suggestedN ? ` · ${suggestedN} מוצעים להגנה` : ''}`;
+  return `${tr('{shown} מתוך {total} מתגים · {protectedN} מוגנים', { shown, total: summary?.switches ?? rows.length, protectedN })}${suggestedN ? tr(' · {suggestedN} מוצעים להגנה', { suggestedN }) : ''}`;
 }
 
 /** Shift+click: the ids of the selectable rows between the last row clicked and this one, in the list's current order. */
@@ -145,19 +146,19 @@ export function chunks<T>(ids: readonly T[], size = CHUNK): T[][] {
 }
 
 export function resultLine(action: ProtectAction, changed: number, refused: number): string {
-  const done = action === 'protect' || action === 'approve' ? `הוגנו ${changed} מתגים` : action === 'unprotect' ? `הוסרה ההגנה מ־${changed} מתגים` : `נדחתה ההצעה ל־${changed} מתגים`;
-  return `${done}${refused ? ` · ${refused} לא שונו (נשלטים ממסך אחר, בשכבת הדלתות או שאינם מתגים)` : ''}`;
+  const done = action === 'protect' || action === 'approve' ? tr('הוגנו {changed} מתגים', { changed }) : action === 'unprotect' ? tr('הוסרה ההגנה מ־{changed} מתגים', { changed }) : tr('נדחתה ההצעה ל־{changed} מתגים', { changed });
+  return `${done}${refused ? tr(' · {refused} לא שונו (נשלטים ממסך אחר, בשכבת הדלתות או שאינם מתגים)', { refused }) : ''}`;
 }
 
 export const CONFIRM: Record<ProtectAction, { heading: string; button: string; danger: boolean }> = {
-  protect: { heading: 'הגנה על מתגים', button: 'הגן', danger: false },
-  approve: { heading: 'הגנה על המתגים המוצעים', button: 'הגן', danger: false },
-  unprotect: { heading: 'הסרת הגנה', button: 'הסר הגנה', danger: true },
-  dismiss: { heading: 'דחיית הצעה', button: 'דחה הצעה', danger: false },
+  protect: { heading: tr('הגנה על מתגים'), button: tr('הגן'), danger: false },
+  approve: { heading: tr('הגנה על המתגים המוצעים'), button: tr('הגן'), danger: false },
+  unprotect: { heading: tr('הסרת הגנה'), button: tr('הסר הגנה'), danger: true },
+  dismiss: { heading: tr('דחיית הצעה'), button: tr('דחה הצעה'), danger: false },
 };
 
 export function confirmQuestion(action: ProtectAction, n: number): string {
-  if (action === 'unprotect') return `${n} מתגים ייכללו ב'כבה הכל' ובפעולות קבוצתיות. להמשיך?`;
-  if (action === 'dismiss') return `לדחות את ההצעה להגן על ${n} מתגים? הם ימשיכו להיכלל ב'כבה הכל' ובפעולות קבוצתיות.`;
-  return `להגן על ${n} מתגים? הם לא ייכללו ב'כבה הכל' ובפעולות קבוצתיות.`;
+  if (action === 'unprotect') return tr("{n} מתגים ייכללו ב'כבה הכל' ובפעולות קבוצתיות. להמשיך?", { n });
+  if (action === 'dismiss') return tr("לדחות את ההצעה להגן על {n} מתגים? הם ימשיכו להיכלל ב'כבה הכל' ובפעולות קבוצתיות.", { n });
+  return tr("להגן על {n} מתגים? הם לא ייכללו ב'כבה הכל' ובפעולות קבוצתיות.", { n });
 }

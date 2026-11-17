@@ -7,6 +7,7 @@
  * now "בקשת שירות"): no text here writes a noun with the definite prefix before the token (it would read "ה" + a two-word name) -
  * the sentences are built so the name stands alone or is not needed.
  */
+import { registerCatalogue } from '../i18n/core';
 import { NAV_TT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's label (hdTitle) lives there
 
 export const S4_HE = {
@@ -559,3 +560,5 @@ export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
   permLoadFailed: 'The permissions cannot be shown',
   permRetry: 'Try again',
 };
+
+registerCatalogue('tickets/text-s4', { he: S4_HE, en: S4_EN });

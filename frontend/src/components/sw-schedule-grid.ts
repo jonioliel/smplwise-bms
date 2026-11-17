@@ -5,6 +5,7 @@ import './sw-icon';
 import type { IconName } from './sw-icon';
 import { SUN_FALLBACK, type SunTimes } from '../api/schedules';
 import { CATEGORY_LABEL, DAY_MIN, clampCreate, clampEdge, clampMoveStart, clock, minutesToPercent, offsetToMinutes, type SlotCategory } from '../screens/schedule-grid-logic';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-014 S4: the 24-hour scheme of a schedule (docs/design/mockups/scheduler screens 05 / 06 / 21 / 24).
@@ -115,7 +116,7 @@ export class SwScheduleGrid extends LitElement {
   @property({ reflect: true }) orientation: 'horizontal' | 'vertical' = 'horizontal';
   @property({ type: Boolean, reflect: true }) compact = false;
   /** Text of the sun markers' tooltip / label suffix: today's times are estimates. */
-  @property() sunNote = 'משוער להיום';
+  @property() sunNote = tr('משוער להיום');
   @state() private ghost: Ghost | null = null;
   @state() private live = '';
   private drag: Drag | null = null;
@@ -925,13 +926,13 @@ export class SwScheduleGrid extends LitElement {
       const i = row.slots.findIndex((s) => s.key === key);
       if (e.shiftKey && !slot.point) {
         this.emit('slot-resize', { key, row: rowKey, edge: 'end', minute: slot.end + step, detach: e.altKey });
-        this.announce(`סיום ${clock(clampEdge(spans, points, i, 'end', slot.end + step, this.snap, e.altKey))}`);
+        this.announce(tr('סיום {time}', { time: clock(clampEdge(spans, points, i, 'end', slot.end + step, this.snap, e.altKey)) }));
       } else if ((e.ctrlKey || e.metaKey) && !slot.point) {
         this.emit('slot-resize', { key, row: rowKey, edge: 'start', minute: slot.start + step, detach: e.altKey });
-        this.announce(`התחלה ${clock(clampEdge(spans, points, i, 'start', slot.start + step, this.snap, e.altKey))}`);
+        this.announce(tr('התחלה {time}', { time: clock(clampEdge(spans, points, i, 'start', slot.start + step, this.snap, e.altKey)) }));
       } else {
         this.emit('slot-move', { key, row: rowKey, delta: step });
-        this.announce(`התחלה ${clock(clampMoveStart(spans, i, step, this.snap))}`);
+        this.announce(tr('התחלה {time}', { time: clock(clampMoveStart(spans, i, step, this.snap)) }));
       }
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
@@ -987,8 +988,8 @@ export class SwScheduleGrid extends LitElement {
         ${icon(s.locked ? 'lock' : s.icon)}
         <span class="txt"><b>${s.title}</b><small><bdi dir="ltr">${s.timeLabel}</bdi></small></span>
         <span class="flags">
-          ${s.sunStart || s.sunEnd ? html`<span class="flag" title="לפי שמש">${icon('sun', 11)}</span>` : nothing}
-          ${s.lowering ? html`<span class="flag warn" title="פותח או מנטרל">${icon('warning', 11)}</span>` : s.sensitive ? html`<span class="flag" title="פעולה רגישה">${icon('shield', 11)}</span>` : nothing}
+          ${s.sunStart || s.sunEnd ? html`<span class="flag" title=${tr('לפי שמש')}>${icon('sun', 11)}</span>` : nothing}
+          ${s.lowering ? html`<span class="flag warn" title=${tr('פותח או מנטרל')}>${icon('warning', 11)}</span>` : s.sensitive ? html`<span class="flag" title=${tr('פעולה רגישה')}>${icon('shield', 11)}</span>` : nothing}
         </span>
       </div>
       <span class="handle e" data-handle="end"></span>
@@ -1004,9 +1005,9 @@ export class SwScheduleGrid extends LitElement {
     return html`<div class=${cls}>
       <div class="track" data-track=${row.key}>
         ${!row.active
-          ? html`<button class="add" type="button" ?disabled=${!this.editable || !!row.readOnly} @click=${() => this.emit('row-add', { row: row.key })}>${row.addLabel ?? 'הוספה לתזמון'} ${icon('plus', 13)}</button>`
+          ? html`<button class="add" type="button" ?disabled=${!this.editable || !!row.readOnly} @click=${() => this.emit('row-add', { row: row.key })}>${row.addLabel ?? tr('הוספה לתזמון')} ${icon('plus', 13)}</button>`
           : row.slots.length === 0 && this.editable && !row.readOnly
-            ? html`<div class="empty-hint">גררו כדי ליצור משבצת</div>`
+            ? html`<div class="empty-hint">${tr('גררו כדי ליצור משבצת')}</div>`
             : nothing}
         ${repeat(row.active ? row.slots : [], (s) => s.key, (s) => this.renderSlot(row, s))}
         ${showGhost && g ? html`<div class="ghost ${g.point ? 'point' : ''}" style=${this.slotStyle({ start: g.start, end: g.end, point: g.point }, g.start, g.end)}><span>${clock(g.start)}–${clock(g.end)}</span></div>` : nothing}
@@ -1019,8 +1020,8 @@ export class SwScheduleGrid extends LitElement {
     const sun = this.sun ?? SUN_FALLBACK;
     const hours = this.vertical ? Array.from({ length: 24 }, (_, i) => i + 1) : Array.from({ length: 13 }, (_, i) => i * 2);
     const marks = [
-      { min: sun.sunrise, label: this.vertical ? clock(sun.sunrise) : `זריחה ${clock(sun.sunrise)}`, cls: '' },
-      { min: sun.sunset, label: this.vertical ? clock(sun.sunset) : `שקיעה ${clock(sun.sunset)}`, cls: '' },
+      { min: sun.sunrise, label: this.vertical ? clock(sun.sunrise) : tr('זריחה {time}', { time: clock(sun.sunrise) }), cls: '' },
+      { min: sun.sunset, label: this.vertical ? clock(sun.sunset) : tr('שקיעה {time}', { time: clock(sun.sunset) }), cls: '' },
     ];
     const posStyle = (m: number) => (this.vertical ? `top:${this.pos(m)}` : `left:${this.pos(m)}`);
     return html`<div class="board">
@@ -1028,7 +1029,7 @@ export class SwScheduleGrid extends LitElement {
         <div class="axis">
           ${hours.map((h) => html`<span class="hour" style=${posStyle(h * 60)}>${String(h % 24 === 0 && h > 0 && !this.vertical ? 24 : h).padStart(2, '0')}</span>`)}
           ${marks.map((m) => html`<span class="mark" style=${posStyle(m.min)} title=${this.sunNote}>${icon('sun', 11)}${m.label}</span>`)}
-          ${this.now !== null ? html`<span class="mark now" style=${posStyle(this.now)}>${this.vertical ? '' : 'עכשיו '}${clock(this.now)}</span>` : nothing}
+          ${this.now !== null ? html`<span class="mark now" style=${posStyle(this.now)}>${this.vertical ? '' : `${tr('עכשיו')} `}${clock(this.now)}</span>` : nothing}
         </div>
       </div>
       <div class="tracks" @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onCancel} @keydown=${this.onKey}>
@@ -1043,7 +1044,7 @@ export class SwScheduleGrid extends LitElement {
         ${repeat(this.rows, (r) => r.key, (r) => this.renderRow(r))}
       </div>
     </div>
-    <p class="sr" id="kbhelp">חצים: הזזת המשבצת. Shift וחצים: שינוי שעת הסיום. Ctrl וחצים: שינוי שעת ההתחלה. Delete: מחיקה. Enter: בחירה.</p>
+    <p class="sr" id="kbhelp">${tr('חצים: הזזת המשבצת. Shift וחצים: שינוי שעת הסיום. Ctrl וחצים: שינוי שעת ההתחלה. Delete: מחיקה. Enter: בחירה.')}</p>
     <div class="sr" aria-live="polite" role="status">${this.live}</div>`;
   }
 }

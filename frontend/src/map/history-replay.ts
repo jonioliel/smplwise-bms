@@ -12,6 +12,7 @@
  *   change marks, per window;
  * - the legend's texts (status, coverage) and the gap at an instant.
  */
+import { tr } from '../i18n/msg/map';
 import { isOpenState } from './coverage';
 import { isLightEntity, isOpeningEntity, isPresenceEntity } from './room-state';
 import { pointInPolygon } from '../api/zones';
@@ -28,15 +29,15 @@ export const RANGE_LAYERS = ['lights', 'presence', 'openings', 'temperature', 'd
 export type RangeLayerId = (typeof RANGE_LAYERS)[number];
 
 export const LAYER_NAME: Record<LayerId, string> = {
-  lights: 'תאורה',
-  presence: 'נוכחות',
-  openings: 'דלתות וחלונות',
-  temperature: 'טמפרטורה',
-  devices: 'התקנים',
-  alarm: 'אזעקה',
-  elevators: 'מעליות',
-  cameras: 'מצלמות',
-  events: 'אירועים',
+  lights: tr('תאורה'),
+  presence: tr('נוכחות'),
+  openings: tr('דלתות וחלונות'),
+  temperature: tr('טמפרטורה'),
+  devices: tr('התקנים'),
+  alarm: tr('אזעקה'),
+  elevators: tr('מעליות'),
+  cameras: tr('מצלמות'),
+  events: tr('אירועים'),
 };
 /** The legend dot / lane colour of each layer (the product tokens the mockup uses). */
 export const LAYER_COLOR: Record<LayerId, string> = {
@@ -93,25 +94,25 @@ export type StatusLook = 'ok' | 'unk' | 'warn' | 'lock';
 export function layerStatusText(status: LayerStatus | null | undefined): { text: string; look: StatusLook } {
   switch (status) {
     case 'ok':
-      return { text: 'ידוע', look: 'ok' };
+      return { text: tr('ידוע'), look: 'ok' };
     case 'empty':
-      return { text: 'אין בקומה', look: 'unk' };
+      return { text: tr('אין בקומה'), look: 'unk' };
     case 'not_recorded':
-      return { text: 'לא מוקלט', look: 'unk' };
+      return { text: tr('לא מוקלט'), look: 'unk' };
     case 'gap':
-      return { text: 'פער בהקלטה', look: 'warn' };
+      return { text: tr('פער בהקלטה'), look: 'warn' };
     case 'not_permitted':
-      return { text: 'לא מורשה', look: 'lock' };
+      return { text: tr('לא מורשה'), look: 'lock' };
     default:
-      return { text: 'לא ידוע', look: 'unk' };
+      return { text: tr('לא ידוע'), look: 'unk' };
   }
 }
 
 /** Days in Hebrew: "יום אחד", "7 ימים", "30 יום" (2..10 take the plural, 11 and up the singular). */
 export function daysText(n: number): string {
-  if (n === 1) return 'יום אחד';
-  if (n === 2) return 'יומיים';
-  return n >= 3 && n <= 10 ? `${n} ימים` : `${n} יום`;
+  if (n === 1) return tr('יום אחד');
+  if (n === 2) return tr('יומיים');
+  return n >= 3 && n <= 10 ? tr('{n} ימים', { n }) : tr('{n} יום', { n });
 }
 
 /** The coverage after the layer's name ("· 30 יום"); empty when the retention is unknown. */

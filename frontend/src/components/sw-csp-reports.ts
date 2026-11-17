@@ -5,6 +5,7 @@ import './sw-button';
 import { api, describeError, get } from '../api/client';
 import { patchSettings } from '../api/media';
 import { dayMonthTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/components';
 
 interface CspRow {
   disposition: 'enforce' | 'report';
@@ -22,7 +23,7 @@ interface CspReports {
   policy: { enforced: string; report_only: string | null };
 }
 
-const BLOCKED_LABEL: Record<string, string> = { inline: 'קוד או עיצוב מוטמע (inline)', eval: 'eval', self: 'מהאתר עצמו', data: 'data:', blob: 'blob:', none: '—', other: 'אחר' };
+const BLOCKED_LABEL: Record<string, string> = { inline: tr('קוד או עיצוב מוטמע (inline)'), eval: 'eval', self: tr('מהאתר עצמו'), data: 'data:', blob: 'blob:', none: '—', other: tr('אחר') };
 
 /**
  * CR-008 P2, הגדרות › גישה מרחוק: the Content-Security-Policy reports of the remote channel (counters per directive
@@ -61,7 +62,7 @@ export class SwCspReports extends LitElement {
     this.busy = true;
     try {
       await patchSettings({ 'remote.csp_enforce': on ? 'true' : 'false' });
-      this.message = on ? 'המדיניות המחמירה נאכפת מעכשיו.' : 'המדיניות המחמירה חזרה לדיווח בלבד.';
+      this.message = on ? tr('המדיניות המחמירה נאכפת מעכשיו.') : tr('המדיניות המחמירה חזרה לדיווח בלבד.');
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -74,7 +75,7 @@ export class SwCspReports extends LitElement {
     this.busy = true;
     try {
       await api('csp-reports', { method: 'DELETE' });
-      this.message = 'הספירה אופסה.';
+      this.message = tr('הספירה אופסה.');
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -85,42 +86,42 @@ export class SwCspReports extends LitElement {
 
   render() {
     const d = this.data;
-    if (!d) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : html`<div class="muted">טוען דיווחים…</div>`;
+    if (!d) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : html`<div class="muted">${tr('טוען דיווחים…')}</div>`;
     const enforcing = d.mode === 'enforce';
     // inline <style> elements seen by browsers: enforcing now would unstyle those screens - fix them first (CR-008 P2 review M4)
     const inlineStyles = d.rows.filter((r) => (r.directive === 'style-src-elem' || r.directive === 'style-src') && r.blocked === 'inline').reduce((n, r) => n + r.count, 0);
     const blocked = !enforcing && inlineStyles > 0;
     return html`
       <div class="mode" data-csp-mode=${d.mode}>
-        <sw-badge kind=${enforcing ? 'live' : 'partial'} label=${enforcing ? 'נאכפת' : 'דיווח בלבד'}></sw-badge>
+        <sw-badge kind=${enforcing ? 'live' : 'partial'} label=${enforcing ? tr('נאכפת') : tr('דיווח בלבד')}></sw-badge>
         <span>${enforcing
-          ? 'המדיניות המחמירה (בלי עיצוב מוטמע בתגיות style) נאכפת בגישה מרחוק.'
-          : 'המדיניות המחמירה נבדקת בדפדפנים ומדווחת, אבל עדיין לא נאכפת. אחרי שעוברים על הדיווחים אפשר לאכוף.'}</span>
+          ? tr('המדיניות המחמירה (בלי עיצוב מוטמע בתגיות style) נאכפת בגישה מרחוק.')
+          : tr('המדיניות המחמירה נבדקת בדפדפנים ומדווחת, אבל עדיין לא נאכפת. אחרי שעוברים על הדיווחים אפשר לאכוף.')}</span>
       </div>
       ${d.rows.length
         ? html`<table data-csp-table>
-            <thead><tr><th>הנחיה</th><th>מה נחסם</th><th>סוג</th><th>כמות</th><th>לאחרונה</th></tr></thead>
+            <thead><tr><th>${tr('הנחיה')}</th><th>${tr('מה נחסם')}</th><th>${tr('סוג')}</th><th>${tr('כמות')}</th><th>${tr('לאחרונה')}</th></tr></thead>
             <tbody>${d.rows.map((r) => html`<tr>
               <td class="ltr">${r.directive}</td>
               <td class="ltr">${BLOCKED_LABEL[r.blocked] ?? r.blocked}</td>
-              <td>${r.disposition === 'enforce' ? 'נחסם' : 'דיווח'}</td>
+              <td>${r.disposition === 'enforce' ? tr('נחסם') : tr('דיווח')}</td>
               <td>${r.count}</td>
               <td>${dayMonthTimeText(new Date(r.last_at))}</td>
             </tr>`)}</tbody>
           </table>`
-        : html`<div class="muted" data-csp-empty>אין דיווחים. דפדפנים שולחים דיווח רק כשמשהו בדף חורג מהמדיניות.</div>`}
-      <div class="muted">נשמרות ספירות בלבד (הנחיה, מקור חסום, סוג) - בלי כתובות דפים, תוכן או משתמשים. דיווחים ממקורות לא מוכרים הם לרוב תוספי דפדפן.</div>
+        : html`<div class="muted" data-csp-empty>${tr('אין דיווחים. דפדפנים שולחים דיווח רק כשמשהו בדף חורג מהמדיניות.')}</div>`}
+      <div class="muted">${tr('נשמרות ספירות בלבד (הנחיה, מקור חסום, סוג) - בלי כתובות דפים, תוכן או משתמשים. דיווחים ממקורות לא מוכרים הם לרוב תוספי דפדפן.')}</div>
       ${this.canEdit && blocked
-        ? html`<div class="warn" role="note" data-csp-enforce-blocked>אי אפשר לאכוף עדיין: דפדפנים דיווחו על ${inlineStyles} מקרים של עיצוב מוטמע בתגית style, והאכיפה הייתה משאירה את המסכים האלה בלי עיצוב. אחרי תיקון בגרסה הבאה - לאפס את הספירה ולבדוק שוב.</div>`
+        ? html`<div class="warn" role="note" data-csp-enforce-blocked>${tr('אי אפשר לאכוף עדיין: דפדפנים דיווחו על {n} מקרים של עיצוב מוטמע בתגית style, והאכיפה הייתה משאירה את המסכים האלה בלי עיצוב. אחרי תיקון בגרסה הבאה - לאפס את הספירה ולבדוק שוב.', { n: inlineStyles })}</div>`
         : nothing}
       ${this.canEdit
         ? html`<div class="foot">
             <sw-button size="sm" variant=${this.armed ? (enforcing ? 'secondary' : 'danger') : enforcing ? 'secondary' : 'primary'} icon="shield" data-csp-enforce ?disabled=${this.busy || blocked} @click=${() => void this.setEnforce(!enforcing)}>
-              ${this.armed ? 'לאשר?' : enforcing ? 'חזרה לדיווח בלבד' : 'אכוף את המדיניות המחמירה'}
+              ${this.armed ? tr('לאשר?') : enforcing ? tr('חזרה לדיווח בלבד') : tr('אכוף את המדיניות המחמירה')}
             </sw-button>
-            ${this.armed ? html`<sw-button size="sm" variant="ghost" @click=${() => (this.armed = false)}>ביטול</sw-button>` : nothing}
-            <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.busy} @click=${() => void this.load()}>רענון</sw-button>
-            <sw-button size="sm" variant="ghost" icon="trash" data-csp-clear ?disabled=${this.busy || !d.rows.length} @click=${() => void this.clear()}>איפוס הספירה</sw-button>
+            ${this.armed ? html`<sw-button size="sm" variant="ghost" @click=${() => (this.armed = false)}>${tr('ביטול')}</sw-button>` : nothing}
+            <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.busy} @click=${() => void this.load()}>${tr('רענון')}</sw-button>
+            <sw-button size="sm" variant="ghost" icon="trash" data-csp-clear ?disabled=${this.busy || !d.rows.length} @click=${() => void this.clear()}>${tr('איפוס הספירה')}</sw-button>
           </div>`
         : nothing}
       ${this.message ? html`<div class="ok" role="status">${this.message}</div>` : nothing}

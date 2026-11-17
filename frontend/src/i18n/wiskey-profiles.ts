@@ -1,8 +1,10 @@
 /**
  * WISKEY-PROFILES-EDIT-2390: the words of the groups and profile fields editor ("קבוצות ושדות"). Hebrew (the product language of this
- * screen). Operator texts never name a platform or a vendor, and never claim what was not verified: a save is "saved in the access
- * control system", the stations "will be synced" - never "the doors were updated". `{name}` placeholders are filled by `pft(key, vars)`.
+ * screen) and English (I18N-EN-SWITCH-2438; `pft` follows `<html lang>`). Operator texts never name a platform or a vendor, and
+ * never claim what was not verified: a save is "saved in the access control system", the stations "will be synced" - never "the
+ * doors were updated". `{name}` placeholders are filled by `pft(key, vars)`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'קבוצות ושדות',
   sub: 'קבוצות האנשים (ואילו עמדות כל קבוצה פותחת) ושדות הפרופיל. כל שינוי עובר תצוגה מקדימה של ההשפעה ואישור לפני שמירה.',
@@ -217,13 +219,236 @@ const he = {
 export type PfKey = keyof typeof he;
 export const PF_HE: Record<PfKey, string> = he;
 
-/** The text of `key` with `{name}` placeholders filled. */
-export function pft(key: PfKey, vars?: Record<string, string | number>): string {
-  const raw = he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+const en: Record<PfKey, string> = {
+  title: 'Groups and fields',
+  sub: 'The people groups (and which stations each group opens) and the profile fields. Every change goes through an impact preview and a confirmation before it is saved.',
+  entry: 'Groups and fields',
+  entryHint: 'Edit groups and profile fields',
+  loading: 'Loading the group and field settings…',
+  loadError: 'The group and field settings cannot be loaded',
+  retry: 'Try again',
+  reload: 'Reload',
+  noPermission: 'No permission to edit groups and fields',
+  noPermissionHint: 'This needs the people management permission for the whole installation.',
+  unsupported: 'The installed access control system does not offer editing of groups and fields.',
+  partUnsupported: 'Not available in the installed version of the access control system.',
+  tabDraft: 'Edit',
+  tabVersions: 'Versions',
+  tabSuggest: 'Group suggestions',
+  revision: 'Version {n}',
+  draftOf: 'Draft based on version {n}',
+  rollbackOf: 'Restore draft for version {n}',
+  dirty: 'Unsaved changes: {n}',
+  clean: 'No changes',
+  discard: 'Discard changes',
+  preview: 'Preview',
+  previewing: 'Working out the impact…',
+  groupsTitle: 'Groups',
+  groupsHint: 'Each group opens the chosen stations to its members. A disabled group opens nothing.',
+  fieldsTitle: 'Profile fields',
+  fieldsHint: 'Up to 12 fields. An existing field cannot be deleted - it can be disabled.',
+  settingsTitle: 'General settings',
+  photoEnabled: 'Person photo on',
+  addGroup: 'New group',
+  addField: 'New field',
+  newGroupLabel: 'New group',
+  newFieldLabel: 'New field',
+  label: 'Name',
+  id: 'ID',
+  enabled: 'Active',
+  disabled: 'Disabled',
+  stations: 'Stations',
+  noStations: 'No stations',
+  stationsNone: 'The group opens no station',
+  stationOffline: 'Offline',
+  stationNoLock: 'No managed lock',
+  stationUnknown: 'Unknown station',
+  type: 'Type',
+  type_text: 'Text',
+  type_select: 'Choice from a list',
+  type_number: 'Number',
+  type_date: 'Date',
+  required: 'Required',
+  unique: 'Unique',
+  options: 'Options',
+  optionsHint: 'One option per line',
+  dependsOn: 'Shown only when',
+  dependsNone: 'Always',
+  dependsValue: 'equals',
+  conditional: 'Conditional field',
+  newItem: 'New',
+  edited: 'Changed',
+  remove: 'Remove',
+  moveUp: 'Move up',
+  moveDown: 'Move down',
+  // problems
+  p_label: 'Name missing or longer than 64 characters',
+  p_id: 'Invalid ID (lower-case Latin letters, digits and underscores)',
+  p_duplicate: 'Duplicate',
+  p_option: 'Empty or too long option',
+  p_empty: 'A choice field needs at least one option',
+  p_too_many: 'Too many items',
+  p_parent: 'The condition field does not exist',
+  p_cycle: 'The conditions form a loop',
+  p_value: "The value is not one of the condition field's options",
+  p_unknown_station: 'Unknown station',
+  p_station: 'Invalid station ID',
+  p_shape: 'Invalid structure',
+  p_type: 'Invalid value',
+  problemsTitle: 'Fix these before the preview',
+  // preview / confirm
+  previewTitle: 'Impact preview',
+  previewSub: 'This is how the access control system works out the change. Nothing has been saved yet.',
+  changesTitle: 'What changes',
+  impactPeople: 'People whose access changes',
+  impactStations: 'Stations to be synced',
+  impactOffline: 'Offline stations (synced when they connect)',
+  impactNone: "The change does not alter anyone's access.",
+  impactPeopleCount: '{n} people',
+  impactListed: 'Showing {n} people from the changed groups',
+  impactTruncated: 'The list was shortened',
+  gains: 'Gains',
+  loses: 'Loses',
+  noChange: 'No access change',
+  overrides: 'Personal exceptions kept: {n}',
+  fieldsImpact: 'Field check',
+  fieldChecked: 'People checked: {n}',
+  fieldMissing: 'Missing a required value: {n}',
+  fieldInvalid: 'With an invalid value: {n}',
+  fieldDuplicates: 'Duplicate values in a unique field: {n}',
+  fieldNewlyApplicable: 'The field now applies to them for the first time: {n}',
+  fieldTemplates: 'Templates that do not match: {n}',
+  blocked: 'Cannot save: a unique field has duplicate values. Fix the people or clear the "Unique" mark.',
+  deviceWrites: 'The preview wrote nothing to the stations.',
+  expiresAt: 'The preview is valid until {time}',
+  expired: 'The preview has expired. Create a new preview.',
+  confirmApply: 'Confirm and save',
+  confirmTitle: 'Save the change?',
+  confirmText: 'The change will be saved in the access control system (version {from} → {to}). People with updated access: {people}; stations to be synced: {stations}.',
+  confirmTextNoAccess: "The change will be saved in the access control system (version {from} → {to}). Nobody's access changes.",
+  confirmCheck: 'I have checked the impact',
+  cancel: 'Cancel',
+  back: 'Back to editing',
+  saving: 'Saving…',
+  // result
+  resultSaved: 'Saved in the access control system',
+  resultReadbackOk: 'Read back: version {n} is the confirmed version.',
+  resultReadbackOther: 'Read back: the current version is {n}, which is not the confirmed version - someone may have changed it in the meantime.',
+  resultReadbackFail: 'The settings could not be read back to verify them.',
+  resultSync: 'A sync request was sent to {n} stations. The update on the stations themselves was not verified.',
+  resultNoSync: 'No station sync is needed.',
+  resultChanged: 'Access updated for {n} people.',
+  resultRepeated: 'The change was already saved - it was not sent again.',
+  resultNotSaved: 'Not saved',
+  resultUnknown: 'Not known whether it was saved',
+  resultUnknownText: 'The save was sent, but no clear reply came back. Do not send it again before checking.',
+  check: 'Check what happened',
+  checking: 'Checking…',
+  checkApplied: 'Checked: the change was saved (version {n}).',
+  checkNotApplied: 'Checked: the change was not saved. You can save again.',
+  checkElsewhere: 'Checked: the settings were changed from elsewhere in the meantime. Reload.',
+  newPreview: 'New preview',
+  done: 'Close',
+  // versions
+  versionsTitle: 'Version history',
+  versionsHint: 'The access control system keeps the last 50 versions.',
+  versionCurrent: 'Current',
+  versionBaseline: 'Baseline',
+  versionChanges: '{f} fields, {g} groups',
+  versionAction_baseline: 'Initial state',
+  versionAction_system: 'System change',
+  'versionAction_profiles/settings_update': 'Direct edit',
+  'versionAction_bulk/group_policy': 'Edit with preview',
+  'versionAction_platform/lifecycle_apply': 'Lifecycle change',
+  compare: 'Compare',
+  compareWith: 'Compare with current',
+  compareTitle: 'Comparison: version {a} → version {b}',
+  compareEmpty: 'No differences in the group and field settings.',
+  rollback: 'Load as a restore draft',
+  rollbackTitle: 'Restore draft for version {n}',
+  rollbackHint: 'The draft was loaded for editing. Nothing is saved until a preview and a confirmation.',
+  note_photo_not_versioned: 'The photo setting is not kept in versions and stays as it is.',
+  note_templates_not_versioned: 'The people templates are not kept in versions and stay as they are.',
+  note_disabled_not_removed: '{id} was added after this version. It cannot be deleted - it will be disabled.',
+  note_restored: '{id} will be restored.',
+  note_missing_now: '{id} no longer exists.',
+  olderVersions: 'Older versions',
+  newerVersions: 'Newer versions',
+  versionsEmpty: 'No saved versions.',
+  // suggestions
+  suggestTitle: 'Group suggestions for a person',
+  suggestHint: "Based on active people with the same values in the chosen fields. Read only - group membership is set in the person's edit.",
+  suggestSearch: 'Search for a person',
+  suggestSearchPh: "The person's name",
+  suggestNoPeople: 'No people found',
+  suggestFields: 'By the fields (up to 3)',
+  suggestNoFields: 'The person has no values in fields that suggestions can use.',
+  suggestRun: 'Show suggestions',
+  suggestNone: 'No suggestions for this person from the chosen fields.',
+  suggestMembers: '{n} of {m} similar people are members of the group',
+  suggestDoors: 'Doors it opens',
+  suggestBlocked: 'Blocked personally',
+  suggestValueHidden: 'Value hidden',
+  suggestOpenPerson: 'Open the person',
+  // property names in the diff
+  prop_label: 'Name',
+  prop_enabled: 'Active',
+  prop_type: 'Type',
+  prop_required: 'Required',
+  prop_unique: 'Unique',
+  prop_options: 'Options',
+  prop_depends_on: 'Condition',
+  prop_station_ids: 'Stations',
+  prop_photo_enabled: 'Person photo',
+  state_added: 'New',
+  state_removed: 'Removed',
+  state_changed: 'Changed',
+  yes: 'Yes',
+  no: 'No',
+  none: 'None',
+  kind_fields: 'Field',
+  kind_groups: 'Group',
+  kind_settings: 'Setting',
+  // errors
+  e_profiles_revision_conflict: 'The settings changed since the draft was opened. Reload.',
+  e_profiles_review_expired: 'The preview has expired. Create a new preview.',
+  e_profiles_review_stale: 'The data changed since the preview. Create a new preview.',
+  e_profiles_not_unique: 'A unique field has duplicate values.',
+  e_profiles_invalid_draft: 'The draft is not valid.',
+  e_profiles_definition_removed: 'An existing field or group cannot be deleted.',
+  e_profiles_unmanaged_lock: 'Some of the stations have no managed lock.',
+  e_profiles_outcome_pending: 'The previous save has no clear result yet. Check it first.',
+  e_profiles_forbidden: 'The access control system does not allow this action.',
+  e_profiles_reauth_required: 'The access control system asks you to sign in again for management actions.',
+  e_profiles_unsupported: 'The action is not available in the installed version.',
+  e_profiles_review_not_found: 'The preview no longer exists.',
+  e_profiles_version_not_found: 'The version is no longer kept.',
+  e_profiles_already_current: 'This is already the current version.',
+  e_network: 'No connection to the server.',
+  outcome_not_sent: 'Not sent',
+  outcome_refused: 'Refused - not saved',
+  outcome_unknown: 'Unknown',
+};
+
+export type PfLang = 'he' | 'en';
+const TABLES: Record<PfLang, Record<PfKey, string>> = { he, en };
+
+/** The interface language (`<html lang>`; Hebrew unless it starts with "en"). */
+export function pfLang(): PfLang {
+  return docLang(['en']);
+}
+
+/** The text of `key` in the interface language (falling back to the Hebrew), with `{name}` placeholders filled. */
+export function pft(key: PfKey, vars?: Record<string, string | number>, lang: PfLang = pfLang()): string {
+  const raw = TABLES[lang]?.[key] ?? he[key] ?? key;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`type_<t>`, `p_<code>`, `e_<code>`, `versionAction_<a>`...), or the fallback. */
-export function pftDynamic(key: string, fallback: PfKey, vars?: Record<string, string | number>): string {
-  return key in he ? pft(key as PfKey, vars) : pft(fallback, vars);
+export function pftDynamic(key: string, fallback: PfKey, vars?: Record<string, string | number>, lang: PfLang = pfLang()): string {
+  return key in he ? pft(key as PfKey, vars, lang) : pft(fallback, vars, lang);
 }
+
+export const PF_EN: Record<PfKey, string> = en;
+
+registerCatalogue('i18n/wiskey-profiles', { he, en });

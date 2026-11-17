@@ -35,6 +35,7 @@ import { dayTimeText } from '../api/day-format';
 import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T1 manual): "פתח אירוע חי" only while the module is on
 import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
+import { tr } from '../i18n/msg/media';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
 /** SEC polish: the zones as cards (the default) or as one dense list per area; kept per browser. */
@@ -59,10 +60,10 @@ interface Pending {
 }
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'הכל' },
-  { id: 'open', label: 'פתוחים בלבד' },
-  { id: 'bypassed', label: 'עקופים' },
-  { id: 'faults', label: 'תקלות' },
+  { id: 'all', label: tr('הכל') },
+  { id: 'open', label: tr('פתוחים בלבד') },
+  { id: 'bypassed', label: tr('עקופים') },
+  { id: 'faults', label: tr('תקלות') },
 ];
 
 function when(iso: string | null): string {
@@ -70,9 +71,9 @@ function when(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const s = Math.round((Date.now() - d.getTime()) / 1000);
-  if (s < 60) return 'עכשיו';
-  if (s < 3600) return `לפני ${Math.round(s / 60)} דק׳`;
-  if (s < 86400) return `לפני ${Math.round(s / 3600)} שע׳`;
+  if (s < 60) return tr('עכשיו');
+  if (s < 3600) return tr('לפני {n} דק׳', { n: Math.round(s / 60) });
+  if (s < 86400) return tr('לפני {n} שע׳', { n: Math.round(s / 3600) });
   return dayTimeText(d);
 }
 
@@ -1101,12 +1102,12 @@ export class SecurityAlarm extends LitElement {
       // security review M3: the first PIN comes from an administrator - or from the panel's own code, when one is stored
       if (this.data?.panels.some((x) => x.panel_code_set)) {
         this.pinOpen = true;
-        this.pinError = 'נדרש קוד אישי. הקלידו את קוד הלוח כדי להגדיר אותו, או פנו למנהל המערכת לקבלת קוד אישי.';
-      } else this.flash('פנה למנהל המערכת לקבלת קוד אישי.');
+        this.pinError = tr('נדרש קוד אישי. הקלידו את קוד הלוח כדי להגדיר אותו, או פנו למנהל המערכת לקבלת קוד אישי.');
+      } else this.flash(tr('פנה למנהל המערכת לקבלת קוד אישי.'));
       return;
     }
     if (p.prompt === 'unverifiable') {
-      this.flash(CODE_ERROR_LABEL.code_unverifiable + ' - פנו למנהל המערכת.');
+      this.flash(CODE_ERROR_LABEL.code_unverifiable + tr(' - פנו למנהל המערכת.'));
       return;
     }
     if (p.prompt === 'none' && !p.needsConfirm) {
@@ -1133,7 +1134,7 @@ export class SecurityAlarm extends LitElement {
     if (!isApi()) {
       // the static preview: the dialogs are there for review, nothing is sent
       this.closeDialog();
-      this.flash('נתוני הדגמה: לא נשלחה פקודה.');
+      this.flash(tr('נתוני הדגמה: לא נשלחה פקודה.'));
       return;
     }
     this.busy = true;
@@ -1144,7 +1145,7 @@ export class SecurityAlarm extends LitElement {
           ? await panelAction(p.panel.entity_id, p.action as AlarmAction, { confirmed: p.action === 'disarm', code: code || undefined })
           : await zoneBypass(p.zone!.entity_id, p.action === 'bypass_on', { confirmed: true, code: code || undefined });
       this.closeDialog();
-      const label = p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? `עקיפת ${p.zone!.name}` : `החזרת ${p.zone!.name} להגנה`;
+      const label = p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? tr('עקיפת {name}', { name: p.zone!.name }) : tr('החזרת {name} להגנה', { name: p.zone!.name });
       this.sent = { label, record: rec as unknown as HaActionRecord, entity: rec.entity_id };
       if (this.actionSignal) this.actionSignal.stopped = true; // 06:ALARM-1: the previous command's follow-up stops here
       const signal = { stopped: false };
@@ -1179,7 +1180,7 @@ export class SecurityAlarm extends LitElement {
     const p = this.pending;
     if (!p) return;
     if (p.prompt !== 'none' && !this.code) {
-      this.codeError = 'הקלידו קוד';
+      this.codeError = tr('הקלידו קוד');
       return;
     }
     const code = this.code;
@@ -1197,16 +1198,16 @@ export class SecurityAlarm extends LitElement {
   private async savePin() {
     const f = this.pinForm;
     if (!/^\d{4,8}$/.test(f.next)) {
-      this.pinError = 'קוד אישי: 4–8 ספרות.';
+      this.pinError = tr('קוד אישי: 4–8 ספרות.');
       return;
     }
     if (f.next !== f.again) {
-      this.pinError = 'הקודים אינם זהים.';
+      this.pinError = tr('הקודים אינם זהים.');
       return;
     }
     if (!isApi()) {
       this.pinOpen = false;
-      this.flash('נתוני הדגמה: הקוד לא נשמר.');
+      this.flash(tr('נתוני הדגמה: הקוד לא נשמר.'));
       return;
     }
     this.busy = true;
@@ -1215,10 +1216,10 @@ export class SecurityAlarm extends LitElement {
       this.pinOpen = false;
       this.pinForm = { current: '', next: '', again: '', panel: '' };
       this.pinError = '';
-      this.flash('הקוד האישי נשמר');
+      this.flash(tr('הקוד האישי נשמר'));
       await this.load(true);
     } catch (err) {
-      this.pinError = err instanceof ApiError && err.body.code === 'wrong_code' ? (this.data?.me.pin_set ? 'הקוד הנוכחי שגוי.' : 'קוד הלוח שגוי.') : err instanceof ApiError ? (CODE_ERROR_LABEL[err.body.code] ?? describeError(err)) : describeError(err);
+      this.pinError = err instanceof ApiError && err.body.code === 'wrong_code' ? (this.data?.me.pin_set ? tr('הקוד הנוכחי שגוי.') : tr('קוד הלוח שגוי.')) : err instanceof ApiError ? (CODE_ERROR_LABEL[err.body.code] ?? describeError(err)) : describeError(err);
     } finally {
       this.busy = false;
     }
@@ -1227,22 +1228,22 @@ export class SecurityAlarm extends LitElement {
   // ---- rendering
 
   render() {
-    if (this.loading && !this.data) return html`<sw-page heading="אזעקה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.loading && !this.data) return html`<sw-page heading=${tr('אזעקה')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     if (this.error && !this.data) {
-      return html`<sw-page heading="אזעקה"><sw-state-panel state="error" heading="לא ניתן לטעון את האזעקה" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${tr('אזעקה')}><sw-state-panel state="error" heading=${tr('לא ניתן לטעון את האזעקה')} hint=${this.error} actionLabel=${tr('נסו שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const d = this.data!;
     const p = this.panel;
     if (!p) {
-      return html`<sw-page heading="אזעקה"><sw-state-panel icon="shield" data-alarm-empty state="empty" heading="לא נמצא לוח אזעקה"
-        hint="המערכת לא מצאה לוח אזעקה מחובר. מתקין או מנהל המערכת יכול לבדוק בהגדרות ‹ אבטחה ‹ ניהול אזעקה שמערכת האזעקה מחוברת לתשתית המערכת ושההרשאות מאפשרות לראות אותה."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${tr('אזעקה')}><sw-state-panel icon="shield" data-alarm-empty state="empty" heading=${tr('לא נמצא לוח אזעקה')}
+        hint=${tr('המערכת לא מצאה לוח אזעקה מחובר. מתקין או מנהל המערכת יכול לבדוק בהגדרות ‹ אבטחה ‹ ניהול אזעקה שמערכת האזעקה מחוברת לתשתית המערכת ושההרשאות מאפשרות לראות אותה.')}></sw-state-panel></sw-page>`;
     }
-    const sub = `${d.counts.zones} חיישנים · ${d.counts.open} פתוחים · ${d.counts.bypassed} עקופים${d.counts.faults ? ` · ${d.counts.faults} תקלות` : ''}${d.channel === 'remote' ? ' · מחוץ לרשת המקומית' : ''}`;
-    return html`<sw-page heading="אזעקה" subheading=${sub}>
-      <sw-button slot="actions" size="sm" variant="ghost" icon="lock" data-alarm-pin @click=${() => { this.pinOpen = true; this.pinError = ''; }}>הקוד האישי שלי</sw-button>
+    const sub = `${tr('{zones} חיישנים · {open} פתוחים · {bypassed} עקופים', { zones: d.counts.zones, open: d.counts.open, bypassed: d.counts.bypassed })}${d.counts.faults ? tr(' · {n} תקלות', { n: d.counts.faults }) : ''}${d.channel === 'remote' ? tr(' · מחוץ לרשת המקומית') : ''}`;
+    return html`<sw-page heading=${tr('אזעקה')} subheading=${sub}>
+      <sw-button slot="actions" size="sm" variant="ghost" icon="lock" data-alarm-pin @click=${() => { this.pinOpen = true; this.pinError = ''; }}>${tr('הקוד האישי שלי')}</sw-button>
       ${mayOpenHere(incidentsModuleOn()) ? html`<sw-button slot="actions" size="sm" icon="warning" data-alarm-incident ?disabled=${this.busy} @click=${() => void this.openLiveIncident(p.entity_id)}>${incText('alarmOpen')}</sw-button>` : nothing}
       ${d.panels.length > 1
-        ? html`<div class="switcher" role="group" aria-label="בחירת לוח" data-alarm-switcher>${d.panels.map((x) => {
+        ? html`<div class="switcher" role="group" aria-label=${tr('בחירת לוח')} data-alarm-switcher>${d.panels.map((x) => {
             const st = panelState(x.state, x.available);
             return html`<button type="button" aria-pressed=${x.entity_id === p.entity_id} data-panel=${x.entity_id} @click=${() => this.choosePanel(x.entity_id)}><i class="dot ${st.tone}"></i>${x.name}<span class="hint">· ${st.label}</span></button>`;
           })}</div>`
@@ -1250,7 +1251,7 @@ export class SecurityAlarm extends LitElement {
       ${this.renderHero(p)}
       ${this.renderZones(p)}
       ${p.unpaired_controls.length
-        ? html`<details class="unpaired" data-alarm-unpaired><summary>ללא שיוך · ${p.unpaired_controls.length} מתגי עקיפה שלא שויכו לחיישן</summary><ul>${p.unpaired_controls.map((c) => html`<li>${c.name}${c.bypassed ? ' · עוקף' : ''}</li>`)}</ul><div class="hint">שיוך ידני: הגדרות ‹ אבטחה ‹ ניהול אזעקה.</div></details>`
+        ? html`<details class="unpaired" data-alarm-unpaired><summary>${tr('ללא שיוך · {length} מתגי עקיפה שלא שויכו לחיישן', { length: p.unpaired_controls.length })}</summary><ul>${p.unpaired_controls.map((c) => html`<li>${c.name}${c.bypassed ? tr(' · עוקף') : ''}</li>`)}</ul><div class="hint">${tr('שיוך ידני: הגדרות ‹ אבטחה ‹ ניהול אזעקה.')}</div></details>`
         : nothing}
     </sw-page>
     ${this.renderKeypad()} ${this.renderPin()} ${this.toast ? html`<div class="toast" role="status" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toast}</div>` : nothing}`;
@@ -1267,7 +1268,7 @@ export class SecurityAlarm extends LitElement {
         <span class="shield" aria-hidden="true"><sw-icon name=${st.tone === 'triggered' ? 'warning' : disarmed ? 'unlock' : 'shield'} size=${30}></sw-icon></span>
         <div>
           <div class="state-label" role="status" aria-live="polite">${st.label}</div>
-          <div class="meta">${p.name}${p.changed_by ? ` · שונה על ידי ${p.changed_by}` : ''}${p.last_changed ? ` · ${when(p.last_changed)}` : ''}</div>
+          <div class="meta">${p.name}${p.changed_by ? tr(' · שונה על ידי {changed_by}', { changed_by: p.changed_by }) : ''}${p.last_changed ? ` · ${when(p.last_changed)}` : ''}</div>
         </div>
       </div>
       <div class="actions">
@@ -1284,20 +1285,20 @@ export class SecurityAlarm extends LitElement {
         ? html`<div class="ready ${p.ready.ready ? '' : 'no'}" data-alarm-ready=${p.ready.ready ? 'yes' : 'no'}>
             <sw-icon name=${p.ready.ready ? 'check' : 'warning'} size=${16}></sw-icon>
             <div>${p.ready.ready
-              ? 'מוכנה לדריכה: כל החיישנים סגורים.'
-              : html`<b>לא מוכנה לדריכה</b>
-                  <ul>${p.ready.open.map((id) => html`<li>פתוח: ${name(id)}</li>`)}${p.ready.faults.map((id) => html`<li>תקלה: ${name(id)}</li>`)}</ul>
-                  <span class="hint">אפשר לסגור, או לעקוף חיישן לפני הדריכה.</span>`}</div>
+              ? tr('מוכנה לדריכה: כל החיישנים סגורים.')
+              : html`<b>${tr('לא מוכנה לדריכה')}</b>
+                  <ul>${p.ready.open.map((id) => html`<li>${tr('פתוח:')} ${name(id)}</li>`)}${p.ready.faults.map((id) => html`<li>${tr('תקלה:')} ${name(id)}</li>`)}</ul>
+                  <span class="hint">${tr('אפשר לסגור, או לעקוף חיישן לפני הדריכה.')}</span>`}</div>
           </div>`
         : nothing}
       ${sent
         ? html`<div class="sent" data-alarm-sent=${sent.record?.status ?? 'pending'}>${sent.label}: ${sent.record?.status === 'confirmed'
-            ? 'הלוח אישר.'
+            ? tr('הלוח אישר.')
             : sent.record?.status === 'unknown'
-              ? 'הלוח לא אישר את הפקודה בזמן (ייתכן שהקוד שגוי) - המצב המוצג הוא מה שהלוח מדווח.'
+              ? tr('הלוח לא אישר את הפקודה בזמן (ייתכן שהקוד שגוי) - המצב המוצג הוא מה שהלוח מדווח.')
               : sent.record?.status === 'failed' || sent.record?.status === 'denied'
-                ? `הפקודה לא בוצעה${sent.record.error ? ` (${CODE_ERROR_LABEL[sent.record.error] ?? sent.record.error})` : ''}.`
-                : 'נשלח · ממתין לאישור הלוח…'}</div>`
+                ? tr('הפקודה לא בוצעה{why}.', { why: sent.record.error ? ` (${CODE_ERROR_LABEL[sent.record.error] ?? sent.record.error})` : '' })
+                : tr('נשלח · ממתין לאישור הלוח…')}</div>`
         : nothing}
     </section>`;
   }
@@ -1319,7 +1320,7 @@ export class SecurityAlarm extends LitElement {
     const zones = this.visibleZones(p);
     const groups = new Map<string, AlarmZone[]>();
     for (const z of zones) {
-      const k = z.area_name ?? 'ללא אזור';
+      const k = z.area_name ?? tr('ללא אזור');
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k)!.push(z);
     }
@@ -1331,19 +1332,19 @@ export class SecurityAlarm extends LitElement {
     };
     const list = this.zoneView === 'list';
     return html`<div class="toolbar">
-        <div class="chips" role="group" aria-label="סינון חיישנים">${FILTERS.map((f) => html`<button type="button" aria-pressed=${this.filter === f.id} data-filter=${f.id} @click=${() => (this.filter = f.id)}>${f.label}${f.id !== 'all' && n[f.id] ? html`<span class="n">${n[f.id]}</span>` : nothing}</button>`)}</div>
+        <div class="chips" role="group" aria-label=${tr('סינון חיישנים')}>${FILTERS.map((f) => html`<button type="button" aria-pressed=${this.filter === f.id} data-filter=${f.id} @click=${() => (this.filter = f.id)}>${f.label}${f.id !== 'all' && n[f.id] ? html`<span class="n">${n[f.id]}</span>` : nothing}</button>`)}</div>
         <div class="end">
-          <span class="counts">${zones.length} מתוך ${p.zones.length} חיישנים</span>
-          <div class="vt" role="group" aria-label="תצוגת חיישנים" data-alarm-view>
-            <button type="button" aria-pressed=${!list} aria-label="כרטיסים" title="כרטיסים" data-alarm-view-cards @click=${() => this.setZoneView('cards')}><sw-icon name="grid" size=${15}></sw-icon></button>
-            <button type="button" aria-pressed=${list} aria-label="רשימה" title="רשימה" data-alarm-view-list @click=${() => this.setZoneView('list')}><sw-icon name="list" size=${15}></sw-icon></button>
+          <span class="counts">${tr('{n} מתוך {total} חיישנים', { n: zones.length, total: p.zones.length })}</span>
+          <div class="vt" role="group" aria-label=${tr('תצוגת חיישנים')} data-alarm-view>
+            <button type="button" aria-pressed=${!list} aria-label=${tr('כרטיסים')} title=${tr('כרטיסים')} data-alarm-view-cards @click=${() => this.setZoneView('cards')}><sw-icon name="grid" size=${15}></sw-icon></button>
+            <button type="button" aria-pressed=${list} aria-label=${tr('רשימה')} title=${tr('רשימה')} data-alarm-view-list @click=${() => this.setZoneView('list')}><sw-icon name="list" size=${15}></sw-icon></button>
           </div>
         </div>
       </div>
       ${!p.zones.length
-        ? html`<sw-state-panel icon="sensor" compact state="empty" heading="אין חיישנים ללוח הזה" hint="החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות ‹ אבטחה ‹ ניהול אזעקה."></sw-state-panel>`
+        ? html`<sw-state-panel icon="sensor" compact state="empty" heading=${tr('אין חיישנים ללוח הזה')} hint=${tr('החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות ‹ אבטחה ‹ ניהול אזעקה.')}></sw-state-panel>`
         : !zones.length
-          ? html`<sw-state-panel icon="filter" compact state="empty" heading="אין חיישנים שמתאימים לסינון" data-alarm-filter-empty actionLabel="הצג הכל" @action=${() => (this.filter = 'all')}></sw-state-panel>`
+          ? html`<sw-state-panel icon="filter" compact state="empty" heading=${tr('אין חיישנים שמתאימים לסינון')} data-alarm-filter-empty actionLabel=${tr('הצג הכל')} @action=${() => (this.filter = 'all')}></sw-state-panel>`
           : html`<div class="areas ${list ? 'list' : ''}">${[...groups.entries()].map(([area, zs]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
               ? html`<div class="zlist" data-alarm-zones="list">${zs.map((z) => this.renderZone(p, z, true))}</div>`
               : html`<div class="grid" data-alarm-zones="cards">${zs.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
@@ -1355,9 +1356,9 @@ export class SecurityAlarm extends LitElement {
     const b = z.bypass;
     const canToggle = !!b && b.available && (z.bypassed ? p.can.restore : p.can.bypass);
     const toggle = b
-      ? html`<div class="bypass"><button type="button" class="tgl" role="switch" aria-checked=${z.bypassed ? 'true' : 'false'} aria-label=${`עקיפת ${z.name}`} data-bypass=${z.entity_id}
-            ?disabled=${!canToggle || this.busy} title=${canToggle ? '' : 'אין הרשאה או שהמתג אינו זמין'}
-            @click=${() => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true })}></button>עקיפה</div>`
+      ? html`<div class="bypass"><button type="button" class="tgl" role="switch" aria-checked=${z.bypassed ? 'true' : 'false'} aria-label=${tr('עקיפת {name}', { name: z.name })} data-bypass=${z.entity_id}
+            ?disabled=${!canToggle || this.busy} title=${canToggle ? '' : tr('אין הרשאה או שהמתג אינו זמין')}
+            @click=${() => this.start({ kind: 'bypass', action: z.bypassed ? 'bypass_off' : 'bypass_on', panel: p, zone: z, prompt: p.code.bypass, needsConfirm: true })}></button>${tr('עקיפה')}</div>`
       : html`<span></span>`;
     if (row) {
       return html`<article class="zrow" data-tone=${st.tone} data-zone=${z.entity_id}>
@@ -1367,10 +1368,10 @@ export class SecurityAlarm extends LitElement {
         ${toggle}
         <div class="zsub">
           ${z.last_changed ? html`<span>${when(z.last_changed)}</span>` : nothing}
-          ${z.tamper ? html`<span class="flag">חבלה</span>` : nothing}
-          ${z.battery_low ? html`<span class="flag">סוללה חלשה</span>` : z.battery_level !== null ? html`<span>סוללה ${z.battery_level}%</span>` : nothing}
-          ${z.alarmed ? html`<span class="flag">גרם לאזעקה</span>` : nothing}
-          ${z.shared ? html`<span title="החיישן משותף לכל המחיצות של המערכת">משותף</span>` : nothing}
+          ${z.tamper ? html`<span class="flag">${tr('חבלה')}</span>` : nothing}
+          ${z.battery_low ? html`<span class="flag">${tr('סוללה חלשה')}</span>` : z.battery_level !== null ? html`<span>${tr('סוללה {battery_level}%', { battery_level: z.battery_level })}</span>` : nothing}
+          ${z.alarmed ? html`<span class="flag">${tr('גרם לאזעקה')}</span>` : nothing}
+          ${z.shared ? html`<span title=${tr('החיישן משותף לכל המחיצות של המערכת')}>${tr('משותף')}</span>` : nothing}
         </div>
       </article>`;
     }
@@ -1381,10 +1382,10 @@ export class SecurityAlarm extends LitElement {
       <div class="zsub">
         <span class="zstate" data-zone-state>${st.label}</span>
         ${z.last_changed ? html`<span>${when(z.last_changed)}</span>` : nothing}
-        ${z.tamper ? html`<span class="flag">חבלה</span>` : nothing}
-        ${z.battery_low ? html`<span class="flag">סוללה חלשה</span>` : z.battery_level !== null ? html`<span>סוללה ${z.battery_level}%</span>` : nothing}
-        ${z.alarmed ? html`<span class="flag">גרם לאזעקה</span>` : nothing}
-        ${z.shared ? html`<span title="החיישן משותף לכל המחיצות של המערכת">משותף</span>` : nothing}
+        ${z.tamper ? html`<span class="flag">${tr('חבלה')}</span>` : nothing}
+        ${z.battery_low ? html`<span class="flag">${tr('סוללה חלשה')}</span>` : z.battery_level !== null ? html`<span>${tr('סוללה {battery_level}%', { battery_level: z.battery_level })}</span>` : nothing}
+        ${z.alarmed ? html`<span class="flag">${tr('גרם לאזעקה')}</span>` : nothing}
+        ${z.shared ? html`<span title=${tr('החיישן משותף לכל המחיצות של המערכת')}>${tr('משותף')}</span>` : nothing}
       </div>
     </article>`;
   }
@@ -1392,32 +1393,32 @@ export class SecurityAlarm extends LitElement {
   private renderKeypad() {
     const p = this.pending;
     if (!p) return nothing;
-    const verb = p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? `עקיפת ${p.zone!.name}` : `החזרת ${p.zone!.name} להגנה`;
+    const verb = p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? tr('עקיפת {name}', { name: p.zone!.name }) : tr('החזרת {name} להגנה', { name: p.zone!.name });
     const heading = p.prompt === 'none' ? `${verb}?` : verb;
     const sub =
       p.prompt === 'pin'
-        ? 'הקלידו את הקוד האישי שלכם'
+        ? tr('הקלידו את הקוד האישי שלכם')
         : p.prompt === 'panel'
-          ? 'הקלידו את קוד לוח האזעקה'
+          ? tr('הקלידו את קוד לוח האזעקה')
           : p.kind === 'bypass' && p.action === 'bypass_on'
-            ? 'החיישן לא יתריע עד שיוחזר להגנה.'
+            ? tr('החיישן לא יתריע עד שיוחזר להגנה.')
             : p.action === 'disarm'
-              ? `${p.panel.name} תנוטרל.`
+              ? tr('{name} תנוטרל.', { name: p.panel.name })
               : '';
     const needsCode = p.prompt === 'pin' || p.prompt === 'panel';
     return html`<sw-dialog open heading=${heading} subheading=${sub} data-alarm-dialog @close=${() => this.closeDialog()}>
       ${needsCode
         ? html`<form class="keypad" data-keypad autocomplete="off" @submit=${(e: Event) => { e.preventDefault(); this.submitCode(); }}>
-            <input data-code type="password" inputmode="numeric" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" name="sw-alarm-code-nofill" aria-label="קוד"
+            <input data-code type="password" inputmode="numeric" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" name="sw-alarm-code-nofill" aria-label=${tr('קוד')}
               maxlength="32" .value=${this.code} @input=${(e: Event) => { this.code = (e.target as HTMLInputElement).value; this.codeError = ''; }} />
-            <div class="keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'].map((k) => html`<button type="button" data-key=${k} aria-label=${k === 'back' ? 'מחיקה' : k === 'clear' ? 'ניקוי' : k} @click=${() => this.key(k)}>${k === 'back' ? '⌫' : k === 'clear' ? 'C' : k}</button>`)}</div>
+            <div class="keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'].map((k) => html`<button type="button" data-key=${k} aria-label=${k === 'back' ? tr('מחיקה') : k === 'clear' ? tr('ניקוי') : k} @click=${() => this.key(k)}>${k === 'back' ? '⌫' : k === 'clear' ? 'C' : k}</button>`)}</div>
             ${this.codeError ? html`<div class="err" role="alert" data-code-error><sw-icon name="warning" size=${14}></sw-icon>${this.codeError}</div>` : nothing}
           </form>`
         : this.codeError
           ? html`<div class="err" role="alert"><sw-icon name="warning" size=${14}></sw-icon>${this.codeError}</div>`
           : nothing}
-      <sw-button slot="footer" variant="ghost" @click=${() => this.closeDialog()}>ביטול</sw-button>
-      <sw-button slot="footer" variant=${p.action === 'disarm' || p.action === 'bypass_on' ? 'danger' : 'primary'} data-alarm-confirm ?disabled=${this.busy} @click=${() => this.submitCode()}>${p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? 'עקוף' : 'החזר להגנה'}</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => this.closeDialog()}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant=${p.action === 'disarm' || p.action === 'bypass_on' ? 'danger' : 'primary'} data-alarm-confirm ?disabled=${this.busy} @click=${() => this.submitCode()}>${p.kind === 'panel' ? ARM_LABEL[p.action as AlarmAction] : p.action === 'bypass_on' ? tr('עקוף') : tr('החזר להגנה')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -1425,18 +1426,18 @@ export class SecurityAlarm extends LitElement {
     if (!this.pinOpen) return nothing;
     const has = this.data?.me.pin_set;
     const set = (k: 'current' | 'next' | 'again' | 'panel') => (e: Event) => (this.pinForm = { ...this.pinForm, [k]: (e.target as HTMLInputElement).value });
-    return html`<sw-dialog open heading="הקוד האישי שלי" subheading="קוד של 4–8 ספרות להפעלה ולנטרול מהאפליקציה. זה אינו קוד הלוח." data-alarm-pin-dialog
+    return html`<sw-dialog open heading=${tr('הקוד האישי שלי')} subheading=${tr('קוד של 4–8 ספרות להפעלה ולנטרול מהאפליקציה. זה אינו קוד הלוח.')} data-alarm-pin-dialog
       @close=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '', panel: '' }; }}>
       <form class="pinform" autocomplete="off" @submit=${(e: Event) => { e.preventDefault(); void this.savePin(); }}>
         ${has
-          ? html`<label class="hint">הקוד הנוכחי<input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-pin-current .value=${this.pinForm.current} @input=${set('current')} /></label>`
-          : html`<label class="hint">קוד הלוח (להגדרת הקוד האישי הראשון)<input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="32" data-pin-panel .value=${this.pinForm.panel} @input=${set('panel')} /></label>`}
-        <label class="hint">קוד חדש<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" data-pin-new .value=${this.pinForm.next} @input=${set('next')} /></label>
-        <label class="hint">שוב, לאימות<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" data-pin-again .value=${this.pinForm.again} @input=${set('again')} /></label>
+          ? html`<label class="hint">${tr('הקוד הנוכחי')}<input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="8" data-pin-current .value=${this.pinForm.current} @input=${set('current')} /></label>`
+          : html`<label class="hint">${tr('קוד הלוח (להגדרת הקוד האישי הראשון)')}<input type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="32" data-pin-panel .value=${this.pinForm.panel} @input=${set('panel')} /></label>`}
+        <label class="hint">${tr('קוד חדש')}<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" data-pin-new .value=${this.pinForm.next} @input=${set('next')} /></label>
+        <label class="hint">${tr('שוב, לאימות')}<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" data-pin-again .value=${this.pinForm.again} @input=${set('again')} /></label>
         ${this.pinError ? html`<div class="err" role="alert">${this.pinError}</div>` : nothing}
       </form>
-      <sw-button slot="footer" variant="ghost" @click=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '', panel: '' }; }}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-pin-save ?disabled=${this.busy} @click=${() => void this.savePin()}>שמירה</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => { this.pinOpen = false; this.pinForm = { current: '', next: '', again: '', panel: '' }; }}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-pin-save ?disabled=${this.busy} @click=${() => void this.savePin()}>${tr('שמירה')}</sw-button>
     </sw-dialog>`;
   }
 }

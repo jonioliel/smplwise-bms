@@ -4,10 +4,11 @@
  * range wins, every other minute is the default band; a range may cross midnight on its own date), and the small arithmetic the
  * demo backend uses to imitate a TOU bill. The server validates and computes; nothing here is the authority.
  */
+import { tr } from '../i18n/msg/electricity';
 
 export const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 export type WeekDay = (typeof WEEK)[number];
-export const WEEK_HE: Record<WeekDay, string> = { sun: 'ראשון', mon: 'שני', tue: 'שלישי', wed: 'רביעי', thu: 'חמישי', fri: 'שישי', sat: 'שבת' };
+export const WEEK_HE: Record<WeekDay, string> = { sun: tr('ראשון'), mon: tr('שני'), tue: tr('שלישי'), wed: tr('רביעי'), thu: tr('חמישי'), fri: tr('שישי'), sat: tr('שבת') };
 
 export interface TouNamed {
   id: string;

@@ -16,6 +16,7 @@ import { commandId } from '../api/request-id';
 import { bulkCandidates, isOn, media, type BulkPreview, type MediaDevice } from '../api/media-screens';
 import { PLAYER_KINDS, isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { bidi } from '../i18n/bidi';
+import { tr } from '../i18n/msg/devices';
 
 /**
  * The area screen's media card (CR-015 §7.5, owner decision 12a): ONE compact `<media-screen-card>` per PHYSICAL screen of the
@@ -40,7 +41,7 @@ import { bidi } from '../i18n/bidi';
  */
 type Phase = 'closed' | 'loading' | 'ask' | 'sending' | 'done' | 'error';
 
-const REASON: Record<string, string> = { already_off: 'כבוי כבר', not_confirmed: 'מצב לא מאושר', unavailable: 'לא זמין', not_allowed: 'אין הרשאה' };
+const REASON: Record<string, string> = { already_off: tr('כבוי כבר'), not_confirmed: tr('מצב לא מאושר'), unavailable: tr('לא זמין'), not_allowed: tr('אין הרשאה') };
 
 @customElement('media-area-card')
 export class MediaAreaCard extends LitElement {
@@ -258,7 +259,7 @@ export class MediaAreaCard extends LitElement {
       } else {
         await this.load();
         const now = new Map((this.devices ?? []).map((d) => [d.key, d]));
-        this.outcomes = p.devices.map((x) => ({ name: x.name, text: x.will === 'off' ? (now.get(x.key) && !isOn(now.get(x.key)!.live) ? 'אושר' : 'לא אושר') : `דולג · ${REASON[x.reason ?? ''] ?? ''}` }));
+        this.outcomes = p.devices.map((x) => ({ name: x.name, text: x.will === 'off' ? (now.get(x.key) && !isOn(now.get(x.key)!.live) ? tr('אושר') : tr('לא אושר')) : `${tr('דולג')} · ${REASON[x.reason ?? ''] ?? ''}` }));
       }
       this.phase = 'done';
       void this.load();
@@ -281,26 +282,26 @@ export class MediaAreaCard extends LitElement {
     if (this.phase === 'closed' || this.phase === 'loading') return nothing;
     const p = this.preview;
     const n = p?.counts.send ?? 0;
-    const where = this.areaName ? `ב${bidi(this.areaName)}` : 'באזור';
+    const where = this.areaName ? tr('ב{name}', { name: bidi(this.areaName) }) : tr('באזור');
     if (this.phase === 'error') {
-      return html`<sw-dialog open heading="הפעולה לא בוצעה" data-mac-dialog="error" @close=${this.close}><div class="err" role="alert">${this.error}</div>
-        <sw-button slot="footer" @click=${this.close}>סגור</sw-button></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('הפעולה לא בוצעה')} data-mac-dialog="error" @close=${this.close}><div class="err" role="alert">${this.error}</div>
+        <sw-button slot="footer" @click=${this.close}>${tr('סגור')}</sw-button></sw-dialog>`;
     }
     if (this.phase === 'done' || this.phase === 'sending') {
-      const head = this.record ? bulkHeadline(this.record).text : this.phase === 'sending' ? 'שולח…' : this.outcomes.every((o) => o.text === 'אושר' || o.text.startsWith('דולג')) ? 'בוצע' : 'בוצע חלקית';
-      return html`<sw-dialog open ?locked=${this.phase === 'sending'} heading=${n === 1 ? `כיבוי מסך ${where}` : `כיבוי מסכים ${where}`} data-mac-dialog=${this.phase} @close=${this.close}>
+      const head = this.record ? bulkHeadline(this.record).text : this.phase === 'sending' ? tr('שולח…') : this.outcomes.every((o) => o.text === tr('אושר') || o.text.startsWith(tr('דולג'))) ? tr('בוצע') : tr('בוצע חלקית');
+      return html`<sw-dialog open ?locked=${this.phase === 'sending'} heading=${n === 1 ? tr('כיבוי מסך {where}', { where }) : tr('כיבוי מסכים {where}', { where })} data-mac-dialog=${this.phase} @close=${this.close}>
         <div class="res"><b data-mac-headline>${head}</b><ul>${this.outcomes.map((o) => html`<li>${bidi(o.name)} · ${o.text}</li>`)}</ul></div>
-        <sw-button slot="footer" variant="primary" ?disabled=${this.phase === 'sending'} @click=${this.close}>סגור</sw-button></sw-dialog>`;
+        <sw-button slot="footer" variant="primary" ?disabled=${this.phase === 'sending'} @click=${this.close}>${tr('סגור')}</sw-button></sw-dialog>`;
     }
     if (!p || n === 0) {
-      return html`<sw-dialog open heading=${`אין מסך דולק ${where}`} data-mac-dialog="none" @close=${this.close}>
-        <details><summary>פרטים</summary><ul>${(p?.devices ?? []).map((x) => html`<li>${bidi(x.name)} · ${REASON[x.reason ?? ''] ?? ''}</li>`)}</ul></details>
-        <sw-button slot="footer" @click=${this.close}>סגור</sw-button></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('אין מסך דולק {where}', { where })} data-mac-dialog="none" @close=${this.close}>
+        <details><summary>${tr('פרטים')}</summary><ul>${(p?.devices ?? []).map((x) => html`<li>${bidi(x.name)} · ${REASON[x.reason ?? ''] ?? ''}</li>`)}</ul></details>
+        <sw-button slot="footer" @click=${this.close}>${tr('סגור')}</sw-button></sw-dialog>`;
     }
-    return html`<sw-dialog open heading=${n === 1 ? `לכבות מסך אחד ${where}?` : `לכבות ${n} מסכים ${where}?`} data-mac-dialog="ask" @close=${this.close}>
-      <details data-mac-details><summary>פרטים</summary><ul>${p.devices.map((x) => html`<li>${bidi(x.name)} · ${x.will === 'off' ? 'יכובה' : `לא יכובה · ${REASON[x.reason ?? ''] ?? ''}`}</li>`)}</ul></details>
-      <sw-button slot="footer" data-mac-cancel @click=${this.close}>ביטול</sw-button>
-      <sw-button slot="footer" variant="danger" icon="power" data-mac-confirm @click=${() => void this.run()}>כבה</sw-button></sw-dialog>`;
+    return html`<sw-dialog open heading=${n === 1 ? tr('לכבות מסך אחד {where}?', { where }) : tr('לכבות {n} מסכים {where}?', { n, where })} data-mac-dialog="ask" @close=${this.close}>
+      <details data-mac-details><summary>${tr('פרטים')}</summary><ul>${p.devices.map((x) => html`<li>${bidi(x.name)} · ${x.will === 'off' ? tr('יכובה') : `${tr('לא יכובה')} · ${REASON[x.reason ?? ''] ?? ''}`}</li>`)}</ul></details>
+      <sw-button slot="footer" data-mac-cancel @click=${this.close}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="danger" icon="power" data-mac-confirm @click=${() => void this.run()}>${tr('כבה')}</sw-button></sw-dialog>`;
   }
 
   render() {
@@ -310,14 +311,14 @@ export class MediaAreaCard extends LitElement {
     const canOff = bulkCandidates(list).length > 0;
     const canPause = this.canBulk && spk.some(isPlaying);
     const pause = canPause
-      ? html`<button type="button" class="off-all quiet" data-media-pause-all @click=${() => void this.pauseDialog?.pause({ scope: 'area', id: this.areaId, name: this.areaName || 'האזור' })}><sw-icon name="pause" size=${14}></sw-icon>עצור מוזיקה</button>`
+      ? html`<button type="button" class="off-all quiet" data-media-pause-all @click=${() => void this.pauseDialog?.pause({ scope: 'area', id: this.areaId, name: this.areaName || tr('האזור') })}><sw-icon name="pause" size=${14}></sw-icon>${tr('עצור מוזיקה')}</button>`
       : nothing;
     const offAll = canOff && !this.external
-      ? html`<button type="button" class="off-all" data-media-off-all ?disabled=${this.phase === 'loading'} @click=${() => void this.ask()}><sw-icon name="power" size=${14}></sw-icon>כבה הכל</button>`
+      ? html`<button type="button" class="off-all" data-media-off-all ?disabled=${this.phase === 'loading'} @click=${() => void this.ask()}><sw-icon name="power" size=${14}></sw-icon>${tr('כבה הכל')}</button>`
       : nothing;
     return html`${pause !== nothing || offAll !== nothing ? html`<div class="bar" data-media-area-bar>${pause}${offAll}</div>` : nothing}
       <div class="list" data-media-area-list @open-remote=${this.onOpenRemote} @open-player=${this.onOpenRemote}>${repeat(list, (d) => d.key, (d) => html`<media-screen-card .device=${d} .compact=${true} size="s" data-media-tile=${d.key}></media-screen-card>`)}
-        ${spk.length ? html`${list.length ? html`<div class="sub" data-media-area-sub="players">רמקולים ומגברים</div>` : nothing}${repeat(spk, (d) => d.key, (d) => html`<media-player-card .device=${d} .compact=${true} size="s" data-player-tile=${d.key}></media-player-card>`)}` : nothing}</div>
+        ${spk.length ? html`${list.length ? html`<div class="sub" data-media-area-sub="players">${tr('רמקולים ומגברים')}</div>` : nothing}${repeat(spk, (d) => d.key, (d) => html`<media-player-card .device=${d} .compact=${true} size="s" data-player-tile=${d.key}></media-player-card>`)}` : nothing}</div>
       ${this.dialog()}
       <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
       <media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.load()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>`;

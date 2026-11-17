@@ -9,6 +9,7 @@
 import { ApiError } from '../api/client';
 import { nvrSettings, type ChangeRef, type EncodingChanges, type StreamEncoding, type StreamWriteResult, type UndoResult } from '../api/nvr-settings';
 import { errorLine, type ErrorLine, type ErrorShape } from './nvr-cameras-edit';
+import { tr } from '../i18n/msg/media';
 
 export type ActionResult =
   | { ok: true; stream: StreamEncoding; change: ChangeRef | null; rebootRequired: boolean; kind: 'write' | 'undo'; unchanged: boolean }
@@ -17,7 +18,7 @@ export type ActionResult =
 /** An ApiError (or a network failure) as the plain shape the pure helpers read. A network failure on a write is an unknown outcome. */
 export function shapeOf(err: unknown, sentWrite: boolean): ErrorShape {
   if (err instanceof ApiError) return { status: err.status, code: err.code, user_message: err.body.user_message, details: err.body.details ?? {} };
-  return sentWrite ? { status: 0, code: 'source_unavailable', details: { outcome: 'unknown' } } : { status: 0, code: 'network', user_message: 'אין חיבור לשרת.' };
+  return sentWrite ? { status: 0, code: 'source_unavailable', details: { outcome: 'unknown' } } : { status: 0, code: 'network', user_message: tr('אין חיבור לשרת.') };
 }
 
 function failed(err: unknown, sentWrite: boolean): ActionResult {

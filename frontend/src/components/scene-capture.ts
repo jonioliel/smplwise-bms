@@ -7,6 +7,7 @@ import { bidi } from '../i18n/bidi';
 import { groupPicker, pickerEntities, INSTALLATION_WIDE, SCENE_CAPTURE_DOMAINS, type CatalogEntity, type SceneMember } from '../api/automations';
 
 import { ATTR_DEFS, STATE_OPTIONS, domainOf, visibleAttrs, withValue, ON_OFF } from '../screens/automations-logic';
+import { tr } from '../i18n/msg/components';
 export { ATTR_DEFS, STATE_OPTIONS, visibleAttrs, withValue };
 
 /**
@@ -393,16 +394,16 @@ export class SceneCapture extends LitElement {
 
   private picklist(): TemplateResult {
     const groups = groupPicker(this.capturable().filter((e) => !this.picked.includes(e.entity_id)));
-    return html`<div class="pop" role="listbox" aria-label="בחירת מכשירים" data-scene-picker>
-      <input class="inp srch" type="search" placeholder="חיפוש מכשיר" aria-label="חיפוש מכשיר" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
-      ${groups.length ? groups.map((g) => g.areas.map((a) => html`<div class="gh">${bidi([g.floor?.name, a.area?.name].filter(Boolean).join(' · ') || 'כל הבית')}</div>${a.entities.map((e) => html`<button type="button" role="option" data-pick=${e.entity_id} @click=${() => this.addDevice(e.entity_id)}>${aIcon(domainIcon(e.entity_id))}${bidi(e.name)}</button>`)}`)) : html`<div class="gh">אין עוד מכשירים</div>`}
+    return html`<div class="pop" role="listbox" aria-label=${tr('בחירת מכשירים')} data-scene-picker>
+      <input class="inp srch" type="search" placeholder=${tr('חיפוש מכשיר')} aria-label=${tr('חיפוש מכשיר')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
+      ${groups.length ? groups.map((g) => g.areas.map((a) => html`<div class="gh">${bidi([g.floor?.name, a.area?.name].filter(Boolean).join(' · ') || tr('כל הבית'))}</div>${a.entities.map((e) => html`<button type="button" role="option" data-pick=${e.entity_id} @click=${() => this.addDevice(e.entity_id)}>${aIcon(domainIcon(e.entity_id))}${bidi(e.name)}</button>`)}`)) : html`<div class="gh">${tr('אין עוד מכשירים')}</div>`}
     </div>`;
   }
 
   private stateCell(m: SceneMember): TemplateResult {
     const opts = STATE_OPTIONS[domainOf(m.entity_id)] ?? ON_OFF;
     const all = opts.some((o) => o.value === m.state) ? opts : [...opts, { value: m.state, label: m.state }];
-    return html`<select class="inp" aria-label=${`מצב · ${this.nameOf(m.entity_id)}`} data-row-state=${m.entity_id} ?disabled=${this.readOnly} @change=${(e: Event) => this.setRow(m.entity_id, { state: (e.target as HTMLSelectElement).value })}>${all.map((o) => html`<option value=${o.value} ?selected=${o.value === m.state}>${o.label}</option>`)}</select>`;
+    return html`<select class="inp" aria-label=${`${tr('מצב')} · ${this.nameOf(m.entity_id)}`} data-row-state=${m.entity_id} ?disabled=${this.readOnly} @change=${(e: Event) => this.setRow(m.entity_id, { state: (e.target as HTMLSelectElement).value })}>${all.map((o) => html`<option value=${o.value} ?selected=${o.value === m.state}>${o.label}</option>`)}</select>`;
   }
 
   private valuesCell(m: SceneMember): TemplateResult {
@@ -417,14 +418,14 @@ export class SceneCapture extends LitElement {
 
   private table(): TemplateResult {
     return html`<table data-scene-table>
-      <thead><tr><th>מכשיר</th><th>מצב</th><th>ערכים שנלכדו</th><th></th></tr></thead>
+      <thead><tr><th>${tr('מכשיר')}</th><th>${tr('מצב')}</th><th>${tr('ערכים שנלכדו')}</th><th></th></tr></thead>
       <tbody>${this.rows.map((m) => {
         const e = this.ent(m.entity_id);
         return html`<tr data-scene-row=${m.entity_id}>
           <td class="dev"><span class="ico">${aIcon(domainIcon(m.entity_id))}</span><span><b>${bidi(this.nameOf(m.entity_id))}</b><small>${bidi(e?.area?.name ?? e?.floor?.name ?? '')}</small></span></td>
           <td class="st">${this.stateCell(m)}</td>
           <td class="vl">${this.valuesCell(m)}</td>
-          <td class="rm">${this.readOnly ? nothing : html`<button type="button" class="x" aria-label=${`הסרה · ${this.nameOf(m.entity_id)}`} data-row-remove=${m.entity_id} @click=${() => this.removeDevice(m.entity_id)}>${aIcon('close')}</button>`}</td>
+          <td class="rm">${this.readOnly ? nothing : html`<button type="button" class="x" aria-label=${`${tr('הסרה')} · ${this.nameOf(m.entity_id)}`} data-row-remove=${m.entity_id} @click=${() => this.removeDevice(m.entity_id)}>${aIcon('close')}</button>`}</td>
         </tr>`;
       })}</tbody>
     </table>`;
@@ -434,20 +435,20 @@ export class SceneCapture extends LitElement {
     const captured = this.rows.length > 0;
     const canSave = !!this.draftName.trim() && captured && !this.saving && !this.readOnly;
     return html`
-      <input class="nm" type="text" maxlength="120" .value=${this.draftName} placeholder="שם הסצנה" aria-label="שם הסצנה" data-scene-name ?disabled=${this.readOnly} @input=${(e: Event) => (this.draftName = (e.target as HTMLInputElement).value)} />
+      <input class="nm" type="text" maxlength="120" .value=${this.draftName} placeholder=${tr('שם הסצנה')} aria-label=${tr('שם הסצנה')} data-scene-name ?disabled=${this.readOnly} @input=${(e: Event) => (this.draftName = (e.target as HTMLInputElement).value)} />
       <div class="devs">
-        <h4>${aIcon('layers')}מכשירים <span>${this.picked.length}</span></h4>
+        <h4>${aIcon('layers')}${tr('מכשירים')} <span>${this.picked.length}</span></h4>
         <div class="chipsrow" data-scene-devices>
-          ${this.picked.map((id) => html`<span class="dchip" data-device-chip=${id}>${aIcon(domainIcon(id))}<span>${bidi(this.nameOf(id))}${this.ent(id)?.area ? html` <small>${bidi(this.ent(id)!.area!.name)}</small>` : nothing}</span>${this.readOnly ? nothing : html`<button type="button" aria-label=${`הסרה · ${this.nameOf(id)}`} @click=${() => this.removeDevice(id)}>${aIcon('close')}</button>`}</span>`)}
-          ${this.readOnly ? nothing : html`<span class="pickwrap"><button type="button" class="addchip" data-scene-add aria-haspopup="listbox" aria-expanded=${String(this.picker)} @click=${() => (this.picker = !this.picker)}>${aIcon('plus')}עוד</button>${this.picker ? this.picklist() : nothing}</span>`}
+          ${this.picked.map((id) => html`<span class="dchip" data-device-chip=${id}>${aIcon(domainIcon(id))}<span>${bidi(this.nameOf(id))}${this.ent(id)?.area ? html` <small>${bidi(this.ent(id)!.area!.name)}</small>` : nothing}</span>${this.readOnly ? nothing : html`<button type="button" aria-label=${`${tr('הסרה')} · ${this.nameOf(id)}`} @click=${() => this.removeDevice(id)}>${aIcon('close')}</button>`}</span>`)}
+          ${this.readOnly ? nothing : html`<span class="pickwrap"><button type="button" class="addchip" data-scene-add aria-haspopup="listbox" aria-expanded=${String(this.picker)} @click=${() => (this.picker = !this.picker)}>${aIcon('plus')}${tr('עוד')}</button>${this.picker ? this.picklist() : nothing}</span>`}
         </div>
       </div>
-      ${this.phase === 'done' ? html`<div class="state-banner" role="status" data-scene-captured>${aIcon('check')}נלכד<button type="button" class="btn sm" data-scene-recapture @click=${() => this.fire('capture', { entity_ids: this.picked, merge: false })}>צלם שוב</button></div>`
-        : this.phase === 'error' ? html`<div class="state-banner bad" role="alert" data-scene-error>${aIcon('warning')}${this.error || 'הצילום נכשל'}<button type="button" class="btn sm" @click=${() => this.fire('capture', { entity_ids: this.picked, merge: false })}>נסו שוב</button></div>`
+      ${this.phase === 'done' ? html`<div class="state-banner" role="status" data-scene-captured>${aIcon('check')}${tr('נלכד')}<button type="button" class="btn sm" data-scene-recapture @click=${() => this.fire('capture', { entity_ids: this.picked, merge: false })}>${tr('צלם שוב')}</button></div>`
+        : this.phase === 'error' ? html`<div class="state-banner bad" role="alert" data-scene-error>${aIcon('warning')}${this.error || tr('הצילום נכשל')}<button type="button" class="btn sm" @click=${() => this.fire('capture', { entity_ids: this.picked, merge: false })}>${tr('נסו שוב')}</button></div>`
         : this.readOnly ? nothing
-        : html`<button type="button" class="btn primary capbtn" data-scene-capture ?disabled=${!this.picked.length || this.phase === 'busy'} @click=${() => this.fire('capture', { entity_ids: this.picked, merge: false })}>${aIcon('camera')}${this.phase === 'busy' ? 'מצלם…' : captured ? 'צלם שוב' : 'צלם מצב נוכחי'}</button>`}
+        : html`<button type="button" class="btn primary capbtn" data-scene-capture ?disabled=${!this.picked.length || this.phase === 'busy'} @click=${() => this.fire('capture', { entity_ids: this.picked, merge: false })}>${aIcon('camera')}${this.phase === 'busy' ? tr('מצלם…') : captured ? tr('צלם שוב') : tr('צלם מצב נוכחי')}</button>`}
       ${captured ? this.table() : nothing}
-      ${this.readOnly ? nothing : html`<div class="bar"><button type="button" class="btn primary" data-scene-save ?disabled=${!canSave} @click=${() => this.fire('save', { name: this.draftName.trim(), members: this.rows })}>${aIcon('check')}שמירה</button><button type="button" class="btn" data-scene-cancel @click=${() => this.fire('cancel')}>ביטול</button>${this.deletable ? html`<span class="grow"></span><button type="button" class="btn quiet dz" data-scene-delete @click=${() => this.fire('delete')}>${aIcon('trash')}מחיקה</button>` : nothing}</div>`}
+      ${this.readOnly ? nothing : html`<div class="bar"><button type="button" class="btn primary" data-scene-save ?disabled=${!canSave} @click=${() => this.fire('save', { name: this.draftName.trim(), members: this.rows })}>${aIcon('check')}${tr('שמירה')}</button><button type="button" class="btn" data-scene-cancel @click=${() => this.fire('cancel')}>${tr('ביטול')}</button>${this.deletable ? html`<span class="grow"></span><button type="button" class="btn quiet dz" data-scene-delete @click=${() => this.fire('delete')}>${aIcon('trash')}${tr('מחיקה')}</button>` : nothing}</div>`}
     `;
   }
 }

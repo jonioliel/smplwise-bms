@@ -4,6 +4,7 @@
  * language (a missing key falls back to the Hebrew). The Arabic and Russian columns are an INITIAL translation and need a native review (dev-marked).
  * `{n}` placeholders are filled by `grt(key, { n })`. Operator words only: the home platform is never named.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   emptyTitle: 'לא נבחרו נמענים להתראות הגנרטור',
   emptyCritical: 'רק התראה קריטית שלא אושרה מגיעה למנהלי המערכת, אחרי {n} דקות',
@@ -71,8 +72,7 @@ export type GrtKey = Key;
 export type GrtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function grtLang(): GrtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<GrtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -81,8 +81,10 @@ export const GRT_DEV_MARKED: readonly GrtLang[] = ['ar', 'ru'];
 
 export function grt(key: Key, vars?: Record<string, string | number>, lang: GrtLang = grtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const GRT_KEYS = Object.keys(he) as Key[];
 export const GRT_TABLES = TABLES;
+
+registerCatalogue('i18n/generator-routing', { he, en, ar, ru }, GRT_DEV_MARKED);

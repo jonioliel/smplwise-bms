@@ -8,6 +8,7 @@
  * price; "דרישת תשלום" = the payment demand after the work. The retired cost word and the retired item words never appear here (the
  * unit spec reads this file).
  */
+import { registerCatalogue } from '../i18n/core';
 import { NAV_RFQ_EN, NAV_RFQ_HE } from './nav-text';
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
@@ -1332,3 +1333,5 @@ export function hasRfqText(key: string): key is RfqTextKey {
 export const RFQ_TEXT_KEYS = catalogue.KEYS;
 export const RFQ_TEXT_EN_KEYS = catalogue.EN_KEYS;
 export const RFQ_TEXT_HE: Readonly<Record<RfqTextKey, string>> = he;
+
+registerCatalogue('tickets/rfq-text', { he, en });

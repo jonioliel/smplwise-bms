@@ -18,7 +18,7 @@ test.describe('cameraCardDefinition (source)', () => {
     expect(card).toMatch(/import '\.\/devices-camera-picker'/); // importing the card registers the picker too
     const picker = readFileSync(path.join(ROOT, 'frontend/src/screens/devices-camera-picker.ts'), 'utf8');
     expect(picker).toMatch(/@customElement\('devices-camera-picker'\)/);
-    expect(card).toMatch(/label: 'מצלמה'/);
+    expect(card).toMatch(/label: tr\('מצלמה'\)/);
     expect(card).toMatch(/permission: 'video\.live'/);
   });
 

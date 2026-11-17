@@ -5,6 +5,7 @@
  * configured name (D33), so no text here names that module. Hebrew first; the English column is used when the document language is
  * English (a missing key falls back to the Hebrew). `{name}` placeholders are filled by `wt(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'ערוץ ההודעות',
   title: 'ערוץ ההודעות',
@@ -139,17 +140,97 @@ const en: Partial<Record<keyof typeof he, string>> = {
   cs_soon: 'Coming soon',
   save: 'Save',
   cancel: 'Cancel',
+  keywords: 'whatsapp account accounts number sender channel messages verification code uses sms',
+  loading: 'Loading…',
+  forbidden: 'No permission to view the accounts',
+  retry: 'Try again',
+  refreshed: 'Refreshed',
+  noAccounts: 'No accounts found. You can add a manual account.',
+  wsDown: 'No connection to the platform - the states are not up to date',
+  manualTag: 'Manual',
+  notInMirror: 'Not found on the platform',
+  usedBy: 'Used by: {uses}',
+  unused: 'Not in use',
+  sends: '{n} of {cap} in 24 hours',
+  lastSend: 'Last sent {time}',
+  neverSent: 'No messages sent yet',
+  noUses: 'No active uses',
+  deptOwn: 'Its own account',
+  installDefault: 'Installation default',
+  inheritDefault: 'Default: the same account',
+  deptOf: '{dept}',
+  deptsToggle: 'Departments ({n})',
+  queued: '{n} waiting',
+  w_shared_module: 'The number is also shared with {module} - the sending pace is shared',
+  w_shared_outside: 'The number is also used outside the system',
+  w_required_unmapped: 'No account chosen - messages will not be sent on WhatsApp',
+  w_maybe_same_number: 'This may be the same number',
+  w_down_disconnected: 'The account is disconnected',
+  w_down_missing: 'The account was not found',
+  w_down_unknown: 'The account state is unknown',
+  sharedChip: 'Shared',
+  manualRow: 'Manual entry',
+  manualSub: 'When the account is not found on the platform',
+  manualTitle: 'Manual account',
+  manualValue: 'Account ID',
+  manualValueSub: "The record ID or the number's digits, as they appear on the platform",
+  manualStatus: 'Status entity (optional)',
+  labelField: 'Name',
+  add: 'Add',
+  selectHint: 'Choose an account from the list',
+  sharedOutside: 'Also used outside the system',
+  sharedOutsideSub: "For example an intercom or a person's phone",
+  pacingSub: "Shared by all the account's uses",
+  pacingSummary: '{hour} per hour · {day} per day · {gap} s apart',
+  p_min_gap_s: 'Minimum gap (seconds)',
+  p_jitter_s: 'Random extra delay (seconds)',
+  p_per_hour: 'Per hour',
+  p_per_day: 'Per day',
+  p_per_recipient_hour: 'Per recipient per hour',
+  p_hold_when_down_min: 'Wait when disconnected (minutes)',
+  remove: 'Remove',
+  removeInUse: 'The account is in use - choose another account for its uses before removing it',
+  testTitle: 'Send a test',
+  testTarget: 'Test number',
+  testSend: 'Send',
+  testOff: 'A test message is not available until the messaging channel is working',
+  testConfirmLine: 'One real test message will be sent on WhatsApp from this account to {target}. Up to 5 tests an hour per account.',
+  testQueued: 'The test has been queued',
+  ch_whatsapp: 'WhatsApp',
+  ch_whatsapp_sub: 'The main channel for vendors and contacts',
+  ch_email: 'Email',
+  ch_email_sub: 'Backup when the channel is disconnected',
+  ch_inapp: 'In the app',
+  ch_inapp_sub: 'System users',
+  ch_sms: 'SMS',
+  cs_active: 'Active',
+  cs_down: 'Disconnected',
+  cs_not_configured: 'Not set up',
+  cs_idle: 'Not in use',
+  discard: 'Discard changes',
+  dirty: 'Not saved',
+  saved: 'Saved',
+  readOnly: 'View only',
+  confirmTitle: 'Waiting messages',
+  confirmLine: '{n} waiting messages will be sent from the new account',
+  confirmSave: 'Save',
+  err_manual_equals_discovered: 'This ID belongs to an account that was already found - choose it from the list',
+  err_manual_value_invalid: 'Invalid ID',
+  err_pacing_out_of_range: 'Value out of range',
+  err_pacing_day_below_hour: 'The daily limit is lower than the hourly limit',
 };
 
 export type WaTextKey = keyof typeof he;
 
 function lang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function wt(key: WaTextKey, vars?: Record<string, string | number>): string {
   const raw = (lang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const WA_TEXT_KEYS = Object.keys(he) as WaTextKey[];
+
+registerCatalogue('i18n/messaging-accounts', { he, en });

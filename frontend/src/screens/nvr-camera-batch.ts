@@ -33,6 +33,7 @@ import {
 } from './nvr-batch-logic';
 import { undoLabel } from './nvr-h264-preset';
 import { CHECK, NvrBatchShell, errorShape, nvrBatchShellCss, takeActiveAfterLostAnswer } from './nvr-batch-shell';
+import { tr } from '../i18n/msg/media';
 
 type Phase = 'closed' | 'select' | 'confirm' | 'undo-confirm' | 'progress';
 
@@ -619,7 +620,7 @@ export class NvrCameraBatch extends NvrBatchShell {
     const fixed = c.cameraId === this.fixedId;
     return html`<button type="button" class="sel" role="checkbox" aria-checked=${on ? 'true' : 'false'} aria-disabled=${fixed ? 'true' : 'false'} data-nvr-batch-cam=${c.cameraId}
       @click=${() => (this.selected = toggleSelection(this.selected, c.cameraId, this.fixedId))}>
-      <span class="box" aria-hidden="true">${on ? CHECK : nothing}</span><span class="nm">${c.name}</span><span class="meta">ערוץ <span class="ltr">${c.channel}</span> · <bdi class="ltr">H.264</bdi></span>
+      <span class="box" aria-hidden="true">${on ? CHECK : nothing}</span><span class="nm">${c.name}</span><span class="meta">${tr('ערוץ')} <span class="ltr">${c.channel}</span> · <bdi class="ltr">H.264</bdi></span>
     </button>`;
   }
 
@@ -627,30 +628,30 @@ export class NvrCameraBatch extends NvrBatchShell {
     const matching = filterCandidates(this.candidates, this.q);
     const ticked = chosen(this.candidates, this.selected).length;
     const filtered = this.q.trim().length > 0;
-    return html`<sw-dialog wide ?open=${this.phase === 'select'} heading="כיבוי SVC בכמה מצלמות" data-nvr-batch-select @close=${(e: Event) => {
+    return html`<sw-dialog wide ?open=${this.phase === 'select'} heading=${tr('כיבוי SVC בכמה מצלמות')} data-nvr-batch-select @close=${(e: Event) => {
       e.stopPropagation();
       this.phase = 'closed';
     }}>
       ${this.phase === 'select'
         ? html`<div class="tools">
-              <sw-field><input type="search" placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" data-nvr-batch-search .value=${this.q} @input=${(e: Event) => {
+              <sw-field><input type="search" placeholder=${tr('חיפוש מצלמה')} aria-label=${tr('חיפוש מצלמה')} data-nvr-batch-search .value=${this.q} @input=${(e: Event) => {
                 this.q = (e.target as HTMLInputElement).value;
                 this.resetScroll();
               }} /></sw-field>
-              <sw-button size="sm" data-nvr-batch-all ?disabled=${!matching.length} @click=${() => (this.selected = selectAllMatching(this.selected, matching))}>${filtered ? `בחר הכל (${matching.length})` : 'בחר הכל'}</sw-button>
-              <sw-button size="sm" variant="ghost" data-nvr-batch-clear @click=${() => (this.selected = clearSelection(this.fixedId))}>נקה</sw-button>
+              <sw-button size="sm" data-nvr-batch-all ?disabled=${!matching.length} @click=${() => (this.selected = selectAllMatching(this.selected, matching))}>${filtered ? tr('בחר הכל ({length})', { length: matching.length }) : tr('בחר הכל')}</sw-button>
+              <sw-button size="sm" variant="ghost" data-nvr-batch-clear @click=${() => (this.selected = clearSelection(this.fixedId))}>${tr('נקה')}</sw-button>
             </div>
-            <div class="count" data-nvr-batch-count role="status">${`נבחרו ${ticked} מתוך ${this.candidates.length}`}${filtered ? ` · ${matching.length} תוצאות` : ''}</div>
+            <div class="count" data-nvr-batch-count role="status">${tr('נבחרו {ticked} מתוך {length}', { ticked, length: this.candidates.length })}${filtered ? tr(' · {length} תוצאות', { length: matching.length }) : ''}</div>
             ${matching.length
-              ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), 'מצלמות', this.candidates.length)
-              : html`<p class="msg" data-nvr-batch-none role="status">אין מצלמות שמתאימות לחיפוש.</p>`}
+              ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), tr('מצלמות'), this.candidates.length)
+              : html`<p class="msg" data-nvr-batch-none role="status">${tr('אין מצלמות שמתאימות לחיפוש.')}</p>`}
             ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
             ${onRemote() ? nothing : html`<div class="more"><sw-button size="sm" variant="ghost" data-nvr-batch-to-encoding @click=${() => {
               this.phase = 'closed';
               this.emit('encoding-open');
-            }}>שינוי קידוד לכמה מצלמות</sw-button></div>`}
-            <sw-button slot="footer" variant="ghost" data-nvr-batch-cancel @click=${() => (this.phase = 'closed')}>ביטול</sw-button>
-            <sw-button slot="footer" variant="primary" data-nvr-batch-next ?disabled=${ticked < MIN_BATCH} @click=${() => this.askStart()}>המשך</sw-button>`
+            }}>${tr('שינוי קידוד לכמה מצלמות')}</sw-button></div>`}
+            <sw-button slot="footer" variant="ghost" data-nvr-batch-cancel @click=${() => (this.phase = 'closed')}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="primary" data-nvr-batch-next ?disabled=${ticked < MIN_BATCH} @click=${() => this.askStart()}>${tr('המשך')}</sw-button>`
         : nothing}
     </sw-dialog>`;
   }
@@ -665,7 +666,7 @@ export class NvrCameraBatch extends NvrBatchShell {
     const info = i.camera_id ? this.info[i.camera_id] : null;
     return html`<div class="row ${t}" role="listitem" data-nvr-batch-item=${i.index} data-status=${i.status}>
       ${this.icon(t)}
-      <div class="txt"><span class="nm">${this.nameOf(i)}${info ? html` <span class="meta">ערוץ <span class="ltr">${info.channel}</span></span>` : nothing}</span>${line ? html`<span class="ln" data-nvr-batch-item-line title=${line}>${line}</span>` : nothing}</div>
+      <div class="txt"><span class="nm">${this.nameOf(i)}${info ? html` <span class="meta">${tr('ערוץ')} <span class="ltr">${info.channel}</span></span>` : nothing}</span>${line ? html`<span class="ln" data-nvr-batch-item-line title=${line}>${line}</span>` : nothing}</div>
     </div>`;
   }
 
@@ -675,10 +676,10 @@ export class NvrCameraBatch extends NvrBatchShell {
     if (!open) return html`<sw-dialog wide data-nvr-batch-progress></sw-dialog>`;
     if (!b) {
       // the request was sent; the server's answer has not arrived
-      return html`<sw-dialog wide open heading=${this.starting ? 'מתחיל' : 'שינוי מרובה'} data-nvr-batch-progress @close=${(e: Event) => { e.stopPropagation(); this.phase = 'closed'; }}>
-        ${this.starting ? html`<div class="bar" role="progressbar" aria-label="מתחיל"><i style="inline-size:8%"></i></div>` : nothing}
+      return html`<sw-dialog wide open heading=${this.starting ? tr('מתחיל') : tr('שינוי מרובה')} data-nvr-batch-progress @close=${(e: Event) => { e.stopPropagation(); this.phase = 'closed'; }}>
+        ${this.starting ? html`<div class="bar" role="progressbar" aria-label=${tr('מתחיל')}><i style="inline-size:8%"></i></div>` : nothing}
         ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
-        ${this.starting ? nothing : html`<sw-button slot="footer" variant="primary" data-nvr-batch-close @click=${() => (this.phase = 'closed')}>סגור</sw-button>`}
+        ${this.starting ? nothing : html`<sw-button slot="footer" variant="primary" data-nvr-batch-close @click=${() => (this.phase = 'closed')}>${tr('סגור')}</sw-button>`}
       </sw-dialog>`;
     }
     const v = batchView(b, this.nameOf, this.stopping);
@@ -689,15 +690,15 @@ export class NvrCameraBatch extends NvrBatchShell {
       e.stopPropagation();
       this.closeDialog();
     }}>
-      <div class="bar ${v.tone === 'error' || v.tone === 'warn' ? 'error' : v.tone === 'done' ? 'done' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax=${t.total} aria-valuenow=${t.processed} aria-label="התקדמות"><i style="inline-size:${pct}%"></i></div>
-      ${this.vlist(items.length, PROG_ROW, 'progress', (i) => this.progressRow(b, items[i]), 'מצלמות')}
-      ${this.offline ? html`<p class="msg" data-nvr-batch-offline role="status">אין חיבור לשרת. ממשיך לנסות.</p>` : nothing}
+      <div class="bar ${v.tone === 'error' || v.tone === 'warn' ? 'error' : v.tone === 'done' ? 'done' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax=${t.total} aria-valuenow=${t.processed} aria-label=${tr('התקדמות')}><i style="inline-size:${pct}%"></i></div>
+      ${this.vlist(items.length, PROG_ROW, 'progress', (i) => this.progressRow(b, items[i]), tr('מצלמות'))}
+      ${this.offline ? html`<p class="msg" data-nvr-batch-offline role="status">${tr('אין חיבור לשרת. ממשיך לנסות.')}</p>` : nothing}
       ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
-      ${v.canStop ? html`<sw-button slot="footer" variant="danger" data-nvr-batch-stop @click=${() => void this.stop()}>עצור</sw-button>` : nothing}
-      ${v.showUndo ? html`<sw-button slot="footer" data-nvr-batch-undo ?disabled=${!v.canUndo} title=${v.canUndo ? '' : 'לא ברור אם בוצע. נבדק מול ה־NVR.'} @click=${() => this.askUndo()}>${undoLabel(b.mode)}</sw-button>` : nothing}
-      ${v.showRetry ? html`<sw-button slot="footer" data-nvr-batch-retry @click=${() => this.askUndo()}>נסה שוב</sw-button>` : nothing}
-      ${isEncoding(b) && isTerminal(b.state) ? html`<sw-button slot="footer" data-nvr-batch-report @click=${() => this.emit('verify-report', { batchId: b.batch_id })}>דוח בדיקה</sw-button>` : nothing}
-      ${isTerminal(b.state) ? html`<sw-button slot="footer" variant="primary" data-nvr-batch-close @click=${() => this.closeDialog()}>סגור</sw-button>` : nothing}
+      ${v.canStop ? html`<sw-button slot="footer" variant="danger" data-nvr-batch-stop @click=${() => void this.stop()}>${tr('עצור')}</sw-button>` : nothing}
+      ${v.showUndo ? html`<sw-button slot="footer" data-nvr-batch-undo ?disabled=${!v.canUndo} title=${v.canUndo ? '' : tr('לא ברור אם בוצע. נבדק מול ה־NVR.')} @click=${() => this.askUndo()}>${undoLabel(b.mode)}</sw-button>` : nothing}
+      ${v.showRetry ? html`<sw-button slot="footer" data-nvr-batch-retry @click=${() => this.askUndo()}>${tr('נסה שוב')}</sw-button>` : nothing}
+      ${isEncoding(b) && isTerminal(b.state) ? html`<sw-button slot="footer" data-nvr-batch-report @click=${() => this.emit('verify-report', { batchId: b.batch_id })}>${tr('דוח בדיקה')}</sw-button>` : nothing}
+      ${isTerminal(b.state) ? html`<sw-button slot="footer" variant="primary" data-nvr-batch-close @click=${() => this.closeDialog()}>${tr('סגור')}</sw-button>` : nothing}
     </sw-dialog>`;
   }
 

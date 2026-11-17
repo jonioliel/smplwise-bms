@@ -4,6 +4,7 @@
  */
 
 /** The outcome of a toggle: the next ids, and `refused` when the pick was a `max + 1`th one (the ids are then unchanged). */
+import { tr } from '../i18n/msg/components';
 export interface TogglePick {
   ids: string[];
   refused: boolean;
@@ -24,12 +25,12 @@ export function toggleCapped(values: readonly string[], id: string, max: number)
  * the lead camera, chosen elsewhere, in its "עד 4"). With no limit, just the number picked. */
 export function pickedCount(picked: number, max: number, base = 0): string {
   const n = picked + base;
-  return max > 0 ? `${n} מתוך ${max + base}` : String(n);
+  return max > 0 ? tr('{n} מתוך {max}', { n, max: max + base }) : String(n);
 }
 
 /** The short, calm refusal of a pick past the limit (the limit as the user sees it, `max + base`). */
 export function limitNotice(max: number, base = 0): string {
-  return `אפשר לבחור עד ${max + base}`;
+  return tr('אפשר לבחור עד {n}', { n: max + base });
 }
 
 /** The chip's text: the picked labels in pick order, or the placeholder when nothing is picked. */

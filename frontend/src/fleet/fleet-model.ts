@@ -4,6 +4,7 @@
  */
 import type { FleetLogRow, FleetResult, FleetStatus } from '../api/fleet-report';
 import { ft, type FleetTextKey } from '../i18n/fleet-report';
+import { tr } from '../i18n/msg/misc';
 
 export type FleetView = 'off' | 'on' | 'nourl' | 'failed';
 export type Tone = 'ok' | 'warn' | 'bad' | 'mute';
@@ -32,25 +33,32 @@ const dayKey = (d: Date) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 +
 export function whenText(iso: string | null | undefined, now: Date = new Date()): string {
   const d = parse(iso);
   if (!d) return '';
+  const day = dayWordOf(d, now);
+  if (day === 'today') return tr('היום {time}', { time: clock(d) });
+  if (day === 'yesterday') return tr('אתמול {time}', { time: clock(d) });
+  if (day === 'tomorrow') return tr('מחר {time}', { time: clock(d) });
+  return `${dateOf(d, now)} · ${clock(d)}`;
+}
+
+function dayWordOf(d: Date, now: Date): 'today' | 'yesterday' | 'tomorrow' | null {
   const y = new Date(now);
   y.setDate(y.getDate() - 1);
   const t = new Date(now);
   t.setDate(t.getDate() + 1);
-  if (dayKey(d) === dayKey(now)) return `היום ${clock(d)}`;
-  if (dayKey(d) === dayKey(y)) return `אתמול ${clock(d)}`;
-  if (dayKey(d) === dayKey(t)) return `מחר ${clock(d)}`;
-  const date = `${p2(d.getDate())}.${p2(d.getMonth() + 1)}${d.getFullYear() === now.getFullYear() ? '' : `.${d.getFullYear()}`}`;
-  return `${date} · ${clock(d)}`;
+  return dayKey(d) === dayKey(now) ? 'today' : dayKey(d) === dayKey(y) ? 'yesterday' : dayKey(d) === dayKey(t) ? 'tomorrow' : null;
 }
+
+const dateOf = (d: Date, now: Date) => `${p2(d.getDate())}.${p2(d.getMonth() + 1)}${d.getFullYear() === now.getFullYear() ? '' : `.${d.getFullYear()}`}`;
 
 /** Inside a sentence: "היום בשעה 03:12" / "אתמול בשעה 03:11" / "ב-21.10 בשעה 03:11". */
 export function whenInSentence(iso: string | null | undefined, now: Date = new Date()): string {
-  const w = whenText(iso, now);
-  if (!w) return '';
-  const m = w.match(/^(היום|אתמול|מחר) (\d\d:\d\d)$/);
-  if (m) return `${m[1]} בשעה ${m[2]}`;
-  const [date, time] = w.split(' · ');
-  return `ב-${date} בשעה ${time}`;
+  const d = parse(iso);
+  if (!d) return '';
+  const day = dayWordOf(d, now);
+  if (day === 'today') return tr('היום בשעה {time}', { time: clock(d) });
+  if (day === 'yesterday') return tr('אתמול בשעה {time}', { time: clock(d) });
+  if (day === 'tomorrow') return tr('מחר בשעה {time}', { time: clock(d) });
+  return tr('ב-{date} בשעה {time}', { date: dateOf(d, now), time: clock(d) });
 }
 
 /** When the next attempt happens: a day after the last good one, three hours after a failed one; none yet = "soon". */
@@ -64,7 +72,7 @@ export function nextAttemptAt(s: FleetStatus, now: Date = new Date()): Date | nu
 
 function nextText(s: FleetStatus, now: Date): string {
   const n = nextAttemptAt(s, now);
-  return n ? whenInSentence(n.toISOString(), now) : 'בקרוב';
+  return n ? whenInSentence(n.toISOString(), now) : tr('בקרוב');
 }
 
 // ---------------------------------------------------------------- the answer card
@@ -87,7 +95,7 @@ export function answerOf(s: FleetStatus, now: Date = new Date()): Answer {
   const view = viewOf(s);
   const last = whenText(s.last_attempt_at, now);
   const lastOk = whenInSentence(s.last_ok_at, now);
-  const seq = s.last_seq > 0 ? ` · דוח מספר ${s.last_seq}` : '';
+  const seq = s.last_seq > 0 ? ` · ${tr('דוח מספר {n}', { n: s.last_seq })}` : '';
   if (view === 'off') {
     return {
       view, tone: 'mute', icon: 'power', title: ft('offTitle'), sub: ft('offSub'), doText: ft('offDo'), canSend: false,
@@ -106,7 +114,7 @@ export function answerOf(s: FleetStatus, now: Date = new Date()): Answer {
     return {
       view, tone: 'bad', icon: 'warning', title: ft('failTitle'), sub: ft('failSub', { when: whenInSentence(s.last_attempt_at, now), next: nextText(s, now) }),
       doText: ft('failDo'), canSend: true,
-      lastLine: `${last} · ${resultText(s.last_result as FleetResult)}${s.retry_h ? ` · הניסיון הבא ${nextText(s, now)}` : ''}`, techLine: ft('techReady'),
+      lastLine: `${last} · ${resultText(s.last_result as FleetResult)}${s.retry_h ? ` · ${tr('הניסיון הבא {when}', { when: nextText(s, now) })}` : ''}`, techLine: ft('techReady'),
     };
   }
   if (!s.last_ok_at) {
@@ -166,37 +174,37 @@ export interface FieldGroup { id: string; title: FleetTextKey; sub?: FleetTextKe
 
 export const FIELD_GROUPS: readonly FieldGroup[] = [
   { id: 'report', title: 'g_report', sub: 'g_report_x', fields: [
-    ['גרסת מבנה הדוח', 'schema', 'const'], ['מספר ההתקנה (אקראי)', 'installation_id', 'id'], ['מספר רץ של הדוח', 'seq', 'num'],
-    ['מתי נוצר, לדקה', 'generated_at', 'time'], ['מערכת אמיתית או הדגמה', 'mode', 'enum'], ['נתוני דוגמה פועלים', 'demo_mode', 'bool'],
-    ['מצב כללי', 'overall', 'enum'], ['שעות מאז ההדלקה', 'uptime_h', 'num'],
+    [tr('גרסת מבנה הדוח'), 'schema', 'const'], [tr('מספר ההתקנה (אקראי)'), 'installation_id', 'id'], [tr('מספר רץ של הדוח'), 'seq', 'num'],
+    [tr('מתי נוצר, לדקה'), 'generated_at', 'time'], [tr('מערכת אמיתית או הדגמה'), 'mode', 'enum'], [tr('נתוני דוגמה פועלים'), 'demo_mode', 'bool'],
+    [tr('מצב כללי'), 'overall', 'enum'], [tr('שעות מאז ההדלקה'), 'uptime_h', 'num'],
   ] },
   { id: 'versions', title: 'g_versions', sub: 'g_versions_x', fields: [
-    ['Arx', 'versions.addon', 'version'], ['גשר', 'versions.bridge', 'version'], ['גשר נדרש', 'versions.bridge_required', 'version'],
-    ['תשתית המערכת', 'versions.ha', 'version'], ['שרת מדיה', 'versions.go2rtc', 'version'], ['מסד נתונים', 'versions.db_schema', 'num'],
+    ['Arx', 'versions.addon', 'version'], [tr('גשר'), 'versions.bridge', 'version'], [tr('גשר נדרש'), 'versions.bridge_required', 'version'],
+    [tr('תשתית המערכת'), 'versions.ha', 'version'], [tr('שרת מדיה'), 'versions.go2rtc', 'version'], [tr('מסד נתונים'), 'versions.db_schema', 'num'],
   ] },
   { id: 'components', title: 'g_components', sub: 'g_components_x', fields: [
-    ['מסד נתונים', 'components.db', 'enum'], ['תיקיית נתונים', 'components.storage', 'enum'], ['מקליט', 'components.nvr', 'enum'],
-    ['שרת מדיה', 'components.go2rtc', 'enum'], ['סנכרון עם תשתית המערכת', 'components.ha_sync', 'enum'], ['גשר', 'components.bridge', 'enum'],
-    ['קליטת אירועים', 'components.events_ingest', 'enum'], ['עיבוד אירועים', 'components.events_derive', 'enum'],
-    ['איתור התקנים', 'components.discovery', 'enum'], ['תמונות ממוזערות', 'components.thumbnails', 'enum'], ['ייצוא', 'components.exports', 'enum'],
-    ['גיבויים', 'components.backups', 'enum'], ['Frigate', 'components.frigate', 'enum'],
+    [tr('מסד נתונים'), 'components.db', 'enum'], [tr('תיקיית נתונים'), 'components.storage', 'enum'], [tr('מקליט'), 'components.nvr', 'enum'],
+    [tr('שרת מדיה'), 'components.go2rtc', 'enum'], [tr('סנכרון עם תשתית המערכת'), 'components.ha_sync', 'enum'], [tr('גשר'), 'components.bridge', 'enum'],
+    [tr('קליטת אירועים'), 'components.events_ingest', 'enum'], [tr('עיבוד אירועים'), 'components.events_derive', 'enum'],
+    [tr('איתור התקנים'), 'components.discovery', 'enum'], [tr('תמונות ממוזערות'), 'components.thumbnails', 'enum'], [tr('ייצוא'), 'components.exports', 'enum'],
+    [tr('גיבויים'), 'components.backups', 'enum'], ['Frigate', 'components.frigate', 'enum'],
   ] },
   { id: 'counts', title: 'g_counts', sub: 'g_counts_x', fields: [
-    ['מצלמות', 'counts.cameras', 'num'], ['מקליטים', 'counts.recorders', 'num'], ['מקליטי Hikvision', 'counts.recorders_by_vendor.hikvision', 'num'],
-    ['מקליטי Provision-ISR', 'counts.recorders_by_vendor.provision_isr', 'num'], ['שרתי Frigate', 'counts.recorders_by_vendor.frigate', 'num'],
-    ['מצלמות בלי מקליט', 'counts.recorders_by_vendor.none', 'num'], ['התקנים בקטלוג', 'counts.ha_entities', 'num'],
-    ['תוכניות קומה שפורסמו', 'counts.floors_published', 'num'], ['משתמשים פעילים', 'counts.users_active', 'num'], ['מנהלי מערכת', 'counts.system_admins', 'num'],
+    [tr('מצלמות'), 'counts.cameras', 'num'], [tr('מקליטים'), 'counts.recorders', 'num'], [tr('מקליטי Hikvision'), 'counts.recorders_by_vendor.hikvision', 'num'],
+    [tr('מקליטי Provision-ISR'), 'counts.recorders_by_vendor.provision_isr', 'num'], [tr('שרתי Frigate'), 'counts.recorders_by_vendor.frigate', 'num'],
+    [tr('מצלמות בלי מקליט'), 'counts.recorders_by_vendor.none', 'num'], [tr('התקנים בקטלוג'), 'counts.ha_entities', 'num'],
+    [tr('תוכניות קומה שפורסמו'), 'counts.floors_published', 'num'], [tr('משתמשים פעילים'), 'counts.users_active', 'num'], [tr('מנהלי מערכת'), 'counts.system_admins', 'num'],
   ] },
   { id: 'alerts', title: 'g_alerts', sub: 'g_alerts_x', fields: [
-    ['מידע', 'alerts_open.info', 'num'], ['רגילות', 'alerts_open.alert', 'num'], ['קריטיות', 'alerts_open.critical', 'num'],
+    [tr('מידע'), 'alerts_open.info', 'num'], [tr('רגילות'), 'alerts_open.alert', 'num'], [tr('קריטיות'), 'alerts_open.critical', 'num'],
   ] },
-  { id: 'disk', title: 'g_disk', fields: [['אחוז פנוי', 'disk.free_pct', 'num'], ['GB פנויים', 'disk.free_gb', 'num'], ['GB בסך הכול', 'disk.total_gb', 'num']] },
+  { id: 'disk', title: 'g_disk', fields: [[tr('אחוז פנוי'), 'disk.free_pct', 'num'], [tr('GB פנויים'), 'disk.free_gb', 'num'], [tr('GB בסך הכול'), 'disk.total_gb', 'num']] },
   { id: 'backup', title: 'g_backup', fields: [
-    ['כמה גיבויים', 'backup.count', 'num'], ['גיל הגיבוי האחרון, בשעות', 'backup.last_age_h', 'num'], ['כמה יעדים מחוץ לשרת', 'backup.offbox_targets', 'num'],
+    [tr('כמה גיבויים'), 'backup.count', 'num'], [tr('גיל הגיבוי האחרון, בשעות'), 'backup.last_age_h', 'num'], [tr('כמה יעדים מחוץ לשרת'), 'backup.offbox_targets', 'num'],
   ] },
-  { id: 'update', title: 'g_update', fields: [['תוצאת בדיקת העדכון', 'update.check', 'enum'], ['יש עדכון', 'update.available', 'bool'], ['הגרסה החדשה ביותר', 'update.latest', 'version']] },
+  { id: 'update', title: 'g_update', fields: [[tr('תוצאת בדיקת העדכון'), 'update.check', 'enum'], [tr('יש עדכון'), 'update.available', 'bool'], [tr('הגרסה החדשה ביותר'), 'update.latest', 'version']] },
   { id: 'readiness', title: 'g_readiness', sub: 'g_readiness_x', fields: [
-    ['ציון', 'readiness.score', 'num'], ['מוכנה למסירה', 'readiness.ready', 'bool'], ['מה חסר (מרשימה קבועה)', 'readiness.missing', 'list'],
+    [tr('ציון'), 'readiness.score', 'num'], [tr('מוכנה למסירה'), 'readiness.ready', 'bool'], [tr('מה חסר (מרשימה קבועה)'), 'readiness.missing', 'list'],
   ] },
 ];
 
@@ -208,8 +216,8 @@ export const FIELD_TYPE_KEY: Record<FieldType, FleetTextKey> = {
 
 /** What the report never carries - the plain list the owner approved (one line of chips). */
 export const NEVER_SENT: readonly string[] = [
-  'שמות אנשים', 'שמות מצלמות וחדרים', 'כתובת הנכס', 'כתובות רשת', 'מספרים סידוריים', 'סיסמאות ומפתחות', 'קישורים', 'דוא״ל', 'טלפון',
-  'אירועים', 'תמונות ווידאו', 'יומנים', 'טקסט שגיאה', 'מזהי התקנים', 'ערכי הגדרות',
+  tr('שמות אנשים'), tr('שמות מצלמות וחדרים'), tr('כתובת הנכס'), tr('כתובות רשת'), tr('מספרים סידוריים'), tr('סיסמאות ומפתחות'), tr('קישורים'), tr('דוא״ל'), tr('טלפון'),
+  tr('אירועים'), tr('תמונות ווידאו'), tr('יומנים'), tr('טקסט שגיאה'), tr('מזהי התקנים'), tr('ערכי הגדרות'),
 ];
 
 /** The enrollment code shortened for a line of text ("arx-fleet-1.8c41…"), the full code stays in the copy button. */

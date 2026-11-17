@@ -9,6 +9,7 @@ import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { glyphIcon, mIcon, nameText } from './media-icons';
 import { hhmm, nowView, stateLine, type NowView } from './media-now';
 import { runCommand, type CommandOutcome } from './media-command';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-015: ONE card per physical screen (MEDIA_API.md §2.1, mockup v2 "Domus" glass): the now-showing poster (our own hue and a
@@ -530,17 +531,17 @@ export class MediaScreenCard extends LitElement {
   }
 
   private shotButton(d: MediaDevice, v: NowView) {
-    const label = `פתח שלט · ${d.name}`;
+    const label = `${tr('פתח שלט')} · ${d.name}`;
     const spin = this.pending.has('power') ? html`<span class="spin"><i></i></span>` : nothing;
     if (v.kind === 'un') return html`<button class="shot un" type="button" ?disabled=${this.editing} @click=${() => this.openRemote()} aria-label=${label}><span class="ctr">${mIcon('wifiOff')}<span>${v.label}</span></span></button>`;
-    if (v.kind === 'off') return html`<button class="shot off" type="button" ?disabled=${this.editing} @click=${() => this.openRemote()} aria-label=${label}><span class="ctr">${mIcon('power')}<span>כבוי</span></span>${spin}</button>`;
+    if (v.kind === 'off') return html`<button class="shot off" type="button" ?disabled=${this.editing} @click=${() => this.openRemote()} aria-label=${label}><span class="ctr">${mIcon('power')}<span>${tr('כבוי')}</span></span>${spin}</button>`;
     const l = d.live;
     const badge = v.kind === 'art'
-      ? html`<span class="pilld">${mIcon('frame')}אמנות</span>`
-      : l.play === 'playing' ? html`<span class="pilld"><i></i>מנגן</span>` : l.play === 'paused' ? html`<span class="pilld">${mIcon('pause')}מושהה</span>` : nothing;
+      ? html`<span class="pilld">${mIcon('frame')}${tr('אמנות')}</span>`
+      : l.play === 'playing' ? html`<span class="pilld"><i></i>${tr('מנגן')}</span>` : l.play === 'paused' ? html`<span class="pilld">${mIcon('pause')}${tr('מושהה')}</span>` : nothing;
     return html`<button class="shot" type="button" ?disabled=${this.editing} @click=${() => this.openRemote()} aria-label=${label}>
       ${this.poster(v)}<span class="tl">${badge}</span>
-      ${v.kind === 'art' ? nothing : html`<span class="ov"><b>${nameText(v.kind === 'tv' ? 'טלוויזיה' : v.label)}</b>${v.sub ? html`<small>${v.sub}</small>` : nothing}</span>`}
+      ${v.kind === 'art' ? nothing : html`<span class="ov"><b>${nameText(v.kind === 'tv' ? tr('טלוויזיה') : v.label)}</b>${v.sub ? html`<small>${v.sub}</small>` : nothing}</span>`}
       ${v.prog !== null ? html`<span class="pb" style=${`--p:${Math.round(v.prog * 100)}%`}><i></i></span>` : nothing}${spin}
     </button>`;
   }
@@ -550,7 +551,7 @@ export class MediaScreenCard extends LitElement {
     const off = { command: 'power_off' } as const;
     const on = { command: 'power_on' } as const;
     const disabled = !commandOffered(d, lit ? off : on) || this.pending.has('power');
-    const tip = isDead(d.live) ? 'לא זמין' : !lit && !d.caps.power_on ? (d.caps.power_on_reason === 'no_remote_wake' ? 'אין הפעלה מרחוק' : 'אין הפעלה') : lit ? 'כבה' : 'הפעל';
+    const tip = isDead(d.live) ? tr('לא זמין') : !lit && !d.caps.power_on ? (d.caps.power_on_reason === 'no_remote_wake' ? tr('אין הפעלה מרחוק') : tr('אין הפעלה')) : lit ? tr('כבה') : tr('הפעל');
     return html`<button type="button" class=${classMap({ pw: true, on: lit, pend: this.pending.has('power'), nack: this.nack === 'power', shake: this.shaking === 'power' })} aria-pressed=${String(lit)}
       aria-label=${`${tip} · ${d.name}`} title=${tip} ?disabled=${disabled} @click=${() => this.power()}>${mIcon('power')}</button>`;
   }
@@ -561,24 +562,24 @@ export class MediaScreenCard extends LitElement {
     const lv = d.live.volume.level;
     const up = commandOffered(d, { command: 'volume_step', direction: 'up' }) || (d.caps.volume_set && commandOffered(d, { command: 'volume_set', level: (lv ?? 0) + 2 }));
     const down = commandOffered(d, { command: 'volume_step', direction: 'down' }) || (d.caps.volume_set && commandOffered(d, { command: 'volume_set', level: (lv ?? 0) - 2 }));
-    return html`<span class=${classMap({ vrock: true, muted: !!d.live.volume.muted, shake: this.shaking === 'volume' })} role="group" aria-label=${`עוצמה · ${d.name}`}>
-      <button type="button" aria-label="הנמך" ?disabled=${!down} @click=${() => this.volume(-1)}>${mIcon('minus')}</button>
+    return html`<span class=${classMap({ vrock: true, muted: !!d.live.volume.muted, shake: this.shaking === 'volume' })} role="group" aria-label=${`${tr('עוצמה')} · ${d.name}`}>
+      <button type="button" aria-label=${tr('הנמך')} ?disabled=${!down} @click=${() => this.volume(-1)}>${mIcon('minus')}</button>
       <span class="vv"><span class="n">${lv ?? '—'}</span></span>
-      <button type="button" aria-label="הגבר" ?disabled=${!up} @click=${() => this.volume(1)}>${mIcon('plus')}</button>
+      <button type="button" aria-label=${tr('הגבר')} ?disabled=${!up} @click=${() => this.volume(1)}>${mIcon('plus')}</button>
     </span>`;
   }
 
   private muteButton(d: MediaDevice) {
     if (!d.can.control || !d.caps.mute) return nothing;
     const m = !!d.live.volume.muted;
-    const label = m ? 'בטל השתקה' : 'השתק';
+    const label = m ? tr('בטל השתקה') : tr('השתק');
     return html`<button type="button" class=${classMap({ rb: true, muted: m, shake: this.shaking === 'mute' })} aria-pressed=${String(m)} aria-label=${label} title=${label} @click=${() => this.mute()}>${mIcon(m ? 'volOff' : 'vol')}</button>`;
   }
 
   private sourceMenu(d: MediaDevice) {
     if (!this.menu) return nothing;
     const det = this.detail;
-    if (!det) return html`<div class="pop" role="menu" aria-label="בחירת מקור"><div class="wait">טוען…</div></div>`;
+    if (!det) return html`<div class="pop" role="menu" aria-label=${tr('בחירת מקור')}><div class="wait">${tr('טוען…')}</div></div>`;
     const cur = d.live.now;
     const sources = det.sources;
     const apps = det.apps.slice(0, 4);
@@ -586,20 +587,20 @@ export class MediaScreenCard extends LitElement {
       const on = kind === 'source' ? cur.source_id === it.id : cur.app_id === it.id;
       return html`<button type="button" role="menuitemradio" aria-checked=${String(on)} @click=${() => this.pick(kind, it.id)}>${glyphIcon(it.glyph)}${nameText(it.label)}${on ? html`<span class="ck">${mIcon('check')}</span>` : nothing}</button>`;
     };
-    return html`<div class="pop" role="menu" aria-label="בחירת מקור">
+    return html`<div class="pop" role="menu" aria-label=${tr('בחירת מקור')}>
       ${sources.map((s) => item('source', s))}${sources.length && apps.length ? html`<hr />` : nothing}${apps.map((a) => item('app', a))}
-      ${det.apps.length ? html`<hr /><button type="button" role="menuitem" @click=${() => this.openRemote('apps')}>${mIcon('apps')}כל האפליקציות</button>` : nothing}
+      ${det.apps.length ? html`<hr /><button type="button" role="menuitem" @click=${() => this.openRemote('apps')}>${mIcon('apps')}${tr('כל האפליקציות')}</button>` : nothing}
     </div>`;
   }
 
   private controls(d: MediaDevice, v: NowView) {
-    if (v.kind === 'un') return html`<span class="unl">${mIcon('wifiOff')}${d.live.power === 'unknown' ? 'מצב לא ידוע' : d.live.since ? html`לא זמין מאז <span class="n">${hhmm(d.live.since)}</span>` : 'לא זמין'}</span>`;
+    if (v.kind === 'un') return html`<span class="unl">${mIcon('wifiOff')}${d.live.power === 'unknown' ? tr('מצב לא ידוע') : d.live.since ? html`${tr('לא זמין מאז')} <span class="n">${hhmm(d.live.since)}</span>` : tr('לא זמין')}</span>`;
     const ro = !d.can.control && !d.can.power;
     if (ro) return nothing;
-    const remote = html`<button type="button" class="rbtn" aria-label=${`שלט · ${d.name}`} @click=${() => this.openRemote()}>${mIcon('remote')}שלט</button>`;
+    const remote = html`<button type="button" class="rbtn" aria-label=${`${tr('שלט')} · ${d.name}`} @click=${() => this.openRemote()}>${mIcon('remote')}${tr('שלט')}</button>`;
     if (!isOn(d.live)) return html`<span class="grow"></span>${remote}`;
     const src = d.can.power && d.can.public_ok && (d.caps.sources || d.caps.apps)
-      ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`מקור: ${v.kind === 'tv' ? 'טלוויזיה' : v.label}`} title="מקור" @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>`
+      ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${tr('מקור: {name}', { name: v.kind === 'tv' ? tr('טלוויזיה') : v.label })} title=${tr('מקור')} @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>`
       : nothing;
     return html`${this.volumeControls(d)}${this.muteButton(d)}${src}<span class="grow"></span>${remote}`;
   }

@@ -9,6 +9,7 @@ import type { Item } from '../api/automations';
 import type { CardAction } from './sw-automation-card';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/components';
 
 /**
  * POLISH-295 `<automation-row .item .href>` (owner approval 2026-10-25, the approved preview COCKPIT_AUTOMATIONS_HE): one automation as a
@@ -280,15 +281,15 @@ export class AutomationRow extends LitElement {
     const i = this.item;
     const row = (action: CardAction, icon: Parameters<typeof aIcon>[0], label: string, cls = '', show = true) =>
       show ? html`<button type="button" role="menuitem" class=${cls} data-card-action=${action} @click=${() => this.act(action)}>${aIcon(icon)}${label}</button>` : nothing;
-    return html`<div class="pop" role="menu" aria-label=${`פעולות · ${i.name}`}>
-      ${row('edit', 'edit', 'עריכה', '', i.can.edit)}
-      ${row('run', 'play', 'הרץ עכשיו', '', i.can.run)}
-      ${row('dryrun', 'flask', 'בדיקה')}
-      ${row('trace', 'history', 'ריצות אחרונות', '', !!i.last_run)}
-      ${row('versions', 'history', 'גרסאות', '', i.source === 'ui')}
-      ${row('copy', 'copy', 'שכפול', '', i.can.copy)}
+    return html`<div class="pop" role="menu" aria-label=${`${tr('פעולות')} · ${i.name}`}>
+      ${row('edit', 'edit', tr('עריכה'), '', i.can.edit)}
+      ${row('run', 'play', tr('הרץ עכשיו'), '', i.can.run)}
+      ${row('dryrun', 'flask', tr('בדיקה'))}
+      ${row('trace', 'history', tr('ריצות אחרונות'), '', !!i.last_run)}
+      ${row('versions', 'history', tr('גרסאות'), '', i.source === 'ui')}
+      ${row('copy', 'copy', tr('שכפול'), '', i.can.copy)}
       ${i.can.delete ? html`<hr />` : nothing}
-      ${row('delete', 'trash', 'מחיקה', 'dz', i.can.delete)}
+      ${row('delete', 'trash', tr('מחיקה'), 'dz', i.can.delete)}
     </div>`;
   }
 
@@ -304,12 +305,12 @@ export class AutomationRow extends LitElement {
     const hasMenu = i.can.edit || i.can.run || i.can.copy || i.can.delete || !!i.last_run || i.source === 'ui';
     return html`<div class=${`ar ${on ? 'on' : 'off'}`} role="row" data-automation=${i.id} data-state=${i.state} aria-label=${i.name}>
       <span class="ctl" role="cell">${canToggle
-        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${`${on ? 'כיבוי' : 'הפעלה'} · ${i.name}`} data-card-toggle ?disabled=${this.busy} @click=${() => this.fire('toggle', { item: i, enabled: !on })}></button>`
+        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${`${on ? tr('כיבוי') : tr('הפעלה')} · ${i.name}`} data-card-toggle ?disabled=${this.busy} @click=${() => this.fire('toggle', { item: i, enabled: !on })}></button>`
         : nothing}</span>
       <span class="who" role="cell"><a class="name" href=${this.href || '#'} data-card-open>${bidi(i.name)}</a><span class="where"><b>${bidi(floorLine(i))}</b>${areas ? html` · ${bidi(areas)}` : nothing}</span></span>
       <span class="sent" role="cell" data-card-sentence title=${i.sentence}>${i.sentence ? html`${aIcon('bolt')}<span>${i.sentence}</span>` : nothing}</span>
       <span class=${`run${fault || run.tone === 'bad' ? ' bad' : ''}`} role="cell" data-card-run title=${fault ? fault.label : run.title}>${fault ? html`${aIcon('warning')}<span data-chip=${fault.id}>${fault.label}</span>` : html`<i class=${`dot ${run.tone === 'none' ? '' : run.tone}`}></i>${run.text}`}</span>
-      <span class="ops" role="cell">${hasMenu ? html`<button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`עוד · ${i.name}`} data-card-menu @click=${() => this.setMenu(!this.menu)}>${aIcon('dots')}</button>` : nothing}${this.menu ? this.menuItems() : nothing}</span>
+      <span class="ops" role="cell">${hasMenu ? html`<button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`${tr('עוד')} · ${i.name}`} data-card-menu @click=${() => this.setMenu(!this.menu)}>${aIcon('dots')}</button>` : nothing}${this.menu ? this.menuItems() : nothing}</span>
     </div>`;
   }
 }

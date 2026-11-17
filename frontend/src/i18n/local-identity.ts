@@ -4,6 +4,7 @@
  * key falls back to the Hebrew). The sign-in page never names the home platform (UI_COPY_RULES: "משתמש תשתית המערכת"); only the
  * settings tab may say "Home Assistant". `{name}` placeholders are filled by `lit(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   modeLocal: 'משתמש Arx',
   modeInfra: 'משתמש תשתית המערכת',
@@ -249,6 +250,29 @@ const en: Partial<Record<Key, string>> = {
   welcomeOff: 'Arx users are not enabled on this system.',
   setPassword: 'Save the password',
   tab: 'Arx users',
+  tabSub: 'People who exist only in Arx (staff, vendor teams) - with no Home Assistant account. They sign in through remote access only, with one role in one scope.',
+  off: 'Arx users are off. A system administrator turns them on under Settings › Security (security.local_identity).',
+  add: 'New Arx user',
+  colName: 'Name',
+  colUsername: 'Username',
+  colRole: 'Role',
+  colStatus: 'Status',
+  colLast: 'Last sign-in',
+  colFactor: 'Two-step verification',
+  status_pending_first_login: 'Awaiting first sign-in',
+  status_active: 'Active',
+  status_delayed: 'Delayed (failed attempts)',
+  status_disabled: 'Disabled',
+  status_deleted: 'Deleted',
+  factorOn: 'On',
+  factorOff: 'Off',
+  adminBadge: 'Administrative permissions',
+  haBadge: 'Also in Home Assistant',
+  displayName: 'Display name',
+  email: 'Email (optional)',
+  notes: 'Note (optional)',
+  role: 'Role',
+  scope: 'Scope',
   resetMode: 'Password reset',
   reset_manager_only: 'Administrator link only',
   reset_self_service: 'Self-service by verified WhatsApp',
@@ -267,6 +291,32 @@ const en: Partial<Record<Key, string>> = {
   publicUrlHint: 'https://host-name only (no /arx, no IP address). Only a system administrator changes it; without it links are sent only from a remote session.',
   publicUrlSave: 'Save the address',
   publicUrlSaved: 'Address saved.',
+  adminNote: 'A role with administrative permissions: links are issued only on the local channel, sign-ins last up to 7 days, and the administrative permissions work only after two-step verification.',
+  create: 'Create',
+  cancel: 'Cancel',
+  linkTitle: 'First sign-in link',
+  linkResetTitle: 'Password reset link',
+  linkOnce: 'The link is shown only once. Copy it and hand it over yourself. Valid until {until}, single use.',
+  copy: 'Copy',
+  copied: 'Copied',
+  close: 'Close',
+  issueFirst: 'First sign-in link',
+  issueReset: 'Reset link',
+  temporary: 'Temporary password (must be changed at sign-in)',
+  localOnly: 'Available on the local channel only',
+  disable: 'Disable',
+  enable: 'Enable',
+  remove: 'Delete',
+  removeConfirm: 'Delete {name}? Their sign-ins, links and role end at once.',
+  unlock: 'Lift the delay',
+  endSessions: 'End all sign-ins',
+  changeRole: 'Change role',
+  export: 'Export CSV',
+  suggestAlso: 'This person also has a Home Assistant account. Consider disabling it too (this is not done automatically).',
+  empty: 'No Arx users yet.',
+  never: 'Never',
+  sessions: 'Active sign-ins',
+
   siTitle: 'Service identity in Home Assistant',
   siSub: 'Arx users have no Home Assistant account. So that they can control devices, the alarm (under the PIN rules), media, casting and schedules, Arx acts for them through ONE Home Assistant user who is not an administrator - the service identity. Every action is recorded under the person. Never by default: automations, scripts and scenes, opening doors, alarm zone bypass, live cameras through Home Assistant. The service identity is a technical user - no person may sign in as it.',
   siReady: 'Ready',
@@ -332,12 +382,14 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export function litLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function lit(key: Key, vars?: Record<string, string | number>, lang: 'he' | 'en' = litLang()): string {
   const text = (lang === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+  return fill(text, vars);
 }
 
 export type LocalIdentityKey = Key;
+
+registerCatalogue('i18n/local-identity', { he, en });

@@ -15,6 +15,7 @@ import { OTP_EN, OTP_HE } from './text-otp';
 import { DM_EN, DM_HE } from './text-deptmgr';
 import { NR_EN, NR_HE } from './text-needsreview';
 import { makeCatalogue, renderText } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the area, the navigation, the settings index
@@ -641,7 +642,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   depAdd: 'New department',
   depName: 'Name',
   depKey: 'Key',
-  depKeySub: 'Lower-case latin letters, digits and hyphens',
+  depKeySub: 'Lower-case Latin letters, digits and hyphens',
   depActive: 'Active',
   depInactive: 'Inactive',
   depOpenToAll: 'Open to everyone',
@@ -812,3 +813,5 @@ export { ticketsSectionLabel };
 /** Every key of the Hebrew catalogue (the completeness test compares the English column with it). */
 export const TICKET_TEXT_KEYS = catalogue.KEYS;
 export const TICKET_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/text', { he, en });

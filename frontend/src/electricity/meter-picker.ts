@@ -8,6 +8,7 @@ import { SkinController } from '../design/skin';
 import { fmtKwh } from './format';
 import { meterNames, meterSearchText } from './meter-name';
 import { elecCss } from './styles';
+import { tr } from '../i18n/msg/electricity';
 
 /** One row, whichever source it came from. `sensor`: an infrastructure sensor shown in 'choose' mode for its reason only (never selectable). */
 interface Pick {
@@ -167,9 +168,9 @@ export class ElecMeterPicker extends LitElement {
       area: m.area_name ?? '',
       value: `${fmtKwh(m.reading_kwh)} kWh`,
       verdict: m.status === 'reporting' ? 'ok' : 'warn',
-      message: m.status === 'stale' ? 'המונה לא מדווח כרגע' : m.status === 'paused' ? 'המונה מושהה' : '',
+      message: m.status === 'stale' ? tr('המונה לא מדווח כרגע') : m.status === 'paused' ? tr('המונה מושהה') : '',
       sensor: false,
-      tag: m.status === 'stale' ? 'לא מדווח' : m.status === 'paused' ? 'מושהה' : undefined,
+      tag: m.status === 'stale' ? tr('לא מדווח') : m.status === 'paused' ? tr('מושהה') : undefined,
     }));
   }
 
@@ -185,7 +186,7 @@ export class ElecMeterPicker extends LitElement {
         area: c.area_name ?? '',
         value: c.value ?? '',
         verdict: c.verdict === 'warn' ? 'warn' : 'rejected',
-        message: c.verdict === 'warn' ? `${candidateMessage(c)} צריך להוסיף אותו קודם במסך המונים.` : candidateMessage(c),
+        message: c.verdict === 'warn' ? `${candidateMessage(c)} ${tr('צריך להוסיף אותו קודם במסך המונים.')}` : candidateMessage(c),
         sensor: true,
       }));
   }
@@ -232,10 +233,10 @@ export class ElecMeterPicker extends LitElement {
   }
 
   private chip(p: Pick) {
-    if (p.verdict === 'ok') return html`<span class="chip c-ok" data-verdict="ok">מתאים</span>`;
-    if (p.verdict === 'warn') return html`<span class="chip c-warn" data-verdict="warn">${p.tag ?? 'אזהרה'}</span>`;
-    if (p.verdict === 'added') return html`<span class="chip c-acc" data-verdict="added">נוסף</span>`;
-    return html`<span class="chip c-err" data-verdict="rejected">לא מתאים</span>`;
+    if (p.verdict === 'ok') return html`<span class="chip c-ok" data-verdict="ok">${tr('מתאים')}</span>`;
+    if (p.verdict === 'warn') return html`<span class="chip c-warn" data-verdict="warn">${p.tag ?? tr('אזהרה')}</span>`;
+    if (p.verdict === 'added') return html`<span class="chip c-acc" data-verdict="added">${tr('נוסף')}</span>`;
+    return html`<span class="chip c-err" data-verdict="rejected">${tr('לא מתאים')}</span>`;
   }
 
   render() {
@@ -246,21 +247,21 @@ export class ElecMeterPicker extends LitElement {
       <div class="head">
         <label class="inp">
           <sw-icon name="search" size="16"></sw-icon>
-          <input type="search" data-picker-search placeholder=${choose ? 'חיפוש מונה לפי שם' : 'חיפוש לפי שם'} aria-label=${choose ? 'חיפוש מונה לפי שם' : 'חיפוש לפי שם'} .value=${this.q} @input=${this.onSearch} />
+          <input type="search" data-picker-search placeholder=${choose ? tr('חיפוש מונה לפי שם') : tr('חיפוש לפי שם')} aria-label=${choose ? tr('חיפוש מונה לפי שם') : tr('חיפוש לפי שם')} .value=${this.q} @input=${this.onSearch} />
         </label>
         <label class="inp">
-          <select data-picker-area aria-label="אזור" @change=${this.onArea}>
-            <option value="" ?selected=${!this.area}>כל האזורים</option>
+          <select data-picker-area aria-label=${tr('אזור')} @change=${this.onArea}>
+            <option value="" ?selected=${!this.area}>${tr('כל האזורים')}</option>
             ${[...new Set([...areas, this.area].filter(Boolean))].map((a) => html`<option value=${a} ?selected=${a === this.area}>${a}</option>`)}
           </select>
         </label>
       </div>
-      ${this.rejected ? html`<div class="alert err" role="alert" data-picker-reject><span class="x" aria-hidden="true">!</span><div><b>${meterNames({ name: this.rejected.name, device_name: this.rejected.device, entity_name: this.rejected.entity }).primary}</b> לא נבחר. ${this.rejected.message}</div></div>` : nothing}
+      ${this.rejected ? html`<div class="alert err" role="alert" data-picker-reject><span class="x" aria-hidden="true">!</span><div><b>${meterNames({ name: this.rejected.name, device_name: this.rejected.device, entity_name: this.rejected.entity }).primary}</b> ${tr('לא נבחר.')} ${this.rejected.message}</div></div>` : nothing}
       ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
-      ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${choose ? 'לא ניתן לטעון את המונים' : 'לא ניתן לטעון את החיישנים'} hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
-      ${this.phase === 'ready' && !listed.length ? html`<sw-state-panel icon="bolt" state="empty" compact data-no-match heading=${choose ? (this.items.length ? 'לא נמצא מונה בשם הזה' : 'אין מונים עדיין') : 'לא נמצאו חיישנים'}></sw-state-panel>` : nothing}
+      ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${choose ? tr('לא ניתן לטעון את המונים') : tr('לא ניתן לטעון את החיישנים')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel>` : nothing}
+      ${this.phase === 'ready' && !listed.length ? html`<sw-state-panel icon="bolt" state="empty" compact data-no-match heading=${choose ? (this.items.length ? tr('לא נמצא מונה בשם הזה') : tr('אין מונים עדיין')) : tr('לא נמצאו חיישנים')}></sw-state-panel>` : nothing}
       ${listed.length
-        ? html`<div class="list scroll" role="listbox" aria-multiselectable=${this.multi ? 'true' : 'false'} aria-label=${choose ? 'מונים' : 'חיישנים'} data-picker-list>
+        ? html`<div class="list scroll" role="listbox" aria-multiselectable=${this.multi ? 'true' : 'false'} aria-label=${choose ? tr('מונים') : tr('חיישנים')} data-picker-list>
             ${listed.map((p) => {
               const on = this.selected.includes(p.id);
               const off = this.off(p);
@@ -269,7 +270,7 @@ export class ElecMeterPicker extends LitElement {
                 <span class="check ${on ? 'on' : ''} ${off ? 'dis' : ''}">${on ? html`<sw-icon name="check" size="14"></sw-icon>` : nothing}</span>
                 <span class="grow">
                   <div class="t1" data-picker-name>${nm.primary}</div>
-                  ${nm.secondary ? html`<div class="t2 ent" data-picker-entity title="שם הישות">${nm.secondary}</div>` : nothing}
+                  ${nm.secondary ? html`<div class="t2 ent" data-picker-entity title=${tr('שם הישות')}>${nm.secondary}</div>` : nothing}
                   <div class="t2">${p.area}${p.area && p.value ? ' · ' : ''}<span class="num">${p.value}</span></div>
                   ${p.message && (p.verdict === 'warn' || p.verdict === 'rejected') ? html`<div class="t2 wrap" style="color:${p.verdict === 'warn' ? 'var(--sw-warning-text)' : 'var(--sw-danger-text)'}">${p.message}</div>` : nothing}
                 </span>

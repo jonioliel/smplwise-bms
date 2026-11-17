@@ -3,6 +3,7 @@
  * template: `{ticket}` / `{tickets}` of tickets/naming.ts, never written here).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   card: 'שעות עבודה',
@@ -109,3 +110,5 @@ export const wct = catalogue.t;
 
 export const WORK_CALENDAR_TEXT_KEYS = catalogue.KEYS;
 export const WORK_CALENDAR_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/work-calendar-text', { he, en });

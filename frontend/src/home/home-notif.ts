@@ -7,6 +7,7 @@ import { registerMoreTile } from './more-registry';
 import { getNotify, putNotify, type NotifyMe } from './home-p2-api';
 import { errText, has, stepper, sw, warmFamily, seen } from './home-p2-ui';
 import { alarmPinRow, warmAlarmPin } from './home-alarm'; // HOME-V3-GAPS-2436: the personal alarm code here too
+import { tr } from '../i18n/msg/home';
 
 const st: { me: NotifyMe | null; at: number; loading: boolean; error: string; busy: boolean } = { me: null, at: 0, loading: false, error: '', busy: false };
 const toMin = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
@@ -27,10 +28,10 @@ function save(h: HomeHost, body: Parameters<typeof putNotify>[0], ok: string) {
 }
 
 registerMoreTile({
-  id: 'notif', order: 90, href: 'notif', label: 'ההתראות שלי', icon: 'bell',
+  id: 'notif', order: 90, href: 'notif', label: tr('ההתראות שלי'), icon: 'bell',
   visible: (h) => seen(h) && has('notif'),
   warm: (h) => load(h),
-  line: () => ({ text: st.me?.dnd.enabled ? 'מצב "לא להפריע" פועל' : 'מה מגיע אליי לטלפון' }),
+  line: () => ({ text: st.me?.dnd.enabled ? tr('מצב "לא להפריע" פועל') : tr('מה מגיע אליי לטלפון') }),
 });
 
 /** The kinds a person may switch here: the notice board and tickets only while their module is on. */
@@ -42,17 +43,17 @@ registerScreen((h: HomeHost) => ({
   enter: () => { warmFamily(h); load(h, true); warmAlarmPin(h); },
   render() {
     const m = st.me;
-    if (!m) return html`${h.head('ההתראות שלי', '')}${st.error ? h.empty('x', 'לא הצלחנו לטעון', st.error) : h.empty('bell', 'טוענים…', '')}`;
+    if (!m) return html`${h.head(tr('ההתראות שלי'), '')}${st.error ? h.empty('x', tr('לא הצלחנו לטעון'), st.error) : h.empty('bell', tr('טוענים…'), '')}`;
     const cats = shown(m).slice(0, h.phone ? 6 : 8);
     const noPhone = m.phones === 0;
     const d = m.dnd;
-    return html`${h.head('ההתראות שלי', noPhone ? 'עוד אין טלפון מחובר. כשתחברו את האפליקציה, תוכלו לבחור כאן מה יגיע אליו.' : 'מה מגיע אליי לטלפון. כל אחד בבית בוחר לעצמו.')}
-      <div class="nf-body"><section class="set-list two nf-list" aria-label="סוגי התראות">${cats.map((c) => html`<div class="tile setrow"><span class="sname">${c.name}${c.partly ? html`<span class="muted clamp1">רק בחלק מהטלפונים</span>` : nothing}</span>${sw(c.on, 'p2NfTog', c.name, { id: c.id }, noPhone || st.busy)}</div>`)}</section>
-        <section class="set-list two" aria-label="לא להפריע"><div class="tile setrow"><span class="sname"><b>לא להפריע בלילה</b><span class="muted clamp1">בין <span class="num">${d.start}</span> ל-<span class="num">${d.end}</span> רק אזעקה ודלת מגיעות</span></span>${sw(d.enabled, 'p2Dnd', 'לא להפריע בלילה', {}, st.busy)}</div>
+    return html`${h.head(tr('ההתראות שלי'), noPhone ? tr('עוד אין טלפון מחובר. כשתחברו את האפליקציה, תוכלו לבחור כאן מה יגיע אליו.') : tr('מה מגיע אליי לטלפון. כל אחד בבית בוחר לעצמו.'))}
+      <div class="nf-body"><section class="set-list two nf-list" aria-label="${tr('סוגי התראות')}">${cats.map((c) => html`<div class="tile setrow"><span class="sname">${c.name}${c.partly ? html`<span class="muted clamp1">${tr('רק בחלק מהטלפונים')}</span>` : nothing}</span>${sw(c.on, 'p2NfTog', c.name, { id: c.id }, noPhone || st.busy)}</div>`)}</section>
+        <section class="set-list two" aria-label="${tr('לא להפריע')}"><div class="tile setrow"><span class="sname"><b>${tr('לא להפריע בלילה')}</b><span class="muted clamp1">${tr('בין')} <span class="num">${d.start}</span> ${tr('ל-')}<span class="num">${d.end}</span> ${tr('רק אזעקה ודלת מגיעות')}</span></span>${sw(d.enabled, 'p2Dnd', tr('לא להפריע בלילה'), {}, st.busy)}</div>
           ${d.enabled ? (h.phone
             // HOME-V3-GAPS-2436: on a phone the two hours did not fit one row (the end hour was cut off): one row each
-            ? html`<div class="tile setrow"><span class="sname">משעה</span>${stepper('p2DndStp', 'start', toMin(d.start), 'משעה')}</div><div class="tile setrow"><span class="sname">עד שעה</span>${stepper('p2DndStp', 'end', toMin(d.end), 'עד שעה')}</div>`
-            : html`<div class="tile setrow"><span class="sname">משעה</span>${stepper('p2DndStp', 'start', toMin(d.start), 'משעה')}<span class="sname mid-l">עד שעה</span>${stepper('p2DndStp', 'end', toMin(d.end), 'עד שעה')}</div>`) : nothing}${alarmPinRow(h)}</section></div>`;
+            ? html`<div class="tile setrow"><span class="sname">${tr('משעה')}</span>${stepper('p2DndStp', 'start', toMin(d.start), tr('משעה'))}</div><div class="tile setrow"><span class="sname">${tr('עד שעה')}</span>${stepper('p2DndStp', 'end', toMin(d.end), tr('עד שעה'))}</div>`
+            : html`<div class="tile setrow"><span class="sname">${tr('משעה')}</span>${stepper('p2DndStp', 'start', toMin(d.start), tr('משעה'))}<span class="sname mid-l">${tr('עד שעה')}</span>${stepper('p2DndStp', 'end', toMin(d.end), tr('עד שעה'))}</div>`) : nothing}${alarmPinRow(h)}</section></div>`;
   },
   acts: {
     p2NfTog: (el) => {
@@ -63,14 +64,14 @@ registerScreen((h: HomeHost) => ({
       c.on = !c.on;
       c.partly = false;
       h.requestUpdate();
-      save(h, { muted: m.categories.filter((x) => !x.on).map((x) => x.id) }, c.on ? `${c.name}: יגיע לטלפון` : `${c.name}: לא יגיע לטלפון`);
+      save(h, { muted: m.categories.filter((x) => !x.on).map((x) => x.id) }, c.on ? tr('{name}: יגיע לטלפון', { name: c.name }) : tr('{name}: לא יגיע לטלפון', { name: c.name }));
     },
     p2Dnd: () => {
       const m = st.me;
       if (!m) return;
       m.dnd.enabled = !m.dnd.enabled;
       h.requestUpdate();
-      save(h, { dnd: { enabled: m.dnd.enabled } }, m.dnd.enabled ? 'מצב "לא להפריע" בלילה פועל' : 'מצב "לא להפריע" כבוי');
+      save(h, { dnd: { enabled: m.dnd.enabled } }, m.dnd.enabled ? tr('מצב "לא להפריע" בלילה פועל') : tr('מצב "לא להפריע" כבוי'));
     },
     p2DndStp: (el) => {
       const m = st.me;
@@ -81,7 +82,7 @@ registerScreen((h: HomeHost) => ({
       if (toHm(v) === other) v = (v + 30 * Number(el.dataset.d) + 1440) % 1440;
       m.dnd[k] = toHm(v);
       h.requestUpdate();
-      save(h, { dnd: { start: m.dnd.start, end: m.dnd.end } }, 'השעות נשמרו');
+      save(h, { dnd: { start: m.dnd.start, end: m.dnd.end } }, tr('השעות נשמרו'));
     },
   },
 }));

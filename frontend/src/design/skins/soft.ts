@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { tr } from '../../i18n/msg/misc';
 import { ARX_MOTION_RULES } from './arx-motion';
 import { INFRA_TOKENS } from './infra';
 import { ARX_KPI_RULES, ARX_RAIL_RULES, SOFT_COMPONENT_RULES } from './arx-components';
@@ -138,4 +139,4 @@ const rules = `
 @media (prefers-contrast: more) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); border-color: var(--sw-border-strong); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 ${SOFT_COMPONENT_RULES}${ARX_KPI_RULES}${ARX_RAIL_RULES}${ARX_MOTION_RULES}`;
 
-export const soft: Skin = { id: 'soft', name: 'Arx Soft', nameHe: 'Arx Soft', noteHe: 'חומר שקוף על רקע חם וקר, פינות עגולות, תפריטים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };
+export const soft: Skin = { id: 'soft', name: 'Arx Soft', nameHe: 'Arx Soft', noteHe: tr('חומר שקוף על רקע חם וקר, פינות עגולות, תפריטים אטומים'), stage: 'foundation', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };

@@ -10,6 +10,7 @@
  * its device; "כרטיס החדר" opens the room card) or, with `map.room_pill_tap` = card, the room card at once; a mouse hover opens the
  * popover too (it closes when the pointer leaves both). Every panel here is a HUD panel: the opaque menu surface, the strong border.
  */
+import { tr } from '../i18n/msg/map';
 import { css, html, nothing, type ReactiveController, type ReactiveControllerHost, type TemplateResult } from 'lit';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
@@ -158,7 +159,7 @@ export class RoomPillLayer implements ReactiveController {
       aria-label=${pillAria(p)} aria-pressed=${pressed ? 'true' : 'false'} aria-haspopup=${this.prefs.tap === 'popover' && p.devices.length ? 'dialog' : nothing}
       @click=${(e: Event) => this.onPillClick(e, p)} @pointerenter=${(e: PointerEvent) => this.onPillEnter(e, p)} @pointerleave=${(e: PointerEvent) => this.onLeave(e)}>${body}</button>`;
     if (quiet && !sole) {
-      if (this.prefs.quiet === 'bubble') return common('', html`<span class="n">${p.name}</span><i class="sep"></i><span class="s">הכול סגור</span>`);
+      if (this.prefs.quiet === 'bubble') return common('', html`<span class="n">${p.name}</span><i class="sep"></i><span class="s">${tr('הכול סגור')}</span>`);
       return common('quiet', html`<span class="n">${p.name}</span>`);
     }
     if (sole && lod !== 'far') {
@@ -183,12 +184,12 @@ export class RoomPillLayer implements ReactiveController {
   private popover(p: RoomPill): TemplateResult {
     const r = popoverRows(p, 6);
     return html`<div class="rpop" role="dialog" aria-label=${p.name} data-room-pop=${p.id} @pointerenter=${() => this.onPopEnter()} @pointerleave=${(e: PointerEvent) => this.onLeave(e)} @click=${(e: Event) => e.stopPropagation()}>
-      <h3>${p.name}<small>${p.devices.length} התקנים</small></h3>
-      ${r.open.length ? html`<div class="grp">פתוחים (${p.devices.filter((d) => d.kind === 'open').length})</div>${r.open.map((d) => this.row(d))}` : nothing}
-      ${r.lit.length ? html`<div class="grp">אורות דולקים (${p.devices.filter((d) => d.kind === 'lit').length})</div>${r.lit.map((d) => this.row(d))}` : nothing}
-      ${r.rest.length ? html`<div class="grp">מצב</div>${r.rest.map((d) => this.row(d))}` : nothing}
-      ${r.more ? html`<div class="moredev">ועוד ${r.more} התקנים בכרטיס החדר</div>` : nothing}
-      <button type="button" class="card" data-room-pop-card @click=${(e: Event) => { e.stopPropagation(); this.closePop(); this.emit<RoomOpenDetail>('room-open', { id: p.id }); }}>כרטיס החדר<sw-icon name="chevron" size=${13}></sw-icon></button>
+      <h3>${p.name}<small>${tr('{n} התקנים', { n: p.devices.length })}</small></h3>
+      ${r.open.length ? html`<div class="grp">${tr('פתוחים ({n})', { n: p.devices.filter((d) => d.kind === 'open').length })}</div>${r.open.map((d) => this.row(d))}` : nothing}
+      ${r.lit.length ? html`<div class="grp">${tr('אורות דולקים ({n})', { n: p.devices.filter((d) => d.kind === 'lit').length })}</div>${r.lit.map((d) => this.row(d))}` : nothing}
+      ${r.rest.length ? html`<div class="grp">${tr('מצב')}</div>${r.rest.map((d) => this.row(d))}` : nothing}
+      ${r.more ? html`<div class="moredev">${tr('ועוד {n} התקנים בכרטיס החדר', { n: r.more })}</div>` : nothing}
+      <button type="button" class="card" data-room-pop-card @click=${(e: Event) => { e.stopPropagation(); this.closePop(); this.emit<RoomOpenDetail>('room-open', { id: p.id }); }}>${tr('כרטיס החדר')}<sw-icon name="chevron" size=${13}></sw-icon></button>
     </div>`;
   }
 
@@ -197,10 +198,10 @@ export class RoomPillLayer implements ReactiveController {
       @click=${(e: Event) => { e.stopPropagation(); this.emit<StackLevelDetail>('stack-level', { id: t.id, enter: false }); }}>
       <span class="lvl num">${t.short}</span><span class="tx"><b>${t.name}</b><span class="sum">
         ${t.open ? html`<span class="open"><sw-icon name="door" size=${12}></sw-icon>${openWords(t.open)}</span>` : nothing}
-        ${t.presence ? html`<span class="pres"><sw-icon name="user" size=${12}></sw-icon>נוכחות</span>` : nothing}
+        ${t.presence ? html`<span class="pres"><sw-icon name="user" size=${12}></sw-icon>${tr('נוכחות')}</span>` : nothing}
         ${t.lit ? html`<span class="lit"><sw-icon name="light" size=${12}></sw-icon><span class="num">${t.lit}</span></span>` : nothing}
         ${t.temp !== null ? html`<span class="num">${temperatureText(t.temp)}</span>` : nothing}
-        ${!t.open && !t.presence && !t.lit && t.temp === null ? html`<span>הכול סגור</span>` : nothing}</span></span></button>`;
+        ${!t.open && !t.presence && !t.lit && t.temp === null ? html`<span>${tr('הכול סגור')}</span>` : nothing}</span></span></button>`;
   }
 
   /** The layer's template: the room pills, the popover, the level tags (spread: beside each level; focused: a column with the
@@ -216,8 +217,8 @@ export class RoomPillLayer implements ReactiveController {
       })}
       ${pop ? this.popover(pop) : nothing}
       ${focused
-        ? html`<div class="ltcol" role="group" aria-label="קומות" data-level-column>${[...this.tags].reverse().map((t) => this.tag(t, true))}
-            <div class="ltcta"><button type="button" class="enter" data-stack-enter @click=${(e: Event) => { e.stopPropagation(); this.emit<StackLevelDetail>('stack-level', { id: focused.id, enter: true }); }}>פתח את הקומה<sw-icon name="chevron" size=${13}></sw-icon></button></div></div>`
+        ? html`<div class="ltcol" role="group" aria-label=${tr('קומות')} data-level-column>${[...this.tags].reverse().map((t) => this.tag(t, true))}
+            <div class="ltcta"><button type="button" class="enter" data-stack-enter @click=${(e: Event) => { e.stopPropagation(); this.emit<StackLevelDetail>('stack-level', { id: focused.id, enter: true }); }}>${tr('פתח את הקומה')}<sw-icon name="chevron" size=${13}></sw-icon></button></div></div>`
         : this.tags.map((t) => this.tag(t, false))}
     </div>`;
   }

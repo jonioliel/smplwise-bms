@@ -3,6 +3,8 @@
  * the board's pane) and of the installation setting that unmasks phones. Merged into tickets/text.ts (`...DM_HE`, `...DM_EN`) and read
  * through `tt()`. No internal codes, no product name of the infrastructure, never the module's noun hard-coded.
  */
+import { registerCatalogue } from '../i18n/core';
+
 export const DM_HE = {
   dmPaneGroup: 'תצוגת הלוח',
   dmManagerFixed: 'מנהל מחלקה נקבע בהגדרות',
@@ -84,3 +86,5 @@ export const DM_RU_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
   p_directory: 'Справочник: поставщики и внешние контакты', // SMALL-294 / SMALL2-295 (tickets.directory)
   p_handlers: 'Исполнители и поставщики в моих отделах',
 };
+
+registerCatalogue('tickets/text-deptmgr', { he: DM_HE, en: DM_EN });

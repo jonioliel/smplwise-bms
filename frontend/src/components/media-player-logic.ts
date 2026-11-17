@@ -23,9 +23,10 @@ import {
   type GroupPreview, type LibraryKind, type MemberOutcome, type PlanMember, type PlayerCommand, type PlayerDevice, type PlayerLive, type ReceiverZone, type UpNext, type VolumeStep,
 } from '../api/media-players';
 import { timeText } from '../api/day-format';
+import { tr } from '../i18n/msg/components';
 
 export { CONFIRM_TIMEOUT_MS };
-export const NOT_CONFIRMED = 'הנגן לא אישר את הפקודה';
+export const NOT_CONFIRMED = tr('הנגן לא אישר את הפקודה');
 /** The press-and-hold long enough to mean "נגן אחרי הנוכחי" on a library item. */
 export const LONG_PRESS_MS = 520;
 /** One slider change goes out after this quiet (the volume slider of the TV remote uses the same). */
@@ -56,12 +57,12 @@ export const greyed = (d: Pick<PlayerDevice, 'live'>): boolean => !d.live.caps_k
 /** The contract of opening: a panel that has just been opened sends NOTHING (never a power-on, never a probe command). */
 export const openSends = (): PlayerCommand[] => [];
 
-const KIND_WORD: Record<string, string> = { speaker: 'הרמקול', receiver: 'המגבר', player: 'הנגן', group: 'הקבוצה' };
+const KIND_WORD: Record<string, string> = { speaker: tr('הרמקול'), receiver: tr('המגבר'), player: tr('הנגן'), group: tr('הקבוצה') };
 
 /** The unavailable state's only lines: "הרמקול לא זמין" and "מאז 14:20" (`since` is the time alone, in the browser's zone; '' = unknown). */
 export function playerUnavailableLine(d: Pick<PlayerDevice, 'live' | 'kind'>): { title: string; since: string } {
-  const word = KIND_WORD[d.kind] ?? 'הנגן';
-  const title = d.live.power === 'unknown' ? 'מצב לא ידוע' : `${word} לא זמין`;
+  const word = KIND_WORD[d.kind] ?? tr('הנגן');
+  const title = d.live.power === 'unknown' ? tr('מצב לא ידוע') : tr('{word} לא זמין', { word });
   if (!d.live.since) return { title, since: '' };
   const t = new Date(d.live.since);
   if (Number.isNaN(t.getTime())) return { title, since: '' };
@@ -94,9 +95,9 @@ export function playerPowerOffer(d: Pick<PlayerDevice, 'live' | 'caps' | 'can' |
 export function nowStatusWord(d: Pick<PlayerDevice, 'live'>, leader: Pick<PlayerDevice, 'name' | 'area_name'> | null): string {
   const l = d.live;
   const paused = l.play === 'paused';
-  if (l.group.role === 'member' && leader) return `מנגן עם ${leaderLabel(leader)}${paused ? ' · מושהה' : ''}`;
-  if (paused) return 'מושהה';
-  return l.now.kind === 'station' ? 'תחנה' : 'מנגן';
+  if (l.group.role === 'member' && leader) return `${tr('מנגן עם {name}', { name: leaderLabel(leader) })}${paused ? ` · ${tr('מושהה')}` : ''}`;
+  if (paused) return tr('מושהה');
+  return l.now.kind === 'station' ? tr('תחנה') : tr('מנגן');
 }
 
 /** Something is loaded in the player (a title and a playing or paused state): the now-playing card is drawn, else "לא מנגן". */
@@ -119,7 +120,7 @@ export function transportButtons(d: Pick<PlayerDevice, 'caps' | 'live'>): Transp
 }
 
 /** The repeat button's label (the glyph carries a "1" for one). */
-export const repeatLabel = (m: PlayerLive['repeat']): string => `חזרה: ${m === 'all' ? 'הכל' : m === 'one' ? 'שיר אחד' : 'כבוי'}`;
+export const repeatLabel = (m: PlayerLive['repeat']): string => tr('חזרה: {mode}', { mode: m === 'all' ? tr('הכל') : m === 'one' ? tr('שיר אחד') : tr('כבוי') });
 
 /** The playback position now (client interpolation of the reported position while playing; null for a station / no position). */
 export function positionOf(l: Pick<PlayerLive, 'play' | 'now'>, at: number = Date.now()): number | null {
@@ -247,7 +248,7 @@ export interface GroupRow {
 
 export function groupSectionRows(lead: PlayerDevice, devices: readonly PlayerDevice[]): GroupRow[] {
   const cands = groupCandidates(lead, devices).sort((a, b) => (a.floor_name ?? '￿').localeCompare(b.floor_name ?? '￿', 'he') || a.name.localeCompare(b.name, 'he'));
-  const sub = (d: PlayerDevice): string => [d.area_name ?? 'ללא חדר', d.floor_name && lead.floor_name && d.floor_name !== lead.floor_name ? d.floor_name : null].filter(Boolean).join(' · ');
+  const sub = (d: PlayerDevice): string => [d.area_name ?? tr('ללא חדר'), d.floor_name && lead.floor_name && d.floor_name !== lead.floor_name ? d.floor_name : null].filter(Boolean).join(' · ');
   return [lead, ...cands].map((d) => ({
     key: d.key, name: d.name, sub: sub(d), leader: d.key === lead.key, member: d.key === lead.key || (d.live.group.role === 'member' && d.live.group.leader_key === lead.key),
     playing: d.key !== lead.key && isPlaying(d) && d.live.group.role === 'none' && !!d.live.now.title ? { glyph: d.live.now.glyph, hue: d.live.now.hue } : null,
@@ -275,8 +276,8 @@ export function joinPlan(lead: PlayerDevice, current: readonly string[], desired
 }
 
 /** The confirmation's question ("לצרף 4 חדרים לקבוצה אחת?") and, across floors, the one line under it. */
-export const joinQuestion = (total: number): string => `לצרף ${total} חדרים לקבוצה אחת?`;
-export const floorsLine = (floors: number): string | null => (floors > 1 ? `הקבוצה תשמיע ב־${floors} קומות.` : null);
+export const joinQuestion = (total: number): string => tr('לצרף {n} חדרים לקבוצה אחת?', { n: total });
+export const floorsLine = (floors: number): string | null => (floors > 1 ? tr('הקבוצה תשמיע ב־{n} קומות.', { n: floors }) : null);
 /** The question and line for a server preview (409 `confirm_required`), else for the local plan. */
 export function confirmCopy(preview: GroupPreview | null, plan: JoinPlan): { question: string; line: string | null } {
   const total = preview ? preview.devices : plan.after.length;
@@ -291,7 +292,7 @@ export function failedLines(members: readonly { device_key: string; area_name: s
     .filter((m) => m.outcome === 'not_joined' || m.outcome === 'unknown' || m.outcome === 'not_allowed')
     .map((m) => `${m.area_name ?? names.get(m.device_key) ?? ''} ${OUTCOME_SHORT[m.outcome]}`.trim());
 }
-const OUTCOME_SHORT: Record<string, string> = { not_joined: 'לא הצטרף', unknown: 'לא ידוע', not_allowed: 'אין הרשאה' };
+const OUTCOME_SHORT: Record<string, string> = { not_joined: tr('לא הצטרף'), unknown: tr('לא ידוע'), not_allowed: tr('אין הרשאה') };
 
 // ------------------------------------------------------------------------------------------------ transfer
 

@@ -3,6 +3,7 @@
  * no-connection rows, more floors, the phone floor switch) and of its display options. Hebrew first; English follows the document language.
  * Arabic and Russian are NOT translated yet: they fall back to Hebrew (like any key a table lacks) until a native translation is added.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   // the screen
   tree: 'עץ',
@@ -409,8 +410,7 @@ const en: Record<HsKey, string> = {
 export type HsLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function hsLang(): HsLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<HsLang, Partial<Record<HsKey, string>>> = { he, en, ar: {}, ru: {} };
@@ -426,3 +426,5 @@ export function hs(key: HsKey, vars: Record<string, string | number> = {}, lang:
 
 export const HS_KEYS = Object.keys(he) as HsKey[];
 export const HS_TABLES = TABLES;
+
+registerCatalogue('i18n/home-screen', { he, en });

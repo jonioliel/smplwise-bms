@@ -6,6 +6,7 @@ import { applyAutomationsGlass } from '../api/automations-demo';
 import type { ScriptField } from '../api/automations';
 
 import { fieldDefaults, missingFields, type FieldChoice } from '../screens/automations-logic';
+import { tr } from '../i18n/msg/components';
 export type { FieldChoice };
 const clampNum = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
 
@@ -135,10 +136,10 @@ export class ScriptFieldsForm extends LitElement {
     const step = s.step ?? 1;
     const v = typeof this.current[f.key] === 'number' ? (this.current[f.key] as number) : Number(s.min);
     return html`<div class="stepper" role="group" aria-label=${f.name}>
-      <button type="button" aria-label="פחות" data-field-minus=${f.key} ?disabled=${v <= s.min} @click=${() => this.set(f.key, clampNum(Math.round((v - step) * 1000) / 1000, s.min, s.max))}>${aIcon('minus')}</button>
+      <button type="button" aria-label=${tr('פחות')} data-field-minus=${f.key} ?disabled=${v <= s.min} @click=${() => this.set(f.key, clampNum(Math.round((v - step) * 1000) / 1000, s.min, s.max))}>${aIcon('minus')}</button>
       <input type="number" inputmode="decimal" min=${s.min} max=${s.max} step=${step} .value=${String(v)} aria-label=${f.name} data-field=${f.key} @change=${(e: Event) => { const n = Number((e.target as HTMLInputElement).value); if (Number.isFinite(n)) this.set(f.key, clampNum(n, s.min, s.max)); }} />
       ${s.unit ? html`<small>${s.unit}</small>` : nothing}
-      <button type="button" aria-label="יותר" data-field-plus=${f.key} ?disabled=${v >= s.max} @click=${() => this.set(f.key, clampNum(Math.round((v + step) * 1000) / 1000, s.min, s.max))}>${aIcon('plus')}</button>
+      <button type="button" aria-label=${tr('יותר')} data-field-plus=${f.key} ?disabled=${v >= s.max} @click=${() => this.set(f.key, clampNum(Math.round((v + step) * 1000) / 1000, s.min, s.max))}>${aIcon('plus')}</button>
     </div>`;
   }
 

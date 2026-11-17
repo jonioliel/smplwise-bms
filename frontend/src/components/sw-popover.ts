@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-button';
+import { tr } from '../i18n/msg/components';
 
 /**
  * Floating card anchored near a map marker (board 1 screen 4: "Office 2F – Entrance" card with the
@@ -123,7 +124,7 @@ export class SwPopover extends LitElement {
 
   render() {
     return html`
-      <header><h4>${this.heading}</h4><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${this.close}></sw-button></header>
+      <header><h4>${this.heading}</h4><sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('סגור')} @click=${this.close}></sw-button></header>
       <slot></slot>
       <footer><slot name="footer"></slot></footer>
     `;

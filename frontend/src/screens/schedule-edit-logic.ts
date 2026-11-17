@@ -33,6 +33,7 @@ import {
   type UpcomingRun,
 } from '../api/schedules';
 import { tokensOf } from './schedule-grid-logic';
+import { tr } from '../i18n/msg/automation';
 
 // ------------------------------------------------------------------------------------------------ entities
 
@@ -387,8 +388,8 @@ export interface ValidationCtx {
 }
 
 function argLabel(name: string): string {
-  return ({ brightness: 'בהירות', brightness_pct: 'בהירות', position: 'מיקום', tilt_position: 'הטיה', temperature: 'טמפרטורה', hvac_mode: 'מצב פעולה', percentage: 'עוצמה', fan_mode: 'מצב מאוורר', preset_mode: 'מצב מוגדר',
-    swing_mode: 'מצב נדנוד', humidity: 'לחות', mode: 'מצב', value: 'ערך', option: 'אפשרות', variables: 'משתני הסקריפט' } as Record<string, string>)[name] ?? name;
+  return ({ brightness: tr('בהירות'), brightness_pct: tr('בהירות'), position: tr('מיקום'), tilt_position: tr('הטיה'), temperature: tr('טמפרטורה'), hvac_mode: tr('מצב פעולה'), percentage: tr('עוצמה'), fan_mode: tr('מצב מאוורר'), preset_mode: tr('מצב מוגדר'),
+    swing_mode: tr('מצב נדנוד'), humidity: tr('לחות'), mode: tr('מצב'), value: tr('ערך'), option: tr('אפשרות'), variables: tr('משתני הסקריפט') } as Record<string, string>)[name] ?? name;
 }
 
 function sameAction(a: DraftAction, b: DraftAction): boolean {
@@ -403,26 +404,26 @@ export function validateDraft(draft: ScheduleDraft, ctx: ValidationCtx): { error
   const warn = (path: string, code: string, message: string) => warnings.push({ path, code, message });
 
   const name = (draft.name ?? '').trim();
-  if (ctx.creating && !name) err('name', 'required', 'נדרש שם לתזמון.');
-  if (name.length > 80) err('name', 'too_long', 'השם ארוך מדי (עד 80 תווים).');
-  if (!draft.weekdays.length) err('weekdays', 'required', 'נדרש יום אחד לפחות.');
-  if (draft.start_date && draft.end_date && draft.start_date > draft.end_date) err('end_date', 'order', 'תאריך הסיום לפני תאריך ההתחלה.');
-  if (!draft.slots.length) err('slots', 'required', 'נדרשת לפחות משבצת אחת.');
-  if (draft.slots.length > (ctx.maxSlots ?? 48)) err('slots', 'too_many', 'יותר מדי משבצות בתזמון אחד.');
-  if (draft.repeat === 'single') warn('repeat', 'single_deletes', 'התזמון יימחק אחרי ההרצה האחרונה.');
+  if (ctx.creating && !name) err('name', 'required', tr('נדרש שם לתזמון.'));
+  if (name.length > 80) err('name', 'too_long', tr('השם ארוך מדי (עד 80 תווים).'));
+  if (!draft.weekdays.length) err('weekdays', 'required', tr('נדרש יום אחד לפחות.'));
+  if (draft.start_date && draft.end_date && draft.start_date > draft.end_date) err('end_date', 'order', tr('תאריך הסיום לפני תאריך ההתחלה.'));
+  if (!draft.slots.length) err('slots', 'required', tr('נדרשת לפחות משבצת אחת.'));
+  if (draft.slots.length > (ctx.maxSlots ?? 48)) err('slots', 'too_many', tr('יותר מדי משבצות בתזמון אחד.'));
+  if (draft.repeat === 'single') warn('repeat', 'single_deletes', tr('התזמון יימחק אחרי ההרצה האחרונה.'));
 
   draft.slots.forEach((sl, i) => {
     const start = parseTime(sl.start);
     const stop = sl.stop ? parseTime(sl.stop) : null;
-    if (!start) err(`slots[${i}].start`, 'time', 'שעת התחלה לא תקינה.');
-    if (sl.stop && !stop) err(`slots[${i}].stop`, 'time', 'שעת סיום לא תקינה.');
-    if (start && stop && sl.stop !== '00:00:00' && timeMinutes(stop, ctx.sun) <= timeMinutes(start, ctx.sun)) err(`slots[${i}].stop`, 'order', 'שעת הסיום לפני שעת ההתחלה.');
-    if (!sl.actions.length) err(`slots[${i}].actions`, 'required', 'לכל משבצת נדרשת פעולה.');
-    if (sl.actions.length > 20) err(`slots[${i}].actions`, 'too_many', 'יותר מדי פעולות במשבצת אחת.');
+    if (!start) err(`slots[${i}].start`, 'time', tr('שעת התחלה לא תקינה.'));
+    if (sl.stop && !stop) err(`slots[${i}].stop`, 'time', tr('שעת סיום לא תקינה.'));
+    if (start && stop && sl.stop !== '00:00:00' && timeMinutes(stop, ctx.sun) <= timeMinutes(start, ctx.sun)) err(`slots[${i}].stop`, 'order', tr('שעת הסיום לפני שעת ההתחלה.'));
+    if (!sl.actions.length) err(`slots[${i}].actions`, 'required', tr('לכל משבצת נדרשת פעולה.'));
+    if (sl.actions.length > 20) err(`slots[${i}].actions`, 'too_many', tr('יותר מדי פעולות במשבצת אחת.'));
     sl.actions.forEach((a, j) => {
       const path = `slots[${i}].actions[${j}]`;
       if (!a.entity_id) {
-        err(path, 'action_without_entity', 'הפעולה אינה מותרת בתזמון.');
+        err(path, 'action_without_entity', tr('הפעולה אינה מותרת בתזמון.'));
         return;
       }
       const m = ctx.meta.get(a.entity_id);
@@ -432,63 +433,63 @@ export function validateDraft(draft: ScheduleDraft, ctx: ValidationCtx): { error
         if (!unchanged) err(`${path}.entity_id`, m.reason.code, m.reason.message);
       }
       const svc = m.actions.find((x) => x.service === a.service);
-      if (m.actions.length && !svc) err(`${path}.service`, 'action_not_allowed', 'הפעולה אינה מותרת בתזמון.');
-      if ('code' in a.data) err(`${path}.data.code`, 'code_not_allowed', 'אסור לשמור קוד בתוך תזמון.');
+      if (m.actions.length && !svc) err(`${path}.service`, 'action_not_allowed', tr('הפעולה אינה מותרת בתזמון.'));
+      if ('code' in a.data) err(`${path}.data.code`, 'code_not_allowed', tr('אסור לשמור קוד בתוך תזמון.'));
       for (const spec of svc?.args ?? []) {
         if (spec.type === 'vars') {
           // a script's variables: the required ones present, nothing the script does not declare (the server checks types and ranges)
           const vars = (a.data.variables ?? {}) as Record<string, unknown>;
-          for (const f of spec.fields ?? []) if (f.required && (vars[f.name] === undefined || vars[f.name] === '')) err(`${path}.data.variables`, 'required', `חסר משתנה חובה של הסקריפט: ${f.label ?? f.name}`);
-          for (const k of Object.keys(vars)) if (!(spec.fields ?? []).some((f) => f.name === k)) err(`${path}.data.variables`, 'argument_not_allowed', `לסקריפט אין משתנה בשם ${k}.`);
+          for (const f of spec.fields ?? []) if (f.required && (vars[f.name] === undefined || vars[f.name] === '')) err(`${path}.data.variables`, 'required', tr('חסר משתנה חובה של הסקריפט: {name}', { name: f.label ?? f.name }));
+          for (const k of Object.keys(vars)) if (!(spec.fields ?? []).some((f) => f.name === k)) err(`${path}.data.variables`, 'argument_not_allowed', tr('לסקריפט אין משתנה בשם {name}.', { name: k }));
           continue;
         }
         const v = a.data[spec.name];
         const label = spec.label ?? argLabel(spec.name);
         if (v === undefined || v === null || v === '') {
           // brightness / brightness_pct are alternatives; hvac_mode is optional for set_temperature
-          if (spec.required) err(`${path}.data.${spec.name}`, 'required', `נדרש ערך: ${label}.`);
+          if (spec.required) err(`${path}.data.${spec.name}`, 'required', tr('נדרש ערך: {label}.', { label }));
           continue;
         }
         if ((spec.type === 'int' || spec.type === 'float') && (typeof v !== 'number' || Number.isNaN(v))) {
-          err(`${path}.data.${spec.name}`, 'type', `${label}: נדרש מספר.`);
+          err(`${path}.data.${spec.name}`, 'type', tr('{label}: נדרש מספר.', { label }));
         } else if (typeof v === 'number' && ((spec.min !== undefined && v < spec.min) || (spec.max !== undefined && v > spec.max))) {
-          err(`${path}.data.${spec.name}`, 'out_of_range', `${label} מחוץ לטווח ${spec.min ?? ''}–${spec.max ?? ''}.`);
+          err(`${path}.data.${spec.name}`, 'out_of_range', tr('{label} מחוץ לטווח {min}–{max}.', { label, min: spec.min ?? '', max: spec.max ?? '' }));
         } else if (spec.choices && spec.choices.length && typeof v === 'string' && !spec.choices.includes(v) && !(spec.name === 'hvac_mode' && v === 'off')) {
-          err(`${path}.data.${spec.name}`, 'choice', `${label}: ערך לא זמין להתקן.`);
+          err(`${path}.data.${spec.name}`, 'choice', tr('{label}: ערך לא זמין להתקן.', { label }));
         }
       }
       const t = a.data.temperature;
       const min = Number(m.attributes.min_temp ?? NaN);
       const max = Number(m.attributes.max_temp ?? NaN);
-      if (typeof t === 'number' && Number.isFinite(min) && t < min) err(`${path}.data.temperature`, 'out_of_range', `טמפרטורה מחוץ לטווח ${min}–${Number.isFinite(max) ? max : ''}.`);
+      if (typeof t === 'number' && Number.isFinite(min) && t < min) err(`${path}.data.temperature`, 'out_of_range', tr('טמפרטורה מחוץ לטווח {min}–{max}.', { min, max: Number.isFinite(max) ? max : '' }));
       // §5.6: a code is never stored in a schedule: a panel or lock that needs one cannot be scheduled for that action
       const wasThere = ctx.original?.slots.some((o) => o.actions.some((x) => sameAction(x, a)));
       const armNeedsCode = ARM_SERVICES.includes(a.service) && m.attributes.code_arm_required === true;
       const disarmNeedsCode = a.service === 'alarm_control_panel.alarm_disarm' && !!m.attributes.code_format;
       if (armNeedsCode || disarmNeedsCode) {
-        if (wasThere) warn(path, 'alarm_may_need_code', 'לוח האזעקה עשוי לדרוש קוד, ותזמון אינו שומר קודים.');
-        else err(path, 'alarm_code_needed', 'לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה.');
+        if (wasThere) warn(path, 'alarm_may_need_code', tr('לוח האזעקה עשוי לדרוש קוד, ותזמון אינו שומר קודים.'));
+        else err(path, 'alarm_code_needed', tr('לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה.'));
       }
       if ((a.service === 'lock.lock' || a.service === 'lock.unlock') && m.attributes.code_format) {
-        if (!wasThere) err(path, 'lock_code_needed', 'המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו.');
+        if (!wasThere) err(path, 'lock_code_needed', tr('המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו.'));
       }
     });
   });
 
-  for (const [a, b] of findOverlaps(draft.slots, ctx.sun)) err(`slots[${b}]`, 'slots_overlap', `משבצת ${b + 1} חופפת למשבצת ${a + 1}.`);
+  for (const [a, b] of findOverlaps(draft.slots, ctx.sun)) err(`slots[${b}]`, 'slots_overlap', tr('משבצת {n} חופפת למשבצת {other}.', { n: b + 1, other: a + 1 }));
 
   const c = draft.conditions;
-  if (c.items.length > 10) err('conditions.items', 'too_many', 'יותר מדי תנאים.');
+  if (c.items.length > 10) err('conditions.items', 'too_many', tr('יותר מדי תנאים.'));
   c.items.forEach((it, i) => {
-    if (!it.entity_id) err(`conditions.items[${i}]`, 'required', 'נדרש חיישן לתנאי.');
-    if ((it.match_type === 'above' || it.match_type === 'below') && (typeof it.value !== 'number' || Number.isNaN(it.value))) err(`conditions.items[${i}].value`, 'type', 'בהשוואה מספרית נדרש מספר.');
-    if ((it.match_type === 'is' || it.match_type === 'not') && (String(it.value).length < 1 || String(it.value).length > 100)) err(`conditions.items[${i}].value`, 'required', 'נדרש ערך לתנאי.');
+    if (!it.entity_id) err(`conditions.items[${i}]`, 'required', tr('נדרש חיישן לתנאי.'));
+    if ((it.match_type === 'above' || it.match_type === 'below') && (typeof it.value !== 'number' || Number.isNaN(it.value))) err(`conditions.items[${i}].value`, 'type', tr('בהשוואה מספרית נדרש מספר.'));
+    if ((it.match_type === 'is' || it.match_type === 'not') && (String(it.value).length < 1 || String(it.value).length > 100)) err(`conditions.items[${i}].value`, 'required', tr('נדרש ערך לתנאי.'));
   });
   for (const lc of ctx.lockedConditions.filter((x) => x.locked)) {
     const kept = c.items.some((d) => d.entity_id === lc.entity_id && d.attribute === lc.attribute && d.match_type === lc.match_type && d.value === lc.value);
-    if (!kept) err('conditions.items', 'condition_locked', `התנאי "${lc.name}" מחוץ להרשאתך ואי אפשר לשנות או להסיר אותו.`);
+    if (!kept) err('conditions.items', 'condition_locked', tr('התנאי "{name}" מחוץ להרשאתך ואי אפשר לשנות או להסיר אותו.', { name: lc.name }));
   }
-  if (c.track && draft.slots.some((s) => !s.stop)) warn('conditions.track', 'track_needs_window', 'בדיקה מתמשכת דורשת משבצת עם שעת סיום.');
+  if (c.track && draft.slots.some((s) => !s.stop)) warn('conditions.track', 'track_needs_window', tr('בדיקה מתמשכת דורשת משבצת עם שעת סיום.'));
   return { errors, warnings };
 }
 
@@ -539,10 +540,10 @@ export type SplitPlan =
  */
 export function planSplit(draft: ScheduleDraft, original: ScheduleDraft, override: SplitOverride): SplitPlan {
   const all = resolveDays(original.weekdays);
-  if (!all) return { ok: false, error: 'לא ניתן לפצל תזמון לפי ימי עבודה או סוף שבוע; בחרו ימים מפורשים תחילה.' };
+  if (!all) return { ok: false, error: tr('לא ניתן לפצל תזמון לפי ימי עבודה או סוף שבוע; בחרו ימים מפורשים תחילה.') };
   const days = all.filter((d) => override.days.includes(d));
   const remaining = all.filter((d) => !days.includes(d));
-  if (!days.length || !remaining.length) return { ok: false, error: 'בחרו חלק מהימים בלבד (לא את כולם ולא אף יום).' };
+  if (!days.length || !remaining.length) return { ok: false, error: tr('בחרו חלק מהימים בלבד (לא את כולם ולא אף יום).') };
   const afterSplit: ScheduleDraft = { ...original, weekdays: tokensOf(remaining) };
   const linked: ScheduleDraft = { ...draft, weekdays: tokensOf(remaining) };
   const created: ScheduleDraft = { ...draft, weekdays: tokensOf(days), slots: override.slots };
@@ -603,24 +604,24 @@ export function motzashDraft(sensor: string, offsetMin = 40): Pick<ScheduleDraft
   return { weekdays: ['sat'], conditions: presetConditions('not_holy_days', sensor), start: `sunset+${h}:${m}:00` };
 }
 
-const STATE_LABEL: Record<string, string> = { on: 'פעיל', off: 'כבוי', above_horizon: 'מעל האופק', below_horizon: 'מתחת לאופק', home: 'בבית', not_home: 'לא בבית', open: 'פתוח', closed: 'סגור' };
+const STATE_LABEL: Record<string, string> = { on: tr('פעיל'), off: tr('כבוי'), above_horizon: tr('מעל האופק'), below_horizon: tr('מתחת לאופק'), home: tr('בבית'), not_home: tr('לא בבית'), open: tr('פתוח'), closed: tr('סגור') };
 
 /** "איסור מלאכה פעיל", "טמפרטורה בחוץ מעל 26", "נוכחות – משרדים כבוי". */
 export function describeCondition(c: DraftCondition, name: string): string {
   if (c.attribute === 'state' && typeof c.value === 'string' && c.value in STATE_LABEL) {
     const positive = c.match_type === 'is';
-    if (c.value === 'on' || c.value === 'off') return `${name} ${positive === (c.value === 'on') ? 'פעיל' : 'כבוי'}`;
-    return `${name} ${positive ? 'הוא' : 'אינו'} ${STATE_LABEL[c.value]}`;
+    if (c.value === 'on' || c.value === 'off') return positive === (c.value === 'on') ? tr('{name} פעיל', { name }) : tr('{name} כבוי', { name });
+    return positive ? tr('{name} הוא {state}', { name, state: STATE_LABEL[c.value] }) : tr('{name} אינו {state}', { name, state: STATE_LABEL[c.value] });
   }
-  const op = { is: 'שווה ל', not: 'שונה מ', above: 'מעל', below: 'מתחת ל' }[c.match_type];
-  return `${name} ${op} ${c.value}`;
+  const vars = { name, value: c.value };
+  return c.match_type === 'is' ? tr('{name} שווה ל {value}', vars) : c.match_type === 'not' ? tr('{name} שונה מ {value}', vars) : c.match_type === 'above' ? tr('{name} מעל {value}', vars) : tr('{name} מתחת ל {value}', vars);
 }
 
 /** The values a device's condition offers (its known states); numeric devices take a number instead. */
 export function stateChoices(c: ConditionCandidate | undefined): { value: string; label: string }[] {
   if (!c || c.numeric) return [];
   if (c.domain === 'sun') return [{ value: 'above_horizon', label: STATE_LABEL.above_horizon }, { value: 'below_horizon', label: STATE_LABEL.below_horizon }];
-  return [{ value: 'on', label: 'פעיל' }, { value: 'off', label: 'כבוי' }];
+  return [{ value: 'on', label: tr('פעיל') }, { value: 'off', label: tr('כבוי') }];
 }
 
 // ------------------------------------------------------------------------------------------------ sun
@@ -658,10 +659,10 @@ export function argSpecs(meta: EntityMeta | undefined, service: string): ArgSpec
 /** A slot's short summary for lists: "הדלקה · תאורת תקרה", "כיבוי · 3 התקנים". */
 export function slotSummary(slot: DraftSlot, meta: MetaMap): string {
   const g = groupActions(slot.actions);
-  if (!g.length) return 'בחרו פעולה';
+  if (!g.length) return tr('בחרו פעולה');
   const first = g[0];
-  const names = first.entities.map((e) => (e ? meta.get(e)?.name ?? e : 'ללא התקן'));
-  const who = names.length > 1 ? `${names.length} התקנים` : names[0] ?? '';
+  const names = first.entities.map((e) => (e ? meta.get(e)?.name ?? e : tr('ללא התקן')));
+  const who = names.length > 1 ? tr('{n} התקנים', { n: names.length }) : names[0] ?? '';
   return `${actionLabel({ service: first.service, data: first.data })}${who ? ` · ${who}` : ''}${g.length > 1 ? ` (+${g.length - 1})` : ''}`;
 }
 
@@ -670,46 +671,46 @@ export function slotSummary(slot: DraftSlot, meta: MetaMap): string {
  * are the words of the mockup, so the select reads the same whichever catalogue answered.
  */
 const SERVICE_WORDS: Record<string, string> = {
-  'light.turn_on': 'הדלקה',
-  'light.turn_off': 'כיבוי',
-  'switch.turn_on': 'הדלקה',
-  'switch.turn_off': 'כיבוי',
-  'fan.turn_on': 'הפעלה',
-  'fan.turn_off': 'כיבוי',
-  'fan.set_percentage': 'עוצמת מאוורר',
-  'cover.open_cover': 'פתיחה',
-  'cover.close_cover': 'סגירה',
-  'cover.stop_cover': 'עצירה',
-  'cover.set_cover_position': 'מיקום',
-  'cover.set_cover_tilt_position': 'הטיה',
-  'climate.set_temperature': 'טמפרטורת יעד',
-  'climate.set_hvac_mode': 'מצב פעולה',
-  'climate.set_fan_mode': 'מצב מאוורר',
-  'climate.set_preset_mode': 'מצב מוגדר מראש',
-  'climate.turn_off': 'כיבוי מיזוג',
-  'alarm_control_panel.alarm_arm_home': 'דריכה בבית',
-  'alarm_control_panel.alarm_arm_away': 'דריכה מלאה',
-  'alarm_control_panel.alarm_arm_night': 'דריכת לילה',
-  'alarm_control_panel.alarm_arm_vacation': 'דריכת חופשה',
-  'alarm_control_panel.alarm_arm_custom_bypass': 'דריכה עם עקיפה',
-  'alarm_control_panel.alarm_disarm': 'נטרול',
-  'lock.lock': 'נעילה',
-  'lock.unlock': 'פתיחת נעילה',
-  'button.press': 'לחיצה',
-  'cover.open_cover_tilt': 'פתיחת הטיה',
-  'cover.close_cover_tilt': 'סגירת הטיה',
-  'climate.set_swing_mode': 'מצב נדנוד',
-  'climate.set_humidity': 'לחות יעד',
-  'script.turn_on': 'הפעלת סקריפט',
-  'scene.turn_on': 'הפעלת סצנה',
-  'input_boolean.turn_on': 'הפעלה',
-  'input_boolean.turn_off': 'כיבוי',
-  'input_number.set_value': 'קביעת ערך',
-  'input_select.select_option': 'בחירה',
-  'humidifier.set_humidity': 'לחות יעד',
-  'humidifier.set_mode': 'מצב לחות',
-  'vacuum.start': 'התחלת ניקוי',
-  'vacuum.return_to_base': 'חזרה לעמדה',
+  'light.turn_on': tr('הדלקה'),
+  'light.turn_off': tr('כיבוי'),
+  'switch.turn_on': tr('הדלקה'),
+  'switch.turn_off': tr('כיבוי'),
+  'fan.turn_on': tr('הפעלה'),
+  'fan.turn_off': tr('כיבוי'),
+  'fan.set_percentage': tr('עוצמת מאוורר'),
+  'cover.open_cover': tr('פתיחה'),
+  'cover.close_cover': tr('סגירה'),
+  'cover.stop_cover': tr('עצירה'),
+  'cover.set_cover_position': tr('מיקום'),
+  'cover.set_cover_tilt_position': tr('הטיה'),
+  'climate.set_temperature': tr('טמפרטורת יעד'),
+  'climate.set_hvac_mode': tr('מצב פעולה'),
+  'climate.set_fan_mode': tr('מצב מאוורר'),
+  'climate.set_preset_mode': tr('מצב מוגדר מראש'),
+  'climate.turn_off': tr('כיבוי מיזוג'),
+  'alarm_control_panel.alarm_arm_home': tr('דריכה בבית'),
+  'alarm_control_panel.alarm_arm_away': tr('דריכה מלאה'),
+  'alarm_control_panel.alarm_arm_night': tr('דריכת לילה'),
+  'alarm_control_panel.alarm_arm_vacation': tr('דריכת חופשה'),
+  'alarm_control_panel.alarm_arm_custom_bypass': tr('דריכה עם עקיפה'),
+  'alarm_control_panel.alarm_disarm': tr('נטרול'),
+  'lock.lock': tr('נעילה'),
+  'lock.unlock': tr('פתיחת נעילה'),
+  'button.press': tr('לחיצה'),
+  'cover.open_cover_tilt': tr('פתיחת הטיה'),
+  'cover.close_cover_tilt': tr('סגירת הטיה'),
+  'climate.set_swing_mode': tr('מצב נדנוד'),
+  'climate.set_humidity': tr('לחות יעד'),
+  'script.turn_on': tr('הפעלת סקריפט'),
+  'scene.turn_on': tr('הפעלת סצנה'),
+  'input_boolean.turn_on': tr('הפעלה'),
+  'input_boolean.turn_off': tr('כיבוי'),
+  'input_number.set_value': tr('קביעת ערך'),
+  'input_select.select_option': tr('בחירה'),
+  'humidifier.set_humidity': tr('לחות יעד'),
+  'humidifier.set_mode': tr('מצב לחות'),
+  'vacuum.start': tr('התחלת ניקוי'),
+  'vacuum.return_to_base': tr('חזרה לעמדה'),
 };
 
 export function serviceWord(service: string, catalogLabel?: string): string {
@@ -809,7 +810,7 @@ export interface DraftDifference {
   theirs: string;
 }
 
-const REPEAT_WORDS = { repeat: 'חוזר', pause: 'פעם אחת, מושהה', single: 'פעם אחת, נמחק' } as const;
+const REPEAT_WORDS = { repeat: tr('חוזר'), pause: tr('פעם אחת, מושהה'), single: tr('פעם אחת, נמחק') } as const;
 
 /** What differs between the person's draft and the version that arrived (for "השוואה"): a short line per field. */
 export function compareDrafts(mine: ScheduleDraft, theirs: ScheduleDraft, names: (id: string | null) => string, daysLabel: (d: ScheduleDraft['weekdays']) => string): DraftDifference[] {
@@ -817,18 +818,18 @@ export function compareDrafts(mine: ScheduleDraft, theirs: ScheduleDraft, names:
   const push = (label: string, a: string, b: string) => {
     if (a !== b) out.push({ label, mine: a, theirs: b });
   };
-  push('שם', (mine.name ?? '').trim() || 'ללא שם', (theirs.name ?? '').trim() || 'ללא שם');
-  push('ימים', daysLabel(mine.weekdays), daysLabel(theirs.weekdays));
-  push('תקופה', `${mine.start_date ?? '—'} – ${mine.end_date ?? '—'}`, `${theirs.start_date ?? '—'} – ${theirs.end_date ?? '—'}`);
-  push('חזרה', REPEAT_WORDS[mine.repeat], REPEAT_WORDS[theirs.repeat]);
-  const cond = (d: ScheduleDraft) => (d.conditions.items.length ? `${d.conditions.items.map((c) => describeCondition(c, names(c.entity_id))).join(d.conditions.type === 'and' ? ' וגם ' : ' או ')}${d.conditions.track ? ' (בדיקה מתמשכת)' : ''}` : 'ללא');
-  push('תנאים', cond(mine), cond(theirs));
+  push(tr('שם'), (mine.name ?? '').trim() || tr('ללא שם'), (theirs.name ?? '').trim() || tr('ללא שם'));
+  push(tr('ימים'), daysLabel(mine.weekdays), daysLabel(theirs.weekdays));
+  push(tr('תקופה'), `${mine.start_date ?? '—'} – ${mine.end_date ?? '—'}`, `${theirs.start_date ?? '—'} – ${theirs.end_date ?? '—'}`);
+  push(tr('חזרה'), REPEAT_WORDS[mine.repeat], REPEAT_WORDS[theirs.repeat]);
+  const cond = (d: ScheduleDraft) => (d.conditions.items.length ? `${d.conditions.items.map((c) => describeCondition(c, names(c.entity_id))).join(d.conditions.type === 'and' ? ` ${tr('וגם')} ` : ` ${tr('או')} `)}${d.conditions.track ? ` (${tr('בדיקה מתמשכת')})` : ''}` : tr('ללא'));
+  push(tr('תנאים'), cond(mine), cond(theirs));
   const slots = (d: ScheduleDraft) =>
     d.slots.length
       ? d.slots
           .map((s) => `${formatTime(parseTime(s.start))}${s.stop ? `–${formatTime(parseTime(s.stop))}` : ''}: ${s.actions.map((a) => `${actionLabel(a)} · ${names(a.entity_id)}`).join(', ') || '—'}`)
           .join('\n')
-      : 'ללא משבצות';
-  push('משבצות', slots(mine), slots(theirs));
+      : tr('ללא משבצות');
+  push(tr('משבצות'), slots(mine), slots(theirs));
   return out;
 }

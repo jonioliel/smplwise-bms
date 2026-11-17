@@ -8,8 +8,9 @@ import { isApi } from '../api/session';
 import { AUTOMATIONS_VIEWS, PAGE_SIZE_MAX, SCHEDULES_VIEWS, pageSizeKey, pageSizeMin, screenDisplayOf, type PagedList, type SchedulesView } from '../api/screen-display';
 import { pl } from '../i18n/polish';
 import { settingsSegStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/components';
 
-const VIEW_NAME: Record<SchedulesView, () => string> = { rows: () => pl('rows'), cards: () => 'כרטיסים', table: () => 'טבלה', week: () => 'שבוע' };
+const VIEW_NAME: Record<SchedulesView, () => string> = { rows: () => pl('rows'), cards: () => tr('כרטיסים'), table: () => tr('טבלה'), week: () => tr('שבוע') };
 
 /**
  * POLISH-295 `<sw-list-display-settings list="schedules|automations">` (owner approval 2026-10-25: long lists use pages, with a

@@ -6,6 +6,7 @@
 import { del, get, post, put } from '../api/client';
 import { appBase, isFramed, isIos, isStandalone } from './register';
 import { inAndroidShell } from '../arx/android-app';
+import { tr } from '../i18n/msg/misc';
 
 export type PushCategory = 'alerts' | 'doors' | 'device_faults' | 'system';
 
@@ -91,9 +92,9 @@ async function register(sub: PushSubscription, oldEndpoint?: string): Promise<Pu
 /** Ask for permission, subscribe this browser with the installation's key and register it for the current user. */
 export async function subscribeThisDevice(): Promise<PushSubscriptionRow> {
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') throw new Error(permission === 'denied' ? 'ההתראות נחסמו בדפדפן. אפשר לשחרר אותן בהגדרות האתר.' : 'לא אושרה הצגת התראות.');
+  if (permission !== 'granted') throw new Error(permission === 'denied' ? tr('ההתראות נחסמו בדפדפן. אפשר לשחרר אותן בהגדרות האתר.') : tr('לא אושרה הצגת התראות.'));
   const reg = await registration();
-  if (!reg) throw new Error('רכיב הרקע של Arx (service worker) לא נטען; רעננו את הדף ונסו שוב.');
+  if (!reg) throw new Error(tr('רכיב הרקע של Arx (service worker) לא נטען; רעננו את הדף ונסו שוב.'));
   const { public_key } = await getVapidKey();
   const key = keyBytes(public_key);
   let sub = await reg.pushManager.getSubscription();

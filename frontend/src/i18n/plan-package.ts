@@ -2,6 +2,7 @@
  * Strings of the plan package and DXF export (T088, ST5), Hebrew and English. The language follows the document's
  * `lang` (Hebrew unless it starts with "en"); keys are stable English identifiers like he.ts.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   dxf: 'DXF',
   dxfPicture: 'DXF + תמונה',
@@ -103,8 +104,7 @@ const en: Record<Key, string> = {
 export const PLAN_PACKAGE_STRINGS = { he, en } as const;
 
 export function pkgLang(): 'he' | 'en' {
-  const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';
-  return lang.toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function pkgT(key: Key, lang: 'he' | 'en' = pkgLang()): string {
@@ -115,3 +115,5 @@ export function pkgT(key: Key, lang: 'he' | 'en' = pkgLang()): string {
 export function pkgCollection(name: string, lang: 'he' | 'en' = pkgLang()): string {
   return name in he ? pkgT(name as Key, lang) : name;
 }
+
+registerCatalogue('i18n/plan-package', { he, en });

@@ -5,6 +5,7 @@
  * (Q21 "b"): the drawer's "no talk" reasons that describe WisKey itself name it (`dial.reasons` pairing / not_listed /
  * capabilities_unread / wiskey_unavailable); the Settings row (`source`) named it already.
  */
+import { docLang, fill as coreFill, registerCatalogue } from './core';
 const he = {
   live: {
     label: 'שידור חי',
@@ -197,14 +198,14 @@ const en: StationMediaText = {
 };
 
 export function smt(): StationMediaText {
-  return (document.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export const heStationMediaText: StationMediaText = he;
 export const enStationMediaText: StationMediaText = en;
 
 export function fill(template: string, vars: Record<string, string | number> = {}): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+  return coreFill(template, vars);
 }
 
 /** m:ss for the countdown (always LTR digits). */
@@ -212,3 +213,5 @@ export function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
+
+registerCatalogue('i18n/wiskey-station-media', { he, en });

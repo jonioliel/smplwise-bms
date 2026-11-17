@@ -1,6 +1,7 @@
 /** CR-023: number, money and date formatting shared by the electricity screens and the mock store (pure, no DOM). Dates travel as ISO `YYYY-MM-DD`; money as text decimals. */
 import { addDays, daysInclusive } from '../format/day-key';
 import { dayKey } from '../format/pad';
+import { tr } from '../i18n/msg/electricity';
 
 export const r2 = (x: number): number => Math.round(x * 100 + 1e-9) / 100;
 const nf = (min: number, max: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: min, maximumFractionDigits: max });
@@ -11,16 +12,16 @@ export const f2 = (x: number | string): string => NF2.format(Number(x));
 export const f4 = (x: number | string): string => NF4.format(Number(x));
 export const f0 = (x: number | string): string => NF0.format(Number(x));
 /** BILL-start-reading: a meter reading on the bill, or "לא נקלט" when the system has none (never 0.00, never a bare dash). */
-export const NOT_CAPTURED = 'לא נקלט';
+export const NOT_CAPTURED = tr('לא נקלט');
 export const readingText = (x: number | string | null | undefined): string => (x === null || x === undefined || x === '' ? NOT_CAPTURED : f2(x));
 /** Where the opening reading of a meter on a bill comes from (snapshot `meters[].start.kind`), as a short Hebrew phrase. */
 export function openingSource(kind: string): string {
   switch (kind) {
-    case 'reading': return 'קריאה בתחילת התקופה';
-    case 'interpolated': return 'חישוב בין שתי קריאות';
-    case 'carried': return 'סוף החיוב הקודם';
-    case 'first_reading': return 'הקריאה הראשונה שנקלטה';
-    case 'manual': return 'קריאה ידנית';
+    case 'reading': return tr('קריאה בתחילת התקופה');
+    case 'interpolated': return tr('חישוב בין שתי קריאות');
+    case 'carried': return tr('סוף החיוב הקודם');
+    case 'first_reading': return tr('הקריאה הראשונה שנקלטה');
+    case 'manual': return tr('קריאה ידנית');
     default: return NOT_CAPTURED;
   }
 }
@@ -42,8 +43,8 @@ export function fmtDateTime(iso: string): string {
 }
 export const fmtRange = (from: string, to: string): string => `${fmtDate(from)} - ${fmtDate(to)}`;
 
-const MONTHS_FULL = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-const MONTHS_SHORT = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
+const MONTHS_FULL = [tr('ינואר'), tr('פברואר'), tr('מרץ'), tr('אפריל'), tr('מאי'), tr('יוני'), tr('יולי'), tr('אוגוסט'), tr('ספטמבר'), tr('אוקטובר'), tr('נובמבר'), tr('דצמבר')];
+const MONTHS_SHORT = [tr('ינו׳'), tr('פבר׳'), tr('מרץ'), tr('אפר׳'), tr('מאי'), tr('יוני'), tr('יולי'), tr('אוג׳'), tr('ספט׳'), tr('אוק׳'), tr('נוב׳'), tr('דצמ׳')];
 /** `2026-09-30` -> `ספטמבר 2026` */
 export const monthName = (iso: string): string => `${MONTHS_FULL[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 /** `2026-09-30` -> `ספט׳ 26` */
@@ -101,4 +102,4 @@ export const HEBREW_DAYS_UNIT = (n: number): string => (n === 1 ? 'יום' : 'י
 
 /** `חודשי, מה-1 בחודש` / `דו-חודשי, מה-1 בינואר` */
 export const periodLabel = (months: number, day: number, month: number): string =>
-  months === 1 ? `חודשי, מה-${day} בחודש` : `דו-חודשי, מה-${day} ב${MONTHS_FULL[Math.max(1, Math.min(12, month)) - 1]}`;
+  months === 1 ? tr('חודשי, מה-{day} בחודש', { day }) : tr('דו-חודשי, מה-{day} ב{month}', { day, month: MONTHS_FULL[Math.max(1, Math.min(12, month)) - 1] });

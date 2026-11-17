@@ -4,6 +4,7 @@
  * tickets/naming.ts (`{ticket}`, `{tickets}`, `{the_ticket}`, `{f:..|m:..}`) rendered with the configured name; `{var}`s after.
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   action: 'מחיקת {ticket}',
@@ -60,3 +61,5 @@ export const dlt = catalogue.t;
 
 export const DELETE_TEXT_KEYS = catalogue.KEYS;
 export const DELETE_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/delete-text', { he, en });

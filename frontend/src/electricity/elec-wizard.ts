@@ -22,8 +22,9 @@ import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate,
 import { go, href, route } from './elec-routes';
 import { meterNames } from './meter-name';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/electricity';
 
-const STEPS = ['בחירת מונים', 'נוסחת החשבון', 'מחיר ומע״מ', 'תקופת חיוב', 'כרטיס לקוח', 'סיכום והפקה'];
+const STEPS = [tr('בחירת מונים'), tr('נוסחת החשבון'), tr('מחיר ומע״מ'), tr('תקופת חיוב'), tr('כרטיס לקוח'), tr('סיכום והפקה')];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface NewCust {
@@ -187,14 +188,14 @@ export class ElecAccountWizard extends ElecBase {
     this.accNameErr = '';
     let ok = true;
     if (!this.accName.trim()) {
-      this.accNameErr = 'צריך לתת שם לחשבון';
+      this.accNameErr = tr('צריך לתת שם לחשבון');
       ok = false;
     }
     if (this.edit) return ok;
     if (this.custMode === 'new') {
-      if (!this.nc.name.trim()) (this.ncErr = { ...this.ncErr, name: 'צריך לכתוב שם ללקוח' }, (ok = false));
-      if (this.nc.email && !EMAIL.test(this.nc.email)) (this.ncErr = { ...this.ncErr, email: 'כתובת דוא״ל לא תקינה' }, (ok = false));
-      if (!/^\d{1,9}$/.test(this.nc.customer_number)) (this.ncErr = { ...this.ncErr, customer_number: 'מספר לקוח הוא ספרות בלבד' }, (ok = false));
+      if (!this.nc.name.trim()) (this.ncErr = { ...this.ncErr, name: tr('צריך לכתוב שם ללקוח') }, (ok = false));
+      if (this.nc.email && !EMAIL.test(this.nc.email)) (this.ncErr = { ...this.ncErr, email: tr('כתובת דוא״ל לא תקינה') }, (ok = false));
+      if (!/^\d{1,9}$/.test(this.nc.customer_number)) (this.ncErr = { ...this.ncErr, customer_number: tr('מספר לקוח הוא ספרות בלבד') }, (ok = false));
     } else if (!this.existingId) ok = false;
     return ok;
   }
@@ -234,7 +235,7 @@ export class ElecAccountWizard extends ElecBase {
         { name: this.accName.trim(), customer_id: customerId, formula: { ast }, tariff_id: this.tariffId, period_months: this.months, period_anchor_day: this.anchorDay, period_anchor_month: this.months === 2 ? this.anchorMonth : 1, first_period_start: this.firstStart, auto_mode: this.auto },
         this.draftPossible() ? this.afterSave : 'none',
       );
-      if (r.billError) setFlash(`החשבון נשמר, אבל לא נוצרה טיוטה: ${r.billError}`);
+      if (r.billError) setFlash(tr('החשבון נשמר, אבל לא נוצרה טיוטה: {error}', { error: r.billError }));
       go(route.account(r.account.id));
     } catch (e) {
       this.saveErr = elecErrorText(e);
@@ -258,7 +259,7 @@ export class ElecAccountWizard extends ElecBase {
     const chosen = this.chosen();
     return html`<elec-meter-picker mode="choose" multi sensors .meters=${this.meters} .selected=${this.meterIds} data-meter-picker
         @change=${(e: CustomEvent<{ selected: string[] }>) => (this.meterIds = e.detail.selected)}></elec-meter-picker>
-      <div class="row" data-chosen><span class="chip c-acc nodot">נבחרו ${chosen.length} ${chosen.length === 1 ? 'מונה' : 'מונים'}</span><span class="mut">${chosen.map((m) => meterNames(m).primary).join(', ')}</span></div>`;
+      <div class="row" data-chosen><span class="chip c-acc nodot">${chosen.length === 1 ? tr('נבחרו 1 מונה') : tr('נבחרו {n} מונים', { n: chosen.length })}</span><span class="mut">${chosen.map((m) => meterNames(m).primary).join(', ')}</span></div>`;
   }
 
   private onFormula = (e: CustomEvent<FormulaChange>) => {
@@ -276,11 +277,11 @@ export class ElecAccountWizard extends ElecBase {
   private confirmNumber() {
     const raw = this.numVal.trim().replace(',', '.');
     if (!/^\d+(\.\d+)?$/.test(raw) || Number(raw) <= 0) {
-      this.numErr = 'צריך להקליד מספר גדול מאפס';
+      this.numErr = tr('צריך להקליד מספר גדול מאפס');
       return;
     }
     if (this.numPct && Number(raw) > 1000) {
-      this.numErr = 'האחוז גדול מדי';
+      this.numErr = tr('האחוז גדול מדי');
       return;
     }
     this.numOpen = false;
@@ -289,16 +290,16 @@ export class ElecAccountWizard extends ElecBase {
     this.numVal = '';
   }
   private renderNumberDialog() {
-    return html`<elec-dialog heading="הוספת מספר" ?open=${this.numOpen} data-number-dialog @close=${() => (this.numOpen = false)}>
-      <div class="fld"><label for="numv">ערך</label>
+    return html`<elec-dialog heading=${tr('הוספת מספר')} ?open=${this.numOpen} data-number-dialog @close=${() => (this.numOpen = false)}>
+      <div class="fld"><label for="numv">${tr('ערך')}</label>
         <input id="numv" class="ltr ${this.numErr ? 'err' : ''}" data-number-input inputmode="decimal" .value=${this.numVal} @input=${(e: Event) => { this.numVal = (e.target as HTMLInputElement).value; this.numErr = ''; }} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.confirmNumber()} />
         ${this.numErr ? html`<div class="msg" role="alert">${this.numErr}</div>` : nothing}</div>
-      <div class="seg" role="group" aria-label="סוג">
-        <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>אחוז</button>
-        <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>מספר</button>
+      <div class="seg" role="group" aria-label=${tr('סוג')}>
+        <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>${tr('אחוז')}</button>
+        <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>${tr('מספר')}</button>
       </div>
-      <sw-button variant="primary" slot="actions" data-number-ok @click=${() => this.confirmNumber()}>הוספה</sw-button>
-      <sw-button slot="actions" @click=${() => (this.numOpen = false)}>ביטול</sw-button>
+      <sw-button variant="primary" slot="actions" data-number-ok @click=${() => this.confirmNumber()}>${tr('הוספה')}</sw-button>
+      <sw-button slot="actions" @click=${() => (this.numOpen = false)}>${tr('ביטול')}</sw-button>
     </elec-dialog>`;
   }
 
@@ -311,25 +312,25 @@ export class ElecAccountWizard extends ElecBase {
   private renderStep3() {
     const t = this.tariff();
     const rate = this.vat?.current;
-    return html`${!rate ? alertBox('err', html`לא הוגדר שיעור מע״מ. <a class="lnk" href=${href.settings('prices')}>הגדרת שיעור מע״מ</a>`) : nothing}
-      ${!this.tariffs.length ? stateBox('empty', 'bolt', 'אין תעריפים עדיין', { label: '+ תעריף חדש', primary: true, run: () => (this.tariffOpen = true) }) : html`<div class="list" role="radiogroup" aria-label="תעריף" data-tariff-list>
+    return html`${!rate ? alertBox('err', html`${tr('לא הוגדר שיעור מע״מ.')} <a class="lnk" href=${href.settings('prices')}>${tr('הגדרת שיעור מע״מ')}</a>`) : nothing}
+      ${!this.tariffs.length ? stateBox('empty', 'bolt', tr('אין תעריפים עדיין'), { label: tr('+ תעריף חדש'), primary: true, run: () => (this.tariffOpen = true) }) : html`<div class="list" role="radiogroup" aria-label=${tr('תעריף')} data-tariff-list>
         ${this.tariffs.map((x) => html`<label class="li ${x.id === this.tariffId ? 'sel' : ''}" data-tariff-row=${x.id}><input type="radio" name="tariff" .checked=${x.id === this.tariffId} @change=${() => (this.tariffId = x.id)} /><span class="ind"></span>
-          <div class="grow"><div class="t1">${x.name}</div><div class="t2">הוזן ${x.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · בתוקף מ-${n(fmtDate(x.current?.effective_from ?? ''))}</div></div>${x.kind === 'tou' ? html`<span class="chip c-acc nodot">לפי שעות</span>` : html`<b class="num">${f4(x.current?.price ?? 0)} ₪</b>`}</label>`)}</div>
-        <div class="row"><sw-button variant="ghost" size="sm" data-new-tariff @click=${() => (this.tariffOpen = true)}>+ תעריף חדש</sw-button></div>`}
+          <div class="grow"><div class="t1">${x.name}</div><div class="t2">${x.current?.price_mode === 'inc_vat' ? tr('הוזן כולל מע״מ') : tr('הוזן לפני מע״מ')} ${tr('· בתוקף מ-')}${n(fmtDate(x.current?.effective_from ?? ''))}</div></div>${x.kind === 'tou' ? html`<span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : html`<b class="num">${f4(x.current?.price ?? 0)} ₪</b>`}</label>`)}</div>
+        <div class="row"><sw-button variant="ghost" size="sm" data-new-tariff @click=${() => (this.tariffOpen = true)}>${tr('+ תעריף חדש')}</sw-button></div>`}
       ${t && rate ? this.priceCard(t) : nothing}`;
   }
   private priceCard(t: Tariff) {
     if (t.kind === 'tou') {
       const d = t.current?.definition;
-      return html`<div class="card soft" data-price-card data-kind="tou"><dl class="kv"><dt>תעריף</dt><dd>לפי שעות (תעו״ז)${d ? html`: ${d.bands.map((b) => b.name_he).join(' / ')}, ${d.seasons.map((s) => s.name_he).join(' / ')}` : nothing}</dd>
-        <dt>מע״מ</dt><dd>${n((this.exOf(t).vat * 100).toFixed(0) + '%')} <span class="mut">(מההגדרות)</span></dd></dl>
-        <div class="mut" style="margin-block-start:8px">הסכום מחושב לפי שעות הצריכה בפועל, בכל פס ועונה במחיר שלהם.</div></div>`;
+      return html`<div class="card soft" data-price-card data-kind="tou"><dl class="kv"><dt>${tr('תעריף')}</dt><dd>${tr('לפי שעות (תעו״ז)')}${d ? html`: ${d.bands.map((b) => b.name_he).join(' / ')}, ${d.seasons.map((s) => s.name_he).join(' / ')}` : nothing}</dd>
+        <dt>${tr('מע״מ')}</dt><dd>${n((this.exOf(t).vat * 100).toFixed(0) + '%')} <span class="mut">${tr('(מההגדרות)')}</span></dd></dl>
+        <div class="mut" style="margin-block-start:8px">${tr('הסכום מחושב לפי שעות הצריכה בפועל, בכל פס ועונה במחיר שלהם.')}</div></div>`;
     }
     const p = this.exOf(t);
     const kwh = this.sampleKwh();
     const total = t.current?.price_mode === 'inc_vat' ? r2(kwh * p.inc) : r2(r2(kwh * p.ex) + r2(r2(kwh * p.ex) * p.vat));
-    return html`<div class="card soft" data-price-card><dl class="kv"><dt>מחיר לקוט״ש לפני מע״מ</dt><dd>${n(f4(p.ex) + ' ₪')}</dd><dt>מע״מ</dt><dd>${n((p.vat * 100).toFixed(0) + '%')} <span class="mut">(מההגדרות)</span></dd><dt>מחיר לקוט״ש כולל מע״מ</dt><dd>${n(f4(p.inc) + ' ₪')}</dd>
-      ${kwh ? html`<dt>לדוגמה, ${monthName(addDays(periodContaining(elecToday(), 1, 1, 1).from, -1))}</dt><dd>${n(f2(kwh))} קוט״ש = ${n(f2(total) + ' ₪')}</dd>` : nothing}</dl></div>`;
+    return html`<div class="card soft" data-price-card><dl class="kv"><dt>${tr('מחיר לקוט״ש לפני מע״מ')}</dt><dd>${n(f4(p.ex) + ' ₪')}</dd><dt>${tr('מע״מ')}</dt><dd>${n((p.vat * 100).toFixed(0) + '%')} <span class="mut">${tr('(מההגדרות)')}</span></dd><dt>${tr('מחיר לקוט״ש כולל מע״מ')}</dt><dd>${n(f4(p.inc) + ' ₪')}</dd>
+      ${kwh ? html`<dt>${tr('לדוגמה,')} ${monthName(addDays(periodContaining(elecToday(), 1, 1, 1).from, -1))}</dt><dd>${n(f2(kwh))} ${tr('קוט״ש =')} ${n(f2(total) + ' ₪')}</dd>` : nothing}</dl></div>`;
   }
   /** the formula's result on the last full period (the editor's check); 0 when unknown */
   private sampleKwh(): number {
@@ -341,15 +342,15 @@ export class ElecAccountWizard extends ElecBase {
     const periods = isIsoDate(this.firstStart) ? nextPeriods(this.firstStart, this.months, this.anchorDay, anch, '', 3) : [];
     const c = this.cust();
     return html`<div class="form">
-        <div class="fld"><span class="lbl" id="len">אורך תקופה</span><div class="seg" role="group" aria-labelledby="len"><button type="button" data-months="1" aria-pressed=${this.months === 1} ?disabled=${this.edit} @click=${() => (this.months = 1)}>חודשית</button><button type="button" data-months="2" aria-pressed=${this.months === 2} ?disabled=${this.edit} @click=${() => (this.months = 2)}>דו-חודשית</button></div></div>
-        ${this.months === 2 ? html`<div class="fld"><label for="am">חודש פתיחת המחזור</label><select id="am" data-anchor-month ?disabled=${this.edit} @change=${(e: Event) => (this.anchorMonth = Number((e.target as HTMLSelectElement).value))}>${MONTH_NAMES.map((m, i) => html`<option value=${i + 1} ?selected=${this.anchorMonth === i + 1}>${m}</option>`)}</select></div>` : nothing}
-        <div class="fld"><label for="ad">יום תחילת תקופה</label><div class="unit"><input id="ad" class="ltr" type="number" min="1" max="28" data-anchor-day ?disabled=${this.edit} .value=${String(this.anchorDay)} @input=${(e: Event) => (this.anchorDay = Number((e.target as HTMLInputElement).value))} /><span>בחודש</span></div>
-          ${this.anchorDay < 1 || this.anchorDay > 28 ? html`<div class="msg" role="alert">היום חייב להיות בין 1 ל-28</div>` : nothing}</div>
-        <div class="fld"><label for="fs">תחילת החיוב הראשון</label><input id="fs" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
-          ${isIsoDate(this.firstStart) ? nothing : html`<div class="msg" role="alert">צריך לבחור תאריך</div>`}</div>
+        <div class="fld"><span class="lbl" id="len">${tr('אורך תקופה')}</span><div class="seg" role="group" aria-labelledby="len"><button type="button" data-months="1" aria-pressed=${this.months === 1} ?disabled=${this.edit} @click=${() => (this.months = 1)}>${tr('חודשית')}</button><button type="button" data-months="2" aria-pressed=${this.months === 2} ?disabled=${this.edit} @click=${() => (this.months = 2)}>${tr('דו-חודשית')}</button></div></div>
+        ${this.months === 2 ? html`<div class="fld"><label for="am">${tr('חודש פתיחת המחזור')}</label><select id="am" data-anchor-month ?disabled=${this.edit} @change=${(e: Event) => (this.anchorMonth = Number((e.target as HTMLSelectElement).value))}>${MONTH_NAMES.map((m, i) => html`<option value=${i + 1} ?selected=${this.anchorMonth === i + 1}>${m}</option>`)}</select></div>` : nothing}
+        <div class="fld"><label for="ad">${tr('יום תחילת תקופה')}</label><div class="unit"><input id="ad" class="ltr" type="number" min="1" max="28" data-anchor-day ?disabled=${this.edit} .value=${String(this.anchorDay)} @input=${(e: Event) => (this.anchorDay = Number((e.target as HTMLInputElement).value))} /><span>${tr('בחודש')}</span></div>
+          ${this.anchorDay < 1 || this.anchorDay > 28 ? html`<div class="msg" role="alert">${tr('היום חייב להיות בין 1 ל-28')}</div>` : nothing}</div>
+        <div class="fld"><label for="fs">${tr('תחילת החיוב הראשון')}</label><input id="fs" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
+          ${isIsoDate(this.firstStart) ? nothing : html`<div class="msg" role="alert">${tr('צריך לבחור תאריך')}</div>`}</div>
       </div>
-      <div class="card flush soft"><div class="hd"><b class="h3">התקופות הבאות</b></div>${periods.length ? html`<table class="t" data-periods><thead><tr><th>תקופה</th><th>מספר חיוב</th></tr></thead><tbody>
-        ${periods.map((p) => html`<tr><td><span class="num">${fmtRange(p.from, p.to)}</span></td><td class="num" style="text-align:start">${billNumber(p.to, c.number, '')}</td></tr>`)}</tbody></table>` : html`<div class="mut" style="padding:0 16px 14px">בחרו תאריך התחלה</div>`}</div>`;
+      <div class="card flush soft"><div class="hd"><b class="h3">${tr('התקופות הבאות')}</b></div>${periods.length ? html`<table class="t" data-periods><thead><tr><th>${tr('תקופה')}</th><th>${tr('מספר חיוב')}</th></tr></thead><tbody>
+        ${periods.map((p) => html`<tr><td><span class="num">${fmtRange(p.from, p.to)}</span></td><td class="num" style="text-align:start">${billNumber(p.to, c.number, '')}</td></tr>`)}</tbody></table>` : html`<div class="mut" style="padding:0 16px 14px">${tr('בחרו תאריך התחלה')}</div>`}</div>`;
   }
 
   private renderStep5() {
@@ -363,14 +364,14 @@ export class ElecAccountWizard extends ElecBase {
     const ex = this.customers.find((c) => c.id === this.existingId);
     const q = this.custQ.trim();
     const list = this.customers.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));
-    return html`${this.edit ? alertBox('info', html`הלקוח של חשבון קיים לא משתנה כאן. <b>${this.account?.customer.name}</b>`) : html`<div class="seg" style="align-self:flex-start" role="group" aria-label="לקוח"><button type="button" data-cust-mode="new" aria-pressed=${this.custMode === 'new'} @click=${() => (this.custMode = 'new')}>לקוח חדש</button><button type="button" data-cust-mode="existing" aria-pressed=${this.custMode === 'existing'} @click=${() => (this.custMode = 'existing')}>לקוח קיים</button></div>`}
+    return html`${this.edit ? alertBox('info', html`${tr('הלקוח של חשבון קיים לא משתנה כאן.')} <b>${this.account?.customer.name}</b>`) : html`<div class="seg" style="align-self:flex-start" role="group" aria-label=${tr('לקוח')}><button type="button" data-cust-mode="new" aria-pressed=${this.custMode === 'new'} @click=${() => (this.custMode = 'new')}>${tr('לקוח חדש')}</button><button type="button" data-cust-mode="existing" aria-pressed=${this.custMode === 'existing'} @click=${() => (this.custMode = 'existing')}>${tr('לקוח קיים')}</button></div>`}
       ${this.edit ? nothing : this.custMode === 'existing'
-        ? html`<input type="search" data-cust-search style="max-inline-size:none" aria-label="חיפוש לקוח" placeholder="חיפוש לקוח" .value=${this.custQ} @input=${(e: Event) => (this.custQ = (e.target as HTMLInputElement).value)} />
-            <div class="list" role="radiogroup" aria-label="לקוח קיים" data-cust-list>${list.map((c) => html`<label class="li ${c.id === this.existingId ? 'sel' : ''}" data-cust-row=${c.id}><input type="radio" name="cust" .checked=${c.id === this.existingId} @change=${() => (this.existingId = c.id)} /><span class="ind"></span><div class="grow"><div class="t1">${c.name}</div><div class="t2">מספר לקוח ${n(c.customer_number)} · ${c.account_count} חשבונות</div></div></label>`)}
-              ${!list.length ? html`<div class="mut">לא נמצא לקוח</div>` : nothing}</div>
-            ${ex && ex.account_count > 0 ? alertBox('warn', html`ללקוח יש כבר ${ex.account_count} ${ex.account_count === 1 ? 'חשבון' : 'חשבונות'}. חיובים של אותו לקוח שמסתיימים באותו חודש יקבלו סיומת רצה, למשל <b class="num">${billNumber(periodContaining(elecToday(), 1, 1, 1).to, ex.customer_number, '')}/2</b>.`, 'i') : nothing}`
-        : html`<div class="form">${nf('name', 'שם הלקוח', { wide: true })}${nf('customer_number', 'מספר לקוח', { ltr: true })}${nf('tax_id', 'ח.פ. / ע.מ. (לא חובה)', { ltr: true, ph: 'לא חובה' })}${nf('address', 'כתובת למשלוח החיוב', { wide: true })}${nf('phone', 'טלפון', { ltr: true })}${nf('email', 'דוא״ל', { ltr: true })}${nf('notes', 'הערות', { wide: true, ph: 'לא חובה', area: true })}</div>`}
-      <div class="fld"><label for="an">שם החשבון</label><input id="an" name="account_name" data-account-name class="${this.accNameErr ? 'err' : ''}" .value=${this.accName} placeholder="למשל: סטודיו אורן - קומה 1" @input=${(e: Event) => { this.accName = (e.target as HTMLInputElement).value; this.accNameErr = ''; }} />
+        ? html`<input type="search" data-cust-search style="max-inline-size:none" aria-label=${tr('חיפוש לקוח')} placeholder=${tr('חיפוש לקוח')} .value=${this.custQ} @input=${(e: Event) => (this.custQ = (e.target as HTMLInputElement).value)} />
+            <div class="list" role="radiogroup" aria-label=${tr('לקוח קיים')} data-cust-list>${list.map((c) => html`<label class="li ${c.id === this.existingId ? 'sel' : ''}" data-cust-row=${c.id}><input type="radio" name="cust" .checked=${c.id === this.existingId} @change=${() => (this.existingId = c.id)} /><span class="ind"></span><div class="grow"><div class="t1">${c.name}</div><div class="t2">${tr('מספר לקוח')} ${n(c.customer_number)} · ${c.account_count} ${tr('חשבונות')}</div></div></label>`)}
+              ${!list.length ? html`<div class="mut">${tr('לא נמצא לקוח')}</div>` : nothing}</div>
+            ${ex && ex.account_count > 0 ? alertBox('warn', html`${ex.account_count === 1 ? tr('ללקוח יש כבר 1 חשבון.') : tr('ללקוח יש כבר {n} חשבונות.', { n: ex.account_count })} ${tr('חיובים של אותו לקוח שמסתיימים באותו חודש יקבלו סיומת רצה, למשל')} <b class="num">${billNumber(periodContaining(elecToday(), 1, 1, 1).to, ex.customer_number, '')}/2</b>.`, 'i') : nothing}`
+        : html`<div class="form">${nf('name', tr('שם הלקוח'), { wide: true })}${nf('customer_number', tr('מספר לקוח'), { ltr: true })}${nf('tax_id', tr('ח.פ. / ע.מ. (לא חובה)'), { ltr: true, ph: tr('לא חובה') })}${nf('address', tr('כתובת למשלוח החיוב'), { wide: true })}${nf('phone', tr('טלפון'), { ltr: true })}${nf('email', tr('דוא״ל'), { ltr: true })}${nf('notes', tr('הערות'), { wide: true, ph: tr('לא חובה'), area: true })}</div>`}
+      <div class="fld"><label for="an">${tr('שם החשבון')}</label><input id="an" name="account_name" data-account-name class="${this.accNameErr ? 'err' : ''}" .value=${this.accName} placeholder=${tr('למשל: סטודיו אורן - קומה 1')} @input=${(e: Event) => { this.accName = (e.target as HTMLInputElement).value; this.accNameErr = ''; }} />
         ${this.accNameErr ? html`<div class="msg" role="alert" data-field-error="account_name">${this.accNameErr}</div>` : nothing}</div>`;
   }
 
@@ -384,18 +385,18 @@ export class ElecAccountWizard extends ElecBase {
     const last = this.lastPeriod();
     const total = p && t ? (t.current?.price_mode === 'inc_vat' ? r2(kwh * p.inc) : r2(r2(kwh * p.ex) + r2(r2(kwh * p.ex) * p.vat))) : 0;
     const opt = (group: string, id: string, label: string, checked: boolean, on: () => void, dis = false) => html`<label class="li ${checked ? 'sel' : ''} ${dis ? 'dis' : ''}"><input type="radio" name=${group} data-opt=${id} .checked=${checked} ?disabled=${dis} @change=${on} /><span class="ind"></span><div class="grow t1">${label}</div></label>`;
-    return html`<dl class="kv" data-summary><dt>מונים</dt><dd>${this.chosen().map((m) => meterNames(m).primary).join(', ')}</dd><dt>נוסחה</dt><dd>${sentenceTxt}</dd>
-        <dt>מחיר</dt><dd>${t ? html`${t.name}, ${t.kind === 'tou' ? 'לפי שעות' : n(f4(t.current?.price ?? 0) + ' ₪')} ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ, מע״מ ${n(this.vat?.current?.rate_percent ?? '')}%` : ''}</dd>
-        <dt>תקופה</dt><dd>${this.months === 1 ? 'חודשית' : 'דו-חודשית'}, מה-${this.anchorDay} בחודש, החל מ-${n(fmtDate(this.firstStart))}</dd>
-        <dt>לקוח</dt><dd>${c.name}, מספר ${n(c.number)}</dd><dt>שם החשבון</dt><dd>${this.accName}</dd>
-        <dt>תנאי תשלום</dt><dd data-payment>${pt ? (pt.mode === 'net_days' ? html`${n(pt.days)} ימים מיום ההפקה` : html`ב-${n(pt.day_of_month)} בחודש`) : '-'} <a class="lnk" href=${href.settings('business')}>שינוי בהגדרות</a></dd></dl>
-      ${kwh ? html`<div class="card soft"><div class="hd"><b class="h3">לפי הנתונים של התקופה האחרונה</b></div><div class="row"><span style="font-size:var(--sw-fs-2xl);font-weight:700">${n(f2(kwh))}</span><span class="mut">קוט״ש</span><span class="sp"></span>${t?.kind === 'tou' ? html`<span class="mut">הסכום לפי שעות הצריכה</span>` : html`<span style="font-size:var(--sw-fs-2xl);font-weight:700">${n(f2(total) + ' ₪')}</span>`}</div></div>` : nothing}
-      <div class="fld"><span class="lbl">יצירה אוטומטית בסוף כל תקופה</span><div class="list" role="radiogroup" aria-label="יצירה אוטומטית">
+    return html`<dl class="kv" data-summary><dt>${tr('מונים')}</dt><dd>${this.chosen().map((m) => meterNames(m).primary).join(', ')}</dd><dt>${tr('נוסחה')}</dt><dd>${sentenceTxt}</dd>
+        <dt>${tr('מחיר')}</dt><dd>${t ? html`${t.name}, ${t.kind === 'tou' ? tr('לפי שעות') : n(f4(t.current?.price ?? 0) + ' ₪')} ${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}, ${tr('מע״מ')} ${n(this.vat?.current?.rate_percent ?? '')}%` : ''}</dd>
+        <dt>${tr('תקופה')}</dt><dd>${tr('{period}, מה-{day} בחודש, החל מ-', { period: this.months === 1 ? tr('חודשית') : tr('דו-חודשית'), day: this.anchorDay })}${n(fmtDate(this.firstStart))}</dd>
+        <dt>${tr('לקוח')}</dt><dd>${c.name}, ${tr('מספר')} ${n(c.number)}</dd><dt>${tr('שם החשבון')}</dt><dd>${this.accName}</dd>
+        <dt>${tr('תנאי תשלום')}</dt><dd data-payment>${pt ? (pt.mode === 'net_days' ? html`${n(pt.days)} ${tr('ימים מיום ההפקה')}` : html`${tr('ב-')}${n(pt.day_of_month)} ${tr('בחודש')}`) : '-'} <a class="lnk" href=${href.settings('business')}>${tr('שינוי בהגדרות')}</a></dd></dl>
+      ${kwh ? html`<div class="card soft"><div class="hd"><b class="h3">${tr('לפי הנתונים של התקופה האחרונה')}</b></div><div class="row"><span style="font-size:var(--sw-fs-2xl);font-weight:700">${n(f2(kwh))}</span><span class="mut">${tr('קוט״ש')}</span><span class="sp"></span>${t?.kind === 'tou' ? html`<span class="mut">${tr('הסכום לפי שעות הצריכה')}</span>` : html`<span style="font-size:var(--sw-fs-2xl);font-weight:700">${n(f2(total) + ' ₪')}</span>`}</div></div>` : nothing}
+      <div class="fld"><span class="lbl">${tr('יצירה אוטומטית בסוף כל תקופה')}</span><div class="list" role="radiogroup" aria-label=${tr('יצירה אוטומטית')}>
         ${(['draft', 'issue', 'off'] as AutoMode[]).map((a) => opt('auto', a, AUTO_LABEL[a], this.auto === a, () => (this.auto = a)))}</div>
-        ${this.auto === 'issue' ? alertBox('warn', 'החיוב יונפק ויקבל מספר בלי בדיקה שלך. אפשר לבטל או לתקן אחר כך.') : nothing}</div>
-      ${this.edit ? nothing : html`<div class="fld"><span class="lbl">אחרי השמירה</span><div class="list" role="radiogroup" aria-label="אחרי השמירה">
-        ${opt('after', 'draft', last ? `שמירה והפקת טיוטה ל${this.months === 1 ? monthName(last.to) : fmtRange(last.from, last.to)}` : 'שמירה והפקת טיוטה (אין עדיין תקופה שהסתיימה)', this.afterSave === 'draft' && !!last, () => (this.afterSave = 'draft'), !last)}
-        ${opt('after', 'none', 'שמירה בלבד', this.afterSave === 'none' || !last, () => (this.afterSave = 'none'))}</div></div>`}
+        ${this.auto === 'issue' ? alertBox('warn', tr('החיוב יונפק ויקבל מספר בלי בדיקה שלך. אפשר לבטל או לתקן אחר כך.')) : nothing}</div>
+      ${this.edit ? nothing : html`<div class="fld"><span class="lbl">${tr('אחרי השמירה')}</span><div class="list" role="radiogroup" aria-label=${tr('אחרי השמירה')}>
+        ${opt('after', 'draft', last ? tr('שמירה והפקת טיוטה ל{period}', { period: this.months === 1 ? monthName(last.to) : fmtRange(last.from, last.to) }) : tr('שמירה והפקת טיוטה (אין עדיין תקופה שהסתיימה)'), this.afterSave === 'draft' && !!last, () => (this.afterSave = 'draft'), !last)}
+        ${opt('after', 'none', tr('שמירה בלבד'), this.afterSave === 'none' || !last, () => (this.afterSave = 'none'))}</div></div>`}
       ${this.saveErr ? alertBox('err', this.saveErr) : nothing}`;
   }
 
@@ -403,9 +404,9 @@ export class ElecAccountWizard extends ElecBase {
   private async saveTariff() {
     const f = this.tf;
     const err: Record<string, string> = {};
-    if (!f.name.trim()) err.name = 'צריך לתת שם לתעריף';
-    if (!(Number(f.price) > 0)) err.price = 'המחיר חייב להיות מספר גדול מאפס';
-    if (!isIsoDate(f.from)) err.from = 'צריך לבחור תאריך';
+    if (!f.name.trim()) err.name = tr('צריך לתת שם לתעריף');
+    if (!(Number(f.price) > 0)) err.price = tr('המחיר חייב להיות מספר גדול מאפס');
+    if (!isIsoDate(f.from)) err.from = tr('צריך לבחור תאריך');
     if (Object.keys(err).length) {
       this.tf = { ...f, err };
       return;
@@ -424,39 +425,39 @@ export class ElecAccountWizard extends ElecBase {
   private renderTariffDialog() {
     const f = this.tf;
     const set = (k: 'name' | 'price' | 'from', v: string) => (this.tf = { ...this.tf, [k]: v, err: { ...this.tf.err, [k]: '' } });
-    return html`<elec-dialog heading="תעריף חדש" ?open=${this.tariffOpen} data-tariff-dialog @close=${() => (this.tariffOpen = false)}>
+    return html`<elec-dialog heading=${tr('תעריף חדש')} ?open=${this.tariffOpen} data-tariff-dialog @close=${() => (this.tariffOpen = false)}>
       <div class="form">
-        <div class="fld wide"><label for="tn">שם התעריף</label><input id="tn" class="${f.err.name ? 'err' : ''}" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} />${f.err.name ? html`<div class="msg" role="alert">${f.err.name}</div>` : nothing}</div>
-        <div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${f.err.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${f.price} @input=${(e: Event) => set('price', (e.target as HTMLInputElement).value)} /><span>₪</span></div>${f.err.price ? html`<div class="msg" role="alert">${f.err.price}</div>` : nothing}</div>
-        <div class="fld"><span class="lbl">המחיר שהוזן</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${f.mode === 'ex_vat'} @click=${() => (this.tf = { ...f, mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${f.mode === 'inc_vat'} @click=${() => (this.tf = { ...f, mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
-        <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
+        <div class="fld wide"><label for="tn">${tr('שם התעריף')}</label><input id="tn" class="${f.err.name ? 'err' : ''}" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} />${f.err.name ? html`<div class="msg" role="alert">${f.err.name}</div>` : nothing}</div>
+        <div class="fld"><label for="tp">${tr('מחיר לקוט״ש')}</label><div class="unit"><input id="tp" class="ltr ${f.err.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${f.price} @input=${(e: Event) => set('price', (e.target as HTMLInputElement).value)} /><span>₪</span></div>${f.err.price ? html`<div class="msg" role="alert">${f.err.price}</div>` : nothing}</div>
+        <div class="fld"><span class="lbl">${tr('המחיר שהוזן')}</span><div class="seg" role="group" aria-label=${tr('סוג מחיר')}><button type="button" data-tariff-mode="ex_vat" aria-pressed=${f.mode === 'ex_vat'} @click=${() => (this.tf = { ...f, mode: 'ex_vat' })}>${tr('לפני מע״מ')}</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${f.mode === 'inc_vat'} @click=${() => (this.tf = { ...f, mode: 'inc_vat' })}>${tr('כולל מע״מ')}</button></div></div>
+        <div class="fld"><label for="tf">${tr('בתוקף מתאריך')}</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
       </div>
       ${f.error ? alertBox('err', f.error) : nothing}
-      <sw-button variant="primary" slot="actions" data-tariff-save ?disabled=${f.busy} @click=${() => void this.saveTariff()}>שמירה</sw-button>
-      <sw-button slot="actions" @click=${() => (this.tariffOpen = false)}>ביטול</sw-button>
+      <sw-button variant="primary" slot="actions" data-tariff-save ?disabled=${f.busy} @click=${() => void this.saveTariff()}>${tr('שמירה')}</sw-button>
+      <sw-button slot="actions" @click=${() => (this.tariffOpen = false)}>${tr('ביטול')}</sw-button>
     </elec-dialog>`;
   }
 
   // ---------------------------------------------------------------- render
   render() {
     const perms = energyAccess();
-    if (!perms.manage) return html`<div class="page" data-elec="wizard" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לניהול חשבונות')}</div>`;
+    if (!perms.manage) return html`<div class="page" data-elec="wizard" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה לניהול חשבונות'))}</div>`;
     if (this.loadSt === 'loading') return html`<div class="page" data-elec="wizard" data-state="loading">${skeleton(5)}</div>`;
-    if (this.loadSt === 'error') return html`<div class="page" data-elec="wizard" data-state="error">${stateBox('error', 'warning', 'לא ניתן לטעון את האשף', { label: 'נסה שוב', run: () => void this.init() })}</div>`;
+    if (this.loadSt === 'error') return html`<div class="page" data-elec="wizard" data-state="error">${stateBox('error', 'warning', tr('לא ניתן לטעון את האשף'), { label: tr('נסה שוב'), run: () => void this.init() })}</div>`;
     const s = this.step;
     const body = [this.renderStep1, this.renderStep2, this.renderStep3, this.renderStep4, this.renderStep5, this.renderStep6][s - 1].call(this);
     const can = this.canNext();
     return html`<div class="page" data-elec="wizard" data-state="ready" data-step=${s}>
-      <div class="row"><a class="btn ghost sm" href=${this.edit ? href.account(this.accountId) : href.accounts()} data-back>${this.edit ? '→ לחשבון' : '→ חשבונות'}</a><b class="h2">${this.edit ? 'עריכת חשבון' : 'חשבון חדש'}</b></div>
+      <div class="row"><a class="btn ghost sm" href=${this.edit ? href.account(this.accountId) : href.accounts()} data-back>${this.edit ? tr('→ לחשבון') : tr('→ חשבונות')}</a><b class="h2">${this.edit ? tr('עריכת חשבון') : tr('חשבון חדש')}</b></div>
       <div class="wiz">
-        <nav class="card steps" aria-label="שלבי האשף">${STEPS.map((l, i) => html`<button type="button" data-step-btn=${i + 1} class="${i + 1 === s ? 'on' : i + 1 < s ? 'done' : ''}" aria-current=${i + 1 === s ? 'step' : 'false'} ?disabled=${i + 1 > this.reached} @click=${() => this.goStep(i + 1)}><span class="n">${i + 1 < s ? '✓' : i + 1}</span>${l}</button>`)}</nav>
+        <nav class="card steps" aria-label=${tr('שלבי האשף')}>${STEPS.map((l, i) => html`<button type="button" data-step-btn=${i + 1} class="${i + 1 === s ? 'on' : i + 1 < s ? 'done' : ''}" aria-current=${i + 1 === s ? 'step' : 'false'} ?disabled=${i + 1 > this.reached} @click=${() => this.goStep(i + 1)}><span class="n">${i + 1 < s ? '✓' : i + 1}</span>${l}</button>`)}</nav>
         <div class="card col" style="gap:14px">
-          <div class="pstep"><b>שלב ${s} מתוך 6</b><span class="mut">${STEPS[s - 1]}</span><div class="bar"><i style="inline-size:${(s / 6) * 100}%"></i></div></div>
+          <div class="pstep"><b>${tr('שלב {n} מתוך 6', { n: s })}</b><span class="mut">${STEPS[s - 1]}</span><div class="bar"><i style="inline-size:${(s / 6) * 100}%"></i></div></div>
           <b class="h2 hide-phone" data-step-title>${STEPS[s - 1]}</b>
           ${body}
-          <div class="wfoot">${s > 1 ? html`<sw-button data-prev @click=${() => (this.step = s - 1)}>הקודם</sw-button>` : html`<span></span>`}
-            ${s < 6 ? html`<sw-button variant="primary" data-next ?disabled=${!can} @click=${() => this.next()}>הבא</sw-button>`
-              : html`<sw-button variant="primary" data-save ?disabled=${this.saving || !this.accName.trim()} @click=${() => void this.save()}>${this.edit ? 'שמירת שינויים' : this.afterSave === 'draft' && this.draftPossible() ? 'שמירה והפקת טיוטה' : 'שמירה'}</sw-button>`}</div>
+          <div class="wfoot">${s > 1 ? html`<sw-button data-prev @click=${() => (this.step = s - 1)}>${tr('הקודם')}</sw-button>` : html`<span></span>`}
+            ${s < 6 ? html`<sw-button variant="primary" data-next ?disabled=${!can} @click=${() => this.next()}>${tr('הבא')}</sw-button>`
+              : html`<sw-button variant="primary" data-save ?disabled=${this.saving || !this.accName.trim()} @click=${() => void this.save()}>${this.edit ? tr('שמירת שינויים') : this.afterSave === 'draft' && this.draftPossible() ? tr('שמירה והפקת טיוטה') : tr('שמירה')}</sw-button>`}</div>
         </div>
       </div>
       ${this.renderTariffDialog()}${this.renderNumberDialog()}

@@ -17,8 +17,9 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { PollController } from '../components/poll-controller';
+import { tr } from '../i18n/msg/investigate';
 
-const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק', paused_disk_full: 'מושהה · אין מקום בדיסק' };
+const STATE_LABEL: Record<ExportJob['state'], string> = { queued: tr('ממתין'), running: tr('מוריד'), done: tr('הושלם'), partial: tr('חלקי'), failed: tr('נכשל'), cancelled: tr('בוטל'), interrupted: tr('הופסק'), paused_disk_full: tr('מושהה · אין מקום בדיסק') };
 const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
 /** INVREST-POLISH-2331: the well's tone by state - only what needs a look is tinted (a finished job stays quiet). */
 const STATE_TONE: Partial<Record<ExportJob['state'], 'bad' | 'warn'>> = { failed: 'bad', interrupted: 'warn', partial: 'warn', paused_disk_full: 'warn' };
@@ -337,7 +338,7 @@ export class InvestigateExports extends LitElement {
       <div>
         <div class="title"><strong>${j.camera_name}</strong><sw-badge kind=${STATE_KIND[j.state]} label=${STATE_LABEL[j.state]}></sw-badge></div>
         <div class="range"><span class="ltr">${this.range(j.requested_from, j.requested_to, j.timezone)}</span></div>
-        <div class="meta">${done} מתוך ${j.files.length} קבצים ירדו · משוער ${formatBytes(j.estimate_bytes)}${j.actual_from ? html` · בפועל <span class="ltr">${this.range(j.actual_from, j.actual_to ?? j.actual_from, j.timezone)}</span>` : nothing}</div>
+        <div class="meta">${tr('{done} מתוך {total} קבצים ירדו', { done, total: j.files.length })} · ${tr('משוער {size}', { size: formatBytes(j.estimate_bytes) })}${j.actual_from ? html` · ${tr('בפועל')} <span class="ltr">${this.range(j.actual_from, j.actual_to ?? j.actual_from, j.timezone)}</span>` : nothing}</div>
         ${j.error ? html`<div class="meta" style="color:var(--sw-danger-text)">${j.error}</div>` : nothing}
         ${j.note && (j.state === 'done' || j.state === 'partial') ? html`<div class="meta">${j.note}</div>` : nothing}
         ${j.sha256 ? html`<div class="meta"><span class="ltr" title=${`sha256 ${j.sha256}`}>sha256 ${j.sha256.slice(0, 12)}… · ${j.container}</span></div>` : nothing}
@@ -347,41 +348,41 @@ export class InvestigateExports extends LitElement {
         <div class="bar ${barTone}" role="progressbar" aria-label=${`${j.camera_name} · ${STATE_LABEL[j.state]}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}><i style="inline-size:${pct}%"></i></div>
       </div>
       <div class="actions">
-        ${j.download_ready ? html`<a href=${exportDownloadUrl(j.id)} download=${j.output_name ?? ''}><sw-button size="sm" variant="primary" icon="download">הורדה</sw-button></a><a href=${exportManifestUrl(j.id)} target="_blank" rel="noopener"><sw-button size="sm" variant="ghost" icon="list">מניפסט</sw-button></a>` : nothing}
+        ${j.download_ready ? html`<a href=${exportDownloadUrl(j.id)} download=${j.output_name ?? ''}><sw-button size="sm" variant="primary" icon="download">${tr('הורדה')}</sw-button></a><a href=${exportManifestUrl(j.id)} target="_blank" rel="noopener"><sw-button size="sm" variant="ghost" icon="list">${tr('מניפסט')}</sw-button></a>` : nothing}
         ${ACTIVE.includes(j.state)
-          ? html`<sw-button size="sm" variant="ghost" icon="close" data-export-cancel @click=${() => this.cancel(j)}>בטל</sw-button>`
-          : html`<sw-button size="sm" variant="ghost" icon="trash" data-export-delete @click=${() => (this.confirmDelete = j)}>מחק</sw-button>`}
+          ? html`<sw-button size="sm" variant="ghost" icon="close" data-export-cancel @click=${() => this.cancel(j)}>${tr('בטל')}</sw-button>`
+          : html`<sw-button size="sm" variant="ghost" icon="trash" data-export-delete @click=${() => (this.confirmDelete = j)}>${tr('מחק')}</sw-button>`}
       </div>
     </div>`;
   }
 
   private renderApi() {
-    if (this.forbidden && !this.jobs) return html`<sw-state-panel state="forbidden" hint="ייצוא והורדה דורשים הרשאת ייצוא וידאו."></sw-state-panel>`;
-    if (this.error && !this.jobs) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.forbidden && !this.jobs) return html`<sw-state-panel state="forbidden" hint=${tr('ייצוא והורדה דורשים הרשאת ייצוא וידאו.')}></sw-state-panel>`;
+    if (this.error && !this.jobs) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.jobs) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!this.jobs.length) return html`<sw-state-panel icon="download" state="empty" heading="אין עבודות ייצוא" hint="פתח הקלטה, בחר טווח ולחץ ייצוא."><div style="margin-block-start:10px"><sw-button variant="primary" icon="history" @click=${() => navigate('/investigate/playback')}>להקלטות</sw-button></div></sw-state-panel>`;
+    if (!this.jobs.length) return html`<sw-state-panel icon="download" state="empty" heading=${tr('אין עבודות ייצוא')} hint=${tr('פתח הקלטה, בחר טווח ולחץ ייצוא.')}><div style="margin-block-start:10px"><sw-button variant="primary" icon="history" @click=${() => navigate('/investigate/playback')}>${tr('להקלטות')}</sw-button></div></sw-state-panel>`;
     const active = this.jobs.filter((j) => ACTIVE.includes(j.state));
     const finished = this.jobs.filter((j) => !ACTIVE.includes(j.state));
     const attention = this.jobs.filter((j) => ATTENTION.includes(j.state)).length;
     const ok = this.jobs.filter((j) => j.state === 'done').length;
     return html`
       <div class="summary" data-export-summary>
-        <div class="r5-well"><span class="r5-num sm">${active.length}</span><span class="r5-sub">בתהליך</span></div>
-        <div class="r5-well"><span class="r5-num sm">${ok}</span><span class="r5-sub">הושלמו במלואם</span></div>
-        <div class="r5-well" data-tone=${attention ? 'warn' : nothing}><span class="r5-num sm">${attention}</span><span class="r5-sub">דורשים תשומת לב</span></div>
+        <div class="r5-well"><span class="r5-num sm">${active.length}</span><span class="r5-sub">${tr('בתהליך')}</span></div>
+        <div class="r5-well"><span class="r5-num sm">${ok}</span><span class="r5-sub">${tr('הושלמו במלואם')}</span></div>
+        <div class="r5-well" data-tone=${attention ? 'warn' : nothing}><span class="r5-num sm">${attention}</span><span class="r5-sub">${tr('דורשים תשומת לב')}</span></div>
       </div>
-      ${this.ffmpeg ? nothing : html`<div class="warn">ffmpeg לא זמין בשרת: קבצי הייצוא נמסרים במיכל המקורי של המקליט (Hikvision PS, ניתן לניגון ב־VLC) ולא נחתכים לטווח המדויק.</div>`}
+      ${this.ffmpeg ? nothing : html`<div class="warn">${tr('ffmpeg לא זמין בשרת: קבצי הייצוא נמסרים במיכל המקורי של המקליט (Hikvision PS, ניתן לניגון ב־VLC) ולא נחתכים לטווח המדויק.')}</div>`}
       ${this.error ? html`<div class="warn" role="alert">${this.error}</div>` : nothing}
       <div class="list" data-export-list>
-        ${active.length ? html`<div class="group">פעילות <b>${active.length}</b></div>${active.map((j) => this.renderJob(j))}` : nothing}
-        ${finished.length ? html`<div class="group">הסתיימו <b>${finished.length}</b></div>${finished.map((j) => this.renderJob(j))}` : nothing}
+        ${active.length ? html`<div class="group">${tr('פעילות')} <b>${active.length}</b></div>${active.map((j) => this.renderJob(j))}` : nothing}
+        ${finished.length ? html`<div class="group">${tr('הסתיימו')} <b>${finished.length}</b></div>${finished.map((j) => this.renderJob(j))}` : nothing}
       </div>
-      <div class="foot">ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר בייצוא, לא שהצילום אותנטי מאז המצלמה. הקבצים נמחקים אוטומטית אחרי תקופת השמירה שבהגדרות.</div>
+      <div class="foot">${tr('ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר בייצוא, לא שהצילום אותנטי מאז המצלמה. הקבצים נמחקים אוטומטית אחרי תקופת השמירה שבהגדרות.')}</div>
       ${this.confirmDelete
-        ? html`<sw-dialog open heading="מחיקת עבודת ייצוא" subheading=${`${this.confirmDelete.camera_name} · ${this.range(this.confirmDelete.requested_from, this.confirmDelete.requested_to, this.confirmDelete.timezone)}`} @close=${() => (this.confirmDelete = null)}>
-            <div class="meta">הקבצים שירדו לשרת יימחקו. ההקלטה עצמה במקליט לא נפגעת, ואפשר לייצא את הטווח שוב.</div>
-            <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = null)}>ביטול</sw-button>
-            <sw-button slot="footer" variant="danger" icon="trash" data-export-delete-confirm ?disabled=${this.busy} @click=${() => this.removeJob(this.confirmDelete!)}>מחק</sw-button>
+        ? html`<sw-dialog open heading=${tr('מחיקת עבודת ייצוא')} subheading=${`${this.confirmDelete.camera_name} · ${this.range(this.confirmDelete.requested_from, this.confirmDelete.requested_to, this.confirmDelete.timezone)}`} @close=${() => (this.confirmDelete = null)}>
+            <div class="meta">${tr('הקבצים שירדו לשרת יימחקו. ההקלטה עצמה במקליט לא נפגעת, ואפשר לייצא את הטווח שוב.')}</div>
+            <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = null)}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="danger" icon="trash" data-export-delete-confirm ?disabled=${this.busy} @click=${() => this.removeJob(this.confirmDelete!)}>${tr('מחק')}</sw-button>
           </sw-dialog>`
         : nothing}
     `;
@@ -395,20 +396,20 @@ export class InvestigateExports extends LitElement {
             <div><div class="title"><strong>${j.title}</strong></div><div class="meta">${j.size} · ${j.hash}</div></div>
             <div><div class="pct"><b>${j.progress}%</b><span>${j.status}</span></div><div class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="inline-size:${j.progress}%"></i></div></div>
             <div class="actions">
-              ${j.progress === 100 ? html`<sw-button size="sm" icon="download">הורדה</sw-button>` : j.status.startsWith('נכשל') ? html`<sw-button size="sm" icon="refresh">נסה שוב</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="close">בטל</sw-button>`}
+              ${j.progress === 100 ? html`<sw-button size="sm" icon="download">${tr('הורדה')}</sw-button>` : j.status.startsWith('נכשל') ? html`<sw-button size="sm" icon="refresh">${tr('נסה שוב')}</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="close">${tr('בטל')}</sw-button>`}
             </div>
           </div>`,
         )}
       </div>
-      <div class="foot">ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר, לא שהצילום אותנטי מאז המצלמה.</div>
+      <div class="foot">${tr('ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר, לא שהצילום אותנטי מאז המצלמה.')}</div>
     `;
   }
 
   render() {
     const api = isApi();
     return html`
-      <sw-page heading="ייצוא והורדות" subheading=${api ? 'עבודות עמידות · ייצוא חלקי אינו מסומן כהצלחה מלאה' : 'עבודות עמידות · ייצוא חלקי אינו מסומן כהצלחה מלאה · נתוני הדגמה'}>
-        <sw-button slot="actions" variant="primary" icon="download" @click=${() => navigate('/investigate/playback')}>ייצוא חדש</sw-button>
+      <sw-page heading=${tr('ייצוא והורדות')} subheading=${api ? tr('עבודות עמידות · ייצוא חלקי אינו מסומן כהצלחה מלאה') : tr('עבודות עמידות · ייצוא חלקי אינו מסומן כהצלחה מלאה · נתוני הדגמה')}>
+        <sw-button slot="actions" variant="primary" icon="download" @click=${() => navigate('/investigate/playback')}>${tr('ייצוא חדש')}</sw-button>
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;

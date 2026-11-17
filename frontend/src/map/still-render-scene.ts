@@ -8,6 +8,7 @@
  * Nothing here changes SceneView. The view of the last render stays alive until the next render or dispose(), so the caller
  * can project the masks through the exact camera that drew the picture.
  */
+import { tr } from '../i18n/msg/map';
 import { SceneView } from './scene-three';
 import type { SceneDescription } from './scene-builder';
 import { STILL_RECIPE_Q2, bandScene, stillBackdrop, stillColor, stillDescription, type Project, type StillRenderRequest, type StillRenderResult, type StillRenderer, type StillVariant } from './still-bake';
@@ -37,15 +38,15 @@ export class SceneStillRenderer implements StillRenderer {
       night: bandScene(req.band).night });
     this.view = view;
     view.setDescription(desc);
-    if (!view.setPreset(req.preset)) throw new Error('המבט של התמונה המוכנה אינו זמין לקומה זו.');
+    if (!view.setPreset(req.preset)) throw new Error(tr('המבט של התמונה המוכנה אינו זמין לקומה זו.'));
     view.capture(); // renders now; the drawing buffer is read below in the same task
     const src = view.renderer.domElement;
-    if (src.width !== width || src.height !== height) throw new Error('גודל הציור אינו תואם את גודל התמונה המוכנה.');
+    if (src.width !== width || src.height !== height) throw new Error(tr('גודל הציור אינו תואם את גודל התמונה המוכנה.'));
     const out = document.createElement('canvas');
     out.width = width;
     out.height = height;
     const ctx = out.getContext('2d');
-    if (!ctx) throw new Error('ציור דו־ממדי אינו זמין בדפדפן.');
+    if (!ctx) throw new Error(tr('ציור דו־ממדי אינו זמין בדפדפן.'));
     ctx.fillStyle = stillBackdrop(req.style, req.band);
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(src, 0, 0);
@@ -90,7 +91,7 @@ export function encode(canvas: HTMLCanvasElement): Promise<Blob> {
   return as('image/webp').then(async (b) => {
     if (b && b.type === 'image/webp') return b;
     const j = await as('image/jpeg');
-    if (!j) throw new Error('קידוד התמונה נכשל.');
+    if (!j) throw new Error(tr('קידוד התמונה נכשל.'));
     return j;
   });
 }
@@ -101,9 +102,9 @@ export function encodePng(width: number, height: number, rgba: Uint8ClampedArray
   c.width = width;
   c.height = height;
   const ctx = c.getContext('2d');
-  if (!ctx) return Promise.reject(new Error('ציור דו־ממדי אינו זמין בדפדפן.'));
+  if (!ctx) return Promise.reject(new Error(tr('ציור דו־ממדי אינו זמין בדפדפן.')));
   const img = ctx.createImageData(width, height);
   img.data.set(rgba);
   ctx.putImageData(img, 0, 0);
-  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('קידוד מפת התאורה נכשל.'))), 'image/png'));
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error(tr('קידוד מפת התאורה נכשל.')))), 'image/png'));
 }

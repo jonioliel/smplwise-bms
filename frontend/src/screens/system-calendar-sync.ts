@@ -15,32 +15,33 @@ import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
 import { tablistKeydown } from '../components/a11y-keys';
 import { LongListsController, perPageFor } from '../api/long-lists';
+import { tr } from '../i18n/msg/system-a';
 
 const ORDER: ProviderCard[] = ['ical', 'google', 'microsoft'];
-const STAGE: Record<ProviderCard, string> = { ical: 'ראשון · ללא חשבון', google: 'שני', microsoft: 'שלישי' };
+const STAGE: Record<ProviderCard, string> = { ical: tr('ראשון · ללא חשבון'), google: tr('שני'), microsoft: tr('שלישי') };
 const LOGO: Record<ProviderCard, string> = { ical: 'iCal', google: 'G', microsoft: 'M' };
-const DIRECTION: Record<string, string> = { export: 'ייצוא', import: 'ייבוא', two_way: 'דו־כיווני' };
-const DETAIL: Record<string, string> = { busy: '"תפוס" בלבד', titles: 'כותרות' };
+const DIRECTION: Record<string, string> = { export: tr('ייצוא'), import: tr('ייבוא'), two_way: tr('דו־כיווני') };
+const DETAIL: Record<string, string> = { busy: tr('"תפוס" בלבד'), titles: tr('כותרות') };
 const STATE: Record<Connection['state'], [string, string]> = {
-  ok: ['ok', 'פעיל'], error: ['bad', 'שגיאה, ננסה שוב'], paused: ['', 'מושהה'], needs_reauth: ['warn', 'נדרשת הרשאה מחדש'], revoked: ['bad', 'ההרשאה בוטלה'], pending: ['', 'ממתין להגדרה'],
+  ok: ['ok', tr('פעיל')], error: ['bad', tr('שגיאה, ננסה שוב')], paused: ['', tr('מושהה')], needs_reauth: ['warn', tr('נדרשת הרשאה מחדש')], revoked: ['bad', tr('ההרשאה בוטלה')], pending: ['', tr('ממתין להגדרה')],
 };
 
 /** The words of a binding: direction (and "ייעודי" for a dedicated two-way calendar) and what leaves. */
 export function bindingText(b: Connection['bindings'][number]): string {
   const dir = DIRECTION[b.direction] ?? b.direction;
-  return b.direction === 'two_way' ? `${dir}${b.dedicated ? ' · ייעודי' : ''}` : b.direction === 'export' ? `${dir} · ${DETAIL[b.detail] ?? b.detail}` : dir;
+  return b.direction === 'two_way' ? `${dir}${b.dedicated ? ' · ' + tr('ייעודי') : ''}` : b.direction === 'export' ? `${dir} · ${DETAIL[b.detail] ?? b.detail}` : dir;
 }
 
 /** "לפני 6 דק׳" / "לפני 3 שע׳" / "לפני יומיים" */
 export function agoText(iso: string | null, now: Date): string {
-  if (!iso) return 'טרם סונכרן';
+  if (!iso) return tr('טרם סונכרן');
   const min = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
-  if (min < 1) return 'עכשיו';
-  if (min < 60) return `לפני ${min} דק׳`;
+  if (min < 1) return tr('עכשיו');
+  if (min < 60) return tr('לפני {n} דק׳', { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `לפני ${h} שע׳`;
+  if (h < 24) return tr('לפני {n} שע׳', { n: h });
   const d = Math.round(h / 24);
-  return d === 1 ? 'אתמול' : d === 2 ? 'לפני יומיים' : `לפני ${d} ימים`;
+  return d === 1 ? tr('אתמול') : d === 2 ? tr('לפני יומיים') : tr('לפני {n} ימים', { n: d });
 }
 
 /**
@@ -204,14 +205,14 @@ export class SystemCalendarSync extends LitElement {
   }
 
   render() {
-    if (this.forbidden) return html`<sw-state-panel state="forbidden" data-sync-state="forbidden" heading="אין לך הרשאה לחיבורי יומן" hint=${'ההרשאה "יומנים: חיבור יומנים חיצוניים" ניתנת על ידי הבעלים.'}></sw-state-panel>`;
-    if (this.error) return html`<sw-state-panel state="error" data-sync-state="error" heading="לא הצלחנו לטעון את החיבורים" hint=${this.error} actionLabel="לנסות שוב" @action=${() => void this.load()}></sw-state-panel>`;
-    if (!this.conns) return html`<div class="panel" data-sync-state="loading" role="status" aria-label="טוען"><div class="prov">${ORDER.map(() => html`<div class="skel" style="block-size:180px"></div>`)}</div></div>`;
+    if (this.forbidden) return html`<sw-state-panel state="forbidden" data-sync-state="forbidden" heading=${tr('אין לך הרשאה לחיבורי יומן')} hint=${tr('ההרשאה "יומנים: חיבור יומנים חיצוניים" ניתנת על ידי הבעלים.')}></sw-state-panel>`;
+    if (this.error) return html`<sw-state-panel state="error" data-sync-state="error" heading=${tr('לא הצלחנו לטעון את החיבורים')} hint=${this.error} actionLabel=${tr('לנסות שוב')} @action=${() => void this.load()}></sw-state-panel>`;
+    if (!this.conns) return html`<div class="panel" data-sync-state="loading" role="status" aria-label=${tr('טוען')}><div class="prov">${ORDER.map(() => html`<div class="skel" style="block-size:180px"></div>`)}</div></div>`;
     const now = new Date();
     return html`
-      <div class="head lead-head"><div class="ttl"><span class="crumb">הגדרות</span><h1>חיבורי יומן</h1></div><span class="sp"></span>
-        <span class="lock lockline"><sw-icon name="lock" size="14"></sw-icon>Arx לא יוצר חשבונות ולא שומר סיסמאות</span>
-        <button type="button" class="btn sm newbtn" data-sync-new @click=${() => (this.newOpen = true)}><sw-icon name="plus" size="14"></sw-icon>חיבור חדש</button></div>
+      <div class="head lead-head"><div class="ttl"><span class="crumb">${tr('הגדרות')}</span><h1>${tr('חיבורי יומן')}</h1></div><span class="sp"></span>
+        <span class="lock lockline"><sw-icon name="lock" size="14"></sw-icon>${tr('Arx לא יוצר חשבונות ולא שומר סיסמאות')}</span>
+        <button type="button" class="btn sm newbtn" data-sync-new @click=${() => (this.newOpen = true)}><sw-icon name="plus" size="14"></sw-icon>${tr('חיבור חדש')}</button></div>
       <section class="panel" data-sync-screen>
         ${this.actionError ? html`<div class="err" role="alert" data-sync-error>${this.actionError}</div>` : nothing}
         ${this.phone ? this.phoneProviders(now) : html`<div class="prov">${ORDER.map((p) => this.card(p, now))}</div>`}
@@ -225,9 +226,9 @@ export class SystemCalendarSync extends LitElement {
   private phoneProviders(now: Date) {
     const att = (this.conns ?? []).find((c) => c.state !== 'ok' && c.state !== 'paused');
     const cur = this.shownProvider ?? (att ? cardOf(att.provider) : null) ?? 'ical';
-    return html`<div class="seg" role="tablist" aria-label="ספק" data-provider-tabs @keydown=${tablistKeydown}>${ORDER.map((p) => {
+    return html`<div class="seg" role="tablist" aria-label=${tr('ספק')} data-provider-tabs @keydown=${tablistKeydown}>${ORDER.map((p) => {
       const c = this.connOf(p);
-      return html`<button type="button" role="tab" style="flex:1" aria-pressed=${String(cur === p)} aria-selected=${String(cur === p)} data-provider-tab=${p} @click=${() => (this.shownProvider = p)}>${PROVIDER_LABEL[p]}${c && c.state !== 'ok' ? html` <span class="dot" aria-label="דורש טיפול" style="display:inline-block;--h:var(--sw-warning)"></span>` : nothing}</button>`;
+      return html`<button type="button" role="tab" style="flex:1" aria-pressed=${String(cur === p)} aria-selected=${String(cur === p)} data-provider-tab=${p} @click=${() => (this.shownProvider = p)}>${PROVIDER_LABEL[p]}${c && c.state !== 'ok' ? html` <span class="dot" aria-label=${tr('דורש טיפול')} style="display:inline-block;--h:var(--sw-warning)"></span>` : nothing}</button>`;
     })}</div>${this.card(cur, now)}`;
   }
 
@@ -244,10 +245,10 @@ export class SystemCalendarSync extends LitElement {
   private card(p: ProviderCard, now: Date) {
     const c = this.connOf(p);
     if (!c) {
-      return html`<div class="pcard" data-provider=${p}><div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage">${STAGE[p]}</div></div><span class="chip">לא מחובר</span></div>
-        <div class="fine">${p === 'ical' ? 'פיד יוצא או מנוי נכנס, בלי חשבון.' : 'חשבון שהבעלים יוצר בעצמו אצל הספק.'}</div>
-        <div class="acts"><button type="button" class="btn pri sm" data-connect @click=${() => this.open({ kind: 'connect', card: p, conn: null })}>${p === 'ical' ? 'מנוי iCal' : 'חיבור'}</button>
-          ${p === 'ical' ? html`<button type="button" class="btn sm" data-feeds @click=${() => this.open({ kind: 'feeds' })}>פידים יוצאים</button>` : nothing}</div></div>`;
+      return html`<div class="pcard" data-provider=${p}><div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage">${STAGE[p]}</div></div><span class="chip">${tr('לא מחובר')}</span></div>
+        <div class="fine">${p === 'ical' ? tr('פיד יוצא או מנוי נכנס, בלי חשבון.') : tr('חשבון שהבעלים יוצר בעצמו אצל הספק.')}</div>
+        <div class="acts"><button type="button" class="btn pri sm" data-connect @click=${() => this.open({ kind: 'connect', card: p, conn: null })}>${p === 'ical' ? tr('מנוי iCal') : tr('חיבור')}</button>
+          ${p === 'ical' ? html`<button type="button" class="btn sm" data-feeds @click=${() => this.open({ kind: 'feeds' })}>${tr('פידים יוצאים')}</button>` : nothing}</div></div>`;
     }
     const pendingSetup = !!c.setup && !c.setup.ready && c.state !== 'needs_reauth';
     const [look, label] = pendingSetup ? STATE.pending : STATE[c.state] ?? ['', c.state];
@@ -257,38 +258,38 @@ export class SystemCalendarSync extends LitElement {
     const reauth = c.state === 'needs_reauth';
     const cont = reauth && (this.s?.reauth_mode ?? 'reauth_and_continue') === 'reauth_and_continue';
     return html`<div class="pcard" data-provider=${p} data-conn=${c.id} data-conn-state=${c.state}>
-      <div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage ell">${STAGE[p]}${p === 'ical' ? '' : ` · ${c.owner.name} חיברה`}</div></div><div class="state"><span class=${`chip ${look}`}>${label}</span>${!reauth && c.state !== 'paused' && !pendingSetup ? html`<span class="fine num" data-last-sync title="הסנכרון האחרון">${agoText(c.last_sync_at, now)}</span>` : nothing}</div></div>
-      ${reauth ? html`<div class="fine">ההרשאה פגה ${agoText(c.last_sync_at, now)}. Arx ממשיך לעבוד מהיומן שלו; השינויים יישלחו אחרי ההרשאה.</div>` : nothing}
+      <div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage ell">${STAGE[p]}${p === 'ical' ? '' : ` · ${tr('{name} חיברה', { name: c.owner.name })}`}</div></div><div class="state"><span class=${`chip ${look}`}>${label}</span>${!reauth && c.state !== 'paused' && !pendingSetup ? html`<span class="fine num" data-last-sync title=${tr('הסנכרון האחרון')}>${agoText(c.last_sync_at, now)}</span>` : nothing}</div></div>
+      ${reauth ? html`<div class="fine">${tr('ההרשאה פגה {ago}. Arx ממשיך לעבוד מהיומן שלו; השינויים יישלחו אחרי ההרשאה.', { ago: agoText(c.last_sync_at, now) })}</div>` : nothing}
       ${c.state === 'error' && c.error_code ? html`<div class="fine" role="status" data-conn-error=${c.error_code}>${connErrorText(c.error_code)}</div>` : nothing}
-      ${pendingSetup ? html`<div class="fine" data-conn-pending>${p === 'ical' ? 'חסרה כתובת ה־iCal.' : c.setup?.client_id_set ? 'נשאר לאשר אצל הספק.' : 'חסרים פרטי האפליקציה שלך אצל הספק.'}</div>` : nothing}
-      ${shown.length ? html`<ul>${shown.map((b) => { const cal = this.calName(b.calendar_id); return html`<li><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span><span class="grow ell" title=${cal?.name ?? ''}>${cal?.name ?? 'יומן'}</span><span class=${`chip ${b.direction === 'two_way' ? 'acc' : ''}`}>${bindingText(b)}</span></li>`; })}
-        ${rest > 0 ? html`<li><span class="grow fine">ועוד ${rest} יומנים</span></li>` : nothing}</ul>` : html`<div class="fine">אין עדיין יומן משויך.</div>`}
+      ${pendingSetup ? html`<div class="fine" data-conn-pending>${p === 'ical' ? tr('חסרה כתובת ה־iCal.') : c.setup?.client_id_set ? tr('נשאר לאשר אצל הספק.') : tr('חסרים פרטי האפליקציה שלך אצל הספק.')}</div>` : nothing}
+      ${shown.length ? html`<ul>${shown.map((b) => { const cal = this.calName(b.calendar_id); return html`<li><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span><span class="grow ell" title=${cal?.name ?? ''}>${cal?.name ?? tr('יומן')}</span><span class=${`chip ${b.direction === 'two_way' ? 'acc' : ''}`}>${bindingText(b)}</span></li>`; })}
+        ${rest > 0 ? html`<li><span class="grow fine">${tr('ועוד {n} יומנים', { n: rest })}</span></li>` : nothing}</ul>` : html`<div class="fine">${tr('אין עדיין יומן משויך.')}</div>`}
       <div class="acts">
-        ${pendingSetup ? html`<button type="button" class="btn pri sm" data-setup @click=${() => this.open({ kind: 'connect', card: p, conn: c })}>המשך הגדרה</button>`
-          : !reauth && c.state !== 'paused' ? html`<button type="button" class="btn sm" data-bind @click=${() => this.open({ kind: 'bind', conn: c })}>שיוך יומן</button>` : nothing}
-        ${p === 'ical' && !this.phone ? html`<button type="button" class="btn sm wide-only" data-feeds @click=${() => this.open({ kind: 'feeds' })}>פידים יוצאים</button>` : nothing}
-        ${reauth ? html`<button type="button" class="btn pri sm" data-reauth @click=${() => this.open({ kind: 'connect', card: p, conn: c })}>הרשאה מחדש אצל ${PROVIDER_LABEL[p]}</button>
-          ${cont ? html`<button type="button" class="btn sm" data-continue @click=${() => void this.act(() => (this.api as CalendarsApi).resumeConnection(c.id), 'החיבור ממשיך; אם הספק עדיין מסרב, הוא יחזור לבקש הרשאה')}>המשך</button>` : nothing}`
-          : c.state === 'paused' ? html`<button type="button" class="btn sm" data-resume @click=${() => void this.act(() => (this.api as CalendarsApi).resumeConnection(c.id), 'החיבור חודש')}>חידוש</button>`
+        ${pendingSetup ? html`<button type="button" class="btn pri sm" data-setup @click=${() => this.open({ kind: 'connect', card: p, conn: c })}>${tr('המשך הגדרה')}</button>`
+          : !reauth && c.state !== 'paused' ? html`<button type="button" class="btn sm" data-bind @click=${() => this.open({ kind: 'bind', conn: c })}>${tr('שיוך יומן')}</button>` : nothing}
+        ${p === 'ical' && !this.phone ? html`<button type="button" class="btn sm wide-only" data-feeds @click=${() => this.open({ kind: 'feeds' })}>${tr('פידים יוצאים')}</button>` : nothing}
+        ${reauth ? html`<button type="button" class="btn pri sm" data-reauth @click=${() => this.open({ kind: 'connect', card: p, conn: c })}>${tr('הרשאה מחדש אצל {provider}', { provider: PROVIDER_LABEL[p] })}</button>
+          ${cont ? html`<button type="button" class="btn sm" data-continue @click=${() => void this.act(() => (this.api as CalendarsApi).resumeConnection(c.id), tr('החיבור ממשיך; אם הספק עדיין מסרב, הוא יחזור לבקש הרשאה'))}>${tr('המשך')}</button>` : nothing}`
+          : c.state === 'paused' ? html`<button type="button" class="btn sm" data-resume @click=${() => void this.act(() => (this.api as CalendarsApi).resumeConnection(c.id), tr('החיבור חודש'))}>${tr('חידוש')}</button>`
           : pendingSetup ? nothing
-          : html`<button type="button" class="btn sm" data-sync-now @click=${() => void this.act(() => (this.api as CalendarsApi).syncNow(c.id), 'הסנכרון התחיל')}><sw-icon name="refresh" size="14"></sw-icon>סנכרון עכשיו</button>
-            <button type="button" class="btn sm wide-only" data-pause @click=${() => void this.act(() => (this.api as CalendarsApi).pauseConnection(c.id), 'החיבור הושהה')}>השהיה</button>`}
-        ${reauth || c.state === 'paused' || pendingSetup ? html`<button type="button" class="btn sm bad" data-remove @click=${() => (this.removing = c)}>ניתוק</button>` : nothing}
+          : html`<button type="button" class="btn sm" data-sync-now @click=${() => void this.act(() => (this.api as CalendarsApi).syncNow(c.id), tr('הסנכרון התחיל'))}><sw-icon name="refresh" size="14"></sw-icon>${tr('סנכרון עכשיו')}</button>
+            <button type="button" class="btn sm wide-only" data-pause @click=${() => void this.act(() => (this.api as CalendarsApi).pauseConnection(c.id), tr('החיבור הושהה'))}>${tr('השהיה')}</button>`}
+        ${reauth || c.state === 'paused' || pendingSetup ? html`<button type="button" class="btn sm bad" data-remove @click=${() => (this.removing = c)}>${tr('ניתוק')}</button>` : nothing}
       </div></div>`;
   }
 
   private flagsBlock(now: Date) {
-    if (!this.flags.length) return html`<h3 data-flags-empty>סומנו להחלטה <span class="chip ok">אין</span></h3>`;
+    if (!this.flags.length) return html`<h3 data-flags-empty>${tr('סומנו להחלטה')} <span class="chip ok">${tr('אין')}</span></h3>`;
     const per = this.phone ? 2 : this.compact ? 2 : 3;
     const p = pageOf(this.flags, this.flagPage, perPageFor(this.lists.paged, per, this.flags.length));
-    return html`<h3>סומנו להחלטה <span class="count num" data-flags-count>${this.flags.length}</span></h3>
+    return html`<h3>${tr('סומנו להחלטה')} <span class="count num" data-flags-count>${this.flags.length}</span></h3>
       <div class="flags">${p.items.map((f) => html`<div class="flag" data-flag=${f.event_id}><span class="warnico"><sw-icon name="warning" size="16"></sw-icon></span>
-        <div class="grow"><div class="name ell" title=${f.title ?? ''}>${f.flag === 'deleted_external' ? `"${f.title ?? 'אירוע'}" נמחק ביומן החיצוני` : f.title ?? 'התנגשות'}${f.flag === 'conflict' ? html` <span class="num ltr">${hm(f.start)}–${hm(f.end)}</span>` : nothing}</div>
-          <div class="sub ell">${f.calendar.name} · ${f.flag === 'conflict' ? 'התנגשות: שתי ההזמנות נשמרו' : 'נשמר ב־Arx ולא מתפרסם עד החלטה'} · ${this.when(f.start, f.end, now)}</div></div>
-        <span class="facts"><button type="button" class="btn sm" data-flag-keep @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'keep'), 'נשאר')}>להשאיר</button>
-        <button type="button" class="btn sm bad" data-flag-cancel @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'cancel'), 'בוטל')}>לבטל</button></span></div>`)}</div>
-      ${p.pages > 1 ? html`<div class="pager"><button type="button" class="btn icon" aria-label="הקודם" ?disabled=${p.page <= 1} @click=${() => (this.flagPage = p.page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
-        <span class="num">${p.page} / ${p.pages}</span><button type="button" class="btn icon" aria-label="הבא" ?disabled=${p.page >= p.pages} @click=${() => (this.flagPage = p.page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>` : nothing}`;
+        <div class="grow"><div class="name ell" title=${f.title ?? ''}>${f.flag === 'deleted_external' ? tr('"{title}" נמחק ביומן החיצוני', { title: f.title ?? tr('אירוע') }) : f.title ?? tr('התנגשות')}${f.flag === 'conflict' ? html` <span class="num ltr">${hm(f.start)}–${hm(f.end)}</span>` : nothing}</div>
+          <div class="sub ell">${f.calendar.name} · ${f.flag === 'conflict' ? tr('התנגשות: שתי ההזמנות נשמרו') : tr('נשמר ב־Arx ולא מתפרסם עד החלטה')} · ${this.when(f.start, f.end, now)}</div></div>
+        <span class="facts"><button type="button" class="btn sm" data-flag-keep @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'keep'), tr('נשאר'))}>${tr('להשאיר')}</button>
+        <button type="button" class="btn sm bad" data-flag-cancel @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'cancel'), tr('בוטל'))}>${tr('לבטל')}</button></span></div>`)}</div>
+      ${p.pages > 1 ? html`<div class="pager"><button type="button" class="btn icon" aria-label=${tr('הקודם')} ?disabled=${p.page <= 1} @click=${() => (this.flagPage = p.page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+        <span class="num">${p.page} / ${p.pages}</span><button type="button" class="btn icon" aria-label=${tr('הבא')} ?disabled=${p.page >= p.pages} @click=${() => (this.flagPage = p.page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>` : nothing}`;
   }
 
   /** The sync rules that are settings (owner answers 18, 21, 22); editable with calendar.configure. */
@@ -296,12 +297,12 @@ export class SystemCalendarSync extends LitElement {
     if (!this.s) return nothing;
     const s = this.s;
     const rows: [keyof CalSettings, string, string, [string, string][]][] = [
-      ['sync_external_delete', 'מחיקה מבחוץ של אירוע מ־Arx', 'ברירת מחדל: מבוטל ב־Arx', [['cancel', 'מבוטל ב־Arx'], ['flag', 'נשאר ומסומן']]],
-      ['reauth_mode', 'חיבור שדורש הרשאה מחדש', 'ברירת מחדל: הרשאה + "המשך"', [['reauth_and_continue', 'הרשאה + "המשך"'], ['reauth_only', 'הרשאה בלבד']]],
-      ['sync_conflict_display', 'התנגשות בתצוגת השבוע', 'ברירת מחדל: זו לצד זו, מסגרת אדומה', [['side_by_side', 'זו לצד זו'], ['list_only', 'רק ברשימה']]],
-      ['sync_google_scope', 'היקף הרשאת Google', 'ברירת מחדל: יומן מלא, אושר מראש', [['full', 'יומן מלא'], ['events', 'אירועים בלבד']]],
+      ['sync_external_delete', tr('מחיקה מבחוץ של אירוע מ־Arx'), tr('ברירת מחדל: מבוטל ב־Arx'), [['cancel', tr('מבוטל ב־Arx')], ['flag', tr('נשאר ומסומן')]]],
+      ['reauth_mode', tr('חיבור שדורש הרשאה מחדש'), tr('ברירת מחדל: הרשאה + "המשך"'), [['reauth_and_continue', tr('הרשאה + "המשך"')], ['reauth_only', tr('הרשאה בלבד')]]],
+      ['sync_conflict_display', tr('התנגשות בתצוגת השבוע'), tr('ברירת מחדל: זו לצד זו, מסגרת אדומה'), [['side_by_side', tr('זו לצד זו')], ['list_only', tr('רק ברשימה')]]],
+      ['sync_google_scope', tr('היקף הרשאת Google'), tr('ברירת מחדל: יומן מלא, אושר מראש'), [['full', tr('יומן מלא')], ['events', tr('אירועים בלבד')]]],
     ];
-    return html`<h3 class="rulesh">כללי הסנכרון${this.canConfigure ? nothing : html` <span class="ro">צפייה בלבד: שינוי דורש את ההרשאה "יומנים: הגדרות"</span>`}</h3>
+    return html`<h3 class="rulesh">${tr('כללי הסנכרון')}${this.canConfigure ? nothing : html` <span class="ro">${tr('צפייה בלבד: שינוי דורש את ההרשאה "יומנים: הגדרות"')}</span>`}</h3>
       <div class="rules" data-sync-rules>${rows.map(([k, name, def, opts]) => html`<div class="row" data-setting=${k}><div class="grow"><div class="name ell">${name}</div><div class="sub">${def}</div></div>
       <div class="seg" role="radiogroup" aria-label=${name}>${opts.map(([v, l]) => html`<button type="button" role="radio" aria-pressed=${String(s[k] === v)} aria-checked=${String(s[k] === v)} data-opt=${v}
         ?disabled=${!this.canConfigure} @click=${() => void this.saveRule(k, v)}>${l}</button>`)}</div></div>`)}</div>`;
@@ -334,17 +335,17 @@ export class SystemCalendarSync extends LitElement {
     }
     if (this.removing) {
       const c = this.removing;
-      return html`<sw-dialog open heading=${`לנתק את ${PROVIDER_LABEL[c.provider]}?`} data-remove-confirm @close=${() => (this.removing = null)}><div class="dlg"><p>ההרשאה תבוטל אצל הספק והמפתחות יימחקו.
-        השיוך של ${c.bindings.length} יומנים יוסר; האירועים ב־Arx נשארים.</p></div>
-        <button slot="footer" type="button" class="btn" @click=${() => (this.removing = null)}>ביטול</button>
-        <button slot="footer" type="button" class="btn bad fill" data-remove-ok @click=${() => { this.removing = null; void this.act(() => (this.api as CalendarsApi).removeConnection(c.id), 'החיבור נותק'); }}>ניתוק</button></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('לנתק את {provider}?', { provider: PROVIDER_LABEL[c.provider] })} data-remove-confirm @close=${() => (this.removing = null)}><div class="dlg"><p>${tr('ההרשאה תבוטל אצל הספק והמפתחות יימחקו.')}
+        ${tr('השיוך של {n} יומנים יוסר; האירועים ב־Arx נשארים.', { n: c.bindings.length })}</p></div>
+        <button slot="footer" type="button" class="btn" @click=${() => (this.removing = null)}>${tr('ביטול')}</button>
+        <button slot="footer" type="button" class="btn bad fill" data-remove-ok @click=${() => { this.removing = null; void this.act(() => (this.api as CalendarsApi).removeConnection(c.id), tr('החיבור נותק')); }}>${tr('ניתוק')}</button></sw-dialog>`;
     }
     if (this.newOpen) {
-      return html`<sw-dialog open heading="חיבור חדש" data-new-dialog @close=${() => (this.newOpen = false)}><div class="dlg">
-        <p>הסדר הוא iCal, אחר כך Google, אחר כך Microsoft. Arx לא יוצר חשבון ולא שומר סיסמה: הבעלים יוצר את האפליקציה אצל הספק, מדביק את המזהה והסוד, ומאשר בעצמו בדפדפן.</p>
-        <div class="acts" data-new-providers>${ORDER.map((p) => html`<button type="button" class="btn sm" data-new-provider=${p} @click=${() => this.fromNew({ kind: 'connect', card: p, conn: null })}>${p === 'ical' ? 'מנוי iCal' : PROVIDER_LABEL[p]}</button>`)}
-          <button type="button" class="btn sm" data-new-feeds @click=${() => this.fromNew({ kind: 'feeds' })}>פיד iCal יוצא</button></div></div>
-        <button slot="footer" type="button" class="btn" @click=${() => (this.newOpen = false)}>סגירה</button></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('חיבור חדש')} data-new-dialog @close=${() => (this.newOpen = false)}><div class="dlg">
+        <p>${tr('הסדר הוא iCal, אחר כך Google, אחר כך Microsoft. Arx לא יוצר חשבון ולא שומר סיסמה: הבעלים יוצר את האפליקציה אצל הספק, מדביק את המזהה והסוד, ומאשר בעצמו בדפדפן.')}</p>
+        <div class="acts" data-new-providers>${ORDER.map((p) => html`<button type="button" class="btn sm" data-new-provider=${p} @click=${() => this.fromNew({ kind: 'connect', card: p, conn: null })}>${p === 'ical' ? tr('מנוי iCal') : PROVIDER_LABEL[p]}</button>`)}
+          <button type="button" class="btn sm" data-new-feeds @click=${() => this.fromNew({ kind: 'feeds' })}>${tr('פיד iCal יוצא')}</button></div></div>
+        <button slot="footer" type="button" class="btn" @click=${() => (this.newOpen = false)}>${tr('סגירה')}</button></sw-dialog>`;
     }
     return nothing;
   }

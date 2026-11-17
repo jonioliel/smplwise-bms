@@ -6,6 +6,7 @@ import { registerScreen, type HomeHost } from './home-ext';
 import { registerMoreTile } from './more-registry';
 import { P3_SCREENS } from './home-p3-logic';
 import type { HubTile } from './home-p3';
+import { tr } from '../i18n/msg/home';
 
 registerScreen((h: HomeHost) => ({
   id: 'p3',
@@ -19,12 +20,12 @@ registerScreen((h: HomeHost) => ({
 const tile = (h: HomeHost, id: HubTile['id']): HubTile | undefined => h.p3.tiles().find((t) => t.id === id);
 
 const HUB: [HubTile['id'], string, string, string][] = [
-  ['media', 'media', 'מוזיקה ומסכים', 'music'],
-  ['announce', 'media', 'כריזה בבית', 'horn'],
-  ['bills', 'bills', 'חשבון חשמל', 'bill'],
-  ['water', 'water', 'מים', 'drop'],
-  ['systems', 'systems', 'מערכות הבית', 'gen'],
-  ['map', 'map', 'מפת הבית', 'map'],
+  ['media', 'media', tr('מוזיקה ומסכים'), 'music'],
+  ['announce', 'media', tr('כריזה בבית'), 'horn'],
+  ['bills', 'bills', tr('חשבון חשמל'), 'bill'],
+  ['water', 'water', tr('מים'), 'drop'],
+  ['systems', 'systems', tr('מערכות הבית'), 'gen'],
+  ['map', 'map', tr('מפת הבית'), 'map'],
 ];
 
 HUB.forEach(([id, href, label, icon], i) =>

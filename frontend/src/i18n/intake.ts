@@ -5,6 +5,7 @@
  * the naming setting (the server renders it); these labels name the queue ("פניות"), not the module. No explanatory paragraphs
  * (clean operator screens): labels and short confirmations only. WhatsApp may be named on a settings screen.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   chip: 'פניות לאישור',
   title: 'פניות בטקסט חופשי',
@@ -183,8 +184,7 @@ export type IntakeKey = Key;
 export type IntakeLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function intakeLang(): IntakeLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 export const INTAKE_TABLES: Record<IntakeLang, Partial<Record<Key, string>>> = { he, en, ar: {}, ru: {} };
@@ -193,3 +193,5 @@ export const INTAKE_KEYS = Object.keys(he) as Key[];
 export function itx(key: Key, lang: IntakeLang = intakeLang()): string {
   return INTAKE_TABLES[lang][key] ?? he[key] ?? key;
 }
+
+registerCatalogue('i18n/intake', { he, en });

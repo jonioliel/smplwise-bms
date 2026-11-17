@@ -112,6 +112,8 @@ import { TEMPLATES, templateById, withPreset, type TemplateDraft } from './sched
 import { dateInputLang } from '../api/day-format';
 import { conflictMove, conflictSlotIndex, draftConflicts, warningsHeading, type ConflictRow } from '../api/automations-ext';
 import './automation-ext-dialogs';
+import { tr } from '../i18n/msg/automation';
+import { t } from '../i18n/he';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -992,7 +994,7 @@ export class ScheduleEditor extends LitElement {
     const slots = d.slots.map(withUid);
     const locked: Record<string, Problem[]> = {};
     s.slots.forEach((sl, i) => {
-      if (!sl.supported) locked[slots[i].uid] = sl.unsupported.length ? sl.unsupported : [{ code: 'unsupported_content', message: 'התזמון כולל תוכן שהמערכת אינה מציגה במלואו.' }];
+      if (!sl.supported) locked[slots[i].uid] = sl.unsupported.length ? sl.unsupported : [{ code: 'unsupported_content', message: tr('התזמון כולל תוכן שהמערכת אינה מציגה במלואו.') }];
     });
     this.lockedUids = locked;
     this.chosen = [];
@@ -1135,19 +1137,19 @@ export class ScheduleEditor extends LitElement {
   private onCreate(from: number, to: number) {
     const work = this.work;
     const r = createSlot(work, from, to, this.opts, withUid);
-    if (!r) return this.say('אין מקום פנוי כאן.');
+    if (!r) return this.say(tr('אין מקום פנוי כאן.'));
     const uid = r.slots[r.index].uid;
     const actions = newSlotActions(plainSlots(work), this.meta, (s) => spanOf(s, this.sunNow)?.start ?? 0, this.chosen);
     const slots = r.slots.map((s) => (s.uid === uid ? { ...s, actions } : s));
     this.setWork(slots, uid);
     this.reveal();
-    this.say(`נוצרה משבצת ${(r.index ?? 0) + 1}.`);
+    this.say(tr('נוצרה משבצת {n}.', { n: (r.index ?? 0) + 1 }));
   }
 
   private onAddButton() {
     const work = this.work;
     const r = addSlot(work, this.opts, 8 * 60, withUid);
-    if (!r) return this.say('אין מקום למשבצת נוספת.');
+    if (!r) return this.say(tr('אין מקום למשבצת נוספת.'));
     const uid = r.slots[r.index].uid;
     const actions = newSlotActions(plainSlots(work), this.meta, (s) => spanOf(s, this.sunNow)?.start ?? 0, this.chosen);
     this.setWork(r.slots.map((s) => (s.uid === uid ? { ...s, actions: s.actions.length ? s.actions : actions } : s)), uid);
@@ -1205,7 +1207,7 @@ export class ScheduleEditor extends LitElement {
     if (!gone) return;
     this.setWork(removeSlot(this.work, i));
     if (this.selected === gone.uid) this.selected = '';
-    this.say('המשבצת נמחקה.');
+    this.say(tr('המשבצת נמחקה.'));
   }
 
   private onSlotChange(slot: EditSlot) {
@@ -1220,7 +1222,7 @@ export class ScheduleEditor extends LitElement {
     const i = this.idxOf(uid);
     if (i < 0) return;
     const r = duplicateSlot(this.work, i, this.opts, withUid);
-    if (!r) return this.say('אין מקום לשכפול.');
+    if (!r) return this.say(tr('אין מקום לשכפול.'));
     this.setWork(r.slots, r.slots[r.index].uid);
   }
 
@@ -1239,7 +1241,7 @@ export class ScheduleEditor extends LitElement {
     const next = [...work, withUid(off)];
     if (sorted(next, this.sunNow).slots.some((_, a, all) => all.slice(a + 1).some((b, k) => this.overlapIdx(all[a], b, k)))) {
       this.saveError = '';
-      this.note = 'אין מקום לכיבוי בסיום: קיימת משבצת בשעה הזו.';
+      this.note = tr('אין מקום לכיבוי בסיום: קיימת משבצת בשעה הזו.');
       return;
     }
     this.setWork(next, work[i].uid);
@@ -1401,7 +1403,7 @@ export class ScheduleEditor extends LitElement {
       const same = plainSlots(this.override.slots);
       if (JSON.stringify(same) === JSON.stringify(plainSlots(this.draft.slots))) this.override = null;
       else {
-        this.splitDialog = { name: `${(this.draft.name ?? '').trim() || 'תזמון'} · ${this.override.days.map((d) => DAY_SHORT[d]).join(', ')}` };
+        this.splitDialog = { name: `${(this.draft.name ?? '').trim() || tr('תזמון')} · ${this.override.days.map((d) => DAY_SHORT[d]).join(', ')}` };
         return;
       }
     }
@@ -1436,7 +1438,7 @@ export class ScheduleEditor extends LitElement {
         this.savedOk = true;
         this.dispatchEvent(new CustomEvent('saved', { detail: { id: 'schedule' in r ? r.schedule.id : '' }, bubbles: true, composed: true }));
         if ('schedule' in r) {
-          this.note = 'התזמון נוצר.';
+          this.note = tr('התזמון נוצר.');
           this.go(`#/devices/schedules/${encodeURIComponent(r.schedule.id)}`);
         } else {
           this.note = r.message;
@@ -1447,7 +1449,7 @@ export class ScheduleEditor extends LitElement {
         this.lowering = null;
         this.savedOk = true;
         this.adopt(r.schedule);
-        this.note = 'השינויים נשמרו.';
+        this.note = tr('השינויים נשמרו.');
         this.dispatchEvent(new CustomEvent('saved', { detail: { id: r.schedule.id }, bubbles: true, composed: true }));
         this.go(`#/devices/schedules/${encodeURIComponent(r.schedule.id)}`);
       }
@@ -1521,7 +1523,7 @@ export class ScheduleEditor extends LitElement {
     } catch (e) {
       this.splitDialog = null;
       this.handleSaveError(e, 'split');
-      if (stage === 'update') this.saveError = `הפיצול בוצע, אך שמירת השינויים בתזמון נכשלה: ${this.saveError || describeError(e)} בדקו את שני התזמונים ברשימה.`;
+      if (stage === 'update') this.saveError = tr('הפיצול בוצע, אך שמירת השינויים בתזמון נכשלה: {error} בדקו את שני התזמונים ברשימה.', { error: this.saveError || describeError(e) });
     }
     this.saving = false;
   }
@@ -1567,7 +1569,7 @@ export class ScheduleEditor extends LitElement {
     const g = groupActions(s.actions);
     const locked = !!this.lockedUids[s.uid];
     const first = g[0];
-    const title = !first ? 'בחרו פעולה' : `${actionLabel({ service: first.service, data: first.data })}${g.length > 1 ? ` +${g.length - 1}` : ''}`;
+    const title = !first ? tr('בחרו פעולה') : `${actionLabel({ service: first.service, data: first.data })}${g.length > 1 ? ` +${g.length - 1}` : ''}`;
     const st = parseTime(s.start);
     const sp = s.stop ? parseTime(s.stop) : null;
     // "שקיעה +00:30" keeps its sign after the offset: an LRM in front of the sign (the word before it is right-to-left)
@@ -1595,7 +1597,7 @@ export class ScheduleEditor extends LitElement {
       lowering,
       invalid: this.showErrors && bad,
       conflict: this.views().conflicts.has(s.uid),
-      aria: `משבצת ${order + 1} מתוך ${count}: ${title}, ${timeLabel}${lowering ? ', פותח או מנטרל' : sensitive ? ', פעולה רגישה' : ''}${locked ? ', לקריאה בלבד' : ''}`,
+      aria: `${tr('משבצת {n} מתוך {count}', { n: order + 1, count })}: ${title}, ${timeLabel}${lowering ? `, ${tr('פותח או מנטרל')}` : sensitive ? `, ${tr('פעולה רגישה')}` : ''}${locked ? `, ${tr('לקריאה בלבד')}` : ''}`,
     };
   }
 
@@ -1646,11 +1648,11 @@ export class ScheduleEditor extends LitElement {
       return {
         key: r.day,
         label: DAY_LONG[r.day],
-        sub: r.active ? (r.day === today ? 'היום' : ov ? (inOv ? 'פיצול' : 'מקושר') : r.linked > 1 ? 'מקושר' : '') : r.day === today ? 'היום' : '',
+        sub: r.active ? (r.day === today ? tr('היום') : ov ? (inOv ? tr('פיצול') : tr('מקושר')) : r.linked > 1 ? tr('מקושר') : '') : r.day === today ? tr('היום') : '',
         today: r.day === today,
         active: r.active,
         slots: r.active ? this.slotViews(slots) : [],
-        addLabel: `הוספת ${DAY_LONG[r.day]} לתזמון`,
+        addLabel: tr('הוספת {day} לתזמון', { day: DAY_LONG[r.day] }),
         readOnly: !!ov && !inOv,
       };
     });
@@ -1662,7 +1664,7 @@ export class ScheduleEditor extends LitElement {
     const cond = this.draft.conditions.items.length > 0;
     for (const u of up) {
       const s = this.draft.slots[u.slot_index];
-      if (s && !out[s.uid]) out[s.uid] = `${whenLabel(u.at)}${cond ? ' · בתנאי' : ''}`;
+      if (s && !out[s.uid]) out[s.uid] = `${whenLabel(u.at)}${cond ? ` · ${tr('בתנאי')}` : ''}`;
     }
     return out;
   }
@@ -1673,39 +1675,39 @@ export class ScheduleEditor extends LitElement {
     const reasons = this.schedule?.read_only?.reasons ?? [];
     return html`
       ${this.readOnly && !this.creating && this.schedule
-        ? html`<div class="banner warn" data-readonly-banner><sw-icon name="lock" size="16"></sw-icon><div>מצב צפייה.${reasons.length ? html` ${reasons.map((r) => html`<div>${r.message}</div>`)}` : nothing}</div></div>`
+        ? html`<div class="banner warn" data-readonly-banner><sw-icon name="lock" size="16"></sw-icon><div>${tr('מצב צפייה.')}${reasons.length ? html` ${reasons.map((r) => html`<div>${r.message}</div>`)}` : nothing}</div></div>`
         : this.creating && this.readOnly
-          ? html`<div class="banner warn" data-readonly-banner><sw-icon name="lock" size="16"></sw-icon><div>שמירת תזמונים אינה זמינה כרגע.</div></div>`
+          ? html`<div class="banner warn" data-readonly-banner><sw-icon name="lock" size="16"></sw-icon><div>${tr('שמירת תזמונים אינה זמינה כרגע.')}</div></div>`
           : nothing}
-      ${this.gone ? html`<div class="banner err" data-gone-banner><sw-icon name="warning" size="16"></sw-icon><span>התזמון נמחק במקום אחר.</span></div>` : nothing}
+      ${this.gone ? html`<div class="banner err" data-gone-banner><sw-icon name="warning" size="16"></sw-icon><span>${tr('התזמון נמחק במקום אחר.')}</span></div>` : nothing}
       ${this.conflict
         ? html`<div class="banner err" role="alert" data-conflict-banner>
             <sw-icon name="warning" size="16"></sw-icon>
-            <span><b>התזמון שונה במקום אחר</b> (גרסה ${this.baseRevision.slice(0, 4)} ← ${this.conflict.current.revision.slice(0, 4)}). השינויים שלכם עדיין לא נשמרו.</span>
+            <span><b>${tr('התזמון שונה במקום אחר')}</b> (${tr('גרסה {from} ← {to}', { from: this.baseRevision.slice(0, 4), to: this.conflict.current.revision.slice(0, 4) })}). ${tr('השינויים שלכם עדיין לא נשמרו.')}</span>
             <span class="sp"></span>
-            <sw-button size="sm" data-conflict-compare @click=${() => (this.compareOpen = true)}>השוואה</sw-button>
-            <sw-button size="sm" data-conflict-latest @click=${() => this.loadLatest()}>טעינת הגרסה החדשה</sw-button>
-            <sw-button size="sm" variant="danger" data-conflict-mine @click=${() => this.keepMine()}>שמירה בכל זאת</sw-button>
+            <sw-button size="sm" data-conflict-compare @click=${() => (this.compareOpen = true)}>${tr('השוואה')}</sw-button>
+            <sw-button size="sm" data-conflict-latest @click=${() => this.loadLatest()}>${tr('טעינת הגרסה החדשה')}</sw-button>
+            <sw-button size="sm" variant="danger" data-conflict-mine @click=${() => this.keepMine()}>${tr('שמירה בכל זאת')}</sw-button>
           </div>`
         : nothing}
       ${this.saveError
-        ? html`<div class="banner err" role="alert" data-save-error><sw-icon name="warning" size="16"></sw-icon><span><b>השמירה לא הושלמה.</b> ${this.saveError}</span><span class="sp"></span><sw-button size="sm" data-save-retry @click=${() => this.onSave()}>ניסיון נוסף</sw-button></div>`
+        ? html`<div class="banner err" role="alert" data-save-error><sw-icon name="warning" size="16"></sw-icon><span><b>${tr('השמירה לא הושלמה.')}</b> ${this.saveError}</span><span class="sp"></span><sw-button size="sm" data-save-retry @click=${() => this.onSave()}>${tr('ניסיון נוסף')}</sw-button></div>`
         : nothing}
       ${this.note ? html`<div class="banner ok" role="status" data-note>${this.note}</div>` : nothing}
       ${this.stash
-        ? html`<div class="banner info" data-stash-banner><sw-icon name="info" size="16"></sw-icon><span>נמצאה טיוטה שלא נשמרה מהעריכה הקודמת.</span><span class="sp"></span><sw-button size="sm" data-stash-restore @click=${() => this.restoreStash()}>שחזור</sw-button><sw-button size="sm" variant="ghost" @click=${() => this.dropStash()}>התעלמות</sw-button></div>`
+        ? html`<div class="banner info" data-stash-banner><sw-icon name="info" size="16"></sw-icon><span>${tr('נמצאה טיוטה שלא נשמרה מהעריכה הקודמת.')}</span><span class="sp"></span><sw-button size="sm" data-stash-restore @click=${() => this.restoreStash()}>${tr('שחזור')}</sw-button><sw-button size="sm" variant="ghost" @click=${() => this.dropStash()}>${tr('התעלמות')}</sw-button></div>`
         : nothing}
       ${this.override
-        ? html`<div class="banner info" data-override-banner><sw-icon name="link" size="16"></sw-icon><span>עורכים רק את ${this.override.days.map((d) => DAY_LONG[d]).join(', ')}. בשמירה יפוצל תזמון נפרד ליום הזה.</span><span class="sp"></span><sw-button size="sm" data-override-cancel @click=${() => this.cancelOverride()}>ביטול הפיצול</sw-button></div>`
+        ? html`<div class="banner info" data-override-banner><sw-icon name="link" size="16"></sw-icon><span>${tr('עורכים רק את {days}. בשמירה יפוצל תזמון נפרד ליום הזה.', { days: this.override.days.map((d) => DAY_LONG[d]).join(', ') })}</span><span class="sp"></span><sw-button size="sm" data-override-cancel @click=${() => this.cancelOverride()}>${tr('ביטול הפיצול')}</sw-button></div>`
         : nothing}
-      ${this.status && !this.status.writable && !this.readOnly ? html`<div class="banner warn"><sw-icon name="offline" size="16"></sw-icon><span>שמירת שינויים אינה זמינה כרגע.</span></div>` : nothing}`;
+      ${this.status && !this.status.writable && !this.readOnly ? html`<div class="banner warn"><sw-icon name="offline" size="16"></sw-icon><span>${tr('שמירת שינויים אינה זמינה כרגע.')}</span></div>` : nothing}`;
   }
 
   private renderLegend() {
-    return html`<div class="legend" aria-label="מקרא צבעים">
+    return html`<div class="legend" aria-label=${tr('מקרא צבעים')}>
       ${LEGEND.map((l) => html`<span class="k"><span class="sw c-${l.cat}"></span>${l.label}</span>`)}
-      <span class="k"><sw-icon name="clock" size="12"></sw-icon>זריחה / שקיעה (משוער)</span>
-      <span class="k"><span class="now"></span>עכשיו</span>
+      <span class="k"><sw-icon name="clock" size="12"></sw-icon>${tr('זריחה / שקיעה (משוער)')}</span>
+      <span class="k"><span class="now"></span>${tr('עכשיו')}</span>
     </div>`;
   }
 
@@ -1720,29 +1722,29 @@ export class ScheduleEditor extends LitElement {
     const editingDays = this.override ? this.override.days : null;
     return html`<div class="card" data-board>
       <div class="toolbar">
-        <div class="seg" role="group" aria-label="תצוגה">
-          <button type="button" data-view-btn="week" aria-pressed=${this.view === 'week'} @click=${() => this.setView('week')}><sw-icon name="calendar" size="14"></sw-icon>שבוע</button>
-          <button type="button" data-view-btn="day" aria-pressed=${this.view === 'day'} @click=${() => this.setView('day')}><sw-icon name="clock" size="14"></sw-icon>יום</button>
-          <button type="button" data-view-btn="table" aria-pressed=${this.view === 'table'} @click=${() => this.setView('table')}><sw-icon name="list" size="14"></sw-icon>טבלה</button>
+        <div class="seg" role="group" aria-label=${tr('תצוגה')}>
+          <button type="button" data-view-btn="week" aria-pressed=${this.view === 'week'} @click=${() => this.setView('week')}><sw-icon name="calendar" size="14"></sw-icon>${tr('שבוע')}</button>
+          <button type="button" data-view-btn="day" aria-pressed=${this.view === 'day'} @click=${() => this.setView('day')}><sw-icon name="clock" size="14"></sw-icon>${tr('יום')}</button>
+          <button type="button" data-view-btn="table" aria-pressed=${this.view === 'table'} @click=${() => this.setView('table')}><sw-icon name="list" size="14"></sw-icon>${tr('טבלה')}</button>
         </div>
         <span class="sp"></span>
         ${this.view === 'table'
           ? nothing
-          : html`<label class="snap">הצמדה <select data-snap aria-label="הצמדת זמן" .value=${String(this.snap)} @change=${(e: Event) => (this.snap = Number((e.target as HTMLSelectElement).value))}>
-              ${[5, 15, 30].map((n) => html`<option value=${n} ?selected=${this.snap === n}>${n} דק׳</option>`)}
+          : html`<label class="snap">${tr('הצמדה')} <select data-snap aria-label=${tr('הצמדת זמן')} .value=${String(this.snap)} @change=${(e: Event) => (this.snap = Number((e.target as HTMLSelectElement).value))}>
+              ${[5, 15, 30].map((n) => html`<option value=${n} ?selected=${this.snap === n}>${tr('{n} דק׳', { n })}</option>`)}
             </select></label>`}
-        ${ro || this.view === 'table' ? nothing : html`<sw-button size="sm" icon="plus" data-add-slot @click=${() => this.onAddButton()}>משבצת</sw-button>`}
+        ${ro || this.view === 'table' ? nothing : html`<sw-button size="sm" icon="plus" data-add-slot @click=${() => this.onAddButton()}>${tr('משבצת')}</sw-button>`}
       </div>
       ${this.view === 'table' ? nothing : this.renderLegend()}
       ${this.view === 'table' || !activeDays
         ? nothing
         : html`<div class="linked">
-            ${linkedCount > 1 && !this.override ? html`<span class="chip" data-linked-chip><sw-icon name="link" size="12"></sw-icon>${linkedCount} ימים מקושרים</span><span>כל שינוי במשבצת חל על כל הימים: ${daysLabel(this.draft.weekdays)}.</span>` : nothing}
-            ${this.canSplit ? html`<sw-button size="sm" icon="link" data-split-start @click=${() => this.startOverride([this.day])}>עריכה רק ל${DAY_LONG[this.day]}…</sw-button>` : nothing}
-            ${editingDays ? html`<span class="chip" data-override-chip>עורכים: ${editingDays.map((d) => DAY_SHORT[d]).join(', ')}</span>` : nothing}
+            ${linkedCount > 1 && !this.override ? html`<span class="chip" data-linked-chip><sw-icon name="link" size="12"></sw-icon>${tr('{n} ימים מקושרים', { n: linkedCount })}</span><span>${tr('כל שינוי במשבצת חל על כל הימים: {days}.', { days: daysLabel(this.draft.weekdays) })}</span>` : nothing}
+            ${this.canSplit ? html`<sw-button size="sm" icon="link" data-split-start @click=${() => this.startOverride([this.day])}>${tr('עריכה רק ל{day}…', { day: DAY_LONG[this.day] })}</sw-button>` : nothing}
+            ${editingDays ? html`<span class="chip" data-override-chip>${tr('עורכים: {days}', { days: editingDays.map((d) => DAY_SHORT[d]).join(', ') })}</span>` : nothing}
           </div>`}
       ${this.view === 'day' && activeDays
-        ? html`<div class="dayrow" role="group" aria-label="בחירת יום">${rows.map((r) => html`<button type="button" class=${r.active ? '' : 'off'} data-day-btn=${r.key} aria-pressed=${this.day === r.key} @click=${() => (this.day = r.key as DayId)}><b>${DAY_SHORT[r.key as DayId]}</b><small>${r.today ? 'היום' : r.active ? 'בתזמון' : 'לא בתזמון'}</small></button>`)}</div>`
+        ? html`<div class="dayrow" role="group" aria-label=${tr('בחירת יום')}>${rows.map((r) => html`<button type="button" class=${r.active ? '' : 'off'} data-day-btn=${r.key} aria-pressed=${this.day === r.key} @click=${() => (this.day = r.key as DayId)}><b>${DAY_SHORT[r.key as DayId]}</b><small>${r.today ? tr('היום') : r.active ? tr('בתזמון') : tr('לא בתזמון')}</small></button>`)}</div>`
         : nothing}
       ${this.view === 'table'
         ? html`<schedule-table-view
@@ -1781,7 +1783,7 @@ export class ScheduleEditor extends LitElement {
             @row-add=${(e: CustomEvent) => this.onGrid('row-add', e.detail)}
             @row-select=${(e: CustomEvent) => this.onGrid('row-select', e.detail)}
           ></sw-schedule-grid>
-          ${ro ? nothing : html`<div class="foot">גררו על ציר ריק ליצירה · גררו משבצת להזזה · משכו קצה לשינוי אורך · הצמדה ל־${this.snap} דקות · הקצה העבה הוא רגע הביצוע</div>`}`}
+          ${ro ? nothing : html`<div class="foot">${tr('גררו על ציר ריק ליצירה · גררו משבצת להזזה · משכו קצה לשינוי אורך · הצמדה ל־{n} דקות · הקצה העבה הוא רגע הביצוע', { n: this.snap })}</div>`}`}
     </div>`;
   }
 
@@ -1820,14 +1822,14 @@ export class ScheduleEditor extends LitElement {
   private renderKavConflicts() {
     const c = this.kavConflicts;
     if (!c.length || this.readOnly) return nothing;
-    return html`<div class="kav-vbox" role="status" data-kav-conflicts><b><sw-icon name="warning" size="16"></sw-icon>${warningsHeading(c.length)}<small>· ${this.kavSaveWithWarnings ? 'אפשר לשמור עם אזהרות' : 'יש לטפל באזהרות לפני השמירה'}</small></b>
+    return html`<div class="kav-vbox" role="status" data-kav-conflicts><b><sw-icon name="warning" size="16"></sw-icon>${warningsHeading(c.length)}<small>· ${this.kavSaveWithWarnings ? tr('אפשר לשמור עם אזהרות') : tr('יש לטפל באזהרות לפני השמירה')}</small></b>
       ${c.map((x) => html`<div class="kav-iss" data-kav-conflict=${x.other.id}><b>${x.title}</b><span>${x.detail}</span>
         ${(() => {
           const mv = conflictMove(x), i = conflictSlotIndex(x), s = i === null ? undefined : this.draft.slots[i];
           const fixed = !!s && parseTime(s.start)?.kind === 'fixed';
-          return mv && fixed && !this.override && !this.readOnly ? html`<sw-button size="sm" data-kav-move-slot @click=${() => this.moveConflictSlot(x)}>הזזת המשבצת ל־${mv.to}</sw-button>` : nothing;
+          return mv && fixed && !this.override && !this.readOnly ? html`<sw-button size="sm" data-kav-move-slot @click=${() => this.moveConflictSlot(x)}>${tr('הזזת המשבצת ל־{time}', { time: mv.to })}</sw-button>` : nothing;
         })()}
-        <sw-button size="sm" data-kav-open-other @click=${() => navigate(x.other.kind === 'schedule' ? `/devices/schedules/${encodeURIComponent(x.other.id)}/edit` : `/devices/automations/${encodeURIComponent(x.other.id)}`)}>${x.other.kind === 'schedule' ? 'פתיחת התזמון' : 'פתיחת האוטומציה'}</sw-button></div>`)}
+        <sw-button size="sm" data-kav-open-other @click=${() => navigate(x.other.kind === 'schedule' ? `/devices/schedules/${encodeURIComponent(x.other.id)}/edit` : `/devices/automations/${encodeURIComponent(x.other.id)}`)}>${x.other.kind === 'schedule' ? tr('פתיחת התזמון') : tr('פתיחת האוטומציה')}</sw-button></div>`)}
     </div>`;
   }
 
@@ -1848,47 +1850,47 @@ export class ScheduleEditor extends LitElement {
         <sw-icon name=${v.errors.length ? 'warning' : 'check'} size="16"></sw-icon>
         ${v.errors.length
           ? html`<ul>${v.errors.map((e) => html`<li><button type="button" @click=${() => this.jumpTo(e)}>${e.message}</button></li>`)}</ul>`
-          : html`<span>${ro ? 'התזמון תקין.' : 'התזמון תקין ומוכן לשמירה.'}${v.warnings.filter((w) => !w.path.startsWith('conditions')).map((w) => html`<div>${w.message}</div>`)}</span>`}
+          : html`<span>${ro ? tr('התזמון תקין.') : tr('התזמון תקין ומוכן לשמירה.')}${v.warnings.filter((w) => !w.path.startsWith('conditions')).map((w) => html`<div>${w.message}</div>`)}</span>`}
       </div>
       <div class="sec">
-        <h4>פרטים ${this.schedule?.sensitive || this.entityIds.some((id) => this.meta.get(id)?.sensitive) ? html`<span class="chip sens"><sw-icon name="shield" size="12"></sw-icon>רגיש</span>` : nothing}</h4>
-        <div class="field"><label for="name">שם</label><input id="name" type="text" data-editor-name maxlength="80" ?disabled=${ro} .value=${d.name ?? ''} placeholder=${this.creating ? 'שם התזמון' : ''} @input=${(e: Event) => this.patch({ name: (e.target as HTMLInputElement).value })} /></div>
-        ${this.creating && !ro ? html`<div class="field"><sw-toggle .checked=${this.enabledNew} label="התזמון פעיל" @change=${(e: CustomEvent<{ checked: boolean }>) => (this.enabledNew = e.detail.checked)}></sw-toggle></div>` : nothing}
+        <h4>${tr('פרטים')} ${this.schedule?.sensitive || this.entityIds.some((id) => this.meta.get(id)?.sensitive) ? html`<span class="chip sens"><sw-icon name="shield" size="12"></sw-icon>${tr('רגיש')}</span>` : nothing}</h4>
+        <div class="field"><label for="name">${tr('שם')}</label><input id="name" type="text" data-editor-name maxlength="80" ?disabled=${ro} .value=${d.name ?? ''} placeholder=${this.creating ? tr('שם התזמון') : ''} @input=${(e: Event) => this.patch({ name: (e.target as HTMLInputElement).value })} /></div>
+        ${this.creating && !ro ? html`<div class="field"><sw-toggle .checked=${this.enabledNew} label=${tr('התזמון פעיל')} @change=${(e: CustomEvent<{ checked: boolean }>) => (this.enabledNew = e.detail.checked)}></sw-toggle></div>` : nothing}
         ${d.tags.length || this.status?.capabilities.tags ? html`<div class="tags" data-tags>${d.tags.map((t) => html`<span class="chip">${t}</span>`)}</div>` : nothing}
       </div>
       <div class="sec" data-devices>
-        <h4>התקנים <small>(${ids.length})</small></h4>
-        <div class="tags">${ids.map((id) => html`<span class="ent">${this.meta.get(id)?.name ?? id}${ro ? nothing : html`<button type="button" aria-label="הסרת ${this.meta.get(id)?.name ?? id}" @click=${() => this.removeEntity(id)}><sw-icon name="close" size="12"></sw-icon></button>`}</span>`)}</div>
-        ${ro ? nothing : html`<div style="margin-block-start:8px"><sw-button size="sm" icon="plus" data-open-picker @click=${() => (this.pickerOpen = true)}>בחירת התקנים…</sw-button></div>`}
+        <h4>${tr('התקנים')} <small>(${ids.length})</small></h4>
+        <div class="tags">${ids.map((id) => html`<span class="ent">${this.meta.get(id)?.name ?? id}${ro ? nothing : html`<button type="button" aria-label=${tr('הסרת {name}', { name: this.meta.get(id)?.name ?? id })} @click=${() => this.removeEntity(id)}><sw-icon name="close" size="12"></sw-icon></button>`}</span>`)}</div>
+        ${ro ? nothing : html`<div style="margin-block-start:8px"><sw-button size="sm" icon="plus" data-open-picker @click=${() => (this.pickerOpen = true)}>${tr('בחירת התקנים…')}</sw-button></div>`}
       </div>
       <div class="sec" data-days>
-        <h4>ימים</h4>
-        <div class="days" role="group" aria-label="ימי התזמון">
+        <h4>${tr('ימים')}</h4>
+        <div class="days" role="group" aria-label=${tr('ימי התזמון')}>
           ${DAY_ORDER.map((day) => html`<button type="button" data-day-chip=${day} aria-pressed=${!!days?.includes(day)} aria-label=${DAY_LONG[day]} ?disabled=${ro || !!this.override} @click=${() => this.patch({ weekdays: toggleDay(d.weekdays, day) })}>${DAY_SHORT[day]}</button>`)}
         </div>
         ${!days ? html`<div class="chip">${daysLabel(d.weekdays)}</div>` : nothing}
         ${ro ? nothing : html`<div class="quick">
-          <button type="button" data-days-preset="daily" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['daily'] })}>כל יום</button>
-          <button type="button" data-days-preset="work" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['sun', 'mon', 'tue', 'wed', 'thu'] })}>א׳–ה׳</button>
-          <button type="button" data-days-preset="weekend" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['fri', 'sat'] })}>סוף שבוע</button>
+          <button type="button" data-days-preset="daily" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['daily'] })}>${tr('כל יום')}</button>
+          <button type="button" data-days-preset="work" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['sun', 'mon', 'tue', 'wed', 'thu'] })}>${tr('א׳–ה׳')}</button>
+          <button type="button" data-days-preset="weekend" ?disabled=${!!this.override} @click=${() => this.patch({ weekdays: ['fri', 'sat'] })}>${tr('סוף שבוע')}</button>
         </div>`}
       </div>
       <div class="sec" data-repeat>
-        <h4>חזרה</h4>
-        <div class="repeat" role="group" aria-label="חזרה">
-          ${(['repeat', 'pause', 'single'] as RepeatType[]).map((r) => html`<button type="button" data-repeat-btn=${r} aria-pressed=${d.repeat === r} ?disabled=${ro} @click=${() => this.patch({ repeat: r })}>${{ repeat: 'חוזר', pause: 'פעם אחת, מושהה', single: 'פעם אחת, נמחק' }[r]}</button>`)}
+        <h4>${tr('חזרה')}</h4>
+        <div class="repeat" role="group" aria-label=${tr('חזרה')}>
+          ${(['repeat', 'pause', 'single'] as RepeatType[]).map((r) => html`<button type="button" data-repeat-btn=${r} aria-pressed=${d.repeat === r} ?disabled=${ro} @click=${() => this.patch({ repeat: r })}>${{ repeat: tr('חוזר'), pause: tr('פעם אחת, מושהה'), single: tr('פעם אחת, נמחק') }[r]}</button>`)}
         </div>
-        ${d.repeat === 'single' ? html`<div class="hint" style="color:var(--sw-warning-text)" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : nothing}
+        ${d.repeat === 'single' ? html`<div class="hint" style="color:var(--sw-warning-text)" data-single-warning>${tr('התזמון יימחק אחרי ההרצה האחרונה.')}</div>` : nothing}
       </div>
       <div class="sec" data-period>
-        <h4>תקופה</h4>
+        <h4>${tr('תקופה')}</h4>
         <div class="dates">
-          <div class="field"><label for="from">מתאריך</label><input id="from" type="date" lang=${dateInputLang()} data-date-from ?disabled=${ro} .value=${d.start_date ?? ''} @change=${(e: Event) => this.patch({ start_date: (e.target as HTMLInputElement).value || null })} /></div>
-          <div class="field"><label for="to">עד תאריך</label><input id="to" type="date" lang=${dateInputLang()} data-date-to ?disabled=${ro} .value=${d.end_date ?? ''} @change=${(e: Event) => this.patch({ end_date: (e.target as HTMLInputElement).value || null })} /></div>
+          <div class="field"><label for="from">${tr('מתאריך')}</label><input id="from" type="date" lang=${dateInputLang()} data-date-from ?disabled=${ro} .value=${d.start_date ?? ''} @change=${(e: Event) => this.patch({ start_date: (e.target as HTMLInputElement).value || null })} /></div>
+          <div class="field"><label for="to">${tr('עד תאריך')}</label><input id="to" type="date" lang=${dateInputLang()} data-date-to ?disabled=${ro} .value=${d.end_date ?? ''} @change=${(e: Event) => this.patch({ end_date: (e.target as HTMLInputElement).value || null })} /></div>
         </div>
       </div>
       <div class="sec" data-conditions-sec>
-        <h4>תנאים <small>${cond ? '' : 'ללא תנאים'}</small></h4>
+        <h4>${tr('תנאים')} <small>${cond ? '' : tr('ללא תנאים')}</small></h4>
         <schedule-conditions
           .conditions=${d.conditions}
           .views=${this.schedule?.conditions.items ?? []}
@@ -1904,10 +1906,10 @@ export class ScheduleEditor extends LitElement {
         ></schedule-conditions>
       </div>
       <div class="sec" data-upcoming>
-        <h4>ההרצות הבאות</h4>
+        <h4>${tr('ההרצות הבאות')}</h4>
         ${upcoming.length
-          ? html`<ul class="runs">${upcoming.slice(0, 5).map((u) => html`<li><span>${whenLabel(u.at)}${cond ? html` <span class="cond">· בתנאי</span>` : nothing}</span><span>${summaryFor(u)}</span></li>`)}</ul>`
-          : html`<div class="hint">אין הרצה קרובה.</div>`}
+          ? html`<ul class="runs">${upcoming.slice(0, 5).map((u) => html`<li><span>${whenLabel(u.at)}${cond ? html` <span class="cond">· ${tr('בתנאי')}</span>` : nothing}</span><span>${summaryFor(u)}</span></li>`)}</ul>`
+          : html`<div class="hint">${tr('אין הרצה קרובה.')}</div>`}
       </div>
     </aside>`;
   }
@@ -1961,7 +1963,7 @@ export class ScheduleEditor extends LitElement {
   }
 
   private renderDialogs() {
-    const cmp = this.conflict ? compareDrafts(this.currentDraft(), draftFromSchedule(this.conflict.current), (id) => (id ? this.meta.get(id)?.name ?? id : 'ללא התקן'), daysLabel) : [];
+    const cmp = this.conflict ? compareDrafts(this.currentDraft(), draftFromSchedule(this.conflict.current), (id) => (id ? this.meta.get(id)?.name ?? id : tr('ללא התקן')), daysLabel) : [];
     const allDays = resolveDays(this.draft.weekdays) ?? [];
     const activeSet = new Set(allDays);
     return html`
@@ -1975,18 +1977,18 @@ export class ScheduleEditor extends LitElement {
         @confirm=${(e: CustomEvent<{ alarm_code: string | null }>) => this.onLoweringConfirm(e.detail.alarm_code)}
         @close=${() => (this.lowering = null)}
       ></schedule-lowering-dialog>
-      <sw-dialog ?open=${!!this.splitDialog && !this.lowering} heading="פיצול התזמון" data-split-dialog @close=${() => (this.splitDialog = null)}>
+      <sw-dialog ?open=${!!this.splitDialog && !this.lowering} heading=${tr('פיצול התזמון')} data-split-dialog @close=${() => (this.splitDialog = null)}>
         ${this.override
-          ? html`<div>נפצל לשני תזמונים: <b>${this.override.days.map((d) => DAY_LONG[d]).join(', ')}</b> יהיו תזמון נפרד, ו<b>שאר הימים</b> יישארו בתזמון הנוכחי. שני התזמונים יכללו את אותם התקנים, תנאים ותקופה.</div>
-              <div class="field" style="margin-block-start:10px"><label for="split-name">שם התזמון החדש</label><input id="split-name" type="text" data-split-name style="inline-size:100%" .value=${this.splitDialog?.name ?? ''} @input=${(e: Event) => (this.splitDialog = { name: (e.target as HTMLInputElement).value })} /></div>`
+          ? html`<div>${tr('נפצל לשני תזמונים:')} <b>${this.override.days.map((d) => DAY_LONG[d]).join(', ')}</b> ${tr('יהיו תזמון נפרד, ו')}<b>${tr('שאר הימים')}</b> ${tr('יישארו בתזמון הנוכחי. שני התזמונים יכללו את אותם התקנים, תנאים ותקופה.')}</div>
+              <div class="field" style="margin-block-start:10px"><label for="split-name">${tr('שם התזמון החדש')}</label><input id="split-name" type="text" data-split-name style="inline-size:100%" .value=${this.splitDialog?.name ?? ''} @input=${(e: Event) => (this.splitDialog = { name: (e.target as HTMLInputElement).value })} /></div>`
           : nothing}
         <div slot="footer" style="display:contents">
-          <sw-button ?disabled=${this.saving} @click=${() => (this.splitDialog = null)}>ביטול</sw-button>
-          <sw-button variant="primary" data-split-ok ?disabled=${this.saving} @click=${() => void this.persistSplit(this.splitDialog?.name ?? '')}>${this.saving ? 'מפצל…' : 'פיצול ושמירה'}</sw-button>
+          <sw-button ?disabled=${this.saving} @click=${() => (this.splitDialog = null)}>${tr('ביטול')}</sw-button>
+          <sw-button variant="primary" data-split-ok ?disabled=${this.saving} @click=${() => void this.persistSplit(this.splitDialog?.name ?? '')}>${this.saving ? tr('מפצל…') : tr('פיצול ושמירה')}</sw-button>
         </div>
       </sw-dialog>
-      <sw-dialog ?open=${this.copyOpen} heading=${this.override ? 'העתקת הסידור לימים' : 'העתקה לימים'} data-copy-dialog @close=${() => (this.copyOpen = false)}>
-        <div class="days" role="group" aria-label="ימים">
+      <sw-dialog ?open=${this.copyOpen} heading=${this.override ? tr('העתקת הסידור לימים') : tr('העתקה לימים')} data-copy-dialog @close=${() => (this.copyOpen = false)}>
+        <div class="days" role="group" aria-label=${tr('ימים')}>
           ${DAY_ORDER.map((day) => {
             const inSchedule = activeSet.has(day);
             const on = this.copyPick.includes(day) || (!this.override && inSchedule);
@@ -1994,69 +1996,69 @@ export class ScheduleEditor extends LitElement {
             return html`<button type="button" data-copy-day=${day} aria-pressed=${on} ?disabled=${disabled} aria-label=${DAY_LONG[day]} @click=${() => (this.copyPick = this.copyPick.includes(day) ? this.copyPick.filter((x) => x !== day) : [...this.copyPick, day])}>${DAY_SHORT[day]}</button>`;
           })}
         </div>
-        <div class="hint">${this.override ? 'הימים שיקבלו את הסידור הזה (כולם יפוצלו יחד לתזמון נפרד).' : 'הימים שנוספים לתזמון יקבלו את אותן משבצות, כמו שאר הימים המקושרים.'}</div>
+        <div class="hint">${this.override ? tr('הימים שיקבלו את הסידור הזה (כולם יפוצלו יחד לתזמון נפרד).') : tr('הימים שנוספים לתזמון יקבלו את אותן משבצות, כמו שאר הימים המקושרים.')}</div>
         <div slot="footer" style="display:contents">
-          <sw-button @click=${() => (this.copyOpen = false)}>ביטול</sw-button>
-          <sw-button variant="primary" data-copy-ok @click=${() => this.applyCopyDays()}>אישור</sw-button>
+          <sw-button @click=${() => (this.copyOpen = false)}>${tr('ביטול')}</sw-button>
+          <sw-button variant="primary" data-copy-ok @click=${() => this.applyCopyDays()}>${tr('אישור')}</sw-button>
         </div>
       </sw-dialog>
-      <sw-dialog ?open=${this.kavDry} heading="בדיקה בלי הפעלה" data-kav-dry-dialog @close=${() => (this.kavDry = false)}>
-        <div class="hint">לא מופעל דבר. כך התזמון יפעל בפעמים הקרובות לפי מה שמוצג עכשיו, כולל שינויים שעוד לא נשמרו.</div>
+      <sw-dialog ?open=${this.kavDry} heading=${tr('בדיקה בלי הפעלה')} data-kav-dry-dialog @close=${() => (this.kavDry = false)}>
+        <div class="hint">${tr('לא מופעל דבר. כך התזמון יפעל בפעמים הקרובות לפי מה שמוצג עכשיו, כולל שינויים שעוד לא נשמרו.')}</div>
         ${(this.preview?.upcoming ?? []).length
           ? html`<ul class="runs">${(this.preview?.upcoming ?? []).slice(0, 10).map((u) => html`<li><span>${whenLabel(u.at)}</span><span>${u.summary ?? this.slotSummaryText(u.slot_index)}</span></li>`)}</ul>`
-          : html`<div>אין הרצה קרובה.</div>`}
-        ${this.kavConflicts.length ? html`<div class="hint" data-kav-dry-conflicts>${warningsHeading(this.kavConflicts.length)} בהתנגשות עם פריטים אחרים (מוצגות בתיבה שמעל הלוח).</div>` : nothing}
-        <div slot="footer" style="display:contents"><sw-button variant="primary" @click=${() => (this.kavDry = false)}>סגירה</sw-button></div>
+          : html`<div>${tr('אין הרצה קרובה.')}</div>`}
+        ${this.kavConflicts.length ? html`<div class="hint" data-kav-dry-conflicts>${warningsHeading(this.kavConflicts.length)} ${tr('בהתנגשות עם פריטים אחרים (מוצגות בתיבה שמעל הלוח).')}</div>` : nothing}
+        <div slot="footer" style="display:contents"><sw-button variant="primary" @click=${() => (this.kavDry = false)}>${tr('סגירה')}</sw-button></div>
       </sw-dialog>
-      <sw-dialog ?open=${this.kavDevOpen} heading="בדיקה על ההתקן" data-kav-devtest-dialog @close=${() => (this.kavDevOpen = false)}>
+      <sw-dialog ?open=${this.kavDevOpen} heading=${tr('בדיקה על ההתקן')} data-kav-devtest-dialog @close=${() => (this.kavDevOpen = false)}>
         ${this.kavDevOpen ? html`<kav-device-test source="schedule" .itemId=${this.scheduleId} .draft=${this.currentDraft()} .flags=${{ device_test_end: this.kavDevTestEnd } as never}
           @test-close=${() => (this.kavDevOpen = false)}></kav-device-test>` : nothing}
       </sw-dialog>
-      <sw-dialog ?open=${this.compareOpen} heading="השוואה לגרסה החדשה" data-compare-dialog @close=${() => (this.compareOpen = false)}>
+      <sw-dialog ?open=${this.compareOpen} heading=${tr('השוואה לגרסה החדשה')} data-compare-dialog @close=${() => (this.compareOpen = false)}>
         ${cmp.length
           ? html`<table style="inline-size:100%;border-collapse:collapse;font-size:var(--sw-fs-sm)">
-              <thead><tr><th style="text-align:start;padding:4px">שדה</th><th style="text-align:start;padding:4px">אצלכם</th><th style="text-align:start;padding:4px">בגרסה החדשה</th></tr></thead>
+              <thead><tr><th style="text-align:start;padding:4px">${tr('שדה')}</th><th style="text-align:start;padding:4px">${tr('אצלכם')}</th><th style="text-align:start;padding:4px">${tr('בגרסה החדשה')}</th></tr></thead>
               <tbody>${cmp.map((r) => html`<tr style="vertical-align:top"><td style="padding:4px;font-weight:600">${r.label}</td><td style="padding:4px;white-space:pre-line">${r.mine}</td><td style="padding:4px;white-space:pre-line">${r.theirs}</td></tr>`)}</tbody>
             </table>`
-          : html`<div>אין הבדלים בתוכן.</div>`}
-        <div slot="footer" style="display:contents"><sw-button variant="primary" @click=${() => (this.compareOpen = false)}>סגירה</sw-button></div>
+          : html`<div>${tr('אין הבדלים בתוכן.')}</div>`}
+        <div slot="footer" style="display:contents"><sw-button variant="primary" @click=${() => (this.compareOpen = false)}>${tr('סגירה')}</sw-button></div>
       </sw-dialog>
-      <sw-dialog ?open=${!!this.leave} heading="יש שינויים שלא נשמרו" data-leave-dialog @close=${() => (this.leave = null)}>
-        <div>אם תצאו עכשיו, השינויים שערכתם יאבדו.</div>
+      <sw-dialog ?open=${!!this.leave} heading=${tr('יש שינויים שלא נשמרו')} data-leave-dialog @close=${() => (this.leave = null)}>
+        <div>${tr('אם תצאו עכשיו, השינויים שערכתם יאבדו.')}</div>
         <div slot="footer" style="display:contents">
-          <sw-button data-leave-stay @click=${() => (this.leave = null)}>הישארות</sw-button>
-          <sw-button variant="danger" data-leave-go @click=${() => this.leave && this.go(this.leave.href)}>יציאה בלי לשמור</sw-button>
+          <sw-button data-leave-stay @click=${() => (this.leave = null)}>${tr('הישארות')}</sw-button>
+          <sw-button variant="danger" data-leave-go @click=${() => this.leave && this.go(this.leave.href)}>${tr('יציאה בלי לשמור')}</sw-button>
         </div>
       </sw-dialog>`;
   }
 
   render() {
-    if (this.loading) return html`<sw-page wide heading="עריכת תזמון"><sw-state-panel state="loading" data-editor-state="loading"></sw-state-panel></sw-page>`;
+    if (this.loading) return html`<sw-page wide heading=${tr('עריכת תזמון')}><sw-state-panel state="loading" data-editor-state="loading"></sw-state-panel></sw-page>`;
     if (this.forbidden || (this.loadError && !this.schedule && !this.creating)) {
-      return html`<sw-page wide heading="עריכת תזמון" crumbs="תזמונים|עריכה"><sw-state-panel icon="calendar" data-editor-state=${this.forbidden ? 'forbidden' : 'error'} state=${this.forbidden ? 'forbidden' : 'error'} heading=${this.forbidden ? 'התזמון לא נמצא' : ''} hint=${this.forbidden ? 'ייתכן שנמחק, או שאינו בהרשאתכם.' : this.loadError} actionLabel=${this.forbidden ? '' : 'נסה שוב'} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+      return html`<sw-page wide heading=${tr('עריכת תזמון')} crumbs=${`${tr('תזמונים')}|${tr('עריכה')}`}><sw-state-panel icon="calendar" data-editor-state=${this.forbidden ? 'forbidden' : 'error'} state=${this.forbidden ? 'forbidden' : 'error'} heading=${this.forbidden ? tr('התזמון לא נמצא') : ''} hint=${this.forbidden ? tr('ייתכן שנמחק, או שאינו בהרשאתכם.') : this.loadError} actionLabel=${this.forbidden ? '' : tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     if (this.creating && !this.status?.can.manage && this.status) {
-      return html`<sw-page wide heading="תזמון חדש" crumbs="תזמונים|חדש"><sw-state-panel data-editor-state="forbidden" state="forbidden" hint="אין הרשאה ליצור תזמונים."></sw-state-panel></sw-page>`;
+      return html`<sw-page wide heading=${tr('תזמון חדש')} crumbs=${`${tr('תזמונים')}|${tr('חדש')}`}><sw-state-panel data-editor-state="forbidden" state="forbidden" hint=${tr('אין הרשאה ליצור תזמונים.')}></sw-state-panel></sw-page>`;
     }
-    const title = (this.draft.name ?? '').trim() || (this.schedule?.display_name ?? (this.creating ? 'תזמון חדש' : 'תזמון'));
+    const title = (this.draft.name ?? '').trim() || (this.schedule?.display_name ?? (this.creating ? tr('תזמון חדש') : tr('תזמון')));
     const ro = this.readOnly;
     const sensitive = this.entityIds.some((id) => this.meta.get(id)?.sensitive) || !!this.schedule?.sensitive;
-    return html`<sw-page wide heading=${title} crumbs=${`תזמונים|${this.creating ? 'חדש' : 'עריכה'}`} data-editor data-editor-mode=${ro ? 'view' : this.creating ? 'new' : 'edit'}>
+    return html`<sw-page wide heading=${title} crumbs=${`${tr('תזמונים')}|${this.creating ? tr('חדש') : tr('עריכה')}`} data-editor data-editor-mode=${ro ? 'view' : this.creating ? 'new' : 'edit'}>
       <div slot="actions" class="actions">
-        ${this.schedule ? html`<span class="ver" title="גרסה">גרסה ${this.schedule.revision.slice(0, 4)}</span>` : nothing}
+        ${this.schedule ? html`<span class="ver" title=${tr('גרסה')}>${tr('גרסה {rev}', { rev: this.schedule.revision.slice(0, 4) })}</span>` : nothing}
         <schedule-condition-chip data-condition-chip .conditions=${this.condView()}></schedule-condition-chip>
         ${sensitive ? html`<sw-schedule-markers data-sensitive-badge .sensitive=${true} .lowering=${loweringSummary(this.currentDraft(), this.meta).lowering}></sw-schedule-markers>` : nothing}
-        ${this.kavOn && !ro ? html`<sw-button icon="play" data-kav-dry @click=${() => (this.kavDry = true)}>בדיקה בלי הפעלה</sw-button>` : nothing}
-        ${this.kavDevTest && !ro && !this.creating ? html`<sw-button icon="play" data-kav-devtest @click=${() => (this.kavDevOpen = true)}>בדיקה על ההתקן</sw-button>` : nothing}
-        <sw-button data-editor-cancel @click=${() => this.cancel()}>${ro ? 'חזרה' : 'ביטול'}</sw-button>
+        ${this.kavOn && !ro ? html`<sw-button icon="play" data-kav-dry @click=${() => (this.kavDry = true)}>${tr('בדיקה בלי הפעלה')}</sw-button>` : nothing}
+        ${this.kavDevTest && !ro && !this.creating ? html`<sw-button icon="play" data-kav-devtest @click=${() => (this.kavDevOpen = true)}>${tr('בדיקה על ההתקן')}</sw-button>` : nothing}
+        <sw-button data-editor-cancel @click=${() => this.cancel()}>${ro ? t('actions.back') : tr('ביטול')}</sw-button>
         ${ro ? nothing : this.kavConflicts.length
-          ? html`<sw-button icon="warning" data-editor-save data-editor-save-warnings ?disabled=${!this.dirty || this.saving || !this.kavSaveWithWarnings} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה עם אזהרות'}</sw-button>`
-          : html`<sw-button variant="primary" icon="check" data-editor-save ?disabled=${!this.dirty || this.saving} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה'}</sw-button>`}
+          ? html`<sw-button icon="warning" data-editor-save data-editor-save-warnings ?disabled=${!this.dirty || this.saving || !this.kavSaveWithWarnings} @click=${() => void this.onSave()}>${this.saving ? tr('שומר…') : tr('שמירה עם אזהרות')}</sw-button>`
+          : html`<sw-button variant="primary" icon="check" data-editor-save ?disabled=${!this.dirty || this.saving} @click=${() => void this.onSave()}>${this.saving ? tr('שומר…') : tr('שמירה')}</sw-button>`}
       </div>
       ${this.renderBanners()}
       <div class="tabs" role="tablist">
-        <button type="button" role="tab" aria-selected=${this.phoneTab === 'board'} data-phone-tab="board" @click=${() => (this.phoneTab = 'board')}>לוח זמנים</button>
-        <button type="button" role="tab" aria-selected=${this.phoneTab === 'settings'} data-phone-tab="settings" @click=${() => (this.phoneTab = 'settings')}>הגדרות</button>
+        <button type="button" role="tab" aria-selected=${this.phoneTab === 'board'} data-phone-tab="board" @click=${() => (this.phoneTab = 'board')}>${tr('לוח זמנים')}</button>
+        <button type="button" role="tab" aria-selected=${this.phoneTab === 'settings'} data-phone-tab="settings" @click=${() => (this.phoneTab = 'settings')}>${tr('הגדרות')}</button>
       </div>
       <div class="layout" data-tab=${this.phoneTab}>
         <div class="col boardcol">${this.renderBoard()}${this.renderPanel()}</div>

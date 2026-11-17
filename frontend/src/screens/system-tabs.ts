@@ -17,13 +17,14 @@ import { SkinController } from '../design/skin';
 import { tst } from '../i18n/tab-sections';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/system-b';
 
 /** The names of the bar styles (הגדרות › לשוניות › סגנון סרגל). */
-const STYLE_LABEL: Record<TabStyle, string> = { pill: 'כמוסבה', underline: 'פס תחתון', 'underline-compact': 'פס תחתון קומפקטי' };
+const STYLE_LABEL: Record<TabStyle, string> = { pill: tr('כמוסבה'), underline: tr('פס תחתון'), 'underline-compact': tr('פס תחתון קומפקטי') };
 /** What each hierarchy level offers as its installation default (the owner's list; a section may still pick any of the three). */
 const LEVEL_OPTIONS: Record<1 | 2, TabStyle[]> = { 1: ['pill', 'underline'], 2: ['underline-compact', 'underline', 'pill'] };
 const LEVEL_KEY = { 1: 'level1', 2: 'level2' } as const;
-const SAMPLE = [{ id: 'a', label: 'ראשון' }, { id: 'b', label: 'שני' }, { id: 'c', label: 'שלישי' }];
+const SAMPLE = [{ id: 'a', label: tr('ראשון') }, { id: 'b', label: tr('שני') }, { id: 'c', label: tr('שלישי') }];
 
 /**
  * הגדרות › כללי › לשוניות (owner 2026-09-30, setting `ui.tabs`): one card per navigation section that has tabs - the rail,
@@ -379,7 +380,7 @@ export class SystemTabsConfig extends LitElement {
     else delete next[def.id];
     this.draft = next;
     this.message = '';
-    this.announce = style ? `${def.label}: סגנון ${STYLE_LABEL[style]}` : `${def.label}: הסגנון לפי ברירת המחדל של הרמה`;
+    this.announce = style ? `${def.label}: ${tr('סגנון {style}', { style: STYLE_LABEL[style] })}` : `${def.label}: ${tr('הסגנון לפי ברירת המחדל של הרמה')}`;
   }
 
   /** The installation's default style of one hierarchy level; the built-in choice is stored as nothing (easy to flip back). */
@@ -389,7 +390,7 @@ export class SystemTabsConfig extends LitElement {
     else next[LEVEL_KEY[level]] = style;
     this.draftStyles = next;
     this.message = '';
-    this.announce = `רמה ${level}: סגנון ${STYLE_LABEL[style]}`;
+    this.announce = `${tr('רמה {n}', { n: level })}: ${tr('סגנון {style}', { style: STYLE_LABEL[style] })}`;
   }
 
   private label(def: TabSectionDef, id: string): string {
@@ -405,7 +406,7 @@ export class SystemTabsConfig extends LitElement {
     next.splice(from, 1);
     next.splice(target, 0, id);
     this.commit(def, next, this.hiddenSet(def));
-    this.announce = `${this.label(def, id)} הועבר למקום ${target + 1} מתוך ${next.length}`;
+    this.announce = tr('{name} הועבר למקום {n} מתוך {total}', { name: this.label(def, id), n: target + 1, total: next.length });
     if (focus) {
       void this.updateComplete.then(() => {
         const row = this.renderRoot.querySelector<HTMLElement>(`li[data-sec="${def.id}"][data-tab="${id}"]`);
@@ -420,7 +421,7 @@ export class SystemTabsConfig extends LitElement {
     if (visible) hidden.delete(id);
     else hidden.add(id);
     this.commit(def, this.orderedIds(def), hidden);
-    this.announce = `${this.label(def, id)} ${visible ? 'מוצגת' : 'מוסתרת'}`;
+    this.announce = `${this.label(def, id)} ${visible ? tr('מוצגת') : tr('מוסתרת')}`;
   }
 
   private resetSection(def: TabSectionDef) {
@@ -428,7 +429,7 @@ export class SystemTabsConfig extends LitElement {
     delete next[def.id];
     this.draft = next;
     this.message = '';
-    this.announce = `${def.label}: ברירת המחדל שוחזרה`;
+    this.announce = `${def.label}: ${tr('ברירת המחדל שוחזרה')}`;
   }
 
   private get dirty(): boolean {
@@ -455,7 +456,7 @@ export class SystemTabsConfig extends LitElement {
       this.draftStyles = { ...this.savedStyles };
       this.savedSectionRow = normalizeTicketsSectionRow(r.settings['ui.tickets_section_row']);
       this.draftSectionRow = this.savedSectionRow;
-      this.message = 'הלשוניות נשמרו';
+      this.message = tr('הלשוניות נשמרו');
       window.setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -529,15 +530,15 @@ export class SystemTabsConfig extends LitElement {
         <span class="lbl">${title}<span class="muted">${hint}</span></span>
         <span class="ctl">
           <select data-style-default=${lv} aria-label=${title} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setLevelStyle(lv, (e.target as HTMLSelectElement).value as TabStyle)}>
-            ${LEVEL_OPTIONS[lv].map((s) => html`<option value=${s} ?selected=${s === current}>${STYLE_LABEL[s]}${s === TAB_STYLE_DEFAULTS[LEVEL_KEY[lv]] ? ' (ברירת מחדל)' : ''}</option>`)}
+            ${LEVEL_OPTIONS[lv].map((s) => html`<option value=${s} ?selected=${s === current}>${STYLE_LABEL[s]}${s === TAB_STYLE_DEFAULTS[LEVEL_KEY[lv]] ? ` ${tr('(ברירת מחדל)')}` : ''}</option>`)}
           </select>
           <sw-tabs class="preview" .items=${SAMPLE} active="a" .variant=${current} data-style-preview=${lv}></sw-tabs>
         </span>
       </div>`;
     };
-    return html`<sw-card heading="סגנון סרגל" subheading="איך נראים סרגלי הלשוניות; אפשר לקבוע סגנון אחר לכל מקטע בכרטיס שלו" data-tabs-styles>
-      ${level(1, 'רמה 1: הסרגל הראשון של האזור', tst('level1Hint'))}
-      ${level(2, 'רמה 2: תת־לשוניות', tst('level2Hint'))}
+    return html`<sw-card heading=${tr('סגנון סרגל')} subheading=${tr('איך נראים סרגלי הלשוניות; אפשר לקבוע סגנון אחר לכל מקטע בכרטיס שלו')} data-tabs-styles>
+      ${level(1, tr('רמה 1: הסרגל הראשון של האזור'), tst('level1Hint'))}
+      ${level(2, tr('רמה 2: תת־לשוניות'), tst('level2Hint'))}
     </sw-card>`;
   }
 
@@ -567,16 +568,16 @@ export class SystemTabsConfig extends LitElement {
       ${def.bar === false
         ? nothing
         : html`<div class="srow" data-style-row=${def.id}>
-            <span class="lbl">סגנון סרגל<span class="muted">רמה ${def.level}</span></span>
+            <span class="lbl">${tr('סגנון סרגל')}<span class="muted">${tr('רמה {n}', { n: def.level })}</span></span>
             <span class="ctl">
-              <select data-style-section=${def.id} aria-label=${`סגנון סרגל: ${def.label}`} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setSectionStyle(def, (e.target as HTMLSelectElement).value as TabStyle | '')}>
-                <option value="" ?selected=${own === ''}>לפי ברירת המחדל של הרמה</option>
+              <select data-style-section=${def.id} aria-label=${`${tr('סגנון סרגל')}: ${def.label}`} ?disabled=${!this.canEdit} @change=${(e: Event) => this.setSectionStyle(def, (e.target as HTMLSelectElement).value as TabStyle | '')}>
+                <option value="" ?selected=${own === ''}>${tr('לפי ברירת המחדל של הרמה')}</option>
                 ${(['pill', 'underline', 'underline-compact'] as TabStyle[]).map((s) => html`<option value=${s} ?selected=${own === s}>${STYLE_LABEL[s]}</option>`)}
               </select>
             </span>
           </div>`}
       ${def.id === 'tickets' ? this.renderSectionRowSetting() : nothing}
-      <ol aria-label=${`הלשוניות של ${def.label} לפי הסדר`}>
+      <ol aria-label=${tr('הלשוניות של {name} לפי הסדר', { name: def.label })}>
         ${repeat(
           ids,
           (id) => id,
@@ -587,20 +588,20 @@ export class SystemTabsConfig extends LitElement {
             // the last visible tab cannot be hidden; a locked one is never hidden
             const cannotHide = locked || (!off && visibleCount <= 1);
             return html`<li data-sec=${def.id} data-tab=${id} class=${`${this.dragging?.id === id && this.dragging.section === def.id ? 'dragging' : ''} ${off ? 'off' : ''}`}>
-              <button type="button" class="handle" data-drag=${id} ?disabled=${!this.canEdit} aria-label=${`גרור את ${label}`} aria-roledescription="ידית גרירה"
+              <button type="button" class="handle" data-drag=${id} ?disabled=${!this.canEdit} aria-label=${tr('גרור את {name}', { name: label })} aria-roledescription=${tr('ידית גרירה')}
                 @pointerdown=${(e: PointerEvent) => this.onPointerDown(e, def, id)} @keydown=${(e: KeyboardEvent) => this.onHandleKey(e, def, id)}><sw-icon name="grip" size=${20}></sw-icon></button>
-              <span class="name">${label}${locked ? html`<sw-icon class="lock" name="lock" size=${13} title="הדרך חזרה לעורך הזה: אי אפשר להסתיר"></sw-icon>` : nothing}</span>
-              <button type="button" class="mv" data-move="up" aria-label=${`הזז למעלה: ${label}`} aria-disabled=${!this.canEdit || i === 0 ? 'true' : 'false'} @click=${() => this.canEdit && i > 0 && this.move(def, id, i - 1, 'up')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
-              <button type="button" class="mv" data-move="down" aria-label=${`הזז למטה: ${label}`} aria-disabled=${!this.canEdit || i === n - 1 ? 'true' : 'false'} @click=${() => this.canEdit && i < n - 1 && this.move(def, id, i + 1, 'down')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
-              <sw-toggle data-visible=${id} .checked=${!off} ?disabled=${!this.canEdit || cannotHide} label=${`הצגת ${label}`} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => this.setVisible(def, id, e.detail.checked)}></sw-toggle>
+              <span class="name">${label}${locked ? html`<sw-icon class="lock" name="lock" size=${13} title=${tr('הדרך חזרה לעורך הזה: אי אפשר להסתיר')}></sw-icon>` : nothing}</span>
+              <button type="button" class="mv" data-move="up" aria-label=${tr('הזז למעלה: {name}', { name: label })} aria-disabled=${!this.canEdit || i === 0 ? 'true' : 'false'} @click=${() => this.canEdit && i > 0 && this.move(def, id, i - 1, 'up')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+              <button type="button" class="mv" data-move="down" aria-label=${tr('הזז למטה: {name}', { name: label })} aria-disabled=${!this.canEdit || i === n - 1 ? 'true' : 'false'} @click=${() => this.canEdit && i < n - 1 && this.move(def, id, i + 1, 'down')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+              <sw-toggle data-visible=${id} .checked=${!off} ?disabled=${!this.canEdit || cannotHide} label=${tr('הצגת {name}', { name: label })} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => this.setVisible(def, id, e.detail.checked)}></sw-toggle>
             </li>`;
           },
         )}
       </ol>
-      ${def.id === 'wiskey' ? html`<div class="muted note">רשימת הלשוניות נלקחת מ־WisKey; לשונית שעוד לא נטענה בדפדפן הזה שומרת את ההגדרה שלה.</div>` : nothing}
+      ${def.id === 'wiskey' ? html`<div class="muted note">${tr('רשימת הלשוניות נלקחת מ־WisKey; לשונית שעוד לא נטענה בדפדפן הזה שומרת את ההגדרה שלה.')}</div>` : nothing}
       ${def.offered ? html`<div class="muted note" data-tabs-offered=${def.id}>${tst('noteOffered')}</div>` : nothing}
       <div class="foot">
-        <button type="button" class="link" data-tabs-reset=${def.id} ?disabled=${!this.canEdit || !configured} @click=${() => this.resetSection(def)}>אפס לברירת המחדל</button>
+        <button type="button" class="link" data-tabs-reset=${def.id} ?disabled=${!this.canEdit || !configured} @click=${() => this.resetSection(def)}>${tr('אפס לברירת המחדל')}</button>
       </div>
     </sw-card>`;
   }
@@ -609,21 +610,21 @@ export class SystemTabsConfig extends LitElement {
     if (!this.loaded) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const api = isApi();
     return html`<div class="sections" data-tabs-config>
-      <p class="intro">בחרו אילו לשוניות מוצגות בכל אזור ובאיזה סדר. השינוי חל על כל המשתמשים והלשונית הראשונה המוצגת היא זו שהאזור נפתח עליה. הסדר של הניווט הראשי הוא ברירת המחדל: כל משתמש יכול לסדר אותו לעצמו. הסתרת לשונית אינה מבטלת הרשאות והכתובת שלה ממשיכה לעבוד למי שמורשה; בכל אזור נשארת לפחות לשונית אחת.</p>
-      <div class="group" data-tabs-group="display"><h3 class="grouplabel">תצוגה</h3><span class="muted"><sw-icon name="check" size=${13}></sw-icon>כל בחירה כאן נשמרת מיד</span></div>
+      <p class="intro">${tr('בחרו אילו לשוניות מוצגות בכל אזור ובאיזה סדר. השינוי חל על כל המשתמשים והלשונית הראשונה המוצגת היא זו שהאזור נפתח עליה. הסדר של הניווט הראשי הוא ברירת המחדל: כל משתמש יכול לסדר אותו לעצמו. הסתרת לשונית אינה מבטלת הרשאות והכתובת שלה ממשיכה לעבוד למי שמורשה; בכל אזור נשארת לפחות לשונית אחת.')}</p>
+      <div class="group" data-tabs-group="display"><h3 class="grouplabel">${tr('תצוגה')}</h3><span class="muted"><sw-icon name="check" size=${13}></sw-icon>${tr('כל בחירה כאן נשמרת מיד')}</span></div>
       <system-tabs-mode></system-tabs-mode>
-      <div class="group" data-tabs-group="sections"><h3 class="grouplabel">הלשוניות של כל אזור</h3><span class="muted">השינויים כאן נשמרים בכפתור "שמור" שבתחתית</span></div>
+      <div class="group" data-tabs-group="sections"><h3 class="grouplabel">${tr('הלשוניות של כל אזור')}</h3><span class="muted">${tr('השינויים כאן נשמרים בכפתור "שמור" שבתחתית')}</span></div>
       ${this.loadError
-        ? html`<sw-state-panel state="error" heading="לא ניתן לטעון את הגדרות הלשוניות" hint=${this.loadError} actionLabel="נסה שוב" data-tabs-load-error @action=${() => void this.load()}></sw-state-panel>`
+        ? html`<sw-state-panel state="error" heading=${tr('לא ניתן לטעון את הגדרות הלשוניות')} hint=${this.loadError} actionLabel=${tr('נסה שוב')} data-tabs-load-error @action=${() => void this.load()}></sw-state-panel>`
         : html`${this.renderStyleDefaults()}
       ${TAB_SECTIONS.filter((def) => !def.available || def.available()).map((def) => this.renderSection(def))}`}
       ${this.loadError ? nothing : html`<div class="savebar">
         ${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
-        ${!api ? html`<span class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : !this.canEdit ? html`<span class="muted">נדרשת הרשאת מנהל מערכת.</span>` : !this.message && !this.error ? html`<span class="dirty">${this.dirty ? 'יש שינויים שלא נשמרו.' : 'הכול שמור.'}</span>` : nothing}
+        ${!api ? html`<span class="muted">${tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</span>` : !this.canEdit ? html`<span class="muted">${tr('נדרשת הרשאת מנהל מערכת.')}</span>` : !this.message && !this.error ? html`<span class="dirty">${this.dirty ? tr('יש שינויים שלא נשמרו.') : tr('הכול שמור.')}</span>` : nothing}
         <span class="grow"></span>
-        <sw-button variant="ghost" data-tabs-discard ?disabled=${!this.dirty || this.busy} @click=${() => this.discard()}>בטל שינויים</sw-button>
-        <sw-button variant="primary" icon="check" data-tabs-save ?disabled=${!this.canEdit || !this.dirty || this.busy || !api} @click=${() => void this.save()}>שמור</sw-button>
+        <sw-button variant="ghost" data-tabs-discard ?disabled=${!this.dirty || this.busy} @click=${() => this.discard()}>${tr('בטל שינויים')}</sw-button>
+        <sw-button variant="primary" icon="check" data-tabs-save ?disabled=${!this.canEdit || !this.dirty || this.busy || !api} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
       </div>`}
       <span class="sr" role="status" aria-live="polite" data-tabs-announce>${this.announce}</span>
     </div>`;

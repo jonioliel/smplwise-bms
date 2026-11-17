@@ -8,6 +8,7 @@ import type { IconName } from '../components/sw-icon';
 import { SkinController } from '../design/skin';
 import { BILL_STATE_LABEL, type BillState } from '../api/electricity-billing';
 import { elecCss } from './styles';
+import { tr } from '../i18n/msg/electricity';
 
 /** Base of every screen element of this half: the shared sheet, the skin mirrored on the host (data-skin). */
 export class ElecBase extends LitElement {
@@ -47,7 +48,7 @@ export function stateBox(kind: 'empty' | 'error' | 'forbidden', icon: IconName, 
 
 /** Loading skeleton rows. */
 export function skeleton(rows = 6): TemplateResult {
-  return html`<div class="card" data-elec-state="loading" aria-busy="true" aria-label="טוען">
+  return html`<div class="card" data-elec-state="loading" aria-busy="true" aria-label=${tr('טוען')}>
     ${Array.from({ length: rows }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}
   </div>`;
 }

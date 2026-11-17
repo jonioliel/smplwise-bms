@@ -4,6 +4,7 @@ import { SCENE_CAPTURE_DOMAINS, automationErrorText, automations, memberSummary,
 import { icon } from './automation-builder-icons';
 import { AutomationEditorBase } from './automation-editor-base';
 import { CAPTURE_DOMAIN_LABEL, clone, entityIcon, memberFields, memberNumber, setMemberField, type MemberField } from './automation-editor-logic';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 S4: the scene editor (CR §4.3): the members of a scene and the values of each, as a table; "צלם מצב נוכחי" reads the current state of the
@@ -15,9 +16,9 @@ import { CAPTURE_DOMAIN_LABEL, clone, entityIcon, memberFields, memberNumber, se
 @customElement('scene-editor')
 export class SceneEditor extends AutomationEditorBase {
   protected get kind() { return 'scene' as const; }
-  protected get nameLabel() { return 'שם הסצנה'; }
+  protected get nameLabel() { return tr('שם הסצנה'); }
   protected get codeToggle() { return false; }
-  protected subtitleNew() { return 'סצנה חדשה'; }
+  protected subtitleNew() { return tr('סצנה חדשה'); }
   protected blankDraft(): SceneDraft { return { name: '', icon: null, members: [] }; }
 
   static styles = [
@@ -154,7 +155,7 @@ export class SceneEditor extends AutomationEditorBase {
     return html`<div class="mrow ${bad ? 'bad' : ''}" data-member=${m.entity_id}>
       <div class="who"><span class="rg">${icon(entityIcon(m.entity_id))}</span><span class="nm">${this.env!.ctx.names!(m.entity_id)}<small>${[CAPTURE_DOMAIN_LABEL[m.entity_id.split('.')[0]], e?.area?.name].filter(Boolean).join(' · ')}</small></span></div>
       <div class="vals">${fields.map((f) => this.field(m, f))}</div>
-      ${this.hardReadOnly ? nothing : html`<button class="x" type="button" aria-label=${`הסרת ${this.env!.ctx.names!(m.entity_id)}`} data-member-remove=${m.entity_id} @click=${() => this.setMembers((l) => l.filter((x) => x.entity_id !== m.entity_id))}>${icon('close')}</button>`}
+      ${this.hardReadOnly ? nothing : html`<button class="x" type="button" aria-label=${tr('הסרת {name}', { name: this.env!.ctx.names!(m.entity_id) })} data-member-remove=${m.entity_id} @click=${() => this.setMembers((l) => l.filter((x) => x.entity_id !== m.entity_id))}>${icon('close')}</button>`}
       <span class="sum">${memberSummary(m)}</span>
     </div>`;
   }
@@ -164,11 +165,11 @@ export class SceneEditor extends AutomationEditorBase {
     const env = this.env!;
     return html`${this.renderConflict()}${this.renderBanners()}${this.renderSentence()}${this.renderValidation()}
       <section class="bsec2" data-section="members">
-        <h4><span class="k when">${icon('light', 14)}</span>מכשירים<small>${d.members.length ? d.members.length : 'בחרו מכשירים'}</small></h4>
-        <div class="members">${d.members.length ? d.members.map((m, i) => this.row(m, i)) : html`<div class="empty" data-members-empty>עדיין לא נבחרו מכשירים</div>`}</div>
+        <h4><span class="k when">${icon('light', 14)}</span>${tr('מכשירים')}<small>${d.members.length ? d.members.length : tr('בחרו מכשירים')}</small></h4>
+        <div class="members">${d.members.length ? d.members.map((m, i) => this.row(m, i)) : html`<div class="empty" data-members-empty>${tr('עדיין לא נבחרו מכשירים')}</div>`}</div>
         ${this.hardReadOnly ? nothing : html`<div class="frow">
-          <button class="btn" type="button" data-scene-add @click=${() => { this.picker = { uid: 'scene', filter: { purpose: 'target', controllable: true, domains: [...SCENE_CAPTURE_DOMAINS] }, selected: d.members.map((m) => m.entity_id), multi: true, apply: (ids) => this.applyPicked(ids) }; this.pop = null; }}>${icon('plus')}הוסף מכשירים</button>
-          <button class="btn" type="button" data-scene-capture ?disabled=${!d.members.length} @click=${() => void this.capture(d.members.map((m) => m.entity_id))}>${icon('camera')}צלם מצב נוכחי</button>
+          <button class="btn" type="button" data-scene-add @click=${() => { this.picker = { uid: 'scene', filter: { purpose: 'target', controllable: true, domains: [...SCENE_CAPTURE_DOMAINS] }, selected: d.members.map((m) => m.entity_id), multi: true, apply: (ids) => this.applyPicked(ids) }; this.pop = null; }}>${icon('plus')}${tr('הוסף מכשירים')}</button>
+          <button class="btn" type="button" data-scene-capture ?disabled=${!d.members.length} @click=${() => void this.capture(d.members.map((m) => m.entity_id))}>${icon('camera')}${tr('צלם מצב נוכחי')}</button>
         </div>`}
       </section>
       ${env && !this.isNew ? this.renderDeleteRow() : nothing}`;

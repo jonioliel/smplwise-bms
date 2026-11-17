@@ -1,4 +1,5 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import { tr } from '../i18n/msg/shell';
 
 /**
  * The one definition of "a phone" for behaviour that depends on it (mobile audit 2026-09-30): the viewport is narrower
@@ -38,17 +39,17 @@ export const DEFAULT_MOBILE_OPTIONS: Readonly<MobileOptions> = {
 
 /** The option's label in הגדרות › כללי › אפשרויות נייד (short, one line). */
 export const MOBILE_OPTION_LABEL: Readonly<Record<MobileKind, string>> = {
-  structure: 'הסתרת ניהול אתרים, מבנים וקומות בנייד',
-  layout_editor: 'הסתרת עורך פריסת האזור בנייד',
-  wall_arrange: 'הסתרת סידור קיר המצלמות בנייד',
-  settings_writes: 'הסתרת מסכי הגדרות שיוצרים או מוחקים בנייד',
-  permissions: 'הסתרת ניהול הרשאות ותפקידים בנייד',
-  control_images: 'הסתרת כפתור תמונות בקרה בנייד',
+  structure: tr('הסתרת ניהול אתרים, מבנים וקומות בנייד'),
+  layout_editor: tr('הסתרת עורך פריסת האזור בנייד'),
+  wall_arrange: tr('הסתרת סידור קיר המצלמות בנייד'),
+  settings_writes: tr('הסתרת מסכי הגדרות שיוצרים או מוחקים בנייד'),
+  permissions: tr('הסתרת ניהול הרשאות ותפקידים בנייד'),
+  control_images: tr('הסתרת כפתור תמונות בקרה בנייד'),
 };
 
 /** What the phone shows instead of a hidden screen. */
-export const STRUCTURE_DESKTOP_ONLY = 'עריכת מבנה וקומות זמינה במחשב בלבד';
-export const DESKTOP_ONLY = 'הפעולה הזו זמינה במחשב בלבד';
+export const STRUCTURE_DESKTOP_ONLY = tr('עריכת מבנה וקומות זמינה במחשב בלבד');
+export const DESKTOP_ONLY = tr('הפעולה הזו זמינה במחשב בלבד');
 
 let options: MobileOptions = { ...DEFAULT_MOBILE_OPTIONS };
 const listeners = new Set<() => void>();

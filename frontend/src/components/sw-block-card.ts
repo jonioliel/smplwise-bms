@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { icon } from '../screens/automation-builder-icons';
 import { editorShared } from '../screens/automation-editor-css';
+import { tr } from '../i18n/msg/components';
 
 export interface BlockChip { tone: 'sens' | 'lock' | 'bad' | 'warn' | 'acc' | 'code' | 'why'; text: string; icon?: string; title?: string }
 
@@ -230,18 +231,18 @@ export class SwBlockCard extends LitElement {
   render() {
     return html`<div class="blk">
       <div class="bh">
-        <button class="grip" type="button" draggable="true" tabindex="-1" aria-label="גרירה" title="גרירה (Alt + חצים להזזה)" @dragstart=${this.onDragStart}>${icon('grip')}</button>
+        <button class="grip" type="button" draggable="true" tabindex="-1" aria-label=${tr('גרירה')} title=${tr('גרירה (Alt + חצים להזזה)')} @dragstart=${this.onDragStart}>${icon('grip')}</button>
         <button class="bm" type="button" aria-expanded=${this.open} data-block-main @click=${() => this.fire('card-toggle')} @keydown=${this.onKey}>
           <span class="rg">${icon(this.icon)}</span>
           <span class="bt"><b dir="auto">${this.heading}</b>${this.chips.length ? html`<span class="sub">${this.chips.map((c) => this.chip(c))}</span>` : nothing}</span>
         </button>
-        <button class="xb" type="button" aria-label="מחיקת החלק" data-block-remove @click=${() => this.fire('card-remove')}>${icon('close')}</button>
+        <button class="xb" type="button" aria-label=${tr('מחיקת החלק')} data-block-remove @click=${() => this.fire('card-remove')}>${icon('close')}</button>
       </div>
       ${this.open ? html`<div class="body">
         ${this.readonly ? nothing : html`<div class="tools">
-          <button type="button" aria-label="הזז למעלה" data-block-up ?disabled=${!this.canUp} @click=${() => this.fire('card-move', { delta: -1, from: 'button' })}>${icon('arrowUp')}</button>
-          <button type="button" aria-label="הזז למטה" data-block-down ?disabled=${!this.canDown} @click=${() => this.fire('card-move', { delta: 1, from: 'button' })}>${icon('arrowDown')}</button>
-          ${this.canDuplicate ? html`<button type="button" aria-label="שכפול" data-block-dup @click=${() => this.fire('card-duplicate')}>${icon('copy')}</button>` : nothing}
+          <button type="button" aria-label=${tr('הזז למעלה')} data-block-up ?disabled=${!this.canUp} @click=${() => this.fire('card-move', { delta: -1, from: 'button' })}>${icon('arrowUp')}</button>
+          <button type="button" aria-label=${tr('הזז למטה')} data-block-down ?disabled=${!this.canDown} @click=${() => this.fire('card-move', { delta: 1, from: 'button' })}>${icon('arrowDown')}</button>
+          ${this.canDuplicate ? html`<button type="button" aria-label=${tr('שכפול')} data-block-dup @click=${() => this.fire('card-duplicate')}>${icon('copy')}</button>` : nothing}
         </div>`}
         <slot></slot>
       </div>` : nothing}

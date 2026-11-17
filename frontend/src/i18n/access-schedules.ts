@@ -2,6 +2,7 @@
 // access-events.ts / access-status.ts precedent) so he.ts is not touched. Hebrew is the product language; the English column is used
 // when the document language is English, and a key missing there falls back to the Hebrew. An operator screen: no platform names, no
 // hint paragraphs, no internal codes (UI_COPY_RULES).
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'לוחות זמנים',
   doorsOne: 'דלת אחת',
@@ -119,32 +120,105 @@ const en: Partial<Record<SchKey, string>> = {
   pickDoor: 'Choose a door',
   close: 'Close',
   doorDefault: 'Door {n}',
+  doorAt: '{door} · {station}',
+  offline: 'Not connected',
   codePill: 'Public code: {state}',
   codeSet: 'set',
   codeUnset: 'not set',
   codeUnknown: 'unknown',
+  weekLabel: 'Weekly held-open hours',
   legendHold: 'Held open',
+  hoursUnknown: 'Hours: unknown',
   programsTitle: 'Door program',
   noProgram: 'This door has no schedules',
+  allDays: 'Every day',
+  closed: 'Closed',
+  datesTitle: 'Special dates',
+  checked: 'Checked {when}',
+  zone: 'Time zone {zone}',
+  st_active: 'Active',
+  st_paused: 'Paused',
+  st_removing: 'Being removed',
+  st_error: 'Error',
+  st_draft: 'Saved draft',
+  st_unknown: 'Unknown',
+  ex_idle: 'No hold-open right now',
+  ex_opening: 'Sending a hold-open',
+  ex_held_acknowledged: 'Held open · the station confirmed receipt',
+  ex_restoring: 'Returning to normal control',
+  ex_unknown: 'Not known whether it ran',
+  kindHold: 'Held open',
+  kindDraft: 'Draft',
   libraryTitle: 'Schedule library',
+  libraryEmpty: 'No schedules in the library',
+  version: 'Version {n}',
+  holidayOne: 'One holiday',
+  holidayMany: '{n} holidays',
+  proposedFor: 'Proposed for {stations}',
+  notProposed: 'Not proposed for any station',
   plansTitle: 'Deployment proposals',
+  plansEmpty: 'No deployment proposals',
   notApplied: 'Not applied to the station',
+  outdated: 'Prepared from an earlier version',
+  pl_current: 'Matches the library',
+  pl_changed: 'The library has changed',
+  pl_missing: 'Missing from the library',
+  pl_unavailable: 'Unavailable',
+  pl_unknown: 'Unknown',
+  job_pending: 'Pending',
+  job_queued: 'Queued',
+  job_checking: 'Checking',
+  job_blocked: 'Blocked',
+  job_ready: 'Ready',
+  job_interrupted: 'Interrupted',
+  job_failed: 'Failed',
+  job_cancelled: 'Cancelled',
+  job_verified: 'Verified',
+  job_unknown: 'Unknown',
+  stationUnknown: 'Unknown station',
+  unnamed: 'Unnamed',
+  colDoor: 'Door',
+  colStation: 'Station',
+  colProgram: 'Program',
+  colKind: 'Type',
+  colWhen: 'When',
+  colState: 'State',
+  colCode: 'Public code',
   noPermission: 'This screen is not available to you',
+  noDoors: 'No doors to show',
+  loading: 'Loading…',
   error: 'The schedules could not be loaded',
   retry: 'Try again',
+  busy: 'The system is busy right now · trying again in a moment',
+  stale: 'The data is not current · updated {t}',
+  sNotConfigured: 'Access control is not connected in this environment',
+  sUnavailable: 'Access control is unavailable right now',
+  sNotInstalled: 'Access control is not installed',
+  sUnsupported: 'The installed version does not offer this information',
+  sConnecting: 'Connecting…',
+  day_Sunday: 'Sun',
+  day_Monday: 'Mon',
+  day_Tuesday: 'Tue',
+  day_Wednesday: 'Wed',
+  day_Thursday: 'Thu',
+  day_Friday: 'Fri',
+  day_Saturday: 'Sat',
+
 };
 
 export function schLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function sch(key: SchKey, vars?: Record<string, string | number>): string {
   const raw = (schLang() === 'en' ? en[key] : undefined) ?? he[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The text of a key built at run time (`st_<state>`, `job_<status>`...), or the fallback key's when there is none. */
 export function schDynamic(key: string, fallback: SchKey, vars?: Record<string, string | number>): string {
   return key in he ? sch(key as SchKey, vars) : sch(fallback, vars);
 }
+
+registerCatalogue('i18n/access-schedules', { he, en });

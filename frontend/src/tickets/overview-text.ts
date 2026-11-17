@@ -4,6 +4,7 @@
  * naming rules as board-text.ts (D33): a text that names the module is a template with the tokens of tickets/naming.ts - `{ticket}`,
  * `{tickets}`, `{f:..|m:..}` - and the default name is never written here (tests/unit-tickets-overview.spec.ts fails when it is).
  */
+import { registerCatalogue } from '../i18n/core';
 import { NAV_OT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
@@ -441,3 +442,5 @@ export const ot = catalogue.t;
 
 export const OVERVIEW_TEXT_KEYS = catalogue.KEYS;
 export const OVERVIEW_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/overview-text', { he, en });

@@ -7,6 +7,7 @@
  */
 import type { ActivityItem, ActivityKind, ActorType, EventType } from '../api/device-activity';
 import { timeText } from '../api/day-format';
+import { tr } from '../i18n/msg/components';
 
 /** The icon (sw-icon name) of each kind. */
 export const KIND_ICON: Record<ActivityKind, string> = {
@@ -25,38 +26,38 @@ export const KIND_ICON: Record<ActivityKind, string> = {
 };
 
 export const STATE_HE: Record<string, string> = {
-  on: 'דלוק', off: 'כבוי', open: 'פתוח', closed: 'סגור', opening: 'נפתח', closing: 'נסגר', stopped: 'עצר',
-  unavailable: 'לא זמין', unknown: 'לא ידוע',
-  heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטו', dry: 'ייבוש', fan_only: 'מאוורר',
-  docked: 'בעגינה', cleaning: 'מנקה', paused: 'מושהה', returning: 'חוזר לעגינה', idle: 'ממתין',
-  locked: 'נעול', unlocked: 'לא נעול', armed_home: 'דרוך בבית', armed_away: 'דרוך', armed_night: 'דרוך לילה', disarmed: 'לא דרוך', triggered: 'הופעלה אזעקה',
-  eco: 'חסכוני', performance: 'רגיל', electric: 'חשמלי', heat_pump: 'משאבת חום',
+  on: tr('דלוק'), off: tr('כבוי'), open: tr('פתוח'), closed: tr('סגור'), opening: tr('נפתח'), closing: tr('נסגר'), stopped: tr('עצר'),
+  unavailable: tr('לא זמין'), unknown: tr('לא ידוע'),
+  heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטו'), dry: tr('ייבוש'), fan_only: tr('מאוורר'),
+  docked: tr('בעגינה'), cleaning: tr('מנקה'), paused: tr('מושהה'), returning: tr('חוזר לעגינה'), idle: tr('ממתין'),
+  locked: tr('נעול'), unlocked: tr('לא נעול'), armed_home: tr('דרוך בבית'), armed_away: tr('דרוך'), armed_night: tr('דרוך לילה'), disarmed: tr('לא דרוך'), triggered: tr('הופעלה אזעקה'),
+  eco: tr('חסכוני'), performance: tr('רגיל'), electric: tr('חשמלי'), heat_pump: tr('משאבת חום'),
 };
 const VALUE_HE: Record<string, string> = {
-  ...STATE_HE, low: 'נמוך', medium: 'בינוני', high: 'גבוה', forward: 'קדימה', reverse: 'אחורה', reversed: 'אחורה', quiet: 'שקט', turbo: 'טורבו',
+  ...STATE_HE, low: tr('נמוך'), medium: tr('בינוני'), high: tr('גבוה'), forward: tr('קדימה'), reverse: tr('אחורה'), reversed: tr('אחורה'), quiet: tr('שקט'), turbo: tr('טורבו'),
 };
 
 /** What each stored attribute is called in Hebrew, and how its number is written. */
 const ATTR: Record<string, { verb: string; unit?: string }> = {
-  brightness_pct: { verb: 'שינוי בהירות', unit: '%' },
-  color_temp_kelvin: { verb: 'שינוי גוון', unit: 'K' },
-  rgb_color: { verb: 'שינוי צבע' },
-  effect: { verb: 'שינוי אפקט' },
-  temperature: { verb: 'שינוי יעד', unit: '°' },
-  target_temp_low: { verb: 'שינוי יעד תחתון', unit: '°' },
-  target_temp_high: { verb: 'שינוי יעד עליון', unit: '°' },
-  fan_mode: { verb: 'שינוי מאוורר' },
-  preset_mode: { verb: 'שינוי מצב מוגדר' },
-  swing_mode: { verb: 'שינוי נדנוד' },
-  humidity: { verb: 'שינוי לחות יעד', unit: '%' },
-  mode: { verb: 'שינוי מצב' },
-  percentage: { verb: 'שינוי מהירות', unit: '%' },
-  oscillating: { verb: 'שינוי נדנוד' },
-  direction: { verb: 'שינוי כיוון' },
-  current_position: { verb: 'שינוי מיקום', unit: '%' },
-  current_tilt_position: { verb: 'שינוי הטיה', unit: '%' },
-  fan_speed: { verb: 'שינוי עוצמת שאיבה' },
-  away_mode: { verb: 'שינוי מצב היעדרות' },
+  brightness_pct: { verb: tr('שינוי בהירות'), unit: '%' },
+  color_temp_kelvin: { verb: tr('שינוי גוון'), unit: 'K' },
+  rgb_color: { verb: tr('שינוי צבע') },
+  effect: { verb: tr('שינוי אפקט') },
+  temperature: { verb: tr('שינוי יעד'), unit: '°' },
+  target_temp_low: { verb: tr('שינוי יעד תחתון'), unit: '°' },
+  target_temp_high: { verb: tr('שינוי יעד עליון'), unit: '°' },
+  fan_mode: { verb: tr('שינוי מאוורר') },
+  preset_mode: { verb: tr('שינוי מצב מוגדר') },
+  swing_mode: { verb: tr('שינוי נדנוד') },
+  humidity: { verb: tr('שינוי לחות יעד'), unit: '%' },
+  mode: { verb: tr('שינוי מצב') },
+  percentage: { verb: tr('שינוי מהירות'), unit: '%' },
+  oscillating: { verb: tr('שינוי נדנוד') },
+  direction: { verb: tr('שינוי כיוון') },
+  current_position: { verb: tr('שינוי מיקום'), unit: '%' },
+  current_tilt_position: { verb: tr('שינוי הטיה'), unit: '%' },
+  fan_speed: { verb: tr('שינוי עוצמת שאיבה') },
+  away_mode: { verb: tr('שינוי מצב היעדרות') },
 };
 /** The order a changed set is reported in (the first one names the row). */
 const ATTR_ORDER = Object.keys(ATTR);
@@ -71,7 +72,7 @@ function attrText(key: string, v: unknown): string {
   if (v === null || v === undefined || v === '') return '';
   const unit = ATTR[key]?.unit ?? '';
   if (typeof v === 'number') return `${Number.isInteger(v) ? String(v) : v.toFixed(1)}${unit}`;
-  if (typeof v === 'boolean') return v ? 'פעיל' : 'כבוי';
+  if (typeof v === 'boolean') return v ? tr('פעיל') : tr('כבוי');
   if (Array.isArray(v)) return v.join(',');
   return VALUE_HE[String(v)] ?? String(v);
 }
@@ -95,22 +96,22 @@ export function describeEvent(item: Pick<ActivityItem, 'kind' | 'from' | 'to' | 
   const fromState = item.from.state ?? '';
   if (item.kind === 'availability') {
     const lost = toState === 'unavailable' || toState === 'unknown';
-    return { verb: lost ? 'איבד זמינות' : 'חזר לזמינות', from: stateLabel(fromState), to: stateLabel(toState) };
+    return { verb: lost ? tr('איבד זמינות') : tr('חזר לזמינות'), from: stateLabel(fromState), to: stateLabel(toState) };
   }
   if (item.kind === 'value') {
     const key = changedKey(item);
-    if (!key) return { verb: 'שינוי ערך', from: stateLabel(fromState), to: stateLabel(toState) };
+    if (!key) return { verb: tr('שינוי ערך'), from: stateLabel(fromState), to: stateLabel(toState) };
     // climate: the mode of a device that stays on is the state itself (heat -> cool)
-    return { verb: ATTR[key]?.verb ?? 'שינוי ערך', from: attrText(key, item.from[key]), to: attrText(key, item.to[key]) };
+    return { verb: ATTR[key]?.verb ?? tr('שינוי ערך'), from: attrText(key, item.from[key]), to: attrText(key, item.to[key]) };
   }
   // power / state change
-  let verb = 'שינוי מצב';
+  let verb = tr('שינוי מצב');
   if (kind === 'cover' || kind === 'garage_door' || kind === 'valve') {
-    verb = toState === 'open' || toState === 'opening' ? 'פתיחה' : toState === 'closed' || toState === 'closing' ? 'סגירה' : toState === 'stopped' ? 'עצירה' : 'שינוי מצב';
+    verb = toState === 'open' || toState === 'opening' ? tr('פתיחה') : toState === 'closed' || toState === 'closing' ? tr('סגירה') : toState === 'stopped' ? tr('עצירה') : tr('שינוי מצב');
   } else if (kind === 'vacuum') {
-    verb = toState === 'cleaning' ? 'התחלת ניקיון' : toState === 'docked' || toState === 'returning' ? 'חזרה לעגינה' : toState === 'paused' || toState === 'idle' ? 'עצירה' : 'שינוי מצב';
+    verb = toState === 'cleaning' ? tr('התחלת ניקיון') : toState === 'docked' || toState === 'returning' ? tr('חזרה לעגינה') : toState === 'paused' || toState === 'idle' ? tr('עצירה') : tr('שינוי מצב');
   } else if (kind !== 'generic') {
-    verb = toState === 'off' ? 'כיבוי' : toState && toState !== 'unavailable' && toState !== 'unknown' ? 'הדלקה' : 'שינוי מצב';
+    verb = toState === 'off' ? tr('כיבוי') : toState && toState !== 'unavailable' && toState !== 'unknown' ? tr('הדלקה') : tr('שינוי מצב');
   }
   // a light switched on carries its brightness: "כבוי ← דלוק 60%"
   const extra = kind === 'light' && toState === 'on' && typeof item.to.brightness_pct === 'number' ? ` ${item.to.brightness_pct}%` : '';
@@ -137,15 +138,15 @@ export function actorView(item: Pick<ActivityItem, 'actor' | 'source' | 'confide
   let prefix = '';
   let name = rawName;
   let qualifier = '';
-  if (t === 'person') name = rawName || 'משתמש';
-  else if (t === 'automation') { prefix = 'אוטומציה'; name = rawName; }
-  else if (t === 'script') { prefix = 'סקריפט'; name = rawName; }
-  else if (t === 'schedule') { prefix = 'תזמון'; name = rawName; }
-  else if (t === 'scene') { prefix = 'סצנה'; name = rawName; }
-  else if (t === 'device') { name = 'ידני בהתקן'; qualifier = 'משוער'; }
-  else if (t === 'system') name = 'המערכת';
-  else name = 'מקור לא ידוע';
-  if (!name && prefix) { name = `${prefix} (ללא שם)`; prefix = ''; }
+  if (t === 'person') name = rawName || tr('משתמש');
+  else if (t === 'automation') { prefix = tr('אוטומציה'); name = rawName; }
+  else if (t === 'script') { prefix = tr('סקריפט'); name = rawName; }
+  else if (t === 'schedule') { prefix = tr('תזמון'); name = rawName; }
+  else if (t === 'scene') { prefix = tr('סצנה'); name = rawName; }
+  else if (t === 'device') { name = tr('ידני בהתקן'); qualifier = tr('משוער'); }
+  else if (t === 'system') name = tr('המערכת');
+  else name = tr('מקור לא ידוע');
+  if (!name && prefix) { name = tr('{prefix} (ללא שם)', { prefix }); prefix = ''; }
   const initials = t === 'person' ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => [...w][0]).join('') : '';
   return { type: t, prefix, name, initials, glyph: ACTOR_GLYPH[t], qualifier };
 }
@@ -154,25 +155,25 @@ export function actorView(item: Pick<ActivityItem, 'actor' | 'source' | 'confide
 
 export type Period = 'hour' | 'day' | 'week' | 'month';
 export const PERIODS: Period[] = ['hour', 'day', 'week', 'month'];
-export const PERIOD_LABEL: Record<Period, string> = { hour: 'שעה', day: '24 שעות', week: '7 ימים', month: '30 יום' };
+export const PERIOD_LABEL: Record<Period, string> = { hour: tr('שעה'), day: tr('24 שעות'), week: tr('7 ימים'), month: tr('30 יום') };
 const PERIOD_MS: Record<Period, number> = { hour: 3600_000, day: 24 * 3600_000, week: 7 * 24 * 3600_000, month: 30 * 24 * 3600_000 };
 export const DEFAULT_PERIOD: Period = 'week';
 
 export const ACTOR_FILTERS: { id: '' | ActorType; label: string }[] = [
-  { id: '', label: 'כל הגורמים' },
-  { id: 'person', label: 'אנשים' },
-  { id: 'automation', label: 'אוטומציות' },
-  { id: 'script', label: 'סקריפטים' },
-  { id: 'schedule', label: 'תזמונים' },
-  { id: 'scene', label: 'סצנות' },
-  { id: 'device', label: 'ידני בהתקן' },
-  { id: 'system', label: 'מערכת' },
+  { id: '', label: tr('כל הגורמים') },
+  { id: 'person', label: tr('אנשים') },
+  { id: 'automation', label: tr('אוטומציות') },
+  { id: 'script', label: tr('סקריפטים') },
+  { id: 'schedule', label: tr('תזמונים') },
+  { id: 'scene', label: tr('סצנות') },
+  { id: 'device', label: tr('ידני בהתקן') },
+  { id: 'system', label: tr('מערכת') },
 ];
 export const EVENT_FILTERS: { id: '' | EventType; label: string }[] = [
-  { id: '', label: 'כל האירועים' },
-  { id: 'power', label: 'הפעלה וכיבוי' },
-  { id: 'value', label: 'שינוי ערך' },
-  { id: 'availability', label: 'זמינות' },
+  { id: '', label: tr('כל האירועים') },
+  { id: 'power', label: tr('הפעלה וכיבוי') },
+  { id: 'value', label: tr('שינוי ערך') },
+  { id: 'availability', label: tr('זמינות') },
 ];
 
 export interface Filters {
@@ -240,7 +241,7 @@ export function groupByDay(items: ActivityItem[], now = new Date(), tz?: string)
     if (!g || g.key !== key) {
       const dm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(d).replace('/', '.');
       const wd = new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short' }).format(d);
-      const label = key === today ? `היום · ${dm}` : key === yesterday ? `אתמול · ${dm}` : `${wd} · ${dm}`;
+      const label = key === today ? `${tr('היום')} · ${dm}` : key === yesterday ? `${tr('אתמול')} · ${dm}` : `${wd} · ${dm}`;
       g = { key, label, items: [] };
       out.push(g);
     }
@@ -260,17 +261,17 @@ export function fullDate(iso: string, tz?: string): string {
 
 /** The one-line footnote: retention and the honest "manual" caveat. */
 export function footnote(retentionDays: number, hasDevice: boolean): string {
-  return `${hasDevice ? 'ידני בהתקן הוא משוער · ' : ''}נשמר ${retentionDays} יום`;
+  return `${hasDevice ? `${tr('ידני בהתקן הוא משוער')} · ` : ''}${tr('נשמר {n} יום', { n: retentionDays })}`;
 }
 
 /** "מתועד מ־4.10": since when the history exists (starts from zero, owner decision). */
 export function trackedSince(fromIso: string | null | undefined, tz?: string): string {
   if (!fromIso) return '';
   const dm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(new Date(fromIso)).replace('/', '.');
-  return `מתועד מ־${dm}`;
+  return tr('מתועד מ־{date}', { date: dm });
 }
 
 /** The gap banner's text for the first gap. */
 export function gapText(gap: { from: string; to: string }, tz?: string): string {
-  return `המערכת הייתה מנותקת ${clockOf(gap.from, tz)} עד ${clockOf(gap.to, tz)}; ייתכן שחסרים אירועים`;
+  return tr('המערכת הייתה מנותקת {from} עד {to}; ייתכן שחסרים אירועים', { from: clockOf(gap.from, tz), to: clockOf(gap.to, tz) });
 }

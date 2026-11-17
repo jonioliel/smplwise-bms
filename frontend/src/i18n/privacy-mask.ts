@@ -4,6 +4,7 @@
  * columns are an INITIAL translation that needs a native review (dev-marked). Operator texts never name the home platform.
  * `{n}` style placeholders are filled by `pm(key, { n })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'מסכות פרטיות',
   crumbs: 'הגדרות | אבטחה',
@@ -370,14 +371,13 @@ export const PM_KEYS = Object.keys(he) as PmKey[];
 export const PM_TABLES = TABLES;
 
 export function pmLang(): PmLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function pm(key: PmKey, vars?: Record<string, string | number>, lang: PmLang = pmLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** The line for a server error code (`e_<code>`), or the generic one. The server's own text is Hebrew only, so it is never shown. */
@@ -385,3 +385,5 @@ export function pmError(code: string, lang: PmLang = pmLang()): string {
   const key = `e_${code}`;
   return key in he ? pm(key as PmKey, undefined, lang) : pm('e_generic', undefined, lang);
 }
+
+registerCatalogue('i18n/privacy-mask', { he, en, ar, ru }, PM_DEV_MARKED);

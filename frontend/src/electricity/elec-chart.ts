@@ -15,6 +15,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { BillHistory } from '../api/electricity-billing';
 import { f2 } from './elec-format';
 import { BAR_MAX, barPath, chartBars, hasComparison, labelledBars, type Bar } from './elec-chart-data';
+import { tr } from '../i18n/msg/electricity';
 
 @customElement('elec-chart')
 export class ElecChart extends LitElement {
@@ -266,7 +267,7 @@ export class ElecChart extends LitElement {
     const lyBar = bars.find((b) => b.kind === 'ly' || b.lyMark);
     const lyY = lyBar && lyBar.kwh !== null ? base - scale(lyBar.kwh) : null;
     const hasPartial = bars.some((b) => b.partial);
-    const aria = `צריכה לפי תקופה: ${bars.filter((b) => b.kwh !== null).map((b) => `${b.label} ${f2(b.kwh as number)} קוט״ש`).join(', ')}`;
+    const aria = tr('צריכה לפי תקופה: {list}', { list: bars.filter((b) => b.kwh !== null).map((b) => `${b.label} ${f2(b.kwh as number)} ${tr('קוט״ש')}`).join(', ') });
     const hotIdx = this.hot === null ? -1 : bars.findIndex((b) => b.key === this.hot);
     const hotBar = hotIdx >= 0 ? bars[hotIdx] : null;
     return html`
@@ -279,7 +280,7 @@ export class ElecChart extends LitElement {
         ${bars.map((b, i) => {
           const x = xOf(i);
           const cx = x + barW / 2;
-          const name = b.kind === 'ly' ? 'אשתקד' : b.label;
+          const name = b.kind === 'ly' ? tr('אשתקד') : b.label;
           const label = i % labelEvery === 0 || b.kind !== 'prev' ? svg`<text x=${cx} y=${H - 6} text-anchor="middle">${name}</text>` : nothing;
           const hot = this.hot === b.key;
           const hit = svg`<rect class="hit" x=${bandX(i)} y=${top - 10} width=${bw} height=${H - top + 10 - bottom + 4}></rect>`;
@@ -288,7 +289,7 @@ export class ElecChart extends LitElement {
             if (this.hot === b.key) this.hot = null;
           };
           if (b.kwh === null) {
-            return svg`<g class=${hot ? 'band hot' : 'band'} data-bar="gap" tabindex="0" aria-label=${`${b.title}: אין נתונים`} @pointerenter=${on} @focus=${on} @blur=${off}>
+            return svg`<g class=${hot ? 'band hot' : 'band'} data-bar="gap" tabindex="0" aria-label=${`${b.title}: ${tr('אין נתונים')}`} @pointerenter=${on} @focus=${on} @blur=${off}>
               ${hit}<line class="gap" x1=${cx - 5} x2=${cx + 5} y1=${base - 4} y2=${base - 4}></line>${label}</g>`;
           }
           const h = Math.max(2, scale(b.kwh));
@@ -296,21 +297,21 @@ export class ElecChart extends LitElement {
           const ring = b.lyMark ? svg`<rect class="ly" x=${x - 2} y=${y - 2} width=${barW + 4} height=${h + 2} rx="4"></rect>` : nothing;
           const cls = b.kind === 'cur' ? 'bar' : b.kind === 'ly' ? 'ly' : b.partial ? 'part' : 'bar2';
           const value = showVal && labelled.has(b.key) ? svg`<text class="v" x=${cx} y=${y - 5} text-anchor="middle">${f2(b.kwh).replace(/\.00$/, '')}</text>` : nothing;
-          return svg`<g class=${hot ? 'band hot' : 'band'} data-bar=${b.kind} tabindex="0" aria-label=${`${b.title}: ${f2(b.kwh)} קוט״ש${b.partial ? ' (נתונים חלקיים)' : ''}`} @pointerenter=${on} @focus=${on} @blur=${off}>
+          return svg`<g class=${hot ? 'band hot' : 'band'} data-bar=${b.kind} tabindex="0" aria-label=${`${b.title}: ${f2(b.kwh)} ${tr('קוט״ש')}${b.partial ? ` (${tr('נתונים חלקיים')})` : ''}`} @pointerenter=${on} @focus=${on} @blur=${off}>
             ${hit}<path class=${cls} d=${barPath(x, y, barW, h)}></path>
             ${ring}${value}${label}</g>`;
         })}
       </svg>
       ${hotBar
         ? html`<div class="tip" role="tooltip" data-chart-tip style=${`left:${((xOf(hotIdx) + barW / 2) / W) * 100}%; inset-block-start:${((hotBar.kwh === null ? base - 8 : base - Math.max(2, scale(hotBar.kwh))) / H) * 100}%`}>
-            <b>${hotBar.kwh === null ? 'אין נתונים' : `${f2(hotBar.kwh)} קוט״ש`}</b><small>${hotBar.title}${hotBar.partial ? ' · נתונים חלקיים' : ''}</small>
+            <b>${hotBar.kwh === null ? tr('אין נתונים') : `${f2(hotBar.kwh)} ${tr('קוט״ש')}`}</b><small>${hotBar.title}${hotBar.partial ? ` · ${tr('נתונים חלקיים')}` : ''}</small>
           </div>`
         : nothing}
       <div class="legend">
-        ${cur ? html`<span><i class="l-cur"></i>התקופה הנוכחית</span>` : nothing}
-        <span><i class="l-prev"></i>תקופות קודמות</span>
-        ${lyBar ? html`<span><i class="l-ly"></i>אותה תקופה אשתקד</span>` : nothing}
-        ${hasPartial ? html`<span><i class="l-part"></i>נתונים חלקיים</span>` : nothing}
+        ${cur ? html`<span><i class="l-cur"></i>${tr('התקופה הנוכחית')}</span>` : nothing}
+        <span><i class="l-prev"></i>${tr('תקופות קודמות')}</span>
+        ${lyBar ? html`<span><i class="l-ly"></i>${tr('אותה תקופה אשתקד')}</span>` : nothing}
+        ${hasPartial ? html`<span><i class="l-part"></i>${tr('נתונים חלקיים')}</span>` : nothing}
       </div>
       ${this.renderTable(bars)}
     `;
@@ -318,11 +319,11 @@ export class ElecChart extends LitElement {
 
   private renderTable(bars: Bar[]) {
     const t = html`<div class=${this.table === 'sr' ? 'sr' : 'tw'}><table data-elec-chart-table>
-      <thead><tr>${bars.map((b) => html`<th scope="col" title=${b.title}>${b.kind === 'ly' ? 'אשתקד' : b.label}</th>`)}</tr></thead>
+      <thead><tr>${bars.map((b) => html`<th scope="col" title=${b.title}>${b.kind === 'ly' ? tr('אשתקד') : b.label}</th>`)}</tr></thead>
       <tbody><tr>${bars.map((b) => html`<td>${b.kwh === null ? '-' : f2(b.kwh)}</td>`)}</tr></tbody>
     </table></div>`;
     if (this.table === 'details')
-      return html`<button type="button" class="tgl" data-chart-table-toggle aria-expanded=${this.showTable} @click=${() => (this.showTable = !this.showTable)}>${this.showTable ? 'הסתרת טבלת מספרים' : 'טבלת מספרים'}</button>${this.showTable ? t : nothing}`;
+      return html`<button type="button" class="tgl" data-chart-table-toggle aria-expanded=${this.showTable} @click=${() => (this.showTable = !this.showTable)}>${this.showTable ? tr('הסתרת טבלת מספרים') : tr('טבלת מספרים')}</button>${this.showTable ? t : nothing}`;
     return t;
   }
 }

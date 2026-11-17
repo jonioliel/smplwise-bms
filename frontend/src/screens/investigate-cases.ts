@@ -31,6 +31,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayTimeText } from '../api/day-format';
 import { agoText } from './investigate-time';
+import { tr } from '../i18n/msg/investigate';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
@@ -38,9 +39,9 @@ const FILE_KIND: Record<BundleFileStatus, StateKind> = { ok: 'recorded', mismatc
 const shortHash = (h?: string | null) => (h ? `${h.slice(0, 12)}…` : '—');
 /** One line on a manifest signature: integrity since export, and whose key it is. */
 function signatureText(s?: SignatureVerdict | null): string {
-  if (!s || !s.present) return 'ללא חתימה (חבילה מגרסה ישנה, או שהחתימה הוסרה) — נבדקו רק הגיבובים.';
-  if (!s.valid) return `חתימה לא תקינה${s.reason ? ` (${s.reason})` : ''} — ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.`;
-  return `חתימה תקינה · Ed25519 · מפתח ${s.kid}${s.trust === 'installation' ? (s.retired ? ' · מפתח שהוחלף, מוכר למתקן זה' : ' · המפתח הפעיל של מתקן זה') : ' · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון'}`;
+  if (!s || !s.present) return tr('ללא חתימה (חבילה מגרסה ישנה, או שהחתימה הוסרה) — נבדקו רק הגיבובים.');
+  if (!s.valid) return `${tr('חתימה לא תקינה')}${s.reason ? ` (${s.reason})` : ''} — ${tr('ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.')}`;
+  return `${tr('חתימה תקינה · Ed25519 · מפתח {kid}', { kid: String(s.kid) })} · ${s.trust === 'installation' ? (s.retired ? tr('מפתח שהוחלף, מוכר למתקן זה') : tr('המפתח הפעיל של מתקן זה')) : tr('מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון')}`;
 }
 const fmtWhen = (iso: string, tz?: string) => dayTimeText(new Date(iso), { timeZone: tz });
 /** The cells render inside sw-table's shadow root, so the screen's stylesheet does not reach them: the few cell styles are inline. */
@@ -48,7 +49,7 @@ const C_TITLE = 'font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold);col
 const C_SUB = 'font-size:var(--sw-fs-xs);color:var(--sw-text-3);line-height:1.4';
 const C_NUM = 'font-variant-numeric:tabular-nums';
 const caseTitle = (r: Record<string, unknown>) =>
-  html`<a href=${`#/investigate/cases/${String(r.id)}`} style=${C_TITLE} data-case-link @click=${(e: Event) => e.stopPropagation()}>${String(r.title)}</a>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}`;
+  html`<a href=${`#/investigate/cases/${String(r.id)}`} style=${C_TITLE} data-case-link @click=${(e: Event) => e.stopPropagation()}>${String(r.title)}</a>${r.imported ? html` <sw-badge kind="historic" label=${tr('מיובא')} data-case-imported></sw-badge>` : nothing}`;
 const updatedCell = (r: Record<string, unknown>) => {
   const iso = String(r.updated);
   const rel = agoText(iso);
@@ -60,34 +61,34 @@ const preservedCell = (r: Record<string, unknown>) => {
   return html`<span style=${`${C_NUM};font-weight:var(--sw-fw-semibold);color:var(--sw-heading)`}>${p}</span><span style=${`${C_NUM};color:var(--sw-text-3)`}> / ${c}</span>`;
 };
 const API_COLUMNS: TableColumn[] = [
-  { key: 'title', label: 'תיק', render: (r) => html`${caseTitle(r)}${r.tags ? html`<div style=${C_SUB}>${String(r.tags)}</div>` : nothing}` },
-  { key: 'status', label: 'סטטוס', width: '120px', render: (r) => html`<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
-  { key: 'owner', label: 'בעלים', width: '120px' },
-  { key: 'items', label: 'פריטים', width: '90px', render: (r) => html`<span style=${C_NUM}>${String(r.items)}</span>` },
-  { key: 'preserved', label: 'עותקים שמורים', width: '130px', render: preservedCell },
-  { key: 'updated', label: 'עודכן', width: '170px', render: updatedCell },
+  { key: 'title', label: tr('תיק'), render: (r) => html`${caseTitle(r)}${r.tags ? html`<div style=${C_SUB}>${String(r.tags)}</div>` : nothing}` },
+  { key: 'status', label: tr('סטטוס'), width: '120px', render: (r) => html`<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
+  { key: 'owner', label: tr('בעלים'), width: '120px' },
+  { key: 'items', label: tr('פריטים'), width: '90px', render: (r) => html`<span style=${C_NUM}>${String(r.items)}</span>` },
+  { key: 'preserved', label: tr('עותקים שמורים'), width: '130px', render: preservedCell },
+  { key: 'updated', label: tr('עודכן'), width: '170px', render: updatedCell },
 ];
 /** A phone: one card per case - the title with its status, then one line of who / how many / when (the stacked six captions filled
  * a screen per case). */
 const NARROW_COLUMNS: TableColumn[] = [
   {
     key: 'title',
-    label: 'תיק',
+    label: tr('תיק'),
     render: (r) => html`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${caseTitle(r)}<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge></div>
-      <div style=${`${C_SUB};${C_NUM};margin-block-start:2px`}>${String(r.owner)} · ${String(r.items)} פריטים · ${String(r.preserved)}/${String(r.clips)} שמורים · ${agoText(String(r.updated)) ?? fmtWhen(String(r.updated))}</div>
+      <div style=${`${C_SUB};${C_NUM};margin-block-start:2px`}>${String(r.owner)} · ${tr('{n} פריטים', { n: String(r.items) })} · ${tr('{n}/{total} שמורים', { n: String(r.preserved), total: String(r.clips) })} · ${agoText(String(r.updated)) ?? fmtWhen(String(r.updated))}</div>
       ${r.tags ? html`<div style=${C_SUB}>${String(r.tags)}</div>` : nothing}`,
   },
 ];
 const NARROW = '(max-width: 767px)';
 
 const columns: TableColumn[] = [
-  { key: 'title', label: 'תיק', render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>` },
-  { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` },
-  { key: 'owner', label: 'בעלים' },
-  { key: 'clips', label: 'קטעים' },
-  { key: 'notes', label: 'הערות' },
-  { key: 'preserved', label: 'ראיות שמורות', render: (r) => html`${r.preserved} שמורות${Number(r.missing) ? html` <sw-badge filled kind="error" label=${`${r.missing} חסרות`} style="margin-inline-start:6px"></sw-badge>` : ''}` },
-  { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
+  { key: 'title', label: tr('תיק'), render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>` },
+  { key: 'status', label: tr('סטטוס'), render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` },
+  { key: 'owner', label: tr('בעלים') },
+  { key: 'clips', label: tr('קטעים') },
+  { key: 'notes', label: tr('הערות') },
+  { key: 'preserved', label: tr('ראיות שמורות'), render: (r) => html`${tr('{n} שמורות', { n: String(r.preserved) })}${Number(r.missing) ? html` <sw-badge filled kind="error" label=${tr('{n} חסרות', { n: String(r.missing) })} style="margin-inline-start:6px"></sw-badge>` : ''}` },
+  { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label=${tr('עוד')}></sw-button>` },
 ];
 
 /** SC16 — cases list (board 2 screen 10, Beta). */
@@ -346,33 +347,33 @@ export class InvestigateCases extends LitElement {
     const when = (iso?: string | null) => (iso ? fmtWhen(iso) : '—');
     const producer = o ? PRODUCER_LABEL[producerOf(o)] : '—';
     const dup = v?.already_imported;
-    return html`<sw-dialog open heading="ייבוא חבילת ראיות" subheading=${f ? `${f.name} · ${formatBytes(f.size)}` : ''} data-bundle-import-dialog @close=${() => (this.importOpen = false)}>
-      ${this.importBusy && !v ? html`<sw-state-panel state="loading" heading="מאמת את החבילה…" hint="כל קובץ מגובב מחדש ומושווה ל־manifest; שום דבר עוד לא יובא"></sw-state-panel>` : nothing}
+    return html`<sw-dialog open heading=${tr('ייבוא חבילת ראיות')} subheading=${f ? `${f.name} · ${formatBytes(f.size)}` : ''} data-bundle-import-dialog @close=${() => (this.importOpen = false)}>
+      ${this.importBusy && !v ? html`<sw-state-panel state="loading" heading=${tr('מאמת את החבילה…')} hint=${tr('כל קובץ מגובב מחדש ומושווה ל־manifest; שום דבר עוד לא יובא')}></sw-state-panel>` : nothing}
       ${this.importError ? html`<div class="err" data-import-error role="alert">${this.importError}</div>` : nothing}
       ${v
-        ? html`<div class="verdict" data-import-summary data-ok=${String(v.ok)}>${v.summary ?? (v.ok ? 'החבילה אומתה.' : 'האימות נכשל.')}</div>
+        ? html`<div class="verdict" data-import-summary data-ok=${String(v.ok)}>${v.summary ?? (v.ok ? tr('החבילה אומתה.') : tr('האימות נכשל.'))}</div>
             <div class="kv" data-import-origin>
-              <span>תיק במקור</span><strong>${v.case ?? '—'}</strong>
-              <span>יוצא</span><strong>${when(o?.exported_at)}${o?.exported_by_display || o?.exported_by ? ` · על ידי ${o?.exported_by_display || o?.exported_by}` : ''}</strong>
-              <span>הופקה ב־</span><strong data-import-producer data-this-installation=${String(o?.this_installation ?? 'unknown')} data-producer=${producerOf(o)}>${producer}${o?.installation_id ? html` · <span class="ltr">${o.installation_id}</span>` : nothing}</strong>
-              <span>גרסה</span><strong><span class="ltr">Arx ${o?.app_version ?? '?'} · manifest v${v.schema_version ?? '?'}</span>${v.supported === false ? ' · לא נתמכת' : ''}</strong>
-              <span>חתימה</span><strong data-import-signature>${signatureText(v.signature)}</strong>
-              <span>SHA-256 של החבילה</span><strong class="ltr" title=${v.bundle?.sha256 ?? ''}>${shortHash(v.bundle?.sha256)}</strong>
+              <span>${tr('תיק במקור')}</span><strong>${v.case ?? '—'}</strong>
+              <span>${tr('יוצא')}</span><strong>${when(o?.exported_at)}${o?.exported_by_display || o?.exported_by ? ` · ${tr('על ידי {name}', { name: o?.exported_by_display || o?.exported_by || '' })}` : ''}</strong>
+              <span>${tr('הופקה ב־')}</span><strong data-import-producer data-this-installation=${String(o?.this_installation ?? 'unknown')} data-producer=${producerOf(o)}>${producer}${o?.installation_id ? html` · <span class="ltr">${o.installation_id}</span>` : nothing}</strong>
+              <span>${tr('גרסה')}</span><strong><span class="ltr">Arx ${o?.app_version ?? '?'} · manifest v${v.schema_version ?? '?'}</span>${v.supported === false ? ` · ${tr('לא נתמכת')}` : ''}</strong>
+              <span>${tr('חתימה')}</span><strong data-import-signature>${signatureText(v.signature)}</strong>
+              <span>${tr('SHA-256 של החבילה')}</span><strong class="ltr" title=${v.bundle?.sha256 ?? ''}>${shortHash(v.bundle?.sha256)}</strong>
             </div>
             ${v.files.length || v.extra.length
               ? html`<div class="files" data-import-files>
                   ${v.files.map((x) => html`<div class="r" data-import-file data-status=${x.status}><span class="path" title=${x.path}>${x.path}</span><sw-badge kind=${FILE_KIND[x.status]} label=${FILE_STATUS_LABEL[x.status]}></sw-badge><span class="hint ltr">${x.bytes == null ? '—' : formatBytes(x.bytes)}</span></div>`)}
-                  ${v.extra.map((x) => html`<div class="r" data-import-file data-status="extra"><span class="path" title=${x}>${x}</span><sw-badge kind="error" label="לא ב־manifest"></sw-badge><span></span></div>`)}
+                  ${v.extra.map((x) => html`<div class="r" data-import-file data-status="extra"><span class="path" title=${x}>${x}</span><sw-badge kind="error" label=${tr('לא ב־manifest')}></sw-badge><span></span></div>`)}
                 </div>`
               : nothing}
             ${dup
-              ? html`<div class="hint" data-import-duplicate>החבילה הזו כבר יובאה לתיק "${dup.title}". <sw-button size="sm" variant="ghost" @click=${() => { this.importOpen = false; navigate(`/investigate/cases/${dup.case_id}`); }}>פתח את התיק הקיים</sw-button></div>`
+              ? html`<div class="hint" data-import-duplicate>${tr('החבילה הזו כבר יובאה לתיק "{title}".', { title: dup.title })} <sw-button size="sm" variant="ghost" @click=${() => { this.importOpen = false; navigate(`/investigate/cases/${dup.case_id}`); }}>${tr('פתח את התיק הקיים')}</sw-button></div>`
               : nothing}
-            ${!this.canImport ? html`<div class="hint">ייבוא כתיק דורש הרשאת ניהול תיקים לכל ההתקנה; אימות מותר לכל מי שקורא תיקים.</div>` : nothing}
-            <div class="hint">${v.authenticity ?? ''} ייבוא יוצר תיק חדש לקריאה בלבד: שום דבר מהחבילה לא הופך למצלמה, לתוכנית, למשתמש או להגדרה.</div>`
+            ${!this.canImport ? html`<div class="hint">${tr('ייבוא כתיק דורש הרשאת ניהול תיקים לכל ההתקנה; אימות מותר לכל מי שקורא תיקים.')}</div>` : nothing}
+            <div class="hint">${v.authenticity ?? ''} ${tr('ייבוא יוצר תיק חדש לקריאה בלבד: שום דבר מהחבילה לא הופך למצלמה, לתוכנית, למשתמש או להגדרה.')}</div>`
         : nothing}
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.importOpen = false)}>סגור</sw-button>
-      ${this.canImport ? html`<sw-button slot="footer" variant="primary" icon="upload" data-bundle-import-confirm ?disabled=${this.importBusy || !v?.importable} @click=${() => this.importNow()}>ייבא כתיק</sw-button>` : nothing}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.importOpen = false)}>${tr('סגור')}</sw-button>
+      ${this.canImport ? html`<sw-button slot="footer" variant="primary" icon="upload" data-bundle-import-confirm ?disabled=${this.importBusy || !v?.importable} @click=${() => this.importNow()}>${tr('ייבא כתיק')}</sw-button>` : nothing}
     </sw-dialog>`;
   }
 
@@ -380,36 +381,36 @@ export class InvestigateCases extends LitElement {
    * (with a reset), and no case at all. */
   private renderList(rows: Record<string, unknown>[]) {
     if (this.loading && !this.cases.length) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (this.forbidden && !this.cases.length) return html`<sw-state-panel state="forbidden" hint="רשימת התיקים דורשת הרשאת קריאת תיקים."></sw-state-panel>`;
-    if (this.error && !this.cases.length) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.forbidden && !this.cases.length) return html`<sw-state-panel state="forbidden" hint=${tr('רשימת התיקים דורשת הרשאת קריאת תיקים.')}></sw-state-panel>`;
+    if (this.error && !this.cases.length) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.cases.length && (this.q || this.status !== 'all'))
-      return html`<sw-state-panel icon="case" state="empty" heading="לא נמצאו תיקים" hint=${this.q ? `אין תיק שמתאים ל„${this.q}”${this.status !== 'all' ? ` בסטטוס ${CASE_STATUS_LABEL[this.status]}` : ''}.` : `אין תיקים בסטטוס ${CASE_STATUS_LABEL[this.status as CaseStatus]}.`} actionLabel="הצג את כל התיקים" data-cases-no-match @action=${() => { this.q = ''; this.setStatus('all'); }}></sw-state-panel>`;
-    if (!this.cases.length) return html`<sw-state-panel icon="case" state="empty" heading="אין תיקים עדיין" hint="פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן."></sw-state-panel>`;
+      return html`<sw-state-panel icon="case" state="empty" heading=${tr('לא נמצאו תיקים')} hint=${this.q ? `${tr('אין תיק שמתאים ל„{q}”', { q: this.q })}${this.status !== 'all' ? ` ${tr('בסטטוס {status}', { status: CASE_STATUS_LABEL[this.status] })}` : ''}.` : tr('אין תיקים בסטטוס {status}.', { status: CASE_STATUS_LABEL[this.status as CaseStatus] })} actionLabel=${tr('הצג את כל התיקים')} data-cases-no-match @action=${() => { this.q = ''; this.setStatus('all'); }}></sw-state-panel>`;
+    if (!this.cases.length) return html`<sw-state-panel icon="case" state="empty" heading=${tr('אין תיקים עדיין')} hint=${tr('פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן.')}></sw-state-panel>`;
     return html`<sw-table data-cases-table .columns=${this.narrow ? NARROW_COLUMNS : API_COLUMNS} .rows=${rows} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`/investigate/cases/${e.detail.id}`)}></sw-table>`;
   }
 
   private renderApi() {
     const rows =this.cases.map((c) => ({ id: c.id, title: c.title, status: c.status, owner: c.owner_username, items: c.counts.items, clips: c.counts.events + c.counts.clips, preserved: c.counts.preserved, updated: c.updated_at, tags: c.tags.join(' · '), imported: c.origin === 'imported' }));
     return html`
-      <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מהמקליט">
-        <sw-button slot="actions" icon="upload" data-bundle-import @click=${() => this.pickImport()}>ייבוא חבילת ראיות</sw-button>
-        ${this.canManage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-case-new @click=${() => (this.creating = true)}>תיק חדש</sw-button>` : nothing}
+      <sw-page heading=${tr('תיקים')} subheading=${tr('קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מהמקליט')}>
+        <sw-button slot="actions" icon="upload" data-bundle-import @click=${() => this.pickImport()}>${tr('ייבוא חבילת ראיות')}</sw-button>
+        ${this.canManage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-case-new @click=${() => (this.creating = true)}>${tr('תיק חדש')}</sw-button>` : nothing}
         <input type="file" accept=".zip,application/zip" hidden data-bundle-import-file @change=${(e: Event) => void this.onImportFile((e.target as HTMLInputElement).files?.[0])} />
-        <div class="bar" role="toolbar" aria-label="סינון תיקים">
-          ${(['all', 'open', 'in_review', 'closed'] as const).map((s) => html`<sw-chip ?selected=${this.status === s} aria-pressed=${String(this.status === s)} data-case-status-filter=${s} @click=${() => this.setStatus(s)}>${s === 'all' ? 'הכל' : CASE_STATUS_LABEL[s]}</sw-chip>`)}
-          ${this.cases.length && !this.loading ? html`<span class="count" data-case-count aria-live="polite">${this.cases.length} תיקים</span>` : nothing}
+        <div class="bar" role="toolbar" aria-label=${tr('סינון תיקים')}>
+          ${(['all', 'open', 'in_review', 'closed'] as const).map((s) => html`<sw-chip ?selected=${this.status === s} aria-pressed=${String(this.status === s)} data-case-status-filter=${s} @click=${() => this.setStatus(s)}>${s === 'all' ? tr('הכל') : CASE_STATUS_LABEL[s]}</sw-chip>`)}
+          ${this.cases.length && !this.loading ? html`<span class="count" data-case-count aria-live="polite">${tr('{n} תיקים', { n: this.cases.length })}</span>` : nothing}
           <span class="grow"></span>
-          <sw-field><input type="search" placeholder="חיפוש בכותרת, תיאור ותגיות" aria-label="חיפוש תיקים" .value=${this.q} @input=${(e: Event) => this.onQuery((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape' && this.q) { e.stopPropagation(); this.onQuery(''); } }} /></sw-field>
+          <sw-field><input type="search" placeholder=${tr('חיפוש בכותרת, תיאור ותגיות')} aria-label=${tr('חיפוש תיקים')} .value=${this.q} @input=${(e: Event) => this.onQuery((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape' && this.q) { e.stopPropagation(); this.onQuery(''); } }} /></sw-field>
         </div>
         ${this.error && this.cases.length ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         ${this.renderList(rows)}
         ${this.creating
-          ? html`<sw-dialog open heading="תיק חדש" subheading="כותרת קצרה; פריטים נוספים מדפי האירוע, הנגן והמפה" data-case-create @close=${() => (this.creating = false)}>
-              <sw-field label="כותרת"><input data-case-title .value=${this.newTitle} @input=${(e: Event) => (this.newTitle = (e.target as HTMLInputElement).value)} /></sw-field>
-              <sw-field label="תיאור"><textarea rows="3" .value=${this.newDesc} @input=${(e: Event) => (this.newDesc = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field>
-              <sw-field label="תגיות (מופרדות בפסיק)"><input .value=${this.newTags} @input=${(e: Event) => (this.newTags = (e.target as HTMLInputElement).value)} /></sw-field>
-              <sw-button slot="footer" variant="ghost" @click=${() => (this.creating = false)}>ביטול</sw-button>
-              <sw-button slot="footer" variant="primary" icon="plus" data-case-create-confirm ?disabled=${this.busy || !this.newTitle.trim()} @click=${() => this.create()}>צור תיק</sw-button>
+          ? html`<sw-dialog open heading=${tr('תיק חדש')} subheading=${tr('כותרת קצרה; פריטים נוספים מדפי האירוע, הנגן והמפה')} data-case-create @close=${() => (this.creating = false)}>
+              <sw-field label=${tr('כותרת')}><input data-case-title .value=${this.newTitle} @input=${(e: Event) => (this.newTitle = (e.target as HTMLInputElement).value)} /></sw-field>
+              <sw-field label=${tr('תיאור')}><textarea rows="3" .value=${this.newDesc} @input=${(e: Event) => (this.newDesc = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field>
+              <sw-field label=${tr('תגיות (מופרדות בפסיק)')}><input .value=${this.newTags} @input=${(e: Event) => (this.newTags = (e.target as HTMLInputElement).value)} /></sw-field>
+              <sw-button slot="footer" variant="ghost" @click=${() => (this.creating = false)}>${tr('ביטול')}</sw-button>
+              <sw-button slot="footer" variant="primary" icon="plus" data-case-create-confirm ?disabled=${this.busy || !this.newTitle.trim()} @click=${() => this.create()}>${tr('צור תיק')}</sw-button>
             </sw-dialog>`
           : nothing}
         ${this.importOpen ? this.renderImportDialog() : nothing}
@@ -420,8 +421,8 @@ export class InvestigateCases extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת ו־hash · נתוני הדגמה">
-        <sw-button slot="actions" variant="primary" icon="plus">תיק חדש</sw-button>
+      <sw-page heading=${tr('תיקים')} subheading=${tr('קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת ו־hash · נתוני הדגמה')}>
+        <sw-button slot="actions" variant="primary" icon="plus">${tr('תיק חדש')}</sw-button>
         <sw-table .columns=${columns} .rows=${demoCases} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`/investigate/cases/${e.detail.id}`)}></sw-table>
       </sw-page>
     `;
@@ -931,21 +932,21 @@ export class InvestigateCaseDetail extends LitElement {
 
   private renderBundleCard(d: CaseDetail) {
     const v = this.verifyResult;
-    return html`<sw-card heading="חבילת ראיות" subheading="ZIP עם הקטעים השמורים, התמונות, ההערות, manifest עם SHA-256 לכל קובץ ודוח קריא" data-bundle>
-      ${d.can_manage ? html`<sw-button size="sm" variant="primary" icon="download" data-bundle-create ?disabled=${this.busy} @click=${() => void this.run(async () => { await createBundle(d.id); }, 'החבילה נוצרה; פריטים שאינם עותק שמור מופיעים בה כ"לא נכללו"')}>צור חבילת ראיות</sw-button>` : nothing}
+    return html`<sw-card heading=${tr('חבילת ראיות')} subheading=${tr('ZIP עם הקטעים השמורים, התמונות, ההערות, manifest עם SHA-256 לכל קובץ ודוח קריא')} data-bundle>
+      ${d.can_manage ? html`<sw-button size="sm" variant="primary" icon="download" data-bundle-create ?disabled=${this.busy} @click=${() => void this.run(async () => { await createBundle(d.id); }, tr('החבילה נוצרה; פריטים שאינם עותק שמור מופיעים בה כ"לא נכללו"'))}>${tr('צור חבילת ראיות')}</sw-button>` : nothing}
       ${this.bundles.length
-        ? html`<div class="items" style="margin-block-start:8px">${this.bundles.map((b) => html`<div class="item" data-bundle-row style="grid-template-columns:minmax(0,1fr) auto"><div class="body"><strong class="ltr">${b.name}</strong><span class="meta">${formatBytes(b.bytes)} · ${this.fmt(b.created_at)}${b.signed ? ` · חתום · מפתח ${b.signed}` : ' · ללא חתימה'}</span></div><div class="acts"><a href=${bundleUrl(d.id, b.name)} download><sw-button size="sm" icon="download">הורדה</sw-button></a></div></div>`)}</div>`
-        : html`<div class="hint" style="margin-block-start:6px">עדיין לא נוצרה חבילה לתיק הזה.</div>`}
-      <div class="composer"><sw-field label="אימות חבילה (בחר קובץ ZIP שהורד)"><input type="file" accept=".zip,application/zip" data-bundle-verify-file @change=${(e: Event) => void this.verify((e.target as HTMLInputElement).files?.[0])} /></sw-field></div>
+        ? html`<div class="items" style="margin-block-start:8px">${this.bundles.map((b) => html`<div class="item" data-bundle-row style="grid-template-columns:minmax(0,1fr) auto"><div class="body"><strong class="ltr">${b.name}</strong><span class="meta">${formatBytes(b.bytes)} · ${this.fmt(b.created_at)}${b.signed ? ` · ${tr('חתום · מפתח {kid}', { kid: b.signed })}` : ` · ${tr('ללא חתימה')}`}</span></div><div class="acts"><a href=${bundleUrl(d.id, b.name)} download><sw-button size="sm" icon="download">${tr('הורדה')}</sw-button></a></div></div>`)}</div>`
+        : html`<div class="hint" style="margin-block-start:6px">${tr('עדיין לא נוצרה חבילה לתיק הזה.')}</div>`}
+      <div class="composer"><sw-field label=${tr('אימות חבילה (בחר קובץ ZIP שהורד)')}><input type="file" accept=".zip,application/zip" data-bundle-verify-file @change=${(e: Event) => void this.verify((e.target as HTMLInputElement).files?.[0])} /></sw-field></div>
       ${v
-        ? html`<div class="note" data-bundle-verify-result>${v.ok ? `החבילה אומתה: ${v.files.length} קבצים תואמים ל־manifest${v.case ? ` · תיק "${v.case}"` : ''}` : `האימות נכשל${v.errors.length ? `: ${v.errors.join(', ')}` : ''}`}
+        ? html`<div class="note" data-bundle-verify-result>${v.ok ? `${tr('החבילה אומתה: {n} קבצים תואמים ל־manifest', { n: v.files.length })}${v.case ? ` · ${tr('תיק "{title}"', { title: v.case })}` : ''}` : `${tr('האימות נכשל')}${v.errors.length ? `: ${v.errors.join(', ')}` : ''}`}
             ${v.files.some((f) => f.status !== 'ok') || v.extra.length ? html`<ul class="hint" style="margin:4px 0 0;padding-inline-start:18px">${v.files.filter((f) => f.status !== 'ok').map((f) => html`<li class="ltr">${f.path}: ${f.status}</li>`)}${v.extra.map((x) => html`<li class="ltr">${x}: extra</li>`)}</ul>` : nothing}
             ${v.signature ? html`<div data-bundle-signature data-signature-trust=${v.signature.trust}>${signatureText(v.signature)}</div>` : nothing}
             ${v.summary ? html`<div class="hint" style="margin-block-start:4px" data-bundle-verify-summary>${v.summary}</div>` : nothing}
             ${v.authenticity ? html`<div class="hint" style="margin-block-start:4px">${v.authenticity}</div>` : nothing}
           </div>`
         : nothing}
-      <details class="more" data-bundle-proof><summary>מה החבילה מוכיחה</summary><div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.</div></details>
+      <details class="more" data-bundle-proof><summary>${tr('מה החבילה מוכיחה')}</summary><div class="hint" style="margin-block-start:6px">${tr('SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.')}</div></details>
     </sw-card>`;
   }
 
@@ -966,35 +967,35 @@ export class InvestigateCaseDetail extends LitElement {
     const p = d.provenance;
     if (d.origin !== 'imported' || !p) return nothing;
     const producer = producerOf(p);
-    const where = { this_confirmed: 'מהתקנה זו (מאושר בחתימה)', this_claimed: 'לכאורה מהתקנה זו — לפי המזהה בלבד, לא מאושר בחתימה', other: 'מהתקנה אחרת', unknown: 'מהתקנה לא ידועה' }[producer];
+    const where = { this_confirmed: tr('מהתקנה זו (מאושר בחתימה)'), this_claimed: tr('לכאורה מהתקנה זו — לפי המזהה בלבד, לא מאושר בחתימה'), other: tr('מהתקנה אחרת'), unknown: tr('מהתקנה לא ידועה') }[producer];
     const ch = this.integrity;
     return html`<sw-card data-case-provenance data-this-installation=${String(p.this_installation ?? 'unknown')} data-producer=${producer}>
       <div class="prov">
         <sw-icon name="shield" size=${18}></sw-icon>
         <div class="body">
-          <strong data-provenance-headline>יובא ${where} ב־${this.fmt(p.imported_at)}; hash ${p.verification.ok ? 'תואם' : 'לא תואם'} (${p.verification.files} קבצים נבדקו בייבוא)</strong>
-          <span class="meta">במקור: "${p.source_case.title ?? '—'}" · יוצא ${p.exported_at ? this.fmt(p.exported_at) : '—'}${p.exported_by_display || p.exported_by ? ` על ידי ${p.exported_by_display || p.exported_by}` : ''} · Arx ${p.source_app_version ?? '?'}</span>
-          <span class="meta">התקנת מקור <span class="ltr">${p.source_installation_id ?? '—'}</span> · ${signatureText({ present: p.signature.present, valid: p.signature.valid, kid: p.signature.kid, known: p.signature.known, retired: p.signature.retired, trust: p.signature.trust })}</span>
-          <span class="meta">חבילה <span class="ltr" title=${p.bundle_sha256}>SHA-256 ${shortHash(p.bundle_sha256)}</span> · ${formatBytes(p.bundle_bytes)} · יובא על ידי ${p.imported_by ?? '—'}${p.skipped_at_source ? ` · ${p.skipped_at_source} פריטים לא נכללו כבר במקור` : ''}</span>
+          <strong data-provenance-headline>${tr('יובא {where} ב־{time}; hash {match} ({n} קבצים נבדקו בייבוא)', { where, time: this.fmt(p.imported_at), match: p.verification.ok ? tr('תואם') : tr('לא תואם'), n: p.verification.files })}</strong>
+          <span class="meta">${tr('במקור: "{title}"', { title: p.source_case.title ?? '—' })} · ${tr('יוצא {time}', { time: p.exported_at ? this.fmt(p.exported_at) : '—' })}${p.exported_by_display || p.exported_by ? ` ${tr('על ידי {name}', { name: p.exported_by_display || p.exported_by || '' })}` : ''} · Arx ${p.source_app_version ?? '?'}</span>
+          <span class="meta">${tr('התקנת מקור')} <span class="ltr">${p.source_installation_id ?? '—'}</span> · ${signatureText({ present: p.signature.present, valid: p.signature.valid, kid: p.signature.kid, known: p.signature.known, retired: p.signature.retired, trust: p.signature.trust })}</span>
+          <span class="meta">${tr('חבילה')} <span class="ltr" title=${p.bundle_sha256}>SHA-256 ${shortHash(p.bundle_sha256)}</span> · ${formatBytes(p.bundle_bytes)} · ${tr('יובא על ידי {name}', { name: p.imported_by ?? '—' })}${p.skipped_at_source ? ` · ${tr('{n} פריטים לא נכללו כבר במקור', { n: p.skipped_at_source })}` : ''}</span>
           ${ch
-            ? html`<span class=${ch.ok ? 'ok' : 'err'} data-case-integrity-result data-ok=${String(ch.ok)}>${ch.ok ? (ch.files.length ? `בדיקה חוזרת ${this.fmt(ch.checked_at)}: hash תואם — ${ch.files.length} קבצים לא השתנו מאז הייבוא` : `בדיקה חוזרת ${this.fmt(ch.checked_at)}: אין בתיק קבצים שמורים לבדוק`) : `בדיקה חוזרת ${this.fmt(ch.checked_at)}: hash לא תואם — ${ch.files.filter((f) => f.status !== 'ok').length} מתוך ${ch.files.length} קבצים שונו או חסרים`}</span>`
+            ? html`<span class=${ch.ok ? 'ok' : 'err'} data-case-integrity-result data-ok=${String(ch.ok)}>${ch.ok ? (ch.files.length ? tr('בדיקה חוזרת {time}: hash תואם — {n} קבצים לא השתנו מאז הייבוא', { time: this.fmt(ch.checked_at), n: ch.files.length }) : tr('בדיקה חוזרת {time}: אין בתיק קבצים שמורים לבדוק', { time: this.fmt(ch.checked_at) })) : tr('בדיקה חוזרת {time}: hash לא תואם — {n} מתוך {total} קבצים שונו או חסרים', { time: this.fmt(ch.checked_at), n: ch.files.filter((f) => f.status !== 'ok').length, total: ch.files.length })}</span>`
             : nothing}
-          <span class="hint">התאמת hash מוכיחה שהקבצים לא שונו מאז הייצוא; היא אינה מוכיחה שהצילום אמיתי. פריטים מיובאים הם לקריאה בלבד; מחיקת התיק מסירה גם את הקבצים המיובאים.</span>
+          <span class="hint">${tr('התאמת hash מוכיחה שהקבצים לא שונו מאז הייצוא; היא אינה מוכיחה שהצילום אמיתי. פריטים מיובאים הם לקריאה בלבד; מחיקת התיק מסירה גם את הקבצים המיובאים.')}</span>
         </div>
-        <sw-button size="sm" icon="refresh" data-case-integrity ?disabled=${this.busy} @click=${() => void this.recheck(d)}>בדיקת hash חוזרת</sw-button>
+        <sw-button size="sm" icon="refresh" data-case-integrity ?disabled=${this.busy} @click=${() => void this.recheck(d)}>${tr('בדיקת hash חוזרת')}</sw-button>
       </div>
     </sw-card>`;
   }
 
   private renderItem(it: CaseItem, d: CaseDetail) {
-    const kind = it.kind === 'event' ? `אירוע · ${EVENT_LABEL[(it.event?.type ?? 'other') as EventKind] ?? it.event?.type ?? ''}` : it.kind === 'clip' ? 'קטע הקלטה' : it.kind === 'snapshot' ? 'תמונה' : 'הערה';
+    const kind = it.kind === 'event' ? `${tr('אירוע')} · ${EVENT_LABEL[(it.event?.type ?? 'other') as EventKind] ?? it.event?.type ?? ''}` : it.kind === 'clip' ? tr('קטע הקלטה') : it.kind === 'snapshot' ? tr('תמונה') : tr('הערה');
     const pres = it.preservation;
     const at = it.kind === 'event' && it.event ? it.event.occurred_at : it.from_at;
     const thumb =
       it.kind === 'note'
         ? html`<div class="thumb"><sw-icon name="edit" size=${18}></sw-icon></div>`
         : it.kind === 'snapshot' && it.file_path
-          ? html`<img class="thumb" src=${caseItemFileUrl(d.id, it.id)} alt="תמונה מהמצלמה" />`
+          ? html`<img class="thumb" src=${caseItemFileUrl(d.id, it.id)} alt=${tr('תמונה מהמצלמה')} />`
           : it.imported
           ? html`<div class="thumb"><sw-icon name=${it.file_path ? 'case' : 'bookmark'} size=${18}></sw-icon></div>`
           : it.kind === 'event' && it.event?.thumbnail === 'ready' && it.event_id
@@ -1006,29 +1007,29 @@ export class InvestigateCaseDetail extends LitElement {
     return html`<div class="item" data-case-item data-kind=${it.kind} data-preservation=${pres} ?data-imported=${Boolean(it.imported)}>
       ${thumb}
       <div class="body">
-        <div class="head"><strong>${kind}</strong>${it.camera_name ? html`<span>· ${it.camera_name}${it.imported ? ' (מצלמת המקור)' : ''}</span>` : nothing}${pres !== 'none' ? html`<sw-badge kind=${PRES_KIND[pres]} label=${PRESERVATION_LABEL[pres]}></sw-badge>` : nothing}${it.imported ? html`<sw-badge kind="historic" label="מיובא · לקריאה בלבד"></sw-badge>` : nothing}</div>
+        <div class="head"><strong>${kind}</strong>${it.camera_name ? html`<span>· ${it.camera_name}${it.imported ? ` ${tr('(מצלמת המקור)')}` : ''}</span>` : nothing}${pres !== 'none' ? html`<sw-badge kind=${PRES_KIND[pres]} label=${PRESERVATION_LABEL[pres]}></sw-badge>` : nothing}${it.imported ? html`<sw-badge kind="historic" label=${tr('מיובא · לקריאה בלבד')}></sw-badge>` : nothing}</div>
         ${it.from_at && it.to_at ? html`<div class="range ltr">${this.fmt(it.from_at)} → ${this.fmt(it.to_at)}</div>` : nothing}
         ${it.note ? html`<div>${it.note}</div>` : nothing}
         <div class="meta">${o
-          ? `במקור: ${o.added_by ?? '—'}${o.created_at ? ` · ${this.fmt(o.created_at)}` : ''} · יובא על ידי ${it.added_by_username}${pres === 'missing' ? ' · הקובץ המיובא חסר בדיסק' : ''}`
-          : html`${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ייצוא: ${it.export.error}` : ''}${pres === 'missing' ? ' · לא ניתן לשמר: ההקלטה כבר לא במקליט' : ''}`}</div>
+          ? `${tr('במקור: {name}', { name: o.added_by ?? '—' })}${o.created_at ? ` · ${this.fmt(o.created_at)}` : ''} · ${tr('יובא על ידי {name}', { name: it.added_by_username })}${pres === 'missing' ? ` · ${tr('הקובץ המיובא חסר בדיסק')}` : ''}`
+          : html`${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ${tr('ייצוא: {error}', { error: it.export.error })}` : ''}${pres === 'missing' ? ` · ${tr('לא ניתן לשמר: ההקלטה כבר לא במקליט')}` : ''}`}</div>
       </div>
       <div class="acts">
-        ${it.camera_id && at && it.kind !== 'snapshot' ? html`<sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: it.camera_id ?? '', t: at })}>נגן</sw-button>` : nothing}
+        ${it.camera_id && at && it.kind !== 'snapshot' ? html`<sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: it.camera_id ?? '', t: at })}>${tr('נגן')}</sw-button>` : nothing}
         ${(it.kind === 'snapshot' || it.imported) && it.file_sha256 ? html`<span class="meta ltr" title="SHA-256">${it.file_sha256.slice(0, 12)}…</span>` : nothing}
-        ${it.imported && it.file_path && it.kind !== 'snapshot' ? html`<a href=${caseItemFileUrl(d.id, it.id)} download data-item-file><sw-button size="sm" variant="ghost" icon="download">הורדה</sw-button></a>` : nothing}
-        ${it.event_id ? html`<sw-button size="sm" variant="ghost" icon="bell" @click=${() => navigate(`/investigate/events/${it.event_id}`)}>אירוע</sw-button>` : nothing}
-        ${d.can_manage && it.kind !== 'note' && (pres === 'nvr_only' || pres === 'unknown') ? html`<sw-button size="sm" icon="download" data-item-preserve ?disabled=${this.busy} @click=${() => void this.run(() => preserveCaseItem(d.id, it.id).then(() => undefined), 'עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים')}>שמור עותק</sw-button>` : nothing}
-        ${it.export?.download_ready ? html`<a href=${exportDownloadUrl(it.export.id)} download><sw-button size="sm" variant="ghost" icon="download">הורדה</sw-button></a>` : nothing}
-        ${d.can_manage && !it.imported ? html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="הסר מהתיק" data-item-remove ?disabled=${this.busy} @click=${() => void this.run(() => removeCaseItem(d.id, it.id).then(() => undefined))}></sw-button>` : nothing}
+        ${it.imported && it.file_path && it.kind !== 'snapshot' ? html`<a href=${caseItemFileUrl(d.id, it.id)} download data-item-file><sw-button size="sm" variant="ghost" icon="download">${tr('הורדה')}</sw-button></a>` : nothing}
+        ${it.event_id ? html`<sw-button size="sm" variant="ghost" icon="bell" @click=${() => navigate(`/investigate/events/${it.event_id}`)}>${tr('אירוע')}</sw-button>` : nothing}
+        ${d.can_manage && it.kind !== 'note' && (pres === 'nvr_only' || pres === 'unknown') ? html`<sw-button size="sm" icon="download" data-item-preserve ?disabled=${this.busy} @click=${() => void this.run(() => preserveCaseItem(d.id, it.id).then(() => undefined), tr('עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים'))}>${tr('שמור עותק')}</sw-button>` : nothing}
+        ${it.export?.download_ready ? html`<a href=${exportDownloadUrl(it.export.id)} download><sw-button size="sm" variant="ghost" icon="download">${tr('הורדה')}</sw-button></a>` : nothing}
+        ${d.can_manage && !it.imported ? html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('הסר מהתיק')} data-item-remove ?disabled=${this.busy} @click=${() => void this.run(() => removeCaseItem(d.id, it.id).then(() => undefined))}></sw-button>` : nothing}
       </div>
     </div>`;
   }
 
   private renderApi() {
-    if (this.error && !this.data) return html`<sw-page heading="תיק"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
+    if (this.error && !this.data) return html`<sw-page heading=${tr('תיק')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
     const d = this.data;
-    if (!d) return html`<sw-page heading="תיק"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!d) return html`<sw-page heading=${tr('תיק')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const c = d.counts;
     const missing = d.items.filter((i) => i.preservation === 'missing').length;
     const copying = d.items.filter((i) => i.preservation === 'preserving').length;
@@ -1036,57 +1037,57 @@ export class InvestigateCaseDetail extends LitElement {
     const updated = agoText(d.updated_at) ?? this.fmt(d.updated_at);
     const composer = d.can_manage && d.status !== 'closed';
     return html`
-      <sw-page class="api" heading=${d.title} subheading=${`${CASE_STATUS_LABEL[d.status]} · בעלים: ${d.owner_username} · עודכן ${updated}`} crumbs="חקירה | תיקים" wide>
+      <sw-page class="api" heading=${d.title} subheading=${`${CASE_STATUS_LABEL[d.status]} · ${tr('בעלים: {name}', { name: d.owner_username })} · ${tr('עודכן {time}', { time: updated })}`} crumbs=${`${tr('חקירה')} | ${tr('תיקים')}`} wide>
         ${d.can_manage
-          ? html`<sw-field slot="actions"><select aria-label="סטטוס" data-case-status ?disabled=${this.busy} @change=${(e: Event) => this.patchCase({ status: (e.target as HTMLSelectElement).value as CaseStatus })}>${(Object.keys(CASE_STATUS_LABEL) as CaseStatus[]).map((s) => html`<option value=${s} ?selected=${s === d.status}>${CASE_STATUS_LABEL[s]}</option>`)}</select></sw-field>
-              <sw-button slot="actions" icon="edit" data-case-edit @click=${() => { this.editTitle = d.title; this.editDesc = d.description; this.editTags = d.tags.join(', '); this.editing = true; }}>עריכה</sw-button>
-              <sw-button slot="actions" variant="ghost" icon="trash" data-case-delete @click=${() => (this.confirmDelete = true)}>מחיקה</sw-button>`
+          ? html`<sw-field slot="actions"><select aria-label=${tr('סטטוס')} data-case-status ?disabled=${this.busy} @change=${(e: Event) => this.patchCase({ status: (e.target as HTMLSelectElement).value as CaseStatus })}>${(Object.keys(CASE_STATUS_LABEL) as CaseStatus[]).map((s) => html`<option value=${s} ?selected=${s === d.status}>${CASE_STATUS_LABEL[s]}</option>`)}</select></sw-field>
+              <sw-button slot="actions" icon="edit" data-case-edit @click=${() => { this.editTitle = d.title; this.editDesc = d.description; this.editTags = d.tags.join(', '); this.editing = true; }}>${tr('עריכה')}</sw-button>
+              <sw-button slot="actions" variant="ghost" icon="trash" data-case-delete @click=${() => (this.confirmDelete = true)}>${tr('מחיקה')}</sw-button>`
           : nothing}
-        <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/cases')}>לרשימת התיקים</sw-button>
+        <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/cases')}>${tr('לרשימת התיקים')}</sw-button>
         ${this.error ? html`<div class="err" role="alert" data-case-error>${this.error}</div>` : nothing}
         ${this.info ? html`<div class="ok" role="status" data-case-info>${this.info}</div>` : nothing}
         <div class="cols">
           <div class="col main">
             ${this.renderProvenance(d)}
-            <sw-card heading="ראיות והערות" subheading=${d.checked ? 'מצב השימור נבדק מול המקליט עכשיו' : 'מצב השימור לא נבדק מול המקליט'}>
+            <sw-card heading=${tr('ראיות והערות')} subheading=${d.checked ? tr('מצב השימור נבדק מול המקליט עכשיו') : tr('מצב השימור לא נבדק מול המקליט')}>
               <div class="stats" data-case-stats>
-                <span class="r5-well"><span class="r5-num">${c.items}</span><span class="r5-sub">פריטים</span></span>
-                <span class="r5-well" data-tone=${c.preserved ? 'ok' : nothing}><span class="r5-num">${c.preserved}</span><span class="r5-sub">עותקים שמורים</span></span>
-                ${copying ? html`<span class="r5-well"><span class="r5-num">${copying}</span><span class="r5-sub">בהעתקה</span></span>` : nothing}
-                ${linkOnly ? html`<span class="r5-well" data-tone="warn"><span class="r5-num">${linkOnly}</span><span class="r5-sub">סימנייה בלבד</span></span>` : nothing}
-                ${missing ? html`<span class="r5-well" data-tone="bad"><span class="r5-num">${missing}</span><span class="r5-sub">חסרים</span></span>` : nothing}
+                <span class="r5-well"><span class="r5-num">${c.items}</span><span class="r5-sub">${tr('פריטים')}</span></span>
+                <span class="r5-well" data-tone=${c.preserved ? 'ok' : nothing}><span class="r5-num">${c.preserved}</span><span class="r5-sub">${tr('עותקים שמורים')}</span></span>
+                ${copying ? html`<span class="r5-well"><span class="r5-num">${copying}</span><span class="r5-sub">${tr('בהעתקה')}</span></span>` : nothing}
+                ${linkOnly ? html`<span class="r5-well" data-tone="warn"><span class="r5-num">${linkOnly}</span><span class="r5-sub">${tr('סימנייה בלבד')}</span></span>` : nothing}
+                ${missing ? html`<span class="r5-well" data-tone="bad"><span class="r5-num">${missing}</span><span class="r5-sub">${tr('חסרים')}</span></span>` : nothing}
               </div>
-              ${d.items.length ? html`<div class="items" data-case-items>${d.items.map((it) => this.renderItem(it, d))}</div>` : html`<div class="hint">עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).</div>`}
-              ${d.hidden_items ? html`<div class="hint">${d.hidden_items} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.</div>` : nothing}
-              <div class="hint" style="margin-block-start:10px">סימנייה מצביעה על ההקלטה במקליט ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שהמקליט כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
+              ${d.items.length ? html`<div class="items" data-case-items>${d.items.map((it) => this.renderItem(it, d))}</div>` : html`<div class="hint">${tr('עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).')}</div>`}
+              ${d.hidden_items ? html`<div class="hint">${tr('{n} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.', { n: d.hidden_items })}</div>` : nothing}
+              <div class="hint" style="margin-block-start:10px">${tr('סימנייה מצביעה על ההקלטה במקליט ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שהמקליט כבר מחק מוצג כחסר ולעולם לא כשמור.')}</div>
             </sw-card>
           </div>
           <div class="col side">
             ${d.description || d.tags.length
-              ? html`<sw-card heading="תיאור">${d.description ? html`<div class="desc" data-case-description>${d.description}</div>` : nothing}${d.tags.length ? html`<div class="tags">${d.tags.map((t) => html`<sw-chip>${t}</sw-chip>`)}</div>` : nothing}</sw-card>`
+              ? html`<sw-card heading=${tr('תיאור')}>${d.description ? html`<div class="desc" data-case-description>${d.description}</div>` : nothing}${d.tags.length ? html`<div class="tags">${d.tags.map((t) => html`<sw-chip>${t}</sw-chip>`)}</div>` : nothing}</sw-card>`
               : nothing}
             ${composer
-              ? html`<sw-card heading="הוספה לתיק" data-case-composer>
-                  <div class="composer" style="margin-block-start:0"><sw-field label="הערה חדשה"><textarea rows="2" data-note-text .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && this.noteText.trim() && !this.busy) void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; }); }}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; })}>הוסף הערה</sw-button></div>
-                  <div class="composer"><sw-field label="תמונה ממצלמה לתיק (עותק שמור מיידי)"><select aria-label="מצלמה לצילום" data-snapshot-camera @change=${(e: Event) => (this.snapCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.snapCam}>${c.name}</option>`)}</select></sw-field><sw-button size="sm" icon="camera" data-snapshot-add ?disabled=${this.busy || !this.snapCam} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'snapshot', camera_id: this.snapCam }); }, 'התמונה נשמרה בתיק עם ה־hash שלה')}>צלם תמונה לתיק</sw-button></div>
+              ? html`<sw-card heading=${tr('הוספה לתיק')} data-case-composer>
+                  <div class="composer" style="margin-block-start:0"><sw-field label=${tr('הערה חדשה')}><textarea rows="2" data-note-text .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && this.noteText.trim() && !this.busy) void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; }); }}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; })}>${tr('הוסף הערה')}</sw-button></div>
+                  <div class="composer"><sw-field label=${tr('תמונה ממצלמה לתיק (עותק שמור מיידי)')}><select aria-label=${tr('מצלמה לצילום')} data-snapshot-camera @change=${(e: Event) => (this.snapCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.snapCam}>${c.name}</option>`)}</select></sw-field><sw-button size="sm" icon="camera" data-snapshot-add ?disabled=${this.busy || !this.snapCam} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'snapshot', camera_id: this.snapCam }); }, tr('התמונה נשמרה בתיק עם ה־hash שלה'))}>${tr('צלם תמונה לתיק')}</sw-button></div>
                 </sw-card>`
               : nothing}
             ${this.renderBundleCard(d)}
           </div>
         </div>
         ${this.editing
-          ? html`<sw-dialog open heading="עריכת תיק" data-case-edit-dialog @close=${() => (this.editing = false)}>
-              <sw-field label="כותרת"><input data-edit-title .value=${this.editTitle} @input=${(e: Event) => (this.editTitle = (e.target as HTMLInputElement).value)} /></sw-field>
-              <sw-field label="תיאור"><textarea rows="4" data-edit-description .value=${this.editDesc} @input=${(e: Event) => (this.editDesc = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field>
-              <sw-field label="תגיות (מופרדות בפסיק)"><input .value=${this.editTags} @input=${(e: Event) => (this.editTags = (e.target as HTMLInputElement).value)} /></sw-field>
-              <sw-button slot="footer" variant="ghost" @click=${() => (this.editing = false)}>ביטול</sw-button>
-              <sw-button slot="footer" variant="primary" icon="check" data-case-edit-save ?disabled=${this.busy || !this.editTitle.trim()} @click=${() => { this.editing = false; this.patchCase({ title: this.editTitle.trim(), description: this.editDesc, tags: this.editTags.split(',').map((t) => t.trim()).filter(Boolean) }); }}>שמירה</sw-button>
+          ? html`<sw-dialog open heading=${tr('עריכת תיק')} data-case-edit-dialog @close=${() => (this.editing = false)}>
+              <sw-field label=${tr('כותרת')}><input data-edit-title .value=${this.editTitle} @input=${(e: Event) => (this.editTitle = (e.target as HTMLInputElement).value)} /></sw-field>
+              <sw-field label=${tr('תיאור')}><textarea rows="4" data-edit-description .value=${this.editDesc} @input=${(e: Event) => (this.editDesc = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field>
+              <sw-field label=${tr('תגיות (מופרדות בפסיק)')}><input .value=${this.editTags} @input=${(e: Event) => (this.editTags = (e.target as HTMLInputElement).value)} /></sw-field>
+              <sw-button slot="footer" variant="ghost" @click=${() => (this.editing = false)}>${tr('ביטול')}</sw-button>
+              <sw-button slot="footer" variant="primary" icon="check" data-case-edit-save ?disabled=${this.busy || !this.editTitle.trim()} @click=${() => { this.editing = false; this.patchCase({ title: this.editTitle.trim(), description: this.editDesc, tags: this.editTags.split(',').map((t) => t.trim()).filter(Boolean) }); }}>${tr('שמירה')}</sw-button>
             </sw-dialog>`
           : nothing}
         ${this.confirmDelete
-          ? html`<sw-dialog open heading="מחיקת תיק" subheading="הפריטים בתיק יימחקו; ההקלטות במקליט והעותקים שיוצאו נשארים" @close=${() => (this.confirmDelete = false)}>
-              <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = false)}>ביטול</sw-button>
-              <sw-button slot="footer" variant="danger" icon="trash" data-case-delete-confirm ?disabled=${this.busy} @click=${() => { this.confirmDelete = false; void this.run(async () => { await deleteCase(d.id); navigate('/investigate/cases'); }); }}>מחק תיק</sw-button>
+          ? html`<sw-dialog open heading=${tr('מחיקת תיק')} subheading=${tr('הפריטים בתיק יימחקו; ההקלטות במקליט והעותקים שיוצאו נשארים')} @close=${() => (this.confirmDelete = false)}>
+              <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = false)}>${tr('ביטול')}</sw-button>
+              <sw-button slot="footer" variant="danger" icon="trash" data-case-delete-confirm ?disabled=${this.busy} @click=${() => { this.confirmDelete = false; void this.run(async () => { await deleteCase(d.id); navigate('/investigate/cases'); }); }}>${tr('מחק תיק')}</sw-button>
             </sw-dialog>`
           : nothing}
       </sw-page>
@@ -1097,45 +1098,45 @@ export class InvestigateCaseDetail extends LitElement {
     if (isApi()) return this.renderApi();
     const c = demoCases.find((x) => x.id === this.caseId) ?? demoCases[0];
     return html`
-      <sw-page heading="סקירת אירוע" subheading=${`${c.title} · בעלים: ${c.owner} · נתוני הדגמה`} crumbs="אירועים | תיקים | 13.09.2026 10:12 | כניסה ראשית">
-        <sw-field slot="actions"><select aria-label="סטטוס"><option>${c.status}</option><option>בבדיקה</option><option>סגור</option></select></sw-field>
+      <sw-page heading=${tr('סקירת אירוע')} subheading=${`${c.title} · ${tr('בעלים: {name}', { name: c.owner })} · ${tr('נתוני הדגמה')}`} crumbs=${`${tr('אירועים')} | ${tr('תיקים')} | 13.09.2026 10:12 | כניסה ראשית`}>
+        <sw-field slot="actions"><select aria-label=${tr('סטטוס')}><option>${c.status}</option><option>${tr('בבדיקה')}</option><option>${tr('סגור')}</option></select></sw-field>
         <div class="wrap">
           <div class="video">
             <sw-scene kind="entrance"></sw-scene>
             <span class="stamp">2026-09-13 10:12:04</span>
-            <span class="demo">דמו · הקטע ינוגן מהתיק (T050)</span>
+            <span class="demo">${tr('דמו · הקטע ינוגן מהתיק (T050)')}</span>
             <div class="bar">
-              <sw-button variant="ghost" size="sm" iconOnly icon="play" label="נגן"></sw-button>
+              <sw-button variant="ghost" size="sm" iconOnly icon="play" label=${tr('נגן')}></sw-button>
               <span class="ltr">0:00 / 0:13</span>
               <span class="track"><i></i></span>
-              <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="אחורה"></sw-button>
-              <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא"></sw-button>
+              <sw-button variant="ghost" size="sm" iconOnly icon="back10" label=${tr('אחורה')}></sw-button>
+              <sw-button variant="ghost" size="sm" iconOnly icon="expand" label=${tr('מסך מלא')}></sw-button>
             </div>
           </div>
           <div class="clips">
             <div class="clip on"><sw-scene kind="entrance"></sw-scene><span class="t">00:00</span></div>
             <div class="clip"><sw-scene kind="lobby"></sw-scene><span class="t">00:06</span></div>
-            <div class="clip missing"><span>מסדרון 10:15</span><sw-badge filled kind="error" label="לא שמור: המקליט מחק"></sw-badge></div>
-            <div class="add"><span><sw-icon name="plus" size=${14}></sw-icon> הוסף קטע</span></div>
+            <div class="clip missing"><span>${tr('מסדרון 10:15')}</span><sw-badge filled kind="error" label=${tr('לא שמור: המקליט מחק')}></sw-badge></div>
+            <div class="add"><span><sw-icon name="plus" size=${14}></sw-icon> ${tr('הוסף קטע')}</span></div>
           </div>
-          <sw-tabs .items=${[{ id: 'details', label: 'פרטים' }, { id: 'notes', label: 'הערות', count: 2 }, { id: 'related', label: 'מצלמות קשורות', count: 3 }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+          <sw-tabs .items=${[{ id: 'details', label: tr('פרטים') }, { id: 'notes', label: tr('הערות'), count: 2 }, { id: 'related', label: tr('מצלמות קשורות'), count: 3 }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
           ${this.tab === 'details'
             ? html`<div class="form">
                 <div class="stack">
-                  <sw-field label="כותרת"><input value=${c.title} /></sw-field>
-                  <sw-field label="תיאור"><textarea rows="3">אדם נכנס אחרי פתיחת הדלת ב־10:12. לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).</textarea></sw-field>
+                  <sw-field label=${tr('כותרת')}><input value=${c.title} /></sw-field>
+                  <sw-field label=${tr('תיאור')}><textarea rows="3">אדם נכנס אחרי פתיחת הדלת ב־10:12. לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).</textarea></sw-field>
                 </div>
                 <div class="pills">
                   <div class="pill"><sw-icon name="calendar" size=${14}></sw-icon>13.09.2026 · 10:12</div>
-                  <div class="pill"><sw-icon name="camera" size=${14}></sw-icon>כניסה ראשית · לובי</div>
-                  <div class="pill"><sw-icon name="shield" size=${14}></sw-icon>2/3 ראיות שמורות · sha256</div>
+                  <div class="pill"><sw-icon name="camera" size=${14}></sw-icon>${tr('כניסה ראשית · לובי')}</div>
+                  <div class="pill"><sw-icon name="shield" size=${14}></sw-icon>${tr('2/3 ראיות שמורות · sha256')}</div>
                 </div>
               </div>`
             : this.tab === 'notes'
               ? html`<sw-card>
                   <div class="note">נראה אדם נכנס אחרי פתיחת הדלת ב־10:12.<small>יוני · 10:40</small></div>
                   <div class="note">לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).<small>יוסי · 10:52</small></div>
-                  <sw-field style="margin-block-start:8px"><textarea rows="2" placeholder="הערה חדשה…"></textarea></sw-field>
+                  <sw-field style="margin-block-start:8px"><textarea rows="2" placeholder=${tr('הערה חדשה…')}></textarea></sw-field>
                 </sw-card>`
               : html`<div class="clips">
                   <sw-camera-tile compact name="כניסה ראשית" state="recorded" scene="entrance"></sw-camera-tile>
@@ -1143,10 +1144,10 @@ export class InvestigateCaseDetail extends LitElement {
                   <sw-camera-tile compact name="מסדרון מזרחי" state="unknown"></sw-camera-tile>
                 </div>`}
           <div class="foot">
-            <sw-button icon="link">שיתוף</sw-button>
-            <sw-button variant="primary" icon="download">ייצוא ראיות</sw-button>
+            <sw-button icon="link">${tr('שיתוף')}</sw-button>
+            <sw-button variant="primary" icon="download">${tr('ייצוא ראיות')}</sw-button>
           </div>
-          <div class="hint">Manifest: clips 2/3 · notes 2 · requested/actual ranges · timezone Asia/Jerusalem · pipeline v0.1 · sha256 לכל קובץ. Hash מוכיח התאמה לקובץ שנשמר, לא אותנטיות מאז המצלמה. "מצלמות מוצעות לחקירה" בלבד: אין קביעה שמדובר באותו אדם.</div>
+          <div class="hint">${tr('Manifest: clips 2/3 · notes 2 · requested/actual ranges · timezone Asia/Jerusalem · pipeline v0.1 · sha256 לכל קובץ. Hash מוכיח התאמה לקובץ שנשמר, לא אותנטיות מאז המצלמה. "מצלמות מוצעות לחקירה" בלבד: אין קביעה שמדובר באותו אדם.')}</div>
         </div>
       </sw-page>
     `;

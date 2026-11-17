@@ -19,6 +19,7 @@
  * fewer, bolder grey-gold veins (was a grey Carrara) - and a fourth finish is added, `travertine`: warm beige honed stone in
  * 1.2 m tiles, the vein-cut layers running along each tile and the small open pores of the stone; it reflects little.
  */
+import { tr } from '../i18n/msg/map';
 import type { MaterialDef } from './material-resolve';
 
 export type FloorFinish = 'wood' | 'marble' | 'ceramic' | 'travertine';
@@ -47,9 +48,9 @@ const kindOf = (id: string): Kind => (id === FINISH_CERAMIC ? 'ceramic' : id ===
  * mirror polish (the owner approved the less glossy floors of this branch; the style's floor sheen multiplies it).
  */
 export const FINISH_DEFS: readonly MaterialDef[] = [
-  { id: FINISH_MARBLE, group: 'floor', he: 'שיש קלקטה מלוטש', tile_m: 2.4, tint: { light: '#ffffff', dark: '#868b95' }, roughness: 0.32, metalness: 0, normal: 0, set: null, aliases: [] },
-  { id: FINISH_CERAMIC, group: 'floor', he: 'קרמיקה יוקרתית', tile_m: 2.4, tint: { light: '#ffffff', dark: '#80848c' }, roughness: 0.4, metalness: 0, normal: 0, set: null, aliases: [] },
-  { id: FINISH_TRAVERTINE, group: 'floor', he: 'טרוורטין', tile_m: 2.4, tint: { light: '#ffffff', dark: '#857f76' }, roughness: 0.55, metalness: 0, normal: 0, set: null, aliases: [] },
+  { id: FINISH_MARBLE, group: 'floor', he: tr('שיש קלקטה מלוטש'), tile_m: 2.4, tint: { light: '#ffffff', dark: '#868b95' }, roughness: 0.32, metalness: 0, normal: 0, set: null, aliases: [] },
+  { id: FINISH_CERAMIC, group: 'floor', he: tr('קרמיקה יוקרתית'), tile_m: 2.4, tint: { light: '#ffffff', dark: '#80848c' }, roughness: 0.4, metalness: 0, normal: 0, set: null, aliases: [] },
+  { id: FINISH_TRAVERTINE, group: 'floor', he: tr('טרוורטין'), tile_m: 2.4, tint: { light: '#ffffff', dark: '#857f76' }, roughness: 0.55, metalness: 0, normal: 0, set: null, aliases: [] },
 ];
 export const isFinishMaterial = (id: string): boolean => id === FINISH_MARBLE || id === FINISH_CERAMIC || id === FINISH_TRAVERTINE;
 

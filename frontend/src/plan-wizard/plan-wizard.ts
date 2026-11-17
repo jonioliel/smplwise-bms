@@ -7,6 +7,7 @@
  * Nothing reaches the viewers before "פרסם": the version stays a draft and the devices are placed only when it is published.
  * Route: #/explore/floors/<id>/wizard (the shell's structure guard applies on a phone, like /edit and /import).
  */
+import { tr } from '../i18n/msg/plan-wizard';
 import { LitElement, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -30,7 +31,7 @@ import {
 import { candidateGeometry, detectOverlay, devicesOverlay, itemPoint, roomColour, roomsOverlay, type CandidateGeometry } from './wizard-draw';
 import { wizardStyles } from './wizard-styles';
 
-const STEPS = ['העלאה', 'זיהוי', 'בדיקה', 'חדרים', 'סגנון', 'התקנים', 'סיום'] as const;
+const STEPS = [tr('העלאה'), tr('זיהוי'), tr('בדיקה'), tr('חדרים'), tr('סגנון'), tr('התקנים'), tr('סיום')] as const;
 const ROOMS_PAGE = 8;
 const ROOMS_PAGE_SMALL = 4;
 const DEVS_PAGE = 7;
@@ -44,7 +45,7 @@ interface RoomRow {
 type Phase = 'idle' | 'run' | 'done' | 'error';
 /** What waits for the person's yes before the abandoned wizard draft is discarded: another file, or another page of the PDF. */
 type Replace = { kind: 'file'; file: File } | { kind: 'page' };
-const REFUSAL_HE: Record<string, string> = { forbidden: 'אין הרשאה', already_placed: 'כבר הוצב', validation: 'לא קיים', not_placeable: 'לא ניתן להצבה' };
+const REFUSAL_HE: Record<string, string> = { forbidden: tr('אין הרשאה'), already_placed: tr('כבר הוצב'), validation: tr('לא קיים'), not_placeable: tr('לא ניתן להצבה') };
 const fmtWhen = (iso: string): string => {
   try {
     return new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -54,7 +55,7 @@ const fmtWhen = (iso: string): string => {
 };
 
 const tint = (id: string, dark: boolean): string => {
-  const m = MATERIALS.find((x) => x.id === id) as unknown as { tint?: { light: string; dark: string } } | undefined;
+  const m = MATERIALS.find((x) => x.id === id); // MaterialDef declares `tint` (code review 08:F19: no cast through unknown)
   return m?.tint ? (dark ? m.tint.dark : m.tint.light) : '#cccccc';
 };
 const iconOf = (domain: string): IconName => (domain === 'light' ? 'light' : domain === 'lock' ? 'lock' : domain === 'cover' ? 'coverClose' : domain === 'camera' ? 'camera' : domain === 'sensor' ? 'thermometer' : 'sensor');
@@ -263,7 +264,7 @@ export class PlanWizardScreen extends LitElement {
       this.replace = null;
     } catch (err) {
       this.replace = null;
-      this.error = `הטיוטה הקודמת לא נמחקה, ולכן התוכנית החדשה לא הועלתה: ${describeError(err)}`;
+      this.error = tr('הטיוטה הקודמת לא נמחקה, ולכן התוכנית החדשה לא הועלתה: {error}', { error: describeError(err) });
       return;
     } finally {
       this.busy = false;
@@ -284,7 +285,7 @@ export class PlanWizardScreen extends LitElement {
     const token = this.token;
     try {
       this.version = info.version;
-      this.uploaded = { assetId: '', name: 'התוכנית מהטיוטה', pages: [{ page: 1, url: '' }] };
+      this.uploaded = { assetId: '', name: tr('התוכנית מהטיוטה'), pages: [{ page: 1, url: '' }] };
       this.resumeInfo = null;
       const draft = await b.draft(info.version.versionId);
       if (token !== this.token) return;
@@ -369,7 +370,7 @@ export class PlanWizardScreen extends LitElement {
     } catch (err) {
       if (token !== this.token) return;
       const timedOut = err instanceof ApiError && err.code === 'detect_timeout';
-      this.error = timedOut ? 'הזיהוי לא הסתיים בזמן. תוכנית גדולה או סריקה רועשת לוקחות זמן: נסה שוב, או המשך בסטודיו התוכניות.' : describeError(err);
+      this.error = timedOut ? tr('הזיהוי לא הסתיים בזמן. תוכנית גדולה או סריקה רועשת לוקחות זמן: נסה שוב, או המשך בסטודיו התוכניות.') : describeError(err);
       this.phases = { ...this.phases, structure: 'error' };
     } finally {
       clearInterval(this.timer);
@@ -452,7 +453,7 @@ export class PlanWizardScreen extends LitElement {
       this.roomsPage = 0;
       if (!this.areas.length) this.areas = await b.areas().catch(() => []);
     } catch (err) {
-      this.error = err instanceof ApiError && err.code === 'stale_revision' ? 'טיוטת המבנה השתנתה בינתיים בחלון אחר. אשר שוב.' : describeError(err);
+      this.error = err instanceof ApiError && err.code === 'stale_revision' ? tr('טיוטת המבנה השתנתה בינתיים בחלון אחר. אשר שוב.') : describeError(err);
     } finally {
       this.busy = false;
     }
@@ -557,7 +558,7 @@ export class PlanWizardScreen extends LitElement {
       await this.proposeDevices();
       this.step = 6;
     } catch (err) {
-      this.error = err instanceof ApiError && err.code === 'stale_revision' ? 'טיוטת המבנה השתנתה בינתיים בחלון אחר. חזור לשלב הזה ונסה שוב.' : describeError(err);
+      this.error = err instanceof ApiError && err.code === 'stale_revision' ? tr('טיוטת המבנה השתנתה בינתיים בחלון אחר. חזור לשלב הזה ונסה שוב.') : describeError(err);
     } finally {
       this.busy = false;
     }
@@ -748,10 +749,10 @@ export class PlanWizardScreen extends LitElement {
 
   private renderSteps() {
     const step = this.step;
-    return html`<div class="wz-steps" role="list" aria-label="שלבי האשף">
+    return html`<div class="wz-steps" role="list" aria-label=${tr('שלבי האשף')}>
       ${STEPS.map((n, i) => html`${i ? html`<i class="ln ${i < step ? 'done' : ''}" aria-hidden="true"></i>` : nothing}<span role="listitem" class="st ${i + 1 < step ? 'done' : i + 1 === step ? 'now' : ''}" aria-current=${i + 1 === step ? 'step' : 'false'}><i class="num">${i + 1 < step ? html`<sw-icon name="check" size="14"></sw-icon>` : i + 1}</i><span>${n}</span></span>`)}
-      <div class="mob"><span>${STEPS[step - 1]}</span><small class="num">שלב ${step} מתוך 7</small><span class="bar" aria-hidden="true"><i style="inline-size:${(step / 7) * 100}%"></i></span></div>
-      <button class="gear" data-wz-prefs aria-label="הגדרות האשף" title="הגדרות האשף" @click=${() => this.openPrefs()}><sw-icon name="system" size="18"></sw-icon></button>
+      <div class="mob"><span>${STEPS[step - 1]}</span><small class="num">${tr('שלב {step} מתוך 7', { step })}</small><span class="bar" aria-hidden="true"><i style="inline-size:${(step / 7) * 100}%"></i></span></div>
+      <button class="gear" data-wz-prefs aria-label=${tr('הגדרות האשף')} title=${tr('הגדרות האשף')} @click=${() => this.openPrefs()}><sw-icon name="system" size="18"></sw-icon></button>
     </div>`;
   }
 
@@ -759,7 +760,7 @@ export class PlanWizardScreen extends LitElement {
     const url = this.version?.imageUrl ?? '';
     const vb = opts.crop ?? [0, 0, W, H];
     return html`<svg class="plan ${opts.placing ? 'placing' : ''}" viewBox=${vb.join(' ')} preserveAspectRatio=${opts.crop ? 'xMidYMid slice' : 'xMidYMid meet'}
-        style=${opts.crop ? '' : `aspect-ratio:${W}/${H}`} role="img" aria-label="תוכנית הקומה" @click=${opts.click ?? (() => undefined)}>
+        style=${opts.crop ? '' : `aspect-ratio:${W}/${H}`} role="img" aria-label=${tr('תוכנית הקומה')} @click=${opts.click ?? (() => undefined)}>
       <rect x=${vb[0]} y=${vb[1]} width=${vb[2]} height=${vb[3]} fill="#fff"/>
       ${url ? svg`<image href=${url} x="0" y="0" width=${W} height=${H} preserveAspectRatio="none" opacity=${overlay === nothing ? 1 : 0.55}/>` : nothing}
       ${overlay}
@@ -797,13 +798,13 @@ export class PlanWizardScreen extends LitElement {
           @dragover=${(e: DragEvent) => { e.preventDefault(); this.dragOver = true; }} @dragleave=${() => (this.dragOver = false)}
           @drop=${(e: DragEvent) => { e.preventDefault(); this.dragOver = false; void this.onFile(e.dataTransfer?.files?.[0]); }}>
         <sw-icon class="big" name="upload" size="44"></sw-icon>
-        <b>${this.uploaded ? this.uploaded.name : 'גרור לכאן את תוכנית הקומה'}</b>
-        <span class="hide-ph">${this.uploaded && this.uploaded.pages.length > 1 ? 'בחר בצד את העמוד שבו נמצאת התוכנית' : 'תמונה או PDF של תוכנית אדריכלית, שרטוט מכירות או סריקה'}</span>
+        <b>${this.uploaded ? this.uploaded.name : tr('גרור לכאן את תוכנית הקומה')}</b>
+        <span class="hide-ph">${this.uploaded && this.uploaded.pages.length > 1 ? tr('בחר בצד את העמוד שבו נמצאת התוכנית') : tr('תמונה או PDF של תוכנית אדריכלית, שרטוט מכירות או סריקה')}</span>
         <div class="row">
-          <span><input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" data-wz-file @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} /><sw-button variant="primary" size="lg" ?disabled=${this.busy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement | null)?.click()}>${this.busy ? 'מעלה…' : 'בחר קובץ'}</sw-button></span>
-          <span><input type="file" accept="image/*" capture="environment" @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} /><sw-button size="lg" icon="camera" ?disabled=${this.busy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement | null)?.click()}>צלם</sw-button></span>
+          <span><input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" data-wz-file @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} /><sw-button variant="primary" size="lg" ?disabled=${this.busy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement | null)?.click()}>${this.busy ? tr('מעלה…') : tr('בחר קובץ')}</sw-button></span>
+          <span><input type="file" accept="image/*" capture="environment" @change=${(e: Event) => void this.onFile((e.target as HTMLInputElement).files?.[0])} /><sw-button size="lg" icon="camera" ?disabled=${this.busy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement | null)?.click()}>${tr('צלם')}</sw-button></span>
         </div>
-        <div class="fmts"><span class="tag">PNG</span><span class="tag">JPG</span><span class="tag">PDF</span><a class="tag" href=${`#/explore/floors/${this.floorId}/import`}>DXF / IFC: ייבוא מדויק, בלי זיהוי</a></div>
+        <div class="fmts"><span class="tag">PNG</span><span class="tag">JPG</span><span class="tag">PDF</span><a class="tag" href=${`#/explore/floors/${this.floorId}/import`}>${tr('DXF / IFC: ייבוא מדויק, בלי זיהוי')}</a></div>
       </div>`;
     }
     if (step === 2) {
@@ -815,24 +816,24 @@ export class PlanWizardScreen extends LitElement {
       if (!g || !set) return nothing;
       const rejected = new Set(Object.entries(this.decisions).filter(([, c]) => c === 'none').map(([id]) => id));
       return html`<div class="sheet">${this.planSvg(W, H, detectOverlay(g, set, this.prefs, new Set(Object.keys(this.decisions)), rejected, this.current), { click: (e) => this.onCandClick(e) })}</div>
-        <div class="legend"><span><i style="background:var(--wz-sure)"></i>זוהה בביטחון</span><span><i style="background:var(--wz-check)"></i>לבדיקה</span><span><i class="dash"></i>בספק, לא ייכנס בלי אישור</span><span><i style="background:var(--wz-out)"></i>הושמט</span></div>`;
+        <div class="legend"><span><i style="background:var(--wz-sure)"></i>${tr('זוהה בביטחון')}</span><span><i style="background:var(--wz-check)"></i>${tr('לבדיקה')}</span><span><i class="dash"></i>${tr('בספק, לא ייכנס בלי אישור')}</span><span><i style="background:var(--wz-out)"></i>${tr('הושמט')}</span></div>`;
     }
     if (step === 4) {
       return html`<div class="sheet">${this.planSvg(W, H, roomsOverlay(this.rooms, W, H, 'name', this.roomFocus), { click: (e) => this.onRoomClick(e) })}</div>`;
     }
     if (step === 5 || step === 7) {
       const desc = this.scene();
-      if (desc) return html`<div class="preview3d"><sw-plan-3d data-wz-3d .description=${desc} .frameKey=${`wizard-${this.version?.versionId ?? ''}`} .preset=${'iso'} kiosk .qualityForce=${'full'} .minFps=${0}></sw-plan-3d></div><span class="preview-note">תצוגה מקדימה</span>`;
+      if (desc) return html`<div class="preview3d"><sw-plan-3d data-wz-3d .description=${desc} .frameKey=${`wizard-${this.version?.versionId ?? ''}`} .preset=${'iso'} kiosk .qualityForce=${'full'} .minFps=${0}></sw-plan-3d></div><span class="preview-note">${tr('תצוגה מקדימה')}</span>`;
       // no 3D (loading, no WebGL): the plan with the kit's floors, so the choice still shows
       const dark = matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
       const kit = kitOf(this.kit);
       const fills = svg`<g>${this.created.map((c, i) => svg`<polygon points=${c.polygon.map((p) => `${p.x * W},${p.y * H}`).join(' ')} fill=${tint(kitFloor(kit, this.rooms[i]?.typeId ?? 'other'), dark)} fill-opacity=".85"/>`)}</g>`;
-      return html`<div class="sheet">${this.planSvg(W, H, fills)}</div><span class="preview-note">${this.three === 'loading' ? 'טוען תצוגה בתלת־ממד…' : 'תצוגה מקדימה'}</span>`;
+      return html`<div class="sheet">${this.planSvg(W, H, fills)}</div><span class="preview-note">${this.three === 'loading' ? tr('טוען תצוגה בתלת־ממד…') : tr('תצוגה מקדימה')}</span>`;
     }
     // step 6
     const overlay = svg`${roomsOverlay(this.created.map((c) => ({ polygon: c.polygon })), W, H, 'faint', null)}${devicesOverlay(this.placements.filter((d) => !this.skipped.has(d.entity_id)), W, H, this.selDev)}`;
     return html`<div class="sheet">${this.planSvg(W, H, overlay, { click: (e) => this.placeAt(e), placing: !!this.selDev })}</div>
-      <div class="legend"><span><i class="dot" style="background:var(--wz-sure)"></i>הוצב</span><span><i class="dot" style="background:var(--wz-check)"></i>ממתין למקום</span>${this.placements.some(isCamera) ? html`<span><i class="sq"></i>מצלמה</span>` : nothing}</div>`;
+      <div class="legend"><span><i class="dot" style="background:var(--wz-sure)"></i>${tr('הוצב')}</span><span><i class="dot" style="background:var(--wz-check)"></i>${tr('ממתין למקום')}</span>${this.placements.some(isCamera) ? html`<span><i class="sq"></i>${tr('מצלמה')}</span>` : nothing}</div>`;
   }
 
   private renderSide(W: number, H: number) {
@@ -845,39 +846,39 @@ export class PlanWizardScreen extends LitElement {
       const multi = this.uploaded && this.uploaded.pages.length > 1;
       const info = this.resumeInfo;
       const kept = this.version;
-      return html`<h2>העלאת תוכנית</h2><p>המערכת תזהה קירות, דלתות, חלונות וחדרים, ואתה תאשר. כמה דקות לקומה.</p>
-        ${info ? html`<div class="card resume" data-wz-resume><b>יש כאן טיוטה של האשף שלא הסתיימה</b><span>${fmtWhen(info.createdAt) ? `התחלת אותה ב־${fmtWhen(info.createdAt)}. ` : ''}אפשר להמשיך מהמקום שעצרת.</span>
-            <div class="side-actions"><sw-button variant="primary" icon="history" data-wz-resume-go ?disabled=${this.busy} @click=${() => void this.resumeWizard()}>המשך באשף</sw-button><sw-button variant="ghost" @click=${() => this.toStudio()}>פתח בסטודיו</sw-button></div></div>` : nothing}
-        ${kept && !info ? html`<div class="card resume" data-wz-kept><b>התוכנית שהעלית נשמרה</b><span>"המשך" יזהה אותה שוב, בלי טיוטה נוספת. קובץ אחר יחליף אותה.</span></div>` : nothing}
+      return html`<h2>${tr('העלאת תוכנית')}</h2><p>${tr('המערכת תזהה קירות, דלתות, חלונות וחדרים, ואתה תאשר. כמה דקות לקומה.')}</p>
+        ${info ? html`<div class="card resume" data-wz-resume><b>${tr('יש כאן טיוטה של האשף שלא הסתיימה')}</b><span>${fmtWhen(info.createdAt) ? tr('התחלת אותה ב־{when}. ', { when: fmtWhen(info.createdAt) }) : ''}${tr('אפשר להמשיך מהמקום שעצרת.')}</span>
+            <div class="side-actions"><sw-button variant="primary" icon="history" data-wz-resume-go ?disabled=${this.busy} @click=${() => void this.resumeWizard()}>${tr('המשך באשף')}</sw-button><sw-button variant="ghost" @click=${() => this.toStudio()}>${tr('פתח בסטודיו')}</sw-button></div></div>` : nothing}
+        ${kept && !info ? html`<div class="card resume" data-wz-kept><b>${tr('התוכנית שהעלית נשמרה')}</b><span>${tr('"המשך" יזהה אותה שוב, בלי טיוטה נוספת. קובץ אחר יחליף אותה.')}</span></div>` : nothing}
         <div class="card"><div class="kv">
-          <b>לאיזו קומה?</b>
-          <select style="inline-size:160px" aria-label="הקומה" data-wz-floor .value=${this.floorId} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}/wizard`)}>
+          <b>${tr('לאיזו קומה?')}</b>
+          <select style="inline-size:160px" aria-label=${tr('הקומה')} data-wz-floor .value=${this.floorId} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}/wizard`)}>
             ${(this.floor?.siblings.length ? this.floor.siblings : [{ id: this.floorId, name: this.floor?.name || this.floorId }]).map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${f.name}</option>`)}
           </select>
-          <b class="hide-ph">גובה תקרה</b>
-          <select class="hide-ph" style="inline-size:160px" aria-label="גובה תקרה" .value=${String(this.ceiling)} @change=${(e: Event) => (this.ceiling = Number((e.target as HTMLSelectElement).value))}>
-            ${[2.5, 2.6, 2.7, 2.8, 3, 3.2, 3.5, 4, 5].map((v) => html`<option value=${String(v)} ?selected=${v === this.ceiling}>${v.toFixed(2)} מ׳</option>`)}
+          <b class="hide-ph">${tr('גובה תקרה')}</b>
+          <select class="hide-ph" style="inline-size:160px" aria-label=${tr('גובה תקרה')} .value=${String(this.ceiling)} @change=${(e: Event) => (this.ceiling = Number((e.target as HTMLSelectElement).value))}>
+            ${[2.5, 2.6, 2.7, 2.8, 3, 3.2, 3.5, 4, 5].map((v) => html`<option value=${String(v)} ?selected=${v === this.ceiling}>${v.toFixed(2)} ${tr('מ׳')}</option>`)}
           </select>
         </div></div>
         ${multi
-          ? html`<div class="card"><b>באיזה עמוד התוכנית?</b><div class="side-actions" style="margin-block-start:8px">${this.uploaded!.pages.map((p) => html`<button class="opt" style="inline-size:64px" aria-pressed=${p.page === this.page ? 'true' : 'false'} @click=${() => (this.page = p.page)}>${p.page}</button>`)}</div></div>`
-          : info || kept ? nothing : html`<div class="card soft hide-ph"><b>כדי שהזיהוי יצליח</b><div class="tips"><span>סריקה ישרה וחדה, בלי צל או קיפול.</span><span>קירות כהים על רקע בהיר.</span><span>ריהוט וכיתוב על התוכנית לא מפריעים.</span></div></div>`}
-        ${this.floor?.hasPlan ? html`<div class="side-actions"><sw-button variant="ghost" icon="edit" @click=${() => this.toStudio()}>שרטוט ידני בסטודיו</sw-button></div>` : nothing}`;
+          ? html`<div class="card"><b>${tr('באיזה עמוד התוכנית?')}</b><div class="side-actions" style="margin-block-start:8px">${this.uploaded!.pages.map((p) => html`<button class="opt" style="inline-size:64px" aria-pressed=${p.page === this.page ? 'true' : 'false'} @click=${() => (this.page = p.page)}>${p.page}</button>`)}</div></div>`
+          : info || kept ? nothing : html`<div class="card soft hide-ph"><b>${tr('כדי שהזיהוי יצליח')}</b><div class="tips"><span>${tr('סריקה ישרה וחדה, בלי צל או קיפול.')}</span><span>${tr('קירות כהים על רקע בהיר.')}</span><span>${tr('ריהוט וכיתוב על התוכנית לא מפריעים.')}</span></div></div>`}
+        ${this.floor?.hasPlan ? html`<div class="side-actions"><sw-button variant="ghost" icon="edit" @click=${() => this.toStudio()}>${tr('שרטוט ידני בסטודיו')}</sw-button></div>` : nothing}`;
     }
     if (step === 2) {
       const p = (st: Phase, t: string, v = '') => html`<div class="p ${st === 'done' ? 'done' : st === 'run' ? 'run' : ''}"><i>${st === 'done' ? html`<sw-icon name="check" size="13"></sw-icon>` : st === 'error' ? html`<sw-icon name="warning" size="13"></sw-icon>` : nothing}</i>${t}<span class="v">${v}</span></div>`;
       const s = this.phases.structure;
       const r = this.phases.rooms;
-      return html`<h2>מזהה את התוכנית</h2><p>הזיהוי רץ אצלך במערכת. התוכנית לא נשלחת לשום מקום.</p>
+      return html`<h2>${tr('מזהה את התוכנית')}</h2><p>${tr('הזיהוי רץ אצלך במערכת. התוכנית לא נשלחת לשום מקום.')}</p>
         <div class="card"><div class="prog" data-wz-progress>
-          ${p(s, 'קירות', s === 'done' ? `${this.set?.walls.length ?? 0} נמצאו` : '')}
-          ${p(s, 'דלתות, חלונות ומעברים', s === 'done' ? `${this.set?.openings.length ?? 0} נמצאו` : '')}
-          ${p(s === 'done' ? 'done' : s === 'run' ? 'idle' : s, 'עמודים ומדרגות', s === 'done' ? `${this.set?.objects.length ?? 0}` : '')}
-          ${p(r, 'חדרים סגורים', r === 'done' ? `${this.rooms.length} נמצאו` : r === 'error' ? 'לא זוהו' : '')}
-          ${p(s === 'done' ? 'done' : 'idle', 'קנה מידה', s === 'done' ? (this.result?.calibration_hint ? 'משוער לפי רוחב דלת' : 'לא ידוע') : '')}
+          ${p(s, tr('קירות'), s === 'done' ? tr('{n} נמצאו', { n: this.set?.walls.length ?? 0 }) : '')}
+          ${p(s, tr('דלתות, חלונות ומעברים'), s === 'done' ? tr('{n} נמצאו', { n: this.set?.openings.length ?? 0 }) : '')}
+          ${p(s === 'done' ? 'done' : s === 'run' ? 'idle' : s, tr('עמודים ומדרגות'), s === 'done' ? `${this.set?.objects.length ?? 0}` : '')}
+          ${p(r, tr('חדרים סגורים'), r === 'done' ? tr('{n} נמצאו', { n: this.rooms.length }) : r === 'error' ? tr('לא זוהו') : '')}
+          ${p(s === 'done' ? 'done' : 'idle', tr('קנה מידה'), s === 'done' ? (this.result?.calibration_hint ? tr('משוער לפי רוחב דלת') : tr('לא ידוע')) : '')}
         </div></div>
-        <div class="card soft hide-ph">קווי מידה, קווים מקווקווים ומסגרת הגיליון מזוהים ומושמטים, כדי שלא יהפכו לקירות.</div>
-        ${s === 'run' ? html`<div class="why num" data-wz-elapsed>${this.elapsed ? `${this.elapsed} שנ׳` : ''}</div>` : nothing}`;
+        <div class="card soft hide-ph">${tr('קווי מידה, קווים מקווקווים ומסגרת הגיליון מזוהים ומושמטים, כדי שלא יהפכו לקירות.')}</div>
+        ${s === 'run' ? html`<div class="why num" data-wz-elapsed>${this.elapsed ? tr('{n} שנ׳', { n: this.elapsed }) : ''}</div>` : nothing}`;
     }
     if (step === 3) return this.sideReview(W, H);
     if (step === 4) return this.sideRooms();
@@ -904,20 +905,20 @@ export class PlanWizardScreen extends LitElement {
     const doc = this.draft?.doc;
     const cal = doc?.dimensions.calibration?.status;
     const rejected = new Set(Object.entries(this.decisions).filter(([, ch]) => ch === 'none').map(([k]) => k));
-    return html`<h2>בדיקת הזיהוי</h2>
-      <div class="cnts" data-wz-counts><div class="cnt"><b class="num">${c.sure}</b><span>בביטחון</span></div><div class="cnt chk"><b class="num">${c.check}</b><span>לבדיקה</span></div><div class="cnt low"><b class="num">${c.doubt}</b><span>בספק</span></div></div>
+    return html`<h2>${tr('בדיקת הזיהוי')}</h2>
+      <div class="cnts" data-wz-counts><div class="cnt"><b class="num">${c.sure}</b><span>${tr('בביטחון')}</span></div><div class="cnt chk"><b class="num">${c.check}</b><span>${tr('לבדיקה')}</span></div><div class="cnt low"><b class="num">${c.doubt}</b><span>${tr('בספק')}</span></div></div>
       ${q.length && item
         ? html`<div class="card" style="display:grid;gap:10px" data-wz-item=${id}>
-            <div class="qhead"><b>מה יש כאן?</b><span class="pager"><button aria-label="הקודם" ?disabled=${qi <= 0} @click=${() => this.moveQueue(-1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num" data-wz-pos>${qi < 0 ? '–' : qi + 1} / ${q.length}</span><button aria-label="הבא" ?disabled=${qi >= q.length - 1} @click=${() => this.moveQueue(1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span></div>
+            <div class="qhead"><b>${tr('מה יש כאן?')}</b><span class="pager"><button aria-label=${tr('הקודם')} ?disabled=${qi <= 0} @click=${() => this.moveQueue(-1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num" data-wz-pos>${qi < 0 ? '–' : qi + 1} / ${q.length}</span><button aria-label=${tr('הבא')} ?disabled=${qi >= q.length - 1} @click=${() => this.moveQueue(1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span></div>
             <div class="q-crop">${this.planSvg(W, H, detectOverlay(g, set, this.prefs, new Set(Object.keys(this.decisions)), rejected, id), { crop })}</div>
             <div class="conf ${band}"><span>${detectedText(set, id!)}</span><span class="bar"><i style="inline-size:${Math.round(item.confidence * 100)}%"></i></span><b class="num">${Math.round(item.confidence * 100)}%</b></div>
-            ${opening ? html`<div class="why hide-ph">${opening.kind === 'passage' ? `יש רווח בקיר ברוחב ${opening.width_m.toFixed(2)} מ׳, אבל לא נמצאה קשת של דלת.` : `ברוחב ${opening.width_m.toFixed(2)} מ׳.`}</div>` : nothing}
-            <div class="opts" role="group" aria-label="מה יש כאן">${choices.map((ch, k) => html`<button class="opt" data-choice=${ch.id} aria-pressed=${pressed === ch.id ? 'true' : 'false'} @click=${() => this.decide(ch.id)}>${ch.he}<kbd class="hide-ph">${k + 1}</kbd></button>`)}</div>
+            ${opening ? html`<div class="why hide-ph">${opening.kind === 'passage' ? tr('יש רווח בקיר ברוחב {w} מ׳, אבל לא נמצאה קשת של דלת.', { w: opening.width_m.toFixed(2) }) : tr('ברוחב {w} מ׳.', { w: opening.width_m.toFixed(2) })}</div>` : nothing}
+            <div class="opts" role="group" aria-label=${tr('מה יש כאן')}>${choices.map((ch, k) => html`<button class="opt" data-choice=${ch.id} aria-pressed=${pressed === ch.id ? 'true' : 'false'} @click=${() => this.decide(ch.id)}>${ch.he}<kbd class="hide-ph">${k + 1}</kbd></button>`)}</div>
           </div>`
-        : html`<div class="card soft">כל מה שזוהה נמצא מעל סף הביטחון ויכנס לתוכנית. אפשר לתקן כל פריט אחר כך בסטודיו.</div>`}
+        : html`<div class="card soft">${tr('כל מה שזוהה נמצא מעל סף הביטחון ויכנס לתוכנית. אפשר לתקן כל פריט אחר כך בסטודיו.')}</div>`}
       <div class="card soft hide-ph">${this.measure.open
-        ? html`<div class="measure"><span>אורך הקיר הארוך ביותר</span><input type="number" inputmode="decimal" min="0.5" step="0.01" aria-label="אורך במטרים" placeholder="מ׳" .value=${this.measure.metres} @input=${(e: Event) => (this.measure = { ...this.measure, metres: (e.target as HTMLInputElement).value })} /><sw-button size="sm" variant="primary" ?disabled=${this.busy || !(parseFloat(this.measure.metres) > 0)} @click=${() => void this.measureWall()}>שמור</sw-button></div>`
-        : html`<div class="kv"><span>קנה מידה <b>${cal === 'measured' ? 'נמדד' : 'משוער'}</b>${cal === 'measured' ? '' : this.result?.calibration_hint ? ', לפי רוחב דלת' : ''}</span><sw-button size="sm" icon="ruler" @click=${() => (this.measure = { open: true, metres: '' })}>מדוד קיר</sw-button></div>`}</div>`;
+        ? html`<div class="measure"><span>${tr('אורך הקיר הארוך ביותר')}</span><input type="number" inputmode="decimal" min="0.5" step="0.01" aria-label=${tr('אורך במטרים')} placeholder=${tr('מ׳')} .value=${this.measure.metres} @input=${(e: Event) => (this.measure = { ...this.measure, metres: (e.target as HTMLInputElement).value })} /><sw-button size="sm" variant="primary" ?disabled=${this.busy || !(parseFloat(this.measure.metres) > 0)} @click=${() => void this.measureWall()}>${tr('שמור')}</sw-button></div>`
+        : html`<div class="kv"><span>${tr('קנה מידה')} <b>${cal === 'measured' ? tr('נמדד') : tr('משוער')}</b>${cal === 'measured' ? '' : this.result?.calibration_hint ? tr(', לפי רוחב דלת') : ''}</span><sw-button size="sm" icon="ruler" @click=${() => (this.measure = { open: true, metres: '' })}>${tr('מדוד קיר')}</sw-button></div>`}</div>`;
   }
 
   private sideRooms() {
@@ -925,20 +926,20 @@ export class PlanWizardScreen extends LitElement {
     const pages = Math.max(1, Math.ceil(this.rooms.length / size));
     const page = Math.min(this.roomsPage, pages - 1);
     const unnamed = this.rooms.filter((r) => !r.name.trim()).length;
-    return html`<h2>שמות החדרים</h2><p>${this.rooms.length ? `נמצאו ${this.rooms.length} חדרים סגורים. תן שם לכל אחד, או בחר שם של אזור שכבר קיים במערכת כדי לקשר אליו.` : 'לא נמצאו חדרים סגורים. אפשר להמשיך ולסמן חדרים אחר כך בסטודיו.'}</p>
+    return html`<h2>${tr('שמות החדרים')}</h2><p>${this.rooms.length ? tr('נמצאו {n} חדרים סגורים. תן שם לכל אחד, או בחר שם של אזור שכבר קיים במערכת כדי לקשר אליו.', { n: this.rooms.length }) : tr('לא נמצאו חדרים סגורים. אפשר להמשיך ולסמן חדרים אחר כך בסטודיו.')}</p>
       <datalist id="wz-areas">${this.areas.map((a) => html`<option value=${a.name}></option>`)}</datalist>
       <div class="rooms" data-wz-rooms>${this.rooms.slice(page * size, page * size + size).map((r, k) => {
         const i = page * size + k;
         const linked = !!this.areaOf(r.name);
         return html`<div class="rrow"><i style="background:${roomColour(i)}"></i>
-          <input type="text" list="wz-areas" data-room-name=${i} class="${r.name.trim() ? (linked ? 'linked' : '') : 'empty'}" .value=${r.name} placeholder=${`${fallbackRoomName(i)}: שם`} aria-label=${`שם חדר ${i + 1}`} title=${linked ? 'מקושר לאזור קיים' : ''}
+          <input type="text" list="wz-areas" data-room-name=${i} class="${r.name.trim() ? (linked ? 'linked' : '') : 'empty'}" .value=${r.name} placeholder=${tr('{room}: שם', { room: fallbackRoomName(i) })} aria-label=${tr('שם חדר {n}', { n: i + 1 })} title=${linked ? tr('מקושר לאזור קיים') : ''}
             @focus=${() => (this.roomFocus = i)} @input=${(e: Event) => this.setRoom(i, { name: (e.target as HTMLInputElement).value })} />
-          <select aria-label=${`סוג חדר ${i + 1}`} .value=${r.typeId} @change=${(e: Event) => this.setRoom(i, { typeId: (e.target as HTMLSelectElement).value })}>${ROOM_TYPES.map((t) => html`<option value=${t.id} ?selected=${t.id === r.typeId}>${t.id === 'other' ? 'סוג' : t.he}</option>`)}</select>
+          <select aria-label=${tr('סוג חדר {n}', { n: i + 1 })} .value=${r.typeId} @change=${(e: Event) => this.setRoom(i, { typeId: (e.target as HTMLSelectElement).value })}>${ROOM_TYPES.map((t) => html`<option value=${t.id} ?selected=${t.id === r.typeId}>${t.id === 'other' ? tr('סוג') : t.he}</option>`)}</select>
         </div>`;
       })}</div>
-      <div class="rnote">${unnamed ? html`<span class="warn">${unnamed === 1 ? 'חדר אחד עוד בלי שם' : `${unnamed} חדרים עוד בלי שם`}</span>` : html`<span>${this.rooms.filter((r) => this.areaOf(r.name)).length} מקושרים לאזורים קיימים</span>`}
-        ${pages > 1 ? html`<span class="pager"><button aria-label="הקודם" ?disabled=${page <= 0} @click=${() => (this.roomsPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label="הבא" ?disabled=${page >= pages - 1} @click=${() => (this.roomsPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>
-      ${this.existingAuto ? html`<label class="check"><input type="checkbox" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = (e.target as HTMLInputElement).checked)} />להחליף ${this.existingAuto === 1 ? 'חדר אוטומטי קודם' : `${this.existingAuto} חדרים אוטומטיים קודמים`} בקומה</label>` : nothing}`;
+      <div class="rnote">${unnamed ? html`<span class="warn">${unnamed === 1 ? tr('חדר אחד עוד בלי שם') : tr('{n} חדרים עוד בלי שם', { n: unnamed })}</span>` : html`<span>${tr('{n} מקושרים לאזורים קיימים', { n: this.rooms.filter((r) => this.areaOf(r.name)).length })}</span>`}
+        ${pages > 1 ? html`<span class="pager"><button aria-label=${tr('הקודם')} ?disabled=${page <= 0} @click=${() => (this.roomsPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label=${tr('הבא')} ?disabled=${page >= pages - 1} @click=${() => (this.roomsPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>
+      ${this.existingAuto ? html`<label class="check"><input type="checkbox" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = (e.target as HTMLInputElement).checked)} />${this.existingAuto === 1 ? tr('להחליף חדר אוטומטי קודם בקומה') : tr('להחליף {n} חדרים אוטומטיים קודמים בקומה', { n: this.existingAuto })}</label>` : nothing}`;
   }
 
   private sideStyle() {
@@ -946,10 +947,10 @@ export class PlanWizardScreen extends LitElement {
     // the fourth swatch: the kit's furniture tone (PLAN3D-R32-ANSWERS-2438: six kits, owner Q-MAP-10 a)
     const accent: Record<string, string> = { empty: 'plaster_ceiling', office: 'fabric_accent', lobby: 'wood_dark', technical: 'metal_dark', commercial: 'metal_light' };
     const sw = (k: (typeof KITS)[number]) => [kitFloor(k, 'living'), kitFloor(k, 'kitchen'), 'plaster_white', accent[k.id] ?? 'wood_light'].map((m) => html`<i style="background:${tint(m, dark)}"></i>`);
-    return html`<h2>סגנון וריהוט</h2><p>ערכה קובעת חומרים וריהוט התחלתי לכל חדר לפי הסוג שלו. אפשר לשנות אחר כך חדר־חדר בסטודיו.</p>
-      <div class="presets" role="radiogroup" aria-label="ערכת סגנון">${KITS.map((k) => html`<button class="preset" role="radio" data-kit=${k.id} aria-checked=${k.id === this.kit ? 'true' : 'false'} aria-pressed=${k.id === this.kit ? 'true' : 'false'}
+    return html`<h2>${tr('סגנון וריהוט')}</h2><p>${tr('ערכה קובעת חומרים וריהוט התחלתי לכל חדר לפי הסוג שלו. אפשר לשנות אחר כך חדר־חדר בסטודיו.')}</p>
+      <div class="presets" role="radiogroup" aria-label=${tr('ערכת סגנון')}>${KITS.map((k) => html`<button class="preset" role="radio" data-kit=${k.id} aria-checked=${k.id === this.kit ? 'true' : 'false'} aria-pressed=${k.id === this.kit ? 'true' : 'false'}
           @click=${() => { this.kit = k.id; if (k.id === 'empty') this.furniture = false; else if (this.prefs.furniture) this.furniture = true; }}><span class="sw" aria-hidden="true">${sw(k)}</span><span class="tx"><b>${k.he}</b><span>${k.note}</span></span></button>`)}</div>
-      <label class="check"><input type="checkbox" data-wz-furniture .checked=${this.furniture} ?disabled=${this.kit === 'empty'} @change=${(e: Event) => (this.furniture = (e.target as HTMLInputElement).checked)} /><sw-icon name="cube" size="16"></sw-icon>להציב ריהוט התחלתי</label>
+      <label class="check"><input type="checkbox" data-wz-furniture .checked=${this.furniture} ?disabled=${this.kit === 'empty'} @change=${(e: Event) => (this.furniture = (e.target as HTMLInputElement).checked)} /><sw-icon name="cube" size="16"></sw-icon>${tr('להציב ריהוט התחלתי')}</label>
 `;
   }
 
@@ -970,12 +971,12 @@ export class PlanWizardScreen extends LitElement {
       this.selDev = null;
     };
     const intro = tab === 'cameras'
-      ? `${camsSet} מתוך ${cams.length} מצלמות סומנו. בחר מצלמה ולחץ על המפה במקום שבו היא מותקנת; מצלמה שלא תסמן לא תוצב.`
-      : devs.length ? `${auto} מתוך ${devs.length} הוצבו לבד, לפי האזור והסוג. את השאר בוחרים ומסמנים על המפה.` : 'אין התקנים שמחכים למקום באזורים של החדרים האלה. אפשר להציב התקנים אחר כך מהמפה.';
-    return html`<h2>מיקום התקנים</h2>
-      ${cams.length ? html`<div class="seg" role="tablist" aria-label="מה מציבים" data-wz-dev-tabs>
-          <button role="tab" data-wz-tab="devices" aria-selected=${tab === 'devices' ? 'true' : 'false'} @click=${() => pick('devices')}><sw-icon name="sensor" size="15"></sw-icon>התקנים<span class="num">${devs.length}</span></button>
-          <button role="tab" data-wz-tab="cameras" aria-selected=${tab === 'cameras' ? 'true' : 'false'} @click=${() => pick('cameras')}><sw-icon name="camera" size="15"></sw-icon>מצלמות<span class="num">${camsSet ? `${camsSet}/${cams.length}` : cams.length}</span></button>
+      ? tr('{set} מתוך {total} מצלמות סומנו. בחר מצלמה ולחץ על המפה במקום שבו היא מותקנת; מצלמה שלא תסמן לא תוצב.', { set: camsSet, total: cams.length })
+      : devs.length ? tr('{auto} מתוך {total} הוצבו לבד, לפי האזור והסוג. את השאר בוחרים ומסמנים על המפה.', { auto, total: devs.length }) : tr('אין התקנים שמחכים למקום באזורים של החדרים האלה. אפשר להציב התקנים אחר כך מהמפה.');
+    return html`<h2>${tr('מיקום התקנים')}</h2>
+      ${cams.length ? html`<div class="seg" role="tablist" aria-label=${tr('מה מציבים')} data-wz-dev-tabs>
+          <button role="tab" data-wz-tab="devices" aria-selected=${tab === 'devices' ? 'true' : 'false'} @click=${() => pick('devices')}><sw-icon name="sensor" size="15"></sw-icon>${tr('התקנים')}<span class="num">${devs.length}</span></button>
+          <button role="tab" data-wz-tab="cameras" aria-selected=${tab === 'cameras' ? 'true' : 'false'} @click=${() => pick('cameras')}><sw-icon name="camera" size="15"></sw-icon>${tr('מצלמות')}<span class="num">${camsSet ? `${camsSet}/${cams.length}` : cams.length}</span></button>
         </div>` : nothing}
       <p>${intro}</p>
       <div class="devs" data-wz-devs role=${cams.length ? 'tabpanel' : nothing}>${list.slice(page * size, page * size + size).map((d) => {
@@ -986,46 +987,46 @@ export class PlanWizardScreen extends LitElement {
         return html`<button class="dev ${todo ? 'todo' : ''} ${off ? 'off' : ''} ${cam && d.where !== 'manual' ? 'set' : ''}" data-dev-row=${d.entity_id} aria-pressed=${this.selDev === d.entity_id ? 'true' : 'false'} @click=${() => (this.selDev = this.selDev === d.entity_id ? null : d.entity_id)}>
           <sw-icon name=${iconOf(d.domain)} size="16"></sw-icon><span class="nm">${d.name}</span><span class="w">${where}</span></button>`;
       })}</div>
-      ${sel ? html`<div class="card soft" data-wz-dev-sel><b>${sel.name}</b>: לחץ על המפה כדי ${sel.where === 'manual' ? 'להציב' : 'להזיז'}.${isCamera(sel)
-        ? sel.where !== 'manual' ? html`<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.unplace(sel.entity_id)}>הסר מהמפה</sw-button></div>` : nothing
-        : html`<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.toggleSkip(sel.entity_id)}>${this.skipped.has(sel.entity_id) ? 'להציב בכל זאת' : 'לא להציב'}</sw-button></div>`}</div>` : nothing}
-      <div class="rnote"><span>${tab === 'cameras' ? 'רק מצלמות שמותר לך להציב, שעוד לא בקומה הזו' : 'רק התקנים מהקטלוג המאושר, שעוד לא על אף מפה'}</span>${pages > 1 ? html`<span class="pager"><button aria-label="הקודם" ?disabled=${page <= 0} @click=${() => (this.devPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label="הבא" ?disabled=${page >= pages - 1} @click=${() => (this.devPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>`;
+      ${sel ? html`<div class="card soft" data-wz-dev-sel><b>${sel.name}</b>${sel.where === 'manual' ? tr(': לחץ על המפה כדי להציב.') : tr(': לחץ על המפה כדי להזיז.')}${isCamera(sel)
+        ? sel.where !== 'manual' ? html`<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.unplace(sel.entity_id)}>${tr('הסר מהמפה')}</sw-button></div>` : nothing
+        : html`<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.toggleSkip(sel.entity_id)}>${this.skipped.has(sel.entity_id) ? tr('להציב בכל זאת') : tr('לא להציב')}</sw-button></div>`}</div>` : nothing}
+      <div class="rnote"><span>${tab === 'cameras' ? tr('רק מצלמות שמותר לך להציב, שעוד לא בקומה הזו') : tr('רק התקנים מהקטלוג המאושר, שעוד לא על אף מפה')}</span>${pages > 1 ? html`<span class="pager"><button aria-label=${tr('הקודם')} ?disabled=${page <= 0} @click=${() => (this.devPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label=${tr('הבא')} ?disabled=${page >= pages - 1} @click=${() => (this.devPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>`;
   }
 
   private sideDone() {
     const doc = this.draft?.doc;
     const cal = doc?.dimensions.calibration?.status;
-    return html`<h2>הקומה מוכנה</h2><p>נשמרה כטיוטה. היא תופיע לכולם רק אחרי פרסום.</p>
+    return html`<h2>${tr('הקומה מוכנה')}</h2><p>${tr('נשמרה כטיוטה. היא תופיע לכולם רק אחרי פרסום.')}</p>
       <div class="card"><div class="kv" data-wz-summary>
-        <span>קירות</span><b class="num">${doc?.walls.length ?? 0}</b>
-        <span>דלתות, חלונות ומעברים</span><b class="num">${doc?.openings.length ?? 0}</b>
-        <span>חדרים</span><b class="num">${this.created.length}</b>
-        <span>התקנים שיוצבו</span><b class="num">${this.toPlace.filter((d) => !isCamera(d)).length}</b>
-        ${this.placements.some(isCamera) ? html`<span>מצלמות שיוצבו</span><b class="num" data-wz-cams-count>${this.toPlace.filter(isCamera).length}</b>` : nothing}
-        <span>סגנון</span><b>${kitOf(this.kit).he}</b>
-        <span>קנה מידה</span><b>${cal === 'measured' ? 'נמדד' : 'משוער'}</b>
+        <span>${tr('קירות')}</span><b class="num">${doc?.walls.length ?? 0}</b>
+        <span>${tr('דלתות, חלונות ומעברים')}</span><b class="num">${doc?.openings.length ?? 0}</b>
+        <span>${tr('חדרים')}</span><b class="num">${this.created.length}</b>
+        <span>${tr('התקנים שיוצבו')}</span><b class="num">${this.toPlace.filter((d) => !isCamera(d)).length}</b>
+        ${this.placements.some(isCamera) ? html`<span>${tr('מצלמות שיוצבו')}</span><b class="num" data-wz-cams-count>${this.toPlace.filter(isCamera).length}</b>` : nothing}
+        <span>${tr('סגנון')}</span><b>${kitOf(this.kit).he}</b>
+        <span>${tr('קנה מידה')}</span><b>${cal === 'measured' ? tr('נמדד') : tr('משוער')}</b>
       </div></div>
-      ${this.done?.failed ? html`<div class="card err" data-wz-refused>${this.refusedText(this.done)}<div><sw-button size="sm" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>פתח את המפה</sw-button></div></div>` : nothing}
-      <div class="card soft hide-ph">רוצה לדייק קיר, להזיז רהיט או להוסיף מצלמה? הכול פתוח לעריכה בסטודיו התוכניות. התקנים מוצבים רק בפרסום מכאן.</div>
-      <sw-button data-wz-studio @click=${() => this.toStudio()}>המשך עריכה בסטודיו</sw-button>`;
+      ${this.done?.failed ? html`<div class="card err" data-wz-refused>${this.refusedText(this.done)}<div><sw-button size="sm" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>${tr('פתח את המפה')}</sw-button></div></div>` : nothing}
+      <div class="card soft hide-ph">${tr('רוצה לדייק קיר, להזיז רהיט או להוסיף מצלמה? הכול פתוח לעריכה בסטודיו התוכניות. התקנים מוצבים רק בפרסום מכאן.')}</div>
+      <sw-button data-wz-studio @click=${() => this.toStudio()}>${tr('המשך עריכה בסטודיו')}</sw-button>`;
   }
 
   /** The publish placed some items and refused others: how many, and the first few by name with the reason. */
   private refusedText(d: PublishResult): string {
-    if (d.blocked === 'other_draft') return `התוכנית פורסמה, אבל ${d.failed} פריטים לא הוצבו: לקומה יש טיוטה נוספת פתוחה, והם היו נשמרים עליה. פרסם או מחק אותה בסטודיו, ואז הצב מהמפה.`;
+    if (d.blocked === 'other_draft') return tr('התוכנית פורסמה, אבל {n} פריטים לא הוצבו: לקומה יש טיוטה נוספת פתוחה, והם היו נשמרים עליה. פרסם או מחק אותה בסטודיו, ואז הצב מהמפה.', { n: d.failed });
     const name = (id: string) => this.placements.find((p) => p.entity_id === id)?.name ?? id;
-    const shown = d.refused.slice(0, 3).map((r) => `${name(r.id)} (${REFUSAL_HE[r.code] ?? 'נדחה'})`).join(', ');
-    const more = d.refused.length > 3 ? ` ועוד ${d.refused.length - 3}` : '';
-    return `${d.placed} הוצבו, ${d.failed} לא הוצבו: ${shown}${more}. אפשר להציב אותם מהמפה.`;
+    const shown = d.refused.slice(0, 3).map((r) => `${name(r.id)} (${REFUSAL_HE[r.code] ?? tr('נדחה')})`).join(', ');
+    const more = d.refused.length > 3 ? tr(' ועוד {n}', { n: d.refused.length - 3 }) : '';
+    return tr('{placed} הוצבו, {failed} לא הוצבו: {shown}{more}. אפשר להציב אותם מהמפה.', { placed: d.placed, failed: d.failed, shown, more });
   }
 
   private renderReplace() {
-    return html`<sw-dialog open heading="להחליף את התוכנית?" subheading="טיוטה אחת של האשף לכל קומה" data-wz-replace-dialog @close=${() => (this.replace = null)}>
-      <p class="dlg-p">הטיוטה הקודמת של האשף, עם הקירות, הפתחים והחדרים שאישרת בה, תימחק לפני שהתוכנית החדשה תיטען. היא לא פורסמה ושום דבר לא הוצב עליה.</p>
-      <p class="dlg-p soft">כדי להמשיך עם אותה תוכנית, בחר "ביטול" ואז "המשך".</p>
+    return html`<sw-dialog open heading=${tr('להחליף את התוכנית?')} subheading=${tr('טיוטה אחת של האשף לכל קומה')} data-wz-replace-dialog @close=${() => (this.replace = null)}>
+      <p class="dlg-p">${tr('הטיוטה הקודמת של האשף, עם הקירות, הפתחים והחדרים שאישרת בה, תימחק לפני שהתוכנית החדשה תיטען. היא לא פורסמה ושום דבר לא הוצב עליה.')}</p>
+      <p class="dlg-p soft">${tr('כדי להמשיך עם אותה תוכנית, בחר "ביטול" ואז "המשך".')}</p>
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
-        <sw-button variant="ghost" data-wz-replace-cancel ?disabled=${this.busy} @click=${() => (this.replace = null)}>ביטול</sw-button>
-        <sw-button variant="danger" data-wz-replace-go ?disabled=${this.busy} aria-busy=${this.busy ? 'true' : 'false'} @click=${() => void this.confirmReplace()}>${this.busy ? 'מוחק…' : 'מחק את הטיוטה והמשך'}</sw-button>
+        <sw-button variant="ghost" data-wz-replace-cancel ?disabled=${this.busy} @click=${() => (this.replace = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="danger" data-wz-replace-go ?disabled=${this.busy} aria-busy=${this.busy ? 'true' : 'false'} @click=${() => void this.confirmReplace()}>${this.busy ? tr('מוחק…') : tr('מחק את הטיוטה והמשך')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -1033,19 +1034,19 @@ export class PlanWizardScreen extends LitElement {
   private renderFoot() {
     const step = this.step;
     const multi = step === 1 && this.uploaded && this.uploaded.pages.length > 1;
-    const hint = step === 1 ? (this.version ? 'אותה תוכנית, אותה טיוטה' : 'אפשר להעלות קומה אחת בכל פעם')
-      : step === 2 ? 'בדרך כלל 5 עד 20 שניות'
-      : step === 3 ? (this.prefs.unreviewed === 'as_detected' ? 'מה שלא תבדוק: "לבדיקה" ייכנס כמו שזוהה, "בספק" לא ייכנס' : 'מה שלא תבדוק לא ייכנס לתוכנית')
-      : step === 4 ? 'חדר בלי שם יקבל "חדר 7", ואפשר לשנות אחר כך'
-      : step === 5 ? 'התצוגה מתעדכנת מיד כשבוחרים ערכה'
-      : step === 6 ? 'אפשר לדלג ולהציב התקנים אחר כך מהמפה'
-      : 'אפשר לחזור ולתקן כל שלב';
-    const label = step === 1 ? (multi ? 'המשך' : 'המשך') : step === 2 ? (this.phases.structure === 'error' ? 'נסה שוב' : 'מזהה…') : step === 3 ? 'אשר והמשך' : step === 7 ? 'פרסם ופתח במפה' : 'המשך';
+    const hint = step === 1 ? (this.version ? tr('אותה תוכנית, אותה טיוטה') : tr('אפשר להעלות קומה אחת בכל פעם'))
+      : step === 2 ? tr('בדרך כלל 5 עד 20 שניות')
+      : step === 3 ? (this.prefs.unreviewed === 'as_detected' ? tr('מה שלא תבדוק: "לבדיקה" ייכנס כמו שזוהה, "בספק" לא ייכנס') : tr('מה שלא תבדוק לא ייכנס לתוכנית'))
+      : step === 4 ? tr('חדר בלי שם יקבל "חדר 7", ואפשר לשנות אחר כך')
+      : step === 5 ? tr('התצוגה מתעדכנת מיד כשבוחרים ערכה')
+      : step === 6 ? tr('אפשר לדלג ולהציב התקנים אחר כך מהמפה')
+      : tr('אפשר לחזור ולתקן כל שלב');
+    const label = step === 1 ? (multi ? tr('המשך') : tr('המשך')) : step === 2 ? (this.phases.structure === 'error' ? tr('נסה שוב') : tr('מזהה…')) : step === 3 ? tr('אשר והמשך') : step === 7 ? tr('פרסם ופתח במפה') : tr('המשך');
     const disabled = this.busy || (step === 1 && !multi && !this.version) || (step === 2 && this.phases.structure !== 'error');
     return html`<div class="wz-foot">
-      ${step > 1 ? html`<sw-button size="lg" data-wz-back ?disabled=${this.busy || step === 2} @click=${() => this.back()}>חזרה</sw-button>` : html`<sw-button size="lg" variant="ghost" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>ביטול</sw-button>`}
+      ${step > 1 ? html`<sw-button size="lg" data-wz-back ?disabled=${this.busy || step === 2} @click=${() => this.back()}>${tr('חזרה')}</sw-button>` : html`<sw-button size="lg" variant="ghost" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>${tr('ביטול')}</sw-button>`}
       <span class="hint">${hint}</span><span class="sp"></span>
-      <sw-button size="lg" variant="primary" data-wz-next ?disabled=${disabled} aria-busy=${this.busy ? 'true' : 'false'} @click=${() => this.next()}>${this.busy && step > 2 ? 'שומר…' : label}</sw-button>
+      <sw-button size="lg" variant="primary" data-wz-next ?disabled=${disabled} aria-busy=${this.busy ? 'true' : 'false'} @click=${() => this.next()}>${this.busy && step > 2 ? tr('שומר…') : label}</sw-button>
     </div>`;
   }
 
@@ -1053,22 +1054,22 @@ export class PlanWizardScreen extends LitElement {
     const d = this.prefsDraft;
     const set = (p: Partial<WizardPrefs>) => (this.prefsDraft = { ...this.prefsDraft, ...p });
     const bad = d.review_min >= d.auto_accept;
-    return html`<sw-dialog open wide heading="הגדרות האשף" subheading="נשמרות לחשבון שלך" data-wz-prefs-dialog @close=${() => (this.prefsOpen = false)}>
+    return html`<sw-dialog open wide heading=${tr('הגדרות האשף')} subheading=${tr('נשמרות לחשבון שלך')} data-wz-prefs-dialog @close=${() => (this.prefsOpen = false)}>
       <div class="prefs">
         <div class="two">
-          <label>נכנס בלי בדיקה מעל (%)<input type="number" min="5" max="99" .value=${String(d.auto_accept)} @input=${(e: Event) => set({ auto_accept: Math.round(Number((e.target as HTMLInputElement).value)) })} /></label>
-          <label>לא נכנס בלי אישור מתחת ל־(%)<input type="number" min="5" max="99" .value=${String(d.review_min)} @input=${(e: Event) => set({ review_min: Math.round(Number((e.target as HTMLInputElement).value)) })} /></label>
+          <label>${tr('נכנס בלי בדיקה מעל (%)')}<input type="number" min="5" max="99" .value=${String(d.auto_accept)} @input=${(e: Event) => set({ auto_accept: Math.round(Number((e.target as HTMLInputElement).value)) })} /></label>
+          <label>${tr('לא נכנס בלי אישור מתחת ל־(%)')}<input type="number" min="5" max="99" .value=${String(d.review_min)} @input=${(e: Event) => set({ review_min: Math.round(Number((e.target as HTMLInputElement).value)) })} /></label>
         </div>
-        ${bad ? html`<span class="note" style="color:var(--sw-danger-text)">הסף התחתון חייב להיות נמוך מהעליון.</span>` : nothing}
-        <label>פריט "לבדיקה" שלא בדקת<select .value=${d.unreviewed} @change=${(e: Event) => set({ unreviewed: (e.target as HTMLSelectElement).value as WizardPrefs['unreviewed'] })}><option value="as_detected" ?selected=${d.unreviewed === 'as_detected'}>נכנס כמו שזוהה</option><option value="reject" ?selected=${d.unreviewed === 'reject'}>לא נכנס</option></select></label>
-        <label>ערכת סגנון ראשונה<select .value=${d.kit} @change=${(e: Event) => set({ kit: (e.target as HTMLSelectElement).value as KitId })}>${KITS.map((k) => html`<option value=${k.id} ?selected=${k.id === d.kit}>${k.he}</option>`)}</select></label>
-        <label class="check"><input type="checkbox" .checked=${d.furniture} @change=${(e: Event) => set({ furniture: (e.target as HTMLInputElement).checked })} />להציב ריהוט התחלתי</label>
-        <label class="check"><input type="checkbox" .checked=${d.auto_place} @change=${(e: Event) => set({ auto_place: (e.target as HTMLInputElement).checked })} />להציב התקנים לבד לפי האזור</label>
-        <span class="note">ברירת המחדל: מעל 80% נכנס, בין 50% ל־80% לבדיקה ונכנס כמו שזוהה אם דילגת, מתחת ל־50% לא נכנס בלי אישור.</span>
+        ${bad ? html`<span class="note" style="color:var(--sw-danger-text)">${tr('הסף התחתון חייב להיות נמוך מהעליון.')}</span>` : nothing}
+        <label>${tr('פריט "לבדיקה" שלא בדקת')}<select .value=${d.unreviewed} @change=${(e: Event) => set({ unreviewed: (e.target as HTMLSelectElement).value as WizardPrefs['unreviewed'] })}><option value="as_detected" ?selected=${d.unreviewed === 'as_detected'}>${tr('נכנס כמו שזוהה')}</option><option value="reject" ?selected=${d.unreviewed === 'reject'}>${tr('לא נכנס')}</option></select></label>
+        <label>${tr('ערכת סגנון ראשונה')}<select .value=${d.kit} @change=${(e: Event) => set({ kit: (e.target as HTMLSelectElement).value as KitId })}>${KITS.map((k) => html`<option value=${k.id} ?selected=${k.id === d.kit}>${k.he}</option>`)}</select></label>
+        <label class="check"><input type="checkbox" .checked=${d.furniture} @change=${(e: Event) => set({ furniture: (e.target as HTMLInputElement).checked })} />${tr('להציב ריהוט התחלתי')}</label>
+        <label class="check"><input type="checkbox" .checked=${d.auto_place} @change=${(e: Event) => set({ auto_place: (e.target as HTMLInputElement).checked })} />${tr('להציב התקנים לבד לפי האזור')}</label>
+        <span class="note">${tr('ברירת המחדל: מעל 80% נכנס, בין 50% ל־80% לבדיקה ונכנס כמו שזוהה אם דילגת, מתחת ל־50% לא נכנס בלי אישור.')}</span>
       </div>
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
-        <sw-button variant="ghost" @click=${() => (this.prefsDraft = { ...WIZARD_DEFAULTS })}>ברירת מחדל</sw-button>
-        <sw-button variant="primary" data-wz-prefs-save ?disabled=${bad} @click=${() => void this.savePrefs()}>שמור</sw-button>
+        <sw-button variant="ghost" @click=${() => (this.prefsDraft = { ...WIZARD_DEFAULTS })}>${tr('ברירת מחדל')}</sw-button>
+        <sw-button variant="primary" data-wz-prefs-save ?disabled=${bad} @click=${() => void this.savePrefs()}>${tr('שמור')}</sw-button>
       </div>
     </sw-dialog>`;
   }

@@ -4,6 +4,7 @@
  * falls back to the Hebrew). The Arabic and Russian columns are an INITIAL translation and need a native review. `{name}` placeholders are
  * filled by `nwt(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   keyUnreadable: 'מפתח ההודעות של המערכת לא נקרא - אי אפשר לאמת הסכמות, ולכן לא נשלחות התראות בוואטסאפ',
   normalized: 'ערך שמור לא היה בטווח ותוקן - שמרו כדי לאשר',
@@ -248,16 +249,17 @@ export type NwtKey = Key;
 export type NwtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function nwtLang(): NwtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<NwtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
 
 export function nwt(key: Key, vars?: Record<string, string | number>, lang: NwtLang = nwtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const NWT_KEYS = Object.keys(he) as Key[];
 export const NWT_TABLES = TABLES;
+
+registerCatalogue('i18n/notify-whatsapp', { he, en, ar, ru });

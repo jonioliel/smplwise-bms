@@ -2,6 +2,8 @@
  * TKNOTIFOTP (owner decision 2026-10-16): the words of the OPTIONAL number verification by a one-time code. Merged into tickets/text.ts
  * (`...OTP_HE`, `...OTP_EN`) and read through `tt()`. Never the module's noun, never a product name of the infrastructure.
  */
+import { registerCatalogue } from '../i18n/core';
+
 export const OTP_HE = {
   otpSettingTitle: 'אימות מספר בקוד',
   otpSettingHint: 'כשמופעל, קישורים והתראות בוואטסאפ יישלחו רק למספר שאומת בקוד חד-פעמי שנשלח אליו. כבוי כברירת מחדל.',
@@ -41,3 +43,5 @@ export const OTP_EN: Record<keyof typeof OTP_HE, string> = {
   otpUserOnly: 'The user verifies the number themselves, in My account.',
   otpMineHint: 'Ask for a code and type the 6 digits that arrive by WhatsApp.',
 };
+
+registerCatalogue('tickets/text-otp', { he: OTP_HE, en: OTP_EN });

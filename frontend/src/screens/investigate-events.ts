@@ -31,6 +31,7 @@ import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i
 import { t as vt } from '../i18n/he';
 import { Latest } from '../api/latest';
 import { pushedAction, ThumbPoller } from './investigate-events-logic';
+import { tr } from '../i18n/msg/investigate';
 
 /** EVENTS-POLISH-2331: a phone (the drawer is a full-screen modal sheet there) and a wide desktop (the drawer docks beside the list). */
 const NARROW = '(max-width: 767px)';
@@ -41,14 +42,14 @@ const C_SUB = 'color:var(--sw-text-3);font-size:var(--sw-fs-xs);line-height:1.4'
 const C_TIME = 'font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)';
 const C_DOT = 'inline-size:8px;block-size:8px;border-radius:50%;flex:none;background:';
 /** Where an event came from, in the operator's words (the raw source key stays in the technical details). */
-const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: 'התראה מהמקליט', recording: 'נגזר מקובץ הקלטה', ha: 'חיישן התקן', system: 'מערכת' };
+const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: tr('התראה מהמקליט'), recording: tr('נגזר מקובץ הקלטה'), ha: tr('חיישן התקן'), system: tr('מערכת') };
 /** SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 15): the demo rows' source keys in plain Hebrew - never the home system's brand
  * (owner rule: no Home Assistant naming on an operator screen) nor the bare device acronym. */
-const DEMO_SOURCE_WORDS: Record<string, string> = { HA: 'מערכת הבית', NVR: 'מקליט' };
+const DEMO_SOURCE_WORDS: Record<string, string> = { HA: tr('מערכת הבית'), NVR: tr('מקליט') };
 
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
-const SEV_LABEL = { info: 'מידע', alert: 'התראה', critical: 'קריטי' } as const;
+const SEV_LABEL = { info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') } as const;
 
 /**
  * SC14 — event centre (board 1 screen 8): filters, thumbnail | event | camera | time | severity, drawer with
@@ -921,13 +922,13 @@ export class InvestigateEvents extends LitElement {
   private ago(iso: string): string {
     const diff = this.now - new Date(iso).getTime();
     if (!Number.isFinite(diff)) return '';
-    if (diff < 60_000) return 'עכשיו';
+    if (diff < 60_000) return tr('עכשיו');
     const m = Math.floor(diff / 60_000);
-    if (m < 60) return `לפני ${m} דק׳`;
+    if (m < 60) return tr('לפני {n} דק׳', { n: m });
     const h = Math.floor(m / 60);
-    if (h < 24) return `לפני ${h} שע׳`;
+    if (h < 24) return tr('לפני {n} שע׳', { n: h });
     const d = Math.floor(h / 24);
-    return d === 1 ? 'אתמול' : `לפני ${d} ימים`;
+    return d === 1 ? tr('אתמול') : tr('לפני {n} ימים', { n: d });
   }
 
   /** An event's name: the recorder's code in Hebrew when known (VMD -> זיהוי תנועה), else the product kind. */
@@ -936,7 +937,7 @@ export class InvestigateEvents extends LitElement {
   }
 
   private camLabel(ev: Pick<VmsEvent, 'camera_name' | 'channel'>): string {
-    return ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת');
+    return ev.camera_name ?? (ev.channel ? tr('ערוץ {n}', { n: ev.channel }) : tr('מערכת'));
   }
 
   // ---- thumbnails (grabbed lazily from the recording; the list marks pending rows, we poll them) ----
@@ -955,7 +956,7 @@ export class InvestigateEvents extends LitElement {
       const t0 = new Date(ev.occurred_at).getTime();
       const frames = [-5, 0, 5].map((d) => {
         const at = new Date(t0 + d * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-        return { at, url: frameUrl(ev.camera_id!, at), label: d === 0 ? this.fmt(ev.occurred_at) : `${d > 0 ? '+' : ''}${d} ש׳`, failed: false };
+        return { at, url: frameUrl(ev.camera_id!, at), label: d === 0 ? this.fmt(ev.occurred_at) : tr('{n} ש׳', { n: `${d > 0 ? '+' : ''}${d}` }), failed: false };
       });
       this.rowPreview = { id: ev.id, x, y, frames, camera: ev.camera_name ?? '' };
     }, 250);
@@ -974,11 +975,11 @@ export class InvestigateEvents extends LitElement {
     return html`<div class="rowpreview" data-row-preview style="left:${left}px;top:${top}px">
       <div class="strip">
         ${p.frames.map((f, i) => html`<div class="cell ${i === 1 ? 'main' : ''}">
-          ${f.failed ? html`<span>אין פריים</span>` : html`<img src=${f.url} alt="" @error=${() => { f.failed = true; this.rowPreview = { ...p }; }} />`}
+          ${f.failed ? html`<span>${tr('אין פריים')}</span>` : html`<img src=${f.url} alt="" @error=${() => { f.failed = true; this.rowPreview = { ...p }; }} />`}
           <span class="t">${f.label}</span>
         </div>`)}
       </div>
-      <div class="cap"><span>${p.camera}</span><span>פריימים מההקלטה · 5 שניות לפני ואחרי</span></div>
+      <div class="cap"><span>${p.camera}</span><span>${tr('פריימים מההקלטה · 5 שניות לפני ואחרי')}</span></div>
     </div>`;
   }
 
@@ -990,7 +991,7 @@ export class InvestigateEvents extends LitElement {
     }
     if ((ev.thumbnail === 'pending' || ev.thumbnail === 'none') && ev.camera_id) {
       this.wantThumb(ev.id);
-      return html`<div class="thumb pending" style=${box} title="מכין תמונה מההקלטה…"><sw-icon name="camera" size=${14} style="opacity:.45"></sw-icon></div>`;
+      return html`<div class="thumb pending" style=${box} title=${tr('מכין תמונה מההקלטה…')}><sw-icon name="camera" size=${14} style="opacity:.45"></sw-icon></div>`;
     }
     return html`<div class="thumb none" style=${box}><sw-icon name=${ev.type === 'offline' || ev.type === 'coverage_gap' ? 'offline' : ev.type === 'person' ? 'user' : ev.type === 'vehicle' ? 'route' : ev.type === 'door' || ev.type === 'io' ? 'door' : 'bell'} size=${14}></sw-icon></div>`;
   }
@@ -1172,7 +1173,7 @@ export class InvestigateEvents extends LitElement {
     try {
       const r = await ackMany(w.event_ids);
       const done = new Set(r.acked);
-      this.events = (this.events ?? []).map((e) => (done.has(e.id) && !e.acked_at ? { ...e, acked_at: new Date().toISOString(), acked_by_username: 'אני' } : e));
+      this.events = (this.events ?? []).map((e) => (done.has(e.id) && !e.acked_at ? { ...e, acked_at: new Date().toISOString(), acked_by_username: tr('אני') } : e));
       await this.loadWindows();
     } catch (err) {
       this.error = describeError(err);
@@ -1182,7 +1183,7 @@ export class InvestigateEvents extends LitElement {
   }
 
   private windowTitle(w: EventWindow) {
-    const cam = w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת');
+    const cam = w.camera_name ?? (w.channel ? tr('ערוץ {n}', { n: w.channel }) : tr('מערכת'));
     return `${EVENT_LABEL[w.dominant_type] ?? w.dominant_type} · ${cam}`;
   }
 
@@ -1237,11 +1238,11 @@ export class InvestigateEvents extends LitElement {
 
   private windowColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '104px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
-    { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מהמקליט'}</div>`; } },
-    { key: 'spotlight', label: 'זרקור', width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span class="spot" data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span class="sub" data-window-manual>קיבוץ ידני</span>` : nothing; } },
-    { key: 'camera_name', label: 'מצלמה / קבוצה', render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת')}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div class="sub">${w.camera_names.join(' · ')}</div>` : nothing}`; } },
-    { key: 'start', label: 'זמן', render: (r) => { const w = r as unknown as EventWindow; return html`${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}<div class="sub">${this.fmtDate(w.start)}</div>`; } },
-    { key: 'acked', label: 'מצב', render: (r) => { const w = r as unknown as EventWindow; return html`<sw-badge kind=${w.acked ? 'live' : w.acked_count ? 'stale' : 'neutral'} label=${w.acked ? 'טופל' : w.acked_count ? `בטיפול ${w.acked_count}/${w.count}` : 'חדש'}></sw-badge>`; } },
+    { key: 'title', label: tr('חלון אירוע'), render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? tr('נגזר מהקלטה') : tr('התראות מהמקליט')}</div>`; } },
+    { key: 'spotlight', label: tr('זרקור'), width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span class="spot" data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span class="sub" data-window-manual>${tr('קיבוץ ידני')}</span>` : nothing; } },
+    { key: 'camera_name', label: tr('מצלמה / קבוצה'), render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? tr('ערוץ {n}', { n: w.channel }) : tr('מערכת'))}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div class="sub">${w.camera_names.join(' · ')}</div>` : nothing}`; } },
+    { key: 'start', label: tr('זמן'), render: (r) => { const w = r as unknown as EventWindow; return html`${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}<div class="sub">${this.fmtDate(w.start)}</div>`; } },
+    { key: 'acked', label: tr('מצב'), render: (r) => { const w = r as unknown as EventWindow; return html`<sw-badge kind=${w.acked ? 'live' : w.acked_count ? 'stale' : 'neutral'} label=${w.acked ? tr('טופל') : w.acked_count ? tr('בטיפול {n}/{total}', { n: w.acked_count, total: w.count }) : tr('חדש')}></sw-badge>`; } },
   ];
 
   private renderWindowThumb(w: EventWindow) {
@@ -1256,33 +1257,33 @@ export class InvestigateEvents extends LitElement {
     const older = this.neighbourWindow(w, 'older');
     const newer = this.neighbourWindow(w, 'newer');
     const camsLine = w.camera_names?.length ? w.camera_names.join(' · ') : w.camera_name ?? '';
-    return html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${this.windowTitle(w)} subheading=${`${this.fmtDate(w.start)} · ${this.fmt(w.start)} – ${this.fmt(w.end)} · ${w.count} אירועים`} @close=${() => this.closeWindowDrawer()}>
+    return html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${this.windowTitle(w)} subheading=${`${this.fmtDate(w.start)} · ${this.fmt(w.start)} – ${this.fmt(w.end)} · ${tr('{n} אירועים', { n: w.count })}`} @close=${() => this.closeWindowDrawer()}>
       <div class="wsum" data-window-summary>
-        <sw-badge kind=${w.severity === 'critical' ? 'offline' : w.severity === 'alert' ? 'stale' : 'neutral'} label=${w.severity === 'critical' ? 'קריטי' : w.severity === 'alert' ? 'התראה' : 'מידע'}></sw-badge>
-        <sw-badge kind=${w.confidence === 'measured' ? 'recorded' : 'unknown'} label=${w.confidence === 'measured' ? 'נמדד' : 'נגזר מהקלטה'}></sw-badge>
+        <sw-badge kind=${w.severity === 'critical' ? 'offline' : w.severity === 'alert' ? 'stale' : 'neutral'} label=${w.severity === 'critical' ? tr('קריטי') : w.severity === 'alert' ? tr('התראה') : tr('מידע')}></sw-badge>
+        <sw-badge kind=${w.confidence === 'measured' ? 'recorded' : 'unknown'} label=${w.confidence === 'measured' ? tr('נמדד') : tr('נגזר מהקלטה')}></sw-badge>
         ${s?.sources?.length ? html`<span class="sub">${s.sources.map((x) => SOURCE_LABEL[x] ?? x).join(' · ')}</span>` : nothing}
         ${camsLine ? html`<span class="sub">${camsLine}</span>` : nothing}
-        ${w.manual_group_id ? html`<sw-badge kind="partial" label="קיבוץ ידני" data-window-manual-badge></sw-badge>` : nothing}
+        ${w.manual_group_id ? html`<sw-badge kind="partial" label=${tr('קיבוץ ידני')} data-window-manual-badge></sw-badge>` : nothing}
       </div>
       ${s?.on
         ? html`<ul class="rules" data-spotlight-rules>${s.rules.map((r) => html`<li><span class="spot"><sw-icon name="target" size=${12}></sw-icon>${r.label}</span><span class="why">${r.why}</span></li>`)}</ul>`
-        : html`<div class="sub" style="margin-block-end:8px" data-spotlight-none>ללא זרקור: ${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')}</div>`}
-      <sw-button size="sm" variant="ghost" icon=${this.showRaw ? 'chevron' : 'list'} data-window-raw-toggle aria-expanded=${this.showRaw} @click=${() => (this.showRaw = !this.showRaw)}>${this.showRaw ? 'הסתר את האירועים' : `${w.count} אירועים מקוריים`}</sw-button>
+        : html`<div class="sub" style="margin-block-end:8px" data-spotlight-none>${tr('ללא זרקור:')} ${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')}</div>`}
+      <sw-button size="sm" variant="ghost" icon=${this.showRaw ? 'chevron' : 'list'} data-window-raw-toggle aria-expanded=${this.showRaw} @click=${() => (this.showRaw = !this.showRaw)}>${this.showRaw ? tr('הסתר את האירועים') : tr('{n} אירועים מקוריים', { n: w.count })}</sw-button>
       ${this.showRaw
         ? html`<div class="wlist" data-window-events>
-            ${evs.map((e) => html`<a class="wrow ${w.count > 1 ? 'tick' : ''}" href=${`#/investigate/events/${e.id}`}>${w.count > 1 ? html`<input type="checkbox" aria-label="בחר אירוע לפיצול" data-window-tick=${e.id} .checked=${this.ticked.has(e.id)} @click=${(ev: Event) => ev.stopPropagation()} @change=${(ev: Event) => this.tick(e.id, (ev.target as HTMLInputElement).checked)} />` : nothing}<span class="ty" style="--tone:${EVENT_TONE[e.type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[e.type] ?? e.type}</span><span class="ltr">${this.fmt(e.occurred_at)}</span><span class="sub">${e.acked_at ? 'טופל' : 'ממתין'}</span></a>`)}
-            ${evs.length < w.count ? html`<div class="sub">${w.count - evs.length} אירועים נוספים אינם בסינון הנוכחי.</div>` : nothing}
+            ${evs.map((e) => html`<a class="wrow ${w.count > 1 ? 'tick' : ''}" href=${`#/investigate/events/${e.id}`}>${w.count > 1 ? html`<input type="checkbox" aria-label=${tr('בחר אירוע לפיצול')} data-window-tick=${e.id} .checked=${this.ticked.has(e.id)} @click=${(ev: Event) => ev.stopPropagation()} @change=${(ev: Event) => this.tick(e.id, (ev.target as HTMLInputElement).checked)} />` : nothing}<span class="ty" style="--tone:${EVENT_TONE[e.type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[e.type] ?? e.type}</span><span class="ltr">${this.fmt(e.occurred_at)}</span><span class="sub">${e.acked_at ? tr('טופל') : tr('ממתין')}</span></a>`)}
+            ${evs.length < w.count ? html`<div class="sub">${tr('{n} אירועים נוספים אינם בסינון הנוכחי.', { n: w.count - evs.length })}</div>` : nothing}
           </div>
           <div class="wfix" data-window-fix>
-            ${w.count > 1 ? html`<sw-button size="sm" icon="move" ?disabled=${!ticked.length || ticked.length >= w.count || this.busy} data-window-split @click=${() => this.regroup(ticked, 'פוצל מחלון')}>הפרד לחלון נפרד${ticked.length ? ` (${ticked.length})` : ''}</sw-button>` : nothing}
-            ${older ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-older @click=${() => this.regroup([...w.event_ids, ...older.event_ids], 'אוחד עם החלון הקודם')}>אחד עם הקודם (${this.fmt(older.start)})</sw-button>` : nothing}
-            ${newer ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-newer @click=${() => this.regroup([...w.event_ids, ...newer.event_ids], 'אוחד עם החלון הבא')}>אחד עם הבא (${this.fmt(newer.start)})</sw-button>` : nothing}
-            ${w.manual_group_id ? html`<sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.busy} data-window-ungroup @click=${() => this.dissolve(w)}>בטל קיבוץ ידני</sw-button>` : nothing}
+            ${w.count > 1 ? html`<sw-button size="sm" icon="move" ?disabled=${!ticked.length || ticked.length >= w.count || this.busy} data-window-split @click=${() => this.regroup(ticked, 'פוצל מחלון')}>${tr('הפרד לחלון נפרד')}${ticked.length ? ` (${ticked.length})` : ''}</sw-button>` : nothing}
+            ${older ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-older @click=${() => this.regroup([...w.event_ids, ...older.event_ids], 'אוחד עם החלון הקודם')}>${tr('אחד עם הקודם ({time})', { time: this.fmt(older.start) })}</sw-button>` : nothing}
+            ${newer ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-newer @click=${() => this.regroup([...w.event_ids, ...newer.event_ids], 'אוחד עם החלון הבא')}>${tr('אחד עם הבא ({time})', { time: this.fmt(newer.start) })}</sw-button>` : nothing}
+            ${w.manual_group_id ? html`<sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.busy} data-window-ungroup @click=${() => this.dissolve(w)}>${tr('בטל קיבוץ ידני')}</sw-button>` : nothing}
           </div>`
         : nothing}
       <div slot="footer" class="acts">
-        <sw-button variant="primary" size="sm" ?block=${this.narrow} icon="expand" data-review-window @click=${() => navigate(`/investigate/events/${w.first_event_id}`)}>סקירה מלאה</sw-button>
-        <sw-button size="sm" ?block=${this.narrow} icon="check" ?disabled=${w.acked || this.busy} @click=${() => this.ackWindow(w)}>${w.acked ? 'טופל' : 'סמן הכל כטופל'}</sw-button>
+        <sw-button variant="primary" size="sm" ?block=${this.narrow} icon="expand" data-review-window @click=${() => navigate(`/investigate/events/${w.first_event_id}`)}>${tr('סקירה מלאה')}</sw-button>
+        <sw-button size="sm" ?block=${this.narrow} icon="check" ?disabled=${w.acked || this.busy} @click=${() => this.ackWindow(w)}>${w.acked ? tr('טופל') : tr('סמן הכל כטופל')}</sw-button>
         ${this.renderKeys()}
       </div>
     </sw-drawer>`;
@@ -1337,25 +1338,25 @@ export class InvestigateEvents extends LitElement {
    * ago, day, span) | severity (only an alert / critical is a filled field; information stays quiet) | handling. */
   private apiColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '80px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
-    { key: 'type', label: 'אירוע', render: (r) => { const ev = r as unknown as VmsEvent; return html`<span style=${C_TITLE} title=${`קוד המכשיר: ${ev.raw_type}`} data-raw-type=${ev.raw_type}><i style=${`${C_DOT}${EVENT_TONE[ev.type] ?? 'var(--sw-tl-offline)'}`}></i>${this.kindLabel(ev)}${ev.count > 1 ? html`<span style=${C_SUB}>×${ev.count}</span>` : nothing}</span><div style=${C_SUB}>${SOURCE_WORDS[ev.source] ?? ev.source}${ev.confidence === 'inferred' && ev.source !== 'recording' ? ' · נגזר' : ''}</div>`; } },
-    { key: 'camera_name', label: 'מצלמה', render: (r) => { const ev = r as unknown as VmsEvent; return html`<span style="color:var(--sw-text)">${this.camLabel(ev)}</span>${ev.camera_name && ev.channel ? html`<div style=${C_SUB}>ערוץ ${ev.channel}</div>` : nothing}`; } },
-    { key: 'occurred_at', label: 'זמן', width: '190px', render: (r) => { const ev = r as unknown as VmsEvent; const span = spanText(ev.occurred_at, ev.ended_at); return html`<span style=${C_TIME}>${this.fmt(ev.occurred_at)}</span><div style=${C_SUB}>${this.ago(ev.occurred_at)} · ${this.fmtDate(ev.occurred_at)}${span ? ` · ${span}` : ''}</div>`; } },
-    { key: 'severity', label: 'חומרה', width: '96px', render: (r) => html`<sw-badge ?filled=${r.severity !== 'info'} kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
-    { key: 'acked_at', label: 'טיפול', width: '140px', render: (r) => { const ev = r as unknown as VmsEvent; return ev.acked_at ? html`<span style="color:var(--sw-text-2)">טופל</span><div style=${C_SUB}>${ev.acked_by_username ?? ''}${ev.acked_by_username ? ' · ' : ''}${this.fmt(ev.acked_at)}</div>` : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)" data-pending>ממתין</span>`; } },
+    { key: 'type', label: tr('אירוע'), render: (r) => { const ev = r as unknown as VmsEvent; return html`<span style=${C_TITLE} title=${tr('קוד המכשיר: {code}', { code: ev.raw_type })} data-raw-type=${ev.raw_type}><i style=${`${C_DOT}${EVENT_TONE[ev.type] ?? 'var(--sw-tl-offline)'}`}></i>${this.kindLabel(ev)}${ev.count > 1 ? html`<span style=${C_SUB}>×${ev.count}</span>` : nothing}</span><div style=${C_SUB}>${SOURCE_WORDS[ev.source] ?? ev.source}${ev.confidence === 'inferred' && ev.source !== 'recording' ? ` · ${tr('נגזר')}` : ''}</div>`; } },
+    { key: 'camera_name', label: tr('מצלמה'), render: (r) => { const ev = r as unknown as VmsEvent; return html`<span style="color:var(--sw-text)">${this.camLabel(ev)}</span>${ev.camera_name && ev.channel ? html`<div style=${C_SUB}>${tr('ערוץ {n}', { n: ev.channel })}</div>` : nothing}`; } },
+    { key: 'occurred_at', label: tr('זמן'), width: '190px', render: (r) => { const ev = r as unknown as VmsEvent; const span = spanText(ev.occurred_at, ev.ended_at); return html`<span style=${C_TIME}>${this.fmt(ev.occurred_at)}</span><div style=${C_SUB}>${this.ago(ev.occurred_at)} · ${this.fmtDate(ev.occurred_at)}${span ? ` · ${span}` : ''}</div>`; } },
+    { key: 'severity', label: tr('חומרה'), width: '96px', render: (r) => html`<sw-badge ?filled=${r.severity !== 'info'} kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
+    { key: 'acked_at', label: tr('טיפול'), width: '140px', render: (r) => { const ev = r as unknown as VmsEvent; return ev.acked_at ? html`<span style="color:var(--sw-text-2)">${tr('טופל')}</span><div style=${C_SUB}>${ev.acked_by_username ?? ''}${ev.acked_by_username ? ' · ' : ''}${this.fmt(ev.acked_at)}</div>` : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)" data-pending>${tr('ממתין')}</span>`; } },
   ];
 
   private columns: TableColumn[] = [
     // rendered inside sw-table's shadow root (like renderThumb): the box is styled inline, or the demo thumbnail filled a phone card
     { key: 'thumb', label: '', width: '104px', render: (r) => (r.type === 'offline' || r.type === 'door' ? html`<div class="thumb none" style="inline-size:88px;block-size:56px;border-radius:8px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${r.type === 'offline' ? 'offline' : 'door'} size=${14}></sw-icon></div>` : html`<sw-scene class="thumb" style="display:block;inline-size:88px;block-size:56px;border-radius:8px;overflow:hidden;box-shadow:var(--sw-shadow-thumb)" kind=${(SCENE[String(r.camera)] ?? 'lobby') as 'lobby'}></sw-scene>`) },
-    { key: 'title', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? 'טופל' : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)">ממתין לטיפול</span>`}</div>` },
-    { key: 'camera', label: 'מצלמה', render: (r) => html`${String(r.camera)}<div class="sub">${String(r.floor)}</div>` },
-    { key: 'time', label: 'זמן', render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub">${DEMO_SOURCE_WORDS[String(r.source)] ?? String(r.source)}</div>` },
-    { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: 'מידע', alert: 'התראה', critical: 'קריטי' }[r.severity as DemoEvent['severity']]}></sw-badge>` },
-    { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
+    { key: 'title', label: tr('אירוע'), render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? tr('טופל') : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)">${tr('ממתין לטיפול')}</span>`}</div>` },
+    { key: 'camera', label: tr('מצלמה'), render: (r) => html`${String(r.camera)}<div class="sub">${String(r.floor)}</div>` },
+    { key: 'time', label: tr('זמן'), render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub">${DEMO_SOURCE_WORDS[String(r.source)] ?? String(r.source)}</div>` },
+    { key: 'severity', label: tr('חומרה'), render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') }[r.severity as DemoEvent['severity']]}></sw-badge>` },
+    { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label=${tr('עוד')}></sw-button>` },
   ];
 
   private renderApi() {
-    if (this.error && !this.events) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.init()}></sw-state-panel>`;
+    if (this.error && !this.events) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.init()}></sw-state-panel>`;
     if (!this.events) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const ev = this.events.find((e) => e.id === this.selected) ?? null;
     const ing = this.ingest;
@@ -1364,68 +1365,68 @@ export class InvestigateEvents extends LitElement {
     const down = !!ing && !ing.connected;
     const active = this.activeFilters();
     return html`
-      ${down ? html`<div class="banner warn" data-ingest-down><span class="dot"></span><span>הקליטה מהמקליט מנותקת${ing!.last_error ? ` (${ingestReason(ing!.last_error)})` : ''} · אירועים חדשים לא יגיעו עד שהחיבור יחזור</span></div>` : nothing}
+      ${down ? html`<div class="banner warn" data-ingest-down><span class="dot"></span><span>${tr('הקליטה מהמקליט מנותקת')}${ing!.last_error ? ` (${ingestReason(ing!.last_error)})` : ''} · ${tr('אירועים חדשים לא יגיעו עד שהחיבור יחזור')}</span></div>` : nothing}
       <div class="kpis" data-kpis>
-        <div class="kpi ${unacked ? 'hot' : ''}"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
-        <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
+        <div class="kpi ${unacked ? 'hot' : ''}"><div><div class="n">${unacked}</div><div class="l">${tr('לבדיקה')}</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
+        <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">${tr('טופלו היום')}</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
       </div>
       <div class="fbar" data-filter-bar>
       <div class="filters">
-        <sw-field class="q"><input type="search" data-events-q placeholder="חיפוש: מצלמה, התקן, פרטי אירוע" aria-label="חיפוש חופשי" .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field class="q"><input type="search" data-events-q placeholder=${tr('חיפוש: מצלמה, התקן, פרטי אירוע')} aria-label=${tr('חיפוש חופשי')} .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
         ${this.recorders.length > 1
           ? html`<sw-field><select aria-label=${vt('videoCopy.recorder')} data-filter-recorder @change=${(e: Event) => { this.recorderId = (e.target as HTMLSelectElement).value; this.cameraId = ''; void this.load(); }}><option value="" ?selected=${!this.recorderId}>${vt('videoCopy.recorderAll')}</option>${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderId}>${r.name}</option>`)}</select></sw-field>`
           : nothing}
-        <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).filter((c) => !this.recorderId || c.recorder_id === this.recorderId).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
-        <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
-        <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
-        <span class="rangepick" role="group" aria-label="טווח ימים" data-events-range>
-          ${[[1, 'יום'], [7, '7 ימים'], [30, '30 יום']].map(([n, label]) => html`<button class=${this.rangeDays === n ? 'on' : ''} data-events-range-set=${n} @click=${() => this.setRange(n as number)}>${label}</button>`)}
+        <sw-field><select aria-label=${tr('מצלמה')} @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>${tr('כל המצלמות')}</option>${(this.cams ?? []).filter((c) => !this.recorderId || c.recorder_id === this.recorderId).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
+        <sw-field><select aria-label=${tr('סוג')} @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>${tr('כל סוגי האירועים')}</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
+        <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label=${tr('תאריך')} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
+        <span class="rangepick" role="group" aria-label=${tr('טווח ימים')} data-events-range>
+          ${[[1, tr('יום')], [7, tr('7 ימים')], [30, tr('30 יום')]].map(([n, label]) => html`<button class=${this.rangeDays === n ? 'on' : ''} data-events-range-set=${n} @click=${() => this.setRange(n as number)}>${label}</button>`)}
         </span>
-        <sw-field><select aria-label="מקום" data-filter-floor @change=${(e: Event) => { this.placeFloor = (e.target as HTMLSelectElement).value; this.placeZone = ''; void this.load(); }}><option value="" ?selected=${!this.placeFloor}>כל המקומות</option>${this.facetFloors.map((fl) => html`<option value=${fl.id} ?selected=${fl.id === this.placeFloor}>${fl.name} · ${fl.cameras} מצלמות${fl.sensors ? ` · ${fl.sensors} חיישנים` : ''}</option>`)}</select></sw-field>
+        <sw-field><select aria-label=${tr('מקום')} data-filter-floor @change=${(e: Event) => { this.placeFloor = (e.target as HTMLSelectElement).value; this.placeZone = ''; void this.load(); }}><option value="" ?selected=${!this.placeFloor}>${tr('כל המקומות')}</option>${this.facetFloors.map((fl) => html`<option value=${fl.id} ?selected=${fl.id === this.placeFloor}>${fl.name} · ${tr('{n} מצלמות', { n: fl.cameras })}${fl.sensors ? ` · ${tr('{n} חיישנים', { n: fl.sensors })}` : ''}</option>`)}</select></sw-field>
         ${this.placeFloor && this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones.length
-          ? html`<sw-field><select aria-label="חדר / אזור" data-filter-zone @change=${(e: Event) => { this.placeZone = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.placeZone}>כל הקומה</option>${(this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones ?? []).map((z) => html`<option value=${z.id} ?selected=${z.id === this.placeZone}>${z.name} · ${z.cameras} מצלמות${z.sensors ? ` · ${z.sensors} חיישנים` : ''}</option>`)}</select></sw-field>`
+          ? html`<sw-field><select aria-label=${tr('חדר / אזור')} data-filter-zone @change=${(e: Event) => { this.placeZone = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.placeZone}>${tr('כל הקומה')}</option>${(this.facetFloors.find((fl) => fl.id === this.placeFloor)?.zones ?? []).map((z) => html`<option value=${z.id} ?selected=${z.id === this.placeZone}>${z.name} · ${tr('{n} מצלמות', { n: z.cameras })}${z.sensors ? ` · ${tr('{n} חיישנים', { n: z.sensors })}` : ''}</option>`)}</select></sw-field>`
           : nothing}
-        <sw-field><select aria-label="מקור" data-filter-source @change=${(e: Event) => { this.source = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.source}>כל המקורות</option>${Object.entries(SOURCE_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === this.source}>${v}</option>`)}</select></sw-field>
+        <sw-field><select aria-label=${tr('מקור')} data-filter-source @change=${(e: Event) => { this.source = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.source}>${tr('כל המקורות')}</option>${Object.entries(SOURCE_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === this.source}>${v}</option>`)}</select></sw-field>
       </div>
       <div class="tools">
-        <span class="seg" role="group" aria-label="מצב טיפול">
-          <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.filter === 'all' ? this.events.length : undefined}>הכל</sw-chip>
-          <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>לבדיקה</sw-chip>
-          <sw-chip ?selected=${this.filter === 'acked'} @click=${() => { this.filter = 'acked'; void this.load(); }}>טופלו</sw-chip>
+        <span class="seg" role="group" aria-label=${tr('מצב טיפול')}>
+          <sw-chip ?selected=${this.filter === 'all'} @click=${() => { this.filter = 'all'; void this.load(); }} count=${this.filter === 'all' ? this.events.length : undefined}>${tr('הכל')}</sw-chip>
+          <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => { this.filter = 'unacked'; void this.load(); }} count=${unacked}>${tr('לבדיקה')}</sw-chip>
+          <sw-chip ?selected=${this.filter === 'acked'} @click=${() => { this.filter = 'acked'; void this.load(); }}>${tr('טופלו')}</sw-chip>
         </span>
-        <span class="seg" role="group" aria-label="תצוגה">
-          <sw-chip icon="list" ?selected=${this.mode === 'raw'} @click=${() => this.setMode('raw')}>אירועים</sw-chip>
-          <sw-chip icon="layers" ?selected=${this.mode === 'windows'} data-mode-windows @click=${() => this.setMode('windows')} count=${this.windows?.length}>חלונות</sw-chip>
+        <span class="seg" role="group" aria-label=${tr('תצוגה')}>
+          <sw-chip icon="list" ?selected=${this.mode === 'raw'} @click=${() => this.setMode('raw')}>${tr('אירועים')}</sw-chip>
+          <sw-chip icon="layers" ?selected=${this.mode === 'windows'} data-mode-windows @click=${() => this.setMode('windows')} count=${this.windows?.length}>${tr('חלונות')}</sw-chip>
         </span>
         ${active.length
           ? html`<span class="active" data-active-filters>
-              ${active.map((f) => html`<button type="button" class="fchip" data-active-filter=${f.key} aria-label=${`הסר מסנן: ${f.label}`} @click=${f.clear}><span>${f.label}</span><sw-icon name="close" size=${12}></sw-icon></button>`)}
-              <button type="button" class="reset" data-filter-reset @click=${() => this.resetFilters()}>איפוס</button>
+              ${active.map((f) => html`<button type="button" class="fchip" data-active-filter=${f.key} aria-label=${tr('הסר מסנן: {label}', { label: f.label })} @click=${f.clear}><span>${f.label}</span><sw-icon name="close" size=${12}></sw-icon></button>`)}
+              <button type="button" class="reset" data-filter-reset @click=${() => this.resetFilters()}>${tr('איפוס')}</button>
             </span>`
           : nothing}
         <span class="grow"></span>
-        <sw-button size="sm" icon="check" ?disabled=${!unacked || this.busy} data-ack-all title="מסמן כטופלו את כל האירועים ברשימה שעדיין לבדיקה (לפי הסינון הנוכחי)" @click=${() => this.ackAll()}>סמן הכול כטופל (${unacked})</sw-button>
+        <sw-button size="sm" icon="check" ?disabled=${!unacked || this.busy} data-ack-all title=${tr('מסמן כטופלו את כל האירועים ברשימה שעדיין לבדיקה (לפי הסינון הנוכחי)')} @click=${() => this.ackAll()}>${tr('סמן הכול כטופל ({n})', { n: unacked })}</sw-button>
       </div>
       </div>
       ${this.renderTech(noAlerts)}
-      ${this.unsupported.length ? html`<div class="banner warn" data-unsupported>המסנן אינו נתמך כאן, לא "אין תוצאות": ${this.unsupported.map((u) => u.reason).join(' · ')}</div>` : nothing}
+      ${this.unsupported.length ? html`<div class="banner warn" data-unsupported>${tr('המסנן אינו נתמך כאן, לא "אין תוצאות":')} ${this.unsupported.map((u) => u.reason).join(' · ')}</div>` : nothing}
       ${this.error ? html`<div class="banner warn" role="alert">${this.error}</div>` : nothing}
       <div class="stage ${(ev || (this.mode === 'windows' && this.selectedWindow)) && this.dock ? 'docked' : ''}">
         ${this.mode === 'windows'
           ? this.windows === null || (this.windowsBusy && !this.windows.length)
             ? html`<sw-state-panel state="loading"></sw-state-panel>`
             : this.windows.length
-              ? html`<div class="banner" style="margin-block-end:8px"><sw-icon name="info" size=${14}></sw-icon><span>${this.windowBy === 'camera' ? 'התראות סמוכות באותה מצלמה' : this.windowBy === 'all' ? 'התראות סמוכות מכל המצלמות' : this.windowBy === 'zone' ? 'התראות סמוכות באותו חדר' : 'התראות סמוכות באותה קומה'} הופכות לחלון אירוע אחד (מרווח עד ${Math.round(this.windowGap / 60)} דק׳). האירועים המקוריים נשמרים לצפייה.</span><span class="grow"></span>
-                  <sw-chip icon="target" ?selected=${this.spotlightOnly} data-window-spotlight-only count=${this.spotlightCount} @click=${() => { this.spotlightOnly = !this.spotlightOnly; void this.loadWindows(); }}>זרקורים</sw-chip>
-                  <sw-field><select aria-label="קיבוץ" data-window-by @change=${(e: Event) => { this.windowBy = (e.target as HTMLSelectElement).value as WindowGroup; void this.loadWindows(); }}>${(Object.keys(WINDOW_GROUP_LABEL) as WindowGroup[]).map((k) => html`<option value=${k} ?selected=${this.windowBy === k}>${WINDOW_GROUP_LABEL[k]}</option>`)}</select></sw-field>
-                  <sw-field><select aria-label="מרווח קיבוץ" data-window-gap @change=${(e: Event) => { this.windowGap = Number((e.target as HTMLSelectElement).value); void this.loadWindows(); }}>${[60, 180, 300, 600, 900, 1800, 3600].map((g) => html`<option value=${g} ?selected=${this.windowGap === g}>${g / 60} דק׳</option>`)}</select></sw-field></div>
+              ? html`<div class="banner" style="margin-block-end:8px"><sw-icon name="info" size=${14}></sw-icon><span>${tr('{what} הופכות לחלון אירוע אחד (מרווח עד {n} דק׳). האירועים המקוריים נשמרים לצפייה.', { what: this.windowBy === 'camera' ? tr('התראות סמוכות באותה מצלמה') : this.windowBy === 'all' ? tr('התראות סמוכות מכל המצלמות') : this.windowBy === 'zone' ? tr('התראות סמוכות באותו חדר') : tr('התראות סמוכות באותה קומה'), n: Math.round(this.windowGap / 60) })}</span><span class="grow"></span>
+                  <sw-chip icon="target" ?selected=${this.spotlightOnly} data-window-spotlight-only count=${this.spotlightCount} @click=${() => { this.spotlightOnly = !this.spotlightOnly; void this.loadWindows(); }}>${tr('זרקורים')}</sw-chip>
+                  <sw-field><select aria-label=${tr('קיבוץ')} data-window-by @change=${(e: Event) => { this.windowBy = (e.target as HTMLSelectElement).value as WindowGroup; void this.loadWindows(); }}>${(Object.keys(WINDOW_GROUP_LABEL) as WindowGroup[]).map((k) => html`<option value=${k} ?selected=${this.windowBy === k}>${WINDOW_GROUP_LABEL[k]}</option>`)}</select></sw-field>
+                  <sw-field><select aria-label=${tr('מרווח קיבוץ')} data-window-gap @change=${(e: Event) => { this.windowGap = Number((e.target as HTMLSelectElement).value); void this.loadWindows(); }}>${[60, 180, 300, 600, 900, 1800, 3600].map((g) => html`<option value=${g} ?selected=${this.windowGap === g}>${tr('{n} דק׳', { n: g / 60 })}</option>`)}</select></sw-field></div>
                 <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string; key?: string }>) => this.onRowSelect(e.detail)}></sw-table>`
               : this.spotlightOnly
-                ? html`<sw-state-panel icon="history" state="empty" heading="אין זרקורים ביום הזה"><div style="margin-block-start:10px"><sw-button size="sm" data-window-spotlight-off @click=${() => { this.spotlightOnly = false; void this.loadWindows(); }}>כל החלונות</sw-button></div></sw-state-panel>`
-                : html`<sw-state-panel icon="history" state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`
+                ? html`<sw-state-panel icon="history" state="empty" heading=${tr('אין זרקורים ביום הזה')}><div style="margin-block-start:10px"><sw-button size="sm" data-window-spotlight-off @click=${() => { this.spotlightOnly = false; void this.loadWindows(); }}>${tr('כל החלונות')}</sw-button></div></sw-state-panel>`
+                : html`<sw-state-panel icon="history" state="empty" heading=${tr('אין חלונות אירוע ביום הזה')} hint=${tr('חלון נוצר מאירועים סמוכים של אותה מצלמה.')}></sw-state-panel>`
           : this.events.length
             ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string; key?: string }>) => this.onRowSelect(e.detail)}></sw-table>`
-            : html`<sw-state-panel icon="history" state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מהמקליט רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
+            : html`<sw-state-panel icon="history" state="empty" heading=${tr('אין אירועים ביום הזה')} hint=${tr('התראות מגיעות מהמקליט רק כשהטריגר מוגדר עם \'Notify Surveillance Center\'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות.')}></sw-state-panel>`}
         ${this.renderRowPreview()}
         ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}
         ${ev ? this.renderEventDrawer(ev) : nothing}
@@ -1447,45 +1448,45 @@ export class InvestigateEvents extends LitElement {
     return html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${kind} subheading=${`${this.camLabel(ev)} · ${this.fmt(ev.occurred_at)} · ${this.ago(ev.occurred_at)}`} @close=${() => this.closeDrawer()}>
               <div class="chips" slot="sub" data-event-chips>
                 <sw-badge ?filled=${ev.severity !== 'info'} kind=${ev.severity === 'critical' ? 'error' : ev.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[ev.severity] ?? ev.severity}></sw-badge>
-                <sw-badge kind=${ev.acked_at ? 'live' : 'neutral'} label=${ev.acked_at ? 'טופל' : 'ממתין לטיפול'}></sw-badge>
+                <sw-badge kind=${ev.acked_at ? 'live' : 'neutral'} label=${ev.acked_at ? tr('טופל') : tr('ממתין לטיפול')}></sw-badge>
               </div>
               <div class="big">
                 ${this.player?.eventId === ev.id && this.player.session
                   ? html`<sw-live-player .wsUrl=${playbackWsUrl(this.player.session)} mode="mse" .retry=${false}></sw-live-player>`
                   : ev.thumbnail === 'ready'
-                    ? html`<img src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="תמונת האירוע מההקלטה" />`
-                    : html`<div class="hint">${!ev.camera_id ? 'אירוע ללא מצלמה' : ev.thumbnail === 'unavailable' ? 'אין פריים זמין בהקלטה בזמן האירוע' : this.player?.eventId === ev.id ? 'פותח את ההקלטה…' : 'מכין תמונה מההקלטה…'}</div>`}
+                    ? html`<img src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt=${tr('תמונת האירוע מההקלטה')} />`
+                    : html`<div class="hint">${!ev.camera_id ? tr('אירוע ללא מצלמה') : ev.thumbnail === 'unavailable' ? tr('אין פריים זמין בהקלטה בזמן האירוע') : this.player?.eventId === ev.id ? tr('פותח את ההקלטה…') : tr('מכין תמונה מההקלטה…')}</div>`}
                 ${this.player?.eventId === ev.id && this.player.error ? html`<div class="err">${this.player.error}</div>` : nothing}
               </div>
               <dl class="r5-facts">
-                <div class="wide"><dt>זמן אירוע</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span>${ev.ended_at ? html` עד <span class="ltr">${this.fmt(ev.ended_at)}</span>` : nothing}${span ? html` <span class="r5-sub">· ${span}</span>` : nothing}</dd></div>
-                <div><dt>מצלמה</dt><dd>${this.camLabel(ev)}</dd></div>
-                <div><dt>מקור</dt><dd>${SOURCE_WORDS[ev.source] ?? ev.source}</dd></div>
-                <div><dt>ודאות</dt><dd>${ev.confidence === 'measured' ? 'נמדד במכשיר' : 'נגזר מההקלטה'}</dd></div>
-                <div><dt>חזרות</dt><dd>${ev.count} · ${ev.state === 'active' ? 'פעיל' : ev.state === 'inactive' ? 'הסתיים' : '—'}</dd></div>
-                <div class="wide"><dt>טיפול</dt><dd>${ev.acked_at ? html`טופל${ev.acked_by_username ? ` בידי ${ev.acked_by_username}` : ''} · <span class="ltr">${this.fmt(ev.acked_at)}</span>` : 'ממתין לטיפול'}</dd></div>
-                ${descHe && descHe !== `התראת ${kind}` ? html`<div class="wide"><dt>תיאור</dt><dd>${descHe}</dd></div>` : nothing}
-                ${typeof ev.details.seconds === 'number' ? html`<div><dt>משך ההקלטה</dt><dd>${String(ev.details.seconds)} שנ׳</dd></div>` : nothing}
+                <div class="wide"><dt>${tr('זמן אירוע')}</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span>${ev.ended_at ? html` ${tr('עד')} <span class="ltr">${this.fmt(ev.ended_at)}</span>` : nothing}${span ? html` <span class="r5-sub">· ${span}</span>` : nothing}</dd></div>
+                <div><dt>${tr('מצלמה')}</dt><dd>${this.camLabel(ev)}</dd></div>
+                <div><dt>${tr('מקור')}</dt><dd>${SOURCE_WORDS[ev.source] ?? ev.source}</dd></div>
+                <div><dt>${tr('ודאות')}</dt><dd>${ev.confidence === 'measured' ? tr('נמדד במכשיר') : tr('נגזר מההקלטה')}</dd></div>
+                <div><dt>${tr('חזרות')}</dt><dd>${ev.count} · ${ev.state === 'active' ? tr('פעיל') : ev.state === 'inactive' ? tr('הסתיים') : '—'}</dd></div>
+                <div class="wide"><dt>${tr('טיפול')}</dt><dd>${ev.acked_at ? html`${tr('טופל')}${ev.acked_by_username ? ` ${tr('בידי {name}', { name: ev.acked_by_username })}` : ''} · <span class="ltr">${this.fmt(ev.acked_at)}</span>` : tr('ממתין לטיפול')}</dd></div>
+                ${descHe && descHe !== `התראת ${kind}` ? html`<div class="wide"><dt>${tr('תיאור')}</dt><dd>${descHe}</dd></div>` : nothing}
+                ${typeof ev.details.seconds === 'number' ? html`<div><dt>${tr('משך ההקלטה')}</dt><dd>${tr('{n} שנ׳', { n: String(ev.details.seconds) })}</dd></div>` : nothing}
               </dl>
               <details class="tech evtech" data-event-tech>
-                <summary><sw-icon name="info" size=${14}></sw-icon><span>פרטים טכניים</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+                <summary><sw-icon name="info" size=${14}></sw-icon><span>${tr('פרטים טכניים')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
                 <dl class="kv">
-                  <dt>קוד המכשיר</dt><dd class="ltr">${ev.raw_type}</dd>
-                  ${desc ? html`<dt>טקסט המכשיר</dt><dd class="ltr">${desc}</dd>` : nothing}
-                  ${prec ? html`<dt>דיוק הזמן</dt><dd>${precisionLabel(prec) ?? ''} <span class="ltr mono">${prec}</span></dd>` : nothing}
-                  ${devTime ? html`<dt>שעון המכשיר</dt><dd class="ltr mono">${devTime}</dd>` : nothing}
-                  <dt>נקלט</dt><dd><span class="ltr">${this.fmtDate(ev.received_at)} ${this.fmt(ev.received_at)}</span></dd>
-                  <dt>מקור (מפתח)</dt><dd class="ltr mono">${ev.source} · ${ev.confidence}</dd>
-                  ${ev.recorder_id ? html`<dt>מקליט</dt><dd class="ltr mono">${ev.recorder_id}${ev.channel ? ` · ch ${ev.channel}` : ''}</dd>` : nothing}
-                  ${coalesced ? html`<dt>אוחדו</dt><dd>${coalesced} התראות קודמות</dd>` : nothing}
-                  <dt>מזהה</dt><dd class="ltr mono">${ev.id}</dd>
+                  <dt>${tr('קוד המכשיר')}</dt><dd class="ltr">${ev.raw_type}</dd>
+                  ${desc ? html`<dt>${tr('טקסט המכשיר')}</dt><dd class="ltr">${desc}</dd>` : nothing}
+                  ${prec ? html`<dt>${tr('דיוק הזמן')}</dt><dd>${precisionLabel(prec) ?? ''} <span class="ltr mono">${prec}</span></dd>` : nothing}
+                  ${devTime ? html`<dt>${tr('שעון המכשיר')}</dt><dd class="ltr mono">${devTime}</dd>` : nothing}
+                  <dt>${tr('נקלט')}</dt><dd><span class="ltr">${this.fmtDate(ev.received_at)} ${this.fmt(ev.received_at)}</span></dd>
+                  <dt>${tr('מקור (מפתח)')}</dt><dd class="ltr mono">${ev.source} · ${ev.confidence}</dd>
+                  ${ev.recorder_id ? html`<dt>${tr('מקליט')}</dt><dd class="ltr mono">${ev.recorder_id}${ev.channel ? ` · ch ${ev.channel}` : ''}</dd>` : nothing}
+                  ${coalesced ? html`<dt>${tr('אוחדו')}</dt><dd>${tr('{n} התראות קודמות', { n: coalesced })}</dd>` : nothing}
+                  <dt>${tr('מזהה')}</dt><dd class="ltr mono">${ev.id}</dd>
                 </dl>
               </details>
               <div slot="footer" class="acts">
-                <sw-button variant="primary" size="sm" ?block=${this.narrow} icon="expand" data-review @click=${() => navigate(`/investigate/events/${ev.id}`)}>סקירה מלאה</sw-button>
-                ${ev.camera_id ? html`<sw-button size="sm" ?block=${this.narrow} icon="play" data-play @click=${() => this.play(ev)}>${this.player?.eventId === ev.id ? 'עצור' : 'נגן כאן'}</sw-button>
-                    <sw-button size="sm" ?block=${this.narrow} icon="history" data-to-recording @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>להקלטה</sw-button>` : nothing}
-                <sw-button variant="ghost" size="sm" ?block=${this.narrow} icon="check" data-ack ?disabled=${!!ev.acked_at || this.busy} @click=${() => this.ack(ev)}>${ev.acked_at ? 'טופל' : 'סמן טופל'}</sw-button>
+                <sw-button variant="primary" size="sm" ?block=${this.narrow} icon="expand" data-review @click=${() => navigate(`/investigate/events/${ev.id}`)}>${tr('סקירה מלאה')}</sw-button>
+                ${ev.camera_id ? html`<sw-button size="sm" ?block=${this.narrow} icon="play" data-play @click=${() => this.play(ev)}>${this.player?.eventId === ev.id ? tr('עצור') : tr('נגן כאן')}</sw-button>
+                    <sw-button size="sm" ?block=${this.narrow} icon="history" data-to-recording @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>${tr('להקלטה')}</sw-button>` : nothing}
+                <sw-button variant="ghost" size="sm" ?block=${this.narrow} icon="check" data-ack ?disabled=${!!ev.acked_at || this.busy} @click=${() => this.ack(ev)}>${ev.acked_at ? tr('טופל') : tr('סמן טופל')}</sw-button>
                 ${this.renderKeys()}
               </div>
             </sw-drawer>`;
@@ -1494,7 +1495,7 @@ export class InvestigateEvents extends LitElement {
   /** The keyboard's reminder at the footer's end: desktop / tablet only (a phone has no keys, the sheet is modal there). */
   private renderKeys() {
     if (this.narrow) return nothing;
-    return html`<span class="keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> מעבר · <kbd>Enter</kbd> סקירה · <kbd>Esc</kbd> סגירה</span>`;
+    return html`<span class="keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> ${tr('מעבר')} · <kbd>Enter</kbd> ${tr('סקירה')} · <kbd>Esc</kbd> ${tr('סגירה')}</span>`;
   }
 
   /** The data-sources line (ingest, live updates, what each source means, which fields have data) behind one quiet summary. */
@@ -1502,24 +1503,24 @@ export class InvestigateEvents extends LitElement {
     const ing = this.ingest;
     const f = this.facets;
     const missing = f ? f.unavailable_types.filter((u) => ['person', 'vehicle', 'line', 'field', 'door'].includes(u.type)) : [];
-    const state = !ing ? 'בודק את הקליטה…' : ing.connected ? 'קליטה מחוברת' : 'קליטה מנותקת';
+    const state = !ing ? tr('בודק את הקליטה…') : ing.connected ? tr('קליטה מחוברת') : tr('קליטה מנותקת');
     return html`<details class="tech" data-tech-details ?open=${this.techOpen} @toggle=${(e: Event) => this.onTechToggle((e.target as HTMLDetailsElement).open)}>
       <summary>
         <span class="dot ${ing?.connected ? 'on' : ''}" aria-hidden="true"></span>
         <span data-ingest-line title=${ing?.last_error ?? ''}>${state}</span>
-        <span class="sub">· עדכונים חיים ${this.live ? 'פעילים' : 'מתחברים…'}</span>
-        ${noAlerts ? html`<span class="warnnote" data-no-alerts-flag><sw-icon name="warning" size=${13}></sw-icon>המקליט לא שולח התראות</span>` : nothing}
+        <span class="sub">· ${tr('עדכונים חיים {state}', { state: this.live ? tr('פעילים') : tr('מתחברים…') })}</span>
+        ${noAlerts ? html`<span class="warnnote" data-no-alerts-flag><sw-icon name="warning" size=${13}></sw-icon>${tr('המקליט לא שולח התראות')}</span>` : nothing}
         <span class="grow"></span>
-        <span class="sub">פרטים טכניים</span>
+        <span class="sub">${tr('פרטים טכניים')}</span>
         <sw-icon class="chev" name="chevron" size=${14}></sw-icon>
       </summary>
       <div class="techbody">
-        <div>קליטה מהמקליט: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ingestReason(ing.last_error)})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה אחרונה ${this.fmt(ing.last_heartbeat_at)}` : ''} · עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'} · אזור זמן <span class="ltr">${this.tz}</span></div>
-        <div>אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה, לא התראה שנמדדה במכשיר.</div>
-        ${noAlerts ? html`<div data-no-alerts class="warntext">המקליט לא שלח התראות ב־${f!.days} הימים האחרונים. כדי לקבל אותן: במקליט, בהגדרות הקישור (linkage) של זיהוי התנועה, להפעיל "Notify Surveillance Center".</div>` : nothing}
+        <div>${tr('קליטה מהמקליט:')} ${ing ? (ing.connected ? tr('מחובר') : `${tr('מנותק')}${ing.last_error ? ` (${ingestReason(ing.last_error)})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · ${tr('פעימה אחרונה {time}', { time: this.fmt(ing.last_heartbeat_at) })}` : ''} · ${tr('עדכונים חיים:')} ${this.live ? tr('פעיל') : tr('מתחבר…')} · ${tr('אזור זמן')} <span class="ltr">${this.tz}</span></div>
+        <div>${tr('אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה, לא התראה שנמדדה במכשיר.')}</div>
+        ${noAlerts ? html`<div data-no-alerts class="warntext">${tr('המקליט לא שלח התראות ב־{n} הימים האחרונים. כדי לקבל אותן: במקליט, בהגדרות הקישור (linkage) של זיהוי התנועה, להפעיל "Notify Surveillance Center".', { n: f!.days })}</div>` : nothing}
         ${f
-          ? html`<div data-facets><strong>שדות עם נתונים (${f.days} ימים):</strong> ${f.types.map((t) => `${EVENT_LABEL[t.type as EventKind] ?? t.type} (${t.count})`).join(' · ') || 'אין אירועים'} · <strong>מקורות:</strong> ${f.sources.map((s) => `${SOURCE_LABEL[s.source] ?? s.source} (${s.count})`).join(' · ') || '—'}
-              ${missing.length ? html`<br /><strong>לא זמין:</strong> ${missing.map((u, i) => html`${i ? ' · ' : ''}<span title=${u.reason}>${EVENT_LABEL[u.type as EventKind] ?? u.type}</span>`)} <span class="sub">(ריחוף מסביר למה)</span>` : nothing}
+          ? html`<div data-facets><strong>${tr('שדות עם נתונים ({n} ימים):', { n: f.days })}</strong> ${f.types.map((t) => `${EVENT_LABEL[t.type as EventKind] ?? t.type} (${t.count})`).join(' · ') || tr('אין אירועים')} · <strong>${tr('מקורות:')}</strong> ${f.sources.map((s) => `${SOURCE_LABEL[s.source] ?? s.source} (${s.count})`).join(' · ') || '—'}
+              ${missing.length ? html`<br /><strong>${tr('לא זמין:')}</strong> ${missing.map((u, i) => html`${i ? ' · ' : ''}<span title=${u.reason}>${EVENT_LABEL[u.type as EventKind] ?? u.type}</span>`)} <span class="sub">${tr('(ריחוף מסביר למה)')}</span>` : nothing}
               ${f.notes.map((n) => html`<br />${n}`)}</div>`
           : nothing}
       </div>
@@ -1543,12 +1544,12 @@ export class InvestigateEvents extends LitElement {
     const today = dateInZone(new Date(), this.tz);
     if (this.q.trim()) out.push({ key: 'q', label: `"${this.q.trim()}"`, clear: () => { this.q = ''; reload(); } });
     if (this.recorderId) out.push({ key: 'recorder', label: this.recorders.find((r) => r.id === this.recorderId)?.name ?? vt('videoCopy.recorder'), clear: () => { this.recorderId = ''; reload(); } });
-    if (this.cameraId) out.push({ key: 'camera', label: this.cams?.find((c) => c.id === this.cameraId)?.name ?? 'מצלמה', clear: () => { this.cameraId = ''; reload(); } });
+    if (this.cameraId) out.push({ key: 'camera', label: this.cams?.find((c) => c.id === this.cameraId)?.name ?? tr('מצלמה'), clear: () => { this.cameraId = ''; reload(); } });
     if (this.type) out.push({ key: 'type', label: EVENT_LABEL[this.type as EventKind] ?? this.type, clear: () => { this.type = ''; reload(); } });
-    if (this.date && this.date !== today) out.push({ key: 'date', label: `עד ${this.date.split('-').reverse().join('.')}`, clear: () => { this.date = today; reload(); } });
-    if (this.rangeDays > 1) out.push({ key: 'range', label: `${this.rangeDays} ימים`, clear: () => this.setRange(1) });
-    if (this.placeFloor) out.push({ key: 'floor', label: this.facetFloors.find((fl) => fl.id === this.placeFloor)?.name ?? 'מקום', clear: () => { this.placeFloor = ''; this.placeZone = ''; reload(); } });
-    if (this.placeZone) out.push({ key: 'zone', label: this.facetFloors.flatMap((fl) => fl.zones).find((z) => z.id === this.placeZone)?.name ?? 'אזור', clear: () => { this.placeZone = ''; reload(); } });
+    if (this.date && this.date !== today) out.push({ key: 'date', label: tr('עד {date}', { date: this.date.split('-').reverse().join('.') }), clear: () => { this.date = today; reload(); } });
+    if (this.rangeDays > 1) out.push({ key: 'range', label: tr('{n} ימים', { n: this.rangeDays }), clear: () => this.setRange(1) });
+    if (this.placeFloor) out.push({ key: 'floor', label: this.facetFloors.find((fl) => fl.id === this.placeFloor)?.name ?? tr('מקום'), clear: () => { this.placeFloor = ''; this.placeZone = ''; reload(); } });
+    if (this.placeZone) out.push({ key: 'zone', label: this.facetFloors.flatMap((fl) => fl.zones).find((z) => z.id === this.placeZone)?.name ?? tr('אזור'), clear: () => { this.placeZone = ''; reload(); } });
     if (this.source) out.push({ key: 'source', label: SOURCE_LABEL[this.source] ?? this.source, clear: () => { this.source = ''; reload(); } });
     return out;
   }
@@ -1572,30 +1573,30 @@ export class InvestigateEvents extends LitElement {
     const ev = demoEvents.find((e) => e.id === this.selected);
     return html`
       <div class="filters">
-        <sw-field><select aria-label="אתר"><option>כל האתרים</option><option>אתר הדגמה</option></select></sw-field>
-        <sw-field><select aria-label="מצלמה"><option>כל המצלמות</option></select></sw-field>
-        <sw-field><select aria-label="סוג"><option>כל סוגי האירועים</option><option>אדם</option><option>רכב</option><option>תנועה</option><option>ניתוק</option></select></sw-field>
-        <sw-field><input type="date" lang=${dateInputLang()} value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
+        <sw-field><select aria-label=${tr('אתר')}><option>${tr('כל האתרים')}</option><option>${tr('אתר הדגמה')}</option></select></sw-field>
+        <sw-field><select aria-label=${tr('מצלמה')}><option>${tr('כל המצלמות')}</option></select></sw-field>
+        <sw-field><select aria-label=${tr('סוג')}><option>${tr('כל סוגי האירועים')}</option><option>${tr('אדם')}</option><option>${tr('רכב')}</option><option>${tr('תנועה')}</option><option>${tr('ניתוק')}</option></select></sw-field>
+        <sw-field><input type="date" lang=${dateInputLang()} value="2026-09-14" data-ltr aria-label=${tr('תאריך')} /></sw-field>
         <span class="grow"></span>
-        <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')} count=${demoEvents.length}>הכל</sw-chip>
-        <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => (this.filter = 'unacked')} count=${demoEvents.filter((e) => !e.acked).length}>ללא טיפול</sw-chip>
+        <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')} count=${demoEvents.length}>${tr('הכל')}</sw-chip>
+        <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => (this.filter = 'unacked')} count=${demoEvents.filter((e) => !e.acked).length}>${tr('ללא טיפול')}</sw-chip>
       </div>
       <div class="stage">
         <sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>
         ${ev
           ? html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${eventTypeLabel[ev.type]} subheading=${`${ev.camera} · ${ev.time}`} @close=${() => (this.selected = null)}>
-              <div class="preview">${ev.type === 'offline' || ev.type === 'door' ? 'אין תמונה לאירוע זה' : html`<sw-scene kind=${(SCENE[ev.camera] ?? 'lobby') as 'lobby'}></sw-scene><span class="demo">דמו · תמונת אירוע מהמקליט (T044)</span>`}</div>
+              <div class="preview">${ev.type === 'offline' || ev.type === 'door' ? tr('אין תמונה לאירוע זה') : html`<sw-scene kind=${(SCENE[ev.camera] ?? 'lobby') as 'lobby'}></sw-scene><span class="demo">${tr('דמו · תמונת אירוע מהמקליט (T044)')}</span>`}</div>
               <dl class="r5-facts">
-                <div><dt>זמן אירוע</dt><dd>${ev.time} <span class="r5-sub">· נקלט +1.2s</span></dd></div>
-                <div><dt>טיפול</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : 'ממתין'}</dd></div>
-                <div><dt>קומה</dt><dd>${ev.floor}</dd></div>
-                <div><dt>כיסוי הקלטה</dt><dd>${ev.type === 'offline' ? 'אין' : 'קיים · 10 שנ׳ לפני/אחרי'}</dd></div>
-                <div class="wide"><dt>מקור</dt><dd>${DEMO_SOURCE_WORDS[ev.source] ?? ev.source} · raw: <span class="ltr">${ev.type}</span></dd></div>
+                <div><dt>${tr('זמן אירוע')}</dt><dd>${ev.time} <span class="r5-sub">· ${tr('נקלט +1.2s')}</span></dd></div>
+                <div><dt>${tr('טיפול')}</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : tr('ממתין')}</dd></div>
+                <div><dt>${tr('קומה')}</dt><dd>${ev.floor}</dd></div>
+                <div><dt>${tr('כיסוי הקלטה')}</dt><dd>${ev.type === 'offline' ? tr('אין') : tr('קיים · 10 שנ׳ לפני/אחרי')}</dd></div>
+                <div class="wide"><dt>${tr('מקור')}</dt><dd>${DEMO_SOURCE_WORDS[ev.source] ?? ev.source} · raw: <span class="ltr">${ev.type}</span></dd></div>
               </dl>
               <div slot="footer" class="acts">
-                <a href="#/investigate/playback"><sw-button variant="primary" size="sm" icon="history">להקלטה</sw-button></a>
-                <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה</sw-button></a>
-                <sw-button variant="ghost" size="sm" icon="check" ?disabled=${ev.acked}>סמן טופל</sw-button>
+                <a href="#/investigate/playback"><sw-button variant="primary" size="sm" icon="history">${tr('להקלטה')}</sw-button></a>
+                <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">${tr('במפה')}</sw-button></a>
+                <sw-button variant="ghost" size="sm" icon="check" ?disabled=${ev.acked}>${tr('סמן טופל')}</sw-button>
               </div>
             </sw-drawer>`
           : ''}
@@ -1606,8 +1607,8 @@ export class InvestigateEvents extends LitElement {
   render() {
     const api = isApi();
     return html`
-      <sw-page heading="מרכז אירועים" subheading=${api ? 'חיפוש, סינון וסקירה של אירועי המצלמות והחיישנים' : 'חיפוש, סינון וסקירה של כל האירועים · מקור וזמן קליטה נשמרים · נתוני הדגמה'}>
-        ${api ? nothing : html`<sw-button slot="actions" icon="download">ייצוא</sw-button>`}
+      <sw-page heading=${tr('מרכז אירועים')} subheading=${api ? tr('חיפוש, סינון וסקירה של אירועי המצלמות והחיישנים') : tr('חיפוש, סינון וסקירה של כל האירועים · מקור וזמן קליטה נשמרים · נתוני הדגמה')}>
+        ${api ? nothing : html`<sw-button slot="actions" icon="download">${tr('ייצוא')}</sw-button>`}
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;

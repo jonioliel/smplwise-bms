@@ -6,6 +6,7 @@ import type { Calendar, OnBehalfKind, Occurrence } from '../api/calendars';
 import { attendeeSlot, type CalCtx } from './ctx';
 import { DAY_LONG, colorVar, ddmm, hm, pad } from './model';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, repeatSummary, type Repeat } from './booking-logic';
 import { deleteLabel, durText, instantAt, openOn, placePopover, type Hint } from './grid-logic';
 
@@ -82,16 +83,16 @@ function placeAt(pop: HTMLElement | null, anchor: Anchor | null): void {
 }
 
 function statusLine(h: Hint, cal: Calendar | undefined) {
-  if (h.level === 'bad') return html`<div class="st bad" role="status" data-cal-qc-status="bad"><sw-icon name="warning" size="16"></sw-icon><div><b>אי אפשר לשמור כאן</b><span>${h.reason}</span></div></div>`;
+  if (h.level === 'bad') return html`<div class="st bad" role="status" data-cal-qc-status="bad"><sw-icon name="warning" size="16"></sw-icon><div><b>${tr('אי אפשר לשמור כאן')}</b><span>${h.reason}</span></div></div>`;
   if (h.level === 'contest') {
     const x = h.contested as Occurrence;
-    return html`<div class="st bad" role="status" data-cal-qc-status="contest"><sw-icon name="warning" size="16"></sw-icon><div><b>חופף ל${x.title ? `"${x.title}"` : 'הזמנה קיימת'} <span class="ltr num" style="display:inline">${hm(x.start)}–${hm(x.end)}</span></b>
-      <span>אפשר לשלוח כבקשה מתחרה. ${h.approver ?? 'מנהל היומן'} יחליט/תחליט, ומי שמאושר ראשון מקבל את המועד.</span></div></div>`;
+    return html`<div class="st bad" role="status" data-cal-qc-status="contest"><sw-icon name="warning" size="16"></sw-icon><div><b>${x.title ? tr('חופף ל"{title}"', { title: x.title }) : tr('חופף להזמנה קיימת')} <span class="ltr num" style="display:inline">${hm(x.start)}–${hm(x.end)}</span></b>
+      <span>${tr('אפשר לשלוח כבקשה מתחרה. {name} יחליט/תחליט, ומי שמאושר ראשון מקבל את המועד.', { name: h.approver ?? tr('מנהל היומן') })}</span></div></div>`;
   }
-  if (h.level === 'pend') return html`<div class="st info" role="status" data-cal-qc-status="pend"><sw-icon name="info" size="16"></sw-icon><div><b>תישלח לאישור</b>
-    <span>${h.approver ? `${h.approver}, מנהל/ת ${cal?.name ?? 'היומן'}, יקבל/תקבל התראה. ` : ''}עד ההחלטה ההזמנה מסומנת "ממתין לאישור".</span></div></div>`;
-  return html`<div class="st ok" role="status" data-cal-qc-status="ok"><sw-icon name="check" size="16"></sw-icon><div><b>פנוי</b>${h.warn ? html`<span>${h.warn}</span>` : nothing}
-    ${h.peers ? html`<span>יש עוד ${h.peers === 1 ? 'בקשה ממתינה אחת' : html`<span class="num">${h.peers}</span> בקשות ממתינות`} לחלון הזה</span>` : nothing}</div></div>`;
+  if (h.level === 'pend') return html`<div class="st info" role="status" data-cal-qc-status="pend"><sw-icon name="info" size="16"></sw-icon><div><b>${tr('תישלח לאישור')}</b>
+    <span>${h.approver ? `${tr('{name}, מנהל/ת {cal}, יקבל/תקבל התראה.', { name: h.approver, cal: cal?.name ?? tr('היומן') })} ` : ''}${tr('עד ההחלטה ההזמנה מסומנת "ממתין לאישור".')}</span></div></div>`;
+  return html`<div class="st ok" role="status" data-cal-qc-status="ok"><sw-icon name="check" size="16"></sw-icon><div><b>${tr('פנוי')}</b>${h.warn ? html`<span>${h.warn}</span>` : nothing}
+    ${h.peers ? html`<span>${tr('יש עוד')} ${h.peers === 1 ? tr('בקשה ממתינה אחת') : html`<span class="num">${h.peers}</span> ${tr('בקשות ממתינות')}`} ${tr('לחלון הזה')}</span>` : nothing}</div></div>`;
 }
 
 /**
@@ -221,24 +222,24 @@ export class CalQuickCreate extends LitElement {
 
   private saveLabel(): string {
     const lv = this.hint?.level;
-    return lv === 'pend' || lv === 'contest' ? 'שליחה לאישור' : 'שמירה';
+    return lv === 'pend' || lv === 'contest' ? tr('שליחה לאישור') : tr('שמירה');
   }
 
   private organizer(d: QuickDraft, ctx: CalCtx) {
     if (ctx.access.can.book_for_others) {
-      return html`<span class="sel plain"><select aria-label="בשם" data-cal-qc="behalf" @change=${(e: Event) => this.set({ behalf: (e.target as HTMLSelectElement).value as OnBehalfKind })}>
-          ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${d.behalf === k}>${k === 'self' ? 'בשמי' : `בשם ${BEHALF_LABEL[k]}`}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>
-        ${d.behalf !== 'self' ? html`<input class="fi" style="inline-size:140px" maxlength="80" data-cal-qc="behalf-label" .value=${d.behalfLabel} placeholder=${`שם ה${BEHALF_LABEL[d.behalf]}`}
-          aria-label=${`שם ה${BEHALF_LABEL[d.behalf]}`} @input=${(e: Event) => this.set({ behalfLabel: (e.target as HTMLInputElement).value })}>` : nothing}`;
+      return html`<span class="sel plain"><select aria-label=${tr('בשם')} data-cal-qc="behalf" @change=${(e: Event) => this.set({ behalf: (e.target as HTMLSelectElement).value as OnBehalfKind })}>
+          ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${d.behalf === k}>${k === 'self' ? tr('בשמי') : tr('בשם {who}', { who: BEHALF_LABEL[k] })}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>
+        ${d.behalf !== 'self' ? html`<input class="fi" style="inline-size:140px" maxlength="80" data-cal-qc="behalf-label" .value=${d.behalfLabel} placeholder=${tr('שם ה{who}', { who: BEHALF_LABEL[d.behalf] })}
+          aria-label=${tr('שם ה{who}', { who: BEHALF_LABEL[d.behalf] })} @input=${(e: Event) => this.set({ behalfLabel: (e.target as HTMLInputElement).value })}>` : nothing}`;
     }
-    return html`<span>מארגן: <b>אני</b></span><span class="lockl"><sw-icon name="lock" size="12"></sw-icon>בשם אחרים: למי שקיבל הרשאה</span>`;
+    return html`<span>${tr('מארגן:')} <b>${tr('אני')}</b></span><span class="lockl"><sw-icon name="lock" size="12"></sw-icon>${tr('בשם אחרים: למי שקיבל הרשאה')}</span>`;
   }
 
   private repeatLine(d: QuickDraft) {
     if (d.repeat === 'none') return nothing;
     const start = instantAt(d.day, d.s);
     return html`<div class="rs" data-cal-qc-series><sw-icon name="refresh" size="14"></sw-icon><span class="num">${repeatSummary(d.repeat, d.count, start)}</span>
-      ${this.seriesClash === null ? nothing : this.seriesClash ? html`· <b class="bad"><span class="num">${this.seriesClash}</span> מועדים לא פנויים</b>` : html`· <span>פנוי בכל המועדים</span>`}</div>`;
+      ${this.seriesClash === null ? nothing : this.seriesClash ? html`· <b class="bad"><span class="num">${this.seriesClash}</span> ${tr('מועדים לא פנויים')}</b>` : html`· <span>${tr('פנוי בכל המועדים')}</span>`}</div>`;
   }
 
   private attendees(d: QuickDraft) {
@@ -250,30 +251,30 @@ export class CalQuickCreate extends LitElement {
     const cal = cals.find((c) => c.id === d.calId);
     const step = (cal?.slot_step_min ?? 15) * 60;
     const bad = this.hint?.level === 'bad';
-    return html`<div class=${`pop${this.shown ? ' in' : ''}${this.instant ? ' instant' : ''}`} role="dialog" aria-label="אירוע חדש" data-cal-quick @keydown=${this.onKey}>
-      <div class="qtop"><input class="qt" data-cal-qc="title" placeholder="הוספת כותרת" maxlength="120" aria-label="כותרת" .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}>
-        <button type="button" class="btn icon sm x" aria-label="סגירה" data-cal-qc-close @click=${() => fire(this, 'qc-close')}><sw-icon name="close" size="16"></sw-icon></button></div>
+    return html`<div class=${`pop${this.shown ? ' in' : ''}${this.instant ? ' instant' : ''}`} role="dialog" aria-label=${tr('אירוע חדש')} data-cal-quick @keydown=${this.onKey}>
+      <div class="qtop"><input class="qt" data-cal-qc="title" placeholder=${tr('הוספת כותרת')} maxlength="120" aria-label=${tr('כותרת')} .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}>
+        <button type="button" class="btn icon sm x" aria-label=${tr('סגירה')} data-cal-qc-close @click=${() => fire(this, 'qc-close')}><sw-icon name="close" size="16"></sw-icon></button></div>
       <div class="qr"><sw-icon name="clock" size="16"></sw-icon><div class="qv"><span>${DAY_LONG[d.day.getDay()]} ${ddmm(d.day)}</span>
-        <span class="tm ltr"><input type="time" lang=${dateInputLang()} step=${step} aria-label="שעת התחלה" data-cal-qc="from" .value=${mm(d.s)} ?disabled=${d.allDay} @change=${(e: Event) => this.time('s', (e.target as HTMLInputElement).value)}><span>–</span>
-          <input type="time" lang=${dateInputLang()} step=${step} aria-label="שעת סיום" data-cal-qc="to" .value=${mm(Math.min(d.e, 1439))} ?disabled=${d.allDay} @change=${(e: Event) => this.time('e', (e.target as HTMLInputElement).value)}></span>
-        <label class="ck"><input type="checkbox" data-cal-qc="allday" .checked=${d.allDay} @change=${(e: Event) => this.allDay((e.target as HTMLInputElement).checked)}>כל היום</label></div></div>
+        <span class="tm ltr"><input type="time" lang=${dateInputLang()} step=${step} aria-label=${tr('שעת התחלה')} data-cal-qc="from" .value=${mm(d.s)} ?disabled=${d.allDay} @change=${(e: Event) => this.time('s', (e.target as HTMLInputElement).value)}><span>–</span>
+          <input type="time" lang=${dateInputLang()} step=${step} aria-label=${tr('שעת סיום')} data-cal-qc="to" .value=${mm(Math.min(d.e, 1439))} ?disabled=${d.allDay} @change=${(e: Event) => this.time('e', (e.target as HTMLInputElement).value)}></span>
+        <label class="ck"><input type="checkbox" data-cal-qc="allday" .checked=${d.allDay} @change=${(e: Event) => this.allDay((e.target as HTMLInputElement).checked)}>${tr('כל היום')}</label></div></div>
       <div class="qr"><sw-icon name="pin" size="16"></sw-icon><div class="qv"><span class="sel" style=${`--h:${colorVar(cal?.color)}`}><span class="dot"></span>
-          <select aria-label="יומן" data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select>
-          <sw-icon name="chevronDown" size="14"></sw-icon></span>${cal?.floor_name || (cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage') ? html`<span class="muted">${[cal?.floor_name, cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage' ? 'באישור' : ''].filter(Boolean).join(' · ')}</span>` : nothing}</div></div>
-      <div class="qr"><sw-icon name="refresh" size="16"></sw-icon><div class="qv"><div class="seg" role="group" aria-label="חזרה">
-        ${([['none', 'פעם אחת'], ['weekly', `כל ${DAY_LONG[d.day.getDay()]}`], ['daily', 'כל יום']] as [Repeat, string][]).map(([k, v]) => html`<button type="button" aria-pressed=${String(d.repeat === k)} data-cal-qc-repeat=${k} @click=${() => this.set({ repeat: k })}>${v}</button>`)}</div>
-        ${d.repeat !== 'none' ? html`<span class="tm"><input type="number" min="2" max="104" class="num" style="inline-size:64px" aria-label="מספר מועדים" data-cal-qc="count" .value=${String(d.count)} @change=${(e: Event) => this.set({ count: Math.min(104, Math.max(2, parseInt((e.target as HTMLInputElement).value, 10) || 2)) })}> <span class="muted">מועדים</span></span>` : nothing}</div></div>
+          <select aria-label=${tr('יומן')} data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select>
+          <sw-icon name="chevronDown" size="14"></sw-icon></span>${cal?.floor_name || (cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage') ? html`<span class="muted">${[cal?.floor_name, cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage' ? tr('באישור') : ''].filter(Boolean).join(' · ')}</span>` : nothing}</div></div>
+      <div class="qr"><sw-icon name="refresh" size="16"></sw-icon><div class="qv"><div class="seg" role="group" aria-label=${tr('חזרה')}>
+        ${([['none', tr('פעם אחת')], ['weekly', tr('כל {day}', { day: DAY_LONG[d.day.getDay()] })], ['daily', tr('כל יום')]] as [Repeat, string][]).map(([k, v]) => html`<button type="button" aria-pressed=${String(d.repeat === k)} data-cal-qc-repeat=${k} @click=${() => this.set({ repeat: k })}>${v}</button>`)}</div>
+        ${d.repeat !== 'none' ? html`<span class="tm"><input type="number" min="2" max="104" class="num" style="inline-size:64px" aria-label=${tr('מספר מועדים')} data-cal-qc="count" .value=${String(d.count)} @change=${(e: Event) => this.set({ count: Math.min(104, Math.max(2, parseInt((e.target as HTMLInputElement).value, 10) || 2)) })}> <span class="muted">${tr('מועדים')}</span></span>` : nothing}</div></div>
       <div class="qr"><sw-icon name="user" size="16"></sw-icon><div class="qv">${this.organizer(d, ctx)}</div></div>
-      <div class="qr"><sw-icon name="users" size="16"></sw-icon><div class="qv"><span class="step"><button type="button" aria-label="פחות משתתפים" data-cal-qc-step="-1" @click=${() => this.set({ headcount: Math.max(0, d.headcount - 1) })}>−</button>
-        <b class="num">${d.headcount || '—'}</b><button type="button" aria-label="יותר משתתפים" data-cal-qc-step="1" @click=${() => this.set({ headcount: d.headcount + 1 })}>+</button></span>
-        ${cal?.capacity ? html`<span class="muted">משתתפים · <span class="num">${cal.capacity}</span> מקומות</span>` : html`<span class="muted">משתתפים</span>`}</div></div>
+      <div class="qr"><sw-icon name="users" size="16"></sw-icon><div class="qv"><span class="step"><button type="button" aria-label=${tr('פחות משתתפים')} data-cal-qc-step="-1" @click=${() => this.set({ headcount: Math.max(0, d.headcount - 1) })}>−</button>
+        <b class="num">${d.headcount || '—'}</b><button type="button" aria-label=${tr('יותר משתתפים')} data-cal-qc-step="1" @click=${() => this.set({ headcount: d.headcount + 1 })}>+</button></span>
+        ${cal?.capacity ? html`<span class="muted">${tr('משתתפים')} · <span class="num">${cal.capacity}</span> ${tr('מקומות')}</span>` : html`<span class="muted">${tr('משתתפים')}</span>`}</div></div>
       ${this.attendees(d)}
       ${this.hint ? statusLine(this.hint, cal) : nothing}
       ${this.repeatLine(d)}
       ${this.error ? html`<div class="err" role="alert" data-cal-qc-error>${this.error}</div>` : nothing}
       <div class="qf"><button type="button" class="btn pri" ?disabled=${bad || this.busy} data-cal-qc-save @click=${() => fire(this, 'qc-save')}><sw-icon name="check" size="16"></sw-icon>${this.saveLabel()}</button>
-        <button type="button" class="btn" data-cal-qc-more @click=${() => fire(this, 'qc-more')}>פרטים נוספים</button>
-        <span class="kb"><kbd>Enter</kbd> שמירה · <kbd>Esc</kbd> ביטול</span></div>
+        <button type="button" class="btn" data-cal-qc-more @click=${() => fire(this, 'qc-more')}>${tr('פרטים נוספים')}</button>
+        <span class="kb"><kbd>Enter</kbd> ${tr('שמירה')} · <kbd>Esc</kbd> ${tr('ביטול')}</span></div>
     </div>`;
   }
 
@@ -290,21 +291,21 @@ export class CalQuickCreate extends LitElement {
     const moveE = (dir: number) => this.set({ e: Math.min(Math.max(d.e + dir * st, d.s + st), o.to), allDay: false });
     void ctx;
     return html`<div class=${`scrim${this.shown ? ' in' : ''}`} @click=${() => fire(this, 'qc-close')}></div>
-      <div class=${`sheet${this.shown ? ' in' : ''}`} role="dialog" aria-modal="true" aria-label="הזמנה חדשה" data-cal-quick="sheet" @keydown=${this.onKey}>
-        <div class="grab"></div><h2>הזמנה חדשה</h2>
+      <div class=${`sheet${this.shown ? ' in' : ''}`} role="dialog" aria-modal="true" aria-label=${tr('הזמנה חדשה')} data-cal-quick="sheet" @keydown=${this.onKey}>
+        <div class="grab"></div><h2>${tr('הזמנה חדשה')}</h2>
         <div class="muted">${cal?.name ?? ''} · ${DAY_LONG[d.day.getDay()]} ${ddmm(d.day)} · <span class="ltr num">${mm(d.s)}–${mm(Math.min(d.e, 1440))}</span></div>
         <div class="tbig">
-          <div class="tcol"><small>התחלה</small><div class="stp"><button type="button" aria-label="התחלה מאוחר יותר" data-cal-qc-tm="s+" @click=${() => moveS(1)}>+</button><b class="num ltr">${mm(d.s)}</b>
-            <button type="button" aria-label="התחלה מוקדם יותר" data-cal-qc-tm="s-" @click=${() => moveS(-1)}>−</button></div></div>
-          <div class="tcol"><small>סיום</small><div class="stp"><button type="button" aria-label="סיום מאוחר יותר" data-cal-qc-tm="e+" @click=${() => moveE(1)}>+</button><b class="num ltr">${mm(Math.min(d.e, 1440))}</b>
-            <button type="button" aria-label="סיום מוקדם יותר" data-cal-qc-tm="e-" @click=${() => moveE(-1)}>−</button></div></div></div>
+          <div class="tcol"><small>${tr('התחלה')}</small><div class="stp"><button type="button" aria-label=${tr('התחלה מאוחר יותר')} data-cal-qc-tm="s+" @click=${() => moveS(1)}>+</button><b class="num ltr">${mm(d.s)}</b>
+            <button type="button" aria-label=${tr('התחלה מוקדם יותר')} data-cal-qc-tm="s-" @click=${() => moveS(-1)}>−</button></div></div>
+          <div class="tcol"><small>${tr('סיום')}</small><div class="stp"><button type="button" aria-label=${tr('סיום מאוחר יותר')} data-cal-qc-tm="e+" @click=${() => moveE(1)}>+</button><b class="num ltr">${mm(Math.min(d.e, 1440))}</b>
+            <button type="button" aria-label=${tr('סיום מוקדם יותר')} data-cal-qc-tm="e-" @click=${() => moveE(-1)}>−</button></div></div></div>
         <div class="chips">${[30, 60, 120, 180].map((m) => html`<button type="button" class="chipb" aria-pressed=${String(len === m)} data-cal-qc-len=${m} @click=${() => this.set({ e: Math.min(o.to, d.s + m), allDay: false })}>${durText(m)}</button>`)}</div>
-        <input class="inp" data-cal-qc="title" maxlength="120" aria-label="כותרת" placeholder="כותרת" .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}>
+        <input class="inp" data-cal-qc="title" maxlength="120" aria-label=${tr('כותרת')} placeholder=${tr('כותרת')} .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}>
         ${this.attendees(d)}
         ${this.hint ? statusLine(this.hint, cal) : nothing}
         ${this.error ? html`<div class="err" role="alert" data-cal-qc-error>${this.error}</div>` : nothing}
         <div class="qf"><button type="button" class="btn pri wide" ?disabled=${this.hint?.level === 'bad' || this.busy} data-cal-qc-save @click=${() => fire(this, 'qc-save')}><sw-icon name="check" size="16"></sw-icon>${this.saveLabel()}</button>
-          <button type="button" class="btn" data-cal-qc-more @click=${() => fire(this, 'qc-more')}>פרטים נוספים</button></div>
+          <button type="button" class="btn" data-cal-qc-more @click=${() => fire(this, 'qc-more')}>${tr('פרטים נוספים')}</button></div>
       </div>`;
   }
 }
@@ -362,11 +363,11 @@ export class CalPeek extends LitElement {
   whyNot(): string {
     const o = this.occ as Occurrence;
     const cal = this.cal();
-    if (!cal?.my_role || cal.my_role === 'view') return 'צפייה בלבד';
-    if (o.kind === 'maintenance') return 'חלון תחזוקה נערך בלשונית "תחזוקה"';
-    if (new Date(o.end) <= (this.ctx?.now ?? new Date())) return 'המועד כבר עבר';
-    if (o.kind === 'external' || o.kind === 'holiday') return 'אירוע מיומן חיצוני';
-    return 'רק המארגן או מנהל היומן יכולים לשנות';
+    if (!cal?.my_role || cal.my_role === 'view') return tr('צפייה בלבד');
+    if (o.kind === 'maintenance') return tr('חלון תחזוקה נערך בלשונית "תחזוקה"');
+    if (new Date(o.end) <= (this.ctx?.now ?? new Date())) return tr('המועד כבר עבר');
+    if (o.kind === 'external' || o.kind === 'holiday') return tr('אירוע מיומן חיצוני');
+    return tr('רק המארגן או מנהל היומן יכולים לשנות');
   }
 
   render() {
@@ -375,9 +376,9 @@ export class CalPeek extends LitElement {
     const body = this.content(o);
     if (this.sheet) {
       return html`<div class=${`scrim${this.shown ? ' in' : ''}`} @click=${() => fire(this, 'pk-close')}></div>
-        <div class=${`sheet${this.shown ? ' in' : ''}`} role="dialog" aria-modal="true" aria-label=${o.title ?? 'תפוס'} data-cal-peek="sheet" @keydown=${this.onKey}><div class="grab"></div>${body}</div>`;
+        <div class=${`sheet${this.shown ? ' in' : ''}`} role="dialog" aria-modal="true" aria-label=${o.title ?? tr('תפוס')} data-cal-peek="sheet" @keydown=${this.onKey}><div class="grab"></div>${body}</div>`;
     }
-    return html`<div class=${`pop${this.shown ? ' in' : ''}`} role="dialog" aria-label=${o.title ?? 'תפוס'} data-cal-peek @keydown=${this.onKey}>${body}</div>`;
+    return html`<div class=${`pop${this.shown ? ' in' : ''}`} role="dialog" aria-label=${o.title ?? tr('תפוס')} data-cal-peek @keydown=${this.onKey}>${body}</div>`;
   }
 
   private onKey(e: KeyboardEvent): void {
@@ -395,36 +396,36 @@ export class CalPeek extends LitElement {
     const manager = cal?.my_role === 'manage' && o.state === 'pending' && o.kind !== 'maintenance';
     const len = Math.round((new Date(o.end).getTime() - new Date(o.start).getTime()) / 60000);
     const chips = [
-      o.state === 'confirmed' && o.kind !== 'maintenance' ? html`<span class="chip ok">מאושר</span>` : nothing,
-      o.state === 'pending' ? html`<span class="chip dash">ממתין לאישור</span>` : nothing,
-      o.contested ? html`<span class="chip bad"><sw-icon name="warning" size="12"></sw-icon>חופף להזמנה מאושרת</span>` : nothing,
-      o.held ? html`<span class="chip warn">בקשת שינוי</span>` : nothing,
-      o.kind === 'maintenance' ? html`<span class="chip warn">חלון תחזוקה</span>` : nothing,
-      o.state === 'displaced' ? html`<span class="chip warn">נדחק · צריך לבחור מועד אחר</span>` : nothing,
-      o.recurring ? html`<span class="chip">חוזר</span>` : nothing,
+      o.state === 'confirmed' && o.kind !== 'maintenance' ? html`<span class="chip ok">${tr('מאושר')}</span>` : nothing,
+      o.state === 'pending' ? html`<span class="chip dash">${tr('ממתין לאישור')}</span>` : nothing,
+      o.contested ? html`<span class="chip bad"><sw-icon name="warning" size="12"></sw-icon>${tr('חופף להזמנה מאושרת')}</span>` : nothing,
+      o.held ? html`<span class="chip warn">${tr('בקשת שינוי')}</span>` : nothing,
+      o.kind === 'maintenance' ? html`<span class="chip warn">${tr('חלון תחזוקה')}</span>` : nothing,
+      o.state === 'displaced' ? html`<span class="chip warn">${tr('נדחק · צריך לבחור מועד אחר')}</span>` : nothing,
+      o.recurring ? html`<span class="chip">${tr('חוזר')}</span>` : nothing,
     ];
     const heldCal = o.held && o.held.calendar_id !== o.calendar_id ? ctx.cals.find((c) => c.id === o.held?.calendar_id)?.name : '';
-    return html`<div class="pkh" style=${`--h:${o.kind === 'maintenance' ? 'var(--cal-orange)' : colorVar(cal?.color)}`}><span class="sq"></span><h3>${o.title ?? 'תפוס'}</h3>
-        <button type="button" class="btn icon sm x" aria-label="סגירה" data-cal-pk-close @click=${() => fire(this, 'pk-close')}><sw-icon name="close" size="16"></sw-icon></button></div>
+    return html`<div class="pkh" style=${`--h:${o.kind === 'maintenance' ? 'var(--cal-orange)' : colorVar(cal?.color)}`}><span class="sq"></span><h3>${o.title ?? tr('תפוס')}</h3>
+        <button type="button" class="btn icon sm x" aria-label=${tr('סגירה')} data-cal-pk-close @click=${() => fire(this, 'pk-close')}><sw-icon name="close" size="16"></sw-icon></button></div>
       <div class="pkl"><sw-icon name="pin" size="14"></sw-icon><span class="ell">${cal?.name ?? ''}</span></div>
       <div class="pkl"><sw-icon name="clock" size="14"></sw-icon><span>${DAY_LONG[new Date(o.start).getDay()]} ${ddmm(new Date(o.start))} · <span class="ltr num">${hm(o.start)}–${hm(o.end)}</span> · ${durText(len)}</span></div>
-      ${o.organizer || o.on_behalf_label ? html`<div class="pkl"><sw-icon name="user" size="14"></sw-icon><span class="ell">${[o.organizer?.name, o.on_behalf_label ? `בשם ${o.on_behalf_label}` : ''].filter(Boolean).join(' · ')}</span></div>` : nothing}
+      ${o.organizer || o.on_behalf_label ? html`<div class="pkl"><sw-icon name="user" size="14"></sw-icon><span class="ell">${[o.organizer?.name, o.on_behalf_label ? tr('בשם {who}', { who: o.on_behalf_label }) : ''].filter(Boolean).join(' · ')}</span></div>` : nothing}
       <div class="chips">${chips}</div>
-      ${o.held ? html`<div class="note" role="note" data-cal-pk-held><sw-icon name="info" size="16"></sw-icon><div>המועד הקודם <span class="ltr num">${hm(o.held.start)}–${hm(o.held.end)}</span>${heldCal ? ` ב${heldCal}` : ''} שמור עד ההחלטה. דחייה תחזיר את ההזמנה אליו.</div></div>` : nothing}
+      ${o.held ? html`<div class="note" role="note" data-cal-pk-held><sw-icon name="info" size="16"></sw-icon><div>${tr('המועד הקודם')} <span class="ltr num">${hm(o.held.start)}–${hm(o.held.end)}</span>${heldCal ? ` ${tr('ב{cal}', { cal: heldCal })}` : ''} ${tr('שמור עד ההחלטה. דחייה תחזיר את ההזמנה אליו.')}</div></div>` : nothing}
       ${!ed ? html`<div class="note" role="note" data-cal-pk-why><sw-icon name="lock" size="16"></sw-icon><div>${this.whyNot()}</div></div>` : nothing}
       ${this.error ? html`<div class="err" role="alert" data-cal-pk-error>${this.error}</div>` : nothing}
       ${ed || dupOk ? html`<div class="pka">
-        ${ed ? html`<button type="button" class="btn sm" data-cal-pk="edit" @click=${() => fire(this, 'pk-edit')}><sw-icon name="edit" size="14"></sw-icon>ערוך</button>` : nothing}
-        ${dupOk ? html`<button type="button" class="btn sm" ?disabled=${this.busy} data-cal-pk="dup" @click=${() => fire(this, 'pk-dup')}><sw-icon name="copy" size="14"></sw-icon>שכפל</button>` : nothing}
+        ${ed ? html`<button type="button" class="btn sm" data-cal-pk="edit" @click=${() => fire(this, 'pk-edit')}><sw-icon name="edit" size="14"></sw-icon>${tr('ערוך')}</button>` : nothing}
+        ${dupOk ? html`<button type="button" class="btn sm" ?disabled=${this.busy} data-cal-pk="dup" @click=${() => fire(this, 'pk-dup')}><sw-icon name="copy" size="14"></sw-icon>${tr('שכפל')}</button>` : nothing}
         ${ed ? html`<button type="button" class="btn sm bad" ?disabled=${this.busy} data-cal-pk="del" @click=${() => fire(this, 'pk-del')}><sw-icon name="trash" size="14"></sw-icon>${deleteLabel(o)}</button>
-          ${this.sheet ? nothing : html`<span class="kb"><kbd>Del</kbd> מחיקה</span>`}` : nothing}</div>` : nothing}
+          ${this.sheet ? nothing : html`<span class="kb"><kbd>Del</kbd> ${tr('מחיקה')}</span>`}` : nothing}</div>` : nothing}
       ${manager ? html`<div class="pka">
-        <button type="button" class="btn sm pri" ?disabled=${this.busy} data-cal-pk="approve" @click=${() => fire(this, 'pk-approve', { displace: false })}><sw-icon name="check" size="14"></sw-icon>אישור</button>
-        <button type="button" class="btn sm bad" ?disabled=${this.busy} data-cal-pk="reject" @click=${() => fire(this, 'pk-reject')}><sw-icon name="close" size="14"></sw-icon>דחייה</button></div>` : nothing}
-      ${this.displaceAsk ? html`<div class="note warn" role="alert" data-cal-pk-displace><sw-icon name="warning" size="16"></sw-icon><div><b>יש הזמנה מאושרת בחלון</b>
-        ${this.displaceAsk.title ? `"${this.displaceAsk.title}" ` : ''}<span class="ltr num">${hm(this.displaceAsk.start)}–${hm(this.displaceAsk.end)}</span>. אישור ידחק אותה: היא לא תימחק, והמארגן יבחר מועד אחר.
-        <div class="pka" style="border:0;padding-block-start:8px"><button type="button" class="btn sm bad fill" ?disabled=${this.busy} data-cal-pk="displace" @click=${() => fire(this, 'pk-approve', { displace: true })}>לאשר ולדחוק</button>
-          <button type="button" class="btn sm" @click=${() => fire(this, 'pk-back')}>חזרה</button></div></div></div>` : nothing}`;
+        <button type="button" class="btn sm pri" ?disabled=${this.busy} data-cal-pk="approve" @click=${() => fire(this, 'pk-approve', { displace: false })}><sw-icon name="check" size="14"></sw-icon>${tr('אישור')}</button>
+        <button type="button" class="btn sm bad" ?disabled=${this.busy} data-cal-pk="reject" @click=${() => fire(this, 'pk-reject')}><sw-icon name="close" size="14"></sw-icon>${tr('דחייה')}</button></div>` : nothing}
+      ${this.displaceAsk ? html`<div class="note warn" role="alert" data-cal-pk-displace><sw-icon name="warning" size="16"></sw-icon><div><b>${tr('יש הזמנה מאושרת בחלון')}</b>
+        ${this.displaceAsk.title ? `"${this.displaceAsk.title}" ` : ''}<span class="ltr num">${hm(this.displaceAsk.start)}–${hm(this.displaceAsk.end)}</span>. ${tr('אישור ידחק אותה: היא לא תימחק, והמארגן יבחר מועד אחר.')}
+        <div class="pka" style="border:0;padding-block-start:8px"><button type="button" class="btn sm bad fill" ?disabled=${this.busy} data-cal-pk="displace" @click=${() => fire(this, 'pk-approve', { displace: true })}>${tr('לאשר ולדחוק')}</button>
+          <button type="button" class="btn sm" @click=${() => fire(this, 'pk-back')}>${tr('חזרה')}</button></div></div></div>` : nothing}`;
   }
 }
 

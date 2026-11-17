@@ -23,6 +23,7 @@ import {
   type TimeKind,
 } from './schedule-edit-logic';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: the editor of one slot (mockup 05 / 06, the card under the board): when it runs, when its window ends, what it
@@ -35,25 +36,25 @@ import { dateInputLang } from '../api/day-format';
 const ADVANCED = new Set(['cover.stop_cover', 'cover.set_cover_tilt_position', 'cover.open_cover_tilt', 'cover.close_cover_tilt', 'climate.set_fan_mode', 'climate.set_preset_mode', 'climate.set_swing_mode', 'climate.set_humidity', 'fan.set_percentage']);
 
 const ARG_LABEL: Record<string, string> = {
-  brightness: 'בהירות',
-  brightness_pct: 'בהירות',
-  position: 'מיקום',
-  tilt_position: 'הטיה',
-  temperature: 'טמפרטורה',
-  hvac_mode: 'מצב פעולה',
-  percentage: 'עוצמה',
-  fan_mode: 'מצב מאוורר',
-  preset_mode: 'מצב מוגדר',
-  swing_mode: 'מצב נדנוד',
-  humidity: 'לחות',
-  mode: 'מצב',
-  value: 'ערך',
-  option: 'אפשרות',
+  brightness: tr('בהירות'),
+  brightness_pct: tr('בהירות'),
+  position: tr('מיקום'),
+  tilt_position: tr('הטיה'),
+  temperature: tr('טמפרטורה'),
+  hvac_mode: tr('מצב פעולה'),
+  percentage: tr('עוצמה'),
+  fan_mode: tr('מצב מאוורר'),
+  preset_mode: tr('מצב מוגדר'),
+  swing_mode: tr('מצב נדנוד'),
+  humidity: tr('לחות'),
+  mode: tr('מצב'),
+  value: tr('ערך'),
+  option: tr('אפשרות'),
 };
 
-const HVAC_WORDS: Record<string, string> = { cool: 'קירור', heat: 'חימום', heat_cool: 'אוטומטי', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
+const HVAC_WORDS: Record<string, string> = { cool: tr('קירור'), heat: tr('חימום'), heat_cool: tr('אוטומטי'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר'), off: tr('כבוי') };
 
-const KIND_LABEL: Record<TimeKind, string> = { fixed: 'שעה קבועה', sunrise: 'זריחה', sunset: 'שקיעה', end: 'סוף היום', none: 'ללא (פעולה חד־פעמית)' };
+const KIND_LABEL: Record<TimeKind, string> = { fixed: tr('שעה קבועה'), sunrise: tr('זריחה'), sunset: tr('שקיעה'), end: tr('סוף היום'), none: tr('ללא (פעולה חד־פעמית)') };
 
 @customElement('schedule-slot-panel')
 export class ScheduleSlotPanel extends LitElement {
@@ -399,16 +400,16 @@ export class ScheduleSlotPanel extends LitElement {
     const kinds: TimeKind[] = which === 'start' ? ['fixed', 'sunrise', 'sunset'] : ['fixed', 'sunrise', 'sunset', 'end', 'none'];
     const id = `${which}-${s.uid}`;
     return html`<div class="f">
-      <label for=${id}>${which === 'start' ? 'משעה (רגע הביצוע)' : 'עד שעה (סוף חלון)'}</label>
+      <label for=${id}>${which === 'start' ? tr('משעה (רגע הביצוע)') : tr('עד שעה (סוף חלון)')}</label>
       <select id=${id} ?disabled=${this.readOnly} data-time-kind=${which} @change=${(e: Event) => this.setTime(which, { kind: (e.target as HTMLSelectElement).value as TimeKind })}>
         ${kinds.map((k) => html`<option value=${k} ?selected=${p.kind === k}>${KIND_LABEL[k]}</option>`)}
       </select>
       ${p.kind === 'fixed'
-        ? html`<input type="time" lang=${dateInputLang()} step="60" ?disabled=${this.readOnly} data-time=${which} aria-label=${which === 'start' ? 'שעת התחלה' : 'שעת סיום'} .value=${p.time} @change=${(e: Event) => (e.target as HTMLInputElement).value && this.setTime(which, { time: (e.target as HTMLInputElement).value })} />`
+        ? html`<input type="time" lang=${dateInputLang()} step="60" ?disabled=${this.readOnly} data-time=${which} aria-label=${which === 'start' ? tr('שעת התחלה') : tr('שעת סיום')} .value=${p.time} @change=${(e: Event) => (e.target as HTMLInputElement).value && this.setTime(which, { time: (e.target as HTMLInputElement).value })} />`
         : p.kind === 'sunrise' || p.kind === 'sunset'
           ? html`<div class="pair">
-              <input type="number" min=${this.allowNegativeSun ? -720 : 0} max="720" step="5" ?disabled=${this.readOnly} data-offset=${which} aria-label="דקות אחרי ${p.kind === 'sunrise' ? 'הזריחה' : 'השקיעה'}" .value=${String(p.offset)} @change=${(e: Event) => this.setTime(which, { offset: Number((e.target as HTMLInputElement).value) || 0 })} />
-              <span class="unit">דקות אחרי</span>
+              <input type="number" min=${this.allowNegativeSun ? -720 : 0} max="720" step="5" ?disabled=${this.readOnly} data-offset=${which} aria-label=${p.kind === 'sunrise' ? tr('דקות אחרי הזריחה') : tr('דקות אחרי השקיעה')} .value=${String(p.offset)} @change=${(e: Event) => this.setTime(which, { offset: Number((e.target as HTMLInputElement).value) || 0 })} />
+              <span class="unit">${tr('דקות אחרי')}</span>
             </div>`
           : nothing}
     </div>`;
@@ -474,7 +475,7 @@ export class ScheduleSlotPanel extends LitElement {
     const ro = this.readOnly;
     const vars = (group.data.variables as Record<string, unknown> | undefined) ?? {};
     return html`<div class="vars" data-arg="variables">
-      <span class="lbl">${spec.label ?? 'משתני הסקריפט'}</span>
+      <span class="lbl">${spec.label ?? tr('משתני הסקריפט')}</span>
       ${(spec.fields ?? []).map((f) => {
         const v = vars[f.name];
         const key = `${group.key}:var:${f.name}`;
@@ -485,7 +486,7 @@ export class ScheduleSlotPanel extends LitElement {
         if (f.choices && f.choices.length) {
           return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
             <select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLSelectElement).value)}>
-              ${f.required ? nothing : html`<option value="" ?selected=${v === undefined}>ללא</option>`}
+              ${f.required ? nothing : html`<option value="" ?selected=${v === undefined}>${tr('ללא')}</option>`}
               ${f.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${c}</option>`)}
             </select></div>`;
         }
@@ -517,12 +518,12 @@ export class ScheduleSlotPanel extends LitElement {
       return html`<div class="arg" data-arg=${spec.name}>
         <span class="lbl">${label}</span>
         ${pct === null
-          ? html`<div class="row"><sw-button size="sm" ?disabled=${ro} @click=${() => write(80)}>הגדרת בהירות</sw-button></div>`
+          ? html`<div class="row"><sw-button size="sm" ?disabled=${ro} @click=${() => write(80)}>${tr('הגדרת בהירות')}</sw-button></div>`
           : html`<div class="row">
               <input type="range" min="1" max="100" step="1" ?disabled=${ro} aria-label=${label} .value=${String(pct)} @input=${(e: Event) => write(Number((e.target as HTMLInputElement).value))} />
-              <input type="number" min="1" max="100" ?disabled=${ro} aria-label="${label} באחוזים" .value=${String(pct)} @change=${(e: Event) => write(Math.min(100, Math.max(1, Number((e.target as HTMLInputElement).value) || 1)))} />
+              <input type="number" min="1" max="100" ?disabled=${ro} aria-label=${tr('{label} באחוזים', { label })} .value=${String(pct)} @change=${(e: Event) => write(Math.min(100, Math.max(1, Number((e.target as HTMLInputElement).value) || 1)))} />
               <span class="unit">%</span>
-              ${ro ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="ללא בהירות" @click=${() => this.setArg(group, spec.name, undefined)}></sw-button>`}
+              ${ro ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('ללא בהירות')} @click=${() => this.setArg(group, spec.name, undefined)}></sw-button>`}
             </div>`}
       </div>`;
     }
@@ -530,7 +531,7 @@ export class ScheduleSlotPanel extends LitElement {
       return html`<div class="arg" data-arg=${spec.name}>
         <label for=${key}>${label}</label>
         <select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLSelectElement).value)}>
-          ${spec.required ? nothing : html`<option value="" ?selected=${v === undefined}>ללא שינוי</option>`}
+          ${spec.required ? nothing : html`<option value="" ?selected=${v === undefined}>${tr('ללא שינוי')}</option>`}
           ${spec.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${spec.name === 'hvac_mode' ? HVAC_WORDS[c] ?? c : c}</option>`)}
         </select>
       </div>`;
@@ -545,7 +546,7 @@ export class ScheduleSlotPanel extends LitElement {
       if (!spec.required && typeof v !== 'number') {
         return html`<div class="arg" data-arg=${spec.name}>
           <span class="lbl">${label}</span>
-          <div class="row"><sw-button size="sm" ?disabled=${ro} @click=${() => this.setArg(group, spec.name, Math.min(spec.max as number, Math.max(spec.min as number, 50)))}>הגדרת ${label}</sw-button></div>
+          <div class="row"><sw-button size="sm" ?disabled=${ro} @click=${() => this.setArg(group, spec.name, Math.min(spec.max as number, Math.max(spec.min as number, 50)))}>${tr('הגדרת {label}', { label })}</sw-button></div>
         </div>`;
       }
       const num = typeof v === 'number' ? v : spec.min;
@@ -555,7 +556,7 @@ export class ScheduleSlotPanel extends LitElement {
           <input id=${key} type="range" min=${spec.min} max=${spec.max} step="1" ?disabled=${ro} .value=${String(num)} @input=${(e: Event) => this.setArg(group, spec.name, Number((e.target as HTMLInputElement).value))} />
           <input type="number" min=${spec.min} max=${spec.max} ?disabled=${ro} aria-label=${label} .value=${String(num)} @change=${(e: Event) => this.setArg(group, spec.name, Number((e.target as HTMLInputElement).value))} />
           <span class="unit">${spec.name === 'position' || spec.name === 'tilt_position' || spec.name === 'percentage' ? '%' : ''}</span>
-          ${ro || spec.required ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="ללא ${label}" @click=${() => this.setArg(group, spec.name, undefined)}></sw-button>`}
+          ${ro || spec.required ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('ללא {label}', { label })} @click=${() => this.setArg(group, spec.name, undefined)}></sw-button>`}
         </div>
       </div>`;
     }
@@ -585,15 +586,15 @@ export class ScheduleSlotPanel extends LitElement {
     const id = `svc-${this.slotData?.uid}-${i}`;
     return html`<div class="group" data-action-group=${i}>
       <div class="ents">
-        ${group.entities.map((e) => html`<span class="ent">${e ? this.meta.get(e)?.name ?? e : 'ללא התקן'}${this.readOnly || !e ? nothing : html`<button type="button" aria-label="הסרת ${this.meta.get(e)?.name ?? e} מהפעולה" @click=${() => this.removeEntity(e)}><sw-icon name="close" size="12"></sw-icon></button>`}</span>`)}
+        ${group.entities.map((e) => html`<span class="ent">${e ? this.meta.get(e)?.name ?? e : tr('ללא התקן')}${this.readOnly || !e ? nothing : html`<button type="button" aria-label=${tr('הסרת {name} מהפעולה', { name: this.meta.get(e)?.name ?? e })} @click=${() => this.removeEntity(e)}><sw-icon name="close" size="12"></sw-icon></button>`}</span>`)}
       </div>
       <div class="f">
-        <label for=${id}>פעולה</label>
+        <label for=${id}>${tr('פעולה')}</label>
         <select id=${id} ?disabled=${this.readOnly || !catalog.length} data-service @change=${(e: Event) => this.onService(group, (e.target as HTMLSelectElement).value)}>
           ${known || !catalog.length ? nothing : html`<option value=${group.service} selected>${actionLabel({ service: group.service })}</option>`}
           ${!catalog.length ? html`<option value=${group.service} selected>${actionLabel({ service: group.service, data: group.data })}</option>` : nothing}
           ${common.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}
-          ${advanced.length ? html`<optgroup label="מתקדם">${advanced.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
+          ${advanced.length ? html`<optgroup label=${tr('מתקדם')}>${advanced.map((a) => html`<option value=${a.service} ?selected=${a.service === group.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
         </select>
       </div>
       ${specs.map((sp) => this.renderArg(group, sp))}
@@ -612,37 +613,37 @@ export class ScheduleSlotPanel extends LitElement {
     const inSlot = new Set(s.actions.map((a) => a.entity_id));
     const addable = this.entityIds.filter((id) => !inSlot.has(id) && this.meta.has(id));
     const onlyOff = (s.stop ?? '') !== '' && s.stop !== '00:00:00';
-    return html`<section class="panel" aria-label="עריכת משבצת" data-slot-panel>
+    return html`<section class="panel" aria-label=${tr('עריכת משבצת')} data-slot-panel>
       <header>
         <div class="ttl">
-          <span class="top"><h3>משבצת ${this.index + 1} מתוך ${this.count}</h3><sw-schedule-markers .sensitive=${sensitive} .lowering=${lowering}></sw-schedule-markers></span>
+          <span class="top"><h3>${tr('משבצת {n} מתוך {count}', { n: this.index + 1, count: this.count })}</h3><sw-schedule-markers .sensitive=${sensitive} .lowering=${lowering}></sw-schedule-markers></span>
           <span class="sum">${slotSummary(s, this.meta)}</span>
         </div>
         <div class="tools">
           ${this.readOnly
             ? nothing
             : html`
-                ${this.canCopyDays ? html`<sw-button size="sm" icon="calendar" data-slot-copy-days @click=${() => this.fire('slot-copy-days')}>העתקה לימים…</sw-button>` : nothing}
-                <sw-button size="sm" icon="layers" data-slot-duplicate @click=${() => this.fire('slot-duplicate')}>שכפול</sw-button>
-                <sw-button size="sm" variant="danger" icon="trash" data-slot-delete @click=${() => this.fire('slot-delete')}>מחיקה</sw-button>
+                ${this.canCopyDays ? html`<sw-button size="sm" icon="calendar" data-slot-copy-days @click=${() => this.fire('slot-copy-days')}>${tr('העתקה לימים…')}</sw-button>` : nothing}
+                <sw-button size="sm" icon="layers" data-slot-duplicate @click=${() => this.fire('slot-duplicate')}>${tr('שכפול')}</sw-button>
+                <sw-button size="sm" variant="danger" icon="trash" data-slot-delete @click=${() => this.fire('slot-delete')}>${tr('מחיקה')}</sw-button>
               `}
-          <sw-button size="sm" variant="ghost" iconOnly icon="close" label="סגירת העריכה" @click=${() => this.fire('slot-close')}></sw-button>
+          <sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('סגירת העריכה')} @click=${() => this.fire('slot-close')}></sw-button>
         </div>
       </header>
       ${this.locked.length
-        ? html`<div class="lockmsg" data-slot-locked><sw-icon name="lock" size="16"></sw-icon><div>${this.locked.map((p) => html`<div>${p.message}</div>`)}<div><b>לעריכה:</b> ברכיב התזמונים המקורי.</div></div></div>`
+        ? html`<div class="lockmsg" data-slot-locked><sw-icon name="lock" size="16"></sw-icon><div>${this.locked.map((p) => html`<div>${p.message}</div>`)}<div><b>${tr('לעריכה')}:</b> ${tr('ברכיב התזמונים המקורי.')}</div></div></div>`
         : html`
             <div class="fields">
               ${this.timeField('start')} ${this.timeField('stop')}
               <div class="groups">
-                ${groups.length ? groups.map((g, i) => this.renderGroup(g, i)) : html`<div class="empty" data-slot-empty><sw-icon name="info" size="16"></sw-icon>בחרו פעולה: הוסיפו התקנים לתזמון בכפתור "בחירת התקנים".</div>`}
+                ${groups.length ? groups.map((g, i) => this.renderGroup(g, i)) : html`<div class="empty" data-slot-empty><sw-icon name="info" size="16"></sw-icon>${tr('בחרו פעולה: הוסיפו התקנים לתזמון בכפתור "בחירת התקנים".')}</div>`}
                 ${!this.readOnly && addable.length
-                  ? html`<select class="add-ent" aria-label="הוספת התקן לפעולה" data-add-entity @change=${(e: Event) => {
+                  ? html`<select class="add-ent" aria-label=${tr('הוספת התקן לפעולה')} data-add-entity @change=${(e: Event) => {
                       const el = e.target as HTMLSelectElement;
                       if (el.value) this.addEntity(el.value);
                       el.value = '';
                     }}>
-                      <option value="">הוספת התקן למשבצת…</option>
+                      <option value="">${tr('הוספת התקן למשבצת…')}</option>
                       ${addable.map((id) => html`<option value=${id}>${this.meta.get(id)?.name ?? id}</option>`)}
                     </select>`
                   : nothing}
@@ -651,8 +652,8 @@ export class ScheduleSlotPanel extends LitElement {
             ${this.errors.length ? html`<ul class="errs" role="status" data-slot-errors>${this.errors.map((e) => html`<li><sw-icon name="warning" size="14"></sw-icon><span>${e.message}</span></li>`)}</ul>` : nothing}
             ${this.canPair || this.paired
               ? html`<div class="off">
-                  <sw-toggle .checked=${this.paired} ?disabled=${this.readOnly || (!this.paired && !onlyOff)} label="כיבוי בסיום החלון" @change=${(e: CustomEvent<{ checked: boolean }>) => this.fire('pair-off', { on: e.detail.checked })}></sw-toggle>
-                  <span class="unit">${onlyOff || this.paired ? 'מוסיף משבצת כיבוי בשעת הסיום' : 'נדרשת שעת סיום קבועה'}</span>
+                  <sw-toggle .checked=${this.paired} ?disabled=${this.readOnly || (!this.paired && !onlyOff)} label=${tr('כיבוי בסיום החלון')} @change=${(e: CustomEvent<{ checked: boolean }>) => this.fire('pair-off', { on: e.detail.checked })}></sw-toggle>
+                  <span class="unit">${onlyOff || this.paired ? tr('מוסיף משבצת כיבוי בשעת הסיום') : tr('נדרשת שעת סיום קבועה')}</span>
                 </div>`
               : nothing}
           `}

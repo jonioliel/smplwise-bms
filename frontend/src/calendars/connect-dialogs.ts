@@ -14,12 +14,13 @@ import {
 } from './connect-model';
 import { PROVIDER_LABEL } from './model';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 
 /** What the dialog is for: connecting / re-authorising one provider, binding calendars of a connection, or the outgoing iCal feeds. */
 export type ConnectMode = { kind: 'connect'; card: ProviderCard; conn: Connection | null } | { kind: 'bind'; conn: Connection } | { kind: 'feeds' };
 
-const DIR_HE: Record<string, string> = { import: 'ייבוא ל־Arx', export: 'ייצוא מ־Arx', two_way: 'דו־כיווני (יומן ייעודי)' };
-const DETAIL_HE: Record<string, string> = { busy: '"תפוס" בלבד', titles: 'כותרות', details: 'כותרות והערות' };
+const DIR_HE: Record<string, string> = { import: tr('ייבוא ל־Arx'), export: tr('ייצוא מ־Arx'), two_way: tr('דו־כיווני (יומן ייעודי)') };
+const DETAIL_HE: Record<string, string> = { busy: tr('"תפוס" בלבד'), titles: tr('כותרות'), details: tr('כותרות והערות') };
 
 /**
  * CALCONNECT-2330: the connect flow of הגדרות › חיבורי יומן. Arx never creates an account or keeps a password: the owner registers HIS
@@ -174,7 +175,7 @@ export class CalConnectDialog extends LitElement {
       const c = await this.ensureConn('ical');
       this.conn = (await this.api_.putFeedUrl(c.id, this.feedUrl.trim())).connection;
       this.feedUrl = '';
-      this.close('מנוי ה־iCal נשמר. עכשיו אפשר לשייך אותו ליומן.');
+      this.close(tr('מנוי ה־iCal נשמר. עכשיו אפשר לשייך אותו ליומן.'));
     });
   }
 
@@ -199,7 +200,7 @@ export class CalConnectDialog extends LitElement {
       this.pollState = r.state;
       if (r.state === 'connected') {
         this.step = 'done';
-        this.close(`${PROVIDER_LABEL.microsoft} חובר. עכשיו אפשר לשייך יומנים.`);
+        this.close(tr('{name} חובר. עכשיו אפשר לשייך יומנים.', { name: PROVIDER_LABEL.microsoft }));
       } else if (r.state === 'pending' || r.state === 'slow_down') {
         this.schedulePoll(r.interval ?? 5);
       }
@@ -214,7 +215,7 @@ export class CalConnectDialog extends LitElement {
       const r = await this.api_.authorizeComplete(this.conn.id, this.pasted.trim());
       if (r.state === 'connected') {
         this.step = 'done';
-        this.close(`${PROVIDER_LABEL.google} חובר. עכשיו אפשר לשייך יומנים.`);
+        this.close(tr('{name} חובר. עכשיו אפשר לשייך יומנים.', { name: PROVIDER_LABEL.google }));
       }
     });
   }
@@ -223,64 +224,64 @@ export class CalConnectDialog extends LitElement {
     const name = PROVIDER_LABEL[card];
     if (this.step === 'feed') {
       return html`<div class="dlg" data-connect-step="feed">
-        <p>מדביקים את הכתובת הסודית של היומן (iCal / ICS) מאפליקציית היומן. הכתובת נשמרת מוצפנת ולא מוצגת שוב. קריאה בלבד: Arx לא כותב ליומן הזה.</p>
-        ${this.conn ? nothing : html`<div class="fld"><label for="cl">שם</label><input id="cl" class="inp" maxlength="80" placeholder="למשל: חגים ומועדים" .value=${this.label}
+        <p>${tr('מדביקים את הכתובת הסודית של היומן (iCal / ICS) מאפליקציית היומן. הכתובת נשמרת מוצפנת ולא מוצגת שוב. קריאה בלבד: Arx לא כותב ליומן הזה.')}</p>
+        ${this.conn ? nothing : html`<div class="fld"><label for="cl">${tr('שם')}</label><input id="cl" class="inp" maxlength="80" placeholder=${tr('למשל: חגים ומועדים')} .value=${this.label}
           @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)}></div>`}
-        <div class="fld"><label for="fu">כתובת</label><input id="fu" class="inp ltr" dir="ltr" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://… או webcal://…"
+        <div class="fld"><label for="fu">${tr('כתובת')}</label><input id="fu" class="inp ltr" dir="ltr" inputmode="url" autocomplete="off" spellcheck="false" placeholder=${tr('https://… או webcal://…')}
           data-feed-url .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}></div>
-        <p class="fine">רק https לכתובת ציבורית, פורט 443. כתובת ברשת הביתית נחסמת.</p>
+        <p class="fine">${tr('רק https לכתובת ציבורית, פורט 443. כתובת ברשת הביתית נחסמת.')}</p>
         ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
-        <button slot="footer" type="button" class="btn" @click=${() => this.close()}>ביטול</button>
-        <button slot="footer" type="button" class="btn pri" data-connect-save ?disabled=${this.busy || this.feedUrl.trim().length < 10} @click=${() => void this.saveFeed()}>שמירה</button>`;
+        <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('ביטול')}</button>
+        <button slot="footer" type="button" class="btn pri" data-connect-save ?disabled=${this.busy || this.feedUrl.trim().length < 10} @click=${() => void this.saveFeed()}>${tr('שמירה')}</button>`;
     }
     if (this.step === 'client') {
       const ok = clientIdOk(card, this.clientId);
       const needSecret = card === 'google' && !this.conn?.setup?.client_secret_set;
       return html`<div class="dlg" data-connect-step="client">
-        <p>Arx לא יוצר חשבון ולא שומר סיסמה. יוצרים אפליקציה משלך אצל ${name} ומדביקים כאן את פרטיה:</p>
-        ${card === 'google' ? html`<ol><li>פרויקט ב־Google Cloud והפעלת Google Calendar API</li><li>מסך הסכמה (OAuth consent) והוספת עצמך כמשתמש בדיקה</li>
-          <li>OAuth client מסוג <b>Desktop app</b></li><li>מדביקים כאן את Client ID ואת Client secret</li></ol>`
-          : html`<ol><li>רישום אפליקציה ב־Microsoft Entra</li><li>ב־Authentication: להפעיל <b>Allow public client flows</b></li>
-          <li>הרשאת Microsoft Graph מסוג Delegated: Calendars.ReadWrite (או Calendars.Read)</li><li>מדביקים כאן את Application (client) ID</li></ol>`}
-        ${this.conn ? nothing : html`<div class="fld"><label for="cl">שם</label><input id="cl" class="inp" maxlength="80" placeholder="למשל: היומן של המשרד" .value=${this.label}
+        <p>${tr('Arx לא יוצר חשבון ולא שומר סיסמה. יוצרים אפליקציה משלך אצל {name} ומדביקים כאן את פרטיה:', { name })}</p>
+        ${card === 'google' ? html`<ol><li>${tr('פרויקט ב־Google Cloud והפעלת Google Calendar API')}</li><li>${tr('מסך הסכמה (OAuth consent) והוספת עצמך כמשתמש בדיקה')}</li>
+          <li>${tr('OAuth client מסוג')} <b>Desktop app</b></li><li>${tr('מדביקים כאן את Client ID ואת Client secret')}</li></ol>`
+          : html`<ol><li>${tr('רישום אפליקציה ב־Microsoft Entra')}</li><li>${tr('ב־Authentication: להפעיל')} <b>Allow public client flows</b></li>
+          <li>${tr('הרשאת Microsoft Graph מסוג Delegated: Calendars.ReadWrite (או Calendars.Read)')}</li><li>${tr('מדביקים כאן את Application (client) ID')}</li></ol>`}
+        ${this.conn ? nothing : html`<div class="fld"><label for="cl">${tr('שם')}</label><input id="cl" class="inp" maxlength="80" placeholder=${tr('למשל: היומן של המשרד')} .value=${this.label}
           @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)}></div>
-          <div class="fld"><span class="lbl">הרשאה</span><div class="seg" role="radiogroup" aria-label="הרשאה">${(['read_write', 'read'] as const).map((v) => html`<button type="button" role="radio"
-            aria-checked=${String(this.scope === v)} aria-pressed=${String(this.scope === v)} data-scope=${v} @click=${() => (this.scope = v)}>${v === 'read' ? 'קריאה בלבד' : 'קריאה וכתיבה'}</button>`)}</div></div>`}
+          <div class="fld"><span class="lbl">${tr('הרשאה')}</span><div class="seg" role="radiogroup" aria-label=${tr('הרשאה')}>${(['read_write', 'read'] as const).map((v) => html`<button type="button" role="radio"
+            aria-checked=${String(this.scope === v)} aria-pressed=${String(this.scope === v)} data-scope=${v} @click=${() => (this.scope = v)}>${v === 'read' ? tr('קריאה בלבד') : tr('קריאה וכתיבה')}</button>`)}</div></div>`}
         <div class="fld"><label for="ci">Client ID</label><input id="ci" class="inp ltr" dir="ltr" autocomplete="off" spellcheck="false" data-client-id .value=${this.clientId}
           @input=${(e: Event) => (this.clientId = (e.target as HTMLInputElement).value)}></div>
         ${card === 'google' ? html`<div class="fld"><label for="cs">Client secret</label><input id="cs" class="inp ltr" dir="ltr" type="password" autocomplete="off" data-client-secret
-          placeholder=${this.conn?.setup?.client_secret_set ? 'נשמר (להחלפה מקלידים חדש)' : ''} .value=${this.clientSecret}
+          placeholder=${this.conn?.setup?.client_secret_set ? tr('נשמר (להחלפה מקלידים חדש)') : ''} .value=${this.clientSecret}
           @input=${(e: Event) => (this.clientSecret = (e.target as HTMLInputElement).value)}></div>`
-          : html`<div class="fld"><label for="tn">ספרייה</label><input id="tn" class="inp ltr" dir="ltr" autocomplete="off" spellcheck="false" data-tenant .value=${this.tenant}
-          @input=${(e: Event) => (this.tenant = (e.target as HTMLInputElement).value)}></div><p class="fine">common מתאים לרוב החשבונות; ארגון יכול לשים את מזהה הספרייה שלו.</p>`}
-        ${this.clientId && !ok ? html`<p class="fine" data-client-hint>${card === 'google' ? 'מזהה של Google נגמר ב־.apps.googleusercontent.com' : 'מזהה של Microsoft הוא GUID (8-4-4-4-12)'}</p>` : nothing}
+          : html`<div class="fld"><label for="tn">${tr('ספרייה')}</label><input id="tn" class="inp ltr" dir="ltr" autocomplete="off" spellcheck="false" data-tenant .value=${this.tenant}
+          @input=${(e: Event) => (this.tenant = (e.target as HTMLInputElement).value)}></div><p class="fine">${tr('common מתאים לרוב החשבונות; ארגון יכול לשים את מזהה הספרייה שלו.')}</p>`}
+        ${this.clientId && !ok ? html`<p class="fine" data-client-hint>${card === 'google' ? tr('מזהה של Google נגמר ב־.apps.googleusercontent.com') : tr('מזהה של Microsoft הוא GUID (8-4-4-4-12)')}</p>` : nothing}
         ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
-        <button slot="footer" type="button" class="btn" @click=${() => this.close()}>ביטול</button>
-        <button slot="footer" type="button" class="btn pri" data-connect-save ?disabled=${this.busy || !ok || (needSecret && !this.clientSecret)} @click=${() => void this.saveClient(card)}>שמירה והמשך</button>`;
+        <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('ביטול')}</button>
+        <button slot="footer" type="button" class="btn pri" data-connect-save ?disabled=${this.busy || !ok || (needSecret && !this.clientSecret)} @click=${() => void this.saveClient(card)}>${tr('שמירה והמשך')}</button>`;
     }
     const s = this.start;
     if (s?.flow === 'device') {
       const ended = this.pollState === 'denied' || this.pollState === 'expired';
       return html`<div class="dlg" data-connect-step="device">
-        <p>פותחים בכל מחשב או טלפון את <a href=${s.verification_url} target="_blank" rel="noopener noreferrer" class="ltr" dir="ltr">${s.verification_url.replace('https://', '')}</a>, מקלידים את הקוד ומאשרים בחשבון שלך:</p>
+        <p>${tr('פותחים בכל מחשב או טלפון את')} <a href=${s.verification_url} target="_blank" rel="noopener noreferrer" class="ltr" dir="ltr">${s.verification_url.replace('https://', '')}</a>, ${tr('מקלידים את הקוד ומאשרים בחשבון שלך:')}</p>
         <div class="code ltr" dir="ltr" data-user-code>${s.user_code}</div>
-        <p class="fine" role="status" data-poll-state=${this.pollState || 'waiting'}>${this.pollState === 'denied' ? 'האישור נדחה אצל Microsoft.' : this.pollState === 'expired' ? 'תוקף הקוד פג.' : 'ממתינים לאישור…'}</p>
+        <p class="fine" role="status" data-poll-state=${this.pollState || 'waiting'}>${this.pollState === 'denied' ? tr('האישור נדחה אצל Microsoft.') : this.pollState === 'expired' ? tr('תוקף הקוד פג.') : tr('ממתינים לאישור…')}</p>
         ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
-        <button slot="footer" type="button" class="btn" @click=${() => this.close()}>ביטול</button>
-        ${ended || this.error ? html`<button slot="footer" type="button" class="btn pri" data-connect-retry @click=${() => { this.pollState = ''; void this.authorize(); }}>קוד חדש</button>` : nothing}
-        <button slot="footer" type="button" class="btn sm" data-change-client @click=${() => { clearTimeout(this.pollTimer); this.step = 'client'; }}>פרטי הלקוח</button>`;
+        <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('ביטול')}</button>
+        ${ended || this.error ? html`<button slot="footer" type="button" class="btn pri" data-connect-retry @click=${() => { this.pollState = ''; void this.authorize(); }}>${tr('קוד חדש')}</button>` : nothing}
+        <button slot="footer" type="button" class="btn sm" data-change-client @click=${() => { clearTimeout(this.pollTimer); this.step = 'client'; }}>${tr('פרטי הלקוח')}</button>`;
     }
     return html`<div class="dlg" data-connect-step="paste">
-      <p>1. פותחים את מסך האישור של Google ומאשרים את כל ההרשאות.</p>
-      ${s?.flow === 'paste' ? html`<a class="btn pri" href=${s.authorize_url} target="_blank" rel="noopener noreferrer" data-open-consent><sw-icon name="link" size="14"></sw-icon>פתיחת מסך האישור של Google</a>` : html`<div class="spin" role="status" aria-label="טוען"></div>`}
-      <p>2. אחרי האישור הדפדפן יעבור לכתובת שמתחילה ב־<span class="ltr" dir="ltr">http://127.0.0.1:8749/</span> ויראה שגיאה - זה תקין. מעתיקים את כל הכתובת משורת הכתובת ומדביקים כאן:</p>
-      <textarea class="inp ltr" dir="ltr" spellcheck="false" autocomplete="off" aria-label="הכתובת שהדפדפן הגיע אליה" data-paste .value=${this.pasted}
+      <p>${tr('1. פותחים את מסך האישור של Google ומאשרים את כל ההרשאות.')}</p>
+      ${s?.flow === 'paste' ? html`<a class="btn pri" href=${s.authorize_url} target="_blank" rel="noopener noreferrer" data-open-consent><sw-icon name="link" size="14"></sw-icon>${tr('פתיחת מסך האישור של Google')}</a>` : html`<div class="spin" role="status" aria-label=${tr('טוען')}></div>`}
+      <p>${tr('2. אחרי האישור הדפדפן יעבור לכתובת שמתחילה ב־')}<span class="ltr" dir="ltr">http://127.0.0.1:8749/</span> ${tr('ויראה שגיאה - זה תקין. מעתיקים את כל הכתובת משורת הכתובת ומדביקים כאן:')}</p>
+      <textarea class="inp ltr" dir="ltr" spellcheck="false" autocomplete="off" aria-label=${tr('הכתובת שהדפדפן הגיע אליה')} data-paste .value=${this.pasted}
         @input=${(e: Event) => (this.pasted = (e.target as HTMLTextAreaElement).value)}></textarea>
-      <p class="fine">הקוד בכתובת טוב לפעם אחת ולעשר דקות, ושייך רק לבקשה הזו.</p>
+      <p class="fine">${tr('הקוד בכתובת טוב לפעם אחת ולעשר דקות, ושייך רק לבקשה הזו.')}</p>
       ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
-      <button slot="footer" type="button" class="btn" @click=${() => this.close()}>ביטול</button>
-      <button slot="footer" type="button" class="btn sm" data-change-client @click=${() => (this.step = 'client')}>פרטי הלקוח</button>
-      <button slot="footer" type="button" class="btn pri" data-connect-finish ?disabled=${this.busy || !pasteLooksRight(this.pasted)} @click=${() => void this.complete()}>סיום</button>`;
+      <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('ביטול')}</button>
+      <button slot="footer" type="button" class="btn sm" data-change-client @click=${() => (this.step = 'client')}>${tr('פרטי הלקוח')}</button>
+      <button slot="footer" type="button" class="btn pri" data-connect-finish ?disabled=${this.busy || !pasteLooksRight(this.pasted)} @click=${() => void this.complete()}>${tr('סיום')}</button>`;
   }
 
   // ---------------------------------------------------------------- bind
@@ -299,14 +300,14 @@ export class CalConnectDialog extends LitElement {
     return this.run(async () => {
       if (!this.conn) return;
       await this.api_.putBinding(this.bCal, { connection_id: this.conn.id, external_calendar_ref: this.bExt, direction: this.bDir, detail: this.bDetail, dedicated: this.bDir === 'two_way' ? true : this.bDedicated });
-      this.close('השיוך נשמר; הסנכרון יתחיל בסבב הקרוב.');
+      this.close(tr('השיוך נשמר; הסנכרון יתחיל בסבב הקרוב.'));
     });
   }
 
   private unbind(calendarId: string): Promise<void> {
     return this.run(async () => {
       await this.api_.putBinding(calendarId, { connection_id: null });
-      this.close('השיוך הוסר; האירועים ב־Arx נשארים.');
+      this.close(tr('השיוך הוסר; האירועים ב־Arx נשארים.'));
     });
   }
 
@@ -317,23 +318,23 @@ export class CalConnectDialog extends LitElement {
     const writeBlocked = this.bDir !== 'import' && cur && !cur.can_write;
     const mine = this.editable();
     return html`<div class="dlg" data-bind-dialog>
-      ${conn.bindings.length ? html`<div class="list">${conn.bindings.map((b) => html`<div class="item" data-bound=${b.calendar_id}><span class="grow ell">${this.cals.find((c) => c.id === b.calendar_id)?.name ?? 'יומן'}</span>
-        <span class="chip">${DIR_HE[b.direction] ?? b.direction}</span><button type="button" class="btn sm bad" data-unbind ?disabled=${this.busy} @click=${() => void this.unbind(b.calendar_id)}>הסרה</button></div>`)}</div>` : nothing}
-      ${this.ext === null && !this.error ? html`<div class="spin" role="status" aria-label="טוען"></div>` : html`
-      <div class="fld"><label for="be">יומן אצל ${PROVIDER_LABEL[cardOf(conn.provider)]}</label><select id="be" class="inp" data-bind-ext @change=${(e: Event) => (this.bExt = (e.target as HTMLSelectElement).value)}>
-        ${ext.map((e) => html`<option value=${e.id_ref} ?selected=${e.id_ref === this.bExt}>${e.name}${e.can_write ? '' : ' (קריאה בלבד)'}</option>`)}</select></div>
-      <div class="fld"><label for="bc">יומן ב־Arx</label><select id="bc" class="inp" data-bind-cal @change=${(e: Event) => (this.bCal = (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${!this.bCal}>בחירה…</option>${mine.map((c) => html`<option value=${c.id} ?selected=${c.id === this.bCal}>${c.name}</option>`)}</select></div>
-      ${mine.length ? nothing : html`<p class="fine" data-bind-none>אין יומן שיש לך בו הרשאת עריכה. שיוך דורש חיבור יומנים וגם עריכה ביומן.</p>`}
-      <div class="fld"><span class="lbl">כיוון</span><div class="seg" role="radiogroup" aria-label="כיוון">${dirs.map((d) => html`<button type="button" role="radio" aria-checked=${String(this.bDir === d)}
+      ${conn.bindings.length ? html`<div class="list">${conn.bindings.map((b) => html`<div class="item" data-bound=${b.calendar_id}><span class="grow ell">${this.cals.find((c) => c.id === b.calendar_id)?.name ?? tr('יומן')}</span>
+        <span class="chip">${DIR_HE[b.direction] ?? b.direction}</span><button type="button" class="btn sm bad" data-unbind ?disabled=${this.busy} @click=${() => void this.unbind(b.calendar_id)}>${tr('הסרה')}</button></div>`)}</div>` : nothing}
+      ${this.ext === null && !this.error ? html`<div class="spin" role="status" aria-label=${tr('טוען')}></div>` : html`
+      <div class="fld"><label for="be">${tr('יומן אצל {name}', { name: PROVIDER_LABEL[cardOf(conn.provider)] })}</label><select id="be" class="inp" data-bind-ext @change=${(e: Event) => (this.bExt = (e.target as HTMLSelectElement).value)}>
+        ${ext.map((e) => html`<option value=${e.id_ref} ?selected=${e.id_ref === this.bExt}>${e.name}${e.can_write ? '' : ` (${tr('קריאה בלבד')})`}</option>`)}</select></div>
+      <div class="fld"><label for="bc">${tr('יומן ב־Arx')}</label><select id="bc" class="inp" data-bind-cal @change=${(e: Event) => (this.bCal = (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${!this.bCal}>${tr('בחירה…')}</option>${mine.map((c) => html`<option value=${c.id} ?selected=${c.id === this.bCal}>${c.name}</option>`)}</select></div>
+      ${mine.length ? nothing : html`<p class="fine" data-bind-none>${tr('אין יומן שיש לך בו הרשאת עריכה. שיוך דורש חיבור יומנים וגם עריכה ביומן.')}</p>`}
+      <div class="fld"><span class="lbl">${tr('כיוון')}</span><div class="seg" role="radiogroup" aria-label=${tr('כיוון')}>${dirs.map((d) => html`<button type="button" role="radio" aria-checked=${String(this.bDir === d)}
         aria-pressed=${String(this.bDir === d)} data-dir=${d} @click=${() => (this.bDir = d)}>${DIR_HE[d]}</button>`)}</div></div>
-      <div class="fld"><span class="lbl">מה עובר</span><div class="seg" role="radiogroup" aria-label="מה עובר">${(['busy', 'titles', 'details'] as const).map((d) => html`<button type="button"
+      <div class="fld"><span class="lbl">${tr('מה עובר')}</span><div class="seg" role="radiogroup" aria-label=${tr('מה עובר')}>${(['busy', 'titles', 'details'] as const).map((d) => html`<button type="button"
         role="radio" aria-checked=${String(this.bDetail === d)} aria-pressed=${String(this.bDetail === d)} data-detail=${d} @click=${() => (this.bDetail = d)}>${DETAIL_HE[d]}</button>`)}</div></div>
-      ${this.bDir === 'two_way' ? html`<p class="fine" data-two-way-note>דו־כיווני רק ליומן שנוצר עבור Arx (לא יומן אישי). שינויים מבחוץ מתקבלים; התנגשות שומרת את שתי ההזמנות ומסמנת להחלטה.</p>` : nothing}
-      ${writeBlocked ? html`<p class="fine" data-bind-readonly>היומן הזה אצל הספק לקריאה בלבד; אפשר רק ייבוא.</p>` : nothing}`}
+      ${this.bDir === 'two_way' ? html`<p class="fine" data-two-way-note>${tr('דו־כיווני רק ליומן שנוצר עבור Arx (לא יומן אישי). שינויים מבחוץ מתקבלים; התנגשות שומרת את שתי ההזמנות ומסמנת להחלטה.')}</p>` : nothing}
+      ${writeBlocked ? html`<p class="fine" data-bind-readonly>${tr('היומן הזה אצל הספק לקריאה בלבד; אפשר רק ייבוא.')}</p>` : nothing}`}
       ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
-      <button slot="footer" type="button" class="btn" @click=${() => this.close()}>סגירה</button>
-      <button slot="footer" type="button" class="btn pri" data-bind-save ?disabled=${this.busy || !this.bCal || !this.bExt || !!writeBlocked} @click=${() => void this.saveBinding()}>שיוך</button>`;
+      <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('סגירה')}</button>
+      <button slot="footer" type="button" class="btn pri" data-bind-save ?disabled=${this.busy || !this.bCal || !this.bExt || !!writeBlocked} @click=${() => void this.saveBinding()}>${tr('שיוך')}</button>`;
   }
 
   // ---------------------------------------------------------------- feeds
@@ -377,56 +378,56 @@ export class CalConnectDialog extends LitElement {
       <div class="what"><span class="ell" title=${names(f.calendar_ids)}>${names(f.calendar_ids)}</span>
         <span class="fine exp ${exp.expired ? 'bad' : ''}" data-feed-expiry>${exp.text}</span></div>
       <span class="chip" data-feed-detail-chip=${f.remote ? 'busy-remote' : (f.detail_effective ?? f.detail)}>${feedDetailHe(f)}</span>
-      ${rv.show ? html`<span class="rem" title=${rv.locked ? FEED_REMOTE_LOCAL_ONLY_HE : ''}><sw-toggle label=${`גישה מרחוק ל${names(f.calendar_ids)}`} labelHidden data-feed-remote-toggle
+      ${rv.show ? html`<span class="rem" title=${rv.locked ? FEED_REMOTE_LOCAL_ONLY_HE : ''}><sw-toggle label=${tr('גישה מרחוק ל{names}', { names: names(f.calendar_ids) })} labelHidden data-feed-remote-toggle
         .checked=${live(on)} ?disabled=${this.busy || rv.locked || !this.feedsEnabled || !!this.confirmRemote}
-        @change=${(e: CustomEvent<{ checked: boolean }>) => this.flipRemote(f, e.detail.checked)}></sw-toggle>מבחוץ</span>` : nothing}
-      <button type="button" class="btn sm" data-feed-rotate title="כתובת חדשה עם תוקף חדש; הכתובת הקודמת מפסיקה לעבוד" ?disabled=${this.busy || !this.feedsEnabled}
-        @click=${() => void this.feedAct(() => this.api_.rotateFeed(f.id), true)}>חידוש קישור</button>
-      <button type="button" class="btn sm bad" data-feed-revoke ?disabled=${this.busy} @click=${() => void this.feedAct(() => this.api_.revokeFeed(f.id), true)}>ביטול</button></div>`;
+        @change=${(e: CustomEvent<{ checked: boolean }>) => this.flipRemote(f, e.detail.checked)}></sw-toggle>${tr('מבחוץ')}</span>` : nothing}
+      <button type="button" class="btn sm" data-feed-rotate title=${tr('כתובת חדשה עם תוקף חדש; הכתובת הקודמת מפסיקה לעבוד')} ?disabled=${this.busy || !this.feedsEnabled}
+        @click=${() => void this.feedAct(() => this.api_.rotateFeed(f.id), true)}>${tr('חידוש קישור')}</button>
+      <button type="button" class="btn sm bad" data-feed-revoke ?disabled=${this.busy} @click=${() => void this.feedAct(() => this.api_.revokeFeed(f.id), true)}>${tr('ביטול')}</button></div>`;
   }
 
   private remoteConfirm() {
     const f = (this.feeds ?? []).find((x) => x.id === this.confirmRemote);
     if (!f) return nothing;
-    return html`<div class="note warn confirm" role="alertdialog" aria-label="פתיחת הפיד לגישה מרחוק" data-feed-remote-confirm>
-      <b>לפתוח את הפיד לגישה מרחוק?</b><span>${FEED_REMOTE_CONFIRM_HE}</span>
+    return html`<div class="note warn confirm" role="alertdialog" aria-label=${tr('פתיחת הפיד לגישה מרחוק')} data-feed-remote-confirm>
+      <b>${tr('לפתוח את הפיד לגישה מרחוק?')}</b><span>${FEED_REMOTE_CONFIRM_HE}</span>
       <div class="acts"><button type="button" class="btn sm pri" data-feed-remote-yes ?disabled=${this.busy}
-        @click=${() => void this.feedAct(() => this.api_.setFeedRemote(f.id, true), true)}>כן, לפתוח מבחוץ</button>
-        <button type="button" class="btn sm" data-feed-remote-no ?disabled=${this.busy} @click=${() => (this.confirmRemote = '')}>ביטול</button></div></div>`;
+        @click=${() => void this.feedAct(() => this.api_.setFeedRemote(f.id, true), true)}>${tr('כן, לפתוח מבחוץ')}</button>
+        <button type="button" class="btn sm" data-feed-remote-no ?disabled=${this.busy} @click=${() => (this.confirmRemote = '')}>${tr('ביטול')}</button></div></div>`;
   }
 
   private feedsBody() {
     const mine = this.editable();
-    const names = (ids: string[]) => ids.map((id) => this.cals.find((c) => c.id === id)?.name ?? 'יומן').join(', ');
+    const names = (ids: string[]) => ids.map((id) => this.cals.find((c) => c.id === id)?.name ?? tr('יומן')).join(', ');
     return html`<div class="dlg" data-feeds-dialog>
-      <p>פיד iCal יוצא: כתובת סודית שאפליקציית יומן נרשמת אליה (קריאה בלבד). עוברים רק אירועים מאושרים, כ"תפוס" או עם כותרת; לעולם לא הערות או פרטי אורחים.</p>
-      ${!this.feedsEnabled ? html`<div class="note warn" data-feeds-off>פידים כבויים. מפעילים בהגדרות היומנים.</div>` : nothing}
-      ${this.shownUrl ? html`<div class="note" data-feed-url-once><div class="grow"><b>הכתובת מוצגת פעם אחת בלבד</b><div class="url ltr" dir="ltr">${this.shownUrl}</div>
-        <span class="fine">עובדת רק במקום שבו Arx נגיש לאפליקציית היומן.</span></div></div>` : nothing}
+      <p>${tr('פיד iCal יוצא: כתובת סודית שאפליקציית יומן נרשמת אליה (קריאה בלבד). עוברים רק אירועים מאושרים, כ"תפוס" או עם כותרת; לעולם לא הערות או פרטי אורחים.')}</p>
+      ${!this.feedsEnabled ? html`<div class="note warn" data-feeds-off>${tr('פידים כבויים. מפעילים בהגדרות היומנים.')}</div>` : nothing}
+      ${this.shownUrl ? html`<div class="note" data-feed-url-once><div class="grow"><b>${tr('הכתובת מוצגת פעם אחת בלבד')}</b><div class="url ltr" dir="ltr">${this.shownUrl}</div>
+        <span class="fine">${tr('עובדת רק במקום שבו Arx נגיש לאפליקציית היומן.')}</span></div></div>` : nothing}
       ${this.remoteConfirm()}
       ${!this.feedsLocal && (this.feeds ?? []).some((f) => f.can_remote) ? html`<div class="note" data-feed-remote-local-only>${FEED_REMOTE_LOCAL_ONLY_HE}</div>` : nothing}
-      ${this.feeds === null && !this.error ? html`<div class="spin" role="status" aria-label="טוען"></div>` : html`<div class="list">${(this.feeds ?? []).map((f) => this.feedRow(f, names))}
-        ${(this.feeds ?? []).length ? nothing : html`<p class="fine" data-feeds-empty>אין פידים.</p>`}</div>`}
-      ${(this.feeds ?? []).length && this.feedMaxAge !== null ? html`<p class="fine" data-feed-renew-hint>"חידוש קישור" נותן כתובת חדשה בתוקף ${feedMaxAgeHe(this.feedMaxAge)}; הכתובת הקודמת מפסיקה לעבוד ויש לעדכן אותה באפליקציית היומן.</p>` : nothing}
-      ${this.feedsEnabled ? html`<div class="list" role="group" aria-label="יומנים לפיד חדש">${mine.map((c) => html`<label class="check"><input type="checkbox" data-feed-cal=${c.id} .checked=${this.fCals.includes(c.id)}
+      ${this.feeds === null && !this.error ? html`<div class="spin" role="status" aria-label=${tr('טוען')}></div>` : html`<div class="list">${(this.feeds ?? []).map((f) => this.feedRow(f, names))}
+        ${(this.feeds ?? []).length ? nothing : html`<p class="fine" data-feeds-empty>${tr('אין פידים.')}</p>`}</div>`}
+      ${(this.feeds ?? []).length && this.feedMaxAge !== null ? html`<p class="fine" data-feed-renew-hint>${tr('"חידוש קישור" נותן כתובת חדשה בתוקף {age}; הכתובת הקודמת מפסיקה לעבוד ויש לעדכן אותה באפליקציית היומן.', { age: feedMaxAgeHe(this.feedMaxAge) })}</p>` : nothing}
+      ${this.feedsEnabled ? html`<div class="list" role="group" aria-label=${tr('יומנים לפיד חדש')}>${mine.map((c) => html`<label class="check"><input type="checkbox" data-feed-cal=${c.id} .checked=${this.fCals.includes(c.id)}
         @change=${(e: Event) => (this.fCals = (e.target as HTMLInputElement).checked ? [...this.fCals, c.id] : this.fCals.filter((x) => x !== c.id))}>${c.name}</label>`)}</div>
-        <div class="seg" role="radiogroup" aria-label="מה עובר">${(['busy', 'titles'] as const).map((d) => html`<button type="button" role="radio" aria-checked=${String(this.fDetail === d)}
+        <div class="seg" role="radiogroup" aria-label=${tr('מה עובר')}>${(['busy', 'titles'] as const).map((d) => html`<button type="button" role="radio" aria-checked=${String(this.fDetail === d)}
           aria-pressed=${String(this.fDetail === d)} data-feed-detail=${d} @click=${() => (this.fDetail = d)}>${DETAIL_HE[d]}</button>`)}</div>` : nothing}
       ${this.error ? html`<div class="err" role="alert" data-connect-error>${this.error}</div>` : nothing}</div>
-      <button slot="footer" type="button" class="btn" @click=${() => this.close()}>סגירה</button>
+      <button slot="footer" type="button" class="btn" @click=${() => this.close()}>${tr('סגירה')}</button>
       ${this.feedsEnabled ? html`<button slot="footer" type="button" class="btn pri" data-feed-create ?disabled=${this.busy || !this.fCals.length}
-        @click=${() => void this.feedAct(() => this.api_.createFeed(this.fCals, this.fDetail))}>פיד חדש</button>` : nothing}`;
+        @click=${() => void this.feedAct(() => this.api_.createFeed(this.fCals, this.fDetail))}>${tr('פיד חדש')}</button>` : nothing}`;
   }
 
   render() {
     const m = this.mode;
     if (!m) return nothing;
     if (m.kind === 'bind') {
-      return html`<sw-dialog open heading=${`שיוך יומנים · ${PROVIDER_LABEL[cardOf(m.conn.provider)]}`} data-cal-dialog="bind" @close=${() => this.close()}>${this.bindBody(this.conn ?? m.conn)}</sw-dialog>`;
+      return html`<sw-dialog open heading=${`${tr('שיוך יומנים')} · ${PROVIDER_LABEL[cardOf(m.conn.provider)]}`} data-cal-dialog="bind" @close=${() => this.close()}>${this.bindBody(this.conn ?? m.conn)}</sw-dialog>`;
     }
-    if (m.kind === 'feeds') return html`<sw-dialog open heading="פידים יוצאים (iCal)" data-cal-dialog="feeds" @close=${() => this.close()}>${this.feedsBody()}</sw-dialog>`;
+    if (m.kind === 'feeds') return html`<sw-dialog open heading=${tr('פידים יוצאים (iCal)')} data-cal-dialog="feeds" @close=${() => this.close()}>${this.feedsBody()}</sw-dialog>`;
     const reauth = m.conn?.state === 'needs_reauth';
-    const heading = `${reauth ? 'הרשאה מחדש' : 'חיבור'} · ${PROVIDER_LABEL[m.card]}`;
+    const heading = `${reauth ? tr('הרשאה מחדש') : tr('חיבור')} · ${PROVIDER_LABEL[m.card]}`;
     return html`<sw-dialog open heading=${heading} data-cal-dialog="connect" data-card=${m.card} @close=${() => this.close()}>${this.connectBody(m.card)}</sw-dialog>`;
   }
 }

@@ -3,6 +3,7 @@
  * read and that it is not current; the button itself carries only a tiny dot (clean operator screens: no line, no banner). Hebrew first;
  * English, Arabic and Russian follow the document language. The Arabic and Russian columns are an INITIAL translation and need a native review.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   updated: 'עודכן',
   stale: 'הנתונים אינם מעודכנים',
@@ -27,8 +28,7 @@ const ru: Record<Key, string> = {
 export type HlLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function hlLang(): HlLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<HlLang, Record<Key, string>> = { he, en, ar, ru };
@@ -41,3 +41,5 @@ export function hl(key: Key, lang: HlLang = hlLang()): string {
 
 export const HL_KEYS = Object.keys(he) as Key[];
 export const HL_TABLES = TABLES;
+
+registerCatalogue('i18n/home-live', { he, en, ar, ru }, HL_DEV_MARKED);

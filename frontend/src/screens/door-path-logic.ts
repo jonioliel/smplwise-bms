@@ -7,6 +7,7 @@
  *     never work.
  */
 import type { DoorSettings } from '../api/doors';
+import { tr } from '../i18n/msg/devices';
 
 export interface LockRowLike {
   entity_id: string;
@@ -14,9 +15,9 @@ export interface LockRowLike {
   wiskey_door?: boolean;
 }
 
-export const LOCK_ALL_SKIPPED_WORD = 'לא רלוונטי';
-export const EDITOR_BLOCK_REFUSAL = 'לא ניתן להוסיף כאן פתיחת דלת אינטרקום. פתיחה נעשית מכפתור הדלת או מתוכנית החזקה פתוחה.';
-export const NEVER_WORKS = 'לא יעבוד לעולם - מנעול של אינטרקום אינו תומך בנעילה';
+export const LOCK_ALL_SKIPPED_WORD = tr('לא רלוונטי');
+export const EDITOR_BLOCK_REFUSAL = tr('לא ניתן להוסיף כאן פתיחת דלת אינטרקום. פתיחה נעשית מכפתור הדלת או מתוכנית החזקה פתוחה.');
+export const NEVER_WORKS = tr('לא יעבוד לעולם - מנעול של אינטרקום אינו תומך בנעילה');
 
 /** The rows "lock all" may send to (not locked, not a WisKey door) and the WisKey doors it skips. */
 export function splitLockAll<T extends LockRowLike>(rows: T[]): { sendable: T[]; skipped: T[] } {
@@ -27,32 +28,32 @@ export function splitLockAll<T extends LockRowLike>(rows: T[]): { sendable: T[];
 export function skippedText(count: number): string {
   if (count <= 0) return '';
   return count === 1
-    ? `${LOCK_ALL_SKIPPED_WORD}: דלת אינטרקום אחת אינה תומכת בנעילה, ולא נשלחה אליה פקודה.`
-    : `${LOCK_ALL_SKIPPED_WORD}: ${count} דלתות אינטרקום אינן תומכות בנעילה, ולא נשלחה אליהן פקודה.`;
+    ? `${LOCK_ALL_SKIPPED_WORD}: ${tr('דלת אינטרקום אחת אינה תומכת בנעילה, ולא נשלחה אליה פקודה.')}`
+    : `${LOCK_ALL_SKIPPED_WORD}: ${tr('{n} דלתות אינטרקום אינן תומכות בנעילה, ולא נשלחה אליהן פקודה.', { n: count })}`;
 }
 
 /** The dialog's question: only what is really sent is counted. */
 export function lockAllQuestion(sendable: number, skipped: number): string {
-  if (sendable === 0) return skipped > 0 ? 'אין מנעולים לנעילה' : 'כל המנעולים נעולים';
-  return sendable === 1 ? 'לנעול מנעול אחד?' : `לנעול ${sendable} מנעולים?`;
+  if (sendable === 0) return skipped > 0 ? tr('אין מנעולים לנעילה') : tr('כל המנעולים נעולים');
+  return sendable === 1 ? tr('לנעול מנעול אחד?') : tr('לנעול {n} מנעולים?', { n: sendable });
 }
 
 /** The editor-block row of the door Settings card. */
 export function editorBlockLabel(mode: DoorSettings['editor_block']): string {
-  return mode === 'allowed' ? 'מותר להוסיף פתיחת דלת בעורכים' : 'חסום: אי אפשר להוסיף פתיחת דלת אינטרקום בעורכים';
+  return mode === 'allowed' ? tr('מותר להוסיף פתיחת דלת בעורכים') : tr('חסום: אי אפשר להוסיף פתיחת דלת אינטרקום בעורכים');
 }
 
 export function editorBlockHint(s: Pick<DoorSettings, 'editor_block' | 'editor_allowed_available'>): string {
-  const base = 'חל על אוטומציות, סקריפטים, סצנות ותזמונים חדשים; פריטים קיימים לא משתנים. פתיחה נעשית מכפתור הדלת או מתוכנית החזקה פתוחה.';
-  return s.editor_allowed_available ? base : `${base} האפשרות "מותר" תיפתח לאחר השלמת הסבת הפריטים.`;
+  const base = tr('חל על אוטומציות, סקריפטים, סצנות ותזמונים חדשים; פריטים קיימים לא משתנים. פתיחה נעשית מכפתור הדלת או מתוכנית החזקה פתוחה.');
+  return s.editor_allowed_available ? base : `${base} ${tr('האפשרות "מותר" תיפתח לאחר השלמת הסבת הפריטים.')}`;
 }
 
 export function editorBlockQuestion(next: DoorSettings['editor_block']): string {
-  return next === 'blocked' ? 'לחסום הוספת פתיחת דלת אינטרקום בעורכים?' : 'להתיר הוספת פתיחת דלת אינטרקום בעורכים?';
+  return next === 'blocked' ? tr('לחסום הוספת פתיחת דלת אינטרקום בעורכים?') : tr('להתיר הוספת פתיחת דלת אינטרקום בעורכים?');
 }
 
 /** One line per scheduled lock job that will never work. */
 export function lockJobLine(job: { name: string; locks: string[] }): string {
-  const name = job.name || 'תזמון ללא שם';
+  const name = job.name || tr('תזמון ללא שם');
   return `${name} · ${job.locks.join(', ')} · ${NEVER_WORKS}`;
 }

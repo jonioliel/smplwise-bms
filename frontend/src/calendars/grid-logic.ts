@@ -12,6 +12,7 @@
  */
 import type { Calendar, CalSettings, Occurrence } from '../api/calendars';
 import { DAY_LONG, hm, pad, startOfDay } from './model';
+import { tr } from '../i18n/msg/calendars';
 
 export interface Band { from: number; to: number }
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -162,7 +163,7 @@ export interface Hint { level: HintLevel; reason: string | null; warn: string | 
 export interface Candidate { cal: Calendar; start: Date; end: Date; ignoreId?: string; behalf?: string; moving?: 'confirmed' | 'pending' | null; started?: boolean; headcount?: number }
 export type HintSettings = Pick<CalSettings, 'contested_requests' | 'maintenance_overlap' | 'editors_bypass_approval' | 'pending_holds_slot'>;
 
-export const durText = (m: number) => (m < 60 ? `${m} דק׳` : m === 60 ? 'שעה' : m === 120 ? 'שעתיים' : m % 60 ? `${Math.floor(m / 60)}:${pad(m % 60)} שעות` : `${m / 60} שעות`);
+export const durText = (m: number) => (m < 60 ? tr('{n} דק׳', { n: m }) : m === 60 ? tr('שעה') : m === 120 ? tr('שעתיים') : m % 60 ? tr('{time} שעות', { time: `${Math.floor(m / 60)}:${pad(m % 60)}` }) : tr('{n} שעות', { n: m / 60 }));
 const strongRole = (c: Calendar) => c.my_role === 'edit' || c.my_role === 'manage';
 
 /** The open window of a calendar on a day (local minutes), or null when it is closed that day; undefined hours = always open. */
@@ -182,35 +183,35 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
   const out: Hint = { level: 'ok', reason: null, warn: null, peers: 0, contested: null, approver: cal.owner?.name || null };
   const block: string[] = [];
   const strong = strongRole(cal);
-  if (!cal.my_role || cal.my_role === 'view') block.push(cal.my_role === 'view' ? `${cal.name}: צפייה בלבד` : 'אין לך הרשאה ליצור אירועים');
+  if (!cal.my_role || cal.my_role === 'view') block.push(cal.my_role === 'view' ? tr('{name}: צפייה בלבד', { name: cal.name }) : tr('אין לך הרשאה ליצור אירועים'));
   const day = startOfDay(c.start);
   const sMin = minOfDay(c.start);
   const eMin = c.end.getTime() - day.getTime() >= 86_400_000 ? 1440 : minOfDay(c.end);
   let needsApproval = cal.approval_mode === 'always' || (cal.approval_mode === 'on_behalf' && !!c.behalf && c.behalf !== 'self');
   const open = openOn(cal, day);
   if (!open) {
-    if (strong) out.warn = `${cal.name} סגור ב${DAY_LONG[day.getDay()]}. כמנהל היומן מותר לך`;
+    if (strong) out.warn = tr('{name} סגור ב{day}. כמנהל היומן מותר לך', { name: cal.name, day: DAY_LONG[day.getDay()] });
     else if (cal.approval_mode === 'outside_hours') needsApproval = true;
-    else block.push(`${cal.name} סגור ב${DAY_LONG[day.getDay()] === 'שבת' ? 'שבת' : 'יום הזה'}`);
+    else block.push(day.getDay() === 6 ? tr('{name} סגור בשבת', { name: cal.name }) : tr('{name} סגור ביום הזה', { name: cal.name }));
   } else if (sMin < open.from || eMin > open.to) {
-    const txt = `מחוץ לשעות הפתיחה של ${cal.name}: ${pad(Math.floor(open.from / 60))}:${pad(open.from % 60)}–${pad(Math.floor(open.to / 60))}:${pad(open.to % 60)}`;
-    if (strong) out.warn = `${txt}. כמנהל היומן מותר לך`;
+    const txt = tr('מחוץ לשעות הפתיחה של {name}: {from}–{to}', { name: cal.name, from: `${pad(Math.floor(open.from / 60))}:${pad(open.from % 60)}`, to: `${pad(Math.floor(open.to / 60))}:${pad(open.to % 60)}` });
+    if (strong) out.warn = tr('{text}. כמנהל היומן מותר לך', { text: txt });
     else if (cal.approval_mode === 'outside_hours') needsApproval = true;
     else block.push(txt);
   }
-  if (c.started ? c.end <= now : c.start < now) block.push('המועד כבר התחיל או עבר');
+  if (c.started ? c.end <= now : c.start < now) block.push(tr('המועד כבר התחיל או עבר'));
   const len = Math.round((c.end.getTime() - c.start.getTime()) / 60000);
   if (cal.max_minutes && len > cal.max_minutes) {
-    if (strong) out.warn ??= `ארוך מ-${durText(cal.max_minutes)}. כמנהל היומן מותר לך לחרוג`;
-    else block.push(`ב${cal.name} אפשר להזמין עד ${durText(cal.max_minutes)}`);
+    if (strong) out.warn ??= tr('ארוך מ-{dur}. כמנהל היומן מותר לך לחרוג', { dur: durText(cal.max_minutes) });
+    else block.push(tr('ב{name} אפשר להזמין עד {dur}', { name: cal.name, dur: durText(cal.max_minutes) }));
   }
   if (cal.min_minutes && len < cal.min_minutes) {
-    if (strong) out.warn ??= `קצר מ-${durText(cal.min_minutes)}. כמנהל היומן מותר לך`;
-    else block.push(`ב${cal.name} ההזמנה הקצרה ביותר היא ${durText(cal.min_minutes)}`);
+    if (strong) out.warn ??= tr('קצר מ-{dur}. כמנהל היומן מותר לך', { dur: durText(cal.min_minutes) });
+    else block.push(tr('ב{name} ההזמנה הקצרה ביותר היא {dur}', { name: cal.name, dur: durText(cal.min_minutes) }));
   }
   const step = stepOf(cal);
-  if (sMin % step || eMin % step) block.push(`השעות ב${cal.name} בקפיצות של ${step} דק׳`);
-  if (cal.capacity && c.headcount && c.headcount > cal.capacity) block.push(`ב${cal.name} יש ${cal.capacity} מקומות`);
+  if (sMin % step || eMin % step) block.push(tr('השעות ב{name} בקפיצות של {n} דק׳', { name: cal.name, n: step }));
+  if (cal.capacity && c.headcount && c.headcount > cal.capacity) block.push(tr('ב{name} יש {n} מקומות', { name: cal.name, n: cal.capacity }));
   // conflicts: only an exclusive calendar; buffers on both sides (touching is not a clash)
   if ((cal.conflict_policy ?? 'exclusive') === 'exclusive') {
     const margin = ((cal.buffer_before_min ?? 0) + (cal.buffer_after_min ?? 0)) * 60000;
@@ -224,29 +225,29 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
       if (o.kind === 'maintenance' && o.state === 'confirmed') {
         const mode = cal.overlap_override ?? s.maintenance_overlap;
         if (mode === 'override_notify' || mode === 'block') {
-          block.push(`חלון תחזוקה${o.title ? ` "${o.title}"` : ''} ${hm(o.start)}–${hm(o.end)}`);
+          block.push(o.title ? tr('חלון תחזוקה "{title}" {from}–{to}', { title: o.title, from: hm(o.start), to: hm(o.end) }) : tr('חלון תחזוקה {from}–{to}', { from: hm(o.start), to: hm(o.end) }));
           continue;
         }
       }
       if (holds) {
-        if (s.contested_requests === 'reject') block.push(`חופף ל${o.title ? `"${o.title}"` : 'הזמנה קיימת'} ${hm(o.start)}–${hm(o.end)}`);
+        if (s.contested_requests === 'reject') block.push(o.title ? tr('חופף ל"{title}" {from}–{to}', { title: o.title, from: hm(o.start), to: hm(o.end) }) : tr('חופף להזמנה קיימת {from}–{to}', { from: hm(o.start), to: hm(o.end) }));
         else out.contested ??= o;
       } else if (o.state === 'pending') out.peers += 1;
     }
   }
   if (needsApproval && strong && s.editors_bypass_approval) needsApproval = false;
   const toRequest = needsApproval || !!out.contested;
-  if (toRequest && c.moving === 'confirmed' && cal.approved_move === 'managers' && !strong) block.push('הזמנה מאושרת: שינוי רק דרך מנהל החדר');
+  if (toRequest && c.moving === 'confirmed' && cal.approved_move === 'managers' && !strong) block.push(tr('הזמנה מאושרת: שינוי רק דרך מנהל החדר'));
   if (block.length) {
     out.level = 'bad';
     out.reason = block[0];
   } else if (out.contested) {
     out.level = 'contest';
     const t = out.contested.title;
-    out.reason = `חופף ל${t ? `"${t}"` : 'הזמנה קיימת'} · יישלח כבקשה מתחרה`;
+    out.reason = t ? tr('חופף ל"{title}" · יישלח כבקשה מתחרה', { title: t }) : tr('חופף להזמנה קיימת · יישלח כבקשה מתחרה');
   } else if (needsApproval) {
     out.level = 'pend';
-    out.reason = out.approver ? `באישור ${out.approver}` : 'באישור מנהל היומן';
+    out.reason = out.approver ? tr('באישור {name}', { name: out.approver }) : tr('באישור מנהל היומן');
   }
   return out;
 }
@@ -262,8 +263,8 @@ export function hintTag(h: Hint): { cls: '' | 'pend' | 'warn'; text: string } | 
 /** What a toast says after a move / resize (the server's answer decides the state). */
 export function movedText(kind: 'move' | 'resize', toCal: string | null, day: string | null, s: Date, e: Date, state: string, held: boolean, contested: boolean): string {
   const parts = [toCal, day, `${hm(s)}–${hm(e)}`].filter(Boolean).join(' · ');
-  const tail = state === 'pending' ? (held ? ' · ממתין לאישור, המועד הקודם שמור' : contested ? ' · בקשה מתחרה, ממתין לאישור' : ' · ממתין לאישור') : '';
-  return `${kind === 'resize' ? 'האורך עודכן' : 'הועבר'}: ${parts}${tail}`;
+  const tail = state === 'pending' ? ` · ${held ? tr('ממתין לאישור, המועד הקודם שמור') : contested ? tr('בקשה מתחרה, ממתין לאישור') : tr('ממתין לאישור')}` : '';
+  return `${kind === 'resize' ? tr('האורך עודכן') : tr('הועבר')}: ${parts}${tail}`;
 }
 
 // ---------------------------------------------------------------- undo (the toast's "בטל" and Ctrl+Z)
@@ -298,7 +299,7 @@ export class UndoStack {
 
 /** The peek card's delete label: withdrawing a change request, withdrawing a request, or deleting. */
 export function deleteLabel(o: Pick<Occurrence, 'state' | 'held'>): string {
-  return o.held ? 'משיכת השינוי' : o.state === 'pending' ? 'משיכה' : 'מחק';
+  return o.held ? tr('משיכת השינוי') : o.state === 'pending' ? tr('משיכה') : tr('מחק');
 }
 
 /** Placing a popover next to an anchor rectangle inside the viewport: to its left first (RTL reading flows that way), then right, else centred

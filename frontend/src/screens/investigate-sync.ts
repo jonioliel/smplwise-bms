@@ -27,6 +27,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/investigate';
 
 interface RecentSet {
   cameras: string[];
@@ -103,7 +104,7 @@ export class InvestigateSync extends LitElement {
     const cams = this.cams ?? [];
     return cams.map((c) => {
       const other = !this.picked.includes(c.id) && !sameRecorder(this.picked, cams, c.id, this.crossSync);
-      return { id: c.id, label: cameraLabel(c), icon: 'camera' as const, alert: c.status !== 'online', disabled: other, note: other ? 'מקליט אחר' : undefined };
+      return { id: c.id, label: cameraLabel(c), icon: 'camera' as const, alert: c.status !== 'online', disabled: other, note: other ? tr('מקליט אחר') : undefined };
     });
   }
 
@@ -111,7 +112,7 @@ export class InvestigateSync extends LitElement {
   private renderChips() {
     const full = this.picked.length >= 4;
     const cams = this.cams ?? [];
-    return html`<span class="lbl">מצלמות (עד 4):</span>${this.syncItems().map((it) => {
+    return html`<span class="lbl">${tr('מצלמות (עד 4):')}</span>${this.syncItems().map((it) => {
       const on = this.picked.includes(it.id);
       const why = it.note ?? (!on && full ? limitNotice(4) : '');
       const cam = cams.find((c) => c.id === it.id);
@@ -125,16 +126,16 @@ export class InvestigateSync extends LitElement {
     return html`<div class="slots" data-sync-slots>${[0, 1, 2, 3].map((i) => {
       const id = this.picked[i];
       if (!id) {
-        return html`<div class="slot empty" data-sync-slot=${i + 1} aria-hidden="true"><span class="num">${i + 1}</span>${i === 0 ? html`<span class="role">מובילה</span>` : nothing}</div>`;
+        return html`<div class="slot empty" data-sync-slot=${i + 1} aria-hidden="true"><span class="num">${i + 1}</span>${i === 0 ? html`<span class="role">${tr('מובילה')}</span>` : nothing}</div>`;
       }
       const cam = cams.find((c) => c.id === id);
       return html`<div class="slot" data-sync-pick=${id}>
         <div class="media">
           <img src=${snapshotUrl(id)} alt="" loading="lazy" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
-          ${i === 0 ? html`<sw-badge class="lead" kind="live" label="מובילה"></sw-badge>` : html`<span class="num">${i + 1}</span>`}
-          <button type="button" class="rm" aria-label=${`הסר ${this.name(id)}`} title="הסר" @click=${() => this.applyPicked(this.picked.filter((p) => p !== id))}><span class="x" aria-hidden="true">×</span></button>
+          ${i === 0 ? html`<sw-badge class="lead" kind="live" label=${tr('מובילה')}></sw-badge>` : html`<span class="num">${i + 1}</span>`}
+          <button type="button" class="rm" aria-label=${tr('הסר {name}', { name: this.name(id) })} title=${tr('הסר')} @click=${() => this.applyPicked(this.picked.filter((p) => p !== id))}><span class="x" aria-hidden="true">×</span></button>
         </div>
-        <div class="cap"><span class="name">${this.name(id)}</span>${cam && cam.status !== 'online' ? html`<sw-badge kind="offline" label="לא מקוון"></sw-badge>` : nothing}</div>
+        <div class="cap"><span class="name">${this.name(id)}</span>${cam && cam.status !== 'online' ? html`<sw-badge kind="offline" label=${tr('לא מקוון')}></sw-badge>` : nothing}</div>
       </div>`;
     })}</div>`;
   }
@@ -160,35 +161,35 @@ export class InvestigateSync extends LitElement {
   private renderApi() {
     const cams = this.cams;
     return html`
-      <sw-page heading="ניגון מסונכרן" subheading="2–4 מצלמות, זמן אחד" wide>
-        ${this.error ? html`<sw-state-panel state="error" heading="המצלמות לא נטענו" hint=${this.error}></sw-state-panel>` : nothing}
+      <sw-page heading=${tr('ניגון מסונכרן')} subheading=${tr('2–4 מצלמות, זמן אחד')} wide>
+        ${this.error ? html`<sw-state-panel state="error" heading=${tr('המצלמות לא נטענו')} hint=${this.error}></sw-state-panel>` : nothing}
         ${cams === null
-          ? html`<sw-state-panel state="loading" heading="טוען מצלמות…"></sw-state-panel>`
+          ? html`<sw-state-panel state="loading" heading=${tr('טוען מצלמות…')}></sw-state-panel>`
           : html`
-            <sw-card heading="מצלמות להשוואה">
+            <sw-card heading=${tr('מצלמות להשוואה')}>
               <div class="filters" data-sync-cameras data-picker=${this.tabsMode.ddPicker}>
                 ${this.tabsMode.ddPicker === 'chips'
                   ? this.renderChips()
-                  : html`<sw-dropdown multiple camera-picker data-sync-pick-cameras label="מצלמות" icon="camera" placeholder="בחר מצלמות (עד 4)" max="4" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+                  : html`<sw-dropdown multiple camera-picker data-sync-pick-cameras label=${tr('מצלמות')} icon="camera" placeholder=${tr('בחר מצלמות (עד 4)')} max="4" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
                       .items=${this.syncItems()} .values=${this.picked} @change=${(e: CustomEvent<DropdownChange>) => this.applyPicked(e.detail.ids ?? [])}></sw-dropdown>`}
               </div>
               ${this.renderSlots()}
             </sw-card>
-            <sw-card heading="זמן התחלה">
+            <sw-card heading=${tr('זמן התחלה')}>
               <div class="transport">
-                <sw-field><input type="datetime-local" lang=${dateInputLang()} step="1" data-ltr data-sync-when .value=${this.when} aria-label="זמן" title="זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר" @change=${(e: Event) => (this.when = (e.target as HTMLInputElement).value)} /></sw-field>
-                <sw-button size="sm" @click=${() => (this.when = localInput(new Date(Date.now() - 10 * 60_000)))}>לפני 10 דק׳</sw-button>
-                <sw-button size="sm" @click=${() => (this.when = localInput(new Date(Date.now() - 60 * 60_000)))}>לפני שעה</sw-button>
+                <sw-field><input type="datetime-local" lang=${dateInputLang()} step="1" data-ltr data-sync-when .value=${this.when} aria-label=${tr('זמן')} title=${tr('זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר')} @change=${(e: Event) => (this.when = (e.target as HTMLInputElement).value)} /></sw-field>
+                <sw-button size="sm" @click=${() => (this.when = localInput(new Date(Date.now() - 10 * 60_000)))}>${tr('לפני 10 דק׳')}</sw-button>
+                <sw-button size="sm" @click=${() => (this.when = localInput(new Date(Date.now() - 60 * 60_000)))}>${tr('לפני שעה')}</sw-button>
                 <span class="grow"></span>
-                <sw-button variant="primary" icon="play" data-sync-launch ?disabled=${this.picked.length < 2} title=${this.picked.length < 2 ? 'נדרשות לפחות 2 מצלמות' : 'מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה"'} @click=${() => this.launch()}>פתח השוואה (${this.picked.length})</sw-button>
+                <sw-button variant="primary" icon="play" data-sync-launch ?disabled=${this.picked.length < 2} title=${this.picked.length < 2 ? tr('נדרשות לפחות 2 מצלמות') : tr('מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה"')} @click=${() => this.launch()}>${tr('פתח השוואה ({n})', { n: this.picked.length })}</sw-button>
               </div>
             </sw-card>
             ${this.recent.length
-              ? html`<sw-card heading="השוואות אחרונות" subheading="נשמר בדפדפן הזה בלבד">
+              ? html`<sw-card heading=${tr('השוואות אחרונות')} subheading=${tr('נשמר בדפדפן הזה בלבד')}>
                   ${this.recent.map((r) => html`<div class="recent" data-sync-recent>
                     <span>${r.cameras.map((id) => this.name(id)).join(' · ')}</span>
                     <span class="ltr note">${dayTimeText(new Date(r.at), { seconds: true })}</span>
-                    <sw-button size="sm" icon="play" @click=${() => this.launch(r.cameras, r.at)}>פתח</sw-button>
+                    <sw-button size="sm" icon="play" @click=${() => this.launch(r.cameras, r.at)}>${tr('פתח')}</sw-button>
                   </div>`)}
                 </sw-card>`
               : nothing}
@@ -454,9 +455,9 @@ export class InvestigateSync extends LitElement {
       { cam: demoWall[1], drift: 'buffering', state: 'stale' },
     ] as const;
     return html`
-      <sw-page heading="מרכז שליטה" subheading="ניטור חי עם ניגון מסונכרן · 4 מקורות · שעון ייחוס אחד · נתוני הדגמה" wide>
-        <sw-field slot="actions"><select aria-label="תצוגה"><option>כל המסכים</option><option>כניסה + חצר</option></select></sw-field>
-        <sw-button slot="actions" variant="primary" icon="case">שמור כתיק</sw-button>
+      <sw-page heading=${tr('מרכז שליטה')} subheading=${tr('ניטור חי עם ניגון מסונכרן · 4 מקורות · שעון ייחוס אחד · נתוני הדגמה')} wide>
+        <sw-field slot="actions"><select aria-label=${tr('תצוגה')}><option>${tr('כל המסכים')}</option><option>${tr('כניסה + חצר')}</option></select></sw-field>
+        <sw-button slot="actions" variant="primary" icon="case">${tr('שמור כתיק')}</sw-button>
         <div class="grid">
           ${sources.map(
             (s) => html`<div class="tile">
@@ -466,22 +467,22 @@ export class InvestigateSync extends LitElement {
           )}
         </div>
         <div class="transport">
-          <sw-field><input type="datetime-local" lang=${dateInputLang()} value=${`2026-09-14T${minuteLabel(this.cursor)}`} data-ltr aria-label="זמן" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.split('T')[1] ?? '10:15'; const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; }} /></sw-field>
-          <sw-button iconOnly icon="mic" label="דיבור"></sw-button>
-          <sw-button iconOnly icon="back10" label="אחורה"></sw-button>
-          <sw-button variant="primary" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה הכל' : 'נגן הכל'} @click=${() => (this.playing = !this.playing)}></sw-button>
-          <sw-button iconOnly icon="forward10" label="קדימה"></sw-button>
+          <sw-field><input type="datetime-local" lang=${dateInputLang()} value=${`2026-09-14T${minuteLabel(this.cursor)}`} data-ltr aria-label=${tr('זמן')} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.split('T')[1] ?? '10:15'; const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; }} /></sw-field>
+          <sw-button iconOnly icon="mic" label=${tr('דיבור')}></sw-button>
+          <sw-button iconOnly icon="back10" label=${tr('אחורה')}></sw-button>
+          <sw-button variant="primary" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? tr('השהה הכל') : tr('נגן הכל')} @click=${() => (this.playing = !this.playing)}></sw-button>
+          <sw-button iconOnly icon="forward10" label=${tr('קדימה')}></sw-button>
           <sw-chip selected>1×</sw-chip><sw-chip>2×</sw-chip>
           <span class="grow"></span>
-          <sw-badge kind="stale" label="Best effort: אין מיפוי PTS→UTC מאומת"></sw-badge>
+          <sw-badge kind="stale" label=${tr('Best effort: אין מיפוי PTS→UTC מאומת')}></sw-badge>
           <a href="#/live/wall"><sw-button variant="primary" size="sm" icon="live">Live</sw-button></a>
         </div>
         <sw-timeline .segments=${demoSegments} .events=${demoEvents.slice(0, 4).map((e) => ({ minute: e.minuteOfDay, kind: e.type, label: e.title }))} .cursor=${this.cursor} precision="estimated" @seek=${(e: CustomEvent<{ minute: number }>) => (this.cursor = e.detail.minute)}></sw-timeline>
         <div class="filters">
-          <sw-chip selected icon="check">כל המצלמות</sw-chip>
-          <sw-chip dot="var(--sw-tl-motion)">תנועה</sw-chip><sw-chip dot="var(--sw-tl-person)">אדם</sw-chip><sw-chip dot="var(--sw-tl-vehicle)">רכב</sw-chip><sw-chip dot="var(--sw-tl-door)">אחר</sw-chip>
+          <sw-chip selected icon="check">${tr('כל המצלמות')}</sw-chip>
+          <sw-chip dot="var(--sw-tl-motion)">${tr('תנועה')}</sw-chip><sw-chip dot="var(--sw-tl-person)">${tr('אדם')}</sw-chip><sw-chip dot="var(--sw-tl-vehicle)">${tr('רכב')}</sw-chip><sw-chip dot="var(--sw-tl-door)">${tr('אחר')}</sw-chip>
         </div>
-        <div class="note">מקור שאינו מוכן מוצג במפורש (buffering / gap) ואינו מוצג כמסונכרן. יעד הנדסי: סטייה עד שנייה ב־95% מהדגימות, לאחר בדיקה עם אירוע חזותי משותף.</div>
+        <div class="note">${tr('מקור שאינו מוכן מוצג במפורש (buffering / gap) ואינו מוצג כמסונכרן. יעד הנדסי: סטייה עד שנייה ב־95% מהדגימות, לאחר בדיקה עם אירוע חזותי משותף.')}</div>
       </sw-page>
     `;
   }

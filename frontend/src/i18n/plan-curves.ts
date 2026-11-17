@@ -6,6 +6,7 @@
  * The bend tool ("כיפוף", C) stays for bending a segment of an existing wall and rounding corners; it is no longer a
  * chip of its own (the wall inspector's button and the C key open it), and the old three-click arc mode is gone.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   modeCurve: 'כיפוף',
   hintCurve: 'גרור את הנקודה שבאמצע קטע של הקיר הנבחר כדי לכופף אותו; לחיצה על פינה מאפשרת לעגל אותה. (C)',
@@ -79,10 +80,11 @@ const en: Record<Key, string> = {
 export const PLAN_CURVE_STRINGS = { he, en } as const;
 
 export function curveLang(): 'he' | 'en' {
-  const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';
-  return lang.toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function curveT(key: Key, lang: 'he' | 'en' = curveLang()): string {
   return PLAN_CURVE_STRINGS[lang][key] ?? he[key];
 }
+
+registerCatalogue('i18n/plan-curves', { he, en });

@@ -13,6 +13,7 @@ import { calendarsBase, CALENDARS_SETTINGS_HREF } from '../shell/nav';
 import { calAccess, onCalAccess, refreshCalendars, type CalAccess } from './access';
 import { CAL_EVENTS, CAL_VIEWS, type CalCtx, type CalView, type NewEventDetail, type NewMaintDetail } from './ctx';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import './view-calendar';
 import './view-rooms';
 import './event-drawer';
@@ -22,8 +23,8 @@ import './maint-drawer';
 import './view-manage';
 import './resident';
 
-const TAB_LABEL: Record<CalView, string> = { cal: 'יומן', rooms: 'חדרים לפי שעות', approvals: 'אישורים', maint: 'תחזוקה', manage: 'ניהול יומנים' };
-const TAB_SHORT: Record<CalView, string> = { cal: 'יומן', rooms: 'חדרים', approvals: 'אישורים', maint: 'תחזוקה', manage: 'ניהול' };
+const TAB_LABEL: Record<CalView, string> = { cal: tr('יומן'), rooms: tr('חדרים לפי שעות'), approvals: tr('אישורים'), maint: tr('תחזוקה'), manage: tr('ניהול יומנים') };
+const TAB_SHORT: Record<CalView, string> = { cal: tr('יומן'), rooms: tr('חדרים'), approvals: tr('אישורים'), maint: tr('תחזוקה'), manage: tr('ניהול') };
 
 /**
  * CALENDARS-UI-2310: "יומנים" - the module's page (the approved round-8 mock-up). The head (title, floor chips), the view tabs (יומן · חדרים לפי
@@ -203,16 +204,16 @@ export class CalendarsPage extends LitElement {
   render() {
     const a = this.access;
     if (a.enabled === false && isApi()) {
-      return html`<sw-page heading="יומנים" wide><div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="off" heading="מודול היומנים כבוי"
-        hint=${a.can.configure ? 'אפשר להפעיל אותו בהגדרות ‹ יומנים.' : 'מנהל המערכת יכול להפעיל אותו.'} actionLabel=${a.can.configure ? 'הפעלת מודול היומנים' : '' /* CAL-SWITCH-REACH-2321: leads to Settings › יומנים, the module's switch */}
+      return html`<sw-page heading=${tr('יומנים')} wide><div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="off" heading=${tr('מודול היומנים כבוי')}
+        hint=${a.can.configure ? tr('אפשר להפעיל אותו בהגדרות ‹ יומנים.') : tr('מנהל המערכת יכול להפעיל אותו.')} actionLabel=${a.can.configure ? tr('הפעלת מודול היומנים') : '' /* CAL-SWITCH-REACH-2321: leads to Settings › יומנים, the module's switch */}
         @action=${() => (location.hash = CALENDARS_SETTINGS_HREF)}></sw-state-panel></div></sw-page>`;
     }
-    if (a.enabled && !a.can.view) return html`<sw-page heading="יומנים" wide><div class="center"><sw-state-panel state="forbidden" data-cal-state="forbidden" heading="אין לך גישה ליומנים"></sw-state-panel></div></sw-page>`;
+    if (a.enabled && !a.can.view) return html`<sw-page heading=${tr('יומנים')} wide><div class="center"><sw-state-panel state="forbidden" data-cal-state="forbidden" heading=${tr('אין לך גישה ליומנים')}></sw-state-panel></div></sw-page>`;
     const phoneResident = this.device === 'phone' && !!this.cals && !this.manages() && !a.can.manage && !a.can.maintenance;
     const body = html`<div class="body" data-cal-body data-view=${this.view}>${this.content(phoneResident)}</div>`;
     // AUDIT30-F2 (#6): the shared page frame; the resident's phone flow keeps its own compact head (no page title)
     return html`
-      ${phoneResident ? html`<div class="page-state">${body}</div>` : html`<sw-page heading="יומנים" wide data-cal-page>${this.newButton()}${this.head()}${body}</sw-page>`}
+      ${phoneResident ? html`<div class="page-state">${body}</div>` : html`<sw-page heading=${tr('יומנים')} wide data-cal-page>${this.newButton()}${this.head()}${body}</sw-page>`}
       ${this.drawer?.kind === 'event' && this.api ? html`<cal-event-drawer .ctx=${this.ctx()} .detail=${this.drawer.d} @close=${() => (this.drawer = null)}></cal-event-drawer>` : nothing}
       ${this.drawer?.kind === 'maint' && this.api ? html`<cal-maint-drawer .ctx=${this.ctx()} .detail=${this.drawer.d} @close=${() => (this.drawer = null)}></cal-maint-drawer>` : nothing}
       ${this.toastText ? html`<div class="toast" role="status" data-cal-toast>${this.toastText}</div>` : nothing}`;
@@ -226,17 +227,17 @@ export class CalendarsPage extends LitElement {
     const pending = (this.cals ?? []).filter((c) => c.my_role === 'manage').reduce((n, c) => n + c.pending_count, 0);
     return html`
       <div class="bar">
-        <nav class="tabs" aria-label="תצוגות היומנים">
+        <nav class="tabs" aria-label=${tr('תצוגות היומנים')}>
           ${views.map((v) => html`<a class="tab" href=${`${base}/${v}${this.demoQuery()}`} aria-current=${this.view === v ? 'page' : 'false'} data-cal-tab=${v}>
             ${phone ? TAB_SHORT[v] : TAB_LABEL[v]}${v === 'approvals' && pending ? html`<span class="count num">${pending > 99 ? '99+' : pending}</span>` : nothing}${v === 'manage' && !phone ? html`<span class="n num">${(this.cals ?? []).length}</span>` : nothing}</a>`)}
         </nav>
-        ${floors.length > 1 ? html`<div class="floors" role="group" aria-label="קומה">
-          <button type="button" class="chipb" aria-pressed=${String(this.floor === '')} data-floor="" @click=${() => (this.floor = '')}>הכל</button>
+        ${floors.length > 1 ? html`<div class="floors" role="group" aria-label=${tr('קומה')}>
+          <button type="button" class="chipb" aria-pressed=${String(this.floor === '')} data-floor="" @click=${() => (this.floor = '')}>${tr('הכל')}</button>
           ${floors.map((f) => html`<button type="button" class="chipb" aria-pressed=${String(this.floor === f.id)} data-floor=${f.id} @click=${() => (this.floor = f.id)}>${f.name}</button>`)}
         </div>` : nothing}
         <span class="sp"></span>
-        <label class="search"><sw-icon name="search" size="16"></sw-icon><span class="vh">חיפוש ביומנים</span>
-          <input type="search" placeholder="חיפוש ביומנים" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} data-cal-search></label>
+        <label class="search"><sw-icon name="search" size="16"></sw-icon><span class="vh">${tr('חיפוש ביומנים')}</span>
+          <input type="search" placeholder=${tr('חיפוש ביומנים')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} data-cal-search></label>
       </div>`;
   }
 
@@ -250,9 +251,9 @@ export class CalendarsPage extends LitElement {
   private newButton() {
     const can = this.access.can;
     if (this.view === 'maint') {
-      return can.maintenance ? this.primary('חלון תחזוקה', () => (this.drawer = { kind: 'maint', d: {} })) : nothing;
+      return can.maintenance ? this.primary(tr('חלון תחזוקה'), () => (this.drawer = { kind: 'maint', d: {} })) : nothing;
     }
-    return can.book ? this.primary('חדש', () => (this.drawer = { kind: 'event', d: {} })) : nothing;
+    return can.book ? this.primary(tr('חדש'), () => (this.drawer = { kind: 'event', d: {} })) : nothing;
   }
 
   /** AUDIT30-F2 (#8): the one primary action - the shared button in the page's actions slot (a floating button on the phone). */
@@ -262,16 +263,16 @@ export class CalendarsPage extends LitElement {
 
   private content(resident: boolean) {
     if (this.error && !this.cals) {
-      return html`<div class="center"><sw-state-panel state="error" data-cal-state="error" heading="לא הצלחנו לטעון את היומנים" hint=${this.error} actionLabel="לנסות שוב"
+      return html`<div class="center"><sw-state-panel state="error" data-cal-state="error" heading=${tr('לא הצלחנו לטעון את היומנים')} hint=${this.error} actionLabel=${tr('לנסות שוב')}
         @action=${() => void this.load()}></sw-state-panel></div>`;
     }
     if (!this.cals || !this.api) return this.slow ? this.loadingView() : nothing;
     const ctx = this.ctx();
     if (resident) return html`<cal-resident .ctx=${ctx}></cal-resident>`;
     if (!this.cals.length && this.view !== 'manage') {
-      return html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="empty" heading="אין עדיין יומנים"
-        hint=${this.access.can.manage ? 'יומן לכל חדר, צוות, אחזקה או אירועים. אפשר להתחיל מחדר אחד.' : 'כשיוגדר יומן שיש לך בו הרשאה, הוא יופיע כאן.'}
-        actionLabel=${this.access.can.manage ? 'יצירת יומן ראשון' : ''} @action=${() => (location.hash = `${calendarsBase(this.route)}/manage${this.demoQuery()}`)}></sw-state-panel></div>`;
+      return html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="empty" heading=${tr('אין עדיין יומנים')}
+        hint=${this.access.can.manage ? tr('יומן לכל חדר, צוות, אחזקה או אירועים. אפשר להתחיל מחדר אחד.') : tr('כשיוגדר יומן שיש לך בו הרשאה, הוא יופיע כאן.')}
+        actionLabel=${this.access.can.manage ? tr('יצירת יומן ראשון') : ''} @action=${() => (location.hash = `${calendarsBase(this.route)}/manage${this.demoQuery()}`)}></sw-state-panel></div>`;
     }
     switch (this.view) {
       case 'rooms': return html`<cal-view-rooms .ctx=${ctx}></cal-view-rooms>`;
@@ -284,8 +285,8 @@ export class CalendarsPage extends LitElement {
 
   /** Owner answer 26 as a setting: the skeleton of the page (default) or one spinner. */
   private loadingView() {
-    if (this.access.ui.loading_style === 'spinner') return html`<div class="center" data-cal-state="loading"><div class="spin" role="status" aria-label="טוען"></div></div>`;
-    return html`<div class="loading" data-cal-state="loading" role="status" aria-label="טוען">
+    if (this.access.ui.loading_style === 'spinner') return html`<div class="center" data-cal-state="loading"><div class="spin" role="status" aria-label=${tr('טוען')}></div></div>`;
+    return html`<div class="loading" data-cal-state="loading" role="status" aria-label=${tr('טוען')}>
       <div class="panel">${Array.from({ length: 6 }, (_, i) => html`<div class="skel" style=${`block-size:${i ? 64 : 32}px`}></div>`)}</div>
       <div class="panel side">${Array.from({ length: 8 }, () => html`<div class="skel" style="block-size:22px"></div>`)}</div></div>`;
   }

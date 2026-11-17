@@ -16,6 +16,7 @@ import { demoSetupState, setupCheck, setupState, STATUS_TEXT, type SetupState, t
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsLadderStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/system-b';
 
 /** Tells the shell's "השלם את ההתקנה" hint what the wizard just learned, so it does not wait for its own next read. */
 export function announceSetup(s: SetupState) {
@@ -23,7 +24,7 @@ export function announceSetup(s: SetupState) {
 }
 
 const STATUS_ICON: Record<SetupStep['status'], string> = { done: 'check', todo: 'info', failed: 'warning', skipped: 'minus', not_applicable: 'minus' };
-const SOURCE_TEXT: Record<SetupStep['source'], string> = { live: 'נבדק מול המכשיר', background: 'לפי עבודות הרקע של המערכת', local: 'לפי בסיס הנתונים של המערכת' };
+const SOURCE_TEXT: Record<SetupStep['source'], string> = { live: tr('נבדק מול המכשיר'), background: tr('לפי עבודות הרקע של המערכת'), local: tr('לפי בסיס הנתונים של המערכת') };
 
 /** The floor step's problem codes (backend services/setup_wizard.py) that mean the installation has no plan yet: the request to the
  * architect is offered next to the step's action. A draft that only waits for publishing (`plan_not_published`) has a plan already. */
@@ -140,7 +141,7 @@ export class SystemWizard extends LitElement {
   }
 
   private renderRail(d: SetupState) {
-    return html`<ol class="rail" aria-label="שלבי ההתקנה" data-wizard-rail>
+    return html`<ol class="rail" aria-label=${tr('שלבי ההתקנה')} data-wizard-rail>
       ${d.steps.map((s) => html`<li class=${s.status} data-rail-step=${s.id} data-status=${s.status}>
         <button type="button" @click=${() => this.jump(s.id)} aria-label=${`${s.index}. ${s.title}: ${STATUS_TEXT[s.status]}`}>
           <span class="dot">${s.status === 'done' ? html`<sw-icon name="check" size=${13}></sw-icon>` : s.status === 'failed' ? '!' : s.index}</span>
@@ -156,7 +157,7 @@ export class SystemWizard extends LitElement {
     return html`${inst && !inst.supported
       ? html`<div class="problem failed" role="alert" data-wizard-unsupported=${inst.reason ?? ''}>
           <sw-icon name="warning" size=${16}></sw-icon>
-          <div><b>${inst.message ?? ''}</b><span>מה עושים: ${inst.action ?? ''}</span></div>
+          <div><b>${inst.message ?? ''}</b><span>${tr('מה עושים:')} ${inst.action ?? ''}</span></div>
         </div>`
       : nothing}${this.renderProgress(d)}`;
   }
@@ -168,21 +169,21 @@ export class SystemWizard extends LitElement {
     if (sum.ready && d.mode === 'ha_only') {
       return html`<div class="summary ready" role="status" data-wizard-ready data-wizard-mode="ha_only">
         <span class="big"><sw-icon name="check" size=${22}></sw-icon></span>
-        <div class="txt"><b>מוכן לעבודה</b><span>כל ${sum.total} השלבים הנדרשים עברו · ${skipped} דולגו (מצב ללא NVR)${optionalOpen ? ` · ${optionalOpen} אופציונליים` : ''} · נבדק ${when(d.checked_at)}</span></div>
+        <div class="txt"><b>${tr('מוכן לעבודה')}</b><span>${tr('כל {n} השלבים הנדרשים עברו', { n: sum.total })} · ${tr('{n} דולגו (מצב ללא NVR)', { n: skipped })}${optionalOpen ? ` · ${tr('{n} אופציונליים', { n: optionalOpen })}` : ''} · ${tr('נבדק {time}', { time: when(d.checked_at) })}</span></div>
         <div class="go">
-          <sw-button size="sm" variant="primary" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>למפה</sw-button>
-          <sw-button size="sm" icon="bolt" @click=${() => (window.location.hash = '#/devices/building')}>לחשמל והתקנים</sw-button>
+          <sw-button size="sm" variant="primary" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>${tr('למפה')}</sw-button>
+          <sw-button size="sm" icon="bolt" @click=${() => (window.location.hash = '#/devices/building')}>${tr('לחשמל והתקנים')}</sw-button>
         </div>
       </div>`;
     }
     if (sum.ready) {
       return html`<div class="summary ready" role="status" data-wizard-ready>
         <span class="big"><sw-icon name="check" size=${22}></sw-icon></span>
-        <div class="txt"><b>מוכן לעבודה</b><span>${skipped || optionalOpen ? `כל ${sum.total} השלבים הנדרשים עברו${skipped ? ` · ${skipped} דולגו` : ''}${optionalOpen ? ` · ${optionalOpen} אופציונליים נותרו` : ''}` : 'כל ששת השלבים עברו'} · נבדק ${when(d.checked_at)}</span></div>
+        <div class="txt"><b>${tr('מוכן לעבודה')}</b><span>${skipped || optionalOpen ? `${tr('כל {n} השלבים הנדרשים עברו', { n: sum.total })}${skipped ? ` · ${tr('{n} דולגו', { n: skipped })}` : ''}${optionalOpen ? ` · ${tr('{n} אופציונליים נותרו', { n: optionalOpen })}` : ''}` : tr('כל ששת השלבים עברו')} · ${tr('נבדק {time}', { time: when(d.checked_at) })}</span></div>
         <div class="go">
-          <sw-button size="sm" variant="primary" icon="live" @click=${() => (window.location.hash = '#/live/wall')}>לכל המצלמות</sw-button>
-          <sw-button size="sm" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>למפה</sw-button>
-          <sw-button size="sm" icon="list" @click=${() => (window.location.hash = '#/investigate/events')}>לאירועים</sw-button>
+          <sw-button size="sm" variant="primary" icon="live" @click=${() => (window.location.hash = '#/live/wall')}>${tr('לכל המצלמות')}</sw-button>
+          <sw-button size="sm" icon="map" @click=${() => (window.location.hash = '#/explore/sites')}>${tr('למפה')}</sw-button>
+          <sw-button size="sm" icon="list" @click=${() => (window.location.hash = '#/investigate/events')}>${tr('לאירועים')}</sw-button>
         </div>
       </div>`;
     }
@@ -190,8 +191,8 @@ export class SystemWizard extends LitElement {
     const failed = d.steps.filter((s) => s.status === 'failed').length;
     return html`<div class="summary" role="status" data-wizard-progress>
       <span class="count"><b>${sum.done}</b>/${sum.total}</span>
-      <div class="txt"><b>${sum.done} מתוך ${sum.total} שלבים הושלמו${failed ? ` · ${failed} נכשלו` : ''}${skipped ? ` · ${skipped} דולגו${d.mode === 'ha_only' ? ' (מצב ללא NVR)' : ''}` : ''}</b>${next ? html`<span>השלב הבא: ${next.index}. ${next.title} — ${b(next.summary)}</span>` : nothing}</div>
-      ${next ? html`<div class="go"><sw-button size="sm" variant="primary" @click=${() => this.jump(next.id)}>לשלב ${next.index}</sw-button></div>` : nothing}
+      <div class="txt"><b>${tr('{done} מתוך {total} שלבים הושלמו', { done: sum.done, total: sum.total })}${failed ? ` · ${tr('{n} נכשלו', { n: failed })}` : ''}${skipped ? ` · ${tr('{n} דולגו', { n: skipped })}${d.mode === 'ha_only' ? ` ${tr('(מצב ללא NVR)')}` : ''}` : ''}</b>${next ? html`<span>${tr('השלב הבא:')} ${next.index}. ${next.title} — ${b(next.summary)}</span>` : nothing}</div>
+      ${next ? html`<div class="go"><sw-button size="sm" variant="primary" @click=${() => this.jump(next.id)}>${tr('לשלב {n}', { n: next.index })}</sw-button></div>` : nothing}
       ${this.renderRestore()}
     </div>`;
   }
@@ -213,7 +214,7 @@ export class SystemWizard extends LitElement {
           <span class="meta">${SOURCE_TEXT[s.source]}${s.checked_at ? ` · ${when(s.checked_at)}` : ''}</span>
         </div>
         <span class="pill ${s.status}" data-step-status><sw-icon name=${STATUS_ICON[s.status] as 'check'} size=${13}></sw-icon>${s.status_label ?? STATUS_TEXT[s.status]}</span>
-        ${s.status === 'not_applicable' ? nothing : html`<sw-button size="sm" icon="refresh" ?disabled=${busy} data-check=${s.id} @click=${() => this.check(s.id)}>${busy ? 'בודק…' : 'בדוק שוב'}</sw-button>`}
+        ${s.status === 'not_applicable' ? nothing : html`<sw-button size="sm" icon="refresh" ?disabled=${busy} data-check=${s.id} @click=${() => this.check(s.id)}>${busy ? tr('בודק…') : tr('בדוק שוב')}</sw-button>`}
       </header>
       <p class="sum" data-step-summary>${b(s.summary)}</p>
       ${s.problem
@@ -221,9 +222,9 @@ export class SystemWizard extends LitElement {
             <sw-icon name=${s.status === 'failed' ? 'warning' : 'info'} size=${16}></sw-icon>
             <div>
               <b>${b(s.problem.message)}</b>
-              <span data-step-action>מה עושים: ${b(s.problem.action)}</span>
+              <span data-step-action>${tr('מה עושים:')} ${b(s.problem.action)}</span>
               ${s.problem.link || (s.id === 'floor' && NO_PLAN.has(s.problem.code))
-                ? html`<span class="links">${s.problem.link ? html`<a href=${s.problem.link.href} data-step-link>${s.problem.link.label} ‹</a>` : nothing}${s.id === 'floor' && NO_PLAN.has(s.problem.code) ? html`<button type="button" class="linkbtn" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל ‹</button>` : nothing}</span>`
+                ? html`<span class="links">${s.problem.link ? html`<a href=${s.problem.link.href} data-step-link>${s.problem.link.label} ‹</a>` : nothing}${s.id === 'floor' && NO_PLAN.has(s.problem.code) ? html`<button type="button" class="linkbtn" data-architect-request @click=${() => openArchitectRequest()}>${tr('בקשה לאדריכל ‹')}</button>` : nothing}</span>`
                 : nothing}
             </div>
           </div>`
@@ -245,18 +246,18 @@ export class SystemWizard extends LitElement {
   render() {
     const d = this.data;
     const anyBusy = this.busy.size > 0;
-    const sub = d?.mode === 'ha_only' ? 'מצב ללא NVR · התקנה ‹ NVR ‹ תשתית המערכת ‹ go2rtc ‹ קומה · שלב המצלמה מדולג' : 'התקנה ‹ NVR ‹ תשתית המערכת ‹ go2rtc ‹ קומה ‹ מצלמה';
-    return html`<sw-page heading="אשף התקנה" subheading=${`${sub} · הבדיקות קוראות בלבד מהמכשירים${isApi() ? '' : ' · נתוני הדגמה'}`}>
-      <sw-button slot="actions" icon="refresh" ?disabled=${!d || anyBusy} data-check-all @click=${() => this.checkAll()}>${anyBusy ? 'בודק…' : 'בדוק הכול'}</sw-button>
-      ${this.error ? html`<sw-state-panel state="error" heading="מצב ההתקנה לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
+    const sub = d?.mode === 'ha_only' ? tr('מצב ללא NVR · התקנה ‹ NVR ‹ תשתית המערכת ‹ go2rtc ‹ קומה · שלב המצלמה מדולג') : tr('התקנה ‹ NVR ‹ תשתית המערכת ‹ go2rtc ‹ קומה ‹ מצלמה');
+    return html`<sw-page heading=${tr('אשף התקנה')} subheading=${`${sub} · ${tr('הבדיקות קוראות בלבד מהמכשירים')}${isApi() ? '' : ` · ${tr('נתוני הדגמה')}`}`}>
+      <sw-button slot="actions" icon="refresh" ?disabled=${!d || anyBusy} data-check-all @click=${() => this.checkAll()}>${anyBusy ? tr('בודק…') : tr('בדוק הכול')}</sw-button>
+      ${this.error ? html`<sw-state-panel state="error" heading=${tr('מצב ההתקנה לא נטען')} hint=${this.error}></sw-state-panel>` : nothing}
       ${!d
-        ? this.error ? nothing : html`<sw-state-panel state="loading" heading="קורא את מצב ההתקנה…"></sw-state-panel>`
+        ? this.error ? nothing : html`<sw-state-panel state="loading" heading=${tr('קורא את מצב ההתקנה…')}></sw-state-panel>`
         : html`<div class="wrap" data-wizard>
             ${this.renderRail(d)}
             ${this.renderSummary(d)}
             ${d.steps.map((s) => this.renderStep(s))}
-            ${!isApi() || canAnywhere('site.content.configure') ? html`<sw-card heading="שלב רשות · בניינים ומיפוי" subheading="כשבאותה מערכת בית יש כמה בניינים: איזה שם שייך לאיזה בניין. אפשר גם אחר כך, מהגדרות ‹ בניינים ומיפוי." data-wizard-mapping><system-mapping compact></system-mapping></sw-card>` : nothing}
-            <p class="hint">סטיית שעון עד ${d.thresholds.drift_ok_s} שנ׳ תקינה, עד ${d.thresholds.drift_fail_s} שנ׳ אזהרה, מעבר לזה השלב נכשל. "בדוק שוב" אפשרי פעם ב־${d.check_every_s} שנ׳ לכל שלב; בדיקה מול מכשיר מוצגת ${Math.round(d.live_ttl_s / 60)} דקות.</p>
+            ${!isApi() || canAnywhere('site.content.configure') ? html`<sw-card heading=${tr('שלב רשות · בניינים ומיפוי')} subheading=${tr('כשבאותה מערכת בית יש כמה בניינים: איזה שם שייך לאיזה בניין. אפשר גם אחר כך, מהגדרות ‹ בניינים ומיפוי.')} data-wizard-mapping><system-mapping compact></system-mapping></sw-card>` : nothing}
+            <p class="hint">${tr('סטיית שעון עד {ok} שנ׳ תקינה, עד {fail} שנ׳ אזהרה, מעבר לזה השלב נכשל. "בדוק שוב" אפשרי פעם ב־{every} שנ׳ לכל שלב; בדיקה מול מכשיר מוצגת {min} דקות.', { ok: d.thresholds.drift_ok_s, fail: d.thresholds.drift_fail_s, every: d.check_every_s, min: Math.round(d.live_ttl_s / 60) })}</p>
           </div>`}
     </sw-page>`;
   }

@@ -3,6 +3,7 @@
  * column follows the document language (a missing key falls back to the Hebrew; a unit test holds the parity). No permission name,
  * error code, address or device path on the face.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   section: 'מקור וידאו',
   fromNvr: 'מהמקליט',
@@ -125,16 +126,17 @@ export type CsKey = Key;
 export type CsLang = 'he' | 'en';
 
 export function csLang(): CsLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 const TABLES: Record<CsLang, Record<Key, string>> = { he, en };
 
 export function cst(key: Key, vars?: Record<string, string | number>, lang: CsLang = csLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const CS_KEYS = Object.keys(he) as Key[];
 export const CS_TABLES = TABLES;
+
+registerCatalogue('i18n/camera-sources', { he, en });

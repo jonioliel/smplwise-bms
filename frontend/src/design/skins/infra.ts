@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { tr } from '../../i18n/msg/misc';
 import { ARX_MOTION_RULES, ARX_MOTION_TOKENS } from './arx-motion';
 import { ARX_KPI_RULES, ARX_RAIL_RULES, INFRA_RAIL_FILL_RULES } from './arx-components';
 
@@ -84,4 +85,4 @@ const rules = `
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 ${ARX_KPI_RULES}${INFRA_RAIL_FILL_RULES}${ARX_RAIL_RULES}${ARX_MOTION_RULES}`;
 
-export const infra: Skin = { id: 'infra', name: 'Arx Infra', nameHe: 'Arx Infra', noteHe: 'קו שיער וצל עדין, כחול אחד, משטחים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens: INFRA_TOKENS, rules, darkRail: INFRA_DARK_RAIL };
+export const infra: Skin = { id: 'infra', name: 'Arx Infra', nameHe: 'Arx Infra', noteHe: tr('קו שיער וצל עדין, כחול אחד, משטחים אטומים'), stage: 'foundation', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens: INFRA_TOKENS, rules, darkRail: INFRA_DARK_RAIL };

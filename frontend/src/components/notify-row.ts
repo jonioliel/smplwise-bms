@@ -6,6 +6,7 @@ import { mediaGlassControls } from '../styles/media-glass';
 import { nIcon } from './notify-icons';
 import { notifyControls } from './notify-css';
 import { iconOf, menuArrow, openLabel, placeText, rowTag } from './notify-logic';
+import { tr } from '../i18n/msg/components';
 
 export type RowAction = 'read' | 'snooze' | 'snooze_morning' | 'ack' | 'open';
 
@@ -283,10 +284,10 @@ export class NotifyRow extends LitElement {
   private renderMenu() {
     const a = rowActions(this.n, this.now);
     return html`<div class="pop" role="menu" data-row-menu>
-      ${a.snooze ? html`<button type="button" role="menuitem" data-row-act="snooze" @click=${() => this.emit('snooze')}>${nIcon('snooze')}השתק לשעה</button>` : nothing}
-      ${a.snoozeMorning ? html`<button type="button" role="menuitem" data-row-act="snooze_morning" @click=${() => this.emit('snooze_morning')}>${nIcon('moon')}עד הבוקר</button>` : nothing}
-      ${a.ack ? html`<button type="button" role="menuitem" data-row-act="ack" @click=${() => this.emit('ack')}>${nIcon('checkAll')}אישור</button>` : nothing}
-      ${a.read ? html`<button type="button" role="menuitem" data-row-act="read" @click=${() => this.emit('read')}>${nIcon('check')}סמן כנקרא</button>` : nothing}
+      ${a.snooze ? html`<button type="button" role="menuitem" data-row-act="snooze" @click=${() => this.emit('snooze')}>${nIcon('snooze')}${tr('השתק לשעה')}</button>` : nothing}
+      ${a.snoozeMorning ? html`<button type="button" role="menuitem" data-row-act="snooze_morning" @click=${() => this.emit('snooze_morning')}>${nIcon('moon')}${tr('עד הבוקר')}</button>` : nothing}
+      ${a.ack ? html`<button type="button" role="menuitem" data-row-act="ack" @click=${() => this.emit('ack')}>${nIcon('checkAll')}${tr('אישור')}</button>` : nothing}
+      ${a.read ? html`<button type="button" role="menuitem" data-row-act="read" @click=${() => this.emit('read')}>${nIcon('check')}${tr('סמן כנקרא')}</button>` : nothing}
       ${a.open ? html`<hr /><button type="button" role="menuitem" data-row-act="open" @click=${() => this.emit('open')}>${nIcon('open')}${openLabel(this.n)}</button>` : nothing}
     </div>`;
   }
@@ -301,12 +302,12 @@ export class NotifyRow extends LitElement {
     const crit = n.severity === 'critical';
     const faded = n.state === 'resolved' || (!!n.me.snoozed_until && !unread && n.state === 'open' && rowTag(n, this.now, this.tz)?.kind === 'snz');
     return html`<div class=${classMap({ nrow: true, [`s-${n.severity}`]: true, crit, 'open-state': n.state === 'open', read: !unread, faded })} data-notify-row=${n.id} data-severity=${n.severity} data-state=${n.state} data-unread=${unread ? '1' : '0'}>
-      <button type="button" class="open" data-row-open aria-label=${`${n.title} · ${place} · ${when}${unread ? ' · לא נקרא' : ''}`} @click=${() => this.dispatchEvent(new CustomEvent('row-open', { detail: { id: n.id }, bubbles: true, composed: true }))}></button>
+      <button type="button" class="open" data-row-open aria-label=${`${n.title} · ${place} · ${when}${unread ? ` · ${tr('לא נקרא')}` : ''}`} @click=${() => this.dispatchEvent(new CustomEvent('row-open', { detail: { id: n.id }, bubbles: true, composed: true }))}></button>
       <span class="bar"></span>
       <span class="ring">${nIcon(iconOf(n))}${n.count > 1 ? html`<span class="cnt n" data-fold>${foldLabel(n)}</span>` : nothing}</span>
       <span class="tx"><b>${n.title}${unread ? html`<i class="ud" data-unread-dot></i>` : nothing}</b>
         <small><span>${place}</span><span class="sep">·</span><span class="n" style="direction:rtl">${when}</span>${tag ? html`<span class="sep">·</span><span class="st ${tag.kind}" data-row-tag=${tag.kind}>${tag.text}${nIcon(tag.icon)}</span>` : nothing}</small></span>
-      <button type="button" class="more" data-row-more aria-label="עוד פעולות" aria-haspopup="menu" aria-expanded=${this.menu ? 'true' : 'false'} @click=${(e: Event) => {
+      <button type="button" class="more" data-row-more aria-label=${tr('עוד פעולות')} aria-haspopup="menu" aria-expanded=${this.menu ? 'true' : 'false'} @click=${(e: Event) => {
         e.stopPropagation();
         this.setMenu(!this.menu);
       }}>${nIcon('more')}</button>

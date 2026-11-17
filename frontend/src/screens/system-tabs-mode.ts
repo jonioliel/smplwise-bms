@@ -17,21 +17,22 @@ import {
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/system-b';
 
 type CardScope = 'style' | 'phone' | 'picker' | 'place' | 'settings-nav';
 
-const SOURCE_LABEL: Record<TabModeSource, string> = { 'own-group': 'ההעדפה שלי לקבוצה', own: 'ההעדפה שלי', 'installation-group': 'ברירת המחדל לקבוצה', installation: 'ברירת המחדל של ההתקנה' };
+const SOURCE_LABEL: Record<TabModeSource, string> = { 'own-group': tr('ההעדפה שלי לקבוצה'), own: tr('ההעדפה שלי'), 'installation-group': tr('ברירת המחדל לקבוצה'), installation: tr('ברירת המחדל של ההתקנה') };
 
-const SAMPLE_3 = [{ id: 'a', label: 'ראשון', count: 4 }, { id: 'b', label: 'שני' }, { id: 'c', label: 'שלישי' }];
-const SAMPLE_6 = [{ id: 'a', label: 'סלון', count: 6 }, { id: 'b', label: 'מטבח' }, { id: 'c', label: 'חדר שינה' }, { id: 'd', label: 'משרד', alert: true as const }, { id: 'e', label: 'מרפסת' }, { id: 'f', label: 'חצר' }];
+const SAMPLE_3 = [{ id: 'a', label: tr('ראשון'), count: 4 }, { id: 'b', label: tr('שני') }, { id: 'c', label: tr('שלישי') }];
+const SAMPLE_6 = [{ id: 'a', label: tr('סלון'), count: 6 }, { id: 'b', label: tr('מטבח') }, { id: 'c', label: tr('חדר שינה') }, { id: 'd', label: tr('משרד'), alert: true as const }, { id: 'e', label: tr('מרפסת') }, { id: 'f', label: tr('חצר') }];
 
 /** The capsule's own sample (Unreleased): the floors of a house, an "all" row with a divider after it, an icon and a count on every row. */
 const SAMPLE_CAPSULE = [
-  { id: 'all', label: 'כל הקומות', icon: 'home' as const, count: 14 },
+  { id: 'all', label: tr('כל הקומות'), icon: 'home' as const, count: 14 },
   { id: 'd1', label: '', divider: true as const },
-  { id: 'f0', label: 'קומת קרקע', icon: 'layers' as const, count: 6 },
-  { id: 'f1', label: 'קומה ראשונה', icon: 'layers' as const, count: 5 },
-  { id: 'f2', label: 'גג', icon: 'layers' as const, count: 3 },
+  { id: 'f0', label: tr('קומת קרקע'), icon: 'layers' as const, count: 6 },
+  { id: 'f1', label: tr('קומה ראשונה'), icon: 'layers' as const, count: 5 },
+  { id: 'f2', label: tr('גג'), icon: 'layers' as const, count: 3 },
 ];
 
 /**
@@ -565,15 +566,15 @@ export class SystemTabsMode extends LitElement {
 
   /** TABSMODE-POLISH-2331: the head of an owner column - whose value it is, and (installation) why it may be read-only. */
   private colhead(scope: 'inst' | 'own', asLegend = false, titleText?: string, ownWho?: string) {
-    const title = titleText ?? (scope === 'inst' ? 'ברירת המחדל של ההתקנה' : 'ההעדפה שלי');
+    const title = titleText ?? (scope === 'inst' ? tr('ברירת המחדל של ההתקנה') : tr('ההעדפה שלי'));
     const api = isApi();
     const who = scope === 'own'
-      ? html`<span class="who">${ownWho ?? 'רק אצלי; גוברת על ברירת המחדל'}</span>`
+      ? html`<span class="who">${ownWho ?? tr('רק אצלי; גוברת על ברירת המחדל')}</span>`
       : !api
-        ? html`<span class="who" data-inst-note>נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>`
+        ? html`<span class="who" data-inst-note>${tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</span>`
         : !this.canEdit
-          ? html`<span class="who" data-inst-note><sw-icon name="lock" size=${13}></sw-icon>שינוי ברירת המחדל דורש הרשאת מנהל מערכת.</span>`
-          : html`<span class="who">לכל המשתמשים, עד שמשתמש בוחר אחרת</span>`;
+          ? html`<span class="who" data-inst-note><sw-icon name="lock" size=${13}></sw-icon>${tr('שינוי ברירת המחדל דורש הרשאת מנהל מערכת.')}</span>`
+          : html`<span class="who">${tr('לכל המשתמשים, עד שמשתמש בוחר אחרת')}</span>`;
     return asLegend ? html`<legend class="colhead">${title}${who}</legend>` : html`<div class="colhead">${title}${who}</div>`;
   }
 
@@ -590,7 +591,7 @@ export class SystemTabsMode extends LitElement {
       const r = await patchSettings({ 'ui.tabs_mode': mode, 'ui.tabs_mode_groups': groups as Record<string, string> });
       invalidateSettings();
       setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -606,7 +607,7 @@ export class SystemTabsMode extends LitElement {
       const r = await patchSettings({ 'ui.dd_style': style, 'ui.dd_style_groups': groups as Record<string, string> });
       invalidateSettings();
       setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -620,7 +621,7 @@ export class SystemTabsMode extends LitElement {
     this.error = '';
     try {
       await saveOwnDdStyle(style, groups);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -636,7 +637,7 @@ export class SystemTabsMode extends LitElement {
       const r = await patchSettings({ 'ui.dd_size': size, 'ui.dd_size_groups': groups as Record<string, string> });
       invalidateSettings();
       setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -650,7 +651,7 @@ export class SystemTabsMode extends LitElement {
     this.error = '';
     try {
       await saveOwnDdSize(size, groups);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -668,14 +669,14 @@ export class SystemTabsMode extends LitElement {
 
   /** The size selects: one for the whole system, one per tab group ("" = follow the level above); the same two owners as the style. */
   private sizeSelects(scope: 'inst' | 'own', size: DdSize | null, groups: DdSizeGroups, disabled: boolean, onGlobal: (v: string) => void, onGroup: (g: TabGroup, v: string) => void) {
-    const follow = scope === 'inst' ? 'לפי ברירת המחדל הכללית' : 'לפי ההתקנה';
+    const follow = scope === 'inst' ? tr('לפי ברירת המחדל הכללית') : tr('לפי ההתקנה');
     const opts = (cur: DdSize | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${DD_SIZES.map((m) => html`<option value=${m} ?selected=${cur === m}>${DD_SIZE_LABEL[m]}</option>`)}`;
-    return html`<fieldset><legend>גודל התפריט הנפתח</legend>
-        <div class="grp all"><span>לכל הקבוצות</span>
-          <select data-dd-size-global=${scope} aria-label="גודל תפריט נפתח: לכל הקבוצות" ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(size, scope === 'own' ? `${follow} (כרגע: ${DD_SIZE_LABEL[this.szInst.size]})` : null)}</select></div>
+    return html`<fieldset><legend>${tr('גודל התפריט הנפתח')}</legend>
+        <div class="grp all"><span>${tr('לכל הקבוצות')}</span>
+          <select data-dd-size-global=${scope} aria-label=${tr('גודל תפריט נפתח: לכל הקבוצות')} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(size, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: DD_SIZE_LABEL[this.szInst.size] })}` : null)}</select></div>
         ${TAB_GROUPS.map(
           (g) => html`<div class="grp" data-dd-size-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
-            <select data-dd-size-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: גודל תפריט נפתח`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+            <select data-dd-size-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('גודל תפריט נפתח')}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
         )}
       </fieldset>`;
   }
@@ -689,7 +690,7 @@ export class SystemTabsMode extends LitElement {
       const r = await patchSettings({ [`ui.dd_${key}`]: value, [`ui.dd_${key}_groups`]: groups } as Parameters<typeof patchSettings>[0]);
       invalidateSettings();
       setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -704,7 +705,7 @@ export class SystemTabsMode extends LitElement {
     try {
       if (key === 'ring') await saveOwnDdRing(asDdRing(value), groups as DdRingGroups);
       else await saveOwnDdPanel(asDdPanel(value), groups as DdPanelGroups);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -725,8 +726,8 @@ export class SystemTabsMode extends LitElement {
     const label = (id: string): string => (ring ? DD_RING_LABEL[id as DdRing] : DD_PANEL_LABEL[id as DdPanel]);
     const ok = ring ? asDdRing : asDdPanel;
     const inheritedValue = ring ? this.ringInst.ring : this.panelInst.panel;
-    const follow = scope === 'inst' ? 'לפי ברירת המחדל הכללית' : 'לפי ההתקנה';
-    const title = ring ? 'עובי הטבעת (סגנון קפסולה)' : 'רוחב התפריט הפתוח (סגנון קפסולה)';
+    const follow = scope === 'inst' ? tr('לפי ברירת המחדל הכללית') : tr('לפי ההתקנה');
+    const title = ring ? tr('עובי הטבעת (סגנון קפסולה)') : tr('רוחב התפריט הפתוח (סגנון קפסולה)');
     const opts = (cur: string | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${ids.map((m) => html`<option value=${m} ?selected=${cur === m}>${label(m)}</option>`)}`;
     const onGlobal = (v: string) => (scope === 'inst' ? ok(v) && void this.saveDialInstallation(key, v, groups) : void this.saveDialOwn(key, ok(v) ? v : null, groups));
     const onGroup = (g: TabGroup, v: string) => {
@@ -735,9 +736,9 @@ export class SystemTabsMode extends LitElement {
       else void this.saveDialOwn(key, value, next);
     };
     return html`<fieldset data-dd-dial-fieldset=${key}><legend>${title}</legend>
-        ${ring ? html`<span class="muted">טבעת דקה מאוד (1 או 1.5 פיקסל) נראית רק במסכי רטינה. חל רק על הסגנון קפסולה</span>` : html`<span class="muted">חל רק על הסגנון קפסולה</span>`}
-        <div class="grp all"><span>לכל הקבוצות</span>
-          <select data-dd-dial-global=${`${key}:${scope}`} aria-label=${`${title}: לכל הקבוצות`} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(value, scope === 'own' ? `${follow} (כרגע: ${label(inheritedValue)})` : null)}</select></div>
+        ${ring ? html`<span class="muted">${tr('טבעת דקה מאוד (1 או 1.5 פיקסל) נראית רק במסכי רטינה. חל רק על הסגנון קפסולה')}</span>` : html`<span class="muted">${tr('חל רק על הסגנון קפסולה')}</span>`}
+        <div class="grp all"><span>${tr('לכל הקבוצות')}</span>
+          <select data-dd-dial-global=${`${key}:${scope}`} aria-label=${`${title}: ${tr('לכל הקבוצות')}`} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(value, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: label(inheritedValue) })}` : null)}</select></div>
         ${TAB_GROUPS.map(
           (g) => html`<div class="grp" data-dd-dial-group-row=${`${key}:${g}`}><span>${TAB_GROUP_LABEL[g]}</span>
             <select data-dd-dial-group=${`${key}:${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${title}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
@@ -753,7 +754,7 @@ export class SystemTabsMode extends LitElement {
       const r = await patchSettings({ 'ui.dd_phone': mode });
       invalidateSettings();
       setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -767,7 +768,7 @@ export class SystemTabsMode extends LitElement {
     this.error = '';
     try {
       await saveOwnDdPhone(mode);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -784,7 +785,7 @@ export class SystemTabsMode extends LitElement {
       const r = await patchSettings(patch);
       invalidateSettings();
       setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -878,7 +879,7 @@ export class SystemTabsMode extends LitElement {
     this.error = '';
     try {
       await save();
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -894,7 +895,7 @@ export class SystemTabsMode extends LitElement {
         ? html`<input type="radio" name=${`dd-picker-${scope}`} value=${value} data-dd-picker=${tag} .checked=${checked} ?disabled=${disabled} @change=${pick} />`
         : html`<input type="radio" name=${`dd-search-${scope}`} value=${value} data-dd-search=${tag} .checked=${checked} ?disabled=${disabled} @change=${pick} />`;
     return html`${scope === 'own'
-      ? html`<label class="opt">${input('', 'own:follow', current === null, () => onPick(null))}<span class="t">לפי ההתקנה (כרגע: ${labels[inst]})</span></label>`
+      ? html`<label class="opt">${input('', 'own:follow', current === null, () => onPick(null))}<span class="t">${tr('לפי ההתקנה (כרגע: {value})', { value: labels[inst] })}</span></label>`
       : nothing}
     ${values.map((v) => html`<label class="opt">${input(v, `${scope}:${v}`, current === v, () => onPick(v))}<span class="t">${labels[v]}</span></label>`)}`;
   }
@@ -909,14 +910,14 @@ export class SystemTabsMode extends LitElement {
 
   /** One select per scope for the whole system, and one per tab group ("" = follow the level above). */
   private ddSelects(scope: 'inst' | 'own', style: DdStyle | null, groups: DdStyleGroups, disabled: boolean, onGlobal: (v: string) => void, onGroup: (g: TabGroup, v: string) => void) {
-    const follow = scope === 'inst' ? 'לפי ברירת המחדל הכללית' : 'לפי ההתקנה';
+    const follow = scope === 'inst' ? tr('לפי ברירת המחדל הכללית') : tr('לפי ההתקנה');
     const opts = (cur: DdStyle | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${DD_STYLES.map((m) => html`<option value=${m} ?selected=${cur === m}>${DD_STYLE_LABEL[m]}</option>`)}`;
-    return html`<fieldset><legend>סגנון התפריט הנפתח</legend>
-        <div class="grp all"><span>לכל הקבוצות</span>
-          <select data-dd-global=${scope} aria-label="סגנון תפריט נפתח: לכל הקבוצות" ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(style, scope === 'own' ? `${follow} (כרגע: ${DD_STYLE_LABEL[this.ddInst.style]})` : null)}</select></div>
+    return html`<fieldset><legend>${tr('סגנון התפריט הנפתח')}</legend>
+        <div class="grp all"><span>${tr('לכל הקבוצות')}</span>
+          <select data-dd-global=${scope} aria-label=${tr('סגנון תפריט נפתח: לכל הקבוצות')} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(style, scope === 'own' ? `${follow} ${tr('(כרגע: {value})', { value: DD_STYLE_LABEL[this.ddInst.style] })}` : null)}</select></div>
       ${TAB_GROUPS.map(
         (g) => html`<div class="grp" data-dd-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
-          <select data-dd-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: סגנון תפריט נפתח`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+          <select data-dd-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('סגנון תפריט נפתח')}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
       )}</fieldset>`;
   }
 
@@ -926,7 +927,7 @@ export class SystemTabsMode extends LitElement {
     this.error = '';
     try {
       await saveOwnTabsMode(mode, groups);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -952,10 +953,10 @@ export class SystemTabsMode extends LitElement {
   }
 
   private groupSelects(scope: 'inst' | 'own', groups: TabModeGroups, disabled: boolean, onPick: (g: TabGroup, v: string) => void) {
-    const follow = scope === 'inst' ? 'לפי ברירת המחדל הכללית' : 'לפי ההתקנה';
+    const follow = scope === 'inst' ? tr('לפי ברירת המחדל הכללית') : tr('לפי ההתקנה');
     return TAB_GROUPS.map(
       (g) => html`<div class="grp" data-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
-        <select data-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: תצוגת לשוניות`} ?disabled=${disabled} @change=${(e: Event) => onPick(g, (e.target as HTMLSelectElement).value)}>
+        <select data-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${tr('תצוגת לשוניות')}`} ?disabled=${disabled} @change=${(e: Event) => onPick(g, (e.target as HTMLSelectElement).value)}>
           <option value="" ?selected=${!groups[g]}>${follow}</option>
           ${TAB_MODES.map((m) => html`<option value=${m} ?selected=${groups[g] === m}>${TAB_MODE_LABEL[m]}</option>`)}
         </select></div>`,
@@ -975,46 +976,46 @@ export class SystemTabsMode extends LitElement {
     // the style card's resets, one row (an attribute NAME cannot be a binding in Lit: one literal template per reset)
     const rs = html`<sw-icon name="refresh" size=${15}></sw-icon>`;
     const ddResets = [
-      this.ddOwn.style || Object.keys(this.ddOwn.groups).length ? html`<button type="button" class="reset" data-dd-own-reset ?disabled=${this.busy} @click=${() => void this.saveDdOwn(null, {})}>${rs}אפס את ההעדפות שלי</button>` : null,
-      this.szOwn.size || Object.keys(this.szOwn.groups).length ? html`<button type="button" class="reset" data-dd-size-own-reset ?disabled=${this.busy} @click=${() => void this.saveSizeOwn(null, {})}>${rs}אפס את הגדלים שלי</button>` : null,
-      this.ringOwn.ring || Object.keys(this.ringOwn.groups).length ? html`<button type="button" class="reset" data-dd-ring-own-reset ?disabled=${this.busy} @click=${() => void this.saveDialOwn('ring', null, {})}>${rs}אפס את עובי הטבעת שלי</button>` : null,
-      this.panelOwn.panel || Object.keys(this.panelOwn.groups).length ? html`<button type="button" class="reset" data-dd-panel-own-reset ?disabled=${this.busy} @click=${() => void this.saveDialOwn('panel', null, {})}>${rs}אפס את רוחב התפריט שלי</button>` : null,
+      this.ddOwn.style || Object.keys(this.ddOwn.groups).length ? html`<button type="button" class="reset" data-dd-own-reset ?disabled=${this.busy} @click=${() => void this.saveDdOwn(null, {})}>${rs}${tr('אפס את ההעדפות שלי')}</button>` : null,
+      this.szOwn.size || Object.keys(this.szOwn.groups).length ? html`<button type="button" class="reset" data-dd-size-own-reset ?disabled=${this.busy} @click=${() => void this.saveSizeOwn(null, {})}>${rs}${tr('אפס את הגדלים שלי')}</button>` : null,
+      this.ringOwn.ring || Object.keys(this.ringOwn.groups).length ? html`<button type="button" class="reset" data-dd-ring-own-reset ?disabled=${this.busy} @click=${() => void this.saveDialOwn('ring', null, {})}>${rs}${tr('אפס את עובי הטבעת שלי')}</button>` : null,
+      this.panelOwn.panel || Object.keys(this.panelOwn.groups).length ? html`<button type="button" class="reset" data-dd-panel-own-reset ?disabled=${this.busy} @click=${() => void this.saveDialOwn('panel', null, {})}>${rs}${tr('אפס את רוחב התפריט שלי')}</button>` : null,
     ].filter((b) => b !== null);
-    return html`<sw-card heading="תצוגת לשוניות" subheading="לשוניות, משולב או תפריטים נפתחים, לכל הקבוצות או לכל קבוצה בנפרד. הניווט הראשי אינו חלק מזה" data-tabs-mode>
+    return html`<sw-card heading=${tr('תצוגת לשוניות')} subheading=${tr('לשוניות, משולב או תפריטים נפתחים, לכל הקבוצות או לכל קבוצה בנפרד. הניווט הראשי אינו חלק מזה')} data-tabs-mode>
       <div class="grid">
         <div data-tabs-mode-installation>
           ${this.colhead('inst')}
-          <fieldset><legend>לכל הקבוצות</legend>
+          <fieldset><legend>${tr('לכל הקבוצות')}</legend>
             ${this.modeRadios('inst-mode', this.inst.mode, null, instDisabled, (m) => m && void this.saveInstallation(m, this.inst.groups))}
           </fieldset>
-          <fieldset><legend>לפי קבוצה</legend>${this.groupSelects('inst', this.inst.groups, instDisabled, (g, v) => void this.saveInstallation(this.inst.mode, this.withGroup(this.inst.groups, g, v)))}</fieldset>
+          <fieldset><legend>${tr('לפי קבוצה')}</legend>${this.groupSelects('inst', this.inst.groups, instDisabled, (g, v) => void this.saveInstallation(this.inst.mode, this.withGroup(this.inst.groups, g, v)))}</fieldset>
         </div>
         <div data-tabs-mode-own>
           ${this.colhead('own')}
-          <fieldset><legend>לכל הקבוצות</legend>
-            ${this.modeRadios('own-mode', this.own.mode, `לפי ההתקנה (כרגע: ${TAB_MODE_LABEL[this.inst.mode]})`, ownDisabled, (m) => void this.saveOwn(m, this.own.groups))}
+          <fieldset><legend>${tr('לכל הקבוצות')}</legend>
+            ${this.modeRadios('own-mode', this.own.mode, tr('לפי ההתקנה (כרגע: {value})', { value: TAB_MODE_LABEL[this.inst.mode] }), ownDisabled, (m) => void this.saveOwn(m, this.own.groups))}
           </fieldset>
-          <fieldset><legend>לפי קבוצה</legend>${this.groupSelects('own', this.own.groups, ownDisabled, (g, v) => void this.saveOwn(this.own.mode, this.withGroup(this.own.groups, g, v)))}</fieldset>
+          <fieldset><legend>${tr('לפי קבוצה')}</legend>${this.groupSelects('own', this.own.groups, ownDisabled, (g, v) => void this.saveOwn(this.own.mode, this.withGroup(this.own.groups, g, v)))}</fieldset>
         </div>
       </div>
       <div class="effective" data-tabs-mode-effective>
-        <strong>מה פעיל אצלי עכשיו</strong>
+        <strong>${tr('מה פעיל אצלי עכשיו')}</strong>
         <ul>${TAB_GROUPS.map((g) => {
           const r = resolveTabMode(g);
           return html`<li data-effective-group=${g} data-mode=${r.mode} data-source=${r.source}><span>${TAB_GROUP_LABEL[g]}</span><span>${TAB_MODE_LABEL[r.mode]}<span class="src">${SOURCE_LABEL[r.source]}</span></span></li>`;
         })}</ul>
         ${this.own.mode || Object.keys(this.own.groups).length
-          ? html`<div class="resets"><button type="button" class="reset" data-own-reset ?disabled=${this.busy} @click=${() => void this.saveOwn(null, {})}><sw-icon name="refresh" size=${15}></sw-icon>אפס את ההעדפות שלי</button></div>`
+          ? html`<div class="resets"><button type="button" class="reset" data-own-reset ?disabled=${this.busy} @click=${() => void this.saveOwn(null, {})}><sw-icon name="refresh" size=${15}></sw-icon>${tr('אפס את ההעדפות שלי')}</button></div>`
           : nothing}
       </div>
-      <div class="preview" data-tabs-mode-preview=${effective} aria-label="תצוגה מקדימה">
-        <p class="ph">תצוגה מקדימה: ${TAB_MODE_LABEL[effective]}</p>
-        <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
-        <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
-        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
+      <div class="preview" data-tabs-mode-preview=${effective} aria-label=${tr('תצוגה מקדימה')}>
+        <p class="ph">${tr('תצוגה מקדימה: {mode}', { mode: TAB_MODE_LABEL[effective] })}</p>
+        <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} group-label=${tr('דוגמה: שלוש אפשרויות')} data-preview="3"></sw-tabs>
+        <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} group-label=${tr('דוגמה: שש אפשרויות')} data-preview="6"></sw-tabs>
+        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_3} active="a" group-label=${tr('דוגמה: רמה ראשונה')}></sw-tabs><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_6} active="a" group-label=${tr('דוגמה: רמה שנייה')}></sw-tabs></div>` : nothing}
       </div>
     </sw-card>
-    <sw-card heading="סגנון תפריט נפתח" subheading="המראה של תפריט נפתח, לכל הקבוצות או לכל קבוצה בנפרד" data-dd-style-card>
+    <sw-card heading=${tr('סגנון תפריט נפתח')} subheading=${tr('המראה של תפריט נפתח, לכל הקבוצות או לכל קבוצה בנפרד')} data-dd-style-card>
       <div class="grid">
         <div data-dd-style-installation>
           ${this.colhead('inst')}
@@ -1032,7 +1033,7 @@ export class SystemTabsMode extends LitElement {
         </div>
       </div>
       <div class="effective" data-dd-style-effective>
-        <strong>מה פעיל אצלי עכשיו</strong>
+        <strong>${tr('מה פעיל אצלי עכשיו')}</strong>
         <ul>${TAB_GROUPS.map((g) => {
           const r = resolveDdStyle(g);
           const z = resolveDdSize(g);
@@ -1042,17 +1043,17 @@ export class SystemTabsMode extends LitElement {
         })}</ul>
         ${ddResets.length ? html`<div class="resets">${ddResets}</div>` : nothing}
       </div>
-      <p class="ph">כל הסגנונות, בגודל הפעיל</p>
+      <p class="ph">${tr('כל הסגנונות, בגודל הפעיל')}</p>
       <div class="styles" data-dd-style-previews>${DD_STYLES.map(
-        (m) => html`<div data-dd-preview=${m} class=${m === ddEffective ? 'on' : ''}><span class="cap"><span class="muted">${DD_STYLE_LABEL[m]}</span>${m === ddEffective ? html`<span class="badge">הפעיל</span>` : nothing}</span><sw-tabs variant="dropdown" dd-style=${m} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_6} active="a" group-label="אבטחה"></sw-tabs></div>`,
+        (m) => html`<div data-dd-preview=${m} class=${m === ddEffective ? 'on' : ''}><span class="cap"><span class="muted">${DD_STYLE_LABEL[m]}</span>${m === ddEffective ? html`<span class="badge">${tr('הפעיל')}</span>` : nothing}</span><sw-tabs variant="dropdown" dd-style=${m} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_6} active="a" group-label=${tr('אבטחה')}></sw-tabs></div>`,
       )}</div>
-      <p class="ph">שלושת הגדלים, בסגנון קפסולה</p>
+      <p class="ph">${tr('שלושת הגדלים, בסגנון קפסולה')}</p>
       <div class="styles" data-dd-size-previews>${DD_SIZES.map(
-        (z) => html`<div data-dd-size-preview=${z} class=${z === szEffective ? 'on' : ''}><span class="cap"><span class="muted">${DD_SIZE_LABEL[z]}</span>${z === szEffective ? html`<span class="badge">הפעיל</span>` : nothing}</span><sw-tabs variant="dropdown" dd-style="capsule" dd-size=${z} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_CAPSULE} active="all" group-label="קומה"></sw-tabs></div>`,
+        (z) => html`<div data-dd-size-preview=${z} class=${z === szEffective ? 'on' : ''}><span class="cap"><span class="muted">${DD_SIZE_LABEL[z]}</span>${z === szEffective ? html`<span class="badge">${tr('הפעיל')}</span>` : nothing}</span><sw-tabs variant="dropdown" dd-style="capsule" dd-size=${z} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_CAPSULE} active="all" group-label=${tr('קומה')}></sw-tabs></div>`,
       )}</div>
       ${this.status('style')}
     </sw-card>
-    <sw-card heading="תפריט נפתח בטלפון" subheading="איך נפתחת רשימה של תפריט נפתח במסך צר" data-dd-phone-card>
+    <sw-card heading=${tr('תפריט נפתח בטלפון')} subheading=${tr('איך נפתחת רשימה של תפריט נפתח במסך צר')} data-dd-phone-card>
       <div class="grid">
         <div data-dd-phone-installation>
           <fieldset>${this.colhead('inst', true)}
@@ -1061,34 +1062,34 @@ export class SystemTabsMode extends LitElement {
         </div>
         <div data-dd-phone-own>
           <fieldset>${this.colhead('own', true)}
-            <label class="opt"><input type="radio" name="dd-phone-own" value="" data-dd-phone="own:follow" .checked=${this.phOwn === null} ?disabled=${this.busy} @change=${() => void this.savePhoneOwn(null)} /><span class="t">לפי ההתקנה (כרגע: ${DD_PHONE_LABEL[this.phInst]})</span></label>
+            <label class="opt"><input type="radio" name="dd-phone-own" value="" data-dd-phone="own:follow" .checked=${this.phOwn === null} ?disabled=${this.busy} @change=${() => void this.savePhoneOwn(null)} /><span class="t">${tr('לפי ההתקנה (כרגע: {value})', { value: DD_PHONE_LABEL[this.phInst] })}</span></label>
             ${DD_PHONES.map((m) => html`<label class="opt"><input type="radio" name="dd-phone-own" value=${m} data-dd-phone=${`own:${m}`} .checked=${this.phOwn === m} ?disabled=${this.busy} @change=${() => void this.savePhoneOwn(asDdPhone(m))} /><span class="t">${DD_PHONE_LABEL[m]}</span></label>`)}
           </fieldset>
         </div>
       </div>
-      <div class="effective line" data-dd-phone-effective><sw-icon name="check" size=${16}></sw-icon><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PHONE_LABEL[this.phOwn ?? this.phInst]}</span></div>
+      <div class="effective line" data-dd-phone-effective><sw-icon name="check" size=${16}></sw-icon><span><strong>${tr('מה פעיל אצלי עכשיו:')}</strong> ${DD_PHONE_LABEL[this.phOwn ?? this.phInst]}</span></div>
       ${this.status('phone')}
     </sw-card>
-    <sw-card heading="בחירת מצלמות להשוואה" subheading="מסך ההקלטות והניגון המסונכרן" data-dd-picker-card>
+    <sw-card heading=${tr('בחירת מצלמות להשוואה')} subheading=${tr('מסך ההקלטות והניגון המסונכרן')} data-dd-picker-card>
       <div class="grid">
         <div data-dd-picker-installation>
           <fieldset>${this.colhead('inst', true)}
-            <div class="sub">תצוגה</div>
+            <div class="sub">${tr('תצוגה')}</div>
             ${this.choiceRadios('picker', 'inst', DD_PICKERS, DD_PICKER_LABEL, this.pkInst, this.pkInst, ddInstDisabled, (v) => v && void this.savePickerInstallation({ 'ui.dd_picker': v }))}
-            <div class="sub">חיפוש ברשימת המצלמות</div>
+            <div class="sub">${tr('חיפוש ברשימת המצלמות')}</div>
             ${this.choiceRadios('search', 'inst', DD_SEARCHES, DD_SEARCH_LABEL, this.seInst, this.seInst, ddInstDisabled, (v) => v && void this.savePickerInstallation({ 'ui.dd_search': v }))}
           </fieldset>
         </div>
         <div data-dd-picker-own>
           <fieldset>${this.colhead('own', true)}
-            <div class="sub">תצוגה</div>
+            <div class="sub">${tr('תצוגה')}</div>
             ${this.choiceRadios('picker', 'own', DD_PICKERS, DD_PICKER_LABEL, this.pkOwn, this.pkInst, this.busy, (v) => void this.savePickerOwn(() => saveOwnDdPicker(asDdPicker(v))))}
-            <div class="sub">חיפוש ברשימת המצלמות</div>
+            <div class="sub">${tr('חיפוש ברשימת המצלמות')}</div>
             ${this.choiceRadios('search', 'own', DD_SEARCHES, DD_SEARCH_LABEL, this.seOwn, this.seInst, this.busy, (v) => void this.savePickerOwn(() => saveOwnDdSearch(asDdSearch(v))))}
           </fieldset>
         </div>
       </div>
-      <div class="effective line" data-dd-picker-effective><sw-icon name="check" size=${16}></sw-icon><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PICKER_LABEL[this.pkOwn ?? this.pkInst]}, חיפוש ${DD_SEARCH_LABEL[this.seOwn ?? this.seInst]}</span></div>
+      <div class="effective line" data-dd-picker-effective><sw-icon name="check" size=${16}></sw-icon><span><strong>${tr('מה פעיל אצלי עכשיו:')}</strong> ${DD_PICKER_LABEL[this.pkOwn ?? this.pkInst]}, ${tr('חיפוש {value}', { value: DD_SEARCH_LABEL[this.seOwn ?? this.seInst] })}</span></div>
       ${this.status('picker')}
     </sw-card>${this.renderPlaceCard(ddInstDisabled)}${this.renderSettingsNavCard()}`;
   }

@@ -5,6 +5,7 @@ import { canAnywhere, isApi } from '../api/session';
 import { VALIDATION_HREF } from '../api/wiskey-validation';
 import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
+import { tr } from '../i18n/msg/system-b';
 
 /**
  * הגדרות › מתגי מסכי כניסה › "בדיקת קבלה לעמדות" (WISKEY-LIVE-VALIDATION-2390): the entry to the acceptance tool, next to the WisKey
@@ -60,12 +61,12 @@ export class SystemWiskeyValidationCard extends LitElement {
 
   render() {
     if (!this.present()) return nothing; // not in the demo: no existing baseline changes
-    const about = 'לכל עמדה: זהות, דלתות, תמונה דרך Arx ודרך WisKey, דיבור, אירועים ושעון. רץ רק כשלוחצים, ונשמר לכל ריצה.';
-    return html`<sw-card heading=${this.bare ? '' : 'בדיקת קבלה לעמדות'} subheading=${this.bare ? '' : about}>
+    const about = tr('לכל עמדה: זהות, דלתות, תמונה דרך Arx ודרך WisKey, דיבור, אירועים ושעון. רץ רק כשלוחצים, ונשמר לכל ריצה.');
+    return html`<sw-card heading=${this.bare ? '' : tr('בדיקת קבלה לעמדות')} subheading=${this.bare ? '' : about}>
       ${this.bare ? html`<p class="muted about">${about}</p>` : nothing}
       <div class="row" data-lv-card>
-        <span class="muted">פתיחת דלת עם עד היא פעולה נפרדת, למנהל מערכת בלבד.</span>
-        <a href=${VALIDATION_HREF} data-lv-card-link>פתח את בדיקת הקבלה</a>
+        <span class="muted">${tr('פתיחת דלת עם עד היא פעולה נפרדת, למנהל מערכת בלבד.')}</span>
+        <a href=${VALIDATION_HREF} data-lv-card-link>${tr('פתח את בדיקת הקבלה')}</a>
       </div>
     </sw-card>`;
   }

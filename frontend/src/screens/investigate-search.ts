@@ -18,6 +18,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayMonthTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/investigate';
 
 const RESULTS = [
   { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'מקליט: זיהוי אדם (Smart)' },
@@ -86,45 +87,45 @@ export class InvestigateSearch extends LitElement {
     const p = this.providers;
     const local = p?.providers.find((x) => x.id === 'local');
     const ext = p?.providers.find((x) => x.id === 'external');
-    const typeLabel: Record<string, string> = { person: 'אדם', vehicle: 'רכב', motion: 'תנועה', line: 'חציית קו', field: 'חדירה', door: 'דלת', offline: 'ניתוק', coverage_gap: 'פער כיסוי', other: 'אחר' };
+    const typeLabel: Record<string, string> = { person: tr('אדם'), vehicle: tr('רכב'), motion: tr('תנועה'), line: tr('חציית קו'), field: tr('חדירה'), door: tr('דלת'), offline: tr('ניתוק'), coverage_gap: tr('פער כיסוי'), other: tr('אחר') };
     return html`
-      <sw-page heading="חיפוש AI" subheading="שאלה חופשית → מסננים של מרכז האירועים (סוג, מקום, זמן) · baseline מקומי ללא רשת · ספק חיצוני רק ב־opt-in">
-        <sw-badge slot="actions" kind=${p?.active === 'local' ? 'live' : 'unknown'} label=${p ? (p.active === 'local' ? `ספק: baseline מקומי · ${local?.model_version ?? ''}` : p.active === 'none' ? 'חיפוש סמנטי כבוי' : `ספק: ${p.active}`) : this.error && this.errorFrom === 'providers' ? 'הספקים לא נקראו' : 'טוען…'}></sw-badge>
+      <sw-page heading=${tr('חיפוש AI')} subheading=${tr('שאלה חופשית → מסננים של מרכז האירועים (סוג, מקום, זמן) · baseline מקומי ללא רשת · ספק חיצוני רק ב־opt-in')}>
+        <sw-badge slot="actions" kind=${p?.active === 'local' ? 'live' : 'unknown'} label=${p ? (p.active === 'local' ? tr('ספק: baseline מקומי · {version}', { version: local?.model_version ?? '' }) : p.active === 'none' ? tr('חיפוש סמנטי כבוי') : tr('ספק: {provider}', { provider: p.active })) : this.error && this.errorFrom === 'providers' ? tr('הספקים לא נקראו') : tr('טוען…')}></sw-badge>
         <div class="wrap">
           <div class="searchrow">
-            <sw-field><input type="search" data-semantic-q placeholder="למשל: אדם בלובי אתמול בערב · vehicle near the gate this morning" aria-label="חיפוש" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.run(); }} /></sw-field>
-            <sw-button variant="primary" icon="search" data-semantic-run ?disabled=${this.busy || !this.q.trim()} @click=${() => this.run()}>חפש</sw-button>
+            <sw-field><input type="search" data-semantic-q placeholder=${tr('למשל: אדם בלובי אתמול בערב · vehicle near the gate this morning')} aria-label=${tr('חיפוש')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.run(); }} /></sw-field>
+            <sw-button variant="primary" icon="search" data-semantic-run ?disabled=${this.busy || !this.q.trim()} @click=${() => this.run()}>${tr('חפש')}</sw-button>
           </div>
           ${this.error
-            ? html`<sw-state-panel compact state="error" heading=${this.errorFrom === 'providers' ? 'ספקי הניתוח לא נקראו' : 'החיפוש לא הושלם'} hint=${this.error} actionLabel="נסה שוב" data-semantic-error
+            ? html`<sw-state-panel compact state="error" heading=${this.errorFrom === 'providers' ? tr('ספקי הניתוח לא נקראו') : tr('החיפוש לא הושלם')} hint=${this.error} actionLabel=${tr('נסה שוב')} data-semantic-error
                 @action=${() => void (this.errorFrom === 'providers' ? this.loadProviders() : this.run())}></sw-state-panel>`
             : nothing}
           ${this.busy
-            ? html`<sw-state-panel compact state="loading" heading="מחפש…" hint="מפרש את השאלה ומסנן את האירועים בהיקף שלך" data-semantic-loading></sw-state-panel>`
+            ? html`<sw-state-panel compact state="loading" heading=${tr('מחפש…')} hint=${tr('מפרש את השאלה ומסנן את האירועים בהיקף שלך')} data-semantic-loading></sw-state-panel>`
             : a
-            ? html`<sw-card heading="כך פורשה השאלה" subheading=${`${a.provider.name} · ${a.provider.model_version} · ללא רשת`} data-semantic-parsed>
+            ? html`<sw-card heading=${tr('כך פורשה השאלה')} subheading=${`${a.provider.name} · ${a.provider.model_version} · ${tr('ללא רשת')}`} data-semantic-parsed>
                   <div class="chips">
                     ${a.parsed.objects.map((o) => html`<sw-chip selected icon="target">${OBJECT_LABEL[o] ?? o}</sw-chip>`)}
-                    ${a.parsed.places.map((pl) => html`<sw-chip selected icon=${pl.kind === 'camera' ? 'camera' : pl.kind === 'floor' ? 'floor' : 'map'} title=${`התאמה ${pl.match === 'exact' ? 'מדויקת' : 'חלקית'} למונח "${pl.term}"`}>${pl.name}${pl.match === 'partial' ? ' (~)' : ''}</sw-chip>`)}
+                    ${a.parsed.places.map((pl) => html`<sw-chip selected icon=${pl.kind === 'camera' ? 'camera' : pl.kind === 'floor' ? 'floor' : 'map'} title=${tr('התאמה {match} למונח "{term}"', { match: pl.match === 'exact' ? tr('מדויקת') : tr('חלקית'), term: pl.term })}>${pl.name}${pl.match === 'partial' ? ' (~)' : ''}</sw-chip>`)}
                     ${a.parsed.window ? html`<sw-chip selected icon="clock">${a.parsed.window.label}</sw-chip>` : nothing}
-                    ${!a.parsed.objects.length && !a.parsed.places.length && !a.parsed.window ? html`<span class="note">לא זוהה סוג, מקום או זמן — מוצגים אירועי היום בהיקף שלך.</span>` : nothing}
+                    ${!a.parsed.objects.length && !a.parsed.places.length && !a.parsed.window ? html`<span class="note">${tr('לא זוהה סוג, מקום או זמן — מוצגים אירועי היום בהיקף שלך.')}</span>` : nothing}
                   </div>
-                  ${a.unsupported.length ? html`<div class="note" style="margin-block-start:6px;color:var(--sw-warning-text)" data-semantic-unsupported>לא נתמך ב־baseline המקומי: ${a.unsupported.map((u) => `"${u.term}" — ${u.reason.startsWith('color') ? 'צבע' : 'מאפיין מראה'} דורש ספק ניתוח ב־opt-in`).join(' · ')}</div>` : nothing}
-                  ${a.parsed.leftovers.length ? html`<div class="note" style="margin-block-start:4px">מילים שלא שימשו: ${a.parsed.leftovers.join(', ')}</div>` : nothing}
+                  ${a.unsupported.length ? html`<div class="note" style="margin-block-start:6px;color:var(--sw-warning-text)" data-semantic-unsupported>${tr('לא נתמך ב־baseline המקומי:')} ${a.unsupported.map((u) => `"${u.term}" — ${tr('{what} דורש ספק ניתוח ב־opt-in', { what: u.reason.startsWith('color') ? tr('צבע') : tr('מאפיין מראה') })}`).join(' · ')}</div>` : nothing}
+                  ${a.parsed.leftovers.length ? html`<div class="note" style="margin-block-start:4px">${tr('מילים שלא שימשו:')} ${a.parsed.leftovers.join(', ')}</div>` : nothing}
                 </sw-card>
-                <div class="head"><span>${a.total} התאמות (לפי metadata)</span><a href="#/investigate/events">מרכז האירועים</a></div>
+                <div class="head"><span>${tr('{n} התאמות (לפי metadata)', { n: a.total })}</span><a href="#/investigate/events">${tr('מרכז האירועים')}</a></div>
                 ${a.results.length
                   ? html`<div class="list">${a.results.map((r) => html`<div class="row" role="link" tabindex="0" data-semantic-result data-confidence=${r.match.confidence} @click=${() => navigate(`/investigate/events/${r.id}`)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/investigate/events/${r.id}`); } }}>
-                        <sw-badge kind=${r.match.confidence === 'exact' ? 'live' : 'stale'} label=${r.match.confidence === 'exact' ? 'התאמה מדויקת' : 'התאמה חלקית'}></sw-badge>
-                        <div class="body"><strong>${typeLabel[r.type] ?? r.type} · ${r.camera_name ?? '—'}</strong><span class="note">${this.fmt(r.occurred_at)} · ${r.confidence === 'measured' ? 'נמדד במכשיר' : 'משוער'} · ${r.match.basis.join(' · ')}</span></div>
+                        <sw-badge kind=${r.match.confidence === 'exact' ? 'live' : 'stale'} label=${r.match.confidence === 'exact' ? tr('התאמה מדויקת') : tr('התאמה חלקית')}></sw-badge>
+                        <div class="body"><strong>${typeLabel[r.type] ?? r.type} · ${r.camera_name ?? '—'}</strong><span class="note">${this.fmt(r.occurred_at)} · ${r.confidence === 'measured' ? tr('נמדד במכשיר') : tr('משוער')} · ${r.match.basis.join(' · ')}</span></div>
                       </div>`)}</div>`
-                  : html`<div class="note">אין אירועים תואמים בהיקף ובחלון הזמן.</div>`}
+                  : html`<div class="note">${tr('אין אירועים תואמים בהיקף ובחלון הזמן.')}</div>`}
                 <div class="note" data-semantic-note>${a.note}</div>`
-            : html`<div class="note">כתוב שאלה חופשית בעברית או באנגלית. ה־baseline מבין סוג (אדם/רכב/תנועה/דלת/חצייה/חדירה), מקומות מהקטלוג (חדרים, קומות, מצלמות) וזמן (היום, אתמול, בערב, 08:00–09:30, השבוע).</div>`}
-          <sw-card heading="ספקי ניתוח" subheading="מדיניות פרטיות, גרסת מודל, תקציב ו־opt-in הם חלק מהחוזה של כל ספק" data-semantic-provider>
-            ${local ? html`<div class="prov"><strong>${local.name}</strong> · גרסה ${local.model_version} · ${local.network ? 'רשת' : 'ללא רשת'} · תקציב יומי ${local.budget_daily}<div class="note">${local.privacy}</div><div class="note">יכולות: ${local.capabilities.join(', ')}</div></div>` : nothing}
-            ${ext ? html`<div class="prov" style="margin-block-start:8px"><strong>${ext.name}</strong> · ${ext.available === false ? 'לא זמין' : 'זמין'} · opt-in נדרש<div class="note">${ext.privacy}</div><div class="note">${ext.reason ?? ''}</div><div class="note">הגדרות: ai.provider=${p?.settings['ai.provider']} · ai.privacy_ack=${p?.settings['ai.privacy_ack']} · ai.budget_daily=${p?.settings['ai.budget_daily']}</div></div>` : nothing}
-            <div class="actions" style="margin-block-start:8px"><sw-button size="sm" icon="upload" disabled title="דורש ספק ניתוח חיצוני ב־opt-in">חיפוש לפי תמונה</sw-button><sw-button size="sm" icon="aperture" disabled title="דורש ספק ניתוח חיצוני ב־opt-in">השתמש בפריים הנוכחי</sw-button><span class="note">חיפוש לפי תמונה, צבע ומראה אינו פעיל עד שמוגדר ספק עם הסכמה ותקציב.</span></div>
+            : html`<div class="note">${tr('כתוב שאלה חופשית בעברית או באנגלית. ה־baseline מבין סוג (אדם/רכב/תנועה/דלת/חצייה/חדירה), מקומות מהקטלוג (חדרים, קומות, מצלמות) וזמן (היום, אתמול, בערב, 08:00–09:30, השבוע).')}</div>`}
+          <sw-card heading=${tr('ספקי ניתוח')} subheading=${tr('מדיניות פרטיות, גרסת מודל, תקציב ו־opt-in הם חלק מהחוזה של כל ספק')} data-semantic-provider>
+            ${local ? html`<div class="prov"><strong>${local.name}</strong> · ${tr('גרסה {version}', { version: local.model_version })} · ${local.network ? tr('רשת') : tr('ללא רשת')} · ${tr('תקציב יומי {budget}', { budget: local.budget_daily })}<div class="note">${local.privacy}</div><div class="note">${tr('יכולות:')} ${local.capabilities.join(', ')}</div></div>` : nothing}
+            ${ext ? html`<div class="prov" style="margin-block-start:8px"><strong>${ext.name}</strong> · ${ext.available === false ? tr('לא זמין') : tr('זמין')} · ${tr('opt-in נדרש')}<div class="note">${ext.privacy}</div><div class="note">${ext.reason ?? ''}</div><div class="note">${tr('הגדרות:')} ai.provider=${p?.settings['ai.provider']} · ai.privacy_ack=${p?.settings['ai.privacy_ack']} · ai.budget_daily=${p?.settings['ai.budget_daily']}</div></div>` : nothing}
+            <div class="actions" style="margin-block-start:8px"><sw-button size="sm" icon="upload" disabled title=${tr('דורש ספק ניתוח חיצוני ב־opt-in')}>${tr('חיפוש לפי תמונה')}</sw-button><sw-button size="sm" icon="aperture" disabled title=${tr('דורש ספק ניתוח חיצוני ב־opt-in')}>${tr('השתמש בפריים הנוכחי')}</sw-button><span class="note">${tr('חיפוש לפי תמונה, צבע ומראה אינו פעיל עד שמוגדר ספק עם הסכמה ותקציב.')}</span></div>
           </sw-card>
         </div>
       </sw-page>
@@ -343,27 +344,27 @@ export class InvestigateSearch extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="חיפוש AI" subheading="מצא בדיוק את מה שאתה מחפש · חיפוש סמנטי רק עם אינדקס אמיתי · נתוני הדגמה">
-        <sw-badge slot="actions" kind="unknown" label="אין ספק AI מוגדר · רמה 0 (מטא־דאטה מקליט)"></sw-badge>
+      <sw-page heading=${tr('חיפוש AI')} subheading=${tr('מצא בדיוק את מה שאתה מחפש · חיפוש סמנטי רק עם אינדקס אמיתי · נתוני הדגמה')}>
+        <sw-badge slot="actions" kind="unknown" label=${tr('אין ספק AI מוגדר · רמה 0 (מטא־דאטה מקליט)')}></sw-badge>
         <div class="wrap">
           <div class="searchrow">
-            <sw-field><input type="search" value="אדם בכניסה הראשית היום" aria-label="חיפוש" /></sw-field>
-            <sw-button variant="primary" icon="search">חפש</sw-button>
+            <sw-field><input type="search" value="אדם בכניסה הראשית היום" aria-label=${tr('חיפוש')} /></sw-field>
+            <sw-button variant="primary" icon="search">${tr('חפש')}</sw-button>
           </div>
-          <sw-tabs .items=${[{ id: 'person', label: 'אדם' }, { id: 'vehicle', label: 'רכב' }, { id: 'object', label: 'עצם' }, { id: 'color', label: 'צבע' }, { id: 'time', label: 'זמן' }, { id: 'site', label: 'אתר' }]} .active=${this.by} @change=${(e: CustomEvent<{ id: string }>) => (this.by = e.detail.id)}></sw-tabs>
+          <sw-tabs .items=${[{ id: 'person', label: tr('אדם') }, { id: 'vehicle', label: tr('רכב') }, { id: 'object', label: tr('עצם') }, { id: 'color', label: tr('צבע') }, { id: 'time', label: tr('זמן') }, { id: 'site', label: tr('אתר') }]} .active=${this.by} @change=${(e: CustomEvent<{ id: string }>) => (this.by = e.detail.id)}></sw-tabs>
           <sw-card>
             <div class="by">
               <div class="ref"><sw-scene kind="entrance"></sw-scene></div>
               <div class="txt">
-                <b>חיפוש לפי ${this.by === 'person' ? 'אדם' : this.by === 'vehicle' ? 'רכב' : 'מאפיין'}</b>
-                <p>מציאת הופעות של אותו אדם בכל המצלמות. פורש כ: סוג = אדם · קומה 0 · היום. זיהוי צבע, פנים או טקסט חופשי אינם פעילים עד שמוגדר ספק ומאושר dataset.</p>
-                <div class="actions"><sw-button variant="primary" size="sm" icon="upload" disabled>העלאת תמונה</sw-button><sw-button size="sm" icon="aperture" disabled>השתמש בפריים הנוכחי</sw-button><sw-chip selected icon="target">אדם</sw-chip><sw-chip selected icon="floor">קומה 0</sw-chip><sw-chip selected icon="clock">היום</sw-chip></div>
+                <b>${tr('חיפוש לפי {what}', { what: this.by === 'person' ? tr('אדם') : this.by === 'vehicle' ? tr('רכב') : tr('מאפיין') })}</b>
+                <p>${tr('מציאת הופעות של אותו אדם בכל המצלמות. פורש כ: סוג = אדם · קומה 0 · היום. זיהוי צבע, פנים או טקסט חופשי אינם פעילים עד שמוגדר ספק ומאושר dataset.')}</p>
+                <div class="actions"><sw-button variant="primary" size="sm" icon="upload" disabled>${tr('העלאת תמונה')}</sw-button><sw-button size="sm" icon="aperture" disabled>${tr('השתמש בפריים הנוכחי')}</sw-button><sw-chip selected icon="target">${tr('אדם')}</sw-chip><sw-chip selected icon="floor">${tr('קומה 0')}</sw-chip><sw-chip selected icon="clock">${tr('היום')}</sw-chip></div>
               </div>
             </div>
           </sw-card>
-          <div class="head"><span>התאמות (לפי מטא־דאטה)</span><a href="#/investigate/events">הצג הכל</a></div>
+          <div class="head"><span>${tr('התאמות (לפי מטא־דאטה)')}</span><a href="#/investigate/events">${tr('הצג הכל')}</a></div>
           <div class="results">
-            ${RESULTS.map((r) => html`<div class="res" @click=${() => (window.location.hash = '#/investigate/playback')}><div class="pic"><sw-scene kind=${r.scene}></sw-scene><span class="demo">דמו</span></div><div class="cap">${r.when}<small>${r.cam} · ${r.why}</small></div></div>`)}
+            ${RESULTS.map((r) => html`<div class="res" @click=${() => (window.location.hash = '#/investigate/playback')}><div class="pic"><sw-scene kind=${r.scene}></sw-scene><span class="demo">${tr('דמו')}</span></div><div class="cap">${r.when}<small>${r.cam} · ${r.why}</small></div></div>`)}
           </div>
         </div>
       </sw-page>

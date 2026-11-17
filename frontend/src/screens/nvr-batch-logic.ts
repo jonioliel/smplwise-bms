@@ -12,6 +12,7 @@ import type { Batch, BatchItem, BatchItemStatus, BatchState } from '../api/nvr-b
 import type { CameraDetail, NvrCamera, StreamEncoding } from '../api/nvr-settings';
 import { errorLine } from './nvr-cameras-edit';
 import { encodingUndoLead } from './nvr-verify-logic';
+import { tr } from '../i18n/msg/media';
 
 // ------------------------------------------------------------------------------------------------ who can be chosen
 
@@ -171,11 +172,11 @@ export function tally(b: Batch): Tally {
   };
 }
 
-export const camerasLabel = (n: number): string => (n === 1 ? 'מצלמה אחת' : `${n} מצלמות`);
+export const camerasLabel = (n: number): string => (n === 1 ? tr('מצלמה אחת') : tr('{n} מצלמות', { n }));
 /** "in N cameras": "במצלמה אחת" / "ב־3 מצלמות". */
-export const inCameras = (n: number): string => (n === 1 ? 'במצלמה אחת' : `ב־${n} מצלמות`);
+export const inCameras = (n: number): string => (n === 1 ? tr('במצלמה אחת') : tr('ב־{n} מצלמות', { n }));
 /** CR-020 phase D: an encoding batch counts STREAMS (main and sub of one camera are two items). */
-const inStreamsOf = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
+const inStreamsOf = (n: number): string => (n === 1 ? tr('בזרם אחד') : tr('ב־{n} זרמים', { n }));
 export const isEncoding = (b: Pick<Batch, 'mode'>): boolean => b.mode === 'encoding';
 /** "in N cameras" for an SVC batch, "in N streams" for an encoding batch. */
 export const inUnits = (b: Pick<Batch, 'mode'>, n: number): string => (isEncoding(b) ? inStreamsOf(n) : inCameras(n));
@@ -197,17 +198,17 @@ export function itemLine(i: BatchItem, kind: Batch['kind']): string {
       return '';
     case 'running':
     case 'pending':
-      return kind === 'rollback' ? 'מחזיר' : 'מתבצע';
+      return kind === 'rollback' ? tr('מחזיר') : tr('מתבצע');
     case 'applied':
-      return kind === 'rollback' ? 'הוחזר' : 'נשמר';
+      return kind === 'rollback' ? tr('הוחזר') : tr('נשמר');
     case 'rolled_back':
-      return 'הוחזר';
+      return tr('הוחזר');
     case 'unchanged':
-      return 'ללא שינוי';
+      return tr('ללא שינוי');
     case 'unknown':
-      return 'לא ברור אם בוצע. נבדק מול ה־NVR.';
+      return tr('לא ברור אם בוצע. נבדק מול ה־NVR.');
     case 'not_attempted':
-      return 'לא בוצע';
+      return tr('לא בוצע');
     default:
       // failed / refused / no_effect / diverged: the contract's plain line for the code, else the server's own sentence
       return errorLine({ status: 0, code: i.error_code ?? i.status, user_message: i.user_message ?? undefined }).text;
@@ -265,81 +266,81 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
   const unknownStop = !!problem && (b.state === 'stopped_unknown' || (b.state !== 'running' && b.stopped_reason === 'unknown_unverified'));
   const base = { canStop: false, showUndo: false, canUndo: false, showRetry: false };
   if (b.state === 'running') {
-    return { ...base, tone: 'running', title: `${t.processed} מתוך ${t.total}`, sub: stopping ? 'עוצר אחרי המצלמה הנוכחית' : t.unknown ? 'נבדק מול ה־NVR' : '', canStop: !stopping };
+    return { ...base, tone: 'running', title: tr('{processed} מתוך {total}', { processed: t.processed, total: t.total }), sub: stopping ? tr('עוצר אחרי המצלמה הנוכחית') : t.unknown ? tr('נבדק מול ה־NVR') : '', canStop: !stopping };
   }
   const inN = (n: number) => inUnits(b, n);
   const counts = rb
-    ? join([t.restored > 0 && `הוחזר ${inN(t.restored)}`, left > 0 && `לא הוחזר ${inN(left)}`])
-    : join([t.applied > 0 && `נשמר ${inN(t.applied)}`, t.bad > 0 && `נכשל ${inN(t.bad)}`, t.unknown > 0 && `לא ברור אם בוצע ${inN(t.unknown)}`, t.notAttempted > 0 && `לא בוצע ${inN(t.notAttempted)}`]);
+    ? join([t.restored > 0 && tr('הוחזר {where}', { where: inN(t.restored) }), left > 0 && tr('לא הוחזר {where}', { where: inN(left) })])
+    : join([t.applied > 0 && tr('נשמר {where}', { where: inN(t.applied) }), t.bad > 0 && tr('נכשל {where}', { where: inN(t.bad) }), t.unknown > 0 && tr('לא ברור אם בוצע {where}', { where: inN(t.unknown) }), t.notAttempted > 0 && tr('לא בוצע {where}', { where: inN(t.notAttempted) })]);
   const undo = !rb && t.applied > 0 ? { showUndo: true, canUndo: !undoWait } : {};
   const retry = rb && left > 0 && !!b.rollback_of && b.state !== 'completed' ? { showRetry: true } : {};
   // the check found the camera still on the old value: a plain failure at that camera
-  if (b.state === 'interrupted' && b.stopped_reason === 'unknown_not_applied' && problem) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה במצלמה ${pname}` : `נעצר במצלמה ${pname}`, sub: counts };
-  if (unknownStop) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה: לא ברור אם בוצע במצלמה ${pname}` : `נעצר: לא ברור אם בוצע במצלמה ${pname}`, sub: counts };
+  if (b.state === 'interrupted' && b.stopped_reason === 'unknown_not_applied' && problem) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נעצרה במצלמה {pname}', { pname }) : tr('נעצר במצלמה {pname}', { pname }), sub: counts };
+  if (unknownStop) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נעצרה: לא ברור אם בוצע במצלמה {pname}', { pname }) : tr('נעצר: לא ברור אם בוצע במצלמה {pname}', { pname }), sub: counts };
   switch (b.state) {
     case 'completed':
       return {
         ...base, ...undo, tone: (b.skipped ?? 0) > 0 ? 'warn' : 'done',
         title: isEncoding(b)
-          ? rb ? `הקידוד הוחזר ${inN(t.restored)}` : t.applied > 0 ? `הקידוד עודכן ${inN(t.applied)}` : 'ללא שינוי'
-          : rb ? `SVC הוחזר ${inCameras(t.restored)}` : t.applied > 0 ? `SVC כבוי ${inCameras(t.applied)}` : 'ללא שינוי',
-        sub: join([!rb && t.applied > 0 && t.ok > t.applied && `ללא שינוי ${inN(t.ok - t.applied)}`, (b.skipped ?? 0) > 0 && `דולג ${inN(b.skipped ?? 0)}`]),
+          ? rb ? tr('הקידוד הוחזר {where}', { where: inN(t.restored) }) : t.applied > 0 ? tr('הקידוד עודכן {where}', { where: inN(t.applied) }) : tr('ללא שינוי')
+          : rb ? tr('SVC הוחזר {where}', { where: inCameras(t.restored) }) : t.applied > 0 ? tr('SVC כבוי {where}', { where: inCameras(t.applied) }) : tr('ללא שינוי'),
+        sub: join([!rb && t.applied > 0 && t.ok > t.applied && tr('ללא שינוי {where}', { where: inN(t.ok - t.applied) }), (b.skipped ?? 0) > 0 && tr('דולג {where}', { where: inN(b.skipped ?? 0) })]),
       };
     case 'stopped':
-      return { ...base, ...undo, ...retry, tone: 'warn', title: rb ? 'ההחזרה נעצרה בבקשתך' : 'נעצר בבקשתך', sub: counts };
+      return { ...base, ...undo, ...retry, tone: 'warn', title: rb ? tr('ההחזרה נעצרה בבקשתך') : tr('נעצר בבקשתך'), sub: counts };
     case 'failed':
-      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה במצלמה ${pname}` : `נעצר במצלמה ${pname}`, sub: counts };
+      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נעצרה במצלמה {pname}', { pname }) : tr('נעצר במצלמה {pname}', { pname }), sub: counts };
     default:
-      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? 'ההחזרה נקטעה באמצע' : 'השינוי נקטע באמצע', sub: counts };
+      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? tr('ההחזרה נקטעה באמצע') : tr('השינוי נקטע באמצע'), sub: counts };
   }
 }
 
 /** The toast after a batch that completed in front of the person. */
 export function doneToast(b: Batch): { message: string; undo: boolean } {
   const t = tally(b);
-  const skip = (b.skipped ?? 0) > 0 ? ` · דולג ${inUnits(b, b.skipped ?? 0)}` : ''; // CAM-H264-VERIFY-2361
-  if (b.kind === 'rollback') return { message: `בוטל ${inUnits(b, t.restored)}${skip}`, undo: false };
-  if (t.applied === 0) return { message: `ללא שינוי${skip}`, undo: false };
-  return { message: `נשמר ${inUnits(b, t.applied)}${skip}`, undo: true };
+  const skip = (b.skipped ?? 0) > 0 ? ` · ${tr('דולג {where}', { where: inUnits(b, b.skipped ?? 0) })}` : ''; // CAM-H264-VERIFY-2361
+  if (b.kind === 'rollback') return { message: `${tr('בוטל {where}', { where: inUnits(b, t.restored) })}${skip}`, undo: false };
+  if (t.applied === 0) return { message: `${tr('ללא שינוי')}${skip}`, undo: false };
+  return { message: `${tr('נשמר {where}', { where: inUnits(b, t.applied) })}${skip}`, undo: true };
 }
 
 /** The line shown when starting (or undoing) the batch was refused. `reload`: the camera list is stale and should be read again. */
 export function startErrorLine(e: { status: number; code: string; user_message?: string; details?: Record<string, unknown> }, nameOfIndex?: (index: number) => string | null): { text: string; reload: boolean } {
   switch (e.code) {
     case 'batch_in_progress':
-      return { text: 'מתבצע שינוי מרובה', reload: false };
+      return { text: tr('מתבצע שינוי מרובה'), reload: false };
     case 'batch_not_enabled':
-      return { text: 'השינוי המרובה אינו זמין.', reload: false };
+      return { text: tr('השינוי המרובה אינו זמין.'), reload: false };
     case 'forbidden':
-      return { text: 'אין הרשאה לפעולה הזו.', reload: false };
+      return { text: tr('אין הרשאה לפעולה הזו.'), reload: false };
     case 'stale': {
       const idx = typeof e.details?.index === 'number' ? e.details.index : typeof e.details?.target === 'number' ? e.details.target : null;
       const name = idx !== null && nameOfIndex ? nameOfIndex(idx) : null;
-      return { text: name ? `הערכים של ${name} השתנו ב־NVR. נטען מחדש.` : 'הערכים השתנו ב־NVR. נטען מחדש.', reload: true };
+      return { text: name ? tr('הערכים של {name} השתנו ב־NVR. נטען מחדש.', { name }) : tr('הערכים השתנו ב־NVR. נטען מחדש.'), reload: true };
     }
     case 'batch_target_not_allowed':
-      return { text: 'אחת המצלמות אינה מתאימה לשינוי. נטען מחדש.', reload: true };
+      return { text: tr('אחת המצלמות אינה מתאימה לשינוי. נטען מחדש.'), reload: true };
     case 'write_in_progress':
-      return { text: 'שינוי אחר של אחד הזרמים מתבצע. נסו שוב בעוד רגע.', reload: false };
+      return { text: tr('שינוי אחר של אחד הזרמים מתבצע. נסו שוב בעוד רגע.'), reload: false };
     case 'capabilities_unreadable':
-      return { text: 'יכולות הזרם אינן ידועות, ולכן השינוי בוטל.', reload: false };
+      return { text: tr('יכולות הזרם אינן ידועות, ולכן השינוי בוטל.'), reload: false };
     case 'confirm_required':
-      return { text: 'נדרש אישור.', reload: false };
+      return { text: tr('נדרש אישור.'), reload: false };
     case 'not_rollbackable':
-      return { text: 'אי אפשר לבטל את השינוי הזה.', reload: false };
+      return { text: tr('אי אפשר לבטל את השינוי הזה.'), reload: false };
     case 'source_unavailable':
-      return { text: 'ה־NVR אינו זמין.', reload: false };
+      return { text: tr('ה־NVR אינו זמין.'), reload: false };
     case 'network':
-      return { text: 'אין חיבור לשרת.', reload: false };
+      return { text: tr('אין חיבור לשרת.'), reload: false };
     default:
-      return { text: e.status === 422 ? e.user_message || 'הבחירה אינה תקינה.' : e.user_message || 'הפעולה לא בוצעה.', reload: false };
+      return { text: e.status === 422 ? e.user_message || tr('הבחירה אינה תקינה.') : e.user_message || tr('הפעולה לא בוצעה.'), reload: false };
   }
 }
 
 // ------------------------------------------------------------------------------------------------ the confirmations
 
-export const CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
-export const UNDO_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה ותעצור בשגיאה הראשונה.';
+export const CONFIRM_LEAD = tr('השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.');
+export const UNDO_LEAD = tr('השידור של כל מצלמה ייקטע לכמה שניות. ההחזרה תתבצע מצלמה אחרי מצלמה ותעצור בשגיאה הראשונה.');
 
 export interface BatchConfirm {
   heading: string;
@@ -351,14 +352,14 @@ export interface BatchConfirm {
 }
 
 export function batchConfirmModel(names: string[]): BatchConfirm {
-  return { heading: `לכבות SVC ${inCameras(names.length)}?`, lead: CONFIRM_LEAD, count: camerasLabel(names.length), confirmLabel: 'כבה', details: [], names };
+  return { heading: tr('לכבות SVC {where}?', { where: inCameras(names.length) }), lead: CONFIRM_LEAD, count: camerasLabel(names.length), confirmLabel: tr('כבה'), details: [], names };
 }
 
 export function undoConfirmModel(names: string[], mode: Batch['mode'] = 'svc', onRefusal?: Batch['on_refusal']): BatchConfirm {
   if (mode === 'encoding') {
-    return { heading: `להחזיר את הקידוד ${inStreamsOf(names.length)}?`, lead: onRefusal ? encodingUndoLead(onRefusal) : UNDO_LEAD, count: names.length === 1 ? 'זרם אחד' : `${names.length} זרמים`, confirmLabel: 'החזר', details: [], names };
+    return { heading: tr('להחזיר את הקידוד {where}?', { where: inStreamsOf(names.length) }), lead: onRefusal ? encodingUndoLead(onRefusal) : UNDO_LEAD, count: names.length === 1 ? tr('זרם אחד') : tr('{length} זרמים', { length: names.length }), confirmLabel: tr('החזר'), details: [], names };
   }
-  return { heading: `להחזיר SVC ${inCameras(names.length)}?`, lead: UNDO_LEAD, count: camerasLabel(names.length), confirmLabel: 'החזר', details: [], names };
+  return { heading: tr('להחזיר SVC {where}?', { where: inCameras(names.length) }), lead: UNDO_LEAD, count: camerasLabel(names.length), confirmLabel: tr('החזר'), details: [], names };
 }
 
 /** Which batch ids a page remembers across a reload (the server is the truth; this is only "which one was I looking at"). */

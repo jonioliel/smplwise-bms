@@ -9,6 +9,7 @@ import { mmss } from './media-remote-logic';
 import { remoteStyles } from './media-remote-css';
 import { playerBase, playerStyles } from './media-player-css';
 import { ic } from './media-player-icons';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-016 phase 2b (docs/changes/CR-016-MEDIA-PLAYERS.md section 17.8): the FULL queue of a player inside the player panel - the "הבא בתור" block when the
@@ -310,10 +311,10 @@ export class MediaQueueList extends LitElement {
     this.busy = new Set(this.busy).add(id);
     try {
       const r = await sendQueueEdit(this.deviceKey, op, { ...(row ? { item: row.item } : {}), ...extra });
-      if (r.status === 'refused') this.say(queueResultLine(r, extra.items?.length ?? 1) || 'הפעולה נדחתה');
+      if (r.status === 'refused') this.say(queueResultLine(r, extra.items?.length ?? 1) || tr('הפעולה נדחתה'));
     } catch (err) {
       const done = partialDone(err);
-      this.say(done !== null && extra.items ? `הוסרו ${done} מתוך ${extra.items.length}` : playerErrorText(err));
+      this.say(done !== null && extra.items ? tr('הוסרו {n} מתוך {total}', { n: done, total: extra.items.length }) : playerErrorText(err));
     } finally {
       const next = new Set(this.busy);
       next.delete(id);
@@ -412,34 +413,34 @@ export class MediaQueueList extends LitElement {
     const movable = this.rows.filter((r) => !r.locked).length;
     const n = this.selected.length;
     const acts = !this.canEdit || movable === 0 ? nothing : this.select
-      ? html`<span class="hacts"><small class="n" data-qx-sel-count>${n} נבחרו</small>
-          <button type="button" class="lnk danger" data-qx-remove-sel ?disabled=${n === 0 || this.busy.has('delete_many')} @click=${() => (this.ask = 'remove')}>הסר</button>
-          <button type="button" class="lnk" data-qx-select-cancel @click=${() => this.endSelect()}>ביטול</button></span>`
-      : html`<span class="hacts"><button type="button" class="lnk" data-qx-select @click=${() => { this.select = true; this.ask = null; }}>בחר</button>
-          <button type="button" class="lnk" data-qx-clear ?disabled=${this.busy.has('clear') || this.busy.has('clear_upcoming')} @click=${() => (this.ask = 'clear')}>נקה תור</button></span>`;
-    const head = html`<div class="psh"><h4>הבא בתור</h4>${count ? html`<small class="n" data-qx-count>${count}</small>` : nothing}${acts}</div>`;
+      ? html`<span class="hacts"><small class="n" data-qx-sel-count>${tr('{n} נבחרו', { n })}</small>
+          <button type="button" class="lnk danger" data-qx-remove-sel ?disabled=${n === 0 || this.busy.has('delete_many')} @click=${() => (this.ask = 'remove')}>${tr('הסר')}</button>
+          <button type="button" class="lnk" data-qx-select-cancel @click=${() => this.endSelect()}>${tr('ביטול')}</button></span>`
+      : html`<span class="hacts"><button type="button" class="lnk" data-qx-select @click=${() => { this.select = true; this.ask = null; }}>${tr('בחר')}</button>
+          <button type="button" class="lnk" data-qx-clear ?disabled=${this.busy.has('clear') || this.busy.has('clear_upcoming')} @click=${() => (this.ask = 'clear')}>${tr('נקה תור')}</button></span>`;
+    const head = html`<div class="psh"><h4>${tr('הבא בתור')}</h4>${count ? html`<small class="n" data-qx-count>${count}</small>` : nothing}${acts}</div>`;
     if (l === null) return html`${head}<div class="uq" aria-busy="true" data-pn-upnext="loading"><span class="skl skl-row"></span><span class="skl skl-row"></span><span class="skl skl-row"></span></div>`;
-    if (l === 'error' || !l.confirmed) return html`${head}<div class="uq" data-pn-upnext="unavailable"><div class="unav">${ic('wifiOff')}לא זמין</div></div>`;
+    if (l === 'error' || !l.confirmed) return html`${head}<div class="uq" data-pn-upnext="unavailable"><div class="unav">${ic('wifiOff')}${tr('לא זמין')}</div></div>`;
     const d = this.drag;
     const up = upcomingCount(l);
     return html`${head}
       ${this.ask === 'clear'
-        ? html`<div class="ask choice" role="alertdialog" aria-label="ניקוי התור" data-qx-ask="clear"><b>לנקות את התור?</b>
-            ${up > 0 ? html`<button type="button" class="opt" data-qx-clear-upcoming @click=${() => this.clear('clear_upcoming')}>נקה את הבאים<small>${up} שירים; השיר הנוכחי ממשיך</small></button>` : nothing}
-            <button type="button" class="opt danger" data-qx-clear-all @click=${() => this.clear('clear')}>נקה הכול<small>הניגון ייעצר</small></button>
-            <button type="button" class="no" data-qx-ask-no @click=${() => (this.ask = null)}>ביטול</button></div>`
+        ? html`<div class="ask choice" role="alertdialog" aria-label=${tr('ניקוי התור')} data-qx-ask="clear"><b>${tr('לנקות את התור?')}</b>
+            ${up > 0 ? html`<button type="button" class="opt" data-qx-clear-upcoming @click=${() => this.clear('clear_upcoming')}>${tr('נקה את הבאים')}<small>${tr('{n} שירים; השיר הנוכחי ממשיך', { n: up })}</small></button>` : nothing}
+            <button type="button" class="opt danger" data-qx-clear-all @click=${() => this.clear('clear')}>${tr('נקה הכול')}<small>${tr('הניגון ייעצר')}</small></button>
+            <button type="button" class="no" data-qx-ask-no @click=${() => (this.ask = null)}>${tr('ביטול')}</button></div>`
         : nothing}
       ${this.ask === 'remove'
-        ? html`<div class="ask" role="alertdialog" aria-label="הסרת שירים" data-qx-ask="remove"><span class="sp">להסיר ${n} שירים מהתור?</span>
-            <button type="button" class="yes" data-qx-remove-yes @click=${() => this.removeSelected()}>הסר</button>
-            <button type="button" class="no" data-qx-ask-no @click=${() => (this.ask = null)}>ביטול</button></div>`
+        ? html`<div class="ask" role="alertdialog" aria-label=${tr('הסרת שירים')} data-qx-ask="remove"><span class="sp">${tr('להסיר {n} שירים מהתור?', { n })}</span>
+            <button type="button" class="yes" data-qx-remove-yes @click=${() => this.removeSelected()}>${tr('הסר')}</button>
+            <button type="button" class="no" data-qx-ask-no @click=${() => (this.ask = null)}>${tr('ביטול')}</button></div>`
         : nothing}
-      <div class="uq" role="list" aria-label="תור הניגון" data-pn-upnext="queue">
+      <div class="uq" role="list" aria-label=${tr('תור הניגון')} data-pn-upnext="queue">
         ${this.rows.length
           ? repeat(this.rows, (r) => r.item, (r) => this.row(r, l.index, d))
-          : html`<div class="unav" data-qx-empty>${ic('list')}התור ריק</div>`}
+          : html`<div class="unav" data-qx-empty>${ic('list')}${tr('התור ריק')}</div>`}
       </div>
-      ${this.select && n >= QUEUE_SELECT_MAX ? html`<div class="qnote" role="status" data-qx-cap>אפשר לבחור עד ${QUEUE_SELECT_MAX} שירים</div>` : nothing}
+      ${this.select && n >= QUEUE_SELECT_MAX ? html`<div class="qnote" role="status" data-qx-cap>${tr('אפשר לבחור עד {n} שירים', { n: QUEUE_SELECT_MAX })}</div>` : nothing}
       ${this.note ? html`<div class="qnote" role="status" data-qx-note>${this.note}</div>` : nothing}`;
   }
 
@@ -457,15 +458,15 @@ export class MediaQueueList extends LitElement {
     const tap = tappable
       ? this.select
         ? html`<button type="button" role="checkbox" aria-checked=${String(picked)} class=${classMap({ tap: true, sel: picked })} data-qx-pick @click=${() => this.onPlay(r)}>${inner}</button>`
-        : html`<button type="button" class=${classMap({ tap: true, pend: this.busy.has(`play:${r.item}`) })} aria-label=${`נגן עכשיו: ${r.name}`} data-qx-play @click=${() => this.onPlay(r)}>${inner}</button>`
+        : html`<button type="button" class=${classMap({ tap: true, pend: this.busy.has(`play:${r.item}`) })} aria-label=${tr('נגן עכשיו: {name}', { name: r.name })} data-qx-play @click=${() => this.onPlay(r)}>${inner}</button>`
       : html`<div class=${classMap({ tap: true, off: this.select && r.locked })}>${inner}</div>`;
     return html`<div class=${classMap({ row: true, qrow: true, cur, dragging, 'over-before': overBefore, 'over-after': overAfter })} role="listitem" data-qx-row=${r.index}
         data-qx-locked=${String(r.locked)} style=${dragging ? `transform:translateY(${d!.dy}px)` : ''}>
       ${tap}
       <span class="acts">${edit
-        ? html`<button type="button" class=${classMap({ qb: true, pend: this.busy.has(`top:${r.item}`) })} title="העבר לראש התור" aria-label="העבר לראש התור" data-qx-next @click=${() => this.onNext(r)}>${ic('playNext')}</button>
-            <button type="button" class=${classMap({ qb: true, del: true, pend: this.busy.has(`delete:${r.item}`) })} title="הסר מהתור" aria-label="הסר מהתור" data-qx-delete @click=${() => this.onDelete(r)}>${ic('trash')}</button>
-            <button type="button" class="qb grip" title="גרור לשינוי הסדר" aria-label="הזז בתור (חצים למעלה ולמטה)" data-qx-grip=${r.item}
+        ? html`<button type="button" class=${classMap({ qb: true, pend: this.busy.has(`top:${r.item}`) })} title=${tr('העבר לראש התור')} aria-label=${tr('העבר לראש התור')} data-qx-next @click=${() => this.onNext(r)}>${ic('playNext')}</button>
+            <button type="button" class=${classMap({ qb: true, del: true, pend: this.busy.has(`delete:${r.item}`) })} title=${tr('הסר מהתור')} aria-label=${tr('הסר מהתור')} data-qx-delete @click=${() => this.onDelete(r)}>${ic('trash')}</button>
+            <button type="button" class="qb grip" title=${tr('גרור לשינוי הסדר')} aria-label=${tr('הזז בתור (חצים למעלה ולמטה)')} data-qx-grip=${r.item}
               @pointerdown=${(e: PointerEvent) => this.onGripDown(e, r)} @pointermove=${(e: PointerEvent) => this.onGripMove(e)}
               @pointerup=${() => this.onGripUp(r)} @pointercancel=${() => (this.drag = null)} @keydown=${(e: KeyboardEvent) => this.onGripKey(e, r)}>${ic('grip')}</button>`
         : nothing}</span>

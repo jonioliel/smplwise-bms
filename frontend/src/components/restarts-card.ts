@@ -7,6 +7,7 @@ import './sw-icon';
 import { get } from '../api/client';
 import { can, onRemote } from '../api/session';
 import { classifyRunError, newIdempotencyKey, restartArx, restartPlatform, runFailureRequestText, type RestartReason, type RunView } from '../api/system-update-runs';
+import { tr } from '../i18n/msg/components';
 
 /** How long the screen waits for Arx to answer again before it asks for a manual start (the same two minutes as the connection banner). */
 export const RESTART_WAIT_MS = 120_000;
@@ -196,27 +197,27 @@ export class SwRestartsCard extends LitElement {
   render() {
     const arx = this.which === 'arx';
     const disabled = this.busy || this.phase === 'sending';
-    return html`<sw-card heading="הפעלות מחדש" data-restarts-card>
+    return html`<sw-card heading=${tr('הפעלות מחדש')} data-restarts-card>
       ${this.required
-        ? html`<div class="row" data-restart-required><span class="need"><span class="dot" aria-hidden="true"></span>נדרשת הפעלה מחדש של תשתית המערכת</span>${this.reasons.filter((r) => r.code === 'bridge').map((r) => html`<span class="lbl" data-restart-reason>רכיב החיבור: ממתינה גרסה ${r.version ?? '—'}, פועלת ${r.running ?? 'לא דווחה'}</span>`)}</div>`
+        ? html`<div class="row" data-restart-required><span class="need"><span class="dot" aria-hidden="true"></span>${tr('נדרשת הפעלה מחדש של תשתית המערכת')}</span>${this.reasons.filter((r) => r.code === 'bridge').map((r) => html`<span class="lbl" data-restart-reason>${tr('רכיב החיבור: ממתינה גרסה {pending}, פועלת {running}', { pending: r.version ?? '—', running: r.running ?? tr('לא דווחה') })}</span>`)}</div>`
         : nothing}
       ${this.phase === 'waiting'
-        ? html`<div class="wait" role="status" data-restart-phase="waiting"><sw-icon name="refresh" size=${18}></sw-icon>המערכת מופעלת מחדש…</div>`
+        ? html`<div class="wait" role="status" data-restart-phase="waiting"><sw-icon name="refresh" size=${18}></sw-icon>${tr('המערכת מופעלת מחדש…')}</div>`
         : this.phase === 'manual'
-          ? html`<div class="row" role="alert" data-restart-phase="manual"><span class="lbl" data-restart-manual>המערכת לא חזרה. הפעילו ידנית.</span><sw-button data-restart-again @click=${() => this.again()}>בדקו שוב</sw-button></div>`
+          ? html`<div class="row" role="alert" data-restart-phase="manual"><span class="lbl" data-restart-manual>${tr('המערכת לא חזרה. הפעילו ידנית.')}</span><sw-button data-restart-again @click=${() => this.again()}>${tr('בדקו שוב')}</sw-button></div>`
           : html`<div class="rows">
               ${can('system.configure') && !onRemote()
-                ? html`<div class="row"><span class="lbl">Arx</span><sw-button icon="power" ?disabled=${disabled} data-restart-arx @click=${() => this.ask('arx')}>הפעל מחדש את Arx</sw-button></div>`
+                ? html`<div class="row"><span class="lbl">Arx</span><sw-button icon="power" ?disabled=${disabled} data-restart-arx @click=${() => this.ask('arx')}>${tr('הפעל מחדש את Arx')}</sw-button></div>`
                 : nothing}
-              <div class="row"><span class="lbl">תשתית המערכת</span><sw-button icon="power" variant=${this.required ? 'primary' : 'secondary'} ?disabled=${disabled} data-restart-platform @click=${() => this.ask('platform')}>הפעל מחדש את תשתית המערכת</sw-button></div>
+              <div class="row"><span class="lbl">${tr('תשתית המערכת')}</span><sw-button icon="power" variant=${this.required ? 'primary' : 'secondary'} ?disabled=${disabled} data-restart-platform @click=${() => this.ask('platform')}>${tr('הפעל מחדש את תשתית המערכת')}</sw-button></div>
             </div>`}
       ${this.error ? html`<p class="msg err" role="alert" data-restart-error>${this.error}</p>` : nothing}
     </sw-card>
-    <sw-dialog ?open=${this.phase === 'confirm'} heading=${arx ? 'להפעיל מחדש את Arx?' : 'להפעיל מחדש את תשתית המערכת?'}
-        subheading=${arx ? 'המערכת לא תהיה זמינה לרגעים אחדים' : 'Arx יישאר פעיל, אך התשתית לא תהיה זמינה לכמה דקות'} data-restart-dialog data-restart-which=${this.which} @close=${() => this.cancel()}>
+    <sw-dialog ?open=${this.phase === 'confirm'} heading=${arx ? tr('להפעיל מחדש את Arx?') : tr('להפעיל מחדש את תשתית המערכת?')}
+        subheading=${arx ? tr('המערכת לא תהיה זמינה לרגעים אחדים') : tr('Arx יישאר פעיל, אך התשתית לא תהיה זמינה לכמה דקות')} data-restart-dialog data-restart-which=${this.which} @close=${() => this.cancel()}>
         <div slot="footer">
-          <sw-button variant="primary" data-restart-confirm @click=${() => void this.confirm()}>הפעל מחדש</sw-button>
-          <sw-button variant="ghost" data-restart-cancel @click=${() => this.cancel()}>ביטול</sw-button>
+          <sw-button variant="primary" data-restart-confirm @click=${() => void this.confirm()}>${tr('הפעל מחדש')}</sw-button>
+          <sw-button variant="ghost" data-restart-cancel @click=${() => this.cancel()}>${tr('ביטול')}</sw-button>
         </div>
       </sw-dialog>`;
   }

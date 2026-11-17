@@ -8,6 +8,7 @@ import { tint } from './media-remote-keys';
 import { remoteStyles } from './media-remote-css';
 import { playerBase, playerStyles } from './media-player-css';
 import { gl, ic } from './media-player-icons';
+import { tr } from '../i18n/msg/components';
 
 /** What the panel does with a tapped item: the ordinary `play_item` command (play now, after the current one, or at the end). */
 export interface PlayItemEvent {
@@ -273,20 +274,20 @@ export class MediaLibraryBrowse extends LitElement {
   protected render(): TemplateResult {
     return html`
       ${this.canSearch
-        ? html`<label class="srch" data-lb-search>${ic('search')}<input type="search" .value=${this.q} maxlength=${SEARCH_MAX} placeholder="חיפוש בספרייה" aria-label="חיפוש בספרייה" enterkeyhint="search"
+        ? html`<label class="srch" data-lb-search>${ic('search')}<input type="search" .value=${this.q} maxlength=${SEARCH_MAX} placeholder=${tr('חיפוש בספרייה')} aria-label=${tr('חיפוש בספרייה')} enterkeyhint="search"
               @input=${this.onInput} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { window.clearTimeout(this.debounce); void this.load(false); } }} />
-            ${this.q ? html`<button type="button" class="x" aria-label="נקה חיפוש" data-lb-clear @click=${this.clearQ}>${ic('close')}</button>` : nothing}</label>`
+            ${this.q ? html`<button type="button" class="x" aria-label=${tr('נקה חיפוש')} data-lb-clear @click=${this.clearQ}>${ic('close')}</button>` : nothing}</label>`
         : nothing}
-      <div class="chips" role="group" aria-label="סוג" data-lb-types>${BROWSE_TYPES.map((t) => html`<button type="button" class="chip" aria-pressed=${String(this.type === t)} data-lb-type=${t} @click=${() => this.pick(t)}>${BROWSE_TYPE_LABEL[t]}</button>`)}</div>
+      <div class="chips" role="group" aria-label=${tr('סוג')} data-lb-types>${BROWSE_TYPES.map((t) => html`<button type="button" class="chip" aria-pressed=${String(this.type === t)} data-lb-type=${t} @click=${() => this.pick(t)}>${BROWSE_TYPE_LABEL[t]}</button>`)}</div>
       ${this.body()}`;
   }
 
   private body(): TemplateResult {
     if (this.items === null) return html`<div class="libg" aria-busy="true" data-lb="loading"><span class="skl skl-row"></span><span class="skl skl-row"></span><span class="skl skl-row"></span><span class="skl skl-row"></span></div>`;
-    if (this.failed && !this.items.length) return html`<div class="libempty" data-lb="error">לא זמין</div>`;
-    if (!this.items.length) return html`<div class="libempty" data-lb="empty">${this.q ? 'לא נמצאו פריטים' : 'אין פריטים'}</div>`;
+    if (this.failed && !this.items.length) return html`<div class="libempty" data-lb="error">${tr('לא זמין')}</div>`;
+    if (!this.items.length) return html`<div class="libempty" data-lb="empty">${this.q ? tr('לא נמצאו פריטים') : tr('אין פריטים')}</div>`;
     return html`<div class="libg" role="list" data-lb=${this.type}>${repeat(this.items, (i) => i.item_ref, (i) => this.tile(i))}</div>
-      ${this.more ? html`<button type="button" class="moreb" data-lb-more ?disabled=${this.loadingMore} @click=${() => void this.load(true)}>${ic('chevronDown')}עוד</button>` : nothing}`;
+      ${this.more ? html`<button type="button" class="moreb" data-lb-more ?disabled=${this.loadingMore} @click=${() => void this.load(true)}>${ic('chevronDown')}${tr('עוד')}</button>` : nothing}`;
   }
 
   private tile(i: LibraryItem): TemplateResult {
@@ -294,11 +295,11 @@ export class MediaLibraryBrowse extends LitElement {
     const pend = this.pending.has(`item:${i.item_ref}`);
     return html`<div class="tile" role="listitem">
       <button type="button" class=${classMap({ libi: true, pend })} data-lb-item=${i.item_ref} aria-current=${String(this.current !== null && i.name === this.current)} ?disabled=${!this.canPlay || pend}
-        title=${this.enqueueOk ? 'נגן עכשיו · לחיצה ארוכה: אחרי הנוכחי' : 'נגן עכשיו'} @pointerdown=${() => this.onDown(i)} @pointerup=${this.onUp} @pointerleave=${this.onUp} @pointercancel=${this.onUp} @click=${() => this.onTap(i)}>
+        title=${this.enqueueOk ? tr('נגן עכשיו · לחיצה ארוכה: אחרי הנוכחי') : tr('נגן עכשיו')} @pointerdown=${() => this.onDown(i)} @pointerup=${this.onUp} @pointerleave=${this.onUp} @pointercancel=${this.onUp} @click=${() => this.onTap(i)}>
         <span class="gi" style="--a1:${t.a1};--a2:${t.a2};--art:${t.rgb}">${gl(i.kind === 'radio' ? 'radio' : i.glyph, 'ic')}</span>
         <span class="t"><b>${bidi(i.name)}</b>${i.artist ? html`<small>${bidi(i.artist)}</small>` : nothing}</span></button>
       ${this.enqueueOk && i.kind !== 'radio'
-        ? html`<button type="button" class="add" title="הוסף לתור" aria-label="הוסף לתור" data-lb-add=${i.item_ref} ?disabled=${!this.canPlay || pend} @click=${() => this.fire(i, 'add')}>${ic('addQueue')}</button>`
+        ? html`<button type="button" class="add" title=${tr('הוסף לתור')} aria-label=${tr('הוסף לתור')} data-lb-add=${i.item_ref} ?disabled=${!this.canPlay || pend} @click=${() => this.fire(i, 'add')}>${ic('addQueue')}</button>`
         : nothing}
     </div>`;
   }

@@ -5,6 +5,7 @@
  * Operator texts never name a platform or a vendor, and never claim a physical door state Arx did not measure: "the system confirmed the
  * return to normal", never "the door is closed" (CR-039 18.2). `{name}` placeholders are filled by `dwt(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 import { NAV_DWT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
 
 const he = {
@@ -842,17 +843,18 @@ export const DWT_KEYS = Object.keys(he) as DwtKey[];
 export const DWT_TABLES = TABLES;
 
 export function dwtLang(): DwtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function dwt(key: DwtKey, vars?: Record<string, string | number>, lang: DwtLang = dwtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A run-time key (`occ_<state>`, `rs_<state>`, `dr_<result>`...), or the fallback when there is none. */
 export function dwtDynamic(key: string, fallback: DwtKey, vars?: Record<string, string | number>): string {
   return key in he ? dwt(key as DwtKey, vars) : dwt(fallback, vars);
 }
+
+registerCatalogue('i18n/door-windows', { he, en, ar, ru }, DWT_DEV_MARKED);

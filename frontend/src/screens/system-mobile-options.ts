@@ -13,6 +13,7 @@ import {
 } from '../shell/phone';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/system-b';
 
 /** The options in the order the settings card lists them (the structure guard first: it is on by default). */
 const KINDS: readonly MobileKind[] = ['structure', 'control_images', 'layout_editor', 'wall_arrange', 'settings_writes', 'permissions'];
@@ -108,7 +109,7 @@ export class SystemMobileOptions extends LitElement {
       invalidateSettings();
       setInstallationMobileOptions(r.settings['ui.mobile']); // every open screen follows at once
       this.draft = normalizeMobileOptions(r.settings['ui.mobile']);
-      this.message = 'האפשרויות נשמרו';
+      this.message = tr('האפשרויות נשמרו');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -119,14 +120,14 @@ export class SystemMobileOptions extends LitElement {
 
   render() {
     const editable = this.canEdit && isApi();
-    return html`<sw-card heading="אפשרויות נייד" subheading="חלות רק במסך צר (עד 768 פיקסלים); ההרשאות אינן משתנות" data-mobile-options>
+    return html`<sw-card heading=${tr('אפשרויות נייד')} subheading=${tr('חלות רק במסך צר (עד 768 פיקסלים); ההרשאות אינן משתנות')} data-mobile-options>
       ${KINDS.map(
         (k) => html`<div class="row" data-mobile-option=${k}><span class="lbl">${MOBILE_OPTION_LABEL[k]}</span>
           <sw-toggle ?checked=${this.draft[`hide_${k}`]} ?disabled=${!editable || this.busy} label=${MOBILE_OPTION_LABEL[k]} labelHidden data-mobile-toggle=${k} @change=${(e: CustomEvent<{ checked: boolean }>) => this.set(k, e.detail.checked)}></sw-toggle></div>`,
       )}
       ${editable
         ? html`<div class="foot">
-            <sw-button variant="primary" size="sm" icon="check" data-mobile-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>
+            <sw-button variant="primary" size="sm" icon="check" data-mobile-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
             ${this.message ? html`<span class="ok" role="status" data-mobile-message>${this.message}</span>` : nothing}
             ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
           </div>`

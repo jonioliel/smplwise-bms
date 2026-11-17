@@ -9,6 +9,7 @@ import { isApi } from '../api/session';
 import { BULK_KIND_LABEL, followBulk, previewBulk, runBulk, type BulkKind, type BulkPreview, type BulkRecord } from '../api/device-bulk';
 import type { BulkTarget } from '../api/home-site';
 import { ltrNum } from '../i18n/bidi';
+import { tr } from '../i18n/msg/screens';
 
 /** One building of the dialog: its requests (api/home-site.ts bulkTargets) and the tree's hint of what is on. */
 export interface SiteOffBuilding {
@@ -204,7 +205,7 @@ export class HomeSiteOff extends LitElement {
       this.previews = out.filter((x) => x.p.count > 0);
       this.phase = this.previews.length ? 'confirm' : 'nothing';
     } catch (err) {
-      this.error = err instanceof ApiError && err.status === 403 ? 'אין לך הרשאה לפעולות מרוכזות בהיקף הזה.' : describeError(err);
+      this.error = err instanceof ApiError && err.status === 403 ? tr('אין לך הרשאה לפעולות מרוכזות בהיקף הזה.') : describeError(err);
       this.phase = 'error';
     }
   }
@@ -222,7 +223,7 @@ export class HomeSiteOff extends LitElement {
       this.dispatchEvent(new CustomEvent('bulk-done', { bubbles: true, composed: true }));
     } catch (err) {
       this.error = err instanceof ApiError && err.code === 'target_changed'
-        ? 'רשימת ההתקנים השתנתה מאז שנפתח החלון, ולכן חלק מהפקודות לא נשלחו. פתחו את הפעולה מחדש.'
+        ? tr('רשימת ההתקנים השתנתה מאז שנפתח החלון, ולכן חלק מהפקודות לא נשלחו. פתחו את הפעולה מחדש.')
         : describeError(err);
       this.phase = 'error';
       this.dispatchEvent(new CustomEvent('bulk-done', { bubbles: true, composed: true }));
@@ -237,40 +238,40 @@ export class HomeSiteOff extends LitElement {
   render() {
     if (this.phase === 'closed') return html`<sw-dialog data-site-off="closed"></sw-dialog>`;
     const chosen = this.chosen();
-    const heading = this.single ? `${BULK_KIND_LABEL[this.kind]} ב${chosen[0]?.name ?? ''}` : `${BULK_KIND_LABEL[this.kind]} באתר?`;
+    const heading = this.single ? tr('{action} ב{place}', { action: BULK_KIND_LABEL[this.kind], place: chosen[0]?.name ?? '' }) : tr('{action} באתר?', { action: BULK_KIND_LABEL[this.kind] });
     return html`<sw-dialog open ?locked=${this.phase === 'loading'} data-site-off=${this.phase} heading=${heading} @close=${this.close}>${this.body(chosen)}</sw-dialog>`;
   }
 
   private body(chosen: SiteOffBuilding[]) {
-    const cancel = (label = 'ביטול') => html`<sw-button data-site-off-cancel autofocus @click=${this.close}>${label}</sw-button>`;
+    const cancel = (label = tr('ביטול')) => html`<sw-button data-site-off-cancel autofocus @click=${this.close}>${label}</sw-button>`;
     if (this.phase === 'pick') {
       const total = this.buildings.reduce((s, b) => s + b.activeOn, 0);
       const sharedOff = this.buildings.some((b) => b.shared && !this.checked[b.id]);
-      return html`<p class="lead">תאורה, מתגים, מיזוג, תריסים ומסכים - ${ltrNum(total)} פעילים ב־${ltrNum(this.buildings.length)} בניינים. בחרו מה נכלל:</p>
+      return html`<p class="lead">${tr('תאורה, מתגים, מיזוג, תריסים ומסכים - {n} פעילים ב־{buildings} בניינים. בחרו מה נכלל:', { n: ltrNum(total), buildings: ltrNum(this.buildings.length) })}</p>
         <ul class="list" data-site-off-list>
           ${this.buildings.map((b) => html`<li><label class=${classMap({ b: true, shared: b.shared })}>
             <input type="checkbox" data-site-off-building=${b.id} .checked=${!!this.checked[b.id]} @change=${(e: Event) => (this.checked = { ...this.checked, [b.id]: (e.target as HTMLInputElement).checked })} />
-            <span class="nm">${b.name}</span><span class="hint">${ltrNum(b.lightsOn)} דולקות · ${ltrNum(b.activeOn)} פעילים</span>
+            <span class="nm">${b.name}</span><span class="hint">${tr('{n} דולקות', { n: ltrNum(b.lightsOn) })} · ${tr('{n} פעילים', { n: ltrNum(b.activeOn) })}</span>
           </label></li>`)}
         </ul>
-        ${sharedOff ? html`<div class="note" data-site-off-shared-note>"משותף" (חניון, שער, חדר חשמל) לא נכלל כברירת מחדל - הגדרה בהגדרות המסך הראשי.</div>` : nothing}
-        <div class="actions">${cancel()}<sw-button variant="danger" icon="bolt" data-site-off-next ?disabled=${!chosen.length} @click=${() => void this.load()}>המשך · ${ltrNum(chosen.length)} בניינים</sw-button></div>`;
+        ${sharedOff ? html`<div class="note" data-site-off-shared-note>${tr('"משותף" (חניון, שער, חדר חשמל) לא נכלל כברירת מחדל - הגדרה בהגדרות המסך הראשי.')}</div>` : nothing}
+        <div class="actions">${cancel()}<sw-button variant="danger" icon="bolt" data-site-off-next ?disabled=${!chosen.length} @click=${() => void this.load()}>${tr('המשך')} · ${tr('{n} בניינים', { n: ltrNum(chosen.length) })}</sw-button></div>`;
     }
-    if (this.phase === 'loading') return html`<div class="muted" data-site-off-loading>בודק מה דולק…</div><div class="actions">${cancel()}</div>`;
-    if (this.phase === 'error') return html`<div class="err" data-site-off-error>${this.error}</div><div class="actions">${cancel('סגור')}</div>`;
-    if (this.phase === 'nothing') return html`<div class="big" data-site-off-nothing>אין מה לכבות</div><div class="muted">בבחירה הזאת הכול כבר כבוי או שאין התקנים שאושרו לפעולה קבוצתית.</div><div class="actions">${cancel('סגור')}</div>`;
+    if (this.phase === 'loading') return html`<div class="muted" data-site-off-loading>${tr('בודק מה דולק…')}</div><div class="actions">${cancel()}</div>`;
+    if (this.phase === 'error') return html`<div class="err" data-site-off-error>${this.error}</div><div class="actions">${cancel(tr('סגור'))}</div>`;
+    if (this.phase === 'nothing') return html`<div class="big" data-site-off-nothing>${tr('אין מה לכבות')}</div><div class="muted">${tr('בבחירה הזאת הכול כבר כבוי או שאין התקנים שאושרו לפעולה קבוצתית.')}</div><div class="actions">${cancel(tr('סגור'))}</div>`;
     if (this.phase === 'confirm') {
       const demo = !isApi();
       const count = demo ? chosen.reduce((s, b) => s + b.activeOn, 0) : this.previews.reduce((s, x) => s + x.p.count, 0);
       const many = !this.single && chosen.length > 1;
-      const where = this.single ? chosen[0]?.name ?? '' : `${ltrNum(chosen.length)} בניינים`;
-      return html`<div class="big" data-site-off-question data-count=${count}>${BULK_KIND_LABEL[this.kind]} ב${this.single ? '' : '־'}${where}: ${ltrNum(count)} התקנים</div>
+      const where = this.single ? chosen[0]?.name ?? '' : tr('{n} בניינים', { n: ltrNum(chosen.length) });
+      return html`<div class="big" data-site-off-question data-count=${count}>${this.single ? tr('{action} ב{place}: {n} התקנים', { action: BULK_KIND_LABEL[this.kind], place: where, n: ltrNum(count) }) : tr('{action} ב־{place}: {n} התקנים', { action: BULK_KIND_LABEL[this.kind], place: where, n: ltrNum(count) })}</div>
         <ul class="list">${chosen.map((b) => {
           const n = demo ? b.activeOn : this.previews.filter((x) => x.b === b.id).reduce((s, x) => s + x.p.count, 0);
-          return html`<li class="muted" data-site-off-sum=${b.id}>${b.name} · ${ltrNum(n)} התקנים</li>`;
+          return html`<li class="muted" data-site-off-sum=${b.id}>${b.name} · ${tr('{n} התקנים', { n: ltrNum(n) })}</li>`;
         })}</ul>
-        ${many ? html`<label class="ack"><input type="checkbox" data-site-off-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} />אני מאשר כיבוי ב־${ltrNum(chosen.length)} בניינים</label>` : nothing}
-        ${demo ? html`<div class="note">נתוני הדגמה: אין שרת מחובר, לא יישלח דבר.</div>` : nothing}
+        ${many ? html`<label class="ack"><input type="checkbox" data-site-off-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} />${tr('אני מאשר כיבוי ב־{n} בניינים', { n: ltrNum(chosen.length) })}</label>` : nothing}
+        ${demo ? html`<div class="note">${tr('נתוני הדגמה: אין שרת מחובר, לא יישלח דבר.')}</div>` : nothing}
         <div class="actions">${cancel()}<sw-button variant="danger" icon="bolt" data-site-off-confirm ?disabled=${demo || (many && !this.ack)} @click=${() => void this.confirm()}>${BULK_KIND_LABEL[this.kind]} (${ltrNum(count)})</sw-button></div>`;
     }
     const total = this.records.reduce((s, r) => s + r.counts.total, 0);
@@ -278,11 +279,11 @@ export class HomeSiteOff extends LitElement {
     const done = this.phase === 'result';
     const pct = total ? Math.round((ok / total) * 100) : 0;
     return html`<div class=${classMap({ headline: true, ok: done && ok === total, partial: done && ok < total })} data-site-off-result=${done ? (ok === total ? 'ok' : 'partial') : 'running'}>
-        ${done ? (ok === total ? 'בוצע' : `בוצע חלקית: ${ltrNum(total - ok)} לא אושרו`) : `${ltrNum(ok)} מתוך ${ltrNum(total)} אושרו`}
+        ${done ? (ok === total ? tr('בוצע') : tr('בוצע חלקית: {n} לא אושרו', { n: ltrNum(total - ok) })) : tr('{ok} מתוך {total} אושרו', { ok: ltrNum(ok), total: ltrNum(total) })}
       </div>
-      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${ok} aria-label="אושרו"><div style=${`inline-size:${pct}%`}></div></div>
-      <div class="muted">${done ? 'התקן ייחשב כבוי רק כשיתקבל דיווח על כך.' : 'אפשר לסגור את החלון; הפעולה ממשיכה בשרת.'}</div>
-      <div class="actions">${cancel('סגור')}</div>`;
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${ok} aria-label=${tr('אושרו')}><div style=${`inline-size:${pct}%`}></div></div>
+      <div class="muted">${done ? tr('התקן ייחשב כבוי רק כשיתקבל דיווח על כך.') : tr('אפשר לסגור את החלון; הפעולה ממשיכה בשרת.')}</div>
+      <div class="actions">${cancel(tr('סגור'))}</div>`;
   }
 }
 

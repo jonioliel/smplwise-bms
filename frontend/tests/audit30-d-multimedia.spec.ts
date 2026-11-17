@@ -50,7 +50,9 @@ test.describe('AUDIT30-D sources', () => {
   test('D3: the three screens are framed by sw-page and draw no <h1> of their own', () => {
     for (const s of SCREENS) {
       const src = read(s.file);
-      expect(src, s.file).toContain(`<sw-page class="page" wide heading="${s.title}"`);
+      // the Hebrew title is the source text: written in the attribute, or (I18N-EN-SWITCH-2438) handed to tr() so English can replace it
+      const framed = [`<sw-page class="page" wide heading="${s.title}"`, `<sw-page class="page" wide heading=\${tr('${s.title}')}`];
+      expect(framed.some((f) => src.includes(f)), `${s.file}: <sw-page class="page" wide> with the heading ${s.title}`).toBe(true);
       expect(src, s.file).not.toMatch(/<h1\b/);
     }
   });

@@ -9,6 +9,7 @@
  * name is never used (tests/unit-tickets-list.spec.ts reads this file).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // ---- the page frame
@@ -176,3 +177,5 @@ export const lt = catalogue.t;
 
 export const LIST_TEXT_KEYS = catalogue.KEYS;
 export const LIST_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/list-text', { he, en });

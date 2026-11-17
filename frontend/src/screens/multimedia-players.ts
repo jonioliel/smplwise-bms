@@ -36,6 +36,7 @@ import {
   playerCounts, playerFiltersActive, playerFiltersFromParams, playerFiltersToParams, playerFloors, resolvePlayerGroups, tabView, withTabView,
   type PlayerFilters, type PlayerGroup, type TabbedLayout,
 } from './multimedia-players-layout';
+import { tr } from '../i18n/msg/media';
 
 const PATH = '/multimedia/players';
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -233,7 +234,7 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
     const rooms = roomChips(scoped);
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
     if (tools && this.roomsAsDropdown(rooms.length + 1)) {
-      publishPairChip(this, { group: 'multimedia', label: 'חדרים', value: f.area, items: [{ id: '', label: 'הכל', count: scoped.length, icon: 'home' as const }, { id: '--sep', label: '', divider: true }, ...rooms.map((r) => ({ id: r.id, label: r.name, count: r.count, icon: 'door' as const }))], onPick: (id) => this.setFilters({ area: id }) });
+      publishPairChip(this, { group: 'multimedia', label: tr('חדרים'), value: f.area, items: [{ id: '', label: tr('הכל'), count: scoped.length, icon: 'home' as const }, { id: '--sep', label: '', divider: true }, ...rooms.map((r) => ({ id: r.id, label: r.name, count: r.count, icon: 'door' as const }))], onPick: (id) => this.setFilters({ area: id }) });
     } else clearPairChip(this);
   }
 
@@ -322,7 +323,7 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
     try {
       this.res = await media().saveLayout(this.payload(reset ? null : this.draft), this.res.revision);
       this.leaveEdit();
-      this.say(reset ? 'חזר לברירת המחדל' : 'נשמר');
+      this.say(reset ? tr('חזר לברירת המחדל') : tr('נשמר'));
     } catch (err) {
       if (err instanceof ApiError && err.code === 'revision_conflict') this.conflict = true;
       else this.saveError = describeError(err);
@@ -343,10 +344,10 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
     const pinned = draft.pinned.includes(d.key);
     const on = (draft.cards[d.key]?.on ?? true) as boolean;
     return html`<span class="ecard" slot="edit">
-      <button type="button" aria-label=${`הקדם · ${d.name}`} title="הקדם" ?disabled=${index === 0} @click=${() => this.patchDraft(moveInGroup(draft, asLayoutDevices(this.devices), d.key, -1))}>${mIcon('arrowUp')}</button>
-      <button type="button" aria-label=${`אחר · ${d.name}`} title="אחר" ?disabled=${index === count - 1} @click=${() => this.patchDraft(moveInGroup(draft, asLayoutDevices(this.devices), d.key, 1))}>${mIcon('arrowDown')}</button>
-      <button type="button" aria-pressed=${String(pinned)} aria-label=${`מועדף · ${d.name}`} title="מועדף" @click=${() => this.patchDraft(togglePin(draft, d.key))}>${mIcon('star')}</button>
-      <button type="button" aria-label=${`${on ? 'הסתר' : 'הצג'} · ${d.name}`} title=${on ? 'הסתר' : 'הצג'} @click=${() => this.patchDraft(setCard(draft, d.key, { on: !on }))}>${mIcon(on ? 'eye' : 'eyeOff')}</button>
+      <button type="button" aria-label=${tr('הקדם · {name}', { name: d.name })} title=${tr('הקדם')} ?disabled=${index === 0} @click=${() => this.patchDraft(moveInGroup(draft, asLayoutDevices(this.devices), d.key, -1))}>${mIcon('arrowUp')}</button>
+      <button type="button" aria-label=${tr('אחר · {name}', { name: d.name })} title=${tr('אחר')} ?disabled=${index === count - 1} @click=${() => this.patchDraft(moveInGroup(draft, asLayoutDevices(this.devices), d.key, 1))}>${mIcon('arrowDown')}</button>
+      <button type="button" aria-pressed=${String(pinned)} aria-label=${tr('מועדף · {name}', { name: d.name })} title=${tr('מועדף')} @click=${() => this.patchDraft(togglePin(draft, d.key))}>${mIcon('star')}</button>
+      <button type="button" aria-label=${`${on ? tr('הסתר') : tr('הצג')} · ${d.name}`} title=${on ? tr('הסתר') : tr('הצג')} @click=${() => this.patchDraft(setCard(draft, d.key, { on: !on }))}>${mIcon(on ? 'eye' : 'eyeOff')}</button>
     </span>`;
   }
 
@@ -370,10 +371,10 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
       ? html`<h2>${nameText(bidi(g.label))}</h2>`
       : html`<h2><button type="button" class="shlink" data-group-open=${g.id} @click=${() => this.setFilters(g.id === UNPLACED_ID ? { floor: UNPLACED_ID, area: '' } : { floor: g.id, area: '' })}>${bidi(g.label)}${mIcon('chevronBack')}</button></h2>`;
     const sub = g.id === UNPLACED_ID
-      ? html`<span class="n">${counts.total}</span> ללא חדר`
-      : html`<span class="n">${counts.total}</span> התקנים${counts.playing ? html` · <em><span class="n">${counts.playing}</span></em> מנגנים` : nothing}`;
+      ? html`<span class="n">${counts.total}</span> ${tr('ללא חדר')}`
+      : html`<span class="n">${counts.total}</span> ${tr('התקנים')}${counts.playing ? html` · <em><span class="n">${counts.playing}</span></em> ${tr('מנגנים')}` : nothing}`;
     const pauseBtn = canPause
-      ? html`<button type="button" class="btn sm quiet" data-floor-pause=${g.id} @click=${() => void this.dialog?.pause({ scope: 'floor', id: g.id, name: g.label })}>${mIcon('pause')}עצור מוזיקה</button>`
+      ? html`<button type="button" class="btn sm quiet" data-floor-pause=${g.id} @click=${() => void this.dialog?.pause({ scope: 'floor', id: g.id, name: g.label })}>${mIcon('pause')}${tr('עצור מוזיקה')}</button>`
       : nothing;
     return html`<section class="fsec" ?data-off=${none} aria-label=${g.label} data-group=${g.id}>
       <header class="sh"><div>${title}<small>${sub}</small></div><span class="grow"></span>${pauseBtn}</header>
@@ -385,7 +386,7 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
   private summary(): string {
     if (this.phone || this.editing || this.phase !== 'ready' || !this.devices.length) return '';
     const c = playerCounts(this.devices);
-    return `${c.playing ? `${c.playing} מנגנים מתוך ${c.total}` : `אין ניגון כרגע · ${c.total} התקנים`}${c.unavailable ? ` · ${c.unavailable} לא זמין` : ''}`;
+    return `${c.playing ? tr('{playing} מנגנים מתוך {total}', { playing: c.playing, total: c.total }) : tr('אין ניגון כרגע · {total} התקנים', { total: c.total })}${c.unavailable ? tr(' · {unavailable} לא זמין', { unavailable: c.unavailable }) : ''}`;
   }
 
   /** AUDIT30-D3: the floor menu sits at the end of sw-page's title row (slot "actions"). */
@@ -407,25 +408,25 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
     if (!tools) return nothing;
     return html`<div class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
       <div class="dh-row">
-        ${this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
-          <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
+        ${this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : html`<div class="rooms" role="group" aria-label=${tr('חדרים')} @pointerdown=${this.roomsDrag}>
+          <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>${tr('הכל')}</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
         </div>`}
       </div>
       <div class="dh-det">
-        ${lib && lib !== 'ready' ? html`<span class="chipx libchip" data-lib-state=${lib}>${mIcon('music')}ספרייה לא זמינה</span>` : nothing}
+        ${lib && lib !== 'ready' ? html`<span class="chipx libchip" data-lib-state=${lib}>${mIcon('music')}${tr('ספרייה לא זמינה')}</span>` : nothing}
         ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
-        <div class="seg sm" role="radiogroup" aria-label="סינון לפי מצב">${PLAYER_STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilters({ state: s.id })}>${s.label}${s.id === 'playing' ? html` <small>${c.playing}</small>` : s.id === 'unavailable' && c.unavailable ? html` <small>${c.unavailable}</small>` : nothing}</button>`)}</div>
-        <label class="search">${mIcon('search')}<span class="vh">חיפוש נגן</span><input type="search" data-search placeholder="חיפוש נגן או חדר" .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
+        <div class="seg sm" role="radiogroup" aria-label=${tr('סינון לפי מצב')}>${PLAYER_STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilters({ state: s.id })}>${s.label}${s.id === 'playing' ? html` <small>${c.playing}</small>` : s.id === 'unavailable' && c.unavailable ? html` <small>${c.unavailable}</small>` : nothing}</button>`)}</div>
+        <label class="search">${mIcon('search')}<span class="vh">${tr('חיפוש נגן')}</span><input type="search" data-search placeholder=${tr('חיפוש נגן או חדר')} .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
       </div>
     </div>`;
   }
 
   /** The floor filter as the capsule-capable dropdown (0.1.164): the same component, style, size, ring and panel width as every other dropdown of the multimedia group. */
   private floorChip(floors: FloorRef[], unplaced: number): TemplateResult {
-    const items: DropdownItem[] = [{ id: '', label: 'כל הקומות', count: this.devices.length, icon: 'home' }, { id: '--sep', label: '', divider: true }, ...floors.map((x) => ({ id: x.id, label: x.name, count: x.count, icon: 'layers' as const }))];
+    const items: DropdownItem[] = [{ id: '', label: tr('כל הקומות'), count: this.devices.length, icon: 'home' }, { id: '--sep', label: '', divider: true }, ...floors.map((x) => ({ id: x.id, label: x.name, count: x.count, icon: 'layers' as const }))];
     if (unplaced) items.push({ id: '--sep2', label: '', divider: true }, { id: UNPLACED_ID, label: UNPLACED_LABEL, count: unplaced, icon: 'layers' });
-    return html`<div class="flwrap"><sw-dropdown data-floor-menu label="קומות" icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
+    return html`<div class="flwrap"><sw-dropdown data-floor-menu label=${tr('קומות')} icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
   }
 
   private skeleton(): TemplateResult {
@@ -435,13 +436,13 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
 
   private editBar(): TemplateResult {
     return html`<div class="editbar" data-mm-editbar>
-      <span class="t">${mIcon('edit')}עריכת מסך הנגנים</span>
+      <span class="t">${mIcon('edit')}${tr('עריכת מסך הנגנים')}</span>
       <span class="grow"></span>
-      ${this.conflict ? html`<span class="note-bad" role="alert">המסך נערך במקום אחר</span><button type="button" class="btn sm" @click=${() => void this.reloadAfterConflict()}>טען מחדש</button>` : nothing}
+      ${this.conflict ? html`<span class="note-bad" role="alert">${tr('המסך נערך במקום אחר')}</span><button type="button" class="btn sm" @click=${() => void this.reloadAfterConflict()}>${tr('טען מחדש')}</button>` : nothing}
       ${this.saveError ? html`<span class="note-bad" role="alert">${this.saveError}</span>` : nothing}
-      <button type="button" class="btn sm quiet" data-mm-cancel ?disabled=${this.busy} @click=${() => this.askCancel()}>ביטול</button>
-      <button type="button" class="btn sm quiet dz" data-mm-reset ?disabled=${this.busy} @click=${() => (this.confirm = 'reset')}>ברירת מחדל</button>
-      <button type="button" class="btn sm primary" data-mm-save ?disabled=${this.busy || !this.dirty || this.conflict} @click=${() => void this.save()}>${mIcon('check')}שמור</button>
+      <button type="button" class="btn sm quiet" data-mm-cancel ?disabled=${this.busy} @click=${() => this.askCancel()}>${tr('ביטול')}</button>
+      <button type="button" class="btn sm quiet dz" data-mm-reset ?disabled=${this.busy} @click=${() => (this.confirm = 'reset')}>${tr('ברירת מחדל')}</button>
+      <button type="button" class="btn sm primary" data-mm-save ?disabled=${this.busy || !this.dirty || this.conflict} @click=${() => void this.save()}>${mIcon('check')}${tr('שמור')}</button>
     </div>`;
   }
 
@@ -449,28 +450,28 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
     const c = this.confirm;
     if (!c) return html`<sw-dialog data-mm-confirm="closed"></sw-dialog>`;
     const reset = c === 'reset';
-    return html`<sw-dialog open heading=${reset ? 'להחזיר את מסך הנגנים לברירת המחדל לכולם?' : 'לבטל את השינויים?'} data-mm-confirm=${c} @close=${() => (this.confirm = null)}>
+    return html`<sw-dialog open heading=${reset ? tr('להחזיר את מסך הנגנים לברירת המחדל לכולם?') : tr('לבטל את השינויים?')} data-mm-confirm=${c} @close=${() => (this.confirm = null)}>
       <div class="dlg-acts">
-        <sw-button data-mm-confirm-no autofocus @click=${() => (this.confirm = null)}>${reset ? 'ביטול' : 'המשך עריכה'}</sw-button>
-        <sw-button variant="danger" data-mm-confirm-yes @click=${() => { if (reset) { this.confirm = null; void this.save(true); } else this.leaveEdit(); }}>${reset ? 'החזר' : 'בטל שינויים'}</sw-button>
+        <sw-button data-mm-confirm-no autofocus @click=${() => (this.confirm = null)}>${reset ? tr('ביטול') : tr('המשך עריכה')}</sw-button>
+        <sw-button variant="danger" data-mm-confirm-yes @click=${() => { if (reset) { this.confirm = null; void this.save(true); } else this.leaveEdit(); }}>${reset ? tr('החזר') : tr('בטל שינויים')}</sw-button>
       </div></sw-dialog>`;
   }
 
   private body(): TemplateResult | typeof nothing {
     if (this.phase === 'loading') return this.skeleton();
     if (this.phase === 'error') {
-      return html`<div data-mm-state="error">${this.stateBox('warning', 'לא ניתן לטעון את הנגנים', html`<button type="button" class="btn sm" data-mm-retry @click=${() => { this.phase = 'loading'; void this.load(); }}>${mIcon('refresh')}נסה שוב</button>`)}</div>`;
+      return html`<div data-mm-state="error">${this.stateBox('warning', tr('לא ניתן לטעון את הנגנים'), html`<button type="button" class="btn sm" data-mm-retry @click=${() => { this.phase = 'loading'; void this.load(); }}>${mIcon('refresh')}${tr('נסה שוב')}</button>`)}</div>`;
     }
-    if (this.phase === 'forbidden') return html`<div data-mm-state="forbidden">${this.stateBox('speaker', 'אין הרשאת צפייה בנגנים')}</div>`;
-    if (this.phase === 'disabled') return html`<div data-mm-state="disabled">${this.stateBox('power', 'המולטימדיה כבויה')}</div>`;
+    if (this.phase === 'forbidden') return html`<div data-mm-state="forbidden">${this.stateBox('speaker', tr('אין הרשאת צפייה בנגנים'))}</div>`;
+    if (this.phase === 'disabled') return html`<div data-mm-state="disabled">${this.stateBox('power', tr('המולטימדיה כבויה'))}</div>`;
     if (!this.devices.length) {
       const cfg = this.status?.can.configure;
-      return html`<div data-mm-state="empty">${this.stateBox('speaker', 'אין נגנים', cfg ? html`<a class="btn sm" href="#/system/multimedia">להגדרות</a>` : undefined)}</div>`;
+      return html`<div data-mm-state="empty">${this.stateBox('speaker', tr('אין נגנים'), cfg ? html`<a class="btn sm" href="#/system/multimedia">${tr('להגדרות')}</a>` : undefined)}</div>`;
     }
     const groups = this.sections();
-    const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.<button type="button" class="btn sm" @click=${() => void this.load()}>נסה שוב</button></div>` : nothing;
+    const stale = this.staleError ? html`<div class="errbar" role="alert" data-mm-stale>${mIcon('warning')}${tr('הרענון האחרון נכשל. המצב עשוי להיות לא עדכני.')}<button type="button" class="btn sm" @click=${() => void this.load()}>${tr('נסה שוב')}</button></div>` : nothing;
     if (!groups.length) {
-      return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו נגנים', playerFiltersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(PLAYER_NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
+      return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', tr('לא נמצאו נגנים'), playerFiltersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(PLAYER_NO_FILTER)}>${tr('נקה סינון')}</button>` : undefined)}</div>`;
     }
     let offset = 0;
     const offsets = groups.map((g) => ((offset += g.devices.length), offset - g.devices.length));
@@ -483,13 +484,13 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
     const editing = this.editing && !!this.draft;
     const body = this.body(); // first: it tells the pager in the header how many cards there are
     const floor = this.floorAction();
-    return html`<sw-page class="page" wide heading="נגנים ורמקולים" subheading=${this.summary()} data-screen="multimedia-players">
+    return html`<sw-page class="page" wide heading=${tr('נגנים ורמקולים')} subheading=${this.summary()} data-screen="multimedia-players">
       ${floor === nothing ? nothing : html`<div slot="actions" class="pacts">${floor}</div>`}
       ${this.header()}
       ${editing ? html`<div class="editing-stack">${this.editBar()}</div>` : nothing}
       <div class=${classMap({ scr: true, editing })} data-mm-region @scroll=${this.onRegionScroll}>
         ${editing
-          ? html`<div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft!} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft!).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${body}</div></div>`
+          ? html`<div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading=${tr('נגנים ורמקולים')} .draft=${this.draft!} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft!).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${body}</div></div>`
           : body}
       </div>
     </sw-page>

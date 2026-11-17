@@ -5,6 +5,7 @@ import '../components/sw-dropdown';
 import { getDevicesTree, type DeviceCounts, type DeviceTree } from '../api/devices';
 import { navigate } from '../router';
 import { bidi } from '../i18n/bidi';
+import { tr } from '../i18n/msg/devices';
 import { TabsModeController } from '../shell/tabs-mode';
 
 /** One switcher entry: a floor or an area of the current floor, with its device count. */
@@ -22,7 +23,7 @@ export function floorOptions(tree: DeviceTree | null, areaName: string): NavOpti
   if (!tree) return [];
   return tree.floors.map((f) => {
     const target = f.areas.find((a) => a.name === areaName) ?? f.areas[0];
-    return { id: f.floor_id, name: f.name || 'ללא קומה', count: f.counts.entities, href: target ? `/devices/areas/${encodeURIComponent(target.area_id)}` : undefined };
+    return { id: f.floor_id, name: f.name || tr('ללא קומה'), count: f.counts.entities, href: target ? `/devices/areas/${encodeURIComponent(target.area_id)}` : undefined };
   });
 }
 
@@ -376,7 +377,7 @@ export class DevicesAreaNav extends LitElement {
   }
 
   private isCurrent(which: Exclude<Open, ''>, o: NavOption): boolean {
-    return which === 'area' ? o.id === this.areaId : o.name === (this.floorName || 'ללא קומה');
+    return which === 'area' ? o.id === this.areaId : o.name === (this.floorName || tr('ללא קומה'));
   }
 
   private optionButtons(): HTMLButtonElement[] {
@@ -428,14 +429,14 @@ export class DevicesAreaNav extends LitElement {
   private renderMenu(which: Exclude<Open, ''>) {
     if (this.open !== which) return nothing;
     const opts = this.options(which);
-    const label = which === 'floor' ? 'קומות' : 'אזורים בקומה';
+    const label = which === 'floor' ? tr('קומות') : tr('אזורים בקומה');
     const body = opts.length
       ? opts.map(
           (o) => html`<button type="button" role="menuitemradio" class="opt" data-nav-option=${o.id} data-count=${o.count} aria-checked=${String(this.isCurrent(which, o))} ?disabled=${!o.href} @click=${() => this.choose(o)}>
             <span>${bidi(o.name)}</span><span class="n">${o.count}</span>
           </button>`,
         )
-      : html`<div class="note">${which === 'floor' && !this.treeError ? 'טוען קומות…' : which === 'floor' ? 'לא ניתן לטעון את הקומות' : 'אין אזורים'}</div>`;
+      : html`<div class="note">${which === 'floor' && !this.treeError ? tr('טוען קומות…') : which === 'floor' ? tr('לא ניתן לטעון את הקומות') : tr('אין אזורים')}</div>`;
     return html`${this.hasAttribute('data-sheet') ? html`<div class="back" @click=${() => (this.open = '')}></div>` : nothing}
       <div class="menu" role="menu" aria-label=${label} data-nav-menu=${which} @keydown=${(e: KeyboardEvent) => this.onMenuKey(e, which)}>${body}</div>`;
   }
@@ -453,14 +454,14 @@ export class DevicesAreaNav extends LitElement {
   }
 
   render() {
-    const floor = this.floorName || 'ללא קומה';
+    const floor = this.floorName || tr('ללא קומה');
     const sep = html`<span class="sep" aria-hidden="true"><sw-icon name="chevron" size=${11}></sw-icon></span>`;
     // the unassigned bucket is not an area of a floor: the floor picker alone, the page keeps its plain title
     const area = this.areaId !== 'unassigned';
-    return html`<nav aria-label="ניווט: קומה ואזור">
-        <a class="crumb" data-crumb="home" href="#/devices/building" @click=${(e: Event) => { e.preventDefault(); navigate('/devices/building'); }}>${this.phone ? html`<sw-icon name="home" size=${16}></sw-icon>` : nothing}<span>חשמל והתקנים</span></a>
+    return html`<nav aria-label=${tr('ניווט: קומה ואזור')}>
+        <a class="crumb" data-crumb="home" href="#/devices/building" @click=${(e: Event) => { e.preventDefault(); navigate('/devices/building'); }}>${this.phone ? html`<sw-icon name="home" size=${16}></sw-icon>` : nothing}<span>${tr('חשמל והתקנים')}</span></a>
         ${sep}
-        <div class="picks" data-nav-picks>${this.pick('floor', 'קומה', floor, 'floor')}${area ? this.pick('area', 'אזור', this.areaName, 'door') : nothing}</div>
+        <div class="picks" data-nav-picks>${this.pick('floor', tr('קומה'), floor, 'floor')}${area ? this.pick('area', tr('אזור'), this.areaName, 'door') : nothing}</div>
       </nav>`;
   }
 }

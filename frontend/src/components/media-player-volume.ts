@@ -7,6 +7,7 @@ import { bidi } from '../i18n/bidi';
 import { ic } from './media-player-icons';
 import { playerBase } from './media-player-css';
 import { VOLUME_DEBOUNCE_MS, groupSliderLevel, volumeDisplay, zoneView, type RoomRow } from './media-player-logic';
+import { tr } from '../i18n/msg/components';
 
 /** The result of the last group run for a room, shown under its name ("הוגבל לתקרה", "לא הצטרף" ...). */
 export interface RoomOutcome {
@@ -210,8 +211,8 @@ export class MediaPlayerVolume extends LitElement {
   private muteButton(d: PlayerDevice, off: boolean): TemplateResult | typeof nothing {
     if (!d.caps.mute) return nothing;
     const muted = d.live.volume.muted === true;
-    return html`<button type="button" class=${classMap({ rb: true, muted })} data-mute-key=${d.key} aria-pressed=${String(muted)} aria-label=${`${muted ? 'בטל השתקה' : 'השתק'} · ${d.name}`}
-      title=${muted ? 'בטל השתקה' : 'השתק'} ?disabled=${off}>${ic(muted ? 'volOff' : 'vol')}</button>`;
+    return html`<button type="button" class=${classMap({ rb: true, muted })} data-mute-key=${d.key} aria-pressed=${String(muted)} aria-label=${`${muted ? tr('בטל השתקה') : tr('השתק')} · ${d.name}`}
+      title=${muted ? tr('בטל השתקה') : tr('השתק')} ?disabled=${off}>${ic(muted ? 'volOff' : 'vol')}</button>`;
   }
 
   /** One slider of a device: the value, the ceiling marker only where one is set, the draft while it is being sent. */
@@ -221,8 +222,8 @@ export class MediaPlayerVolume extends LitElement {
     const draft = this.drafts.get(d.key + (zone && z && !z.main ? `@${zone}` : ''));
     const raw = draft ?? base ?? 0;
     const v = volumeDisplay(d, raw, this.now ?? new Date());
-    const label = `עוצמה · ${z && !z.main ? `${d.name} · ${z.name}` : d.name}`;
-    return html`<span class=${classMap({ rngwrap: true, sm: small })}>${v.ceiling !== null ? html`<span class="cap" style="--capn:${v.ceiling}" title=${`תקרה ${v.ceiling}`} data-pv-cap=${v.ceiling}></span>` : nothing}
+    const label = `${tr('עוצמה')} · ${z && !z.main ? `${d.name} · ${z.name}` : d.name}`;
+    return html`<span class=${classMap({ rngwrap: true, sm: small })}>${v.ceiling !== null ? html`<span class="cap" style="--capn:${v.ceiling}" title=${tr('תקרה {n}', { n: v.ceiling })} data-pv-cap=${v.ceiling}></span>` : nothing}
       <input class=${classMap({ rng: true, sm: small })} type="range" min="0" max="100" step="1" .value=${String(v.level)} style="--v:${v.level}%" aria-label=${label}
         data-pv-slider=${d.key} ?disabled=${off || !d.caps.volume_set} @input=${(e: Event) => this.onRoom(d, zone, e)} /></span>`;
   }
@@ -237,9 +238,9 @@ export class MediaPlayerVolume extends LitElement {
         <span class="vv n" data-pv-value>${shown !== null ? volumeDisplay(d, shown, this.now ?? new Date()).level : '–'}</span></div>`;
     }
     if (d.caps.volume_step) {
-      return html`<div class="vrow" data-pv="step">${this.muteButton(d, off)}<span class="spacer"></span><span class="vrock" role="group" aria-label=${`עוצמה · ${d.name}`}>
-        <button type="button" data-key="voldown" aria-label="הנמך" ?disabled=${off}>${ic('minus')}</button><span class="vv n" data-pv-value>${level ?? '–'}</span>
-        <button type="button" data-key="volup" aria-label="הגבר" ?disabled=${off}>${ic('plus')}</button></span></div>`;
+      return html`<div class="vrow" data-pv="step">${this.muteButton(d, off)}<span class="spacer"></span><span class="vrock" role="group" aria-label=${`${tr('עוצמה')} · ${d.name}`}>
+        <button type="button" data-key="voldown" aria-label=${tr('הנמך')} ?disabled=${off}>${ic('minus')}</button><span class="vv n" data-pv-value>${level ?? '–'}</span>
+        <button type="button" data-key="volup" aria-label=${tr('הגבר')} ?disabled=${off}>${ic('plus')}</button></span></div>`;
     }
     return html`${d.caps.mute ? html`<div class="vrow" data-pv="mute">${this.muteButton(d, off)}</div>` : nothing}`;
   }
@@ -249,7 +250,7 @@ export class MediaPlayerVolume extends LitElement {
     const bad = o === 'not_joined' || o === 'unknown' || o === 'not_allowed';
     const sub = o && o !== 'set' && o !== 'joined' && o !== 'left'
       ? html`<small class=${bad ? 'bad' : 'ok'} data-pv-outcome=${o}>${MEMBER_OUTCOME_LABEL[o]}</small>`
-      : html`<small>${[r.room ? bidi(r.room) : 'ללא חדר', r.leader ? 'מוביל' : null].filter(Boolean).join(' · ')}</small>`;
+      : html`<small>${[r.room ? bidi(r.room) : tr('ללא חדר'), r.leader ? tr('מוביל') : null].filter(Boolean).join(' · ')}</small>`;
     const dis = off || !r.available || r.dev.live.power !== 'on';
     const has = r.dev.caps.volume_set;
     const shown = this.drafts.get(r.key) ?? r.level;
@@ -266,12 +267,12 @@ export class MediaPlayerVolume extends LitElement {
     const v = draft ?? level ?? 0;
     const off = !this.interactive || !this.groupOffered || !lead.live.caps_known;
     const pend = this.pend.has('gvol');
-    return html`<div class="vrow" data-pv="group"><span class="lbl">קבוצה</span>
-      <span class="rngwrap"><input class="rng" type="range" min="0" max="100" step="1" .value=${String(v)} style="--v:${v}%" aria-label="עוצמת הקבוצה" data-pv-group ?disabled=${off} aria-busy=${String(pend)} @input=${this.onGroup} /></span>
+    return html`<div class="vrow" data-pv="group"><span class="lbl">${tr('קבוצה')}</span>
+      <span class="rngwrap"><input class="rng" type="range" min="0" max="100" step="1" .value=${String(v)} style="--v:${v}%" aria-label=${tr('עוצמת הקבוצה')} data-pv-group ?disabled=${off} aria-busy=${String(pend)} @input=${this.onGroup} /></span>
       <span class="vv n" data-pv-value>${draft ?? level ?? '–'}</span></div>
-      <div class="psh"><h4>לפי חדר</h4><small>${this.rooms.length}</small>
-        ${this.byRoom ? html`<button type="button" class="lnk" data-pv-equalize ?disabled=${off || level === null} @click=${() => this.emit('pv-equalize', {})}>אותה עוצמה</button>` : nothing}
-        <button type="button" class="lnk" data-pv-rooms aria-expanded=${String(this.byRoom)} @click=${() => this.emit('pv-rooms', { open: !this.byRoom })}>${this.byRoom ? 'הסתר' : 'הצג'}${ic('chevronDown')}</button></div>
+      <div class="psh"><h4>${tr('לפי חדר')}</h4><small>${this.rooms.length}</small>
+        ${this.byRoom ? html`<button type="button" class="lnk" data-pv-equalize ?disabled=${off || level === null} @click=${() => this.emit('pv-equalize', {})}>${tr('אותה עוצמה')}</button>` : nothing}
+        <button type="button" class="lnk" data-pv-rooms aria-expanded=${String(this.byRoom)} @click=${() => this.emit('pv-rooms', { open: !this.byRoom })}>${this.byRoom ? tr('הסתר') : tr('הצג')}${ic('chevronDown')}</button></div>
       ${this.byRoom ? html`<div class="members" data-pv-members>${repeat(this.rooms, (r) => r.key, (r) => this.room(r, !this.interactive || !lead.live.caps_known))}</div>` : nothing}`;
   }
 

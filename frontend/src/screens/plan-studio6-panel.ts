@@ -12,6 +12,7 @@ import type { GeomLevel, Pt } from '../map/geometry';
 import { MATERIALS, materialDef, type VisualStyle } from '../map/material-resolve';
 import { MAX_POSITION_NAME, MAX_WALK_POSITIONS, type WalkPosition } from '../map/studio6-fields';
 import { sunPosition } from '../map/sun';
+import { tr } from '../i18n/msg/media';
 
 // ---------------------------------------------------------------- materials
 
@@ -23,8 +24,8 @@ const SWATCH_GROUPS: Record<MaterialHost, readonly string[]> = {
   ceiling: ['ceiling', 'wall'],
   object: ['object', 'door', 'window'],
 };
-const GROUP_HE: Record<string, string> = { wall: 'קירות', ceiling: 'תקרות', floor: 'רצפות', outdoor: 'חוץ', object: 'עצמים', door: 'דלתות', window: 'חלונות וזכוכית' };
-export const STYLE_HE: Record<VisualStyle, string> = { light: 'בהיר', dark: 'כהה' };
+const GROUP_HE: Record<string, string> = { wall: tr('קירות'), ceiling: tr('תקרות'), floor: tr('רצפות'), outdoor: tr('חוץ'), object: tr('עצמים'), door: tr('דלתות'), window: tr('חלונות וזכוכית') };
+export const STYLE_HE: Record<VisualStyle, string> = { light: tr('בהיר'), dark: tr('כהה') };
 
 /** The swatch materials of a host, in library order (the groups of SWATCH_GROUPS first, each group kept together). */
 export function swatchMaterials(host: MaterialHost): readonly (typeof MATERIALS)[number][] {
@@ -60,8 +61,8 @@ export function renderMaterialField(v: MaterialFieldView, a: MaterialFieldAction
   const groups = [...new Set(MATERIALS.map((m) => m.group))];
   return html`<div class="matf" data-material-field=${v.key}>
     <div class="mathead">
-      <span class="lbl">${v.label}<span class="muted" data-material-current>${own ? materialName(current) : `ברירת מחדל: ${materialName(v.defaultId)}`}</span></span>
-      <span class="seg sm" role="group" aria-label="תצוגה מקדימה לפי סגנון">
+      <span class="lbl">${v.label}<span class="muted" data-material-current>${own ? materialName(current) : tr('ברירת מחדל: {name}', { name: materialName(v.defaultId) })}</span></span>
+      <span class="seg sm" role="group" aria-label=${tr('תצוגה מקדימה לפי סגנון')}>
         ${(['light', 'dark'] as const).map((s) => html`<button type="button" data-material-style=${s} aria-pressed=${v.style === s ? 'true' : 'false'} @click=${() => a.setStyle(s)}>${STYLE_HE[s]}</button>`)}
       </span>
     </div>
@@ -72,12 +73,12 @@ export function renderMaterialField(v: MaterialFieldView, a: MaterialFieldAction
       )}
     </div>
     <div class="two">
-      <sw-field label="כל החומרים"><select data-material-select ?disabled=${v.disabled} aria-label=${`${v.label} - כל החומרים`} @change=${(e: Event) => a.pick((e.target as HTMLSelectElement).value || null)}>
-        <option value="" ?selected=${!own}>ברירת מחדל (${materialName(v.defaultId)})</option>
+      <sw-field label=${tr('כל החומרים')}><select data-material-select ?disabled=${v.disabled} aria-label=${tr('{label} - כל החומרים', { label: v.label })} @change=${(e: Event) => a.pick((e.target as HTMLSelectElement).value || null)}>
+        <option value="" ?selected=${!own}>${tr('ברירת מחדל ({name})', { name: materialName(v.defaultId) })}</option>
         ${groups.map((g) => html`<optgroup label=${GROUP_HE[g] ?? g}>${MATERIALS.filter((m) => m.group === g).map((m) => html`<option value=${m.id} ?selected=${own && current === m.id}>${m.he}</option>`)}</optgroup>`)}
       </select></sw-field>
       <button type="button" class="matreset" data-material-reset ?disabled=${v.disabled || !own} @click=${() => a.pick(null)}>
-        <i class="dot" aria-hidden="true" style=${styleMap({ background: tintOf(v.defaultId, v.style) })}></i>ברירת מחדל
+        <i class="dot" aria-hidden="true" style=${styleMap({ background: tintOf(v.defaultId, v.style) })}></i>${tr('ברירת מחדל')}
       </button>
     </div>
   </div>`;
@@ -106,7 +107,7 @@ export function compassAngle(cx: number, cy: number, px: number, py: number): nu
 
 /** A compass bearing as the eight winds in Hebrew (for the sun line and the dial's caption). */
 export function windName(deg: number): string {
-  const names = ['צפון', 'צפון-מזרח', 'מזרח', 'דרום-מזרח', 'דרום', 'דרום-מערב', 'מערב', 'צפון-מערב'];
+  const names = [tr('צפון'), tr('צפון-מזרח'), tr('מזרח'), tr('דרום-מזרח'), tr('דרום'), tr('דרום-מערב'), tr('מערב'), tr('צפון-מערב')];
   return names[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 }
 
@@ -141,9 +142,9 @@ export function renderNorthCard(v: NorthView, a: NorthActions): TemplateResult {
     // the pointer sits at bearing b from the centre; north is drawn there, so the plan's bearing is 360 - b
     return (360 - compassAngle(r.left + r.width / 2, r.top + r.height / 2, e.clientX, e.clientY)) % 360;
   };
-  return html`<sw-card heading="צפון" subheading=${v.northDeg === null ? 'לא הוגדר: למעלה בתוכנית = צפון' : `למעלה בתוכנית פונה ל${windName(deg)} (${deg}°)`} data-north-card>
+  return html`<sw-card heading=${tr('צפון')} subheading=${v.northDeg === null ? tr('לא הוגדר: למעלה בתוכנית = צפון') : tr('למעלה בתוכנית פונה ל{wind} ({deg}°)', { wind: windName(deg), deg })} data-north-card>
     <div class="northrow">
-      <svg class="dial" data-north-dial viewBox=${`0 0 ${DIAL_R * 2} ${DIAL_R * 2}`} role="slider" tabindex=${v.disabled ? -1 : 0} aria-label="צפון התוכנית" aria-valuemin="0" aria-valuemax="359" aria-valuenow=${Math.round(deg)} aria-valuetext=${`${deg}° - ${windName(deg)}`}
+      <svg class="dial" data-north-dial viewBox=${`0 0 ${DIAL_R * 2} ${DIAL_R * 2}`} role="slider" tabindex=${v.disabled ? -1 : 0} aria-label=${tr('צפון התוכנית')} aria-valuemin="0" aria-valuemax="359" aria-valuenow=${Math.round(deg)} aria-valuetext=${`${deg}° - ${windName(deg)}`}
         @keydown=${onKey}
         @pointerdown=${(e: PointerEvent) => { if (v.disabled) return; dragging = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); a.set(bearingFromEvent(e)); }}
         @pointermove=${(e: PointerEvent) => { if (dragging) a.set(bearingFromEvent(e)); }}
@@ -158,13 +159,13 @@ export function renderNorthCard(v: NorthView, a: NorthActions): TemplateResult {
         ${up ? svg`<g class="sun" data-north-sun transform=${`translate(${sx} ${sy})`}><circle r="5"></circle>${[0, 45, 90, 135, 180, 225, 270, 315].map((t) => svg`<line x1="0" y1="-7" x2="0" y2="-9" transform=${`rotate(${t})`}></line>`)}</g>` : nothing}
       </svg>
       <div class="northctl">
-        <sw-field label="כיוון הצפון (°)" hint="כמה מעלות הצפון סוטה מלמעלה בתוכנית, עם כיוון השעון"><input type="number" min="0" max="359.9" step="0.5" inputmode="decimal" data-ltr data-north-deg .value=${v.northDeg === null ? '' : String(deg)} ?disabled=${v.disabled}
+        <sw-field label=${tr('כיוון הצפון (°)')} hint=${tr('כמה מעלות הצפון סוטה מלמעלה בתוכנית, עם כיוון השעון')}><input type="number" min="0" max="359.9" step="0.5" inputmode="decimal" data-ltr data-north-deg .value=${v.northDeg === null ? '' : String(deg)} ?disabled=${v.disabled}
           @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); if (!raw) return a.set(null); const x = parseFloat(raw); if (Number.isFinite(x)) a.set(x); }} /></sw-field>
-        <div class="note" data-north-sun-note>${up ? `השמש עכשיו ב${windName(sun.azimuth)}, ${Math.round(sun.elevation)}° מעל האופק` : 'השמש מתחת לאופק עכשיו'}${v.site.known ? '' : ' · מיקום האתר לא הוגדר: מרכז הארץ (הגדרות ‹ מפה)'}</div>
-        <div class="btns"><button type="button" class="tbtn ghost" data-north-reset ?disabled=${v.disabled || v.northDeg === null} @click=${() => a.set(null)}>למעלה = צפון</button></div>
+        <div class="note" data-north-sun-note>${up ? tr('השמש עכשיו ב{wind}, {deg}° מעל האופק', { wind: windName(sun.azimuth), deg: Math.round(sun.elevation) }) : tr('השמש מתחת לאופק עכשיו')}${v.site.known ? '' : tr(' · מיקום האתר לא הוגדר: מרכז הארץ (הגדרות ‹ מפה)')}</div>
+        <div class="btns"><button type="button" class="tbtn ghost" data-north-reset ?disabled=${v.disabled || v.northDeg === null} @click=${() => a.set(null)}>${tr('למעלה = צפון')}</button></div>
       </div>
     </div>
-    <div class="note">גרור את המחוג, או השתמש בחצים (Shift = 15°). הצפון קובע את מסלול השמש בתצוגה הריאליסטית ובתמונות המוכנות.</div>
+    <div class="note">${tr('גרור את המחוג, או השתמש בחצים (Shift = 15°). הצפון קובע את מסלול השמש בתצוגה הריאליסטית ובתמונות המוכנות.')}</div>
   </sw-card>`;
 }
 
@@ -199,7 +200,7 @@ export interface WalkCardActions {
 /** "עמדה 3": the first free number after the names already taken. */
 export function newPositionName(existing: readonly { name: string }[]): string {
   const taken = new Set(existing.map((p) => p.name.trim()));
-  for (let i = 1; ; i++) if (!taken.has(`עמדה ${i}`)) return `עמדה ${i}`;
+  for (let i = 1; ; i++) if (!taken.has(tr('עמדה {i}', { i }))) return tr('עמדה {i}', { i });
 }
 
 /** A position in metres from the plan's top-left corner, as the walk bar shows the eye. */
@@ -217,37 +218,37 @@ export function positionArrow(p: Pick<WalkPosition, 'x' | 'y' | 'heading_deg'>, 
 export function renderWalkCard(v: WalkCardView, a: WalkCardActions): TemplateResult {
   const full = v.positions.length >= MAX_WALK_POSITIONS;
   const levelName = (id: string) => v.levels.find((l) => l.id === id)?.name ?? id;
-  return html`<sw-card heading="עמדות סיור" subheading=${v.positions.length ? `${v.positions.length} עמדות · הסדר כאן הוא סדר המסלול` : 'נקודות מבט שמורות לסיור בגובה עין'} data-walk-card>
-    ${v.armed ? html`<div class="note armed" data-walk-armed role="status">${v.armed === 'new' ? 'לחץ על התוכנית במקום שבו עומדים · Esc לביטול' : 'לחץ על התוכנית כדי להזיז את העמדה · Esc לביטול'}</div>` : nothing}
+  return html`<sw-card heading=${tr('עמדות סיור')} subheading=${v.positions.length ? tr('{length} עמדות · הסדר כאן הוא סדר המסלול', { length: v.positions.length }) : tr('נקודות מבט שמורות לסיור בגובה עין')} data-walk-card>
+    ${v.armed ? html`<div class="note armed" data-walk-armed role="status">${v.armed === 'new' ? tr('לחץ על התוכנית במקום שבו עומדים · Esc לביטול') : tr('לחץ על התוכנית כדי להזיז את העמדה · Esc לביטול')}</div>` : nothing}
     ${v.positions.length
-      ? html`<ol class="walklist" aria-label="עמדות סיור">
+      ? html`<ol class="walklist" aria-label=${tr('עמדות סיור')}>
           ${v.positions.map((p, i) => {
             const m = positionMetres(p, v.W, v.H, v.scale);
             return html`<li class=${`walkrow${v.focused === p.id ? ' on' : ''}${v.armed === p.id ? ' armed' : ''}`} data-walk-row=${p.id}>
               <span class="idx" aria-hidden="true">${i + 1}</span>
-              <input class="name" type="text" maxlength=${MAX_POSITION_NAME} data-walk-name aria-label=${`שם העמדה ${i + 1}`} .value=${p.name} ?disabled=${v.disabled}
+              <input class="name" type="text" maxlength=${MAX_POSITION_NAME} data-walk-name aria-label=${tr('שם העמדה {n}', { n: i + 1 })} .value=${p.name} ?disabled=${v.disabled}
                 @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 @change=${(e: Event) => a.rename(p.id, (e.target as HTMLInputElement).value)} />
-              <button type="button" class="star" data-walk-default aria-label=${p.is_default ? 'עמדת הפתיחה של הסיור' : 'קבע כעמדת הפתיחה'} aria-pressed=${p.is_default ? 'true' : 'false'} title=${p.is_default ? 'עמדת הפתיחה' : 'עמדת הפתיחה של הסיור'} ?disabled=${v.disabled} @click=${() => a.setDefault(p.id)}><sw-icon name="star" size=${16}></sw-icon></button>
+              <button type="button" class="star" data-walk-default aria-label=${p.is_default ? tr('עמדת הפתיחה של הסיור') : tr('קבע כעמדת הפתיחה')} aria-pressed=${p.is_default ? 'true' : 'false'} title=${p.is_default ? tr('עמדת הפתיחה') : tr('עמדת הפתיחה של הסיור')} ?disabled=${v.disabled} @click=${() => a.setDefault(p.id)}><sw-icon name="star" size=${16}></sw-icon></button>
               <span class="where">
-                ${v.levels.length > 1 ? html`<select data-walk-level aria-label="מפלס" ?disabled=${v.disabled} @change=${(e: Event) => a.setLevel(p.id, (e.target as HTMLSelectElement).value)}>${v.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === p.level_id}>${l.name}</option>`)}</select>` : html`<span class="muted">${levelName(p.level_id)}</span>`}
-                <span class="muted" data-walk-pos>${v.estimated ? '≈ ' : ''}<span class="ltr">${m.x} / ${m.y}</span> מ׳</span>
-                <label class="muted hd">כיוון <input type="number" min="0" max="359" step="5" inputmode="numeric" data-ltr data-walk-heading aria-label="כיוון המבט במעלות" .value=${String(Math.round(p.heading_deg))} ?disabled=${v.disabled}
+                ${v.levels.length > 1 ? html`<select data-walk-level aria-label=${tr('מפלס')} ?disabled=${v.disabled} @change=${(e: Event) => a.setLevel(p.id, (e.target as HTMLSelectElement).value)}>${v.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === p.level_id}>${l.name}</option>`)}</select>` : html`<span class="muted">${levelName(p.level_id)}</span>`}
+                <span class="muted" data-walk-pos>${v.estimated ? '≈ ' : ''}<span class="ltr">${m.x} / ${m.y}</span> ${tr('מ׳')}</span>
+                <label class="muted hd">${tr('כיוון')} <input type="number" min="0" max="359" step="5" inputmode="numeric" data-ltr data-walk-heading aria-label=${tr('כיוון המבט במעלות')} .value=${String(Math.round(p.heading_deg))} ?disabled=${v.disabled}
                   @change=${(e: Event) => { const x = parseFloat((e.target as HTMLInputElement).value); if (Number.isFinite(x)) a.setHeading(p.id, x); }} />°</label>
               </span>
               <span class="acts">
-                <button type="button" data-walk-go aria-label="עבור לעמדה בתוכנית" title="הצג בתוכנית" @click=${() => a.goTo(p.id)}><sw-icon name="target" size=${16}></sw-icon></button>
-                <button type="button" data-walk-place aria-label="הזז את העמדה בלחיצה על התוכנית" title="הזז בלחיצה על התוכנית" aria-pressed=${v.armed === p.id ? 'true' : 'false'} ?disabled=${v.disabled} @click=${() => a.arm(v.armed === p.id ? null : p.id)}><sw-icon name="move" size=${16}></sw-icon></button>
-                <button type="button" data-walk-up aria-label="הקדם במסלול" title="למעלה" ?disabled=${v.disabled || i === 0} @click=${() => a.move(p.id, -1)}><sw-icon name="arrowUp" size=${16}></sw-icon></button>
-                <button type="button" data-walk-down aria-label="אחר במסלול" title="למטה" ?disabled=${v.disabled || i === v.positions.length - 1} @click=${() => a.move(p.id, 1)}><sw-icon name="arrowDown" size=${16}></sw-icon></button>
-                <button type="button" class="danger" data-walk-delete aria-label="מחק את העמדה" title="מחק" ?disabled=${v.disabled} @click=${() => a.remove(p.id)}><sw-icon name="trash" size=${16}></sw-icon></button>
+                <button type="button" data-walk-go aria-label=${tr('עבור לעמדה בתוכנית')} title=${tr('הצג בתוכנית')} @click=${() => a.goTo(p.id)}><sw-icon name="target" size=${16}></sw-icon></button>
+                <button type="button" data-walk-place aria-label=${tr('הזז את העמדה בלחיצה על התוכנית')} title=${tr('הזז בלחיצה על התוכנית')} aria-pressed=${v.armed === p.id ? 'true' : 'false'} ?disabled=${v.disabled} @click=${() => a.arm(v.armed === p.id ? null : p.id)}><sw-icon name="move" size=${16}></sw-icon></button>
+                <button type="button" data-walk-up aria-label=${tr('הקדם במסלול')} title=${tr('למעלה')} ?disabled=${v.disabled || i === 0} @click=${() => a.move(p.id, -1)}><sw-icon name="arrowUp" size=${16}></sw-icon></button>
+                <button type="button" data-walk-down aria-label=${tr('אחר במסלול')} title=${tr('למטה')} ?disabled=${v.disabled || i === v.positions.length - 1} @click=${() => a.move(p.id, 1)}><sw-icon name="arrowDown" size=${16}></sw-icon></button>
+                <button type="button" class="danger" data-walk-delete aria-label=${tr('מחק את העמדה')} title=${tr('מחק')} ?disabled=${v.disabled} @click=${() => a.remove(p.id)}><sw-icon name="trash" size=${16}></sw-icon></button>
               </span>
             </li>`;
           })}
         </ol>`
-      : html`<div class="note" data-walk-empty>עדיין אין עמדות שמורות. עמדה היא מקום וכיוון מבט שהסיור יכול לקפוץ אליהם (מקשים 1-9 בסיור).</div>`}
+      : html`<div class="note" data-walk-empty>${tr('עדיין אין עמדות שמורות. עמדה היא מקום וכיוון מבט שהסיור יכול לקפוץ אליהם (מקשים 1-9 בסיור).')}</div>`}
     <div class="btns">
-      <button type="button" class=${v.armed === 'new' ? 'tbtn primary' : 'tbtn'} data-walk-add ?disabled=${v.disabled || full} title=${full ? `עד ${MAX_WALK_POSITIONS} עמדות` : 'לחיצה על התוכנית מציבה את העמדה'} @click=${() => a.arm(v.armed === 'new' ? null : 'new')}><sw-icon name="plus" size=${16}></sw-icon>${v.armed === 'new' ? 'בטל הצבה' : 'עמדה חדשה'}</button>
+      <button type="button" class=${v.armed === 'new' ? 'tbtn primary' : 'tbtn'} data-walk-add ?disabled=${v.disabled || full} title=${full ? tr('עד {MAX_WALK_POSITIONS} עמדות', { MAX_WALK_POSITIONS }) : tr('לחיצה על התוכנית מציבה את העמדה')} @click=${() => a.arm(v.armed === 'new' ? null : 'new')}><sw-icon name="plus" size=${16}></sw-icon>${v.armed === 'new' ? tr('בטל הצבה') : tr('עמדה חדשה')}</button>
     </div>
   </sw-card>`;
 }

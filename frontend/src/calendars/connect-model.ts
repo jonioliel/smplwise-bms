@@ -3,6 +3,7 @@
  * every one of them again; these only keep the screen from offering what the server would refuse.
  */
 import { cardOf, type Connection, type Feed, type ProviderCard } from '../api/calendars';
+import { tr } from '../i18n/msg/calendars';
 
 const GOOGLE_CLIENT = /^[0-9]{1,30}-[a-z0-9]{1,64}\.apps\.googleusercontent\.com$/;
 const MS_CLIENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,9 +37,9 @@ export function pasteLooksRight(text: string): boolean {
 
 /** 2A: what turning a feed's remote access ON means - the confirmation names the consequence before anything changes. */
 export const FEED_REMOTE_CONFIRM_HE =
-  'הקישור של הפיד יעבוד גם מחוץ לרשת של הבניין: כל מי שמחזיק בקישור יוכל לקרוא את הפיד מכל מקום. בפיד שפתוח מבחוץ עוברים רק משבצות "תפוס", בלי כותרות.';
+  tr('הקישור של הפיד יעבוד גם מחוץ לרשת של הבניין: כל מי שמחזיק בקישור יוכל לקרוא את הפיד מכל מקום. בפיד שפתוח מבחוץ עוברים רק משבצות "תפוס", בלי כותרות.');
 /** The server refuses the switch on the remote channel (local sessions only); the screen says so instead of failing on a click. */
-export const FEED_REMOTE_LOCAL_ONLY_HE = 'פתיחה או סגירה של פיד לגישה מרחוק אפשרית רק מתוך הרשת של הבניין. נכנסת עכשיו מרחוק, ולכן המתג נעול.';
+export const FEED_REMOTE_LOCAL_ONLY_HE = tr('פתיחה או סגירה של פיד לגישה מרחוק אפשרית רק מתוך הרשת של הבניין. נכנסת עכשיו מרחוק, ולכן המתג נעול.');
 
 export type FeedRemoteView = { show: false } | { show: true; on: boolean; locked: boolean };
 
@@ -56,8 +57,8 @@ export function feedRemoteNeedsConfirm(next: boolean): boolean {
 
 /** 4A: the feed's content chip - a feed open from outside is busy-only whatever its own choice, and says so. */
 export function feedDetailHe(f: Pick<Feed, 'detail' | 'detail_effective' | 'remote'>): string {
-  if (f.remote) return '"תפוס" בלבד · פתוח מבחוץ';
-  return (f.detail_effective ?? f.detail) === 'titles' ? 'כותרות' : '"תפוס" בלבד';
+  if (f.remote) return tr('"תפוס" בלבד · פתוח מבחוץ');
+  return (f.detail_effective ?? f.detail) === 'titles' ? tr('כותרות') : tr('"תפוס" בלבד');
 }
 
 function dayHe(iso: string): string {
@@ -66,14 +67,14 @@ function dayHe(iso: string): string {
 
 /** 3C: the expiry of the feed's current address (fixed when it was issued; "חידוש קישור" issues a new address with the current default). */
 export function feedExpiry(expiresAt: string | null | undefined, now: Date = new Date()): { text: string; expired: boolean } {
-  if (!expiresAt) return { text: 'ללא תאריך תפוגה', expired: false };
+  if (!expiresAt) return { text: tr('ללא תאריך תפוגה'), expired: false };
   const t = Date.parse(expiresAt);
-  if (Number.isNaN(t)) return { text: 'פג תוקף', expired: true };
-  if (t <= now.getTime()) return { text: `פג תוקף ב־${dayHe(expiresAt)} · צריך לחדש קישור`, expired: true };
-  return { text: `בתוקף עד ${dayHe(expiresAt)}`, expired: false };
+  if (Number.isNaN(t)) return { text: tr('פג תוקף'), expired: true };
+  if (t <= now.getTime()) return { text: tr('פג תוקף ב־{date} · צריך לחדש קישור', { date: dayHe(expiresAt) }), expired: true };
+  return { text: tr('בתוקף עד {date}', { date: dayHe(expiresAt) }), expired: false };
 }
 
 /** 3C: the default expiry of a new or renewed address, in words (the calendars setting `feed_max_age_days`). */
 export function feedMaxAgeHe(days: number | null | undefined): string {
-  return !days ? 'ללא הגבלה' : `${days} יום`;
+  return !days ? tr('ללא הגבלה') : tr('{n} יום', { n: days });
 }

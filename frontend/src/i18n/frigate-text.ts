@@ -3,11 +3,12 @@
 // keep reading `he` directly (their wording is pinned by unit tests); the screens read `fx()` when they render.
 import { he } from './he';
 import { frigateEn, type FrigateText } from './frigate-en';
+import { docLang } from './core';
 
 export type { FrigateText };
 
 export function frigateLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 /** The catalogue in force when a screen renders. */

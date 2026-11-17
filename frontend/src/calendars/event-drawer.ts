@@ -10,6 +10,7 @@ import { CAL_EVENTS, attendeeSlot, emit, type CalCtx, type NewEventDetail } from
 import { hintFor, stepOf } from './grid-logic';
 import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, pad, startOfDay, whenText } from './model';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
 import { editableInDrawer } from './event-drawer-logic';
 import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
@@ -246,8 +247,8 @@ export class CalEventDrawer extends LitElement {
     try {
       const r = await (this.ctx as CalCtx).api.patchEvent((this.event as CalEvent).id, body);
       emit(this, CAL_EVENTS.changed);
-      emit(this, CAL_EVENTS.toast, r.change_withdrawn ? 'השינוי בוטל · ההזמנה חזרה למועד המאושר' : r.event.state === 'pending' && r.event.held ? 'השינויים נשמרו · ממתין לאישור, המועד הקודם שמור'
-        : r.event.state === 'pending' ? 'השינויים נשמרו · ממתין לאישור' : 'השינויים נשמרו');
+      emit(this, CAL_EVENTS.toast, r.change_withdrawn ? tr('השינוי בוטל · ההזמנה חזרה למועד המאושר') : r.event.state === 'pending' && r.event.held ? tr('השינויים נשמרו · ממתין לאישור, המועד הקודם שמור')
+        : r.event.state === 'pending' ? tr('השינויים נשמרו · ממתין לאישור') : tr('השינויים נשמרו'));
       this.close();
     } catch (e) {
       this.error = describeError(e);
@@ -337,11 +338,11 @@ export class CalEventDrawer extends LitElement {
   private problem(): string {
     const s = localInstant(this.date, this.from);
     const e = localInstant(this.date, this.to);
-    if (!this.calId) return 'אין יומן שאפשר להזמין בו.';
-    if (!this.evTitle.trim()) return 'חסרה כותרת.';
-    if (!s || !e) return 'חסר תאריך או שעה.';
-    if (e <= s) return 'שעת הסיום לפני שעת ההתחלה.';
-    if (this.behalf !== 'self' && !this.behalfLabel.trim()) return `חסר שם ה${BEHALF_LABEL[this.behalf]}.`;
+    if (!this.calId) return tr('אין יומן שאפשר להזמין בו.');
+    if (!this.evTitle.trim()) return tr('חסרה כותרת.');
+    if (!s || !e) return tr('חסר תאריך או שעה.');
+    if (e <= s) return tr('שעת הסיום לפני שעת ההתחלה.');
+    if (this.behalf !== 'self' && !this.behalfLabel.trim()) return tr('חסר שם ה{who}.', { who: BEHALF_LABEL[this.behalf] });
     return '';
   }
 
@@ -358,7 +359,7 @@ export class CalEventDrawer extends LitElement {
     try {
       const r = await (this.ctx as CalCtx).api.createEvent(b);
       emit(this, CAL_EVENTS.changed);
-      emit(this, CAL_EVENTS.toast, r.state === 'pending' ? 'הבקשה נשלחה לאישור' : 'ההזמנה נשמרה');
+      emit(this, CAL_EVENTS.toast, r.state === 'pending' ? tr('הבקשה נשלחה לאישור') : tr('ההזמנה נשמרה'));
       this.close();
     } catch (e) {
       this.error = describeError(e);
@@ -402,26 +403,26 @@ export class CalEventDrawer extends LitElement {
     const cal = ev ? ctx.cals.find((c) => c.id === ev.calendar_id) : undefined;
     const canCancel = !!ev && ev.can.cancel && ['confirmed', 'displaced'].includes(ev.state);
     const canWithdraw = !!ev && ev.state === 'pending' && (ev.can.cancel || ev.can.edit);
-    return this.frame('event', ev ? ev.title ?? 'תפוס' : 'טוען…', cal?.name ?? '', html`
+    return this.frame('event', ev ? ev.title ?? tr('תפוס') : tr('טוען…'), cal?.name ?? '', html`
         ${ev ? html`<dl>
-          <dt>מתי</dt><dd class="num">${whenText(ev.start, ev.end, ctx.now).split(' · ')[0]} · <span class="ltr">${hm(ev.start)}–${hm(ev.end)}</span>${ev.recurring ? ' · חוזר' : ''}</dd>
-          <dt>מצב</dt><dd><span class=${`chip ${ev.state === 'confirmed' ? 'ok' : ev.state === 'pending' ? 'dash' : ev.state === 'displaced' ? 'warn' : ''}`}>${STATE_LABEL[ev.state]}</span>${ev.contested ? html` <span class="chip warn">מתחרה על החלון</span>` : nothing}</dd>
-          ${ev.organizer ? html`<dt>מארגן</dt><dd>${ev.organizer.name}</dd>` : nothing}
-          ${ev.on_behalf_label ? html`<dt>בשם</dt><dd>${ev.on_behalf_label}</dd>` : nothing}
-          ${ev.headcount ? html`<dt>משתתפים</dt><dd class="num">${ev.headcount}</dd>` : nothing}
-          ${ev.notes ? html`<dt>הערות</dt><dd>${ev.notes}</dd>` : nothing}
+          <dt>${tr('מתי')}</dt><dd class="num">${whenText(ev.start, ev.end, ctx.now).split(' · ')[0]} · <span class="ltr">${hm(ev.start)}–${hm(ev.end)}</span>${ev.recurring ? ` · ${tr('חוזר')}` : ''}</dd>
+          <dt>${tr('מצב')}</dt><dd><span class=${`chip ${ev.state === 'confirmed' ? 'ok' : ev.state === 'pending' ? 'dash' : ev.state === 'displaced' ? 'warn' : ''}`}>${STATE_LABEL[ev.state]}</span>${ev.contested ? html` <span class="chip warn">${tr('מתחרה על החלון')}</span>` : nothing}</dd>
+          ${ev.organizer ? html`<dt>${tr('מארגן')}</dt><dd>${ev.organizer.name}</dd>` : nothing}
+          ${ev.on_behalf_label ? html`<dt>${tr('בשם')}</dt><dd>${ev.on_behalf_label}</dd>` : nothing}
+          ${ev.headcount ? html`<dt>${tr('משתתפים')}</dt><dd class="num">${ev.headcount}</dd>` : nothing}
+          ${ev.notes ? html`<dt>${tr('הערות')}</dt><dd>${ev.notes}</dd>` : nothing}
         </dl>
         <cal-attendees-section .eventId=${ev.id}></cal-attendees-section>
-        ${ev.sync_flag ? html`<div class="note bad" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>מסומן להחלטה</b><span class="muted">${ev.sync_flag === 'conflict' ? 'התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו. ההחלטה בהגדרות ‹ חיבורי יומן.' : 'האירוע נמחק ביומן החיצוני.'}</span></div></div>` : nothing}
-        ${!editableInDrawer(ev, ctx.now) && ['pending', 'confirmed'].includes(ev.state) ? html`<div class="note" role="note" data-cal-readonly-why><sw-icon name="lock" size="18"></sw-icon><div><b>צפייה בלבד</b>
-          <span class="muted">${!ev.can.edit ? 'רק המארגן או מנהל היומן יכולים לשנות.' : new Date(ev.end) <= ctx.now ? 'המועד כבר עבר.' : ev.kind === 'maintenance' ? 'חלון תחזוקה נערך בלשונית "תחזוקה".' : 'אירוע מיומן חיצוני.'}</span></div></div>` : nothing}
-        ${ev.state === 'displaced' ? html`<div class="note warn" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>ההזמנה נדחקה בגלל תחזוקה</b><span class="muted">היא לא נמחקה. אפשר לבחור מועד אחר ולבטל אותה.</span></div></div>` : nothing}
-        ${this.confirmCancel ? html`<div class="note warn" role="alert"><sw-icon name="warning" size="18"></sw-icon><div><b>${canWithdraw ? 'למשוך את הבקשה?' : 'לבטל את ההזמנה?'}</b><span class="muted">${ev.recurring ? 'הביטול חל על כל הסדרה.' : 'המועד יתפנה לאחרים.'}</span></div></div>` : nothing}`
+        ${ev.sync_flag ? html`<div class="note bad" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>${tr('מסומן להחלטה')}</b><span class="muted">${ev.sync_flag === 'conflict' ? tr('התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו. ההחלטה בהגדרות ‹ חיבורי יומן.') : tr('האירוע נמחק ביומן החיצוני.')}</span></div></div>` : nothing}
+        ${!editableInDrawer(ev, ctx.now) && ['pending', 'confirmed'].includes(ev.state) ? html`<div class="note" role="note" data-cal-readonly-why><sw-icon name="lock" size="18"></sw-icon><div><b>${tr('צפייה בלבד')}</b>
+          <span class="muted">${!ev.can.edit ? tr('רק המארגן או מנהל היומן יכולים לשנות.') : new Date(ev.end) <= ctx.now ? tr('המועד כבר עבר.') : ev.kind === 'maintenance' ? tr('חלון תחזוקה נערך בלשונית "תחזוקה".') : tr('אירוע מיומן חיצוני.')}</span></div></div>` : nothing}
+        ${ev.state === 'displaced' ? html`<div class="note warn" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>${tr('ההזמנה נדחקה בגלל תחזוקה')}</b><span class="muted">${tr('היא לא נמחקה. אפשר לבחור מועד אחר ולבטל אותה.')}</span></div></div>` : nothing}
+        ${this.confirmCancel ? html`<div class="note warn" role="alert"><sw-icon name="warning" size="18"></sw-icon><div><b>${canWithdraw ? tr('למשוך את הבקשה?') : tr('לבטל את ההזמנה?')}</b><span class="muted">${ev.recurring ? tr('הביטול חל על כל הסדרה.') : tr('המועד יתפנה לאחרים.')}</span></div></div>` : nothing}`
         : this.error ? nothing : html`<div class="skel" style="block-size:120px"></div>`}
         ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}`,
-      html`<sw-button variant="secondary" data-cal-close @click=${() => this.close()}>סגירה</sw-button>`,
+      html`<sw-button variant="secondary" data-cal-close @click=${() => this.close()}>${tr('סגירה')}</sw-button>`,
       canCancel || canWithdraw ? html`<sw-button variant=${this.confirmCancel ? 'danger' : 'ghost'} icon="trash" ?disabled=${this.busy} data-cal-cancel-event @click=${() => void this.cancelEvent(canWithdraw)}>
-          ${this.confirmCancel ? 'כן, לבטל' : canWithdraw ? 'משיכת הבקשה' : 'ביטול ההזמנה'}</sw-button>` : nothing);
+          ${this.confirmCancel ? tr('כן, לבטל') : canWithdraw ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
   }
 
   private async cancelEvent(withdraw: boolean): Promise<void> {
@@ -436,7 +437,7 @@ export class CalEventDrawer extends LitElement {
       if (withdraw) await api.withdrawEvent(ev.id, ev.revision);
       else await api.cancelEvent(ev.id, ev.revision);
       emit(this, CAL_EVENTS.changed);
-      emit(this, CAL_EVENTS.toast, withdraw && ev.held ? 'בקשת השינוי נמשכה · ההזמנה חזרה למועד הקודם' : withdraw ? 'הבקשה נמשכה' : 'ההזמנה בוטלה');
+      emit(this, CAL_EVENTS.toast, withdraw && ev.held ? tr('בקשת השינוי נמשכה · ההזמנה חזרה למועד הקודם') : withdraw ? tr('הבקשה נמשכה') : tr('ההזמנה בוטלה'));
       this.close();
     } catch (e) {
       this.error = describeError(e);
@@ -449,9 +450,9 @@ export class CalEventDrawer extends LitElement {
   // ---------- a new booking ----------
   private roleLine(cal: Calendar | undefined): string {
     const ctx = this.ctx as CalCtx;
-    if (cal?.my_role === 'manage') return `ניהול היומן "${cal.name}" · ללא צורך באישור`;
-    if (ctx.access.can.book_for_others) return 'מזמין גם בשם אחרים';
-    return 'יוצר הזמנות שלו בלבד';
+    if (cal?.my_role === 'manage') return tr('ניהול היומן "{name}" · ללא צורך באישור', { name: cal.name });
+    if (ctx.access.can.book_for_others) return tr('מזמין גם בשם אחרים');
+    return tr('יוצר הזמנות שלו בלבד');
   }
 
   private form() {
@@ -471,51 +472,51 @@ export class CalEventDrawer extends LitElement {
     const series = !!ev?.recurring;
     const hint = ev ? this.editHint() : null;
     const toReq = ev ? !!hint && (hint.level === 'pend' || hint.level === 'contest') : toApproval;
-    return this.frame(ev ? 'edit' : 'new', ev ? 'עריכת הזמנה' : 'הזמנה חדשה', sub, html`
+    return this.frame(ev ? 'edit' : 'new', ev ? tr('עריכת הזמנה') : tr('הזמנה חדשה'), sub, html`
         <div class="lockline" data-cal-roleline><sw-icon name="shield" size="16"></sw-icon><span class="ell">${this.roleLine(cal)}</span></div>
-        ${ev?.held ? html`<div class="note warn" role="note" data-cal-held-note><sw-icon name="warning" size="18"></sw-icon><div><b>בקשת שינוי ממתינה</b>
-          <span class="muted">המועד הקודם <span class="ltr num">${hm(ev.held.start)}–${hm(ev.held.end)}</span> שמור עד שתתקבל החלטה.</span></div></div>` : nothing}
-        ${series ? html`<div class="note" role="note" data-cal-series-note><sw-icon name="refresh" size="18"></sw-icon><div><b>אירוע חוזר</b><span class="muted">כאן משנים כותרת ומשתתפים לכל הסדרה. את השעות של מועד אחד משנים מהלוח.</span></div></div>` : nothing}
-        ${!list.length ? html`<div class="note warn" role="note"><sw-icon name="lock" size="18"></sw-icon><div><b>אין יומן שאפשר להזמין בו</b><span class="muted">מנהל היומן יכול לתת הרשאה.</span></div></div>` : nothing}
-        <div class="fld"><label for="cal">יומן</label>
+        ${ev?.held ? html`<div class="note warn" role="note" data-cal-held-note><sw-icon name="warning" size="18"></sw-icon><div><b>${tr('בקשת שינוי ממתינה')}</b>
+          <span class="muted">${tr('המועד הקודם')} <span class="ltr num">${hm(ev.held.start)}–${hm(ev.held.end)}</span> ${tr('שמור עד שתתקבל החלטה.')}</span></div></div>` : nothing}
+        ${series ? html`<div class="note" role="note" data-cal-series-note><sw-icon name="refresh" size="18"></sw-icon><div><b>${tr('אירוע חוזר')}</b><span class="muted">${tr('כאן משנים כותרת ומשתתפים לכל הסדרה. את השעות של מועד אחד משנים מהלוח.')}</span></div></div>` : nothing}
+        ${!list.length ? html`<div class="note warn" role="note"><sw-icon name="lock" size="18"></sw-icon><div><b>${tr('אין יומן שאפשר להזמין בו')}</b><span class="muted">${tr('מנהל היומן יכול לתת הרשאה.')}</span></div></div>` : nothing}
+        <div class="fld"><label for="cal">${tr('יומן')}</label>
           <div class="selrow"><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span>
             <select id="cal" class="inp" data-cal-field="calendar" .value=${this.calId} ?disabled=${series} @change=${(e: Event) => (this.calId = (e.target as HTMLSelectElement).value)}>
               ${list.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select><sw-icon name="chevronDown" size="16"></sw-icon></div></div>
-        <div class="fld"><label for="t">כותרת</label><input id="t" class="inp" maxlength="200" data-cal-field="title" .value=${this.evTitle} placeholder="למשל: ישיבת צוות" @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)}></div>
-        <div class="fld"><span class="lbl">מתי</span><div class="ctls">
-          <input type="date" lang=${dateInputLang()} class="inp" aria-label="תאריך" data-cal-field="date" .value=${this.date} ?disabled=${series} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)}>
-          <input type="time" lang=${dateInputLang()} class="inp short" aria-label="שעת התחלה" step=${stepOf(cal) * 60} data-cal-field="from" .value=${this.from} ?disabled=${series} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)}>
-          <input type="time" lang=${dateInputLang()} class="inp short" aria-label="שעת סיום" step=${stepOf(cal) * 60} data-cal-field="to" .value=${this.to} ?disabled=${series} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)}></div></div>
-        ${ev ? nothing : html`<div class="fld"><label for="rep">חזרה</label><div class="ctls">
+        <div class="fld"><label for="t">${tr('כותרת')}</label><input id="t" class="inp" maxlength="200" data-cal-field="title" .value=${this.evTitle} placeholder=${tr('למשל: ישיבת צוות')} @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)}></div>
+        <div class="fld"><span class="lbl">${tr('מתי')}</span><div class="ctls">
+          <input type="date" lang=${dateInputLang()} class="inp" aria-label=${tr('תאריך')} data-cal-field="date" .value=${this.date} ?disabled=${series} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)}>
+          <input type="time" lang=${dateInputLang()} class="inp short" aria-label=${tr('שעת התחלה')} step=${stepOf(cal) * 60} data-cal-field="from" .value=${this.from} ?disabled=${series} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)}>
+          <input type="time" lang=${dateInputLang()} class="inp short" aria-label=${tr('שעת סיום')} step=${stepOf(cal) * 60} data-cal-field="to" .value=${this.to} ?disabled=${series} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)}></div></div>
+        ${ev ? nothing : html`<div class="fld"><label for="rep">${tr('חזרה')}</label><div class="ctls">
           <select id="rep" class="inp" data-cal-field="repeat" .value=${this.repeat} @change=${(e: Event) => (this.repeat = (e.target as HTMLSelectElement).value as Repeat)}>
-            <option value="none" ?selected=${this.repeat === 'none'}>פעם אחת</option><option value="weekly" ?selected=${this.repeat === 'weekly'}>כל שבוע</option><option value="daily" ?selected=${this.repeat === 'daily'}>כל יום</option></select>
-          ${this.repeat !== 'none' ? html`<input type="number" class="inp short num" min="2" max="104" aria-label="מספר מועדים" data-cal-field="count" .value=${String(this.count)} @input=${(e: Event) => (this.count = parseInt((e.target as HTMLInputElement).value, 10) || 2)}>` : nothing}</div></div>`}
+            <option value="none" ?selected=${this.repeat === 'none'}>${tr('פעם אחת')}</option><option value="weekly" ?selected=${this.repeat === 'weekly'}>${tr('כל שבוע')}</option><option value="daily" ?selected=${this.repeat === 'daily'}>${tr('כל יום')}</option></select>
+          ${this.repeat !== 'none' ? html`<input type="number" class="inp short num" min="2" max="104" aria-label=${tr('מספר מועדים')} data-cal-field="count" .value=${String(this.count)} @input=${(e: Event) => (this.count = parseInt((e.target as HTMLInputElement).value, 10) || 2)}>` : nothing}</div></div>`}
         ${!ev && this.repeat !== 'none' && start ? html`<div class="fld"><span></span><span class="hint num" data-cal-repeat-summary><sw-icon name="refresh" size="14"></sw-icon><span class="ell">${repeatSummary(this.repeat, this.count, start)}</span></span></div>` : nothing}
-        <div class="fld top"><span class="lbl">הזמינות</span><div class="col">${ev ? this.editAvailability(start, end, hint) : this.availability(start, end, conflicts)}</div></div>
+        <div class="fld top"><span class="lbl">${tr('הזמינות')}</span><div class="col">${ev ? this.editAvailability(start, end, hint) : this.availability(start, end, conflicts)}</div></div>
         ${behalfOk ? html`
-          <div class="fld"><label for="bh">בשם</label><div class="ctls">
+          <div class="fld"><label for="bh">${tr('בשם')}</label><div class="ctls">
             <select id="bh" class="inp short" data-cal-field="behalf" .value=${this.behalf} @change=${(e: Event) => (this.behalf = (e.target as HTMLSelectElement).value as OnBehalfKind)}>
               ${(Object.keys(BEHALF_LABEL) as OnBehalfKind[]).map((k) => html`<option value=${k} ?selected=${k === this.behalf}>${BEHALF_LABEL[k]}</option>`)}</select>
-            ${this.behalf !== 'self' ? html`<input class="inp" maxlength="80" aria-label=${`שם ה${BEHALF_LABEL[this.behalf]}`} data-cal-field="behalf-label" .value=${this.behalfLabel} placeholder=${`שם ה${BEHALF_LABEL[this.behalf]}`} @input=${(e: Event) => (this.behalfLabel = (e.target as HTMLInputElement).value)}>` : nothing}</div></div>`
-          : html`<div class="lockline" data-cal-behalf-locked><sw-icon name="lock" size="16"></sw-icon><span>הזמנה בשם צוות, חוג או לקוח - למי שקיבל את ההרשאה</span></div>`}
-        <div class="fld"><label for="hc">משתתפים</label><div class="ctls">
+            ${this.behalf !== 'self' ? html`<input class="inp" maxlength="80" aria-label=${tr('שם ה{who}', { who: BEHALF_LABEL[this.behalf] })} data-cal-field="behalf-label" .value=${this.behalfLabel} placeholder=${tr('שם ה{who}', { who: BEHALF_LABEL[this.behalf] })} @input=${(e: Event) => (this.behalfLabel = (e.target as HTMLInputElement).value)}>` : nothing}</div></div>`
+          : html`<div class="lockline" data-cal-behalf-locked><sw-icon name="lock" size="16"></sw-icon><span>${tr('הזמנה בשם צוות, חוג או לקוח - למי שקיבל את ההרשאה')}</span></div>`}
+        <div class="fld"><label for="hc">${tr('משתתפים')}</label><div class="ctls">
           <input id="hc" type="number" min="1" class="inp short num" inputmode="numeric" data-cal-field="headcount" .value=${this.headcount} @input=${(e: Event) => (this.headcount = (e.target as HTMLInputElement).value)}>
-          ${cal?.capacity ? html`<span class=${`hint${over ? ' bad' : ''}`} data-cal-capacity-hint><span>מתוך <span class="num">${cal.capacity}</span> מקומות${over ? ' · יותר מהקיבולת' : ''}</span></span>` : nothing}</div></div>
+          ${cal?.capacity ? html`<span class=${`hint${over ? ' bad' : ''}`} data-cal-capacity-hint><span>${tr('מתוך')} <span class="num">${cal.capacity}</span> ${tr('מקומות')}${over ? ` · ${tr('יותר מהקיבולת')}` : ''}</span></span>` : nothing}</div></div>
         <div class="slot" data-cal-slot="attendees">${attendeeSlot({ surface: 'drawer', calendarId: this.calId, eventId: ev?.id, value: this.attendees, onChange: (v) => (this.attendees = v) })}</div>
-        ${ev ? html`<div class="fld top"><label for="nt">הערות</label><textarea id="nt" class="inp" rows="2" maxlength="2000" style="padding-block:8px;resize:none" data-cal-field="notes" .value=${this.notes}
+        ${ev ? html`<div class="fld top"><label for="nt">${tr('הערות')}</label><textarea id="nt" class="inp" rows="2" maxlength="2000" style="padding-block:8px;resize:none" data-cal-field="notes" .value=${this.notes}
           @input=${(e: Event) => (this.notes = (e.target as HTMLTextAreaElement).value)}></textarea></div>` : nothing}
-        ${this.guestsOffered() ? html`<div class="fld top"><span class="lbl">פרטי אורח</span><div class="col">
-            <div class="ctls"><input class="inp" maxlength="80" aria-label="שם האורח" placeholder="שם" data-cal-field="guest-name" .value=${this.guestName} @input=${(e: Event) => (this.guestName = (e.target as HTMLInputElement).value)}>
-              <input class="inp num ltr" type="tel" inputmode="tel" maxlength="20" aria-label="טלפון האורח" placeholder="050-000-0000" data-cal-field="guest-phone" .value=${this.guestPhone} @input=${(e: Event) => (this.guestPhone = (e.target as HTMLInputElement).value)}></div>
-            <span class="hint" data-cal-retention><sw-icon name="clock" size="14"></sw-icon><span>${this.retention === null ? 'השם והטלפון יימחקו אחרי המועד האחרון, לפי הגדרות השמירה.' : this.retention === 0 ? 'השם והטלפון יימחקו בסיום המועד האחרון.' : html`השם והטלפון יימחקו <span class="num">${this.retention}</span> יום אחרי המועד האחרון.`}${this.behalfLabel.trim() ? ` התווית "${this.behalfLabel.trim()}" נשארת.` : ''}</span></span></div></div>` : nothing}
-        ${!ev && toApproval ? html`<div class="note" role="note" data-cal-approval-note><sw-icon name="info" size="18"></sw-icon><div><b>הבקשה תישלח לאישור</b>
-          <span class="muted">${conflicts.length ? 'המועד חופף להזמנה שכבר אושרה; הבקשה תיכנס לתור והמנהל יחליט. ' : ''}${cal?.owner.name ? `${cal.owner.name}, מנהל/ת היומן, ת/יקבל התראה. ` : ''}בקשה לא שומרת את המועד: מי שמאושר ראשון מקבל אותו.</span></div></div>` : nothing}
+        ${this.guestsOffered() ? html`<div class="fld top"><span class="lbl">${tr('פרטי אורח')}</span><div class="col">
+            <div class="ctls"><input class="inp" maxlength="80" aria-label=${tr('שם האורח')} placeholder=${tr('שם')} data-cal-field="guest-name" .value=${this.guestName} @input=${(e: Event) => (this.guestName = (e.target as HTMLInputElement).value)}>
+              <input class="inp num ltr" type="tel" inputmode="tel" maxlength="20" aria-label=${tr('טלפון האורח')} placeholder="050-000-0000" data-cal-field="guest-phone" .value=${this.guestPhone} @input=${(e: Event) => (this.guestPhone = (e.target as HTMLInputElement).value)}></div>
+            <span class="hint" data-cal-retention><sw-icon name="clock" size="14"></sw-icon><span>${this.retention === null ? tr('השם והטלפון יימחקו אחרי המועד האחרון, לפי הגדרות השמירה.') : this.retention === 0 ? tr('השם והטלפון יימחקו בסיום המועד האחרון.') : html`${tr('השם והטלפון יימחקו')} <span class="num">${this.retention}</span> ${tr('יום אחרי המועד האחרון.')}`}${this.behalfLabel.trim() ? ` ${tr('התווית "{label}" נשארת.', { label: this.behalfLabel.trim() })}` : ''}</span></span></div></div>` : nothing}
+        ${!ev && toApproval ? html`<div class="note" role="note" data-cal-approval-note><sw-icon name="info" size="18"></sw-icon><div><b>${tr('הבקשה תישלח לאישור')}</b>
+          <span class="muted">${conflicts.length ? `${tr('המועד חופף להזמנה שכבר אושרה; הבקשה תיכנס לתור והמנהל יחליט.')} ` : ''}${cal?.owner.name ? `${tr('{name}, מנהל/ת היומן, ת/יקבל התראה.', { name: cal.owner.name })} ` : ''}${tr('בקשה לא שומרת את המועד: מי שמאושר ראשון מקבל אותו.')}</span></div></div>` : nothing}
         ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}
         ${this.suggestions.length ? html`<div class="sugg">${this.suggestions.map((s) => html`<button type="button" class="num ltr" @click=${() => this.take(s)}>${hm(s.start)}–${hm(s.end)}</button>`)}</div>` : nothing}`,
-      html`<sw-button variant="primary" icon="check" ?disabled=${this.busy || !list.length || hint?.level === 'bad'} data-cal-submit @click=${() => void (ev ? this.saveEdit() : this.submit())}>${toReq ? 'שליחה לאישור' : 'שמירה'}</sw-button>
-        <sw-button variant="secondary" data-cal-dismiss @click=${() => this.close()}>ביטול</sw-button>`,
+      html`<sw-button variant="primary" icon="check" ?disabled=${this.busy || !list.length || hint?.level === 'bad'} data-cal-submit @click=${() => void (ev ? this.saveEdit() : this.submit())}>${toReq ? tr('שליחה לאישור') : tr('שמירה')}</sw-button>
+        <sw-button variant="secondary" data-cal-dismiss @click=${() => this.close()}>${tr('ביטול')}</sw-button>`,
       ev ? html`<sw-button variant=${this.confirmCancel ? 'danger' : 'ghost'} icon="trash" ?disabled=${this.busy} data-cal-cancel-event
-          @click=${() => void this.cancelEvent(ev.state === 'pending' && !!ev.held)}>${this.confirmCancel ? 'כן, לבטל' : ev.held ? 'משיכת השינוי' : ev.state === 'pending' ? 'משיכת הבקשה' : 'ביטול ההזמנה'}</sw-button>` : nothing);
+          @click=${() => void this.cancelEvent(ev.state === 'pending' && !!ev.held)}>${this.confirmCancel ? tr('כן, לבטל') : ev.held ? tr('משיכת השינוי') : ev.state === 'pending' ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
   }
 
   /** The edit form's availability: the day bar, and what moving it there means (from the day's entries; the server decides on save). */
@@ -523,7 +524,7 @@ export class CalEventDrawer extends LitElement {
     const bar = this.availability(start, end, hint?.contested ? [{ calendar_id: this.calId, start: hint.contested.start, end: hint.contested.end, title: hint.contested.title, state: 'confirmed' }] : []);
     if (!hint) return html`${bar}`;
     const cls = hint.level === 'bad' || hint.level === 'contest' ? 'bad' : hint.level === 'pend' ? 'warn' : 'ok';
-    const text = hint.level === 'ok' ? (hint.warn ?? 'פנוי') : hint.level === 'pend' && this.event?.state === 'confirmed' ? `${hint.reason}. המועד הנוכחי נשמר עד ההחלטה` : hint.reason;
+    const text = hint.level === 'ok' ? (hint.warn ?? tr('פנוי')) : hint.level === 'pend' && this.event?.state === 'confirmed' ? tr('{reason}. המועד הנוכחי נשמר עד ההחלטה', { reason: hint.reason ?? '' }) : hint.reason;
     return html`${bar}<span class=${`hint ${cls}`} data-cal-edit-hint=${hint.level}><sw-icon name=${cls === 'ok' ? 'check' : cls === 'warn' ? 'info' : 'warning'} size="14"></sw-icon><span>${text}</span></span>`;
   }
 
@@ -545,9 +546,9 @@ export class CalEventDrawer extends LitElement {
       </div>
       <div class="scale num"><span>07:00</span><span>12:00</span><span>17:00</span><span>22:00</span></div>
       ${!this.preview || this.editMode ? nothing : clash
-        ? html`<span class="hint bad" data-cal-avail="clash"><sw-icon name="warning" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`<span class="num">${conflicts.length}</span> מועדים מתנגשים` : 'המועד תפוס'}</b>${conflicts[0] ? html` · <span class="num">${ddmm(new Date(conflicts[0].start))} ${hm(conflicts[0].start)}</span>${conflicts[0].title ? ` (${conflicts[0].title})` : ''}` : nothing}</span></span>
+        ? html`<span class="hint bad" data-cal-avail="clash"><sw-icon name="warning" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`<span class="num">${conflicts.length}</span> ${tr('מועדים מתנגשים')}` : tr('המועד תפוס')}</b>${conflicts[0] ? html` · <span class="num">${ddmm(new Date(conflicts[0].start))} ${hm(conflicts[0].start)}</span>${conflicts[0].title ? ` (${conflicts[0].title})` : ''}` : nothing}</span></span>
           ${nextFree ? html`<div class="sugg"><button type="button" class="num ltr" data-cal-suggest @click=${() => this.take(nextFree)}>${hm(nextFree.start)}–${hm(nextFree.end)}</button></div>` : nothing}`
-        : html`<span class="hint ok" data-cal-avail="free"><sw-icon name="check" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`פנוי בכל <span class="num">${n}</span> המועדים` : 'פנוי'}</b>${gap ? html` · כולל <span class="num">${gap}</span> דק׳ הפסקה אחרי` : nothing}</span></span>`}`;
+        : html`<span class="hint ok" data-cal-avail="free"><sw-icon name="check" size="14"></sw-icon><span class="ell"><b>${n > 1 ? html`${tr('פנוי בכל')} <span class="num">${n}</span> ${tr('המועדים')}` : tr('פנוי')}</b>${gap ? html` · ${tr('כולל')} <span class="num">${gap}</span> ${tr('דק׳ הפסקה אחרי')}` : nothing}</span></span>`}`;
   }
 
   /** The first start on the same day (15-minute steps, until 22:00) where the same length meets no entry of the day. */

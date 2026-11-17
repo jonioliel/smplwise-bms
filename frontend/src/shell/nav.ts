@@ -13,20 +13,21 @@ import {
   navAnnounce, navBt, navCt, navDwt, navIt, navIx, navMt, navOt, navPt, navTr, navTst as tst, navTt as tt, navXs, navXt, ticketsSectionLabel as sectionLabel,
 } from '../i18n/nav-labels';
 import { navGeneratorPage, navRfqTitle } from '../i18n/nav-label-bridges'; // the two labels whose dictionaries (i18n/he.ts, tickets/rfq-text.ts) stay as they are
+import { tr } from '../i18n/msg/shell'; // I18N-EN-SWITCH-2438: the shell's own words (areas, sections, tabs written here)
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
  * panel embedded as-is, by הגדרות › מתגי מסכי כניסה (CR-005 recorded decision 2026-09-28, embedded panel - the embed is the
  * default). The rest exist only in WisKey's panel and are always embedded (WISKEY_PANEL_TABS). */
 const STATIC_WISKEY_TABS: readonly TabItem[] = [
-  { id: 'overview', label: 'מרכז הכניסה', href: '#/wiskey/overview' },
-  { id: 'events', label: 'פעילות', href: '#/wiskey/events' },
-  { id: 'people', label: 'אנשים', href: '#/wiskey/people' },
-  { id: 'devices', label: 'עמדות', href: '#/wiskey/devices' },
-  { id: 'sync', label: 'סנכרון', href: '#/wiskey/sync' },
-  { id: 'health', label: 'בריאות', href: '#/wiskey/health' },
-  { id: 'audit', label: 'יומן שינויים', href: '#/wiskey/audit' },
-  { id: 'tools', label: 'ניהול', href: '#/wiskey/tools' },
+  { id: 'overview', label: tr('מרכז הכניסה'), href: '#/wiskey/overview' },
+  { id: 'events', label: tr('פעילות'), href: '#/wiskey/events' },
+  { id: 'people', label: tr('אנשים'), href: '#/wiskey/people' },
+  { id: 'devices', label: tr('עמדות'), href: '#/wiskey/devices' },
+  { id: 'sync', label: tr('סנכרון'), href: '#/wiskey/sync' },
+  { id: 'health', label: tr('בריאות'), href: '#/wiskey/health' },
+  { id: 'audit', label: tr('יומן שינויים'), href: '#/wiskey/audit' },
+  { id: 'tools', label: tr('ניהול'), href: '#/wiskey/tools' },
 ];
 
 /** The WisKey area's tabs (AREA_TABS.wiskey is this same array, so the phone bottom bar follows too). WisKey embed API v1 (rc.19+): once the embedded panel's `wiskey:ready`
@@ -80,7 +81,7 @@ export function applyDoorWindowsTab(settings: Record<string, unknown> | null | u
 }
 
 /** CR-036 S9: what the native schedules screen's tab is called. */
-export const WISKEY_SCHEDULES_LABEL = 'לוחות זמנים';
+export const WISKEY_SCHEDULES_LABEL = tr('לוחות זמנים');
 /** CR-036 S9: tabs that exist only as a native Arx screen - the embedded panel has no top-level tab for them (its schedule editors
  * live under its own management tools). Such a tab is in the row only while its screen is switched to Arx; with the switch off
  * (the default) nothing changes for anyone. */
@@ -210,7 +211,7 @@ export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people', '
  * `schedules` (CR-036 S9, read only) has no tab of the embedded panel: its tab exists only while the screen is switched to Arx. */
 export const WISKEY_SCREEN_SEGMENT: Record<WiskeyScreen, string> = { overview: 'overview', events: 'events', people: 'people', stations: 'devices', schedules: 'schedules' };
 /** What the native stations screen's tab is called in the row (WisKey's own tab keeps WisKey's label). */
-export const WISKEY_STATIONS_LABEL = 'תחנות ודלתות';
+export const WISKEY_STATIONS_LABEL = tr('תחנות ודלתות');
 
 /** The screen a route segment belongs to, or null (a segment that is only ever the embedded panel). */
 export function wiskeyScreenOf(segment: string): WiskeyScreen | null {
@@ -336,20 +337,20 @@ export const SECURITY_PRIVACY_MASKS_HREF = '#/system/security/privacy-masks';
  * (#/explore/entities, which redirects here for holders of system.configure - see legacyRedirect). */
 export const ENTITIES_SETTINGS_HREF = '#/system/entities';
 export const SECURITY_SETTINGS_TABS: TabItem[] = [
-  { id: 'alarm', label: 'אזעקה', href: '#/system/security/alarm' },
-  { id: 'manage', label: 'ניהול אזעקה', href: '#/system/security/manage' },
+  { id: 'alarm', label: tr('אזעקה'), href: '#/system/security/alarm' },
+  { id: 'manage', label: tr('ניהול אזעקה'), href: '#/system/security/manage' },
   { id: 'nvr', label: 'NVR', href: '#/system/security/nvr' },
   /** CR-020 S1: the cameras' video settings (codec, SVC, resolution, bitrate, ...), read-only, system administrators. */
-  { id: 'cameras', label: 'מצלמות', href: SECURITY_CAMERAS_HREF },
+  { id: 'cameras', label: tr('מצלמות'), href: SECURITY_CAMERAS_HREF },
   /** SECFIX2-295: retention / cap of vendor-typed technicians, the portal's sign-in queue, the uniform answer switch. */
-  { id: 'public', label: 'ממשק ציבורי', href: SECURITY_PUBLIC_HREF },
+  { id: 'public', label: tr('ממשק ציבורי'), href: SECURITY_PUBLIC_HREF },
   /** MASKUI-295: draw, review and write the cameras' privacy masks. */
-  { id: 'privacy-masks', label: 'מסכות פרטיות', href: SECURITY_PRIVACY_MASKS_HREF },
+  { id: 'privacy-masks', label: tr('מסכות פרטיות'), href: SECURITY_PRIVACY_MASKS_HREF },
   /** SWITCHUI-295: turn the access-control reads off / on (system administrators; a switch cannot be turned on without a go-live permit). */
-  { id: 'wiskey', label: 'קריאות בקרת כניסה', href: SECURITY_WISKEY_HREF },
+  { id: 'wiskey', label: tr('קריאות בקרת כניסה'), href: SECURITY_WISKEY_HREF },
   /** CR-LIVEEVENT100: the live event mode switch and every threshold of its page (system.configure). Always offered to an administrator
    * (it is where the module is switched on); `#/system/security/incidents`. */
-  { id: 'incidents', label: 'מצב אירוע חי', href: '#/system/security/incidents' },
+  { id: 'incidents', label: tr('מצב אירוע חי'), href: '#/system/security/incidents' },
 ];
 
 /** Is there an alarm panel on this platform? null = not known yet (api/alarm-presence.ts fills it once per session and
@@ -636,9 +637,9 @@ export const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
 /** CR-021 S2: הגדרות › עדכונים. */
 export const UPDATE_SETTINGS_HREF = '#/system/update';
 export const MULTIMEDIA_TABS: TabItem[] = [
-  { id: 'screens', label: 'מסכים', href: MULTIMEDIA_SCREENS_HREF },
-  { id: 'players', label: 'נגנים ורמקולים', href: MULTIMEDIA_PLAYERS_HREF },
-  { id: 'groups', label: 'קבוצות', href: MULTIMEDIA_GROUPS_HREF },
+  { id: 'screens', label: tr('מסכים'), href: MULTIMEDIA_SCREENS_HREF },
+  { id: 'players', label: tr('נגנים ורמקולים'), href: MULTIMEDIA_PLAYERS_HREF },
+  { id: 'groups', label: tr('קבוצות'), href: MULTIMEDIA_GROUPS_HREF },
 ];
 
 /** What the installation has of the two CR-016 kinds; unknown (nothing reported yet) = none, so the row never flashes a tab that then goes. */
@@ -670,8 +671,8 @@ export function applyMultimediaKinds(counts: { screens?: number | null; players?
 
 /** The map's tabs: the sites list and the floor map. The device catalogue left the map for הגדרות (2026-09-30). */
 const EXPLORE_TABS: TabItem[] = [
-  { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
-  { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
+  { id: 'sites', label: tr('אתרים ומבנים'), href: '#/explore/sites' },
+  { id: 'floors', label: tr('מפת קומה'), href: '#/explore/floors/f0' },
   // WHOIN034-295 (board r034): "מי במבנה" - presence.view holders only (sensitive, system_admin by default; TAB_PERMISSIONS)
   { id: 'presence', get label() { return navPt('tab'); }, href: '#/explore/presence' },
 ];
@@ -734,15 +735,15 @@ export const calendarsModuleOn = (): boolean => CALENDARS_ON;
 export const calendarsPlacement = (): 'rail' | 'home_tab' | 'both' => CALENDARS_PLACEMENT;
 /** The base address the calendars screens build their links on: the one the viewer is on. */
 export const calendarsBase = (r: RouteState | null): string => (r?.mode === 'devices' ? '#/devices/calendars' : '#/calendars');
-export const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', label: 'יומנים', href: CALENDARS_HREF };
+export const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', label: tr('יומנים'), href: CALENDARS_HREF };
 
 export const DEVICES_TABS: TabItem[] = [
-  { id: 'building', label: 'מבט על', href: '#/devices/building' },
+  { id: 'building', label: tr('מבט על'), href: '#/devices/building' },
   // 2.29.0 (owner decision 6, 2026-10-29): the synoptic map is the tab BETWEEN מבט על and קברניט; the installation may switch it off (ui.xs syn_tab)
   { id: 'synoptic', get label() { return navXs('synTab'); }, href: SYNOPTIC_HREF },
   // CALENDARS-UI-2310: "יומנים" between מבט על and קברניט while the installation puts it in the home menu (hidden by default: HIDDEN_HREFS)
-  { id: 'calendars', label: 'יומנים', href: CALENDARS_HOME_HREF },
-  { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
+  { id: 'calendars', label: tr('יומנים'), href: CALENDARS_HOME_HREF },
+  { id: 'automations', label: tr('קברניט'), href: SCHEDULES_HREF },
   // CR-NOTICE106 put לוח הודעות here; NOTICEADD-295 (owner decision 2026-10-24) moved it to the rail (NOTICES_AREA)
   // ANNOUNCE-295: הכרזות - offered to holders of media.announce (TAB_PERMISSIONS); the screen itself says when the feature is off
   { id: 'announce', get label() { return navAnnounce('title'); }, href: ANNOUNCE_HREF },
@@ -813,15 +814,15 @@ export const INFRA_TEMPERATURE_HREF = '#/infra/temperature';
 /** CR-WATER78: the water meters (water.view; offered only while the module is on and the viewer may see water meters - water/access.ts). */
 export const INFRA_WATER_HREF = '#/infra/water/meters';
 export const INFRA_TABS: TabItem[] = [
-  { id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF },
+  { id: 'electricity', label: tr('מוני חשמל'), href: INFRA_METERS_HREF },
   // CR-WATER78 section 3: directly after the electricity meters; hidden while the module is off (default) or the viewer lacks water.view
-  { id: 'water', label: 'מים', href: INFRA_WATER_HREF },
+  { id: 'water', label: tr('מים'), href: INFRA_WATER_HREF },
   // CR-031: a sibling of the meters, offered only when a generator is detected (or to a manager, for setup)
-  { id: 'generator', label: 'גנרטור', href: INFRA_GENERATOR_HREF },
+  { id: 'generator', label: tr('גנרטור'), href: INFRA_GENERATOR_HREF },
   // CR-INFRA-ELEVATORS: hidden until at least one elevator is defined that the viewer may see (elevators/access.ts)
-  { id: 'elevators', label: 'מעליות', href: INFRA_ELEVATORS_HREF },
+  { id: 'elevators', label: tr('מעליות'), href: INFRA_ELEVATORS_HREF },
   // CR-INFRA-TEMPERATURE 2.9.1: hidden until a unit is defined that the viewer may see (or he may manage them; temperature/access.ts)
-  { id: 'temperature', label: 'טמפרטורות', href: INFRA_TEMPERATURE_HREF },
+  { id: 'temperature', label: tr('טמפרטורות'), href: INFRA_TEMPERATURE_HREF },
 ];
 
 /** TABSET-293: the page rows inside two infrastructure screens (level 2 of the tab registry): the electricity meters' pages (the
@@ -829,10 +830,10 @@ export const INFRA_TABS: TabItem[] = [
  * (screens/infra-electricity.ts, screens/infra-generator.ts) through `infraPageTabs`, so `ui.tabs` (`infra.electricity`,
  * `infra.generator`) orders and hides them like every other row. */
 export const INFRA_ELECTRICITY_PAGES: TabItem[] = [
-  { id: 'meters', label: 'מונים', href: INFRA_METERS_HREF },
-  { id: 'accounts', label: 'חשבונות', href: '#/infra/electricity/accounts' },
-  { id: 'bills', label: 'חיובים', href: '#/infra/electricity/bills' },
-  { id: 'customers', label: 'לקוחות', href: '#/infra/electricity/customers' },
+  { id: 'meters', label: tr('מונים'), href: INFRA_METERS_HREF },
+  { id: 'accounts', label: tr('חשבונות'), href: '#/infra/electricity/accounts' },
+  { id: 'bills', label: tr('חיובים'), href: '#/infra/electricity/bills' },
+  { id: 'customers', label: tr('לקוחות'), href: '#/infra/electricity/customers' },
 ];
 /** The electricity pages that show money (energy.bills). */
 export const INFRA_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
@@ -841,13 +842,13 @@ export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'h
 /** CR-WATER78 sections 3 and 16: the water pages (level 2, `infra.water`). The money pages (חיובים, לקוחות) need water.bills, the settings
  * page water.manage or system.configure; the screen (screens/infra-water.ts) checks them again from the module's status. */
 export const INFRA_WATER_PAGES: TabItem[] = [
-  { id: 'meters', label: 'מונים', href: INFRA_WATER_HREF },
-  { id: 'usage', label: 'צריכה', href: '#/infra/water/usage' },
-  { id: 'alerts', label: 'התראות', href: '#/infra/water/alerts' },
-  { id: 'accounts', label: 'חשבונות', href: '#/infra/water/accounts' },
-  { id: 'bills', label: 'חיובים', href: '#/infra/water/bills' },
-  { id: 'customers', label: 'לקוחות', href: '#/infra/water/customers' },
-  { id: 'settings', label: 'הגדרות', href: '#/infra/water/settings' },
+  { id: 'meters', label: tr('מונים'), href: INFRA_WATER_HREF },
+  { id: 'usage', label: tr('צריכה'), href: '#/infra/water/usage' },
+  { id: 'alerts', label: tr('התראות'), href: '#/infra/water/alerts' },
+  { id: 'accounts', label: tr('חשבונות'), href: '#/infra/water/accounts' },
+  { id: 'bills', label: tr('חיובים'), href: '#/infra/water/bills' },
+  { id: 'customers', label: tr('לקוחות'), href: '#/infra/water/customers' },
+  { id: 'settings', label: tr('הגדרות'), href: '#/infra/water/settings' },
 ];
 /** The water pages that show money (water.bills) and the managers' page. */
 export const INFRA_WATER_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
@@ -1165,14 +1166,14 @@ export interface AreaEntry {
  * unchanged. "מערכת" left the bar: it is an item of the user menu, for users who hold a settings permission
  * (SYSTEM_AREA). Each user may reorder the tabs (nav-order.ts, stored on the server). */
 export const NAV_A: AreaEntry[] = [
-  { id: 'devices', icon: 'home', label: 'ראשי', href: '#/devices/building' },
-  { id: 'security', icon: 'shield', label: 'אבטחה', href: '#/security' },
-  { id: 'explore', icon: 'map', label: 'מפה', href: '#/explore/sites' },
+  { id: 'devices', icon: 'home', label: tr('ראשי'), href: '#/devices/building' },
+  { id: 'security', icon: 'shield', label: tr('אבטחה'), href: '#/security' },
+  { id: 'explore', icon: 'map', label: tr('מפה'), href: '#/explore/sites' },
   // CR-015 (owner decision 2a): "מולטימדיה" between the map and WisKey; shown to holders of media.read (TAB_PERMISSIONS)
-  { id: 'multimedia', icon: 'media', label: 'מולטימדיה', href: '#/multimedia/screens' },
+  { id: 'multimedia', icon: 'media', label: tr('מולטימדיה'), href: '#/multimedia/screens' },
   { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
   // CR-023: "תשתיות" after WisKey; shown to holders of energy.view (TAB_PERMISSIONS) when the installation has meters or the user may manage them
-  { id: 'infra', icon: 'bolt', label: 'תשתיות', href: INFRA_METERS_HREF },
+  { id: 'infra', icon: 'bolt', label: tr('תשתיות'), href: INFRA_METERS_HREF },
   // CR-038: the optional tickets area, last (a new tab never moves a stored order); offered while the module is on to holders of tickets.view /
   // tickets.create. Its label is the module's configured plural (D33).
   { id: 'tickets', icon: 'ticket', get label() { return tt('area'); }, href: TICKETS_MINE_HREF },
@@ -1186,10 +1187,10 @@ export const NAV_TAB_IDS: NavTabId[] = NAV_A.map((n) => n.id as NavTabId);
  * directly under "מולטימדיה" (or, without it, where מולטימדיה would stand in the user's order); hidden entirely while the module is off.
  * Its page stays #/devices/notices (route ids unchanged); `areaOf` names that route 'notices' so the entry lights. It is not one of the
  * movable tabs (NAV_TAB_IDS, the server's nav.order list): it follows מולטימדיה wherever the user put that. */
-export const NOTICES_AREA: AreaEntry = { id: 'notices', icon: 'pin', label: 'לוח הודעות', href: '#/devices/notices' };
+export const NOTICES_AREA: AreaEntry = { id: 'notices', icon: 'pin', label: tr('לוח הודעות'), href: '#/devices/notices' };
 
 /** "מערכת" (the settings area): a route area of its own (crumbs, tabs) but, since CR-013, reached from the user menu. */
-export const SYSTEM_AREA: AreaEntry = { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' };
+export const SYSTEM_AREA: AreaEntry = { id: 'system', icon: 'system', label: tr('מערכת'), href: '#/system/diagnostics' };
 
 /** The settings tabs every signed-in user has (their own push notification preferences): holding only these is not
  * "a settings permission" - the user menu offers them as their own item instead of "מערכת". */
@@ -1198,28 +1199,28 @@ export const PERSONAL_SYSTEM_HREFS = new Set<string>(['#/system/notifications'])
 /** The security area's sections and their pages (CR-010). */
 export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
   live: [
-    { id: 'overview', label: 'תמונת מצב', href: '#/live' },
-    { id: 'wall', label: 'כל המצלמות', href: '#/live/wall' },
-    { id: 'views', label: 'תצוגות שמורות', href: '#/live/views' },
+    { id: 'overview', label: tr('תמונת מצב'), href: '#/live' },
+    { id: 'wall', label: tr('כל המצלמות'), href: '#/live/wall' },
+    { id: 'views', label: tr('תצוגות שמורות'), href: '#/live/views' },
   ],
   investigate: [
-    { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
+    { id: 'events', label: tr('מרכז אירועים'), href: '#/investigate/events' },
     /** CR-LIVEEVENT100: "אירוע חי" - one page per incident in progress; offered only while the module is on (applyIncidents), with a red
      * dot while an incident the viewer may read is open (the setting incident.red_dot can switch the dots off). */
     INCIDENTS_TAB,
-    { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
-    { id: 'sync', label: 'ניגון מסונכרן', href: '#/investigate/playback/sync' },
-    { id: 'history', label: 'מפה היסטורית', href: '#/investigate/floors/f0/history' },
-    { id: 'reviews', label: 'סקירה', href: '#/investigate/reviews' },
-    { id: 'search', label: 'חיפוש', href: '#/investigate/search' },
-    { id: 'cases', label: 'תיקים', href: '#/investigate/cases' },
-    { id: 'rules', label: 'חוקים והתראות', href: '#/investigate/rules' },
-    { id: 'exports', label: 'ייצוא', href: '#/investigate/exports' },
+    { id: 'playback', label: tr('הקלטות'), href: '#/investigate/playback' },
+    { id: 'sync', label: tr('ניגון מסונכרן'), href: '#/investigate/playback/sync' },
+    { id: 'history', label: tr('מפה היסטורית'), href: '#/investigate/floors/f0/history' },
+    { id: 'reviews', label: tr('סקירה'), href: '#/investigate/reviews' },
+    { id: 'search', label: tr('חיפוש'), href: '#/investigate/search' },
+    { id: 'cases', label: tr('תיקים'), href: '#/investigate/cases' },
+    { id: 'rules', label: tr('חוקים והתראות'), href: '#/investigate/rules' },
+    { id: 'exports', label: tr('ייצוא'), href: '#/investigate/exports' },
     /** 2026-09-30: camera health lives in the investigation (it was the fourth live page, #/system/devices). */
-    { id: 'health', label: 'בריאות מצלמות', href: '#/investigate/health' },
+    { id: 'health', label: tr('בריאות מצלמות'), href: '#/investigate/health' },
   ],
   /** The intrusion alarm, a section of its own again (0.1.147) - the same screen as הגדרות › אבטחה › אזעקה. */
-  alarm: [{ id: 'alarm', label: 'אזעקה', href: '#/security/alarm' }],
+  alarm: [{ id: 'alarm', label: tr('אזעקה'), href: '#/security/alarm' }],
 };
 
 export interface SectionEntry {
@@ -1230,9 +1231,9 @@ export interface SectionEntry {
 }
 
 export const SECURITY_SECTIONS: SectionEntry[] = [
-  { id: 'live', label: 'לייב', icon: 'camera', href: '#/live' },
-  { id: 'investigate', label: 'חקירה', icon: 'search', href: '#/investigate/events' },
-  { id: 'alarm', label: 'אזעקה', icon: 'shield', href: '#/security/alarm' },
+  { id: 'live', label: tr('לייב'), icon: 'camera', href: '#/live' },
+  { id: 'investigate', label: tr('חקירה'), icon: 'search', href: '#/investigate/events' },
+  { id: 'alarm', label: tr('אזעקה'), icon: 'shield', href: '#/security/alarm' },
 ];
 
 export const AREA_TABS: Record<AreaId, TabItem[]> = {
@@ -1249,50 +1250,50 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   notices: [], // NOTICEADD-295: one page, no tab row
   calendars: [], // CALENDARS-UI-2310: the screen draws its own view tabs (the approved mock-up)
   system: [
-    { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
+    { id: 'general', label: tr('כללי'), href: '#/system/diagnostics' },
     // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
-    { id: 'notifications', label: 'התראות', href: '#/system/notifications' },
-    { id: 'access', label: 'משתמשים והרשאות', href: '#/system/access' },
-    { id: 'security', label: 'אבטחה', href: SECURITY_SETTINGS_HREF },
-    { id: 'audit', label: 'אודיט', href: '#/system/audit' },
-    { id: 'storage', label: 'אחסון', href: '#/system/storage' },
+    { id: 'notifications', label: tr('התראות'), href: '#/system/notifications' },
+    { id: 'access', label: tr('משתמשים והרשאות'), href: '#/system/access' },
+    { id: 'security', label: tr('אבטחה'), href: SECURITY_SETTINGS_HREF },
+    { id: 'audit', label: tr('אודיט'), href: '#/system/audit' },
+    { id: 'storage', label: tr('אחסון'), href: '#/system/storage' },
     // CR-021 S2: the self-update page (system.update, installation scope: system administrators only)
-    { id: 'update', label: 'עדכונים', href: UPDATE_SETTINGS_HREF },
-    { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
+    { id: 'update', label: tr('עדכונים'), href: UPDATE_SETTINGS_HREF },
+    { id: 'wizard', label: tr('אשף התקנה'), href: '#/system/wizard' },
     // CR-READY96 slice 1: the installation readiness score and checklist (system.configure, installation scope: whoever configures the system only)
-    { id: 'readiness', label: 'מוכנות', href: '#/system/readiness' },
-    { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
+    { id: 'readiness', label: tr('מוכנות'), href: '#/system/readiness' },
+    { id: 'setup', label: tr('חיבורים'), href: '#/system/setup' },
     // CR-036 S10: the access-control status, the intercom's action log, groups and fields (access.admin.read at any scope)
-    { id: 'access-control', label: 'בקרת כניסה', href: ACCESS_CONTROL_SETTINGS_HREF },
-    { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
-    { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
-    { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
+    { id: 'access-control', label: tr('בקרת כניסה'), href: ACCESS_CONTROL_SETTINGS_HREF },
+    { id: 'entities', label: tr('קטלוג התקנים'), href: ENTITIES_SETTINGS_HREF },
+    { id: 'schedules', label: tr('תזמונים'), href: SCHEDULES_SETTINGS_HREF },
+    { id: 'wall', label: tr('מסכי קיר'), href: WALL_SETTINGS_HREF },
     // CR-NOTICE106: the notice board's switch, defaults and TV boards (system.configure / notices.boards)
-    { id: 'notices', label: 'לוח הודעות', href: NOTICES_SETTINGS_HREF },
+    { id: 'notices', label: tr('לוח הודעות'), href: NOTICES_SETTINGS_HREF },
     // BUSTIMES-295: nearby public-transport times on the notice boards - the module switch, up to four stops and the general rules
     { id: 'transit', get label() { return navTr('tab'); }, href: TRANSIT_SETTINGS_HREF },
     // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
-    { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
+    { id: 'automations', label: tr('אוטומציות'), href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
-    { id: 'multimedia', label: 'מולטימדיה', href: MULTIMEDIA_SETTINGS_HREF },
+    { id: 'multimedia', label: tr('מולטימדיה'), href: MULTIMEDIA_SETTINGS_HREF },
     // CR-023: prices and VAT, business details, data retention of the electricity module (energy.manage, or system.configure for the retention)
-    { id: 'infra', label: 'תשתיות', href: INFRA_SETTINGS_HREF },
+    { id: 'infra', label: tr('תשתיות'), href: INFRA_SETTINGS_HREF },
     // CALENDARS-UI-2310: the calendars module's settings (calendar.configure) and its external connections (calendar.connect)
-    { id: 'calendars', label: 'יומנים', href: CALENDARS_SETTINGS_HREF },
-    { id: 'calendar-sync', label: 'חיבורי יומן', href: CALENDAR_SYNC_SETTINGS_HREF },
+    { id: 'calendars', label: tr('יומנים'), href: CALENDARS_SETTINGS_HREF },
+    { id: 'calendar-sync', label: tr('חיבורי יומן'), href: CALENDAR_SYNC_SETTINGS_HREF },
     // CR-038: the tickets module's settings (the switch and the display: system.configure; the name, departments and grants: tickets.configure)
     { id: 'tickets', get label() { return tt('settingsTab'); }, href: TICKETS_SETTINGS_HREF },
     // CR-038 S5a: which linked WhatsApp account sends for which use (installation-level; read system.configure, edit messaging.accounts.manage)
-    { id: 'messaging-accounts', label: 'ערוץ ההודעות', href: '#/system/messaging-accounts' },
+    { id: 'messaging-accounts', label: tr('ערוץ ההודעות'), href: '#/system/messaging-accounts' },
     // CR-FLEET215: the daily health report to SmplWise - the switch, what is sent, the last reports (system.configure + system administrator)
-    { id: 'fleet-report', label: 'דיווח בריאות', href: '#/system/fleet-report' },
+    { id: 'fleet-report', label: tr('דיווח בריאות'), href: '#/system/fleet-report' },
     // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools (clock, station technical settings, add / remove, platform) - system.configure at the installation
-    { id: 'intercom-installer', label: 'התקנת האינטרקום', href: '#/system/intercom-installer' },
+    { id: 'intercom-installer', label: tr('התקנת האינטרקום'), href: '#/system/intercom-installer' },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
-    { id: 'screens', label: 'כל המסכים', href: '#/screens' },
+    { id: 'screens', label: tr('כל המסכים'), href: '#/screens' },
     // WISKEY-OPS-VIEWS-2400: the intercom system's operations and fleet views - access.read at installation scope (exports and cancel:
     // access.admin.read). Last in the row, so no existing tab moves.
-    { id: 'intercom-operations', label: 'תפעול האינטרקום', href: INTERCOM_OPS_HREF },
+    { id: 'intercom-operations', label: tr('תפעול האינטרקום'), href: INTERCOM_OPS_HREF },
   ],
 };
 
@@ -1385,7 +1386,7 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
   const sub = a === 'system' && r?.segments[1] === 'security' ? SECURITY_SETTINGS_TABS.find((x) => x.id === r.segments[2])?.label : undefined;
   // 0.1.154: ראשי › קברניט › the segment
   const s = r?.segments ?? [];
-  const kSub = a !== 'devices' ? undefined : s[1] === 'schedules' ? 'תזמונים' : s[1] === 'automations' ? (s[2] === 'scenes' ? 'סצנות' : s[2] === 'scripts' ? 'סקריפטים' : 'אוטומציות') : undefined;
+  const kSub = a !== 'devices' ? undefined : s[1] === 'schedules' ? tr('תזמונים') : s[1] === 'automations' ? (s[2] === 'scenes' ? tr('סצנות') : s[2] === 'scripts' ? tr('סקריפטים') : tr('אוטומציות')) : undefined;
   return [area?.label ?? '', sec?.label ?? '', label === sec?.label ? '' : label, sub ?? kSub ?? ''].filter(Boolean);
 }
 
@@ -1441,10 +1442,10 @@ export function pageTargets(q: string, api: boolean, can?: Can): PageTarget[] {
   if (!needle) return [];
   const sections = visibleSections(api, can);
   const all: PageTarget[] = sections.map((s) => ({
-    label: `אבטחה ‹ ${s.label}`,
-    subtitle: s.id === 'alarm' ? 'מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה' : s.id === 'live' ? 'תמונת מצב ומצלמות' : 'אירועים, הקלטות ותיקים',
+    label: tr('אבטחה ‹ {name}', { name: s.label }),
+    subtitle: s.id === 'alarm' ? tr('מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה') : s.id === 'live' ? tr('תמונת מצב ומצלמות') : tr('אירועים, הקלטות ותיקים'),
     href: s.href,
-    keywords: s.id === 'alarm' ? ['אזעקה', 'דריכה', 'נטרול', 'עקיפה', 'חיישנים', 'alarm'] : s.id === 'live' ? ['לייב', 'מצלמות', 'live'] : ['חקירה', 'אירועים', 'הקלטות'],
+    keywords: s.id === 'alarm' ? [tr('אזעקה'), tr('דריכה'), tr('נטרול'), tr('עקיפה'), tr('חיישנים'), 'alarm'] : s.id === 'live' ? [tr('לייב'), tr('מצלמות'), 'live'] : [tr('חקירה'), tr('אירועים'), tr('הקלטות')],
   }));
   return all.filter((t) => t.label.toLowerCase().includes(needle) || t.keywords.some((k) => k.toLowerCase().startsWith(needle) || needle.startsWith(k.toLowerCase())));
 }
@@ -1455,7 +1456,7 @@ export function pageTargets(q: string, api: boolean, can?: Can): PageTarget[] {
 export const DEMO_ONLY_HREFS = new Set<string>();
 
 /** Tabs whose real screen has a different name than the design's demo screen. */
-export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן' };
+export const API_LABELS: Record<string, string> = { '#/investigate/reviews': tr('Review · חלונות'), '#/investigate/playback/sync': tr('ניגון מסונכרן') };
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 // CR-NOTICE106: the notice board tab until the session says the module is on; FIX2200: the same for the הכרזות tab (announce.enabled)

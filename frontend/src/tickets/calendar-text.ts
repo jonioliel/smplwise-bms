@@ -4,6 +4,7 @@
  */
 import { ticketsLang } from './text';
 import { renderText, type TextVars } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   calGroup: 'יומן שבועי',
@@ -108,3 +109,5 @@ type NameList = 'days' | 'daysShort' | 'months';
 export function calName(list: NameList, i: number, lang: 'he' | 'en' = ticketsLang()): string {
   return (lang === 'en' ? enNames : he)[list][i] ?? '';
 }
+
+registerCatalogue('tickets/calendar-text', { he, en: { ...enPlain, ...enNames } });

@@ -1,6 +1,7 @@
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { WidgetItem } from '../api/home-config';
 import { xi } from './xs-icons';
+import { tr } from '../i18n/msg/misc';
 import { miniFloorLabel, type MiniFloor, type MiniModel } from './xs-mini-model';
 
 /**
@@ -100,10 +101,10 @@ export const XS_MINI_WIDGET_STYLES = css`
 
 function markers(f: MiniFloor, show: MiniModel['show']): TemplateResult {
   const out: TemplateResult[] = [];
-  if (f.fire) out.push(html`<span class="xm-mk al" data-xs-mini-fire title="אזעקת אש (נתוני דמה)">${xi('flame')}</span>`);
-  if (f.alarm) out.push(html`<span class="xm-mk al" data-xs-mini-alarm title="אזעקה">${xi('bell')}</span>`);
-  if (!f.nodata && show.temp && f.temp) out.push(html`<span class="xm-mk ${f.temp}" title=${f.temp === 'hot' ? 'חם' : 'קר'}>${xi(f.temp === 'hot' ? 'flame' : 'snow')}</span>`);
-  if (!f.nodata && show.doors && f.doorsOpen) out.push(html`<span class="xm-mk" data-xs-mini-doors title="דלתות פתוחות">${xi('door')}${f.doorsOpen}</span>`);
+  if (f.fire) out.push(html`<span class="xm-mk al" data-xs-mini-fire title=${tr('אזעקת אש (נתוני דמה)')}>${xi('flame')}</span>`);
+  if (f.alarm) out.push(html`<span class="xm-mk al" data-xs-mini-alarm title=${tr('אזעקה')}>${xi('bell')}</span>`);
+  if (!f.nodata && show.temp && f.temp) out.push(html`<span class="xm-mk ${f.temp}" title=${f.temp === 'hot' ? tr('חם') : tr('קר')}>${xi(f.temp === 'hot' ? 'flame' : 'snow')}</span>`);
+  if (!f.nodata && show.doors && f.doorsOpen) out.push(html`<span class="xm-mk" data-xs-mini-doors title=${tr('דלתות פתוחות')}>${xi('door')}${f.doorsOpen}</span>`);
   return html`<span class="xm-mks" aria-hidden="true">${out}</span>`;
 }
 
@@ -112,7 +113,7 @@ function lightsChip(h: MiniWidgetHost, f: MiniFloor, it: WidgetItem): TemplateRe
   const inner = html`${xi('light')}<b>${f.lit}/${f.lights}</b>`;
   const cls = `xm-lc ${f.lit ? 'warm' : ''}`;
   if (!h.lightsOk(f)) return html`<span class=${cls} aria-hidden="true">${inner}</span>`;
-  return html`<button type="button" class=${cls} data-xs-mini-lights=${f.id} ?disabled=${h.editing} aria-label=${`תאורה ב${f.name}: ${f.lit} מתוך ${f.lights} דולקות`}
+  return html`<button type="button" class=${cls} data-xs-mini-lights=${f.id} ?disabled=${h.editing} aria-label=${tr('תאורה ב{name}: {lit} מתוך {n} דולקות', { name: f.name, lit: f.lit, n: f.lights })}
     @click=${() => h.onLights(f.id)}>${inner}</button>`;
 }
 
@@ -120,12 +121,12 @@ function lightsChip(h: MiniWidgetHost, f: MiniFloor, it: WidgetItem): TemplateRe
 export function renderXsMini(h: XsMiniArgs, it: WidgetItem): TemplateResult {
   const m = h.model;
   const head = html`<div class="wg-h">${xi('section')}<span>${it.title}</span>${h.multi && m ? html`<small data-xs-mini-building><bdi>${m.buildingName}</bdi></small>` : nothing}
-    <button type="button" class="xm-go" data-xs-mini-all ?disabled=${h.editing} @click=${h.onAll}>כל הקומות</button></div>`;
-  if (!m || !m.floors.length) return h.shell(it, 'wg-xs', {}, html`${head}<div class="xm-empty">אין מידע מהקומות</div>`);
+    <button type="button" class="xm-go" data-xs-mini-all ?disabled=${h.editing} @click=${h.onAll}>${tr('כל הקומות')}</button></div>`;
+  if (!m || !m.floors.length) return h.shell(it, 'wg-xs', {}, html`${head}<div class="xm-empty">${tr('אין מידע מהקומות')}</div>`);
   const t = m.totals;
   const sum = it.size === 's'
     ? nothing
-    : html`<div class="xm-sum" data-xs-mini-sum>${m.show.light && t.litKnown ? html`<span>${xi('light')} <b>${t.lit}/${t.lights}</b> דולקות</span>` : nothing}${t.alarms ? html`<span class="al">${xi('bell')} ${t.alarms === 1 ? 'קומה באזעקה' : `${t.alarms} קומות באזעקה`}</span>` : nothing}${m.show.doors && t.doorsOpen ? html`<span>${xi('door')} <b>${t.doorsOpen}</b> פתוחות</span>` : nothing}</div>`;
+    : html`<div class="xm-sum" data-xs-mini-sum>${m.show.light && t.litKnown ? html`<span>${xi('light')} <b>${t.lit}/${t.lights}</b> ${tr('דולקות')}</span>` : nothing}${t.alarms ? html`<span class="al">${xi('bell')} ${t.alarms === 1 ? tr('קומה באזעקה') : tr('{n} קומות באזעקה', { n: t.alarms })}</span>` : nothing}${m.show.doors && t.doorsOpen ? html`<span>${xi('door')} <b>${t.doorsOpen}</b> ${tr('פתוחות')}</span>` : nothing}</div>`;
   const rows: TemplateResult[] = [];
   let ground = false;
   for (const f of m.floors) {
@@ -136,13 +137,13 @@ export function renderXsMini(h: XsMiniArgs, it: WidgetItem): TemplateResult {
     const label = miniFloorLabel(f, m.show);
     rows.push(html`<div class="xm-r ${f.level < 0 ? 'below' : ''}" data-xs-mini-floor=${f.id} ?data-alarm=${f.alarm || f.fire}>
       <span class="xm-mark" aria-hidden="true">${f.mark}</span>
-      <button type="button" class="xm-slab" data-tint=${m.show.light ? f.tint : 0} ?data-off=${f.nodata} ?disabled=${h.editing} aria-label=${`פתיחת ${label}`} title=${label}
+      <button type="button" class="xm-slab" data-tint=${m.show.light ? f.tint : 0} ?data-off=${f.nodata} ?disabled=${h.editing} aria-label=${tr('פתיחת {label}', { label })} title=${label}
         @click=${() => h.onFloor(f.id)}>${it.size === 'l' && !h.compact ? html`<span class="nm" dir="auto">${f.name}</span>` : nothing}</button>
       ${markers(f, m.show)}${lightsChip(h, f, it)}
     </div>`);
   }
-  const more = m.more ? html`<div class="xm-more" data-xs-mini-more>+${m.more} קומות</div>` : nothing;
-  return h.shell(it, `wg-xs${h.compact ? ' xm-compact' : ''}`, {}, html`${head}${sum}<div class="xm-b" role="group" aria-label=${`חתך ${m.buildingName}: ${m.floors.length + m.more} קומות`}>${rows}</div>${more}`);
+  const more = m.more ? html`<div class="xm-more" data-xs-mini-more>+${tr('{n} קומות', { n: m.more })}</div>` : nothing;
+  return h.shell(it, `wg-xs${h.compact ? ' xm-compact' : ''}`, {}, html`${head}${sum}<div class="xm-b" role="group" aria-label=${tr('חתך {name}: {n} קומות', { name: m.buildingName, n: m.floors.length + m.more })}>${rows}</div>${more}`);
 }
 
 export type XsMiniArgs = MiniWidgetHost;

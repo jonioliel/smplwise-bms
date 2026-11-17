@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { tr } from '../../i18n/msg/misc';
 import { ENTER_RULES, POLISH_MOTION_TOKENS } from './polish-motion';
 
 /**
@@ -211,4 +212,4 @@ const rules = `
 :host(arx-login) button:not(.link):not(.mode):not(.secondary) { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32); }
 ${ENTER_RULES}`;
 
-export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: 'הייטק Domus', noteHe: 'זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות', stage: 'stable', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };
+export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: tr('הייטק Domus'), noteHe: tr('זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות'), stage: 'stable', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };

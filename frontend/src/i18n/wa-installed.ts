@@ -4,6 +4,7 @@
  * the Arabic and Russian columns are an INITIAL translation that needs a native review (dev-marked). No platform name appears (the page's copy-hygiene
  * check): the provider is "שירות ההודעות" (UI_COPY_RULES). `{name}` placeholders are filled by `wi(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
 
 const he = {
@@ -238,11 +239,12 @@ export const WI_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const WI_KEYS = Object.keys(he) as Key[];
 
 export function wiLang(): Lang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 export function wi(key: Key, vars?: Record<string, string | number>, lang: Lang = wiLang()): string {
   const raw = WI_TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/wa-installed', { he, en, ar, ru }, WI_DEV_MARKED);

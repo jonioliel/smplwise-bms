@@ -3,6 +3,7 @@
  * Hebrew first; English follows the document language (a missing key falls back to the Hebrew). `{x}` placeholders are filled by `tr(key, { x })`.
  * The TV page has its own few strings (src/notice-tv/transit-logic.ts). Operator screens never name the home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 import { NAV_TR } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
 
 const he = {
@@ -265,13 +266,14 @@ export type TrKey = keyof typeof he;
 const TABLES: Record<'he' | 'en', Partial<Record<TrKey, string>>> = { he, en };
 
 export function trLang(): 'he' | 'en' {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function tr(key: TrKey, vars?: Record<string, string | number>, lang: 'he' | 'en' = trLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const TR_KEYS = Object.keys(he) as TrKey[];
+
+registerCatalogue('i18n/transit', { he, en });

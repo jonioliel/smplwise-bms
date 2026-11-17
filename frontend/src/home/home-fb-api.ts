@@ -4,6 +4,7 @@
 // POST /home/tickets/{id}/photos (routers/home_ticket_photo.py): the caller's own NEW ticket, JPEG / PNG, at most 8 MB, at most three;
 // the server re-encodes it (EXIF and location never stored). The checks here only spare a useless upload; the server decides.
 import { post, upload } from '../api/client';
+import { tr } from '../i18n/msg/home';
 
 export const PHOTO_TYPES = ['image/jpeg', 'image/png'];
 export const PHOTO_MAX_BYTES = 8 * 1024 * 1024;
@@ -20,9 +21,9 @@ export function ticketPhoto(id: string, file: Blob, name = 'photo.jpg') {
 
 /** Why a picked file cannot be attached (a Hebrew sentence), or null when it may be sent. */
 export function photoProblem(file: { type: string; size: number }, already: number): string | null {
-  if (already >= PHOTOS_MAX) return `אפשר לצרף עד ${PHOTOS_MAX} תמונות.`;
-  if (!PHOTO_TYPES.includes((file.type || '').toLowerCase())) return 'אפשר לצרף רק תמונה (JPEG או PNG).';
-  if (file.size > PHOTO_MAX_BYTES) return 'התמונה גדולה מ־8 MB.';
-  if (file.size <= 0) return 'הקובץ ריק.';
+  if (already >= PHOTOS_MAX) return tr('אפשר לצרף עד {PHOTOS_MAX} תמונות.', { PHOTOS_MAX });
+  if (!PHOTO_TYPES.includes((file.type || '').toLowerCase())) return tr('אפשר לצרף רק תמונה (JPEG או PNG).');
+  if (file.size > PHOTO_MAX_BYTES) return tr('התמונה גדולה מ־8 MB.');
+  if (file.size <= 0) return tr('הקובץ ריק.');
   return null;
 }

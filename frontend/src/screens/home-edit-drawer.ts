@@ -1,5 +1,6 @@
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { modalKeydown, tablistKeydown } from '../components/a11y-keys';
+import { tr } from '../i18n/msg/screens';
 
 /**
  * HOME-EDIT-DRAWER-2351: the home screen's edit mode in a drawer (proposal E11 of HOMEEDIT-POLISH-2331).
@@ -37,7 +38,7 @@ export interface HomeDrawerView {
   onCancel: () => void;
 }
 
-const TAB_LABEL: Record<HomeDrawerTab, string> = { home: 'המסך', card: 'הכרטיס הנבחר' };
+const TAB_LABEL: Record<HomeDrawerTab, string> = { home: tr('המסך'), card: tr('הכרטיס הנבחר') };
 
 /** The drawer's keys: Escape closes (unless something inside already took the key), Tab wraps inside. */
 export function drawerKeydown(e: KeyboardEvent, close: () => void): void {
@@ -53,26 +54,26 @@ export function renderHomeDrawer(v: HomeDrawerView): TemplateResult {
     <header class="he-dh">
       <span class="he-grip" aria-hidden="true"></span>
       <div class="he-dtop">
-        <h2 id="he-drawer-h" class="he-dt">עריכת המסך הראשי</h2>
-        <button type="button" class="he-x" data-home-drawer-close aria-label="סגירת חלונית העריכה" title="סגירה (Esc)" @click=${v.onClose}><sw-icon name="close" size=${16}></sw-icon></button>
+        <h2 id="he-drawer-h" class="he-dt">${tr('עריכת המסך הראשי')}</h2>
+        <button type="button" class="he-x" data-home-drawer-close aria-label=${tr('סגירת חלונית העריכה')} title=${tr('סגירה (Esc)')} @click=${v.onClose}><sw-icon name="close" size=${16}></sw-icon></button>
       </div>
-      <div class="he-tabs" role="tablist" aria-label="חלונית העריכה" @keydown=${tablistKeydown}>${tab('home')}${tab('card')}</div>
+      <div class="he-tabs" role="tablist" aria-label=${tr('חלונית העריכה')} @keydown=${tablistKeydown}>${tab('home')}${tab('card')}</div>
     </header>
     <div class="he-db" data-home-drawer-body>
       <div role="tabpanel" id="he-pane-home" class="he-pane" aria-labelledby="he-tab-home" data-home-drawer-pane="home" ?hidden=${v.tab !== 'home'}>${v.home}</div>
       <div role="tabpanel" id="he-pane-card" class="he-pane" aria-labelledby="he-tab-card" data-home-drawer-pane="card" ?hidden=${v.tab !== 'card'}>${v.card}</div>
     </div>
     <footer class="he-df">
-      <span class="he-state" role="status" data-home-drawer-state>${v.dirty ? 'יש שינויים שלא נשמרו' : 'אין שינויים'}</span>
-      <sw-button size="sm" data-home-drawer-cancel ?disabled=${v.busy} @click=${v.onCancel}>${v.dirty ? 'בטל' : 'סיום עריכה'}</sw-button>
-      <sw-button size="sm" variant="primary" icon="check" data-home-drawer-save ?disabled=${v.busy || !v.dirty} @click=${v.onSave}>שמור</sw-button>
+      <span class="he-state" role="status" data-home-drawer-state>${v.dirty ? tr('יש שינויים שלא נשמרו') : tr('אין שינויים')}</span>
+      <sw-button size="sm" data-home-drawer-cancel ?disabled=${v.busy} @click=${v.onCancel}>${v.dirty ? tr('בטל') : tr('סיום עריכה')}</sw-button>
+      <sw-button size="sm" variant="primary" icon="check" data-home-drawer-save ?disabled=${v.busy || !v.dirty} @click=${v.onSave}>${tr('שמור')}</sw-button>
     </footer>
   </aside>`;
 }
 
 /** The edit bar's key that opens / closes the drawer (the way back after Escape). */
 export function renderDrawerToggle(open: boolean, toggle: () => void): TemplateResult {
-  return html`<button type="button" class="he-tog" data-home-drawer-toggle aria-controls=${HOME_DRAWER_ID} aria-expanded=${String(open)} @click=${toggle}><sw-icon name="home" size=${15}></sw-icon>הגדרות המסך</button>`;
+  return html`<button type="button" class="he-tog" data-home-drawer-toggle aria-controls=${HOME_DRAWER_ID} aria-expanded=${String(open)} @click=${toggle}><sw-icon name="home" size=${15}></sw-icon>${tr('הגדרות המסך')}</button>`;
 }
 
 export const HOME_DRAWER_CSS = css`

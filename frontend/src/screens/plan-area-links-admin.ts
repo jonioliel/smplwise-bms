@@ -16,6 +16,7 @@ import { bidi, ltrNum } from '../i18n/bidi';
 import { zoneKindLabel, type ZoneKind } from '../api/zones';
 import '../components/sw-icon';
 import { settingsStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/media';
 
 type Filter = 'all' | 'suggested' | 'linked' | 'none';
 
@@ -292,7 +293,7 @@ export class PlanAreaLinksAdmin extends LitElement {
       const r = await applyAreaLinks(links);
       this.table = r;
       this.selected = new Set();
-      this.note = r.changed ? `${done}: ${ltrNum(r.changed)}` : 'אין שינוי';
+      this.note = r.changed ? `${done}: ${ltrNum(r.changed)}` : tr('אין שינוי');
       setTimeout(() => (this.note = ''), 3000);
     } catch (err) {
       this.error = describeError(err);
@@ -303,62 +304,62 @@ export class PlanAreaLinksAdmin extends LitElement {
 
   private acceptSelected() {
     const rows = this.table?.rows.filter((r) => this.selected.has(r.zone_id) && r.suggestion) ?? [];
-    void this.apply(rows.map((r) => ({ zone_id: r.zone_id, area_id: r.suggestion!.area_id })), 'חדרים קושרו');
+    void this.apply(rows.map((r) => ({ zone_id: r.zone_id, area_id: r.suggestion!.area_id })), tr('חדרים קושרו'));
   }
 
   private acceptAll() {
     const rows = this.rows().filter((r) => r.status === 'suggested' && r.suggestion);
-    void this.apply(rows.map((r) => ({ zone_id: r.zone_id, area_id: r.suggestion!.area_id })), 'חדרים קושרו');
+    void this.apply(rows.map((r) => ({ zone_id: r.zone_id, area_id: r.suggestion!.area_id })), tr('חדרים קושרו'));
   }
 
   render() {
     const t = this.table;
-    if (this.error && !t) return html`<sw-card heading="קישור חדרים לאזורים"><sw-state-panel compact state="error" hint=${this.error} data-area-links-error></sw-state-panel></sw-card>`;
-    if (!t) return html`<sw-card heading="קישור חדרים לאזורים"><sw-state-panel compact state="loading"></sw-state-panel></sw-card>`;
+    if (this.error && !t) return html`<sw-card heading=${tr('קישור חדרים לאזורים')}><sw-state-panel compact state="error" hint=${this.error} data-area-links-error></sw-state-panel></sw-card>`;
+    if (!t) return html`<sw-card heading=${tr('קישור חדרים לאזורים')}><sw-state-panel compact state="loading"></sw-state-panel></sw-card>`;
     const rows = this.rows();
     const suggested = rows.filter((r) => r.status === 'suggested');
     const picked = suggested.filter((r) => this.selected.has(r.zone_id)).length;
-    const score = (s: number) => (s >= 1 ? 'שם זהה' : s >= 0.8 ? 'שם מכיל' : 'מילים משותפות');
-    return html`<sw-card heading="קישור חדרים לאזורים" subheading="חדר בתוכנית מצביע על אזור בעץ ההתקנים: 'הצג על המפה' מהעץ ומדף האזור, ולחיצה על החדר במפה פותחת את האזור. ההצעות לפי שם; הקישור נשמר כאן בלבד" data-area-links>
+    const score = (s: number) => (s >= 1 ? tr('שם זהה') : s >= 0.8 ? tr('שם מכיל') : tr('מילים משותפות'));
+    return html`<sw-card heading=${tr('קישור חדרים לאזורים')} subheading=${tr("חדר בתוכנית מצביע על אזור בעץ ההתקנים: 'הצג על המפה' מהעץ ומדף האזור, ולחיצה על החדר במפה פותחת את האזור. ההצעות לפי שם; הקישור נשמר כאן בלבד")} data-area-links>
       <div class="counts" data-area-links-counts>
-        <span class="count ok">מקושרים <b>${ltrNum(t.counts.linked)}</b></span><span class="count sug">הצעות <b>${ltrNum(t.counts.suggested)}</b></span><span class="count">ללא הצעה <b>${ltrNum(t.counts.none)}</b></span>
-        ${t.counts.dangling ? html`<span class="count err">קישור לאזור שנמחק <b>${ltrNum(t.counts.dangling)}</b></span>` : nothing}
+        <span class="count ok">${tr('מקושרים')} <b>${ltrNum(t.counts.linked)}</b></span><span class="count sug">${tr('הצעות')} <b>${ltrNum(t.counts.suggested)}</b></span><span class="count">${tr('ללא הצעה')} <b>${ltrNum(t.counts.none)}</b></span>
+        ${t.counts.dangling ? html`<span class="count err">${tr('קישור לאזור שנמחק')} <b>${ltrNum(t.counts.dangling)}</b></span>` : nothing}
       </div>
-      <div class="bar" role="toolbar" aria-label="סינון ואישור הצעות">
-        <sw-field><select data-area-links-filter aria-label="הצג" .value=${this.filter} @change=${(e: Event) => (this.filter = (e.target as HTMLSelectElement).value as Filter)}>
-          <option value="all">הכול</option><option value="suggested">עם הצעה</option><option value="linked">מקושרים</option><option value="none">ללא הצעה</option>
+      <div class="bar" role="toolbar" aria-label=${tr('סינון ואישור הצעות')}>
+        <sw-field><select data-area-links-filter aria-label=${tr('הצג')} .value=${this.filter} @change=${(e: Event) => (this.filter = (e.target as HTMLSelectElement).value as Filter)}>
+          <option value="all">${tr('הכול')}</option><option value="suggested">${tr('עם הצעה')}</option><option value="linked">${tr('מקושרים')}</option><option value="none">${tr('ללא הצעה')}</option>
         </select></sw-field>
-        <sw-field class="search"><input type="search" placeholder="חיפוש חדר או אזור" aria-label="חיפוש חדר או אזור" data-area-links-search .value=${this.query} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} /></sw-field>
+        <sw-field class="search"><input type="search" placeholder=${tr('חיפוש חדר או אזור')} aria-label=${tr('חיפוש חדר או אזור')} data-area-links-search .value=${this.query} @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} /></sw-field>
         <span class="grow"></span>
         <span class="acts">
-          <sw-button size="sm" data-area-links-select-all ?disabled=${!suggested.length || this.busy} @click=${() => (this.selected = new Set(suggested.map((r) => r.zone_id)))}>בחר הצעות (${ltrNum(suggested.length)})</sw-button>
-          <sw-button size="sm" data-area-links-accept-all ?disabled=${!suggested.length || this.busy} @click=${() => this.acceptAll()}>אשר את כל ההצעות</sw-button>
-          <sw-button size="sm" variant="primary" icon="check" data-area-links-accept ?disabled=${!picked || this.busy} @click=${() => this.acceptSelected()}>אשר הצעות${picked ? ` (${ltrNum(picked)})` : ''}</sw-button>
+          <sw-button size="sm" data-area-links-select-all ?disabled=${!suggested.length || this.busy} @click=${() => (this.selected = new Set(suggested.map((r) => r.zone_id)))}>${tr('בחר הצעות')} (${ltrNum(suggested.length)})</sw-button>
+          <sw-button size="sm" data-area-links-accept-all ?disabled=${!suggested.length || this.busy} @click=${() => this.acceptAll()}>${tr('אשר את כל ההצעות')}</sw-button>
+          <sw-button size="sm" variant="primary" icon="check" data-area-links-accept ?disabled=${!picked || this.busy} @click=${() => this.acceptSelected()}>${tr('אשר הצעות')}${picked ? ` (${ltrNum(picked)})` : ''}</sw-button>
         </span>
       </div>
       ${rows.length
         ? html`<div class="tablewrap"><table data-area-links-table>
-            <thead><tr><th scope="col"><span class="sr">בחירה</span></th><th scope="col">חדר</th><th scope="col">קומה</th><th scope="col">אזור</th><th scope="col"><span class="sr">פעולה</span></th></tr></thead>
+            <thead><tr><th scope="col"><span class="sr">${tr('בחירה')}</span></th><th scope="col">${tr('חדר')}</th><th scope="col">${tr('קומה')}</th><th scope="col">${tr('אזור')}</th><th scope="col"><span class="sr">${tr('פעולה')}</span></th></tr></thead>
             <tbody>
               ${rows.map((r) => html`<tr data-area-link-row=${r.zone_id} data-status=${r.status}>
-                <td class="pick">${r.status === 'suggested' ? html`<input type="checkbox" aria-label=${`אשר הצעה ל${r.zone_name}`} .checked=${this.selected.has(r.zone_id)} ?disabled=${this.busy} @change=${(e: Event) => this.toggle(r.zone_id, (e.target as HTMLInputElement).checked)} />` : nothing}</td>
-                <td class="room">${bidi(r.zone_name || 'חדר ללא שם')}<div class="muted">${zoneKindLabel(r.kind as ZoneKind)}<span class="phone"> · ${bidi(r.floor_name)}</span></div></td>
+                <td class="pick">${r.status === 'suggested' ? html`<input type="checkbox" aria-label=${tr('אשר הצעה ל{zone_name}', { zone_name: r.zone_name })} .checked=${this.selected.has(r.zone_id)} ?disabled=${this.busy} @change=${(e: Event) => this.toggle(r.zone_id, (e.target as HTMLInputElement).checked)} />` : nothing}</td>
+                <td class="room">${bidi(r.zone_name || tr('חדר ללא שם'))}<div class="muted">${zoneKindLabel(r.kind as ZoneKind)}<span class="phone"> · ${bidi(r.floor_name)}</span></div></td>
                 <td class="floor">${bidi(r.floor_name)}<div class="muted">${bidi(r.building_name)}</div></td>
                 <td class="area">
-                  <select data-area-link-select aria-label=${`האזור של ${r.zone_name || 'החדר'}`} ?disabled=${this.busy} @change=${(e: Event) => void this.apply([{ zone_id: r.zone_id, area_id: (e.target as HTMLSelectElement).value || null }], 'עודכן')}>
-                    <option value="" ?selected=${!r.area_id}>${r.status === 'suggested' ? 'ללא קישור (יש הצעה)' : 'ללא קישור'}</option>
+                  <select data-area-link-select aria-label=${tr('האזור של {name}', { name: r.zone_name || tr('החדר') })} ?disabled=${this.busy} @change=${(e: Event) => void this.apply([{ zone_id: r.zone_id, area_id: (e.target as HTMLSelectElement).value || null }], tr('עודכן'))}>
+                    <option value="" ?selected=${!r.area_id}>${r.status === 'suggested' ? tr('ללא קישור (יש הצעה)') : tr('ללא קישור')}</option>
                     ${t.areas.map((a) => html`<option value=${a.area_id} ?selected=${r.area_id === a.area_id}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
                   </select>
-                  ${r.status === 'suggested' && r.suggestion ? html`<div class="sugline muted" data-area-link-suggestion><sw-icon name="link" size=${12}></sw-icon>הצעה: ${bidi(r.suggestion.area_name)} · ${score(r.suggestion.score)}</div>` : nothing}
-                  ${r.dangling ? html`<div class="gone"><sw-icon name="warning" size=${12}></sw-icon>האזור שהיה מקושר כבר לא קיים</div>` : nothing}
+                  ${r.status === 'suggested' && r.suggestion ? html`<div class="sugline muted" data-area-link-suggestion><sw-icon name="link" size=${12}></sw-icon>${tr('הצעה:')} ${bidi(r.suggestion.area_name)} · ${score(r.suggestion.score)}</div>` : nothing}
+                  ${r.dangling ? html`<div class="gone"><sw-icon name="warning" size=${12}></sw-icon>${tr('האזור שהיה מקושר כבר לא קיים')}</div>` : nothing}
                 </td>
-                <td class="act">${r.area_id ? html`<sw-button size="sm" variant="ghost" data-area-link-clear ?disabled=${this.busy} @click=${() => void this.apply([{ zone_id: r.zone_id, area_id: null }], 'נותקו')}>נתק</sw-button>` : nothing}</td>
+                <td class="act">${r.area_id ? html`<sw-button size="sm" variant="ghost" data-area-link-clear ?disabled=${this.busy} @click=${() => void this.apply([{ zone_id: r.zone_id, area_id: null }], tr('נותקו'))}>${tr('נתק')}</sw-button>` : nothing}</td>
               </tr>`)}
             </tbody>
           </table></div>`
         : t.rows.length
-          ? html`<sw-state-panel icon="filter" compact state="empty" heading="אין חדרים שמתאימים לסינון" actionLabel="נקה סינון" @action=${() => { this.filter = 'all'; this.query = ''; }} data-area-links-empty></sw-state-panel>`
-          : html`<sw-state-panel icon="link" compact state="empty" heading="אין חדרים בתוכניות" hint="חדרים נוצרים בעורך התוכנית (זיהוי מהתוכנית או ציור ידני)." data-area-links-empty></sw-state-panel>`}
+          ? html`<sw-state-panel icon="filter" compact state="empty" heading=${tr('אין חדרים שמתאימים לסינון')} actionLabel=${tr('נקה סינון')} @action=${() => { this.filter = 'all'; this.query = ''; }} data-area-links-empty></sw-state-panel>`
+          : html`<sw-state-panel icon="link" compact state="empty" heading=${tr('אין חדרים בתוכניות')} hint=${tr('חדרים נוצרים בעורך התוכנית (זיהוי מהתוכנית או ציור ידני).')} data-area-links-empty></sw-state-panel>`}
       ${this.note || this.error
         ? html`<div class="foot">
             ${this.note ? html`<span class="msg ok" role="status" data-area-links-note><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : nothing}

@@ -5,6 +5,7 @@
  * `{f:..|m:..}` for a word that agrees with the name's gender - read through `bt()`; the default name is never written here
  * (tests/unit-tickets-board.spec.ts fails when it is). Variables are `{name}`-style and are filled after the name tokens.
  */
+import { registerCatalogue } from '../i18n/core';
 import { NAV_BT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
@@ -215,3 +216,5 @@ export const bt = catalogue.t;
 
 export const BOARD_TEXT_KEYS = catalogue.KEYS;
 export const BOARD_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/board-text', { he, en });

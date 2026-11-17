@@ -9,25 +9,26 @@
  */
 import type { EncodingSettings } from '../api/nvr-batch';
 import type { EncStream } from './nvr-encoding-logic';
+import { tr } from '../i18n/msg/media';
 
 export type PresetScope = 'all' | 'selected';
 export type PresetRole = 'both' | 'main' | 'sub';
 
-export const PRESET_TITLE = 'המר את כל הזרמים ל־H.264';
+export const PRESET_TITLE = tr('המר את כל הזרמים ל־H.264');
 export const PRESET_SETTINGS: EncodingSettings = { codec: 'H.264' };
 /** Why (owner request): the live view plays H.264 in every browser; H.265 saves recording space but does not play in Chrome / Edge. */
-export const PRESET_WHY = 'H.264 מנגן בשידור חי בכל דפדפן; H.265 חוסך נפח הקלטה אך לא מנגן ב-Chrome/Edge.';
-export const PRESET_STORAGE = 'נפח ההקלטה עשוי לגדול אחרי המעבר ל־H.264.';
-export const PRESET_FLOW = 'לפני השינוי תוצג תצוגה מקדימה לכל זרם, ואחריו אפשר להחזיר לערכים הקודמים.';
+export const PRESET_WHY = tr('H.264 מנגן בשידור חי בכל דפדפן; H.265 חוסך נפח הקלטה אך לא מנגן ב-Chrome/Edge.');
+export const PRESET_STORAGE = tr('נפח ההקלטה עשוי לגדול אחרי המעבר ל־H.264.');
+export const PRESET_FLOW = tr('לפני השינוי תוצג תצוגה מקדימה לכל זרם, ואחריו אפשר להחזיר לערכים הקודמים.');
 
 export const SCOPE_ITEMS: { id: PresetScope; label: string }[] = [
-  { id: 'all', label: 'כל המצלמות' },
-  { id: 'selected', label: 'המצלמות שנבחרו' },
+  { id: 'all', label: tr('כל המצלמות') },
+  { id: 'selected', label: tr('המצלמות שנבחרו') },
 ];
 export const ROLE_ITEMS: { id: PresetRole; label: string }[] = [
-  { id: 'both', label: 'ראשי ומשני' },
-  { id: 'main', label: 'ראשי' },
-  { id: 'sub', label: 'משני' },
+  { id: 'both', label: tr('ראשי ומשני') },
+  { id: 'main', label: tr('ראשי') },
+  { id: 'sub', label: tr('משני') },
 ];
 
 const roleOk = (r: EncStream, role: PresetRole): boolean => role === 'both' || r.role === role;
@@ -56,35 +57,35 @@ export const presetKeys = (streams: EncStream[]): Set<string> => new Set(streams
 /** The preset button's label: "המר N זרמים ל־H.264" (or the title while nothing is in scope). */
 export function presetButtonLabel(n: number): string {
   if (n <= 0) return PRESET_TITLE;
-  return n === 1 ? 'המר זרם אחד ל־H.264' : `המר ${n} זרמים ל־H.264`;
+  return n === 1 ? tr('המר זרם אחד ל־H.264') : tr('המר {n} זרמים ל־H.264', { n });
 }
 
 /** The line under the preset when it cannot run. */
 export function presetEmptyLine(scope: PresetScope, blocked: { total: number; writesOff: number }, selectedCount: number): string {
-  if (scope === 'selected' && selectedCount === 0) return 'יש לסמן קודם מצלמה אחת לפחות ברשימה.';
-  if (blocked.writesOff > 0) return 'שינויי הגדרות ב־NVR כבויים. אפשר להפעיל אותם בהגדרות החיבור של ה־NVR.';
-  return 'אין זרמים שאפשר לשנות.';
+  if (scope === 'selected' && selectedCount === 0) return tr('יש לסמן קודם מצלמה אחת לפחות ברשימה.');
+  if (blocked.writesOff > 0) return tr('שינויי הגדרות ב־NVR כבויים. אפשר להפעיל אותם בהגדרות החיבור של ה־NVR.');
+  return tr('אין זרמים שאפשר לשנות.');
 }
 
 /** The result's undo-all button (nvr-camera-batch): for a bulk ENCODING change it re-applies the values captured before the change -
  * "החזר לערכים הקודמים" (owner wording); the multi-camera SVC batch keeps its "בטל את מה שנשמר". */
-export const undoLabel = (mode: string | null | undefined): string => (mode === 'encoding' ? 'החזר לערכים הקודמים' : 'בטל את מה שנשמר');
+export const undoLabel = (mode: string | null | undefined): string => (mode === 'encoding' ? tr('החזר לערכים הקודמים') : tr('בטל את מה שנשמר'));
 
 // ------------------------------------------------------------------------------------------------ the switch (components/nvr-writes-switch)
 
-export const WRITES_LABEL = 'אפשר שינויי הגדרות ב־NVR';
-export const WRITES_CONFIRM_HEADING = 'להפעיל שינויי הגדרות ב־NVR?';
+export const WRITES_LABEL = tr('אפשר שינויי הגדרות ב־NVR');
+export const WRITES_CONFIRM_HEADING = tr('להפעיל שינויי הגדרות ב־NVR?');
 /** The dialog's three points (owner request): what Arx will write, that it is recorded, that it can be turned off at any time. */
 export const WRITES_CONFIRM_POINTS: readonly string[] = [
-  'Arx יכתוב הגדרות קידוד (קודק, רזולוציה, קצב, איכות) ישירות ל־NVR, רק אחרי תצוגה מקדימה ואישור שלכם.',
-  'כל הפעלה, כיבוי ושינוי נרשמים ביומן: מי ומתי.',
-  'אפשר לכבות בכל רגע; הכיבוי חל מיד וחוסם כל כתיבה ל־NVR הזה.',
+  tr('Arx יכתוב הגדרות קידוד (קודק, רזולוציה, קצב, איכות) ישירות ל־NVR, רק אחרי תצוגה מקדימה ואישור שלכם.'),
+  tr('כל הפעלה, כיבוי ושינוי נרשמים ביומן: מי ומתי.'),
+  tr('אפשר לכבות בכל רגע; הכיבוי חל מיד וחוסם כל כתיבה ל־NVR הזה.'),
 ];
-export const WRITES_CONFIRM_ACTION = 'הפעל';
+export const WRITES_CONFIRM_ACTION = tr('הפעל');
 
 /** The switch's status line: on / off, the vendor default when never switched, who changed it last and when. */
 export function writesStatusLine(s: { enabled: boolean; explicit: boolean; last_change: { at: string; by: string | null } | null }, fmt: (iso: string) => string): string {
-  const head = s.enabled ? 'פעיל' : 'כבוי';
-  if (!s.explicit || !s.last_change) return `${head} (ברירת המחדל)`;
-  return `${head} · ${s.last_change.by ?? 'מערכת'} · ${fmt(s.last_change.at)}`;
+  const head = s.enabled ? tr('פעיל') : tr('כבוי');
+  if (!s.explicit || !s.last_change) return tr('{head} (ברירת המחדל)', { head });
+  return `${head} · ${s.last_change.by ?? tr('מערכת')} · ${fmt(s.last_change.at)}`;
 }

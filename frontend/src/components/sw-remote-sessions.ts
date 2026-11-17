@@ -5,8 +5,9 @@ import './sw-button';
 import './sw-icon';
 import { describeError } from '../api/client';
 import { listRemoteSessions, revokeAllRemoteSessions, revokeRemoteSession, whenLabel, whereLabel, type RemoteSession, type RevokeResult } from '../api/remote';
+import { tr } from '../i18n/msg/components';
 
-const CHANNEL_LABEL: Record<RemoteSession['channel'], string> = { cookie: 'דפדפן', bearer: 'אפליקציה (אסימון גישה)' };
+const CHANNEL_LABEL: Record<RemoteSession['channel'], string> = { cookie: tr('דפדפן'), bearer: tr('אפליקציה (אסימון גישה)') };
 
 /**
  * CR-008 P2: the remote sign-ins (SmplWise Arx sessions) - one row per browser or client: what it is (browser family ·
@@ -57,7 +58,7 @@ export class SwRemoteSessions extends LitElement {
 
   /** everywhere: every sign-in of the user ended (the sign-in page then says so); false: one row, which was this page's. */
   private announce(result: RevokeResult, what: string, everywhere: boolean) {
-    this.message = result.sessions_ended ? what : 'לא נמצאו כניסות פעילות.';
+    this.message = result.sessions_ended ? what : tr('לא נמצאו כניסות פעילות.');
     this.dispatchEvent(new CustomEvent('remote-sessions-changed', { bubbles: true, composed: true, detail: result }));
     if (result.current_ended) this.dispatchEvent(new CustomEvent('remote-signed-out', { bubbles: true, composed: true, detail: { ...result, everywhere } }));
   }
@@ -66,7 +67,7 @@ export class SwRemoteSessions extends LitElement {
     this.busy = true;
     this.message = '';
     try {
-      this.announce(await revokeRemoteSession(row.id), row.current ? 'יצאת מהמכשיר הזה.' : 'הכניסה נותקה.', false);
+      this.announce(await revokeRemoteSession(row.id), row.current ? tr('יצאת מהמכשיר הזה.') : tr('הכניסה נותקה.'), false);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -85,7 +86,7 @@ export class SwRemoteSessions extends LitElement {
     this.message = '';
     try {
       const r = await revokeAllRemoteSessions();
-      this.announce(r, `נותקו ${r.sessions_ended} כניסות.`, true);
+      this.announce(r, tr('נותקו {n} כניסות.', { n: r.sessions_ended }), true);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -102,35 +103,35 @@ export class SwRemoteSessions extends LitElement {
         <div class="top">
           ${all ? html`<strong>${s.display_name || s.username || s.user_id}</strong>` : nothing}
           <span>${s.agent || CHANNEL_LABEL[s.channel]}</span>
-          ${s.current ? html`<sw-badge kind="recorded" label="המכשיר הזה" data-current></sw-badge>` : nothing}
-          ${s.live_streams ? html`<sw-badge kind="live" label=${`${s.live_streams} זרמים חיים`}></sw-badge>` : nothing}
+          ${s.current ? html`<sw-badge kind="recorded" label=${tr('המכשיר הזה')} data-current></sw-badge>` : nothing}
+          ${s.live_streams ? html`<sw-badge kind="live" label=${tr('{n} זרמים חיים', { n: s.live_streams })}></sw-badge>` : nothing}
         </div>
         <div class="sub">
           <span class="ltr-iso" data-where>${whereLabel(s)}</span>
-          ${this.compact ? nothing : html`<span>· ${CHANNEL_LABEL[s.channel]}</span><span>· נכנס ${whenLabel(s.created_at)}</span>`}
-          <span>· פעיל ${whenLabel(s.last_seen_at)}</span>
+          ${this.compact ? nothing : html`<span>· ${CHANNEL_LABEL[s.channel]}</span><span>· ${tr('נכנס {when}', { when: whenLabel(s.created_at) })}</span>`}
+          <span>· ${tr('פעיל {when}', { when: whenLabel(s.last_seen_at) })}</span>
         </div>
       </div>
-      <sw-button size="sm" variant="ghost" icon="logout" data-revoke ?disabled=${this.busy} @click=${() => void this.revoke(s)}>${s.current ? 'יציאה' : 'נתק'}</sw-button>
+      <sw-button size="sm" variant="ghost" icon="logout" data-revoke ?disabled=${this.busy} @click=${() => void this.revoke(s)}>${s.current ? tr('יציאה') : tr('נתק')}</sw-button>
     </li>`;
   }
 
   render() {
     const rows = this.rows;
-    if (rows === null) return html`<div class="muted">טוען כניסות…</div>`;
+    if (rows === null) return html`<div class="muted">${tr('טוען כניסות…')}</div>`;
     const own = this.scope === 'own';
     return html`
       ${rows.length
         ? html`<ul data-remote-sessions-list>${rows.map((s) => this.renderRow(s))}</ul>`
         : this.error
           ? nothing
-          : html`<div class="muted" data-remote-sessions-empty>${own ? 'אין כניסות פעילות מרחוק.' : 'אף משתמש אינו מחובר כרגע מרחוק.'}</div>`}
+          : html`<div class="muted" data-remote-sessions-empty>${own ? tr('אין כניסות פעילות מרחוק.') : tr('אף משתמש אינו מחובר כרגע מרחוק.')}</div>`}
       ${own && rows.length
         ? html`<div class="foot">
             <sw-button size="sm" variant=${this.armed ? 'danger' : 'secondary'} icon="logout" data-signout-everywhere ?disabled=${this.busy} @click=${() => void this.revokeAll()}>
-              ${this.armed ? 'לאשר? כל הכניסות ינותקו' : this.remote ? 'התנתק מכל המקומות' : 'נתק את כל הכניסות מרחוק'}
+              ${this.armed ? tr('לאשר? כל הכניסות ינותקו') : this.remote ? tr('התנתק מכל המקומות') : tr('נתק את כל הכניסות מרחוק')}
             </sw-button>
-            ${this.armed ? html`<sw-button size="sm" variant="ghost" @click=${() => (this.armed = false)}>ביטול</sw-button>` : nothing}
+            ${this.armed ? html`<sw-button size="sm" variant="ghost" @click=${() => (this.armed = false)}>${tr('ביטול')}</sw-button>` : nothing}
           </div>`
         : nothing}
       ${this.message ? html`<div class="ok" role="status" data-remote-sessions-message>${this.message}</div>` : nothing}

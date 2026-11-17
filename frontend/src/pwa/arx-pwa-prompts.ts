@@ -6,6 +6,7 @@ import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
 import { onSession } from '../api/session';
 import { applyUpdate, dismiss, onPwa, promptInstall, pwa, showInstall, showIosHint, startPwa } from './register';
 import { syncSubscription } from './push';
+import { tr } from '../i18n/msg/misc';
 
 /**
  * CR-008 P3: the PWA's small banners, fixed at the bottom of the screen above the phone navigation bar:
@@ -236,29 +237,29 @@ export class ArxPwaPrompts extends LitElement {
   render() {
     void this.tick;
     const cards = [];
-    if (this.offline) cards.push(html`<span class="net" role="status" data-net="offline"><i></i>אין חיבור · מוצגים נתונים אחרונים</span>`);
-    else if (this.backOnline) cards.push(html`<span class="net" role="status" data-net="online"><i></i>החיבור חזר</span>`);
+    if (this.offline) cards.push(html`<span class="net" role="status" data-net="offline"><i></i>${tr('אין חיבור · מוצגים נתונים אחרונים')}</span>`);
+    else if (this.backOnline) cards.push(html`<span class="net" role="status" data-net="online"><i></i>${tr('החיבור חזר')}</span>`);
     if (pwa.updateReady) {
       cards.push(html`<div class="card" role="status" data-pwa-update>
         <sw-icon name="refresh" size=${22}></sw-icon>
-        <div class="text"><b>גרסה חדשה של Arx זמינה</b><span>רעננו כדי לעבור אליה; מה שפתוח יישמר בכתובת.</span></div>
-        <div class="actions"><sw-button size="lg" variant="primary" @click=${() => applyUpdate()}>רענון</sw-button></div>
+        <div class="text"><b>${tr('גרסה חדשה של Arx זמינה')}</b><span>${tr('רעננו כדי לעבור אליה; מה שפתוח יישמר בכתובת.')}</span></div>
+        <div class="actions"><sw-button size="lg" variant="primary" @click=${() => applyUpdate()}>${tr('רענון')}</sw-button></div>
       </div>`);
     }
     if (showInstall()) {
-      cards.push(html`<div class="card" role="dialog" aria-label="התקן את Arx" data-pwa-install>
+      cards.push(html`<div class="card" role="dialog" aria-label=${tr('התקן את Arx')} data-pwa-install>
         ${this.icon()}
-        <div class="text"><b>התקן את Arx</b><span>אפליקציה במסך הבית או בשולחן העבודה: פתיחה מהירה, מסך מלא והתראות.</span></div>
+        <div class="text"><b>${tr('התקן את Arx')}</b><span>${tr('אפליקציה במסך הבית או בשולחן העבודה: פתיחה מהירה, מסך מלא והתראות.')}</span></div>
         <div class="actions">
-          <sw-button size="lg" variant="primary" data-pwa-install-go @click=${() => this.install()}>התקנה</sw-button>
-          <sw-button size="lg" variant="ghost" data-pwa-install-later @click=${() => dismiss('install')}>לא עכשיו</sw-button>
+          <sw-button size="lg" variant="primary" data-pwa-install-go @click=${() => this.install()}>${tr('התקנה')}</sw-button>
+          <sw-button size="lg" variant="ghost" data-pwa-install-later @click=${() => dismiss('install')}>${tr('לא עכשיו')}</sw-button>
         </div>
       </div>`);
     } else if (showIosHint()) {
-      cards.push(html`<div class="card" role="dialog" aria-label="התקנת Arx באייפון" data-pwa-ios>
+      cards.push(html`<div class="card" role="dialog" aria-label=${tr('התקנת Arx באייפון')} data-pwa-ios>
         ${this.icon()}
-        <div class="text"><b>התקן את Arx באייפון</b><span>ב־Safari הקישו על <svg class="share" width="16" height="16" viewBox="0 0 24 24" aria-label="שיתוף" role="img"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> שיתוף ואז "הוספה למסך הבית". התראות באייפון מגיעות רק לאפליקציה שהותקנה כך.</span></div>
-        <button class="x" type="button" aria-label="סגירה" data-pwa-ios-close @click=${() => dismiss('ios')}><sw-icon name="close" size=${18}></sw-icon></button>
+        <div class="text"><b>${tr('התקן את Arx באייפון')}</b><span>${tr('ב־Safari הקישו על')} <svg class="share" width="16" height="16" viewBox="0 0 24 24" aria-label=${tr('שיתוף')} role="img"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> ${tr('שיתוף ואז "הוספה למסך הבית". התראות באייפון מגיעות רק לאפליקציה שהותקנה כך.')}</span></div>
+        <button class="x" type="button" aria-label=${tr('סגירה')} data-pwa-ios-close @click=${() => dismiss('ios')}><sw-icon name="close" size=${18}></sw-icon></button>
       </div>`);
     }
     return cards.length ? cards : nothing;

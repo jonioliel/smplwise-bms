@@ -7,6 +7,7 @@ import {
 } from '../api/home-config';
 import { idLabel, launchAllowed, launchIcon, launchRoute, runLaunch, type LaunchItem } from '../api/launcher';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { tr } from '../i18n/msg/screens';
 
 /**
  * BV1 (2026-10-05): the new Bubble variants of the home widgets, kept apart from home-widgets.ts (which wires them in): the clock
@@ -453,7 +454,7 @@ export function renderClockTile(h: Bv1Host, it: WidgetItem, clockIcon: TemplateR
   const sensor = h.config.calendar.date ? h.data.sensors[h.config.calendar.date] : undefined;
   const hebrew = c.hebrew && dated ? (h.config.calendar.date ? (hasValue(sensor) ? sensor.state : '') : hebrewDate(h.now, h.zone)) : '';
   return h.shell(it, 'wg-clock tile sq', {}, html`${h.head(it, clockIcon)}
-    <div class="t-main"><div><span class="t-big" role="timer" aria-label="השעה עכשיו" data-home-time>${p.h}<b>:</b>${p.m}${c.seconds && it.size === 'l' ? html`<b class="ss"> ${p.s}</b>` : nothing}</span>
+    <div class="t-main"><div><span class="t-big" role="timer" aria-label=${tr('השעה עכשיו')} data-home-time>${p.h}<b>:</b>${p.m}${c.seconds && it.size === 'l' ? html`<b class="ss"> ${p.s}</b>` : nothing}</span>
       ${dated ? html`<span class="t-sub"><span class="only-s">${p.weekdayShort} · ${p.dateShort}</span><span class="ge-m">${p.weekdayLong}, ${it.size === 'l' ? p.dateYear : p.dateLong}</span></span>` : nothing}</div></div>
     ${hebrew ? html`<span class="t-chip ge-m" data-home-hebrew-date>${hebrew}</span>` : nothing}`);
 }
@@ -485,7 +486,7 @@ export function renderWeatherTile(h: Bv1Host, it: WidgetItem, fieldIcon: (f: Wea
       <div>${temp ? html`<span class="t-big" data-home-temp>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}
         ${has('condition') && cond ? html`<span class="t-sub" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>
     ${facts.length ? html`<div class="t-facts ge-m" data-home-facts>${facts.map(({ f, v }) => html`<span data-home-fact=${f}><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${fieldIcon(f)}</svg>${WEATHER_FIELD_LABEL[f]} <b>${valueText(f, { v: v!.v, unit: v!.unit ?? null })}</b></span>`)}</div>` : nothing}
-    ${entries.length ? html`<div class="wx-fc only-l" data-home-forecast style=${`--fcn:${entries.length}`} aria-label="תחזית לימים הקרובים">${entries.map((e) => html`<div class="fc" data-cond=${weatherGlyph(e.condition)}><span>${forecastLabel(e.datetime, h.zone, daily)}</span><svg viewBox="0 0 24 24" aria-hidden="true">${h.glyph(weatherGlyph(e.condition))}</svg>${e.temperature !== null ? html`<span class="hl"><b>${Math.round(e.temperature)}°</b>${e.templow !== undefined ? html`<i>${Math.round(e.templow)}°</i>` : nothing}</span>` : nothing}</div>`)}</div>` : nothing}`);
+    ${entries.length ? html`<div class="wx-fc only-l" data-home-forecast style=${`--fcn:${entries.length}`} aria-label=${tr('תחזית לימים הקרובים')}>${entries.map((e) => html`<div class="fc" data-cond=${weatherGlyph(e.condition)}><span>${forecastLabel(e.datetime, h.zone, daily)}</span><svg viewBox="0 0 24 24" aria-hidden="true">${h.glyph(weatherGlyph(e.condition))}</svg>${e.temperature !== null ? html`<span class="hl"><b>${Math.round(e.temperature)}°</b>${e.templow !== undefined ? html`<i>${Math.round(e.templow)}°</i>` : nothing}</span>` : nothing}</div>`)}</div>` : nothing}`);
 }
 
 // ------------------------------------------------------------------------------------------------ the agenda
@@ -506,8 +507,8 @@ export function renderAgenda(h: Bv1Host, it: WidgetItem): TemplateResult {
             <span class="ag-t"><span class="ag-m" title=${e.message}>${bidi(e.message)}</span>
               ${(e.location || multi) && it.size !== 's' ? html`<span class="ag-x">${e.location ? html`<svg viewBox="0 0 24 24" aria-hidden="true">${PIN}</svg>${bidi(e.location)}` : nothing}${e.location && multi ? ' · ' : nothing}${multi ? bidi(e.calendar_name) : nothing}</span>` : nothing}</span>
           </div>`)
-        : html`<span class="ag-empty" data-home-agenda-empty>אין אירועים קרובים</span>`}
-      ${rest > 0 ? html`<span class="ag-more">${ltrNum(`+${rest}`)} נוספים</span>` : nothing}
+        : html`<span class="ag-empty" data-home-agenda-empty>${tr('אין אירועים קרובים')}</span>`}
+      ${rest > 0 ? html`<span class="ag-more">${tr('{n} נוספים', { n: ltrNum(`+${rest}`) })}</span>` : nothing}
     </div>`);
 }
 
@@ -517,7 +518,7 @@ export function renderAgenda(h: Bv1Host, it: WidgetItem): TemplateResult {
 export function launchLabel(item: LaunchItemCfg, names: Map<string, string>): string {
   if (item.label.trim()) return item.label.trim();
   if (item.kind === 'route') return launchRoute(item.id)?.label ?? item.id;
-  if (item.kind === 'quick') return item.id === 'all_off' ? 'כבה הכל' : 'כבה תאורה';
+  if (item.kind === 'quick') return item.id === 'all_off' ? tr('כבה הכל') : tr('כבה תאורה');
   return names.get(item.id) ?? idLabel(item.id);
 }
 
@@ -546,14 +547,14 @@ export function renderLauncher(h: Bv1Host, it: WidgetItem, st: LaunchState, name
     try {
       await runLaunch(x as LaunchItem);
       st.done.add(key(x));
-      h.setLaunchNote(x.kind === 'scene' ? 'הסצנה הופעלה' : 'הסקריפט הופעל');
+      h.setLaunchNote(x.kind === 'scene' ? tr('הסצנה הופעלה') : tr('הסקריפט הופעל'));
       window.setTimeout(() => {
         st.done.delete(key(x));
         h.setLaunchNote('');
         requestUpdate();
       }, 2500);
     } catch (err) {
-      h.setLaunchNote(`לא הופעל: ${(err as { user_message?: string; message?: string }).user_message ?? (err as Error).message ?? ''}`.trim());
+      h.setLaunchNote(tr('לא הופעל: {reason}', { reason: (err as { user_message?: string; message?: string }).user_message ?? (err as Error).message ?? '' }).trim());
       window.setTimeout(() => {
         h.setLaunchNote('');
         requestUpdate();
@@ -573,5 +574,5 @@ export function renderLauncher(h: Bv1Host, it: WidgetItem, st: LaunchState, name
   };
   return h.shell(it, 'wg-launcher', {}, html`${h.head(it, GRID_ICON)}
     <div class="lg" data-home-launcher role="group" aria-label=${it.title}>${items.map(btn)}</div>
-    ${h.launchNote ? html`<div class=${classMap({ 'l-note': true, bad: h.launchNote.startsWith('לא') })} role="status" data-home-launch-note>${h.launchNote}</div>` : nothing}`);
+    ${h.launchNote ? html`<div class=${classMap({ 'l-note': true, bad: h.launchNote !== tr('הסצנה הופעלה') && h.launchNote !== tr('הסקריפט הופעל') })} role="status" data-home-launch-note>${h.launchNote}</div>` : nothing}`);
 }

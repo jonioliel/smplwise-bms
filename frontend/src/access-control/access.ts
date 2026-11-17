@@ -20,6 +20,7 @@
  * The labels must equal the backend's routers/access.py PERMISSION_LABELS (tests/test_intercom_authority.py compares them).
  */
 import { canAnywhere, isApi, onSession } from '../api/session';
+import { tr } from '../i18n/msg/misc';
 
 export const ACCESS_CONTROL_PERMISSIONS = [
   'access.stations.read',
@@ -40,19 +41,19 @@ export type AccessControlPermission = (typeof ACCESS_CONTROL_PERMISSIONS)[number
 
 /** Hebrew labels of the CR-036 permissions: the fallback while the server's role catalogue carries none of its own. */
 export const ACCESS_CONTROL_PERMISSION_LABELS: Record<AccessControlPermission, string> = {
-  'access.stations.read': 'בקרת כניסה: פרטים טכניים של עמדות (דגם, קושחה, ממסרים, שעון, תוכניות דלת, לוחות החזקה, האם מוגדר קוד)',
-  'access.events.read': 'בקרת כניסה: יומן כניסות (כולל שמות)',
-  'access.events.export': 'בקרת כניסה: ייצוא יומן הכניסות לקובץ',
-  'access.people.read': 'בקרת כניסה: צפייה באנשים (שמות, שיוך לעמדות, קבוצות ותוקף)',
-  'access.people.sensitive': 'בקרת כניסה: פרטים רגישים של אנשים (מספר עובד, תמונה, טלפון, שדות פרופיל)',
-  'access.people.message': 'בקרת כניסה: שליחת הודעות וואטסאפ לאנשים',
-  'access.call': 'בקרת כניסה: מענה לשיחה מעמדה והכרזה קולית',
-  'access.admin.read': 'בקרת כניסה: מצב מערכת, סנכרון, התראות ויומן פעולות האינטרקום',
-  'access.schedules.manage': 'בקרת כניסה: עריכת לוחות זמנים של דלתות',
-  'access.stations.manage': 'בקרת כניסה: עריכת הגדרות עמדה ותחזוקת עמדות (תוכניות דלת, החזקה פתוחה, קודים ציבוריים; סנכרון, סריקה מחדש, רענון בריאות ובדיקת שעון)',
-  'access.groups.manage': 'בקרת כניסה: עריכת קבוצות ושדות פרופיל',
-  'access.pin.generate': 'בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)',
-  'access.doors.open': 'בקרת כניסה: פתיחת דלתות',
+  'access.stations.read': tr('בקרת כניסה: פרטים טכניים של עמדות (דגם, קושחה, ממסרים, שעון, תוכניות דלת, לוחות החזקה, האם מוגדר קוד)'),
+  'access.events.read': tr('בקרת כניסה: יומן כניסות (כולל שמות)'),
+  'access.events.export': tr('בקרת כניסה: ייצוא יומן הכניסות לקובץ'),
+  'access.people.read': tr('בקרת כניסה: צפייה באנשים (שמות, שיוך לעמדות, קבוצות ותוקף)'),
+  'access.people.sensitive': tr('בקרת כניסה: פרטים רגישים של אנשים (מספר עובד, תמונה, טלפון, שדות פרופיל)'),
+  'access.people.message': tr('בקרת כניסה: שליחת הודעות וואטסאפ לאנשים'),
+  'access.call': tr('בקרת כניסה: מענה לשיחה מעמדה והכרזה קולית'),
+  'access.admin.read': tr('בקרת כניסה: מצב מערכת, סנכרון, התראות ויומן פעולות האינטרקום'),
+  'access.schedules.manage': tr('בקרת כניסה: עריכת לוחות זמנים של דלתות'),
+  'access.stations.manage': tr('בקרת כניסה: עריכת הגדרות עמדה ותחזוקת עמדות (תוכניות דלת, החזקה פתוחה, קודים ציבוריים; סנכרון, סריקה מחדש, רענון בריאות ובדיקת שעון)'),
+  'access.groups.manage': tr('בקרת כניסה: עריכת קבוצות ושדות פרופיל'),
+  'access.pin.generate': tr('בקרת כניסה: יצירת קוד PIN לאדם (מוצג פעם אחת למבקש; דורש גם ניהול אנשים)'),
+  'access.doors.open': tr('בקרת כניסה: פתיחת דלתות'),
 };
 
 /** WXPERM (owner decision 2026-10-13): the door permission and its legacy name. The server expands a custom role's legacy

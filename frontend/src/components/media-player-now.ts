@@ -5,6 +5,7 @@
  */
 import { isPlaying, interpolatePosition, playerStateText, type PlayerDevice } from '../api/media-players';
 import { hhmm, hueRgb } from './media-now';
+import { tr } from '../i18n/msg/components';
 
 export interface PlayerView {
   /** `un` unavailable, `off`, `rcv` a receiver that is on (its source tile), `idle` on with nothing playing, `music`, `station`. */
@@ -43,12 +44,12 @@ export function playerView(d: PlayerDevice, leader?: PlayerDevice | null, now: n
   const n = l.now;
   const base: PlayerView = { kind: 'idle', title: '', sub: '', glyph: d.kind === 'player' ? 'media' : 'speaker', tile: '', a1: '#111827', a2: '#3f4a5c', rgb: null, artwork: null, prog: null, playing: false, paused: false, line: '' };
   if (l.power === 'unavailable' || l.power === 'unknown') {
-    return { ...base, kind: 'un', glyph: 'wifiOff', line: l.power === 'unknown' ? 'מצב לא ידוע' : l.since ? `לא זמין מאז ${hhmm(l.since)}` : 'לא זמין' };
+    return { ...base, kind: 'un', glyph: 'wifiOff', line: l.power === 'unknown' ? tr('מצב לא ידוע') : l.since ? tr('לא זמין מאז {time}', { time: hhmm(l.since) }) : tr('לא זמין') };
   }
   if (l.power === 'off' || l.power === 'standby') return { ...base, kind: 'off', glyph: 'power', line: playerStateText(d) };
   if (d.kind === 'receiver') {
-    const tile = (n.label || '').split(' · ')[0] || 'מגבר';
-    const line = [n.label, l.sound_output].filter(Boolean).join(' · ') || 'דולק';
+    const tile = (n.label || '').split(' · ')[0] || tr('מגבר');
+    const line = [n.label, l.sound_output].filter(Boolean).join(' · ') || tr('דולק');
     return { ...base, kind: 'rcv', glyph: n.glyph || 'hdmi', tile, line };
   }
   const playing = isPlaying(d);

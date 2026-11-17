@@ -7,10 +7,11 @@
  * guessed default. A camera whose streams could not be read keeps one placeholder row ("לא נקרא").
  */
 import type { NvrCamera, StreamEncoding, StreamRole, Verdict } from '../api/nvr-settings';
+import { tr } from '../i18n/msg/media';
 
 export const DASH = '—';
 
-export const ROLE_HE: Record<StreamRole, string> = { main: 'ראשי', sub: 'משני', third: 'שלישי', other: 'נוסף' };
+export const ROLE_HE: Record<StreamRole, string> = { main: tr('ראשי'), sub: tr('משני'), third: tr('שלישי'), other: tr('נוסף') };
 const ROLE_ORDER: Record<StreamRole, number> = { main: 0, sub: 1, third: 2, other: 3 };
 
 /** One table row: one stream of one camera (or the placeholder of a camera with no readable stream: `stream` null). */
@@ -59,7 +60,7 @@ export function resolutionLabel(s: StreamEncoding | null): string {
 
 export function fpsLabel(s: StreamEncoding | null): string {
   if (!s) return DASH;
-  if (s.fps_full) return 'מלא';
+  if (s.fps_full) return tr('מלא');
   return s.fps === null || s.fps === undefined ? DASH : String(Number.isInteger(s.fps) ? s.fps : Number(s.fps.toFixed(2)));
 }
 
@@ -68,10 +69,10 @@ export function bitrateLabel(s: StreamEncoding | null): string {
 }
 
 export function svcLabel(s: StreamEncoding | null): string {
-  return s?.svc === true ? 'פעיל' : s?.svc === false ? 'כבוי' : DASH;
+  return s?.svc === true ? tr('פעיל') : s?.svc === false ? tr('כבוי') : DASH;
 }
 
-export const VERDICT_HE: Record<Verdict, string> = { ok: 'מתנגן בדפדפן', no: 'לא מתנגן בדפדפן', unknown: 'לא ידוע' };
+export const VERDICT_HE: Record<Verdict, string> = { ok: tr('מתנגן בדפדפן'), no: tr('לא מתנגן בדפדפן'), unknown: tr('לא ידוע') };
 
 export function numberLabel(v: number | null | undefined): string {
   return v === null || v === undefined ? DASH : String(v);
@@ -100,7 +101,7 @@ export const filtersActive = (f: Filters): boolean => !!(f.q.trim() || f.codec |
 function haystack(r: StreamRow): string {
   const s = r.stream;
   return [
-    r.cameraName, `ערוץ ${r.channel}`, String(r.channel), s ? ROLE_HE[s.role] : '', s ? s.role : '', codecLabel(s), s?.codec_raw ?? '', s?.profile ?? '', resolutionLabel(s), s?.resolution ?? '',
+    r.cameraName, tr('ערוץ {channel}', { channel: r.channel }), String(r.channel), s ? ROLE_HE[s.role] : '', s ? s.role : '', codecLabel(s), s?.codec_raw ?? '', s?.profile ?? '', resolutionLabel(s), s?.resolution ?? '',
     s?.bitrate_mode ?? '', s?.stream_ref ?? '', s?.svc === true ? 'svc' : '',
   ].join(' ').toLowerCase();
 }

@@ -18,6 +18,7 @@ import { cap, isApi } from '../api/session';
 import { nvrSourceShown } from '../api/camera-visibility';
 import { bidi } from '../i18n/bidi';
 import { CARD_QUALITY_LABEL, HA_LIVE_CHANGED, cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource, type CardQuality } from '../api/camera-card';
+import { tr } from '../i18n/msg/devices';
 
 /** A standalone camera shown live whose stream failed shows its picture for this long, then tries the stream again. */
 const HA_LIVE_RETRY_MS = 60_000;
@@ -84,14 +85,14 @@ const KEY_PREFIX = 'camera:';
 export function cameraCardDefinition(): CameraCardDefinition {
   return {
     type: 'camera',
-    label: 'מצלמה',
-    description: 'שידור חי של מצלמה: ערוץ של ה־NVR או מצלמה של המערכת. בלחיצה נפתחת תצוגת המצלמה.',
+    label: tr('מצלמה'),
+    description: tr('שידור חי של מצלמה: ערוץ של ה־NVR או מצלמה של המערכת. בלחיצה נפתחת תצוגת המצלמה.'),
     icon: 'camera',
     element: 'devices-camera-card',
     pickerElement: 'devices-camera-picker',
     defaultSize: { w: 6, h: 34 },
     minSize: { w: 3, h: 16 },
-    eligible: 'ערוצי NVR שהמשתמש רשאי לצפות בהם, ומצלמות נוספות של המערכת (מוצגות כתמונה בלבד)',
+    eligible: tr('ערוצי NVR שהמשתמש רשאי לצפות בהם, ומצלמות נוספות של המערכת (מוצגות כתמונה בלבד)'),
     permission: 'video.live',
     layoutKey: (existing) => {
       let n = existing.filter((k) => k.startsWith(KEY_PREFIX)).length + 1;
@@ -447,7 +448,7 @@ export class DevicesCameraCard extends LitElement {
         this.phase = 'ready';
         return;
       }
-      this.error = err instanceof ApiError ? err.message : 'שגיאת רשת';
+      this.error = err instanceof ApiError ? err.message : tr('שגיאת רשת');
       this.phase = 'error';
     }
   }
@@ -519,24 +520,24 @@ export class DevicesCameraCard extends LitElement {
     // NN1 (D5): an NVR channel is not drawn without an NVR - the rows stay, invisible, and come back with the NVR
     // NVRLESS-CAMERAS-2411: a camera without a recorder (pseudo-recorder `standalone`) is drawn with or without an NVR
     if (isApi() && !nvrSourceShown(this.source, cap('nvr'))) return nothing;
-    if (this.phase === 'loading') return this.message('loading', 'camera', 'טוען מצלמה…');
+    if (this.phase === 'loading') return this.message('loading', 'camera', tr('טוען מצלמה…'));
     if (this.phase === 'error') {
       return html`<div class="msg" data-camera-state="error">
         <sw-icon name="warning" size=${22}></sw-icon>
-        <span>לא ניתן לטעון את המצלמה</span>
+        <span>${tr('לא ניתן לטעון את המצלמה')}</span>
         <span class="hint">${this.error}</span>
-        <sw-button variant="ghost" data-camera-retry @click=${() => void this.resolve()}>נסה שוב</sw-button>
+        <sw-button variant="ghost" data-camera-retry @click=${() => void this.resolve()}>${tr('נסה שוב')}</sw-button>
       </div>`;
     }
     const r = this.resolved;
     if (!r) return nothing;
     switch (r.state) {
       case 'forbidden':
-        return this.message('forbidden', 'lock', 'אין הרשאת צפייה במצלמה הזו');
+        return this.message('forbidden', 'lock', tr('אין הרשאת צפייה במצלמה הזו'));
       case 'missing':
-        return this.message('missing', 'offline', 'המצלמה לא נמצאה', 'ייתכן שהוסרה מהמערכת');
+        return this.message('missing', 'offline', tr('המצלמה לא נמצאה'), tr('ייתכן שהוסרה מהמערכת'));
       case 'disabled':
-        return this.message('disabled', 'offline', 'המצלמה מושבתת');
+        return this.message('disabled', 'offline', tr('המצלמה מושבתת'));
       case 'still_only':
         return this.renderStill(r);
       case 'ha_live':
@@ -551,13 +552,13 @@ export class DevicesCameraCard extends LitElement {
     const name = this.displayName;
     return html`<div data-camera-state="still_only" style="display:contents">
       ${r.status === 'offline'
-        ? this.message('offline', 'offline', 'המצלמה מנותקת')
+        ? this.message('offline', 'offline', tr('המצלמה מנותקת'))
         : html`<img class="still" data-camera-still src=${stillUrl(entity, this.snapBust)} alt=${name} />
           <div class="shade"></div>
-          <span class="badge" data-camera-badge>תמונה בלבד</span>
+          <span class="badge" data-camera-badge>${tr('תמונה בלבד')}</span>
           ${name ? html`<span class="label">${bidi(name)}</span>` : nothing}
-          <button type="button" class="hit" data-camera-hit aria-label=${`תמונה של ${name || 'המצלמה'}`} @click=${() => this.open()}></button>
-          <button type="button" class="expand" data-camera-expand aria-label="הגדל" @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>`}
+          <button type="button" class="hit" data-camera-hit aria-label=${tr('תמונה של {name}', { name: name || tr('המצלמה') })} @click=${() => this.open()}></button>
+          <button type="button" class="expand" data-camera-expand aria-label=${tr('הגדל')} @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>`}
     </div>`;
   }
 
@@ -566,7 +567,7 @@ export class DevicesCameraCard extends LitElement {
    * refreshed like a picture-only card. There is no camera page to open: the press only raises `camera-open`. */
   private renderHaLive(r: CameraResolved) {
     const entity = r.entity_id ?? '';
-    if (r.status === 'offline') return this.message('offline', 'offline', 'המצלמה מנותקת');
+    if (r.status === 'offline') return this.message('offline', 'offline', tr('המצלמה מנותקת'));
     const live = this.streaming;
     const transport = effectiveTransport(this.settings);
     return html`<div data-camera-state=${live ? 'live' : 'snapshot'} data-camera-source="ha-live" data-camera-entity=${entity} style="display:contents">
@@ -582,8 +583,8 @@ export class DevicesCameraCard extends LitElement {
         poster=${stillUrl(entity, live ? this.posterBust : this.snapBust)}
         @player-status=${(e: Event) => this.onPlayerStatus(e)}
       ></sw-camera-tile>
-      <button type="button" class="hit" data-camera-hit aria-label=${`פתח את ${this.displayName || 'המצלמה'}`} @click=${() => this.open()}></button>
-      <button type="button" class="expand" data-camera-expand aria-label="הגדל" @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>
+      <button type="button" class="hit" data-camera-hit aria-label=${tr('פתח את {name}', { name: this.displayName || tr('המצלמה') })} @click=${() => this.open()}></button>
+      <button type="button" class="expand" data-camera-expand aria-label=${tr('הגדל')} @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>
     </div>`;
   }
 
@@ -596,7 +597,7 @@ export class DevicesCameraCard extends LitElement {
     const transport = effectiveTransport(this.settings);
     const poster = r.status === 'offline' ? '' : snapshotUrl(id, this.stillRec ? undefined : streamable && !live ? this.snapBust : this.posterBust);
     return html`<div data-camera-state=${live ? 'live' : streamable ? 'snapshot' : state} data-camera-id=${id} data-profile=${profile} data-quality=${this.quality} data-played=${live ? this.played : ''} style="display:contents">
-      ${this.showQuality ? html`<span class="qbadge" data-camera-quality-badge>איכות: ${CARD_QUALITY_LABEL[this.quality]}</span>` : nothing}
+      ${this.showQuality ? html`<span class="qbadge" data-camera-quality-badge>${tr('איכות: {quality}', { quality: CARD_QUALITY_LABEL[this.quality] })}</span>` : nothing}
       <sw-camera-tile
         name=${bidi(this.displayName)}
         state=${state}
@@ -612,8 +613,8 @@ export class DevicesCameraCard extends LitElement {
         poster=${poster}
         @player-status=${(e: Event) => this.onPlayerStatus(e)}
       ></sw-camera-tile>
-      <button type="button" class="hit" data-camera-hit aria-label=${`פתח את ${this.displayName || 'המצלמה'}`} @click=${() => this.open()}></button>
-      ${streamable ? html`<button type="button" class="expand" data-camera-expand aria-label="הגדל" @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>` : nothing}
+      <button type="button" class="hit" data-camera-hit aria-label=${tr('פתח את {name}', { name: this.displayName || tr('המצלמה') })} @click=${() => this.open()}></button>
+      ${streamable ? html`<button type="button" class="expand" data-camera-expand aria-label=${tr('הגדל')} @click=${(e: Event) => this.expand(e)}><sw-icon name="expand" size=${14}></sw-icon></button>` : nothing}
     </div>`;
   }
 
@@ -634,7 +635,7 @@ export class DevicesCameraCard extends LitElement {
     this.expanded = true;
     cardBudget.drop(this.budgetId); // one stream, not two: the card's own lets go while the big view plays
     const plan = r.state === 'live' ? playerPlan('main', r.encoding ?? null, effectiveTransport(this.settings)) : { plan: '', preferred: '' as const, gop: '' };
-    const name = this.displayName || 'מצלמה';
+    const name = this.displayName || tr('מצלמה');
     render(
       // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the enlarged picture is the system's one dialog (sw-dialog xl: the scrim, the opaque
       // box, the camera's name and the close button on top, focus trap, Escape, focus return) instead of a bare picture on the scrim

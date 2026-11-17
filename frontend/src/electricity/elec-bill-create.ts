@@ -15,6 +15,7 @@ import { addDays, fmtRange, isIsoDate, periodContaining } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { ApiError } from '../api/client';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/electricity';
 
 type Choice = 'last' | 'current' | 'range';
 
@@ -59,8 +60,8 @@ export class ElecBillCreate extends LitElement {
   }
   private rangeError(): string {
     if (this.choice !== 'range') return '';
-    if (!isIsoDate(this.from) || !isIsoDate(this.to)) return 'צריך לבחור תאריך התחלה ותאריך סיום';
-    if (this.to < this.from) return 'תאריך הסיום חייב להיות אחרי תאריך ההתחלה';
+    if (!isIsoDate(this.from) || !isIsoDate(this.to)) return tr('צריך לבחור תאריך התחלה ותאריך סיום');
+    if (this.to < this.from) return tr('תאריך הסיום חייב להיות אחרי תאריך ההתחלה');
     return '';
   }
   private overlap(): BillSummary | undefined {
@@ -99,24 +100,24 @@ export class ElecBillCreate extends LitElement {
     const re = this.rangeError();
     const opt = (id: Choice, title: string, sub: unknown) => html`<label class="li ${this.choice === id ? 'sel' : ''}"><input type="radio" name="period" data-period=${id} .checked=${this.choice === id} @change=${() => { this.choice = id; this.error = ''; }} /><span class="ind"></span>
       <div class="grow"><div class="t1">${title}</div>${sub ? html`<div class="t2">${sub}</div>` : nothing}</div></label>`;
-    return html`<elec-dialog heading="הפקת חיוב" ?open=${this.open} data-bill-create @close=${() => this.close()}>
+    return html`<elec-dialog heading=${tr('הפקת חיוב')} ?open=${this.open} data-bill-create @close=${() => this.close()}>
       <div class="mut">${a.name}</div>
-      <div class="list" role="radiogroup" aria-label="תקופה">
-        ${opt('last', 'התקופה האחרונה', n(fmtRange(p.last.from, p.last.to)))}
-        ${opt('current', 'התקופה הנוכחית עד היום', n(fmtRange(p.current.from, p.current.to)))}
-        ${opt('range', 'טווח אחר', nothing)}
+      <div class="list" role="radiogroup" aria-label=${tr('תקופה')}>
+        ${opt('last', tr('התקופה האחרונה'), n(fmtRange(p.last.from, p.last.to)))}
+        ${opt('current', tr('התקופה הנוכחית עד היום'), n(fmtRange(p.current.from, p.current.to)))}
+        ${opt('range', tr('טווח אחר'), nothing)}
       </div>
       ${this.choice === 'range'
         ? html`<div class="form">
-            <div class="fld"><label for="bf">מתאריך</label><input id="bf" type="date" lang=${dateInputLang()} name="from" data-range-from .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></div>
-            <div class="fld"><label for="bt">עד תאריך</label><input id="bt" type="date" lang=${dateInputLang()} name="to" data-range-to .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></div>
+            <div class="fld"><label for="bf">${tr('מתאריך')}</label><input id="bf" type="date" lang=${dateInputLang()} name="from" data-range-from .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></div>
+            <div class="fld"><label for="bt">${tr('עד תאריך')}</label><input id="bt" type="date" lang=${dateInputLang()} name="to" data-range-to .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></div>
           </div>`
         : nothing}
       ${re ? alertBox('err', re) : nothing}
-      ${ov ? alertBox('err', html`כבר קיים חיוב ${n(ov.number ?? '')} לתקופה הזו. אפשר <a class="lnk" href=${href.bill(ov.id)}>לתקן אותו</a> במקום ליצור חדש.`) : nothing}
-      ${this.error && !ov ? alertBox('err', html`${this.error}${this.errorBill ? html` <a class="lnk" href=${href.bill(this.errorBill)}>לפתיחת החיוב</a>` : nothing}`) : nothing}
-      <sw-button variant="primary" slot="actions" data-create ?disabled=${this.busy || !!ov || !!re} @click=${() => void this.create()}>יצירת טיוטה</sw-button>
-      <sw-button slot="actions" @click=${() => this.close()}>ביטול</sw-button>
+      ${ov ? alertBox('err', html`${tr('כבר קיים חיוב')} ${n(ov.number ?? '')} ${tr('לתקופה הזו. אפשר')} <a class="lnk" href=${href.bill(ov.id)}>${tr('לתקן אותו')}</a> ${tr('במקום ליצור חדש.')}`) : nothing}
+      ${this.error && !ov ? alertBox('err', html`${this.error}${this.errorBill ? html` <a class="lnk" href=${href.bill(this.errorBill)}>${tr('לפתיחת החיוב')}</a>` : nothing}`) : nothing}
+      <sw-button variant="primary" slot="actions" data-create ?disabled=${this.busy || !!ov || !!re} @click=${() => void this.create()}>${tr('יצירת טיוטה')}</sw-button>
+      <sw-button slot="actions" @click=${() => this.close()}>${tr('ביטול')}</sw-button>
     </elec-dialog>`;
   }
 }

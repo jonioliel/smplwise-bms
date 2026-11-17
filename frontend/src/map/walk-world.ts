@@ -19,6 +19,7 @@
  *   facing its longest wall, every camera at its mount height and tilt; `defaultStart` follows the CR's preference order.
  */
 import { isNum, r4z } from './num';
+import { tr } from '../i18n/msg/map';
 import { buildPrimitives, effectiveScale, floorHeight, objectCorners, stairPlan, stairRise, type GeomConnector, type GeomLevel, type GeomOpening, type Pt } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { isOpenState } from './coverage';
@@ -145,7 +146,7 @@ export function doorWalkState(o: Pick<GeomOpening, 'kind' | 'anchor_ref'>, state
   return isOpenState(s) ? 'open' : 'closed';
 }
 export const isPassable = (s: DoorWalkState): boolean => s === 'open' || s === 'unlocked' || s === 'unsensed';
-export const DOOR_STATE_HE: Record<DoorWalkState, string> = { open: 'פתוחה', unlocked: 'לא נעולה', unsensed: 'ללא חיישן', closed: 'סגורה', locked: 'נעולה', stale: 'מצב לא ידוע' };
+export const DOOR_STATE_HE: Record<DoorWalkState, string> = { open: tr('פתוחה'), unlocked: tr('לא נעולה'), unsensed: tr('ללא חיישן'), closed: tr('סגורה'), locked: tr('נעולה'), stale: tr('מצב לא ידוע') };
 
 function polyCentroid(poly: [number, number][]): [number, number] {
   let a = 0;
@@ -417,7 +418,7 @@ class WorldBuilder {
       const ref: [number, number] = own.length ? [own.reduce((t, r) => t + r.centre[0], 0) / own.length, own.reduce((t, r) => t + r.centre[1], 0) / own.length] : [(lv.extent.minX + lv.extent.maxX) / 2, (lv.extent.minZ + lv.extent.maxZ) / 2];
       if ((ref[0] - mid[0]) * n[0] + (ref[1] - mid[1]) * n[1] < 0) n = [-n[0], -n[1]];
       const id = `door:${d.id}`;
-      starts.push({ id, kind: 'door', label: 'דלת כניסה', level: d.level, x: r4(mid[0] + n[0] * DOOR_START_IN_M), z: r4(mid[1] + n[1] * DOOR_START_IN_M), heading_deg: bearingOf(n[0], n[1]), pitch_deg: 0, eye_m: null });
+      starts.push({ id, kind: 'door', label: tr('דלת כניסה'), level: d.level, x: r4(mid[0] + n[0] * DOOR_START_IN_M), z: r4(mid[1] + n[1] * DOOR_START_IN_M), heading_deg: bearingOf(n[0], n[1]), pitch_deg: 0, eye_m: null });
       doorStart ??= id;
     }
     let largest: { id: string; area: number } | null = null;
@@ -436,7 +437,7 @@ class WorldBuilder {
         }
       }
       const id = `room:${r.id}`;
-      starts.push({ id, kind: 'room', label: r.name || 'חדר', level: r.level, x: r.centre[0], z: r.centre[1], heading_deg: bearingOf(mid[0] - r.centre[0], mid[1] - r.centre[1]), pitch_deg: 0, eye_m: null });
+      starts.push({ id, kind: 'room', label: r.name || tr('חדר'), level: r.level, x: r.centre[0], z: r.centre[1], heading_deg: bearingOf(mid[0] - r.centre[0], mid[1] - r.centre[1]), pitch_deg: 0, eye_m: null });
       const area = polyArea(r.poly);
       if (r.level === defaultLevel && (!largest || area > largest.area + 1e-9)) largest = { id, area };
     }
@@ -448,7 +449,7 @@ class WorldBuilder {
     const lv0 = levelById.get(defaultLevel) ?? levels[0];
     if (lv0) {
       const c = openSpot(lv0);
-      starts.push({ id: 'centre', kind: 'centre', label: 'מרכז התוכנית', level: lv0.id, x: c.x, z: c.z, heading_deg: c.heading, pitch_deg: 0, eye_m: null });
+      starts.push({ id: 'centre', kind: 'centre', label: tr('מרכז התוכנית'), level: lv0.id, x: c.x, z: c.z, heading_deg: c.heading, pitch_deg: 0, eye_m: null });
     }
     const savedDefault = saved.find((p) => p.is_default) ?? saved[0];
     const defaultStart = savedDefault ? `pos:${savedDefault.id}` : doorStart ?? largest?.id ?? (lv0 ? 'centre' : null);

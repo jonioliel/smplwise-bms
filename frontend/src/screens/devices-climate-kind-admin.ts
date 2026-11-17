@@ -6,6 +6,7 @@ import { get, put, describeError } from '../api/client';
 import { bidi } from '../i18n/bidi';
 import { entityLabel, TECH_ID_ATTR } from '../i18n/entity-label';
 import { DevicesOverrideAdmin, overrideTableStyles } from './devices-override-admin';
+import { tr } from '../i18n/msg/devices';
 
 export type ClimateKindSetting = 'auto' | 'ac' | 'heating';
 
@@ -21,7 +22,7 @@ interface ClimateKindRow {
   set: 'ac' | 'heating' | null;
 }
 
-const KIND_HE: Record<'ac' | 'heating', string> = { ac: 'מיזוג', heating: 'חימום' };
+const KIND_HE: Record<'ac' | 'heating', string> = { ac: tr('מיזוג'), heating: tr('חימום') };
 
 /**
  * הגדרות › חשמל והתקנים › מיזוג וחימום (owner 2026-09-30): every climate entity with the group it is in - "מיזוג" or
@@ -31,7 +32,7 @@ const KIND_HE: Record<'ac' | 'heating', string> = { ac: 'מיזוג', heating: '
 @customElement('devices-climate-kind-admin')
 export class DevicesClimateKindAdmin extends DevicesOverrideAdmin<ClimateKindRow> {
   @state() private busyId = '';
-  protected readonly heading = 'מיזוג וחימום';
+  protected readonly heading = tr('מיזוג וחימום');
 
   static styles = [overrideTableStyles, css`
     :host {
@@ -84,20 +85,20 @@ export class DevicesClimateKindAdmin extends DevicesOverrideAdmin<ClimateKindRow
 
   render() {
     const heading = this.heading;
-    if (this.rows === null && this.error) return this.errorCard('לא ניתן לטעון את התקני האקלים');
+    if (this.rows === null && this.error) return this.errorCard(tr('לא ניתן לטעון את התקני האקלים'));
     if (!this.rows) return this.loadingCard();
     if (!this.rows.length) return nothing;
-    return html`<sw-card heading=${heading} subheading="התקן שאינו יכול לקרר (אין לו מצב קירור, ייבוש או מאוורר) נספר כחימום. אפשר לקבוע ידנית לכל התקן." data-climate-kind-admin>
+    return html`<sw-card heading=${heading} subheading=${tr('התקן שאינו יכול לקרר (אין לו מצב קירור, ייבוש או מאוורר) נספר כחימום. אפשר לקבוע ידנית לכל התקן.')} data-climate-kind-admin>
       <table>
-        <thead><tr><th>שם</th><th>אזור</th><th>סוג</th></tr></thead>
+        <thead><tr><th>${tr('שם')}</th><th>${tr('אזור')}</th><th>${tr('סוג')}</th></tr></thead>
         <tbody>${this.rows.map(
           (r) => html`<tr data-entity=${r.entity_id}>
-            <td>${bidi(entityLabel(r))}<div class="muted tech" ${TECH_ID_ATTR} dir="ltr" title="מזהה טכני (להעתקה)">${r.entity_id}</div></td>
-            <td>${r.area_name ?? 'ללא שיוך'}</td>
-            <td><select data-climate-kind=${r.entity_id} aria-label=${`סוג ${entityLabel(r)}`} ?disabled=${this.busyId === r.entity_id} @change=${(e: Event) => void this.choose(r, (e.target as HTMLSelectElement).value as ClimateKindSetting)}>
-              <option value="auto" ?selected=${r.set === null}>אוטומטי (${KIND_HE[r.auto]})</option>
-              <option value="ac" ?selected=${r.set === 'ac'}>מיזוג</option>
-              <option value="heating" ?selected=${r.set === 'heating'}>חימום</option>
+            <td>${bidi(entityLabel(r))}<div class="muted tech" ${TECH_ID_ATTR} dir="ltr" title=${tr('מזהה טכני (להעתקה)')}>${r.entity_id}</div></td>
+            <td>${r.area_name ?? tr('ללא שיוך')}</td>
+            <td><select data-climate-kind=${r.entity_id} aria-label=${tr('סוג {name}', { name: entityLabel(r) })} ?disabled=${this.busyId === r.entity_id} @change=${(e: Event) => void this.choose(r, (e.target as HTMLSelectElement).value as ClimateKindSetting)}>
+              <option value="auto" ?selected=${r.set === null}>${tr('אוטומטי ({type})', { type: KIND_HE[r.auto] })}</option>
+              <option value="ac" ?selected=${r.set === 'ac'}>${tr('מיזוג')}</option>
+              <option value="heating" ?selected=${r.set === 'heating'}>${tr('חימום')}</option>
             </select></td>
           </tr>`,
         )}</tbody>

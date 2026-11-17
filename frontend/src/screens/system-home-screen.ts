@@ -17,6 +17,7 @@ import { hs } from '../i18n/home-screen';
 import './home-screen-options';
 import type { HomeScreenForm, OptionsArea } from './home-screen-options';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/system-a';
 
 /** A schematic of each direction (the mockup's three layouts): the widgets in the accent colour, the summary tiles, the floors. */
 function thumb(d: Direction, side: Side): TemplateResult {
@@ -215,7 +216,7 @@ export class SystemHomeScreen extends LitElement {
       if (change.side) body['home.side'] = change.side;
       await patch('settings', body);
       invalidateSettings();
-      this.message = 'המסך הראשי נשמר';
+      this.message = tr('המסך הראשי נשמר');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.direction = before.direction;
@@ -279,8 +280,8 @@ export class SystemHomeScreen extends LitElement {
 
   render() {
     const ro = !this.canEdit || !isApi();
-    return html`<sw-card heading="מסך ראשי" subheading="הכיוון של מסך ״ראשי״ לכל המשתמשים במתקן" data-home-screen-settings>
-      <div class="opts" role="group" aria-label="כיוון המסך הראשי">
+    return html`<sw-card heading=${tr('מסך ראשי')} subheading=${tr('הכיוון של מסך ״ראשי״ לכל המשתמשים במתקן')} data-home-screen-settings>
+      <div class="opts" role="group" aria-label=${tr('כיוון המסך הראשי')}>
         ${DIRECTIONS.map(
           (d) => html`<button type="button" class="opt" data-home-dir-option=${d} aria-pressed=${String(this.direction === d)} ?disabled=${ro || this.busy} @click=${() => void this.save({ direction: d })}>
             <svg class="thumb" viewBox="0 0 120 80" aria-hidden="true" data-home-dir-thumb=${d}>${thumb(d, this.side)}</svg>
@@ -289,17 +290,17 @@ export class SystemHomeScreen extends LitElement {
         )}
       </div>
       ${this.direction === 'b'
-        ? html`<div class="row"><span>צד הלוח</span><span class="seg" role="group" aria-label="צד הלוח">${SIDES.map((s) => html`<button type="button" data-home-side-option=${s} aria-pressed=${String(this.side === s)} ?disabled=${ro || this.busy} @click=${() => void this.save({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span></div>`
+        ? html`<div class="row"><span>${tr('צד הלוח')}</span><span class="seg" role="group" aria-label=${tr('צד הלוח')}>${SIDES.map((s) => html`<button type="button" data-home-side-option=${s} aria-pressed=${String(this.side === s)} ?disabled=${ro || this.busy} @click=${() => void this.save({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span></div>`
         : nothing}
       <h3 class="hs-h" data-home-screen-options-heading>${hs('heading')}</h3>
       <home-screen-options .value=${this.form} .areas=${this.areas} .buildings=${this.buildings} ?editable=${!ro && !this.busy} @hs-change=${(e: CustomEvent<HomeScreenForm>) => void this.saveForm(e.detail)}></home-screen-options>
-      ${this.choiceRow('שם קומה ארוך בכותרת כרטיס', 'floor-title-lines', FLOOR_TITLE_LINES, { '2': 'שתי שורות', '3': 'שלוש שורות', '1': 'שורה אחת עם ...' } as Record<FloorTitleLines, string>, this.floorTitleLines, ro, (v) => void this.saveChoice('home.floor_title_lines', v))}
-      ${this.choiceRow('כפתור "כבה הכל" כשאין מה לכבות', 'bulk-idle', BULK_IDLE, { disabled: 'מושבת', enabled: 'לחיץ תמיד' } as Record<BulkIdle, string>, this.bulkIdle, ro, (v) => void this.saveChoice('home.bulk_idle', v))}
+      ${this.choiceRow(tr('שם קומה ארוך בכותרת כרטיס'), 'floor-title-lines', FLOOR_TITLE_LINES, { '2': tr('שתי שורות'), '3': tr('שלוש שורות'), '1': tr('שורה אחת עם ...') } as Record<FloorTitleLines, string>, this.floorTitleLines, ro, (v) => void this.saveChoice('home.floor_title_lines', v))}
+      ${this.choiceRow(tr('כפתור "כבה הכל" כשאין מה לכבות'), 'bulk-idle', BULK_IDLE, { disabled: tr('מושבת'), enabled: tr('לחיץ תמיד') } as Record<BulkIdle, string>, this.bulkIdle, ro, (v) => void this.saveChoice('home.bulk_idle', v))}
       <div class="row">
-        <sw-button size="sm" icon="edit" data-home-edit-link @click=${() => (location.hash = '#/devices/building?edit=1')} ?disabled=${ro}>עריכת המסך הראשי</sw-button>
+        <sw-button size="sm" icon="edit" data-home-edit-link @click=${() => (location.hash = '#/devices/building?edit=1')} ?disabled=${ro}>${tr('עריכת המסך הראשי')}</sw-button>
         ${this.message ? html`<span class="ok" role="status" data-home-message>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
-        ${ro ? html`<span class="muted">${isApi() ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</span>` : nothing}
+        ${ro ? html`<span class="muted">${isApi() ? tr('שינוי ההגדרות דורש הרשאת מנהל מערכת.') : tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</span>` : nothing}
       </div>
     </sw-card>`;
   }

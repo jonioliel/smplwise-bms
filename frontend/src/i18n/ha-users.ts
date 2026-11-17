@@ -4,6 +4,7 @@
  * administrator token is saved in הגדרות › חיבורים › סודות (the secrets store), never in the add-on options. Hebrew first; English is used
  * when the document language is English (a missing key falls back to Hebrew). `{name}` placeholders are filled by `ht(key, vars)`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'משתמשי מערכת הבית',
   title: 'משתמשי מערכת הבית',
@@ -97,6 +98,7 @@ const en: Partial<Record<keyof typeof he, string>> = {
   tab: 'Home system users',
   title: 'Home system users',
   sub: 'Create an ordinary home-system user with an Arx role. Only users created here can be deactivated or deleted here.',
+  keywords: 'new user create delete deactivate password home system',
   loading: 'Loading…',
   forbidden: 'Managing home-system users is reserved for system administrators.',
   retry: 'Try again',
@@ -111,10 +113,14 @@ const en: Partial<Record<keyof typeof he, string>> = {
   acc_unavailable: 'The home system is not reachable right now. Try again in a moment.',
   acc_not_configured: 'This installation has no home-system connection.',
   acc_failed: 'The check failed. Try again.',
+  via_supervisor: 'As the add-on',
+  via_token: 'With the administrator token you set',
   notHaAdmin: 'Only a home-system administrator can create, deactivate or delete users. You can view the list.',
   listTitle: 'Users created through Arx',
   empty: 'No users were created here yet.',
+  emptyHint: 'Existing home-system users are listed on the "Users" tab, where roles are assigned to them.',
   add: 'New user',
+  count: '{n} of {max}',
   colName: 'Name',
   colUser: 'Username',
   colRole: 'Arx role',
@@ -122,6 +128,11 @@ const en: Partial<Record<keyof typeof he, string>> = {
   st_active: 'Active',
   st_inactive: 'Deactivated',
   st_needs_repair: 'Needs repair',
+  repair_person_missing: 'Created without a person card',
+  repair_compensation_failed: 'Creation failed part-way; delete it',
+  repair_binding_failed: 'Role assignment failed; delete it',
+  repair_cleanup_failed: 'Clean-up did not finish; delete it again',
+  repair_missing_in_ha: 'Not found in the home system; delete it',
   you: 'You',
   deactivate: 'Deactivate',
   activate: 'Activate',
@@ -130,6 +141,7 @@ const en: Partial<Record<keyof typeof he, string>> = {
   createSub: 'The user is created as an ordinary (non-administrator) user and gets only the chosen Arx role.',
   fName: 'Display name',
   fUsername: 'Login username',
+  fUsernameHint: 'Lower-case Latin letters, digits, dot, hyphen or underscore; 3 to 32 characters.',
   fPassword: 'Password',
   fPassword2: 'Repeat password',
   fPasswordHint: 'At least {min} characters, not a common password or a run. The password is not kept by Arx and is never shown again.',
@@ -139,8 +151,27 @@ const en: Partial<Record<keyof typeof he, string>> = {
   create: 'Create',
   cancel: 'Cancel',
   created: 'User {name} was created.',
+  createdNoPerson: 'User {name} was created, but the person card was not.',
+  e_name: 'A display name is required.',
+  e_username: 'The username is not in the required format.',
+  e_mismatch: 'The passwords do not match.',
+  e_role: 'Choose a role.',
+  pw_too_short: 'The password is too short.',
+  pw_too_long: 'The password is too long.',
+  pw_repetitive: 'The password repeats the same characters.',
+  pw_common: 'The password is too common.',
+  pw_sequence: 'The password is a keyboard or number run.',
+  pw_contains_username: 'The password contains the username.',
+  pw_contains_name: 'The password contains the display name.',
+  deactivateTitle: 'Deactivate {name}',
+  deactivateBody: 'The user cannot sign in to the home system or to Arx until reactivated. You can reactivate them at any time.',
+  activateTitle: 'Activate {name}',
+  activateBody: 'The user can sign in again, with their Arx role.',
   confirm: 'Confirm',
+  deactivated: 'The user was deactivated.',
+  activated: 'The user was activated.',
   removeTitle: 'Delete {name}',
+  removeBody: 'The user will be deleted from the home system, all their Arx roles will be revoked and their open sign-ins will be closed. The deletion cannot be undone. Deactivating is the safer option.',
   removeType: 'Type the username {username} to confirm',
   removeConfirm: 'Delete permanently',
   removed: 'The user was deleted.',
@@ -149,12 +180,14 @@ const en: Partial<Record<keyof typeof he, string>> = {
 export type HaUsersTextKey = keyof typeof he;
 
 function lang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function ht(key: HaUsersTextKey, vars?: Record<string, string | number>): string {
   const raw = (lang() === 'en' ? en[key] : undefined) ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const HA_USERS_TEXT_KEYS = Object.keys(he) as HaUsersTextKey[];
+
+registerCatalogue('i18n/ha-users', { he, en });

@@ -15,6 +15,7 @@
  */
 import type { Building, Floor } from '../api/types';
 import type { DeviceTree } from '../api/devices';
+import { tr } from '../i18n/msg/misc';
 import { emptyColumns, floorLightsTarget, litPercent, signalsOf, tempState, xsMetrics, type FloorSignal, type MatchContext, type XsOptions } from './xs-model';
 
 /** The site level of the multi-building home (api/home-site.ts SITE_LEVEL; repeated so this module stays free of the home's imports). */
@@ -80,7 +81,7 @@ export function tintOf(f: Pick<FloorSignal, 'lit' | 'lights'>): MiniTint {
 
 /** The short mark of a level: the ground is "ק", a basement keeps its minus sign (an LRM keeps it on the left of the digit in RTL). */
 export function levelMark(level: number): string {
-  return level === 0 ? 'ק' : level > 0 ? String(level) : `‎${level}`;
+  return level === 0 ? tr('ק') : level > 0 ? String(level) : `‎${level}`;
 }
 
 export interface MiniInput {
@@ -142,13 +143,13 @@ export function miniModel(i: MiniInput): MiniModel {
 /** The accessible name of a floor's slab: the name, then only what the widget draws (never a number it does not show). */
 export function miniFloorLabel(f: MiniFloor, show: MiniModel['show']): string {
   const parts = [f.name];
-  if (f.nodata) parts.push('אין מידע מהקומה');
+  if (f.nodata) parts.push(tr('אין מידע מהקומה'));
   else {
-    if (show.light && f.lit !== null && f.lights !== null) parts.push(`${f.lit} מתוך ${f.lights} אורות דולקים`);
-    if (show.temp && f.temp) parts.push(f.temp === 'hot' ? 'חם' : 'קר');
-    if (show.doors && f.doorsOpen) parts.push(f.doorsOpen === 1 ? 'דלת פתוחה' : `${f.doorsOpen} דלתות פתוחות`);
+    if (show.light && f.lit !== null && f.lights !== null) parts.push(tr('{lit} מתוך {n} אורות דולקים', { lit: f.lit, n: f.lights }));
+    if (show.temp && f.temp) parts.push(f.temp === 'hot' ? tr('חם') : tr('קר'));
+    if (show.doors && f.doorsOpen) parts.push(f.doorsOpen === 1 ? tr('דלת פתוחה') : tr('{n} דלתות פתוחות', { n: f.doorsOpen }));
   }
-  if (f.alarm) parts.push('אזעקה');
-  if (f.fire) parts.push('אזעקת אש (נתוני דמה)');
+  if (f.alarm) parts.push(tr('אזעקה'));
+  if (f.fire) parts.push(tr('אזעקת אש (נתוני דמה)'));
   return parts.join(', ');
 }

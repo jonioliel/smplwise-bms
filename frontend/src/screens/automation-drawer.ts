@@ -16,11 +16,13 @@ import {
 import { commandId } from '../api/request-id';
 import { addressAction, areaLine, fieldDefaults, missingFields, type FieldChoice, cardChips, confirmLine, deletedText, floorLine, keepText, runRows, whenText, type DrawerView } from './automations-logic';
 import type { TrashRow } from '../api/automations';
+import { tr } from '../i18n/msg/automation';
+import { t } from '../i18n/he';
 
 export type DrawerResult = { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } };
 
-const MODE_CHIP: Record<Mode, string> = { single: 'התעלם', restart: 'התחל מחדש', queued: 'המתן בתור', parallel: 'הרץ במקביל' };
-const LIST_LABEL: Record<string, string> = { conditions: 'אם', if: 'אם', then: 'אז', else: 'אחרת', default: 'אחרת', sequence: 'אז' };
+const MODE_CHIP: Record<Mode, string> = { single: tr('התעלם'), restart: tr('התחל מחדש'), queued: tr('המתן בתור'), parallel: tr('הרץ במקביל') };
+const LIST_LABEL: Record<string, string> = { conditions: tr('אם'), if: tr('אם'), then: tr('אז'), else: tr('אחרת'), default: tr('אחרת'), sequence: tr('אז') };
 
 /**
  * CR-017 `<automation-drawer .kind .itemId .view .runId .trash .status .now>`: the detail of one automation or script (and the trash), a
@@ -487,7 +489,7 @@ export class AutomationDrawer extends LitElement {
     try {
       if (it.kind === 'script') await runScriptNow(it.id, this.values, { confirm: confirmed || undefined });
       else await runAutomation(it.id, { skip_condition: true, confirm: confirmed || undefined });
-      this.say(it.kind === 'script' ? 'הסקריפט הופעל' : 'האוטומציה הורצה');
+      this.say(it.kind === 'script' ? tr('הסקריפט הופעל') : tr('האוטומציה הורצה'));
       this.fire('changed', { id: it.id });
       window.setTimeout(() => void this.load(true), 250);
     } catch (err) {
@@ -503,7 +505,7 @@ export class AutomationDrawer extends LitElement {
     const it = this.item;
     if (!it || this.busy) return;
     this.busy = true;
-    try { await stopScriptNow(it.id); this.say('הסקריפט נעצר'); this.fire('changed', { id: it.id }); await this.load(true); } catch (err) { this.failed(err); } finally { this.busy = false; }
+    try { await stopScriptNow(it.id); this.say(tr('הסקריפט נעצר')); this.fire('changed', { id: it.id }); await this.load(true); } catch (err) { this.failed(err); } finally { this.busy = false; }
   }
 
   /** The dry-run view (`?view=dryrun`): asks the server what the conditions say now and what would change; nothing runs. */
@@ -524,7 +526,7 @@ export class AutomationDrawer extends LitElement {
     // from another app) only opens the run confirmation; the run needs the user's tap on it (XSECFOLLOW-297: the rule is
     // automations-logic.addressAction, covered by tests/unit-xsecfollow-297.spec.ts)
     const open = addressAction(a, it.can);
-    if (open === 'copy') this.copyName = `${it.name} (עותק)`;
+    if (open === 'copy') this.copyName = tr('{name} (עותק)', { name: it.name });
     if (open) this.confirm = open;
     this.fire('action-done');
   }
@@ -554,7 +556,7 @@ export class AutomationDrawer extends LitElement {
       const r = await copyItem(it.kind, it.id, name);
       this.confirm = null;
       if (r.item) this.fire('copied', { item: r.item });
-      else this.say('נשמר', 'ok');
+      else this.say(tr('נשמר'), 'ok');
     } catch (err) {
       this.confirm = null;
       this.failed(err);
@@ -573,7 +575,7 @@ export class AutomationDrawer extends LitElement {
       this.confirm = null;
       this.restoring = null;
       this.versions = null;
-      this.say('הגרסה שוחזרה');
+      this.say(tr('הגרסה שוחזרה'));
       this.fire('changed', { id: it.id });
       await this.load(true);
       await this.loadView();
@@ -590,7 +592,7 @@ export class AutomationDrawer extends LitElement {
     this.busy = true;
     try {
       const r = await autoApi().restoreTrash(t.trash_id, { client_request_id: `restore-${t.trash_id}-${Date.now()}` });
-      this.say(`"${t.name}" שוחזר`);
+      this.say(tr('"{name}" שוחזר', { name: t.name }));
       this.fire('changed', { id: r.item?.id ?? t.config_id });
       this.trashRows = (this.trashRows ?? []).filter((x) => x.trash_id !== t.trash_id);
     } catch (err) {
@@ -606,7 +608,7 @@ export class AutomationDrawer extends LitElement {
     try {
       await autoApi().purgeTrash(t.trash_id);
       this.trashRows = (this.trashRows ?? []).filter((x) => x.trash_id !== t.trash_id);
-      this.say(`"${t.name}" נמחק לצמיתות`);
+      this.say(tr('"{name}" נמחק לצמיתות', { name: t.name }));
     } catch (err) {
       this.say(mapAutomationError(err).message, 'error');
     } finally {
@@ -622,8 +624,8 @@ export class AutomationDrawer extends LitElement {
     return html`<div class=${`blk${locked ? ' locked' : ''}${nested ? ' nested' : ''}`} data-block=${b.uid} data-block-kind=${b.kind}>
       <span class="bi">${aIcon(blockIcon(b))}</span>
       <span class="bt">${label ? html`<small>${label}</small>` : nothing}${bidi(locked ? `${b.label}${b.sentence && b.sentence !== b.label ? ` · ${b.sentence}` : ''}` : b.sentence)}</span>
-      ${sched ? html`<span class="chip warn" data-chip="schedules">${aIcon('calendar')}שולט בתזמונים</span>` : nothing}
-      ${locked && b.sensitive ? html`<span class="chip sens">${aIcon('shield')}רגישה</span>` : nothing}
+      ${sched ? html`<span class="chip warn" data-chip="schedules">${aIcon('calendar')}${tr('שולט בתזמונים')}</span>` : nothing}
+      ${locked && b.sensitive ? html`<span class="chip sens">${aIcon('shield')}${tr('רגישה')}</span>` : nothing}
     </div>`;
   }
 
@@ -652,14 +654,14 @@ export class AutomationDrawer extends LitElement {
     const out: TemplateResult[] = [];
     const ro = readOnlyChip(it);
     if (this.conflict) {
-      out.push(html`<div class="banner warn" role="alert" data-drawer-conflict>${aIcon('warning')}<div><b>הפריט שונה במקום אחר</b><small>טענו את הגרסה העדכנית והחליטו מה לשמור.</small></div><button type="button" class="btn sm" data-conflict-reload @click=${() => { this.conflict = null; void this.load(true); }}>טען מחדש</button></div>`);
+      out.push(html`<div class="banner warn" role="alert" data-drawer-conflict>${aIcon('warning')}<div><b>${tr('הפריט שונה במקום אחר')}</b><small>${tr('טענו את הגרסה העדכנית והחליטו מה לשמור.')}</small></div><button type="button" class="btn sm" data-conflict-reload @click=${() => { this.conflict = null; void this.load(true); }}>${tr('טען מחדש')}</button></div>`);
     }
     if (ro) {
       const yaml = ro.code === 'yaml_managed' || ro.code === 'no_config_id';
-      out.push(html`<div class=${`banner ${yaml ? 'warn' : 'info'}`} data-drawer-readonly=${ro.code}>${aIcon(yaml ? 'eye' : ro.code === 'delegation_off' ? 'lock' : 'eye')}<div><b>${yaml ? 'מוגדרת בקובץ תצורה' : ro.text}</b>${yaml ? html`<small>לצפייה בלבד. עריכה: בתשתית המערכת.</small>` : nothing}</div></div>`);
+      out.push(html`<div class=${`banner ${yaml ? 'warn' : 'info'}`} data-drawer-readonly=${ro.code}>${aIcon(yaml ? 'eye' : ro.code === 'delegation_off' ? 'lock' : 'eye')}<div><b>${yaml ? tr('מוגדרת בקובץ תצורה') : ro.text}</b>${yaml ? html`<small>${tr('לצפייה בלבד. עריכה: בתשתית המערכת.')}</small>` : nothing}</div></div>`);
     }
-    if (it.state === 'invalid') out.push(html`<div class="banner bad" data-drawer-invalid>${aIcon('warning')}<div><b>לא פעילה – שגיאה בהגדרה</b>${it.warnings.find((w) => w.code === 'invalid_config')?.message ? html`<small>${it.warnings.find((w) => w.code === 'invalid_config')!.message}</small>` : nothing}</div></div>`);
-    if (it.warnings.some((w) => w.code === 'changed_outside')) out.push(html`<div class="banner info" data-drawer-outside>${aIcon('history')}<div><b>שונתה מחוץ למערכת</b></div><button type="button" class="btn sm" @click=${() => this.go('versions')}>גרסאות</button></div>`);
+    if (it.state === 'invalid') out.push(html`<div class="banner bad" data-drawer-invalid>${aIcon('warning')}<div><b>${tr('לא פעילה – שגיאה בהגדרה')}</b>${it.warnings.find((w) => w.code === 'invalid_config')?.message ? html`<small>${it.warnings.find((w) => w.code === 'invalid_config')!.message}</small>` : nothing}</div></div>`);
+    if (it.warnings.some((w) => w.code === 'changed_outside')) out.push(html`<div class="banner info" data-drawer-outside>${aIcon('history')}<div><b>${tr('שונתה מחוץ למערכת')}</b></div><button type="button" class="btn sm" @click=${() => this.go('versions')}>${tr('גרסאות')}</button></div>`);
     return html`${out}`;
   }
 
@@ -676,10 +678,10 @@ export class AutomationDrawer extends LitElement {
       ${isScript && d.fields?.some((f) => f.selector.kind !== 'locked')
         ? html`<script-fields-form .fields=${d.fields} .values=${this.values} .entityChoices=${this.choices} @change=${(e: CustomEvent<{ values: Record<string, unknown>; valid: boolean }>) => { this.values = e.detail.values; this.valid = e.detail.valid; }}></script-fields-form>`
         : nothing}
-      ${isScript ? this.section(3, 'אז', 'play', d.sequence ?? []) : html`${this.section(1, 'כאשר', 'bolt', d.triggers ?? [])}${this.section(2, 'אם', 'help', d.conditions ?? [])}${this.section(3, 'אז', 'play', d.actions ?? [])}`}
-      ${!blocks ? html`<div class="empty-note">אין פירוט להצגה</div>` : nothing}
-      ${targets.length ? html`<section class="sect" data-section="devices"><h4>${aIcon('layers')}מכשירים מושפעים <span class="num">${targets.length}</span></h4>${targets.map((t) => html`<div class="dev" data-target=${t.entity_id}><span class="bi">${aIcon(domainIcon(t.entity_id))}</span><span class="bt">${bidi(t.name)}<small>${bidi([t.floor, t.area].filter(Boolean).join(' · '))}</small></span>${t.missing ? html`<span class="chip bad">${aIcon('warning')}חסר</span>` : t.sensitive ? html`<span class="chip sens">${aIcon('shield')}רגישה</span>` : nothing}</div>`)}</section>` : nothing}
-      ${this.runs && this.runs.length ? html`<section class="sect" data-section="runs"><h4>${aIcon('history')}ריצות אחרונות <span class="num">${it.runs_7d ?? this.runs.length}</span></h4>
+      ${isScript ? this.section(3, tr('אז'), 'play', d.sequence ?? []) : html`${this.section(1, tr('כאשר'), 'bolt', d.triggers ?? [])}${this.section(2, tr('אם'), 'help', d.conditions ?? [])}${this.section(3, tr('אז'), 'play', d.actions ?? [])}`}
+      ${!blocks ? html`<div class="empty-note">${tr('אין פירוט להצגה')}</div>` : nothing}
+      ${targets.length ? html`<section class="sect" data-section="devices"><h4>${aIcon('layers')}${tr('מכשירים מושפעים')} <span class="num">${targets.length}</span></h4>${targets.map((t) => html`<div class="dev" data-target=${t.entity_id}><span class="bi">${aIcon(domainIcon(t.entity_id))}</span><span class="bt">${bidi(t.name)}<small>${bidi([t.floor, t.area].filter(Boolean).join(' · '))}</small></span>${t.missing ? html`<span class="chip bad">${aIcon('warning')}${tr('חסר')}</span>` : t.sensitive ? html`<span class="chip sens">${aIcon('shield')}${tr('רגישה')}</span>` : nothing}</div>`)}</section>` : nothing}
+      ${this.runs && this.runs.length ? html`<section class="sect" data-section="runs"><h4>${aIcon('history')}${tr('ריצות אחרונות')} <span class="num">${it.runs_7d ?? this.runs.length}</span></h4>
         ${runRows(this.runs.slice(0, 3), this.now).map((r) => html`<button type="button" class="run" data-run-row=${r.run_id} @click=${() => this.go('trace', r.run_id)}><i class=${`dot ${r.tone === 'none' ? '' : r.tone}`}></i><span class="t">${r.label}</span><span class="s">${r.sentence}</span>${aIcon('chevronBack')}</button>`)}</section>` : nothing}
     </div>`;
   }
@@ -688,7 +690,7 @@ export class AutomationDrawer extends LitElement {
     const rows = runRows(this.runs ?? [], this.now);
     const cur = this.runId || rows[0]?.run_id || '';
     return html`<div class="stack" data-drawer-trace>
-      ${rows.length ? html`<div class="runchips" role="group" aria-label="ריצות">${rows.map((r) => html`<button type="button" class="rc" aria-pressed=${String(r.run_id === cur)} data-run-chip=${r.run_id} @click=${() => this.go('trace', r.run_id)}>${r.label}<i class=${`dot ${r.tone === 'none' ? '' : r.tone}`}></i></button>`)}</div>` : html`<div class="empty-note" data-trace-empty>אין ריצות להצגה</div>`}
+      ${rows.length ? html`<div class="runchips" role="group" aria-label=${tr('ריצות')}>${rows.map((r) => html`<button type="button" class="rc" aria-pressed=${String(r.run_id === cur)} data-run-chip=${r.run_id} @click=${() => this.go('trace', r.run_id)}>${r.label}<i class=${`dot ${r.tone === 'none' ? '' : r.tone}`}></i></button>`)}</div>` : html`<div class="empty-note" data-trace-empty>${tr('אין ריצות להצגה')}</div>`}
       ${this.traceBusy ? html`<div class="skl-stack"><span class="skl" style="block-size:70px"></span><span class="skl" style="block-size:120px"></span><span class="skl" style="block-size:200px"></span></div>` : nothing}
       ${this.traceError ? html`<div class="banner bad" role="alert">${aIcon('warning')}${this.traceError}</div>` : nothing}
       ${this.trace && !this.traceBusy ? html`<run-trace .trace=${this.trace} .mode=${it.mode} .now=${this.now}></run-trace>` : nothing}
@@ -699,10 +701,10 @@ export class AutomationDrawer extends LitElement {
     if (!this.versions) return html`<div class="skl-stack"><span class="skl" style="block-size:84px"></span><span class="skl" style="block-size:84px"></span></div>`;
     const canRestore = it.can.edit;
     return html`<div class="stack" data-drawer-versions>${this.versions.map((v) => html`<div class=${`ver${v.current ? ' cur' : ''}`} data-version=${v.version_id}>
-      <div class="vh"><span>${v.version_id}${v.current ? ' · נוכחית' : ''}</span>${v.via === 'external' ? html`<span class="chip warn">${aIcon('history')}מחוץ למערכת</span>` : nothing}</div>
+      <div class="vh"><span>${v.version_id}${v.current ? ` · ${tr('נוכחית')}` : ''}</span>${v.via === 'external' ? html`<span class="chip warn">${aIcon('history')}${tr('מחוץ למערכת')}</span>` : nothing}</div>
       <div class="vs">${v.summary}</div>
       <div class="vm">${whenText(v.at, this.now)}${v.actor ? ` · ${v.actor}` : ''}</div>
-      ${!v.current && canRestore ? html`<button type="button" class="btn sm" data-version-restore=${v.version_id} @click=${() => { this.restoring = v; this.confirm = 'restore'; }}>${aIcon('restore')}שחזר</button>` : nothing}
+      ${!v.current && canRestore ? html`<button type="button" class="btn sm" data-version-restore=${v.version_id} @click=${() => { this.restoring = v; this.confirm = 'restore'; }}>${aIcon('restore')}${tr('שחזר')}</button>` : nothing}
     </div>`)}</div>`;
   }
 
@@ -710,56 +712,56 @@ export class AutomationDrawer extends LitElement {
     if (this.dryBusy || !this.dry) return html`<div class="skl-stack"><span class="skl" style="block-size:60px"></span><span class="skl" style="block-size:60px"></span></div>`;
     const d = this.dry;
     return html`<div class="stack" data-drawer-dryrun>
-      <section class="sect"><h4>${aIcon('help')}תנאים <span class="num">${d.conditions.length}</span></h4>
-        ${d.conditions.length ? d.conditions.map((c) => html`<div class="dry-row"><span class=${`st ${c.passed === true ? 'ok' : c.passed === false ? 'bad' : ''}`}>${aIcon(c.passed === true ? 'check' : c.passed === false ? 'close' : 'minus')}</span><span>${bidi(c.sentence)}</span>${c.passed === null ? html`<span class="arrow">לא ניתן לבדוק</span>` : nothing}</div>`) : html`<div class="empty-note">אין תנאים</div>`}</section>
-      <section class="sect"><h4>${aIcon('layers')}מה ישתנה <span class="num">${d.effects.entities.length}</span></h4>
-        ${d.effects.entities.length ? d.effects.entities.map((e) => html`<div class="dry-row"><span class="bt">${bidi(e.name)}</span><span class="arrow">${e.from ?? '—'} ← ${e.to ?? '—'}</span></div>`) : html`<div class="empty-note">אין שינוי במכשירים</div>`}
-        ${d.effects.unknown ? html`<div class="banner info">${aIcon('info')}יש פעולה מתקדמת שהשפעתה אינה ידועה</div>` : nothing}</section>
+      <section class="sect"><h4>${aIcon('help')}${tr('תנאים')} <span class="num">${d.conditions.length}</span></h4>
+        ${d.conditions.length ? d.conditions.map((c) => html`<div class="dry-row"><span class=${`st ${c.passed === true ? 'ok' : c.passed === false ? 'bad' : ''}`}>${aIcon(c.passed === true ? 'check' : c.passed === false ? 'close' : 'minus')}</span><span>${bidi(c.sentence)}</span>${c.passed === null ? html`<span class="arrow">${tr('לא ניתן לבדוק')}</span>` : nothing}</div>`) : html`<div class="empty-note">${tr('אין תנאים')}</div>`}</section>
+      <section class="sect"><h4>${aIcon('layers')}${tr('מה ישתנה')} <span class="num">${d.effects.entities.length}</span></h4>
+        ${d.effects.entities.length ? d.effects.entities.map((e) => html`<div class="dry-row"><span class="bt">${bidi(e.name)}</span><span class="arrow">${tr('{from} ← {to}', { from: e.from ?? '—', to: e.to ?? '—' })}</span></div>`) : html`<div class="empty-note">${tr('אין שינוי במכשירים')}</div>`}
+        ${d.effects.unknown ? html`<div class="banner info">${aIcon('info')}${tr('יש פעולה מתקדמת שהשפעתה אינה ידועה')}</div>` : nothing}</section>
     </div>`;
   }
 
   private trashView(): TemplateResult {
-    if (this.phase === 'error') return html`<div class="center" data-drawer-state="error">${aIcon('warning', 30)}<b>${this.errorText}</b><button type="button" class="btn sm" @click=${() => void this.loadTrash()}>${aIcon('refresh')}נסו שוב</button></div>`;
+    if (this.phase === 'error') return html`<div class="center" data-drawer-state="error">${aIcon('warning', 30)}<b>${this.errorText}</b><button type="button" class="btn sm" @click=${() => void this.loadTrash()}>${aIcon('refresh')}${tr('נסו שוב')}</button></div>`;
     if (this.trashRows === null || this.phase === 'loading') return html`<div class="skl-stack"><span class="skl" style="block-size:84px"></span><span class="skl" style="block-size:84px"></span></div>`;
-    if (!this.trashRows.length) return html`<div class="center" data-drawer-state="trash-empty">${aIcon('trash', 30)}<b>סל המחזור ריק</b></div>`;
+    if (!this.trashRows.length) return html`<div class="center" data-drawer-state="trash-empty">${aIcon('trash', 30)}<b>${tr('סל המחזור ריק')}</b></div>`;
     return html`<div class="stack" data-drawer-trash>${this.trashRows.map((t) => {
       const keep = keepText(t.expires_at, this.now);
       return html`<div class="tr" data-trash=${t.trash_id}>
         <span class="bi">${aIcon(t.kind === 'script' ? 'script' : t.kind === 'scene' ? 'sparkle' : 'bolt')}</span>
-        <b>${bidi(t.name)} ${t.sensitive ? html`<span class="chip sens">${aIcon('shield')}רגישה</span>` : nothing}</b>
+        <b>${bidi(t.name)} ${t.sensitive ? html`<span class="chip sens">${aIcon('shield')}${tr('רגישה')}</span>` : nothing}</b>
         <small>${t.sentence}</small>
         <small>${deletedText(t.deleted_at, this.now)}${t.deleted_by ? ` · ${t.deleted_by}` : ''} · <span class=${keep.urgent ? 'urgent' : ''}>${keep.text}</span></small>
-        <span class="trbtns">${t.can_restore ? html`<button type="button" class="btn sm" data-trash-restore=${t.trash_id} ?disabled=${this.busy} @click=${() => void this.restoreFromTrash(t)}>${aIcon('restore')}שחזר</button>` : nothing}${this.status?.can.manage && this.status?.can.configure ? html`<button type="button" class="btn sm quiet dz" data-trash-purge=${t.trash_id} aria-label=${`מחיקה לצמיתות · ${t.name}`} ?disabled=${this.busy} @click=${() => void this.purge(t)}>${aIcon('trash')}</button>` : nothing}</span>
+        <span class="trbtns">${t.can_restore ? html`<button type="button" class="btn sm" data-trash-restore=${t.trash_id} ?disabled=${this.busy} @click=${() => void this.restoreFromTrash(t)}>${aIcon('restore')}${tr('שחזר')}</button>` : nothing}${this.status?.can.manage && this.status?.can.configure ? html`<button type="button" class="btn sm quiet dz" data-trash-purge=${t.trash_id} aria-label=${`${tr('מחיקה לצמיתות')} · ${t.name}`} ?disabled=${this.busy} @click=${() => void this.purge(t)}>${aIcon('trash')}</button>` : nothing}</span>
       </div>`;
     })}</div>`;
   }
 
   private stateBox(): TemplateResult | null {
     if (this.phase === 'loading') return html`<div class="skl-stack" data-drawer-state="loading" aria-busy="true"><span class="skl" style="block-size:96px"></span><span class="skl" style="block-size:52px"></span><span class="skl" style="block-size:52px"></span><span class="skl" style="block-size:52px"></span></div>`;
-    if (this.phase === 'missing') return html`<div class="center" data-drawer-state="missing">${aIcon('search', 30)}<b>הפריט לא נמצא</b></div>`;
-    if (this.phase === 'forbidden') return html`<div class="center" data-drawer-state="forbidden">${aIcon('lock', 30)}<b>אין הרשאה</b></div>`;
-    if (this.phase === 'error') return html`<div class="center" data-drawer-state="error">${aIcon('warning', 30)}<b>${this.errorText || 'לא ניתן לטעון'}</b><button type="button" class="btn sm" @click=${() => void this.load()}>${aIcon('refresh')}נסו שוב</button></div>`;
+    if (this.phase === 'missing') return html`<div class="center" data-drawer-state="missing">${aIcon('search', 30)}<b>${tr('הפריט לא נמצא')}</b></div>`;
+    if (this.phase === 'forbidden') return html`<div class="center" data-drawer-state="forbidden">${aIcon('lock', 30)}<b>${tr('אין הרשאה')}</b></div>`;
+    if (this.phase === 'error') return html`<div class="center" data-drawer-state="error">${aIcon('warning', 30)}<b>${this.errorText || tr('לא ניתן לטעון')}</b><button type="button" class="btn sm" @click=${() => void this.load()}>${aIcon('refresh')}${tr('נסו שוב')}</button></div>`;
     return null;
   }
 
   private footer(it: ItemDetail): TemplateResult | typeof nothing {
     const sub = this.view;
     if (sub === 'trace') {
-      return html`<div class="foot2" slot="footer"><button type="button" class="btn" @click=${this.close}>סגירה</button>${it.can.run ? html`<button type="button" class="btn" data-drawer-run ?disabled=${this.busy} @click=${() => void this.run()}>${aIcon('play')}הרץ שוב</button>` : nothing}<button type="button" class="btn" data-drawer-back-detail @click=${() => this.go('detail')}>${aIcon('eye')}לאוטומציה</button></div>`;
+      return html`<div class="foot2" slot="footer"><button type="button" class="btn" @click=${this.close}>${tr('סגירה')}</button>${it.can.run ? html`<button type="button" class="btn" data-drawer-run ?disabled=${this.busy} @click=${() => void this.run()}>${aIcon('play')}${tr('הרץ שוב')}</button>` : nothing}<button type="button" class="btn" data-drawer-back-detail @click=${() => this.go('detail')}>${aIcon('eye')}${tr('לאוטומציה')}</button></div>`;
     }
-    if (sub === 'versions' || sub === 'dryrun') return html`<div class="foot2" slot="footer"><button type="button" class="btn" @click=${() => this.go('detail')}>סגירה</button></div>`;
+    if (sub === 'versions' || sub === 'dryrun') return html`<div class="foot2" slot="footer"><button type="button" class="btn" @click=${() => this.go('detail')}>${tr('סגירה')}</button></div>`;
     const running = it.state === 'running';
     const isScript = it.kind === 'script';
-    const edit = it.can.edit ? html`<button type="button" class=${`btn${isScript ? '' : ' primary'}`} data-drawer-edit @click=${() => this.fire('edit', { kind: it.kind, id: it.id })}>${aIcon('edit')}עריכה</button>` : nothing;
-    const run = running && isScript ? html`<button type="button" class="btn danger" data-drawer-stop ?disabled=${this.busy} @click=${() => void this.stop()}>${aIcon('stop')}עצור</button>`
-      : it.can.run ? html`<button type="button" class=${`btn${isScript ? ' primary' : ''}`} data-drawer-run ?disabled=${this.busy || (isScript && !this.valid)} @click=${() => void this.run()}>${aIcon('play')}${isScript ? 'הפעל' : 'הרץ עכשיו'}</button>` : nothing;
+    const edit = it.can.edit ? html`<button type="button" class=${`btn${isScript ? '' : ' primary'}`} data-drawer-edit @click=${() => this.fire('edit', { kind: it.kind, id: it.id })}>${aIcon('edit')}${tr('עריכה')}</button>` : nothing;
+    const run = running && isScript ? html`<button type="button" class="btn danger" data-drawer-stop ?disabled=${this.busy} @click=${() => void this.stop()}>${aIcon('stop')}${tr('עצור')}</button>`
+      : it.can.run ? html`<button type="button" class=${`btn${isScript ? ' primary' : ''}`} data-drawer-run ?disabled=${this.busy || (isScript && !this.valid)} @click=${() => void this.run()}>${aIcon('play')}${isScript ? tr('הפעל') : tr('הרץ עכשיו')}</button>` : nothing;
     return html`<div class="foot2" slot="footer">
       ${isScript ? html`${run}${edit}` : html`${edit}${run}`}
-      ${!isScript ? html`<button type="button" class="btn" data-drawer-dry @click=${() => this.go('dryrun')}>${aIcon('flask')}בדיקה</button>` : nothing}
-      ${it.last_run && !isScript ? html`<button type="button" class="btn" data-drawer-why @click=${() => this.go('trace')}>${aIcon('help')}למה זה רץ</button>` : nothing}
-      ${it.source === 'ui' ? html`<button type="button" class="btn quiet" data-drawer-versions @click=${() => this.go('versions')}>${aIcon('history')}גרסאות</button>` : nothing}
-      ${it.can.copy ? html`<button type="button" class="btn quiet" data-drawer-copy @click=${() => { this.copyName = `${it.name} (עותק)`; this.confirm = 'copy'; }}>${aIcon('copy')}שכפול</button>` : nothing}
-      ${it.can.delete ? html`<button type="button" class="btn quiet dz" data-drawer-delete @click=${() => (this.confirm = 'delete')}>${aIcon('trash')}מחיקה</button>` : nothing}
+      ${!isScript ? html`<button type="button" class="btn" data-drawer-dry @click=${() => this.go('dryrun')}>${aIcon('flask')}${tr('בדיקה')}</button>` : nothing}
+      ${it.last_run && !isScript ? html`<button type="button" class="btn" data-drawer-why @click=${() => this.go('trace')}>${aIcon('help')}${tr('למה זה רץ')}</button>` : nothing}
+      ${it.source === 'ui' ? html`<button type="button" class="btn quiet" data-drawer-versions @click=${() => this.go('versions')}>${aIcon('history')}${tr('גרסאות')}</button>` : nothing}
+      ${it.can.copy ? html`<button type="button" class="btn quiet" data-drawer-copy @click=${() => { this.copyName = tr('{name} (עותק)', { name: it.name }); this.confirm = 'copy'; }}>${aIcon('copy')}${tr('שכפול')}</button>` : nothing}
+      ${it.can.delete ? html`<button type="button" class="btn quiet dz" data-drawer-delete @click=${() => (this.confirm = 'delete')}>${aIcon('trash')}${tr('מחיקה')}</button>` : nothing}
     </div>`;
   }
 
@@ -768,32 +770,32 @@ export class AutomationDrawer extends LitElement {
     if (!c || !it) return nothing;
     if (c === 'run') {
       const line = confirmLine(it);
-      return html`<sw-dialog open heading=${it.kind === 'script' ? 'להפעיל עכשיו?' : 'להריץ עכשיו?'} data-dialog="run" @close=${() => (this.confirm = null)}>
-        <div class="dlgform">${line ? html`<p>${line}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>ביטול</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.run(true)}>${it.kind === 'script' ? 'הפעל' : 'הרץ'}</button></div></div></sw-dialog>`;
+      return html`<sw-dialog open heading=${it.kind === 'script' ? tr('להפעיל עכשיו?') : tr('להריץ עכשיו?')} data-dialog="run" @close=${() => (this.confirm = null)}>
+        <div class="dlgform">${line ? html`<p>${line}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.run(true)}>${it.kind === 'script' ? tr('הפעל') : tr('הרץ')}</button></div></div></sw-dialog>`;
     }
     if (c === 'delete') {
-      return html`<sw-dialog open heading=${`למחוק את "${it.name}"?`} data-dialog="delete" @close=${() => (this.confirm = null)}>
-        <div class="dlgform"><p>הפריט יישמר בסל המחזור וניתן לשחזר אותו.</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>ביטול</button><button type="button" class="btn danger" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.doDelete()}>מחיקה</button></div></div></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('למחוק את "{name}"?', { name: it.name })} data-dialog="delete" @close=${() => (this.confirm = null)}>
+        <div class="dlgform"><p>${tr('הפריט יישמר בסל המחזור וניתן לשחזר אותו.')}</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn danger" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.doDelete()}>${tr('מחיקה')}</button></div></div></sw-dialog>`;
     }
     if (c === 'copy') {
-      return html`<sw-dialog open heading="שכפול" data-dialog="copy" @close=${() => (this.confirm = null)}>
-        <div class="dlgform"><label class="fld">שם<input class="inp" type="text" maxlength="120" .value=${this.copyName} data-copy-name @input=${(e: Event) => (this.copyName = (e.target as HTMLInputElement).value)} /></label><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>ביטול</button><button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || !this.copyName.trim()} @click=${() => void this.doCopy()}>שכפול</button></div></div></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('שכפול')} data-dialog="copy" @close=${() => (this.confirm = null)}>
+        <div class="dlgform"><label class="fld">${tr('שם')}<input class="inp" type="text" maxlength="120" .value=${this.copyName} data-copy-name @input=${(e: Event) => (this.copyName = (e.target as HTMLInputElement).value)} /></label><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy || !this.copyName.trim()} @click=${() => void this.doCopy()}>${tr('שכפול')}</button></div></div></sw-dialog>`;
     }
-    return html`<sw-dialog open heading=${`לשחזר את ${this.restoring?.version_id ?? ''}?`} data-dialog="restore" @close=${() => (this.confirm = null)}>
-      <div class="dlgform"><p>${this.restoring?.summary ?? ''}</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>ביטול</button><button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.doRestore()}>שחזר</button></div></div></sw-dialog>`;
+    return html`<sw-dialog open heading=${tr('לשחזר את {version}?', { version: this.restoring?.version_id ?? '' })} data-dialog="restore" @close=${() => (this.confirm = null)}>
+      <div class="dlgform"><p>${this.restoring?.summary ?? ''}</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.doRestore()}>${tr('שחזר')}</button></div></div></sw-dialog>`;
   }
 
   render() {
     if (this.trash) {
-      return html`<sw-drawer modal .open=${this.open} heading="סל המחזור" @close=${this.close}>${this.trashView()}<div class="foot2" slot="footer"><button type="button" class="btn" @click=${this.close}>סגירה</button></div></sw-drawer>`;
+      return html`<sw-drawer modal .open=${this.open} heading=${tr('סל המחזור')} @close=${this.close}>${this.trashView()}<div class="foot2" slot="footer"><button type="button" class="btn" @click=${this.close}>${tr('סגירה')}</button></div></sw-drawer>`;
     }
     const it = this.item;
     const sub = this.view;
-    const heading = !it ? '' : sub === 'trace' ? 'למה זה רץ' : sub === 'versions' ? 'גרסאות' : sub === 'dryrun' ? 'בדיקה' : bidi(it.name);
+    const heading = !it ? '' : sub === 'trace' ? tr('למה זה רץ') : sub === 'versions' ? tr('גרסאות') : sub === 'dryrun' ? tr('בדיקה') : bidi(it.name);
     const subheading = !it ? '' : sub === 'detail' ? [floorLine(it), areaLine(it)].filter(Boolean).join(' · ') : bidi(it.name);
     const stateBlock = this.stateBox();
     return html`<sw-drawer modal .open=${this.open} heading=${heading} subheading=${subheading} @close=${this.close}>
-      ${sub !== 'detail' && it ? html`<button slot="action" type="button" class="rb sm" aria-label="חזרה" data-drawer-back @click=${() => this.go('detail')}>${aIcon('chevron')}</button>` : nothing}
+      ${sub !== 'detail' && it ? html`<button slot="action" type="button" class="rb sm" aria-label=${t('actions.back')} data-drawer-back @click=${() => this.go('detail')}>${aIcon('chevron')}</button>` : nothing}
       ${stateBlock ?? (it ? (sub === 'trace' ? this.traceView(it) : sub === 'versions' ? this.versionsView(it) : sub === 'dryrun' ? this.dryView() : this.detail(it)) : nothing)}
       ${it && !stateBlock ? this.footer(it) : nothing}
       ${this.dialogs(it)}

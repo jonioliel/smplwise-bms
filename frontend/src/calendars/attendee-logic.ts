@@ -4,12 +4,13 @@
  * payload a new entry / a desired list sends.
  */
 import type { Attendee, AttendeeInput, AttendeeKind, AttendeeRole, DirectoryHit, InviteStatus } from '../api/calendar-attendees';
+import { tr } from '../i18n/msg/calendars';
 
-export const KIND_LABEL: Record<AttendeeKind, string> = { user: 'משתמש', resident: 'דייר', guest: 'אורח' };
-export const ROLE_LABEL: Record<AttendeeRole, string> = { required: 'חובה', optional: 'רשות' };
-export const STATUS_LABEL: Record<InviteStatus, string> = { invited: 'הוזמן', accepted: 'מגיע', declined: 'לא מגיע', tentative: 'אולי' };
-export const RESPONSE_LABEL: Record<Exclude<InviteStatus, 'invited'>, string> = { accepted: 'מגיע/ה', tentative: 'אולי', declined: 'לא מגיע/ה' };
-export const CONTACT_NOTE = 'פרטי הקשר של אורחים גלויים רק למארגן ולמנהלי היומן.';
+export const KIND_LABEL: Record<AttendeeKind, string> = { user: tr('משתמש'), resident: tr('דייר'), guest: tr('אורח') };
+export const ROLE_LABEL: Record<AttendeeRole, string> = { required: tr('חובה'), optional: tr('רשות') };
+export const STATUS_LABEL: Record<InviteStatus, string> = { invited: tr('הוזמן'), accepted: tr('מגיע'), declined: tr('לא מגיע'), tentative: tr('אולי') };
+export const RESPONSE_LABEL: Record<Exclude<InviteStatus, 'invited'>, string> = { accepted: tr('מגיע/ה'), tentative: tr('אולי'), declined: tr('לא מגיע/ה') };
+export const CONTACT_NOTE = tr('פרטי הקשר של אורחים גלויים רק למארגן ולמנהלי היומן.');
 
 /** A chip of the picker before it is saved (a new entry) or after (an existing one: `id` is the attendee id). */
 export interface AttendeeDraft {
@@ -41,13 +42,13 @@ export interface GuestErrors { name?: string; phone?: string; email?: string }
 export function validateGuest(name: string, phone: string, email: string): GuestErrors {
   const out: GuestErrors = {};
   const n = name.trim();
-  if (!n) out.name = 'חסר שם האורח.';
-  else if (n.length > 80) out.name = 'השם ארוך מדי.';
+  if (!n) out.name = tr('חסר שם האורח.');
+  else if (n.length > 80) out.name = tr('השם ארוך מדי.');
   const p = phone.trim();
   const e = email.trim();
-  if (p && !PHONE.test(normalisePhone(p))) out.phone = 'מספר הטלפון אינו תקין.';
-  if (e && (e.length > 254 || !EMAIL.test(e))) out.email = 'כתובת הדוא״ל אינה תקינה.';
-  if (!p && !e) out.phone = 'לאורח צריך טלפון או דוא״ל.';
+  if (p && !PHONE.test(normalisePhone(p))) out.phone = tr('מספר הטלפון אינו תקין.');
+  if (e && (e.length > 254 || !EMAIL.test(e))) out.email = tr('כתובת הדוא״ל אינה תקינה.');
+  if (!p && !e) out.phone = tr('לאורח צריך טלפון או דוא״ל.');
   return out;
 }
 
@@ -92,9 +93,9 @@ export function chipLabel(d: AttendeeDraft): string {
 /** "3 מוזמנים" / "מוזמן אחד" / "אין מוזמנים" (the count a viewer gets when the list is not his to see). */
 export function countText(n: number | null): string {
   if (n === null) return '';
-  if (n === 0) return 'אין מוזמנים';
-  if (n === 1) return 'מוזמן אחד';
-  return `${n} מוזמנים`;
+  if (n === 0) return tr('אין מוזמנים');
+  if (n === 1) return tr('מוזמן אחד');
+  return tr('{n} מוזמנים', { n });
 }
 
 /** The hits not yet chosen (the search list hides who is already in). */
@@ -106,9 +107,9 @@ export function freshHits(hits: DirectoryHit[], list: AttendeeDraft[]): Director
 export function statusSummary(list: { status?: InviteStatus }[]): string {
   const n = (s: InviteStatus) => list.filter((d) => d.status === s).length;
   const parts: string[] = [];
-  if (n('accepted')) parts.push(`${n('accepted')} מגיעים`);
-  if (n('tentative')) parts.push(`${n('tentative')} אולי`);
-  if (n('declined')) parts.push(`${n('declined')} לא מגיעים`);
-  if (n('invited')) parts.push(`${n('invited')} טרם ענו`);
+  if (n('accepted')) parts.push(tr('{n} מגיעים', { n: n('accepted') }));
+  if (n('tentative')) parts.push(tr('{n} אולי', { n: n('tentative') }));
+  if (n('declined')) parts.push(tr('{n} לא מגיעים', { n: n('declined') }));
+  if (n('invited')) parts.push(tr('{n} טרם ענו', { n: n('invited') }));
   return parts.join(' · ');
 }

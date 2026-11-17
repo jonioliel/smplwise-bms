@@ -48,15 +48,16 @@ import { openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
 import { agoText } from './investigate-time';
+import { tr } from '../i18n/msg/investigate';
 
-const SEVERITY_LABEL: Record<VmsEvent['severity'], string> = { info: 'מידע', alert: 'התראה', critical: 'קריטי' };
+const SEVERITY_LABEL: Record<VmsEvent['severity'], string> = { info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') };
 const SEVERITY_KIND: Record<VmsEvent['severity'], StateKind> = { info: 'neutral', alert: 'stale', critical: 'error' };
 /** INVREST-POLISH-2331: the event's name in the operator's words - the device code in Hebrew when known (as in the events list),
  * otherwise the product kind. */
 const eventName = (e: VmsEvent) => rawCodeLabel(e.raw_type) ?? EVENT_LABEL[e.type] ?? e.type;
 
 /** Where an event came from, in the words of the events list (EVENTS-POLISH-2331); the raw source key is in the technical details. */
-const SOURCE_LABEL = { alertstream: 'התראה מהמקליט', recording: 'נגזר מקובץ הקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
+const SOURCE_LABEL = { alertstream: tr('התראה מהמקליט'), recording: tr('נגזר מקובץ הקלטה'), system: tr('מערכת'), ha: tr('חיישן התקן') } as const;
 const NEARBY_MS = 10 * 60 * 1000;
 
 /**
@@ -595,25 +596,25 @@ export class InvestigateEventDetail extends LitElement {
     if (!r || !r.spatial) return nothing;
     const picks = new Set(this.routePicks());
     const kind = (rel: string): StateKind => (rel === 'same_zone' ? 'recorded' : rel === 'adjacent_zone' ? 'partial' : rel === 'via_connector' ? 'stale' : 'neutral');
-    return html`<sw-card heading="המשך מסלול מוצע" subheading="השערה לפי טופולוגיית המפה · ±${Math.round((new Date(r.window.to).getTime() - new Date(r.window.from).getTime()) / 1000)} שניות" data-route>
+    return html`<sw-card heading=${tr('המשך מסלול מוצע')} subheading=${`${tr('השערה לפי טופולוגיית המפה')} · ${tr('±{n} שניות', { n: Math.round((new Date(r.window.to).getTime() - new Date(r.window.from).getTime()) / 1000) })}`} data-route>
       ${r.suggestions.length
         ? html`<div class="corr" data-route-list>${r.suggestions.map((s) => html`<div class="link route" data-route-item data-relation=${s.relation} data-camera=${s.camera_id}>
-              <span class="rel"><input type="checkbox" aria-label=${`כלול את ${s.name} במסלול`} data-route-tick=${s.camera_id} .checked=${picks.has(s.camera_id)} @change=${(e: Event) => this.tickRoute(s.camera_id, (e.target as HTMLInputElement).checked)} />${s.via ? html`<sw-icon name=${s.via.kind === 'elevator' ? 'elevator' : 'stairs'} size=${14}></sw-icon>` : nothing}<sw-badge kind=${kind(s.relation)} label=${s.relation_label}></sw-badge></span>
-              <span>${s.name}${s.zone ? html` · ${s.zone}` : nothing}${s.via ? html` · ${s.via.floor_name}` : nothing}<small>${s.activity_events ? `${s.activity_events} אירועים בחלון` : 'ללא אירועים בחלון'} · מרחק ${Math.round(s.distance * 100)} יח׳ תוכנית${s.via?.label ? ` · ${s.via.label}` : ''}</small></span>
-              <sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: s.camera_id, t: s.playback_at })}>נגן</sw-button>
+              <span class="rel"><input type="checkbox" aria-label=${tr('כלול את {name} במסלול', { name: s.name })} data-route-tick=${s.camera_id} .checked=${picks.has(s.camera_id)} @change=${(e: Event) => this.tickRoute(s.camera_id, (e.target as HTMLInputElement).checked)} />${s.via ? html`<sw-icon name=${s.via.kind === 'elevator' ? 'elevator' : 'stairs'} size=${14}></sw-icon>` : nothing}<sw-badge kind=${kind(s.relation)} label=${s.relation_label}></sw-badge></span>
+              <span>${s.name}${s.zone ? html` · ${s.zone}` : nothing}${s.via ? html` · ${s.via.floor_name}` : nothing}<small>${s.activity_events ? tr('{n} אירועים בחלון', { n: s.activity_events }) : tr('ללא אירועים בחלון')} · ${tr('מרחק {n} יח׳ תוכנית', { n: Math.round(s.distance * 100) })}${s.via?.label ? ` · ${s.via.label}` : ''}</small></span>
+              <sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: s.camera_id, t: s.playback_at })}>${tr('נגן')}</sw-button>
             </div>`)}</div>
           ${this.routeCases !== null
             ? html`<div class="routeconfirm" data-route-confirm>
-                <select aria-label="תיק" data-route-case .value=${this.routeCase} @change=${(e: Event) => (this.routeCase = (e.target as HTMLSelectElement).value)}>
-                  <option value="" ?selected=${!this.routeCase}>תיק חדש</option>
+                <select aria-label=${tr('תיק')} data-route-case .value=${this.routeCase} @change=${(e: Event) => (this.routeCase = (e.target as HTMLSelectElement).value)}>
+                  <option value="" ?selected=${!this.routeCase}>${tr('תיק חדש')}</option>
                   ${(this.routeCases ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.routeCase}>${c.title}</option>`)}
                 </select>
-                <sw-button variant="primary" size="sm" icon="case" ?disabled=${!picks.size || this.routeBusy} data-route-confirm-button @click=${() => this.confirmRoute()}>${this.routeBusy ? 'מוסיף…' : `אשר מסלול לתיק (${picks.size})`}</sw-button>
-                ${this.routeDone ? html`<span class="ok" data-route-done role="status">נוסף לתיק „${this.routeDone.title}”${this.routeDone.skipped.length ? ` · ${this.routeDone.skipped.length} דולגו` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>פתח</a></span>` : nothing}
+                <sw-button variant="primary" size="sm" icon="case" ?disabled=${!picks.size || this.routeBusy} data-route-confirm-button @click=${() => this.confirmRoute()}>${this.routeBusy ? tr('מוסיף…') : tr('אשר מסלול לתיק ({n})', { n: picks.size })}</sw-button>
+                ${this.routeDone ? html`<span class="ok" data-route-done role="status">${tr('נוסף לתיק „{title}”', { title: this.routeDone.title })}${this.routeDone.skipped.length ? ` · ${tr('{n} דולגו', { n: this.routeDone.skipped.length })}` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>${tr('פתח')}</a></span>` : nothing}
                 ${this.routeError ? html`<span class="err" role="alert" data-route-error>${this.routeError}</span>` : nothing}
               </div>`
             : nothing}`
-        : html`<div class="note" style="margin:0">אין מצלמות נוספות בסביבה על התוכנית.</div>`}
+        : html`<div class="note" style="margin:0">${tr('אין מצלמות נוספות בסביבה על התוכנית.')}</div>`}
       ${r.notes.length ? html`<ul class="corrnotes">${r.notes.map((n) => html`<li>${n}</li>`)}</ul>` : nothing}
       <div class="note">${r.policy}</div>
     </sw-card>`;
@@ -761,19 +762,19 @@ export class InvestigateEventDetail extends LitElement {
 
   private renderCorrelation() {
     const c = this.corr;
-    const sub = c ? `±${c.window_s} שניות · ${c.spatial ? `סביבת ${c.location?.zone ?? 'המיקום על התוכנית'} (${c.location?.floor_name ?? ''})` : 'לפי זמן בלבד'}` : this.corrError ? 'לא נטען' : 'טוען…';
-    return html`<sw-card heading="קורלציה דלת–מצלמה–חיישן" subheading=${sub} data-correlation>
+    const sub = c ? `${tr('±{n} שניות', { n: c.window_s })} · ${c.spatial ? tr('סביבת {place} ({floor})', { place: c.location?.zone ?? tr('המיקום על התוכנית'), floor: c.location?.floor_name ?? '' }) : tr('לפי זמן בלבד')}` : this.corrError ? tr('לא נטען') : tr('טוען…');
+    return html`<sw-card heading=${tr('קורלציה דלת–מצלמה–חיישן')} subheading=${sub} data-correlation>
       ${c
         ? html`${c.entities.length
-              ? html`<div class="note" style="margin:0 0 6px" data-correlation-entities>בסביבה: ${c.entities.map((e) => `${e.name}${e.state_missing ? ' (ללא מצב)' : e.state ? ` · ${e.state}` : ''}`).join(' · ')}</div>`
-              : html`<div class="note" style="margin:0 0 6px" data-correlation-entities>אין חיישנים או מנעולים מוצבים בסביבה.</div>`}
+              ? html`<div class="note" style="margin:0 0 6px" data-correlation-entities>${tr('בסביבה:')} ${c.entities.map((e) => `${e.name}${e.state_missing ? ` ${tr('(ללא מצב)')}` : e.state ? ` · ${e.state}` : ''}`).join(' · ')}</div>`
+              : html`<div class="note" style="margin:0 0 6px" data-correlation-entities>${tr('אין חיישנים או מנעולים מוצבים בסביבה.')}</div>`}
             ${c.links.length
               ? html`<div class="corr" data-correlation-links>${c.links.map((l) => html`<div class="link" data-correlation-link data-certainty=${l.certainty}>
-                    <span class="ltr num">${l.delta_s > 0 ? '+' : ''}${l.delta_s} שנ׳</span>
+                    <span class="ltr num">${tr('{n} שנ׳', { n: `${l.delta_s > 0 ? '+' : ''}${l.delta_s}` })}</span>
                     <span>${l.kind === 'camera' && l.event_id ? html`<a href=${`#/investigate/events/${l.event_id}`}>${l.label}</a>` : l.kind === 'sensor' && l.event_id ? html`<a href=${`#/investigate/events/${l.event_id}`}>${l.label}</a>` : l.label}<small>${l.note}</small></span>
                     <sw-badge kind=${CERTAINTY_KIND[l.certainty]} label=${CERTAINTY_LABEL[l.certainty]}></sw-badge>
                   </div>`)}</div>`
-              : html`<div class="note" style="margin:0">לא נרשם דבר בחלון הזמן מהחיישנים, המנעולים והמצלמות שבסביבה.</div>`}
+              : html`<div class="note" style="margin:0">${tr('לא נרשם דבר בחלון הזמן מהחיישנים, המנעולים והמצלמות שבסביבה.')}</div>`}
             ${c.notes.length ? html`<ul class="corrnotes">${c.notes.map((n) => html`<li data-correlation-note=${n.code}>${n.text}</li>`)}</ul>` : nothing}
             <div class="note">${c.policy}</div>`
         : this.corrError
@@ -783,8 +784,8 @@ export class InvestigateEventDetail extends LitElement {
   }
 
   private duration(ev: VmsEvent): string {
-    if (!ev.ended_at) return typeof ev.details.seconds === 'number' ? `${ev.details.seconds} שנ׳ (הקלטה)` : '—';
-    return spanText(ev.occurred_at, ev.ended_at) ?? 'פחות משנייה';
+    if (!ev.ended_at) return typeof ev.details.seconds === 'number' ? tr('{n} שנ׳ (הקלטה)', { n: String(ev.details.seconds) }) : '—';
+    return spanText(ev.occurred_at, ev.ended_at) ?? tr('פחות משנייה');
   }
 
   /** The device-side lines an operator rarely needs, behind "פרטים טכניים" (the raw code used to sit in the source fact). */
@@ -794,16 +795,16 @@ export class InvestigateEventDetail extends LitElement {
     const prec = typeof d.time_precision === 'string' ? d.time_precision : '';
     const devTime = typeof d.device_time === 'string' ? d.device_time : '';
     return html`<details class="tech" data-tech-details>
-      <summary><sw-icon name="info" size=${14}></sw-icon><span>פרטים טכניים</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+      <summary><sw-icon name="info" size=${14}></sw-icon><span>${tr('פרטים טכניים')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
       <div class="kv">
-        <span>קוד המכשיר</span><b><span class="ltr">${ev.raw_type || '—'}</span></b>
-        ${text ? html`<span>טקסט המכשיר</span><b>${describeDeviceText(text) ?? html`<span class="ltr">${text}</span>`}</b>` : nothing}
-        ${prec ? html`<span>דיוק הזמן</span><b>${precisionLabel(prec) ?? prec} <span class="ltr" style="color:var(--sw-text-3)">${prec}</span></b>` : nothing}
-        ${devTime ? html`<span>שעון המכשיר</span><b><span class="ltr">${this.fmt(devTime, true)}</span></b>` : nothing}
-        <span>נקלט</span><b><span class="ltr">${this.fmt(ev.received_at, true)}</span></b>
-        <span>מקור · ודאות</span><b><span class="ltr">${ev.source} · ${ev.confidence}</span></b>
-        ${ev.recorder_id || ev.channel ? html`<span>מקליט · ערוץ</span><b><span class="ltr">${ev.recorder_id ?? '—'} · ${ev.channel ?? '—'}</span></b>` : nothing}
-        <span>מזהה האירוע</span><b><span class="ltr">${ev.id}</span></b>
+        <span>${tr('קוד המכשיר')}</span><b><span class="ltr">${ev.raw_type || '—'}</span></b>
+        ${text ? html`<span>${tr('טקסט המכשיר')}</span><b>${describeDeviceText(text) ?? html`<span class="ltr">${text}</span>`}</b>` : nothing}
+        ${prec ? html`<span>${tr('דיוק הזמן')}</span><b>${precisionLabel(prec) ?? prec} <span class="ltr" style="color:var(--sw-text-3)">${prec}</span></b>` : nothing}
+        ${devTime ? html`<span>${tr('שעון המכשיר')}</span><b><span class="ltr">${this.fmt(devTime, true)}</span></b>` : nothing}
+        <span>${tr('נקלט')}</span><b><span class="ltr">${this.fmt(ev.received_at, true)}</span></b>
+        <span>${tr('מקור · ודאות')}</span><b><span class="ltr">${ev.source} · ${ev.confidence}</span></b>
+        ${ev.recorder_id || ev.channel ? html`<span>${tr('מקליט · ערוץ')}</span><b><span class="ltr">${ev.recorder_id ?? '—'} · ${ev.channel ?? '—'}</span></b>` : nothing}
+        <span>${tr('מזהה האירוע')}</span><b><span class="ltr">${ev.id}</span></b>
       </div>
     </details>`;
   }
@@ -929,22 +930,22 @@ export class InvestigateEventDetail extends LitElement {
   }
 
   render() {
-    if (!isApi()) return html`<sw-page heading="אירוע"><sw-state-panel icon="history" state="empty" heading="דף האירוע זמין עם השרת" hint="במצב הדגמה אין אירועים אמיתיים."></sw-state-panel></sw-page>`;
-    if (this.error && !this.ev) return html`<sw-page heading="אירוע"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
+    if (!isApi()) return html`<sw-page heading=${tr('אירוע')}><sw-state-panel icon="history" state="empty" heading=${tr('דף האירוע זמין עם השרת')} hint=${tr('במצב הדגמה אין אירועים אמיתיים.')}></sw-state-panel></sw-page>`;
+    if (this.error && !this.ev) return html`<sw-page heading=${tr('אירוע')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
     const ev = this.ev;
-    if (!ev) return html`<sw-page heading="אירוע"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!ev) return html`<sw-page heading=${tr('אירוע')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const label = eventName(ev);
     const ago = agoText(ev.occurred_at);
-    const camera = ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת');
+    const camera = ev.camera_name ?? (ev.channel ? tr('ערוץ {n}', { n: ev.channel }) : tr('מערכת'));
     const loc = ev.location;
     const where = loc ? `${loc.building_name} · ${loc.floor_name}${loc.zone ? ` / ${loc.zone}` : ''}` : null;
     const acked = !!ev.acked_at;
     return html`
-      <sw-page heading=${`${label} · ${camera}`} subheading=${`${this.fmt(ev.occurred_at, true)}${ago ? ` · ${ago}` : ''} · ${SOURCE_LABEL[ev.source] ?? ev.source}`} crumbs=${`חקירה | אירועים | ${label}`} wide>
-        <sw-button slot="actions" variant=${acked ? 'ghost' : 'primary'} icon="check" data-ack ?disabled=${acked || this.busy} @click=${() => this.ack()}>${acked ? 'טופל' : 'סמן כטופל'}</sw-button>
-        <sw-button slot="actions" icon="case" data-add-to-case @click=${() => (this.casePick = { kind: 'event', event_id: ev.id })}>הוסף לתיק</sw-button>
+      <sw-page heading=${`${label} · ${camera}`} subheading=${`${this.fmt(ev.occurred_at, true)}${ago ? ` · ${ago}` : ''} · ${SOURCE_LABEL[ev.source] ?? ev.source}`} crumbs=${`${tr('חקירה')} | ${tr('אירועים')} | ${label}`} wide>
+        <sw-button slot="actions" variant=${acked ? 'ghost' : 'primary'} icon="check" data-ack ?disabled=${acked || this.busy} @click=${() => this.ack()}>${acked ? tr('טופל') : tr('סמן כטופל')}</sw-button>
+        <sw-button slot="actions" icon="case" data-add-to-case @click=${() => (this.casePick = { kind: 'event', event_id: ev.id })}>${tr('הוסף לתיק')}</sw-button>
         ${mayOpenFromEvent(incidentsModuleOn()) ? html`<sw-button slot="actions" icon="warning" data-open-incident ?disabled=${this.busy} @click=${() => void this.openLive(ev.id)}>${incText('fromEvent')}</sw-button>` : nothing}
-        <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/events')}>למרכז האירועים</sw-button>
+        <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/events')}>${tr('למרכז האירועים')}</sw-button>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <div class="layout">
           <div>
@@ -952,28 +953,28 @@ export class InvestigateEventDetail extends LitElement {
               ${this.session
                 ? html`<sw-live-player .wsUrl=${playbackWsUrl(this.session)} mode="mse" .retry=${false}></sw-live-player>`
                 : ev.thumbnail === 'ready'
-                  ? html`<img src=${thumbnailUrl(ev.id, this.thumbVersion)} alt="תמונת האירוע מההקלטה" />`
-                  : html`<div class="hint">${!ev.camera_id ? 'אירוע ללא מצלמה — אין וידאו' : this.playerError ? `ההקלטה לא נפתחה: ${this.playerError}` : ev.thumbnail === 'unavailable' ? 'אין הקלטה זמינה בזמן האירוע' : 'פותח את ההקלטה…'}</div>`}
-              <span class="chip"><sw-icon name="clock" size=${12}></sw-icon>${this.session ? 'הקלטה' : ev.thumbnail === 'ready' && !this.session ? 'תמונה מההקלטה' : 'אירוע'}</span>
-              <div class="caption">${camera}<small>זמן האירוע <span class="ltr">${this.fmt(ev.occurred_at)}</span>${this.session?.actual_start_at ? html` · הנגן מתחיל <span class="ltr">${this.fmt(this.session.actual_start_at)}</span>${this.session.time_precision !== 'verified' ? ` (${this.session.time_precision === 'keyframe_limited' ? precisionLabel('keyframe_limited') : 'משוער'})` : ''}` : nothing}</small></div>
+                  ? html`<img src=${thumbnailUrl(ev.id, this.thumbVersion)} alt=${tr('תמונת האירוע מההקלטה')} />`
+                  : html`<div class="hint">${!ev.camera_id ? tr('אירוע ללא מצלמה — אין וידאו') : this.playerError ? tr('ההקלטה לא נפתחה: {error}', { error: this.playerError }) : ev.thumbnail === 'unavailable' ? tr('אין הקלטה זמינה בזמן האירוע') : tr('פותח את ההקלטה…')}</div>`}
+              <span class="chip"><sw-icon name="clock" size=${12}></sw-icon>${this.session ? tr('הקלטה') : ev.thumbnail === 'ready' && !this.session ? tr('תמונה מההקלטה') : tr('אירוע')}</span>
+              <div class="caption">${camera}<small>${tr('זמן האירוע')} <span class="ltr">${this.fmt(ev.occurred_at)}</span>${this.session?.actual_start_at ? html` · ${tr('הנגן מתחיל')} <span class="ltr">${this.fmt(this.session.actual_start_at)}</span>${this.session.time_precision !== 'verified' ? ` (${this.session.time_precision === 'keyframe_limited' ? precisionLabel('keyframe_limited') : tr('משוער')})` : ''}` : nothing}</small></div>
             </div>
             <div class="bar">
-              <span>${this.session ? 'הנגן פותח את ההקלטה שתי שניות לפני זמן האירוע; זמן האירוע וזמן הפריים המנוגן מוצגים בנפרד.' : ev.playerHint ?? ''}</span>
+              <span>${this.session ? tr('הנגן פותח את ההקלטה שתי שניות לפני זמן האירוע; זמן האירוע וזמן הפריים המנוגן מוצגים בנפרד.') : ev.playerHint ?? ''}</span>
               <span class="grow"></span>
-              ${ev.camera_id ? html`<sw-button size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>הנגן המלא עם ציר הזמן</sw-button>` : nothing}
-              ${ev.camera_id ? html`<sw-button size="sm" variant="ghost" icon="play" @click=${() => (this.session ? this.stopPlayer() : this.play(ev))}>${this.session ? 'עצור' : 'נגן שוב'}</sw-button>` : nothing}
+              ${ev.camera_id ? html`<sw-button size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: ev.camera_id!, t: ev.occurred_at })}>${tr('הנגן המלא עם ציר הזמן')}</sw-button>` : nothing}
+              ${ev.camera_id ? html`<sw-button size="sm" variant="ghost" icon="play" @click=${() => (this.session ? this.stopPlayer() : this.play(ev))}>${this.session ? tr('עצור') : tr('נגן שוב')}</sw-button>` : nothing}
             </div>
           </div>
           <div class="side">
-            <sw-card heading="הקשר האירוע" data-context>
+            <sw-card heading=${tr('הקשר האירוע')} data-context>
               <dl class="meta">
-                <div><dt>מצב</dt><dd data-status>${acked ? html`<sw-badge filled kind="live" label=${`טופל · ${ev.acked_by_username ?? ''}`}></sw-badge> <span class="note" style="margin:0">${this.fmt(ev.acked_at!, true)}</span>` : html`<sw-badge filled kind="stale" label="טרם טופל"></sw-badge>`}</dd></div>
-                <div><dt>חומרה</dt><dd data-severity><sw-badge ?filled=${ev.severity !== 'info'} kind=${SEVERITY_KIND[ev.severity] ?? 'neutral'} label=${SEVERITY_LABEL[ev.severity] ?? ev.severity}></sw-badge></dd></div>
-                <div class="wide"><dt>זמן</dt><dd><span class="ltr">${this.fmt(ev.occurred_at, true)}</span>${ago ? html` <span class="rel">· ${ago}</span>` : nothing}</dd></div>
-                <div><dt>סוג</dt><dd>${label}${ev.confidence === 'inferred' ? ' · נגזר' : ''}</dd></div>
-                <div><dt>משך</dt><dd>${this.duration(ev)}${ev.count > 1 ? ` · ${ev.count} חזרות` : ''}</dd></div>
-                <div class="wide"><dt>מיקום</dt><dd data-where>${where ?? (ev.camera_id ? 'המצלמה עדיין לא מוצבת על תוכנית' : '—')}</dd></div>
-                <div class="wide"><dt>מקור</dt><dd>${SOURCE_LABEL[ev.source] ?? ev.source}${ev.camera_id ? html` · ${camera}` : nothing}</dd></div>
+                <div><dt>${tr('מצב')}</dt><dd data-status>${acked ? html`<sw-badge filled kind="live" label=${`${tr('טופל')} · ${ev.acked_by_username ?? ''}`}></sw-badge> <span class="note" style="margin:0">${this.fmt(ev.acked_at!, true)}</span>` : html`<sw-badge filled kind="stale" label=${tr('טרם טופל')}></sw-badge>`}</dd></div>
+                <div><dt>${tr('חומרה')}</dt><dd data-severity><sw-badge ?filled=${ev.severity !== 'info'} kind=${SEVERITY_KIND[ev.severity] ?? 'neutral'} label=${SEVERITY_LABEL[ev.severity] ?? ev.severity}></sw-badge></dd></div>
+                <div class="wide"><dt>${tr('זמן')}</dt><dd><span class="ltr">${this.fmt(ev.occurred_at, true)}</span>${ago ? html` <span class="rel">· ${ago}</span>` : nothing}</dd></div>
+                <div><dt>${tr('סוג')}</dt><dd>${label}${ev.confidence === 'inferred' ? ` · ${tr('נגזר')}` : ''}</dd></div>
+                <div><dt>${tr('משך')}</dt><dd>${this.duration(ev)}${ev.count > 1 ? ` · ${tr('{n} חזרות', { n: ev.count })}` : ''}</dd></div>
+                <div class="wide"><dt>${tr('מיקום')}</dt><dd data-where>${where ?? (ev.camera_id ? tr('המצלמה עדיין לא מוצבת על תוכנית') : '—')}</dd></div>
+                <div class="wide"><dt>${tr('מקור')}</dt><dd>${SOURCE_LABEL[ev.source] ?? ev.source}${ev.camera_id ? html` · ${camera}` : nothing}</dd></div>
               </dl>
               ${this.renderTech(ev)}
               ${loc && loc.has_plan && this.bundle
@@ -981,10 +982,10 @@ export class InvestigateEventDetail extends LitElement {
                     <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${loc.floor_name}</div>
                     <div class="tools3d">
                       ${this.bundle.imageUrl
-                        ? html`<sw-button size="sm" icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? 'הסתר את תמונת התוכנית' : 'הצג את תמונת התוכנית'} @click=${() => this.setPlanImage(!this.planImage)}>תמונת התוכנית</sw-button>`
+                        ? html`<sw-button size="sm" icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? tr('הסתר את תמונת התוכנית') : tr('הצג את תמונת התוכנית')} @click=${() => this.setPlanImage(!this.planImage)}>${tr('תמונת התוכנית')}</sw-button>`
                         : nothing}
                       <sw-button size="sm" icon="cube" aria-pressed=${this.view3d} data-event-3d-toggle ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
-                        title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מבט מהמצלמה בתלת-ממד'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+                        title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? tr('אין מבנה מפורסם לקומה הזו') : tr('מבט מהמצלמה בתלת-ממד')} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
                     </div>
                     ${this.shows3d && this.sceneDescription
                       ? html`<sw-plan-3d data-event-3d .description=${this.sceneDescription} .selectedId=${this.selected3d} .preset=${this.eventPreset} .frameKey=${ev.id} .labels=${this.sceneMemo?.labels ?? {}}
@@ -994,29 +995,29 @@ export class InvestigateEventDetail extends LitElement {
                           @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
                       : nothing}
                     <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} .planWidth=${this.bundle.width} .planHeight=${this.bundle.height} .imageUrl=${this.bundle.imageUrl} .hideImage=${!this.planImage} .plan=${this.bundle.planSvg} .markers=${this.markers} .selectedId=${loc.anchor_id} .zones=${zonesWithChips(this.bundle.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(this.bundle.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} alwaysLabel dimEntities></sw-plan-canvas>
-                    ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
+                    ${this.threeState === 'loading' ? html`<div class="load3d" data-3d-loading>${tr('טוען תלת-ממד…')}</div>` : nothing}
                   </div>
                   ${webglAvailable() ? nothing : html`<div class="note" data-event-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</div>`}
-                  ${this.threeState === 'error' ? html`<div class="note err" data-3d-load-error>תלת-ממד לא נטען.</div>` : nothing}
+                  ${this.threeState === 'error' ? html`<div class="note err" data-3d-load-error>${tr('תלת-ממד לא נטען.')}</div>` : nothing}
                   ${this.view3d ? html`<div class="note" data-event-3d-note>${t('replay3d.eventNote')}</div>` : nothing}
                   <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
-                    <sw-button size="sm" icon="map" data-history-map @click=${() => navigate(`/investigate/floors/${loc.floor_id}`, { t: ev.occurred_at, camera: ev.camera_id ?? '' })}>המשך חקירה במפה</sw-button>
-                    <sw-button size="sm" variant="ghost" icon="live" @click=${() => navigate(`/explore/floors/${loc.floor_id}`)}>מפה חיה</sw-button>
+                    <sw-button size="sm" icon="map" data-history-map @click=${() => navigate(`/investigate/floors/${loc.floor_id}`, { t: ev.occurred_at, camera: ev.camera_id ?? '' })}>${tr('המשך חקירה במפה')}</sw-button>
+                    <sw-button size="sm" variant="ghost" icon="live" @click=${() => navigate(`/explore/floors/${loc.floor_id}`)}>${tr('מפה חיה')}</sw-button>
                   </div>`
                 : loc
-                  ? html`<div class="note">לקומה ${loc.floor_name} אין תוכנית מפורסמת עדיין.</div>`
+                  ? html`<div class="note">${tr('לקומה {floor} אין תוכנית מפורסמת עדיין.', { floor: loc.floor_name })}</div>`
                   : nothing}
-              <div class="note">מיקום סמוך הוא הקשר, לא הוכחת קשר סיבתי; סימון "טופל" נרשם באודיט בשם המשתמש.</div>
+              <div class="note">${tr('מיקום סמוך הוא הקשר, לא הוכחת קשר סיבתי; סימון "טופל" נרשם באודיט בשם המשתמש.')}</div>
             </sw-card>
             ${this.renderCorrelation()}
             ${this.renderRoute()}
-            <sw-card heading="אירועים קרובים" subheading="±10 דקות סביב האירוע">
+            <sw-card heading=${tr('אירועים קרובים')} subheading=${tr('±10 דקות סביב האירוע')}>
               ${this.nearby.length
                 ? html`<div class="nearby" data-nearby>${this.nearby.map((n) => {
                     const dt = Math.round((new Date(n.occurred_at).getTime() - new Date(ev.occurred_at).getTime()) / 60000);
-                    return html`<a href=${`#/investigate/events/${n.id}`}><span>${eventName(n)} · ${n.camera_name ?? (n.channel ? `ערוץ ${n.channel}` : 'מערכת')}</span><span class="ltr" title=${dt === 0 ? 'באותה דקה' : dt > 0 ? `${dt} דק׳ אחרי` : `${-dt} דק׳ לפני`}>${this.fmt(n.occurred_at)}</span></a>`;
+                    return html`<a href=${`#/investigate/events/${n.id}`}><span>${eventName(n)} · ${n.camera_name ?? (n.channel ? tr('ערוץ {n}', { n: n.channel }) : tr('מערכת'))}</span><span class="ltr" title=${dt === 0 ? tr('באותה דקה') : dt > 0 ? tr('{n} דק׳ אחרי', { n: dt }) : tr('{n} דק׳ לפני', { n: -dt })}>${this.fmt(n.occurred_at)}</span></a>`;
                   })}</div>`
-                : html`<div class="note" style="margin:0">אין אירועים נוספים בחלון הזה.</div>`}
+                : html`<div class="note" style="margin:0">${tr('אין אירועים נוספים בחלון הזה.')}</div>`}
             </sw-card>
           </div>
         </div>

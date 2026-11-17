@@ -10,6 +10,7 @@
  */
 import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
+import { tr } from '../i18n/msg/misc';
 import { holdNativeSession, releaseNativeSession, type NativeSignOutReason } from './native-app';
 
 export const TOKENS_KEY = 'arx.auth.v1';
@@ -144,7 +145,7 @@ async function haJson(path: string, init: RequestInit): Promise<{ status: number
   try {
     res = await fetch(path, { ...init, credentials: 'same-origin', cache: 'no-store' });
   } catch {
-    throw new ArxAuthError('network', 'אין חיבור לתשתית המערכת. בדוק את החיבור ונסה שוב.');
+    throw new ArxAuthError('network', tr('אין חיבור לתשתית המערכת. בדוק את החיבור ונסה שוב.'));
   }
   let data: Record<string, unknown> | null = null;
   try {
@@ -157,13 +158,13 @@ async function haJson(path: string, init: RequestInit): Promise<{ status: number
 
 /** HA's own error texts (frontend translations ui.panel.page-authorize.form.providers.homeassistant.*), in Hebrew. */
 const HA_ERRORS: Record<string, string> = {
-  invalid_auth: 'שם משתמש או סיסמה לא תקינים',
-  invalid_code: 'קוד אימות לא תקין',
-  too_many_retry: 'יותר מדי ניסיונות שגויים. התחל את הכניסה מחדש.',
-  login_expired: 'פג תוקף הכניסה, התחל מחדש.',
-  no_mfa_module: 'מודול האימות הדו־שלבי אינו זמין.',
-  invalid_flow: 'תהליך הכניסה פג. התחל מחדש.',
-  unknown_error: 'שגיאה לא צפויה.',
+  invalid_auth: tr('שם משתמש או סיסמה לא תקינים'),
+  invalid_code: tr('קוד אימות לא תקין'),
+  too_many_retry: tr('יותר מדי ניסיונות שגויים. התחל את הכניסה מחדש.'),
+  login_expired: tr('פג תוקף הכניסה, התחל מחדש.'),
+  no_mfa_module: tr('מודול האימות הדו־שלבי אינו זמין.'),
+  invalid_flow: tr('תהליך הכניסה פג. התחל מחדש.'),
+  unknown_error: tr('שגיאה לא צפויה.'),
 };
 
 export function haErrorText(code: string, fallback?: string): string {
@@ -205,10 +206,10 @@ async function postStart(handler: [string, string | null], challenge: string | n
 
 function httpError(status: number, data: Record<string, unknown> | null): ArxAuthError {
   const msg = typeof data?.message === 'string' ? data.message : '';
-  if (status === 403 || status === 429) return new ArxAuthError('banned', 'תשתית המערכת חסמה את הכתובת שממנה ניסית להתחבר (יותר מדי ניסיונות כושלים). פנה למנהל המערכת.', status);
+  if (status === 403 || status === 429) return new ArxAuthError('banned', tr('תשתית המערכת חסמה את הכתובת שממנה ניסית להתחבר (יותר מדי ניסיונות כושלים). פנה למנהל המערכת.'), status);
   if (status === 404) return new ArxAuthError('invalid_flow', haErrorText('invalid_flow'), status);
-  if (status >= 500) return new ArxAuthError('ha_unavailable', 'תשתית המערכת אינה זמינה כרגע. נסה שוב בעוד רגע.', status);
-  return new ArxAuthError('ha_error', msg ? `שגיאה: ${msg}` : haErrorText('unknown_error'), status);
+  if (status >= 500) return new ArxAuthError('ha_unavailable', tr('תשתית המערכת אינה זמינה כרגע. נסה שוב בעוד רגע.'), status);
+  return new ArxAuthError('ha_error', msg ? tr('שגיאה: {msg}', { msg }) : haErrorText('unknown_error'), status);
 }
 
 function stepOf(data: Record<string, unknown>): FlowStep {
@@ -229,7 +230,7 @@ export async function startFlow(): Promise<{ flow: LoginFlow; step: FlowStep }> 
   if (providers.status !== 200 || !providers.data) throw httpError(providers.status, providers.data);
   const list = (Array.isArray(providers.data) ? providers.data : (providers.data.providers as unknown[])) as { type: string; id: string | null }[];
   const local = (list ?? []).find((p) => p.type === 'homeassistant');
-  if (!local) throw new ArxAuthError('no_provider', 'ספק הכניסה (משתמשים וסיסמאות) אינו פעיל.');
+  if (!local) throw new ArxAuthError('no_provider', tr('ספק הכניסה (משתמשים וסיסמאות) אינו פעיל.'));
   const handler: [string, string | null] = [local.type, local.id ?? null];
   let verifier: string | null = null;
   let r: Awaited<ReturnType<typeof haJson>>;
@@ -276,7 +277,7 @@ async function tokenRequest(form: Record<string, string>): Promise<Record<string
   });
   if (r.status !== 200 || !r.data) {
     const err = String((r.data as Record<string, unknown> | null)?.error ?? '');
-    throw new ArxAuthError(err === 'invalid_grant' ? 'invalid_grant' : 'token_failed', 'הכניסה פגה. יש להיכנס מחדש.', r.status);
+    throw new ArxAuthError(err === 'invalid_grant' ? 'invalid_grant' : 'token_failed', tr('הכניסה פגה. יש להיכנס מחדש.'), r.status);
   }
   return r.data;
 }
@@ -307,10 +308,10 @@ async function exchange(t: ArxTokens, secondFactor?: string): Promise<ExchangeRe
   try {
     res = await fetch('api/v1/auth/session', { method: 'POST', headers, credentials: 'same-origin', cache: 'no-store' });
   } catch {
-    throw new ArxAuthError('network', 'אין חיבור לשרת.');
+    throw new ArxAuthError('network', tr('אין חיבור לשרת.'));
   }
   const data = (await res.json().catch(() => null)) as { code?: string; user_message?: string } & Partial<ExchangeResult> | null;
-  if (!res.ok) throw new ArxAuthError(data?.code ?? `http_${res.status}`, data?.user_message || 'השרת דחה את הכניסה.', res.status);
+  if (!res.ok) throw new ArxAuthError(data?.code ?? `http_${res.status}`, data?.user_message || tr('השרת דחה את הכניסה.'), res.status);
   return data as ExchangeResult;
 }
 
@@ -331,7 +332,7 @@ export async function abandonSecondFactor(): Promise<void> {
 /** The second step of a sign-in: the 6-digit code. A wrong code keeps the step open; a lockout or any other refusal ends it. */
 export async function completeSecondFactor(code: string): Promise<ExchangeResult> {
   const t = pendingFactor;
-  if (!t) throw new ArxAuthError('second_factor_required', 'ההתחברות פגה. יש להיכנס מחדש.');
+  if (!t) throw new ArxAuthError('second_factor_required', tr('ההתחברות פגה. יש להיכנס מחדש.'));
   try {
     const r = await exchange(t, code.replace(/\s+/g, ''));
     pendingFactor = null;

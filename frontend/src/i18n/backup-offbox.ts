@@ -4,6 +4,7 @@
  * translation that needs a native review (dev-marked, like backup-password.ts). `{x}` placeholders are filled by `obt(key, vars)`.
  * Error codes of the server (`err_<code>`) are translated here; an unknown code shows `err_other`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   cardTitle: 'עותקים מחוץ למכונה',
   cardSub: 'עותק מוצפן של הגיבוי היומי נשלח ליעד חיצוני ונבדק אחרי ההעלאה',
@@ -663,8 +664,7 @@ export type ObtKey = Key;
 export type ObtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function obtLang(): ObtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<ObtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -673,7 +673,7 @@ export const OBT_DEV_MARKED: readonly ObtLang[] = ['ar', 'ru'];
 
 export function obt(key: Key, vars?: Record<string, string | number>, lang: ObtLang = obtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A server error code (`auth_failed`, ...) in words; unknown codes say `err_other`. */
@@ -689,3 +689,5 @@ export function keyExportReady(typed: string, acked: boolean, busy: boolean): bo
 
 export const OBT_KEYS = Object.keys(he) as Key[];
 export const OBT_TABLES = TABLES;
+
+registerCatalogue('i18n/backup-offbox', { he, en, ar, ru }, OBT_DEV_MARKED);

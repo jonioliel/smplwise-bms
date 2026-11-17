@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
+import { tr } from '../i18n/msg/media';
 
 /**
  * CR-020 S2: the short toast after a stream change. "נשמר" with "בטל" for 10 seconds (the press on "בטל" IS the confirmation of the
@@ -98,7 +99,7 @@ export class NvrUndoToast extends LitElement {
       <span data-nvr-toast-text>${this.message}</span>
       ${this.actionLabel ? html`<button type="button" data-nvr-undo ?disabled=${this.busy} @click=${() => this.dispatchEvent(new CustomEvent('undo', { bubbles: true, composed: true }))}>${this.actionLabel}</button>` : nothing}
       ${this.linkLabel && this.linkHref ? html`<a href=${this.linkHref} data-nvr-toast-link>${this.linkLabel}</a>` : nothing}
-      <button type="button" class="x" aria-label="סגור" data-nvr-toast-close @click=${() => this.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true }))}>✕</button>
+      <button type="button" class="x" aria-label=${tr('סגור')} data-nvr-toast-close @click=${() => this.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true }))}>✕</button>
     </div>`;
   }
 }

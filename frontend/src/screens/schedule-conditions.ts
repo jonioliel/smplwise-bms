@@ -4,6 +4,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import { MATCH_LABEL, PRESET_LABEL, getConditionCandidates, type ConditionCandidate, type ConditionPreset, type ConditionView, type DraftCondition, type DraftConditions, type MatchType, type Problem, type ShabbatSensor } from '../api/schedules';
 import { activePreset, addCondition, applyPreset, clearConditions, describeCondition, newCondition, removeCondition, stateChoices, updateCondition } from './schedule-edit-logic';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: the condition builder (SCHEDULER_API §2.4, §12.5) - one block for the whole schedule (the component keeps the
@@ -295,7 +296,7 @@ export class ScheduleConditions extends LitElement {
     if (locked) {
       return html`<div class="cond locked" data-condition-locked=${c.entity_id}>
         <div class="nm"><sw-icon name="lock" size="14"></sw-icon>${describeCondition(c, name)}</div>
-        <span class="lock">מחוץ להרשאתך</span>
+        <span class="lock">${tr('מחוץ להרשאתך')}</span>
       </div>`;
     }
     const cand = this.candOf(c.entity_id);
@@ -303,20 +304,20 @@ export class ScheduleConditions extends LitElement {
     const ops = numeric ? OPS_NUMBER : OPS_STATE;
     const choices = stateChoices(cand ?? (numeric ? undefined : { entity_id: c.entity_id, name, domain: c.entity_id.startsWith('sun.') ? 'sun' : 'binary_sensor', device_class: null, state: null, unit: null, numeric: false, suggested_shabbat: false }));
     return html`<div class="cond" data-condition=${c.entity_id}>
-      <div class="nm">${name}${c.attribute !== 'state' ? html`<small>${c.attribute}</small>` : nothing}${view?.readable && view.state !== null ? html`<small>כרגע: ${view.state}</small>` : nothing}</div>
-      ${this.readOnly ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label="הסרת התנאי" data-condition-remove @click=${() => this.emit(removeCondition(this.conditions, i))}></sw-button>`}
+      <div class="nm">${name}${c.attribute !== 'state' ? html`<small>${c.attribute}</small>` : nothing}${view?.readable && view.state !== null ? html`<small>${tr('כרגע: {state}', { state: view.state })}</small>` : nothing}</div>
+      ${this.readOnly ? nothing : html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('הסרת התנאי')} data-condition-remove @click=${() => this.emit(removeCondition(this.conditions, i))}></sw-button>`}
       <div class="ctl">
-        <select ?disabled=${this.readOnly} aria-label="סוג ההשוואה" data-condition-op @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { match_type: (e.target as HTMLSelectElement).value as MatchType }))}>
+        <select ?disabled=${this.readOnly} aria-label=${tr('סוג ההשוואה')} data-condition-op @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { match_type: (e.target as HTMLSelectElement).value as MatchType }))}>
           ${ops.map((o) => html`<option value=${o} ?selected=${c.match_type === o}>${MATCH_LABEL[o]}</option>`)}
         </select>
         ${numeric
-          ? html`<input class="val" type="number" ?disabled=${this.readOnly} aria-label="ערך" data-condition-value .value=${String(c.value)} @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: Number((e.target as HTMLInputElement).value) }))} />`
+          ? html`<input class="val" type="number" ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value .value=${String(c.value)} @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: Number((e.target as HTMLInputElement).value) }))} />`
           : choices.length
-            ? html`<select ?disabled=${this.readOnly} aria-label="ערך" data-condition-value @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLSelectElement).value }))}>
+            ? html`<select ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLSelectElement).value }))}>
                 ${choices.some((x) => x.value === c.value) ? nothing : html`<option value=${String(c.value)} selected>${String(c.value)}</option>`}
                 ${choices.map((x) => html`<option value=${x.value} ?selected=${c.value === x.value}>${x.label}</option>`)}
               </select>`
-            : html`<input class="val" type="text" ?disabled=${this.readOnly} aria-label="ערך" data-condition-value .value=${String(c.value)} @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLInputElement).value }))} />`}
+            : html`<input class="val" type="text" ?disabled=${this.readOnly} aria-label=${tr('ערך')} data-condition-value .value=${String(c.value)} @change=${(e: Event) => this.emit(updateCondition(this.conditions, i, { value: (e.target as HTMLInputElement).value }))} />`}
       </div>
     </div>`;
   }
@@ -328,11 +329,11 @@ export class ScheduleConditions extends LitElement {
       .filter((c) => !q || c.name.toLowerCase().includes(q) || c.entity_id.toLowerCase().includes(q))
       .sort((a, b) => Number(b.suggested_shabbat) - Number(a.suggested_shabbat) || rank(a) - rank(b));
     return html`<div class="add" data-condition-add>
-      <input type="search" placeholder="חיפוש חיישן" aria-label="חיפוש חיישן לתנאי" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
+      <input type="search" placeholder=${tr('חיפוש חיישן')} aria-label=${tr('חיפוש חיישן לתנאי')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
       <div class="cands">
-        ${this.loading ? html`<div class="hint">טוען…</div>` : list.length ? list.map((c) => html`<button type="button" class="cand" data-candidate=${c.entity_id} @click=${() => this.pick(c)}><span>${c.name}</span><small>${c.state ?? ''}${c.unit ? ` ${c.unit}` : ''}</small></button>`) : html`<div class="hint">לא נמצאו חיישנים</div>`}
+        ${this.loading ? html`<div class="hint">${tr('טוען…')}</div>` : list.length ? list.map((c) => html`<button type="button" class="cand" data-candidate=${c.entity_id} @click=${() => this.pick(c)}><span>${c.name}</span><small>${c.state ?? ''}${c.unit ? ` ${c.unit}` : ''}</small></button>`) : html`<div class="hint">${tr('לא נמצאו חיישנים')}</div>`}
       </div>
-      <div class="row"><sw-button size="sm" @click=${() => (this.adding = false)}>ביטול</sw-button></div>
+      <div class="row"><sw-button size="sm" @click=${() => (this.adding = false)}>${tr('ביטול')}</sw-button></div>
     </div>`;
   }
 
@@ -341,23 +342,23 @@ export class ScheduleConditions extends LitElement {
     const active = this.sensor ? activePreset(c, this.sensor.entity_id) : null;
     return html`<div data-conditions>
       ${this.sensor
-        ? html`<div class="presets" role="group" aria-label="תנאים מוכנים">
+        ? html`<div class="presets" role="group" aria-label=${tr('תנאים מוכנים')}>
             ${(['only_holy_days', 'not_holy_days'] as ConditionPreset[]).map((p) => html`<button type="button" class="preset" data-preset=${p} aria-pressed=${active === p} ?disabled=${this.readOnly} @click=${() => this.preset(p)}>${PRESET_LABEL[p]}</button>`)}
-            <button type="button" class="preset" data-preset="motzash" ?disabled=${this.readOnly} @click=${() => this.dispatchEvent(new CustomEvent('preset-motzash', { bubbles: true, composed: true }))}>מוצאי שבת</button>
+            <button type="button" class="preset" data-preset="motzash" ?disabled=${this.readOnly} @click=${() => this.dispatchEvent(new CustomEvent('preset-motzash', { bubbles: true, composed: true }))}>${tr('מוצאי שבת')}</button>
           </div>`
         : this.canConfigure
-          ? html`<div class="hint" data-preset-hint>בחרו חיישן שבת וחג בהגדרות ‹ תזמונים כדי לקבל תנאים מוכנים.</div>`
+          ? html`<div class="hint" data-preset-hint>${tr('בחרו חיישן שבת וחג בהגדרות ‹ תזמונים כדי לקבל תנאים מוכנים.')}</div>`
           : nothing}
       <div class="list">${c.items.map((it, i) => this.renderCondition(it, i))}</div>
       ${c.items.length > 1
-        ? html`<div class="row"><span>יתקיימו</span><div class="seg" role="group" aria-label="חיבור התנאים">
-            <button type="button" aria-pressed=${c.type !== 'or'} data-cond-type="and" ?disabled=${this.readOnly} @click=${() => this.emit({ ...c, type: 'and' })}>כל התנאים</button>
-            <button type="button" aria-pressed=${c.type === 'or'} data-cond-type="or" ?disabled=${this.readOnly} @click=${() => this.emit({ ...c, type: 'or' })}>אחד מהם</button></div></div>`
+        ? html`<div class="row"><span>${tr('יתקיימו')}</span><div class="seg" role="group" aria-label=${tr('חיבור התנאים')}>
+            <button type="button" aria-pressed=${c.type !== 'or'} data-cond-type="and" ?disabled=${this.readOnly} @click=${() => this.emit({ ...c, type: 'and' })}>${tr('כל התנאים')}</button>
+            <button type="button" aria-pressed=${c.type === 'or'} data-cond-type="or" ?disabled=${this.readOnly} @click=${() => this.emit({ ...c, type: 'or' })}>${tr('אחד מהם')}</button></div></div>`
         : nothing}
       ${c.items.length
-        ? html`<div class="row"><label class="check"><input type="checkbox" data-cond-track ?disabled=${this.readOnly} .checked=${c.track} @change=${(e: Event) => this.emit({ ...c, track: (e.target as HTMLInputElement).checked })} />המשך לבדוק עד סוף החלון</label></div>`
+        ? html`<div class="row"><label class="check"><input type="checkbox" data-cond-track ?disabled=${this.readOnly} .checked=${c.track} @change=${(e: Event) => this.emit({ ...c, track: (e.target as HTMLInputElement).checked })} />${tr('המשך לבדוק עד סוף החלון')}</label></div>`
         : nothing}
-      ${this.adding ? this.renderAdd() : this.readOnly ? nothing : html`<div class="row"><sw-button size="sm" icon="plus" data-condition-new @click=${() => this.openAdd()}>תנאי</sw-button></div>`}
+      ${this.adding ? this.renderAdd() : this.readOnly ? nothing : html`<div class="row"><sw-button size="sm" icon="plus" data-condition-new @click=${() => this.openAdd()}>${tr('תנאי')}</sw-button></div>`}
       ${this.warnings.length ? html`<ul class="warn" data-cond-warnings>${this.warnings.map((w) => html`<li>${w.message}</li>`)}</ul>` : nothing}
     </div>`;
   }

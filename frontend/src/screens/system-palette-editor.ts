@@ -15,21 +15,22 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButtonStyles } from '../styles/settings';
 import { segThumbStyles } from '../styles/fragments';
+import { tr } from '../i18n/msg/system-b';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
 /** The key colours the editor offers (path inside a scheme, Hebrew name), the accent first. The rest of a palette (states, rings, gradients, slider) is the base palette's. */
 export const KEY_COLORS: readonly (readonly [string, string])[] = [
-  ['accent', 'צבע הדגש'],
-  ['accentContrast', 'טקסט על הדגש'],
-  ['accentText', 'טקסט בצבע הדגש'],
-  ['bg', 'רקע'],
-  ['surface', 'משטח'],
-  ['surface2', 'משטח משני'],
-  ['surfaceElevated', 'משטח מוגבה'],
-  ['glass.tint', 'גוון זכוכית'],
-  ['text', 'טקסט'],
-  ['textMuted', 'טקסט משני'],
+  ['accent', tr('צבע הדגש')],
+  ['accentContrast', tr('טקסט על הדגש')],
+  ['accentText', tr('טקסט בצבע הדגש')],
+  ['bg', tr('רקע')],
+  ['surface', tr('משטח')],
+  ['surface2', tr('משטח משני')],
+  ['surfaceElevated', tr('משטח מוגבה')],
+  ['glass.tint', tr('גוון זכוכית')],
+  ['text', tr('טקסט')],
+  ['textMuted', tr('טקסט משני')],
 ];
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -331,10 +332,10 @@ export class SystemPaletteEditor extends LitElement {
     }
     const next = [...customPalettes().filter((p) => p.id !== v.palette.id), v.palette];
     if (next.length > MAX_CUSTOM) {
-      this.error = `אפשר לשמור עד ${MAX_CUSTOM} ערכות מותאמות.`;
+      this.error = tr('אפשר לשמור עד {n} ערכות מותאמות.', { n: MAX_CUSTOM });
       return;
     }
-    await this.persist(next, 'הערכה נשמרה', () => (this.draft = null));
+    await this.persist(next, tr('הערכה נשמרה'), () => (this.draft = null));
   }
 
   /** One click: every failing foreground colour moves to the nearest passing value (backgrounds stay); what cannot be fixed stays in the warning. */
@@ -342,7 +343,7 @@ export class SystemPaletteEditor extends LitElement {
     if (!this.draft) return;
     const r = autoFixPalette(this.draft);
     this.draft = r.palette;
-    this.flash(r.changed.length ? `תוקנו ${r.changed.length} צבעים` : 'אין מה לתקן אוטומטית');
+    this.flash(r.changed.length ? tr('תוקנו {n} צבעים', { n: r.changed.length }) : tr('אין מה לתקן אוטומטית'));
   }
 
   private async removeCustom(id: string) {
@@ -351,7 +352,7 @@ export class SystemPaletteEditor extends LitElement {
       return;
     }
     this.confirmDelete = '';
-    await this.persist(customPalettes().filter((p) => p.id !== id), 'הערכה נמחקה');
+    await this.persist(customPalettes().filter((p) => p.id !== id), tr('הערכה נמחקה'));
   }
 
   private async persist(next: Palette[], done: string, after?: () => void) {
@@ -388,15 +389,15 @@ export class SystemPaletteEditor extends LitElement {
     const list = customPalettes();
     if (!d) {
       return html`<div class="row" data-palette-list>
-        <span class="lbl">ערכות מותאמות</span>
+        <span class="lbl">${tr('ערכות מותאמות')}</span>
         <span class="btns">
           ${list.map(
             (p) => html`<span class="btns" data-palette-custom=${p.id}>
               <sw-button variant="ghost" size="sm" data-palette-edit=${p.id} ?disabled=${this.busy} @click=${() => this.startEdit(p)}>${p.name.he}</sw-button>
-              <sw-button variant=${this.confirmDelete === p.id ? 'danger' : 'ghost'} size="sm" icon="trash" data-palette-delete=${p.id} ?disabled=${this.busy} ?iconOnly=${this.confirmDelete !== p.id} label=${`מחיקת ${p.name.he}`} @click=${() => void this.removeCustom(p.id)}>${this.confirmDelete === p.id ? 'לאשר מחיקה' : nothing}</sw-button>
+              <sw-button variant=${this.confirmDelete === p.id ? 'danger' : 'ghost'} size="sm" icon="trash" data-palette-delete=${p.id} ?disabled=${this.busy} ?iconOnly=${this.confirmDelete !== p.id} label=${tr('מחיקת {name}', { name: p.name.he })} @click=${() => void this.removeCustom(p.id)}>${this.confirmDelete === p.id ? tr('לאשר מחיקה') : nothing}</sw-button>
             </span>`,
           )}
-          <sw-button variant="primary" size="sm" icon="plus" data-palette-new ?disabled=${this.busy || list.length >= MAX_CUSTOM} @click=${() => this.startNew()}>ערכה חדשה</sw-button>
+          <sw-button variant="primary" size="sm" icon="plus" data-palette-new ?disabled=${this.busy || list.length >= MAX_CUSTOM} @click=${() => this.startNew()}>${tr('ערכה חדשה')}</sw-button>
         </span>
         ${this.message ? html`<span class="ok" role="status" data-palette-message>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="err" role="alert" data-palette-error>${this.error}</span>` : nothing}
@@ -409,18 +410,18 @@ export class SystemPaletteEditor extends LitElement {
     const existing = customPalettes().some((p) => p.id === d.id);
     const s = d.schemes[this.scheme];
     return html`<div class="editor" data-palette-editor>
-      <h4>${existing ? `עריכת ערכה: ${d.name.he}` : 'ערכה חדשה'}</h4>
+      <h4>${existing ? tr('עריכת ערכה: {name}', { name: d.name.he }) : tr('ערכה חדשה')}</h4>
       <div class="fields">
-        <input type="text" data-palette-name maxlength="40" placeholder="שם הערכה" aria-label="שם הערכה" .value=${d.name.he} @input=${(e: Event) => (this.draft = { ...d, name: { ...d.name, he: (e.target as HTMLInputElement).value } })} />
+        <input type="text" data-palette-name maxlength="40" placeholder=${tr('שם הערכה')} aria-label=${tr('שם הערכה')} .value=${d.name.he} @input=${(e: Event) => (this.draft = { ...d, name: { ...d.name, he: (e.target as HTMLInputElement).value } })} />
         ${existing
           ? nothing
-          : html`<select data-palette-base aria-label="התחלה מערכה" @change=${(e: Event) => this.rebase((e.target as HTMLSelectElement).value)}>
-              <option value="">התחל מ…</option>
+          : html`<select data-palette-base aria-label=${tr('התחלה מערכה')} @change=${(e: Event) => this.rebase((e.target as HTMLSelectElement).value)}>
+              <option value="">${tr('התחל מ…')}</option>
               ${allPalettes().map((p) => html`<option value=${p.id}>${p.name.he}</option>`)}
             </select>`}
-        <span class="seg" role="group" aria-label="מצב תצוגה">
-          <button type="button" data-palette-scheme="light" aria-pressed=${this.scheme === 'light' ? 'true' : 'false'} @click=${() => (this.scheme = 'light')}>בהיר</button>
-          <button type="button" data-palette-scheme="dark" aria-pressed=${this.scheme === 'dark' ? 'true' : 'false'} @click=${() => (this.scheme = 'dark')}>כהה</button>
+        <span class="seg" role="group" aria-label=${tr('מצב תצוגה')}>
+          <button type="button" data-palette-scheme="light" aria-pressed=${this.scheme === 'light' ? 'true' : 'false'} @click=${() => (this.scheme = 'light')}>${tr('בהיר')}</button>
+          <button type="button" data-palette-scheme="dark" aria-pressed=${this.scheme === 'dark' ? 'true' : 'false'} @click=${() => (this.scheme = 'dark')}>${tr('כהה')}</button>
         </span>
       </div>
       <div class="grid" data-palette-colors>
@@ -428,42 +429,42 @@ export class SystemPaletteEditor extends LitElement {
           const cur = getPath(s, path).toLowerCase();
           return html`<div class="ci" data-palette-key=${path}>
             <span class="cn">${name}</span>
-            <span class="sw" role="group" aria-label=${`צבעים מומלצים: ${name}`}>
+            <span class="sw" role="group" aria-label=${tr('צבעים מומלצים: {name}', { name })}>
               ${recommendedColors(path, this.scheme).map(
                 (hex) => html`<button type="button" class="chip" data-palette-swatch=${`${path}:${hex}`} aria-label=${`${name} ${hex}`} aria-pressed=${cur === hex ? 'true' : 'false'} style=${styleMap({ background: hex })} @click=${() => this.setColor(path, hex)}></button>`,
               )}
-              <input type="color" data-palette-color=${path} aria-label=${`${name}: בחירה חופשית`} .value=${cur} @input=${(e: Event) => this.setColor(path, (e.target as HTMLInputElement).value)} />
+              <input type="color" data-palette-color=${path} aria-label=${`${name}: ${tr('בחירה חופשית')}`} .value=${cur} @input=${(e: Event) => this.setColor(path, (e.target as HTMLInputElement).value)} />
             </span>
           </div>`;
         })}
       </div>
-      ${lifted ? html`<div class="note" data-palette-lifted>בכהה צבע הדגש מוּבהר אוטומטית, כך שיהיה בהיר מהצבע בתצוגה הבהירה.</div>` : nothing}
+      ${lifted ? html`<div class="note" data-palette-lifted>${tr('בכהה צבע הדגש מוּבהר אוטומטית, כך שיהיה בהיר מהצבע בתצוגה הבהירה.')}</div>` : nothing}
       ${bad ? html`<div class="err" role="alert" data-palette-invalid>${verdict.message}</div>` : nothing}
       ${warning
         ? html`<div class="warn" role="status" data-palette-warning>
             <span>${warning}</span>
-            <sw-button variant="ghost" size="sm" data-palette-autofix ?disabled=${this.busy} @click=${() => this.autoFix()}>תקן אוטומטית</sw-button>
+            <sw-button variant="ghost" size="sm" data-palette-autofix ?disabled=${this.busy} @click=${() => this.autoFix()}>${tr('תקן אוטומטית')}</sw-button>
           </div>`
         : nothing}
       ${this.message ? html`<div class="ok" role="status" data-palette-message>${this.message}</div>` : nothing}
       <div class="pv" data-palette-preview style=${styleMap(this.previewStyle(d))}>
         <div class="pv-col">
-          <sw-pill variant="slider" icon="light" label="תאורה מרכזית" state="דולק · 72%" .value=${0.72} on .hue=${2} tabindex="-1"></sw-pill>
-          <sw-pill variant="toggle" icon="bolt" label="דוד שמש" state="פעיל" on accent .hue=${6} tabindex="-1"></sw-pill>
-          <sw-pill variant="toggle" icon="bolt" label="משאבה" state="כבוי" .hue=${4} tabindex="-1"></sw-pill>
+          <sw-pill variant="slider" icon="light" label=${tr('תאורה מרכזית')} state=${`${tr('דולק')} · 72%`} .value=${0.72} on .hue=${2} tabindex="-1"></sw-pill>
+          <sw-pill variant="toggle" icon="bolt" label=${tr('דוד שמש')} state=${tr('פעיל')} on accent .hue=${6} tabindex="-1"></sw-pill>
+          <sw-pill variant="toggle" icon="bolt" label=${tr('משאבה')} state=${tr('כבוי')} .hue=${4} tabindex="-1"></sw-pill>
         </div>
         <div class="pv-sheet">
-          <span class="t">סלון</span>
-          <span class="s">3 דולקים · טמפרטורה 23°</span>
-          <span class="pv-link">קישור בצבע הדגש</span>
-          <span class="pv-states"><b style=${styleMap({ color: 'var(--sw-success-text)' })}>תקין</b><b style=${styleMap({ color: 'var(--sw-warning-text)' })}>אזהרה</b><b style=${styleMap({ color: 'var(--sw-danger-text)' })}>שגיאה</b></span>
-          <button type="button" class="pv-btn" tabindex="-1" aria-hidden="true">אישור</button>
+          <span class="t">${tr('סלון')}</span>
+          <span class="s">${tr('{n} דולקים', { n: 3 })} · ${tr('טמפרטורה {t}°', { t: 23 })}</span>
+          <span class="pv-link">${tr('קישור בצבע הדגש')}</span>
+          <span class="pv-states"><b style=${styleMap({ color: 'var(--sw-success-text)' })}>${tr('תקין')}</b><b style=${styleMap({ color: 'var(--sw-warning-text)' })}>${tr('אזהרה')}</b><b style=${styleMap({ color: 'var(--sw-danger-text)' })}>${tr('שגיאה')}</b></span>
+          <button type="button" class="pv-btn" tabindex="-1" aria-hidden="true">${tr('אישור')}</button>
         </div>
       </div>
       <div class="btns">
-        <sw-button variant="primary" size="sm" icon="check" data-palette-save ?disabled=${this.busy || bad || !d.name.he.trim()} @click=${() => void this.save()}>שמור ערכה</sw-button>
-        ${existing ? html`<sw-button variant="ghost" size="sm" data-palette-save-as ?disabled=${this.busy || bad || !d.name.he.trim() || customPalettes().length >= MAX_CUSTOM} @click=${() => void this.saveAs()}>שמור כחדשה</sw-button>` : nothing}
-        <sw-button variant="ghost" size="sm" data-palette-cancel ?disabled=${this.busy} @click=${() => { this.draft = null; this.error = ''; }}>ביטול</sw-button>
+        <sw-button variant="primary" size="sm" icon="check" data-palette-save ?disabled=${this.busy || bad || !d.name.he.trim()} @click=${() => void this.save()}>${tr('שמור ערכה')}</sw-button>
+        ${existing ? html`<sw-button variant="ghost" size="sm" data-palette-save-as ?disabled=${this.busy || bad || !d.name.he.trim() || customPalettes().length >= MAX_CUSTOM} @click=${() => void this.saveAs()}>${tr('שמור כחדשה')}</sw-button>` : nothing}
+        <sw-button variant="ghost" size="sm" data-palette-cancel ?disabled=${this.busy} @click=${() => { this.draft = null; this.error = ''; }}>${tr('ביטול')}</sw-button>
         ${this.error ? html`<span class="err" role="alert" data-palette-error>${this.error}</span>` : nothing}
       </div>
     </div>`;

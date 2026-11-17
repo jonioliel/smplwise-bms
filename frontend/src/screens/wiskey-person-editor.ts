@@ -46,6 +46,7 @@ import { dateInputLang } from '../api/day-format';
 import { checkPin } from '../api/station-people';
 import { pinWorthChecking } from '../access-control/station-people-logic';
 import { st } from '../i18n/station-people';
+import { tr } from '../i18n/msg/wiskey';
 
 /** The browser's own check of an IANA zone name (the server checks it again with the zone database). */
 function validZone(zone: string): boolean {
@@ -205,10 +206,10 @@ export class WiskeyPersonEditor extends LitElement {
       const [ctx, person] = await Promise.all([getIntercomEditorContext(), this.isNew ? null : getIntercomPersonForEdit(this.userId)]);
       if (generation !== this.generation) return;
       if (ctx.context) this.ctx = ctx.context;
-      else this.ctxNote = ctx.state === 'unsupported' ? 'בקרת הכניסה המותקנת אינה מכירה את הפקודות הנדרשות.' : `נתוני התחנות לא נטענו (${ctx.last_error ?? ctx.state}).`;
+      else this.ctxNote = ctx.state === 'unsupported' ? tr('בקרת הכניסה המותקנת אינה מכירה את הפקודות הנדרשות.') : tr('נתוני התחנות לא נטענו ({reason}).', { reason: ctx.last_error ?? ctx.state });
       if (!this.isNew) {
         if (!person?.person) {
-          this.loadError = `הרשומה לא נטענה (${person?.last_error ?? person?.state ?? 'error'}).`;
+          this.loadError = tr('הרשומה לא נטענה ({reason}).', { reason: person?.last_error ?? person?.state ?? 'error' });
           return;
         }
         this.edit(person.person);
@@ -217,7 +218,7 @@ export class WiskeyPersonEditor extends LitElement {
       }
     } catch (err) {
       if (generation !== this.generation) return;
-      this.loadError = err instanceof ApiError && err.code === 'intercom_person_not_found' ? 'האדם הזה לא נמצא (ייתכן שנמחק).'
+      this.loadError = err instanceof ApiError && err.code === 'intercom_person_not_found' ? tr('האדם הזה לא נמצא (ייתכן שנמחק).')
         : err instanceof ApiError && err.code === 'intercom_person_scope' ? wt('err.scope') : describeError(err);
     } finally {
       if (generation === this.generation) this.loading = false;
@@ -602,8 +603,8 @@ export class WiskeyPersonEditor extends LitElement {
   private renderBody() {
     if (this.loading && !this.draft) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (this.loadError || !this.draft) {
-      return html`<sw-state-panel data-wiskey-editor-load-error state="error" heading="לא ניתן לפתוח את העורך" hint=${this.loadError || 'הרשומה לא נטענה.'}></sw-state-panel>
-        <div class="row"><sw-button size="sm" icon="refresh" data-wiskey-editor-retry ?disabled=${this.loading} @click=${() => void this.load()}>נסו שוב</sw-button></div>`;
+      return html`<sw-state-panel data-wiskey-editor-load-error state="error" heading=${tr('לא ניתן לפתוח את העורך')} hint=${this.loadError || tr('הרשומה לא נטענה.')}></sw-state-panel>
+        <div class="row"><sw-button size="sm" icon="refresh" data-wiskey-editor-retry ?disabled=${this.loading} @click=${() => void this.load()}>${tr('נסו שוב')}</sw-button></div>`;
     }
     const d = this.draft;
     const ctx = this.ctx;
@@ -641,7 +642,7 @@ export class WiskeyPersonEditor extends LitElement {
           </div>
           <div class="column">
             ${this.sensitive && this.cardsKnown ? this.renderCards() : nothing}
-            ${ctx ? this.renderAssignments(ctx) : html`<fieldset data-wiskey-editor-section="assignments"><legend>${t('assignments')}</legend><p class="muted">${this.ctxNote || 'רשימת התחנות לא נטענה, ולכן אי אפשר לערוך הרשאות לתחנות כאן.'}</p></fieldset>`}
+            ${ctx ? this.renderAssignments(ctx) : html`<fieldset data-wiskey-editor-section="assignments"><legend>${t('assignments')}</legend><p class="muted">${this.ctxNote || tr('רשימת התחנות לא נטענה, ולכן אי אפשר לערוך הרשאות לתחנות כאן.')}</p></fieldset>`}
           </div>
         </div>
       </form>
@@ -652,13 +653,13 @@ export class WiskeyPersonEditor extends LitElement {
     const ctx = this.ctx;
     const notes = [];
     if (ctx && (ctx.writes_listed === false || ctx.users_manage === false)) {
-      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">חשבון המערכת אינו מורשה לנהל אנשים בבקרת הכניסה. שמירה תידחה.</div>`);
+      notes.push(html`<div class="note err" role="alert" data-wiskey-editor-note="no_users_manage">${tr('חשבון המערכת אינו מורשה לנהל אנשים בבקרת הכניסה. שמירה תידחה.')}</div>`);
     } else if (ctx && ctx.writes_listed === null) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">לא ידוע אם חשבון המערכת מורשה לנהל אנשים; דחייה תוצג כאן.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="writes_unverified">${tr('לא ידוע אם חשבון המערכת מורשה לנהל אנשים; דחייה תוצג כאן.')}</div>`);
     }
     if (this.ctxNote) notes.push(html`<div class="note warn" role="status" data-wiskey-editor-note="context">${this.ctxNote}</div>`);
     if (ctx?.profile_policy && (ctx.profile_policy.fields || ctx.profile_policy.groups)) {
-      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">שדות פרופיל וקבוצות נערכים בחלון האינטרקום. ביטול סימון של תחנה שמגיעה מקבוצה חוסם אותה לאדם הזה.</div>`);
+      notes.push(html`<div class="note info" role="note" data-wiskey-editor-note="profile">${tr('שדות פרופיל וקבוצות נערכים בחלון האינטרקום. ביטול סימון של תחנה שמגיעה מקבוצה חוסם אותה לאדם הזה.')}</div>`);
     }
     return notes;
   }
@@ -798,17 +799,17 @@ export class WiskeyPersonEditor extends LitElement {
         ${this.pinCheck === 'taken' ? html`<p class="danger" data-wiskey-editor-pin-check="taken">${st('pin_taken')}</p>` : nothing}
         ${this.pinCheck === 'failed' ? html`<p class="muted" data-wiskey-editor-pin-check="failed">${st('pin_check_failed')}</p>` : nothing}
         ${this.pinCheck === 'limited' ? html`<p class="muted" data-wiskey-editor-pin-check="limited">${st('pin_check_limited')}</p>` : nothing}
-        ${this.pinStatus === 'generated' ? html`<p class="ok">נוצר קוד פנוי ומולא בשני השדות. הוא אינו שמור עדיין - הוא ייבדק שוב בשמירה.</p>` : nothing}
+        ${this.pinStatus === 'generated' ? html`<p class="ok">${tr('נוצר קוד פנוי ומולא בשני השדות. הוא אינו שמור עדיין - הוא ייבדק שוב בשמירה.')}</p>` : nothing}
         ${this.pinReveal
           ? html`<div class="reveal" data-wiskey-editor-pin-reveal>
-              <span>הקוד שנוצר (מוצג פעם אחת, כדי למסור אותו):</span>
+              <span>${tr('הקוד שנוצר (מוצג פעם אחת, כדי למסור אותו):')}</span>
               <bdi class="pin" data-ltr data-wiskey-editor-pin-reveal-value>${this.pinReveal}</bdi>
-              <sw-button size="sm" icon="check" data-wiskey-editor-pin-copy @click=${() => void this.copyPin()}>העתק</sw-button>
-              <sw-button size="sm" variant="ghost" icon="eye" data-wiskey-editor-pin-hide @click=${() => this.hidePin()}>הסתר</sw-button>
+              <sw-button size="sm" icon="check" data-wiskey-editor-pin-copy @click=${() => void this.copyPin()}>${tr('העתק')}</sw-button>
+              <sw-button size="sm" variant="ghost" icon="eye" data-wiskey-editor-pin-hide @click=${() => this.hidePin()}>${tr('הסתר')}</sw-button>
             </div>`
           : nothing}
-        ${this.pinCopy === 'copied' ? html`<p class="ok" data-wiskey-editor-pin-copied>הקוד הועתק ללוח והוסתר.</p>` : nothing}
-        ${this.pinCopy === 'manual' ? html`<p class="danger" data-wiskey-editor-pin-copy-failed>העתקה אוטומטית אינה זמינה בדפדפן הזה (למשל בחיבור שאינו מאובטח). סמנו את הקוד והעתיקו ידנית, ואז לחצו "הסתר".</p>` : nothing}
+        ${this.pinCopy === 'copied' ? html`<p class="ok" data-wiskey-editor-pin-copied>${tr('הקוד הועתק ללוח והוסתר.')}</p>` : nothing}
+        ${this.pinCopy === 'manual' ? html`<p class="danger" data-wiskey-editor-pin-copy-failed>${tr('העתקה אוטומטית אינה זמינה בדפדפן הזה (למשל בחיבור שאינו מאובטח). סמנו את הקוד והעתיקו ידנית, ואז לחצו "הסתר".')}</p>` : nothing}
       </div>
       <div class="row">
         ${this.ctx?.pin_generate === false
@@ -819,7 +820,7 @@ export class WiskeyPersonEditor extends LitElement {
               <sw-button size="sm" variant="ghost" data-wiskey-editor-pin-keep @click=${() => { this.draft = { ...d, pin: undefined, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('keep_pin')}</sw-button>`
           : html`<sw-button size="sm" variant="danger" data-wiskey-editor-pin-remove ?disabled=${blocked || !configured} @click=${() => { this.draft = { ...d, pin: null, confirm_pin: '' }; this.pinStatus = ''; this.hidePin(); }}>${t('remove_pin')}</sw-button>`}
       </div>
-      <p class="muted">${t('pin_physical')} קוד תפוס יידחה בשמירה.</p>
+      <p class="muted">${t('pin_physical')} ${tr('קוד תפוס יידחה בשמירה.')}</p>
     </fieldset>`;
   }
 
@@ -851,7 +852,7 @@ export class WiskeyPersonEditor extends LitElement {
         <sw-button size="sm" icon="plus" data-wiskey-editor-card-add @click=${() => this.patch('cards', [...d.cards, { key: rowKey(), card_no: '', label: '', enabled: true }])}>${t('add_card')}</sw-button>
       </div>
       ${this.renderCapture()}
-      <p class="muted">מספר כרטיס שמור מוצג ממוסך; המספר המלא אינו זמין לאחר השמירה.</p>
+      <p class="muted">${tr('מספר כרטיס שמור מוצג ממוסך; המספר המלא אינו זמין לאחר השמירה.')}</p>
     </fieldset>`;
   }
 
@@ -869,7 +870,7 @@ export class WiskeyPersonEditor extends LitElement {
     const usable = this.captureStations().some((s) => s.lock_enabled && s.online);
     return html`<div class="capture" data-wiskey-editor-capture>
       <sw-button size="sm" icon="wifi" data-wiskey-editor-capture-open ?disabled=${!!this.busy || this.isNew || !this.ctx || !usable} @click=${() => this.openCapture()}>${t('capture_card')}</sw-button>
-      <p class="muted">${t(this.isNew ? 'capture_save_user_first' : 'capture_from_editor_hint')}${!this.isNew && this.ctx && !usable ? ' אין כרגע אינטרקום מחובר עם מנעול מנוהל.' : ''}</p>
+      <p class="muted">${t(this.isNew ? 'capture_save_user_first' : 'capture_from_editor_hint')}${!this.isNew && this.ctx && !usable ? ` ${tr('אין כרגע אינטרקום מחובר עם מנעול מנוהל.')}` : ''}</p>
     </div>`;
   }
 
@@ -945,8 +946,8 @@ export class WiskeyPersonEditor extends LitElement {
     const conflict = this.errorCode === 'intercom_revision_conflict';
     return html`<div class="note ${this.errorTone}" role="alert" data-wiskey-editor-error data-wiskey-editor-error-code=${this.errorCode} data-wiskey-editor-outcome=${this.outcome}>
       <sw-icon name=${unknown ? 'warning' : 'info'} size=${16}></sw-icon>
-      <span>${this.error}${unknown && !this.isNew ? ' טענו מחדש את הרשומה והשוו את הגרסה לפני ניסיון נוסף.' : ''}${unknown && this.isNew ? ' חפשו את מזהה העובד בספריית האנשים לפני שיוצרים שוב.' : ''}${this.errorCode === 'intercom_pin_conflict' ? ` אפשר ללחוץ על "${t('generate_unique_pin')}".` : ''}</span>
-      ${(conflict || unknown) && !this.isNew ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-editor-reload @click=${() => void this.reload()}>טען מחדש את הרשומה</sw-button>` : nothing}
+      <span>${this.error}${unknown && !this.isNew ? ` ${tr('טענו מחדש את הרשומה והשוו את הגרסה לפני ניסיון נוסף.')}` : ''}${unknown && this.isNew ? ` ${tr('חפשו את מזהה העובד בספריית האנשים לפני שיוצרים שוב.')}` : ''}${this.errorCode === 'intercom_pin_conflict' ? ` ${tr('אפשר ללחוץ על "{action}".', { action: t('generate_unique_pin') })}` : ''}</span>
+      ${(conflict || unknown) && !this.isNew ? html`<sw-button size="sm" variant="ghost" icon="refresh" data-wiskey-editor-reload @click=${() => void this.reload()}>${tr('טען מחדש את הרשומה')}</sw-button>` : nothing}
     </div>`;
   }
 
@@ -972,11 +973,11 @@ export class WiskeyPersonEditor extends LitElement {
   }
 
   private renderCloseConfirm() {
-    return html`<sw-dialog open heading="שינויים שלא נשמרו" data-wiskey-editor-close-dialog @close=${() => (this.confirmClose = false)}>
-      <p>יש בטופס שינויים שלא נשמרו. לסגור בלי לשמור?</p>
+    return html`<sw-dialog open heading=${tr('שינויים שלא נשמרו')} data-wiskey-editor-close-dialog @close=${() => (this.confirmClose = false)}>
+      <p>${tr('יש בטופס שינויים שלא נשמרו. לסגור בלי לשמור?')}</p>
       <div slot="footer">
-        <sw-button variant="ghost" @click=${() => (this.confirmClose = false)}>חזרה לעריכה</sw-button>
-        <sw-button variant="danger" data-wiskey-editor-close-discard @click=${() => { this.confirmClose = false; this.close(); }}>סגירה בלי לשמור</sw-button>
+        <sw-button variant="ghost" @click=${() => (this.confirmClose = false)}>${tr('חזרה לעריכה')}</sw-button>
+        <sw-button variant="danger" data-wiskey-editor-close-discard @click=${() => { this.confirmClose = false; this.close(); }}>${tr('סגירה בלי לשמור')}</sw-button>
       </div>
     </sw-dialog>`;
   }

@@ -22,6 +22,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/system-b';
 
 /** GET /api/v1/health - the connection facts, for every signed-in user (the same read הגדרות › חיבורים starts from). */
 interface RawHealth {
@@ -126,7 +127,7 @@ export class SystemSecurity extends LitElement {
         queueMicrotask(() => this.redirectTo(first));
         return html`<sw-state-panel state="loading"></sw-state-panel>`;
       }
-      return html`<sw-page crumbs="הגדרות" heading="אבטחה"><sw-state-panel state="forbidden" data-security-settings-forbidden></sw-state-panel></sw-page>`;
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אבטחה')}><sw-state-panel state="forbidden" data-security-settings-forbidden></sw-state-panel></sw-page>`;
     }
     // the page being viewed stays in the row even when the presence answer would hide it (a saved link); the row follows
     // the order and visibility the admin set (ui.tabs, "system.security") through `offered`
@@ -138,7 +139,7 @@ export class SystemSecurity extends LitElement {
       ${this.sub === 'alarm'
         ? html`<security-alarm .panelId=${this.panelId}></security-alarm>`
         : this.sub === 'manage'
-          ? html`<sw-page crumbs="הגדרות | אבטחה" heading="ניהול אזעקה" subheading="לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק"><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
+          ? html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading=${tr('ניהול אזעקה')} subheading=${tr('לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק')}><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
           : this.sub === 'cameras'
             ? html`<system-security-cameras></system-security-cameras>`
             : this.sub === 'privacy-masks'
@@ -148,7 +149,7 @@ export class SystemSecurity extends LitElement {
             : this.sub === 'wiskey'
               ? html`<system-security-wiskey></system-security-wiskey>`
             : this.sub === 'incidents'
-              ? html`<sw-page crumbs="הגדרות | אבטחה" heading="מצב אירוע חי" subheading="עמוד אחד לאירוע בזמן אמת: צפייה בלבד, ללא פעולה פיזית"><incident-settings-form data-incident-settings-page></incident-settings-form></sw-page>`
+              ? html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading=${tr('מצב אירוע חי')} subheading=${tr('עמוד אחד לאירוע בזמן אמת: צפייה בלבד, ללא פעולה פיזית')}><incident-settings-form data-incident-settings-page></incident-settings-form></sw-page>`
             : html`<system-security-nvr></system-security-nvr>`}`;
   }
 }
@@ -179,25 +180,25 @@ export class SystemSecurityNvr extends LitElement {
   }
 
   render() {
-    if (!isApi()) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel icon="shield" state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
-    if (this.error && !this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="error" heading="מצב ה־NVR לא נטען" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
-    if (!this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!isApi()) return html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading="NVR"><sw-state-panel icon="shield" state="empty" heading=${tr('המצב מוצג מול שרת אמיתי')} hint=${tr('במצב הדגמה אין NVR לקרוא.')}></sw-state-panel></sw-page>`;
+    if (this.error && !this.h) return html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading="NVR"><sw-state-panel state="error" heading=${tr('מצב ה־NVR לא נטען')} hint=${this.error} actionLabel=${tr('נסו שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (!this.h) return html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading="NVR"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const h = this.h;
     const off = nvrLess() || h.mode === 'ha_only';
     const links = [
-      { href: '#/system/setup', label: 'חיבורים והגדרות ה־NVR', show: tabAllowed('#/system/setup', canNav) },
-      { href: SECURITY_CAMERAS_HREF, label: 'הגדרות מצלמות', show: !off && tabAllowed(SECURITY_CAMERAS_HREF, canNav) },
-      { href: '#/investigate/health', label: 'בריאות מצלמות', show: !off && tabAllowed('#/investigate/health', canNav) },
+      { href: '#/system/setup', label: tr('חיבורים והגדרות ה־NVR'), show: tabAllowed('#/system/setup', canNav) },
+      { href: SECURITY_CAMERAS_HREF, label: tr('הגדרות מצלמות'), show: !off && tabAllowed(SECURITY_CAMERAS_HREF, canNav) },
+      { href: '#/investigate/health', label: tr('בריאות מצלמות'), show: !off && tabAllowed('#/investigate/health', canNav) },
     ].filter((l) => l.show);
-    return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR" subheading=${off ? 'ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}>
-      <sw-card heading="מצב" data-security-nvr>
+    return html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading="NVR" subheading=${off ? tr('ללא NVR') : h.nvr_configured ? tr('מוגדר') : tr('לא מוגדר')}>
+      <sw-card heading=${tr('מצב')} data-security-nvr>
         <div class="rows">
-          <div class="row"><span>NVR</span><span class=${off ? '' : h.nvr_configured ? 'msg ok' : 'msg err'}>${off ? 'מצב ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}</span></div>
+          <div class="row"><span>NVR</span><span class=${off ? '' : h.nvr_configured ? 'msg ok' : 'msg err'}>${off ? tr('מצב ללא NVR') : h.nvr_configured ? tr('מוגדר') : tr('לא מוגדר')}</span></div>
           ${off
             ? nothing
-            : html`<div class="row"><span>זרם התראות</span><span class=${h.events.ingest.connected ? 'msg ok' : 'msg err'}>${h.events.ingest.connected ? 'מחובר' : 'מנותק'}</span></div>
-                <div class="row"><span>ערוצים שגולו</span><span>${h.discovery.cameras}</span></div>
-                <div class="row"><span>גילוי אחרון תקין</span><span class=${h.discovery.cameras_last_error ? 'warn' : ''}>${when(h.discovery.cameras_last_ok)}</span></div>`}
+            : html`<div class="row"><span>${tr('זרם התראות')}</span><span class=${h.events.ingest.connected ? 'msg ok' : 'msg err'}>${h.events.ingest.connected ? tr('מחובר') : tr('מנותק')}</span></div>
+                <div class="row"><span>${tr('ערוצים שגולו')}</span><span>${h.discovery.cameras}</span></div>
+                <div class="row"><span>${tr('גילוי אחרון תקין')}</span><span class=${h.discovery.cameras_last_error ? 'warn' : ''}>${when(h.discovery.cameras_last_ok)}</span></div>`}
         </div>
         ${links.length
           ? html`<div class="actions">${links.map((l) => html`<sw-button size="sm" variant="ghost" @click=${() => (window.location.hash = l.href)}>${l.label}</sw-button>`)}</div>`

@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { DAY_LONG, DAY_ORDER, SUN_FALLBACK, actionLabel, timeMinutes, type DayId, type Schedule, type SunTimes } from '../api/schedules';
 import { CATEGORY_LABEL, clock, minutesToPercent, slotCategory, type SlotCategory } from './schedule-grid-logic';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: the list's week view (mockup 03): every enabled schedule of the shown set composed on one 7 x 24 h board - read
@@ -253,7 +254,7 @@ export class SchedulesWeekView extends LitElement {
         const at = timeMinutes(sl.start, sun);
         const cat = slotCategory({ start: sl.start.raw, stop: sl.stop?.raw ?? null, actions: sl.actions.map((a) => ({ service: a.service, entity_id: a.entity_id, data: a.data })) }, classOf);
         const what = sl.actions[0] ? actionLabel(sl.actions[0]) : '';
-        raw.push({ id: s.id, key: `${s.id}:${i}`, at, text: s.display_name, title: `${clock(at)} · ${s.display_name}${what ? ` · ${what}` : ''} (${CATEGORY_LABEL[cat]})${s.conditions.items.length ? ' · בתנאי' : ''}`, cat, cond: s.conditions.items.length > 0 });
+        raw.push({ id: s.id, key: `${s.id}:${i}`, at, text: s.display_name, title: `${clock(at)} · ${s.display_name}${what ? ` · ${what}` : ''} (${CATEGORY_LABEL[cat]})${s.conditions.items.length ? ` · ${tr('בתנאי')}` : ''}`, cat, cond: s.conditions.items.length > 0 });
       });
     }
     raw.sort((a, b) => a.at - b.at);
@@ -304,7 +305,7 @@ export class SchedulesWeekView extends LitElement {
           </div>`;
         })}
       </div>
-      ${this.schedules.some((s) => s.enabled) ? nothing : html`<div class="empty">אין תזמונים פעילים להצגה.</div>`}
+      ${this.schedules.some((s) => s.enabled) ? nothing : html`<div class="empty">${tr('אין תזמונים פעילים להצגה.')}</div>`}
     </div>`;
   }
 }

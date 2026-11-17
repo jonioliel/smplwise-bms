@@ -7,6 +7,7 @@
  */
 import type { AdminDevice } from '../api/media-admin';
 import { integrationName } from './media-integration-names';
+import { tr } from '../i18n/msg/media';
 
 export type SortKey = 'name' | 'type' | 'integration' | 'area' | 'id' | 'status';
 export type GroupKey = 'none' | 'integration' | 'area' | 'type';
@@ -36,7 +37,7 @@ export interface ListView {
 export type ColKey = 'type' | 'integration' | 'entityId' | 'deviceId' | 'room' | 'floor' | 'status' | 'cast' | 'connections';
 export type ColPrefs = Partial<Record<ColKey, boolean>>;
 export const COL_KEYS: ColKey[] = ['type', 'integration', 'entityId', 'deviceId', 'room', 'floor', 'status', 'cast', 'connections'];
-export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 'אינטגרציה', entityId: 'מזהה ישות', deviceId: 'מזהה התקן', room: 'חדר', floor: 'קומה', status: 'מצב', cast: 'שידור', connections: 'חיבורים' };
+export const COL_LABEL: Record<ColKey, string> = { type: tr('סוג'), integration: tr('אינטגרציה'), entityId: tr('מזהה ישות'), deviceId: tr('מזהה התקן'), room: tr('חדר'), floor: tr('קומה'), status: tr('מצב'), cast: tr('שידור'), connections: tr('חיבורים') };
 /** Table widths: `wide` above 1280 px, `md` (tablet) from 861 to 1280 px; at 860 px and below the rows are cards and every column choice is ignored. */
 export type Bp = 'wide' | 'md';
 export const BREAKPOINT_MD = 1280;
@@ -210,7 +211,7 @@ function groupOf(r: Row, g: GroupKey, typeLabel: (b: TypeBucket) => string, none
   return { id: r.f.type, label: typeLabel(r.f.type) };
 }
 
-export const TYPE_LABEL: Record<TypeBucket, string> = { screen: 'מסכים', speaker: 'רמקולים ונגנים', other: 'אחר' };
+export const TYPE_LABEL: Record<TypeBucket, string> = { screen: tr('מסכים'), speaker: tr('רמקולים ונגנים'), other: tr('אחר') };
 
 /** The filtered, sorted rows, in groups (one anonymous group when `group` is none). Group order follows the same direction as the sort key when it is the group key, else ascending, "no value" last. */
 export function buildView(devices: AdminDevice[], v: ListView, live?: LiveAvail): { groups: Group[]; shown: number; total: number } {
@@ -219,7 +220,7 @@ export function buildView(devices: AdminDevice[], v: ListView, live?: LiveAvail)
   if (v.group === 'none') return { groups: [{ id: '', label: '', rows: kept }], shown: kept.length, total: rows.length };
   const map = new Map<string, Group>();
   for (const r of kept) {
-    const g = groupOf(r, v.group, (b) => TYPE_LABEL[b], { area: 'ללא חדר', integration: 'ללא אינטגרציה' });
+    const g = groupOf(r, v.group, (b) => TYPE_LABEL[b], { area: tr('ללא חדר'), integration: tr('ללא אינטגרציה') });
     if (!map.has(g.id)) map.set(g.id, { ...g, rows: [] });
     map.get(g.id)!.rows.push(r);
   }
@@ -236,7 +237,7 @@ export function optionsOf(devices: AdminDevice[], live?: LiveAvail): { integrati
   for (const d of devices) {
     const f = factsOf(d, live);
     for (const i of f.integrations.length ? f.integrations : [NO_INTEGRATION]) ints.set(i, (ints.get(i) ?? 0) + 1);
-    const a = areas.get(f.areaKey) ?? { label: f.area || 'ללא חדר', count: 0 };
+    const a = areas.get(f.areaKey) ?? { label: f.area || tr('ללא חדר'), count: 0 };
     a.count += 1;
     areas.set(f.areaKey, a);
     types.add(f.type);

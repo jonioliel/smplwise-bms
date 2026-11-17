@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { tr } from '../../i18n/msg/misc';
 
 /**
  * Skin "bubble" (owner 2026-10-02, approved from the taste mockup docs/design/mockups/bubble-taste on pilot/design-bubble-taste):
@@ -182,4 +183,4 @@ const rules = `
 :host(system-nav) a { border-radius: var(--sw-r-pill); min-block-size: max(36px, var(--sw-settings-row-h, 0px)); }
 `;
 
-export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', stage: 'frozen', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };
+export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: tr('חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה'), stage: 'frozen', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };

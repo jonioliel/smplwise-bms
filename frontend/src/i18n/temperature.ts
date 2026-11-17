@@ -4,6 +4,7 @@
  * Arabic and Russian columns are an INITIAL translation and need a native review (dev-marked, like the elevators). `{x}` placeholders are
  * filled by `tt(key, { x })`. Operator screens never name the home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'טמפרטורות',
   subtitle: 'תשתיות · {n} יחידות · {d} עם חיישן דלת · מצב חי מהחיישנים',
@@ -1530,8 +1531,7 @@ export type TtKey = Key;
 export type TtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function ttLang(): TtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<TtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -1540,8 +1540,10 @@ export const TT_DEV_MARKED: readonly TtLang[] = ['ar', 'ru'];
 
 export function tt(key: Key, vars?: Record<string, string | number>, lang: TtLang = ttLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const TT_KEYS = Object.keys(he) as Key[];
 export const TT_TABLES = TABLES;
+
+registerCatalogue('i18n/temperature', { he, en, ar, ru }, TT_DEV_MARKED);

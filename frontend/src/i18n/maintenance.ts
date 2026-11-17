@@ -4,6 +4,7 @@
  * תשתיות › תחזוקה ובקרה). Hebrew first; English follows the document language; Arabic and Russian fall back to the Hebrew until a
  * translation is reviewed. `{x}` placeholders are filled by `mt(key, { x })`. Operator screens never name the home platform.
  */
+import { docLang, fill, registerCatalogue } from './core';
 import { NAV_MT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
 
 const he = {
@@ -716,14 +717,145 @@ const en: Partial<Record<Key, string>> = {
   elevator: 'Elevator',
   generator: 'Generator',
   scanNotFound: 'Tag not found',
+  dash: '-',
+  cat_elevator: 'Elevators',
+  cat_generator: 'Generator',
+  cat_fire: 'Fire protection',
+  cat_kitchen_hood: 'Kitchen hood',
+  cat_electrical: 'Electrical',
+  cat_pumps: 'Pumps',
+  cat_hvac: 'Air conditioning',
+  cat_water: 'Water',
+  cat_safety: 'Safety',
+  cat_other: 'Other',
+  doc_insurance: 'Insurance',
+  doc_electrician_license: "Electrician's licence",
+  doc_work_at_height: 'Work-at-height permit',
+  doc_other: 'Other document',
+  device: 'Device',
+  requestLast: 'Open request',
+  ticketErr_tickets_off: 'Not opened: the service requests module is off',
+  ticketErr_department_unavailable: 'Not opened: the department is unavailable',
+  renewedToast: 'Renewal saved',
+  doneToast: 'Marked as done',
+  pausedToast: 'Paused',
+  resumedToast: 'Resumed',
+  removedToast: 'Deleted',
+  vendorSub: 'Supplier · {n} documents',
+  vendorTasks: "The supplier's tasks",
+  noDocuments: 'No documents for this supplier',
+  insuranceExpired: 'Insurance expired {d}',
+  docExpired: '{doc} expired {d}',
+  docUntil: '{doc} until {d}',
+  vendorOk: 'OK',
+  vendorNoDocs: 'No documents',
+  noValidInsurance: '{v} has no valid insurance',
+  noValidDoc: '{v} has an expired document',
+  needsApproval: 'Assigning a supplier without valid documents needs approval from someone with the approvals permission.',
+  formNewCert: 'New certificate or inspection',
+  formNewDoc: 'New supplier document',
+  formNewPlan: 'New maintenance plan',
+  formNewRound: 'New round',
+  fKind: 'Kind',
+  fCategory: 'Category',
+  fPlace: 'Place',
+  fPlaceNone: 'Whole building (no place)',
+  fVendor: 'Supplier',
+  fVendorNone: 'No supplier',
+  fDocType: 'Document type',
+  fOwner: 'Responsible',
+  fOwnerNone: 'No one responsible',
+  fValidUntil: 'Valid until',
+  fFirstDate: 'First date',
+  fInterval: 'Interval',
+  fIntervalNone: 'No fixed interval',
+  fEvery: 'Every',
+  fUnit_day: 'days',
+  fUnit_week: 'weeks',
+  fUnit_month: 'months',
+  fUnit_year: 'years',
+  fLead: 'Reminder (days before)',
+  fLeadHint: 'The default is set in the settings: {n} days',
+  fNotes: 'Notes',
+  fChecklist: 'Checklist',
+  fAddItem: 'Add an item',
+  fItemLabel: 'Item',
+  fItemKind: 'Kind',
+  fItemCheck: 'Yes / no',
+  fItemNumber: 'Number',
+  fItemText: 'Text',
+  fItemMin: 'Minimum',
+  fItemMax: 'Maximum',
+  fItemRequired: 'Required',
+  fItemRemove: 'Remove the item',
+  fAutoTicket: 'Open a service request automatically',
+  fDepartment: 'Department',
+  fDepartmentPick: 'Choose a department',
+  fRequired: 'Required field',
+  fBadDate: 'Invalid date',
+  fBadNumber: 'Invalid number',
+  fNeedItems: 'A round needs at least one checkpoint',
+  fRangeOrder: 'The minimum is greater than the maximum',
+  fVendorExpired: 'This supplier has an expired document',
+  runOf: '{a} / {b}',
+  value: 'Value',
+  noteField: 'Note',
+  requestOpened: 'Opened',
+  pointN: 'Checkpoint {i}',
+  issuesN: '{n} checkpoints with a problem',
+  issues1: 'One checkpoint with a problem',
+  issues0: 'All checkpoints are OK',
+  runNote: 'Note on the round',
+  runDone: 'The round is finished',
+  runCancelled: 'The round was cancelled',
+  missingRequired: 'Some required checkpoints are not marked',
+  runReadOnly: '{who} has this round open',
+  runAlreadyOpen: 'The round has already started',
+  required: 'Required',
+  tagFor: 'Tag target',
+  tagTask: 'Task',
+  tagDevice: 'Device',
+  tagLabel: 'Label',
+  tagMedium: 'Kind',
+  tagCreate: 'Create',
+  tagRevokeConfirm: 'Revoke the tag "{l}"? Scanning it will no longer open anything.',
+  tagRevoked: 'Tag revoked',
+  tagCreated: 'Tag created',
+  deviceSuffix: '{n} (device)',
+  stickerSub: '{k} · {p}',
+  copyLink: 'Copy link',
+  copied: 'Link copied',
+  tagUrlHint: 'The link on the sticker: {u} (sign-in required)',
+  tagNoBase: 'No remote address is set: the sticker will use the current address',
+  scanTitle: 'Scanned tag',
+  scanNotFoundHint: 'The tag was revoked, or you do not have permission to see its target.',
+  scanOpen: 'Open',
+  scanDeviceTasks: "The device's tasks",
+  scanOpenRequests: '{n} open requests',
+  scanStartRound: 'Start the round',
+  setModule: 'Maintenance & inspections module',
+  setModuleHint: 'A ledger of certificates and inspections, preventive maintenance, rounds and QR/NFC tags in the service management area.',
+  setLeads: 'Reminders - default for a new task',
+  setLeadsHint: 'How many days before the date a reminder is sent. Each task keeps its own value, which can be changed in the form.',
+  setLead_certificate: 'Certificates & inspections',
+  setLead_preventive: 'Preventive maintenance',
+  setLead_round: 'Rounds',
+  setLead_vendor_document: 'Supplier documents',
+  setTagUrl: 'Address on QR stickers',
+  setTagUrlHint: 'Empty = the remote access address set in the system settings. A scan always requires signing in.',
+  setNotify: 'Maintenance notifications are in Settings, on the notifications screen, under the "Maintenance & inspections" category.',
+  setPerms: 'The permissions (view, perform, manage) are given to each role in Users and permissions.',
+  setBadLead: 'A number of days from 0 to 365',
+  setBadUrl: 'A full https address, or empty',
+  setForbidden: 'These settings are available to the system administrator.',
+  daysUnit: 'days',
 };
 
 export type MtKey = Key;
 export type MtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function mtLang(): MtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 /** Arabic and Russian: the Hebrew until a reviewed translation lands (a missing key always falls back to the Hebrew). */
@@ -731,8 +863,10 @@ const TABLES: Record<MtLang, Partial<Record<Key, string>>> = { he, en, ar: {}, r
 
 export function mt(key: Key, vars?: Record<string, string | number>, lang: MtLang = mtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const MT_KEYS = Object.keys(he) as Key[];
 export const MT_TABLES = TABLES;
+
+registerCatalogue('i18n/maintenance', { he, en });

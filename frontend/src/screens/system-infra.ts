@@ -16,6 +16,7 @@ import { insightsAccess } from '../insights/access';
 import '../temperature/temp-settings'; // CR-INFRA-TEMPERATURE 2.9.1: הגדרות › תשתיות › טמפרטורות
 import '../maintenance/settings'; // CR-MAINT215 slice 2: הגדרות › תשתיות › תחזוקה ובקרה
 import { mt } from '../i18n/maintenance';
+import { tr } from '../i18n/msg/system-b';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -31,19 +32,19 @@ interface SectionDef {
 }
 
 const SECTIONS: SectionDef[] = [
-  { id: 'prices', label: 'מחירים ומע״מ', tag: 'elec-settings-prices', allowed: (a) => a.manage },
+  { id: 'prices', label: tr('מחירים ומע״מ'), tag: 'elec-settings-prices', allowed: (a) => a.manage },
   // EL5: the holidays and eves of time-of-use tariffs
-  { id: 'calendar', label: 'ימים מיוחדים', tag: 'elec-settings-calendar', allowed: (a) => a.manage },
-  { id: 'business', label: 'פרטי העסק', tag: 'elec-settings-business', allowed: (a) => a.manage },
-  { id: 'retention', label: 'שמירת נתונים', tag: 'elec-settings-retention', allowed: (a) => a.system || a.manage },
+  { id: 'calendar', label: tr('ימים מיוחדים'), tag: 'elec-settings-calendar', allowed: (a) => a.manage },
+  { id: 'business', label: tr('פרטי העסק'), tag: 'elec-settings-business', allowed: (a) => a.manage },
+  { id: 'retention', label: tr('שמירת נתונים'), tag: 'elec-settings-retention', allowed: (a) => a.system || a.manage },
   // CR-031 GEN1: the generator's detection, sensor mapping, thresholds and alert routing (generator.manage)
-  { id: 'generator', label: 'גנרטור', tag: 'gen-settings', allowed: (_a, g) => g.manage },
+  { id: 'generator', label: tr('גנרטור'), tag: 'gen-settings', allowed: (_a, g) => g.manage },
   // CR-INFRA-ELEVATORS: define elevators and link their state sensors (infra.elevators.manage)
-  { id: 'elevators', label: 'מעליות', tag: 'elevator-settings', allowed: () => elevatorsAccess().manage },
+  { id: 'elevators', label: tr('מעליות'), tag: 'elevator-settings', allowed: () => elevatorsAccess().manage },
   // CR-INFRA-TEMPERATURE 2.9.1: the installation defaults of every rule and the alert routing (infra.temperature.manage)
-  { id: 'temperature', label: 'טמפרטורות', tag: 'temp-settings', allowed: () => temperatureAccess().manage },
+  { id: 'temperature', label: tr('טמפרטורות'), tag: 'temp-settings', allowed: () => temperatureAccess().manage },
   // CR-INSIGHT215: the switches, door pairs and thresholds of the insights and the building report (insights.manage, installation)
-  { id: 'insights', label: 'תובנות ודוחות', tag: 'insights-settings', allowed: () => insightsAccess().manage },
+  { id: 'insights', label: tr('תובנות ודוחות'), tag: 'insights-settings', allowed: () => insightsAccess().manage },
   // CR-MAINT215 slice 2: the maintenance module's switch and defaults - lead per kind, the sticker address (system.configure)
   { id: 'maintenance', get label() { return mt('setTitle'); }, tag: 'maint-settings', allowed: (a) => a.system },
 ];
@@ -90,12 +91,12 @@ export class SystemInfra extends LitElement {
 
   render() {
     const offered = SECTIONS.filter((s) => s.allowed(this.access, generatorAccess()));
-    if (!offered.length) return html`<sw-state-panel state="forbidden" heading="אין הרשאה להגדרות התשתיות" hint="מנהל המערכת מעניק את ההרשאה לכל אזור תשתית בנפרד." data-elec="settings" data-state="forbidden"></sw-state-panel>`;
+    if (!offered.length) return html`<sw-state-panel state="forbidden" heading=${tr('אין הרשאה להגדרות התשתיות')} hint=${tr('מנהל המערכת מעניק את ההרשאה לכל אזור תשתית בנפרד.')} data-elec="settings" data-state="forbidden"></sw-state-panel>`;
     const asked = this.route?.segments[2];
     const cur = offered.find((s) => s.id === asked) ?? offered[0];
     const items: TabItem[] = offered.map((s) => ({ id: s.id, label: s.label, href: `#/system/infra/${s.id}` }));
     const tag = unsafeStatic(cur.tag);
-    const body = customElements.get(cur.tag) ? shtml`<${tag} .route=${this.route}></${tag}>` : html`<sw-state-panel icon="cpu" state="empty" heading="אין מסך" data-state="empty"></sw-state-panel>`;
+    const body = customElements.get(cur.tag) ? shtml`<${tag} .route=${this.route}></${tag}>` : html`<sw-state-panel icon="cpu" state="empty" heading=${tr('אין מסך')} data-state="empty"></sw-state-panel>`;
     return html`<sw-tabs class="strip" segmented .items=${items} .active=${cur.id} panel="infra-section" data-infra-settings-tabs></sw-tabs><div id="infra-section" data-infra-section=${cur.id}>${body}</div>`;
   }
 }

@@ -98,7 +98,7 @@ test.describe('shell status key note (shell/sw-app.ts)', () => {
   test('a keyboard open (click with detail 0) moves the focus into the note; a pointer open does not', () => {
     expect(src).toMatch(/private onSysDotClick = \(e: MouseEvent\) => \{\s*this\.sysPop = !this\.sysPop;\s*if \(!this\.sysPop \|\| e\.detail !== 0\) return;/);
     expect(src).toMatch(/\[data-sys-pop\]'\)\?\.focus\(\{ preventScroll: true \}\)/);
-    expect(src).toMatch(/data-sys-pop role="dialog" aria-label="[^"]+" tabindex="-1"/);
+    expect(src).toMatch(/data-sys-pop role="dialog" aria-label=\$\{tr\('[^']+'\)\} tabindex="-1"/);
   });
   test('Escape closes it and returns the focus to the key; Tab out of the note closes it behind the focus', () => {
     expect(src).toMatch(/e\.key === 'Escape' && this\.sysPop\) this\.closeSysPop\(true\)/);

@@ -18,6 +18,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { wt, type WaTextKey } from '../i18n/messaging-accounts';
+import { tr } from '../i18n/msg/system-b';
 import {
   DEPT_SEP, LABEL_MAX, PACING_KEYS, accountOf, accountWarnings, chipTone, displayLabel, draftFrom, isDirty, manualProblem, newManualKey, pacingProblem,
   stateWord, toPutBody, useOptions, useWarnings, usesOf, usesText, warningText, type Draft, type DraftAccount,
@@ -616,13 +617,13 @@ export class SystemMessagingAccounts extends LitElement {
 
   render() {
     const heading = wt('title');
-    if (this.loadState === 'loading') return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.loadState === 'loading') return html`<sw-page crumbs=${tr('הגדרות')} heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     if (this.loadState !== 'ready' || !this.view || !this.draft) {
-      return html`<sw-page crumbs="הגדרות" heading=${heading} data-messaging-accounts data-state=${this.loadState}>
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${heading} data-messaging-accounts data-state=${this.loadState}>
         <sw-state-panel icon="mail" state=${this.loadState === 'forbidden' ? 'forbidden' : 'error'} heading=${this.loadState === 'forbidden' ? wt('forbidden') : this.error} actionLabel=${wt('retry')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const dirty = isDirty(this.view, this.draft);
-    return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${wt('sub')} data-messaging-accounts data-state="ready">
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${heading} subheading=${wt('sub')} data-messaging-accounts data-state="ready">
       ${this.error ? html`<div class="msg err" role="alert" data-error>${this.error}</div>` : nothing}
       ${this.ok ? html`<div class="msg ok" role="status" data-ok>${this.ok}</div>` : nothing}
       <div class="cols">

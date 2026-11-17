@@ -6,6 +6,7 @@
  * and the D33 lint covers it (it lives in src/tickets/).
  */
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the view switch (D24: cards / table / kanban, remembered per user)
@@ -306,3 +307,5 @@ export const tbt = catalogue.t;
 
 export const TABLE_TEXT_KEYS = catalogue.KEYS;
 export const TABLE_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/table-text', { he, en });

@@ -3,6 +3,7 @@
  * Hebrew and English; the document language picks (anything but English shows Hebrew). `{x}` placeholders are filled by `obr(key, vars)`.
  * Server error codes are `err_<code>`; an unknown code falls back to `err_other`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   open: 'שחזור מעותק',
   title: 'שחזור מעותק מחוץ למכונה',
@@ -121,13 +122,12 @@ export const OBR_KEYS = Object.keys(he) as Key[];
 export const OBR_TABLES = { he, en };
 
 export function obrLang(): 'he' | 'en' {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function obr(key: Key, vars?: Record<string, string | number>, lang: 'he' | 'en' = obrLang()): string {
   const raw = OBR_TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export function obrError(code: string | null | undefined, lang: 'he' | 'en' = obrLang(), vars?: Record<string, string | number>): string {
@@ -140,3 +140,5 @@ export function obrApiError(code: string, details: Record<string, unknown> | und
   const n = typeof details?.min_chars === 'number' ? details.min_chars : 12;
   return obrError(code, lang, { n });
 }
+
+registerCatalogue('i18n/backup-offbox-restore', { he, en });

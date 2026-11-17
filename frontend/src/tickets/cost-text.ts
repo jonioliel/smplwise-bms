@@ -6,6 +6,7 @@
  * separate file so slice 9 never edits slice 1's catalogue; tests/unit-tickets-costs.spec.ts checks completeness and the D33 lint of
  * unit-tickets-naming.spec.ts covers it (it lives in src/tickets/).
  */
+import { registerCatalogue } from '../i18n/core';
 import { NAV_CT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
 import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
@@ -467,3 +468,5 @@ export const ct = catalogue.t;
 
 export const COST_TEXT_KEYS = catalogue.KEYS;
 export const COST_TEXT_EN_KEYS = catalogue.EN_KEYS;
+
+registerCatalogue('tickets/cost-text', { he, en });

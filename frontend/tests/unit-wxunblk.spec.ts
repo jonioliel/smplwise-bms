@@ -158,6 +158,6 @@ test.describe('WXUNBLK: strings and the thin client', () => {
     const setup = read('../src/screens/system-setup.ts');
     expect(setup).toMatch(/can\('system\.configure'\) \? html`<sw-door-setup data-door-setup><\/sw-door-setup><sw-door-inventory data-door-inventory><\/sw-door-inventory><sw-door-blocks data-door-blocks><\/sw-door-blocks><sw-emergency-open-settings><\/sw-emergency-open-settings>` : nothing/);
     expect(setup).toContain("import './system-door-blocks';");
-    expect(read('../src/screens/system-index.ts')).toMatch(/label: 'חיבורים'[^\n]*חסימות פתיחת דלתות/);
+    expect(read('../src/screens/system-index.ts')).toMatch(/label: tr\('חיבורים'\)[^\n]*חסימות פתיחת דלתות/);
   });
 });

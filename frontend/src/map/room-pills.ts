@@ -10,6 +10,7 @@
  * Every choice the owner has not answered yet (round 28 questions.html, group א) is a product setting (pillPrefsOf), so an answer
  * is a default change: `map.room_pills`, `map.room_pill_tap`, `map.room_pill_quiet`.
  */
+import { tr } from '../i18n/msg/map';
 import { pointInPolygon } from '../api/zones';
 import { isOpenState } from './coverage';
 import { isLightEntity, isOpeningEntity, isPresenceEntity, temperatureText, type RoomStateLayer } from './room-state';
@@ -240,7 +241,7 @@ export function nearRoom(pills: readonly RoomPill[], at: ReadonlyMap<string, { x
 export const pillTone = (s: RoomSummary): 'open' | 'pres' | 'lit' | 'quiet' => (s.open ? 'open' : s.presence ? 'pres' : s.lit ? 'lit' : 'quiet');
 
 /** "פתוח 1" / "2 פתוחים". */
-export const openWords = (n: number): string => (n === 1 ? 'פתוח 1' : `${n} פתוחים`);
+export const openWords = (n: number): string => (n === 1 ? tr('פתוח 1') : tr('{n} פתוחים', { n }));
 
 /** The one device a single-device room names on its pill (mid distance), or null. A temperature is never "the" device: the
  * pill's own reading shows it. */
@@ -250,12 +251,12 @@ export function soleDevice(s: RoomSummary): RoomDevice | null {
 
 /** The pill's accessible name: the room and every fact in words (the badges are glyphs and numbers). */
 export function pillAria(s: RoomSummary): string {
-  const bits = [s.name || 'חדר'];
+  const bits = [s.name || tr('חדר')];
   if (s.open) bits.push(openWords(s.open));
-  if (s.presence) bits.push('נוכחות');
-  if (s.lit) bits.push(s.lit === 1 ? 'אור אחד דולק' : `${s.lit} אורות דולקים`);
+  if (s.presence) bits.push(tr('נוכחות'));
+  if (s.lit) bits.push(s.lit === 1 ? tr('אור אחד דולק') : tr('{n} אורות דולקים', { n: s.lit }));
   if (s.temp !== null) bits.push(temperatureText(s.temp));
-  if (isQuiet(s)) bits.push('הכול סגור');
+  if (isQuiet(s)) bits.push(tr('הכול סגור'));
   return bits.join(', ');
 }
 

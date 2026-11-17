@@ -31,6 +31,7 @@ import { syncErrorText } from '../api/ha-sync-status';
 import { attentionFit } from './live-overview-logic';
 import { timeText } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
+import { tr } from '../i18n/msg/live';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
 interface RawHealth {
@@ -48,11 +49,11 @@ interface Spot {
 }
 
 function greeting(hour: number): string {
-  if (hour < 5) return 'לילה טוב';
-  if (hour < 12) return 'בוקר טוב';
-  if (hour < 17) return 'צהריים טובים';
-  if (hour < 21) return 'ערב טוב';
-  return 'לילה טוב';
+  if (hour < 5) return tr('לילה טוב');
+  if (hour < 12) return tr('בוקר טוב');
+  if (hour < 17) return tr('צהריים טובים');
+  if (hour < 21) return tr('ערב טוב');
+  return tr('לילה טוב');
 }
 
 const EVENT_TONE: Record<string, string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
@@ -153,25 +154,25 @@ export class LiveOverview extends LitElement {
     const out: Spot[] = [];
     const cams = this.cams ?? [];
     for (const c of cams.filter((x) => x.status === 'offline')) {
-      const seen = c.last_seen_at ? ` · נראתה לאחרונה ${this.fmtTime(c.last_seen_at)}` : '';
+      const seen = c.last_seen_at ? ` · ${tr('נראתה לאחרונה {time}', { time: this.fmtTime(c.last_seen_at) })}` : '';
       // NVRLESS-CAMERAS-2411: a camera without a recorder has no channel and no recorder that reports it
-      if (isStandaloneRow(c)) out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `מצלמה ללא מקליט${seen}`, why: 'מוצג כי המצלמה אינה עונה בכתובת הווידאו שלה', link: `#/live/cameras/${c.id}` });
-      else out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `ערוץ ${c.channel}${seen}`, why: 'מוצג כי המקליט מדווח שהערוץ אינו מחובר', link: `#/live/cameras/${c.id}` });
+      if (isStandaloneRow(c)) out.push({ kind: 'critical', title: tr('מצלמה מנותקת: {name}', { name: c.name }), meta: `${tr('מצלמה ללא מקליט')}${seen}`, why: tr('מוצג כי המצלמה אינה עונה בכתובת הווידאו שלה'), link: `#/live/cameras/${c.id}` });
+      else out.push({ kind: 'critical', title: tr('מצלמה מנותקת: {name}', { name: c.name }), meta: `${tr('ערוץ {n}', { n: c.channel })}${seen}`, why: tr('מוצג כי המקליט מדווח שהערוץ אינו מחובר'), link: `#/live/cameras/${c.id}` });
     }
     for (const it of (this.health?.items ?? []).filter((i) => i.status !== 'ok')) {
-      out.push({ kind: it.status === 'error' ? 'critical' : 'alert', title: it.label, meta: `בדיקת מערכת · ${STATUS_LABEL[it.status]}`, why: 'מוצג כי בדיקת הבריאות של ה־Add-on מדווחת על כך', link: '#/system/diagnostics' });
+      out.push({ kind: it.status === 'error' ? 'critical' : 'alert', title: it.label, meta: `${tr('בדיקת מערכת')} · ${STATUS_LABEL[it.status]}`, why: tr('מוצג כי בדיקת הבריאות של ה־Add-on מדווחת על כך'), link: '#/system/diagnostics' });
     }
     const un = this.summary?.today.unacked ?? 0;
     if (un > 0) {
       const by = Object.entries(this.summary?.today.by_type ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, n]) => `${EVENT_LABEL[t as keyof typeof EVENT_LABEL] ?? t} ${n}`).join(' · ');
-      out.push({ kind: 'alert', title: `${un} אירועים שלא נבדקו היום`, meta: by, why: 'מוצג כי אירועים ממתינים לסימון טיפול במרכז האירועים', link: '#/investigate/events' });
+      out.push({ kind: 'alert', title: tr('{n} אירועים שלא נבדקו היום', { n: un }), meta: by, why: tr('מוצג כי אירועים ממתינים לסימון טיפול במרכז האירועים'), link: '#/investigate/events' });
     }
     const ing = this.raw?.events.ingest;
     if (ing?.connected && !ing.events_stored && !ing.last_event_at) {
-      out.push({ kind: 'info', title: 'המקליט לא שלח התראות מאז ההפעלה', meta: 'אירועי תנועה נגזרים מההקלטות כל 10 דקות', why: 'מוצג כי זרם ההתראות מחובר אך ריק — במקליט יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה', link: '#/system/setup' });
+      out.push({ kind: 'info', title: tr('המקליט לא שלח התראות מאז ההפעלה'), meta: tr('אירועי תנועה נגזרים מההקלטות כל 10 דקות'), why: tr('מוצג כי זרם ההתראות מחובר אך ריק — במקליט יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה'), link: '#/system/setup' });
     }
     if (this.raw?.home_assistant.configured && !this.raw.home_assistant.connected) {
-      out.push({ kind: 'alert', title: 'אין חיבור לתשתית המערכת', meta: syncErrorText(this.raw.home_assistant.last_error), why: 'מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים', link: '#/system/setup' });
+      out.push({ kind: 'alert', title: tr('אין חיבור לתשתית המערכת'), meta: syncErrorText(this.raw.home_assistant.last_error), why: tr('מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים'), link: '#/system/setup' });
     }
     return out;
   }
@@ -196,16 +197,16 @@ export class LiveOverview extends LitElement {
     const favorites = cams.filter((x) => x.status === 'online').slice(0, 2);
     const layout = this.tiles.layout;
     if (this.loaded && this.loadFailed) {
-      return html`<sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`}><sw-state-panel state="error" actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`}><sw-state-panel state="error" actionLabel=${tr('נסו שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     return html`
-      <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `מצב המערכת: ${STATUS_LABEL[h.status]}${firstIssue ? ` · ${firstIssue.label}` : ' · כל הבדיקות תקינות'}` : 'קורא את מצב המערכת…'}>
+      <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `${tr('מצב המערכת: {status}', { status: STATUS_LABEL[h.status] })}${firstIssue ? ` · ${firstIssue.label}` : ` · ${tr('כל הבדיקות תקינות')}`}` : tr('קורא את מצב המערכת…')}>
         <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${timeText(this.now, { timeZone: this.tz })}</div>
         <div class="kpis" data-overview-kpis>
-          <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${!webrtcServer() ? WEBRTC_REQUIRED_SHORT : this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'} layout=${layout} href=${!webrtcServer() ? WEBRTC_SETTINGS_HREF : cap('nvr') ? '#/system/devices?sort=offline' : '#/live/wall'} hint=${webrtcServer() ? 'פתח את רשימת המצלמות' : WEBRTC_REQUIRED_TEXT} ?data-webrtc-required=${!webrtcServer()}></sw-kpi>
-          <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>
-          <sw-kpi data-overview-tile="events" icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''} layout=${layout} href=${`#/investigate/events?date=${dateInZone(this.now, this.tz)}`} hint="פתח את אירועי היום"></sw-kpi>
-          <sw-kpi data-overview-tile="health" icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'מקליט, go2rtc, תשתית המערכת ואחסון'} layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
+          <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label=${tr('מצלמות')} detail=${!webrtcServer() ? WEBRTC_REQUIRED_SHORT : this.recorder ? `${tr('מחוברות')} · ${this.recorder.model ?? this.recorder.name}` : tr('מחוברות')} layout=${layout} href=${!webrtcServer() ? WEBRTC_SETTINGS_HREF : cap('nvr') ? '#/system/devices?sort=offline' : '#/live/wall'} hint=${webrtcServer() ? tr('פתח את רשימת המצלמות') : WEBRTC_REQUIRED_TEXT} ?data-webrtc-required=${!webrtcServer()}></sw-kpi>
+          <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label=${tr('אתרים')} detail=${`${tr('{n} קומות', { n: floors.length })} · ${tr('{n} עם תוכנית', { n: floors.filter((f) => f.has_plan).length })}`} tone="neutral" layout=${layout} href="#/explore/sites" hint=${tr('פתח את האתרים')}></sw-kpi>
+          <sw-kpi data-overview-tile="events" icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label=${tr('אירועים')} detail=${this.summaryDenied ? tr('ללא הרשאה לאירועים') : tr('היום')} tone="neutral" badge=${this.summary?.today.unacked ? tr('{n} לבדיקה', { n: this.summary.today.unacked }) : ''} layout=${layout} href=${`#/investigate/events?date=${dateInZone(this.now, this.tz)}`} hint=${tr('פתח את אירועי היום')}></sw-kpi>
+          <sw-kpi data-overview-tile="health" icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label=${tr('מצב מערכת')} detail=${firstIssue ? firstIssue.label : tr('מקליט, go2rtc, תשתית המערכת ואחסון')} layout=${layout} href="#/system/diagnostics?tab=health" hint=${tr('פתח את פרטי הבריאות')}></sw-kpi>
         </div>
         ${favorites.length
           ? html`<div class="fav" data-overview-favorites>
@@ -214,47 +215,47 @@ export class LiveOverview extends LitElement {
           : nothing}
         <div class="row2">
           ${st && tot && cap('nvr') /* NVRLESS-CAMERAS-2411: the recorder's storage card stays a recorder card */
-            ? html`<sw-card heading="אחסון" subheading=${st.cached ? 'מהמטמון · נמדד מול המקליט' : 'נמדד מול המקליט'}>
+            ? html`<sw-card heading=${tr('אחסון')} subheading=${st.cached ? tr('מהמטמון · נמדד מול המקליט') : tr('נמדד מול המקליט')}>
                 <div class="donut">
-                  <svg viewBox="0 0 84 84" role="img" aria-label=${`אחסון בשימוש ${usedPct ?? 0}%`}>
+                  <svg viewBox="0 0 84 84" role="img" aria-label=${tr('אחסון בשימוש {pct}%', { pct: usedPct ?? 0 })}>
                     ${svg`<circle cx="42" cy="42" r=${r} fill="none" stroke="var(--sw-surface-3)" stroke-width="9" />
                     <circle cx="42" cy="42" r=${r} fill="none" stroke="var(--sw-accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray=${`${(c * (usedPct ?? 0)) / 100} ${c}`} transform="rotate(-90 42 42)" />
                     <text x="42" y="47" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sw-text)" font-family="var(--sw-font)">${usedPct ?? 0}%</text>`}
                   </svg>
                   <div class="txt">
-                    <div class="big">${fmtMb(tot.used_mb)} מתוך ${fmtMb(tot.capacity_mb)}</div>
+                    <div class="big">${tr('{used} מתוך {total}', { used: fmtMb(tot.used_mb), total: fmtMb(tot.capacity_mb) })}</div>
                     <div class="bar"><i style=${`inline-size:${usedPct ?? 0}%`}></i></div>
-                    <div class="muted">${st.retention.measured_days_min !== null ? `הקלטה ישנה ביותר ≈ ${st.retention.measured_days_min}${st.retention.measured_days_max !== null && st.retention.measured_days_max !== st.retention.measured_days_min ? `–${st.retention.measured_days_max}` : ''} ימים (נמדד)` : st.retention.measured_reason}${st.work_mode ? ` · ${st.work_mode}` : ''} · ${tot.disks} דיסקים</div>
+                    <div class="muted">${st.retention.measured_days_min !== null ? tr('הקלטה ישנה ביותר ≈ {days} ימים (נמדד)', { days: `${st.retention.measured_days_min}${st.retention.measured_days_max !== null && st.retention.measured_days_max !== st.retention.measured_days_min ? `–${st.retention.measured_days_max}` : ''}` }) : st.retention.measured_reason}${st.work_mode ? ` · ${st.work_mode}` : ''} · ${tr('{n} דיסקים', { n: tot.disks })}</div>
                   </div>
                 </div>
               </sw-card>`
             : nothing}
-          <sw-card heading="אתרים ומבנים" subheading=${sites.length ? `${sites.length} אתרים · ${floors.length} קומות` : 'עדיין לא הוגדרו אתרים'}>
+          <sw-card heading=${tr('אתרים ומבנים')} subheading=${sites.length ? `${tr('{n} אתרים', { n: sites.length })} · ${tr('{n} קומות', { n: floors.length })}` : tr('עדיין לא הוגדרו אתרים')}>
             <div class="hgrid">${sites.map((s) => {
               const fl = (s.buildings ?? []).flatMap((b) => b.floors ?? []);
               const plans = fl.filter((f) => f.has_plan).length;
               const placed = fl.reduce((n, f) => n + f.camera_count, 0);
-              return html`<div class="hrow link" role="link" tabindex="0" @click=${() => navigate('/explore/sites')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/explore/sites'); } }}><span>${s.name}<div class="muted">${(s.buildings ?? []).length} מבנים · ${fl.length} קומות · ${placed} מצלמות מוצבות · ${plans}/${fl.length} תוכניות</div></span><span class="status"><i style=${`--c:${fl.length && plans === fl.length ? 'var(--sw-live)' : 'var(--sw-stale)'}`}></i>${fl.length && plans === fl.length ? 'תוכניות מפורסמות' : 'חסרות תוכניות'}</span></div>`;
+              return html`<div class="hrow link" role="link" tabindex="0" @click=${() => navigate('/explore/sites')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/explore/sites'); } }}><span>${s.name}<div class="muted">${tr('{n} מבנים', { n: (s.buildings ?? []).length })} · ${tr('{n} קומות', { n: fl.length })} · ${tr('{n} מצלמות מוצבות', { n: placed })} · ${tr('{n}/{total} תוכניות', { n: plans, total: fl.length })}</div></span><span class="status"><i style=${`--c:${fl.length && plans === fl.length ? 'var(--sw-live)' : 'var(--sw-stale)'}`}></i>${fl.length && plans === fl.length ? tr('תוכניות מפורסמות') : tr('חסרות תוכניות')}</span></div>`;
             })}
-            ${this.recorder ? html`<div class="hrow"><span>מקליט · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${online}/${cams.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? 'מחובר' : `${cams.length - online} מנותקות`}</span></div>` : nothing}</div>
+            ${this.recorder ? html`<div class="hrow"><span>${tr('מקליט')} · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${tr('{n}/{total} מצלמות מחוברות', { n: online, total: cams.length })}</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? tr('מחובר') : tr('{n} מנותקות', { n: cams.length - online })}</span></div>` : nothing}</div>
           </sw-card>
         </div>
         <div class="row3">
-          <sw-card fill heading="אירועים אחרונים" subheading=${this.summary ? `${this.summary.today.total} היום · ${this.summary.today.measured} נמדדו · ${this.summary.today.inferred} נגזרו מהקלטה` : ''}>
-            <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
+          <sw-card fill heading=${tr('אירועים אחרונים')} subheading=${this.summary ? `${tr('{n} היום', { n: this.summary.today.total })} · ${tr('{n} נמדדו', { n: this.summary.today.measured })} · ${tr('{n} נגזרו מהקלטה', { n: this.summary.today.inferred })}` : ''}>
+            <a slot="actions" class="seeall" href="#/investigate/events">${tr('הצג הכל')}</a>
             ${this.recent.length
               ? this.recent.map(
                   (e) => html`<div class="ev" data-overview-event role="link" tabindex="0" @click=${() => navigate(`/investigate/events/${e.id}`)} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate(`/investigate/events/${e.id}`); } }}>
                     ${e.thumbnail === 'ready'
                       ? html`<img class="thumb" src=${thumbnailUrl(e.id)} alt="" loading="lazy" />`
                       : html`<div class="none"><sw-icon name=${e.type === 'offline' || e.type === 'coverage_gap' ? 'offline' : e.type === 'door' || e.type === 'io' ? 'door' : e.type === 'person' ? 'user' : e.type === 'vehicle' ? 'route' : 'bell'} size=${14}></sw-icon></div>`}
-                    <div class="txt"><b style=${`--tone:${API_EVENT_TONE[e.type as keyof typeof API_EVENT_TONE] ?? 'var(--sw-tl-offline)'}`}><i></i>${EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type}${e.acked_at ? '' : ' · לבדיקה'}</b><small>${e.camera_name ?? (e.details as { name?: string } | undefined)?.name ?? 'ללא מצלמה'} · ${e.confidence === 'inferred' ? 'נגזר מהקלטה' : e.source === 'ha' ? 'חיישן התקן' : 'התראה'}</small></div>
+                    <div class="txt"><b style=${`--tone:${API_EVENT_TONE[e.type as keyof typeof API_EVENT_TONE] ?? 'var(--sw-tl-offline)'}`}><i></i>${EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type}${e.acked_at ? '' : ` · ${tr('לבדיקה')}`}</b><small>${e.camera_name ?? (e.details as { name?: string } | undefined)?.name ?? tr('ללא מצלמה')} · ${e.confidence === 'inferred' ? tr('נגזר מהקלטה') : e.source === 'ha' ? tr('חיישן התקן') : tr('התראה')}</small></div>
                     <time>${this.fmtTime(e.occurred_at)}</time>
                   </div>`,
                 )
-              : html`<div class="muted">${this.loaded ? 'אין אירועים ב־24 השעות האחרונות' : 'טוען…'}</div>`}
+              : html`<div class="muted">${this.loaded ? tr('אין אירועים ב־24 השעות האחרונות') : tr('טוען…')}</div>`}
           </sw-card>
-          ${this.renderAttention(spots, html`<div class="muted" data-overview-calm>${this.loaded ? 'הכול תקין — אין פריטים שדורשים תשומת לב כרגע.' : 'בודק…'}</div>`)}
+          ${this.renderAttention(spots, html`<div class="muted" data-overview-calm>${this.loaded ? tr('הכול תקין — אין פריטים שדורשים תשומת לב כרגע.') : tr('בודק…')}</div>`)}
         </div>
       </sw-page>
     `;
@@ -734,21 +735,21 @@ export class LiveOverview extends LitElement {
     const pages = fit ? Math.ceil(spots.length / fit) : 1;
     const page = Math.min(this.spotPage, pages - 1);
     const shown = fit ? spots.slice(page * fit, page * fit + fit) : spots;
-    return html`<sw-card fill clip data-overview-attention heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
+    return html`<sw-card fill clip data-overview-attention heading=${tr('דורש תשומת לב')} subheading=${tr('כל פריט מסביר מדוע הוא מוצג')}>
       ${spots.length
         ? shown.map(
             (s) => html`<div class="spot ${s.kind}" data-overview-spot>
               <div class="ic"><sw-icon name=${s.kind === 'critical' ? 'offline' : s.kind === 'info' ? 'info' : 'warning'} size=${15}></sw-icon></div>
               <div class="sbody"><div class="t" title=${s.title}>${s.title}</div><div class="muted" title=${s.meta}>${s.meta}</div><div class="why" title=${s.why}>${s.why}</div></div>
-              <div class="actions"><a href=${s.link}><sw-button size="sm">פתח</sw-button></a></div>
+              <div class="actions"><a href=${s.link}><sw-button size="sm">${tr('פתח')}</sw-button></a></div>
             </div>`,
           )
         : calm}
       ${fit
         ? html`<div class="spotpager" data-overview-spot-pager>
-            <button type="button" data-spot-prev aria-label="הפריטים הקודמים" ?disabled=${page === 0} @click=${() => (this.spotPage = page - 1)}><sw-icon name="chevron" size=${14}></sw-icon></button>
-            <span data-overview-spot-range>${fit === 1 ? String(page + 1) : bidi(`${page * fit + 1}–${Math.min(spots.length, page * fit + fit)}`)} מתוך ${spots.length}</span>
-            <button type="button" data-spot-next aria-label="הפריטים הבאים" ?disabled=${page >= pages - 1} @click=${() => (this.spotPage = page + 1)}><sw-icon name="chevronBack" size=${14}></sw-icon></button>
+            <button type="button" data-spot-prev aria-label=${tr('הפריטים הקודמים')} ?disabled=${page === 0} @click=${() => (this.spotPage = page - 1)}><sw-icon name="chevron" size=${14}></sw-icon></button>
+            <span data-overview-spot-range>${tr('{range} מתוך {total}', { range: fit === 1 ? String(page + 1) : bidi(`${page * fit + 1}–${Math.min(spots.length, page * fit + fit)}`), total: spots.length })}</span>
+            <button type="button" data-spot-next aria-label=${tr('הפריטים הבאים')} ?disabled=${page >= pages - 1} @click=${() => (this.spotPage = page + 1)}><sw-icon name="chevronBack" size=${14}></sw-icon></button>
           </div>`
         : nothing}
     </sw-card>`;
@@ -804,40 +805,40 @@ export class LiveOverview extends LitElement {
     const favorites = demoWall.filter((x) => x.state === 'live').slice(0, 2);
     const layout = this.tiles.layout;
     return html`
-      <sw-page heading="בוקר טוב, יוני" subheading="המערכת פועלת · גשר לא רענן · נתוני הדגמה">
+      <sw-page heading="בוקר טוב, יוני" subheading=${tr('המערכת פועלת · גשר לא רענן · נתוני הדגמה')}>
         <div slot="actions" class="date">יום שני, 14 בספטמבר 2026<br />10:24</div>
         <div class="kpis" data-overview-kpis>
-          <sw-kpi data-overview-tile="cameras" icon="camera" tone="live" value=${String(online)} label="מצלמות" detail="מחוברות" layout=${layout} href="#/system/devices?sort=offline" hint="פתח את רשימת המצלמות"></sw-kpi>
-          <sw-kpi data-overview-tile="sites" icon="building" value=${String(demoSites.length)} label="אתרים" detail="פעילים" tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>
-          <sw-kpi data-overview-tile="events" icon="bell" value=${String(demoEvents.length)} label="אירועים" detail="ב־24 השעות" tone="neutral" badge=${`${unacked.length} חדשים`} layout=${layout} href="#/investigate/events" hint="פתח את האירועים"></sw-kpi>
-          <sw-kpi data-overview-tile="health" icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר לא רענן" layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
+          <sw-kpi data-overview-tile="cameras" icon="camera" tone="live" value=${String(online)} label=${tr('מצלמות')} detail=${tr('מחוברות')} layout=${layout} href="#/system/devices?sort=offline" hint=${tr('פתח את רשימת המצלמות')}></sw-kpi>
+          <sw-kpi data-overview-tile="sites" icon="building" value=${String(demoSites.length)} label=${tr('אתרים')} detail=${tr('פעילים')} tone="neutral" layout=${layout} href="#/explore/sites" hint=${tr('פתח את האתרים')}></sw-kpi>
+          <sw-kpi data-overview-tile="events" icon="bell" value=${String(demoEvents.length)} label=${tr('אירועים')} detail=${tr('ב־24 השעות')} tone="neutral" badge=${tr('{n} חדשים', { n: unacked.length })} layout=${layout} href="#/investigate/events" hint=${tr('פתח את האירועים')}></sw-kpi>
+          <sw-kpi data-overview-tile="health" icon="shield" tone="stale" value=${tr('חלקי')} label=${tr('מצב מערכת')} detail=${tr('גשר לא רענן')} layout=${layout} href="#/system/diagnostics?tab=health" hint=${tr('פתח את פרטי הבריאות')}></sw-kpi>
         </div>
         <div class="fav">
           ${favorites.map((cam) => html`<sw-camera-tile name=${cam.name} state=${cam.state} scene=${demoScene[cam.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`)}
         </div>
         <div class="row2">
-          <sw-card heading="אחסון">
+          <sw-card heading=${tr('אחסון')}>
             <div class="donut">
-              <svg viewBox="0 0 84 84" role="img" aria-label="אחסון בשימוש 68%">
+              <svg viewBox="0 0 84 84" role="img" aria-label=${tr('אחסון בשימוש 68%')}>
                 ${svg`<circle cx="42" cy="42" r=${r} fill="none" stroke="var(--sw-surface-3)" stroke-width="9" />
                 <circle cx="42" cy="42" r=${r} fill="none" stroke="var(--sw-accent)" stroke-width="9" stroke-linecap="round" stroke-dasharray=${`${c * used} ${c}`} transform="rotate(-90 42 42)" />
                 <text x="42" y="47" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sw-text)" font-family="var(--sw-font)">68%</text>`}
               </svg>
               <div class="txt">
-                <div class="big">${bidi('1.3 TB מתוך 1.9 TB')}</div>
+                <div class="big">${bidi(tr('1.3 TB מתוך 1.9 TB'))}</div>
                 <div class="bar"><i></i></div>
-                <div class="muted">הקלטה ישנה ביותר ≈ 11 ימים (נמדד) · overwrite פעיל</div>
+                <div class="muted">${tr('הקלטה ישנה ביותר ≈ 11 ימים (נמדד) · overwrite פעיל')}</div>
               </div>
             </div>
           </sw-card>
-          <sw-card heading="בריאות האתרים">
-            <div class="hgrid">${demoSites.map((s) => html`<div class="hrow"><span>${s.name}<div class="muted">${s.online}/${s.cameras} מצלמות · ${s.alerts} התראות</div></span><span class="status"><i style="--c:${s.health === 'live' ? 'var(--sw-live)' : s.health === 'offline' ? 'var(--sw-danger)' : 'var(--sw-stale)'}"></i>${s.health === 'live' ? 'מחובר' : s.health === 'offline' ? 'מנותק' : 'חלקי'}</span></div>`)}
-            ${demoHealth.slice(0, 2).map((h) => html`<div class="hrow"><span>${h.name}<div class="muted">${h.detail}</div></span><span class="status"><i style="--c:${h.state === 'live' ? 'var(--sw-live)' : 'var(--sw-stale)'}"></i>${h.state === 'live' ? 'מחובר' : 'לא רענן'}</span></div>`)}</div>
+          <sw-card heading=${tr('בריאות האתרים')}>
+            <div class="hgrid">${demoSites.map((s) => html`<div class="hrow"><span>${s.name}<div class="muted">${tr('{n}/{total} מצלמות', { n: s.online, total: s.cameras })} · ${tr('{n} התראות', { n: s.alerts })}</div></span><span class="status"><i style="--c:${s.health === 'live' ? 'var(--sw-live)' : s.health === 'offline' ? 'var(--sw-danger)' : 'var(--sw-stale)'}"></i>${s.health === 'live' ? tr('מחובר') : s.health === 'offline' ? tr('מנותק') : tr('חלקי')}</span></div>`)}
+            ${demoHealth.slice(0, 2).map((h) => html`<div class="hrow"><span>${h.name}<div class="muted">${h.detail}</div></span><span class="status"><i style="--c:${h.state === 'live' ? 'var(--sw-live)' : 'var(--sw-stale)'}"></i>${h.state === 'live' ? tr('מחובר') : tr('לא רענן')}</span></div>`)}</div>
           </sw-card>
         </div>
         <div class="row3">
-          <sw-card fill heading="אירועים אחרונים">
-            <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
+          <sw-card fill heading=${tr('אירועים אחרונים')}>
+            <a slot="actions" class="seeall" href="#/investigate/events">${tr('הצג הכל')}</a>
             ${demoEvents.slice(0, 5).map(
               (e) => html`<div class="ev" role="link" tabindex="0" @click=${() => navigate('/investigate/events')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/investigate/events'); } }}>
                 ${e.type === 'offline' || e.type === 'door'

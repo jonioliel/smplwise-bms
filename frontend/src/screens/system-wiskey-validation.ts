@@ -32,11 +32,12 @@ import {
   type WitnessVerdict,
 } from '../api/wiskey-validation';
 import { formatTime, UTC_ZONE } from './wiskey-format';
+import { tr } from '../i18n/msg/system-b';
 
 const POLL_MS = 1500;
-const PHYSICAL = 'פעולה פיזית - דלת תיפתח';
-const RUN_STATE_TEXT: Record<string, string> = { running: 'בבדיקה', done: 'הסתיימה', cancelled: 'בוטלה', interrupted: 'נקטעה (הפעלה מחדש)' };
-const WITNESS_TEXT: Record<WitnessVerdict, string> = { opened: 'הדלת נפתחה', not_opened: 'הדלת לא נפתחה', unsure: 'לא בטוח' };
+const PHYSICAL = tr('פעולה פיזית - דלת תיפתח');
+const RUN_STATE_TEXT: Record<string, string> = { running: tr('בבדיקה'), done: tr('הסתיימה'), cancelled: tr('בוטלה'), interrupted: tr('נקטעה (הפעלה מחדש)') };
+const WITNESS_TEXT: Record<WitnessVerdict, string> = { opened: tr('הדלת נפתחה'), not_opened: tr('הדלת לא נפתחה'), unsure: tr('לא בטוח') };
 
 /** Demo data (no backend): one finished run of two stations, every kind of result once. */
 const DEMO_OVERVIEW: ValidationOverview = {
@@ -183,7 +184,7 @@ export class SystemWiskeyValidation extends LitElement {
     if (!this.run) return;
     try {
       await cancelRun(this.run.id);
-      this.note = 'הבקשה לעצור נשלחה: הבדיקה תיעצר לפני הצעד הבא.';
+      this.note = tr('הבקשה לעצור נשלחה: הבדיקה תיעצר לפני הצעד הבא.');
     } catch (e) {
       this.note = describeError(e);
     }
@@ -216,15 +217,15 @@ export class SystemWiskeyValidation extends LitElement {
     r.pulses.forEach(add);
     const ok = printHtml(
       printDocument({
-        title: 'בדיקת קבלה לעמדות',
-        subtitle: `${formatTime(r.created_at, 'he-IL', UTC_ZONE)} (UTC) · ${r.created_by_name ?? ''} · ${RUN_STATE_TEXT[r.state] ?? r.state} · ${r.station_count} עמדות`,
-        columns: ['עמדה', 'בדיקה', 'תוצאה', 'סיבה', 'פרטים'],
+        title: tr('בדיקת קבלה לעמדות'),
+        subtitle: `${formatTime(r.created_at, 'he-IL', UTC_ZONE)} (UTC) · ${r.created_by_name ?? ''} · ${RUN_STATE_TEXT[r.state] ?? r.state} · ${tr('{n} עמדות', { n: r.station_count })}`,
+        columns: [tr('עמדה'), tr('בדיקה'), tr('תוצאה'), tr('סיבה'), tr('פרטים')],
         rows,
-        footer: `SmplWise Arx · הודפס ${formatTime(new Date().toISOString(), 'he-IL', UTC_ZONE)} (UTC) · ${r.id}`,
+        footer: `SmplWise Arx · ${tr('הודפס {time}', { time: formatTime(new Date().toISOString(), 'he-IL', UTC_ZONE) })} (UTC) · ${r.id}`,
         lang: 'he',
       }),
     );
-    if (!ok) this.note = 'הדפדפן לא פתח את חלון ההדפסה.';
+    if (!ok) this.note = tr('הדפדפן לא פתח את חלון ההדפסה.');
   }
 
   // ---------------------------------------------------------------- the pulse (physical)
@@ -244,7 +245,7 @@ export class SystemWiskeyValidation extends LitElement {
       await sendPulse({ station_id: p.station.id, door: p.door, confirm_text: p.typed, witness_name: p.witness.trim(), parent_run_id: parent });
       this.pulse = null;
       if (parent) await this.openRun(parent);
-      this.note = 'הפקודה נשלחה. רשמו את מה שהעד ראה.';
+      this.note = tr('הפקודה נשלחה. רשמו את מה שהעד ראה.');
     } catch (e) {
       this.pulseError = describeError(e);
     } finally {
@@ -270,26 +271,26 @@ export class SystemWiskeyValidation extends LitElement {
   render() {
     const d = this.data;
     const running = !!this.run && !runFinished(this.run);
-    return html`<sw-page heading="בדיקת קבלה לעמדות" subheading="בדיקה לכל עמדה: זהות, דלתות, תמונה, דיבור, אירועים ושעון. הבדיקות קוראות בלבד ורצות רק כשלוחצים." data-lv-page>
+    return html`<sw-page heading=${tr('בדיקת קבלה לעמדות')} subheading=${tr('בדיקה לכל עמדה: זהות, דלתות, תמונה, דיבור, אירועים ושעון. הבדיקות קוראות בלבד ורצות רק כשלוחצים.')} data-lv-page>
       <span slot="actions" class="acts">
-        <a class="back" href="#/system/diagnostics?tab=access-control" data-lv-back>מצב WisKey</a>
+        <a class="back" href="#/system/diagnostics?tab=access-control" data-lv-back>${tr('מצב WisKey')}</a>
         ${d && d.stations.length
-          ? html`<sw-button variant="primary" icon="play" ?disabled=${!isApi() || running || this.busy} data-lv-run-all @click=${() => void this.start({ all: true })}>בדוק את כל העמדות</sw-button>`
+          ? html`<sw-button variant="primary" icon="play" ?disabled=${!isApi() || running || this.busy} data-lv-run-all @click=${() => void this.start({ all: true })}>${tr('בדוק את כל העמדות')}</sw-button>`
           : nothing}
       </span>
       ${this.forbidden
-        ? html`<sw-state-panel state="forbidden" data-lv-state="forbidden" heading="אין הרשאה למסך הזה" hint="בדיקת הקבלה פתוחה למי שמנהל עמדות (ניהול עמדות)."></sw-state-panel>`
+        ? html`<sw-state-panel state="forbidden" data-lv-state="forbidden" heading=${tr('אין הרשאה למסך הזה')} hint=${tr('בדיקת הקבלה פתוחה למי שמנהל עמדות (ניהול עמדות).')}></sw-state-panel>`
         : this.error
-          ? html`<sw-state-panel state="error" data-lv-state="error" heading="בדיקת הקבלה לא נטענה" hint=${this.error} actionLabel="ניסיון חוזר" @action=${() => void this.load()}></sw-state-panel>`
+          ? html`<sw-state-panel state="error" data-lv-state="error" heading=${tr('בדיקת הקבלה לא נטענה')} hint=${this.error} actionLabel=${tr('ניסיון חוזר')} @action=${() => void this.load()}></sw-state-panel>`
           : !d
-            ? html`<sw-state-panel state="loading" data-lv-state="loading" heading="טוען את העמדות…"></sw-state-panel>`
+            ? html`<sw-state-panel state="loading" data-lv-state="loading" heading=${tr('טוען את העמדות…')}></sw-state-panel>`
             : !d.stations.length
-              ? html`<sw-state-panel icon="door" state="empty" data-lv-state="empty" heading="אין עמדות לבדיקה" hint=${d.feed_state === 'ready' ? 'לא נמצאו עמדות שמותר לך לבדוק.' : 'נתוני העמדות מ-WisKey אינם זמינים כרגע.'}></sw-state-panel>`
+              ? html`<sw-state-panel icon="door" state="empty" data-lv-state="empty" heading=${tr('אין עמדות לבדיקה')} hint=${d.feed_state === 'ready' ? tr('לא נמצאו עמדות שמותר לך לבדוק.') : tr('נתוני העמדות מ-WisKey אינם זמינים כרגע.')}></sw-state-panel>`
               : html`<div class="wrap" data-lv-state="ready">
                   ${this.note ? html`<p class="note" role="status" data-lv-note>${this.note}</p>` : nothing}
                   ${this.runBar(d)}
                   <div class="grid">${repeat(this.order(d), (s) => s.id, (s) => this.stationCard(d, s))}</div>
-                  <p class="muted foot">"לא נתמך ב-WisKey" = הגרסה המותקנת של WisKey אינה מציעה את הבדיקה. "לא הורץ" = הבדיקה לא נוסתה (הגדרה כבויה, אין שיוך דלתות, בוטל). תוצאה לא ידועה מ-WisKey נרשמת ככישלון, לעולם לא כהצלחה.</p>
+                  <p class="muted foot">${tr('"לא נתמך ב-WisKey" = הגרסה המותקנת של WisKey אינה מציעה את הבדיקה. "לא הורץ" = הבדיקה לא נוסתה (הגדרה כבויה, אין שיוך דלתות, בוטל). תוצאה לא ידועה מ-WisKey נרשמת ככישלון, לעולם לא כהצלחה.')}</p>
                 </div>`}
       ${this.pulseDialog()}
     </sw-page>`;
@@ -307,19 +308,19 @@ export class SystemWiskeyValidation extends LitElement {
     const pct = r && r.progress.total ? Math.round((r.progress.done / r.progress.total) * 100) : 0;
     return html`<div class="bar" data-lv-bar>
       ${d.runs.length
-        ? html`<sw-field label="בדיקה"><select data-lv-history @change=${(e: Event) => void this.openRun((e.target as HTMLSelectElement).value)}>
-            ${d.runs.map((x) => html`<option value=${x.id} ?selected=${r?.id === x.id}>${formatTime(x.created_at, 'he-IL', UTC_ZONE)} · ${x.scope === 'all' ? 'כל העמדות' : 'עמדה אחת'} · ${RUN_STATE_TEXT[x.state] ?? x.state}</option>`)}
+        ? html`<sw-field label=${tr('בדיקה')}><select data-lv-history @change=${(e: Event) => void this.openRun((e.target as HTMLSelectElement).value)}>
+            ${d.runs.map((x) => html`<option value=${x.id} ?selected=${r?.id === x.id}>${formatTime(x.created_at, 'he-IL', UTC_ZONE)} · ${x.scope === 'all' ? tr('כל העמדות') : tr('עמדה אחת')} · ${RUN_STATE_TEXT[x.state] ?? x.state}</option>`)}
           </select></sw-field>`
-        : html`<span class="muted" data-lv-no-runs>עוד לא הורצה בדיקה. בחרו עמדה או "בדוק את כל העמדות".</span>`}
+        : html`<span class="muted" data-lv-no-runs>${tr('עוד לא הורצה בדיקה. בחרו עמדה או "בדוק את כל העמדות".')}</span>`}
       ${r
         ? html`<div class="prog" data-lv-progress=${r.state}>
-              <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax=${r.progress.total} aria-valuenow=${r.progress.done} aria-label="התקדמות הבדיקה"><span style="inline-size:${pct}%"></span></div>
-              <span class="muted">${RUN_STATE_TEXT[r.state] ?? r.state} · ${r.progress.done}/${r.progress.total} · עבר ${r.counts.pass} · נכשל ${r.counts.fail} · לא נתמך ${r.counts.unsupported} · לא הורץ ${r.counts.not_run}</span>
+              <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax=${r.progress.total} aria-valuenow=${r.progress.done} aria-label=${tr('התקדמות הבדיקה')}><span style="inline-size:${pct}%"></span></div>
+              <span class="muted">${RUN_STATE_TEXT[r.state] ?? r.state} · ${r.progress.done}/${r.progress.total} · ${tr('עבר {n}', { n: r.counts.pass })} · ${tr('נכשל {n}', { n: r.counts.fail })} · ${tr('לא נתמך {n}', { n: r.counts.unsupported })} · ${tr('לא הורץ {n}', { n: r.counts.not_run })}</span>
             </div>
             <div class="tools">
-              ${running && !r.cancel_requested ? html`<sw-button size="sm" icon="stopSquare" data-lv-cancel @click=${() => void this.cancel()}>עצור</sw-button>` : nothing}
+              ${running && !r.cancel_requested ? html`<sw-button size="sm" icon="stopSquare" data-lv-cancel @click=${() => void this.cancel()}>${tr('עצור')}</sw-button>` : nothing}
               <sw-button size="sm" icon="download" ?disabled=${running || !isApi()} data-lv-export @click=${() => void this.exportCsv()}>CSV</sw-button>
-              <sw-button size="sm" icon="list" ?disabled=${running} data-lv-print @click=${() => this.print()}>הדפסה / PDF</sw-button>
+              <sw-button size="sm" icon="list" ?disabled=${running} data-lv-print @click=${() => this.print()}>${tr('הדפסה / PDF')}</sw-button>
             </div>`
         : nothing}
     </div>`;
@@ -338,12 +339,12 @@ export class SystemWiskeyValidation extends LitElement {
     const focus = this.focusStation === s.id;
     return html`<section class="st ${focus ? 'focus' : ''}" data-lv-station=${s.id}>
       <header>
-        <div class="name"><b>${s.name || s.id}</b><sw-badge kind=${s.online ? 'live' : 'offline'} label=${s.online ? 'מחוברת' : 'מנותקת'}></sw-badge></div>
-        <sw-button size="sm" icon="play" ?disabled=${!isApi() || running || this.busy} data-lv-run-one=${s.id} @click=${() => void this.start({ station_id: s.id })}>בדוק</sw-button>
+        <div class="name"><b>${s.name || s.id}</b><sw-badge kind=${s.online ? 'live' : 'offline'} label=${s.online ? tr('מחוברת') : tr('מנותקת')}></sw-badge></div>
+        <sw-button size="sm" icon="play" ?disabled=${!isApi() || running || this.busy} data-lv-run-one=${s.id} @click=${() => void this.start({ station_id: s.id })}>${tr('בדוק')}</sw-button>
       </header>
       ${checks
         ? html`<ul class="checks">${checks.map((c) => this.checkRow(c))}</ul>`
-        : html`<p class="muted" data-lv-not-checked>${this.run ? 'העמדה לא נבדקה בבדיקה הזו.' : 'העמדה עוד לא נבדקה.'}</p>`}
+        : html`<p class="muted" data-lv-not-checked>${this.run ? tr('העמדה לא נבדקה בבדיקה הזו.') : tr('העמדה עוד לא נבדקה.')}</p>`}
       ${this.pulseBlock(d, s, pulses, running)}
     </section>`;
   }
@@ -362,7 +363,7 @@ export class SystemWiskeyValidation extends LitElement {
     if (done) {
       const awaiting = done.c.status === 'pending' && done.c.reason === 'awaiting_witness';
       return html`<div class="pulse" data-lv-pulse-result=${done.c.status}>
-        <div class="phead"><sw-badge kind=${awaiting ? 'stale' : statusKind(done.c.status)} label=${awaiting ? 'ממתין לעד' : done.c.status_text}></sw-badge><span class="clabel">${done.c.label}</span></div>
+        <div class="phead"><sw-badge kind=${awaiting ? 'stale' : statusKind(done.c.status)} label=${awaiting ? tr('ממתין לעד') : done.c.status_text}></sw-badge><span class="clabel">${done.c.label}</span></div>
         ${done.c.reason_text ? html`<div class="reason">${done.c.reason_text}</div>` : nothing}
         ${detailLine(done.c) ? html`<div class="muted detail">${detailLine(done.c)}</div>` : nothing}
         ${awaiting
@@ -372,11 +373,11 @@ export class SystemWiskeyValidation extends LitElement {
           : nothing}
       </div>`;
     }
-    if (!d.rights.pulse_local) return html`<p class="muted" data-lv-pulse-remote>פתיחת דלת עם עד אפשרית רק מחיבור מקומי.</p>`;
-    if (!s.can_pulse) return html`<p class="muted" data-lv-pulse-off>${s.doors.length ? 'אין לך הרשאה לפתוח דלתות בעמדה הזו.' : 'פתיחת דלת עם עד: אין לעמדה דלת משויכת.'}</p>`;
+    if (!d.rights.pulse_local) return html`<p class="muted" data-lv-pulse-remote>${tr('פתיחת דלת עם עד אפשרית רק מחיבור מקומי.')}</p>`;
+    if (!s.can_pulse) return html`<p class="muted" data-lv-pulse-off>${s.doors.length ? tr('אין לך הרשאה לפתוח דלתות בעמדה הזו.') : tr('פתיחת דלת עם עד: אין לעמדה דלת משויכת.')}</p>`;
     return html`<div class="pulse idle">
       <sw-button size="sm" variant="danger" icon="doorOpen" ?disabled=${!isApi() || running || this.busy} data-lv-pulse-open=${s.id} @click=${() => this.openPulse(s)}>${PHYSICAL}</sw-button>
-      <span class="muted">פעם אחת לעמדה, עם עד ליד הדלת. לא חלק מ"בדוק את כל העמדות".</span>
+      <span class="muted">${tr('פעם אחת לעמדה, עם עד ליד הדלת. לא חלק מ"בדוק את כל העמדות".')}</span>
     </div>`;
   }
 
@@ -386,18 +387,18 @@ export class SystemWiskeyValidation extends LitElement {
     return html`<sw-dialog ?open=${!!p} heading=${PHYSICAL} subheading=${p ? p.station.name || p.station.id : ''} ?locked=${this.busy} @close=${() => (this.pulse = null)} data-lv-pulse-dialog>
       ${p
         ? html`<div class="dlg">
-            <p class="warn" role="alert" data-lv-physical>לחיצה על "פתח את הדלת" שולחת לעמדה פקודת פתיחה אחת. <b>הדלת תיפתח באמת.</b> ודאו שהעד עומד ליד הדלת ושאין סכנה לאיש. הפקודה לא נשלחת שוב אוטומטית.</p>
+            <p class="warn" role="alert" data-lv-physical>${tr('לחיצה על "פתח את הדלת" שולחת לעמדה פקודת פתיחה אחת.')} <b>${tr('הדלת תיפתח באמת.')}</b> ${tr('ודאו שהעד עומד ליד הדלת ושאין סכנה לאיש. הפקודה לא נשלחת שוב אוטומטית.')}</p>
             ${p.station.doors.length > 1
-              ? html`<sw-field label="דלת"><select data-lv-door @change=${(e: Event) => (this.pulse = { ...p, door: Number((e.target as HTMLSelectElement).value) })}>
-                  ${p.station.doors.map((x) => html`<option value=${x.door} ?selected=${x.door === p.door}>${x.name ? `${x.name} (${x.door})` : `דלת ${x.door}`}</option>`)}
+              ? html`<sw-field label=${tr('דלת')}><select data-lv-door @change=${(e: Event) => (this.pulse = { ...p, door: Number((e.target as HTMLSelectElement).value) })}>
+                  ${p.station.doors.map((x) => html`<option value=${x.door} ?selected=${x.door === p.door}>${x.name ? `${x.name} (${x.door})` : tr('דלת {door}', { door: x.door })}</option>`)}
                 </select></sw-field>`
-              : html`<p class="muted">דלת: ${p.station.doors[0]?.name ?? `דלת ${p.door}`}</p>`}
-            <sw-field label="שם העד" hint="מי שעומד ליד הדלת ומאשר מה ראה."><input data-lv-witness-name maxlength="80" autocomplete="off" .value=${p.witness} @input=${(e: Event) => (this.pulse = { ...p, witness: (e.target as HTMLInputElement).value })} /></sw-field>
-            <sw-field label=${`להמשך הקלידו את שם העמדה: ${p.station.name || p.station.id}`}><input data-lv-confirm autocomplete="off" .value=${p.typed} @input=${(e: Event) => (this.pulse = { ...p, typed: (e.target as HTMLInputElement).value })} /></sw-field>
+              : html`<p class="muted">${tr('דלת:')} ${p.station.doors[0]?.name ?? tr('דלת {door}', { door: p.door })}</p>`}
+            <sw-field label=${tr('שם העד')} hint=${tr('מי שעומד ליד הדלת ומאשר מה ראה.')}><input data-lv-witness-name maxlength="80" autocomplete="off" .value=${p.witness} @input=${(e: Event) => (this.pulse = { ...p, witness: (e.target as HTMLInputElement).value })} /></sw-field>
+            <sw-field label=${tr('להמשך הקלידו את שם העמדה: {name}', { name: p.station.name || p.station.id })}><input data-lv-confirm autocomplete="off" .value=${p.typed} @input=${(e: Event) => (this.pulse = { ...p, typed: (e.target as HTMLInputElement).value })} /></sw-field>
             ${this.pulseError ? html`<p class="err" role="alert" data-lv-pulse-error>${this.pulseError}</p>` : nothing}
             <div class="dacts">
-              <sw-button ?disabled=${this.busy} @click=${() => (this.pulse = null)}>ביטול</sw-button>
-              <sw-button variant="danger" icon="doorOpen" ?disabled=${!ok || this.busy} data-lv-pulse-send @click=${() => void this.sendPulse()}>${this.busy ? 'שולח…' : 'פתח את הדלת'}</sw-button>
+              <sw-button ?disabled=${this.busy} @click=${() => (this.pulse = null)}>${tr('ביטול')}</sw-button>
+              <sw-button variant="danger" icon="doorOpen" ?disabled=${!ok || this.busy} data-lv-pulse-send @click=${() => void this.sendPulse()}>${this.busy ? tr('שולח…') : tr('פתח את הדלת')}</sw-button>
             </div>
           </div>`
         : nothing}

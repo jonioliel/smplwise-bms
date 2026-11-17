@@ -12,6 +12,7 @@ import { INSTALL_KEY, SWITCH_KEYS, SWITCH_STEM, canTurnOn, canTurnOnInstall, get
 import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
 import { wst, type WsKey } from '../i18n/wiskey-switches';
+import { tr } from '../i18n/msg/system-b';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 interface Pending {
@@ -184,7 +185,7 @@ export class SystemSecurityWiskey extends LitElement {
   }
 
   render() {
-    return html`<sw-page crumbs="הגדרות | אבטחה" heading=${wst('title')}>${this.body()}</sw-page>`;
+    return html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading=${wst('title')}>${this.body()}</sw-page>`;
   }
 }
 

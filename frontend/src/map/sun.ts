@@ -14,6 +14,7 @@
  * reverse. The site itself (owner 2026-10-11): the home's location from its configuration, an explicit override, or the
  * fallback - resolved by the server (services/site_location.py), read here by resolveSite.
  */
+import { tr } from '../i18n/msg/map';
 const RAD = Math.PI / 180;
 const DEG = 180 / Math.PI;
 
@@ -171,7 +172,7 @@ export function timeBand(elevationDeg: number): TimeBand {
   if (elevationDeg < 15) return 'golden';
   return 'day';
 }
-export const TIME_BAND_HE: Record<TimeBand, string> = { night: 'לילה', twilight: 'דמדומים', golden: 'שעת זהב', day: 'יום' };
+export const TIME_BAND_HE: Record<TimeBand, string> = { night: tr('לילה'), twilight: tr('דמדומים'), golden: tr('שעת זהב'), day: tr('יום') };
 
 /** The local wall-clock parts of an instant in an IANA zone. */
 export function siteLocal(utcMs: number, zone: string): { year: number; month: number; day: number; hour: number; minute: number } {

@@ -8,6 +8,7 @@ import {
   DAY_LONG, DAY_SHORT, MONTHS, TYPE_GROUP, addDays, colorVar, grouped, hm, isoDate, markOf, minutesOf, monthGrid, onDay, pad, pageOf, placeDay, sameDay, startOfDay, weekStart,
 } from './model';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import { parseDateParam, readHashParam, rruleOf, writeHashParams } from './booking-logic';
 import {
   Press, UndoStack, clickSpan, dragSpan, durText, hintFor, hintTag, instantAt, kbStep, minOfDay, minuteAt, moveSpan, movedText, openOn, resizeSpan, snapFloor, stepOf,
@@ -393,9 +394,9 @@ export class CalViewCalendar extends LitElement {
     if (this.mode === 'week') {
       const s = weekStart(a);
       const e = addDays(s, 6);
-      return s.getMonth() === e.getMonth() ? `${s.getDate()}–${e.getDate()} ב${MONTHS[s.getMonth()]} ${s.getFullYear()}` : `${s.getDate()}.${pad(s.getMonth() + 1)}–${e.getDate()}.${pad(e.getMonth() + 1)}.${e.getFullYear()}`;
+      return s.getMonth() === e.getMonth() ? tr('{from}–{to} ב{month} {year}', { from: s.getDate(), to: e.getDate(), month: MONTHS[s.getMonth()], year: s.getFullYear() }) : `${s.getDate()}.${pad(s.getMonth() + 1)}–${e.getDate()}.${pad(e.getMonth() + 1)}.${e.getFullYear()}`;
     }
-    return `${DAY_LONG[a.getDay()]}, ${a.getDate()} ב${MONTHS[a.getMonth()]}`;
+    return tr('{day}, {date} ב{month}', { day: DAY_LONG[a.getDay()], date: a.getDate(), month: MONTHS[a.getMonth()] });
   }
 
   render() {
@@ -414,7 +415,7 @@ export class CalViewCalendar extends LitElement {
       ${collapse && this.switcherOpen && !this.resident ? html`<div class="scrim" @click=${() => (this.switcherOpen = false)}></div>${this.switcher(false, true)}` : nothing}
       ${this.overlay()}
       <div class="toasts">${this.toast ? html`<div class=${`toast${this.toastIn ? ' in' : ''}${this.toast.bad ? ' bad' : ''}`} role="status" data-cal-grid-toast>
-        <span>${this.toast.text}</span>${this.toast.undo ? html`<button type="button" class="tb" data-cal-undo @click=${() => void this.undo()}>בטל</button>` : nothing}</div>` : nothing}</div>
+        <span>${this.toast.text}</span>${this.toast.undo ? html`<button type="button" class="tb" data-cal-undo @click=${() => void this.undo()}>${tr('בטל')}</button>` : nothing}</div>` : nothing}</div>
       <div class="vh" aria-live="polite" data-cal-live>${this.live}</div>`;
   }
 
@@ -423,14 +424,14 @@ export class CalViewCalendar extends LitElement {
     const modes: CalMode[] = this.resident ? ['day'] : ['month', 'week', 'day'];
     return html`<div class="ph" data-cal-head>
       <span class="big" data-cal-title>${this.rangeTitle()}</span>
-      <button type="button" class="btn icon sm" aria-label="הקודם" data-cal-prev @click=${() => this.go(-1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
-      <button type="button" class="btn icon sm" aria-label="הבא" data-cal-next @click=${() => this.go(1)}><sw-icon name="chevron" size="16"></sw-icon></button>
-      <button type="button" class="btn sm" data-cal-today @click=${() => this.today()}>היום</button>
+      <button type="button" class="btn icon sm" aria-label=${tr('הקודם')} data-cal-prev @click=${() => this.go(-1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+      <button type="button" class="btn icon sm" aria-label=${tr('הבא')} data-cal-next @click=${() => this.go(1)}><sw-icon name="chevron" size="16"></sw-icon></button>
+      <button type="button" class="btn sm" data-cal-today @click=${() => this.today()}>${tr('היום')}</button>
       <span class="sp"></span>
       ${collapse && !this.resident ? html`<button type="button" class="btn sm" data-cal-switcher-open aria-expanded=${String(this.switcherOpen)} @click=${() => (this.switcherOpen = true)}>
-        <sw-icon name="calendar" size="16"></sw-icon><span class="num">${shown}</span> יומנים</button>` : nothing}
-      ${modes.length > 1 ? html`<div class="seg" role="group" aria-label="תצוגה">
-        ${modes.map((m) => html`<button type="button" aria-pressed=${String(this.mode === m)} data-cal-mode=${m} @click=${() => this.setMode(m)}>${{ month: 'חודש', week: 'שבוע', day: 'יום' }[m]}</button>`)}
+        <sw-icon name="calendar" size="16"></sw-icon><span class="num">${shown}</span> ${tr('יומנים')}</button>` : nothing}
+      ${modes.length > 1 ? html`<div class="seg" role="group" aria-label=${tr('תצוגה')}>
+        ${modes.map((m) => html`<button type="button" aria-pressed=${String(this.mode === m)} data-cal-mode=${m} @click=${() => this.setMode(m)}>${{ month: tr('חודש'), week: tr('שבוע'), day: tr('יום') }[m]}</button>`)}
       </div>` : nothing}
     </div>`;
   }
@@ -439,14 +440,14 @@ export class CalViewCalendar extends LitElement {
     const ctx = this.ctx as CalCtx;
     const list = visibleCals(ctx);
     const shown = list.filter((c) => !this.hiddenCals.has(c.id)).length;
-    return html`<aside class=${`panel switcher${narrow && ctx.access.ui.tablet_panels === 'shrink' ? ' narrow' : ''}${overlay ? ' overlay' : ''}`} data-cal-switcher aria-label="יומנים">
-      <div class="ph"><h2>יומנים</h2><span class="sp"></span><span class="muted num">${shown} מתוך ${list.length}</span>
-        ${overlay ? html`<button type="button" class="btn icon sm" aria-label="סגירה" data-cal-switcher-close @click=${() => (this.switcherOpen = false)}><sw-icon name="close" size="16"></sw-icon></button>` : nothing}</div>
+    return html`<aside class=${`panel switcher${narrow && ctx.access.ui.tablet_panels === 'shrink' ? ' narrow' : ''}${overlay ? ' overlay' : ''}`} data-cal-switcher aria-label=${tr('יומנים')}>
+      <div class="ph"><h2>${tr('יומנים')}</h2><span class="sp"></span><span class="muted num">${tr('{shown} מתוך {total}', { shown, total: list.length })}</span>
+        ${overlay ? html`<button type="button" class="btn icon sm" aria-label=${tr('סגירה')} data-cal-switcher-close @click=${() => (this.switcherOpen = false)}><sw-icon name="close" size="16"></sw-icon></button>` : nothing}</div>
       <div class="list">
         ${grouped(list).map((g) => html`<div class="grp">${TYPE_GROUP[g.type]}</div>
           ${g.cals.map((c) => html`<button type="button" class="cal-it" style=${`--h:${colorVar(c.color)}`} aria-pressed=${String(!this.hiddenCals.has(c.id))} data-cal-toggle=${c.id} @click=${() => this.toggle(c.id)}>
             <span class="box"><sw-icon name="check" size="13"></sw-icon></span><span class="ell" title=${c.name}>${c.name}</span>
-            ${c.my_role === 'view' ? html`<span class="lock" title="צפייה בלבד"><sw-icon name="lock" size="14"></sw-icon></span>` : nothing}</button>`)}`)}
+            ${c.my_role === 'view' ? html`<span class="lock" title=${tr('צפייה בלבד')}><sw-icon name="lock" size="14"></sw-icon></span>` : nothing}</button>`)}`)}
       </div></aside>`;
   }
 
@@ -468,11 +469,11 @@ export class CalViewCalendar extends LitElement {
           const we = day.getDay() >= 5;
           const today = sameDay(day, now);
           return html`<button type="button" class=${`mcell${inMonth ? '' : ' out'}${we ? ' we' : ''}${today ? ' today' : ''}`} aria-pressed=${String(phone && sameDay(day, picked))}
-            aria-label=${`${day.getDate()} ב${MONTHS[day.getMonth()]}, ${rest.length} אירועים`} data-cal-day=${isoDate(day)} @click=${() => this.pickDay(day)}>
+            aria-label=${`${tr('{date} ב{month}', { date: day.getDate(), month: MONTHS[day.getMonth()] })}, ${tr('{n} אירועים', { n: rest.length })}`} data-cal-day=${isoDate(day)} @click=${() => this.pickDay(day)}>
             <div class="d"><b class="num">${day.getDate()}</b>${hol && !phone ? html`<span class="ell">${hol.title}</span>` : nothing}</div>
             ${rest.slice(0, cap).map((o) => this.monthEv(o))}
             ${phone ? html`<span class="dots">${evs.slice(0, 4).map((o) => html`<i style=${`--h:${colorVar(this.calOf(o.calendar_id)?.color)}`}></i>`)}</span>`
-              : rest.length > cap ? html`<div class="more">עוד <span class="num">${rest.length - cap}</span></div>` : nothing}
+              : rest.length > cap ? html`<div class="more">${tr('עוד')} <span class="num">${rest.length - cap}</span></div>` : nothing}
           </button>`;
         })}</div>
       </div>
@@ -482,7 +483,7 @@ export class CalViewCalendar extends LitElement {
   private monthEv(o: Occurrence) {
     const c = this.calOf(o.calendar_id);
     return html`<span class="ev" data-mark=${markOf(o)} data-flag=${o.sync_flag === 'conflict' && this.ctx?.access.ui.sync_conflict_display !== 'list_only' ? 'conflict' : ''}
-      style=${`--h:${colorVar(c?.color)}`} title=${o.title ?? 'תפוס'}><span class="t num">${hm(o.start)}</span><span class="ell">${o.title ?? 'תפוס'}</span></span>`;
+      style=${`--h:${colorVar(c?.color)}`} title=${o.title ?? tr('תפוס')}><span class="t num">${hm(o.start)}</span><span class="ell">${o.title ?? tr('תפוס')}</span></span>`;
   }
 
   /** On the phone a tap on a day lists its entries under the grid; elsewhere it opens the day. */
@@ -500,12 +501,12 @@ export class CalViewCalendar extends LitElement {
     const now = this.ctx?.now ?? new Date();
     const fit = list.length > 3 ? 2 : 3;
     return html`<div class="agenda" data-cal-agenda>
-      <h3>${sameDay(day, now) ? 'היום, ' : ''}${DAY_LONG[day.getDay()]} ${day.getDate()}.${pad(day.getMonth() + 1)}</h3>
+      <h3>${sameDay(day, now) ? `${tr('היום')}, ` : ''}${DAY_LONG[day.getDay()]} ${day.getDate()}.${pad(day.getMonth() + 1)}</h3>
       ${list.length ? list.slice(0, fit).map((o) => html`<button type="button" class="row" data-cal-entry=${o.event_id} @click=${() => this.openDrawer(o.event_id)}>
-          <span class="dot" style=${`--h:${colorVar(this.calOf(o.calendar_id)?.color)}`}></span><b class="num">${o.all_day ? 'כל היום' : hm(o.start)}</b>
-          <span class="grow ell">${o.title ?? 'תפוס'}</span>${o.state === 'pending' ? html`<span class="chip dash">ממתין</span>` : o.kind === 'maintenance' ? html`<span class="chip">תחזוקה</span>` : nothing}</button>`)
-        : html`<span class="muted">אין אירועים ביום הזה.</span>`}
-      ${list.length > fit ? html`<button type="button" class="btn sm" data-cal-agenda-more @click=${() => { this.anchor = day; this.setMode('day'); }}>עוד <span class="num">${list.length - fit}</span> · לתצוגת יום</button>` : nothing}
+          <span class="dot" style=${`--h:${colorVar(this.calOf(o.calendar_id)?.color)}`}></span><b class="num">${o.all_day ? tr('כל היום') : hm(o.start)}</b>
+          <span class="grow ell">${o.title ?? tr('תפוס')}</span>${o.state === 'pending' ? html`<span class="chip dash">${tr('ממתין')}</span>` : o.kind === 'maintenance' ? html`<span class="chip">${tr('תחזוקה')}</span>` : nothing}</button>`)
+        : html`<span class="muted">${tr('אין אירועים ביום הזה.')}</span>`}
+      ${list.length > fit ? html`<button type="button" class="btn sm" data-cal-agenda-more @click=${() => { this.anchor = day; this.setMode('day'); }}>${tr('עוד')} <span class="num">${list.length - fit}</span> · ${tr('לתצוגת יום')}</button>` : nothing}
     </div>`;
   }
 
@@ -543,8 +544,8 @@ export class CalViewCalendar extends LitElement {
       const ordered = this.resident ? shown : [...shown.filter((c) => today.some((o) => o.calendar_id === c.id)), ...shown.filter((c) => !today.some((o) => o.calendar_id === c.id))];
       const pg = pageOf(ordered, this.dayPage, per);
       if (pg.pages > 1) {
-        pager = html`<div class="pager" data-cal-pager><button type="button" class="btn sm" aria-label="יומנים קודמים" ?disabled=${pg.page <= 1} @click=${() => { this.dayPage = pg.page - 1; this.clearSel(); }}><sw-icon name="chevronBack" size="16"></sw-icon></button>
-          <span class="num">${pg.page} / ${pg.pages}</span><button type="button" class="btn sm" aria-label="יומנים הבאים" ?disabled=${pg.page >= pg.pages} @click=${() => { this.dayPage = pg.page + 1; this.clearSel(); }}><sw-icon name="chevron" size="16"></sw-icon></button></div>`;
+        pager = html`<div class="pager" data-cal-pager><button type="button" class="btn sm" aria-label=${tr('יומנים קודמים')} ?disabled=${pg.page <= 1} @click=${() => { this.dayPage = pg.page - 1; this.clearSel(); }}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+          <span class="num">${pg.page} / ${pg.pages}</span><button type="button" class="btn sm" aria-label=${tr('יומנים הבאים')} ?disabled=${pg.page >= pg.pages} @click=${() => { this.dayPage = pg.page + 1; this.clearSel(); }}><sw-icon name="chevron" size="16"></sw-icon></button></div>`;
       }
       return { cols: pg.items.map((c) => ({ key: c.id, day: this.anchor, cal: c })), pager };
     }
@@ -569,14 +570,14 @@ export class CalViewCalendar extends LitElement {
     const lines = Array.from({ length: hours }, (_, k) => html`<div class="hl" style=${`top:${(k / hours) * 100}%`}></div>`);
     const nowTop = ((minutesOf(now) - FROM_H * 60) / (hours * 60)) * 100;
     const canCreate = cols.some((_, i) => !!this.calForCol(i));
-    const label = canCreate ? 'לוח היומן. חצים מזיזים את הבחירה, Shift וחצים מאריכים, Enter יוצר אירוע' : 'לוח היומן, צפייה בלבד';
+    const label = canCreate ? tr('לוח היומן. חצים מזיזים את הבחירה, Shift וחצים מאריכים, Enter יוצר אירוע') : tr('לוח היומן, צפייה בלבד');
     return html`<div class="week" style=${`--cols:${Math.max(1, cols.length)}`} data-cal-week tabindex="0" role="application" aria-label=${label}
         @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onCancel} @pointerleave=${() => { if (!this.press) this.hover = null; }}
         @keydown=${this.onGridKey} @contextmenu=${(e: Event) => { if (this.touch()) e.preventDefault(); }}>
         <div></div>
         ${cols.map((c) => c.cal
           ? html`<div class="wh cal"><span class="dot" style=${`--h:${colorVar(c.cal.color)}`}></span><b class="ell" title=${c.cal.name}>${c.cal.name}</b>
-              ${!this.bookable(c.cal) ? html`<span class="lk"><sw-icon name="lock" size="12"></sw-icon>צפייה</span>` : c.cal.approval_mode === 'always' && c.cal.my_role !== 'manage' ? html`<span class="lk"><sw-icon name="lock" size="12"></sw-icon>באישור</span>` : nothing}</div>`
+              ${!this.bookable(c.cal) ? html`<span class="lk"><sw-icon name="lock" size="12"></sw-icon>${tr('צפייה')}</span>` : c.cal.approval_mode === 'always' && c.cal.my_role !== 'manage' ? html`<span class="lk"><sw-icon name="lock" size="12"></sw-icon>${tr('באישור')}</span>` : nothing}</div>`
           : html`<button type="button" class=${`wh${sameDay(c.day, now) ? ' today' : ''}`} @click=${() => { this.anchor = c.day; this.setMode('day'); }}>${phone ? DAY_SHORT[c.day.getDay()] : DAY_LONG[c.day.getDay()]} <b class="num">${c.day.getDate()}</b></button>`)}
         <div class="axis">${Array.from({ length: hours }, (_, k) => (k % 2 === 0 || !phone ? html`<span class="num" style=${`top:${(k / hours) * 100}%`}>${pad(FROM_H + k)}:00</span>` : nothing))}</div>
         ${cols.map((c, ci) => {
@@ -592,7 +593,7 @@ export class CalViewCalendar extends LitElement {
             ${this.pastZone(c.day, now)}
             ${allDay.length ? html`<div class="allday ell">${allDay[0].title}</div>` : nothing}
             ${held.map((o) => html`<div class="held" data-cal-held=${o.event_id} style=${`top:${this.pct(minOfDay(o.start))}%;height:${this.pct(minOfDay(o.end)) - this.pct(minOfDay(o.start))}%`}>
-              <b>${o.title ?? 'תפוס'}</b><br>המועד הקודם · שמור עד ההחלטה</div>`)}
+              <b>${o.title ?? tr('תפוס')}</b><br>${tr('המועד הקודם')} · ${tr('שמור עד ההחלטה')}</div>`)}
             ${placed.map((p) => {
               const flag = conflicts && p.o.sync_flag === 'conflict';
               const w = 100 / p.lanes;
@@ -600,10 +601,10 @@ export class CalViewCalendar extends LitElement {
               const cls = `ev${ed ? ' ed' : ''}${p.o.contested ? ' contest' : ''}${this.drag?.occ.occurrence_id === p.o.occurrence_id ? ' src' : ''}${this.lifted === p.o.occurrence_id ? ' lift' : ''}${this.fresh.has(p.o.event_id) ? ' fresh' : ''}`;
               return html`<button type="button" class=${cls} data-mark=${markOf(p.o)} data-flag=${flag ? 'conflict' : ''} data-cal-entry=${p.o.event_id} data-occ=${p.o.occurrence_id}
                 style=${`--h:${colorVar(this.calOf(p.o.calendar_id)?.color)};top:${p.top}%;height:${p.height}%;inset-inline-start:calc(${p.lane * w}% + 3px);inline-size:calc(${w}% - 6px)`}
-                title=${flag ? 'התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו, מחכה להחלטה' : `${p.o.title ?? 'תפוס'} · ${hm(p.o.start)}–${hm(p.o.end)}`}
-                aria-label=${`${p.o.title ?? 'תפוס'}, ${this.calOf(p.o.calendar_id)?.name ?? ''}, ${hm(p.o.start)} עד ${hm(p.o.end)}${p.o.state === 'pending' ? ', ממתין לאישור' : ''}`}
+                title=${flag ? tr('התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו, מחכה להחלטה') : `${p.o.title ?? tr('תפוס')} · ${hm(p.o.start)}–${hm(p.o.end)}`}
+                aria-label=${`${p.o.title ?? tr('תפוס')}, ${this.calOf(p.o.calendar_id)?.name ?? ''}, ${tr('{from} עד {to}', { from: hm(p.o.start), to: hm(p.o.end) })}${p.o.state === 'pending' ? `, ${tr('ממתין לאישור')}` : ''}`}
                 @click=${(e: MouseEvent) => { if (e.detail === 0) this.openPeek(p.o, e.currentTarget as HTMLElement); }}>
-                <b>${flag || p.o.contested ? html`<sw-icon name="warning" size="13"></sw-icon>` : nothing}<span class="ell">${p.o.title ?? 'תפוס'}</span></b>
+                <b>${flag || p.o.contested ? html`<sw-icon name="warning" size="13"></sw-icon>` : nothing}<span class="ell">${p.o.title ?? tr('תפוס')}</span></b>
                 ${p.height > 6 ? html`<span class="tm num ell ltr">${hm(p.o.start)}–${hm(p.o.end)}</span>` : nothing}
                 ${this.editable(p.o, 'resize') ? html`<span class="rz" aria-hidden="true"></span>` : nothing}</button>`;
             })}
@@ -630,11 +631,11 @@ export class CalViewCalendar extends LitElement {
     const cals = c.cal ? [c.cal] : this.shownCals().filter((x) => x.type === 'room');
     if (!cals.length || cals.some((x) => x.open_hours === undefined || x.open_hours === null)) return nothing;
     const os = cals.map((x) => openOn(x, c.day)).filter((o): o is { from: number; to: number } => !!o);
-    if (!os.length) return html`<div class="closedz closed all" style="top:0;height:100%"><span>${c.day.getDay() === 6 ? 'שבת · סגור' : 'סגור'}</span></div>`;
+    if (!os.length) return html`<div class="closedz closed all" style="top:0;height:100%"><span>${c.day.getDay() === 6 ? tr('שבת · סגור') : tr('סגור')}</span></div>`;
     const from = Math.min(...os.map((o) => o.from));
     const to = Math.max(...os.map((o) => o.to));
     return html`${from > BAND.from ? html`<div class="closedz closed t" style=${`top:0;height:${this.pct(from)}%`}></div>` : nothing}
-      ${to < BAND.to ? html`<div class="closedz closed b" style=${`top:${this.pct(to)}%;height:${100 - this.pct(to)}%`}>${BAND.to - to >= 90 ? html`<span>סגור</span>` : nothing}</div>` : nothing}`;
+      ${to < BAND.to ? html`<div class="closedz closed b" style=${`top:${this.pct(to)}%;height:${100 - this.pct(to)}%`}>${BAND.to - to >= 90 ? html`<span>${tr('סגור')}</span>` : nothing}</div>` : nothing}`;
   }
 
   private pastZone(day: Date, now: Date) {
@@ -674,7 +675,7 @@ export class CalViewCalendar extends LitElement {
     if (!sel || sel.col !== ci) return nothing;
     const h = this.selHint();
     const lv = h?.level ?? 'bad';
-    const tag = h ? hintTag(h) : { cls: '' as const, text: 'אין כאן יומן שאפשר להזמין בו' };
+    const tag = h ? hintTag(h) : { cls: '' as const, text: tr('אין כאן יומן שאפשר להזמין בו') };
     const flip = sel.s - BAND.from < 60 ? ' flip' : sel.e > BAND.to - 70 && sel.s - BAND.from >= 60 ? ' flipb' : '';
     const cal = this.draft ? this.calOf(this.draft.calId) : this.calForCol(ci);
     return html`<div class=${`sel lv-${lv}${flip}`} data-cal-sel=${lv} style=${`top:${this.pct(sel.s)}%;height:${this.pct(sel.e) - this.pct(sel.s)}%`}>
@@ -694,7 +695,7 @@ export class CalViewCalendar extends LitElement {
     const toDay = !col?.cal && col && !sameDay(col.day, new Date(d.occ.start)) ? DAY_LONG[col.day.getDay()] : '';
     const extra = [toCal, toDay, d.mode === 'resize' ? durText(d.e - d.s) : ''].filter(Boolean).join(' · ');
     return html`<div class=${`drag lv-${lv}${flip}`} data-cal-drag=${lv} style=${`top:${this.pct(d.s)}%;height:${this.pct(d.e) - this.pct(d.s)}%`}>
-      <div class="ev" data-mark=${markOf(d.occ)} style=${`--h:${colorVar(this.calOf(d.occ.calendar_id)?.color)}`}><b><span class="ell">${d.occ.title ?? 'תפוס'}</span></b></div>
+      <div class="ev" data-mark=${markOf(d.occ)} style=${`--h:${colorVar(this.calOf(d.occ.calendar_id)?.color)}`}><b><span class="ell">${d.occ.title ?? tr('תפוס')}</span></b></div>
       <div class="tag ltr num">${this.mm(d.s)}–${this.mm(d.e)}${extra ? html` <span dir="rtl">· ${extra}</span>` : nothing}</div>
       ${tag ? html`<div class=${`why ${tag.cls}`}><sw-icon name=${tag.cls === 'pend' ? 'info' : 'warning'} size="13"></sw-icon><span>${tag.text}</span></div>` : nothing}</div>`;
   }
@@ -831,7 +832,7 @@ export class CalViewCalendar extends LitElement {
       const started = new Date(o.start) <= (this.ctx?.now ?? new Date());
       hint = hintFor({ cal: toCal, start: instantAt(col.day, span.s), end: instantAt(col.day, span.e), ignoreId: o.event_id, moving: o.state === 'confirmed' ? 'confirmed' : 'pending', started },
         this.occ, this.hints, this.ctx?.now ?? new Date());
-      if (col.cal && !this.bookable(col.cal)) hint = { ...hint, level: 'bad', reason: `${col.cal.name}: צפייה בלבד` };
+      if (col.cal && !this.bookable(col.cal)) hint = { ...hint, level: 'bad', reason: tr('{name}: צפייה בלבד', { name: col.cal.name }) };
     }
     this.drag = { occ: o, mode: t.mode, col: ci, s: span.s, e: span.e, grab: t.at - cur.s, hint, same };
   }
@@ -922,7 +923,7 @@ export class CalViewCalendar extends LitElement {
     }
     if (d.hint?.level === 'bad') {
       this.drag = null;
-      this.showToast(d.hint.reason ?? 'אי אפשר להזיז לכאן', false, true);
+      this.showToast(d.hint.reason ?? tr('אי אפשר להזיז לכאן'), false, true);
       return;
     }
     const o = d.occ;
@@ -937,7 +938,7 @@ export class CalViewCalendar extends LitElement {
       const r = await api.patchEvent(o.event_id, { revision: o.revision ?? 1, start: start.toISOString(), end: end.toISOString(), ...(toCal.id !== o.calendar_id ? { calendar_id: toCal.id } : {}) });
       this.pushUndo({ kind: 'move', eventId: o.event_id, rev: r.event.revision, before });
       const dayTxt = sameDay(start, new Date(o.start)) ? null : `${DAY_SHORT[start.getDay()]} ${start.getDate()}.${start.getMonth() + 1}`;
-      const text = r.change_withdrawn ? 'השינוי בוטל · ההזמנה חזרה למועד המאושר'
+      const text = r.change_withdrawn ? tr('השינוי בוטל · ההזמנה חזרה למועד המאושר')
         : movedText(d.mode, toCal.id !== o.calendar_id ? toCal.name : null, dayTxt, start, end, r.event.state, !!r.event.held, r.event.contested);
       this.showToast(text, true);
       this.say(text);
@@ -955,7 +956,7 @@ export class CalViewCalendar extends LitElement {
     const ctx = this.ctx as CalCtx;
     const canCreate = this.cols.some((_, i) => !!this.calForCol(i));
     if (!canCreate) {
-      if (e.key !== 'Enter') this.say('צפייה בלבד');
+      if (e.key !== 'Enter') this.say(tr('צפייה בלבד'));
       return;
     }
     e.preventDefault();
@@ -974,7 +975,7 @@ export class CalViewCalendar extends LitElement {
     this.kb = r.sel;
     this.sel = { col: r.span.col, s: r.span.s, e: r.span.e };
     const c = this.cols[r.span.col];
-    this.say(`${c?.cal ? c.cal.name : DAY_LONG[c?.day.getDay() ?? 0]} ${this.mm(r.span.s)} עד ${this.mm(r.span.e)}`);
+    this.say(`${c?.cal ? c.cal.name : DAY_LONG[c?.day.getDay() ?? 0]} ${tr('{from} עד {to}', { from: this.mm(r.span.s), to: this.mm(r.span.e) })}`);
   };
 
   private docKey(e: KeyboardEvent): void {
@@ -1119,7 +1120,7 @@ export class CalViewCalendar extends LitElement {
       return;
     }
     if (d.behalf !== 'self' && !d.behalfLabel.trim()) {
-      this.ovError = `חסר שם ה${{ team: 'צוות', class: 'חוג', customer: 'לקוח', department: 'מחלקה', vendor: 'ספק', self: '' }[d.behalf]}.`;
+      this.ovError = tr('חסר שם ה{who}.', { who: { team: tr('צוות'), class: tr('חוג'), customer: tr('לקוח'), department: tr('מחלקה'), vendor: tr('ספק'), self: '' }[d.behalf] });
       return;
     }
     this.ovBusy = true;
@@ -1127,7 +1128,7 @@ export class CalViewCalendar extends LitElement {
       const r = await (this.ctx as CalCtx).api.createEvent(b);
       this.lastCal = d.calId;
       this.pushUndo({ kind: 'create', eventId: r.event.id, rev: r.event.revision });
-      const text = d.repeat !== 'none' ? (r.state === 'pending' ? 'הסדרה נשלחה לאישור' : 'הסדרה נשמרה') : r.state === 'pending' ? (r.event.contested ? 'נשלחה בקשה מתחרה לאישור' : 'הבקשה נשלחה לאישור') : 'ההזמנה נשמרה';
+      const text = d.repeat !== 'none' ? (r.state === 'pending' ? tr('הסדרה נשלחה לאישור') : tr('הסדרה נשמרה')) : r.state === 'pending' ? (r.event.contested ? tr('נשלחה בקשה מתחרה לאישור') : tr('הבקשה נשלחה לאישור')) : tr('ההזמנה נשמרה');
       this.fresh = new Set([r.event.id]);
       this.closeOverlay();
       this.showToast(text, true);
@@ -1174,14 +1175,14 @@ export class CalViewCalendar extends LitElement {
       if (o.held) {
         const r = await api.withdrawEvent(o.event_id, o.revision ?? 1);
         this.pushUndo({ kind: 'move', eventId: o.event_id, rev: r.event.revision, before: { calendarId: o.calendar_id, start: o.start, end: o.end } });
-        text = 'בקשת השינוי נמשכה · ההזמנה חזרה למועד הקודם';
+        text = tr('בקשת השינוי נמשכה · ההזמנה חזרה למועד הקודם');
       } else if (o.recurring && o.local_start) {
         await api.cancelEvent(o.event_id, o.revision ?? 1, o.local_start);
-        text = 'המועד בוטל';
+        text = tr('המועד בוטל');
       } else {
         const r = await api.cancelEvent(o.event_id, o.revision ?? 1);
         this.pushUndo({ kind: 'delete', eventId: o.event_id, rev: r.event.revision });
-        text = o.state === 'pending' ? 'הבקשה נמשכה' : 'ההזמנה בוטלה';
+        text = o.state === 'pending' ? tr('הבקשה נמשכה') : tr('ההזמנה בוטלה');
       }
       this.closeOverlay();
       this.showToast(text, !(o.recurring && !o.held));
@@ -1219,7 +1220,7 @@ export class CalViewCalendar extends LitElement {
       }
     }
     if (!found) {
-      this.showToast('אין מועד פנוי לשכפול בימים שמוצגים', false, true);
+      this.showToast(tr('אין מועד פנוי לשכפול בימים שמוצגים'), false, true);
       return;
     }
     this.ovBusy = true;
@@ -1229,7 +1230,7 @@ export class CalViewCalendar extends LitElement {
       this.fresh = new Set([r.event.id]);
       this.closeOverlay();
       const other = !sameDay(found.start, new Date(o.start)) ? `${DAY_SHORT[found.start.getDay()]} ${found.start.getDate()}.${found.start.getMonth() + 1} ` : '';
-      this.showToast(`שוכפל ל־${other}${hm(found.start)}–${hm(found.end)}${r.state === 'pending' ? ' · ממתין לאישור' : ''}`, true);
+      this.showToast(`${tr('שוכפל ל־{when}', { when: `${other}${hm(found.start)}–${hm(found.end)}` })}${r.state === 'pending' ? ` · ${tr('ממתין לאישור')}` : ''}`, true);
       this.changed();
     } catch (e) {
       this.ovError = describeError(e);
@@ -1247,7 +1248,7 @@ export class CalViewCalendar extends LitElement {
       const r = await api.decide(o.event_id, { decision, revision: o.revision ?? 1, room_calendar_id: room, ...(displace ? { displace_existing: true } : {}) });
       this.closeOverlay();
       const changeRejected = (r as { change_rejected?: boolean }).change_rejected;
-      this.showToast(decision === 'reject' ? (changeRejected ? 'בקשת השינוי נדחתה · ההזמנה נשארה במועד הקודם' : 'הבקשה נדחתה · המארגן יקבל הודעה') : displace ? 'אושר · ההזמנה הקודמת נדחקה, המארגן יבחר מועד אחר' : 'הבקשה אושרה', false);
+      this.showToast(decision === 'reject' ? (changeRejected ? tr('בקשת השינוי נדחתה · ההזמנה נשארה במועד הקודם') : tr('הבקשה נדחתה · המארגן יקבל הודעה')) : displace ? tr('אושר · ההזמנה הקודמת נדחקה, המארגן יבחר מועד אחר') : tr('הבקשה אושרה'), false);
       this.changed();
     } catch (e) {
       if (e instanceof ApiError && e.body.code === 'slot_held' && this.ctx?.access.ui.allow_displace) {
@@ -1298,8 +1299,8 @@ export class CalViewCalendar extends LitElement {
   // ---------- coach, toast, undo ----------
   private coachLine() {
     if (!this.coach || this.mode === 'month' || !this.touch() || !this.ctx?.access.can.book) return nothing;
-    return html`<div class="coach" role="note" data-cal-coach><sw-icon name="hand" size="16"></sw-icon><span>לחיצה ארוכה על שעה פנויה בוחרת זמן. ממשיכים לגרור כדי להאריך.</span>
-      <button type="button" class="btn icon sm" aria-label="הסתרת הרמז" @click=${() => this.hideCoach()}><sw-icon name="close" size="14"></sw-icon></button></div>`;
+    return html`<div class="coach" role="note" data-cal-coach><sw-icon name="hand" size="16"></sw-icon><span>${tr('לחיצה ארוכה על שעה פנויה בוחרת זמן. ממשיכים לגרור כדי להאריך.')}</span>
+      <button type="button" class="btn icon sm" aria-label=${tr('הסתרת הרמז')} @click=${() => this.hideCoach()}><sw-icon name="close" size="14"></sw-icon></button></div>`;
   }
 
   private showCoach(): void {
@@ -1339,8 +1340,8 @@ export class CalViewCalendar extends LitElement {
       else if (u.kind === 'delete') await api.restoreEvent(u.eventId, u.rev);
       else await api.cancelEvent(u.eventId, u.rev);
       this.closeOverlay();
-      this.showToast('הפעולה בוטלה', false);
-      this.say('הפעולה בוטלה');
+      this.showToast(tr('הפעולה בוטלה'), false);
+      this.say(tr('הפעולה בוטלה'));
       this.changed();
     } catch (e) {
       this.showToast(describeError(e), false, true);

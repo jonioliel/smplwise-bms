@@ -16,6 +16,7 @@ import { describeError } from '../api/client';
 import type { Building, Site } from '../api/types';
 import { PhoneWidth } from '../shell/phone';
 import { multiBuildingOn } from '../api/mapping';
+import { tr } from '../i18n/msg/media';
 
 const SITE_SCENE = ['house', 'building', 'warehouse'] as const;
 
@@ -404,7 +405,7 @@ export class ExploreSites extends LitElement {
       this.busy = true;
       try {
         await uploadImage(kind, id, f);
-        this.notice = 'התמונה נשמרה.';
+        this.notice = tr('התמונה נשמרה.');
         await this.reload();
       } catch (err) {
         this.notice = describeError(err);
@@ -432,11 +433,11 @@ export class ExploreSites extends LitElement {
     const id = b ? b.id : s.id;
     const stop = (e: Event) => e.stopPropagation();
     return html`<span class="menu" @click=${stop}>
-      ${!b ? html`<sw-button variant="ghost" size="sm" icon="plus" data-add-building=${s.id} @click=${() => this.open({ kind: 'building', site: s })}>מבנה</sw-button>` : nothing}
-      <sw-button variant="ghost" size="sm" iconOnly icon="edit" label="עריכה" data-edit=${id} @click=${() => this.open(b ? { kind: 'edit-building', building: b, site: s } : { kind: 'edit-site', site: s })}></sw-button>
-      <sw-button variant="ghost" size="sm" iconOnly icon="camera" label=${hasImage ? 'החלף תמונה' : 'תמונה'} ?disabled=${this.busy} data-image=${id} @click=${() => this.pickImage(kind, id)}></sw-button>
-      ${hasImage ? html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label="הסר תמונה" ?disabled=${this.busy} @click=${() => this.removeImage(kind, id)}></sw-button>` : nothing}
-      <sw-button variant="ghost" size="sm" iconOnly icon="trash" label="מחיקה" data-delete=${id} @click=${() => this.open(b ? { kind: 'delete-building', building: b, site: s } : { kind: 'delete-site', site: s })}></sw-button>
+      ${!b ? html`<sw-button variant="ghost" size="sm" icon="plus" data-add-building=${s.id} @click=${() => this.open({ kind: 'building', site: s })}>${tr('מבנה')}</sw-button>` : nothing}
+      <sw-button variant="ghost" size="sm" iconOnly icon="edit" label=${tr('עריכה')} data-edit=${id} @click=${() => this.open(b ? { kind: 'edit-building', building: b, site: s } : { kind: 'edit-site', site: s })}></sw-button>
+      <sw-button variant="ghost" size="sm" iconOnly icon="camera" label=${hasImage ? tr('החלף תמונה') : tr('תמונה')} ?disabled=${this.busy} data-image=${id} @click=${() => this.pickImage(kind, id)}></sw-button>
+      ${hasImage ? html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('הסר תמונה')} ?disabled=${this.busy} @click=${() => this.removeImage(kind, id)}></sw-button>` : nothing}
+      <sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${tr('מחיקה')} data-delete=${id} @click=${() => this.open(b ? { kind: 'delete-building', building: b, site: s } : { kind: 'delete-site', site: s })}></sw-button>
     </span>`;
   }
 
@@ -491,18 +492,18 @@ export class ExploreSites extends LitElement {
         const buildings = s.buildings ?? [];
         const cams = buildings.reduce((n, b) => n + (b.floors ?? []).reduce((m, f) => m + f.camera_count, 0), 0);
         return html`<sw-card flush interactive data-site-card=${s.id} @click=${() => this.openSite(s)}>
-          <div class="pic">${s.image_url ? html`<img class="photo" src=${imageSrc(s.image_url)} alt="" />` : html`<sw-scene kind=${SITE_SCENE[i % 3]}></sw-scene>${tree.source === 'demo' ? html`<span class="demo">דמו</span>` : html`<span class="demo">איור</span>`}`}</div>
+          <div class="pic">${s.image_url ? html`<img class="photo" src=${imageSrc(s.image_url)} alt="" />` : html`<sw-scene kind=${SITE_SCENE[i % 3]}></sw-scene>${tree.source === 'demo' ? html`<span class="demo">${tr('דמו')}</span>` : html`<span class="demo">${tr('איור')}</span>`}`}</div>
           <div class="info">
-            <div class="txt"><b class="clamp2" dir="auto" title=${s.name} data-site-name>${s.name}</b><small>${buildings.length} ${buildings.length === 1 ? 'מבנה' : 'מבנים'} · ${cams} מצלמות</small>${s.address ? html`<small class="clamp2" dir="auto" title=${s.address} data-site-address>${s.address}</small>` : html`<small class="clamp2"></small>`}</div>
+            <div class="txt"><b class="clamp2" dir="auto" title=${s.name} data-site-name>${s.name}</b><small>${buildings.length === 1 ? tr('{n} מבנה', { n: 1 }) : tr('{n} מבנים', { n: buildings.length })} · ${tr('{n} מצלמות', { n: cams })}</small>${s.address ? html`<small class="clamp2" dir="auto" title=${s.address} data-site-address>${s.address}</small>` : html`<small class="clamp2"></small>`}</div>
             <div class="acts">
               ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('site', s) : nothing}
-              ${this.phone.restricted('structure') ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>`}
+              ${this.phone.restricted('structure') ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="plus" label=${tr('מבנה חדש')} @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>`}
             </div>
           </div>
         </sw-card>`;
       })}
       ${tree.canCreateSite && !this.phone.restricted('structure')
-        ? html`<button class="add" @click=${() => this.open({ kind: 'site' })}><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>הוספת אתר חדש</strong><small>יצירת מיקום חדש כדי להתחיל</small></div></button>`
+        ? html`<button class="add" @click=${() => this.open({ kind: 'site' })}><div><div class="ic"><sw-icon name="plus" size=${18}></sw-icon></div><strong>${tr('הוספת אתר חדש')}</strong><small>${tr('יצירת מיקום חדש כדי להתחיל')}</small></div></button>`
         : nothing}
     </div>`;
   }
@@ -513,52 +514,52 @@ export class ExploreSites extends LitElement {
       ${rows.map(
         ({ s, b }, i) => html`<sw-card class="brow" data-building-card=${b.id} @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
           ${b.image_url ? html`<img class="photo small" src=${imageSrc(b.image_url)} alt="" />` : html`<sw-scene kind=${i % 2 ? 'house' : 'building'}></sw-scene>`}
-          <div><b dir="auto" title=${b.name}>${b.name}</b><small>${s.name} · ${(b.floors ?? []).length} קומות · ${(b.floors ?? []).reduce((n, f) => n + f.camera_count, 0)} מצלמות</small></div>
+          <div><b dir="auto" title=${b.name}>${b.name}</b><small>${s.name} · ${tr('{n} קומות', { n: (b.floors ?? []).length })} · ${tr('{n} מצלמות', { n: (b.floors ?? []).reduce((n, f) => n + f.camera_count, 0) })}</small></div>
           ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('building', s, b) : nothing}
           <sw-icon name="chevron" size=${14}></sw-icon>
         </sw-card>`,
       )}
-      ${rows.length ? nothing : html`<div class="map" style="min-block-size:120px">אין מבנים עדיין.</div>`}
+      ${rows.length ? nothing : html`<div class="map" style="min-block-size:120px">${tr('אין מבנים עדיין.')}</div>`}
     </div>`;
   }
 
   render() {
     const tree = this.tree;
-    if (!tree) return html`<sw-page heading="אתרים ומבנים"><sw-state-panel icon="building" state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
+    if (!tree) return html`<sw-page heading=${tr('אתרים ומבנים')}><sw-state-panel icon="building" state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
     const d = this.phone.restricted('structure') ? null : this.dialog;
     const canCreate = tree.canCreateSite && !this.phone.restricted('structure');
     return html`
-      <sw-page heading="אתרים ומבנים" subheading=${`ניהול המיקומים והמבנים שלך${tree.source === 'demo' ? ' · נתוני הדגמה' : ''}`}>
-        ${canCreate ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button>` : nothing}
-        <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: tree.sites.length }, { id: 'buildings', label: 'מבנים', count: tree.sites.reduce((n, s) => n + (s.buildings?.length ?? 0), 0) }, { id: 'map', label: 'מפה' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+      <sw-page heading=${tr('אתרים ומבנים')} subheading=${`${tr('ניהול המיקומים והמבנים שלך')}${tree.source === 'demo' ? tr(' · נתוני הדגמה') : ''}`}>
+        ${canCreate ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>${tr('אתר חדש')}</sw-button>` : nothing}
+        <sw-tabs .items=${[{ id: 'all', label: tr('כל האתרים'), count: tree.sites.length }, { id: 'buildings', label: tr('מבנים'), count: tree.sites.reduce((n, s) => n + (s.buildings?.length ?? 0), 0) }, { id: 'map', label: tr('מפה') }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${tree.sites.length === 0 && this.tab === 'all'
-          ? html`<sw-state-panel icon="building" state="empty" heading="עוד אין אתרים" hint=${this.phone.restricted('structure') ? 'יצירת אתרים ומבנים זמינה במחשב.' : 'התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.'}>${canCreate ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button></div>` : nothing}</sw-state-panel>`
-          : this.tab === 'all' ? this.renderSites(tree) : this.tab === 'buildings' ? this.renderBuildings(tree) : html`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
+          ? html`<sw-state-panel icon="building" state="empty" heading=${tr('עוד אין אתרים')} hint=${this.phone.restricted('structure') ? tr('יצירת אתרים ומבנים זמינה במחשב.') : tr('התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.')}>${canCreate ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>${tr('אתר חדש')}</sw-button></div>` : nothing}</sw-state-panel>`
+          : this.tab === 'all' ? this.renderSites(tree) : this.tab === 'buildings' ? this.renderBuildings(tree) : html`<div class="map">${tr('מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta')}</div>`}
         ${this.notice ? html`<div class="err" data-sites-notice style="margin-block:8px">${this.notice}</div>` : nothing}
         ${d && (d.kind === 'delete-site' || d.kind === 'delete-building')
           ? (() => {
               const children = d.kind === 'delete-site' ? (d.site.buildings ?? []).length : (d.building.floors ?? []).length;
               const name = d.kind === 'delete-site' ? d.site.name : d.building.name;
-              return html`<sw-dialog open heading=${d.kind === 'delete-site' ? 'מחיקת אתר' : 'מחיקת מבנה'} subheading=${name} data-delete-dialog @close=${() => (this.dialog = null)}>
+              return html`<sw-dialog open heading=${d.kind === 'delete-site' ? tr('מחיקת אתר') : tr('מחיקת מבנה')} subheading=${name} data-delete-dialog @close=${() => (this.dialog = null)}>
                 ${children
-                  ? html`<div class="err">${d.kind === 'delete-site' ? `לאתר יש ${children} מבנים` : `למבנה יש ${children} קומות`}. מחק אותם קודם; מחיקה לא מוחקת מצלמות, רק את המיקום בקטלוג.</div>`
-                  : html`<div>המיקום יוסר מהקטלוג (מחיקה רכה, נרשמת באודיט). מצלמות והקלטות אינן מושפעות.</div>`}
+                  ? html`<div class="err">${d.kind === 'delete-site' ? tr('לאתר יש {children} מבנים', { children }) : tr('למבנה יש {children} קומות', { children })}${tr('. מחק אותם קודם; מחיקה לא מוחקת מצלמות, רק את המיקום בקטלוג.')}</div>`
+                  : html`<div>${tr('המיקום יוסר מהקטלוג (מחיקה רכה, נרשמת באודיט). מצלמות והקלטות אינן מושפעות.')}</div>`}
                 ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
-                <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
-                <sw-button slot="footer" variant="danger" ?disabled=${!!children || this.busy} data-delete-confirm @click=${() => this.submit()}>מחק</sw-button>
+                <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+                <sw-button slot="footer" variant="danger" ?disabled=${!!children || this.busy} data-delete-confirm @click=${() => this.submit()}>${tr('מחק')}</sw-button>
               </sw-dialog>`;
             })()
           : d
-            ? html`<sw-dialog open heading=${d.kind === 'site' ? 'אתר חדש' : d.kind === 'building' ? 'מבנה חדש' : d.kind === 'edit-site' ? 'עריכת אתר' : 'עריכת מבנה'} subheading=${d.kind === 'building' ? d.site.name : d.kind === 'site' ? 'שם, כתובת ואזור זמן ברירת מחדל Asia/Jerusalem' : d.kind === 'edit-building' ? d.site.name : d.site.address || ''} data-edit-dialog @close=${() => (this.dialog = null)}>
-                <sw-field label="שם"><input data-form-name .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder=${d.kind === 'site' || d.kind === 'edit-site' ? 'למשל: משרדי החברה' : 'למשל: מבנה ראשי'} /></sw-field>
-                ${d.kind === 'site' || d.kind === 'edit-site' ? html`<sw-field label="כתובת (אופציונלי)"><input data-form-address .value=${this.formAddress} @input=${(e: Event) => (this.formAddress = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
+            ? html`<sw-dialog open heading=${d.kind === 'site' ? tr('אתר חדש') : d.kind === 'building' ? tr('מבנה חדש') : d.kind === 'edit-site' ? tr('עריכת אתר') : tr('עריכת מבנה')} subheading=${d.kind === 'building' ? d.site.name : d.kind === 'site' ? tr('שם, כתובת ואזור זמן ברירת מחדל Asia/Jerusalem') : d.kind === 'edit-building' ? d.site.name : d.site.address || ''} data-edit-dialog @close=${() => (this.dialog = null)}>
+                <sw-field label=${tr('שם')}><input data-form-name .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder=${d.kind === 'site' || d.kind === 'edit-site' ? tr('למשל: משרדי החברה') : tr('למשל: מבנה ראשי')} /></sw-field>
+                ${d.kind === 'site' || d.kind === 'edit-site' ? html`<sw-field label=${tr('כתובת (אופציונלי)')}><input data-form-address .value=${this.formAddress} @input=${(e: Event) => (this.formAddress = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
                 ${d.kind === 'edit-building' && this.multiOn
-                  ? html`<label class="shared-flag" data-form-shared><input type="checkbox" .checked=${this.formShared} @change=${(e: Event) => (this.formShared = (e.target as HTMLInputElement).checked)} /><span><b>בניין משותף</b><small>חניון, חדר חשמל, גינה - מוצג אחרון במסך הראשי ולא מסומן ב"כבה הכל באתר"</small></span></label>`
+                  ? html`<label class="shared-flag" data-form-shared><input type="checkbox" .checked=${this.formShared} @change=${(e: Event) => (this.formShared = (e.target as HTMLInputElement).checked)} /><span><b>${tr('בניין משותף')}</b><small>${tr('חניון, חדר חשמל, גינה - מוצג אחרון במסך הראשי ולא מסומן ב"כבה הכל באתר"')}</small></span></label>`
                   : nothing}
                 ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
-                ${tree.source === 'demo' ? html`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>` : nothing}
-                <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
-                <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || tree.source === 'demo'} data-form-submit @click=${() => this.submit()}>${d.kind === 'site' ? 'צור אתר' : d.kind === 'building' ? 'צור מבנה' : 'שמור'}</sw-button>
+                ${tree.source === 'demo' ? html`<div class="err">${tr('נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.')}</div>` : nothing}
+                <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>${tr('ביטול')}</sw-button>
+                <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim() || this.busy || tree.source === 'demo'} data-form-submit @click=${() => this.submit()}>${d.kind === 'site' ? tr('צור אתר') : d.kind === 'building' ? tr('צור מבנה') : tr('שמור')}</sw-button>
               </sw-dialog>`
             : nothing}
       </sw-page>

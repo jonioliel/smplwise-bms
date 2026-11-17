@@ -9,6 +9,7 @@ import type { Camera } from '../api/types';
 import { CastWatch, castStore } from './cast-store';
 import { canExtend, extendLimitReached, isLow, leftText, openSessions, pillLabel } from '../screens/cast-logic';
 import { t } from '../i18n/he';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-028: the global "משדר N" pill, one in the action row of every screen (owner Q9 A) - the floating corner of the shell. It exists only while a cast
@@ -226,7 +227,7 @@ export class SwCastPill extends LitElement {
     try {
       const r = await castSwitch(id, { camera_id: camId });
       castStore.put(r.session);
-      if (r.status === 'refused') this.setErr(id, 'המסך סירב להחלפה. אפשר לנסות שוב.');
+      if (r.status === 'refused') this.setErr(id, tr('המסך סירב להחלפה. אפשר לנסות שוב.'));
       this.picking = '';
     } catch (err) {
       this.setErr(id, describeError(err));
@@ -260,13 +261,13 @@ export class SwCastPill extends LitElement {
               <div class="t2">
                 <span class=${isLow(s, now) ? 'low' : ''} data-cast-left>${s.state === 'not_confirmed' ? t('cast.notConfirmed') : s.state === 'starting' ? t('cast.starting2') : `${t('cast.pillTimeLeft')} ${leftText(s, now)}`}</span>
                 ${s.mine ? html`<span>${t('cast.me')}</span>` : s.started_by_name ? html`<span>${t('cast.startedBy')}: ${s.started_by_name}</span>` : nothing}
-                ${s.kind === 'test' ? html`<span>בדיקה</span>` : nothing}
+                ${s.kind === 'test' ? html`<span>${tr('בדיקה')}</span>` : nothing}
               </div>
               <div class="acts">
                 ${s.can.extend && !s.permanent && s.kind !== 'test'
-                  ? html`<button type="button" class="b" data-cast-extend ?disabled=${!canExtend(s) || this.busy === s.session_id} title=${extendLimitReached(s) ? 'אי אפשר להאריך יותר: התחילו שידור חדש' : `${t('cast.pillExtendLeft')}: ${s.extensions_left}`} @click=${() => void this.extend(s.session_id)}><sw-icon name="plus" size=${14}></sw-icon>${t('cast.pillExtend')}${extendLimitReached(s) ? '' : ` (${s.extensions_left})`}</button>`
+                  ? html`<button type="button" class="b" data-cast-extend ?disabled=${!canExtend(s) || this.busy === s.session_id} title=${extendLimitReached(s) ? tr('אי אפשר להאריך יותר: התחילו שידור חדש') : `${t('cast.pillExtendLeft')}: ${s.extensions_left}`} @click=${() => void this.extend(s.session_id)}><sw-icon name="plus" size=${14}></sw-icon>${t('cast.pillExtend')}${extendLimitReached(s) ? '' : ` (${s.extensions_left})`}</button>`
                   : nothing}
-                ${s.can.switch ? html`<button type="button" class="b" data-cast-switch @click=${() => void this.startPick(s.session_id)}>החלף מצלמה</button>` : nothing}
+                ${s.can.switch ? html`<button type="button" class="b" data-cast-switch @click=${() => void this.startPick(s.session_id)}>${tr('החלף מצלמה')}</button>` : nothing}
                 <sw-cast-stop .session=${s}></sw-cast-stop>
               </div>
               ${this.picking === s.session_id ? html`<div class="cams" data-cast-cams>${this.cams.filter((c) => c.id !== s.camera_id).map((c) => html`<button type="button" class="b" data-cast-cam=${c.id} ?disabled=${this.busy === s.session_id} @click=${() => void this.switchTo(s.session_id, c.id)}>${c.alias || c.name}</button>`)}</div>` : nothing}

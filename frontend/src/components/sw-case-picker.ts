@@ -6,6 +6,7 @@ import './sw-field';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { addCaseItem, createCase, listCases, type Case, type NewCaseItem } from '../api/cases';
+import { tr } from '../i18n/msg/components';
 
 /**
  * "הוסף לתיק" (T049): pick an open case, or create one, and add an event, a recording clip or a note to it.
@@ -86,7 +87,7 @@ export class SwCasePicker extends LitElement {
       let title = this.cases.find((c) => c.id === caseId)?.title ?? '';
       if (caseId === 'new') {
         if (!this.newTitle.trim()) {
-          this.error = 'תן שם לתיק החדש.';
+          this.error = tr('תן שם לתיק החדש.');
           return;
         }
         const c = await createCase({ title: this.newTitle.trim() });
@@ -106,36 +107,36 @@ export class SwCasePicker extends LitElement {
   render() {
     const it = this.item;
     if (!it) return nothing;
-    const what = it.kind === 'event' ? 'האירוע' : it.kind === 'clip' ? 'הקטע' : 'ההערה';
-    return html`<sw-dialog open heading="הוסף לתיק" subheading=${this.subheading} data-case-picker @close=${() => this.close()}>
+    const what = it.kind === 'event' ? tr('האירוע') : it.kind === 'clip' ? tr('הקטע') : tr('ההערה');
+    return html`<sw-dialog open heading=${tr('הוסף לתיק')} subheading=${this.subheading} data-case-picker @close=${() => this.close()}>
       ${this.error ? html`<div class="err" data-case-error>${this.error}</div>` : nothing}
       ${this.done
-        ? html`<div class="ok" data-case-added>${what} נוסף לתיק "${this.done.title}".</div>`
+        ? html`<div class="ok" data-case-added>${tr('{what} נוסף לתיק "{title}".', { what, title: this.done.title })}</div>`
         : this.loading
-          ? html`<div class="note">טוען תיקים…</div>`
-          : html`${!this.canManage ? html`<div class="note">אין לך הרשאה לנהל תיקים.</div>` : nothing}
-              <sw-field label="תיק">
-                <select aria-label="תיק" data-case-select @change=${(e: Event) => (this.picked = (e.target as HTMLSelectElement).value)}>
-                  ${this.cases.map((c) => html`<option value=${c.id} ?selected=${c.id === this.picked}>${c.title} · ${c.counts.items} פריטים</option>`)}
-                  <option value="new" ?selected=${this.picked === 'new'}>+ תיק חדש</option>
+          ? html`<div class="note">${tr('טוען תיקים…')}</div>`
+          : html`${!this.canManage ? html`<div class="note">${tr('אין לך הרשאה לנהל תיקים.')}</div>` : nothing}
+              <sw-field label=${tr('תיק')}>
+                <select aria-label=${tr('תיק')} data-case-select @change=${(e: Event) => (this.picked = (e.target as HTMLSelectElement).value)}>
+                  ${this.cases.map((c) => html`<option value=${c.id} ?selected=${c.id === this.picked}>${c.title} · ${tr('{n} פריטים', { n: c.counts.items })}</option>`)}
+                  <option value="new" ?selected=${this.picked === 'new'}>${tr('+ תיק חדש')}</option>
                 </select>
               </sw-field>
               ${this.picked === 'new'
-                ? html`<sw-field label="שם התיק החדש"><input data-case-new-title .value=${this.newTitle} placeholder="למשל: כניסה לא מורשית" @input=${(e: Event) => (this.newTitle = (e.target as HTMLInputElement).value)} /></sw-field>`
+                ? html`<sw-field label=${tr('שם התיק החדש')}><input data-case-new-title .value=${this.newTitle} placeholder=${tr('למשל: כניסה לא מורשית')} @input=${(e: Event) => (this.newTitle = (e.target as HTMLInputElement).value)} /></sw-field>`
                 : nothing}
-              ${it.kind !== 'note' ? html`<sw-field label="הערה לפריט (לא חובה)"><input data-case-note .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
+              ${it.kind !== 'note' ? html`<sw-field label=${tr('הערה לפריט (לא חובה)')}><input data-case-note .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
               <div class="note">
                 ${it.kind === 'clip'
-                  ? 'הקטע נשמר כסימנייה שמצביעה ל־NVR; שימור עותק מאומת נעשה מתוך התיק.'
+                  ? tr('הקטע נשמר כסימנייה שמצביעה ל־NVR; שימור עותק מאומת נעשה מתוך התיק.')
                   : it.kind === 'event'
-                    ? 'האירוע נוסף עם חלון של 5 שניות לפני ו־30 שניות אחרי; שימור עותק מאומת נעשה מתוך התיק.'
+                    ? tr('האירוע נוסף עם חלון של 5 שניות לפני ו־30 שניות אחרי; שימור עותק מאומת נעשה מתוך התיק.')
                     : ''}
               </div>`}
       ${this.done
-        ? html`<sw-button slot="footer" variant="ghost" @click=${() => this.close()}>סגור</sw-button>
-            <sw-button slot="footer" variant="primary" icon="case" data-case-open @click=${() => { const id = this.done?.id ?? ''; this.close(); navigate(`/investigate/cases/${id}`); }}>פתח את התיק</sw-button>`
-        : html`<sw-button slot="footer" variant="ghost" @click=${() => this.close()}>ביטול</sw-button>
-            <sw-button slot="footer" variant="primary" icon="plus" data-case-confirm ?disabled=${this.busy || this.loading || !this.canManage} @click=${() => this.confirm()}>הוסף</sw-button>`}
+        ? html`<sw-button slot="footer" variant="ghost" @click=${() => this.close()}>${tr('סגור')}</sw-button>
+            <sw-button slot="footer" variant="primary" icon="case" data-case-open @click=${() => { const id = this.done?.id ?? ''; this.close(); navigate(`/investigate/cases/${id}`); }}>${tr('פתח את התיק')}</sw-button>`
+        : html`<sw-button slot="footer" variant="ghost" @click=${() => this.close()}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="primary" icon="plus" data-case-confirm ?disabled=${this.busy || this.loading || !this.canManage} @click=${() => this.confirm()}>${tr('הוסף')}</sw-button>`}
     </sw-dialog>`;
   }
 }

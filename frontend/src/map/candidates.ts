@@ -4,6 +4,7 @@
  * walls and openings with source "auto" (detection) or "imported" (DXF); `pixels` keeps their version-pixel sizes so
  * the metres follow the document's effective scale, whatever the server assumed.
  */
+import { tr } from '../i18n/msg/map';
 import type { CandidatePixels, DetectResult } from '../api/geometry';
 import type { GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from './geometry';
 
@@ -28,7 +29,7 @@ export interface CandidateSet {
 }
 
 /** The label of a wall candidate outside the main structure (list row, map pill, selection note). */
-export const OUTSIDE_MAIN_HE = 'מחוץ למבנה הראשי';
+export const OUTSIDE_MAIN_HE = tr('מחוץ למבנה הראשי');
 
 /** Whether candidate `id` is a wall outside the main structure. */
 export function isOutsideMain(set: CandidateSet, id: string): boolean {
@@ -40,7 +41,7 @@ export function outsideMainSummary(set: CandidateSet): string | null {
   const flagged = new Set(set.outsideMain ?? []);
   const n = set.walls.filter((w) => flagged.has(w.id)).length;
   if (!n) return null;
-  return `${n === 1 ? 'קיר אחד' : `${n} קירות`} ${OUTSIDE_MAIN_HE} - בדוק לפני קבלה`;
+  return n === 1 ? tr('קיר אחד מחוץ למבנה הראשי - בדוק לפני קבלה') : tr('{n} קירות מחוץ למבנה הראשי - בדוק לפני קבלה', { n });
 }
 
 const MIN_THICKNESS_M = 0.02;
@@ -62,20 +63,20 @@ export function candidatesDoc(base: GeometryDoc, set: CandidateSet): GeometryDoc
 
 /** The label of an object candidate (list, map title): what the detector proposes it as. */
 export function objectCandidateLabel(itemId: string): string {
-  if (itemId.startsWith('tribune.')) return 'טריבונה';
-  if (itemId.startsWith('column.')) return 'עמוד';
-  return 'עצם';
+  if (itemId.startsWith('tribune.')) return tr('טריבונה');
+  if (itemId.startsWith('column.')) return tr('עמוד');
+  return tr('עצם');
 }
 
 /** The panel's line for the object candidates: how many of which kind (detect), or how many from the file (DXF, IFC). */
 export function objectsSummary(set: CandidateSet, source: CandSource): string {
   const n = set.objects.length;
-  const count = n === 1 ? 'עצם אחד' : `${n} עצמים`;
-  if (source !== 'detect') return `${count} מהקובץ`;
+  const count = n === 1 ? tr('עצם אחד') : tr('{n} עצמים', { n });
+  if (source !== 'detect') return tr('{count} מהקובץ', { count });
   const tribunes = set.objects.filter((o) => o.item_id.startsWith('tribune.')).length;
   const columns = set.objects.filter((o) => o.item_id.startsWith('column.')).length;
-  const parts = [tribunes ? (tribunes === 1 ? 'טריבונה' : `${tribunes} טריבונות`) : '', columns ? (columns === 1 ? 'עמוד' : `${columns} עמודים`) : ''].filter(Boolean);
-  return parts.length ? `${count} שזוהו (${parts.join(', ')})` : `${count} שזוהו`;
+  const parts = [tribunes ? (tribunes === 1 ? tr('טריבונה') : tr('{n} טריבונות', { n: tribunes })) : '', columns ? (columns === 1 ? tr('עמוד') : tr('{n} עמודים', { n: columns })) : ''].filter(Boolean);
+  return parts.length ? tr('{count} שזוהו ({parts})', { count, parts: parts.join(', ') }) : tr('{count} שזוהו', { count });
 }
 
 /** Metres from the version pixels at another scale (the document's effective scale, or the applied door-width hint). */

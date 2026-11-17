@@ -6,6 +6,7 @@ import { describeError } from '../api/client';
 import type { Occurrence, OverlapMode } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import { addDays, colorVar, OVERLAP_SHORT, pageOf, rowsThatFit, startOfDay, whenText } from './model';
 import { LongListsController, perPageFor } from '../api/long-lists';
 
@@ -13,7 +14,7 @@ import { LongListsController, perPageFor } from '../api/long-lists';
 interface Win { o: Occurrence; rooms: string[] }
 
 const WIN_STATE: Record<string, [string, string]> = {
-  confirmed: ['מוצב', 'ok'], pending: ['ממתין להחלטה', 'dash'], rejected: ['נדחה', 'bad'], cancelled: ['בוטל', ''], done: ['הסתיים', ''], displaced: ['נדחק', 'warn'], expired: ['פג', ''], withdrawn: ['בוטל', ''],
+  confirmed: [tr('מוצב'), 'ok'], pending: [tr('ממתין להחלטה'), 'dash'], rejected: [tr('נדחה'), 'bad'], cancelled: [tr('בוטל'), ''], done: [tr('הסתיים'), ''], displaced: [tr('נדחק'), 'warn'], expired: [tr('פג'), ''], withdrawn: [tr('בוטל'), ''],
 };
 
 /**
@@ -103,7 +104,7 @@ export class CalViewMaint extends LitElement {
   render() {
     if (!this.ctx) return nothing;
     if (this.error && !this.wins) {
-      return html`<section class="panel" data-cal-state="error"><div class="center"><sw-state-panel state="error" heading="חלונות התחזוקה לא נטענו" hint=${this.error} actionLabel="לנסות שוב" @action=${() => void this.load()}></sw-state-panel></div></section>`;
+      return html`<section class="panel" data-cal-state="error"><div class="center"><sw-state-panel state="error" heading=${tr('חלונות התחזוקה לא נטענו')} hint=${this.error} actionLabel=${tr('לנסות שוב')} @action=${() => void this.load()}></sw-state-panel></div></section>`;
     }
     if (!this.wins) return html`<section class="panel" aria-busy="true">${Array.from({ length: 5 }, () => html`<div class="skel" style="block-size:56px"></div>`)}</section>`;
     const now = this.ctx.now.toISOString();
@@ -113,19 +114,19 @@ export class CalViewMaint extends LitElement {
     const can = this.ctx.access.can.maintenance;
     return html`<section class="panel" data-maint-list>
       <div class="ph">
-        <div class="seg" role="group" aria-label="חלונות">
-          <button type="button" aria-pressed=${String(this.seg === 'next')} data-seg="next" @click=${() => { this.seg = 'next'; this.page = 1; }}>הבאים <span class="num">${this.wins.filter((w) => w.o.end >= now).length}</span></button>
-          <button type="button" aria-pressed=${String(this.seg === 'past')} data-seg="past" @click=${() => { this.seg = 'past'; this.page = 1; }}>השבוע שעבר</button>
+        <div class="seg" role="group" aria-label=${tr('חלונות')}>
+          <button type="button" aria-pressed=${String(this.seg === 'next')} data-seg="next" @click=${() => { this.seg = 'next'; this.page = 1; }}>${tr('הבאים')} <span class="num">${this.wins.filter((w) => w.o.end >= now).length}</span></button>
+          <button type="button" aria-pressed=${String(this.seg === 'past')} data-seg="past" @click=${() => { this.seg = 'past'; this.page = 1; }}>${tr('השבוע שעבר')}</button>
         </div>
         <span class="sp"></span>
-        <span class="mode"><sw-icon name="info" size="14"></sw-icon>מעל הזמנה מאושרת: <b>${OVERLAP_SHORT[this.overlap]}</b></span>
+        <span class="mode"><sw-icon name="info" size="14"></sw-icon>${tr('מעל הזמנה מאושרת:')} <b>${OVERLAP_SHORT[this.overlap]}</b></span>
       </div>
       ${list.length ? html`<div class="list">${pg.items.map((w) => this.row(w))}</div>
-        ${this.lists.paged ? html`<div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
+        ${this.lists.paged ? html`<div class="pager" data-pager><button type="button" class="btn" aria-label=${tr('הקודם')} ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
           <span class="num" data-page>${pg.page} / ${pg.pages}</span>
-          <button type="button" class="btn" aria-label="הבא" ?disabled=${pg.page >= pg.pages} @click=${() => (this.page = pg.page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>` : nothing}`
-      : html`<div class="center" data-cal-state="empty"><sw-state-panel icon="wrench" state="empty" heading=${this.seg === 'next' ? 'אין חלונות תחזוקה מתוכננים' : 'לא היו חלונות תחזוקה בשבוע שעבר'}
-          hint="חלון תחזוקה מסמן חדרים כתפוסים לעבודה; לפני השמירה רואים אם הוא חופף להזמנות." actionLabel=${can && this.seg === 'next' ? 'חלון תחזוקה חדש' : ''}
+          <button type="button" class="btn" aria-label=${tr('הבא')} ?disabled=${pg.page >= pg.pages} @click=${() => (this.page = pg.page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>` : nothing}`
+      : html`<div class="center" data-cal-state="empty"><sw-state-panel icon="wrench" state="empty" heading=${this.seg === 'next' ? tr('אין חלונות תחזוקה מתוכננים') : tr('לא היו חלונות תחזוקה בשבוע שעבר')}
+          hint=${tr('חלון תחזוקה מסמן חדרים כתפוסים לעבודה; לפני השמירה רואים אם הוא חופף להזמנות.')} actionLabel=${can && this.seg === 'next' ? tr('חלון תחזוקה חדש') : ''}
           @action=${() => emit(this, CAL_EVENTS.newMaint, {})}></sw-state-panel></div>`}
     </section>`;
   }
@@ -136,7 +137,7 @@ export class CalViewMaint extends LitElement {
     const names = w.rooms.map((r) => this.ctx?.cals.find((c) => c.id === r)).filter(Boolean);
     return html`<div class="row" data-maint-row=${w.o.event_id}>
       <span class="sq" style=${`--h:${colorVar(cal?.color ?? 'orange')}`}></span>
-      <div class="grow"><div class="name ell" title=${w.o.title ?? ''}>${w.o.title ?? 'חלון תחזוקה'}</div><div class="sub ell">${cal?.name ?? ''}${w.o.contested ? ' · מתחרה על החלון' : ''}</div></div>
+      <div class="grow"><div class="name ell" title=${w.o.title ?? ''}>${w.o.title ?? tr('חלון תחזוקה')}</div><div class="sub ell">${cal?.name ?? ''}${w.o.contested ? ` · ${tr('מתחרה על החלון')}` : ''}</div></div>
       <div class="rooms">${names.map((c) => html`<span class="chip" title=${c!.name}><span class="dot" style=${`--h:${colorVar(c!.color)}`}></span>${c!.name}</span>`)}</div>
       <span class="when num">${whenText(w.o.start, w.o.end, this.ctx?.now ?? new Date())}</span>
       <span class=${`chip ${look}`}>${label}</span>

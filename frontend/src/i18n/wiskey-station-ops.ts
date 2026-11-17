@@ -4,6 +4,7 @@
  * like i18n/wiskey-stations.ts. UI_COPY_RULES: never the platform's name; the area is "מערכת האינטרקום"; a code the screen has no
  * words for is shown as a code, never invented.
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   title: 'תחזוקה',
   listButton: 'תחזוקה',
@@ -204,8 +205,10 @@ const en: StationOpsText = {
 };
 
 export function sot(): StationOpsText {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? en : he;
+  return docLang(['en']) === 'en' ? en : he;
 }
 
 export const heStationOpsText: StationOpsText = he;
 export const enStationOpsText: StationOpsText = en;
+
+registerCatalogue('i18n/wiskey-station-ops', { he, en });

@@ -3,6 +3,7 @@
  * English column follows the document language; Arabic and Russian are an INITIAL translation of the main words (dev-marked) - a missing key
  * falls back to the Hebrew. `{n}` style placeholders are filled by `glt(key, vars)`. Operator words only: the home platform is never named.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   page: 'יומן הפעלות',
   title: 'יומן הפעלות הגנרטור',
@@ -188,8 +189,7 @@ export type GltKey = Key;
 export type GltLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function gltLang(): GltLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<GltLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -198,8 +198,10 @@ export const GLT_DEV_MARKED: readonly GltLang[] = ['ar', 'ru'];
 
 export function glt(key: Key, vars?: Record<string, string | number>, lang: GltLang = gltLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const GLT_KEYS = Object.keys(he) as Key[];
 export const GLT_TABLES = TABLES;
+
+registerCatalogue('i18n/generator-log', { he, en, ar, ru }, GLT_DEV_MARKED);

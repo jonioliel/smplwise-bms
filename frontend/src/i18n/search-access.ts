@@ -2,6 +2,7 @@
  * TOPPILL-295: the words of הגדרות › כללי › "חיפוש בפינה העליונה" (who may use the search in the top-left pill). Hebrew first; English
  * follows the document language (a missing key falls back to the Hebrew).
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   label: 'חיפוש בפינה העליונה',
   hint: 'כבוי כברירת מחדל: חיפוש מאפשר להגיע למקומות שלא בטוח שרוצים שמשתמש יגיע אליהם. מנהל מערכת תמיד יכול כשהוא פעיל.',
@@ -23,6 +24,7 @@ const en: Record<Key, string> = {
 };
 
 export function sa(key: Key): string {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return (l.startsWith('en') ? en[key] : he[key]) ?? he[key];
+  return (docLang(['en']) === 'en' ? en[key] : he[key]) ?? he[key];
 }
+
+registerCatalogue('i18n/search-access', { he, en });

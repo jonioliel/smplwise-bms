@@ -11,9 +11,10 @@ import { CastWatch, castStore } from './cast-store';
 import { canPick, groupTargets, needsConfirm, notReadyText, pickerPresentation, pushRecent, readRecent, refusedText, sessionOfTarget, targetLine } from '../screens/cast-logic';
 import { can } from '../api/session';
 import { t } from '../i18n/he';
+import { tr } from '../i18n/msg/components';
 
 /** Operator words for the screen's confidence: never the technology name (the settings screens keep those). */
-const CONFIDENCE_OPERATOR: Record<string, string> = { confirmed: CAST_CONFIDENCE_LABEL.confirmed, likely: CAST_CONFIDENCE_LABEL.likely, unknown: CAST_CONFIDENCE_LABEL.unknown, manual: 'נקבע ידנית' };
+const CONFIDENCE_OPERATOR: Record<string, string> = { confirmed: CAST_CONFIDENCE_LABEL.confirmed, likely: CAST_CONFIDENCE_LABEL.likely, unknown: CAST_CONFIDENCE_LABEL.unknown, manual: tr('נקבע ידנית') };
 
 /**
  * CR-028: "לאיזה מסך?" - the picker of the live camera screen (owner decisions 2026-10-05: Q2 a panel docked to the button on a wide screen, a

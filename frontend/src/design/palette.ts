@@ -24,6 +24,7 @@
 import { over, parseColor, type RGBA } from './contrast';
 import { lookOf } from './look';
 import rawPalettes from './palettes.json' with { type: 'json' };
+import { tr } from '../i18n/msg/misc';
 
 export type Scheme = 'light' | 'dark';
 
@@ -263,30 +264,30 @@ export function failingPairs(pal: Palette): FailingRow[] {
 // ---- the Hebrew message of a refusal (the backend builds the same text) ----
 
 const FG_HE: Record<string, string> = {
-  text: 'טקסט', textMuted: 'טקסט משני', accent: 'צבע הדגש', accentContrast: 'טקסט על הדגש', accentText: 'טקסט בצבע הדגש',
-  'gradient.text': 'טקסט על גוון', 'slider.onFill': 'טקסט על המילוי', 'slider.edge': 'קו קצה של מחוון', 'slider.fill': 'מילוי מחוון', 'slider.fillCool': 'מילוי מחוון קר',
-  'entity.icon': 'סמל על טבעת', 'state.on': 'מצב פעיל', 'state.off': 'מצב כבוי', 'state.unavailable': 'לא זמין', 'state.success': 'הצלחה', 'state.warning': 'אזהרה',
-  'state.danger': 'שגיאה', 'state.successText': 'טקסט הצלחה', 'state.warningText': 'טקסט אזהרה', 'state.dangerText': 'טקסט שגיאה',
+  text: tr('טקסט'), textMuted: tr('טקסט משני'), accent: tr('צבע הדגש'), accentContrast: tr('טקסט על הדגש'), accentText: tr('טקסט בצבע הדגש'),
+  'gradient.text': tr('טקסט על גוון'), 'slider.onFill': tr('טקסט על המילוי'), 'slider.edge': tr('קו קצה של מחוון'), 'slider.fill': tr('מילוי מחוון'), 'slider.fillCool': tr('מילוי מחוון קר'),
+  'entity.icon': tr('סמל על טבעת'), 'state.on': tr('מצב פעיל'), 'state.off': tr('מצב כבוי'), 'state.unavailable': tr('לא זמין'), 'state.success': tr('הצלחה'), 'state.warning': tr('אזהרה'),
+  'state.danger': tr('שגיאה'), 'state.successText': tr('טקסט הצלחה'), 'state.warningText': tr('טקסט אזהרה'), 'state.dangerText': tr('טקסט שגיאה'),
 };
-const BG_HE: Record<string, string> = { bg: 'הרקע', surface: 'המשטח', surface2: 'המשטח המשני', surfaceElevated: 'המשטח המוגבה', accent: 'הדגש', 'slider.track': 'מסלול המחוון' };
-const fgHe = (p: string): string => FG_HE[p] ?? (p.startsWith('entity.') ? `טבעת ${p.split('.')[1]}` : p);
+const BG_HE: Record<string, string> = { bg: tr('הרקע'), surface: tr('המשטח'), surface2: tr('המשטח המשני'), surfaceElevated: tr('המשטח המוגבה'), accent: tr('הדגש'), 'slider.track': tr('מסלול המחוון') };
+const fgHe = (p: string): string => FG_HE[p] ?? (p.startsWith('entity.') ? tr('טבעת {name}', { name: p.split('.')[1] }) : p);
 function bgHe(n: string): string {
   if (BG_HE[n]) return BG_HE[n];
-  if (n.startsWith('glass card')) return 'כרטיס זכוכית';
-  if (n.startsWith('pop-up sheet')) return 'חלון קופץ';
-  if (n.startsWith('pill layer')) return 'שכבת כמוסה';
-  if (n.startsWith('wallpaper.stops')) return 'הרקע המצויר';
-  if (n.startsWith('gradient.pairs')) return 'גוון';
-  if (n.startsWith('slider.')) return 'מילוי מחוון';
-  if (n.startsWith('entity.')) return `טבעת ${n.split('.')[1]}`;
+  if (n.startsWith('glass card')) return tr('כרטיס זכוכית');
+  if (n.startsWith('pop-up sheet')) return tr('חלון קופץ');
+  if (n.startsWith('pill layer')) return tr('שכבת כמוסה');
+  if (n.startsWith('wallpaper.stops')) return tr('הרקע המצויר');
+  if (n.startsWith('gradient.pairs')) return tr('גוון');
+  if (n.startsWith('slider.')) return tr('מילוי מחוון');
+  if (n.startsWith('entity.')) return tr('טבעת {name}', { name: n.split('.')[1] });
   return n;
 }
 
 export function describeFailures(rows: FailingRow[], limit = 3): string {
   const worst = [...rows].sort((a, b) => a.ratio - b.ratio).slice(0, limit);
-  const parts = worst.map((r) => `${r.scheme === 'light' ? 'בהיר' : 'כהה'}: ${fgHe(r.fg)} על ${bgHe(r.bg)} - ${r.ratio.toFixed(2)}:1 (נדרש ${r.min}:1)`);
-  const more = rows.length > limit ? ` ועוד ${rows.length - limit}` : '';
-  return `אזהרה: ניגודיות נמוכה מדי ב־${rows.length} זוגות. ${parts.join('; ')}${more}.`;
+  const parts = worst.map((r) => tr('{scheme}: {fg} על {bg} - {ratio}:1 (נדרש {min}:1)', { scheme: r.scheme === 'light' ? tr('בהיר') : tr('כהה'), fg: fgHe(r.fg), bg: bgHe(r.bg), ratio: r.ratio.toFixed(2), min: r.min }));
+  const more = rows.length > limit ? ` ${tr('ועוד {n}', { n: rows.length - limit })}` : '';
+  return tr('אזהרה: ניגודיות נמוכה מדי ב־{n} זוגות. {parts}{more}.', { n: rows.length, parts: parts.join('; '), more });
 }
 
 /**
@@ -297,9 +298,9 @@ export type Verdict = { ok: true; palette: Palette; rows: FailingRow[]; warning:
 /** Shape (a refusal) and contrast (a warning only: owner decision 2026-10-02, saving a low-contrast custom palette is allowed). */
 export function validatePalette(pal: unknown, opts: { custom?: boolean } = {}): Verdict {
   const errs = schemaErrors(pal);
-  if (errs.length) return { ok: false, message: `ערכת הצבעים אינה תקינה: ${errs[0]}`, rows: [] };
+  if (errs.length) return { ok: false, message: tr('ערכת הצבעים אינה תקינה: {error}', { error: errs[0] }), rows: [] };
   const p = pal as Palette;
-  if (opts.custom && !isCustomId(p.id)) return { ok: false, message: 'מזהה ערכה מותאמת חייב להתחיל ב־custom- (אותיות קטנות, ספרות ומקפים)', rows: [] };
+  if (opts.custom && !isCustomId(p.id)) return { ok: false, message: tr('מזהה ערכה מותאמת חייב להתחיל ב־custom- (אותיות קטנות, ספרות ומקפים)'), rows: [] };
   const rows = failingPairs(p);
   return { ok: true, palette: p, rows, warning: rows.length ? describeFailures(rows) : '' };
 }

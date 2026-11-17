@@ -7,6 +7,7 @@ import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { mIcon, nameText } from '../components/media-icons';
 import { GROUP_LABEL, SIZE_LABEL, cardOf, editGroups, moveFloor, moveInGroup, moveOnto, setCard, setGroupBy, togglePin, type FloorRef } from './multimedia-layout';
+import { tr } from '../i18n/msg/media';
 
 const SIZES: Size[] = ['s', 'm', 'l'];
 const GROUPS: GroupBy[] = ['floor', 'area', 'none'];
@@ -29,7 +30,7 @@ export class MultimediaEditPanel extends LitElement {
   @property({ attribute: false }) floors: FloorRef[] = [];
   /** CR-016: the players tab's editor - no card sizes and no phone settings (a player card has one size); `heading` names the list. */
   @property({ type: Boolean }) simple = false;
-  @property() heading = 'מסכים';
+  @property() heading = tr('מסכים');
   @state() private drag = '';
   @state() private dragFloor = '';
   @state() private phoneOpen = new Set<string>();
@@ -271,22 +272,22 @@ export class MultimediaEditPanel extends LitElement {
       @dragend=${() => (this.drag = '')} @dragover=${(e: DragEvent) => this.drag && e.preventDefault()} @drop=${(e: DragEvent) => this.onDrop(e, d.key)}>
       <div class="l1">
         <span class="grip" aria-hidden="true">${mIcon('grip')}</span>
-        <label class="check"><input type="checkbox" data-mm-on=${d.key} .checked=${c.on} aria-label=${`הצג ${d.name}`} @change=${(e: Event) => this.change(setCard(l, d.key, { on: (e.target as HTMLInputElement).checked }))} /><b>${nameText(bidi(d.name))}</b>${d.area_name ? html`<small>${nameText(bidi(d.area_name))}</small>` : nothing}</label>
+        <label class="check"><input type="checkbox" data-mm-on=${d.key} .checked=${c.on} aria-label=${tr('הצג {name}', { name: d.name })} @change=${(e: Event) => this.change(setCard(l, d.key, { on: (e.target as HTMLInputElement).checked }))} /><b>${nameText(bidi(d.name))}</b>${d.area_name ? html`<small>${nameText(bidi(d.area_name))}</small>` : nothing}</label>
         <span class="sp"></span>
-        <button type="button" class="ib" data-mm-up ?disabled=${index === 0} aria-label=${`הקדם את ${d.name}`} title="הקדם" @click=${() => this.move(d.key, -1)}>${mIcon('arrowUp')}</button>
-        <button type="button" class="ib" data-mm-down ?disabled=${index === count - 1} aria-label=${`אחר את ${d.name}`} title="אחר" @click=${() => this.move(d.key, 1)}>${mIcon('arrowDown')}</button>
+        <button type="button" class="ib" data-mm-up ?disabled=${index === 0} aria-label=${tr('הקדם את {name}', { name: d.name })} title=${tr('הקדם')} @click=${() => this.move(d.key, -1)}>${mIcon('arrowUp')}</button>
+        <button type="button" class="ib" data-mm-down ?disabled=${index === count - 1} aria-label=${tr('אחר את {name}', { name: d.name })} title=${tr('אחר')} @click=${() => this.move(d.key, 1)}>${mIcon('arrowDown')}</button>
       </div>
       <div class="l2">
-        ${this.simple ? nothing : html`<span class="seg sm" role="group" aria-label=${`גודל: ${d.name}`}>${SIZES.map((s) => html`<button type="button" data-mm-size=${`${d.key}:${s}`} aria-pressed=${String(c.size === s)} ?disabled=${!c.on} @click=${() => this.change(setCard(l, d.key, { size: s }))}>${SIZE_LABEL[s]}</button>`)}</span>`}
+        ${this.simple ? nothing : html`<span class="seg sm" role="group" aria-label=${tr('גודל: {name}', { name: d.name })}>${SIZES.map((s) => html`<button type="button" data-mm-size=${`${d.key}:${s}`} aria-pressed=${String(c.size === s)} ?disabled=${!c.on} @click=${() => this.change(setCard(l, d.key, { size: s }))}>${SIZE_LABEL[s]}</button>`)}</span>`}
         <span class="sp"></span>
-        ${personal ? nothing : html`<button type="button" class="ib" data-mm-pin=${d.key} aria-pressed=${String(pinned)} aria-label=${`מועדף: ${d.name}`} title="מועדף" @click=${() => this.change(togglePin(l, d.key))}>${mIcon('star')}</button>
-          ${this.simple ? nothing : html`<button type="button" class="ib" data-mm-phone-toggle=${d.key} aria-expanded=${String(open)} aria-label=${`בנייד: ${d.name}`} title="בנייד" @click=${() => this.togglePhone(d.key)}>${mIcon('phone')}${custom ? html`<i class="dot" aria-hidden="true"></i>` : nothing}</button>`}`}
+        ${personal ? nothing : html`<button type="button" class="ib" data-mm-pin=${d.key} aria-pressed=${String(pinned)} aria-label=${tr('מועדף: {name}', { name: d.name })} title=${tr('מועדף')} @click=${() => this.change(togglePin(l, d.key))}>${mIcon('star')}</button>
+          ${this.simple ? nothing : html`<button type="button" class="ib" data-mm-phone-toggle=${d.key} aria-expanded=${String(open)} aria-label=${tr('בנייד: {name}', { name: d.name })} title=${tr('בנייד')} @click=${() => this.togglePhone(d.key)}>${mIcon('phone')}${custom ? html`<i class="dot" aria-hidden="true"></i>` : nothing}</button>`}`}
       </div>
       ${personal || this.simple || !open ? nothing : html`<div class="phone" data-mm-phone=${d.key}>
-        <span class="pl">בנייד</span>
-        <label class="check"><input type="checkbox" data-mm-phone-on=${d.key} .checked=${phoneOn} aria-label=${`הצג בנייד: ${d.name}`} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; this.change(setCard(l, d.key, { phone_on: v === c.on ? null : v })); }} />הצג</label>
-        <select data-mm-phone-size=${d.key} aria-label=${`גודל בנייד: ${d.name}`} ?disabled=${!phoneOn} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.change(setCard(l, d.key, { phone_size: v === 's' || v === 'm' ? v : null })); }}>
-          <option value="" ?selected=${!c.phone_size}>אוטומטי (${SIZE_LABEL[c.size === 'l' ? 'm' : c.size]})</option>
+        <span class="pl">${tr('בנייד')}</span>
+        <label class="check"><input type="checkbox" data-mm-phone-on=${d.key} .checked=${phoneOn} aria-label=${tr('הצג בנייד: {name}', { name: d.name })} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; this.change(setCard(l, d.key, { phone_on: v === c.on ? null : v })); }} />${tr('הצג')}</label>
+        <select data-mm-phone-size=${d.key} aria-label=${tr('גודל בנייד: {name}', { name: d.name })} ?disabled=${!phoneOn} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.change(setCard(l, d.key, { phone_size: v === 's' || v === 'm' ? v : null })); }}>
+          <option value="" ?selected=${!c.phone_size}>${tr('אוטומטי ({size})', { size: SIZE_LABEL[c.size === 'l' ? 'm' : c.size] })}</option>
           <option value="s" ?selected=${c.phone_size === 's'}>${SIZE_LABEL.s}</option><option value="m" ?selected=${c.phone_size === 'm'}>${SIZE_LABEL.m}</option>
         </select>
       </div>`}
@@ -299,20 +300,20 @@ export class MultimediaEditPanel extends LitElement {
     const groups = editGroups(this.devices, l);
     const ids = this.floors.map((f) => f.id);
     const floorsOn = this.scope === 'all' && l.group_by === 'floor' && this.floors.length > 1;
-    return html`<section class="panel glass" data-mm-edit aria-label=${`הגדרות · ${this.heading}`}>
-      <div class="lbl" id="mm-grp">קיבוץ
+    return html`<section class="panel glass" data-mm-edit aria-label=${tr('הגדרות · {heading}', { heading: this.heading })}>
+      <div class="lbl" id="mm-grp">${tr('קיבוץ')}
         <span class="seg sm" role="group" aria-labelledby="mm-grp" data-mm-groupby>${GROUPS.map((g) => html`<button type="button" data-mm-group=${g} aria-pressed=${String(l.group_by === g)} @click=${() => this.change(setGroupBy(l, g))}>${GROUP_LABEL[g]}</button>`)}</span>
       </div>
       ${floorsOn ? html`<div data-mm-floors-col>
-        <h3 id="mm-floors">סדר הקומות</h3>
+        <h3 id="mm-floors">${tr('סדר הקומות')}</h3>
         <ol aria-labelledby="mm-floors" data-mm-floors>
           ${this.floors.map((f, i) => html`<li class=${classMap({ floor: true, dragging: this.dragFloor === f.id })} data-mm-floor=${f.id} draggable="true"
             @dragstart=${(e: DragEvent) => { this.dragFloor = f.id; e.dataTransfer?.setData('text/plain', f.id); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }}
             @dragend=${() => (this.dragFloor = '')} @dragover=${(e: DragEvent) => this.dragFloor && e.preventDefault()}
             @drop=${(e: DragEvent) => { e.preventDefault(); const id = this.dragFloor; this.dragFloor = ''; if (id) this.change(moveFloor(l, ids, id, i)); }}>
             <span class="grip" aria-hidden="true">${mIcon('grip')}</span><span class="nm">${bidi(f.name)}</span>
-            <button type="button" class="ib" data-mm-floor-up=${f.id} ?disabled=${i === 0} aria-label=${`הקדם את ${f.name}`} title="הקדם" @click=${() => this.change(moveFloor(l, ids, f.id, i - 1))}>${mIcon('arrowUp')}</button>
-            <button type="button" class="ib" data-mm-floor-down=${f.id} ?disabled=${i === ids.length - 1} aria-label=${`אחר את ${f.name}`} title="אחר" @click=${() => this.change(moveFloor(l, ids, f.id, i + 1))}>${mIcon('arrowDown')}</button>
+            <button type="button" class="ib" data-mm-floor-up=${f.id} ?disabled=${i === 0} aria-label=${tr('הקדם את {name}', { name: f.name })} title=${tr('הקדם')} @click=${() => this.change(moveFloor(l, ids, f.id, i - 1))}>${mIcon('arrowUp')}</button>
+            <button type="button" class="ib" data-mm-floor-down=${f.id} ?disabled=${i === ids.length - 1} aria-label=${tr('אחר את {name}', { name: f.name })} title=${tr('אחר')} @click=${() => this.change(moveFloor(l, ids, f.id, i + 1))}>${mIcon('arrowDown')}</button>
           </li>`)}
         </ol>
       </div>` : nothing}

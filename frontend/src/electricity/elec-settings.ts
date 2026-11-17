@@ -19,6 +19,7 @@ import './elec-tou-editor';
 import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
 import { cloneDef, israelTemplate, type TouDefinition } from './elec-tou';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/electricity';
 
 const NUM = /^\d+(\.\d+)?$/;
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -30,7 +31,7 @@ const lum = (hex: string): number => {
 /** EL5: one line about a time-of-use tariff for the list ("2 פסים · 3 עונות"). */
 function touSummary(t: Tariff): string {
   const d = t.current?.definition;
-  return d ? `${d.bands.map((b) => b.name_he).join(' / ')} · ${d.seasons.length} עונות` : 'לפי שעות';
+  return d ? `${d.bands.map((b) => b.name_he).join(' / ')} · ${tr('{n} עונות', { n: d.seasons.length })}` : tr('לפי שעות');
 }
 
 // ================================================================================================ prices
@@ -130,16 +131,16 @@ export class ElecSettingsPrices extends ElecBase {
     this.tPlan = null;
   }
   private planText(p: TariffVersionPlan): string {
-    const part = (x: { price: string | null; price_mode: PriceMode }) => (x.price === null ? `מחירים לפי שעות ${x.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ` : `${f4(x.price)} ₪ ${x.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ`);
+    const part = (x: { price: string | null; price_mode: PriceMode }) => (x.price === null ? (x.price_mode === 'inc_vat' ? tr('מחירים לפי שעות כולל מע״מ') : tr('מחירים לפי שעות לפני מע״מ')) : `${f4(x.price)} ₪ ${x.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}`);
     return `${part(p.old)} ← ${part(p.new)}. ${p.message_he}`;
   }
   private async saveTariff() {
     const f = this.tf;
     const tou = this.tKind === 'tou';
     const e: Record<string, string> = {};
-    if (!f.name.trim()) e.name = 'צריך לתת שם לתעריף';
-    if (!tou && (!NUM.test(f.price) || Number(f.price) <= 0)) e.price = 'המחיר חייב להיות מספר גדול מאפס';
-    if (!isIsoDate(f.from)) e.from = 'צריך לבחור תאריך';
+    if (!f.name.trim()) e.name = tr('צריך לתת שם לתעריף');
+    if (!tou && (!NUM.test(f.price) || Number(f.price) <= 0)) e.price = tr('המחיר חייב להיות מספר גדול מאפס');
+    if (!isIsoDate(f.from)) e.from = tr('צריך לבחור תאריך');
     this.tErr = e;
     if (Object.keys(e).length || this.busy || (tou && !this.tDef)) return;
     this.busy = true;
@@ -170,8 +171,8 @@ export class ElecSettingsPrices extends ElecBase {
   }
   private async saveVat() {
     const e: Record<string, string> = {};
-    if (!NUM.test(this.vf.rate) || Number(this.vf.rate) > 50) e.rate_percent = 'שיעור המע״מ חייב להיות בין 0 ל-50';
-    if (!isIsoDate(this.vf.from)) e.effective_from = 'צריך לבחור תאריך';
+    if (!NUM.test(this.vf.rate) || Number(this.vf.rate) > 50) e.rate_percent = tr('שיעור המע״מ חייב להיות בין 0 ל-50');
+    if (!isIsoDate(this.vf.from)) e.effective_from = tr('צריך לבחור תאריך');
     this.vErr = e;
     if (Object.keys(e).length || this.busy) return;
     this.busy = true;
@@ -199,10 +200,10 @@ export class ElecSettingsPrices extends ElecBase {
 
   render() {
     const perms = energyAccess();
-    if (!perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-prices" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה למחירים')}</div>`;
+    if (!perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-prices" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה למחירים'))}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="settings-prices" data-state="loading">${skeleton(4)}</div>`;
-    if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-prices" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה למחירים')}</div>`;
-    if (this.st === 'error') return html`<div class="page" data-elec="settings-prices" data-state="error">${stateBox('error', 'warning', 'לא ניתן לטעון את המחירים', { label: 'נסה שוב', run: () => void this.load() })}</div>`;
+    if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-prices" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה למחירים'))}</div>`;
+    if (this.st === 'error') return html`<div class="page" data-elec="settings-prices" data-state="error">${stateBox('error', 'warning', tr('לא ניתן לטעון את המחירים'), { label: tr('נסה שוב'), run: () => void this.load() })}</div>`;
     const cur = this.vat?.current;
     const vh = (this.vat?.items ?? []).slice().sort((a, b) => (a.effective_from < b.effective_from ? 1 : -1));
     const edit = perms.manage;
@@ -210,55 +211,55 @@ export class ElecSettingsPrices extends ElecBase {
     const mode = this.settings?.default_price_mode ?? 'ex_vat';
     return html`<div class="page" data-elec="settings-prices" data-state="ready">
       ${this.error && !this.tOpen && !this.vOpen ? alertBox('err', this.error) : nothing}
-      ${!cur ? alertBox('warn', 'לא הוגדר שיעור מע״מ. בלי שיעור אי אפשר להפיק חיובים.') : nothing}
+      ${!cur ? alertBox('warn', tr('לא הוגדר שיעור מע״מ. בלי שיעור אי אפשר להפיק חיובים.')) : nothing}
       <div class="cols side-l">
-        <div class="card ${this.phone ? '' : 'flush'}"><div class="hd"><b class="h3">תעריפים</b><span class="sp"></span>${edit ? html`<sw-button variant="primary" size="sm" data-new-tariff @click=${() => this.openTariff(null)}>+ תעריף</sw-button>` : nothing}</div>
-          ${!this.tariffs.length ? stateBox('empty', 'bolt', 'אין תעריפים עדיין', edit ? { label: '+ תעריף', primary: true, run: () => this.openTariff(null) } : undefined)
+        <div class="card ${this.phone ? '' : 'flush'}"><div class="hd"><b class="h3">${tr('תעריפים')}</b><span class="sp"></span>${edit ? html`<sw-button variant="primary" size="sm" data-new-tariff @click=${() => this.openTariff(null)}>${tr('+ תעריף')}</sw-button>` : nothing}</div>
+          ${!this.tariffs.length ? stateBox('empty', 'bolt', tr('אין תעריפים עדיין'), edit ? { label: tr('+ תעריף'), primary: true, run: () => this.openTariff(null) } : undefined)
             : this.phone
-              ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} data-kind=${t.kind} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">${t.kind === 'tou' ? html`${touSummary(t)} · ` : nothing}הוזן ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · מ-${n(fmtDate(t.current?.effective_from ?? ''))}</div></div>${t.kind === 'tou' ? html`<span class="chip c-acc nodot">לפי שעות</span>` : html`<b class="num">${f4(t.current?.price ?? 0)} ₪</b>`}</button>`)}</div>`
-              : html`<div class="scrollx"><table class="t" data-tariffs><thead><tr><th>שם</th><th class="num">מחיר שהוזן</th><th>הוזן</th><th class="num">לפני מע״מ</th><th class="num">כולל מע״מ</th><th>בתוקף מ</th><th>חשבונות</th></tr></thead><tbody>
+              ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} data-kind=${t.kind} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">${t.kind === 'tou' ? html`${touSummary(t)} · ` : nothing}${t.current?.price_mode === 'inc_vat' ? tr('הוזן כולל מע״מ') : tr('הוזן לפני מע״מ')} · ${tr('מ-')}${n(fmtDate(t.current?.effective_from ?? ''))}</div></div>${t.kind === 'tou' ? html`<span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : html`<b class="num">${f4(t.current?.price ?? 0)} ₪</b>`}</button>`)}</div>`
+              : html`<div class="scrollx"><table class="t" data-tariffs><thead><tr><th>${tr('שם')}</th><th class="num">${tr('מחיר שהוזן')}</th><th>${tr('הוזן')}</th><th class="num">${tr('לפני מע״מ')}</th><th class="num">${tr('כולל מע״מ')}</th><th>${tr('בתוקף מ')}</th><th>${tr('חשבונות')}</th></tr></thead><tbody>
                 ${this.tariffs.map((t) => {
                   const x = this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat');
                   const tou = t.kind === 'tou';
-                  return html`<tr class="${edit ? 'go' : ''}" data-tariff-row=${t.id} data-kind=${t.kind} @click=${() => edit && this.openTariff(t)}><td class="b">${t.name}${tou ? html` <span class="chip c-acc nodot">לפי שעות</span>` : nothing}</td>${tou
-                    ? html`<td colspan="1" class="mut">${touSummary(t)}</td><td>${t.current?.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'}</td><td class="num">-</td><td class="num">-</td>`
-                    : html`<td class="num">${f4(t.current?.price ?? 0)} ₪</td><td>${t.current?.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'}</td><td class="num">${f4(x.ex)} ₪</td><td class="num">${f4(x.inc)} ₪</td>`}<td class="num" style="text-align:start">${fmtDate(t.current?.effective_from ?? '')}</td><td>${t.used_by}</td></tr>`;
+                  return html`<tr class="${edit ? 'go' : ''}" data-tariff-row=${t.id} data-kind=${t.kind} @click=${() => edit && this.openTariff(t)}><td class="b">${t.name}${tou ? html` <span class="chip c-acc nodot">${tr('לפי שעות')}</span>` : nothing}</td>${tou
+                    ? html`<td colspan="1" class="mut">${touSummary(t)}</td><td>${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}</td><td class="num">-</td><td class="num">-</td>`
+                    : html`<td class="num">${f4(t.current?.price ?? 0)} ₪</td><td>${t.current?.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')}</td><td class="num">${f4(x.ex)} ₪</td><td class="num">${f4(x.inc)} ₪</td>`}<td class="num" style="text-align:start">${fmtDate(t.current?.effective_from ?? '')}</td><td>${t.used_by}</td></tr>`;
                 })}</tbody></table></div>`}
         </div>
         <div class="col">
-          <div class="card" data-card="vat"><div class="hd"><b class="h3">שיעור מע״מ</b><span class="sp"></span>${edit ? html`<sw-button size="sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>+ שיעור חדש</sw-button>` : nothing}</div>
-            ${cur ? html`<div class="row" style="align-items:baseline"><span style="font-size:var(--sw-fs-3xl);font-weight:700" data-vat-rate>${n(cur.rate_percent + '%')}</span><span class="mut">מ-${n(fmtDate(cur.effective_from))}</span></div>` : html`<div class="mut">לא הוגדר</div>`}
-            ${vh.slice(1).map((v, i) => html`<div class="ver" style="margin-block-start:8px"><span class="num">${v.rate_percent}%</span><span>עד ${n(fmtDate(addDays(vh[i].effective_from, -1)))}</span></div>`)}</div>
-          <div class="card" data-card="mode"><div class="hd"><b class="h3">ברירת מחדל להזנת מחיר</b></div><div class="list" role="radiogroup" aria-label="ברירת מחדל להזנת מחיר">
-            ${(['ex_vat', 'inc_vat'] as PriceMode[]).map((m) => html`<label class="li ${mode === m ? 'sel' : ''}"><input type="radio" name="mode" data-default-mode=${m} .checked=${mode === m} ?disabled=${!edit} @change=${() => void this.setMode(m)} /><span class="ind"></span><div class="grow t1">${m === 'ex_vat' ? 'לפני מע״מ' : 'כולל מע״מ'}</div></label>`)}</div></div>
+          <div class="card" data-card="vat"><div class="hd"><b class="h3">${tr('שיעור מע״מ')}</b><span class="sp"></span>${edit ? html`<sw-button size="sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>${tr('+ שיעור חדש')}</sw-button>` : nothing}</div>
+            ${cur ? html`<div class="row" style="align-items:baseline"><span style="font-size:var(--sw-fs-3xl);font-weight:700" data-vat-rate>${n(cur.rate_percent + '%')}</span><span class="mut">${tr('מ-')}${n(fmtDate(cur.effective_from))}</span></div>` : html`<div class="mut">${tr('לא הוגדר')}</div>`}
+            ${vh.slice(1).map((v, i) => html`<div class="ver" style="margin-block-start:8px"><span class="num">${v.rate_percent}%</span><span>${tr('עד')} ${n(fmtDate(addDays(vh[i].effective_from, -1)))}</span></div>`)}</div>
+          <div class="card" data-card="mode"><div class="hd"><b class="h3">${tr('ברירת מחדל להזנת מחיר')}</b></div><div class="list" role="radiogroup" aria-label=${tr('ברירת מחדל להזנת מחיר')}>
+            ${(['ex_vat', 'inc_vat'] as PriceMode[]).map((m) => html`<label class="li ${mode === m ? 'sel' : ''}"><input type="radio" name="mode" data-default-mode=${m} .checked=${mode === m} ?disabled=${!edit} @change=${() => void this.setMode(m)} /><span class="ind"></span><div class="grow t1">${m === 'ex_vat' ? tr('לפני מע״מ') : tr('כולל מע״מ')}</div></label>`)}</div></div>
         </div>
       </div>
-      <elec-dialog heading=${this.tEdit ? 'עריכת תעריף' : 'תעריף חדש'} ?open=${this.tOpen} ?wide=${this.tKind === 'tou'} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
+      <elec-dialog heading=${this.tEdit ? tr('עריכת תעריף') : tr('תעריף חדש')} ?open=${this.tOpen} ?wide=${this.tKind === 'tou'} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
         <div class="form">
-          <div class="fld wide"><label for="tn">שם התעריף</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
-          ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">סוג התעריף</span><div class="seg" role="group" aria-label="סוג התעריף"><button type="button" data-tariff-kind="fixed" aria-pressed=${this.tKind === 'fixed'} @click=${() => void this.setKind('fixed')}>מחיר קבוע</button><button type="button" data-tariff-kind="tou" aria-pressed=${this.tKind === 'tou'} @click=${() => void this.setKind('tou')}>לפי שעות (תעו״ז)</button></div></div>`}
-          ${this.tKind === 'fixed' ? html`<div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>` : nothing}
-          <div class="fld"><span class="lbl">${this.tKind === 'tou' ? 'המחירים שהוזנו' : 'המחיר שהוזן'}</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
-          <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
+          <div class="fld wide"><label for="tn">${tr('שם התעריף')}</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
+          ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">${tr('סוג התעריף')}</span><div class="seg" role="group" aria-label=${tr('סוג התעריף')}><button type="button" data-tariff-kind="fixed" aria-pressed=${this.tKind === 'fixed'} @click=${() => void this.setKind('fixed')}>${tr('מחיר קבוע')}</button><button type="button" data-tariff-kind="tou" aria-pressed=${this.tKind === 'tou'} @click=${() => void this.setKind('tou')}>${tr('לפי שעות (תעו״ז)')}</button></div></div>`}
+          ${this.tKind === 'fixed' ? html`<div class="fld"><label for="tp">${tr('מחיר לקוט״ש')}</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>` : nothing}
+          <div class="fld"><span class="lbl">${this.tKind === 'tou' ? tr('המחירים שהוזנו') : tr('המחיר שהוזן')}</span><div class="seg" role="group" aria-label=${tr('סוג מחיר')}><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>${tr('לפני מע״מ')}</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>${tr('כולל מע״מ')}</button></div></div>
+          <div class="fld"><label for="tf">${tr('בתוקף מתאריך')}</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
         </div>
-        ${this.tKind === 'fixed' && cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>לפני מע״מ</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>מע״מ ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>כולל מע״מ</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
+        ${this.tKind === 'fixed' && cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>${tr('לפני מע״מ')}</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>${tr('מע״מ')} ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>${tr('כולל מע״מ')}</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
         ${this.tKind === 'tou' && this.tSource && !this.tEdit ? alertBox('info', this.tSource) : nothing}
         ${this.tKind === 'tou' && this.tDef ? html`<elec-tou-editor .definition=${this.tDef} .priceMode=${this.tf.mode} .vatRate=${cur ? Number(cur.rate_percent) / 100 : null} .errorPath=${this.tErrPath}
             @tou-change=${(e: CustomEvent<TouDefinition>) => { this.tDef = e.detail; this.tPlan = null; this.tErrPath = ''; }}></elec-tou-editor>` : nothing}
-        ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">גרסאות</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver" data-version=${v.id} aria-current=${this.tVer?.id === v.id ? 'true' : 'false'}><span class="num">${v.definition ? 'לפי שעות' : `${f4(v.price ?? 0)} ₪`}</span><span>${v.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'} · מ-${n(fmtDate(v.effective_from))}</span>${energyAccess().manage ? html`<button type="button" class="btn ghost sm" data-version-edit=${v.id} aria-label="תיקון המחיר" @click=${() => this.editVersion(v)}>תיקון</button>` : nothing}</div>`)}</div>` : nothing}
+        ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">${tr('גרסאות')}</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver" data-version=${v.id} aria-current=${this.tVer?.id === v.id ? 'true' : 'false'}><span class="num">${v.definition ? tr('לפי שעות') : `${f4(v.price ?? 0)} ₪`}</span><span>${v.price_mode === 'inc_vat' ? tr('כולל מע״מ') : tr('לפני מע״מ')} · ${tr('מ-')}${n(fmtDate(v.effective_from))}</span>${energyAccess().manage ? html`<button type="button" class="btn ghost sm" data-version-edit=${v.id} aria-label=${tr('תיקון המחיר')} @click=${() => this.editVersion(v)}>${tr('תיקון')}</button>` : nothing}</div>`)}</div>` : nothing}
         ${this.tPlan ? alertBox('warn', this.planText(this.tPlan)) : nothing}
         ${this.error ? alertBox('err', this.error) : nothing}
-        <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>${this.tPlan ? 'אישור והחלפה' : this.tVer ? 'שמירת תיקון' : 'שמירה'}</sw-button>
-        <sw-button slot="actions" @click=${() => (this.tOpen = false)}>ביטול</sw-button>
+        <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>${this.tPlan ? tr('אישור והחלפה') : this.tVer ? tr('שמירת תיקון') : tr('שמירה')}</sw-button>
+        <sw-button slot="actions" @click=${() => (this.tOpen = false)}>${tr('ביטול')}</sw-button>
       </elec-dialog>
-      <elec-dialog heading="שיעור מע״מ חדש" ?open=${this.vOpen} data-dialog="vat" @close=${() => (this.vOpen = false)}>
+      <elec-dialog heading=${tr('שיעור מע״מ חדש')} ?open=${this.vOpen} data-dialog="vat" @close=${() => (this.vOpen = false)}>
         <div class="form">
-          <div class="fld"><label for="vr">שיעור</label><div class="unit"><input id="vr" class="ltr ${this.vErr.rate_percent ? 'err' : ''}" data-vat-input inputmode="decimal" .value=${this.vf.rate} @input=${(e: Event) => (this.vf = { ...this.vf, rate: (e.target as HTMLInputElement).value })} /><span>%</span></div>${this.vErr.rate_percent ? html`<div class="msg" role="alert">${this.vErr.rate_percent}</div>` : nothing}</div>
-          <div class="fld"><label for="vf">בתוקף מתאריך</label><input id="vf" type="date" lang=${dateInputLang()} class="ltr ${this.vErr.effective_from ? 'err' : ''}" data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert">${this.vErr.effective_from}</div>` : nothing}</div>
+          <div class="fld"><label for="vr">${tr('שיעור')}</label><div class="unit"><input id="vr" class="ltr ${this.vErr.rate_percent ? 'err' : ''}" data-vat-input inputmode="decimal" .value=${this.vf.rate} @input=${(e: Event) => (this.vf = { ...this.vf, rate: (e.target as HTMLInputElement).value })} /><span>%</span></div>${this.vErr.rate_percent ? html`<div class="msg" role="alert">${this.vErr.rate_percent}</div>` : nothing}</div>
+          <div class="fld"><label for="vf">${tr('בתוקף מתאריך')}</label><input id="vf" type="date" lang=${dateInputLang()} class="ltr ${this.vErr.effective_from ? 'err' : ''}" data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert">${this.vErr.effective_from}</div>` : nothing}</div>
         </div>
         ${this.error ? alertBox('err', this.error) : nothing}
-        <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveVat()}>שמירה</sw-button>
-        <sw-button slot="actions" @click=${() => (this.vOpen = false)}>ביטול</sw-button>
+        <sw-button variant="primary" slot="actions" data-save ?disabled=${this.busy} @click=${() => void this.saveVat()}>${tr('שמירה')}</sw-button>
+        <sw-button slot="actions" @click=${() => (this.vOpen = false)}>${tr('ביטול')}</sw-button>
       </elec-dialog>
     </div>`;
   }
@@ -318,12 +319,12 @@ export class ElecSettingsBusiness extends ElecBase {
 
   private validate(): boolean {
     const e: Record<string, string> = {};
-    if (this.biz.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.biz.email)) e.email = 'כתובת דוא״ל לא תקינה';
-    if (!HEX.test(this.biz.accent_color)) e.accent_color = 'צבע לא תקין';
-    else if (lum(this.biz.accent_color) > 0.6) e.accent_color = 'הצבע בהיר מדי להדפסה';
-    if (this.terms.mode === 'net_days' && !(Number.isInteger(this.terms.days) && this.terms.days >= 0 && this.terms.days <= 120)) e.days = 'מספר הימים חייב להיות בין 0 ל-120';
-    if (this.terms.mode === 'day_of_month' && !(Number.isInteger(this.terms.day_of_month) && this.terms.day_of_month >= 1 && this.terms.day_of_month <= 31)) e.day_of_month = 'היום בחודש חייב להיות בין 1 ל-31';
-    if (!/^\d+$/.test(this.delay) || Number(this.delay) > 72) e.delay_hours = 'ההשהיה חייבת להיות בין 0 ל-72 שעות';
+    if (this.biz.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.biz.email)) e.email = tr('כתובת דוא״ל לא תקינה');
+    if (!HEX.test(this.biz.accent_color)) e.accent_color = tr('צבע לא תקין');
+    else if (lum(this.biz.accent_color) > 0.6) e.accent_color = tr('הצבע בהיר מדי להדפסה');
+    if (this.terms.mode === 'net_days' && !(Number.isInteger(this.terms.days) && this.terms.days >= 0 && this.terms.days <= 120)) e.days = tr('מספר הימים חייב להיות בין 0 ל-120');
+    if (this.terms.mode === 'day_of_month' && !(Number.isInteger(this.terms.day_of_month) && this.terms.day_of_month >= 1 && this.terms.day_of_month <= 31)) e.day_of_month = tr('היום בחודש חייב להיות בין 1 ל-31');
+    if (!/^\d+$/.test(this.delay) || Number(this.delay) > 72) e.delay_hours = tr('ההשהיה חייבת להיות בין 0 ל-72 שעות');
     this.errs = e;
     return !Object.keys(e).length;
   }
@@ -347,7 +348,7 @@ export class ElecSettingsBusiness extends ElecBase {
     if (!file) return;
     this.error = '';
     if (!/^image\/(png|jpeg)$/.test(file.type) || file.size > 1024 * 1024) {
-      this.error = 'הלוגו חייב להיות PNG או JPEG עד 1MB.';
+      this.error = tr('הלוגו חייב להיות PNG או JPEG עד 1MB.');
       return;
     }
     try {
@@ -377,10 +378,10 @@ export class ElecSettingsBusiness extends ElecBase {
 
   render() {
     const perms = energyAccess();
-    if (!perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-business" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לפרטי העסק')}</div>`;
+    if (!perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-business" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה לפרטי העסק'))}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="settings-business" data-state="loading">${skeleton(4)}</div>`;
-    if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-business" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לפרטי העסק')}</div>`;
-    if (this.st === 'error' || !this.s) return html`<div class="page" data-elec="settings-business" data-state="error">${stateBox('error', 'warning', 'לא ניתן לטעון את ההגדרות', { label: 'נסה שוב', run: () => void this.load() })}</div>`;
+    if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-business" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה לפרטי העסק'))}</div>`;
+    if (this.st === 'error' || !this.s) return html`<div class="page" data-elec="settings-business" data-state="error">${stateBox('error', 'warning', tr('לא ניתן לטעון את ההגדרות'), { label: tr('נסה שוב'), run: () => void this.load() })}</div>`;
     const edit = perms.manage;
     const s = this.s;
     const logoSrc = s.logo ? elec().logoUrl(s.logo.sha256) : '';
@@ -388,27 +389,27 @@ export class ElecSettingsBusiness extends ElecBase {
     const t = this.terms;
     return html`<div class="page" data-elec="settings-business" data-state="ready">
       <div class="cols side-l"><div class="card" style="min-inline-size:0"><fieldset style="border:0;margin:0;padding:0;min-inline-size:0" ?disabled=${!edit}><div class="form">
-        <div class="fld wide"><span class="lbl">לוגו</span><div class="row">
-          <div class="chip c-mut nodot" style="inline-size:96px;block-size:96px;padding:0;justify-content:center;border-radius:var(--sw-r-lg);overflow:hidden" data-logo>${logoSrc ? html`<img src=${logoSrc} alt="לוגו" style="max-inline-size:100%;max-block-size:100%" />` : html`<span class="mut">אין לוגו</span>`}</div>
-          <div><label class="btn" style="cursor:pointer">${s.logo ? 'החלפה' : 'העלאת לוגו'}<input type="file" accept="image/png,image/jpeg" data-logo-input style="position:absolute;inline-size:1px;block-size:1px;opacity:0" @change=${(e: Event) => void this.logo((e.target as HTMLInputElement).files?.[0])} /></label>
-            ${s.logo ? html` <sw-button variant="ghost" data-logo-remove @click=${() => void this.removeLogo()}>הסרה</sw-button>` : nothing}<div class="mut" style="margin-block-start:6px">PNG או JPEG, עד 1MB</div></div></div></div>
-        ${this.fld('name', 'שם העסק', { wide: true })}${this.fld('registration_no', 'ח.פ. / ע.מ.', { ltr: true })}${this.fld('phone', 'טלפון', { ltr: true })}${this.fld('address', 'כתובת', { wide: true })}${this.fld('email', 'דוא״ל', { ltr: true })}
-        <div class="fld"><span class="lbl" id="acc">צבע המותג</span><div class="row" role="group" aria-labelledby="acc" data-accent>
-          ${swatches.map((c) => html`<button type="button" class="tok swatch" data-swatch=${c} aria-label=${`צבע ${c}`} aria-pressed=${this.biz.accent_color.toLowerCase() === c} style="background:${c};border:2px solid ${this.biz.accent_color.toLowerCase() === c ? 'var(--sw-text)' : 'transparent'}" @click=${() => (this.biz = { ...this.biz, accent_color: c })}></button>`)}
-          <input type="color" data-accent-color aria-label="בחירה חופשית של צבע" .value=${HEX.test(this.biz.accent_color) ? this.biz.accent_color : '#2767ed'} @input=${(e: Event) => (this.biz = { ...this.biz, accent_color: (e.target as HTMLInputElement).value })} /></div>
+        <div class="fld wide"><span class="lbl">${tr('לוגו')}</span><div class="row">
+          <div class="chip c-mut nodot" style="inline-size:96px;block-size:96px;padding:0;justify-content:center;border-radius:var(--sw-r-lg);overflow:hidden" data-logo>${logoSrc ? html`<img src=${logoSrc} alt=${tr('לוגו')} style="max-inline-size:100%;max-block-size:100%" />` : html`<span class="mut">${tr('אין לוגו')}</span>`}</div>
+          <div><label class="btn" style="cursor:pointer">${s.logo ? tr('החלפה') : tr('העלאת לוגו')}<input type="file" accept="image/png,image/jpeg" data-logo-input style="position:absolute;inline-size:1px;block-size:1px;opacity:0" @change=${(e: Event) => void this.logo((e.target as HTMLInputElement).files?.[0])} /></label>
+            ${s.logo ? html` <sw-button variant="ghost" data-logo-remove @click=${() => void this.removeLogo()}>${tr('הסרה')}</sw-button>` : nothing}<div class="mut" style="margin-block-start:6px">${tr('PNG או JPEG, עד 1MB')}</div></div></div></div>
+        ${this.fld('name', tr('שם העסק'), { wide: true })}${this.fld('registration_no', tr('ח.פ. / ע.מ.'), { ltr: true })}${this.fld('phone', tr('טלפון'), { ltr: true })}${this.fld('address', tr('כתובת'), { wide: true })}${this.fld('email', tr('דוא״ל'), { ltr: true })}
+        <div class="fld"><span class="lbl" id="acc">${tr('צבע המותג')}</span><div class="row" role="group" aria-labelledby="acc" data-accent>
+          ${swatches.map((c) => html`<button type="button" class="tok swatch" data-swatch=${c} aria-label=${tr('צבע {c}', { c })} aria-pressed=${this.biz.accent_color.toLowerCase() === c} style="background:${c};border:2px solid ${this.biz.accent_color.toLowerCase() === c ? 'var(--sw-text)' : 'transparent'}" @click=${() => (this.biz = { ...this.biz, accent_color: c })}></button>`)}
+          <input type="color" data-accent-color aria-label=${tr('בחירה חופשית של צבע')} .value=${HEX.test(this.biz.accent_color) ? this.biz.accent_color : '#2767ed'} @input=${(e: Event) => (this.biz = { ...this.biz, accent_color: (e.target as HTMLInputElement).value })} /></div>
           ${this.errs.accent_color ? html`<div class="msg" role="alert" data-field-error="accent_color">${this.errs.accent_color}</div>` : nothing}</div>
-        ${this.fld('footer_note', 'הערה קבועה בתחתית החיוב', { wide: true, area: true })}
-        <div class="fld wide"><span class="lbl">מספור חיובים</span><div class="row" data-numbering style="padding:8px 12px;border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-sm)"><span class="num">${s.numbering.format}</span><span class="sp"></span><span class="mut">שנה-חודש-מספר לקוח, למשל ${n('2026-12-0001')}</span></div></div>
-        <div class="fld wide"><span class="lbl" id="pt">תנאי תשלום</span><div class="row"><div class="seg" role="group" aria-labelledby="pt"><button type="button" data-terms="net_days" aria-pressed=${t.mode === 'net_days'} @click=${() => (this.terms = { ...t, mode: 'net_days' })}>ימים מיום ההפקה</button><button type="button" data-terms="day_of_month" aria-pressed=${t.mode === 'day_of_month'} @click=${() => (this.terms = { ...t, mode: 'day_of_month' })}>יום קבוע בחודש</button></div>
+        ${this.fld('footer_note', tr('הערה קבועה בתחתית החיוב'), { wide: true, area: true })}
+        <div class="fld wide"><span class="lbl">${tr('מספור חיובים')}</span><div class="row" data-numbering style="padding:8px 12px;border:1px solid var(--sw-border-strong);border-radius:var(--sw-r-sm)"><span class="num">${s.numbering.format}</span><span class="sp"></span><span class="mut">${tr('שנה-חודש-מספר לקוח, למשל')} ${n('2026-12-0001')}</span></div></div>
+        <div class="fld wide"><span class="lbl" id="pt">${tr('תנאי תשלום')}</span><div class="row"><div class="seg" role="group" aria-labelledby="pt"><button type="button" data-terms="net_days" aria-pressed=${t.mode === 'net_days'} @click=${() => (this.terms = { ...t, mode: 'net_days' })}>${tr('ימים מיום ההפקה')}</button><button type="button" data-terms="day_of_month" aria-pressed=${t.mode === 'day_of_month'} @click=${() => (this.terms = { ...t, mode: 'day_of_month' })}>${tr('יום קבוע בחודש')}</button></div>
           ${t.mode === 'net_days'
-            ? html`<div class="unit"><input class="ltr" data-days type="number" min="0" max="120" aria-label="ימים לתשלום" style="inline-size:90px" .value=${String(t.days)} @input=${(e: Event) => (this.terms = { ...t, days: Number((e.target as HTMLInputElement).value) })} /><span>ימים</span></div>`
-            : html`<div class="unit"><input class="ltr" data-day-of-month type="number" min="1" max="31" aria-label="יום בחודש" style="inline-size:90px" .value=${String(t.day_of_month)} @input=${(e: Event) => (this.terms = { ...t, day_of_month: Number((e.target as HTMLInputElement).value) })} /><span>בחודש</span></div>`}</div>
+            ? html`<div class="unit"><input class="ltr" data-days type="number" min="0" max="120" aria-label=${tr('ימים לתשלום')} style="inline-size:90px" .value=${String(t.days)} @input=${(e: Event) => (this.terms = { ...t, days: Number((e.target as HTMLInputElement).value) })} /><span>${tr('ימים')}</span></div>`
+            : html`<div class="unit"><input class="ltr" data-day-of-month type="number" min="1" max="31" aria-label=${tr('יום בחודש')} style="inline-size:90px" .value=${String(t.day_of_month)} @input=${(e: Event) => (this.terms = { ...t, day_of_month: Number((e.target as HTMLInputElement).value) })} /><span>${tr('בחודש')}</span></div>`}</div>
           ${this.errs.days || this.errs.day_of_month ? html`<div class="msg" role="alert" data-field-error="terms">${this.errs.days || this.errs.day_of_month}</div>` : nothing}</div>
-        <div class="fld wide"><label for="dl">יצירת טיוטה אוטומטית</label><div class="unit"><input id="dl" class="ltr ${this.errs.delay_hours ? 'err' : ''}" data-delay type="number" min="0" max="72" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => { this.delay = (e.target as HTMLInputElement).value; this.errs = { ...this.errs, delay_hours: '' }; }} /><span>שעות אחרי סוף התקופה</span></div>${this.errs.delay_hours ? html`<div class="msg" role="alert" data-field-error="delay_hours">${this.errs.delay_hours}</div>` : nothing}</div>
+        <div class="fld wide"><label for="dl">${tr('יצירת טיוטה אוטומטית')}</label><div class="unit"><input id="dl" class="ltr ${this.errs.delay_hours ? 'err' : ''}" data-delay type="number" min="0" max="72" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => { this.delay = (e.target as HTMLInputElement).value; this.errs = { ...this.errs, delay_hours: '' }; }} /><span>${tr('שעות אחרי סוף התקופה')}</span></div>${this.errs.delay_hours ? html`<div class="msg" role="alert" data-field-error="delay_hours">${this.errs.delay_hours}</div>` : nothing}</div>
       </div></fieldset>
-      ${this.error ? alertBox('err', this.error) : nothing}${this.ok ? alertBox('ok', 'ההגדרות נשמרו') : nothing}
-      ${edit ? html`<div class="row" style="margin-block-start:14px"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button></div>` : nothing}</div>
-      <div class="card"><div class="hd"><b class="h3">תצוגה מקדימה</b></div><div style="overflow:hidden;max-block-size:320px;border-radius:var(--sw-r-sm)" data-preview><elec-bill-paper .snapshot=${sample(this.biz, t, !!s.logo)} .logo=${logoSrc} hash=""></elec-bill-paper></div></div></div>
+      ${this.error ? alertBox('err', this.error) : nothing}${this.ok ? alertBox('ok', tr('ההגדרות נשמרו')) : nothing}
+      ${edit ? html`<div class="row" style="margin-block-start:14px"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${tr('שמירה')}</sw-button></div>` : nothing}</div>
+      <div class="card"><div class="hd"><b class="h3">${tr('תצוגה מקדימה')}</b></div><div style="overflow:hidden;max-block-size:320px;border-radius:var(--sw-r-sm)" data-preview><elec-bill-paper .snapshot=${sample(this.biz, t, !!s.logo)} .logo=${logoSrc} hash=""></elec-bill-paper></div></div></div>
     </div>`;
   }
 }

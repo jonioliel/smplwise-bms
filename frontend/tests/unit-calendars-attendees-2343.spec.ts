@@ -76,7 +76,7 @@ test('count and status summary texts', () => {
 test('picker markup: combobox + listbox, labelled controls, a live region, 44 px phone targets, no HA branding', () => {
   const s = src('calendars/attendee-picker.ts');
   for (const needle of ["role=\"combobox\"", 'aria-expanded=', 'aria-controls=', 'aria-activedescendant=', "role=\"listbox\"", "role=\"option\"", 'aria-live="polite"',
-    'aria-pressed=', 'aria-invalid=', 'aria-describedby=', 'aria-label=${`הסרת ${d.name}`}', 'min-block-size: 44px']) {
+    'aria-pressed=', 'aria-invalid=', 'aria-describedby=', "aria-label=${tr('הסרת {name}', { name: d.name })}", 'min-block-size: 44px']) {
     expect(s, needle).toContain(needle);
   }
   expect(s).not.toMatch(/Home Assistant/);
@@ -103,7 +103,7 @@ test('follow-up: the quick create carries a collapsed attendee row and sends the
   expect(v).toMatch(/payloadOf\(d\.attendees as AttendeeDraft\[\]\)/);
   const s = src('screens/system-calendars.ts');
   for (const k of ['policy.guests_mode', 'policy.self_join', 'policy.list_visibility', 'policy.max_attendees', 'policy.notify_on_change', 'att.cancel_notice_delay_s']) expect(s).toContain(`'${k}'`);
-  expect(s).toContain("['attendees', 'משתתפים']");
+  expect(s).toContain("['attendees', tr('משתתפים')]");
   expect(src('api/calendar-attendees.ts')).toContain("saveSettings: (body) => put('/calendar/attendee-settings', body)");
 });
 

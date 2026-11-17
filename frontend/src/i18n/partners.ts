@@ -3,6 +3,7 @@
  * language; Arabic and Russian fall back to the Hebrew until a translation is reviewed (dev-marked). Short texts only; no home-system
  * branding.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   title: 'ממשק לשותפים',
   stateOff: 'כבוי',
@@ -206,13 +207,12 @@ const TABLES: Record<PtLang, Partial<Record<Key, string>>> = { he, en, ar: {}, r
 export const PT_DEV_MARKED: readonly PtLang[] = ['ar', 'ru'];
 
 export function ptLang(): PtLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 export function pt(key: Key, vars?: Record<string, string | number>, lang: PtLang = ptLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 /** A code (scope, event, state, restriction kind, setting) as words; an unknown code falls back to the code itself. */
@@ -223,3 +223,5 @@ export function ptCode(prefix: 'sc_' | 'ev_' | 'st_' | 'rk_' | 'v_', code: strin
 
 export const PT_KEYS = Object.keys(he) as Key[];
 export const PT_TABLES = TABLES;
+
+registerCatalogue('i18n/partners', { he, en }, PT_DEV_MARKED);

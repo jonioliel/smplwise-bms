@@ -59,7 +59,7 @@ test('the dialog: toggle wired through the confirmation, lock note, expiry, rene
   expect(d).toContain('data-feed-remote-confirm');
   expect(d).toContain('data-feed-remote-local-only');
   expect(d).toContain('data-feed-expiry');
-  expect(d).toContain('>חידוש קישור</button>');
+  expect(d).toContain(">${tr('חידוש קישור')}</button>");
   // ON goes through the confirmation only: the one call with `true` sits on the "yes" button; the toggle's own handler only sends `false`
   const flip = d.slice(d.indexOf('private flipRemote('), d.indexOf('private feedRow('));
   expect(flip).toContain('this.confirmRemote = f.id');
@@ -73,7 +73,7 @@ test('the dialog: toggle wired through the confirmation, lock note, expiry, rene
   expect(src('api/calendars.ts')).toContain('setFeedRemote: (id, enabled) => put(`/calendar/feeds/${encodeURIComponent(id)}/remote`, { enabled })');
   const s = src('screens/system-calendars.ts');
   expect(s).toContain("key: 'feed_max_age_days'");
-  expect(s).toContain("[[90, '90 יום'], [180, '180 יום'], [365, '365 יום'], [0, 'ללא הגבלה']]");
+  expect(s).toContain("[[90, tr('90 יום')], [180, tr('180 יום')], [365, tr('365 יום')], [0, tr('ללא הגבלה')]]");
   expect(s).toContain('feed_max_age_days: 365');
   for (const f of ['calendars/connect-dialogs.ts', 'calendars/connect-model.ts']) expect(src(f)).not.toContain('Home Assistant');
 });

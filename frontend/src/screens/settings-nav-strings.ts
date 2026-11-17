@@ -1,4 +1,5 @@
 import type { SettingsNav } from '../shell/tabs-mode';
+import { registerCatalogue } from '../i18n/core';
 
 /**
  * PHONENAV-295 (owner 2026-10-21): the strings of the personal "Settings navigation on phones" card (Settings > General > Tabs).
@@ -28,3 +29,5 @@ export function settingsNavStrings(lang?: string): Strs {
   const k = l.toLowerCase().slice(0, 2);
   return k === 'en' || k === 'ar' || k === 'ru' ? STR[k] : STR.he;
 }
+
+registerCatalogue('screens/settings-nav-strings', { he: STR.he, en: STR.en });

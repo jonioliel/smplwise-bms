@@ -11,19 +11,20 @@ import type { StateKind } from './sw-badge';
 import { SkinController } from '../design/skin';
 import { cameraHealthText, detectorOverloaded, frigateHealthFor, hoursLeftState, hoursLeftText, type FrigateHealth } from '../api/frigate';
 import { he } from '../i18n/he';
+import { tr } from '../i18n/msg/components';
 
 const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error: 'offline', unknown: 'unknown', off: 'neutral' };
-const STATUS_TEXT: Record<HealthState, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'תקלה', unknown: 'לא ידוע', off: '' };
+const STATUS_TEXT: Record<HealthState, string> = { ok: tr('תקין'), warn: tr('לתשומת לב'), error: tr('תקלה'), unknown: tr('לא ידוע'), off: '' };
 
 /** The thresholds the settings card edits, in screen order: key, label, unit. */
 const FIELDS: { key: Exclude<keyof HealthThresholds, 'continuous_recorders' | 'camera_recording'>; label: string; unit: string }[] = [
-  { key: 'recording_gap_min', label: 'מצלמה לא מקליטה', unit: 'דקות' },
-  { key: 'clock_drift_s', label: 'סטיית שעון', unit: 'שניות' },
-  { key: 'latency_ms', label: 'תגובה איטית', unit: 'מ״ש' },
-  { key: 'disk_fill_days', label: 'דיסק יתמלא בתוך', unit: 'ימים' },
-  { key: 'cert_days', label: 'תעודה פגה בתוך', unit: 'ימים' },
-  { key: 'recover_s', label: 'זמן עד סגירת התראה', unit: 'שניות' },
-  { key: 'interval_s', label: 'בדיקה כל', unit: 'שניות' },
+  { key: 'recording_gap_min', label: tr('מצלמה לא מקליטה'), unit: tr('דקות') },
+  { key: 'clock_drift_s', label: tr('סטיית שעון'), unit: tr('שניות') },
+  { key: 'latency_ms', label: tr('תגובה איטית'), unit: tr('מ״ש') },
+  { key: 'disk_fill_days', label: tr('דיסק יתמלא בתוך'), unit: tr('ימים') },
+  { key: 'cert_days', label: tr('תעודה פגה בתוך'), unit: tr('ימים') },
+  { key: 'recover_s', label: tr('זמן עד סגירת התראה'), unit: tr('שניות') },
+  { key: 'interval_s', label: tr('בדיקה כל'), unit: tr('שניות') },
 ];
 
 const names = (list: { name: string }[] | undefined) => (list ?? []).slice(0, 2).map((x) => x.name).join(', ') + ((list?.length ?? 0) > 2 ? ` +${(list?.length ?? 0) - 2}` : '');
@@ -91,7 +92,7 @@ export class RecorderHealthPanel extends LitElement {
     try {
       this.th = await saveHealthThresholds(this.draft);
       this.draft = {};
-      this.saveMsg = { tone: 'ok', text: 'נשמר' };
+      this.saveMsg = { tone: 'ok', text: tr('נשמר') };
     } catch (err) {
       this.saveMsg = { tone: 'err', text: describeError(err) };
     } finally {
@@ -419,28 +420,28 @@ export class RecorderHealthPanel extends LitElement {
 
   private card(c: RecorderHealthCard) {
     const a = c.api;
-    const api = a.state === 'unknown' ? 'טרם נבדק' : a.state === 'error' ? String(a.text ?? 'אין תשובה') : `${a.latency_ms ?? '—'} מ״ש`;
+    const api = a.state === 'unknown' ? tr('טרם נבדק') : a.state === 'error' ? String(a.text ?? tr('אין תשובה')) : tr('{n} מ״ש', { n: a.latency_ms ?? '—' });
     const d = c.disks;
     const bad = d?.items?.find((i) => !['ok', 'formatting', 'unknown'].includes(i.state));
-    const disk = !d || d.state === 'unknown' ? 'לא ידוע' : bad ? (bad.state === 'missing' ? 'אין דיסק' : `דיסק ${bad.ref}: ${bad.text}`) : d.alarms?.length ? 'תקלת דיסק' : d.fill_days != null && d.state === 'warn' ? `יתמלא בעוד ${d.fill_days} ימים` : d.full ? 'מלא' : d.free_pct != null ? `${d.free_pct}% פנוי` : 'תקין';
+    const disk = !d || d.state === 'unknown' ? tr('לא ידוע') : bad ? (bad.state === 'missing' ? tr('אין דיסק') : tr('דיסק {ref}: {text}', { ref: bad.ref, text: bad.text })) : d.alarms?.length ? tr('תקלת דיסק') : d.fill_days != null && d.state === 'warn' ? tr('יתמלא בעוד {n} ימים', { n: d.fill_days }) : d.full ? tr('מלא') : d.free_pct != null ? tr('{n}% פנוי', { n: d.free_pct }) : tr('תקין');
     const r = c.recording;
-    const rec = !r || r.state === 'unknown' ? 'לא ידוע' : r.exception?.length ? `תקלה: ${names(r.exception)}` : r.stopped?.length ? `לא מקליטות: ${names(r.stopped)}` : `${r.recording ?? 0}/${r.watched ?? 0}`;
+    const rec = !r || r.state === 'unknown' ? tr('לא ידוע') : r.exception?.length ? tr('תקלה: {names}', { names: names(r.exception) }) : r.stopped?.length ? tr('לא מקליטות: {names}', { names: names(r.stopped) }) : `${r.recording ?? 0}/${r.watched ?? 0}`;
     const ch = c.channels;
-    const cams = !ch || ch.state === 'unknown' ? 'לא ידוע' : ch.disconnected?.length ? `מנותקות: ${names(ch.disconnected)}` : `${ch.connected ?? 0}/${ch.total ?? 0}`;
+    const cams = !ch || ch.state === 'unknown' ? tr('לא ידוע') : ch.disconnected?.length ? tr('מנותקות: {names}', { names: names(ch.disconnected) }) : `${ch.connected ?? 0}/${ch.total ?? 0}`;
     const k = c.clock;
     const drift = k?.drift_s == null ? null : Math.round(k.drift_s);
-    const clock = drift == null ? 'לא ידוע' : drift === 0 ? 'מדויק' : `${drift > 0 ? 'מקדים' : 'מאחר'} ${Math.abs(drift)} שנ׳`;
+    const clock = drift == null ? tr('לא ידוע') : drift === 0 ? tr('מדויק') : (drift > 0 ? tr('מקדים {n} שנ׳', { n: Math.abs(drift) }) : tr('מאחר {n} שנ׳', { n: Math.abs(drift) }));
     const t = c.certificate;
-    const cert = !t || t.days_left == null ? '' : t.days_left <= 0 ? 'פגה' : `עוד ${t.days_left} ימים`;
+    const cert = !t || t.days_left == null ? '' : t.days_left <= 0 ? tr('פגה') : tr('עוד {n} ימים', { n: t.days_left });
     return html`<div class="card" data-rh-card=${c.id} data-status=${c.status}>
       <div class="hh"><span class="nm">${c.name}</span><sw-badge kind=${KIND[c.status]} label=${STATUS_TEXT[c.status]}></sw-badge></div>
-      ${this.row('api', 'חיבור', a, api)}
+      ${this.row('api', tr('חיבור'), a, api)}
       ${a.state === 'error' && a.action ? html`<div class="fix" data-rh-fix role="note">${a.action}</div>` : nothing}
-      ${this.row('disks', 'דיסקים', d, disk)}
-      ${this.row('recording', 'הקלטה', r, rec)}
-      ${this.row('channels', 'מצלמות', ch, cams)}
-      ${this.row('clock', 'שעון', k, clock)}
-      ${t ? this.row('certificate', 'תעודה', t, cert) : nothing}
+      ${this.row('disks', tr('דיסקים'), d, disk)}
+      ${this.row('recording', tr('הקלטה'), r, rec)}
+      ${this.row('channels', tr('מצלמות'), ch, cams)}
+      ${this.row('clock', tr('שעון'), k, clock)}
+      ${t ? this.row('certificate', tr('תעודה'), t, cert) : nothing}
       ${this.frigate[c.id] ? this.frigateRows(this.frigate[c.id]!) : nothing}
     </div>`;
   }
@@ -472,9 +473,9 @@ export class RecorderHealthPanel extends LitElement {
       this.draft = { ...this.draft, [key]: value };
       this.saveMsg = null;
     };
-    return html`<sw-card heading="ספי התראה למקליטים" data-rh-settings>
+    return html`<sw-card heading=${tr('ספי התראה למקליטים')} data-rh-settings>
       ${detailed.length ? html`<div class="cont" data-rh-continuous>
-        <span class="cont-h">הקלטה רציפה</span>
+        <span class="cont-h">${tr('הקלטה רציפה')}</span>
         ${detailed.map((c) => {
           const on = cont.includes(c.id);
           return html`<button type="button" class="chk" data-rh-continuous-id=${c.id} aria-pressed=${on ? 'true' : 'false'}
@@ -490,7 +491,7 @@ export class RecorderHealthPanel extends LitElement {
         })}
       </div>
       <div class="actions">
-        <sw-button size="sm" variant="primary" data-rh-save ?disabled=${this.busy || !Object.keys(this.draft).length} @click=${() => this.save()}>שמירה</sw-button>
+        <sw-button size="sm" variant="primary" data-rh-save ?disabled=${this.busy || !Object.keys(this.draft).length} @click=${() => this.save()}>${tr('שמירה')}</sw-button>
         ${this.saveMsg ? html`<span class=${this.saveMsg.tone} data-rh-save-msg role="status">${this.saveMsg.text}</span>` : nothing}
       </div>
     </sw-card>`;
@@ -512,28 +513,28 @@ export class RecorderHealthPanel extends LitElement {
       set('camera_recording', next);
     };
     return html`<details class="percam" data-rh-cameras>
-      <summary>לפי מצלמה${changed ? html` <span class="n" data-rh-cameras-changed>(${changed})</span>` : nothing}</summary>
+      <summary>${tr('לפי מצלמה')}${changed ? html` <span class="n" data-rh-cameras-changed>(${changed})</span>` : nothing}</summary>
       ${detailed.map((r) => {
         const list = cams.filter((c) => c.recorder_id === r.id);
         if (!list.length) return nothing;
-        const inherit = cont.includes(r.id) ? 'כמו המקליט (רציפה)' : 'כמו המקליט (לא רציפה)';
+        const inherit = cont.includes(r.id) ? tr('כמו המקליט (רציפה)') : tr('כמו המקליט (לא רציפה)');
         return html`<div class="pc-h">${r.name}</div>
           <div class="pc-list">${list.map((c) => html`<label class="pc-row"><span>${c.name}</span>
             <select data-rh-camera-id=${c.id} aria-label=${c.name} .value=${map[c.id] ?? ''} @change=${(e: Event) => choose(c.id, (e.target as HTMLSelectElement).value)}>
               <option value="" ?selected=${!map[c.id]}>${inherit}</option>
-              <option value="continuous" ?selected=${map[c.id] === 'continuous'}>רציפה</option>
-              <option value="events" ?selected=${map[c.id] === 'events'}>לא רציפה</option>
+              <option value="continuous" ?selected=${map[c.id] === 'continuous'}>${tr('רציפה')}</option>
+              <option value="events" ?selected=${map[c.id] === 'events'}>${tr('לא רציפה')}</option>
             </select></label>`)}</div>`;
       })}
     </details>`;
   }
 
   render() {
-    if (this.error && !this.cards) return html`<sw-card heading="מקליטים"><sw-state-panel compact state="error" heading="המקליטים לא נבדקו" hint=${this.error} actionLabel="נסה שוב" data-rh-error @action=${() => this.load()}></sw-state-panel></sw-card>`;
-    if (!this.cards) return html`<sw-card heading="מקליטים"><sw-state-panel compact state="loading" heading="קורא…" data-rh-loading></sw-state-panel></sw-card>`;
+    if (this.error && !this.cards) return html`<sw-card heading=${tr('מקליטים')}><sw-state-panel compact state="error" heading=${tr('המקליטים לא נבדקו')} hint=${this.error} actionLabel=${tr('נסה שוב')} data-rh-error @action=${() => this.load()}></sw-state-panel></sw-card>`;
+    if (!this.cards) return html`<sw-card heading=${tr('מקליטים')}><sw-state-panel compact state="loading" heading=${tr('קורא…')} data-rh-loading></sw-state-panel></sw-card>`;
     if (!this.cards.length) return nothing;
-    return html`<sw-card heading="מקליטים" data-rh-panel data-state="ready">
-        ${this.manage ? html`<div class="bar"><sw-button size="sm" icon="refresh" data-rh-check ?disabled=${this.busy} @click=${() => this.check()}>בדוק עכשיו</sw-button></div>` : nothing}
+    return html`<sw-card heading=${tr('מקליטים')} data-rh-panel data-state="ready">
+        ${this.manage ? html`<div class="bar"><sw-button size="sm" icon="refresh" data-rh-check ?disabled=${this.busy} @click=${() => this.check()}>${tr('בדוק עכשיו')}</sw-button></div>` : nothing}
         <div class="grid">${this.cards.map((c) => this.card(c))}</div>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </sw-card>

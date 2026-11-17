@@ -4,6 +4,7 @@
  * holds the parity); the Arabic and Russian columns are an INITIAL translation that needs a native review (dev-marked).
  * `{name}` placeholders are filled by `mw(key, { name })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
 
 const he = {
@@ -151,11 +152,12 @@ export const MW_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const MW_KEYS = Object.keys(he) as Key[];
 
 export function mwLang(): Lang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 export function mw(key: Key, vars?: Record<string, string | number>, lang: Lang = mwLang()): string {
   const raw = MW_TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/messaging-policy', { he, en, ar, ru }, MW_DEV_MARKED);

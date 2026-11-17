@@ -16,6 +16,7 @@ import { claimBake, finishBake, floorBakes, requestBake, uploadBake } from '../a
 import { describeError } from '../api/client';
 import { webglAvailable } from '../map/webgl';
 import '../map/sw-plan-stills';
+import { tr } from '../i18n/msg/devices';
 
 /** The level a still view shows: the level filter, else the first level of the floor, else the default level. */
 export function stillsLevel(b: MapBundle | null, levelFilter: string | null): string {
@@ -70,8 +71,8 @@ export async function runFloorBake(ctx: BakeContext): Promise<string> {
   const b = ctx.bundle;
   try {
     const info = await floorBakes(b.floorId);
-    if (!info.bake_key) return 'לקומה אין מבנה מפורסם — תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.';
-    if (b.geometryRef?.doc_hash !== info.doc_hash) return 'המפה מציגה טיוטה — תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.';
+    if (!info.bake_key) return tr('לקומה אין מבנה מפורסם — תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.');
+    if (b.geometryRef?.doc_hash !== info.doc_hash) return tr('המפה מציגה טיוטה — תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.');
     const req = await requestBake(b.floorId, {});
     await claimBake(b.floorId, req.job.id);
     const base: SceneInput = { doc: ctx.geometry, width: b.width, height: b.height, entityStates: {}, circuitStates: {}, catalog: ctx.catalog, anchors: [],
@@ -91,22 +92,22 @@ export async function runFloorBake(ctx: BakeContext): Promise<string> {
       bakeKey: info.bake_key, levels: req.job.scope.levels, setting: { ...info.setting, presets: req.job.scope.presets as never, styles: req.job.scope.styles as never,
         bands: req.job.scope.bands as never, lightmap: req.job.scope.lightmap }, describe, live: ctx.live, renderer,
       upload: (u) => uploadBake(b.floorId, u), encodePng: scene.encodePng, only: new Set(req.expected),
-      onProgress: (done, total) => ctx.onProgress(`מכין תמונות ותאורה… ${done}/${total}`), cancelled: ctx.cancelled,
+      onProgress: (done, total) => ctx.onProgress(tr('מכין תמונות ותאורה… {done}/{total}', { done, total })), cancelled: ctx.cancelled,
       heartbeat: async () => { await claimBake(b.floorId, req.job.id); },
     });
     if (outcome.cancelled) {
       await finishBake(b.floorId, req.job.id, 'cancelled', 'left the page').catch(() => undefined);
-      return 'ההכנה הופסקה; מה שנשמר נשאר.';
+      return tr('ההכנה הופסקה; מה שנשמר נשאר.');
     }
     if (outcome.failed.length || outcome.left.length) {
       const why = outcome.left.length ? 'no WebGL in this browser' : outcome.failed[0].error;
       await finishBake(b.floorId, req.job.id, 'failed', why).catch(() => undefined);
       return outcome.left.length
-        ? 'בדפדפן הזה אין תלת־ממד: נשמרה מפת התאורה בלבד; התמונות יוכנו בדפדפן של עורך אחר.'
-        : `חלק מהקבצים לא נשמרו (${outcome.failed.length}): ${outcome.failed[0].error}`;
+        ? tr('בדפדפן הזה אין תלת־ממד: נשמרה מפת התאורה בלבד; התמונות יוכנו בדפדפן של עורך אחר.')
+        : tr('חלק מהקבצים לא נשמרו ({n}): {error}', { n: outcome.failed.length, error: outcome.failed[0].error });
     }
     await finishBake(b.floorId, req.job.id, 'done');
-    return `התמונות המוכנות ומפת התאורה נשמרו (${outcome.done.length} קבצים).`;
+    return tr('התמונות המוכנות ומפת התאורה נשמרו ({n} קבצים).', { n: outcome.done.length });
   } catch (err) {
     return describeError(err);
   }
@@ -115,11 +116,11 @@ export async function runFloorBake(ctx: BakeContext): Promise<string> {
 /** The status line of the editor's tool, from the bundle alone (no request): nothing to show when the set is current. */
 export function bakeStatus(b: MapBundle | null, recipe: string): string | null {
   const n = needsBake(b?.bakes ?? null, recipe);
-  if (n === null) return 'התמונות המוכנות מעודכנות.';
-  if (n === 'none') return 'לקומה אין עדיין תמונות מוכנות.';
-  if (n === 'stale') return 'המבנה השתנה — התמונות המוכנות אינן מעודכנות.';
-  if (n === 'incomplete') return 'חלק מהתמונות המוכנות חסרות.';
-  return 'יש גרסה משופרת של התמונות המוכנות.';
+  if (n === null) return tr('התמונות המוכנות מעודכנות.');
+  if (n === 'none') return tr('לקומה אין עדיין תמונות מוכנות.');
+  if (n === 'stale') return tr('המבנה השתנה — התמונות המוכנות אינן מעודכנות.');
+  if (n === 'incomplete') return tr('חלק מהתמונות המוכנות חסרות.');
+  return tr('יש גרסה משופרת של התמונות המוכנות.');
 }
 
 /** Whether an automatic bake should start: the floor's set is missing, incomplete, stale or of an older recipe. */
@@ -127,6 +128,6 @@ export function autoBakeWanted(b: MapBundle | null, recipe: string): boolean {
   return needsBake(b?.bakes ?? null, recipe) !== null;
 }
 
-export const BAKE_BUTTON_HE = 'הכן תמונות ותאורה';
-export const BAKE_TITLE_HE = 'מצייר בדפדפן הזה את התמונות המוכנות של הקומה (לכל סגנון ושעה) ואת מפת התאורה, ושומר אותן במתקן — למכשירים חלשים, למסך קיר ולאפליקציה';
+export const BAKE_BUTTON_HE = tr('הכן תמונות ותאורה');
+export const BAKE_TITLE_HE = tr('מצייר בדפדפן הזה את התמונות המוכנות של הקומה (לכל סגנון ושעה) ואת מפת התאורה, ושומר אותן במתקן — למכשירים חלשים, למסך קיר ולאפליקציה');
 export { nothing };

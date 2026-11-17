@@ -121,6 +121,13 @@ SETTINGS_NAV_MODES: tuple[str, ...] = ("tabs", "dropdown")
 VALIDATORS["ui.dd_settings_nav"] = _choice("ui.dd_settings_nav", SETTINGS_NAV_MODES)
 DEFAULTS["ui.dd_settings_nav"] = None
 
+# `ui.lang` (I18N-EN-SWITCH-2438, owner round 32 Q-SYS-7 b): the user's interface language, he | en; personal only, presentation
+# only (no permission); null = Hebrew, the product's language. Arabic and Russian columns exist in some catalogues but are not
+# offered yet, so they are refused here until the owner opens them.
+UI_LANGS: tuple[str, ...] = ("he", "en")
+VALIDATORS["ui.lang"] = _choice("ui.lang", UI_LANGS)
+DEFAULTS["ui.lang"] = None
+
 # `generator.view_mode` (CR-031, owner 2026-10-05): the generator live screen shows ONE of dials (gauges) or charts, the user's choice; default gauges.
 VALIDATORS["generator.view_mode"] = _choice("generator.view_mode", ("gauges", "charts"))
 DEFAULTS["generator.view_mode"] = "gauges"

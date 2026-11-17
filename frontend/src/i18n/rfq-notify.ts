@@ -3,6 +3,7 @@
  * labels (the same Hebrew as services/tickets/notify_sources.py; a unit spec compares them), the subject kind and its "open" action.
  * Hebrew first; the English column follows the document language (a missing key falls back to the Hebrew).
  */
+import { docLang, registerCatalogue } from './core';
 const he = {
   'rfq.quote_received': 'הצעת מחיר התקבלה או עודכנה',
   'rfq.declined': 'ספק השיב שאינו מעוניין',
@@ -31,7 +32,7 @@ const en: Partial<Record<RfqNotifyKey, string>> = {
 };
 
 export function rfqNotifyLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 export function rnt(key: RfqNotifyKey, lang: 'he' | 'en' = rfqNotifyLang()): string {
@@ -40,3 +41,5 @@ export function rnt(key: RfqNotifyKey, lang: 'he' | 'en' = rfqNotifyLang()): str
 
 export const RFQ_NOTIFY_HE: Readonly<Record<RfqNotifyKey, string>> = he;
 export const RFQ_NOTIFY_EN: Readonly<Partial<Record<RfqNotifyKey, string>>> = en;
+
+registerCatalogue('i18n/rfq-notify', { he, en });

@@ -5,11 +5,12 @@
  * that a person or vehicle moved there, and nothing is picked without the operator's click. Pure: no DOM, runs in node
  * (tests/unit-adjacent-cameras.spec.ts).
  */
+import { tr } from '../i18n/msg/map';
 import { pointInPolygon, type ZonePoint } from '../api/zones';
 
 export type AdjacentRelation = 'same_zone' | 'adjacent_zone' | 'nearby';
 
-export const ADJACENT_LABEL: Record<AdjacentRelation, string> = { same_zone: 'אותו חדר', adjacent_zone: 'חדר סמוך', nearby: 'בקרבת מקום' };
+export const ADJACENT_LABEL: Record<AdjacentRelation, string> = { same_zone: tr('אותו חדר'), adjacent_zone: tr('חדר סמוך'), nearby: tr('בקרבת מקום') };
 
 /** Within this normalized distance (a fifth of the plan) a camera outside every room still counts as "nearby". */
 export const NEARBY_RADIUS = 0.2;

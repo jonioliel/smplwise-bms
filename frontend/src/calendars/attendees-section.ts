@@ -5,6 +5,7 @@ import { describeError } from '../api/client';
 import { attendeesApi, type AttendeesApi, type AttendeesView, type InviteStatus } from '../api/calendar-attendees';
 import { calCss } from './styles';
 import { calHooks } from './ctx';
+import { tr } from '../i18n/msg/calendars';
 import './attendee-picker';
 import type { PickerAdd, PickerRemove, PickerRole } from './attendee-picker';
 import { RESPONSE_LABEL, addHit, countText, draftOfAttendee, payloadOf, statusSummary, type AttendeeDraft } from './attendee-logic';
@@ -117,7 +118,7 @@ export class CalAttendeesSection extends LitElement {
 
   render() {
     return html`<div class="sec" data-cal-attendees role="group" aria-labelledby="att-h">
-      <span class="lbl" id="att-h">מוזמנים</span>
+      <span class="lbl" id="att-h">${tr('מוזמנים')}</span>
       <div class="col">${this.eventId ? this.existing() : this.fresh()}
         ${this.error ? html`<div class="err" role="alert" data-att-error>${this.error}</div>` : nothing}</div>
     </div>`;
@@ -145,12 +146,12 @@ export class CalAttendeesSection extends LitElement {
           @attendee-role=${(e: CustomEvent<PickerRole>) => this.onRole(e)}></cal-attendee-picker>` : nothing}
       ${!v.can.manage && v.can.add_guest ? html`<cal-attendee-picker .value=${[]} .max=${v.policy.max_attendees} allow-guests .allowPeople=${false}
           @attendee-add=${(e: CustomEvent<PickerAdd>) => this.onAdd(e)}></cal-attendee-picker>` : nothing}
-      ${v.me && v.can.respond ? html`<div class="rsvp" role="group" aria-label="התשובה שלי" data-att-rsvp>
+      ${v.me && v.can.respond ? html`<div class="rsvp" role="group" aria-label=${tr('התשובה שלי')} data-att-rsvp>
           ${(Object.keys(RESPONSE_LABEL) as Exclude<InviteStatus, 'invited'>[]).map((s) => html`<button type="button" class="chipb" aria-pressed=${v.me?.status === s ? 'true' : 'false'}
             ?disabled=${this.busy} data-att-respond=${s} @click=${() => void this.run(() => this.client().respond(this.eventId, s))}>${RESPONSE_LABEL[s]}</button>`)}
         </div>` : nothing}
       ${v.can.join ? html`<div><button type="button" class="btn sm" ?disabled=${this.busy} data-att-join
-          @click=${() => void this.run(() => this.client().add(this.eventId, [{ kind: 'user', ref_id: '@me' }]))}><sw-icon name="plus" size="14"></sw-icon>הצטרפות לאירוע</button></div>` : nothing}`;
+          @click=${() => void this.run(() => this.client().add(this.eventId, [{ kind: 'user', ref_id: '@me' }]))}><sw-icon name="plus" size="14"></sw-icon>${tr('הצטרפות לאירוע')}</button></div>` : nothing}`;
   }
 }
 
@@ -189,7 +190,7 @@ export class CalQuickAttendees extends LitElement {
   render() {
     const n = this.value.length;
     return html`<button type="button" class="tg" aria-expanded=${String(this.open)} aria-controls="qatt" data-cal-qc-attendees-toggle @click=${() => (this.open = !this.open)}>
-        <sw-icon name="users" size="16"></sw-icon><span>משתתפים</span><span class="muted">${n ? countText(n) : 'אף אחד עדיין'}</span>
+        <sw-icon name="users" size="16"></sw-icon><span>${tr('משתתפים')}</span><span class="muted">${n ? countText(n) : tr('אף אחד עדיין')}</span>
         <sw-icon class="chev" name="chevronDown" size="14"></sw-icon></button>
       ${this.open ? html`<div class="body" id="qatt" data-cal-qc-attendees><cal-attendee-picker .value=${this.value} .search=${this.search} allow-guests show-contacts
         @attendee-add=${(e: CustomEvent<PickerAdd>) => { const d = e.detail.draft; this.put(d.kind === 'guest' ? [...this.value, d] : addHit(this.value, { kind: d.kind, ref_id: d.ref_id as string, name: d.name })); }}

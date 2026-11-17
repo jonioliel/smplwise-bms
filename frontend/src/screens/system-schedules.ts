@@ -42,6 +42,7 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/system-b';
 
 /** The technical name of each class as the settings page shows it (a settings screen keeps the exact names). */
 const CLASS_DOMAIN: Record<ScheduleClass, string> = {
@@ -65,25 +66,25 @@ const CLASS_DOMAIN: Record<ScheduleClass, string> = {
 };
 
 const CLASS_NOTE: Partial<Record<ScheduleClass, string>> = {
-  switch: 'רק מתגים שסומנו "בטוחים להפעלה מרוכזת"',
-  cover: 'לא שערים, דלתות ומה שמסומן בשכבת הדלתות',
-  alarm: 'דריכה ונטרול (מנהל מערכת יכול להגביל נטרול למטה); דורש הרשאה לתזמון פעולות רגישות',
-  lock: 'נעילה ופתיחה; דורש הרשאה לתזמון פעולות רגישות',
-  door: 'דלתות ושערים; דורש הרשאה לתזמון פעולות רגישות',
-  script: 'כל סקריפט, כולל סקריפט אזעקה; סקריפט שמנטרל או פותח מותר רק אחרי סימון של מנהל מערכת למטה',
-  scene: 'הפעלת סצנה',
-  humidifier: 'רק מה שההתקן מדווח שהוא תומך בו',
-  vacuum: 'התחלת ניקוי וחזרה לעמדה, לפי מה שהשואב תומך',
-  siren: 'הפעלה וכיבוי, צליל ומשך רק לפי מה שהצופר מדווח; דורש הרשאה לתזמון פעולות רגישות',
-  media: 'רק נגנים ומסכים מאושרים בהגדרות המולטימדיה, לפי הרשאות המולטימדיה ותקרת העוצמה',
-  number: 'רק בטווח ובקפיצות של ההתקן; לא ערכי הגדרה של התקנים',
-  select: 'רק האפשרויות שההתקן מציע; לא ערכי הגדרה של התקנים',
+  switch: tr('רק מתגים שסומנו "בטוחים להפעלה מרוכזת"'),
+  cover: tr('לא שערים, דלתות ומה שמסומן בשכבת הדלתות'),
+  alarm: tr('דריכה ונטרול (מנהל מערכת יכול להגביל נטרול למטה); דורש הרשאה לתזמון פעולות רגישות'),
+  lock: tr('נעילה ופתיחה; דורש הרשאה לתזמון פעולות רגישות'),
+  door: tr('דלתות ושערים; דורש הרשאה לתזמון פעולות רגישות'),
+  script: tr('כל סקריפט, כולל סקריפט אזעקה; סקריפט שמנטרל או פותח מותר רק אחרי סימון של מנהל מערכת למטה'),
+  scene: tr('הפעלת סצנה'),
+  humidifier: tr('רק מה שההתקן מדווח שהוא תומך בו'),
+  vacuum: tr('התחלת ניקוי וחזרה לעמדה, לפי מה שהשואב תומך'),
+  siren: tr('הפעלה וכיבוי, צליל ומשך רק לפי מה שהצופר מדווח; דורש הרשאה לתזמון פעולות רגישות'),
+  media: tr('רק נגנים ומסכים מאושרים בהגדרות המולטימדיה, לפי הרשאות המולטימדיה ותקרת העוצמה'),
+  number: tr('רק בטווח ובקפיצות של ההתקן; לא ערכי הגדרה של התקנים'),
+  select: tr('רק האפשרויות שההתקן מציע; לא ערכי הגדרה של התקנים'),
 };
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
-  { value: 'repeat', label: 'חוזר' },
-  { value: 'pause', label: 'פעם אחת ואז מושהה (נשמר)' },
-  { value: 'single', label: 'פעם אחת ואז נמחק' },
+  { value: 'repeat', label: tr('חוזר') },
+  { value: 'pause', label: tr('פעם אחת ואז מושהה (נשמר)') },
+  { value: 'single', label: tr('פעם אחת ואז נמחק') },
 ];
 
 const RETENTION = [30, 90, 180, 365];
@@ -102,11 +103,11 @@ function versionLess(a: string, b: string): boolean {
 /** The three permissions per built-in role, as the contract defaults (docs/architecture/SCHEDULER_API.md §4.1). Read only:
  * the owner grants them per user or role in משתמשים והרשאות. */
 const ROLE_ROWS: { role: string; view: boolean; manage: boolean; sensitive: boolean; scoped?: boolean }[] = [
-  { role: 'צופה', view: false, manage: false, sensitive: false },
-  { role: 'מפעיל', view: false, manage: false, sensitive: false },
-  { role: 'עורך מפות ותצוגות', view: false, manage: false, sensitive: false },
-  { role: 'מנהל אתר / מבנה / קומה', view: true, manage: true, sensitive: false, scoped: true },
-  { role: 'מנהל מערכת', view: true, manage: true, sensitive: true },
+  { role: tr('צופה'), view: false, manage: false, sensitive: false },
+  { role: tr('מפעיל'), view: false, manage: false, sensitive: false },
+  { role: tr('עורך מפות ותצוגות'), view: false, manage: false, sensitive: false },
+  { role: tr('מנהל אתר / מבנה / קומה'), view: true, manage: true, sensitive: false, scoped: true },
+  { role: tr('מנהל מערכת'), view: true, manage: true, sensitive: true },
 ];
 
 /**
@@ -389,7 +390,7 @@ export class SystemSchedules extends LitElement {
       this.draft = { ...this.draft, allowDisarm: to.allowDisarm };
       this.disarmAsk = false;
       this.disarmWord = '';
-      this.note = on ? 'נטרול אזעקה בתזמונים מותר.' : 'נטרול אזעקה בתזמונים הוגבל.';
+      this.note = on ? tr('נטרול אזעקה בתזמונים מותר.') : tr('נטרול אזעקה בתזמונים הוגבל.');
       window.clearTimeout(this.noteTimer);
       this.noteTimer = window.setTimeout(() => (this.note = ''), 4000);
     } catch (err) {
@@ -418,7 +419,7 @@ export class SystemSchedules extends LitElement {
     try {
       const r = await markScheduleScript(eid, !on);
       this.scripts = this.scripts.map((x) => (x.entity_id === eid ? { ...x, approval: r.approval } : x));
-      this.note = on ? 'הסקריפט סומן כמותר בתזמונים.' : 'הסימון הוסר.';
+      this.note = on ? tr('הסקריפט סומן כמותר בתזמונים.') : tr('הסימון הוסר.');
       window.clearTimeout(this.noteTimer);
       this.noteTimer = window.setTimeout(() => (this.note = ''), 4000);
     } catch (err) {
@@ -429,31 +430,31 @@ export class SystemSchedules extends LitElement {
   }
 
   private renderScripts() {
-    return html`<sw-card heading="סקריפטים שמנטרלים או פותחים" data-sched-scripts>
+    return html`<sw-card heading=${tr('סקריפטים שמנטרלים או פותחים')} data-sched-scripts>
       ${this.scripts.length
         ? this.scripts.map((x) => {
             const a = x.approval;
-            const why = x.effects_known ? 'מנטרל אזעקה או פותח נעילה' : 'תוכן הסקריפט אינו ידוע למערכת';
+            const why = x.effects_known ? tr('מנטרל אזעקה או פותח נעילה') : tr('תוכן הסקריפט אינו ידוע למערכת');
             const state = a.approved
-              ? `מותר בתזמונים · ${a.by?.display_name || a.by?.username || ''}${a.at ? ` · ${whenLabel(a.at)}` : ''}`
-              : a.stale ? 'הסימון בוטל: הסקריפט השתנה' : 'לא מסומן: אי אפשר לתזמן אותו';
+              ? `${tr('מותר בתזמונים')} · ${a.by?.display_name || a.by?.username || ''}${a.at ? ` · ${whenLabel(a.at)}` : ''}`
+              : a.stale ? tr('הסימון בוטל: הסקריפט השתנה') : tr('לא מסומן: אי אפשר לתזמן אותו');
             return html`<div class="row" data-script-row=${x.entity_id}>
               <span class="lbl">${x.name}<span class="muted">${why} · ${state}</span></span>
-              <span class="end"><sw-badge kind=${a.approved ? 'live' : 'stale'} label=${a.approved ? 'מותר' : 'חסום'}></sw-badge>
-                <sw-toggle label=${`${x.name}: מותר בתזמונים`} labelHidden .checked=${live(a.approved)} ?disabled=${this.busy || !this.canMark} data-script-mark=${x.entity_id}
+              <span class="end"><sw-badge kind=${a.approved ? 'live' : 'stale'} label=${a.approved ? tr('מותר') : tr('חסום')}></sw-badge>
+                <sw-toggle label=${`${x.name}: ${tr('מותר בתזמונים')}`} labelHidden .checked=${live(a.approved)} ?disabled=${this.busy || !this.canMark} data-script-mark=${x.entity_id}
                   @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setMark(x.entity_id, e.detail.checked)}></sw-toggle></span>
             </div>`;
           })
-        : html`<p class="muted cardnote" data-scripts-empty>אין סקריפטים שמנטרלים או פותחים.</p>`}
+        : html`<p class="muted cardnote" data-scripts-empty>${tr('אין סקריפטים שמנטרלים או פותחים.')}</p>`}
     </sw-card>`;
   }
 
   private renderDisarm() {
     const on = this.saved.allowDisarm;
-    return html`<sw-card heading="נטרול אזעקה בתזמונים" data-sched-disarm>
+    return html`<sw-card heading=${tr('נטרול אזעקה בתזמונים')} data-sched-disarm>
       <div class="row">
-        <span class="lbl" data-disarm-state>${on ? 'נטרול אזעקה בתזמונים: מותר (ניתן להגביל)' : 'נטרול אזעקה בתזמונים: מוגבל'}<span class="muted">${on ? 'עם הרשאת נטרול, הרשאה לפעולות רגישות ואישור מפורש בעורך. נטרול שדורש קוד לעולם אינו ניתן לתזמון.' : 'מנהל מערכת הגביל. תזמון קיים נשמר כפי שהוא.'}</span></span>
-        <span class="end"><sw-badge kind="stale" label="רגיש"></sw-badge><sw-toggle label="נטרול אזעקה בתזמונים" labelHidden .checked=${live(on)} ?disabled=${this.busy} data-allow-disarm
+        <span class="lbl" data-disarm-state>${on ? tr('נטרול אזעקה בתזמונים: מותר (ניתן להגביל)') : tr('נטרול אזעקה בתזמונים: מוגבל')}<span class="muted">${on ? tr('עם הרשאת נטרול, הרשאה לפעולות רגישות ואישור מפורש בעורך. נטרול שדורש קוד לעולם אינו ניתן לתזמון.') : tr('מנהל מערכת הגביל. תזמון קיים נשמר כפי שהוא.')}</span></span>
+        <span class="end"><sw-badge kind="stale" label=${tr('רגיש')}></sw-badge><sw-toggle label=${tr('נטרול אזעקה בתזמונים')} labelHidden .checked=${live(on)} ?disabled=${this.busy} data-allow-disarm
           @change=${(e: CustomEvent<{ checked: boolean }>) => { if (e.detail.checked) { this.disarmAsk = true; this.requestUpdate(); } else void this.setAllowDisarm(false); }}></sw-toggle></span>
       </div>
     </sw-card>`;
@@ -468,7 +469,7 @@ export class SystemSchedules extends LitElement {
       this.saved = to;
       this.draft = { ...to, classes: [...to.classes] };
       applySchedulesHidden({ 'schedules.enabled': String(to.enabled) }); // the "תזמונים" tab follows at once
-      this.note = 'ההגדרות נשמרו.';
+      this.note = tr('ההגדרות נשמרו.');
       window.clearTimeout(this.noteTimer);
       this.noteTimer = window.setTimeout(() => (this.note = ''), 4000);
       void getScheduleStatus().then((s) => (this.status = s)).catch(() => undefined);
@@ -494,27 +495,27 @@ export class SystemSchedules extends LitElement {
     const missing = a?.component === 'missing';
     const bridgeOld = !!a && !!a.bridge_version && versionLess(a.bridge_version, a.bridge_required);
     const bridgeMissing = !!a && !a.bridge_version;
-    return html`<sw-card heading="חיבור" data-sched-connection>
+    return html`<sw-card heading=${tr('חיבור')} data-sched-connection>
       <div class="row">
         <span class="who"><span class=${found ? 'ic' : missing ? 'ic warn' : 'ic mute'}><sw-icon name=${found ? 'check' : 'warning'} size=${16}></sw-icon></span>
-          <span class="lbl">רכיב התזמונים (Scheduler)<span class="muted" data-component-line>${found ? `נמצא · גרסה ${a?.component_version ?? '?'} · דורש Home Assistant 2024.11.0 ומעלה${a?.ha_version ? ` · מותקן ${a.ha_version}` : ''}` : missing ? 'לא נמצא' : 'לא נבדק'}</span></span></span>
-        <sw-button size="sm" icon="refresh" data-recheck @click=${() => void this.load()}>בדיקה מחדש</sw-button>
+          <span class="lbl">${tr('רכיב התזמונים (Scheduler)')}<span class="muted" data-component-line>${found ? `${tr('נמצא')} · ${tr('גרסה {n}', { n: a?.component_version ?? '?' })} · ${tr('דורש Home Assistant 2024.11.0 ומעלה')}${a?.ha_version ? ` · ${tr('מותקן {version}', { version: a.ha_version })}` : ''}` : missing ? tr('לא נמצא') : tr('לא נבדק')}</span></span></span>
+        <sw-button size="sm" icon="refresh" data-recheck @click=${() => void this.load()}>${tr('בדיקה מחדש')}</sw-button>
       </div>
       <div class="row">
         <span class="who"><span class=${bridgeOld || bridgeMissing ? 'ic warn' : 'ic'}><sw-icon name=${bridgeOld || bridgeMissing ? 'warning' : 'check'} size=${16}></sw-icon></span>
-          <span class="lbl">גשר Arx<span class="muted">${bridgeMissing ? `לא מותקן (נדרש ${a?.bridge_required ?? ''} ומעלה לשמירת תזמונים)` : `גרסה ${a?.bridge_version ?? '?'} (נדרש ${a?.bridge_required ?? '?'} ומעלה)${bridgeOld ? ' · נדרש עדכון של רכיב החיבור' : ''}`}</span></span></span>
+          <span class="lbl">${tr('גשר Arx')}<span class="muted">${bridgeMissing ? tr('לא מותקן (נדרש {version} ומעלה לשמירת תזמונים)', { version: a?.bridge_required ?? '' }) : `${tr('גרסה {n} (נדרש {required} ומעלה)', { n: a?.bridge_version ?? '?', required: a?.bridge_required ?? '?' })}${bridgeOld ? ` · ${tr('נדרש עדכון של רכיב החיבור')}` : ''}`}</span></span></span>
       </div>
       <div class="row">
         <span class="who"><span class="ic mute"><sw-icon name="clock" size=${16}></sw-icon></span>
-          <span class="lbl">סנכרון אחרון<span class="muted">${s.last_sync_at ? whenLabel(s.last_sync_at) : 'עדיין לא'} · ${s.counts.visible} תזמונים${s.counts.hidden ? ` · ${s.counts.hidden} מוסתרים מהמשתמש הנוכחי` : ''}${s.stale ? ' · אין חיבור נוכחי' : ''}</span></span></span>
+          <span class="lbl">${tr('סנכרון אחרון')}<span class="muted">${s.last_sync_at ? whenLabel(s.last_sync_at) : tr('עדיין לא')} · ${tr('{n} תזמונים', { n: s.counts.visible })}${s.counts.hidden ? ` · ${tr('{n} מוסתרים מהמשתמש הנוכחי', { n: s.counts.hidden })}` : ''}${s.stale ? ` · ${tr('אין חיבור נוכחי')}` : ''}</span></span></span>
       </div>
-      <button type="button" class="link" aria-expanded=${this.help ? 'true' : 'false'} aria-controls="sched-help" data-help-toggle @click=${() => (this.help = !this.help)}>הרכיב לא מותקן? הוראות התקנה<sw-icon name="chevronDown" size=${14}></sw-icon></button>
+      <button type="button" class="link" aria-expanded=${this.help ? 'true' : 'false'} aria-controls="sched-help" data-help-toggle @click=${() => (this.help = !this.help)}>${tr('הרכיב לא מותקן? הוראות התקנה')}<sw-icon name="chevronDown" size=${14}></sw-icon></button>
       ${this.help
         ? html`<ol id="sched-help" data-help>
-            <li>מתקינים את האינטגרציה המותאמת "Scheduler" (ב־HACS: "scheduler component"), או מעתיקים ידנית את התיקייה <code>custom_components/scheduler</code>.</li>
-            <li>מפעילים מחדש את Home Assistant.</li>
-            <li>בהגדרות ‹ מכשירים ושירותים ‹ הוספת אינטגרציה, בוחרים "Scheduler".</li>
-            <li>דרושה גרסת Home Assistant 2024.11.0 ומעלה. אחרי ההתקנה לוחצים "בדיקה מחדש".</li>
+            <li>${tr('מתקינים את האינטגרציה המותאמת "Scheduler" (ב־HACS: "scheduler component"), או מעתיקים ידנית את התיקייה')} <code>custom_components/scheduler</code>.</li>
+            <li>${tr('מפעילים מחדש את Home Assistant.')}</li>
+            <li>${tr('בהגדרות ‹ מכשירים ושירותים ‹ הוספת אינטגרציה, בוחרים "Scheduler".')}</li>
+            <li>${tr('דרושה גרסת Home Assistant 2024.11.0 ומעלה. אחרי ההתקנה לוחצים "בדיקה מחדש".')}</li>
           </ol>`
         : nothing}
     </sw-card>`;
@@ -526,15 +527,15 @@ export class SystemSchedules extends LitElement {
     const known = !d.shabbatSensor || !!sensor;
     const suggested = this.sensors.filter((c) => c.suggested_shabbat);
     const others = this.sensors.filter((c) => !c.suggested_shabbat);
-    return html`<sw-card heading="הפעלה" data-sched-operation>
-      <div class="row"><span class="lbl">הצגת הטאב "תזמונים" במסך הראשי<span class="muted">כבוי = הטאב אינו מוצג לאף משתמש והתזמונים ממשיכים לפעול ברכיב</span></span><sw-toggle label="הצגת הטאב תזמונים" labelHidden .checked=${d.enabled} data-set-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>
+    return html`<sw-card heading=${tr('הפעלה')} data-sched-operation>
+      <div class="row"><span class="lbl">${tr('הצגת הטאב "תזמונים" במסך הראשי')}<span class="muted">${tr('כבוי = הטאב אינו מוצג לאף משתמש והתזמונים ממשיכים לפעול ברכיב')}</span></span><sw-toggle label=${tr('הצגת הטאב תזמונים')} labelHidden .checked=${d.enabled} data-set-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>
       <div class="row">
-        <span class="lbl">חיישן שבת וחג<span class="muted">${sensor?.state ? `מצב נוכחי: ${sensor.state === 'on' ? 'איסור מלאכה בתוקף' : sensor.state === 'off' ? 'איסור מלאכה אינו בתוקף' : sensor.state}` : 'משמש את התבניות "רק בשבת ובחג" ו"לא בשבת ובחג"'}</span></span>
-        <sw-field class="ctl"><select aria-label="חיישן שבת וחג" data-shabbat-sensor @change=${(e: Event) => this.patch({ shabbatSensor: (e.target as HTMLSelectElement).value })}>
-          <option value="" .selected=${!d.shabbatSensor}>ללא חיישן</option>
-          ${!known ? html`<option value=${d.shabbatSensor} selected>${d.shabbatSensor} (לא נמצא)</option>` : nothing}
-          ${suggested.length ? html`<optgroup label="לוח שנה יהודי (מומלצים)">${suggested.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}</option>`)}</optgroup>` : nothing}
-          ${others.length ? html`<optgroup label="חיישנים אחרים">${others.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}</option>`)}</optgroup>` : nothing}
+        <span class="lbl">${tr('חיישן שבת וחג')}<span class="muted">${sensor?.state ? tr('מצב נוכחי: {state}', { state: sensor.state === 'on' ? tr('איסור מלאכה בתוקף') : sensor.state === 'off' ? tr('איסור מלאכה אינו בתוקף') : sensor.state }) : tr('משמש את התבניות "רק בשבת ובחג" ו"לא בשבת ובחג"')}</span></span>
+        <sw-field class="ctl"><select aria-label=${tr('חיישן שבת וחג')} data-shabbat-sensor @change=${(e: Event) => this.patch({ shabbatSensor: (e.target as HTMLSelectElement).value })}>
+          <option value="" .selected=${!d.shabbatSensor}>${tr('ללא חיישן')}</option>
+          ${!known ? html`<option value=${d.shabbatSensor} selected>${d.shabbatSensor} ${tr('(לא נמצא)')}</option>` : nothing}
+          ${suggested.length ? html`<optgroup label=${tr('לוח שנה יהודי (מומלצים)')}>${suggested.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}</option>`)}</optgroup>` : nothing}
+          ${others.length ? html`<optgroup label=${tr('חיישנים אחרים')}>${others.map((c) => html`<option value=${c.entity_id} .selected=${c.entity_id === d.shabbatSensor}>${c.name}</option>`)}</optgroup>` : nothing}
         </select></sw-field>
       </div>
     </sw-card>`;
@@ -543,16 +544,16 @@ export class SystemSchedules extends LitElement {
   private renderClasses() {
     const d = this.draft;
     const row = (c: ScheduleClass) => html`<div class="row"><span class="lbl">${CLASS_LABEL[c]}<span class="muted"><code>${CLASS_DOMAIN[c]}</code>${CLASS_NOTE[c] ? ` · ${CLASS_NOTE[c]}` : ''}</span></span>
-          <span class="end">${SENSITIVE_CLASSES.includes(c) ? html`<sw-badge kind="stale" label="רגיש"></sw-badge>` : nothing}<sw-toggle label=${CLASS_LABEL[c]} labelHidden .checked=${d.classes.includes(c)} data-class=${c} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setClass(c, e.detail.checked)}></sw-toggle></span></div>`;
+          <span class="end">${SENSITIVE_CLASSES.includes(c) ? html`<sw-badge kind="stale" label=${tr('רגיש')}></sw-badge>` : nothing}<sw-toggle label=${CLASS_LABEL[c]} labelHidden .checked=${d.classes.includes(c)} data-class=${c} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setClass(c, e.detail.checked)}></sw-toggle></span></div>`;
     // SCHED-POLISH-2331: the ordinary classes first, the sensitive ones (their own permission) under their own label; same toggles, same order inside each group
     const plain = ALL_CLASSES.filter((c) => !SENSITIVE_CLASSES.includes(c));
     const sensitive = ALL_CLASSES.filter((c) => SENSITIVE_CLASSES.includes(c));
     const on = (list: ScheduleClass[]) => list.filter((c) => d.classes.includes(c)).length;
-    return html`<sw-card heading="סוגי התקנים מותרים בתזמון" data-sched-classes>
-      <div class="grouplabel">רגילים · ${on(plain)} מתוך ${plain.length}</div>
+    return html`<sw-card heading=${tr('סוגי התקנים מותרים בתזמון')} data-sched-classes>
+      <div class="grouplabel">${tr('רגילים')} · ${tr('{n} מתוך {total}', { n: on(plain), total: plain.length })}</div>
       <div class="classgrid">${plain.map(row)}</div>
       ${sensitive.length
-        ? html`<div class="grouplabel">רגישים: דורשים הרשאה לתזמון פעולות רגישות · ${on(sensitive)} מתוך ${sensitive.length}</div>
+        ? html`<div class="grouplabel">${tr('רגישים: דורשים הרשאה לתזמון פעולות רגישות')} · ${tr('{n} מתוך {total}', { n: on(sensitive), total: sensitive.length })}</div>
             <div class="classgrid">${sensitive.map(row)}</div>`
         : nothing}
     </sw-card>`;
@@ -561,43 +562,43 @@ export class SystemSchedules extends LitElement {
   private renderDefaults() {
     const d = this.draft;
     const retention = RETENTION.includes(d.runsRetentionDays) ? RETENTION : [...RETENTION, d.runsRetentionDays].sort((a, b) => a - b);
-    return html`<sw-card heading="ברירות מחדל לעורך" data-sched-defaults>
-      <div class="row"><span class="lbl">הצמדת זמן</span><span class="seg" role="group" aria-label="הצמדת זמן">${([5, 15, 30] as const).map((m) => html`<button type="button" data-snap=${m} aria-pressed=${d.snapMinutes === m} @click=${() => this.patch({ snapMinutes: m })}>${m} דק׳</button>`)}</span></div>
-      <div class="row"><span class="lbl">סוג חזרה</span><sw-field class="ctl"><select aria-label="סוג חזרה" data-default-repeat @change=${(e: Event) => this.patch({ defaultRepeat: (e.target as HTMLSelectElement).value as RepeatType })}>${REPEAT_OPTIONS.map((o) => html`<option value=${o.value} .selected=${o.value === d.defaultRepeat}>${o.label}</option>`)}</select></sw-field></div>
-      <div class="row"><span class="lbl">שמירת הרצות אחרונות</span><sw-field class="ctl"><select aria-label="שמירת הרצות אחרונות" data-retention @change=${(e: Event) => this.patch({ runsRetentionDays: Number((e.target as HTMLSelectElement).value) })}>${retention.map((n) => html`<option value=${n} .selected=${n === d.runsRetentionDays}>${n} ימים</option>`)}</select></sw-field></div>
+    return html`<sw-card heading=${tr('ברירות מחדל לעורך')} data-sched-defaults>
+      <div class="row"><span class="lbl">${tr('הצמדת זמן')}</span><span class="seg" role="group" aria-label=${tr('הצמדת זמן')}>${([5, 15, 30] as const).map((m) => html`<button type="button" data-snap=${m} aria-pressed=${d.snapMinutes === m} @click=${() => this.patch({ snapMinutes: m })}>${tr('{n} דק׳', { n: m })}</button>`)}</span></div>
+      <div class="row"><span class="lbl">${tr('סוג חזרה')}</span><sw-field class="ctl"><select aria-label=${tr('סוג חזרה')} data-default-repeat @change=${(e: Event) => this.patch({ defaultRepeat: (e.target as HTMLSelectElement).value as RepeatType })}>${REPEAT_OPTIONS.map((o) => html`<option value=${o.value} .selected=${o.value === d.defaultRepeat}>${o.label}</option>`)}</select></sw-field></div>
+      <div class="row"><span class="lbl">${tr('שמירת הרצות אחרונות')}</span><sw-field class="ctl"><select aria-label=${tr('שמירת הרצות אחרונות')} data-retention @change=${(e: Event) => this.patch({ runsRetentionDays: Number((e.target as HTMLSelectElement).value) })}>${retention.map((n) => html`<option value=${n} .selected=${n === d.runsRetentionDays}>${tr('{n} ימים', { n })}</option>`)}</select></sw-field></div>
     </sw-card>`;
   }
 
   private renderRoles() {
-    const cell = (on: boolean, scoped = false) => html`<td class=${on ? 'yes' : 'no'}>${on ? html`<sw-icon name="check" size=${16} role="img" aria-label="כן"></sw-icon>${scoped ? html`<span class="muted"> בהיקף</span>` : nothing}` : html`<span aria-label="לא">—</span>`}</td>`;
-    return html`<sw-card heading="מי רשאי מה" data-sched-roles>
-      <table><thead><tr><th scope="col">תפקיד</th><th scope="col">צפייה</th><th scope="col">ניהול</th><th scope="col">רגיש</th></tr></thead>
+    const cell = (on: boolean, scoped = false) => html`<td class=${on ? 'yes' : 'no'}>${on ? html`<sw-icon name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>${scoped ? html`<span class="muted"> ${tr('בהיקף')}</span>` : nothing}` : html`<span aria-label=${tr('לא')}>—</span>`}</td>`;
+    return html`<sw-card heading=${tr('מי רשאי מה')} data-sched-roles>
+      <table><thead><tr><th scope="col">${tr('תפקיד')}</th><th scope="col">${tr('צפייה')}</th><th scope="col">${tr('ניהול')}</th><th scope="col">${tr('רגיש')}</th></tr></thead>
         <tbody>${ROLE_ROWS.map((r) => html`<tr><td>${r.role}</td>${cell(r.view)}${cell(r.manage, r.scoped)}${cell(r.sensitive)}</tr>`)}</tbody></table>
-      <p class="muted rolesnote">ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.</p>
-      <sw-button size="sm" data-open-access @click=${() => navigate('/system/access')}>משתמשים והרשאות</sw-button>
+      <p class="muted rolesnote">${tr('ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.')}</p>
+      <sw-button size="sm" data-open-access @click=${() => navigate('/system/access')}>${tr('משתמשים והרשאות')}</sw-button>
     </sw-card>`;
   }
 
   render() {
-    if (!this.loaded) return html`<sw-page crumbs="הגדרות" heading="תזמונים"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.error && !this.status) return html`<sw-page crumbs="הגדרות" heading="תזמונים"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (!this.loaded) return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('תזמונים')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.error && !this.status) return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('תזמונים')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסו שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const s = this.status;
-    if (!s || !s.can.configure) return html`<sw-page crumbs="הגדרות" heading="תזמונים"><sw-state-panel state="forbidden" data-schedules-settings-forbidden></sw-state-panel></sw-page>`;
+    if (!s || !s.can.configure) return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('תזמונים')}><sw-state-panel state="forbidden" data-schedules-settings-forbidden></sw-state-panel></sw-page>`;
     const pick = this.unsuggestedPick;
-    return html`<sw-page crumbs="הגדרות" heading="תזמונים" subheading="רק למנהל מערכת. מסך התזמונים של המשתמשים אינו מציג הגדרות אלה." wide data-schedules-settings>
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('תזמונים')} subheading=${tr('רק למנהל מערכת. מסך התזמונים של המשתמשים אינו מציג הגדרות אלה.')} wide data-schedules-settings>
       ${this.confirmSensor
-        ? html`<sw-dialog open heading="חיישן שבת וחג" data-sensor-confirm @close=${() => (this.confirmSensor = false)}>
-            <p class="dlgtext">חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?${pick ? html`<br /><b>${pick.name}</b> <code>${pick.entity_id}</code>` : nothing}</p>
-            <sw-button slot="footer" variant="ghost" data-sensor-cancel @click=${() => (this.confirmSensor = false)}>ביטול</sw-button>
-            <sw-button slot="footer" variant="primary" data-sensor-force @click=${() => void this.save(true)}>כן, להשתמש בו</sw-button>
+        ? html`<sw-dialog open heading=${tr('חיישן שבת וחג')} data-sensor-confirm @close=${() => (this.confirmSensor = false)}>
+            <p class="dlgtext">${tr('חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?')}${pick ? html`<br /><b>${pick.name}</b> <code>${pick.entity_id}</code>` : nothing}</p>
+            <sw-button slot="footer" variant="ghost" data-sensor-cancel @click=${() => (this.confirmSensor = false)}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="primary" data-sensor-force @click=${() => void this.save(true)}>${tr('כן, להשתמש בו')}</sw-button>
           </sw-dialog>`
         : nothing}
       ${this.disarmAsk
-        ? html`<sw-dialog open heading="להסיר את ההגבלה על נטרול אזעקה בתזמונים?" data-disarm-confirm @close=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>
-            <p class="dlgtext">תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו <b>${ALLOW_DISARM_WORD}</b></p>
-            <sw-field><input aria-label="אישור מוקלד" data-disarm-word .value=${this.disarmWord} @input=${(e: Event) => (this.disarmWord = (e.target as HTMLInputElement).value)} /></sw-field>
-            <sw-button slot="footer" variant="ghost" data-disarm-cancel @click=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>ביטול</sw-button>
-            <sw-button slot="footer" variant="danger" data-disarm-ok ?disabled=${this.disarmWord.trim() !== ALLOW_DISARM_WORD || this.busy} @click=${() => void this.setAllowDisarm(true, this.disarmWord)}>אפשר</sw-button>
+        ? html`<sw-dialog open heading=${tr('להסיר את ההגבלה על נטרול אזעקה בתזמונים?')} data-disarm-confirm @close=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>
+            <p class="dlgtext">${tr('תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו')} <b>${ALLOW_DISARM_WORD}</b></p>
+            <sw-field><input aria-label=${tr('אישור מוקלד')} data-disarm-word .value=${this.disarmWord} @input=${(e: Event) => (this.disarmWord = (e.target as HTMLInputElement).value)} /></sw-field>
+            <sw-button slot="footer" variant="ghost" data-disarm-cancel @click=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="danger" data-disarm-ok ?disabled=${this.disarmWord.trim() !== ALLOW_DISARM_WORD || this.busy} @click=${() => void this.setAllowDisarm(true, this.disarmWord)}>${tr('אפשר')}</sw-button>
           </sw-dialog>`
         : nothing}
       <div class="cols">
@@ -606,9 +607,9 @@ export class SystemSchedules extends LitElement {
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>
-            ${this.error ? html`<span class="msg err" role="alert" data-settings-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : this.note ? html`<span class="msg ok" role="status" data-settings-saved><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : html`<span class="dirty">יש שינויים שלא נשמרו.</span>`}
+            ${this.error ? html`<span class="msg err" role="alert" data-settings-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : this.note ? html`<span class="msg ok" role="status" data-settings-saved><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : html`<span class="dirty">${tr('יש שינויים שלא נשמרו.')}</span>`}
             <span class="grow"></span>
-            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => this.cancel()}>ביטול</sw-button><sw-button variant="primary" icon="check" data-settings-save ?disabled=${this.busy} @click=${() => this.requestSave()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
+            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => this.cancel()}>${tr('ביטול')}</sw-button><sw-button variant="primary" icon="check" data-settings-save ?disabled=${this.busy} @click=${() => this.requestSave()}>${this.busy ? tr('שומר…') : tr('שמירה')}</sw-button>` : nothing}
           </div>`
         : nothing}
     </sw-page>`;

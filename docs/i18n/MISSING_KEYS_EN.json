@@ -1,0 +1,3143 @@
+{
+ "totals": {
+  "lang": "en",
+  "catalogues": 131,
+  "keys": 24847,
+  "missing": 20,
+  "identical": 3,
+  "hebrew": 2,
+  "gap": 6,
+  "hardcodedModules": 45,
+  "hardcodedLiterals": 8698,
+  "hardcodedFiles": 291
+ },
+ "catalogues": [
+  {
+   "name": "i18n/access-external",
+   "keys": 548,
+   "missing": 0,
+   "identical": 2,
+   "hebrew": 0,
+   "gap": 2,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [
+    "gone_word",
+    "del_word"
+   ]
+  },
+  {
+   "name": "msg/system-a",
+   "keys": 999,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 2,
+   "gap": 2,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [
+    "הקלדת \"מחיקה\"",
+    "כדי לאשר, יש להקליד \"מחיקה\""
+   ],
+   "unused": 0
+  },
+  {
+   "name": "i18n/announce",
+   "keys": 148,
+   "missing": 0,
+   "identical": 1,
+   "hebrew": 0,
+   "gap": 1,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [
+    "langName.he"
+   ]
+  },
+  {
+   "name": "tickets/text",
+   "keys": 762,
+   "missing": 4,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 1,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [
+    "lang_he"
+   ]
+  },
+  {
+   "name": "i18n/access-diag",
+   "keys": 235,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-events",
+   "keys": 163,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-messaging",
+   "keys": 102,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-parity",
+   "keys": 92,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-people",
+   "keys": 255,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-request",
+   "keys": 128,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-schedules",
+   "keys": 97,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-status",
+   "keys": 307,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/access-writes",
+   "keys": 110,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/app-signin",
+   "keys": 21,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/backup-offbox",
+   "keys": 159,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/backup-offbox-restore",
+   "keys": 52,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/backup-password",
+   "keys": 19,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/bridge-key",
+   "keys": 100,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/building-presence",
+   "keys": 89,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/bulk-people",
+   "keys": 141,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/camera-image-health",
+   "keys": 52,
+   "missing": 1,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/camera-reboot",
+   "keys": 19,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/camera-sources",
+   "keys": 55,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/door-automation",
+   "keys": 93,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/door-blocks",
+   "keys": 59,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/door-windows",
+   "keys": 203,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/door-windows-events",
+   "keys": 117,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/door-windows-widget",
+   "keys": 17,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/elevators",
+   "keys": 122,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/emergency",
+   "keys": 104,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/fleet-report",
+   "keys": 120,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/generator-escalation",
+   "keys": 9,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/generator-log",
+   "keys": 70,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/generator-routing",
+   "keys": 12,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/generator-widget",
+   "keys": 17,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/ha-events",
+   "keys": 65,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/ha-users",
+   "keys": 80,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/he",
+   "keys": 1288,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/home-live",
+   "keys": 2,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/home-screen",
+   "keys": 194,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/home-widget-failure",
+   "keys": 2,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/incidents",
+   "keys": 162,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/incoming-calls",
+   "keys": 77,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/ingest-reason",
+   "keys": 8,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/insights",
+   "keys": 237,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/intake",
+   "keys": 82,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/local-identity",
+   "keys": 180,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/maintenance",
+   "keys": 409,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/messaging-accounts",
+   "keys": 100,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/messaging-pacing",
+   "keys": 46,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/messaging-policy",
+   "keys": 31,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/notice-chips",
+   "keys": 22,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/notices",
+   "keys": 454,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/notify-matrix",
+   "keys": 64,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/notify-whatsapp",
+   "keys": 56,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/partners",
+   "keys": 95,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/passkey-only",
+   "keys": 6,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/plan-curves",
+   "keys": 32,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/plan-glass",
+   "keys": 41,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/plan-ifc",
+   "keys": 38,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/plan-package",
+   "keys": 45,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/polish",
+   "keys": 24,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/presence",
+   "keys": 103,
+   "missing": 3,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/privacy-mask",
+   "keys": 84,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/quiet-windows",
+   "keys": 27,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/rfq-notify",
+   "keys": 10,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/scenarios",
+   "keys": 117,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/schedule-editor",
+   "keys": 144,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/search-access",
+   "keys": 7,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/security-public",
+   "keys": 34,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/settings-cards",
+   "keys": 56,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/station-people",
+   "keys": 102,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/station-permissions",
+   "keys": 35,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/tab-sections",
+   "keys": 40,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/temperature",
+   "keys": 633,
+   "missing": 4,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/transit",
+   "keys": 124,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/tts-default",
+   "keys": 18,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/vendor-reports",
+   "keys": 11,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wa-installed",
+   "keys": 53,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-door-tech",
+   "keys": 184,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-embed",
+   "keys": 4,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-installer",
+   "keys": 374,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-managed",
+   "keys": 119,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-profiles",
+   "keys": 201,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-station-listen",
+   "keys": 30,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-station-media",
+   "keys": 72,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-station-ops",
+   "keys": 120,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-stations",
+   "keys": 230,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-switches",
+   "keys": 37,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/wiskey-triage",
+   "keys": 142,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "i18n/xsection",
+   "keys": 241,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "msg/automation",
+   "keys": 983,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/calendars",
+   "keys": 743,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/components",
+   "keys": 836,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/devices",
+   "keys": 849,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/electricity",
+   "keys": 428,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/investigate",
+   "keys": 829,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/live",
+   "keys": 381,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/media",
+   "keys": 1235,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/misc",
+   "keys": 458,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/screens",
+   "keys": 342,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/shell",
+   "keys": 233,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/system-b",
+   "keys": 1175,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/wiskey",
+   "keys": 541,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "screens/settings-nav-strings",
+   "keys": 4,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "screens/tabs-place-strings",
+   "keys": 12,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/board-text",
+   "keys": 87,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/calendar-text",
+   "keys": 58,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/conversation-text",
+   "keys": 75,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/cost-text",
+   "keys": 211,
+   "missing": 1,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/delete-text",
+   "keys": 19,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/device-text",
+   "keys": 45,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/drawer-text",
+   "keys": 172,
+   "missing": 3,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/list-text",
+   "keys": 67,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/map-text",
+   "keys": 21,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/messages-text",
+   "keys": 134,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/org-locations-text",
+   "keys": 58,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/overview-text",
+   "keys": 194,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/quote-text",
+   "keys": 151,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/rfq-settings-text",
+   "keys": 11,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/rfq-text",
+   "keys": 638,
+   "missing": 4,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/rules-text",
+   "keys": 73,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/table-text",
+   "keys": 135,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-deptmgr",
+   "keys": 23,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-needsreview",
+   "keys": 28,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-otp",
+   "keys": 17,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-s4",
+   "keys": 267,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/text-ui6",
+   "keys": 61,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/visits-settings-text",
+   "keys": 18,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "tickets/work-calendar-text",
+   "keys": 44,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  },
+  {
+   "name": "water/i18n",
+   "keys": 403,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": []
+  }
+ ],
+ "hardcoded": [
+  {
+   "module": "api",
+   "kind": "app",
+   "files": 83,
+   "literals": 2575,
+   "fileList": [
+    {
+     "file": "api/access.ts",
+     "literals": 21
+    },
+    {
+     "file": "api/alarm.ts",
+     "literals": 33
+    },
+    {
+     "file": "api/area-row.ts",
+     "literals": 43
+    },
+    {
+     "file": "api/automations-demo.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/automations-ext.ts",
+     "literals": 10
+    },
+    {
+     "file": "api/automations-presence.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/automations.ts",
+     "literals": 456
+    },
+    {
+     "file": "api/backup.ts",
+     "literals": 17
+    },
+    {
+     "file": "api/calendar-attendees.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/calendars.ts",
+     "literals": 21
+    },
+    {
+     "file": "api/camera-card.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/camera-visibility.ts",
+     "literals": 13
+    },
+    {
+     "file": "api/capabilities.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/capture-lease.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/cases.ts",
+     "literals": 20
+    },
+    {
+     "file": "api/client.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/closed-errors.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/device-bulk.ts",
+     "literals": 32
+    },
+    {
+     "file": "api/device-commands.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/devices.ts",
+     "literals": 117
+    },
+    {
+     "file": "api/door-automations.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/electricity-billing.ts",
+     "literals": 58
+    },
+    {
+     "file": "api/electricity-meters.ts",
+     "literals": 21
+    },
+    {
+     "file": "api/electricity-readings.ts",
+     "literals": 34
+    },
+    {
+     "file": "api/events.ts",
+     "literals": 26
+    },
+    {
+     "file": "api/frigate.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/h265-support.ts",
+     "literals": 8
+    },
+    {
+     "file": "api/ha-sync-status.ts",
+     "literals": 7
+    },
+    {
+     "file": "api/ha-users.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/ha.ts",
+     "literals": 110
+    },
+    {
+     "file": "api/health.ts",
+     "literals": 9
+    },
+    {
+     "file": "api/home-config.ts",
+     "literals": 138
+    },
+    {
+     "file": "api/home-site.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/home.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/incidents.ts",
+     "literals": 39
+    },
+    {
+     "file": "api/installer.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/launcher.ts",
+     "literals": 18
+    },
+    {
+     "file": "api/mapping-demo.ts",
+     "literals": 98
+    },
+    {
+     "file": "api/mapping-engine.ts",
+     "literals": 29
+    },
+    {
+     "file": "api/mapping.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/media-admin.ts",
+     "literals": 71
+    },
+    {
+     "file": "api/media-players.ts",
+     "literals": 71
+    },
+    {
+     "file": "api/media-screens.ts",
+     "literals": 33
+    },
+    {
+     "file": "api/media.ts",
+     "literals": 6
+    },
+    {
+     "file": "api/messaging-accounts.ts",
+     "literals": 11
+    },
+    {
+     "file": "api/messaging-fake.ts",
+     "literals": 13
+    },
+    {
+     "file": "api/messaging-policy.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/notifications.ts",
+     "literals": 244
+    },
+    {
+     "file": "api/notify-whatsapp.ts",
+     "literals": 9
+    },
+    {
+     "file": "api/nvr-connection.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/nvr-settings.ts",
+     "literals": 35
+    },
+    {
+     "file": "api/plan-view.ts",
+     "literals": 39
+    },
+    {
+     "file": "api/plans.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/playback-display.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/prefs.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/presence.ts",
+     "literals": 11
+    },
+    {
+     "file": "api/readiness.ts",
+     "literals": 78
+    },
+    {
+     "file": "api/recorders.ts",
+     "literals": 9
+    },
+    {
+     "file": "api/remote.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/rules.ts",
+     "literals": 11
+    },
+    {
+     "file": "api/schedules.ts",
+     "literals": 146
+    },
+    {
+     "file": "api/search.ts",
+     "literals": 13
+    },
+    {
+     "file": "api/secrets.ts",
+     "literals": 10
+    },
+    {
+     "file": "api/session.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/setup.ts",
+     "literals": 87
+    },
+    {
+     "file": "api/system-update-runs.ts",
+     "literals": 47
+    },
+    {
+     "file": "api/system-update.ts",
+     "literals": 8
+    },
+    {
+     "file": "api/tickets-board.ts",
+     "literals": 6
+    },
+    {
+     "file": "api/tickets-locations.ts",
+     "literals": 15
+    },
+    {
+     "file": "api/tickets-messages.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/tickets-rules.ts",
+     "literals": 20
+    },
+    {
+     "file": "api/tile-layout.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/timeline-colors.ts",
+     "literals": 17
+    },
+    {
+     "file": "api/tts-default.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/video-conn-test.ts",
+     "literals": 19
+    },
+    {
+     "file": "api/video-policy.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/video-service.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/video-services.ts",
+     "literals": 23
+    },
+    {
+     "file": "api/wall.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/water.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/wiskey-pairing.ts",
+     "literals": 9
+    },
+    {
+     "file": "api/wiskey-validation.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/zones.ts",
+     "literals": 5
+    }
+   ]
+  },
+  {
+   "module": "home",
+   "kind": "app",
+   "files": 34,
+   "literals": 1528,
+   "fileList": [
+    {
+     "file": "home/home-alarm.ts",
+     "literals": 55
+    },
+    {
+     "file": "home/home-api.ts",
+     "literals": 14
+    },
+    {
+     "file": "home/home-calendar.ts",
+     "literals": 67
+    },
+    {
+     "file": "home/home-diary.ts",
+     "literals": 25
+    },
+    {
+     "file": "home/home-fb-api.ts",
+     "literals": 5
+    },
+    {
+     "file": "home/home-gaps-alarm.ts",
+     "literals": 5
+    },
+    {
+     "file": "home/home-gaps.ts",
+     "literals": 8
+    },
+    {
+     "file": "home/home-intercom.ts",
+     "literals": 89
+    },
+    {
+     "file": "home/home-logic.ts",
+     "literals": 60
+    },
+    {
+     "file": "home/home-more.ts",
+     "literals": 5
+    },
+    {
+     "file": "home/home-notices.ts",
+     "literals": 27
+    },
+    {
+     "file": "home/home-notif.ts",
+     "literals": 28
+    },
+    {
+     "file": "home/home-p2-ui.ts",
+     "literals": 22
+    },
+    {
+     "file": "home/home-p3-announce.ts",
+     "literals": 16
+    },
+    {
+     "file": "home/home-p3-bills.ts",
+     "literals": 19
+    },
+    {
+     "file": "home/home-p3-ext.ts",
+     "literals": 6
+    },
+    {
+     "file": "home/home-p3-logic.ts",
+     "literals": 48
+    },
+    {
+     "file": "home/home-p3-map.ts",
+     "literals": 10
+    },
+    {
+     "file": "home/home-p3-media.ts",
+     "literals": 63
+    },
+    {
+     "file": "home/home-p3-styles.ts",
+     "literals": 1
+    },
+    {
+     "file": "home/home-p3-systems.ts",
+     "literals": 16
+    },
+    {
+     "file": "home/home-p3-water.ts",
+     "literals": 19
+    },
+    {
+     "file": "home/home-p3.ts",
+     "literals": 27
+    },
+    {
+     "file": "home/home-presence.ts",
+     "literals": 28
+    },
+    {
+     "file": "home/home-recordings.ts",
+     "literals": 29
+    },
+    {
+     "file": "home/home-scene-new.ts",
+     "literals": 27
+    },
+    {
+     "file": "home/home-schedules.ts",
+     "literals": 36
+    },
+    {
+     "file": "home/home-tickets.ts",
+     "literals": 56
+    },
+    {
+     "file": "home/home-v3-words.ts",
+     "literals": 42
+    },
+    {
+     "file": "home/home-wall.ts",
+     "literals": 8
+    },
+    {
+     "file": "home/home-weather.ts",
+     "literals": 29
+    },
+    {
+     "file": "home/sw-home-admin.ts",
+     "literals": 131
+    },
+    {
+     "file": "home/sw-home-call.ts",
+     "literals": 25
+    },
+    {
+     "file": "home/sw-home.ts",
+     "literals": 482
+    }
+   ]
+  },
+  {
+   "module": "screens/system-*",
+   "kind": "app",
+   "files": 23,
+   "literals": 1130,
+   "fileList": [
+    {
+     "file": "screens/system-access.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/system-alarm.ts",
+     "literals": 71
+    },
+    {
+     "file": "screens/system-announce-templates.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-announcements.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/system-audit.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-calendar-sync.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-calendars.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-cast.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-diagnostics.ts",
+     "literals": 501
+    },
+    {
+     "file": "screens/system-index.ts",
+     "literals": 68
+    },
+    {
+     "file": "screens/system-local-users.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/system-multimedia-players.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-multimedia.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-nav-size.ts",
+     "literals": 7
+    },
+    {
+     "file": "screens/system-notices.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-notifications.ts",
+     "literals": 5
+    },
+    {
+     "file": "screens/system-palette-editor.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/system-plan-view.ts",
+     "literals": 31
+    },
+    {
+     "file": "screens/system-setup.ts",
+     "literals": 203
+    },
+    {
+     "file": "screens/system-storage.ts",
+     "literals": 12
+    },
+    {
+     "file": "screens/system-tickets.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/system-wall.ts",
+     "literals": 168
+    },
+    {
+     "file": "screens/system-wiskey-validation.ts",
+     "literals": 45
+    }
+   ]
+  },
+  {
+   "module": "screens/explore-*",
+   "kind": "app",
+   "files": 4,
+   "literals": 857,
+   "fileList": [
+    {
+     "file": "screens/explore-entities.ts",
+     "literals": 30
+    },
+    {
+     "file": "screens/explore-floor-map.ts",
+     "literals": 202
+    },
+    {
+     "file": "screens/explore-plan-editor.ts",
+     "literals": 612
+    },
+    {
+     "file": "screens/explore-presence.ts",
+     "literals": 13
+    }
+   ]
+  },
+  {
+   "module": "screens/plan-*",
+   "kind": "app",
+   "files": 2,
+   "literals": 615,
+   "fileList": [
+    {
+     "file": "screens/plan-studio-panel.ts",
+     "literals": 592
+    },
+    {
+     "file": "screens/plan-view-dials.ts",
+     "literals": 23
+    }
+   ]
+  },
+  {
+   "module": "electricity",
+   "kind": "app",
+   "files": 9,
+   "literals": 416,
+   "fileList": [
+    {
+     "file": "electricity/elec-bill-page.ts",
+     "literals": 2
+    },
+    {
+     "file": "electricity/elec-bill-paper.ts",
+     "literals": 30
+    },
+    {
+     "file": "electricity/elec-format.ts",
+     "literals": 2
+    },
+    {
+     "file": "electricity/elec-settings-calendar.ts",
+     "literals": 32
+    },
+    {
+     "file": "electricity/elec-settings.ts",
+     "literals": 122
+    },
+    {
+     "file": "electricity/elec-tou-editor.ts",
+     "literals": 2
+    },
+    {
+     "file": "electricity/elec-tou.ts",
+     "literals": 8
+    },
+    {
+     "file": "electricity/elec-wizard.ts",
+     "literals": 133
+    },
+    {
+     "file": "electricity/fixtures.ts",
+     "literals": 85
+    }
+   ]
+  },
+  {
+   "module": "plan-wizard",
+   "kind": "app",
+   "files": 4,
+   "literals": 293,
+   "fileList": [
+    {
+     "file": "plan-wizard/plan-wizard.ts",
+     "literals": 174
+    },
+    {
+     "file": "plan-wizard/wizard-backend.ts",
+     "literals": 1
+    },
+    {
+     "file": "plan-wizard/wizard-demo.ts",
+     "literals": 34
+    },
+    {
+     "file": "plan-wizard/wizard-model.ts",
+     "literals": 84
+    }
+   ]
+  },
+  {
+   "module": "calendars",
+   "kind": "app",
+   "files": 6,
+   "literals": 223,
+   "fileList": [
+    {
+     "file": "calendars/demo.ts",
+     "literals": 211
+    },
+    {
+     "file": "calendars/event-drawer.ts",
+     "literals": 1
+    },
+    {
+     "file": "calendars/resident.ts",
+     "literals": 2
+    },
+    {
+     "file": "calendars/view-approvals.ts",
+     "literals": 1
+    },
+    {
+     "file": "calendars/view-calendar.ts",
+     "literals": 4
+    },
+    {
+     "file": "calendars/view-manage.ts",
+     "literals": 4
+    }
+   ]
+  },
+  {
+   "module": "map",
+   "kind": "app",
+   "files": 24,
+   "literals": 215,
+   "fileList": [
+    {
+     "file": "map/adjacent-cameras.ts",
+     "literals": 3
+    },
+    {
+     "file": "map/bake-runner.ts",
+     "literals": 1
+    },
+    {
+     "file": "map/candidates.ts",
+     "literals": 16
+    },
+    {
+     "file": "map/circuit-action.ts",
+     "literals": 6
+    },
+    {
+     "file": "map/connector-targets.ts",
+     "literals": 6
+    },
+    {
+     "file": "map/door-tool.ts",
+     "literals": 5
+    },
+    {
+     "file": "map/floor-finish.ts",
+     "literals": 2
+    },
+    {
+     "file": "map/geometry.ts",
+     "literals": 4
+    },
+    {
+     "file": "map/history-replay.ts",
+     "literals": 19
+    },
+    {
+     "file": "map/look-style.ts",
+     "literals": 2
+    },
+    {
+     "file": "map/material-resolve.ts",
+     "literals": 20
+    },
+    {
+     "file": "map/quality-ladder.ts",
+     "literals": 5
+    },
+    {
+     "file": "map/quality-mode.ts",
+     "literals": 6
+    },
+    {
+     "file": "map/shared-space.ts",
+     "literals": 5
+    },
+    {
+     "file": "map/still-render-scene.ts",
+     "literals": 6
+    },
+    {
+     "file": "map/studio-controller.ts",
+     "literals": 4
+    },
+    {
+     "file": "map/sun.ts",
+     "literals": 4
+    },
+    {
+     "file": "map/sw-floor-image-align.ts",
+     "literals": 7
+    },
+    {
+     "file": "map/sw-plan-3d.ts",
+     "literals": 60
+    },
+    {
+     "file": "map/sw-plan-canvas.ts",
+     "literals": 19
+    },
+    {
+     "file": "map/sw-plan-stills.ts",
+     "literals": 3
+    },
+    {
+     "file": "map/walk-world.ts",
+     "literals": 9
+    },
+    {
+     "file": "map/webgl.ts",
+     "literals": 1
+    },
+    {
+     "file": "map/zoom-buttons.ts",
+     "literals": 2
+    }
+   ]
+  },
+  {
+   "module": "screens/devices-*",
+   "kind": "app",
+   "files": 7,
+   "literals": 189,
+   "fileList": [
+    {
+     "file": "screens/devices-area.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/devices-automations.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-building.ts",
+     "literals": 155
+    },
+    {
+     "file": "screens/devices-layout-css.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-schedules.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-synoptic-phone-css.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/devices-tiles-panel.ts",
+     "literals": 28
+    }
+   ]
+  },
+  {
+   "module": "components",
+   "kind": "app",
+   "files": 13,
+   "literals": 99,
+   "fileList": [
+    {
+     "file": "components/architect-request.ts",
+     "literals": 2
+    },
+    {
+     "file": "components/media-player-card.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/media-remote-css.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-badge.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-camera-tile.ts",
+     "literals": 7
+    },
+    {
+     "file": "components/sw-dropdown.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-kpi.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-live-player.ts",
+     "literals": 64
+    },
+    {
+     "file": "components/sw-page.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-table.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/sw-toggle.ts",
+     "literals": 1
+    },
+    {
+     "file": "components/update-run.ts",
+     "literals": 17
+    },
+    {
+     "file": "components/wk-door-tech.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/home-*",
+   "kind": "app",
+   "files": 4,
+   "literals": 93,
+   "fileList": [
+    {
+     "file": "screens/home-ambient-bar.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/home-demo.ts",
+     "literals": 8
+    },
+    {
+     "file": "screens/home-site-demo.ts",
+     "literals": 36
+    },
+    {
+     "file": "screens/home-widgets.ts",
+     "literals": 48
+    }
+   ]
+  },
+  {
+   "module": "notice-tv",
+   "kind": "app",
+   "files": 6,
+   "literals": 82,
+   "fileList": [
+    {
+     "file": "notice-tv/heb-date.ts",
+     "literals": 15
+    },
+    {
+     "file": "notice-tv/skin-logic.ts",
+     "literals": 1
+    },
+    {
+     "file": "notice-tv/transit-logic.ts",
+     "literals": 30
+    },
+    {
+     "file": "notice-tv/transit-view.ts",
+     "literals": 1
+    },
+    {
+     "file": "notice-tv/tv-logic.ts",
+     "literals": 32
+    },
+    {
+     "file": "notice-tv/v2-transit.ts",
+     "literals": 3
+    }
+   ]
+  },
+  {
+   "module": "tickets",
+   "kind": "app",
+   "files": 11,
+   "literals": 61,
+   "fileList": [
+    {
+     "file": "tickets/camera-viewfinder.ts",
+     "literals": 18
+    },
+    {
+     "file": "tickets/code-lock-model.ts",
+     "literals": 4
+    },
+    {
+     "file": "tickets/contacts-directory.ts",
+     "literals": 1
+    },
+    {
+     "file": "tickets/conversation-tab.ts",
+     "literals": 1
+    },
+    {
+     "file": "tickets/costs-demands-model.ts",
+     "literals": 20
+    },
+    {
+     "file": "tickets/list-card-model.ts",
+     "literals": 1
+    },
+    {
+     "file": "tickets/list-toolbar.ts",
+     "literals": 1
+    },
+    {
+     "file": "tickets/naming.ts",
+     "literals": 6
+    },
+    {
+     "file": "tickets/rfq-files-model.ts",
+     "literals": 2
+    },
+    {
+     "file": "tickets/rfq-model.ts",
+     "literals": 6
+    },
+    {
+     "file": "tickets/table-styles.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "i18n",
+   "kind": "app",
+   "files": 2,
+   "literals": 46,
+   "fileList": [
+    {
+     "file": "i18n/entity-label.ts",
+     "literals": 13
+    },
+    {
+     "file": "i18n/event-codes.ts",
+     "literals": 33
+    }
+   ]
+  },
+  {
+   "module": "screens/investigate-*",
+   "kind": "app",
+   "files": 9,
+   "literals": 45,
+   "fileList": [
+    {
+     "file": "screens/investigate-cases.ts",
+     "literals": 6
+    },
+    {
+     "file": "screens/investigate-events.ts",
+     "literals": 9
+    },
+    {
+     "file": "screens/investigate-exports.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/investigate-history-map.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/investigate-incidents.ts",
+     "literals": 8
+    },
+    {
+     "file": "screens/investigate-playback.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/investigate-reviews.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/investigate-rules.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/investigate-search.ts",
+     "literals": 13
+    }
+   ]
+  },
+  {
+   "module": "screens/live-*",
+   "kind": "app",
+   "files": 3,
+   "literals": 36,
+   "fileList": [
+    {
+     "file": "screens/live-overview.ts",
+     "literals": 14
+    },
+    {
+     "file": "screens/live-views.ts",
+     "literals": 17
+    },
+    {
+     "file": "screens/live-wall.ts",
+     "literals": 5
+    }
+   ]
+  },
+  {
+   "module": "screens/wiskey-*",
+   "kind": "app",
+   "files": 6,
+   "literals": 36,
+   "fileList": [
+    {
+     "file": "screens/wiskey-embed.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/wiskey-events.ts",
+     "literals": 5
+    },
+    {
+     "file": "screens/wiskey-overview.ts",
+     "literals": 8
+    },
+    {
+     "file": "screens/wiskey-people.ts",
+     "literals": 10
+    },
+    {
+     "file": "screens/wiskey-schedules.ts",
+     "literals": 6
+    },
+    {
+     "file": "screens/wiskey-stations.ts",
+     "literals": 6
+    }
+   ]
+  },
+  {
+   "module": "screens/bubble-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 31,
+   "fileList": [
+    {
+     "file": "screens/bubble-demo.ts",
+     "literals": 31
+    }
+   ]
+  },
+  {
+   "module": "water",
+   "kind": "app",
+   "files": 1,
+   "literals": 31,
+   "fileList": [
+    {
+     "file": "water/billing-format.ts",
+     "literals": 31
+    }
+   ]
+  },
+  {
+   "module": "access-control",
+   "kind": "app",
+   "files": 1,
+   "literals": 23,
+   "fileList": [
+    {
+     "file": "access-control/messaging-logic.ts",
+     "literals": 23
+    }
+   ]
+  },
+  {
+   "module": "screens/schedule-*",
+   "kind": "app",
+   "files": 3,
+   "literals": 11,
+   "fileList": [
+    {
+     "file": "screens/schedule-edit-logic.ts",
+     "literals": 3
+    },
+    {
+     "file": "screens/schedule-lowering-dialog.ts",
+     "literals": 2
+    },
+    {
+     "file": "screens/schedule-table-view.ts",
+     "literals": 6
+    }
+   ]
+  },
+  {
+   "module": "xsection",
+   "kind": "app",
+   "files": 1,
+   "literals": 6,
+   "fileList": [
+    {
+     "file": "xsection/xs-data.ts",
+     "literals": 6
+    }
+   ]
+  },
+  {
+   "module": "shell",
+   "kind": "app",
+   "files": 3,
+   "literals": 5,
+   "fileList": [
+    {
+     "file": "shell/sw-app.ts",
+     "literals": 3
+    },
+    {
+     "file": "shell/sw-lang-prefs.ts",
+     "literals": 1
+    },
+    {
+     "file": "shell/sw-nav-order.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "temperature",
+   "kind": "app",
+   "files": 2,
+   "literals": 5,
+   "fileList": [
+    {
+     "file": "temperature/report.ts",
+     "literals": 1
+    },
+    {
+     "file": "temperature/wizard.ts",
+     "literals": 4
+    }
+   ]
+  },
+  {
+   "module": "announce",
+   "kind": "app",
+   "files": 1,
+   "literals": 4,
+   "fileList": [
+    {
+     "file": "announce/screen-overlay.ts",
+     "literals": 4
+    }
+   ]
+  },
+  {
+   "module": "arx",
+   "kind": "app",
+   "files": 2,
+   "literals": 4,
+   "fileList": [
+    {
+     "file": "arx/android-download.ts",
+     "literals": 3
+    },
+    {
+     "file": "arx/arx-login.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "pwa",
+   "kind": "app",
+   "files": 2,
+   "literals": 4,
+   "fileList": [
+    {
+     "file": "pwa/offline-page.ts",
+     "literals": 1
+    },
+    {
+     "file": "pwa/push-v2.ts",
+     "literals": 3
+    }
+   ]
+  },
+  {
+   "module": "screens/styleguide-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 4,
+   "fileList": [
+    {
+     "file": "screens/styleguide-screen.ts",
+     "literals": 4
+    }
+   ]
+  },
+  {
+   "module": "transit",
+   "kind": "app",
+   "files": 1,
+   "literals": 4,
+   "fileList": [
+    {
+     "file": "transit/model.ts",
+     "literals": 4
+    }
+   ]
+  },
+  {
+   "module": "screens/electricity",
+   "kind": "app",
+   "files": 1,
+   "literals": 3,
+   "fileList": [
+    {
+     "file": "screens/electricity/settings-retention.ts",
+     "literals": 3
+    }
+   ]
+  },
+  {
+   "module": "styles",
+   "kind": "app",
+   "files": 3,
+   "literals": 3,
+   "fileList": [
+    {
+     "file": "styles/automations-glass.ts",
+     "literals": 1
+    },
+    {
+     "file": "styles/devices-themes.ts",
+     "literals": 1
+    },
+    {
+     "file": "styles/settings.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "access-external",
+   "kind": "app",
+   "files": 1,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "access-external/model.ts",
+     "literals": 2
+    }
+   ]
+  },
+  {
+   "module": "design",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "design/skins/bubble.ts",
+     "literals": 1
+    },
+    {
+     "file": "design/skins/classic.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/area-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/area-quick-sheet.ts",
+     "literals": 2
+    }
+   ]
+  },
+  {
+   "module": "screens/automation-*",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/automation-editor-base.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/automation-ext-forms.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/infra-*",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/infra-elevators.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/infra-temperature.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/scenarios-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/scenarios-panel.ts",
+     "literals": 2
+    }
+   ]
+  },
+  {
+   "module": "screens/tickets-*",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/tickets-board.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/tickets-overview.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/water",
+   "kind": "app",
+   "files": 2,
+   "literals": 2,
+   "fileList": [
+    {
+     "file": "screens/water/page-alerts.ts",
+     "literals": 1
+    },
+    {
+     "file": "screens/water/page-bills.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/access-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/access-external.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/building-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/building-presence-widget.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/insights-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/insights-settings.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/multimedia-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/multimedia-remote-editor.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "screens/nvr-*",
+   "kind": "app",
+   "files": 1,
+   "literals": 1,
+   "fileList": [
+    {
+     "file": "screens/nvr-encoding-batch.ts",
+     "literals": 1
+    }
+   ]
+  },
+  {
+   "module": "(demo data)",
+   "kind": "demo",
+   "files": 16,
+   "literals": 1513,
+   "fileList": [
+    {
+     "file": "api/automations-mock.ts",
+     "literals": 231
+    },
+    {
+     "file": "api/device-activity-mock.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/electricity-billing-mock.ts",
+     "literals": 223
+    },
+    {
+     "file": "api/media-players-mock.ts",
+     "literals": 132
+    },
+    {
+     "file": "api/media-screens-mock.ts",
+     "literals": 45
+    },
+    {
+     "file": "api/notifications-mock.ts",
+     "literals": 82
+    },
+    {
+     "file": "api/schedules-mock.ts",
+     "literals": 186
+    },
+    {
+     "file": "api/tickets-costs-mock.ts",
+     "literals": 115
+    },
+    {
+     "file": "api/tickets-mock.ts",
+     "literals": 52
+    },
+    {
+     "file": "api/tickets-rfq-mock.ts",
+     "literals": 136
+    },
+    {
+     "file": "api/tickets-s4-mock.ts",
+     "literals": 21
+    },
+    {
+     "file": "fixtures/alarm-demo.ts",
+     "literals": 16
+    },
+    {
+     "file": "fixtures/catalog.ts",
+     "literals": 194
+    },
+    {
+     "file": "fixtures/demo-3d.ts",
+     "literals": 5
+    },
+    {
+     "file": "fixtures/demo.ts",
+     "literals": 45
+    },
+    {
+     "file": "fixtures/frigate.ts",
+     "literals": 16
+    }
+   ]
+  },
+  {
+   "module": "(public pages, own languages)",
+   "kind": "public",
+   "files": 14,
+   "literals": 613,
+   "fileList": [
+    {
+     "file": "public-ticket/arrival/arrival-text.ts",
+     "literals": 39
+    },
+    {
+     "file": "public-ticket/arrived/arrived-text.ts",
+     "literals": 12
+    },
+    {
+     "file": "public-ticket/claim/claim-prefill.ts",
+     "literals": 11
+    },
+    {
+     "file": "public-ticket/claim/claim-text.ts",
+     "literals": 123
+    },
+    {
+     "file": "public-ticket/claim/quote-text.ts",
+     "literals": 39
+    },
+    {
+     "file": "public-ticket/consent/consent-text.ts",
+     "literals": 12
+    },
+    {
+     "file": "public-ticket/doc/doc-text.ts",
+     "literals": 10
+    },
+    {
+     "file": "public-ticket/portal/portal-more-text.ts",
+     "literals": 34
+    },
+    {
+     "file": "public-ticket/portal/portal-text.ts",
+     "literals": 50
+    },
+    {
+     "file": "public-ticket/rfq/rfq-files.ts",
+     "literals": 7
+    },
+    {
+     "file": "public-ticket/rfq/rfq-page-terms.ts",
+     "literals": 2
+    },
+    {
+     "file": "public-ticket/rfq/rfq-text.ts",
+     "literals": 106
+    },
+    {
+     "file": "public-ticket/rfq/rfq-upload.ts",
+     "literals": 19
+    },
+    {
+     "file": "public-ticket/strings.ts",
+     "literals": 149
+    }
+   ]
+  }
+ ]
+}

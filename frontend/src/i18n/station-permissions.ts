@@ -4,6 +4,7 @@
  * holds the parity); the Arabic and Russian columns are an INITIAL translation that needs a native review (dev-marked).
  */
 import { xtLang, type XtLang } from './access-external';
+import { fill, registerCatalogue } from './core';
 
 const he = {
   title: 'הרשאות לפי עמדה',
@@ -168,5 +169,7 @@ export type { SpKey };
 /** The text of `key` in the document's language, with `{name}` placeholders filled. */
 export function spt(key: SpKey, vars?: Record<string, string | number>, lang: XtLang = xtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
+
+registerCatalogue('i18n/station-permissions', { he, en, ar, ru }, SP_DEV_MARKED);

@@ -13,6 +13,7 @@ import { approveRelayMap, getRelayMap, type RelayMap, type RelayMapStation } fro
 import {
   OFF, approveQuestion, approvedLine, canApprove, draftOf, mapDiff, parseChoice, relayChoices, relayName, rowsBody, stationStatus, typedWordNeeded, type RelayDraft,
 } from './wiskey-relay-map-logic';
+import { tr } from '../i18n/msg/wiskey';
 
 /**
  * Settings › הגדרת מערכת › WisKey: "מיפוי ממסרים" (WISKEY-RELAYMAP-2310). Per WisKey station, which api relay drives which
@@ -179,28 +180,28 @@ export class SwWiskeyRelayMap extends LitElement {
     const choices = relayChoices(s);
     return html`<div class="station" data-relay-map-station=${s.name}>
       <div class="head">
-        <div class="who"><span class="name">${s.name || 'תחנה ללא שם'}</span><span class="sub">${approvedLine(s, fmtWhen)}</span></div>
+        <div class="who"><span class="name">${s.name || tr('תחנה ללא שם')}</span><span class="sub">${approvedLine(s, fmtWhen)}</span></div>
         <sw-badge kind=${status.tone} label=${status.text}></sw-badge>
       </div>
       <div class="rows">
         ${s.rows.map((r) => {
           const current = d[r.api_relay] ?? null;
           return html`<label data-relay-map-row=${r.api_relay}>
-            <span>ממסר API ${r.api_relay}</span>
-            <sw-dropdown label=${`${s.name}: ממסר API ${r.api_relay}`} data-relay-map-pick=${r.api_relay} .value=${current === null ? OFF : String(current)}
+            <span>${tr('ממסר API {n}', { n: r.api_relay })}</span>
+            <sw-dropdown label=${`${s.name}: ${tr('ממסר API {n}', { n: r.api_relay })}`} data-relay-map-pick=${r.api_relay} .value=${current === null ? OFF : String(current)}
               .items=${choices.map((o) => ({ id: o.value, label: o.label }))} ?inert=${!editable || this.busy} aria-disabled=${(!editable || this.busy) ? 'true' : nothing} style=${(!editable || this.busy) ? 'opacity: var(--sw-disabled-opacity)' : ''}
               @change=${(e: CustomEvent<DropdownChange>) => this.pick(s, r.api_relay, e.detail.id)}></sw-dropdown>
           </label>`;
         })}
       </div>
       ${s.automated_relays.length
-        ? html`<div class="sub" data-relay-map-automated>יש אוטומציה על ${s.automated_relays.map((p) => relayName(s, p)).join(', ')}</div>`
+        ? html`<div class="sub" data-relay-map-automated>${tr('יש אוטומציה על {relays}', { relays: s.automated_relays.map((p) => relayName(s, p)).join(', ') })}</div>`
         : nothing}
-      ${diff.duplicate.length ? html`<div class="err" role="alert">כל ממסר פיזי יכול להיות משויך לממסר API אחד בלבד.</div>` : nothing}
+      ${diff.duplicate.length ? html`<div class="err" role="alert">${tr('כל ממסר פיזי יכול להיות משויך לממסר API אחד בלבד.')}</div>` : nothing}
       ${editable && diff.changed
         ? html`<div class="actions">
-            <sw-button size="sm" variant="primary" data-relay-map-approve ?disabled=${this.busy || !canApprove(s, d, m.can_edit)} @click=${() => this.ask(s)}>אישור מיפוי</sw-button>
-            <sw-button size="sm" variant="ghost" data-relay-map-reset ?disabled=${this.busy} @click=${() => { const { [s.id]: _drop, ...rest } = this.drafts; this.drafts = rest; }}>ביטול שינויים</sw-button>
+            <sw-button size="sm" variant="primary" data-relay-map-approve ?disabled=${this.busy || !canApprove(s, d, m.can_edit)} @click=${() => this.ask(s)}>${tr('אישור מיפוי')}</sw-button>
+            <sw-button size="sm" variant="ghost" data-relay-map-reset ?disabled=${this.busy} @click=${() => { const { [s.id]: _drop, ...rest } = this.drafts; this.drafts = rest; }}>${tr('ביטול שינויים')}</sw-button>
           </div>`
         : nothing}
     </div>`;
@@ -210,31 +211,31 @@ export class SwWiskeyRelayMap extends LitElement {
     const d = this.draft(s);
     const needWord = typedWordNeeded(s, d);
     const ok = !needWord || this.word.trim() === m.confirm_word;
-    return html`<sw-dialog open heading="מיפוי ממסרים" data-relay-map-confirm @close=${() => { this.pending = null; }}>
+    return html`<sw-dialog open heading=${tr('מיפוי ממסרים')} data-relay-map-confirm @close=${() => { this.pending = null; }}>
       <p>${approveQuestion(s, d)}</p>
       ${needWord
         ? html`<div class="word">
-            <span class="warn">כדי לאשר יש להקליד "${m.confirm_word}"</span>
-            <input data-relay-map-word aria-label=${`להקליד ${m.confirm_word}`} .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} />
+            <span class="warn">${tr('כדי לאשר יש להקליד "{word}"', { word: m.confirm_word })}</span>
+            <input data-relay-map-word aria-label=${tr('להקליד {word}', { word: m.confirm_word })} .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} />
           </div>`
         : nothing}
-      <sw-button slot="footer" variant="ghost" @click=${() => { this.pending = null; }}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-relay-map-ok ?disabled=${this.busy || !ok} @click=${() => this.approve()}>אישור</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => { this.pending = null; }}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-relay-map-ok ?disabled=${this.busy || !ok} @click=${() => this.approve()}>${tr('אישור')}</sw-button>
     </sw-dialog>`;
   }
 
   render() {
-    if (this.error && !this.map) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.error && !this.map) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.map) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const m = this.map;
     const sub = m.can_edit
-      ? 'לכל תחנה: איזה ממסר פיזי (דלת) כל ממסר API מפעיל · חירום ואוטומציות דרך WisKey פועלים רק על מיפוי מאושר · לא נשלחת פקודה לתחנה'
-      : 'לצפייה בלבד · שינוי המיפוי שמור למנהל המערכת';
-    return html`<sw-card heading="מיפוי ממסרים" subheading=${sub} data-relay-map-card>
+      ? `${tr('לכל תחנה: איזה ממסר פיזי (דלת) כל ממסר API מפעיל')} · ${tr('חירום ואוטומציות דרך WisKey פועלים רק על מיפוי מאושר')} · ${tr('לא נשלחת פקודה לתחנה')}`
+      : `${tr('לצפייה בלבד')} · ${tr('שינוי המיפוי שמור למנהל המערכת')}`;
+    return html`<sw-card heading=${tr('מיפוי ממסרים')} subheading=${sub} data-relay-map-card>
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       ${m.stations.length
         ? m.stations.map((s) => this.stationBlock(m, s))
-        : html`<sw-state-panel icon="door" state="empty" heading="אין תחנות" hint=${m.has_copy ? 'WisKey לא מסר תחנות.' : 'נתוני WisKey אינם זמינים כרגע.'}></sw-state-panel>`}
+        : html`<sw-state-panel icon="door" state="empty" heading=${tr('אין תחנות')} hint=${m.has_copy ? tr('WisKey לא מסר תחנות.') : tr('נתוני WisKey אינם זמינים כרגע.')}></sw-state-panel>`}
       ${this.pending ? this.dialog(m, this.pending) : nothing}
     </sw-card>`;
   }

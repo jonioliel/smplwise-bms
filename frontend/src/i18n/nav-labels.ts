@@ -13,14 +13,12 @@
  * (`i18n/he.ts`, `tickets/rfq-text.ts`) are read through `i18n/nav-label-bridges.ts`.
  */
 import { DEFAULT_TICKET_NAMES, ticketNames, tn, type TicketLang } from '../tickets/naming';
+// merge of main into the i18n branches (CR-I18N-CAL-ELEC-2441): the detector and the filler are core's (CR-I18N-CORE; core.ts imports nothing, so this module stays cycle-free)
+import { docLangRaw as docLang, fill, type Vars } from './core';
 
 type Lang2 = 'he' | 'en';
 type Lang4 = 'he' | 'en' | 'ar' | 'ru';
-type Vars = Record<string, string | number>;
 
-function docLang(): string {
-  return typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-}
 /** The two-column rule (insights, transit, cross-section, presence, incidents, the tickets screens): English or the product's Hebrew. */
 function lang2(): Lang2 {
   return docLang().startsWith('en') ? 'en' : 'he';
@@ -29,9 +27,6 @@ function lang2(): Lang2 {
 function lang4(): Lang4 {
   const l = docLang();
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
-}
-function fill(raw: string, vars?: Vars): string {
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
 }
 /** A tickets-family template: the document's column (Hebrew when English lacks it), the module's name rendered, then `{var}`s. */
 function named<K extends string>(table: Record<Lang2, Partial<Record<K, string>>>, key: K, vars?: Vars): string {
@@ -42,7 +37,7 @@ function named<K extends string>(table: Record<Lang2, Partial<Record<K, string>>
 
 /** The language of the tickets screens: the document's (English or the product's Hebrew). tickets/text.ts re-exports it. */
 export function ticketsLang(): 'he' | 'en' {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return lang2();
 }
 
 /** tickets/text.ts (+ hdTitle of tickets/text-s4.ts): the area, its scopes, its four sections and two pages - templates rendered by tn(). */

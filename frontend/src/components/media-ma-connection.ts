@@ -7,6 +7,7 @@ import { onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { describeError } from '../api/client';
 import { dayText } from '../api/day-format';
 import { MA_STATE_LABEL, players, type MaConnection, type MaState, type MaTest } from '../api/media-players';
+import { tr } from '../i18n/msg/components';
 
 const BADGE: Record<MaState, string> = { off: 'neutral', ready: 'live', unreachable: 'error', unauthorized: 'error', schema_too_old: 'error', error: 'error', unreadable: 'error', host_refused: 'error' };
 
@@ -129,30 +130,30 @@ export class MediaMaConnection extends LitElement {
 
   protected render(): TemplateResult | typeof nothing {
     const c = this.conn;
-    if (onRemote()) return html`<div class="row"><span class="lbl">חיבור ישיר ל־Music Assistant<span class="muted" data-mc-local-only>${LOCAL_ONLY_GENERIC}</span></span></div>`;
+    if (onRemote()) return html`<div class="row"><span class="lbl">${tr('חיבור ישיר ל־Music Assistant')}<span class="muted" data-mc-local-only>${LOCAL_ONLY_GENERIC}</span></span></div>`;
     if (!c) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
     const t = this.test ?? c.last_test;
     const since = c.token_set_at ? dayText(c.token_set_at) : null;
     return html`
-      <div class="row"><span class="lbl">חיבור ישיר ל־Music Assistant<span class="muted">תור מלא (גרירה, מחיקה, נגן הבא) וחיפוש בספרייה. ללא החיבור: התור הקצר והספרייה בלי חיפוש.</span></span>
+      <div class="row"><span class="lbl">${tr('חיבור ישיר ל־Music Assistant')}<span class="muted">${tr('תור מלא (גרירה, מחיקה, נגן הבא) וחיפוש בספרייה. ללא החיבור: התור הקצר והספרייה בלי חיפוש.')}</span></span>
         <span class="acts"><sw-badge kind=${BADGE[c.state]} label=${MA_STATE_LABEL[c.state]} data-mc-state=${c.state}></sw-badge>
-          <sw-toggle label="חיבור ישיר" labelHidden .checked=${c.enabled} ?disabled=${this.busy || (!c.url && !this.url)} data-mc-enabled
+          <sw-toggle label=${tr('חיבור ישיר')} labelHidden .checked=${c.enabled} ?disabled=${this.busy || (!c.url && !this.url)} data-mc-enabled
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked, ...(this.url && this.url !== c.url ? { url: this.url } : {}) })}></sw-toggle></span></div>
-      <div class="row"><span class="lbl">כתובת השרת<span class="muted">http://שם-מארח:8095 · נשמרת בהגדרות בלבד</span></span>
-        <span class="acts"><input type="url" inputmode="url" spellcheck="false" placeholder="http://host:8095" .value=${this.url} data-mc-url aria-label="כתובת השרת"
+      <div class="row"><span class="lbl">${tr('כתובת השרת')}<span class="muted">${tr('http://שם-מארח:8095 · נשמרת בהגדרות בלבד')}</span></span>
+        <span class="acts"><input type="url" inputmode="url" spellcheck="false" placeholder="http://host:8095" .value=${this.url} data-mc-url aria-label=${tr('כתובת השרת')}
             @input=${(e: Event) => (this.url = (e.target as HTMLInputElement).value)} />
-          <sw-button size="sm" ?disabled=${this.busy || this.url === (c.url ?? '')} data-mc-url-save @click=${() => void this.save({ url: this.url || null })}>שמור</sw-button></span></div>
-      <div class="row"><span class="lbl">אסימון גישה<span class="muted" data-mc-token>${c.token_set ? `הוגדר${since ? ` ב־${since}` : ''}` : 'לא הוגדר'} · משתמש ייעודי עם סינון נגנים${c.token_expiring ? html` · <span class="warn">יש לחדש את האסימון</span>` : ''}</span></span>
+          <sw-button size="sm" ?disabled=${this.busy || this.url === (c.url ?? '')} data-mc-url-save @click=${() => void this.save({ url: this.url || null })}>${tr('שמור')}</sw-button></span></div>
+      <div class="row"><span class="lbl">${tr('אסימון גישה')}<span class="muted" data-mc-token>${c.token_set ? (since ? tr('הוגדר ב־{date}', { date: since }) : tr('הוגדר')) : tr('לא הוגדר')} · ${tr('משתמש ייעודי עם סינון נגנים')}${c.token_expiring ? html` · <span class="warn">${tr('יש לחדש את האסימון')}</span>` : ''}</span></span>
         <span class="acts">${this.editingToken || !c.token_set
-          ? html`<input type="password" autocomplete="off" spellcheck="false" .value=${this.token} data-mc-token-input aria-label="אסימון גישה" @input=${(e: Event) => (this.token = (e.target as HTMLInputElement).value)} />
-              <sw-button size="sm" variant="primary" ?disabled=${this.busy || this.token.trim().length < 16} data-mc-token-save @click=${() => void this.save({ token: this.token.trim() })}>שמור</sw-button>
-              ${c.token_set ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => { this.editingToken = false; this.token = ''; }}>ביטול</sw-button>` : nothing}`
-          : html`<sw-button size="sm" ?disabled=${this.busy} data-mc-token-replace @click=${() => (this.editingToken = true)}>החלף</sw-button>
-              <sw-button size="sm" variant="danger" ?disabled=${this.busy} data-mc-token-clear @click=${() => void this.save({ clear_token: true })}>מחק</sw-button>`}</span></div>
-      <div class="row"><span class="lbl">בדיקת חיבור<span class="muted" data-mc-test>${t
-          ? `${MA_STATE_LABEL[t.state]}${t.server_version ? ` · גרסה ${t.server_version}` : ''}${t.schema_version !== null ? ` · סכמה ${t.schema_version}` : ''}${t.players !== null ? ` · ${t.players} נגנים גלויים לחשבון` : ''}`
-          : 'לא נבדק'}</span></span>
-        <sw-button size="sm" ?disabled=${this.busy || !c.url || !c.token_set} data-mc-test-run @click=${() => void this.runTest()}>בדוק חיבור</sw-button></div>
+          ? html`<input type="password" autocomplete="off" spellcheck="false" .value=${this.token} data-mc-token-input aria-label=${tr('אסימון גישה')} @input=${(e: Event) => (this.token = (e.target as HTMLInputElement).value)} />
+              <sw-button size="sm" variant="primary" ?disabled=${this.busy || this.token.trim().length < 16} data-mc-token-save @click=${() => void this.save({ token: this.token.trim() })}>${tr('שמור')}</sw-button>
+              ${c.token_set ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => { this.editingToken = false; this.token = ''; }}>${tr('ביטול')}</sw-button>` : nothing}`
+          : html`<sw-button size="sm" ?disabled=${this.busy} data-mc-token-replace @click=${() => (this.editingToken = true)}>${tr('החלף')}</sw-button>
+              <sw-button size="sm" variant="danger" ?disabled=${this.busy} data-mc-token-clear @click=${() => void this.save({ clear_token: true })}>${tr('מחק')}</sw-button>`}</span></div>
+      <div class="row"><span class="lbl">${tr('בדיקת חיבור')}<span class="muted" data-mc-test>${t
+          ? `${MA_STATE_LABEL[t.state]}${t.server_version ? ` · ${tr('גרסה {v}', { v: t.server_version })}` : ''}${t.schema_version !== null ? ` · ${tr('סכמה {v}', { v: t.schema_version })}` : ''}${t.players !== null ? ` · ${tr('{n} נגנים גלויים לחשבון', { n: t.players })}` : ''}`
+          : tr('לא נבדק')}</span></span>
+        <sw-button size="sm" ?disabled=${this.busy || !c.url || !c.token_set} data-mc-test-run @click=${() => void this.runTest()}>${tr('בדוק חיבור')}</sw-button></div>
       ${this.error ? html`<div class="err" role="alert" data-mc-error>${this.error}</div>` : nothing}`;
   }
 }

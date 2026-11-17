@@ -3,6 +3,7 @@
  * in Settings › Automations. Hebrew first; the English column follows the document language (a missing key falls back to the Hebrew).
  * Operator wording never names the home platform, YAML or an "engine". `{n}` placeholders are filled by `sct(key, { n })`.
  */
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   tab: 'תרחישים',
   title: 'תרחישים חוצי מודולים',
@@ -249,16 +250,17 @@ export type SctKey = Key;
 export type SctLang = 'he' | 'en';
 
 export function sctLang(): SctLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : 'he';
+  return docLang(['en']);
 }
 
 const TABLES: Record<SctLang, Partial<Record<Key, string>>> = { he, en };
 
 export function sct(key: Key, vars?: Record<string, string | number>, lang: SctLang = sctLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+  return fill(raw, vars);
 }
 
 export const SCT_KEYS = Object.keys(he) as Key[];
 export const SCT_TABLES = TABLES;
+
+registerCatalogue('i18n/scenarios', { he, en });

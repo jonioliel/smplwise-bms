@@ -17,6 +17,7 @@ import './wiskey-events';
 import './wiskey-people';
 import { settledPhase } from './wiskey-embed-phase';
 import { wet } from '../i18n/wiskey-embed'; // UXREST2-295: the loading / timeout words in he / en / ar / ru
+import { tr } from '../i18n/msg/wiskey';
 
 /**
  * WisKey's own Home Assistant panel, embedded as-is (CR-005 recorded decision 2026-09-28, "embedded panel").
@@ -120,15 +121,15 @@ export type DirectReason = 'companion' | 'login_required' | '';
 export type ChromeLever = 'kiosk' | 'css' | 'visible' | '';
 
 const TAB_LABELS: Record<string, string> = {
-  overview: 'מרכז הכניסה',
-  events: 'פעילות',
-  users: 'אנשים',
-  devices: 'עמדות',
-  sync: 'סנכרון',
-  health: 'בריאות',
-  audit: 'יומן שינויים',
-  tools: 'ניהול',
-  camera_wall: 'קיר מצלמות',
+  overview: tr('מרכז הכניסה'),
+  events: tr('פעילות'),
+  users: tr('אנשים'),
+  devices: tr('עמדות'),
+  sync: tr('סנכרון'),
+  health: tr('בריאות'),
+  audit: tr('יומן שינויים'),
+  tools: tr('ניהול'),
+  camera_wall: tr('קיר מצלמות'),
 };
 
 type AnyEl = HTMLElement & Record<string, unknown>;
@@ -1097,12 +1098,12 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות ‹ מתגי מסכי כניסה את מסכי Arx.';
+    const common = tr('אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות ‹ מתגי מסכי כניסה את מסכי Arx.');
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
-      not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
+      not_installed: { heading: tr('לוח WisKey לא נמצא'), hint: `${tr('האינטגרציה hikvision_intercom לא רשמה את הלוח {path} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו).', { path: WISKEY_PANEL_PATH })} ${common}`, state: 'empty' },
       unreachable: { heading: wet('unreachableTitle'), hint: wet('unreachableHint'), state: 'stale' },
-      blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
-      unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־Arx מכיר את גרסה 1. ${common}`, state: 'error' },
+      blocked: { heading: tr('הדפדפן לא מאפשר להטמיע את WisKey כאן'), hint: `${tr('המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת.')} ${common}`, state: 'error' },
+      unsupported: { heading: tr('גרסת ממשק ההטמעה של WisKey אינה נתמכת'), hint: `${tr('WisKey המותקן מדבר בגרסת ממשק הטמעה {version}, ו־Arx מכיר את גרסה 1.', { version: this.unsupportedVersion || tr('לא ידועה') })} ${common}`, state: 'error' },
     };
     const m = map[this.phase];
     if (!m) return nothing;
@@ -1119,7 +1120,7 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private openInHaButton(variant: 'primary' | 'secondary' = 'secondary') {
-    return html`<sw-button size="sm" variant=${variant} icon="door" data-wiskey-open-ha @click=${() => openWiskeyInHa(window, wiskeyDeepLink(this.shown()))}>פתח ב-WisKey</sw-button>`;
+    return html`<sw-button size="sm" variant=${variant} icon="door" data-wiskey-open-ha @click=${() => openWiskeyInHa(window, wiskeyDeepLink(this.shown()))}>${tr('פתח ב-WisKey')}</sw-button>`;
   }
 
   /** The tab without a nested Home Assistant: the SMPLWISE screen where one exists, otherwise a short note. */
@@ -1129,12 +1130,12 @@ export class WiskeyEmbed extends LitElement {
     const phone = this.direct === 'companion' || this.phoneRelay;
     const note =
       this.direct === 'companion'
-        ? 'בטלפון WisKey נפתח באפליקציה עצמה'
+        ? tr('בטלפון WisKey נפתח באפליקציה עצמה')
         : this.phoneRelay && this.relayRefused
-          ? 'ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה'
+          ? tr('ההטמעה באפליקציה (ניסיוני) לא נתמכת במכשיר הזה, ולכן WisKey נפתח באפליקציה עצמה')
           : this.phoneRelay
-          ? 'ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה'
-          : 'נדרשת התחברות בתוך המסגרת, ולכן WisKey עובר למסך נפרד';
+          ? tr('ההטמעה באפליקציה (ניסיוני) לא הצליחה להתחבר, ולכן WisKey נפתח באפליקציה עצמה')
+          : tr('נדרשת התחברות בתוך המסגרת, ולכן WisKey עובר למסך נפרד');
     const screen = SMPLWISE_SCREEN[this.tab];
     const only = wiskeySegmentOf(this.tab);
     return html`
@@ -1152,10 +1153,10 @@ export class WiskeyEmbed extends LitElement {
             ? html`<wiskey-people></wiskey-people>`
             : html`<div class="only" data-wiskey-embed-only=${only}>
                 <div>
-                  <sw-state-panel icon="door" state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
+                  <sw-state-panel icon="door" state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. ${tr('המסך "{label}" קיים רק בממשק של WisKey.', { label })}`}></sw-state-panel>
                   <div class="actions">
                     ${this.openInHaButton('primary')}
-                    ${this.direct === 'companion' ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}
+                    ${this.direct === 'companion' ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>${tr('נסה שוב')}</sw-button>`}
                   </div>
                 </div>
               </div>`}
@@ -1163,16 +1164,16 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private fullLink() {
-    return html`<a class="full" data-wiskey-embed-full href=${wiskeyDeepLink(this.shown())} target="_blank" rel="noopener"><sw-icon name="expand" size=${14}></sw-icon>פתח בחלון מלא</a>`;
+    return html`<a class="full" data-wiskey-embed-full href=${wiskeyDeepLink(this.shown())} target="_blank" rel="noopener"><sw-icon name="expand" size=${14}></sw-icon>${tr('פתח בחלון מלא')}</a>`;
   }
 
   /** The floating status line over the frame: only when the panel is waiting for its handshake or an older build could
    * not be tidied up. A healthy embed (v1, or an older build that took the chrome and the tab) shows nothing at all. */
   private statusNote() {
-    if (this.phase === 'waiting') return [html`<span class="note warn" data-wiskey-embed-note="waiting">WisKey עדיין לא אישר את החיבור - ממתין לטעינה או להזדהות בתוך WisKey</span>`];
+    if (this.phase === 'waiting') return [html`<span class="note warn" data-wiskey-embed-note="waiting">${tr('WisKey עדיין לא אישר את החיבור - ממתין לטעינה או להזדהות בתוך WisKey')}</span>`];
     const notes = [];
-    if (this.phase === 'ready' && this.mode === 'legacy' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">תפריט נוסף מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).</span>`);
-    if (this.phase === 'ready' && this.mode === 'legacy' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">לא ניתן לפתוח ישירות את "${TAB_LABELS[this.tab] ?? this.tab}"; WisKey נפתח במסך שלו.</span>`);
+    if (this.phase === 'ready' && this.mode === 'legacy' && this.chrome === 'visible') notes.push(html`<span class="note" data-wiskey-embed-note="chrome">${tr('תפריט נוסף מוצג סביב WisKey (ההסתרה לא נתמכת בגרסה הזו).')}</span>`);
+    if (this.phase === 'ready' && this.mode === 'legacy' && this.tabApplied === false) notes.push(html`<span class="note" data-wiskey-embed-note="tab">${tr('לא ניתן לפתוח ישירות את "{tab}"; WisKey נפתח במסך שלו.', { tab: TAB_LABELS[this.tab] ?? this.tab })}</span>`);
     return notes;
   }
 
@@ -1185,7 +1186,7 @@ export class WiskeyEmbed extends LitElement {
     const tools = c.tools.filter((t) => t.id && !tabIds.has(t.id));
     if (!tools.length) return nothing;
     const on = this.confirmed.tool;
-    return html`<nav class="tools" aria-label="כלי הניהול של WisKey" data-wiskey-tools>
+    return html`<nav class="tools" aria-label=${tr('כלי הניהול של WisKey')} data-wiskey-tools>
       <a href=${`#${wiskeyPath({ tab: 'tools' })}`} class=${on ? '' : 'on'} data-wiskey-tool="" aria-current=${on ? 'false' : 'page'}>${this.labelOf('tools')}</a>
       ${tools.map((t) => html`<a href=${`#${wiskeyPath({ tab: 'tools', tool: t.id })}`} class=${on === t.id ? 'on' : ''} data-wiskey-tool=${t.id} aria-current=${on === t.id ? 'page' : 'false'}>${t.label || t.id}</a>`)}
     </nav>`;
@@ -1193,7 +1194,7 @@ export class WiskeyEmbed extends LitElement {
 
   render() {
     if (this.forbidden) {
-      return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading=${tr('אין לך הרשאת צפייה בבקרת הכניסה')} hint=${tr('נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת.')}></sw-state-panel></sw-page>`;
     }
     if (this.direct) return this.renderDirect();
     const failed = this.phase === 'not_installed' || this.phase === 'unreachable' || this.phase === 'blocked' || this.phase === 'unsupported';
@@ -1205,7 +1206,7 @@ export class WiskeyEmbed extends LitElement {
     const size = this.size();
     return html`
       ${size === 'full'
-        ? html`<button type="button" class="exit" data-wiskey-exit aria-label="יציאה ממסך מלא" title="יציאה ממסך מלא (Esc)" @click=${() => this.leaveFull()}><sw-icon name="close" size=${16}></sw-icon></button>`
+        ? html`<button type="button" class="exit" data-wiskey-exit aria-label=${tr('יציאה ממסך מלא')} title=${tr('יציאה ממסך מלא (Esc)')} @click=${() => this.leaveFull()}><sw-icon name="close" size=${16}></sw-icon></button>`
         : nothing}
       ${this.renderTools()}
       <div class="stage" ?data-fit=${size === 'fit'} style=${size === 'fit' ? `--wk-scale:${WISKEY_SCALE / 100}` : ''}>

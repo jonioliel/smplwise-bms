@@ -8,6 +8,7 @@ import { cameraSources, disableHaLive, enableHaLive, sameSource, type CameraSour
 import { bidi } from '../i18n/bidi';
 import { cap } from '../api/session';
 import { visibleRecorderGroups } from '../api/camera-visibility';
+import { tr } from '../i18n/msg/devices';
 
 /** `camera-picked`: the user chose a camera. `detail.name` is the camera's own name (a title for the card, if it has none). */
 export interface CameraPickedDetail {
@@ -207,27 +208,27 @@ export class DevicesCameraPicker extends LitElement {
   }
 
   render() {
-    if (this.error) return html`<sw-state-panel compact data-camera-picker-state="error" state="error" heading="לא ניתן לטעון את רשימת המצלמות" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`;
+    if (this.error) return html`<sw-state-panel compact data-camera-picker-state="error" state="error" heading=${tr('לא ניתן לטעון את רשימת המצלמות')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel>`;
     const d = this.data;
     if (!d) return html`<sw-state-panel compact data-camera-picker-state="loading" state="loading"></sw-state-panel>`;
     const stills = d.ha_cameras.filter((h) => h.mode === 'still_only');
     const recorders = visibleRecorderGroups(d.recorders, cap('nvr')); // NN1 D5: leftover camera rows of a removed NVR are not offered (cameras without a recorder are: NVRLESS-CAMERAS-2411)
     const total = recorders.reduce((n, r) => n + r.cameras.length, 0) + stills.length;
-    if (!total) return html`<sw-state-panel icon="camera" compact data-camera-picker-state="empty" state="empty" heading="אין מצלמות זמינות לך" hint="מצלמות מופיעות כאן לפי ההרשאות שלך."></sw-state-panel>`;
+    if (!total) return html`<sw-state-panel icon="camera" compact data-camera-picker-state="empty" state="empty" heading=${tr('אין מצלמות זמינות לך')} hint=${tr('מצלמות מופיעות כאן לפי ההרשאות שלך.')}></sw-state-panel>`;
     const groups = recorders.map((r) => ({ r, cams: r.cameras.filter((c) => this.match(`${c.name} ${c.channel}`)) })).filter((g) => g.cams.length);
     const more = stills.filter((h) => this.match(`${h.name} ${h.area_name ?? ''}`));
     return html`
-      ${total > FILTER_FROM ? html`<input class="find" type="search" data-camera-find placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />` : nothing}
+      ${total > FILTER_FROM ? html`<input class="find" type="search" data-camera-find placeholder=${tr('חיפוש מצלמה')} aria-label=${tr('חיפוש מצלמה')} .value=${this.filter} @input=${(e: Event) => (this.filter = (e.target as HTMLInputElement).value)} />` : nothing}
       ${groups.map(
         ({ r, cams }) => html`<div class="grp" data-camera-group=${r.recorder_id}>
           <h4>${bidi(r.name)}</h4>
-          <div role="listbox" aria-label=${`מצלמות ${r.name}`}>
+          <div role="listbox" aria-label=${tr('מצלמות {name}', { name: r.name })}>
             ${cams.map((c) => {
               const source: CameraSource = { kind: 'nvr', recorder_id: c.recorder_id, channel: c.channel };
               return html`<button type="button" class="opt" role="option" data-camera-option=${`nvr:${c.recorder_id}:${c.channel}`} aria-selected=${String(sameSource(this.value, source))} @click=${() => this.pick(source, c.name)}>
                 <span class="dot ${c.status === 'online' ? 'online' : ''}" aria-hidden="true"></span>
                 <span class="name">${bidi(c.name)}</span>
-                <span class="meta">ערוץ ${c.channel}</span>
+                <span class="meta">${tr('ערוץ {n}', { n: c.channel })}</span>
               </button>`;
             })}
           </div>
@@ -235,8 +236,8 @@ export class DevicesCameraPicker extends LitElement {
       )}
       ${more.length
         ? html`<div class="grp" data-camera-group="more">
-            <h4>מצלמות נוספות</h4>
-            <div role="listbox" aria-label="מצלמות נוספות">
+            <h4>${tr('מצלמות נוספות')}</h4>
+            <div role="listbox" aria-label=${tr('מצלמות נוספות')}>
               ${more.map((h) => {
                 const source: CameraSource = { kind: 'ha', entity_id: h.entity_id };
                 const canToggle = cap('ha_cameras_live') && !!d.ha_live?.ready && !!d.ha_live.can_configure;
@@ -244,13 +245,13 @@ export class DevicesCameraPicker extends LitElement {
                   <button type="button" class="opt" role="option" data-camera-option=${`ha:${h.entity_id}`} aria-selected=${String(sameSource(this.value, source))} @click=${() => this.pick(source, h.name)}>
                     <sw-icon name=${h.live_enabled ? 'camera' : 'image'} size=${14}></sw-icon>
                     <span class="name">${bidi(h.name)}</span>
-                    <span class="meta">${h.area_name ? `${bidi(h.area_name)} · ` : ''}${h.live_enabled ? (h.live_issue ? 'שידור חי · לא יתעדכן' : 'שידור חי') : 'תמונה בלבד'}</span>
+                    <span class="meta">${h.area_name ? `${bidi(h.area_name)} · ` : ''}${h.live_enabled ? (h.live_issue ? `${tr('שידור חי')} · ${tr('לא יתעדכן')}` : tr('שידור חי')) : tr('תמונה בלבד')}</span>
                   </button>
                   ${canToggle && h.live_issue
-                    ? html`<button type="button" class="act" data-camera-live-refresh=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive({ ...h, live_enabled: false })}>רענן</button>`
+                    ? html`<button type="button" class="act" data-camera-live-refresh=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive({ ...h, live_enabled: false })}>${tr('רענן')}</button>`
                     : nothing}
                   ${canToggle
-                    ? html`<button type="button" class="act" data-camera-live-toggle=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive(h)}>${h.live_enabled ? 'בטל שידור חי' : 'הצג בזרם חי'}</button>`
+                    ? html`<button type="button" class="act" data-camera-live-toggle=${h.entity_id} ?disabled=${this.busy === h.entity_id} @click=${() => void this.toggleLive(h)}>${h.live_enabled ? tr('בטל שידור חי') : tr('הצג בזרם חי')}</button>`
                     : nothing}
                 </div>`;
               })}
@@ -258,7 +259,7 @@ export class DevicesCameraPicker extends LitElement {
             ${this.liveError ? html`<div class="err" role="alert" data-camera-live-error>${this.liveError}</div>` : nothing}
           </div>`
         : nothing}
-      ${!groups.length && !more.length ? html`<div class="none" data-camera-no-match>אין מצלמה שמתאימה לחיפוש.</div>` : nothing}
+      ${!groups.length && !more.length ? html`<div class="none" data-camera-no-match>${tr('אין מצלמה שמתאימה לחיפוש.')}</div>` : nothing}
     `;
   }
 }

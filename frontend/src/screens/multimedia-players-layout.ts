@@ -18,6 +18,7 @@ import {
   type GroupPreset, type GroupRecord, type MediaGroup, type MemberOutcome, type PlayerDevice, type PlayerStateFilter,
 } from '../api/media-players';
 import type { FloorRef } from './multimedia-layout';
+import { tr } from '../i18n/msg/media';
 
 // ------------------------------------------------------------------------------------------------ the layout of a tab
 
@@ -79,7 +80,7 @@ export interface PlayerFilters {
 }
 export const PLAYER_NO_FILTER: PlayerFilters = { floor: '', area: '', q: '', state: '' };
 export const PLAYER_STATE_FILTERS: { id: '' | PlayerStateFilter; label: string }[] = [
-  { id: '', label: 'הכל' }, { id: 'playing', label: 'מנגנים' }, { id: 'off', label: 'שקטים' }, { id: 'unavailable', label: 'לא זמינים' },
+  { id: '', label: tr('הכל') }, { id: 'playing', label: tr('מנגנים') }, { id: 'off', label: tr('שקטים') }, { id: 'unavailable', label: tr('לא זמינים') },
 ];
 
 export const playerFiltersActive = (f: PlayerFilters): boolean => !!(f.floor || f.area || f.q.trim() || f.state);
@@ -156,9 +157,9 @@ export interface PlayerGroup {
 /** Section / filter ids: the unplaced bucket (no room) and the rooms that have no floor in an installation that has floors. */
 export const UNPLACED_ID = 'none';
 export const NOFLOOR_ID = 'nofloor';
-export const PINNED_LABEL = 'מועדפים';
-export const NO_FLOOR_LABEL = 'ללא קומה';
-export const ALL_PLAYERS_LABEL = 'כל הנגנים';
+export const PINNED_LABEL = tr('מועדפים');
+export const NO_FLOOR_LABEL = tr('ללא קומה');
+export const ALL_PLAYERS_LABEL = tr('כל הנגנים');
 
 /**
  * The players tab's sections: "מועדפים" first, then by floor / room / one list as the layout says, with "לא משויכים" (no room)
@@ -248,7 +249,7 @@ export function presetRooms(p: Pick<GroupPreset, 'leader_key' | 'member_keys'>, 
   const keys = [...new Set([p.leader_key, ...p.member_keys])];
   return keys.map((k) => {
     const d = by.get(k);
-    return { key: k, room: d ? d.area_name || d.name : 'לא מוגדר', missing: !d };
+    return { key: k, room: d ? d.area_name || d.name : tr('לא מוגדר'), missing: !d };
   });
 }
 
@@ -292,12 +293,12 @@ export const NEW_PRESET: PresetDraft = { id: '', revision: 0, name: '', leader_k
 /** What stops the draft from being saved (a short Hebrew line), or null. The server checks the same and more (layers, scope). */
 export function presetDraftError(d: Pick<PresetDraft, 'name' | 'leader_key' | 'member_keys'>): string | null {
   const name = d.name.trim();
-  if (!name) return 'חסר שם';
-  if (name.length > PRESET_NAME_MAX) return `שם עד ${PRESET_NAME_MAX} תווים`;
+  if (!name) return tr('חסר שם');
+  if (name.length > PRESET_NAME_MAX) return tr('שם עד {PRESET_NAME_MAX} תווים', { PRESET_NAME_MAX });
   const all = new Set([d.leader_key, ...d.member_keys].filter(Boolean));
-  if (all.size < 2) return 'בחרו לפחות שני חדרים';
-  if (all.size > PRESET_MEMBERS_MAX) return `עד ${PRESET_MEMBERS_MAX} חדרים`;
-  if (!d.leader_key) return 'בחרו מוביל';
+  if (all.size < 2) return tr('בחרו לפחות שני חדרים');
+  if (all.size > PRESET_MEMBERS_MAX) return tr('עד {PRESET_MEMBERS_MAX} חדרים', { PRESET_MEMBERS_MAX });
+  if (!d.leader_key) return tr('בחרו מוביל');
   return null;
 }
 

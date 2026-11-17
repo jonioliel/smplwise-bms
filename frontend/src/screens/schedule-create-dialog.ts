@@ -10,6 +10,7 @@ import { navigate } from '../router';
 import { metaFromCatalog, type EntityMeta } from './schedule-edit-logic';
 import { PRESET_CHOICES, QUICK_DAYS, QUICK_TIMES, TEMPLATES, quickActions, quickDraft, quickReady, quickSentence, type QuickAction, type QuickDays, type QuickTime, type ScheduleTemplate } from './schedule-templates';
 import { tablistKeydown } from '../components/a11y-keys';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: "תזמון חדש" (mockup 09 / 26). Two ways in: a template (then the editor opens with a draft; the devices are chosen
@@ -380,7 +381,7 @@ export class ScheduleCreateDialog extends LitElement {
   }
 
   private get areas(): string[] {
-    return [...new Set(this.quickEntities.map((e) => e.area_name ?? 'ללא אזור'))];
+    return [...new Set(this.quickEntities.map((e) => e.area_name ?? tr('ללא אזור')))];
   }
 
   private get chosen(): EntityMeta[] {
@@ -413,7 +414,7 @@ export class ScheduleCreateDialog extends LitElement {
       }
       if ('schedule' in r) this.close();
     } catch (e) {
-      this.error = e instanceof ApiError ? e.message : 'היצירה נכשלה. אפשר לנסות שוב.';
+      this.error = e instanceof ApiError ? e.message : tr('היצירה נכשלה. אפשר לנסות שוב.');
     }
     this.busy = false;
   }
@@ -434,21 +435,21 @@ export class ScheduleCreateDialog extends LitElement {
 
   private renderPresets() {
     if (!this.sensor) {
-      return this.status?.can.configure ? html`<div class="hint" data-preset-hint>בחרו חיישן שבת וחג בהגדרות ‹ תזמונים כדי לקבל תנאים מוכנים.</div>` : nothing;
+      return this.status?.can.configure ? html`<div class="hint" data-preset-hint>${tr('בחרו חיישן שבת וחג בהגדרות ‹ תזמונים כדי לקבל תנאים מוכנים.')}</div>` : nothing;
     }
-    return html`<div class="sec"><span class="lbl" id="preset-lbl">תנאי</span><div class="chips" role="group" aria-labelledby="preset-lbl">
+    return html`<div class="sec"><span class="lbl" id="preset-lbl">${tr('תנאי')}</span><div class="chips" role="group" aria-labelledby="preset-lbl">
       ${PRESET_CHOICES.map((p) => html`<button type="button" class="chip" data-create-preset=${p.id ?? 'none'} aria-pressed=${this.preset === p.id} @click=${() => (this.preset = p.id)}>${p.label}</button>`)}
     </div></div>`;
   }
 
   private renderTemplates() {
-    return html`<div class="tpls" role="group" aria-label="תבניות">
+    return html`<div class="tpls" role="group" aria-label=${tr('תבניות')}>
         ${TEMPLATES.map((t) => {
           const blocked = !!t.needsSensor && !this.sensor;
-          return html`<button type="button" class="tpl" data-template=${t.id} aria-pressed=${this.tpl === t.id} ?disabled=${blocked} title=${blocked ? 'דורש חיישן שבת וחג בהגדרות' : ''} @click=${() => (this.tpl = t.id)}>
+          return html`<button type="button" class="tpl" data-template=${t.id} aria-pressed=${this.tpl === t.id} ?disabled=${blocked} title=${blocked ? tr('דורש חיישן שבת וחג בהגדרות') : ''} @click=${() => (this.tpl = t.id)}>
             <span class="top"><span class="tile"><sw-icon name=${TPL_ICON[t.icon]} size="16"></sw-icon></span><b>${t.name}</b></span>
             <span>${t.description}</span>
-            ${blocked ? html`<span class="why" data-template-blocked><sw-icon name="lock" size="12"></sw-icon>דורש חיישן שבת וחג בהגדרות</span>` : nothing}
+            ${blocked ? html`<span class="why" data-template-blocked><sw-icon name="lock" size="12"></sw-icon>${tr('דורש חיישן שבת וחג בהגדרות')}</span>` : nothing}
           </button>`;
         })}
       </div>
@@ -457,31 +458,31 @@ export class ScheduleCreateDialog extends LitElement {
 
   private renderTemplatesFooter() {
     return html`<div class="foot" slot="footer">
-      <sw-button variant="primary" data-create-continue ?disabled=${!this.tpl} @click=${() => this.useTemplate()}>המשך לעורך</sw-button>
+      <sw-button variant="primary" data-create-continue ?disabled=${!this.tpl} @click=${() => this.useTemplate()}>${tr('המשך לעורך')}</sw-button>
       <span class="sp"></span>
-      <sw-button variant="ghost" @click=${() => this.close()}>ביטול</sw-button>
+      <sw-button variant="ghost" @click=${() => this.close()}>${tr('ביטול')}</sw-button>
     </div>`;
   }
 
   private renderQuick() {
-    const areaEntities = this.quickEntities.filter((e) => (e.area_name ?? 'ללא אזור') === this.area);
+    const areaEntities = this.quickEntities.filter((e) => (e.area_name ?? tr('ללא אזור')) === this.area);
     const first = this.chosen[0];
     const actions = quickActions(first);
-    return html`<div class="sec"><span class="lbl" id="q-where">1 · איפה?</span>
+    return html`<div class="sec"><span class="lbl" id="q-where">1 · ${tr('איפה?')}</span>
         <div class="chips" role="group" aria-labelledby="q-where">${this.areas.map((a) => html`<button type="button" class="chip" data-quick-area=${a} aria-pressed=${this.area === a} @click=${() => (this.area = a)}>${a}</button>`)}</div>
         ${this.area
-          ? html`<div class="chips" role="group" aria-label=${`התקנים · ${this.area}`}>${areaEntities.map((e) => {
+          ? html`<div class="chips" role="group" aria-label=${`${tr('התקנים')} · ${this.area}`}>${areaEntities.map((e) => {
               const on = this.picked.includes(e.entity_id);
               const other = first && first.domain !== e.domain;
               return html`<button type="button" class="chip" data-quick-entity=${e.entity_id} aria-pressed=${on} ?disabled=${!on && !!other} @click=${() => this.togglePicked(e.entity_id)}>${e.name}</button>`;
             })}</div>`
           : nothing}
       </div>
-      <div class="sec"><span class="lbl" id="q-what">2 · מה ומתי?</span>
-        <div class="chips" role="group" aria-labelledby="q-what">${actions.length ? actions.map((a) => html`<button type="button" class="chip" data-quick-action=${a.id} aria-pressed=${this.action?.id === a.id} @click=${() => (this.action = a)}>${a.label}</button>`) : html`<span class="hint">בחרו התקן קודם</span>`}</div>
-        <div class="chips" role="group" aria-label="מתי">${QUICK_TIMES.map((t) => html`<button type="button" class="chip" data-quick-time=${t.id} aria-pressed=${this.time?.id === t.id} @click=${() => (this.time = t)}><sw-icon name=${t.sun ? 'history' : 'clock'} size="13"></sw-icon>${t.label}</button>`)}</div>
+      <div class="sec"><span class="lbl" id="q-what">2 · ${tr('מה ומתי?')}</span>
+        <div class="chips" role="group" aria-labelledby="q-what">${actions.length ? actions.map((a) => html`<button type="button" class="chip" data-quick-action=${a.id} aria-pressed=${this.action?.id === a.id} @click=${() => (this.action = a)}>${a.label}</button>`) : html`<span class="hint">${tr('בחרו התקן קודם')}</span>`}</div>
+        <div class="chips" role="group" aria-label=${tr('מתי')}>${QUICK_TIMES.map((t) => html`<button type="button" class="chip" data-quick-time=${t.id} aria-pressed=${this.time?.id === t.id} @click=${() => (this.time = t)}><sw-icon name=${t.sun ? 'history' : 'clock'} size="13"></sw-icon>${t.label}</button>`)}</div>
       </div>
-      <div class="sec"><span class="lbl" id="q-days">3 · באילו ימים?</span>
+      <div class="sec"><span class="lbl" id="q-days">3 · ${tr('באילו ימים?')}</span>
         <div class="chips" role="group" aria-labelledby="q-days">${QUICK_DAYS.map((d) => html`<button type="button" class="chip" data-quick-days=${d.id} aria-pressed=${this.days?.id === d.id} @click=${() => (this.days = d)}>${d.label}</button>`)}</div>
       </div>
       ${this.renderPresets()}`;
@@ -495,10 +496,10 @@ export class ScheduleCreateDialog extends LitElement {
       <div class="banner full ${ready ? 'ok' : ''}" data-quick-sentence aria-live="polite"><sw-icon name=${ready ? 'check' : 'info'} size="16"></sw-icon><span>${quickSentence(q)}</span></div>
       ${this.error ? html`<div class="banner err full" role="alert" data-create-error><sw-icon name="warning" size="16"></sw-icon>${this.error}</div>` : nothing}
       ${this.note ? html`<div class="banner full" data-create-note>${this.note}</div>` : nothing}
-      <sw-button variant="primary" icon="plus" data-quick-go ?disabled=${!ready || this.busy} @click=${() => this.quickCreate()}>${this.busy ? 'יוצר…' : 'יצירת התזמון'}</sw-button>
-      <sw-button data-quick-edit ?disabled=${!ready || this.busy} @click=${() => this.quickEdit()}>פתיחה בעורך</sw-button>
+      <sw-button variant="primary" icon="plus" data-quick-go ?disabled=${!ready || this.busy} @click=${() => this.quickCreate()}>${this.busy ? tr('יוצר…') : tr('יצירת התזמון')}</sw-button>
+      <sw-button data-quick-edit ?disabled=${!ready || this.busy} @click=${() => this.quickEdit()}>${tr('פתיחה בעורך')}</sw-button>
       <span class="sp"></span>
-      <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => this.close()}>ביטול</sw-button>
+      <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => this.close()}>${tr('ביטול')}</sw-button>
     </div>`;
   }
 
@@ -506,17 +507,17 @@ export class ScheduleCreateDialog extends LitElement {
     if (!this.open) return nothing;
     const tab = (id: 'tpl' | 'quick', label: string) => html`<button type="button" role="tab" id=${`tab-${id}`} aria-controls="create-panel" aria-selected=${this.tab === id} tabindex=${this.tab === id ? 0 : -1} data-create-tab=${id} @click=${() => (this.tab = id)} @keydown=${(e: KeyboardEvent) => this.onTabKey(e)}>${label}</button>`;
     // AUDIT30-I3: the shared dialog; its own close (the X, Escape, the scrim) is turned into this element's one `close` event
-    return html`<sw-dialog wide .open=${this.open} heading="תזמון חדש" ?locked=${this.busy} data-create-dialog @close=${(e: Event) => {
+    return html`<sw-dialog wide .open=${this.open} heading=${tr('תזמון חדש')} ?locked=${this.busy} data-create-dialog @close=${(e: Event) => {
       e.stopPropagation();
       this.close();
     }}>
-        <div class="tabs" role="tablist" aria-label="דרך היצירה" @keydown=${tablistKeydown}>
-          ${tab('tpl', 'מתבנית')}${tab('quick', 'יצירה מהירה (3 הקשות)')}
+        <div class="tabs" role="tablist" aria-label=${tr('דרך היצירה')} @keydown=${tablistKeydown}>
+          ${tab('tpl', tr('מתבנית'))}${tab('quick', tr('יצירה מהירה (3 הקשות)'))}
         </div>
         <div class="cbody" id="create-panel" role="tabpanel" aria-labelledby=${`tab-${this.tab}`} aria-busy=${this.loading ? 'true' : 'false'}>
           ${this.loadError && this.tab === 'quick' ? html`<div class="banner err" role="alert"><sw-icon name="warning" size="16"></sw-icon>${this.loadError}</div>` : nothing}
           ${this.loading && this.tab === 'quick'
-            ? html`<div class="loading" role="status" aria-label="טוען…"><i></i><i></i><i></i></div>`
+            ? html`<div class="loading" role="status" aria-label=${tr('טוען…')}><i></i><i></i><i></i></div>`
             : this.tab === 'tpl' ? this.renderTemplates() : this.renderQuick()}
         </div>
         ${this.tab === 'tpl' ? this.renderTemplatesFooter() : this.renderQuickFooter()}
