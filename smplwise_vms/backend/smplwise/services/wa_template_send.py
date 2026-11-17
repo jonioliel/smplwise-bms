@@ -445,6 +445,8 @@ def read_answer(raw: Any, *, version: int = SCHEMA_VERSION) -> TransportAnswer:
 
 # ---------------------------------------------------------------- the window
 
+# built ahead for W11TPL (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14): the seam of the 24-hour window for the
+# live template transport (CR-W11TPL-295, WisKey open question 3). Today only `NoWindowProbe` (tests) has this shape.
 class WindowProbe(Protocol):
     def window(self, person_id: str) -> str: ...  # "open" | "closed" | "unknown"
 
