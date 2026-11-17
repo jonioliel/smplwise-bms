@@ -40,7 +40,6 @@ export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 
 /** Table widths: `wide` above 1280 px, `md` (tablet) from 861 to 1280 px; at 860 px and below the rows are cards and every column choice is ignored. */
 export type Bp = 'wide' | 'md';
 export const BREAKPOINT_MD = 1280;
-export const BREAKPOINT_PHONE = 860;
 /** 2.4.6: the same three layouts chosen by the TABLE's own width (a container query; the viewport breakpoints above are the
  * fallback): the wide columns need 1228 px at the defaults, the tablet columns 864 px (W below: the tracks, 10 px gaps and
  * the row's 12 px padding). Measured: a 1440 px window gives a settings table about 1030 px (tablet columns), a 1024 px

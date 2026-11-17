@@ -1,5 +1,5 @@
 import {
-  filterItems, itemChips, manageRight, saveBlocker, sortItems, visibleKinds,
+  filterItems, itemChips, manageRight, saveBlocker, visibleKinds,
   type AutomationsStatus, type Item, type ItemChip, type ItemKind, type RunSummary, type SceneMember, type ScriptField,
 } from '../api/automations';
 
@@ -232,7 +232,6 @@ export function sceneLine(i: Item, now: Date, timeZone?: string, members?: numbe
   return members ? `${when} · ${members} מכשירים` : when;
 }
 export const isIntegrationScene = (i: Pick<Item, 'source'>): boolean => i.source === 'integration';
-export const sortScripts = (items: readonly Item[]): Item[] => sortItems(items, 'name');
 
 // ------------------------------------------------------------------------------------------------ run confirmation
 

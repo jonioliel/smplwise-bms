@@ -147,9 +147,6 @@ export interface EncDraft {
 
 export const EMPTY_DRAFT: EncDraft = { codec: '', resolution: '', fps: '', bitrate_mode: '', bitrate_kbps: '', quality: '', gop: '', svc: '', smart_codec: '' };
 
-/** The fields of the form in display order. */
-export const DRAFT_FIELDS: (keyof EncDraft)[] = ['codec', 'resolution', 'fps', 'bitrate_mode', 'bitrate_kbps', 'quality', 'gop', 'svc', 'smart_codec'];
-
 export const LEAVE = 'ללא שינוי';
 
 export interface EncChoices {
@@ -289,7 +286,6 @@ export function startRequest(p: EncodingPreview, onRefusal?: RefusalPolicy): Enc
   };
 }
 
-export const streamsLabel = (n: number): string => (n === 1 ? 'זרם אחד' : `${n} זרמים`);
 export const inStreams = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
 
 export const ENC_CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';

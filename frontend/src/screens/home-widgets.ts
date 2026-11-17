@@ -8,7 +8,7 @@ import { ALARM_HE } from '../api/devices';
 import { createClockSubscription } from '../api/clock-ticker';
 import {
   calendarText, clockParts, forecastIsDaily, sinceText, untilText, forecastLabel, forecastShown, hasValue, hebrewDate, NO_DATA, QUICK_ACTION_LABEL, SIZE_LABEL, SIZES, valueText, WEATHER_FIELD_LABEL, WEATHER_HE, weatherGlyph,
-  type Avail, type HomeConfig, type HomeData, type QuickAction, type Size, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
+  type Avail, type HomeConfig, type HomeData, type QuickAction, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
 } from '../api/home-config';
 import { ltrNum, bidi } from '../i18n/bidi';
 import { canAnywhere, isApi } from '../api/session';
@@ -67,9 +67,6 @@ const BULB = svg`<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.8
 const CHEV = svg`<path d="m15 6-6 6 6 6"/>`;
 
 const FIELD_ICON: Partial<Record<WeatherField, TemplateResult>> = { humidity: DROP, wind: WIND, pressure: GAUGE, visibility: EYE, uv: SUN_HIGH, precipitation: DROP, apparent: DROP };
-
-/** What an event of this element carries. */
-export interface HomeWidgetSize { id: WidgetId; size: Size }
 
 /** The quick actions' numbers (the "N מנורות דולקות" line of the large card) and which ones this user may run. */
 export interface QuickInfo {

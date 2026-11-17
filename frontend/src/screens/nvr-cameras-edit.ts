@@ -185,9 +185,6 @@ export function errorLine(e: ErrorShape): ErrorLine {
   return { text, reload };
 }
 
-/** The error codes that mean the write did not reach the device at all (a safe state to try again by hand). */
-export const NOT_SENT = new Set(['stale', 'write_in_progress', 'batch_in_progress', 'confirm_required', 'value_not_allowed', 'field_locked', 'field_not_supported', 'capabilities_unreadable', 'forbidden', 'validation']);
-
 // ------------------------------------------------------------------------------------------------ the editor's draft
 
 /** The editor's form values as strings / booleans (an empty string = nothing chosen). */

@@ -10,7 +10,7 @@ import { isApi } from '../api/session';
 import { loadTree, type HomeLinks } from '../api/catalog';
 import type { Floor } from '../api/types';
 import { loadXsData, type XsData } from '../xsection/xs-data';
-import { detect, health, itemKey, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
+import { detect, health, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
 
 /** CR-HOME-LAZY-2440 (review 07:F4 d): the assistant with its slices - "החלטות" (mapping-decide) and "מתקדם" (mapping-rules), which
@@ -589,9 +589,6 @@ export class SystemMapping extends LitElement {
       @saved=${(e: CustomEvent<{ links: HomeLinks }>) => { this.floorDialog = null; if (this.xs) this.xs = { ...this.xs, links: e.detail.links }; void this.load(); }}></sw-floor-home-link>`;
   }
 }
-
-/** Used by tests / the wizard: an item's key (kept here so the import is not tree-shaken by accident). */
-export const mappingItemKey = itemKey;
 
 declare global {
   interface HTMLElementTagNameMap {

@@ -203,10 +203,6 @@ export const deviceControlStyles = css`
   }
 `;
 
-export interface LockRequest {
-  row: DeviceRow;
-}
-
 export class DeviceControls implements ReactiveController {
   /** One control's command state per key (`entityId:control` - power, brightness, position, temp, mode, fan, mute,
    * playpause, lock; each independent so a slider drag never supersedes a button tap on the same entity). */

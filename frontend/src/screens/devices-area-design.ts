@@ -79,17 +79,7 @@ export function sectionBulkActions(card: CardId, rows: readonly DeviceRow[]): Se
   return (SECTION_BULK[card] ?? []).filter((a) => sectionBulkShown(a, rows));
 }
 
-export function isBulkLook(v: unknown): v is BulkLook {
-  return v === 'icon' || v === 'text' || v === 'both';
-}
-
 // ------------------------------------------------------------------------------------------------ main sensors
-
-/** A device the main strip may pick from. */
-export interface MainCandidate {
-  row: DeviceRow;
-  card: CardId;
-}
 
 const MOTION_CLASSES = new Set(['motion', 'occupancy', 'presence', 'moving']);
 const DOOR_CLASSES = new Set(['door', 'window', 'opening', 'garage_door']);

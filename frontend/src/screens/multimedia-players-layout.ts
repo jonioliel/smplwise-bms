@@ -11,7 +11,7 @@
  * `tabs: {screens, players, groups}`"): `screens` stays the document's own top level (0.1.149 layouts keep working), the new tabs
  * are `tabs.players` / `tabs.groups` (see TabLayout).
  */
-import type { CardGroup, GroupBy, MediaDevice, MediaLayout } from '../api/media-screens';
+import type { GroupBy, MediaDevice, MediaLayout } from '../api/media-screens';
 import { DEFAULT_CARD } from '../api/media-screens';
 import {
   ALL_ROOMS_LABEL, GROUPABLE_KINDS, OUTCOME_FAILED, UNPLACED_LABEL, isPlaying, liveGroupKeys, matchesState,
@@ -208,7 +208,6 @@ export function editPlayerGroups(devices: readonly PlayerDevice[], view: MediaLa
   const all: MediaLayout = { ...view, cards: Object.fromEntries(devices.map((d) => [d.key, { ...(view.cards[d.key] ?? DEFAULT_CARD), on: true }])) };
   return resolvePlayerGroups(devices, all, o);
 }
-export const asCardGroups = (g: readonly PlayerGroup[]): CardGroup[] => g.map((x) => ({ id: x.id, label: x.label, items: x.devices.map((d) => ({ device: d as unknown as MediaDevice, size: 'm' as const })) }));
 
 /** Whether a section is a floor (it may offer "עצור מוזיקה") rather than a room, the unplaced bucket or a free list. */
 export const isFloorSection = (g: Pick<PlayerGroup, 'id'>, groupBy: GroupBy, floors: boolean): boolean =>

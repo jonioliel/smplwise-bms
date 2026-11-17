@@ -25,7 +25,6 @@ import {
 import { DAY_ORDER, resolveDays } from '../api/schedules';
 
 export const DAY_MIN = 1440;
-export const SNAP_CHOICES = [5, 15, 30] as const;
 
 export interface Span {
   start: number;
@@ -232,11 +231,6 @@ export function duplicateSlot<S extends DraftSlot>(slots: S[], i: number, o: OpO
   const copy = make({ start: minutesToRaw(gap.start), stop: s.stop ? stopRaw(gap.start + len) : null, actions: s.actions.map((a) => ({ ...a, data: { ...a.data } })) });
   const r = sorted([...slots, copy], o.sun, slots.length);
   return { slots: r.slots, index: r.index };
-}
-
-/** Index of the slot whose stop is exactly this slot's start (contiguous predecessor). */
-export function contiguousBefore(slots: DraftSlot[], i: number, sun: SunTimes | null): number {
-  return linkedNeighbour(spansOf(slots, sun), slots.map((s) => s.stop == null), i, 'start');
 }
 
 /** Index of the slot whose start is exactly this slot's stop (contiguous successor). */
@@ -579,8 +573,3 @@ export const CATEGORY_LABEL: Record<SlotCategory, string> = {
   empty: 'ללא פעולה',
 };
 
-/** Only the sun's markers a grid draws: null when both are the fallback (still drawn, as an estimate). */
-export function sunMarks(sun: SunTimes | null): { rise: number; set: number } {
-  const s = sun ?? SUN_FALLBACK;
-  return { rise: s.sunrise, set: s.sunset };
-}

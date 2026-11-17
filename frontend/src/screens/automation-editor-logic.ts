@@ -208,7 +208,6 @@ export function updateBlock<D extends AnyDraft>(draft: D, uid: string, fn: (b: B
 }
 
 export const stepCount = (d: AnyDraft): number => walkDraft(d).filter((w) => w.section === 'action').length;
-export const depthOf = (d: AnyDraft, uid: string): number => walkDraft(d).find((w) => w.block.uid === uid)?.depth ?? 0;
 
 // ------------------------------------------------------------------------------------------------ block types (the type chooser)
 
@@ -300,7 +299,6 @@ export function stateChoices(entityId: string | undefined): Choice[] {
   if (dom === 'media_player') return [{ value: 'off', label: 'כבוי' }, { value: 'on', label: 'דלוק' }, { value: 'playing', label: 'מנגן' }, { value: 'paused', label: 'מושהה' }, { value: 'idle', label: 'לא מנגן' }];
   return ONOFF;
 }
-export const hasStateChoices = (entityId: string | undefined): boolean => !!entityId && /^(binary_sensor|person|device_tracker|climate|cover|lock|alarm_control_panel|media_player|light|switch|fan|input_boolean|siren|automation)\./.test(entityId);
 
 export const WEEKDAY_LABEL: Record<Weekday, string> = { sun: 'א׳', mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳' };
 export const MODE_LABEL: Record<string, string> = { single: 'התעלם', restart: 'התחל מחדש', queued: 'המתן בתור', parallel: 'הרץ במקביל' };

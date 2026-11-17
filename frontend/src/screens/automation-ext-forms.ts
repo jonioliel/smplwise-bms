@@ -41,8 +41,6 @@ if (!CONDITION_TYPES.some((t) => t.id === PRESENCE_TYPE.id)) CONDITION_TYPES.spl
 type ButtonBlock = Extract<TriggerBlock, { type: 'button' }>;
 let devicesCache: Promise<WallDevice[]> | null = null;
 const buttonsCache = new Map<string, Promise<DeviceButtons>>();
-/** Forget the cached switches (a test, or the settings changed). */
-export function resetButtonCaches(): void { devicesCache = null; buttonsCache.clear(); }
 const devices = (): Promise<WallDevice[]> => (devicesCache ??= wallDevices().then((r) => { r.devices.forEach((d) => wallDeviceNames.set(d.device_id, d.name)); return r.devices; }).catch(() => []));
 const buttonsOf = (id: string, itemId: string | null): Promise<DeviceButtons> => {
   const key = `${id}|${itemId ?? ''}`;

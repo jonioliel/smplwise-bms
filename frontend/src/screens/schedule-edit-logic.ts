@@ -650,11 +650,6 @@ export function estimateSun(draft: Pick<ScheduleDraft, 'slots'>, upcoming: Upcom
 
 // ------------------------------------------------------------------------------------------------ arguments of an action
 
-/** The argument specs of `service` for a device (from the catalogue), the ones the UI edits. */
-export function argSpecs(meta: EntityMeta | undefined, service: string): ArgSpec[] {
-  return meta?.actions.find((a) => a.service === service)?.args ?? [];
-}
-
 /** A slot's short summary for lists: "הדלקה · תאורת תקרה", "כיבוי · 3 התקנים". */
 export function slotSummary(slot: DraftSlot, meta: MetaMap): string {
   const g = groupActions(slot.actions);
