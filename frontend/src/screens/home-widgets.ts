@@ -52,13 +52,13 @@ const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
  * Shabbat are the whole site's and carry none. */
 const SCOPED_WIDGETS: readonly WidgetId[] = ['alarm', 'elevators', 'quick'];
 const DROP = svg`<path d="M12 3c3.5 4.4 6 7.4 6 10.6A6 6 0 0 1 6 13.6C6 10.4 8.5 7.4 12 3Z"/>`;
-const WIND = svg`<path d="M3 9h11a2.5 2.5 0 1 0-2.4-3.2M3 13h15a2.5 2.5 0 1 1-2.4 3.2M3 17h7"/>`;
+const WIND = GLYPHS.wind; // the field icon is the weather glyph
 const GAUGE = svg`<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 3.5-5"/>`;
 const EYE = svg`<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`;
 const SUN_HIGH = svg`<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>`;
 const EYE_OFF = svg`<path d="M3 3l18 18"/><path d="M10.6 6.2A9.6 9.6 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.2 3.9M6.4 6.9A17 17 0 0 0 2 12s3.5 6 10 6a9.6 9.6 0 0 0 3.6-.7"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>`;
 const CANDLE = svg`<path d="M8 21v-8h3v8M13 21v-6h3v6M6 21h12"/><path d="M9.5 6c1 1 1 2.2 0 3-1-.8-1-2 0-3ZM14.5 8c.8.8.8 1.8 0 2.4-.8-.6-.8-1.6 0-2.4Z"/>`;
-const HAVDALAH = svg`<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>`;
+const HAVDALAH = GLYPHS.moon; // the end of Shabbat is drawn with the moon glyph
 const CAL = svg`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>`;
 const CLOCK_ICON = svg`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`;
 const SHIELD = svg`<path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>`;

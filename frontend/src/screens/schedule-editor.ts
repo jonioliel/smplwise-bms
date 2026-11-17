@@ -1237,7 +1237,7 @@ export class ScheduleEditor extends LitElement {
     const off = makeOffSlot(plain[i]);
     if (!off) return;
     const next = [...work, withUid(off)];
-    if (sorted(next, this.sunNow).slots.some((_, a, all) => all.slice(a + 1).some((b, k) => this.overlapIdx(all[a], b, k)))) {
+    if (sorted(next, this.sunNow).slots.some((_, a, all) => all.slice(a + 1).some((b) => this.overlapIdx(all[a], b)))) {
       this.saveError = '';
       this.note = 'אין מקום לכיבוי בסיום: קיימת משבצת בשעה הזו.';
       return;
@@ -1245,7 +1245,7 @@ export class ScheduleEditor extends LitElement {
     this.setWork(next, work[i].uid);
   }
 
-  private overlapIdx(a: EditSlot, b: EditSlot, _k: number): boolean {
+  private overlapIdx(a: EditSlot, b: EditSlot): boolean {
     const x = spanOf(a, this.sunNow);
     const y = spanOf(b, this.sunNow);
     return !!x && !!y && x.start < y.end && y.start < x.end;
@@ -1962,8 +1962,7 @@ export class ScheduleEditor extends LitElement {
 
   private renderDialogs() {
     const cmp = this.conflict ? compareDrafts(this.currentDraft(), draftFromSchedule(this.conflict.current), (id) => (id ? this.meta.get(id)?.name ?? id : 'ללא התקן'), daysLabel) : [];
-    const allDays = resolveDays(this.draft.weekdays) ?? [];
-    const activeSet = new Set(allDays);
+    const activeSet = new Set(resolveDays(this.draft.weekdays) ?? []);
     return html`
       <schedule-entity-picker ?open=${this.pickerOpen} .selected=${this.entityIds} @close=${() => (this.pickerOpen = false)} @confirm=${(e: CustomEvent<{ ids: string[]; entities: CatalogEntity[] }>) => this.onPicked(e.detail.ids, e.detail.entities)}></schedule-entity-picker>
       <schedule-lowering-dialog

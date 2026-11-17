@@ -1097,7 +1097,6 @@ export class SystemDiagnostics extends LitElement {
     if (this.settings) setLongListsMode(this.settings['ui.long_lists']); // PAGING-SETTING-2439: the open control screens follow at once
   }
 
-  /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   /** POLISH4-WP7: the ONE save row of the host's tabs (it was copied six times): the primary action first, the saved / error line next
    * to it, only on the tab that produced the message. `.foot.sticky` (settingsKitStyles) keeps it in view on a phone while a long tab
    * scrolls under it. `hook` is the data attribute the specs and the walkthroughs find the button by. */
@@ -1107,6 +1106,7 @@ export class SystemDiagnostics extends LitElement {
     return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? 'שמור'}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.errorOf(o.tab) ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf(o.tab)}</span>` : nothing}</div>`;
   }
 
+  /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
       <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות ‹ חיבורים.</div>
@@ -1988,7 +1988,6 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
-  /** OFFBOX-RESTORE-2300: `backup.safety_before_local_restore` (default on), saved at once like the other switches. */
   /** OFFBOX-RESTORE-2300 (owner answer 2026-10-30): `backup.local_restore_scope` (default project+access), saved at once. */
   private async toggleLocalScope(on: boolean) {
     this.localSafetyBusy = true;
@@ -2005,6 +2004,7 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  /** OFFBOX-RESTORE-2300: `backup.safety_before_local_restore` (default on), saved at once like the other switches. */
   private async toggleLocalSafety(on: boolean) {
     this.localSafetyBusy = true;
     this.setError('backup', '');

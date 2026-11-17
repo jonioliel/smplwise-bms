@@ -1069,7 +1069,7 @@ export abstract class AutomationEditorBase extends LitElement {
     }
     if (f.kind === 'confirm') { this.dialog = 'confirm-save'; return; }
     if (f.kind === 'validation' && f.issues.length) { this.serverIssues = f.issues; this.touched = true; this.saveError = f.message; return; }
-    this.saveError = f.maybe_saved ? `${f.message}` : f.message;
+    this.saveError = f.message;
   }
 
   // ------------------------------------------------------------------------------------------------ conflict (mockup 27)

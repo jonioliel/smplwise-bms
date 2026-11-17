@@ -2093,7 +2093,7 @@ export class DevicesBuilding extends LitElement {
             count: t.unassigned.counts.entities,
             menu: this.infoCanEdit && !this.lay.editing && looseMode === 'always',
             menuOpen: this.looseMenu,
-            onOpen: (e: MouseEvent) => this.onAreaLink(e, 'unassigned', t.unassigned.name),
+            onOpen: (e: MouseEvent) => this.onAreaLink(e, 'unassigned'),
             onMenu: (open) => (this.looseMenu = open),
             onHide: () => void this.setTreeUnassigned('editing', true),
           })
@@ -2213,7 +2213,7 @@ export class DevicesBuilding extends LitElement {
     }
     const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label="סיכום האזור"
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id, a.name)}>${body}</a>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}</a>
       </devices-bulk-menu>`;
     if (quickRow) {
       return html`<div class="arow-q" data-area-quick-row=${a.area_id} ?data-lit=${on && !this.offline && !bad} ?data-bad=${bad}>${menu}${this.renderQuick(a, rowQuickMax(window.innerWidth), true)}</div>`;
@@ -2311,7 +2311,7 @@ export class DevicesBuilding extends LitElement {
 
   /** An area link (AREAPOPUP-297): the press opens the quick-control pop-up - a phone's bottom sheet (phone_area = sheet), the desktop's side
    * drawer or pop-up (desktop_area) - growing out of the pressed element; otherwise (the "screen" choices, a modifier key) the link navigates. */
-  private onAreaLink(e: MouseEvent, id: string, _name: string) {
+  private onAreaLink(e: MouseEvent, id: string) {
     if (this.lay.editing || e.defaultPrevented || e.metaKey || e.ctrlKey || e.button !== 0) return;
     const mode = pressTarget(this.isPhone, this.screen.phone_area, this.screen.desktop_area);
     if (mode === 'screen') return;
@@ -2507,7 +2507,7 @@ export class DevicesBuilding extends LitElement {
       data-counts=${pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ')}
       style=${bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})${on ? ';--sw-m-tone:var(--sw-lit);--sw-m-on:1' : ''}` : nothing}
       aria-label=${`${a.name} · ${c.entities} התקנים`}
-      @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id, a.name)}
+      @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}
     >
       <div class="tile-head">
         ${bubble ? html`<span class="ring"><sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${18}></sw-icon></span>` : nothing}

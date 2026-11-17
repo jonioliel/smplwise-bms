@@ -386,10 +386,10 @@ function renderCurve(w: GeomWall, v: StudioView, a: StudioActions, scale: number
   }
   if (corner !== undefined && cornerRoundable(w, corner, v.W, v.H)) {
     const max = maxCornerRadiusM(w, corner, v.W, v.H, scale);
-    let typed = Math.min(0.5, max);
+    const typed = Math.min(0.5, max);
     return html`<div class="two" data-curve-corner=${corner}>
       <sw-field label=${`${curveT('roundCorner')} ${corner + 1} · ${curveT('radius')}`}><input type="number" min="0.01" max=${max.toFixed(2)} step="0.05" data-ltr data-corner-radius
-        .value=${typed.toFixed(2)} @change=${(e: Event) => { typed = parseFloat((e.target as HTMLInputElement).value); }} /></sw-field>
+        .value=${typed.toFixed(2)} /></sw-field>
       <div class="btns"><sw-button size="sm" data-corner-apply @click=${(e: Event) => { const inp = (e.currentTarget as HTMLElement).closest('[data-curve-corner]')?.querySelector('input'); const x = parseFloat(inp?.value ?? String(typed)); if (x > 0) a.roundCorner?.(w.id, corner, x); }}>${curveT('apply')}</sw-button></div>
     </div>`;
   }

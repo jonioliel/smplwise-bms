@@ -1633,7 +1633,7 @@ export class DevicesLayoutController implements ReactiveController {
       apply,
       hint: custom ? undefined : 'ישות מוסתרת עדיין נספרת במונים של הכרטיס.',
       // a custom card may list any device of the installation, not only the area's own
-      allSystem: custom ? { on: this.pickAll, toggle: (v) => this.setPickAll(v, () => this.systemList()) } : undefined,
+      allSystem: custom ? { on: this.pickAll, toggle: (v) => this.setPickAll(v) } : undefined,
     });
   }
 
@@ -1709,7 +1709,7 @@ export class DevicesLayoutController implements ReactiveController {
       selected: new Set(own),
       apply: (next) => this.patch(key, { main: sensors.filter((e) => next.has(e.id)).map((e) => e.id).concat(own.filter((id) => next.has(id) && !sensors.some((e) => e.id === id))) }),
       hint: own.length ? 'בחירה ידנית מחליפה את הבחירה האוטומטית (טמפרטורה, לחות, תנועה, דלת - כשקיימים באזור).' : 'ללא בחירה: טמפרטורה, לחות, תנועה ודלת מוצגים אוטומטית, רק אם קיימים באזור.',
-      allSystem: { on: this.pickAll, toggle: (v) => this.setPickAll(v, () => this.systemList()) },
+      allSystem: { on: this.pickAll, toggle: (v) => this.setPickAll(v) },
     });
   }
 
@@ -1718,7 +1718,7 @@ export class DevicesLayoutController implements ReactiveController {
     return (this.allPool ?? []).map((e) => ({ id: e.entity_id, name: e.name, group: e.area_name ?? 'ללא אזור', sensor: e.card === 'sensors' || (e.card === 'security' && e.domain === 'binary_sensor') }));
   }
 
-  private setPickAll(on: boolean, _list: () => PickEntity[]) {
+  private setPickAll(on: boolean) {
     this.pickAll = on;
     this.update();
     if (on && this.allPool === null && !this.allPoolBusy) {
