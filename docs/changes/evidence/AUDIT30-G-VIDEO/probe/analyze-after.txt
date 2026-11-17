@@ -1,0 +1,9 @@
+camera     1366:   0 1440:   0 pg1 h1=30/800 mono=1 con L3 D0 native={}
+live       1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L0 D0 native={}
+wall       1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L6 D0 native={"select": 2}
+health     1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L0 D0 native={"table": 1}
+alarm      1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L0 D0 native={}
+incidents  1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L0 D0 native={"table": 1}
+events     1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L0 D0 native={"select": 3, "input[date]": 1, "table": 1}
+playback   1366:   0 1440:   0 pg1 h1=30/800 mono=1 con L0 D0 native={"select": 1, "input[date]": 1, "input[time]": 1}
+rules      1366:   0 1440:   0 pg1 h1=30/800 mono=0 con L0 D0 native={}

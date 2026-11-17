@@ -2,6 +2,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-button';
 import '../components/sw-sheet';
 import type { IconName } from '../components/sw-icon';
 import { SkinController } from '../design/skin';
@@ -39,7 +40,7 @@ export function stateBox(kind: 'empty' | 'error' | 'forbidden', icon: IconName, 
     <div class="empty ${kind === 'error' ? 'err' : ''}" role=${kind === 'error' ? 'alert' : 'status'}>
       <div class="ic"><sw-icon .name=${icon} size="28"></sw-icon></div>
       <h3>${title}</h3>
-      ${action ? html`<button type="button" class="btn ${action.primary ? 'pri' : ''}" @click=${action.run}>${action.label}</button>` : nothing}
+      ${action ? html`<sw-button variant=${action.primary ? 'primary' : 'secondary'} @click=${action.run}>${action.label}</sw-button>` : nothing}
     </div>
   </div>`;
 }

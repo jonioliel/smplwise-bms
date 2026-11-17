@@ -163,7 +163,13 @@ test.describe('account page', () => {
     if (phone(info)) await page.locator('[data-next]').click();
     else await page.locator('[data-step-btn="2"]').click();
     await expect(page.locator('[data-sentence]')).toHaveText('לוח סטודיו + 30% × תאורת לובי');
-    if (phone(info)) for (let i = 0; i < 4; i++) await page.locator('[data-next]').click();
+    // AUDIT30-E: "הבא" is an sw-button now; a click on its host while the inner button is still disabled (the step's data loading on a
+    // slow machine) is dropped, so each press waits for the key and then for the next step
+    if (phone(info)) for (let s = 3; s <= 6; s++) {
+      await expect(page.locator('[data-next] button')).toBeEnabled();
+      await page.locator('[data-next]').click();
+      await expect(page.locator('[data-elec="wizard"] .pstep b')).toHaveText(`שלב ${s} מתוך 6`);
+    }
     else await page.locator('[data-step-btn="6"]').click();
     await page.locator('[data-opt="off"]').click();
     await page.locator('[data-save]').click();

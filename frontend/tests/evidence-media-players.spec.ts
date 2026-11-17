@@ -76,8 +76,9 @@ test.describe('players page (mocked backend)', () => {
     await open(page, '/multimedia/players');
     expect(await sectionIds(page)).toEqual(['g', 'u1', 'b', 'none']);
     expect(await playersPage(page).locator('section[data-group] h2').allTextContents()).toEqual(['קומת קרקע', 'קומה 1', 'מרתף', 'לא משויכים']);
-    await expect(playersPage(page).locator('.amb')).toContainText('7 מנגנים מתוך 16');
-    await expect(playersPage(page).locator('.amb')).toContainText('2 לא זמין');
+    // AUDIT30-D3: the summary is sw-page's subheading
+    await expect(playersPage(page).locator('sw-page.page .sub')).toContainText('7 מנגנים מתוך 16');
+    await expect(playersPage(page).locator('sw-page.page .sub')).toContainText('2 לא זמין');
     // a leader: the title of the song, the group chip; a member: "מנגן עם סלון", no title of its own
     const liv = card(page, 'mp-liv');
     await expect(liv).toContainText('רמקול סלון');

@@ -197,10 +197,13 @@ export class AutomationDrawer extends LitElement {
       font-weight: 600;
       color: var(--dv-text);
     }
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the product's Blue Wash pair, never a solid text-colour block */
     .rc[aria-pressed='true'] {
-      background: var(--dv-text);
-      color: var(--mm-text-inverse);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
       border-color: transparent;
+      font-weight: 600;
+      box-shadow: none;
     }
     .ver {
       display: grid;

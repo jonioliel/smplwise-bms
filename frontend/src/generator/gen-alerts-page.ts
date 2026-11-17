@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -124,7 +125,7 @@ export class GenAlertsPage extends LitElement {
       <div class="ic"><sw-icon name="warning" size="20"></sw-icon></div>
       <div class="grow"><div class="t1">${a.title} ${sev(a.severity)}${a.acknowledged ? html`<span class="sev mut">${G.alerts.ackedBy}</span>` : nothing}${a.count > 1 ? html`<span class="sev mut">${fill(G.alerts.repeated, { n: a.count })}</span>` : nothing}</div>
         <div class="t2"><span><sw-icon name="clock" size="12"></sw-icon> <span class="num">${fmtDateTime(a.raised_at)}</span> · ${durText(a)}</span></div></div>
-      ${a.acknowledged ? nothing : html`<button class="btn sm pri" ?disabled=${this.busy} @click=${(e: Event) => { e.stopPropagation(); void this.act(() => ackAlert(a.id)); }} data-ack><sw-icon name="check" size="16"></sw-icon> ${G.alerts.ack}</button>`}
+      ${a.acknowledged ? nothing : html`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${(e: Event) => { e.stopPropagation(); void this.act(() => ackAlert(a.id)); }} data-ack>${G.alerts.ack}</sw-button>`}
     </div>`;
   }
 
@@ -134,7 +135,7 @@ export class GenAlertsPage extends LitElement {
     if (!list.length) return html`<div class="row"><span class="h2">${G.alerts.active}</span></div>
       <div class="card"><div class="empty" data-state="empty"><div class="ic"><sw-icon name="check" size="26"></sw-icon></div><h3>${G.alerts.emptyTitle}</h3><a class="btn ghost sm" href="#/infra/generator/history?device=${encodeURIComponent(this.device.id)}">${G.alerts.toHistory}</a></div></div>`;
     return html`<div class="row"><span class="h2">${G.alerts.active}</span>${c.unacked ? html`<span class="chip c-err">${fill(G.alerts.unacked, { n: c.unacked })}</span>` : nothing}${c.acked ? html`<span class="chip c-mut">${fill(G.alerts.acked, { n: c.acked })}</span>` : nothing}<div class="sp"></div>
-      ${c.unacked ? html`<button class="btn" ?disabled=${this.busy} @click=${() => this.act(() => ackAll(this.device.id))} data-ack-all><sw-icon name="check" size="16"></sw-icon> ${G.alerts.ackAll}</button>` : nothing}</div>
+      ${c.unacked ? html`<sw-button icon="check" ?disabled=${this.busy} @click=${() => this.act(() => ackAll(this.device.id))} data-ack-all>${G.alerts.ackAll}</sw-button>` : nothing}</div>
       <div class="list" data-state="ready" style="flex-direction:column">${list.map((a) => this.card(a))}</div>`;
   }
 
@@ -154,13 +155,13 @@ export class GenAlertsPage extends LitElement {
         ${sel(G.history.type, 'type', types.map((t) => [t.key, t.title]))}
         ${sel(G.history.ack, 'ack', [['yes', G.history.yes], ['no', G.history.no]])}
         ${sel(G.history.state, 'state', [['open', G.history.stateOpen], ['closed', G.history.stateClosed]])}
-        ${activeFilters(f) ? html`<button class="btn ghost sm" @click=${() => this.setFilter({ severity: '', type: '', ack: '', state: '' })}>${G.history.clear}</button>` : nothing}</div>
+        ${activeFilters(f) ? html`<sw-button variant="ghost" size="sm" @click=${() => this.setFilter({ severity: '', type: '', ack: '', state: '' })}>${G.history.clear}</sw-button>` : nothing}</div>
       ${!shown.length ? html`<div class="card"><div class="empty" data-state="empty"><div class="ic"><sw-icon name="check" size="26"></sw-icon></div><h3>${G.history.empty}</h3></div></div>` : html`
         <div class="mut" data-count>${fill(G.history.count, { n: shown.length })}</div>
         <div class="card flush hide-phone" data-state="ready"><div class="scrollx"><table class="t"><thead><tr><th>${G.history.cols.at}</th><th>${G.history.cols.alert}</th><th>${G.history.cols.severity}</th><th>${G.history.cols.state}</th><th>${G.history.cols.ack}</th></tr></thead>
           <tbody>${shown.map((a) => html`<tr class="go" data-alert=${a.id} @click=${() => this.open(a.id)}><td class="num">${fmtDateTime(a.raised_at)}</td><td class="b">${a.title}</td><td>${sev(a.severity)}</td><td>${stateCell(a)}</td><td>${ackCell(a)}</td></tr>`)}</tbody></table></div></div>
         <div class="list only-phone" style="flex-direction:column">${shown.map((a) => html`<button class="li" data-alert=${a.id} @click=${() => this.open(a.id)}><div class="grow"><div class="t1">${a.title}</div><div class="t2 num">${fmtDateTime(a.raised_at)} · ${a.state === 'open' ? G.alerts.open : G.alerts.cleared}</div></div>${sev(a.severity)}</button>`)}</div>
-        ${this.next ? html`<button class="btn" @click=${() => this.load(false, true)}>${G.alerts.loadMore}</button>` : nothing}`}`;
+        ${this.next ? html`<sw-button @click=${() => this.load(false, true)}>${G.alerts.loadMore}</sw-button>` : nothing}`}`;
   }
 
   private drawer() {
@@ -181,8 +182,8 @@ export class GenAlertsPage extends LitElement {
         ${a.acknowledged ? html`<div class="notice" data-acked><sw-icon name="check" size="18"></sw-icon><span>${G.detail.acked} <span class="num">${fmtDateTime(a.acked_at)}</span>${a.ack_note ? ` · ${a.ack_note}` : ''}</span></div>`
           : html`<div class="fld"><label for="ack-note">${G.detail.note}</label><textarea id="ack-note" class="note" placeholder=${G.detail.notePh} .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLTextAreaElement).value)}></textarea></div>`}
         ${this.notice ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.notice}</div></div>` : nothing}
-        <div class="row">${a.acknowledged ? nothing : html`<button class="btn pri" ?disabled=${this.busy} @click=${() => this.act(() => ackAlert(a.id, this.note.trim()))} data-ack-detail><sw-icon name="check" size="16"></sw-icon> ${G.detail.ack}</button>`}
-          ${a.state === 'open' ? html`<button class="btn" ?disabled=${this.busy} @click=${() => this.act(() => muteAlert(a.id, 24))} data-mute>${G.detail.mute}</button>` : nothing}</div>
+        <div class="row">${a.acknowledged ? nothing : html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.act(() => ackAlert(a.id, this.note.trim()))} data-ack-detail>${G.detail.ack}</sw-button>`}
+          ${a.state === 'open' ? html`<sw-button ?disabled=${this.busy} @click=${() => this.act(() => muteAlert(a.id, 24))} data-mute>${G.detail.mute}</sw-button>` : nothing}</div>
       </div>` : this.notice ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.notice}</div></div>` : html`<div class="skl" style="block-size:120px"></div>`}
     </sw-drawer>`;
   }

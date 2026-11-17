@@ -15,6 +15,7 @@ import { parseAssignParam } from '../tickets/create-assign-model';
 import { tt } from '../tickets/text';
 import { t } from '../i18n/he';
 import { setTicketNames } from '../tickets/naming';
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 /**
  * CR-038 D18: the full-screen form of a ticket (`#/tickets/<id>`) - the deep-link address of a ticket (notifications of slice 6 point here),
@@ -46,7 +47,7 @@ export class TicketsDetailPage extends LitElement {
         padding-inline: var(--sw-s-4);
       }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback() {
     super.connectedCallback();

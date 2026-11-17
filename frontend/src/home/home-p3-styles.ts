@@ -95,16 +95,16 @@ export const homeP3Styles = css`
   .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
   .grp-list { display: grid; gap: 4px; inline-size: 100%; }
   /* the tablet's 56 px target rule inside the phase 3 sheets too (the round-27 sheets drew 54) */
-  @media (min-width: 701px) { .sheet.v3 .rb { inline-size: 56px; block-size: 56px; } .sheet.v3 .hsw, .sheet.v3 .hbtn, .sheet.v3 .chip2, .sheet.v3 .seg button { min-block-size: 56px; } }
+  @media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .sheet.v3 .rb { inline-size: 56px; block-size: 56px; } .sheet.v3 .hsw, .sheet.v3 .hbtn, .sheet.v3 .chip2, .sheet.v3 .seg button { min-block-size: 56px; } }
 
   /* ---- 1024 tablets */
-  @media (max-width: 1100px) and (min-width: 701px) {
+  @media (max-width: 1100px) and (min-width: 900px), (max-width: 1100px) and (min-width: 701px) and (orientation: landscape) {
     .md-t b { font-size: 22px; } .md-src .chip2 { padding: 0 12px !important; }
   }
-  @media (max-height: 800px) and (min-width: 701px) { .art { border-radius: 16px; } }
+  @media (max-height: 800px) and (min-width: 900px), (max-height: 800px) and (min-width: 701px) and (orientation: landscape) { .art { border-radius: 16px; } }
 
   /* ---- phone */
-  @media (max-width: 700px) {
+  @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
     .md-body { display: flex; flex-direction: column; gap: 8px; } .md-now { flex: 1 1 auto; padding: 10px 14px; gap: 6px 12px; grid-template-rows: auto auto auto auto auto; }
     .art { inline-size: 60px; border-radius: 14px; } .md-t b { font-size: 18px; } .md-prog { display: none; }
     .md-ctl { gap: 18px; } .md-ctl .rb.xl { inline-size: 60px; block-size: 60px; } .md-src .chip2 { padding: 0 12px !important; font-size: 14px; min-block-size: 44px; } .volr input { block-size: 44px; }

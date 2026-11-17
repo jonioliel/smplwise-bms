@@ -46,9 +46,10 @@ export class CalAttendeePicker extends LitElement {
     li.att .ct { direction: ltr; unicode-bidi: isolate; color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
     .mini { font: inherit; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); min-block-size: 28px; min-inline-size: 28px; padding: 0 8px; border: 0; border-radius: var(--sw-r-pill);
       background: transparent; color: var(--sw-text-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-    .mini[aria-pressed='true'] { background: var(--sw-heading); color: var(--sw-surface-solid); }
+    /* AUDIT30-F1 (#4): the selected filter is the Blue Wash pair, like every selected chip of the module */
+    .mini[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
     .mini:focus-visible, [role='option']:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
-    @media (hover: hover) and (pointer: fine) { .mini:not([disabled]):hover { background: var(--sw-hover-wash); } .mini[aria-pressed='true']:hover { background: var(--sw-heading); } }
+    @media (hover: hover) and (pointer: fine) { .mini:not([disabled]):hover { background: var(--sw-hover-wash); } .mini[aria-pressed='true']:hover { background: var(--sw-accent-soft); } }
     fieldset { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); margin: 0; padding: 10px; display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
     legend { padding: 0 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .row { display: flex; gap: 6px; flex-wrap: wrap; }

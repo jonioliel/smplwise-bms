@@ -1,0 +1,2 @@
+$ impeccable.cmd detect --json --viewport 1440x900 http://127.0.0.1:4394/#/multimedia/screens
+[]

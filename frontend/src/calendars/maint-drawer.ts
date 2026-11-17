@@ -1,6 +1,8 @@
 import { LitElement, html, nothing, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-drawer';
+import '../components/sw-button';
 import { ApiError, describeError } from '../api/client';
 import { dateInputLang } from '../api/day-format';
 import type { MaintPreview, OverlapMode } from '../api/calendars';
@@ -25,15 +27,10 @@ const MODE_TEXT: Record<OverlapMode, string> = {
 @customElement('cal-maint-drawer')
 export class CalMaintDrawer extends LitElement {
   static styles = [calCss, css`
-    :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: block; }
-    .scrim { position: absolute; inset: 0; background: var(--sw-overlay); }
-    aside { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: min(500px, 100vw); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-3);
-      display: flex; flex-direction: column; animation: in var(--sw-spring-drawer-ms) var(--sw-ease-drawer); }
-    @keyframes in { from { transform: translateX(24px); opacity: 0; } }
-    header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 10px; }
-    header h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
-    .body { flex: 1; min-block-size: 0; overflow: hidden; padding: 6px 22px 12px; display: flex; flex-direction: column; gap: 12px; }
-    footer { display: flex; gap: 10px; padding: 14px 22px calc(14px + env(safe-area-inset-bottom)); border-block-start: 1px solid var(--sw-border); }
+    /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (scrim, focus trap, Escape, focus return, one header and action row) */
+    :host { display: contents; }
+    sw-drawer { --sw-drawer-sheet-h: 88dvh; }
+    .content { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
     .ctls { display: flex; gap: 8px; min-inline-size: 0; }
     .ctls > .inp { inline-size: auto; flex: 1 1 0; padding-inline: 10px; }
     .ctls > .inp[type='date'] { flex-grow: 1.5; }
@@ -61,12 +58,9 @@ export class CalMaintDrawer extends LitElement {
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     .more { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
     @media (max-width: 699px) {
-      aside { inset: auto 0 0 0; inline-size: 100%; max-block-size: 94dvh; border-start-start-radius: var(--sw-r-2xl); border-start-end-radius: var(--sw-r-2xl); }
-      header { padding: 14px 16px 6px; } .body { padding: 4px 16px 8px; gap: 10px; } footer { padding-inline: 16px; }
+      .content { gap: 10px; }
       .fld { grid-template-columns: minmax(0, 1fr); }
-      @keyframes in { from { transform: translateY(24px); opacity: 0; } }
     }
-    @media (prefers-reduced-motion: reduce) { aside { animation: none; } }
   `];
 
   @property({ attribute: false }) ctx: CalCtx | null = null;
@@ -96,18 +90,18 @@ export class CalMaintDrawer extends LitElement {
     this.calId = this.maintCals()[0]?.id ?? '';
     const rooms = this.roomCals();
     this.rooms = d.rooms?.length ? d.rooms.filter((r) => rooms.some((c) => c.id === r)) : rooms.slice(0, 1).map((c) => c.id);
-    window.addEventListener('keydown', this.onKey);
     this.schedule();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    window.removeEventListener('keydown', this.onKey);
     clearTimeout(this.timer);
   }
 
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.close();
+  /** The shared drawer closed itself (Escape, the scrim, its close button): its composed event stops here, the page gets the module's own. */
+  private onDrawerClose = (e: Event): void => {
+    e.stopPropagation();
+    this.close();
   };
 
   private maintCals() {
@@ -199,11 +193,9 @@ export class CalMaintDrawer extends LitElement {
     const label = blocked ? 'אי אפשר לשמור' : overlaps.length && mode === 'first_holds' ? 'שמירה כממתין להחלטה' : 'הצבת החלון';
     const shown = overlaps.slice(0, this.ctx?.device === 'phone' ? 2 : 3);
     const roomName = (id: string) => this.ctx?.cals.find((c) => c.id === id)?.name ?? '';
-    return html`<div class="scrim" @click=${() => this.close()}></div>
-      <aside role="dialog" aria-modal="true" aria-label="חלון תחזוקה חדש" data-maint-drawer data-mode=${mode}>
-        <header><div class="grow"><h2>חלון תחזוקה חדש</h2><div class="muted num">${this.rooms.length} ${this.rooms.length === 1 ? 'חדר' : 'חדרים'}${dayText ? ` · ${dayText}` : ''}</div></div>
-          <button type="button" class="btn icon" aria-label="סגירה" @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
-        <div class="body">
+    return html`<sw-drawer modal open heading="חלון תחזוקה חדש" subheading=${`${this.rooms.length} ${this.rooms.length === 1 ? 'חדר' : 'חדרים'}${dayText ? ` · ${dayText}` : ''}`}
+        data-maint-drawer data-mode=${mode} @close=${this.onDrawerClose}>
+        <div class="content">
           ${!cals.length ? html`<div class="note warn" data-no-maint-cal><div><b>אין יומן אחזקה שאפשר להציב בו</b><span class="muted">מנהל המערכת יוצר יומן מסוג אחזקה במסך ניהול יומנים.</span></div></div>` : nothing}
           <div class="fld"><label for="mc">יומן</label><select id="mc" class="inp" .value=${this.calId} @change=${(e: Event) => { this.calId = (e.target as HTMLSelectElement).value; this.schedule(); }}>
             ${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select></div>
@@ -236,11 +228,9 @@ export class CalMaintDrawer extends LitElement {
           : pv ? html`<div class="note" data-no-overlap><sw-icon name="check" size="16"></sw-icon><div><b>אין חפיפה עם הזמנות</b><span class="muted">החלון יוצב מיד.</span></div></div>` : nothing}
           ${this.err ? html`<div class="err" role="alert" data-maint-error>${this.err}</div>` : nothing}
         </div>
-        <footer>
-          <button type="button" class="btn pri" ?disabled=${blocked || this.busy || !cals.length || !this.rooms.length} data-maint-save @click=${() => void this.save()}><sw-icon name="wrench" size="16"></sw-icon>${label}</button>
-          <button type="button" class="btn" @click=${() => this.close()}>ביטול</button>
-        </footer>
-      </aside>`;
+        <sw-button slot="footer" variant="primary" icon="wrench" ?disabled=${blocked || this.busy || !cals.length || !this.rooms.length} data-maint-save @click=${() => void this.save()}>${label}</sw-button>
+        <sw-button slot="footer" variant="secondary" data-maint-cancel @click=${() => this.close()}>ביטול</sw-button>
+      </sw-drawer>`;
   }
 }
 

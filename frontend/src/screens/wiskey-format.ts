@@ -47,6 +47,20 @@ export function offsetLabel(offset: number) {
   return `UTC${offset < 0 ? '-' : '+'}${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}${seconds % 60 ? ':' + String(seconds % 60).padStart(2, '0') : ''}`;
 }
 
+/** AUDIT30-H (finding 15, owner Q10 = א): an operator view reads an instant in the installation's (or station's) zone WITHOUT the
+ * `UTC+03:00` label - the offset is a technical detail and stays in `formatTime` (the event's technical details, installer and
+ * system screens). The same zone arithmetic as `formatTime`; '—' for anything without an explicit offset. */
+export function formatLocalTime(value: string | null | undefined, locale = 'he-IL', zone: DisplayZone = UTC_ZONE) {
+  if (!value || !/(Z|[+-][0-9]{2}:[0-9]{2})$/.test(value)) return '—';
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return '—';
+  try {
+    return new Date(ms + offsetAt(ms, zone) * 1000).toLocaleString(locale, { timeZone: 'UTC' });
+  } catch {
+    return new Date(ms).toLocaleString(locale);
+  }
+}
+
 /** An ISO instant (with an explicit offset) as local time in `zone` plus its UTC offset; '—' for anything else. */
 export function formatTime(value: string | null | undefined, locale = 'he-IL', zone: DisplayZone = UTC_ZONE) {
   if (!value || !/(Z|[+-][0-9]{2}:[0-9]{2})$/.test(value)) return '—';

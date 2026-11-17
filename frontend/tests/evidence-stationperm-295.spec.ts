@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route, type TestInfo } from '@playwright/test';
 import { install, newMock } from './wiskey-people-mock';
 import type { SpPerson, SpStation } from '../src/api/station-permissions';
+import { pickOption } from './helpers/wk-choose';
 
 // STATIONPERM-295: evidence for the per-station access block in the person's page (tab "גישה"), against the people mock plus a mock of
 // routers/access_station_permissions.py. No WisKey, no device. SW_SHOTS=<dir> saves the screenshots there.
@@ -103,7 +104,7 @@ test('approve and add a station send their own calls', async ({ page }) => {
   await block(page).locator('[data-sp-station="mgmt"] [data-sp-action="approve"]').click();
   await expect.poll(() => sp.writes.length).toBe(1);
   expect(sp.writes[0]).toEqual({ method: 'POST', path: 'access-station-permissions/people/p1/stations/mgmt/approve', body: { revision: 1 } });
-  await block(page).locator('[data-sp-add-pick]').selectOption('lab');
+  await pickOption(block(page).locator('[data-sp-add-pick]'), 'lab');
   await block(page).locator('[data-sp-add]').click();
   await expect.poll(() => sp.writes.length).toBe(2);
   expect(sp.writes[1]).toEqual({ method: 'PUT', path: 'access-station-permissions/people/p1/stations/lab', body: { effect: 'allow', revision: 0, relays: [1] } });

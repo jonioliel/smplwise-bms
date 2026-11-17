@@ -7,6 +7,7 @@
  * meter, a negative result. Emits `change` with `{tokens, ast, valid, preset}`.
  */
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, type ElecMeter, type FormulaPreview } from '../api/electricity-billing';
 import { SkinController } from '../design/skin';
@@ -260,9 +261,9 @@ export class ElecFormulaEditor extends LitElement {
               <button type="button" class="btn" data-op="percent" aria-label="אחוז" @click=${() => this.togglePercent()}>%</button>
               <button type="button" class="btn" data-op="(" aria-label="סוגר פותח" @click=${() => this.addOp('(')}>(</button>
               <button type="button" class="btn" data-op=")" aria-label="סוגר סוגר" @click=${() => this.addOp(')')}>)</button>
-              <button type="button" class="btn" data-number-btn @click=${() => this.dispatchEvent(new CustomEvent('number-request', { bubbles: true, composed: true }))}>מספר</button>
+              <sw-button data-number-btn @click=${() => this.dispatchEvent(new CustomEvent('number-request', { bubbles: true, composed: true }))}>מספר</sw-button>
               <span class="sp"></span>
-              <button type="button" class="btn ghost" data-backspace @click=${() => this.backspace()}>⌫ מחיקה</button>
+              <sw-button variant="ghost" data-backspace @click=${() => this.backspace()}>⌫ מחיקה</sw-button>
             </div>
             ${this.menu ? html`<div class="menu" role="listbox" data-meter-menu>${this.meters.map((m) => html`<button type="button" role="option" data-meter-option=${m.id} @click=${() => this.addMeter(m.id)}><span>${m.name}</span>${m.last_period_kwh !== null ? html`<span class="mut num">${f2(m.last_period_kwh)}</span>` : nothing}</button>`)}</div>` : nothing}`}
       ${sent ? html`<div class="mut" data-sentence>${sent}</div>` : nothing}

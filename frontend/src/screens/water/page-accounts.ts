@@ -1,4 +1,5 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit';
+import '../../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-sheet';
@@ -275,12 +276,12 @@ export class WaterAccountsPage extends LitElement {
           <div class="list" data-formula-terms>${f.terms.map((t, i) => html`<div class="row" style="flex-wrap:nowrap" data-term=${i}>
             <div class="seg" role="group" aria-label=${wt('accFormula')}><button type="button" aria-pressed=${t.sign > 0 ? 'true' : 'false'} data-sign="+" @click=${() => this.setTerm(i, { sign: 1 })}>+</button><button type="button" aria-pressed=${t.sign < 0 ? 'true' : 'false'} data-sign="-" @click=${() => this.setTerm(i, { sign: -1 })}>−</button></div>
             <select aria-label=${wt('accPickMeter')} style="flex:1" @change=${(e: Event) => this.setTerm(i, { meter_id: (e.target as HTMLSelectElement).value })}>${meterOpts(t.meter_id)}</select>
-            <button type="button" class="btn ghost sm icononly" aria-label=${wt('remove')} @click=${() => (this.form = { ...this.form, terms: f.terms.filter((_, j) => j !== i), keepAst: null })}><sw-icon name="close" size="13"></sw-icon></button></div>`)}</div>
+            <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${wt('remove')} @click=${() => (this.form = { ...this.form, terms: f.terms.filter((_, j) => j !== i), keepAst: null })}></sw-button></div>`)}</div>
           <div class="row">
-            <button type="button" class="btn sm" data-add-plus @click=${() => (this.form = { ...f, terms: [...f.terms, { sign: 1, meter_id: '' }], keepAst: null })}>${wt('accAddPlus')}</button>
-            <button type="button" class="btn sm" data-add-minus @click=${() => (this.form = { ...f, terms: [...f.terms, { sign: -1, meter_id: '' }], keepAst: null })}>${wt('accAddMinus')}</button>
+            <sw-button size="sm" data-add-plus @click=${() => (this.form = { ...f, terms: [...f.terms, { sign: 1, meter_id: '' }], keepAst: null })}>${wt('accAddPlus')}</sw-button>
+            <sw-button size="sm" data-add-minus @click=${() => (this.form = { ...f, terms: [...f.terms, { sign: -1, meter_id: '' }], keepAst: null })}>${wt('accAddMinus')}</sw-button>
             <span class="sp"></span>
-            <button type="button" class="btn sm" data-loss-preset ?disabled=${!this.meters.length} @click=${() => void this.lossPreset()}>${wt('accLossPreset')}</button></div>
+            <sw-button size="sm" data-loss-preset ?disabled=${!this.meters.length} @click=${() => void this.lossPreset()}>${wt('accLossPreset')}</sw-button></div>
           ${this.errs.formula ? html`<div class="msg" role="alert" data-field-error="formula">${this.errs.formula}</div>` : nothing}</div>
         <div class="formgrid">
           <div class="fld"><span class="lbl">${wt('accPeriod')}</span><div class="seg" role="group" aria-label=${wt('accPeriod')}>
@@ -294,14 +295,14 @@ export class WaterAccountsPage extends LitElement {
             <button type="button" aria-pressed=${f.status === 'paused' ? 'true' : 'false'} @click=${() => this.setF('status', 'paused')}>${wt('accPaused')}</button></div></div>` : nothing}
         </div>
         ${this.error ? html`<div class="alert err" role="alert">${this.error}</div>` : nothing}
-        <div class="row formacts"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save(id)}>${wt('save')}</button>
-          <button type="button" class="btn" @click=${() => navigate(id ? `${BASE}/${id}` : BASE)}>${wt('cancel')}</button><span class="sp"></span>
-          ${id ? html`<button type="button" class="btn dng" data-delete @click=${() => (this.confirmDel = true)}>${wt('accDelete')}</button>` : nothing}</div>
+        <div class="row formacts"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save(id)}>${wt('save')}</sw-button>
+          <sw-button @click=${() => navigate(id ? `${BASE}/${id}` : BASE)}>${wt('cancel')}</sw-button><span class="sp"></span>
+          ${id ? html`<sw-button variant="danger" data-delete @click=${() => (this.confirmDel = true)}>${wt('accDelete')}</sw-button>` : nothing}</div>
       </div>
       <elec-dialog heading=${wt('accDelete')} ?open=${this.confirmDel} data-dialog="delete-account" @close=${() => (this.confirmDel = false)}>
         <div>${wt('accDeleteBody')}</div>
-        <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.removeRecord()}>${wt('accDelete')}</button>
-        <button slot="actions" type="button" class="btn" @click=${() => (this.confirmDel = false)}>${wt('cancel')}</button>
+        <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.removeRecord()}>${wt('accDelete')}</sw-button>
+        <sw-button slot="actions" @click=${() => (this.confirmDel = false)}>${wt('cancel')}</sw-button>
       </elec-dialog>
     </sw-sheet>`;
   }
@@ -314,12 +315,12 @@ export class WaterAccountsPage extends LitElement {
     const head = html`<div class="row head">
       <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-acc-search placeholder=${wt('accSearch')} aria-label=${wt('accSearch')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       <span class="sp"></span>
-      ${this.access.manage ? html`<button type="button" class="btn pri" data-new-account @click=${() => navigate(`${BASE}/new`)}><sw-icon name="plus" size="15"></sw-icon>${wt('newAccount')}</button>` : nothing}
+      ${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-new-account @click=${() => navigate(`${BASE}/new`)}>${wt('newAccount')}</sw-button>` : nothing}
     </div>`;
     if (this.st === 'loading') return html`<div class="page" data-water="accounts" data-state="loading">${head}${skeletonCard()}</div>`;
     if (this.st === 'error') return html`<div class="page" data-water="accounts" data-state="error"><sw-state-panel state="error" heading=${wt('loadAccountsError')} actionLabel=${wt('retry')} @action=${() => void this.loadList()}></sw-state-panel></div>`;
     if (!this.rows.length) {
-      return html`<div class="page" data-water="accounts" data-state="empty"><sw-state-panel icon="drop" state="empty" heading=${wt('emptyAccounts')}>${this.access.manage ? html`<button type="button" class="btn pri" data-new-account @click=${() => navigate(`${BASE}/new`)}>${wt('newAccount')}</button>` : nothing}</sw-state-panel></div>`;
+      return html`<div class="page" data-water="accounts" data-state="empty"><sw-state-panel icon="drop" state="empty" heading=${wt('emptyAccounts')}>${this.access.manage ? html`<sw-button variant="primary" data-new-account @click=${() => navigate(`${BASE}/new`)}>${wt('newAccount')}</sw-button>` : nothing}</sw-state-panel></div>`;
     }
     const st = this.statuses;
     const m3sum = this.rows.reduce((s, r) => s + Number(st[r.id]?.m3_so_far ?? 0), 0);
@@ -417,8 +418,8 @@ export class WaterAccountsPage extends LitElement {
     const t = tab === 'history' || tab === 'bills' ? tab : 'status';
     return html`<div class="page" data-water="account" data-state="ready" data-account-id=${a.id}>
       <div class="backrow"><a class="btn ghost sm" href=${`#${BASE}`} data-back><sw-icon name="chevronBack" size="13"></sw-icon>${wt('accounts')}</a><b class="h3">${a.name}</b>${chip(accountChip(a))}<span class="sp"></span>
-        ${this.access.bills ? html`<button type="button" class="btn" data-create-bill ?disabled=${this.busy} @click=${() => void this.createDraft(a)}>${wt('createBill')}</button>` : nothing}
-        ${this.access.manage ? html`<button type="button" class="btn" data-edit @click=${() => navigate(`${BASE}/${a.id}/edit`)}><sw-icon name="edit" size="14"></sw-icon>${wt('edit')}</button>` : nothing}</div>
+        ${this.access.bills ? html`<sw-button data-create-bill ?disabled=${this.busy} @click=${() => void this.createDraft(a)}>${wt('createBill')}</sw-button>` : nothing}
+        ${this.access.manage ? html`<sw-button icon="edit" data-edit @click=${() => navigate(`${BASE}/${a.id}/edit`)}>${wt('edit')}</sw-button>` : nothing}</div>
       <div class="seg" role="group" aria-label=${wt('accounts')} data-acc-tabs style="align-self:flex-start">
         <button type="button" aria-pressed=${t === 'status' ? 'true' : 'false'} @click=${() => navigate(`${BASE}/${a.id}`)}>${wt('tabStatus')}</button>
         <button type="button" aria-pressed=${t === 'history' ? 'true' : 'false'} @click=${() => navigate(`${BASE}/${a.id}/history`)}>${wt('tabHistory')}</button>

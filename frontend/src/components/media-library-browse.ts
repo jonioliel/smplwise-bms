@@ -116,7 +116,7 @@ export class MediaLibraryBrowse extends LitElement {
         cursor: pointer;
         flex: none;
         padding: 6px 12px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--mr-text-2);
@@ -178,7 +178,7 @@ export class MediaLibraryBrowse extends LitElement {
         gap: 6px;
         min-block-size: 36px;
         padding-inline: 14px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--mr-text-2);

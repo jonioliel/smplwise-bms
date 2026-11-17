@@ -1,5 +1,6 @@
 import { LitElement, html, svg, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-page'; // AUDIT30-C-TICKETS (#6): the one page frame
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -34,6 +35,7 @@ import {
   type AgendaEntry, type CardKey, type HandlerRow, type KpiKey, type Kpis, type OverviewSettings,
 } from '../tickets/overview-model';
 import { timeText, dayMonthText } from '../api/day-format';
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
 /** OVERVIEWFIT-297: a drawn widget with what the pages need - its grid span, its title (the pager's labels) and whether it carries a red count */
@@ -98,7 +100,6 @@ export class TicketsOverview extends LitElement {
   @state() private lastOk: Date | null = null;
   @state() private now = new Date();
   @state() private phone = window.matchMedia('(max-width: 767px)').matches;
-  @state() private compactHeader = false;
   @state() private yesterday: Kpis | null = null;
   /** phase 3: the summary route (cards 5-8 and 11); null until the first answer */
   @state() private summary: DashboardResponse | null = null;
@@ -136,6 +137,8 @@ export class TicketsOverview extends LitElement {
     .n { direction: ltr; unicode-bidi: isolate; display: inline-block; font-variant-numeric: tabular-nums; }
     .amb { font-size: var(--sw-fs-md); color: var(--dv-text-2); }
     .amb em { font-style: normal; color: var(--dv-text); font-weight: 600; }
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
+    .dh { position: static; padding-block-start: 0; }
     .crumbs { font-size: var(--sw-fs-sm); color: var(--dv-text-2); margin-block-end: 2px; }
     .titles { min-inline-size: 0; }
     .seg button small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); font-weight: 600; font-variant-numeric: tabular-nums; margin-inline-start: 6px; }
@@ -359,7 +362,6 @@ export class TicketsOverview extends LitElement {
       .wgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 767px) {
-      .dh-row { display: grid; grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px); grid-template-areas: 't .'; gap: 10px; }
       .amb, .hide-ph { display: none; }
       .dh-det .seg { inline-size: 100%; box-sizing: border-box; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-radius: var(--sw-r-xl); }
       .dh-det .seg button { min-inline-size: 0; padding-inline: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -414,14 +416,13 @@ export class TicketsOverview extends LitElement {
       .kpi, .tree .row, .crow, .closedrows .cr, .w > header .fold { transition: none; }
       .pager .pd i, .pager .pgb { transition: none; }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback(): void {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
     TicketsOverview.pagedMq.addEventListener('change', this.onPaged);
-    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     // spec 5: a notification of the module is a trigger to re-read, never the data itself (no new push channel)
     this.offMe = onMeEvent((env) => {
@@ -440,7 +441,6 @@ export class TicketsOverview extends LitElement {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
     TicketsOverview.pagedMq.removeEventListener('change', this.onPaged);
-    this.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('online', this.onOnline);
     this.offNames?.();
     this.offMe?.();
@@ -449,11 +449,6 @@ export class TicketsOverview extends LitElement {
 
   private onOnline = () => {
     if (this.screen === 'ready') void this.load(true);
-  };
-
-  private onScroll = () => {
-    const compact = this.scrollTop > 40;
-    if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 
   protected willUpdate(changed: PropertyValues<this>): void {
@@ -783,9 +778,9 @@ export class TicketsOverview extends LitElement {
     const depts = d?.departments ?? [];
     const all = !!d?.all_departments;
     const total = depts.reduce((s, x) => s + x.count, 0);
-    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-overview-header>
+    // AUDIT30-C-TICKETS (#6): the title and its crumb are sw-page's; this header is the controls row under it
+    return html`<header class="dh" data-overview-header>
       ${this.offline && this.lastOk ? html`<div class="offline-top" role="status" data-offline>${tIcon('offline')}${ot('offline', { time: timeText(this.lastOk) })}</div>` : nothing}
-      <div class="dh-row"><div class="titles"><div class="crumbs">${tt('area')}</div><h1 data-overview-title>${ot('title')}</h1></div></div>
       ${this.screen === 'ready' || this.screen === 'loading' ? html`<div class="dh-det">
         ${depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${ot('deptGroup')} data-dept-chips>
           <button type="button" role="radio" aria-checked=${String(!this.dept)} data-dept="" @click=${() => this.setDept('')}>${ot(all ? 'allDepts' : 'allMyDepts')}<small>${total}</small></button>
@@ -1228,10 +1223,10 @@ export class TicketsOverview extends LitElement {
     const pages = this.paged && ws ? packPages(ws.list.map((x) => x.span), 3).map((p) => p.map((i) => ({ ...ws.list[i], fill: fill[i] }))) : null;
     this.pageCount = pages?.length ?? 0;
     this.pageOfKey = new Map((pages ?? []).flatMap((p, i) => p.map((x) => [x.key, i] as const)));
-    return html`<div class=${`page${this.offline ? ' stale' : ''}${this.paged ? ' paged' : ''}`} data-screen="tickets-overview">
+    return html`<sw-page wide class=${`page${this.offline ? ' stale' : ''}${this.paged ? ' paged' : ''}`} data-screen="tickets-overview" heading=${ot('title')} crumbs=${tt('area')} data-overview-title=${ot('title')}>
       ${this.header(pages)}
       ${this.body(ws, pages)}
-    </div>`;
+    </sw-page>`;
   }
 }
 

@@ -81,7 +81,7 @@ export class MediaBulkDialog extends LitElement {
     }
     .bar {
       block-size: 8px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-surface-3);
       overflow: hidden;
     }

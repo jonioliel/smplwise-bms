@@ -148,7 +148,7 @@ export class WaterAlertsPage extends LitElement {
 
   private actions(e: WaterEvent) {
     if (e.closed_at || !this.access.ack) return nothing;
-    return html`<span class="acts">${e.can_ack ? html`<button class="btn sm pri" type="button" data-ack ?disabled=${this.busy} @click=${(ev: Event) => { ev.stopPropagation(); void this.act(() => water.ack(e.id), wt('acked')); }}>${wt('ack')}</button>` : nothing}
+    return html`<span class="acts">${e.can_ack ? html`<sw-button variant="primary" size="sm" data-ack ?disabled=${this.busy} @click=${(ev: Event) => { ev.stopPropagation(); void this.act(() => water.ack(e.id), wt('acked')); }}>${wt('ack')}</sw-button>` : nothing}
       ${e.can_snooze ? html`<water-snooze .settings=${this.snooze ?? { durations: [60], default: 60, max: 60 }} ?disabled=${this.busy} @snooze=${(ev: CustomEvent<{ minutes: number }>) => this.snoozeEv(e, ev.detail.minutes)}></water-snooze>` : nothing}</span>`;
   }
 
@@ -171,8 +171,8 @@ export class WaterAlertsPage extends LitElement {
         <button type="button" aria-pressed=${this.filter === 'open' ? 'true' : 'false'} data-f="open" @click=${() => (this.filter = 'open')}>${wt('fOpen')}</button>
         <button type="button" aria-pressed=${this.filter === 'all' ? 'true' : 'false'} data-f="all" @click=${() => (this.filter = 'all')}>${wt('fAll')}</button></div>
       <span class="sp"></span>
-      <button class="btn" type="button" data-csv ?disabled=${!rows.length} @click=${() => this.exportCsv(rows)}><sw-icon name="download" size="15"></sw-icon>${wt('csv')}</button>
-      ${this.access.manage || this.access.configure ? html`<button class="btn" type="button" data-leak-rules @click=${() => navigate('/infra/water/settings', { set: 'alerts' })}>${wt('leakRules')}</button>` : nothing}
+      <sw-button icon="download" data-csv ?disabled=${!rows.length} @click=${() => this.exportCsv(rows)}>${wt('csv')}</sw-button>
+      ${this.access.manage || this.access.configure ? html`<sw-button data-leak-rules @click=${() => navigate('/infra/water/settings', { set: 'alerts' })}>${wt('leakRules')}</sw-button>` : nothing}
     </div>`;
     const tiles = html`<div class="tiles" data-tiles>
       <div class="tile"><div class="k">${wt('tOpen')}</div><div class="v ${s?.open ? 'alarm' : ''}"><span class="num" data-t-open>${s?.open ?? 0}</span></div></div>

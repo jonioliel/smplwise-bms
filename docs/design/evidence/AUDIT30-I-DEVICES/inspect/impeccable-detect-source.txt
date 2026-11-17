@@ -1,0 +1,2 @@
+impeccable.cmd detect --json <8 changed source files of branch I> (2026-11-12)
+[]

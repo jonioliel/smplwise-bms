@@ -1,12 +1,12 @@
 // GENERATED from the approved round-25 home mockup (private/design-system-2026-10-27/round25/home-simple-v2: home.css + v2.css +
 // themes.css) by a mechanical port: scoped to the home element's shadow root, --sw-* renamed --hs-*, the full-interface frame and the
-// dev bar dropped. Themes: data-hs-theme + data-hs-scheme on the host. Edit the mockup and regenerate rather than hand-editing here,
+// dev bar dropped. HOME-V3-AUDITFIX-2437 hand-edits (design audit round 30): the phone / wide boundary queries and the two easing fallbacks. Themes: data-hs-theme + data-hs-scheme on the host. Edit the mockup and regenerate rather than hand-editing here,
 // except for the product-only additions in home-styles-extra.ts.
 import { css, unsafeCSS } from 'lit';
 
 export const homeMockupStyles = css`${unsafeCSS(String.raw`:host {
-  --hs-ease: var(--sw-ease, cubic-bezier(.2, .8, .2, 1)); --hs-ease-drawer: var(--sw-ease-drawer, cubic-bezier(.32, .72, 0, 1));
-  --hs-ease-in-out: var(--sw-ease-in-out, cubic-bezier(.65, 0, .35, 1)); --hs-t-med: var(--sw-t-med, 200ms);
+  --hs-ease: var(--sw-ease, cubic-bezier(.23, 1, .32, 1)); --hs-ease-drawer: var(--sw-ease-drawer, cubic-bezier(.32, .72, 0, 1));
+  --hs-ease-in-out: var(--sw-ease-in-out, cubic-bezier(.77, 0, .175, 1)); --hs-t-med: var(--sw-t-med, 200ms);
   --hs-font: var(--sw-font, system-ui, -apple-system, "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif);
   --hs-fs-xs: var(--sw-fs-xs, 12px); --hs-fs-sm: var(--sw-fs-sm, 13px); --hs-fs-base: var(--sw-fs-base, 14px);
   --hs-r-sm: var(--sw-r-sm, 8px); --hs-shadow-1: var(--sw-shadow-1, 0 1px 2px rgba(0,0,0,.2)); --hs-gap-lg: var(--sw-gap-lg, 24px);
@@ -458,7 +458,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs-main, .hs-main {padding-block-end: 32px; padding-inline: 16px 36px;}
 .scene {min-block-size: 96px;}
 }
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 :host {--f-sm: 14px; --f-body: 16px; --f-tile: 17px; --f-h2: 16px; --f-h1: 26px; --f-num: 38px; --f-huge: 72px; --hit: 48px; --r-tile: 18px; --r-ctl: 14px;}
 :host([data-hs-big]) {--f-sm: 15px; --f-body: 17px; --f-tile: 18px;}
 .hs {grid-template-columns: minmax(0, 1fr); grid-template-rows: calc(56px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) auto;}
@@ -606,12 +606,12 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .picker .mrow {background: var(--hs-surface-3); min-block-size: 64px; padding: 0 16px !important; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; gap: 0;}
 .picker .mrow[aria-current] {background: var(--hs-accent-soft);}
 .picker .seg {justify-self: start; margin-block-start: 8px;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .pick-grid {grid-template-columns: minmax(0, 1fr);}
 .picker .mrow {min-block-size: 52px;}
 .sheet.dialog {padding: 20px;}
 }
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .fav[data-fav="climate"] .pm {display: none;}
 .fav[data-fav="climate"] .fsub {display: inline; flex-basis: auto;}
 .ltile b.clamp1 {white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow-wrap: anywhere;}
@@ -620,7 +620,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .dim.lo .dim-v {right: auto; left: 16px;}
 .rtemp {position: absolute !important; inset-block-end: 22px; right: 18px; font-size: 30px; font-weight: 500; line-height: 1; color: var(--hs-heading); pointer-events: none; letter-spacing: -.02em;}
 .fcl .room .rtemp, .room-list .room .rtemp {position: relative !important; inset: auto; font-size: var(--f-body); color: var(--hs-text-2); margin-inline-end: 12px; flex: none;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .room-grid .rtemp {display: none;}
 }
 .mark.big {background: none;}
@@ -727,7 +727,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .nowbar {margin-block-end: 24px;}
 .hs.v2 .dial-wrap {inline-size: min(100%, 42vh, 380px);}
 }
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .hs.v2 {grid-template-columns: minmax(0, 1fr); grid-template-rows: calc(56px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) auto auto;}
 .hs.v2 .hs-nav {grid-row: 4; grid-column: 1; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); gap: 2px;}
 .hs.v2 .hs-nav a {flex: 1 1 0;}
@@ -814,7 +814,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 @media (min-width: 1400px) and (min-height: 860px) {
 .chip3 {min-block-size: 108px;}
 }
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .wgrid {grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr));}
 .wdg.w2 {grid-column: span 3;}
 .chip3 {min-block-size: 68px; gap: 2px; padding: 4px 2px;}
@@ -830,19 +830,19 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .hs .lamp.go {color: var(--hs-heading);}
 .hs .lamp.go[aria-pressed="true"] {background: var(--hs-accent-soft); color: var(--hs-accent-text);}
 .hs .nowbar .nb-off {margin-inline-start: auto;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .nb-ml {display: none;}
 .hs .nowbar .nb-t {flex: 1 1 0;}
 .hs .nowbar .dim.master {flex: 1.1 1 0;}
 }
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .hs.v2 .hs-main, .hs.v2 .hs-main {padding-inline: 16px;}
 .nowbar {margin-inline: 16px;}
 }
 .nb-rooms {overflow: hidden;}
 .nb-rooms .chip2 {flex: none; max-inline-size: 18ch;}
 .hs .wdg.wg-scene, .hs .wdg.wg-rscene, .hs .wdg.wg-cam, .hs .wdg.wg-light.s1 {padding: 0;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .wg-btn.ltile .lt b {-webkit-line-clamp: 1; font-size: 14px;}
 .hs .wg-btn.ltile {padding: 6px 10px !important; gap: 0;}
 .wg-btn.ltile > .hi {inline-size: 22px; block-size: 22px;}
@@ -852,7 +852,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .wg-ed {flex-direction: column; flex-wrap: nowrap; gap: 4px;}
 .ed-n {font-size: var(--f-sm); font-weight: 600; color: var(--hs-heading); max-inline-size: 100%; text-align: center;}
 .ed-b {display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .chips3 {grid-template-columns: repeat(var(--c, 4), minmax(0, 1fr));}
 .wdg.editing .wg-ed {flex-direction: row; justify-content: space-between; padding-inline: 12px 8px; gap: 8px;}
 .ed-n {flex: 1; text-align: start;}
@@ -860,7 +860,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 }
 .wdg.s1.editing > :not(.wg-ed) {opacity: .3;}
 .wdg.s1.editing .ed-n {display: none;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .wdg.s1.editing > :not(.wg-ed) {opacity: 0;}
 .wdg.s1.editing .ed-n {display: block;}
 }
@@ -886,7 +886,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .thm-pv .pv-b {background: var(--hs-on-tile); box-shadow: inset 0 -5px 0 var(--hs-lit);}
 .thm-pv .pv-c {background: var(--hs-surface-3);}
 .thm-pv .pv-d {grid-column: 2 / 4; background: var(--hs-accent-soft);}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .lcard.sw {grid-template-columns: 44px minmax(0, 1fr) auto 44px; grid-template-rows: auto;}
 .lcard.sw .swc {grid-row: 1; gap: 6px;}
 .lcard.sw .star {grid-column: auto; grid-row: auto;}
@@ -903,7 +903,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 }
 :host([data-hs-scheme="light"]) .hs .seg button[aria-pressed="true"], :host([data-hs-scheme="light"]) .ovl .seg button[aria-pressed="true"] {background: var(--hs-surface);}
 .tabsrow {flex: none;}
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .lcard.sw > .lamp {grid-column: 1; grid-row: 1;}
 .lcard.sw > .ln {grid-column: 2; grid-row: 1;}
 .lcard.sw > .swc {grid-column: 3; grid-row: 1;}

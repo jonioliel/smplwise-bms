@@ -3,7 +3,7 @@ import { property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
-import { deepFocusables } from '../components/sw-drawer';
+import '../components/sw-dialog';
 import { ApiError } from '../api/client';
 import { createSchedule, getScheduleCatalog, getScheduleStatus, type CatalogEntity, type ConditionPreset, type ScheduleStatus } from '../api/schedules';
 import { navigate } from '../router';
@@ -48,61 +48,16 @@ export class ScheduleCreateDialog extends LitElement {
     :host {
       display: contents;
     }
-    /* SCHED-POLISH-2331: the scrim fades in and the box lands from 97 % (emil-design-eng: nothing appears from nothing; a modal stays
-       centred). Reduced motion zeroes the durations (design/css.ts); a browser without @starting-style shows the dialog as before. */
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: var(--sw-z-modal);
-      background: var(--sw-overlay);
-      display: grid;
-      place-items: center;
-      padding: var(--sw-s-4);
-      overscroll-behavior: contain;
-      opacity: 1;
-      transition: opacity var(--sw-t-slow) var(--sw-ease);
-    }
-    .box {
-      inline-size: min(760px, 100%);
-      max-block-size: calc(100dvh - 32px);
-      background: var(--sw-surface);
-      border-radius: var(--sw-r-xl);
-      box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight, transparent);
-      display: flex;
-      flex-direction: column;
-      min-block-size: 0;
-      outline: none;
-      opacity: 1;
-      transform: none;
-      transition: opacity var(--sw-t-sheet) var(--sw-ease), transform var(--sw-t-sheet) var(--sw-ease-dialog);
-    }
-    @starting-style {
-      .backdrop {
-        opacity: 0;
-      }
-      .box {
-        opacity: 0;
-        transform: scale(0.97);
-      }
-    }
-    /* the header, the tabs and the footer stay; only the body scrolls (the actions are always on screen) */
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--sw-s-2);
-      padding: 18px 20px 0;
-    }
-    h3 {
-      margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading, var(--sw-text));
-      letter-spacing: -0.01em;
+    /* AUDIT30-I3 (#11, owner Q9 option a): the dialog is the product's one <sw-dialog> (its scrim, its centred box, its spring, its focus
+       trap, Escape and the return of focus), wide. Opaque in every skin: the glass skins' translucent --sw-surface and their blur stop
+       at this box (the audit measured the old box as rgba(255,255,255,.64) under a 40 px blur in the glass look). */
+    sw-dialog {
+      --sw-surface: var(--sw-surface-solid);
+      --sw-glass-blur: none;
     }
     .tabs {
       display: flex;
-      margin: 14px 20px 0;
+      margin: 0;
       background: var(--sw-surface-3);
       border-radius: var(--sw-r-md);
       padding: 3px;
@@ -132,15 +87,12 @@ export class ScheduleCreateDialog extends LitElement {
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-bold);
     }
-    .body {
-      flex: 1 1 auto;
-      min-block-size: 0;
-      overflow: auto;
-      overscroll-behavior: contain;
-      padding: 16px 20px;
+    /* the tabs, the body and the footer live in sw-dialog's slots; its body scrolls, its footer stays (the actions are always on screen) */
+    .cbody {
       display: flex;
       flex-direction: column;
       gap: 16px;
+      padding-block-start: 4px;
     }
     .tpls {
       display: grid;
@@ -256,10 +208,12 @@ export class ScheduleCreateDialog extends LitElement {
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was solid accent) */
     .chip[aria-pressed='true'] {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
+      background: var(--sw-accent-soft);
+      border-color: transparent;
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
     }
     .chip:disabled {
       opacity: 0.45;
@@ -311,19 +265,18 @@ export class ScheduleCreateDialog extends LitElement {
     .loading i:nth-child(2) {
       inline-size: 70%;
     }
-    footer {
+    .foot {
+      flex: 1;
       display: flex;
       justify-content: flex-start;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      padding: 12px 20px 16px;
-      border-block-start: 1px solid var(--sw-border);
     }
-    footer .full {
+    .foot .full {
       flex: 1 1 100%;
     }
-    footer .sp {
+    .foot .sp {
       flex: 1;
     }
     @media (pointer: coarse) {
@@ -333,85 +286,26 @@ export class ScheduleCreateDialog extends LitElement {
       }
     }
     @media (max-width: 640px) {
-      .backdrop {
-        place-items: end center;
-        padding: 0;
-      }
-      .box {
-        border-radius: var(--sw-r-xl) var(--sw-r-xl) 0 0;
-        inline-size: 100%;
-        max-block-size: 92dvh;
-      }
-      @starting-style {
-        .box {
-          opacity: 1;
-          transform: translateY(100%);
-        }
-      }
-      .box {
-        transition: transform var(--sw-t-sheet) var(--sw-ease-drawer);
-      }
-      header {
-        padding: 14px 16px 0;
-      }
-      .tabs {
-        margin-inline: 16px;
-      }
-      .body {
-        padding: 14px 16px;
-      }
       .tpls {
         grid-template-columns: 1fr;
       }
-      footer {
-        padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px));
-      }
-      footer sw-button {
+      .foot sw-button {
         flex: 1;
       }
-      footer .sp {
+      .foot .sp {
         display: none;
       }
     }
   `;
 
-  /** SCHED-POLISH-2331: the control that had focus when the dialog opened; focus returns there when it closes (like sw-dialog). */
-  private opener: HTMLElement | null = null;
-
   willUpdate(changed: Map<string, unknown>) {
-    if (changed.has('open') && this.open && !this.wasOpen) {
-      let a: Element | null = document.activeElement;
-      while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
-      this.opener = a instanceof HTMLElement && a !== document.body ? a : null;
-      void this.reset();
-    }
-    if (changed.has('open') && !this.open && this.wasOpen) {
-      const back = this.opener;
-      this.opener = null;
-      if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
-    }
+    if (changed.has('open') && this.open && !this.wasOpen) void this.reset();
     if (changed.has('open')) this.wasOpen = this.open;
   }
 
   updated(changed: Map<string, unknown>) {
-    // keyboard focus moves into the dialog (the selected tab) when it opens
+    // keyboard focus moves into the dialog (the selected tab) when it opens; sw-dialog returns it to the opener when it closes
     if (changed.has('open') && this.open) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('.tabs [aria-selected="true"]')?.focus({ preventScroll: true }));
-  }
-
-  /** Tab / Shift+Tab wrap inside the box (aria-modal promises the page behind is out of reach). */
-  private trapTab(e: KeyboardEvent) {
-    const box = this.renderRoot.querySelector('.box');
-    if (!box) return;
-    const all = deepFocusables(box);
-    if (!all.length) return;
-    let active: Element | null = document.activeElement;
-    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-    const isEdge = (edge: HTMLElement) => active === edge || (edge.shadowRoot?.contains(active) ?? false);
-    const inside = !!active && (box.contains(active) || all.some((el) => el.shadowRoot?.contains(active) ?? false));
-    if (!inside || (e.shiftKey && isEdge(all[0])) || (!e.shiftKey && isEdge(all[all.length - 1]))) {
-      e.preventDefault();
-      (e.shiftKey ? all[all.length - 1] : all[0]).focus({ preventScroll: true });
-    }
   }
 
   /** The two tabs follow the arrow keys (RTL: the right arrow goes to the previous tab), Home and End. */
@@ -466,22 +360,6 @@ export class ScheduleCreateDialog extends LitElement {
 
   private close() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
-  }
-
-  private onKey = (e: KeyboardEvent) => {
-    if (!this.open) return;
-    if (e.key === 'Escape' && !this.busy) this.close();
-    else if (e.key === 'Tab') this.trapTab(e);
-  };
-
-  connectedCallback() {
-    super.connectedCallback();
-    window.addEventListener('keydown', this.onKey);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.removeEventListener('keydown', this.onKey);
   }
 
   // ------------------------------------------------------------------------------------------ template path
@@ -578,11 +456,11 @@ export class ScheduleCreateDialog extends LitElement {
   }
 
   private renderTemplatesFooter() {
-    return html`<footer>
+    return html`<div class="foot" slot="footer">
       <sw-button variant="primary" data-create-continue ?disabled=${!this.tpl} @click=${() => this.useTemplate()}>המשך לעורך</sw-button>
       <span class="sp"></span>
       <sw-button variant="ghost" @click=${() => this.close()}>ביטול</sw-button>
-    </footer>`;
+    </div>`;
   }
 
   private renderQuick() {
@@ -613,7 +491,7 @@ export class ScheduleCreateDialog extends LitElement {
   private renderQuickFooter() {
     const q = this.choice();
     const ready = quickReady(q);
-    return html`<footer>
+    return html`<div class="foot" slot="footer">
       <div class="banner full ${ready ? 'ok' : ''}" data-quick-sentence aria-live="polite"><sw-icon name=${ready ? 'check' : 'info'} size="16"></sw-icon><span>${quickSentence(q)}</span></div>
       ${this.error ? html`<div class="banner err full" role="alert" data-create-error><sw-icon name="warning" size="16"></sw-icon>${this.error}</div>` : nothing}
       ${this.note ? html`<div class="banner full" data-create-note>${this.note}</div>` : nothing}
@@ -621,27 +499,28 @@ export class ScheduleCreateDialog extends LitElement {
       <sw-button data-quick-edit ?disabled=${!ready || this.busy} @click=${() => this.quickEdit()}>פתיחה בעורך</sw-button>
       <span class="sp"></span>
       <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => this.close()}>ביטול</sw-button>
-    </footer>`;
+    </div>`;
   }
 
   render() {
     if (!this.open) return nothing;
     const tab = (id: 'tpl' | 'quick', label: string) => html`<button type="button" role="tab" id=${`tab-${id}`} aria-controls="create-panel" aria-selected=${this.tab === id} tabindex=${this.tab === id ? 0 : -1} data-create-tab=${id} @click=${() => (this.tab = id)} @keydown=${(e: KeyboardEvent) => this.onTabKey(e)}>${label}</button>`;
-    return html`<div class="backdrop" @click=${(e: Event) => e.target === e.currentTarget && !this.busy && this.close()}>
-      <div class="box" role="dialog" aria-modal="true" aria-labelledby="create-title" tabindex="-1" data-create-dialog>
-        <header><h3 id="create-title">תזמון חדש</h3><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.close()}></sw-button></header>
+    // AUDIT30-I3: the shared dialog; its own close (the X, Escape, the scrim) is turned into this element's one `close` event
+    return html`<sw-dialog wide .open=${this.open} heading="תזמון חדש" ?locked=${this.busy} data-create-dialog @close=${(e: Event) => {
+      e.stopPropagation();
+      this.close();
+    }}>
         <div class="tabs" role="tablist" aria-label="דרך היצירה" @keydown=${tablistKeydown}>
           ${tab('tpl', 'מתבנית')}${tab('quick', 'יצירה מהירה (3 הקשות)')}
         </div>
-        <div class="body" id="create-panel" role="tabpanel" aria-labelledby=${`tab-${this.tab}`} aria-busy=${this.loading ? 'true' : 'false'}>
+        <div class="cbody" id="create-panel" role="tabpanel" aria-labelledby=${`tab-${this.tab}`} aria-busy=${this.loading ? 'true' : 'false'}>
           ${this.loadError && this.tab === 'quick' ? html`<div class="banner err" role="alert"><sw-icon name="warning" size="16"></sw-icon>${this.loadError}</div>` : nothing}
           ${this.loading && this.tab === 'quick'
             ? html`<div class="loading" role="status" aria-label="טוען…"><i></i><i></i><i></i></div>`
             : this.tab === 'tpl' ? this.renderTemplates() : this.renderQuick()}
         </div>
         ${this.tab === 'tpl' ? this.renderTemplatesFooter() : this.renderQuickFooter()}
-      </div>
-    </div>`;
+      </sw-dialog>`;
   }
 }
 

@@ -1,0 +1,37 @@
+## UI Pro Max Search Results
+**Domain:** ux | **Query:** segmented control tree filter selected state dashboard buttons consistency
+**Source:** ux-guidelines.csv | **Found:** 3 results
+
+### Result 1
+- **Category:** Animation
+- **Issue:** Cancellable State Transitions
+- **Platform:** Web
+- **Description:** Rapid compact-control changes can interrupt an in-flight transition
+- **Do:** Cancel or replace prior motion; set the final semantic state directly and handle cancellation cleanup
+- **Don't:** Depend on animationend or transitionend for required state correctness
+- **Code Example Good:** previous?.cancel(); setSelected(next)
+- **Code Example Bad:** Enable the chip only inside transitionend
+- **Severity:** High
+
+### Result 2
+- **Category:** Accessibility
+- **Issue:** Compact Control Semantics
+- **Platform:** Web
+- **Description:** Interactive chips need a native role accessible name state keyboard operation and visible focus
+- **Do:** Prefer a button and expose pressed or selected state that matches the visible label
+- **Don't:** Use a clickable div or reveal the only action on hover
+- **Code Example Good:** <button aria-pressed='true'>Open now</button>
+- **Code Example Bad:** <div class='selected' onclick='toggle()'>Open now</div>
+- **Severity:** Critical
+
+### Result 3
+- **Category:** Interaction
+- **Issue:** Loading Buttons
+- **Platform:** All
+- **Description:** Prevent double submission during async actions
+- **Do:** Disable button and show loading state
+- **Don't:** Allow multiple clicks during processing
+- **Code Example Good:** disabled={loading} spinner
+- **Code Example Bad:** Button clickable while loading
+- **Severity:** High
+

@@ -146,7 +146,7 @@ export class MediaNowHero extends LitElement {
     }
     .bar .tr {
       block-size: 6px;
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-layer);
       overflow: hidden;
     }
@@ -155,7 +155,7 @@ export class MediaNowHero extends LitElement {
       block-size: 100%;
       inline-size: var(--p, 0%);
       background: var(--sw-text);
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
     }
     .bar .live {
       display: inline-flex;
@@ -197,7 +197,7 @@ export class MediaNowHero extends LitElement {
       cursor: pointer;
       font-size: var(--sw-fs-2xl);
       padding: 0;
-      transition: transform 120ms var(--sw-ease);
+      transition: transform var(--sw-t-press) var(--sw-ease);
     }
     .k.main {
       inline-size: 60px;

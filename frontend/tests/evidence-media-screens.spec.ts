@@ -241,7 +241,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await open(page, '/multimedia/screens');
     await expect(page$(page).locator('section[data-group]')).toHaveCount(3);
     expect(await page$(page).locator('section[data-group] h2').allTextContents()).toEqual(['קומת קרקע', 'קומה 1', 'מרתף']);
-    await expect(page$(page).locator('.amb')).toContainText('4 פועלים מתוך 8');
+    await expect(page$(page).locator('sw-page.page .sub')).toContainText('4 פועלים מתוך 8'); // AUDIT30-D3: sw-page's subheading
     // a screen card: name, state line, the controls the capabilities allow
     const living = page$(page).locator('media-screen-card[data-screen-card="md-living"]');
     await expect(living).toContainText('טלוויזיה סלון');
