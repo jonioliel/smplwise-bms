@@ -244,7 +244,6 @@ const ru: Partial<Record<Key, string>> = {
   more: 'Больше',
 };
 
-export type NwtKey = Key;
 export type NwtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function nwtLang(): NwtLang {

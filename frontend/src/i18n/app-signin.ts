@@ -40,7 +40,6 @@ const en: Partial<Record<Key, string>> = {
   loadError: 'The phone app sign-in settings could not be loaded', demo: 'Demo data: the settings are saved against a server only.',
 };
 
-export type AstKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
 
 export function astLang(): 'he' | 'en' {

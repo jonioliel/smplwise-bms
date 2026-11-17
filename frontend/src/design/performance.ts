@@ -109,14 +109,6 @@ export function writeCached(caps: Caps, tier: Tier, now: number, store: Store | 
   }
 }
 
-export function clearCached(store: Store | null = defaultStore()): void {
-  try {
-    store?.removeItem(PERF_CACHE_KEY);
-  } catch {
-    /* nothing to clear */
-  }
-}
-
 /** What `auto` means right now, without measuring: a weak capability => lite; else the cached verdict; else full (the probe will settle it). */
 export function decide(caps: Caps, cached: Tier | null): { tier: Tier; probe: boolean; reason: WeakReason | 'cache' | 'default' } {
   const weak = capsVerdict(caps);

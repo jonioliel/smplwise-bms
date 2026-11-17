@@ -494,21 +494,11 @@ export const installationDdPlace = (): DdPlace => placeChoice.inst;
 export const ownDdPlace = (): DdPlace | null => placeChoice.own;
 export const saveOwnDdPlace = (place: DdPlace | null): Promise<void> => placeChoice.save(place);
 
-/** The effective multi-select search threshold: the user's own over the installation's. */
-export function resolveDdSearch(): { search: DdSearch; source: 'own' | 'installation' } {
-  const r = searchChoice.resolve();
-  return { search: r.value, source: r.source };
-}
 export const installationDdSearch = (): DdSearch => searchChoice.inst;
 /** The user's own threshold; null = follows the installation. */
 export const ownDdSearch = (): DdSearch | null => searchChoice.own;
 export const saveOwnDdSearch = (search: DdSearch | null): Promise<void> => searchChoice.save(search);
 
-/** The effective camera-picker look: the user's own over the installation's. */
-export function resolveDdPicker(): { picker: DdPicker; source: 'own' | 'installation' } {
-  const r = pickerChoice.resolve();
-  return { picker: r.value, source: r.source };
-}
 /** How the camera comparison pickers (recordings, synchronized playback) are drawn now. */
 export const ddPickerOf = (): DdPicker => pickerChoice.resolve().value;
 export const installationDdPicker = (): DdPicker => pickerChoice.inst;
@@ -531,9 +521,6 @@ export function ownDdRing(): { ring: DdRing | null; groups: DdRingGroups } {
   return { ring: ringDial.own.value, groups: ringDial.own.groups };
 }
 export const saveOwnDdRing = (ring: DdRing | null, groups: DdRingGroups): Promise<void> => ringDial.save(ring, groups);
-export function normalizeDdRingGroups(raw: unknown): DdRingGroups {
-  return ringDial.groupsOf(raw);
-}
 
 export function resolveDdPanel(group: TabGroup): { panel: DdPanel; source: TabModeSource } {
   const r = panelDial.resolve(group);
@@ -550,14 +537,6 @@ export function ownDdPanel(): { panel: DdPanel | null; groups: DdPanelGroups } {
   return { panel: panelDial.own.value, groups: panelDial.own.groups };
 }
 export const saveOwnDdPanel = (panel: DdPanel | null, groups: DdPanelGroups): Promise<void> => panelDial.save(panel, groups);
-export function normalizeDdPanelGroups(raw: unknown): DdPanelGroups {
-  return panelDial.groupsOf(raw);
-}
-
-/** The effective phone choice: the user's own over the installation's. */
-export function resolveDdPhone(): { mode: DdPhone; source: 'own' | 'installation' } {
-  return ddPhoneOwn ? { mode: ddPhoneOwn, source: 'own' } : { mode: ddPhoneInstallation, source: 'installation' };
-}
 
 export function installationDdPhone(): DdPhone {
   return ddPhoneInstallation;

@@ -213,7 +213,6 @@ const en: Partial<Record<Key, string>> = {
   capFull: 'Stream quota full', capRetry: 'Retrying shortly',
 };
 
-export type ItKey = Key;
 export type ItLang = 'he' | 'en';
 
 export function itLang(): ItLang {

@@ -124,5 +124,3 @@ export function cit(key: Key, vars?: Record<string, string | number>): string {
   return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
 }
 
-export const CIT_KEYS = Object.keys(he) as Key[];
-export const CIT_TABLES = TABLES;

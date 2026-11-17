@@ -62,9 +62,7 @@ export const DEFAULTS_FOR_OPEN_QUESTIONS = {
 };
 
 export const MAX_CUSTOM = 12;
-export const CUSTOM_PREFIX = 'custom-';
 export const CUSTOM_ID_RE = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const DEFAULT_PALETTE_ID = 'default';
 
 const FILE = rawPalettes as unknown as { defaultPalette: string; palettes: Palette[] };
 /** The ten ready palettes, in the file's order. */

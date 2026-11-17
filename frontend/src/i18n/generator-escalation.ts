@@ -57,7 +57,6 @@ const ru: Partial<Record<Key, string>> = {
   perm: 'Для изменения маршрутизации нужно право управления генератором. Для добавления WhatsApp нужно также право управления оповещениями.',
 };
 
-export type GescKey = Key;
 export type GescLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function gescLang(): GescLang {

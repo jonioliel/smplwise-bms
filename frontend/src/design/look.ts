@@ -329,14 +329,12 @@ export function setLiteAlpha(v: number) {
   liteAlpha = Math.max(0.5, Math.min(1, v));
   applyLook();
 }
-export const liteAlphaInForce = (): number => liteAlpha;
 /** MD1: the wash cap of the state tint (design/contrast.ts washCap; apply.ts computes it per skin x palette x scheme). Percent. */
 let washCapPct = 50;
 export function setWashCap(v: number) {
   washCapPct = Math.max(0, Math.min(100, Math.round(v)));
   applyLook();
 }
-export const washCapInForce = (): number => washCapPct;
 /** The sheet alpha in force: the transparency dial, never below the computed contrast floor. */
 export function effectiveSheetAlpha(): number {
   return Math.max(alphaFloor, lookOf('transparency') / 100);

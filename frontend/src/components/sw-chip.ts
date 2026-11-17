@@ -20,11 +20,6 @@ export const chipSelected = css`
   font-weight: var(--sw-fw-semibold);
   box-shadow: none;
 `;
-/** The pressed / hovered selected chip: the same soft field one accent step deeper (tokens only). */
-export const chipSelectedHover = css`
-  background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft));
-  border-color: transparent;
-`;
 
 // Selectable chip / filter pill (boards: "All | Motion | Person | Vehicle" with colour dots).
 @customElement('sw-chip')

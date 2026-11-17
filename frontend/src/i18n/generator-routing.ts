@@ -67,7 +67,6 @@ const ru: Partial<Record<Key, string>> = {
   saved: 'Сохранено',
 };
 
-export type GrtKey = Key;
 export type GrtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function grtLang(): GrtLang {

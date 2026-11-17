@@ -273,7 +273,6 @@ const ru: Partial<Record<Key, string>> = {
   src_ticket_cost_missing: 'Требование оплаты не подано',
 };
 
-export type NmtKey = Key;
 export type NmtLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function nmtLang(): NmtLang {

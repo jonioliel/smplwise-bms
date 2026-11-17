@@ -140,10 +140,6 @@ export function badgeLabel(b: Badge, openCritical = 0): string {
 
 // ------------------------------------------------------------------------------------------------ live events (/me/ws)
 
-export type LiveEvent =
-  | { type: 'notification'; payload: { id: string; category?: Category; severity?: Severity; unread?: number } }
-  | { type: 'notification_state'; payload: { id: string; state: Notification['state']; acked_by_display?: string } }
-  | { type: 'notify_summary'; payload: { unread: number; open_critical: number } };
 export interface LiveEffect { rows: Notification[]; summary: { unread: number; open_critical: number } | null; refetch: boolean }
 /** What a socket event does to the loaded list: a new notification asks for a refetch (the row itself is built by the server, and a fold changes an existing one);
  * a state change patches the row in place (ack / resolve by a colleague); a summary replaces the chip numbers. Unknown events change nothing. */

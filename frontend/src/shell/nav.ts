@@ -43,9 +43,6 @@ export const EXTERNAL_TICKETS_HREF = '#/tickets/external';
 export type ExternalPlacement = 'access' | 'tickets' | 'both';
 let EXTERNAL_PLACEMENT: ExternalPlacement = 'access';
 const externalTab = (href: string): TabItem => ({ id: 'external', get label() { return navXt('tab'); }, href });
-export function externalPlacement(): ExternalPlacement {
-  return EXTERNAL_PLACEMENT;
-}
 /** Apply `access.external.placement` (the shell once the product settings load; the screen right after the administrator saves). */
 export function applyExternalPlacement(settings: Record<string, unknown> | null | undefined): ExternalPlacement {
   const raw = String(settings?.['access.external.placement'] ?? 'access');
@@ -551,11 +548,6 @@ export function applyTabsConfig(settings: Record<string, unknown> | null | undef
   return TABS_CONFIG;
 }
 
-/** The installation's stored per-level defaults (not resolved: an unset level is absent). */
-export function tabStyleDefaults(): TabStyleDefaults {
-  return TAB_STYLES;
-}
-
 /** THE helper every tab row asks (the shell's area rows and sections, the settings sub-rows): the style of one section's
  * bar - its own override, else the installation's default for its hierarchy level, else the built-in default. `level`
  * comes from the registry (TAB_SECTIONS) unless a caller names it. */
@@ -675,8 +667,6 @@ const EXPLORE_TABS: TabItem[] = [
   // WHOIN034-295 (board r034): "מי במבנה" - presence.view holders only (sensitive, system_admin by default; TAB_PERMISSIONS)
   { id: 'presence', get label() { return navPt('tab'); }, href: '#/explore/presence' },
 ];
-/** WHOIN034-295: the "who is in the building" screen. */
-export const PRESENCE_HREF = '#/explore/presence';
 
 /** ANNOUNCE-295 (stage A): the announce screen for the built-in `announcer` role and every other holder of media.announce. */
 export const ANNOUNCE_HREF = '#/devices/announce';
@@ -690,7 +680,6 @@ export const ANNOUNCE_HREF = '#/devices/announce';
  * appear at all, so a user without those rights sees the home screen exactly as before. */
 /** 2.29.0: the synoptic map (ראשי › מפה סינופטית) and the wall screen's separate address (a fixed control-room display, no shell). */
 export const SYNOPTIC_HREF = '#/devices/synoptic';
-export const SYNOPTIC_WALL_HREF = '#/kiosk/synoptic';
 let SYNOPTIC_OFF = false;
 /** The option `ui.xs` syn_tab (on by default): the tab leaves the home area while it is off. The address still opens the screen. Re-applied by the shell after HIDDEN_HREFS is rebuilt. */
 export function applySynopticHidden(on: boolean | null | undefined): boolean {
@@ -701,7 +690,6 @@ export function applySynopticHidden(on: boolean | null | undefined): boolean {
   if (was !== SYNOPTIC_OFF) for (const l of tabsListeners) l();
   return SYNOPTIC_OFF;
 }
-export const synopticTabOff = (): boolean => SYNOPTIC_OFF;
 
 /** CALENDARS-UI-2310: the calendars module ("יומנים"). Its screens answer at two addresses - #/calendars/<view> (the side rail entry) and
  * #/devices/calendars/<view> (the tab of the home area) - so a viewer who reaches it from either keeps the navigation he came from. Where it
@@ -730,8 +718,6 @@ export function applyCalendarsNav(on: boolean, placement: 'rail' | 'home_tab' | 
   else HIDDEN_HREFS.add(CALENDAR_SYNC_SETTINGS_HREF);
   if (changed) for (const l of tabsListeners) l();
 }
-export const calendarsModuleOn = (): boolean => CALENDARS_ON;
-export const calendarsPlacement = (): 'rail' | 'home_tab' | 'both' => CALENDARS_PLACEMENT;
 /** The base address the calendars screens build their links on: the one the viewer is on. */
 export const calendarsBase = (r: RouteState | null): string => (r?.mode === 'devices' ? '#/devices/calendars' : '#/calendars');
 export const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', label: 'יומנים', href: CALENDARS_HREF };

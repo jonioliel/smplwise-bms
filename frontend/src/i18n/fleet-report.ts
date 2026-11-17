@@ -179,9 +179,4 @@ export function ft(key: FleetTextKey, vars?: Record<string, string | number>): s
   return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
 }
 
-/** The server's he/en pair (readiness labels) in the document language. */
-export function pickLang(v: { he: string; en: string } | null | undefined): string {
-  return v ? (lang() === 'en' ? v.en || v.he : v.he) : '';
-}
-
 export const FLEET_TEXT_KEYS = Object.keys(he) as FleetTextKey[];

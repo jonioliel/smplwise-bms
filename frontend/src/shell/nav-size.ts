@@ -88,12 +88,6 @@ export function usableNavSize(v: unknown): NavSize | null {
   const n = normalizeNavSize(v);
   return n && n.mode === 'free' ? { mode: 'rel', preset: nearestPreset(n) } : n;
 }
-/** The free sizes a preset stands for (the "חופשי" editor starts from the current preset). */
-export function freeFrom(size: NavSize): Extract<NavSize, { mode: 'free' }> {
-  if (size.mode === 'free') return size;
-  const p = PRESET_DIMS[size.preset];
-  return { mode: 'free', icon: p.icon, label: Math.round(p.label), item: p.item };
-}
 
 export function navDims(size: NavSize): NavDims {
   let icon: number;

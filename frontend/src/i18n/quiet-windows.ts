@@ -48,7 +48,6 @@ const en: Partial<Record<Key, string>> = {
   confirmGo: 'Save', cancel: 'Cancel', loadError: 'The quiet window settings could not be loaded',
 };
 
-export type QwtKey = Key;
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
 
 export function qwtLang(): 'he' | 'en' {

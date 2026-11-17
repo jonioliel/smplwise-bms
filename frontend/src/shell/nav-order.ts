@@ -78,11 +78,6 @@ export function navOrder(): NavTabId[] {
   return current;
 }
 
-/** Did the user set an order of their own (as opposed to following the installation's default)? */
-export function hasOwnNavOrder(): boolean {
-  return own !== null;
-}
-
 export function onNavOrder(fn: (o: NavTabId[]) => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
