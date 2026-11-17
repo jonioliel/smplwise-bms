@@ -97,3 +97,17 @@ never committed) and the repeats were real pixel compares against them.
   `[data-access-display-settled="true"]` is the wait it should use. Not changed here.
 - Any new phone pixel case of an element taller than 844 px needs `phoneRoom`; `stillAPhone` in a shared after-hook would catch the
   next one.
+
+## Phone baselines refreshed on the runner (17.11)
+
+`origin/main` (2.43.7, cc69447f1) merged first (be6e7ff10, no conflicts). All runs: `private/runner/run_smart.py preview
+pilot/FLAKY-S12-FIX-2441 tests/pixel-access-s12.spec.ts ... --machine runner`.
+
+| Run | Commit | Result |
+|---|---|---|
+| `--project=mobile -u --workers=1` | be6e7ff10 | 5 passed; 6 phone baselines rewritten, `s12-classic-audit-person-390` unchanged (within tolerance, not rewritten); committed 172049f16 |
+| `--project=mobile --project=desktop --workers=1 --repeat-each=2`, no `-u` | 172049f16 | 20 passed |
+
+Sizes: `s12-classic-display-390` 366x1244 -> 366x1259, `s12-domus-display-390` 366x1244 -> 366x1267 (as expected for the phone state);
+`classic-parity` 366x1774, `classic-parity-operator` 366x1903, `classic-checklist` 366x918, `domus-parity` 366x1773 keep their size.
+No desktop baseline changed. Not run: the full entry check (queued after this commit).
