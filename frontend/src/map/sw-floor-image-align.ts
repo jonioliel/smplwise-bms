@@ -4,11 +4,12 @@
  * arrow keys nudge the focused handle (1 plan pixel; Shift 10). Emits `corners-change` with the new corners on every
  * change (the host saves on "שמור יישור"). Pure presentation: no API calls.
  */
+import { tr } from '../i18n/msg/map';
 import { LitElement, css, html, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { affineAttr, affineFromCorners, applyAffine, cornerResidual, moveCorner, shiftCorners, type Corners } from './floor-image';
 
-const HANDLE_NAMES = ['פינה שמאלית-עליונה', 'פינה ימנית-עליונה', 'פינה ימנית-תחתונה', 'פינה שמאלית-תחתונה'];
+const HANDLE_NAMES = [tr('פינה שמאלית-עליונה'), tr('פינה ימנית-עליונה'), tr('פינה ימנית-תחתונה'), tr('פינה שמאלית-תחתונה')];
 
 @customElement('sw-floor-image-align')
 export class SwFloorImageAlign extends LitElement {
@@ -151,7 +152,7 @@ export class SwFloorImageAlign extends LitElement {
     const pts = this.corners.map((c) => `${(c[0] * w).toFixed(1)},${(c[1] * h).toFixed(1)}`).join(' ');
     const handleR = Math.max(w, h) * 0.012;
     const residual = cornerResidual(this.corners, w, h);
-    return html`<svg viewBox=${`0 0 ${w} ${h}`} role="application" aria-label="יישור תמונת הקומה" @pointermove=${this.move} @pointerup=${this.up} @pointercancel=${this.up}>
+    return html`<svg viewBox=${`0 0 ${w} ${h}`} role="application" aria-label=${tr('יישור תמונת הקומה')} @pointermove=${this.move} @pointerup=${this.up} @pointercancel=${this.up}>
       ${this.planUrl && this.showPlan ? svg`<image href=${this.planUrl} x="0" y="0" width=${w} height=${h} preserveAspectRatio="none" opacity="0.35" />` : nothing}
       ${this.imageUrl ? svg`<image data-align-image href=${this.imageUrl} x="0" y="0" width=${w} height=${h} preserveAspectRatio="none" opacity=${this.opacity} transform=${affineAttr(t)} />` : nothing}
       ${this.rooms.map((r) => svg`<polygon class="room" points=${r.polygon.map((p) => `${(p.x * w).toFixed(1)},${(p.y * h).toFixed(1)}`).join(' ')} />`)}
@@ -165,7 +166,7 @@ export class SwFloorImageAlign extends LitElement {
           cx=${(c[0] * w).toFixed(1)} cy=${(c[1] * h).toFixed(1)} r=${handleR.toFixed(1)} @pointerdown=${(e: PointerEvent) => this.down(e, 'corner', i)} @keydown=${(e: KeyboardEvent) => this.key(e, i)} />`;
       })}
     </svg>
-    ${residual > 0.002 ? html`<div class="res" data-align-residual>סטייה ${(residual * 100).toFixed(1)}% - תמונה בפרספקטיבה; היישור מקורב</div>` : nothing}`;
+    ${residual > 0.002 ? html`<div class="res" data-align-residual>${tr('סטייה {pct}% - תמונה בפרספקטיבה; היישור מקורב', { pct: (residual * 100).toFixed(1) })}</div>` : nothing}`;
   }
 }
 

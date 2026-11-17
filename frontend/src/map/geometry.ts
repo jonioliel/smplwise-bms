@@ -4,6 +4,7 @@
  * (contracts/fixtures/plan_geometry pins both) - and the pure maths of the editor tools: snapping, the nearest wall,
  * distances and areas in metres. No DOM and no Lit, so it runs in node (tests/unit-geometry.spec.ts).
  */
+import { tr } from '../i18n/msg/map';
 import { bulgesOf, cumulative as pathCumulative, isCurved, pathLength, pointAtS, project, ringArea, sample, sampleWithS, subPath, wallLengthPx, wallPx } from './wall-path';
 import { glazingPrimitive, type Glazing, type GlazingPrim } from './glass-wall';
 
@@ -766,7 +767,7 @@ export function connectorLabel(levels: Map<string, GeomLevel>, c: Pick<GeomConne
   const delta = b.elevation_m - a.elevation_m;
   if (delta === 0) return '↕';
   const d = Math.floor(Math.abs(delta) * 10 + 0.5) / 10;
-  return `${delta < 0 ? '↓' : '↑'} ${delta < 0 ? '−' : '+'}${d.toFixed(1)} מ׳`;
+  return `${delta < 0 ? '↓' : '↑'} ${delta < 0 ? '−' : '+'}${d.toFixed(1)} ${tr('מ׳')}`;
 }
 
 const round6 = (v: number): number => Math.round(v * 1e6) / 1e6;
@@ -808,7 +809,7 @@ export const MAX_STAIR_STEPS = 60;
 export const STAIR_WIDTH_RANGE: readonly [number, number] = [0.6, 5];
 export const LANDING_RANGE: readonly [number, number] = [0.3, 10];
 export const STAIR_POINTS: Record<StairShape, number> = { straight: 2, l: 3, u: 4 };
-export const STAIR_SHAPE_LABEL: Record<StairShape, string> = { straight: 'ישר', l: 'L', u: 'U' };
+export const STAIR_SHAPE_LABEL: Record<StairShape, string> = { straight: tr('ישר'), l: 'L', u: 'U' };
 
 /** Whether a connector carries the stairs model (any of shape, flights, landing depth); else it draws as a band. */
 export function hasStairModel(c: Pick<GeomConnector, 'shape' | 'flights' | 'landing_depth_m'>): boolean {
@@ -829,7 +830,7 @@ export function stairCaption(c: Pick<GeomConnector, 'flights' | 'shape'>): strin
   const f = (c.flights ?? []).map((x) => x.steps);
   if (!f.length) return '';
   const landing = f.length > 1 || c.shape === 'l' || c.shape === 'u';
-  return `${f.join('+')} מדרגות${landing ? ' · פודסט' : ''}`;
+  return `${tr('{steps} מדרגות', { steps: f.join('+') })}${landing ? ` · ${tr('פודסט')}` : ''}`;
 }
 
 export interface StairSpec {

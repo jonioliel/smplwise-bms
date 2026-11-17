@@ -9,6 +9,7 @@
  * on an element under ZOOM_MIN_HOST px (a phone, an event's card: a pinch / the wheel zooms; the mockup hides it on a
  * phone too), in the walk and on the wall display's bare view.
  */
+import { tr } from '../i18n/msg/map';
 import { html, css, nothing } from 'lit';
 import '../components/sw-icon';
 
@@ -110,8 +111,8 @@ export const ZOOM_CSS = css`
 /** The two buttons (DOM order - then +: in the RTL group + stands at the outer, left edge, as in the mockup). */
 export function renderZoom(show: boolean, zoom: (factor: number) => void) {
   if (!show) return nothing;
-  return html`<div class="zoom" role="group" aria-label="זום" data-3d-zoom>
-    <button type="button" aria-label="התרחקות" title="התרחקות" data-3d-zoom-out @click=${() => zoom(1 / ZOOM_STEP)}><sw-icon name="minus" size="18" aria-hidden="true"></sw-icon></button>
-    <button type="button" aria-label="התקרבות" title="התקרבות" data-3d-zoom-in @click=${() => zoom(ZOOM_STEP)}><sw-icon name="plus" size="18" aria-hidden="true"></sw-icon></button>
+  return html`<div class="zoom" role="group" aria-label=${tr('זום')} data-3d-zoom>
+    <button type="button" aria-label=${tr('התרחקות')} title=${tr('התרחקות')} data-3d-zoom-out @click=${() => zoom(1 / ZOOM_STEP)}><sw-icon name="minus" size="18" aria-hidden="true"></sw-icon></button>
+    <button type="button" aria-label=${tr('התקרבות')} title=${tr('התקרבות')} data-3d-zoom-in @click=${() => zoom(ZOOM_STEP)}><sw-icon name="plus" size="18" aria-hidden="true"></sw-icon></button>
   </div>`;
 }

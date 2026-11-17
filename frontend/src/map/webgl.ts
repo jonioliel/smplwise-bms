@@ -2,8 +2,9 @@
  * WebGL availability (T087, ruling R-P4-5): the 3D toggle is disabled with a Hebrew note when the browser gives no
  * context, and the 2D map stays as it is. Checked once per page (creating contexts is not free).
  */
-export const WEBGL_UNAVAILABLE_HE = 'תלת-ממד לא זמין בדפדפן זה';
+export const WEBGL_UNAVAILABLE_HE = tr('תלת-ממד לא זמין בדפדפן זה');
 
+import { tr } from '../i18n/msg/map';
 import { gpuClass, type GpuClass, type GpuFacts } from './quality-ladder';
 
 let known: boolean | null = null;

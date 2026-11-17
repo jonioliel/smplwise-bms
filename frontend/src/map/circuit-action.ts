@@ -4,6 +4,7 @@
  * action, a separate grant, a send already in flight for this switch, a stale screen). The click itself goes through the
  * screen's existing `trigger` (the entity action route, its confirmation and audit); this module never writes.
  */
+import { tr } from '../i18n/msg/map';
 import type { HaActionSpec } from '../api/ha';
 import type { CircuitState } from '../api/types';
 
@@ -18,17 +19,17 @@ export function circuitAction(s: CircuitState, ctx: { busy: boolean; stale: bool
   const on = s.state === 'on';
   const spec = s.actions.find((x) => x.id.endsWith(on ? 'turn_off' : 'turn_on')) ?? null;
   const why = !s.can_control
-    ? 'אין הרשאת שליטה בישויות בקומה'
+    ? tr('אין הרשאת שליטה בישויות בקומה')
     : !s.available
-      ? 'המפסק אינו זמין'
+      ? tr('המפסק אינו זמין')
       : !spec
-        ? 'אין פעולה מותרת למפסק הזה'
+        ? tr('אין פעולה מותרת למפסק הזה')
         : spec.granted === false
-          ? `נדרשת הרשאה נפרדת: ${spec.grant ?? ''}`
+          ? tr('נדרשת הרשאה נפרדת: {grant}', { grant: spec.grant ?? '' })
           : ctx.busy
-            ? 'פעולה על המפסק כבר בדרך'
+            ? tr('פעולה על המפסק כבר בדרך')
             : ctx.stale
-              ? 'המפה אינה מעודכנת — השליטה חוזרת עם החידוש'
+              ? tr('המפה אינה מעודכנת — השליטה חוזרת עם החידוש')
               : null;
   return { spec, blocked: why !== null, why };
 }

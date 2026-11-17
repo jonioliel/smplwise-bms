@@ -1,3 +1,4 @@
+import { tr } from '../i18n/msg/map';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { ApiError, describeError } from '../api/client';
 import { getGeometry, saveGeometryDraft, type CopyCandidate, type GeometryIssue, type GeometryResponse, type SharedPending } from '../api/geometry';
@@ -51,7 +52,7 @@ function ownPart(d: GeometryDoc, coll: MergedColl): Item[] {
  * not follow. */
 export function skippedTwinsMessage(floors: readonly { name: string }[]): string {
   const names = [...new Set(floors.map((f) => f.name))];
-  return `המדרגות ב${names.join(' וב')} לא עודכנו - אין לך הרשאת עריכה שם`;
+  return tr('המדרגות ב{floors} לא עודכנו - אין לך הרשאת עריכה שם', { floors: names.join(tr(' וב')) });
 }
 
 const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
@@ -378,7 +379,7 @@ export class StudioController implements ReactiveController {
         this.conflicted = true;
       }
       this.saveState = 'error';
-      this.error = this.conflicted ? 'הקומה עודכנה מקומה אחרת או במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי (שינויים שלא נשמרו כאן לא יישמרו).' : describeError(err);
+      this.error = this.conflicted ? tr('הקומה עודכנה מקומה אחרת או במקום אחר; טען מחדש את העורך כדי לא לדרוס שינוי (שינויים שלא נשמרו כאן לא יישמרו).') : describeError(err);
     } finally {
       this.host.requestUpdate();
     }

@@ -11,6 +11,7 @@ import { acceptZones, deleteZone, detectZones, listZones, updateZone, type ZoneK
 import { listEntities } from '../api/ha';
 import { loadLibrary, lookup3dOf, lookupMaterialsOf } from '../api/plan-catalog';
 import { isApi } from '../api/session';
+import type { PlanVersion } from '../api/types';
 import { resourceUrl } from '../api/client';
 import type { GeometryDoc } from '../map/geometry';
 import type { Catalog3DLookup } from '../map/scene-builder';
@@ -231,8 +232,9 @@ class ApiBackend implements WizardBackend {
   }
 }
 
-function versionInfo(v: { id: string; width_px: number; height_px: number }): VersionInfo {
-  const url = (v as unknown as { image_url?: string }).image_url ?? '';
+/** PlanVersion declares `image_url` (code review 08:F19: no cast through unknown); an older server that omits it still reads as ''. */
+function versionInfo(v: Pick<PlanVersion, 'id' | 'width_px' | 'height_px'> & { image_url?: string | null }): VersionInfo {
+  const url = v.image_url ?? '';
   return { versionId: v.id, imageUrl: url ? resourceUrl(url) : '', width: v.width_px, height: v.height_px };
 }
 

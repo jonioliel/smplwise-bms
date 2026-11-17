@@ -1,3 +1,4 @@
+import { tr } from '../i18n/msg/map';
 import { LitElement, html, css, svg, nothing, type SVGTemplateResult } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -1688,10 +1689,10 @@ export class SwPlanCanvas extends LitElement {
     return svg`<g class="zone-handles">
       ${poly.map((p, i) => {
         const q = poly[(i + 1) % poly.length];
-        return svg`<circle class="vmid" cx=${(((p.x + q.x) / 2) * W).toFixed(1)} cy=${(((p.y + q.y) / 2) * H).toFixed(1)} r=${(4 * inv).toFixed(2)} stroke-width=${(1.2 * inv).toFixed(2)} role="button" aria-label="הוסף פינה"
+        return svg`<circle class="vmid" cx=${(((p.x + q.x) / 2) * W).toFixed(1)} cy=${(((p.y + q.y) / 2) * H).toFixed(1)} r=${(4 * inv).toFixed(2)} stroke-width=${(1.2 * inv).toFixed(2)} role="button" aria-label=${tr('הוסף פינה')}
           @pointerdown=${(e: PointerEvent) => this.onVertexPointerDown(z, i, e, true)} @click=${(e: Event) => e.stopPropagation()} />`;
       })}
-      ${poly.map((p, i) => svg`<circle class="vtx ${i === this.selectedZoneVertex ? 'on' : ''}" data-vertex=${i} cx=${(p.x * W).toFixed(1)} cy=${(p.y * H).toFixed(1)} r=${(6 * inv).toFixed(2)} stroke-width=${(1.6 * inv).toFixed(2)} role="slider" aria-label=${`פינה ${i + 1}`}
+      ${poly.map((p, i) => svg`<circle class="vtx ${i === this.selectedZoneVertex ? 'on' : ''}" data-vertex=${i} cx=${(p.x * W).toFixed(1)} cy=${(p.y * H).toFixed(1)} r=${(6 * inv).toFixed(2)} stroke-width=${(1.6 * inv).toFixed(2)} role="slider" aria-label=${tr('פינה {n}', { n: i + 1 })}
           @pointerdown=${(e: PointerEvent) => this.onVertexPointerDown(z, i, e)} @click=${(e: Event) => e.stopPropagation()} />`)}
     </g>`;
   }
@@ -1740,7 +1741,7 @@ export class SwPlanCanvas extends LitElement {
     // owner 2026-09-30: a door of this (upper) floor that opens onto the shared tribune's entry row is its entrance
     const doors = this.geometry ? tribuneEntrances(this.geometry) : [];
     return svg`<g class="shared-outlines" aria-hidden="true">${doors.map((d) => {
-      const label = 'כניסה לטריבונה';
+      const label = tr('כניסה לטריבונה');
       const lw = label.length * 6.2 + 12;
       return svg`<g class="tribune-entry" data-tribune-entry=${d.objectId} data-tribune-door=${d.openingId} transform="translate(${(d.point[0] * this.planWidth).toFixed(1)} ${(d.point[1] * this.planHeight).toFixed(1)}) scale(${inv})">
         <circle r="6" /><path d="M -3 -1.5 L 0 1.8 L 3 -1.5" /><g transform="translate(0 -16)"><rect x=${-lw / 2} y="-8" width=${lw} height="16" rx="8" /><text y="3.5">${label}</text></g>
@@ -2032,9 +2033,9 @@ export class SwPlanCanvas extends LitElement {
         const q = rel(p);
         const n = rel(pts[(i + 1) % pts.length]);
         return svg`
-          <circle class="handle mid" cx=${((q.x + n.x) / 2).toFixed(1)} cy=${((q.y + n.y) / 2).toFixed(1)} r=${(4.5 * inv).toFixed(1)} data-cov-mid=${i} role="button" aria-label="הוסף נקודה"
+          <circle class="handle mid" cx=${((q.x + n.x) / 2).toFixed(1)} cy=${((q.y + n.y) / 2).toFixed(1)} r=${(4.5 * inv).toFixed(1)} data-cov-mid=${i} role="button" aria-label=${tr('הוסף נקודה')}
             @pointerdown=${(e: PointerEvent) => { e.stopPropagation(); e.preventDefault(); }} @click=${(e: Event) => { e.stopPropagation(); this.editPolygon(m, { insertAfter: i }); }} />
-          <circle class="handle" cx=${q.x.toFixed(1)} cy=${q.y.toFixed(1)} r=${(6.5 * inv).toFixed(1)} data-cov-vertex=${i} role="slider" aria-label="נקודת כיסוי"
+          <circle class="handle" cx=${q.x.toFixed(1)} cy=${q.y.toFixed(1)} r=${(6.5 * inv).toFixed(1)} data-cov-vertex=${i} role="slider" aria-label=${tr('נקודת כיסוי')}
             @pointerdown=${(e: PointerEvent) => this.onCoverageVertexDown(m, i, e)} @dblclick=${(e: Event) => { e.stopPropagation(); this.editPolygon(m, { remove: i }); }} />`;
       })}
     `;
@@ -2050,10 +2051,10 @@ export class SwPlanCanvas extends LitElement {
     const hs = 7 * inv;
     return svg`
       <line class="handle-line" x1="0" y1="0" x2=${dir.x.toFixed(1)} y2=${dir.y.toFixed(1)} />
-      <rect class="handle" x=${(left.x - hs).toFixed(1)} y=${(left.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'left', e)} @click=${(e: Event) => e.stopPropagation()} />
-      <rect class="handle" x=${(right.x - hs).toFixed(1)} y=${(right.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label="קצה שדה ראייה" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'right', e)} @click=${(e: Event) => e.stopPropagation()} />
-      <circle class="handle" cx=${dir.x.toFixed(1)} cy=${dir.y.toFixed(1)} r=${(8 * inv).toFixed(1)} role="slider" aria-label="כיוון מבט" @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'dir', e)} @click=${(e: Event) => e.stopPropagation()} />
-      <circle class="handle range" cx=${pt(rotation, r).x.toFixed(1)} cy=${pt(rotation, r).y.toFixed(1)} r=${(6.5 * inv).toFixed(1)} role="slider" aria-label="טווח כיסוי" data-cov-range @pointerdown=${(e: PointerEvent) => this.onRangePointerDown(m, e)} />
+      <rect class="handle" x=${(left.x - hs).toFixed(1)} y=${(left.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label=${tr('קצה שדה ראייה')} @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'left', e)} @click=${(e: Event) => e.stopPropagation()} />
+      <rect class="handle" x=${(right.x - hs).toFixed(1)} y=${(right.y - hs).toFixed(1)} width=${(hs * 2).toFixed(1)} height=${(hs * 2).toFixed(1)} rx=${(1.5 * inv).toFixed(1)} role="slider" aria-label=${tr('קצה שדה ראייה')} @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'right', e)} @click=${(e: Event) => e.stopPropagation()} />
+      <circle class="handle" cx=${dir.x.toFixed(1)} cy=${dir.y.toFixed(1)} r=${(8 * inv).toFixed(1)} role="slider" aria-label=${tr('כיוון מבט')} @pointerdown=${(e: PointerEvent) => this.onHandlePointerDown(m, 'dir', e)} @click=${(e: Event) => e.stopPropagation()} />
+      <circle class="handle range" cx=${pt(rotation, r).x.toFixed(1)} cy=${pt(rotation, r).y.toFixed(1)} r=${(6.5 * inv).toFixed(1)} role="slider" aria-label=${tr('טווח כיסוי')} data-cov-range @pointerdown=${(e: PointerEvent) => this.onRangePointerDown(m, e)} />
     `;
   }
 
@@ -2331,9 +2332,9 @@ export class SwPlanCanvas extends LitElement {
     const hs = 5 * inv;
     return svg`<g class="ohandles">
       <line class="handle-line" x1=${front[0]} y1=${front[1]} x2=${knob[0]} y2=${knob[1]} />
-      ${[0, 1, 2, 3].map((i) => { const m = mid(i); return svg`<rect class="handle" data-object-stretch=${i} x=${m[0] - hs} y=${m[1] - hs} width=${hs * 2} height=${hs * 2} rx=${1.5 * inv} role="slider" aria-label="מתיחה"
+      ${[0, 1, 2, 3].map((i) => { const m = mid(i); return svg`<rect class="handle" data-object-stretch=${i} x=${m[0] - hs} y=${m[1] - hs} width=${hs * 2} height=${hs * 2} rx=${1.5 * inv} role="slider" aria-label=${tr('מתיחה')}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('object-stretch', p.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`; })}
-      <circle class="handle" data-object-rotate cx=${knob[0]} cy=${knob[1]} r=${7 * inv} role="slider" aria-label="סיבוב" @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('object-rotate', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />
+      <circle class="handle" data-object-rotate cx=${knob[0]} cy=${knob[1]} r=${7 * inv} role="slider" aria-label=${tr('סיבוב')} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('object-rotate', p.id, 0, e)} @click=${(e: Event) => e.stopPropagation()} />
     </g>`;
   }
 
@@ -2481,7 +2482,7 @@ export class SwPlanCanvas extends LitElement {
       ${objectHitOrder(objects, this.selectedGeomId).map((p) => svg`<polygon class="hit ohit" data-hit-object=${p.id} points=${ptsAttr(objectHitCorners(p, OBJECT_HIT_MIN_PX * inv))}
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart(e.altKey ? 'object-duplicate' : 'object', p.id, 0, e))}
           @click=${(e: Event) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'object', e) : e.stopPropagation())} />`)}
-      ${selConnector && !selConnector.object_id ? selConnector.polyline.map((v, i) => svg`<circle class="gvtx" data-connector-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת מחבר ${i + 1}`}
+      ${selConnector && !selConnector.object_id ? selConnector.polyline.map((v, i) => svg`<circle class="gvtx" data-connector-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${tr('פינת מחבר {n}', { n: i + 1 })}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('connector-vertex', selConnector.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selObject ? this.renderObjectHandles(selObject, inv) : nothing}
       ${walls.filter((p) => bodyWall(p.id)).map((p) => svg`<polyline class="hit whit" data-hit-wall=${p.id} data-wall-body points=${ptsAttr(p.points)} stroke-width=${Math.max(p.width, wallHitPx * inv)}
@@ -2492,7 +2493,7 @@ export class SwPlanCanvas extends LitElement {
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart('label', p.id, 0, e))} @click=${(e: MouseEvent) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'label', e) : this.itemClick(e))} />`)}
       ${pointsWall && through ? through.map((i, k) => { const v = pointsWall.polyline[i]; return svg`<circle class="gvtx gpt ${i === this.selectedVertex ? 'on' : ''}" data-curve-point=${k} data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${(this.coarse ? 9 : 6.5) * inv} stroke-width=${1.8 * inv}
           role="slider" aria-label=${`${curveT('pointHandle')} ${k + 1}`} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('curve-point', pointsWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`; }) : nothing}
-      ${selWall && !(through && pointsWall?.id === selWall.id) ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
+      ${selWall && !(through && pointsWall?.id === selWall.id) ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${tr('פינת קיר {n}', { n: i + 1 })}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selWall && this.curveHandles ? selWall.polyline.slice(1).map((_v, i) => {
         const m = segmentMid(selWall, i, W, H);
@@ -2546,7 +2547,7 @@ export class SwPlanCanvas extends LitElement {
     const attrs = (id: string) => ({ state: this.candidateStates[id] ?? 'accepted', score: this.candConfidence(set, id).toFixed(2) });
     const shown = this.candHover ?? this.selectedCandidateId;
     const at = shown ? this.candAnchor(prims, shown) : null;
-    const label = shown ? `ביטחון ${this.candConfidence(set, shown).toFixed(2)}${isOutsideMain(set, shown) ? ` · ${OUTSIDE_MAIN_HE}` : ''}` : '';
+    const label = shown ? `${tr('ביטחון {v}', { v: this.candConfidence(set, shown).toFixed(2) })}${isOutsideMain(set, shown) ? ` · ${OUTSIDE_MAIN_HE}` : ''}` : '';
     const tw = (label.length * 7 + 16) * inv;
     return svg`<g class="candidates" data-candidates>
       ${prims.map((p) => {
@@ -2641,7 +2642,7 @@ export class SwPlanCanvas extends LitElement {
         if (p.kind === 'door' || p.kind === 'window' || p.kind === 'passage') return svg`<line class="hit" data-cand-hit=${p.id} x1=${p.gap[0][0]} y1=${p.gap[0][1]} x2=${p.gap[1][0]} y2=${p.gap[1][1]} stroke-width=${14 * inv} @click=${(e: Event) => this.pickCandidate(p.id, e)} @pointerenter=${over} @pointerleave=${out} />`;
         return nothing;
       })}
-      ${sel && this.candidateEditable ? sel.polyline.map((v, i) => svg`<circle class="cvtx" data-cand-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`קצה מועמד ${i + 1}`}
+      ${sel && this.candidateEditable ? sel.polyline.map((v, i) => svg`<circle class="cvtx" data-cand-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${tr('קצה מועמד {n}', { n: i + 1 })}
           @pointerdown=${(e: PointerEvent) => this.onCandDragStart(sel.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
     </g>`;
@@ -2688,7 +2689,7 @@ export class SwPlanCanvas extends LitElement {
       </g>
       <g class="ghost-hits">
         ${door ? svg`<line class="hit" data-ghost-accept x1=${door.gap[0][0]} y1=${door.gap[0][1]} x2=${door.gap[1][0]} y2=${door.gap[1][1]} stroke-width=${24 * inv}
-            @pointerdown=${(e: PointerEvent) => e.stopPropagation()} @click=${(e: Event) => this.ghostEvent(e, { id: 'accept', phase: 'click' })}><title>אישור הדלת (Enter)</title></line>` : nothing}
+            @pointerdown=${(e: PointerEvent) => e.stopPropagation()} @click=${(e: Event) => this.ghostEvent(e, { id: 'accept', phase: 'click' })}><title>${tr('אישור הדלת (Enter)')}</title></line>` : nothing}
         ${this.ghostHandles.map((h) => {
           const cx = h.at[0] * W;
           const cy = h.at[1] * H;
@@ -2850,7 +2851,7 @@ export class SwPlanCanvas extends LitElement {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.panActive ? 'spacepan' : ''}" data-space-pan=${this.panActive ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
-        <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
+        <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${tr('תוכנית קומה')}>
           <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker>
             <pattern id="sw-glass-hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><rect class="glass-hatch-bg" width="4" height="4" /><line class="glass-hatch-line" x1="0" y1="0" x2="0" y2="4" /></pattern></defs>
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
@@ -2879,7 +2880,7 @@ export class SwPlanCanvas extends LitElement {
         </svg>
       </div>
       <div class="zoomdock">
-        <div class="controls" role="group" aria-label="זום">
+        <div class="controls" role="group" aria-label=${tr('זום')}>
           <sw-button variant="ghost" size="sm" iconOnly icon="plus" label=${t('floor.zoomIn')} @click=${() => this.zoomBy(1.25)}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="minus" label=${t('floor.zoomOut')} @click=${() => this.zoomBy(0.8)}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="fit" label=${t('floor.fit')} @click=${() => { this.fitted = false; this.fit(); }}></sw-button>

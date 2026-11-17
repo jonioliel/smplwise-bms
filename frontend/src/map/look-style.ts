@@ -5,6 +5,7 @@
  * glass, the ground, the backdrop, the horizon, the CSS grade and the state colours. A style switch re-tints and re-lights;
  * it never rebuilds geometry. Pure data plus the choice rule (`auto` follows the UI theme: light -> light, dark -> dark).
  */
+import { tr } from '../i18n/msg/map';
 export type StyleId = 'light' | 'dark';
 
 export interface LookStyle {
@@ -42,7 +43,7 @@ export interface LookStyle {
 export const LOOK_STYLES: Readonly<Record<StyleId, LookStyle>> = {
   light: {
     id: 'light',
-    he: 'אדריכלי בהיר',
+    he: tr('אדריכלי בהיר'),
     rig: {
       // PLAN3D-REALISM-2432: a little more sun and less flat fill by day (the environment's softboxes now carry part of the
       // fill and the highlights), a little more environment at night so the shell stays readable (was sun 1.3, env .5 / .22,
@@ -62,7 +63,7 @@ export const LOOK_STYLES: Readonly<Record<StyleId, LookStyle>> = {
   },
   dark: {
     id: 'dark',
-    he: 'תאום דיגיטלי כהה',
+    he: tr('תאום דיגיטלי כהה'),
     rig: {
       exposureDay: 0.72, exposureNight: 0.8, sunScale: 0.55, skyScale: 0.32, envDay: 0.5, envNight: 0.2, hemiScale: 0.42, interiorFill: [0.45, 0.9],
       shadowRadius: 8, rim: { color: 0x7cc8ff, intensity: 0.55 }, floorSheen: 0.72, fog: { color: '#0a1322', density: 0.045 },

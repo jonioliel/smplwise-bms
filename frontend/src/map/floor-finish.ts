@@ -15,6 +15,7 @@
  * normal map, no extra pass: the floor stays one draw per level, the cost of a plain textured floor. The `procedural`
  * texture source (the geometric look) draws the finish as its plain tint, like every library material without its files.
  */
+import { tr } from '../i18n/msg/map';
 import type { MaterialDef } from './material-resolve';
 
 export type FloorFinish = 'wood' | 'marble' | 'ceramic';
@@ -39,8 +40,8 @@ export function finishMaterial(finish: FloorFinish | undefined): string {
  * mirror polish (the owner approved the less glossy floors of this branch; the style's floor sheen multiplies it).
  */
 export const FINISH_DEFS: readonly MaterialDef[] = [
-  { id: FINISH_MARBLE, group: 'floor', he: 'שיש', tile_m: 2.4, tint: { light: '#ffffff', dark: '#868b95' }, roughness: 0.32, metalness: 0, normal: 0, set: null, aliases: [] },
-  { id: FINISH_CERAMIC, group: 'floor', he: 'קרמיקה יוקרתית', tile_m: 2.4, tint: { light: '#ffffff', dark: '#80848c' }, roughness: 0.4, metalness: 0, normal: 0, set: null, aliases: [] },
+  { id: FINISH_MARBLE, group: 'floor', he: tr('שיש'), tile_m: 2.4, tint: { light: '#ffffff', dark: '#868b95' }, roughness: 0.32, metalness: 0, normal: 0, set: null, aliases: [] },
+  { id: FINISH_CERAMIC, group: 'floor', he: tr('קרמיקה יוקרתית'), tile_m: 2.4, tint: { light: '#ffffff', dark: '#80848c' }, roughness: 0.4, metalness: 0, normal: 0, set: null, aliases: [] },
 ];
 export const isFinishMaterial = (id: string): boolean => id === FINISH_MARBLE || id === FINISH_CERAMIC;
 

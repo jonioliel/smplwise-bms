@@ -264,13 +264,42 @@ Collected from the module passes; the first column is the Hebrew as the screens 
 | סבב / נקודת בדיקה | round / checkpoint |
 | ספק (מודול התחזוקה) | supplier (the maintenance module's existing English; tickets and quotes say vendor) |
 
+## Map, 3D view and plan wizard (CR-I18N-MAP / CR-I18N-PLANWIZARD)
+
+| Hebrew | English |
+| --- | --- |
+| מפלס | Level (inside a floor); קומה stays Floor |
+| תוכנית / תוכנית קומה | Plan / floor plan |
+| סטודיו התוכניות / סטודיו | Plan Studio / the studio |
+| אשף (תוכנית חדשה) | Wizard (the new-plan wizard) |
+| זיהוי | Detection (of walls, openings and rooms in a plan) |
+| לבדיקה / בספק / בביטחון | To review / In doubt / Confident |
+| מועמד | Candidate |
+| פתח | Opening (door, window or passage) |
+| מעבר פתוח | Open passage |
+| מחבר | Connector (stairs, ramp, elevator, ladder) |
+| פודסט | Landing |
+| טריבונה | Tribune |
+| חלל משותף | Shared space |
+| קנה מידה | Scale |
+| ערכה / ערכת סגנון | Kit / style kit |
+| סיור (במפה התלת-ממדית) | Walk (eye-level walk); the security "סיור" stays Patrol |
+| תמונה מוכנה | Prepared picture |
+| סכמטי / מלא / ריאליסטי / ריאליסטי קל | Schematic / Full / Realistic / Realistic lite |
+| מפסק (במפה) | Breaker |
+| ישות (במפה, מסך מפעיל) | Device |
+| כיסוי / שדה ראייה | Coverage / field of view |
+| מ׳ | m |
+
 ## Known single-key compromises
 
 A source-text table has one English per Hebrew text in a module. Where one Hebrew word carries two meanings in the same module,
 the English follows the commoner one until the Hebrew is split (a follow-up per module):
 calendars "חזרה" (Back / Repeat), components "סגור" (Close / Closed), "יציאה" (Sign out / the remote's Exit key),
 system-b "שמירה" (Save / Retention: the Retention tab is left in Hebrew), media "אחר" (Other / move later), devices "אחר"
-(Other / move later), electricity "ביטול" (Cancel / Undo).
+(Other / move later), electricity "ביטול" (Cancel / Undo),
+map "קומה אחרת" (a label and the end of a sentence: lower case "another floor"), map "מחוץ למבנה הראשי" (lower case, it
+follows a number), plan-wizard "קיר" / "דלת" / "חלון" (a choice label and the object of "זוהה כ": English says "Detected: Wall").
 
 ## Home interface (CR-I18N-HOME-2441, `src/i18n/msg/home.ts`)
 
