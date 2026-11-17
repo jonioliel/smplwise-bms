@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-drawer';
 import { describeError } from '../api/client';
 import { ackUnit, clearLearned, decideWindow, endMaintenance, getHistory, listEvents, muteUnit, startMaintenance, unmuteUnit, type HistoryResponse, type RangeKey, type TempEvent, type TempUnit } from '../api/temperature';
 import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorRuns, durationText, eventText, fmt1, hhmm, friendlyName, hvacText, normalize, stateRuns, windowText, type Run } from './model';
@@ -11,6 +12,7 @@ import './explain'; // TEMPEXPLAIN093-295: "why did it warm?"
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: no ticket action while the tickets module is off
 import { tt, type TtKey } from '../i18n/temperature';
 import { dayMonthText } from '../api/day-format';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const WIDE_KEY = 'sw.temperature.detailWide';
 const MUTES = [15, 30, 60, 120];
@@ -68,33 +70,23 @@ export class TempDetail extends LitElement {
   private loadedFor = '';
 
   static styles = [tempCss, css`
-    :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: block; }
-    .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
-    .drawer {
-      position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: min(560px, 100vw); background: var(--sw-bg); box-shadow: var(--sw-shadow-3);
-      display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; max-inline-size: 100vw; overflow: hidden;
-    }
-    .drawer.wide { inline-size: min(1240px, 100vw); }
-    /* R5-MEDIA-ENERGY-297 (emil: drawers 200-400 ms, ease-out; transform + opacity only): the drawer slides in from its edge in 280 ms, the scrim fades */
-    .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
-    .drawer { opacity: 1; transform: translateX(0); transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms var(--sw-ease-out); }
-    /* the drawer hangs on the inline end: in RTL (the product) that edge is the left, so it enters from the left; in LTR from the right */
-    @starting-style { .ovl { opacity: 0; } .drawer { opacity: 0; transform: translateX(-28px); } }
-    :host(:dir(ltr)) .drawer { transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms var(--sw-ease-out); }
-    @starting-style { :host(:dir(ltr)) .drawer { transform: translateX(28px); } }
-    .dh { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--sw-border); background: var(--sw-surface); }
-    /* R5-MEDIA-ENERGY-297: the drawer's title is a title (24 px / 800), its statistics are wells with display numerals, its footer keys are raised */
-    .dh h2 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); }
-    .dh small { color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
-    .dh .t { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
-    .dh .badge { flex: none; }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8B): the unit's detail is the system's one drawer (sw-drawer modal: the scrim, the
+       opaque surface, the title and close button on top, the actions on the bottom, focus trap, Escape, focus return, the phone's
+       full-height sheet). It opens from the same side as every other drawer; the coloured ground is gone. The expand key keeps its
+       behaviour: it only widens the same drawer. */
+    :host { display: contents; }
+    sw-drawer { --sw-drawer-modal-w: 560px; }
+    sw-drawer[data-wide] { --sw-drawer-modal-w: min(1240px, 100vw); }
+    .hact { display: flex; align-items: center; gap: 8px; }
     .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
-    .db { flex: 1; min-inline-size: 0; overflow-x: hidden; overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
-    .wide .db { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
+    .db { position: relative; min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+    .db.wide { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
+    /* the dialogs opened over the detail (report, edit wizard, service call) live inside the modal drawer - everything outside it is inert */
+    .ovs { position: absolute; inline-size: 0; block-size: 0; }
     .col { display: grid; gap: 12px; align-content: start; min-inline-size: 0; }
-    .df { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); position: relative; }
+    .df { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; position: relative; flex: 1; }
     .df .sp { flex: 1; }
-    .df { flex: none; min-inline-size: 0; }
+    .df { min-inline-size: 0; }
     .df .err { flex: 1 1 100%; overflow-wrap: anywhere; }
     .headrow { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
     .headrow > * { min-inline-size: 0; }
@@ -148,7 +140,7 @@ export class TempDetail extends LitElement {
     .win { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--sw-fs-sm); }
     .win .w { font-variant-numeric: tabular-nums; direction: ltr; }
     .pop {
-      position: absolute; inset-block-end: calc(100% + 6px); inset-inline-start: 16px; background: var(--sw-menu-surface); border: 1px solid var(--sw-menu-border);
+      position: absolute; inset-block-end: calc(100% + 6px); inset-inline-start: 0; background: var(--sw-menu-surface); border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-3); padding: 6px; display: grid; min-inline-size: min(220px, calc(100vw - 32px)); max-inline-size: calc(100vw - 32px); z-index: 1;
     }
     .pop .hd { padding: 6px 10px; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
@@ -177,10 +169,9 @@ export class TempDetail extends LitElement {
     .pop.maint .seg button { display: inline-block; padding: 4px 10px; }
     .pop.maint > .btn { justify-self: start; }
     @media (max-width: 900px) {
-      .wide .db { grid-template-columns: minmax(0, 1fr); }
+      .db.wide { grid-template-columns: minmax(0, 1fr); }
     }
     @media (max-width: 600px) {
-      .drawer, .drawer.wide { inline-size: 100vw; }
       .headrow { flex-direction: column; align-items: stretch; }
       .headrow > .gauge { align-self: center; }
       .stat4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -190,10 +181,9 @@ export class TempDetail extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      if (this.ticket) return; // the ticket dialog closes itself
+      // the drawer closes itself on Escape (sw-drawer); an open footer popover (marked data-nested-open) takes the key first
       if (this.muteOpen) this.muteOpen = false;
       else if (this.maintOpen) this.maintOpen = false;
-      else this.close();
     }
   };
 
@@ -206,10 +196,6 @@ export class TempDetail extends LitElement {
     window.removeEventListener('keydown', this.onKey);
     this.ro?.disconnect();
     super.disconnectedCallback();
-  }
-
-  firstUpdated() {
-    this.renderRoot.querySelector<HTMLElement>('[data-temp-close]')?.focus({ preventScroll: true });
   }
 
   updated(changed: Map<string, unknown>) {
@@ -238,6 +224,12 @@ export class TempDetail extends LitElement {
   private close() {
     this.dispatchEvent(new CustomEvent('close'));
   }
+
+  /** sw-drawer's own close (✕, Escape, the scrim) - never the `close` of a dialog opened inside it, which bubbles through here too. */
+  private onDrawerClose = (e: Event) => {
+    if (e.target !== e.currentTarget) return;
+    this.close();
+  };
 
   private async loadHistory() {
     const id = this.unit.id;
@@ -461,7 +453,7 @@ export class TempDetail extends LitElement {
       void this.act(() => startMaintenance(u.id, m, r), 'maintStarted', { t: hhmm(Date.now() + m * 60_000, lang) });
       this.maintReason = '';
     };
-    return html`<div class="pop maint" role="dialog" aria-label=${tt('maintTitle')} data-temp-maintpop><div class="hd">${tt('maintTitle')}</div>
+    return html`<div class="pop maint" role="dialog" aria-label=${tt('maintTitle')} data-nested-open data-temp-maintpop><div class="hd">${tt('maintTitle')}</div>
       <div class="nt">${u.rules.maintenance_includes_alarms ? tt('maintNoteAlarms') : tt('maintNote')}</div>
       <label class="mf"><span>${tt('maintReason')}</span><input class="in" maxlength="120" .value=${this.maintReason} placeholder=${tt('maintReasonPh')}
         @input=${(e: Event) => { this.maintReason = (e.target as HTMLInputElement).value; }} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') go(); }} data-maint-reason /></label>
@@ -483,7 +475,7 @@ export class TempDetail extends LitElement {
         ${this.canManage && w.status === 'learned' ? html`<span style="flex:1"></span><button type="button" class="btn sm" ?disabled=${this.busy} data-window-confirm @click=${() => this.act(() => decideWindow(u.id, w.start_min, 'confirm'), 'saved')}>${tt('confirm')}</button>
           <button type="button" class="btn sm ghost" ?disabled=${this.busy} data-window-reject @click=${() => this.act(() => decideWindow(u.id, w.start_min, 'reject'), 'saved')}>${tt('reject')}</button>` : nothing}</div>`)}</div>
       ${this.canManage && d.mode === 'learn' && d.windows.length ? html`<button type="button" class="btn sm ghost" style="margin-top:8px" ?disabled=${this.busy} data-learn-clear
-          @click=${() => { if (window.confirm(tt('clearConfirm'))) void this.act(() => clearLearned(u.id), 'saved'); }}>${tt('clearLearned')}</button>` : nothing}
+          @click=${async () => { if (await confirmDialog({ body: tt('clearConfirm'), danger: true })) void this.act(() => clearLearned(u.id), 'saved'); }}>${tt('clearLearned')}</button>` : nothing}
     </div>`;
   }
 
@@ -503,13 +495,10 @@ export class TempDetail extends LitElement {
     const others = this.units.filter((x) => x.id !== u.id);
     const sevC: Record<string, string> = { alarm: 'var(--tc-alarm)', warning: 'var(--tc-warn)', info: 'var(--tc-acc)' };
     const openAlert = [...u.events].sort((a, b) => (a.severity === 'alarm' ? -1 : 0) - (b.severity === 'alarm' ? -1 : 0)).find((e) => e.severity === 'alarm' || e.severity === 'warning');
-    return html`<div class="ovl" @click=${() => this.close()}></div>
-      <aside class="drawer ${this.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="d-title" data-temp-detail=${u.id}>
-        <div class="dh"><div class="t"><h2 id="d-title">${u.name}</h2><small>${[u.area_name, friendlyName(u.temp_sensor_name, '')].filter(Boolean).join(' · ')}</small></div>
-          <span class="badge" data-look=${look}><sw-icon name=${STATUS_ICON[st]} size="14"></sw-icon>${tt(STATUS_KEY[st])}</span>
-          <button type="button" class="btn icb" aria-label=${tt('expand')} title=${tt('expand')} aria-pressed=${String(this.wide)} data-temp-wide @click=${() => this.toggleWide()}><sw-icon name="grid" size="16"></sw-icon></button>
-          <button type="button" class="btn icb" aria-label=${tt('close')} data-temp-close @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></div>
-        <div class="db">
+    return html`<sw-drawer modal open heading=${u.name} subheading=${[u.area_name, friendlyName(u.temp_sensor_name, '')].filter(Boolean).join(' · ')} ?data-wide=${this.wide} @close=${this.onDrawerClose}>
+        <span slot="action" class="hact"><span class="badge" data-look=${look}><sw-icon name=${STATUS_ICON[st]} size="14"></sw-icon>${tt(STATUS_KEY[st])}</span>
+          <button type="button" class="btn icb" aria-label=${tt('expand')} title=${tt('expand')} aria-pressed=${String(this.wide)} data-temp-wide @click=${() => this.toggleWide()}><sw-icon name="grid" size="16"></sw-icon></button></span>
+        <div class=${this.wide ? 'db wide' : 'db'} data-temp-detail=${u.id}>
           <div class="col">
             <div class="panel" data-look=${look}><div class="headrow">${gauge(u, look, u.trend, 132)}
               <div style="flex:1;display:grid;gap:8px;min-inline-size:0">
@@ -569,8 +558,11 @@ export class TempDetail extends LitElement {
                   aria-pressed=${String(this.whyEvent === e.id)} @click=${() => { this.whyEvent = this.whyEvent === e.id ? '' : e.id; void this.updateComplete.then(() => this.renderRoot.querySelector('temp-explain')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>${tt('whyBtn')}</button>` : nothing}</div>
                 <span class="chip" data-tone=${e.ended_at ? 'mut' : 'err'}>${e.ended_at ? tt('closed') : tt('open')}</span></div>`) : html`<p class="hint">${tt('noRecent')}</p>`}</div></div>
           </div>
+          <div class="ovs"><slot></slot>
+            ${this.ticket && ticketsEnabled() ? html`<temp-ticket .unitId=${u.id} .eventId=${this.ticket.eventId} @close=${() => { this.ticket = null; }}
+              @done=${(e: CustomEvent<{ message: string }>) => { this.ticket = null; this.dispatchEvent(new CustomEvent('changed', { detail: e.detail.message })); }}></temp-ticket>` : nothing}</div>
         </div>
-        <div class="df">
+        <div slot="footer" class="df">
           ${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
           ${this.canAck ? html`<button type="button" class="btn pri" ?disabled=${!ackable || this.busy} data-temp-ack @click=${() => this.act(() => ackUnit(u.id), 'acked')}><sw-icon name="check" size="16"></sw-icon>${tt('ack')}</button>
             ${u.muted_until ? html`<button type="button" class="btn" ?disabled=${this.busy} data-temp-unmute @click=${() => this.act(() => unmuteUnit(u.id), 'saved')}><sw-icon name="bell" size="16"></sw-icon>${tt('unmute')}</button>`
@@ -582,15 +574,13 @@ export class TempDetail extends LitElement {
           ${this.canAck && ticketsEnabled() ? html`<button type="button" class="btn" data-temp-ticket-btn @click=${() => { this.ticket = { eventId: openAlert?.id ?? null }; }}><sw-icon name="ticket" size="16"></sw-icon>${tt('ticketBtn')}</button>` : nothing}
           <span class="sp"></span>
           ${this.canManage ? html`<button type="button" class="btn ghost" data-temp-detail-edit @click=${() => this.dispatchEvent(new CustomEvent('edit'))}><sw-icon name="edit" size="16"></sw-icon>${tt('edit')}</button>` : nothing}
-          ${this.muteOpen ? html`<div class="pop" role="menu" data-temp-mutepop><div class="hd">${tt('muteTitle')}</div>${u.rules.mute_includes_alarms ? nothing : html`<div class="nt">${tt('muteNote')}</div>`}
+          ${this.muteOpen ? html`<div class="pop" role="menu" data-nested-open data-temp-mutepop><div class="hd">${tt('muteTitle')}</div>${u.rules.mute_includes_alarms ? nothing : html`<div class="nt">${tt('muteNote')}</div>`}
             ${MUTES.map((m) => html`<button type="button" role="menuitem" data-mute=${m} @click=${() => { this.muteOpen = false; void this.act(() => muteUnit(u.id, { minutes: m }), 'muted', { t: hhmm(now + m * 60_000, lang) }); }}>${durationText(m)}<span class="num">${hhmm(now + m * 60_000, lang)}</span></button>`)}
             ${u.defrost.windows.some((w) => w.status !== 'rejected') ? html`<button type="button" role="menuitem" data-mute="defrost" @click=${() => { this.muteOpen = false; void this.act(() => muteUnit(u.id, { until_defrost_end: true }), 'saved'); }}>${tt('muteDefrost')}</button>` : nothing}
           </div>` : nothing}
           ${this.maintOpen ? this.maintPop(u, lang) : nothing}
         </div>
-      </aside>
-      ${this.ticket && ticketsEnabled() ? html`<temp-ticket .unitId=${u.id} .eventId=${this.ticket.eventId} @close=${() => { this.ticket = null; }}
-          @done=${(e: CustomEvent<{ message: string }>) => { this.ticket = null; this.dispatchEvent(new CustomEvent('changed', { detail: e.detail.message })); }}></temp-ticket>` : nothing}`;
+      </sw-drawer>`;
   }
 }
 

@@ -14,6 +14,7 @@ import { genCss } from './gen-styles';
 import { effectiveRecipients, fill, hasRecipients, routeGroups, routingEmpty } from './gen-logic';
 import { grt } from '../i18n/generator-routing';
 import './gen-escalation';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const G = he.generator;
 const S = G.settings;
@@ -181,7 +182,7 @@ export class GenRouting extends LitElement {
     }
   }
   private async reset() {
-    if (!window.confirm(S.confirmReset)) return;
+    if (!(await confirmDialog({ body: S.confirmReset, danger: true }))) return;
     this.busy = true;
     try {
       await resetPolicies(this.device.id);

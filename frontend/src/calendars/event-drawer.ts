@@ -35,7 +35,7 @@ export class CalEventDrawer extends LitElement {
     /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (sw-drawer modal: scrim, focus trap, Escape, focus return, the
        same header and action row as every drawer). CAL-GRID-EDIT-2343: a tall form scrolls inside the drawer's body, never the page. */
     :host { display: contents; }
-    sw-drawer { --sw-drawer-sheet-h: 88dvh; }
+    /* DIALOG-DRAWER-ONE-2439 (Q-DES-8B): on a phone the drawer rises to the full screen, like every drawer (was an 88 % sheet) */
     .content { display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
     .lockline { display: flex; align-items: center; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 8px 12px; border-radius: var(--sw-r-md);
       background: var(--sw-surface-3); }
@@ -60,8 +60,11 @@ export class CalEventDrawer extends LitElement {
     .sugg button { font: inherit; min-block-size: 30px; padding-inline: 12px; border-radius: var(--sw-r-pill); background: var(--sw-accent-soft); color: var(--sw-accent-text); border: 0;
       font-weight: var(--sw-fw-bold); font-size: var(--sw-fs-sm); cursor: pointer; }
     .col { display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
-    .fld.top { align-items: start; }
-    .fld.top > .lbl, .fld.top > label { padding-block-start: 10px; }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8B): the labels sit ABOVE the fields, as in every drawer and dialog (they were a
+       96 px column beside them) */
+    .fld { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .fld > label, .fld > .lbl { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+    .fld > span:empty { display: none; }
     .note sw-icon { flex: none; color: var(--sw-accent-text); margin-block-start: 2px; }
     .note.warn sw-icon { color: var(--sw-warning-text); }
     .note.bad sw-icon { color: var(--sw-danger-text); }

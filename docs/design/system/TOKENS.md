@@ -1,5 +1,9 @@
 # Token map: the new design system onto the existing skin layer (DESIGNSYS-297, 2026-10-27)
 
+> **Status 2026-11-14: superseded as the product's token reference** by `DESIGN.md` in this folder (owner decision Q-DES-1, round 32:
+> two rulebooks, Domus and glass, read from the code). This file remains the value list of the 2026-10-27 proposal: the `infra` and
+> `soft` foundation skins and the unbuilt "Arx Ops". "Companion of `DESIGN.md`" below means `DESIGN_ARX_INFRA_PROPOSAL_2026-10-27.md`.
+
 Companion of `DESIGN.md`. Every value of the three directions, keyed by the **existing** names of `frontend/src/design/tokens.ts`
 (the `--sw-*` table) so that the build task after the owner's choice is a skin (`frontend/src/design/skins/<id>.ts`: token overrides,
 both columns, plus ≤ 50 component rules) and not a new token family. The `--dv-*` glass knobs of the device screens keep bridging

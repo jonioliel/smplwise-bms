@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { createReportLink, downloadReportPdf, getReportLinks, getReportPreview, revokeReportLink, sendReportLink, type LinkSendResponse, type ReportLinkCreated, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
 import { REPORT_RANGES, deg, durationText, eventText, friendlyName, localInput } from './model';
@@ -46,20 +47,10 @@ export class TempReport extends LitElement {
   private haccpAuto?: { range: ReportRange; prevRange: ReportRange; prevSignature: boolean };
 
   static styles = [tempCss, css`
-    :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
-    .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
-    .sheet { position: relative; inline-size: min(1040px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden; }
-    .wh { display: flex; align-items: flex-start; gap: 10px; padding: 16px 20px 8px; }
-    /* R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade, the scrim
-       fades with it; the title is a title */
-    .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
-    .sheet { opacity: 1; transform: scale(1); transition: opacity 300ms var(--sw-ease-out), transform 300ms cubic-bezier(0.23, 1, 0.32, 1); }
-    @starting-style { .ovl { opacity: 0; } .sheet { opacity: 0; transform: scale(0.96); } }
-    .wh h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
-    .wh small { color: var(--sw-text-2); }
-    .wh .t { flex: 1; }
-    .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
-    .wb { flex: 1; overflow: auto; padding: 8px 20px 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 18px; align-items: start; }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog (sw-dialog: the scrim, the opaque centred box, the title
+       and the close button on top, the actions on the bottom, focus trap, Escape, focus return, the phone's bottom sheet). */
+    :host { display: contents; }
+    .wb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 18px; align-items: start; }
     .col { display: grid; gap: 14px; }
     .field { display: grid; gap: 6px; }
     .field > .lbl { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
@@ -97,9 +88,9 @@ export class TempReport extends LitElement {
     .capnote { font-size: var(--sw-fs-xs); color: var(--sw-warn-text, var(--sw-text-2)); margin: 0; }
     table.smp td { font-variant-numeric: tabular-nums; }
     table.smp tr[data-out] td { color: var(--sw-danger-text); }
-    .wl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
+    .wl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-block-start: 10px; border-block-start: 1px solid var(--sw-menu-border); }
     .wl .in { flex: 1; min-inline-size: 200px; }
-    .wf { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
+    .wf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
     .wf .sp { flex: 1; }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     @media (max-width: 860px) {
@@ -109,19 +100,11 @@ export class TempReport extends LitElement {
     @media (max-width: 600px) {
       .presets button, .seg button, .sw { min-block-size: 44px; }
       .sw input { inline-size: 22px; block-size: 22px; }
-      .icb { inline-size: 44px; block-size: 44px; }
-      :host { padding: 0; }
-      .sheet { inline-size: 100%; max-block-size: 100dvh; block-size: 100dvh; border-radius: 0; }
     }
   `];
 
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.close();
-  };
-
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('keydown', this.onKey);
     const now = Date.now();
     this.p = { ...this.p, units: this.preselect.length ? [...this.preselect] : this.units.slice(0, 1).map((u) => u.id), lang: document.documentElement.lang.startsWith('en') ? 'en' : 'he',
       from: localInput(now - 7 * 86400_000), to: localInput(now) };
@@ -130,7 +113,6 @@ export class TempReport extends LitElement {
   }
 
   disconnectedCallback() {
-    window.removeEventListener('keydown', this.onKey);
     window.clearTimeout(this.timer);
     super.disconnectedCallback();
   }
@@ -314,10 +296,7 @@ export class TempReport extends LitElement {
 
   render() {
     const p = this.p;
-    return html`<div class="ovl" @click=${() => this.close()}></div>
-      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rep-title" data-temp-report>
-        <div class="wh"><div class="t"><h2 id="rep-title">${tt('repTitle')}</h2><small>${tt('repSub')}</small></div>
-          <button type="button" class="btn icb" aria-label=${tt('close')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></div>
+    return html`<sw-dialog open xl heading=${tt('repTitle')} subheading=${tt('repSub')} @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
         <div class="wb">
           <div class="col">
             <div class="field"><span class="lbl">${tt('repRange')}</span><div class="presets" role="group">${REPORT_RANGES.map((r) => html`<button type="button" aria-pressed=${String(p.range === r)} data-rep-range=${r}
@@ -354,14 +333,14 @@ export class TempReport extends LitElement {
           ${this.waOn ? html`<button type="button" class="btn sm" ?disabled=${this.busy} data-rep-link-wa @click=${() => this.sendLink()}><sw-icon name="share" size="14"></sw-icon>${tt('repLinkWa')}</button>` : nothing}
           <button type="button" class="btn sm ghost" data-rep-link-revoke @click=${() => this.revokeLink()}>${tt('repLinkRevoke')}</button></div>
           ${this.waSent ? html`<div class="wl" data-rep-link-wa-result>${this.waSent.results.map((x) => html`<span class="hint" data-wa-status=${x.status}>${x.name}: ${this.waText(x.status, x.reason)}</span>`)}</div>` : nothing}` : nothing}
-        <div class="wf">
+        <div slot="footer" class="wf">
           ${this.canSend ? html`<button type="button" class="btn" ?disabled=${!p.units.length} data-rep-wa @click=${() => this.dispatchEvent(new CustomEvent('whatsapp', { detail: this.params() }))}><sw-icon name="share" size="16"></sw-icon>${tt('repWa')}</button>` : nothing}
           ${this.canLink && this.linkOn ? html`<button type="button" class="btn" ?disabled=${this.busy || !p.units.length} data-rep-link @click=${() => this.makeLink()}><sw-icon name="link" size="16"></sw-icon>${tt('repLink')}</button>` : nothing}
           <span class="sp"></span>${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
           <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>
           <button type="button" class="btn pri" ?disabled=${this.busy || !p.units.length} data-rep-export @click=${() => this.exportPdf()}><sw-icon name="download" size="16"></sw-icon>${tt('repExport')}</button>
         </div>
-      </div>`;
+      </sw-dialog>`;
   }
 }
 

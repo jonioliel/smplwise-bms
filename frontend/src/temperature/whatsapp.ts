@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { createSchedule, deleteSchedule, getReportPreview, getReportRecipients, getSends, listSchedules, sendReport, type RecipientsResponse, type ReportParams,
   type ReportRange, type ReportRecipient, type Schedule, type SendRow, type TempUnit, type VendorChannel } from '../api/temperature';
@@ -44,15 +45,10 @@ export class TempWa extends LitElement {
   private poll?: number;
 
   static styles = [tempCss, css`
-    :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
-    .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
-    .sheet { position: relative; inline-size: min(760px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden; }
-    .wh { display: flex; align-items: flex-start; gap: 10px; padding: 16px 20px 8px; }
-    .wh h2 { margin: 0; font-size: var(--sw-fs-xl); }
-    .wh small { color: var(--sw-text-2); }
-    .wh .t { flex: 1; }
-    .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
-    .wb { flex: 1; overflow: auto; padding: 8px 20px 16px; display: grid; gap: 14px; align-content: start; }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog (sw-dialog: the scrim, the opaque centred box, the title
+       and the close button on top, the actions on the bottom, focus trap, Escape, focus return, the phone's bottom sheet). */
+    :host { display: contents; }
+    .wb { display: grid; gap: 14px; align-content: start; }
     .field { display: grid; gap: 6px; }
     .lbl { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
     .in { min-block-size: var(--sw-ctl-h-sm); border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; font: inherit; }
@@ -84,23 +80,16 @@ export class TempWa extends LitElement {
     .sw { display: inline-flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); cursor: pointer; }
     .sw input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
     .status { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
-    .wf { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); flex-wrap: wrap; }
+    .wf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
     .wf .sp { flex: 1; }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     .okm { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
     @media (max-width: 600px) {
-      :host { padding: 0; }
-      .sheet { inline-size: 100%; max-block-size: 100dvh; block-size: 100dvh; border-radius: 0; }
     }
   `];
 
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.close();
-  };
-
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('keydown', this.onKey);
     if (this.params?.range) this.range = this.params.range === 'custom' ? '7d' : this.params.range;
     void getReportRecipients().then((r) => (this.rec = r)).catch((e) => (this.err = describeError(e)));
     void listSchedules().then((r) => (this.schedules = r.schedules)).catch(() => undefined);
@@ -108,7 +97,6 @@ export class TempWa extends LitElement {
   }
 
   disconnectedCallback() {
-    window.removeEventListener('keydown', this.onKey);
     window.clearInterval(this.poll);
     super.disconnectedCallback();
   }
@@ -220,11 +208,8 @@ export class TempWa extends LitElement {
     const names = new Map([...(r?.users ?? []), ...(r?.vendors ?? [])].map((u) => [u.id, u.name]));
     const bad = unreachable(r?.users ?? [], this.chosen);
     const unitName = new Map(this.units.map((u) => [u.id, u.name]));
-    return html`<div class="ovl" @click=${() => this.close()}></div>
-      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wa-title" data-temp-wa>
-        <div class="wh"><div class="t"><h2 id="wa-title">${tt('waTitle')}</h2><small>${tt(this.rec?.user_attachment === 'link' ? 'waSubLink' : 'waSub')}</small></div>
-          <button type="button" class="btn icb" aria-label=${tt('close')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></div>
-        <div class="wb">
+    return html`<sw-dialog open wide heading=${tt('waTitle')} subheading=${tt(this.rec?.user_attachment === 'link' ? 'waSubLink' : 'waSub')} @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
+        <div class="wb" data-temp-wa>
           <div class="field"><span class="lbl">${tt('waRecipients')}</span>
             <div class="pills">${this.chosen.map((id) => html`<span class="pill">${names.get(id) ?? id}<button type="button" aria-label=${tt('removeWindow')} @click=${() => this.toggle(id, false)}><sw-icon name="close" size="12"></sw-icon></button></span>`)}</div>
             <input class="in" type="search" .value=${this.q} placeholder=${tt('waSearch')} aria-label=${tt('waSearch')} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; }} />
@@ -255,13 +240,13 @@ export class TempWa extends LitElement {
           ${r ? html`<div class="banner"><sw-icon name="clock" size="16"></sw-icon><span>${tt('waHours', { h: bidi(`${r.send_hours.from}–${r.send_hours.to}`) })}</span></div>` : nothing}
           ${this.sends.length ? html`<div class="status" data-wa-status>${this.sends.map((s) => html`<div>${s.name}${s.channel ? html` · ${tt(s.channel === 'email' ? 'waChannelEmail' : 'waChannelWhatsapp')}` : nothing} · <b>${tt(`waStatus_${s.status}` as TtKey)}</b>${s.reason ? html` <span class="hint">(${this.reasonText(s.reason)})</span>` : nothing}</div>`)}</div>` : nothing}
         </div>
-        <div class="wf">
-          <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>
+        <div slot="footer" class="wf">
           <span class="sp"></span>${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}${this.ok ? html`<span class="okm" role="status">${this.ok}</span>` : nothing}
           ${this.scheduled ? html`<button type="button" class="btn" ?disabled=${this.busy || !this.chosen.length} data-wa-save @click=${() => this.saveSchedule()}><sw-icon name="calendar" size="16"></sw-icon>${tt('waSave')}</button>` : nothing}
+          <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>
           <button type="button" class="btn pri" ?disabled=${this.busy || !this.chosen.length} data-wa-send @click=${() => this.send()}><sw-icon name="check" size="16"></sw-icon>${tt('waSend')}</button>
         </div>
-      </div>`;
+      </sw-dialog>`;
   }
 }
 

@@ -37,8 +37,11 @@ function deepActive(): HTMLElement | null {
 }
 
 /**
- * Context drawer: a side panel on desktop/tablet (start side, i.e. right in RTL) and a bottom sheet on phones. It never
- * covers the whole map, so spatial context stays visible.
+ * The system's ONE drawer (DIALOG-DRAWER-ONE-2439, owner round 33 Q-DES-8B): a side panel that always opens from the inline start
+ * (the right edge in Hebrew), opaque, with the title and the close button on top and the actions on the bottom.
+ *
+ * Without `modal` it is the context panel beside a map: no scrim, a partial bottom sheet on phones - it never covers the whole
+ * map, so spatial context stays visible.
  *
  * `modal` (owner 2026-09-29, the overview tiles' panel): the same side panel / bottom sheet as a MODAL dialog in the top
  * layer (`<dialog>.showModal()`): the page behind is inert, focus moves in and is trapped (Tab / Shift+Tab wrap inside
@@ -66,6 +69,7 @@ export class SwDrawer extends LitElement {
   private opener: HTMLElement | null = null;
   @state() private hasFooter = false;
   @state() private hasFooterEnd = false;
+  @state() private hasStrip = false;
   /** review M3: a press that STARTED on the backdrop - a drag from inside the panel ending outside never closes it. */
   private downOnBackdrop = false;
   /** review M2: the release of the scroll lock behind a modal drawer while it is open (components/scroll-lock.ts). */
@@ -75,39 +79,96 @@ export class SwDrawer extends LitElement {
     :host {
       display: contents;
     }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8B a): ONE drawer for the whole system. It always opens from the same side - the
+       inline start (the right edge in Hebrew, where the shared drawer has always opened) - at a fixed width; an opaque surface with no
+       blur (the floating-layer pair --sw-menu-surface / --sw-menu-border: opaque in every skin, the solid twin inside a glass host);
+       the title and the round close button stay on top, the actions stay on the bottom behind a hairline, only the middle scrolls.
+       On a phone the modal drawer rises from the bottom to the full screen. */
     .panel {
       position: absolute;
       inset-block: 0;
       inset-inline-start: 0;
       inline-size: min(var(--sw-drawer-w), 100%);
-      background: var(--sw-surface);
-      border-inline-end: 1px solid var(--sw-border);
+      box-sizing: border-box;
+      color: var(--sw-text);
+      background: var(--sw-menu-surface);
+      border: 0;
+      border-inline-end: 1px solid var(--sw-menu-border);
       box-shadow: var(--sw-shadow-3);
       display: flex;
       flex-direction: column;
       z-index: var(--sw-z-drawer);
-      transform: translateX(100%);
-      transition: transform var(--sw-t-med) var(--sw-ease);
-      visibility: hidden;
-    }
-    :host-context([dir='ltr']) aside.panel {
-      transform: translateX(-100%);
-    }
-    :host([open]) .panel {
-      transform: none;
-      visibility: visible;
     }
     /* review G: closed, the side panel is not laid out at all - an off-screen absolute box still counts toward the
        scrollable overflow of the page around it */
     :host(:not([open])) aside.panel {
       display: none;
     }
+    /* the entrance: the panel is revealed from its own edge on the drawer curve (apple-design: a surface enters along the edge it is
+       attached to). A mask reveal (see the keyframes: a clip-path would also cut hit-testing), not a transform: the panel never leaves its
+       resting place - nothing is ever outside the viewport, a measurement taken mid-way is already the final one, and the panel never
+       carries a transform (which would become the containing block of a fixed element inside it). One-shot keyframes (an entrance is
+       never reversed; there is no exit animation), not filled forwards: the resting panel has no clip and keeps its shadow.
+       Durations are tokens, so reduced motion (css.ts) shows it in place. */
+    /* DIALOG-DRAWER-ONE-2439 r2: a MASK reveal, not clip-path - a clip-path also cuts the clipped part out of hit-testing, so a press on
+       the panel while it was still entering fell through (on a phone sheet it reached the page or the backdrop) and a drag started there
+       was lost. A mask hides the same part while the panel keeps receiving every press at its resting place. The mask lives only in the
+       keyframes: the resting panel carries no mask (a mask would cut its shadow). */
+    @keyframes drawer-in-rtl {
+      from {
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: right;
+        mask-size: 0% 100%;
+      }
+      to {
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: right;
+        mask-size: 100% 100%;
+      }
+    }
+    @keyframes drawer-in-ltr {
+      from {
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: left;
+        mask-size: 0% 100%;
+      }
+      to {
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: left;
+        mask-size: 100% 100%;
+      }
+    }
+    @keyframes sheet-rise {
+      from {
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: bottom;
+        mask-size: 100% 0%;
+      }
+      to {
+        mask-image: linear-gradient(#000, #000);
+        mask-repeat: no-repeat;
+        mask-position: bottom;
+        mask-size: 100% 100%;
+      }
+    }
+    aside.panel,
+    dialog.panel {
+      animation: drawer-in-rtl var(--sw-t-med) var(--sw-ease-drawer) backwards;
+    }
+    aside.panel:dir(ltr),
+    dialog.panel:dir(ltr) {
+      animation-name: drawer-in-ltr;
+    }
     header {
       display: flex;
       align-items: flex-start;
-      gap: var(--sw-s-3);
-      padding: 12px 14px;
-      border-block-end: 1px solid var(--sw-border);
+      gap: 8px;
+      padding: 16px 18px 10px;
     }
     .titles {
       flex: 1;
@@ -124,8 +185,11 @@ export class SwDrawer extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.3;
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -142,18 +206,24 @@ export class SwDrawer extends LitElement {
     }
     .body {
       flex: 1;
+      min-block-size: 0;
       overflow: auto;
       overscroll-behavior: contain;
-      padding: 14px;
+      padding: 2px 18px 14px;
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
+    /* under a strip (tabs, a status block) the body keeps its own top room */
+    .strip.on + .body {
+      padding-block-start: 14px;
+    }
     footer {
       display: flex;
-      gap: var(--sw-s-2);
-      padding: 10px 14px;
-      border-block-start: 1px solid var(--sw-border);
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px 16px;
+      border-block-start: 1px solid var(--sw-menu-border);
       flex-wrap: wrap;
     }
     footer[hidden] {
@@ -172,28 +242,31 @@ export class SwDrawer extends LitElement {
     .grip {
       display: none;
     }
+    /* phone, NOT modal: the context panel beside a map stays a partial sheet (it must never cover the whole map) */
     @media (max-width: 767px) {
-      .panel {
+      aside.panel {
         inset: auto 0 0 0;
         inline-size: 100%;
         max-block-size: 62dvh;
         border-inline-end: 0;
-        border-block-start: 1px solid var(--sw-border);
+        border-block-start: 1px solid var(--sw-menu-border);
         border-start-start-radius: var(--sw-r-lg);
         border-start-end-radius: var(--sw-r-lg);
-        transform: translateY(100%);
-        box-shadow: var(--sw-shadow-3);
       }
-      :host-context([dir='ltr']) aside.panel {
-        transform: translateY(100%);
-      }
-      .grip {
+      aside.panel .grip {
         display: block;
+        flex: none;
         inline-size: 40px;
         block-size: 4px;
         border-radius: 2px;
         background: var(--sw-border-strong);
         margin: var(--sw-s-2) auto 0;
+      }
+      aside.panel,
+      aside.panel:dir(ltr),
+      dialog.panel,
+      dialog.panel:dir(ltr) {
+        animation-name: sheet-rise;
       }
     }
 
@@ -202,8 +275,6 @@ export class SwDrawer extends LitElement {
       position: fixed;
       margin: 0;
       padding: 0;
-      border: 0;
-      border-inline-end: 1px solid var(--sw-border);
       max-inline-size: none;
       max-block-size: none;
       inset-block: 0;
@@ -211,13 +282,6 @@ export class SwDrawer extends LitElement {
       inset-inline-end: auto;
       block-size: 100dvh;
       inline-size: min(var(--sw-drawer-modal-w, 480px), 100vw);
-      box-sizing: border-box;
-      color: var(--sw-text);
-      /* a panel over the page must stay readable: a glass palette's solid surface when there is one */
-      background: var(--dv-surface-solid, var(--sw-surface));
-      transform: none;
-      transition: none;
-      visibility: visible;
       overflow: hidden;
       overscroll-behavior: contain;
     }
@@ -226,6 +290,13 @@ export class SwDrawer extends LitElement {
     }
     dialog.panel::backdrop {
       background: var(--sw-overlay);
+      opacity: 1;
+      transition: opacity var(--sw-t-slow) var(--sw-ease);
+    }
+    @starting-style {
+      dialog.panel[open]::backdrop {
+        opacity: 0;
+      }
     }
     .trap {
       position: absolute;
@@ -239,20 +310,19 @@ export class SwDrawer extends LitElement {
         inset-block: auto 0;
         inset-inline: 0;
         inline-size: 100%;
-        /* TKUI1: a host may open the sheet at full height (the request's phone sheet) - the default stays the 88 % sheet */
-        block-size: var(--sw-drawer-sheet-h, auto);
-        max-block-size: var(--sw-drawer-sheet-max-h, 88dvh);
+        /* the full screen (Q-DES-8B); TKUI1: a host may still ask for a shorter sheet through the two vars */
+        block-size: var(--sw-drawer-sheet-h, 100dvh);
+        max-block-size: var(--sw-drawer-sheet-max-h, 100dvh);
         border-inline-end: 0;
-        border-block-start: 1px solid var(--sw-border);
-        border-start-start-radius: var(--sw-r-lg);
-        border-start-end-radius: var(--sw-r-lg);
-        transform: none;
+      }
+      dialog.panel header {
+        padding-block-start: max(16px, env(safe-area-inset-top, 0px));
       }
       dialog.panel .body {
         padding-block-end: max(14px, env(safe-area-inset-bottom, 0px));
       }
       dialog.panel footer {
-        padding-block-end: max(10px, env(safe-area-inset-bottom, 0px));
+        padding-block-end: max(16px, env(safe-area-inset-bottom, 0px));
       }
     }
   `;
@@ -321,6 +391,10 @@ export class SwDrawer extends LitElement {
 
   private onFooterEndSlot = (e: Event) => {
     this.hasFooterEnd = SwDrawer.filled(e.target as HTMLSlotElement);
+  };
+
+  private onStripSlot = (e: Event) => {
+    this.hasStrip = SwDrawer.filled(e.target as HTMLSlotElement);
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -403,10 +477,10 @@ export class SwDrawer extends LitElement {
           ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
           <slot name="sub"></slot>
         </div>
-        <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('actions.close')} data-drawer-close @click=${this.close}></sw-button>
+        <sw-button round iconOnly icon="close" label=${t('actions.close')} data-drawer-close @click=${this.close}></sw-button>
         <slot name="action"></slot>
       </header>
-      <div class="strip" part="strip"><slot name="strip"></slot></div>
+      <div class=${this.hasStrip ? 'strip on' : 'strip'} part="strip"><slot name="strip" @slotchange=${this.onStripSlot}></slot></div>
       <div class="body" part="body"><slot></slot></div>
       <footer ?hidden=${!this.hasFooter && !this.hasFooterEnd}><slot name="footer" @slotchange=${this.onFooterSlot}></slot><span class="fend" ?hidden=${!this.hasFooterEnd}><slot name="footer-end" @slotchange=${this.onFooterEndSlot}></slot></span></footer>`;
   }

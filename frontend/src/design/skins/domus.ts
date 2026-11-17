@@ -192,9 +192,8 @@ const rules = `
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-3); box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
 :host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-seg-key, var(--sw-surface-solid)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
-/* domus 9 - floating layers: the dialog and the drawer carry the glass edge over the ladder's top step; a popover is a menu (owner 2026-10-13): fully opaque, no blur */
-:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border: 1px solid var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
+/* domus 9 - floating layers (DIALOG-DRAWER-ONE-2439, owner round 33 Q-DES-8A / 8B): the dialog and the drawer are the shared opaque surface with no blur (their own styles: --sw-menu-surface, the ink hairline, --sw-r-lg); the skin only adds the lit top edge. A popover is a menu (owner 2026-10-13): fully opaque, no blur */
+:host(sw-dialog) .box, :host(sw-drawer) .panel { box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 /* domus 10 - tables: hairline rows, a soft hover, a quiet caption row, tabular figures; a status badge is a filled pill with its ink ring */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
 :host(sw-table) th { font-weight: var(--sw-fw-bold); letter-spacing: 0.02em; color: var(--sw-text-2); }

@@ -54,6 +54,9 @@ const dialog = (page: Page) => page.locator(`${ACTIONS} sw-dialog`);
 const result = (page: Page) => page.locator(`${ACTIONS} [data-action-result]`);
 const editor = (page: Page) => page.locator(EDITOR);
 const field = (page: Page, name: string) => editor(page).locator(`[data-wiskey-editor-${name}]`);
+// DIALOG-DRAWER-ONE-2439: the editor is the shared sw-dialog (xl) - its ✕ is the dialog's own round close button
+// (data-dialog-close), no longer the editor's data-wiskey-editor-cancel
+const closeX = (page: Page) => editor(page).locator('sw-dialog[xl] [data-dialog-close]');
 const sentTo = (w: WritesMock, tail: string) => w.sent.filter((s) => s.path.endsWith(tail));
 const personHits = (st: PeopleMock, id: string) => st.hits.filter((h) => h === `GET access-control/people/${id}`).length;
 const listHits = (st: PeopleMock) => st.hits.filter((h) => h.startsWith('GET access-control/people?')).length;
@@ -562,7 +565,7 @@ test.describe('the editor: the access category, the timing, the field level, the
     await openEditor(page, 'p1');
     await expect(field(page, 'pin')).toBeVisible();
     await expect(field(page, 'pin-generate')).toHaveCount(0);
-    await field(page, 'cancel').click();
+    await closeX(page).click();
     await expect(editor(page)).toHaveCount(0);
     w.pinGenerate = true;
     await expect(drawer(page).locator('sw-drawer[open]')).toBeVisible(); // closing the editor brings the person's page back

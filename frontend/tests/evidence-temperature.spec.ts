@@ -651,10 +651,11 @@ test.describe('temperature evidence', () => {
           if (wide) await d.locator('[data-temp-wide]').click();
           const m = await d.evaluate((host) => {
             const root = (host as HTMLElement).shadowRoot!;
-            const drawer = root.querySelector('.drawer') as HTMLElement;
+            // DIALOG-DRAWER-ONE-2439: the detail is the shared sw-drawer; its panel is the drawer's box
+            const drawer = root.querySelector('sw-drawer')!.shadowRoot!.querySelector('.panel') as HTMLElement;
             const body = root.querySelector('.db') as HTMLElement;
             const dr = drawer.getBoundingClientRect();
-            const clipped = Array.from(root.querySelectorAll('.drawer *')).filter((el) => {
+            const clipped = Array.from(root.querySelectorAll('.db *, .df *, .hact *')).filter((el) => {
               const r = el.getBoundingClientRect();
               if (!r.width || el.closest('svg')) return false;
               const dir = getComputedStyle(drawer).direction;

@@ -28,6 +28,7 @@ import { isApi, session } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const STRATEGY: Record<string, string> = {
   device: 'אותו device',
@@ -328,7 +329,7 @@ export class SystemAlarmSettings extends LitElement {
             return await putOverride(z.entity_id, body);
           } catch (err) {
             // review L4: a switch with no bypass marker is paired only on an explicit confirmation
-            if (err instanceof ApiError && err.body.code === 'not_bypass_like' && window.confirm(`הישות ${v} אינה נראית כמו מתג עקיפה. אחרי השיוך היא תופעל רק ממסך האזעקה ותיעלם מפעולות רגילות ומרוכזות. לשייך בכל זאת?`))
+            if (err instanceof ApiError && err.body.code === 'not_bypass_like' && (await confirmDialog({ body: `הישות ${v} אינה נראית כמו מתג עקיפה. אחרי השיוך היא תופעל רק ממסך האזעקה ותיעלם מפעולות רגילות ומרוכזות. לשייך בכל זאת?` })))
               return putOverride(z.entity_id, { ...body, confirm_not_bypass_like: true });
             throw err;
           }

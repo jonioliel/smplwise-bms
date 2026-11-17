@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { createUnit, deleteUnit, listCandidates, listManaged, updateUnit, type Candidate, type ManageResponse, type UnitKind } from '../api/temperature';
 import { listGroups, listUsers, type AccessGroup, type DirectoryUser } from '../api/access';
@@ -9,6 +10,7 @@ import { gauge } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const ROLE_KEYS: [string, string][] = [['viewer', 'צופים'], ['operator', 'מפעילים'], ['site_admin', 'מנהלי אתר'], ['system_admin', 'מנהלי מערכת']];
 type Defaults = Record<string, boolean | number | string>;
@@ -45,27 +47,17 @@ export class TempWizard extends LitElement {
   @state() private busy = false;
 
   static styles = [tempCss, css`
-    :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
-    .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
-    .sheet {
-      position: relative; inline-size: min(780px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg);
-      border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden;
-    }
-    /* R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade */
-    .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
-    .sheet { opacity: 1; transform: scale(1); transition: opacity 300ms var(--sw-ease-out), transform 300ms cubic-bezier(0.23, 1, 0.32, 1); }
-    @starting-style { .ovl { opacity: 0; } .sheet { opacity: 0; transform: scale(0.96); } }
-    .wh { display: flex; align-items: center; gap: 10px; padding: 16px 20px 8px; }
-    /* R5-MEDIA-ENERGY-297: the wizard's title is a title; the step bar is a real bar; a rule row is a well, not an outlined box */
-    .wh h2 { margin: 0; flex: 1; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
-    .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
-    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 20px 10px; }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog (sw-dialog: the scrim, the opaque centred box, the title
+       and the close button on top, the actions on the bottom, focus trap, Escape, focus return, the phone's bottom sheet). */
+    :host { display: contents; }
+    /* the steps stay in view while the step's form scrolls under them */
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-block: 2px 10px; position: sticky; inset-block-start: 0; z-index: 1; background: var(--sw-menu-surface); }
     .steps button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); text-align: start; padding: 0; cursor: pointer; display: grid; gap: 6px; }
     .steps i { display: block; block-size: 6px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); transition: background-color var(--sw-t-med) var(--sw-ease); }
     .steps button[aria-current='step'] { color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
     .steps button[aria-current='step'] i, .steps button[data-done] i { background: var(--sw-accent); }
-    .wb { flex: 1; overflow: auto; padding: 8px 20px 16px; display: grid; gap: 14px; align-content: start; }
-    .wf { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
+    .wb { display: grid; gap: 14px; align-content: start; }
+    .wf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
     .wf .sp { flex: 1; }
     .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .field { display: grid; gap: 6px; min-inline-size: 0; }
@@ -107,26 +99,18 @@ export class TempWizard extends LitElement {
     details.more { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; background: var(--sw-surface); }
     details.more > summary { cursor: pointer; list-style-position: inside; }
     @media (max-width: 600px) {
-      :host { padding: 0; }
-      .sheet { inline-size: 100%; max-block-size: 100dvh; block-size: 100dvh; border-radius: 0; }
       .f2 { grid-template-columns: 1fr; }
       .steps button { font-size: var(--sw-fs-xs); }
       .gprev { flex-direction: column; }
     }
   `];
 
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.close();
-  };
-
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('keydown', this.onKey);
     void this.load();
   }
 
   disconnectedCallback() {
-    window.removeEventListener('keydown', this.onKey);
     super.disconnectedCallback();
   }
 
@@ -209,7 +193,7 @@ export class TempWizard extends LitElement {
   }
 
   private async removeUnit() {
-    if (!this.d.id || !window.confirm(tt('removeConfirm', { name: this.d.name }))) return;
+    if (!this.d.id || !(await confirmDialog({ body: tt('removeConfirm', { name: this.d.name }), danger: true }))) return;
     this.busy = true;
     try {
       await deleteUnit(this.d.id);
@@ -433,16 +417,13 @@ export class TempWizard extends LitElement {
 
   render() {
     const labels: TtKey[] = ['step1', 'step2', 'step3', 'step4'];
-    return html`<div class="ovl" @click=${() => this.close()}></div>
-      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="w-title" data-temp-wizard>
-        <div class="wh"><h2 id="w-title">${this.unitId ? tt('wizEdit') : tt('wizNew')}</h2>
-          <button type="button" class="btn icb" aria-label=${tt('close')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></div>
+    return html`<sw-dialog open wide heading=${this.unitId ? tt('wizEdit') : tt('wizNew')} data-temp-wizard-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
         <div class="steps">${labels.map((k, i) => html`<button type="button" aria-current=${this.step === i + 1 ? 'step' : 'false'} ?data-done=${this.step > i + 1} data-step=${i + 1}
           @click=${() => this.go(i + 1)}><i></i>${i + 1} · ${tt(k)}</button>`)}</div>
-        <div class="wb" data-w-step=${this.step}>
+        <div class="wb" data-temp-wizard data-w-step=${this.step}>
           ${!this.meta && !this.err ? html`<div class="skl" style="block-size:200px"></div>` : this.step === 1 ? this.step1() : this.step === 2 ? this.step2() : this.step === 3 ? this.step3() : this.step4()}
         </div>
-        <div class="wf">
+        <div slot="footer" class="wf">
           ${this.step > 1 ? html`<button type="button" class="btn" @click=${() => this.go(this.step - 1)} data-w-prev><sw-icon name="chevron" size="16"></sw-icon>${tt('prev')}</button>` : nothing}
           ${this.d.id && this.step === 4 ? html`<button type="button" class="btn ghost" ?disabled=${this.busy} @click=${() => this.removeUnit()} data-w-remove><sw-icon name="trash" size="16"></sw-icon>${tt('remove')}</button>` : nothing}
           <span class="sp"></span>${this.err ? html`<span class="err" role="alert" data-w-err>${this.err}</span>` : nothing}
@@ -451,7 +432,7 @@ export class TempWizard extends LitElement {
             ? html`<button type="button" class="btn pri" @click=${() => this.go(this.step + 1)} data-w-next>${tt('next')}<sw-icon name="chevronBack" size="16"></sw-icon></button>`
             : html`<button type="button" class="btn pri" ?disabled=${this.busy} @click=${() => this.save()} data-w-save><sw-icon name="check" size="16"></sw-icon>${this.d.id ? tt('save') : tt('create')}</button>`}
         </div>
-      </div>`;
+      </sw-dialog>`;
   }
 }
 

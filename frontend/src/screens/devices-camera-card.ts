@@ -4,6 +4,7 @@ import '../components/sw-camera-tile';
 import '../components/sw-live-player';
 import '../components/sw-icon';
 import '../components/sw-button';
+import '../components/sw-dialog';
 import './devices-camera-picker';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, apiUrl } from '../api/client';
@@ -635,17 +636,13 @@ export class DevicesCameraCard extends LitElement {
     const plan = r.state === 'live' ? playerPlan('main', r.encoding ?? null, effectiveTransport(this.settings)) : { plan: '', preferred: '' as const, gop: '' };
     const name = this.displayName || 'מצלמה';
     render(
+      // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the enlarged picture is the system's one dialog (sw-dialog xl: the scrim, the opaque
+      // box, the camera's name and the close button on top, focus trap, Escape, focus return) instead of a bare picture on the scrim
       html`<style>
-          .back { position: fixed; inset: 0; z-index: var(--sw-z-modal, 1000); background: var(--sw-overlay, rgba(0, 0, 0, 0.6)); display: grid; place-items: center; padding: 16px; }
-          .box { inline-size: min(92vw, 1100px); display: flex; flex-direction: column; gap: 8px; }
-          .bar { display: flex; align-items: center; justify-content: space-between; color: #fff; font: 600 15px/1.2 system-ui, sans-serif; }
-          button { border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.18); color: #fff; font: inherit; padding: 6px 12px; cursor: pointer; }
-          .view { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; }
+          .view { position: relative; aspect-ratio: 16 / 9; background: var(--sw-video-bg, #000); border-radius: var(--sw-r-md); overflow: hidden; }
           .view > * { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: contain; }
         </style>
-        <div class="back" @click=${(e: Event) => e.target === e.currentTarget && this.closeBig()}>
-          <div class="box" role="dialog" aria-modal="true" aria-label=${name}>
-            <div class="bar"><span>${name}</span><button type="button" data-camera-big-close @click=${() => this.closeBig()}>סגור</button></div>
+        <sw-dialog open xl heading=${name} @close=${() => this.closeBig()}>
             <div class="view">
               ${r.state === 'live' && r.camera_id
                 ? html`<sw-live-player .cameraId=${r.camera_id} .profile=${'main'} .mode=${effectiveTransport(this.settings)} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${r.encoding ?? null} .poster=${snapshotUrl(r.camera_id, this.snapBust)}></sw-live-player>`
@@ -653,20 +650,13 @@ export class DevicesCameraCard extends LitElement {
                   ? html`<sw-live-player .livePath=${r.live_path} .mode=${effectiveTransport(this.settings)} .poster=${stillUrl(r.entity_id ?? '', this.snapBust)}></sw-live-player>`
                   : html`<img src=${apiUrl(`devices/camera-card/still?entity_id=${encodeURIComponent(r.entity_id ?? '')}&t=${this.snapBust}`)} alt=${name} />`}
             </div>
-          </div>
-        </div>`,
+            <sw-button slot="footer" data-camera-big-close @click=${() => this.closeBig()}>סגור</sw-button>
+        </sw-dialog>`,
       root,
     );
-    window.addEventListener('keydown', this.onBigKey);
-    root.querySelector<HTMLElement>('[data-camera-big-close]')?.focus();
   }
 
-  private onBigKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.closeBig();
-  };
-
   private closeBig() {
-    window.removeEventListener('keydown', this.onBigKey);
     if (this.bigHost) {
       render(nothing, this.bigHost.shadowRoot!);
       this.bigHost.remove();

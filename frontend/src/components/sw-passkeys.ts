@@ -7,6 +7,7 @@ import { PasskeyCancelled, createPasskey, passkeysSupported } from '../arx/webau
 import { lit } from '../i18n/local-identity';
 import { po } from '../i18n/passkey-only';
 import { dayText } from '../api/day-format';
+import { confirmDialog } from './confirm-dialog';
 
 function when(iso: string | null): string {
   if (!iso) return '';
@@ -173,10 +174,10 @@ export class SwPasskeys extends LitElement {
     });
   }
 
-  private only(e: Event) {
+  private async only(e: Event) {
     const box = e.target as HTMLInputElement;
     const on = box.checked;
-    if (on && !window.confirm(po('onlyConfirmOn'))) {
+    if (on && !(await confirmDialog({ body: po('onlyConfirmOn'), danger: true }))) {
       box.checked = false;
       return;
     }

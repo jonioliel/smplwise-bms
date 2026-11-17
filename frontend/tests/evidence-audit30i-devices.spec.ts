@@ -99,7 +99,7 @@ test.describe('I3 (#11, Q9 a): dialogs are the shared, opaque ones', () => {
       const cs = getComputedStyle(el);
       const probe = document.createElement('i');
       el.append(probe);
-      probe.style.borderRadius = 'var(--sw-r-xl)';
+      probe.style.borderRadius = 'var(--sw-r-lg)'; // DIALOG-DRAWER-ONE-2439: the one dialog's radius
       const r = { bg: cs.backgroundColor, blur: cs.backdropFilter, radius: cs.borderTopLeftRadius, want: getComputedStyle(probe).borderTopLeftRadius };
       probe.remove();
       return r;
