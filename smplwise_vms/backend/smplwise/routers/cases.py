@@ -42,6 +42,7 @@ from ..services import nvr, recordings
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from ..services.events_ingest import row_to_event
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
+from ._common import rid as _rid
 from .events import _with_names, _with_thumbs
 from .settings import read_settings
 from ..services.settings_store import setting_value
@@ -67,10 +68,6 @@ FREE_CHECK_EVERY = 64 * MB
 # UPLOAD_DEADLINE_S for the whole body, else 408 (the lock is released and the staging file removed)
 UPLOAD_IDLE_S = 30.0
 UPLOAD_DEADLINE_S = 600.0
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _read_scope(conn: sqlite3.Connection, principal: Principal) -> set[str] | None:
@@ -316,7 +313,7 @@ def list_bookmarks(
 
 
 @router.get("/cases/{case_id}")
-def get_case(case_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), check: bool = True) -> dict[str, Any]:
+def get_case(case_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), check: bool = True) -> dict[str, Any]:
     """The case with its items; `check=false` skips the NVR coverage probe (preservation then reads unknown)."""
     settings = settings_of(request)
     scope = _read_scope(conn, principal)
@@ -600,7 +597,7 @@ def preserve_item(case_id: str, item_id: str, request: Request, principal: Princ
 # ---------------------------------------------------------------- item files, evidence bundles (T050) and verification
 
 @router.get("/cases/{case_id}/items/{item_id}/file")
-def item_file(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def item_file(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     """The stored copy of a snapshot or of an imported clip / snapshot. An imported file is served as what its bytes
     are (JPEG / MP4 by signature, anything else as an attachment), never sniffed, in a sandbox."""
     scope = _read_scope(conn, principal)
@@ -694,7 +691,7 @@ def create_bundle(case_id: str, request: Request, principal: Principal = Depends
 
 
 @router.get("/cases/{case_id}/bundles")
-def list_bundles(case_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_bundles(case_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _read_scope(conn, principal)
     _get(conn, case_id)
     d = bundle_svc.bundles_dir(settings_of(request), case_id)

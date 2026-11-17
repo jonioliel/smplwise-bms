@@ -23,6 +23,7 @@ from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal, require_system_admin
 from ..services import wiskey_switches as ws
+from ._common import rid as _rid
 
 router = APIRouter()
 BASE = "/wiskey/switches"
@@ -34,10 +35,6 @@ _TEXT = {
     "auto_install_not_permitted": "אי אפשר להפעיל עדיין את ההתקנה האוטומטית של רכיב בקרת הכניסה: בדיקת התאימות של סביבת ההתקנה "
                                   "עדיין אינה יכולה לעבור, ובדיקת המעבדה המבודדת טרם הושלמה. המתג נשאר כבוי.",
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SwitchesIn(BaseModel):

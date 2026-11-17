@@ -24,6 +24,7 @@ from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal, require_system_admin
 from ..services import wiskey_managed_install as wmi
+from ._common import rid as _rid
 
 router = APIRouter()
 BASE = "/wiskey/managed"
@@ -46,10 +47,6 @@ _TEXT = {
     "not_enough_space": "אין מספיק מקום פנוי בתיקיית ההגדרות.",
     "rollback_unavailable": "אין גרסה קודמת שאפשר לחזור אליה.",
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SwitchIn(BaseModel):

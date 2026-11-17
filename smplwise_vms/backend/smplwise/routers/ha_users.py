@@ -29,6 +29,7 @@ from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope
 from ..services import ha_user_admin as hua
 from ..services import revocation, secrets_store
 from ..services.tickets import out_documents
+from ._common import rid as _rid
 from . import access as acc
 
 router = APIRouter()
@@ -51,10 +52,6 @@ PASSWORD_HE = {
 
 
 # ---------------------------------------------------------------- guards
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _ha_settings(request: Request, conn: sqlite3.Connection):

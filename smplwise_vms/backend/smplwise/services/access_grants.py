@@ -380,11 +380,11 @@ def pending_count(conn: sqlite3.Connection, vendor_id: str) -> int:
 
 
 def zone_of(conn: sqlite3.Connection):
-    from ..routers.settings import read_settings
+    from .settings_store import setting_value
     from .timeutil import zone
 
     try:
-        return zone(read_settings(conn)["time.zone"])
+        return zone(setting_value(conn, "time.zone"))
     except Exception:  # noqa: BLE001 - a broken zone setting falls back to the product's default zone
         return zone("Asia/Jerusalem")
 

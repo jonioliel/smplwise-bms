@@ -23,7 +23,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import camera_settings
 from ..services import nvr_privacy, nvr_write_guard
 from ..services.access import require_camera
-from .nvr_write import _camera_config_scope, _require_read, _rid
+from ._common import rid as _rid
+from .nvr_write import _camera_config_scope, _require_read
 
 router = APIRouter()
 
