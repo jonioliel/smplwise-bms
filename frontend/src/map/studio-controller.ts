@@ -110,11 +110,6 @@ export function serverChangedItems(base: GeometryDoc, server: GeometryDoc): Map<
   return out;
 }
 
-/** The connectors the server changed against `base` (added, changed or removed; `far` ignored). */
-export function serverChangedConnectors(base: GeometryDoc, server: GeometryDoc): Set<string> {
-  return serverChangedItems(base, server).get('connectors') ?? new Set();
-}
-
 /** A document of the undo / redo history with the server's version of the items in `changed` (review M-1): an undo after
  * a rebase must never bring back the connector the other floor's sync replaced (and push it back there) - nor a shared
  * room's item the home floor changed (CR-009). */
@@ -129,11 +124,6 @@ export function withServerItems(doc: GeometryDoc, server: GeometryDoc, changed: 
     (out as unknown as Record<string, unknown[]>)[coll] = xs;
   }
   return out;
-}
-
-/** The connector-only form of withServerItems (T085). */
-export function withServerConnectors(doc: GeometryDoc, server: GeometryDoc, ids: ReadonlySet<string>): GeometryDoc {
-  return withServerItems(doc, server, new Map([['connectors', ids]]));
 }
 
 const DEFAULT_API: StudioApi = { load: (id) => getGeometry(id, { draft: true }), save: (id, doc, base) => saveGeometryDraft(id, doc, base) };

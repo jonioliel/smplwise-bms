@@ -29,11 +29,6 @@ export function isMoneyAssignment(a: Pick<ExternalAssignment, 'quote_capable'> |
   return !!a && a.quote_capable !== false;
 }
 
-/** The ids of the assignments that may carry money. */
-export function moneyAssignmentIds(assignments: readonly ExternalAssignment[] | undefined): Set<string> {
-  return new Set((assignments ?? []).filter(isMoneyAssignment).map((a) => a.id));
-}
-
 /** The assignment the flow describes is a staff one (no money surface at all for the tab). */
 export function flowIsStaff(flow: CostFlow | undefined, assignments: readonly ExternalAssignment[] | undefined): boolean {
   if (!flow?.assignment_id) return false;
@@ -181,11 +176,6 @@ export function toggleKind(kinds: readonly LineKind[], kind: LineKind): LineKind
   return KIND_ORDER.filter((k) => k === 'labor' || (k === kind ? !has : kinds.includes(k)));
 }
 
-export function sameKinds(a: readonly LineKind[] | null | undefined, b: readonly LineKind[] | null | undefined): boolean {
-  if (!a || !b) return a === b;
-  return KIND_ORDER.every((k) => a.includes(k) === b.includes(k));
-}
-
 // ---------------------------------------------------------------- requirements (manager of the request)
 
 /** The money assignments whose requirement a manager may set now: open, money-capable. */
@@ -280,11 +270,6 @@ export function onBehalfTarget(
 export function enteredByViewer(q: Pick<Quote, 'source' | 'created_by_name'> | undefined, viewerName: string | null | undefined): boolean {
   const who = (q?.created_by_name ?? '').trim();
   return !!q && q.source === 'manager' && !!who && !!viewerName && who === viewerName.trim();
-}
-
-/** A quote entered on the vendor's behalf by SOMEONE (shown to everyone as such; only the one who entered it cannot approve). */
-export function isOnBehalf(q: Pick<Quote, 'source'> | undefined): boolean {
-  return q?.source === 'manager';
 }
 
 /** The kinds the line editor offers: the request's allowed kinds, labour always on, in the canonical order. */

@@ -75,14 +75,6 @@ export function listTiles(items: readonly Pick<RfqSummary, 'state' | 'kpis'>[]):
   };
 }
 
-export type VendorBucket = 'invited' | 'opened' | 'quoted' | 'declined' | 'no_reply';
-export const VENDOR_BUCKETS: readonly VendorBucket[] = ['invited', 'opened', 'quoted', 'declined', 'no_reply'];
-
-/** The vendor status of one request (the list's mini strip and the board's tiles), from the server's KPIs. */
-export function vendorBuckets(k: RfqKpis): Record<VendorBucket, number> {
-  return { invited: k.invited, opened: k.opened, quoted: k.quoted, declined: k.declined, no_reply: k.no_response };
-}
-
 /** The segments of the stacked status bar of a request (quoted / declined / opened without a quote / no reply), in that order, each a
  * share of the invited vendors; empty segments are left out. */
 export function statusBar(k: RfqKpis): { key: 'quoted' | 'declined' | 'opened' | 'no_reply'; n: number; pct: number }[] {

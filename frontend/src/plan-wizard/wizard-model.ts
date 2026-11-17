@@ -195,17 +195,6 @@ export function selection(set: CandidateSet, decisions: Readonly<Record<string, 
   return { accepted: [...shapes, ...objects], edits, rejected };
 }
 
-/** The candidate set with the review applied, for drawing the draft-to-be (previews before the server answered). */
-export function applySelection(set: CandidateSet, sel: Selection): CandidateSet {
-  const keep = new Set(sel.accepted);
-  return {
-    ...set,
-    walls: set.walls.filter((w) => keep.has(w.id)).map((w) => ({ ...w, ...(sel.edits[w.id] as Partial<GeomWall> | undefined) })),
-    openings: set.openings.filter((o) => keep.has(o.id)).map((o) => ({ ...o, ...(sel.edits[o.id] as Partial<GeomOpening> | undefined) })),
-    objects: set.objects.filter((o) => keep.has(o.id)),
-  };
-}
-
 // ---------------------------------------------------------------- scale
 
 /** The longest candidate wall (the "מדוד קיר" default target): its id and its length in plan pixels. */

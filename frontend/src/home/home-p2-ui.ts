@@ -55,8 +55,6 @@ export function has(m: P2Mod): boolean {
 }
 export const canManageSchedules = () => !!fam.info?.features.schedules.manage;
 export const familyKnown = () => fam.info != null;
-/** Tests and a sign-out: forget what was loaded. */
-export function resetFamily(): void { fam.info = null; fam.at = 0; }
 
 export function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : `${n} ${many}`;

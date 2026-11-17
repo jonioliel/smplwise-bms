@@ -269,19 +269,6 @@ export function sectionsByCurrency(groups: readonly ReportGroupRow[], totals: re
   return [...out.values()].sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
-/** Totals computed from group rows per currency (when the server's totals are missing, e.g. a filtered client view). */
-export function totalsByCurrency(rows: readonly Pick<ReportGroupRow, 'currency' | 'approved_minor' | 'pending_minor' | 'claims'>[]): Map<string, { approved_minor: number; pending_minor: number; claims: number }> {
-  const out = new Map<string, { approved_minor: number; pending_minor: number; claims: number }>();
-  for (const r of rows) {
-    const t = out.get(r.currency) ?? { approved_minor: 0, pending_minor: 0, claims: 0 };
-    t.approved_minor += r.approved_minor;
-    t.pending_minor += r.pending_minor;
-    t.claims += r.claims;
-    out.set(r.currency, t);
-  }
-  return out;
-}
-
 // ---------------------------------------------------------------- the board table's cost columns (slice 6b wires them)
 
 /** The table's "עלות" cell (11A.9; GET tickets/table › `cost`): the approved total, else the submitted total in grey (`muted`); ''

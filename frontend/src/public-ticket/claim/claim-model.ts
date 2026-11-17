@@ -485,10 +485,6 @@ export function validateForm(form: ClaimForm, ctx: ValidationContext): FieldErro
   return out;
 }
 
-export function lineHasInput(l: LineDraft): boolean {
-  return !!(cleanText(l.description) || l.hours || (l.quantity && l.quantity !== '1') || l.unit_price || l.amount);
-}
-
 // ---------------------------------------------------------------- documents and pages (11A.2 / 11A.6A)
 
 export type PageState = 'local' | 'uploading' | 'uploaded' | 'failed' | 'refused';

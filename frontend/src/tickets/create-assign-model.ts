@@ -15,7 +15,6 @@ import type { ExternalAssignee, Readiness } from '../api/tickets-s4';
 import { outsideBlock, type ReadyItem } from './readiness-model';
 
 export type CreateGroupKey = 'later' | 'account' | 'staff' | 'vendor';
-export const CREATE_GROUPS: readonly CreateGroupKey[] = ['later', 'account', 'staff', 'vendor'];
 /** More than this many entries (handlers + vendors) shows the search field. */
 export const SEARCH_ABOVE = 6;
 export const LATER = 'later';

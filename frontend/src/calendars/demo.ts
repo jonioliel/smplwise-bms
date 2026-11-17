@@ -631,7 +631,3 @@ function connected(id: string): Connection {
   return clone(c);
 }
 
-/** Specs: forget the in-memory writes (a new page load does too). */
-export function resetDemo(): void {
-  store = null;
-}

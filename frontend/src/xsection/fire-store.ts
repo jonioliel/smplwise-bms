@@ -21,7 +21,6 @@ export function fireReport(): FireReport {
 }
 export const fireAck = (): FireAck | null => ack;
 export const floorName = (id: string): string => names[id] ?? id;
-export const fireMockMode = (): string | null => mockMode;
 
 /** Sets (or clears, with null) the demo source. `floors` are the signals of the screen that sets it; the names feed the bar. */
 export function setFireMock(mode: string | null, floors: (Pick<FloorSignal, 'id' | 'level'> & { name?: string })[] = []): void {
@@ -36,13 +35,6 @@ export function setFireMock(mode: string | null, floors: (Pick<FloorSignal, 'id'
 
 export function acknowledgeFire(who: string, at = new Date().toISOString()): void {
   ack = { who, at };
-  emit();
-}
-export function resetFireDemo(): void {
-  ack = null;
-  mockMode = null;
-  mockFloors = [];
-  names = {};
   emit();
 }
 export function onFire(fn: () => void): () => void {

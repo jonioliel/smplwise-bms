@@ -534,7 +534,6 @@ export function mayAcknowledge(who: (typeof XS_ACK_WHO)[number], can: (p: string
   if (who === 'admin') return can('system.configure');
   return can('fire.acknowledge');
 }
-export const FIRE_PERMISSION = 'fire.acknowledge';
 
 /* ---------------------------------------------------------------- the floor lights popup (SWITCH-LIGHT-DIMMER-2331) */
 

@@ -808,7 +808,6 @@ export const MAX_STAIR_STEPS = 60;
 export const STAIR_WIDTH_RANGE: readonly [number, number] = [0.6, 5];
 export const LANDING_RANGE: readonly [number, number] = [0.3, 10];
 export const STAIR_POINTS: Record<StairShape, number> = { straight: 2, l: 3, u: 4 };
-export const STAIR_SHAPE_LABEL: Record<StairShape, string> = { straight: 'ישר', l: 'L', u: 'U' };
 
 /** Whether a connector carries the stairs model (any of shape, flights, landing depth); else it draws as a band. */
 export function hasStairModel(c: Pick<GeomConnector, 'shape' | 'flights' | 'landing_depth_m'>): boolean {

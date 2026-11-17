@@ -26,7 +26,6 @@ export const PANEL_WIDTH_RANGE: readonly [number, number] = [0.2, 6];
 export const MULLION_RANGE: readonly [number, number] = [0.01, 0.5];
 export const SILL_RANGE: readonly [number, number] = [0, 10];
 export const GLAZED_HEIGHT_RANGE: readonly [number, number] = [0.2, 50];
-export const OPACITY_RANGE: readonly [number, number] = [0.05, 0.95];
 export const AUTO_MIN_M = 0.9;
 export const AUTO_MAX_M = 1.5;
 export const CORNER_DEG = 20;
@@ -73,8 +72,6 @@ export interface GlazingPrim {
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
 const halfUp = (v: number): number => Math.floor(v + 0.5);
-
-export const isGlass = (w: Pick<GeomWall, 'kind'> | null | undefined): boolean => !!w && w.kind === GLASS_KIND;
 
 /** Whether the document needs version 2.1 (a glass wall or a glazing block), as plan_glass.uses_glazing. */
 export function usesGlazing(doc: Pick<GeometryDoc, 'walls'>): boolean {

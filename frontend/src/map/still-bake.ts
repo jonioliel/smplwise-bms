@@ -20,7 +20,7 @@
  */
 import { deg, rad } from './num';
 import type { SceneDescription, SceneInput, ScenePart, Vec3 } from './scene-builder';
-import { ISO_DIR, ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
+import { ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
 import { controlSceneInput, withoutCameraBodies } from './skin-control';
 import { TOKEN_GROUPS } from '../design/tokens';
 
@@ -76,7 +76,6 @@ export const DEFAULT_BAKE_SETTING: BakeSetting = {
   bake_trigger: 'manual', bake_views: 'iso',
 };
 export const VIEW_PRESETS: Record<BakeViews, StillPreset[]> = { iso: ['iso'], iso_top: ['iso', 'top'] };
-export const BAKE_SIZES = ['1280x800', '1600x1000', '1920x1200'] as const;
 
 /** "still/L0/iso/light/day/off", "mask/L0/iso", "lightmap/L0" - services/plan_bakes.slot_id. */
 export function slotName(s: BakeSlot): string {
@@ -231,7 +230,6 @@ export function isoProject(cam: StillCamera): Project {
     return [((r / halfW + 1) / 2) * cam.width, ((1 - u / halfH) / 2) * cam.height];
   };
 }
-export const ISO_VIEW_DIR = ISO_DIR;
 
 export interface MaskRoom {
   id: string;

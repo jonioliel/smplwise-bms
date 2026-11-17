@@ -13,7 +13,6 @@ import { addDaysIso } from '../format/day-key';
 
 /** The period chip: `all` = the whole retained log (the default), `custom` = from / until typed in the filter zone. */
 export type RangeKey = 'all' | 'today' | 'yesterday' | 'week' | 'custom';
-export const RANGE_KEYS: RangeKey[] = ['all', 'today', 'yesterday', 'week', 'custom'];
 
 export interface EventFilterState {
   range: RangeKey;

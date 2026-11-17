@@ -301,9 +301,3 @@ export function offsetPolyline(input: readonly P[], d: number, miterLimit = 4): 
   return out;
 }
 
-/** The wall's two faces in pixels (left, right of travel), from its sampled path. */
-export function wallFaces(wall: { polyline: readonly (readonly number[])[]; bulges?: readonly number[] | null }, W: number, H: number, thicknessPx: number, tol = TOL_PX): { left: P[]; right: P[] } {
-  const { pts, bulges } = wallPx(wall, W, H);
-  const s = sample(pts, bulges, tol);
-  return { left: offsetPolyline(s, thicknessPx / 2), right: offsetPolyline(s, -thicknessPx / 2) };
-}

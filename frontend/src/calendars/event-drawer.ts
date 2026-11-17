@@ -8,7 +8,7 @@ import { dateInputLang } from '../api/day-format';
 import type { CalEvent, Calendar, EventPatch, EventPreview, NewEvent, OnBehalfKind, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, attendeeSlot, emit, type CalCtx, type NewEventDetail } from './ctx';
 import { hintFor, stepOf } from './grid-logic';
-import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, pad, startOfDay, whenText } from './model';
+import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, startOfDay, whenText } from './model';
 import { calCss } from './styles';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
 import { editableInDrawer } from './event-drawer-logic';
@@ -560,9 +560,6 @@ export class CalEventDrawer extends LitElement {
     return null;
   }
 }
-
-/** Two-digit local time label of a number of minutes (unit-tested helper of the drawer). */
-export const minutesLabel = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 
 declare global {
   interface HTMLElementTagNameMap {

@@ -470,11 +470,6 @@ export function placeOptions(o: Pick<Options, 'places'>): { value: string; label
   return out;
 }
 
-/** A task as a list row (the scan answer and a create return a detail; the lists keep the list shape). */
-export function asRow(t: TaskDetail): Task {
-  return t;
-}
-
 
 // ---------------------------------------------------------------- MAINT215B: insurance marks, files, the round view, the certificates row
 

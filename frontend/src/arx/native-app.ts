@@ -48,10 +48,6 @@ export function inNativeApp(): boolean {
   return nativeBridge(here()) !== null;
 }
 
-export function appPlatform(): NativePlatform | null {
-  return nativeBridge(here())?.platform ?? null;
-}
-
 export function nativeCan(fn: string): boolean {
   return hasFunction(nativeBridge(here()), fn);
 }

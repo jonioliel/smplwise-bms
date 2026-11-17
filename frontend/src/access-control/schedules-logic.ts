@@ -126,8 +126,6 @@ export function weekGrid(weekly: Partial<Record<WeekdayName, Period[]>> | null |
 /** A left-to-right isolate (LRI ... PDI): times, dates and their ranges read in their own order inside a Hebrew line (without it,
  * "07:00–09:00" in a right-to-left paragraph shows as "09:00–07:00"). */
 export const ltr = (s: string): string => (s ? `⁦${s}⁩` : s);
-/** The text without the isolates (for comparisons). */
-export const plainText = (s: string): string => s.replace(/[⁦-⁩]/g, '');
 
 const periodsText = (p: readonly Period[] | undefined): string => ltr((p ?? []).filter(validPeriod).map((x) => `${x.start}–${x.end}`).join(', '));
 

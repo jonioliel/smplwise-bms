@@ -46,8 +46,3 @@ export function gpuFacts(): GpuFacts {
 /** The device's GPU class for the `auto` start (quality-ladder.gpuClass). */
 export const detectGpuClass = (): GpuClass => gpuClass(gpuFacts());
 
-/** Forget the cached answer (tests). */
-export function resetWebglCheck(): void {
-  known = null;
-  gpu = null;
-}

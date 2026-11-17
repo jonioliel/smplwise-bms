@@ -25,7 +25,6 @@ export interface WallPlanSetting {
   idle_s: WallPlanIdle;
 }
 export const FOLLOW_PLAN: WallPlanSetting = { mode: 'follow', quality: 'follow', idle_s: 'follow' };
-export const WALL_PLAN_MODES: readonly WallPlanMode[] = ['follow', 'live', 'stills'];
 export const WALL_PLAN_IDLE: readonly Exclude<WallPlanIdle, 'follow'>[] = [0, 10, 30, 120, 600];
 
 export const WALL_QUALITY_KEY = 'sw.plan3d.wall_quality';

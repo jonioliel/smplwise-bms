@@ -1429,21 +1429,3 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
   };
 }
 
-/** Forget the claim draft of this tab (the page's "סיום" button clears sessionStorage as a whole; this is the claim's own part). */
-export function clearClaimDraft(storage: StorageLike | null = defaultStorage(), key: string = DRAFT_KEY): void {
-  clearDraft(storage, key);
-  try {
-    if (!storage) return;
-    const s = storage as Storage;
-    if (typeof s.length === 'number' && typeof s.key === 'function') {
-      const doomed: string[] = [];
-      for (let i = 0; i < s.length; i += 1) {
-        const k = s.key(i);
-        if (k && k.startsWith(key + BLOB_PREFIX)) doomed.push(k);
-      }
-      for (const k of doomed) s.removeItem(k);
-    }
-  } catch {
-    /* storage refused */
-  }
-}

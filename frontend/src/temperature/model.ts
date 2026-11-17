@@ -534,8 +534,6 @@ export function setRule(d: Draft, defaults: Record<string, boolean | number | st
   return { ...d, rules };
 }
 
-export const TEMPLATE_KEYS: [UnitKind, TtKey][] = [['fridge', 'kindFridge'], ['freezer', 'kindFreezer'], ['pharma', 'kindPharma'], ['server', 'kindServer']];
-
 // ---------------------------------------------------------------- phase 2: the report and WhatsApp dialogs
 
 export const REPORT_RANGES: ReportRange[] = ['24h', 'week', '7d', 'month', '30d', 'prev_week', 'prev_month', 'custom'];

@@ -2,7 +2,7 @@
  * CR-INSIGHT215: the pure logic of the insight screens (no DOM, no network) - month arithmetic, durations, the report's figures and
  * "not included" rows, the places tree of the door / waste lists, and the settings form with the server's bounds. Unit-tested.
  */
-import type { DoorItem, DoorRow, DoorsAnswer, InsightSettings, OmitReason, RangeId, ReportModel, SectionId, WasteAnswer, WasteItem } from '../api/insights';
+import type { DoorItem, DoorsAnswer, InsightSettings, OmitReason, RangeId, ReportModel, SectionId, WasteAnswer, WasteItem } from '../api/insights';
 import { ix, type IxKey, type IxLang } from '../i18n/insights';
 
 // ---------------------------------------------------------------- months
@@ -326,5 +326,3 @@ export function numErrors(fields: readonly string[]): Set<NumKey> {
 export const fieldHint = (k: NumKey): string => ix('fieldRange', { lo: BOUNDS[k].lo, hi: BOUNDS[k].hi });
 export const hasField = (fields: readonly string[], prefix: string): boolean => fields.some((f) => f === prefix || f.startsWith(`${prefix}.`) || f.startsWith(`${prefix}[`));
 
-/** True when a door row came back with nothing to list (used by the unit specs and the empty state). */
-export const doorRowQuiet = (d: DoorRow): boolean => d.unexplained === 0 && d.unverifiable === 0;

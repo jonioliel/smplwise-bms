@@ -4,7 +4,7 @@
  * 2026-10-30 (both are selectable board designs; neither is a default; the long body SHRINKS to fit; the "Up next" list; the urgent take-over).
  * No DOM here: unit specs run it in Node, the DOM engine (skin-board.ts) imports it.
  */
-import type { LiveBg, Severity, SystemsStatus, UrgentScreen } from './tv-logic';
+import type { LiveBg, SystemsStatus, UrgentScreen } from './tv-logic';
 
 /** ink / sign = the maintenance-area styles (NOTICEBOARD-STYLES-2300); lumen / axis / prism = the hi-tech lobby styles and
  * gallery / concierge / stone = the classic-luxury lobby styles (LOBBY-STYLES-2300). All eight run on one engine (skin-board.ts). */
@@ -106,11 +106,6 @@ export const GHOST_OPACITY = 0.07;
 
 /** Sign: the prisms of the rotating strips, fewer on a portrait screen. */
 export const slatCount = (portrait: boolean): number => (portrait ? 6 : 8);
-
-/** The severity word on a Sign pictogram plate. */
-export function severityWord(sev: Severity, w: { urgent: string; alert: string; info: string }): string {
-  return sev === 'critical' ? w.urgent : sev === 'alert' ? w.alert : w.info;
-}
 
 export const LANG_NAME: Record<'he' | 'en' | 'ru' | 'ar', string> = { he: 'עברית', en: 'English', ru: 'Русский', ar: 'العربية' };
 

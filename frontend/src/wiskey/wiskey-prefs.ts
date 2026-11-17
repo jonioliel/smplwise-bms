@@ -115,10 +115,3 @@ export async function saveWiskeyChoice(key: WiskeyChoiceKey, value: string | nul
   emitIfChanged(before);
 }
 
-/** For the unit spec and a sign-in change: forget everything. */
-export function resetWiskeyViewState(): void {
-  own = { density: null, wall: null };
-  install = { density: WISKEY_AUTO, wall: WISKEY_AUTO };
-  loaded = false;
-  inflight = null;
-}

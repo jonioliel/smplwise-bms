@@ -31,7 +31,6 @@ export interface TicketName {
   /** the module's own name (owner rename 2026-10-14); absent = derived (see moduleName) */
   module?: string;
 }
-export type TicketNameDoc = Record<TicketLang, TicketName> & { revision?: number };
 
 export const TICKET_LANGS: readonly TicketLang[] = ['he', 'en', 'ar', 'ru'];
 export const DEFAULT_TICKET_NAMES: Readonly<Record<TicketLang, TicketName>> = {

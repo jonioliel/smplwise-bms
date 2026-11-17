@@ -31,8 +31,6 @@ export interface WiskeyView {
   wall: string | null;
 }
 
-export const NO_VIEW: WiskeyView = { density: null, wall: null };
-
 function pick(value: unknown, allowed: readonly string[]): string | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
   const text = String(value);

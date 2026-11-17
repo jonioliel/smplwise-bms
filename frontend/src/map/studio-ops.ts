@@ -977,7 +977,6 @@ export function distributeObjects(doc: GeometryDoc, ids: readonly string[], axis
 
 // ---------------------------------------------------------------- connectors (T085)
 
-export const CONNECTOR_KINDS: readonly ConnectorKind[] = ['stairs', 'ramp', 'tribune', 'elevator', 'ladder'];
 export const CONNECTOR_DEFAULT_WIDTH_M: Record<ConnectorKind, number> = { stairs: 1.2, ramp: 1.5, tribune: 4, elevator: 1.6, ladder: 0.5 };
 
 export function addConnector(doc: GeometryDoc, kind: ConnectorKind, a: Pt, b: Pt, levelFrom: string, levelTo: string | null): { doc: GeometryDoc; id: string } {
