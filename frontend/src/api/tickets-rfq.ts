@@ -17,7 +17,7 @@
 import { ApiError, api, del, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
 import type { LineInput, LineKind, StoredLine, VatMode } from './tickets-costs';
-import { mockRfq } from './tickets-rfq-mock';
+import { lazy, lazyAdapter } from './demo-load';
 import type { RequestLocation } from './tickets-locations';
 
 export type RfqState = 'draft' | 'sent' | 'collecting' | 'due_passed' | 'awarded' | 'ordered' | 'closed' | 'cancelled';
@@ -713,9 +713,25 @@ export function answerWire(body: RfqAnswerBody): Record<string, unknown> {
   return out;
 }
 
+// CR-MOCKS-LAZY-2436 (review 07:F2, 08:F02): the demo store (./tickets-rfq-mock.ts) is fetched on the first demo call - with a backend
+// it is never loaded. `attachmentUrl` is synchronous: the demo has a file only after its upload (an awaited call), so before the store
+// arrived there is no file and the answer is the store's own "no file" (''). The optional members are those the demo store lacks.
+const rfqMock = lazy(() => import('./tickets-rfq-mock'));
+const demo = lazyAdapter<RfqBackend>(() => rfqMock().then((m) => m.mockRfq), {
+  attachmentUrl: (id, attachmentId, thumb) => rfqMock.loaded?.mockRfq.attachmentUrl(id, attachmentId, thumb) ?? '',
+  vendorFileUrl: undefined, decideArrival: undefined, moveInstalment: undefined, moveArrival: undefined, instalmentDemand: undefined,
+  awardNoticePreview: undefined, sendAwardNotice: undefined, ackPostponement: undefined,
+});
+
 /** The backend in force: REST with a server, the demo store without one. */
 export function ticketsRfqApi(): RfqBackend {
-  return isApi() ? rest : mockRfq;
+  return isApi() ? rest : demo;
+}
+
+/** The demo names of directory contacts a sheet picked (the demo store shows them; a server reads its directory). Without a backend
+ * only - the call is queued on the store's load, ahead of the sheet's next demo call. */
+export function rememberDemoContact(id: string, name: string, company: string): void {
+  if (!isApi()) void rfqMock().then((m) => m.rememberDemoContact(id, name, company));
 }
 
 /**

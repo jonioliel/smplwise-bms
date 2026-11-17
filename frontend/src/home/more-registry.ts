@@ -10,6 +10,10 @@ export interface MoreLine {
   tone?: 'ok' | 'warn' | 'info' | 'danger' | 'neutral';
   /** a small count on the tile (e.g. missed calls) */
   badge?: number;
+  /** HOME-V3-AUDITFIX-2437: a shorter line for the narrow room-screen chip of a wall panel, when `text` would not fit there */
+  chip?: unknown;
+  /** the full line as plain text (the chip's `title`, when `chip` shortens it) */
+  title?: string;
 }
 
 export interface MoreTile {

@@ -3,8 +3,10 @@
  * Hebrew first; English follows the document language (a missing key falls back to the Hebrew). `{n}` placeholders are filled by
  * `it(key, { n })`. Operator screens never name the home platform.
  */
+import { NAV_IT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
-  tab: 'אירוע חי',
+  tab: NAV_IT.he.tab,
   pageTitle: 'אירוע חי',
   activePill: 'אירוע פעיל',
   activePillN: '{n} אירועים פעילים',
@@ -171,7 +173,7 @@ const he = {
 type Key = keyof typeof he;
 
 const en: Partial<Record<Key, string>> = {
-  tab: 'Live incident', pageTitle: 'Live incident', activePill: 'Active incident', activePillN: '{n} active incidents', activeAria: 'Active incident - {title}',
+  tab: NAV_IT.en.tab, pageTitle: 'Live incident', activePill: 'Active incident', activePillN: '{n} active incidents', activeAria: 'Active incident - {title}',
   railDot: 'Active incident', statusOpen: 'Active', statusClosed: 'Closed', openedBy: 'Opened {t} by {who}', clock: 'Current time', ack: 'Acknowledge',
   acked: 'Acknowledged', addCase: 'Add to case', addCaseShort: 'Case', close: 'Close incident', closeShort: 'Close',
   closeConfirm: 'Close the incident? Closing is audited; it does not silence the alarm and does not touch any door.', closeNote: 'Closing note (optional)',

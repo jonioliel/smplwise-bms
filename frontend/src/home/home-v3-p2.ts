@@ -17,13 +17,15 @@ export { sceneScreenActs } from './home-scene-new';
 
 /** The room-screen categories a wall panel locked to its room adds (owner decision round 27 q12 "ב": the notice board and the
  * calendar), in the chips() tuple shape [route, label, icon, status line, tone, key]. Only what the person may see. */
-export function wallChips(h: HomeHost): [string, string, string, unknown, string, string?][] {
+export function wallChips(h: HomeHost): [string, string, string, unknown, string, string?, string?][] {
   warmFamily(h);
-  const out: [string, string, string, unknown, string, string?][] = [];
+  const out: [string, string, string, unknown, string, string?, string?][] = [];
   for (const t of moreTiles(h)) {
     if (t.id !== 'notices' && t.id !== 'calendar') continue;
     t.warm?.(h);
-    out.push([t.href, t.label, t.icon, t.line(h).text, '', t.id]);
+    // HOME-V3-AUDITFIX-2437 (audit item 4): the chip takes the tile's short line when it has one; the full line goes to the title
+    const l = t.line(h);
+    out.push([t.href, t.label, t.icon, l.chip ?? l.text, '', t.id, l.title]);
   }
   return out;
 }

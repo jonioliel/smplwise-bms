@@ -35,10 +35,10 @@ import '../maintenance/close-prompt'; // MAINT215B: asks the closer whether to m
 import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
 import { refreshCalendars, wireCalendars } from '../calendars/access'; // CALENDARS-UI-2310: the module's switch and placement for the navigation
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
-import { rt } from '../tickets/rfq-text';
+import { nt } from '../tickets/nav-text'; // CR-SHELL-LAZY-2436: the badge's aria words, not the whole RFQ dictionary
 import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
 import '../components/sw-incoming-call'; // WISKEY-INBOUND-CALLS-2382: the incoming door-station call banner (off unless its setting is on)
-import { setXsOptions, xsOptions } from '../xsection/xs-model';
+import { setXsOptions, xsOptions } from '../xsection/xs-options'; // CR-SHELL-LAZY-2436: the options only, not the cross-section model
 import { classifyDevice, classifyOptionsFor, readDeviceEnv, wallModeFor, watchDeviceClass } from '../wall/device-class';
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
 import { it as incText } from '../i18n/incidents';
@@ -47,8 +47,13 @@ import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
 import '../pwa/notifications-settings';
 import '../components/device-activity'; // CR-032: the device activity popup (long press on an electrical device)
+// CR-SHELL-LAZY-2436: the schedule editor is a lazy chunk now (lazy-screens.ts); these three dialogs it used to bring stay in the entry
+// chunk because the lazy schedules screens (devices-schedules, schedule-drawer) render them by tag without importing them
+import '../screens/schedule-lowering-dialog';
+import '../screens/schedule-create-dialog';
+import '../screens/schedules-week-view';
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
-import '../components/media-remote';
+// CR-SHELL-LAZY-2436: <media-remote> is not rendered by the shell; the home widgets and the area media card import it themselves
 import { navigate, onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
@@ -57,7 +62,7 @@ import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../a
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, applySynopticHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
-import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
+import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, DD_TITLE_WAIT_MS, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
@@ -2087,6 +2092,8 @@ export class SwApp extends LitElement {
   /** When the current collision was first seen: a collision has to persist for DD_COLLIDE_MS before the route falls back (a loading
    * screen draws a provisional header for a moment). */
   private ddMissSince = 0;
+  /** CR-WAVE1B-COMBINED-2436: when placement 3 first found no title on this route (it waits DD_TITLE_WAIT_MS for the heading). */
+  private ddTitleWaitSince = 0;
   private ddRoute = '';
   private ddTimer = 0;
 
@@ -2185,7 +2192,18 @@ export class SwApp extends LitElement {
     const blocked: DdBox[] = [...obstacles, ...(title ? [title] : []), ...(cr ? [cr] : [])];
     const offPage = chips.some((c) => c.left < -0.5 || c.right > window.innerWidth + 0.5);
     // placement 3 with no title on the chips' row (a title under a row of the screen's own tabs) has nothing to follow
-    const hit = offPage || (place === '3' && (!title || title.top >= band)) || chips.some((c) => blocked.some((o) => covers(c, o)));
+    let hit = offPage || (place === '3' && !!title && title.top >= band) || chips.some((c) => blocked.some((o) => covers(c, o)));
+    // CR-WAVE1B-COMBINED-2436: no title at all yet is a screen still loading its heading, not a collision - placement 3 waits for it
+    // (chips hidden, nothing covered) up to DD_TITLE_WAIT_MS in all, then falls back as before
+    if (place === '3' && !title && !hit) {
+      const t = performance.now();
+      if (!this.ddTitleWaitSince) this.ddTitleWaitSince = t;
+      if (t - this.ddTitleWaitSince < DD_TITLE_WAIT_MS - DD_COLLIDE_MS) {
+        this.ddMissSince = 0;
+        return;
+      }
+      hit = true;
+    } else if (title) this.ddTitleWaitSince = 0;
     if (!hit) {
       this.ddMissSince = 0;
       // measured, clear of everything: the chips may be painted now. Placement 3 follows the heading, which is swapped while its data loads:
@@ -2315,6 +2333,7 @@ export class SwApp extends LitElement {
     if (route !== this.ddRoute) {
       this.ddRoute = route;
       this.ddMissSince = 0; // a collision seen on the previous screen does not count here
+      this.ddTitleWaitSince = 0;
     }
     const asked = ddPlaceOf();
     const declined = ddPlaceDeclined(areaOf(this.route) ?? '', route, asked); // the area's table + the screen's (dd-place-fit.ts)
@@ -2770,6 +2789,7 @@ export class SwApp extends LitElement {
   /** Full-screen gate for identity problems; `null` (not lit's `nothing`, which is truthy) when the app may render. */
   private renderGate() {
     const s = this.session;
+    if (s.retrying) return html`<div class="gate">${this.renderRetry()}</div>`;
     if (s.mode === 'unauthenticated') {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="נדרשת כניסה למערכת" hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
@@ -2784,6 +2804,13 @@ export class SwApp extends LitElement {
       return html`<div class="gate" data-presence-gate><sw-state-panel state="forbidden" heading="נדרש להפעיל שיתוף נתונים" hint="כדי להשתמש במערכת ${gate.channel === 'app' ? 'מהאפליקציה' : ''} יש להפעיל באפליקציה: ${missing}. לאחר ההפעלה טענו את המסך מחדש."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
+  }
+
+  /** SESSION-DEMO-WS-2435: /me failed while a backend is there (a 502 while the add-on restarts) - the existing offline state, no demo
+   * data and nothing granted; session.ts asks again with back-off, the button asks now. */
+  private renderRetry() {
+    return html`<sw-state-panel state="stale" data-session-retry heading="אין חיבור לשרת" hint=${`${this.session.error ? `${this.session.error} · ` : ''}מנסה להתחבר שוב…`}
+      actionLabel="נסה עכשיו" @action=${() => void loadSession()}></sw-state-panel>`;
   }
 
   private renderPermToast() {
@@ -3369,7 +3396,7 @@ export class SwApp extends LitElement {
   private areaCount(id: string) {
     const n = areaBadge(id);
     if (!n && areaDot(id)) return html`<span class="ndot" role="status" aria-label=${incText('railDot')} data-nav-dot=${id}></span>`; // CR-LIVEEVENT100
-    return n ? html`<span class="nb" role="status" aria-label=${rt('navQuestionsAria', { n })} data-nav-badge=${id}>${n > 99 ? '99+' : n}</span>` : nothing;
+    return n ? html`<span class="nb" role="status" aria-label=${nt('navQuestionsAria', { n })} data-nav-badge=${id}>${n > 99 ? '99+' : n}</span>` : nothing;
   }
 
   /** Bubble foundation: the phone dock's home button opens the room picker - floors (collapsible) and areas as pill rows. */
@@ -3531,9 +3558,9 @@ export class SwApp extends LitElement {
     // 2.29.0: the red fire-alarm bar sits over every screen (the wall display, the kiosk and the embed included); it draws nothing unless the option `fire_ui` is on and an alarm is reported
     const bar = html`<sw-fire-bar .home=${this.route?.mode === 'devices'}></sw-fire-bar>`;
     if (this.wallMode()) return html`${bar}<sw-wall></sw-wall>`;
-    if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.renderScreen()}</main>`;
+    if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.session.retrying ? this.renderRetry() : this.renderScreen()}</main>`;
     if (this.route?.segments[0] === 'home' && this.session.mode !== 'loading') return this.renderHome(bar);
-    if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
+    if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.session.retrying ? this.renderRetry() : this.renderScreen()}</main>`;
     return html`${bar}<sw-incoming-call></sw-incoming-call>${this.renderA()}`;
   }
 }

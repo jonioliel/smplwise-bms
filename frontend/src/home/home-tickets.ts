@@ -67,7 +67,11 @@ export function newTicketFor(h: HomeHost, where: string, subject?: RegExp) {
   if (i >= 0) st.draft.cat = i;
 }
 const word = (t: Ticket) => (t.status === 'cancelled' ? 'בוטלה' : STEPS[t.step]);
-const tone = (t: Ticket) => (t.step === 2 ? 'ok' : t.step === 1 ? 'info' : 'neutral');
+// HOME-V3-AUDITFIX-2437 (audit item 23): the mockup's tints - received = blue, in progress = warm, done = quiet
+const tone = (t: Ticket) => (t.step === 2 ? 'neutral' : t.step === 1 ? 'warn' : 'info');
+/** audit item 24: the new-ticket category chip's icon, from the category's own name (the mockup's drop, bolt, thermometer, door, sparkle, dots) */
+const catIcon = (name: string) => (/אינסטל|מים|נזיל|ביוב/.test(name) ? 'drop' : /חשמל|תאור/.test(name) ? 'bolt' : /מיזוג|חימום|אקלים|מזגן/.test(name) ? 'thermo'
+  : /דלת|מנעול|כניס|שער/.test(name) ? 'door' : /ניקי|גינ|ניקוי/.test(name) ? 'spark' : 'more');
 const steps = (t: Ticket) => html`<span class="steps" aria-label=${'מצב: ' + word(t)}>${STEPS.map((_, i) => html`<i class=${i <= t.step ? 'on' : ''}></i>`)}</span>`;
 const noteOf = (t: Ticket) => (t.step === 2 ? 'הפנייה טופלה.' : t.eta_at ? `מטפל יגיע ב${whenText(t.eta_at)}` : t.step === 1 ? 'מישהו כבר מטפל בפנייה.' : 'הפנייה התקבלה. נעדכן כשמישהו יתחיל לטפל.');
 
@@ -107,7 +111,7 @@ registerScreen((h: HomeHost) => ({
     const dr = st.draft;
     if (o.kind === 'new') {
       return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog wide v3" role="dialog" aria-modal="true" aria-label="פנייה חדשה" data-sheet="tkNew"><header class="menu-h">${hi('wrench')}<span class="mh-t"><b>פנייה חדשה</b><span class="muted">מה לא עובד?</span></span>${x}</header>
-        ${st.cats.length > 1 ? html`<div class="chipset" role="radiogroup" aria-label="נושא">${st.cats.slice(0, 8).map((c, i) => html`<button class="chip2" role="radio" data-act="p2TkCat" data-v=${String(i)} aria-checked=${String(dr.cat === i)} aria-pressed=${String(dr.cat === i)}><span class="clamp1">${c.name}</span></button>`)}</div>` : nothing}
+        ${st.cats.length > 1 ? html`<div class="chipset" role="radiogroup" aria-label="נושא">${st.cats.slice(0, 8).map((c, i) => html`<button class="chip2" role="radio" data-act="p2TkCat" data-v=${String(i)} aria-checked=${String(dr.cat === i)} aria-pressed=${String(dr.cat === i)}>${hi(catIcon(c.name), 'c2i')}<span class="clamp1">${c.name}</span></button>`)}</div>` : nothing}
         <label class="fld"><span>איפה</span><input class="inp" .value=${dr.where} maxlength="200" placeholder="למשל: מטבח" enterkeyhint="next" @input=${(e: Event) => { dr.where = (e.target as HTMLInputElement).value; }}></label>
         <label class="fld"><span>מה קרה</span><textarea class="inp" rows="2" maxlength="4000" placeholder="כמה מילים שיעזרו למי שמטפל" .value=${dr.text} @input=${(e: Event) => { dr.text = (e.target as HTMLTextAreaElement).value; }}></textarea></label>
         ${st.photos.length ? html`<div class="tkph" role="list" aria-label="תמונות מצורפות">${st.photos.map((p, i) => html`<span class="ph" role="listitem"><img src=${p.url} alt=${`תמונה ${i + 1}`}><button class="rb" data-act="p2TkPhDel" data-v=${String(i)} aria-label=${`הסר את תמונה ${i + 1}`}>${hi('x')}</button></span>`)}<span class="muted">${st.photos.length === 1 ? 'תמונה אחת תצורף' : `${st.photos.length} תמונות יצורפו`}</span></div>` : nothing}

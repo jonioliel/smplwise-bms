@@ -31,6 +31,8 @@ interface PbState {
 
 const st: PbState = { cam: '', back: 0, t: 12 * 60, play: false, session: null, spans: [], events: [], tz: 'Asia/Jerusalem', loading: false, note: '', seq: 0 };
 let tick = 0;
+/** FE-LEAK-TEXTKEY-2435: bumped by stop(); a play that was in flight when the screen left closes the session it got and does not start the clock. */
+let gen = 0;
 
 function dateOf(back: number): string {
   return dateInZone(new Date(Date.now() - back * 86_400_000), st.tz);
@@ -42,7 +44,9 @@ export function playbackHref(camera: string, at?: Date): string {
 }
 
 async function stop(h: HomeHost) {
+  gen++;
   window.clearInterval(tick);
+  tick = 0;
   const s = st.session;
   st.session = null;
   st.play = false;
@@ -86,8 +90,15 @@ async function playAt(h: HomeHost, minute: number) {
   st.t = Math.max(0, Math.min(1439.99, minute));
   const at = instantInZone(dateOf(st.back), st.t, st.tz).toISOString().replace(/\.\d{3}Z$/, 'Z');
   st.note = '';
+  const g = gen;
+  const was = st.session?.id;
   try {
-    st.session = st.session ? await seekPlayback(st.session.id, at) : await createPlayback(st.cam, at);
+    const got = st.session ? await seekPlayback(st.session.id, at) : await createPlayback(st.cam, at);
+    if (g !== gen) {
+      if (got.id !== was) await closePlayback(got.id).catch(() => undefined);
+      return;
+    }
+    st.session = got;
     const real = st.session.actual_start_at;
     if (real && dateInZone(new Date(real), st.tz) === dateOf(st.back)) st.t = minuteInZone(new Date(real), st.tz);
     st.play = true;
@@ -98,6 +109,7 @@ async function playAt(h: HomeHost, minute: number) {
       h.requestUpdate();
     }, 1000);
   } catch (err) {
+    if (g !== gen) return;
     st.play = false;
     st.note = playbackError(err instanceof ApiError ? (err.status === 403 ? 'forbidden' : err.code) : undefined);
     if (st.session && err instanceof ApiError && err.code === 'session_over') st.session = null;
@@ -146,7 +158,7 @@ registerScreen((h: HomeHost) => ({
     if (!cam) return;
     if (cam !== st.cam || at) setCam(h, cam);
     else void loadDay(h);
-    if (at) window.setTimeout(() => void playAt(h, st.t), 0);
+    if (at) { const g = gen; window.setTimeout(() => { if (g === gen) void playAt(h, st.t); }, 0); }
   },
   leave() {
     void stop(h);
@@ -200,10 +212,11 @@ registerScreen((h: HomeHost) => ({
           : !st.spans.length ? html`<div class="cam-off">${hi('film')}<span>אין הקלטות למצלמה הזו ${st.back === 0 ? 'היום' : 'ביום הזה'}</span></div>`
             : ok ? html`<div class="cam-off">${hi('play')}<span>ההקלטה מוכנה. לחצו על נגן.</span><small>${stamp}</small></div>`
               : html`<div class="cam-off">${hi('film')}<span>אין הקלטה בשעה הזו</span><small>גררו את הסמן לאזור מסומן בציר</small></div>`;
-    const acts = html`<span class="cf-nav pb-days" role="group" aria-label="יום"><button class="rb" data-act="pbDay" data-d="1" aria-label="יום קודם">${hi('back')}</button><b class="pbd clamp1">${dayWord(st.back)}</b><button class="rb" data-act="pbDay" data-d="-1" ?disabled=${st.back === 0} aria-label="יום אחרי">${hi('fwd')}</button></span>${cams.length > 1 ? html`<span class="cf-nav"><button class="rb" data-act="pbCam" data-d="-1" aria-label="המצלמה הקודמת">${hi('back')}</button><button class="rb" data-act="pbCam" data-d="1" aria-label="המצלמה הבאה">${hi('fwd')}</button></span>` : nothing}`;
+    const acts = html`<span class="cf-nav pb-days" role="group" aria-label="יום"><button class="rb" data-act="pbDay" data-d="1" aria-label="יום קודם">${hi('back')}</button><b class="pbd clamp1">${dayWord(st.back)}</b><button class="rb" data-act="pbDay" data-d="-1" ?disabled=${st.back === 0} aria-label="יום אחרי">${hi('fwd')}</button></span>${cams.length > 1 ? html`<span class="cf-nav pb-cams" role="group" aria-label="מצלמה"><button class="rb" data-act="pbCam" data-d="-1" aria-label="המצלמה הקודמת">${hi('back')}</button><b class="pbd pbc clamp1" dir="auto" title=${c.name}>${c.name}</b><button class="rb" data-act="pbCam" data-d="1" aria-label="המצלמה הבאה">${hi('fwd')}</button></span>` : nothing}`;
+    // HOME-V3-AUDITFIX-2437 (audit item 9): with the camera stepper naming the camera, the wide title does not repeat it
     const onInput = (e: Event) => { st.t = +(e.target as HTMLInputElement).value; h.requestUpdate(); };
     const onChange = (e: Event) => { const m = +(e.target as HTMLInputElement).value; if (st.session) void playAt(h, m); else { st.t = m; h.requestUpdate(); } };
-    return html`${h.head(h.phone ? c.name : `הקלטות: ${c.name}`, h.phone ? 'בחרו יום וזמן.' : 'בחרו יום, ואז זמן על הציר או אירוע מהרשימה', acts)}
+    return html`${h.head(h.phone ? c.name : cams.length > 1 ? 'הקלטות' : `הקלטות: ${c.name}`, h.phone ? 'בחרו יום וזמן.' : 'בחרו יום, ואז זמן על הציר או אירוע מהרשימה', acts)}
       <div class="pb-body" data-home-playback=${c.id}><section class=${'tile pb-pic' + (st.play ? '' : ' off')} aria-label="תמונה">${pic}</section>
         <section class="tile pane pb-side" aria-label="מה קרה"><div class="bar"><h2>מה קרה כאן</h2>${h.pager('pbE', pg.pages)}</div>${pg.items.length ? pg.items.map((e) => html`<button class="mrow pb-ev" data-act="pbJump" data-t=${String(e.at)} aria-pressed=${String(Math.abs(e.at - st.t) < 1)}>${hi(e.icon)}<span class="clamp2">${e.text}</span><b class="num">${clockOf(e.at).slice(0, 5)}</b></button>`) : html`<p class="muted pb-none">לא נרשמו אירועים ליד המצלמה הזו ${st.back === 0 ? 'היום' : 'ביום הזה'}.</p>`}</section>
         <section class="tile pb-ctl" aria-label="ניגון"><span class="pb-btns"><button class="rb" data-act="pbSkip" data-d="-10" aria-label="10 שניות אחורה" ?disabled=${!st.spans.length}>${hi('rew')}</button><button class="rb play" data-act="pbPlay" aria-pressed=${String(st.play)} aria-label=${st.play ? 'השהה' : 'נגן'} ?disabled=${!st.spans.length}>${hi(st.play ? 'pause' : 'play')}</button><button class="rb" data-act="pbSkip" data-d="10" aria-label="10 שניות קדימה" ?disabled=${!st.spans.length}>${hi('ffw')}</button></span>

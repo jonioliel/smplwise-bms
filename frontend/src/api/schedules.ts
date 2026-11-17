@@ -18,7 +18,12 @@ import { apiUrl, get, post, put, patch } from './client';
 import { invalidateSettings } from './prefs';
 import { commandId } from './request-id';
 import { isApi } from './session';
-import { demoStore } from './schedules-mock';
+import { lazy } from './demo-load';
+
+/** CR-MOCKS-LAZY-2436 (review 07:F2): the demo store (./schedules-mock.ts) is fetched on the first demo call - with a backend it is never
+ * loaded. Each call reads the store in force (`demoStore()`), as before. */
+const schedulesMock = lazy(() => import('./schedules-mock'));
+const demoStore = () => schedulesMock().then((m) => m.demoStore());
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
 
@@ -595,114 +600,114 @@ const enc = encodeURIComponent;
 
 /** `recheck`: the banner's retry button - the server pulls from the infrastructure again before it answers. */
 export function getScheduleStatus(recheck = false): Promise<ScheduleStatus> {
-  return isApi() ? get<ScheduleStatus>(recheck ? 'schedules/status?recheck=true' : 'schedules/status') : demoStore().status();
+  return isApi() ? get<ScheduleStatus>(recheck ? 'schedules/status?recheck=true' : 'schedules/status') : demoStore().then((s) => s.status());
 }
 
 export function listSchedules(query: ScheduleQuery = {}): Promise<ScheduleList> {
-  return isApi() ? get<ScheduleList>(`schedules${qs(query)}`) : demoStore().list(query);
+  return isApi() ? get<ScheduleList>(`schedules${qs(query)}`) : demoStore().then((s) => s.list(query));
 }
 
 export function getSchedule(id: string): Promise<Schedule> {
-  return isApi() ? get<Schedule>(`schedules/${enc(id)}`) : demoStore().get(id);
+  return isApi() ? get<Schedule>(`schedules/${enc(id)}`) : demoStore().then((s) => s.get(id));
 }
 
 export function getScheduleCatalog(query: { q?: string; floor?: string; area?: string; class?: ScheduleClass } = {}): Promise<{ entities: CatalogEntity[]; truncated: boolean }> {
-  return isApi() ? get(`schedules/catalog${qs(query)}`) : demoStore().catalog(query);
+  return isApi() ? get(`schedules/catalog${qs(query)}`) : demoStore().then((s) => s.catalog(query));
 }
 
 export function getConditionCandidates(query: { q?: string; domain?: ConditionCandidate['domain'] } = {}): Promise<{ entities: ConditionCandidate[]; truncated: boolean }> {
-  return isApi() ? get(`schedules/condition-candidates${qs(query)}`) : demoStore().conditionCandidates(query);
+  return isApi() ? get(`schedules/condition-candidates${qs(query)}`) : demoStore().then((s) => s.conditionCandidates(query));
 }
 
 export function previewSchedule(draft: ScheduleDraft, scheduleId: string | null = null, count = 5): Promise<PreviewResult> {
-  return isApi() ? post<PreviewResult>('schedules/preview', { draft, schedule_id: scheduleId, count }) : demoStore().preview(draft, scheduleId, count);
+  return isApi() ? post<PreviewResult>('schedules/preview', { draft, schedule_id: scheduleId, count }) : demoStore().then((s) => s.preview(draft, scheduleId, count));
 }
 
 export function createSchedule(draft: ScheduleDraft, opts: WriteOptions & { enabled?: boolean } = {}): Promise<CreateResult> {
   const body = { draft, enabled: opts.enabled ?? true, client_request_id: rid(opts), confirm_lowering: opts.confirm_lowering ?? false, alarm_code: opts.alarm_code ?? null };
-  return isApi() ? post<CreateResult>('schedules', body) : demoStore().create(draft, body.enabled, body.confirm_lowering);
+  return isApi() ? post<CreateResult>('schedules', body) : demoStore().then((s) => s.create(draft, body.enabled, body.confirm_lowering));
 }
 
 export function updateSchedule(id: string, draft: ScheduleDraft, baseRevision: string, opts: WriteOptions = {}): Promise<{ schedule: Schedule; op_id: string }> {
   const body = { draft, base_revision: baseRevision, client_request_id: rid(opts), confirm_lowering: opts.confirm_lowering ?? false, alarm_code: opts.alarm_code ?? null };
-  return isApi() ? put(`schedules/${enc(id)}`, body) : demoStore().update(id, draft, baseRevision, body.confirm_lowering);
+  return isApi() ? put(`schedules/${enc(id)}`, body) : demoStore().then((s) => s.update(id, draft, baseRevision, body.confirm_lowering));
 }
 
 export function setScheduleEnabled(id: string, enabled: boolean, opts: WriteOptions = {}): Promise<{ schedule: Schedule; changed: boolean }> {
   const body = { client_request_id: rid(opts), confirm_lowering: opts.confirm_lowering ?? false, alarm_code: opts.alarm_code ?? null };
-  return isApi() ? post(`schedules/${enc(id)}/${enabled ? 'enable' : 'disable'}`, body) : demoStore().setEnabled(id, enabled, body.confirm_lowering);
+  return isApi() ? post(`schedules/${enc(id)}/${enabled ? 'enable' : 'disable'}`, body) : demoStore().then((s) => s.setEnabled(id, enabled, body.confirm_lowering));
 }
 
 export function runSchedule(id: string, slotIndex: number | null, opts: WriteOptions & { skip_conditions?: boolean; confirm?: boolean } = {}): Promise<{ run_id: string; note: string }> {
   const body = { slot_index: slotIndex, skip_conditions: opts.skip_conditions ?? false, confirm: opts.confirm ?? false, client_request_id: rid(opts), alarm_code: opts.alarm_code ?? null };
-  return isApi() ? post(`schedules/${enc(id)}/run`, body) : demoStore().run(id, slotIndex, body.confirm);
+  return isApi() ? post(`schedules/${enc(id)}/run`, body) : demoStore().then((s) => s.run(id, slotIndex, body.confirm));
 }
 
 export function splitSchedule(id: string, baseRevision: string, days: DayId[], name: string | null = null, opts: WriteOptions = {}): Promise<{ original: Schedule; created: Schedule }> {
   const body = { base_revision: baseRevision, days, name, confirm: true, client_request_id: rid(opts) };
-  return isApi() ? post(`schedules/${enc(id)}/split`, body) : demoStore().split(id, baseRevision, days, name);
+  return isApi() ? post(`schedules/${enc(id)}/split`, body) : demoStore().then((s) => s.split(id, baseRevision, days, name));
 }
 
 export function deleteSchedule(id: string, baseRevision: string, opts: WriteOptions = {}): Promise<{ trash_id: string; expires_at: string }> {
   const body = { base_revision: baseRevision, confirm: true, client_request_id: rid(opts) };
-  return isApi() ? post(`schedules/${enc(id)}/delete`, body) : demoStore().remove(id, baseRevision);
+  return isApi() ? post(`schedules/${enc(id)}/delete`, body) : demoStore().then((s) => s.remove(id, baseRevision));
 }
 
 export function copySchedule(id: string, name: string, opts: WriteOptions = {}): Promise<{ schedule: Schedule }> {
-  return isApi() ? post(`schedules/${enc(id)}/copy`, { name, client_request_id: rid(opts) }) : demoStore().copy(id, name);
+  return isApi() ? post(`schedules/${enc(id)}/copy`, { name, client_request_id: rid(opts) }) : demoStore().then((s) => s.copy(id, name));
 }
 
 export function listTrash(): Promise<{ items: TrashItem[] }> {
-  return isApi() ? get('schedules/trash') : demoStore().trash();
+  return isApi() ? get('schedules/trash') : demoStore().then((s) => s.trash());
 }
 
 export function restoreFromTrash(trashId: string, opts: WriteOptions = {}): Promise<{ schedule: Schedule }> {
   const body = { client_request_id: rid(opts), confirm_lowering: opts.confirm_lowering ?? false, alarm_code: opts.alarm_code ?? null };
-  return isApi() ? post(`schedules/trash/${enc(trashId)}/restore`, body) : demoStore().restore(trashId);
+  return isApi() ? post(`schedules/trash/${enc(trashId)}/restore`, body) : demoStore().then((s) => s.restore(trashId));
 }
 
 export function purgeTrash(trashId: string): Promise<{ ok: true }> {
-  return isApi() ? post(`schedules/trash/${enc(trashId)}/purge`, { confirm: true }) : demoStore().purge(trashId);
+  return isApi() ? post(`schedules/trash/${enc(trashId)}/purge`, { confirm: true }) : demoStore().then((s) => s.purge(trashId));
 }
 
 export function bulkSchedules(op: 'enable' | 'disable', ids: string[], opts: WriteOptions = {}): Promise<BulkResult> {
   const body = { op, ids, confirm: true, client_request_id: rid(opts) };
-  return isApi() ? post<BulkResult>('schedules/bulk', body) : demoStore().bulk(op, ids);
+  return isApi() ? post<BulkResult>('schedules/bulk', body) : demoStore().then((s) => s.bulk(op, ids));
 }
 
 export function getOrganisation(): Promise<Organisation> {
-  return isApi() ? get<Organisation>('schedules/organisation') : demoStore().organisation();
+  return isApi() ? get<Organisation>('schedules/organisation') : demoStore().then((s) => s.organisation());
 }
 
 export function putOrganisation(body: Organisation): Promise<Organisation> {
-  return isApi() ? put<Organisation>('schedules/organisation', body) : demoStore().setOrganisation(body);
+  return isApi() ? put<Organisation>('schedules/organisation', body) : demoStore().then((s) => s.setOrganisation(body));
 }
 
 export function listScheduleRuns(query: { schedule_id?: string; since?: string; result?: RunResult; limit?: number } = {}): Promise<{ items: RunItem[] }> {
-  return isApi() ? get(`schedules/runs${qs(query)}`) : demoStore().runs(query);
+  return isApi() ? get(`schedules/runs${qs(query)}`) : demoStore().then((s) => s.runs(query));
 }
 
 export function getScheduleReview(): Promise<{ items: ReviewItem[] }> {
-  return isApi() ? get('schedules/review') : demoStore().review();
+  return isApi() ? get('schedules/review') : demoStore().then((s) => s.review());
 }
 
 /** A system administrator acknowledges (or, with `undo`, restores) a review warning of one schedule; never changes the schedule. */
 export function acknowledgeScheduleIssue(id: string, issue: AckableIssue, undo = false): Promise<{ schedule_id: string; issue: AckableIssue; acknowledged: boolean; acknowledgement: Acknowledgement | null }> {
-  return isApi() ? post(`schedules/${enc(id)}/acknowledge`, { issue, undo }) : demoStore().acknowledge(id, issue, undo);
+  return isApi() ? post(`schedules/${enc(id)}/acknowledge`, { issue, undo }) : demoStore().then((s) => s.acknowledge(id, issue, undo));
 }
 
 /** The scripts a schedule may run and the ones that need a system administrator's "allowed in schedules" mark (owner decision 2026-10-04). */
 export function listScheduleScripts(): Promise<{ scripts: ScheduleScriptItem[]; can_mark: boolean }> {
-  return isApi() ? get('schedules/scripts') : demoStore().scripts();
+  return isApi() ? get('schedules/scripts') : demoStore().then((s) => s.scripts());
 }
 
 /** A system administrator marks one script "allowed in schedules" (bound to its content; audited), or removes the mark with `undo`. */
 export function markScheduleScript(entityId: string, undo = false): Promise<{ entity_id: string; approval: ScriptApproval }> {
-  return isApi() ? post(`schedules/scripts/${enc(entityId)}/mark`, { undo }) : demoStore().markScript(entityId, undo);
+  return isApi() ? post(`schedules/scripts/${enc(entityId)}/mark`, { undo }) : demoStore().then((s) => s.markScript(entityId, undo));
 }
 
 export function listScheduleTags(): Promise<{ tags: { name: string; count: number }[] }> {
-  return isApi() ? get('schedules/tags') : demoStore().tags();
+  return isApi() ? get('schedules/tags') : demoStore().then((s) => s.tags());
 }
 
 /**
@@ -827,7 +832,7 @@ export function scheduleSettingsPatch(from: ScheduleSettings, to: ScheduleSettin
 export async function saveScheduleSettings(from: ScheduleSettings, to: ScheduleSettings, disarmConfirm = ''): Promise<ScheduleSettings> {
   const body = scheduleSettingsPatch(from, to, disarmConfirm);
   if (!Object.keys(body).length) return to;
-  if (!isApi()) return demoStore().saveSettings(to, disarmConfirm);
+  if (!isApi()) return demoStore().then((s) => s.saveSettings(to, disarmConfirm));
   const r = await patch<{ settings: Record<string, unknown> }>('settings', body);
   invalidateSettings();
   return scheduleSettingsOf(r.settings);

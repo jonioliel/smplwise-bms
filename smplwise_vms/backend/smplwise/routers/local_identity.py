@@ -54,7 +54,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import guarded_route
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require, role_name, scope_name
@@ -434,8 +434,8 @@ def _link_answer(request: Request, token: str, expires: float, purpose: str) -> 
 
 
 @router.get("/identity/local-users")
-def list_local_users(request: Request, include_deleted: bool = Query(False), principal: Principal = Depends(current_principal),
-                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_local_users(request: Request, include_deleted: bool = Query(False), principal: Principal = Depends(current_principal_ro),
+                     conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     rows = conn.execute("""SELECT u.*, c.password_hash IS NOT NULL AS has_password, c.must_change, c.reset_mode, c.last_sign_in_at, c.last_sign_in_from,
                                   c.failed_count, c.delay_until FROM users u JOIN auth_local_credentials c ON c.user_id = u.id
@@ -545,7 +545,7 @@ def create_local_user(body: LocalUserCreate, request: Request, principal: Princi
 
 
 @router.get("/identity/local-users/export")
-def export_local_users(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+def export_local_users(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     _manage(conn, principal)
     rows = conn.execute("""SELECT u.*, c.password_hash IS NOT NULL AS has_password, c.must_change, c.reset_mode, c.last_sign_in_at, c.last_sign_in_from,
                                   c.failed_count, c.delay_until FROM users u JOIN auth_local_credentials c ON c.user_id = u.id
@@ -569,7 +569,7 @@ def export_local_users(request: Request, principal: Principal = Depends(current_
 
 
 @router.get("/identity/local-users/{user_id}")
-def get_local_user(user_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_local_user(user_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "identity.directory.read", INSTALLATION)
     return _user_dict(conn, _user_row(conn, user_id))
 

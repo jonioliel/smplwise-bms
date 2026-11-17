@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, Field, StrictInt
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, STATION, Principal, authorize, require
 from ..services import intercom_doors, intercom_sync
@@ -77,7 +77,7 @@ def _station_view(conn: sqlite3.Connection, station_id: str, s: dict[str, Any] |
 
 
 @router.get("/wiskey/relay-map")
-def relay_map(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def relay_map(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The WisKey relay map per station, with its revision and who approved it; read-only without system.configure."""
     can_edit = authorize(conn, principal, CONFIGURE, INSTALLATION).allowed
     if not can_edit:
@@ -90,15 +90,15 @@ def relay_map(request: Request, principal: Principal = Depends(current_principal
 
 
 @router.get("/wiskey/relay-map/export")
-def relay_map_export(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def relay_map_export(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-RELAYEXPORT-2320: the full relay map snapshot (tombstones too) with its digest and the numbered export log; admin only, read only."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     return rmx.status(conn)
 
 
 @router.get("/wiskey/relay-map/export/{seq}")
-def relay_map_export_record(seq: int = Path(ge=1, le=9007199254740991), principal: Principal = Depends(current_principal),
-                            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def relay_map_export_record(seq: int = Path(ge=1, le=9007199254740991), principal: Principal = Depends(current_principal_ro),
+                            conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-RELAYEXPORT-2320: one sealed relay map export with its snapshot, ack and stale state; admin only, read only."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     try:

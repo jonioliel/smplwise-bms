@@ -900,9 +900,10 @@ class WhatsAppNotifyChannel(Channel):
         if not doc.uses.get(USE_KEY):  # no account picked for the use (Settings › ערוץ ההודעות)
             return [] if d.mode == "resolved" else [Target(self.name, None, "", "skipped", "channel_unavailable")]
         users = d.users
-        if d.mode == "resolved":  # a resolve notice only to whom this channel actually reached
-            users = [u for u in users if conn.execute("SELECT 1 FROM notification_deliveries WHERE notification_id = ? AND user_id = ? AND channel = ? AND status = 'sent' LIMIT 1",
-                                                      (d.nid, u, CHANNEL)).fetchone()]
+        if d.mode == "resolved":  # a resolve notice only to whom this channel actually reached (one statement, the recipients' order kept)
+            reached = {r[0] for r in conn.execute("SELECT DISTINCT user_id FROM notification_deliveries WHERE notification_id = ? AND channel = ? AND status = 'sent' AND user_id IS NOT NULL",
+                                                  (d.nid, CHANNEL)).fetchall()}
+            users = [u for u in users if u in reached]
         now_iso_ = iso_utc(d.now)
         wall = dt.datetime.now(dt.timezone.utc)  # the delivery rows are stamped with the wall clock: their windows are measured on it
         dedupe_since = iso_utc(wall - dt.timedelta(minutes=cfg["dedupe_min"]))
@@ -922,8 +923,8 @@ class WhatsAppNotifyChannel(Channel):
             if found.consent != "granted":
                 out.append(Target(self.name, uid, ref, "skipped", "no_consent"))
                 continue
-            rec = conn.execute("SELECT snoozed_until FROM notification_recipients WHERE notification_id = ? AND user_id = ?", (d.nid, uid)).fetchone()
-            if d.mode != "escalate" and rec is not None and rec["snoozed_until"] and rec["snoozed_until"] > now_iso_:
+            snoozed = d.snoozed_until(uid)  # CR-NOTIFY-FANOUT-2436: the dispatch's one snooze read, shared with the other channels
+            if d.mode != "escalate" and snoozed and snoozed > now_iso_:
                 out.append(Target(self.name, uid, ref, "skipped", "snoozed"))
                 continue
             if d.held(self.name):
