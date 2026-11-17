@@ -100,6 +100,7 @@ def clean_text(value: object, *, multiline: bool = False, max_combining: int = M
     return _MULTI_NEWLINES.sub("\n\n", "\n".join(lines)).strip()
 
 
+# test-only: no product caller; used by tests/test_tickets_text_hygiene.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def hidden_characters(value: str) -> list[tuple[int, str]]:
     """(index, U+XXXX) of every character a template or a setting must NOT contain (spec 9.7: templates with Cc / Cf characters
     are refused with 422, not silently cleaned). Line feeds and tabs are allowed in templates and are not listed."""
@@ -174,5 +175,6 @@ def csv_cell(value: Any) -> Any:
     return text
 
 
+# test-only: no product caller; used by tests/test_tickets_text_hygiene.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def csv_row(values: Iterable[Any]) -> list[Any]:
     return [csv_cell(v) for v in values]

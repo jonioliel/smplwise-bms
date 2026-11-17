@@ -363,6 +363,7 @@ def network_key(addr: Address | None) -> str:
     return str(ipaddress.IPv6Network((int(addr) >> 64 << 64, 64)))
 
 
+# test-only: no product caller; used by tests/test_tickets_ratelimit.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def client_network(peer: str | None, forwarded: Sequence[str], trusted: Sequence[Network]) -> str:
     """The rate-limit bucket of a request: the /24 or /64 of `client_address`, or "unknown"."""
     return network_key(client_address(peer, forwarded, trusted))

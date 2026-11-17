@@ -94,6 +94,7 @@ class WaterReadings:
     def now(self) -> int:
         return int(self._now if self._now is not None else time.time())
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_billing_world.py, tests/energy_fake.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def get_meter(self, meter_id: str) -> MeterInfo | None:
         r = wm.get(self.conn, meter_id)
         return MeterInfo(r["id"], r["display_name"], r["status"]) if r is not None else None
@@ -159,6 +160,7 @@ def provider_for(conn: sqlite3.Connection, settings: Any) -> WaterReadings:
     return WaterReadings(conn, wm.store_for(settings), now=_OVERRIDE.get("now"))
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_water_billing_s3.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_now(ts: float | None) -> None:
     """Tests: pin the provider's clock (the retention floor of the quarter-hour data)."""
     if ts is None:
@@ -518,6 +520,7 @@ def _totals(lines: list[dict[str, Any]]) -> dict[str, Any]:
             "price_mode_note_he": "המחיר נקבע כולל מע״מ" if any(ln["price_mode"] == "inc_vat" for ln in lines) else None}
 
 
+# test-only: no product caller; the name is read only by tests: tests/test_bill_ledger_lifecycle_b.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
     return bl.prev_bill(KIND, conn, aid, start)
 

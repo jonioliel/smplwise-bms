@@ -352,6 +352,7 @@ def _wait_unreaped(proc: subprocess.Popen, deadline: float) -> int | None:
         return None
 
 
+# test-only: no product caller; used by tests/test_docread_297.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def run_capped(cmd: list[str], *, timeout_s: float, cap: int) -> tuple[str, int, bytes]:
     """F2 compatibility wrapper: (status, returncode, stdout) under the default limits with `timeout_s` / `cap`."""
     r = run_limited(cmd, limits=Limits(timeout_s=timeout_s, cpu_s=max(1, int(timeout_s)), output_bytes=cap))

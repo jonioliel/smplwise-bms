@@ -550,6 +550,7 @@ class Sender:
             heapq.heappush(self.heap, (time.monotonic() + delay, next(self.seq), job))
             self.cv.notify_all()
 
+    # test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_delayed_worker_2440.py, tests/test_local_reset.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def make_due(self) -> None:
         """Tests: every waiting job is due now."""
         with self.cv:

@@ -48,6 +48,7 @@ def generation(user_id: str) -> int:
         return _generation.get(user_id, 0)
 
 
+# test-only: no product caller; used by tests/test_access.py, tests/test_shared_spaces.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def revoked_since(user_id: str, started_at: float) -> bool:
     """True when the user was marked after `started_at` (a socket opened before the revocation)."""
     with _lock:

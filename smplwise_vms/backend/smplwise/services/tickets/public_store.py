@@ -266,6 +266,7 @@ class SqlCodeStore:
                              created_at=epoch(row["created_at"]) or 0.0, expires_at=epoch(row["expires_at"]) or 0.0)
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_tickets_s4_wiring.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class NoCodeChannel:
     """The CodeSender until the ticket message channel exists (slices 5b / 7): no channel may carry a code, so `code/send`
     answers 503 `code_unavailable` and nothing is ever sent. Slice 5b / 7 replace it with the outbox (purpose `code`, the code

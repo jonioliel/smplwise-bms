@@ -82,6 +82,7 @@ class DelayedWorker:
         except queue.Full:
             pass
 
+    # test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_delayed_worker_2440.py, tests/test_local_reset.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def make_due(self) -> None:
         """Every waiting job comes due now (tests)."""
         with self.lock:

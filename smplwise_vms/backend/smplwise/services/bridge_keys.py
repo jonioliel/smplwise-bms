@@ -143,6 +143,7 @@ def _v1_sig(material: str, body: dict[str, Any], ts: int, nonce: str) -> str:
     return _mac(material, f"{ts}.{nonce}.{hashlib.sha256(canonical(body).encode('utf-8')).hexdigest()}".encode("utf-8"))
 
 
+# test-only: no product caller; used by tests/test_bridge_stale_discovery_2383.py, tests/test_wiskey_pairing_2382.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def new_material() -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii").rstrip("=")
 

@@ -168,6 +168,7 @@ def reset_for_tests() -> None:
     _OPENER_FOR_TESTS = None
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_wiskey_pairing_2382.py, tests/test_wiskey_talk_caps_2382.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_opener_for_tests(opener: Callable[[], Awaitable[Any]] | None) -> None:
     global _OPENER_FOR_TESTS
     _OPENER_FOR_TESTS = opener

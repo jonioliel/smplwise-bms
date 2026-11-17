@@ -816,6 +816,7 @@ CODE_TEXT = {"he": {"not_needed": "לא נדרש", "pending": "ממתין", "que
              "en": {"not_needed": "Not needed", "pending": "Pending", "queued": "Queued", "sent": "Sent", "not_delivered": "Not delivered", "unknown": "Unknown"}}
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_dirperm_295.py, tests/test_grantsmin_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_export_rate() -> None:
     """Tests only."""
     _export_last.clear()

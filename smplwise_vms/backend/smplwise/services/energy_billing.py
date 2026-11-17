@@ -746,6 +746,7 @@ class Computed:
     end_caps: dict[str, str]
 
 
+# test-only: no product caller; the name is read only by tests: tests/test_bill_ledger_lifecycle_b.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
     return bl.prev_bill(KIND, conn, aid, start)
 

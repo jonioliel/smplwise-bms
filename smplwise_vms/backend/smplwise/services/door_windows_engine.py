@@ -77,11 +77,13 @@ def emergency_ready() -> bool:
     return go_live_permitted() and emergency_engine_built()
 
 
+# test-only: legacy view; its only caller is live_ready (test-only); door_emergency / the frontend use the same word as a JSON key, not this function (lead question L16 open); used by tests/test_splitswitch_297.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def live_engine_built() -> bool:
     """Legacy (before SPLITSWITCH-297): True only when BOTH engines are on. Kept for callers outside this repo; not read here."""
     return program_engine_built() and emergency_engine_built()
 
 
+# test-only: no product caller; used by tests/test_doorwin_watch.py, tests/test_splitswitch_297.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def live_ready() -> bool:
     """Legacy (before SPLITSWITCH-297): the permit AND both engines. Kept for compatibility; readers use program_ready / emergency_ready."""
     return go_live_permitted() and live_engine_built()

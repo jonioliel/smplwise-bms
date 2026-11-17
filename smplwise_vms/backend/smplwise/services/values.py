@@ -34,6 +34,7 @@ def checked_setting(conn: sqlite3.Connection, registry: SettingRegistry, key: st
     return v if isinstance(v, str) and valid(v) else default
 
 
+# test-only: no product caller; used by tests/test_core_helpers_2438.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def object_with_keys(value: Any, name: str, allowed: tuple[str, ...]) -> dict[str, Any]:
     """`value` when it is a dict whose keys are all in `allowed`; ValueError otherwise (the message names `name` and the unknown
     keys, sorted)."""

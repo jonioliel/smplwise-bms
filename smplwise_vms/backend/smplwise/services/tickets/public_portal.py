@@ -171,6 +171,7 @@ def worker_for(db: Any, listener: str = DEFAULT_LISTENER) -> StartWorker:
     return worker
 
 
+# test-only: no product caller; used by tests/test_secfix2_pub04_portal_start_worker.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def worker_started(db: Any, listener: str = DEFAULT_LISTENER) -> bool:
     with _workers_lock:
         entry = _workers.get(listener)
@@ -199,6 +200,7 @@ def worker_stats() -> dict[str, Any]:
             "last_drop_at": int(last) if last is not None else None}
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_secfix2_pub04_portal_start_worker.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_workers_for_tests() -> None:
     stop_workers(timeout_s=2.0)
     with _TOTALS_LOCK:

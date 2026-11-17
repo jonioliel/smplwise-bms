@@ -104,6 +104,7 @@ def panel_bounds(length_m: float, count: int) -> list[float]:
     return [length_m * i / n for i in range(n + 1)]
 
 
+# test-only: no product caller; used by tests/test_plan_glass.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def auto_divide(length_m: float, min_m: float = AUTO_MIN_M, max_m: float = AUTO_MAX_M, target_m: float | None = None) -> int | None:
     """Bulk layout: the number of equal panels whose width lies in [min_m, max_m], closest to target_m (default the
     middle of the range). None when no whole number of panels fits (the wall is shorter than min_m, or the range is too

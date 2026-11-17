@@ -42,6 +42,7 @@ def clear_reason(conn: sqlite3.Connection, code: str) -> None:
     conn.execute("DELETE FROM settings WHERE key = ?", (PREFIX + code,))
 
 
+# test-only: no product caller; used by tests/test_self_update_s3.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def note_component_manifest(conn: sqlite3.Connection, code: str, manifest: Any) -> bool:
     """For an installer that just copied a component release: `requires_ha_restart: true` (the JSON literal) adds the reason.
     Anything else (absent, false, a string) adds nothing. Returns whether a reason was added."""

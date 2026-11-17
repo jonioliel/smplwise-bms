@@ -1878,6 +1878,7 @@ class Worker:
         finally:
             fh.close()
 
+    # test-only: no product caller; used by tests/test_wiskey_final280.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def holds_lease(self) -> bool:
         return self._lease is not None
 

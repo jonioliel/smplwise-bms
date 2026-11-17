@@ -120,18 +120,24 @@ class MeterHistory:
     same_period_last_year: HistoryWindow
 
 
+# test-only: no product caller; used by tests/energy_billing_world.py, tests/energy_fake.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class EnergyReadingsProvider(Protocol):
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/energy_billing_world.py, tests/energy_fake.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def get_meter(self, meter_id: str) -> MeterInfo | None: ...
     def list_meters(self, *, include_retired: bool = False) -> list[MeterInfo]: ...
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/energy_fake.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def find_meters(self, query: str, *, include_retired: bool = False) -> list[MeterInfo]: ...
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/energy_fake.py, tests/test_energy_store.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def meter_status(self, meter_id: str) -> MeterStatus: ...
     def last_report_at(self, meter_id: str) -> dt.datetime | None: ...
     def consumption(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> Consumption: ...
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/energy_fake.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def consumption_many(self, meter_ids: Sequence[str], start: dt.datetime, end: dt.datetime) -> dict[str, Consumption]: ...
     def reading_at(self, meter_id: str, at: dt.datetime) -> BoundaryReading: ...
     def epochs(self, meter_id: str, start: dt.datetime | None = None, end: dt.datetime | None = None) -> list[EpochInfo]: ...
     def daily(self, meter_id: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, int | None]]: ...
     def monthly(self, meter_id: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, int | None, Coverage]]: ...
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/energy_fake.py, tests/test_energy_manual_readings.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def history_windows(self, meter_ids: Sequence[str], period_start: dt.date, period_end: dt.date, tz: str, count: int = 12) -> dict[str, MeterHistory]: ...
 
 
@@ -278,6 +284,7 @@ class EnergyProvider:
         return MeterInfo(r["id"], r["display_name"], r["source_kind"], r["source_ref"], r["unit"], r["unit_factor"], r["eff_area_id"], r["area_name"],
                          r["status"], r["status_reason"], float(r["max_kw"]), int(r["revision"]), r["created_at"], r["retired_at"])
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_billing_world.py, tests/energy_fake.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def get_meter(self, meter_id: str) -> MeterInfo | None:
         r = meters.get(self.conn, meter_id)
         return self._info(r) if r is not None else None
@@ -285,6 +292,7 @@ class EnergyProvider:
     def list_meters(self, *, include_retired: bool = False) -> list[MeterInfo]:
         return [self._info(r) for r in meters.list_rows(self.conn, include_retired)]
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_fake.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def find_meters(self, query: str, *, include_retired: bool = False) -> list[MeterInfo]:
         q = (query or "").strip().casefold()
         return [m for m in self.list_meters(include_retired=include_retired) if q and q in m.display_name.casefold()]
@@ -292,6 +300,7 @@ class EnergyProvider:
     def _stale_s(self) -> int:
         return int(es.value(self.conn, "energy.stale_after_minutes")) * 60
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_fake.py, tests/test_energy_store.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def meter_status(self, meter_id: str) -> MeterStatus:
         return self.statuses([meter_id])[meter_id]
 
@@ -333,6 +342,7 @@ class EnergyProvider:
         return Consumption(meter_id, start.astimezone(UTC), end.astimezone(UTC), res["wh"], coverage_of(res["covered_s"], res["total_s"], res["wh"]),
                            int(res["covered_s"]), int(res["total_s"]), res["source"], tuple(self.events(meter_id, start, end)))
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_fake.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def consumption_many(self, meter_ids: Sequence[str], start: dt.datetime, end: dt.datetime) -> dict[str, Consumption]:
         return {m: self.consumption(m, start, end) for m in meter_ids}
 
@@ -494,6 +504,7 @@ class EnergyProvider:
             m = nxt
         return out
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_fake.py, tests/test_energy_manual_readings.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def history_windows(self, meter_ids: Sequence[str], period_start: dt.date, period_end: dt.date, tz: str, count: int = 12) -> dict[str, MeterHistory]:
         windows, last_year = history_ranges(period_start, period_end, count)
         lo = min([w[0] for w in windows] + [last_year[0]])

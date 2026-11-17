@@ -68,6 +68,7 @@ class BoundaryReading:
 
 @runtime_checkable
 class BillingReadings(Protocol):
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/energy_billing_world.py, tests/energy_fake.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def get_meter(self, meter_id: str) -> Any: ...
 
     def list_meters(self, *, include_retired: bool = False) -> list[Any]: ...
@@ -82,6 +83,7 @@ class BillingReadings(Protocol):
 class NullReadings:
     """No readings store: no meter is known, nothing is ever measured."""
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_billing_world.py, tests/energy_fake.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def get_meter(self, meter_id: str) -> None:
         return None
 
@@ -102,6 +104,7 @@ _LOCK = threading.Lock()
 _OVERRIDE: BillingReadings | None = None
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_asgi_wiskey_295.py, tests/test_energy_bill_opening_reading.py (+15 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_provider(provider: BillingReadings | None) -> None:
     """Tests (and tools) register a provider; None returns to the real one."""
     global _OVERRIDE

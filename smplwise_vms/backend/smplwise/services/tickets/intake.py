@@ -67,6 +67,7 @@ def is_on(conn: sqlite3.Connection) -> bool:
     return access.module_on(conn) and bool(cfg(conn)["enabled"])
 
 
+# test-only: no product caller; used by tests/test_tickets_rfq.py, tests/test_tickets_rfq_order.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def whatsapp_on(conn: sqlite3.Connection) -> bool:
     c = cfg(conn)
     return access.module_on(conn) and bool(c["enabled"] and c["whatsapp"])

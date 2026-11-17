@@ -1310,6 +1310,7 @@ def end_unplaced_memberships(conn: sqlite3.Connection, resource_type: str, resou
     return ended
 
 
+# test-only: no product caller; used by tests/test_shared_space_stations.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def floor_mirrored(conn: sqlite3.Connection, floor_id: str) -> set[tuple[str, str]]:
     """(resource_type, resource_id) of the members shown on a floor from another floor of their room."""
     if not any_active(conn):

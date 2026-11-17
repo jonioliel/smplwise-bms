@@ -180,6 +180,7 @@ def still(adapter: FrigateAdapter, camera_key: str, height: int | None = None, n
     return data, ctype, False
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_frigate_api.py, tests/test_frigate_control.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def clear_stills() -> None:
     with _STILL_LOCK:
         _STILLS.clear()

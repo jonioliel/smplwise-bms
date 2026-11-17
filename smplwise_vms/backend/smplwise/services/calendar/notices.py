@@ -45,6 +45,7 @@ def withdraw_for(conn: sqlite3.Connection, event_id: str, now: dt.datetime) -> i
     return cur.rowcount
 
 
+# test-only: no product caller; used by tests/test_calendar_grid_edit_2343.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def pending_for(conn: sqlite3.Connection, event_id: str) -> list[sqlite3.Row]:
     return conn.execute("SELECT * FROM cal_notices WHERE event_id = ? AND sent_at IS NULL AND withdrawn_at IS NULL ORDER BY created_at", (event_id,)).fetchall()
 

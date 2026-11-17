@@ -167,6 +167,7 @@ class CallBook:
         with self._lock:
             return [Call(**{**c.row(), "ended_mono": c.ended_mono}) for c in self._open.values()]
 
+    # test-only: no product caller; used by tests/test_intercom_calls_2382.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def open_call(self, station_id: str) -> Call | None:
         with self._lock:
             c = self._open.get(station_id)

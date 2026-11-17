@@ -1393,6 +1393,7 @@ def has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return column in cols
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_core_helpers_2438.py, tests/test_schema_probes_2440.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def forget_schema_cache() -> None:
     """Tests: forget every cached schema answer."""
     with _schema_lock:

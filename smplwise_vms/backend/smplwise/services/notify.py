@@ -214,6 +214,7 @@ RECIPIENT_RULES: dict[str, RecipientRule] = {
 }
 
 
+# test-only: no product caller; used by tests/test_notify_recipients.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def register_rule(name: str, fn: RecipientRule) -> None:
     """Add (or replace) a recipient rule: `fn(conn, notification)` returns the candidates; recipients_for then keeps those who may see the row."""
     RECIPIENT_RULES[name] = fn

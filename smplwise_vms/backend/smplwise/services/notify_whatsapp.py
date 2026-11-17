@@ -591,6 +591,7 @@ def worker_for(db: Any) -> Worker:
     return new
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_infra_temperature_report.py, tests/test_notify_email.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_state() -> None:
     """Tests (a restart does it implicitly): stop the worker, forget the live set and the test-send counters."""
     global _WORKER

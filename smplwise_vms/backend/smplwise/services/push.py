@@ -431,6 +431,7 @@ class Job:
     mode: str = "new"  # new | renotify | escalate | resolved
 
 
+# test-only: legacy notice planner; its only caller is the queue fed by PushNotifier.enqueue (test-only); used by tests/test_push.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | None = None, tz_name: str | None = None) -> tuple[list[Job], dict[str, str]]:
     """Who gets this alert: every user with a subscription who may see it (row_scope events.read - the alert list's own
     rule), whose preferences take its category, outside their quiet hours (a critical alert may pass when allowed), and
@@ -679,6 +680,7 @@ class PushNotifier:
             STATS["dropped_shutdown"] += len(self.retries)
             self.retries = []
 
+    # test-only: legacy notice queue; no product caller (the notification outbox replaced it); used by tests/test_push.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def enqueue(self, notices: list[dict[str, Any]]) -> int:
         if not self.running:
             return 0

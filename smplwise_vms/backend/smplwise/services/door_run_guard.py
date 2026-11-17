@@ -64,6 +64,7 @@ class ConversionSource(Protocol):
 CONVERSIONS: ConversionSource | None = None
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_security_review_wxd_fixes.py, tests/test_wiskey_door_enable.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_conversion_source(source: ConversionSource | None) -> None:
     global CONVERSIONS
     CONVERSIONS = source

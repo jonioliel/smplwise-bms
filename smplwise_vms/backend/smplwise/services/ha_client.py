@@ -226,6 +226,7 @@ def reset_bridge_session() -> None:
     _BRIDGE_POOL.reset()
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_ha_client_2438.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_rest_session() -> None:
     """Drop the kept connections of the other REST calls (tests; a changed base URL replaces the client by itself)."""
     _REST_POOL.reset()

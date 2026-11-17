@@ -389,6 +389,7 @@ def closed_result(version: int, state: str, code: str, provider_accepted: bool |
             "retry_permitted": False}
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_f3c_tpl_295.py, tests/test_wa_template_send_w11.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class FakeTemplateTransport:
     """Tests only. Records the wire form of each request (never a real call); `answers` are consumed in order, then `default`."""
 
@@ -448,6 +449,7 @@ class WindowProbe(Protocol):
     def window(self, person_id: str) -> str: ...  # "open" | "closed" | "unknown"
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_wa_template_send_w11.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class NoWindowProbe:
     """Arx has no inbound messages and WisKey reports no window (open question 3): always unknown."""
 

@@ -242,6 +242,7 @@ def _refs(node: Any, out: list[tuple[str, str | None]]) -> None:
             _refs(v, out)
 
 
+# test-only: no product caller; used by tests/test_automation_blueprints_80.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def validate_definition(bp: Any) -> list[str]:
     """The problems of one blueprint definition (empty = acceptable). Pure; closed: anything not listed is a problem."""
     errs: list[str] = []

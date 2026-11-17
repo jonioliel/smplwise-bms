@@ -132,6 +132,7 @@ def notify_severity(policy: DepartmentPolicy, priority_severity: str) -> str:
     return priority_severity
 
 
+# test-only: no product caller; used by tests/test_tickets_history_domains.py, tests/test_tickets_s2.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def may_share_history(policy: DepartmentPolicy, domain: str) -> bool:
     """The department DEFAULT of the "share device history" box (D23), never true for the security domains (D3). The per-vendor
     default (slice 4) and the per-ticket box (slices 3 / 4) refine it; this is the floor every layer respects.

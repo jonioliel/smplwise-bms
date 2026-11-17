@@ -294,6 +294,7 @@ class Authority:
         everyone who sees the row."""
         return self.policy(SYNC_ERRORS_EVERYONE) or self.station(ADMIN_READ, station_id)
 
+    # test-only: no product caller; used by tests/test_intercom_authority.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def visible_stations(self, permission: str, station_ids: Iterable[Any]) -> list[str]:
         """The ids of `station_ids` on which `permission` is held, in their order, without duplicates."""
         out: list[str] = []
@@ -620,6 +621,7 @@ LOOKUP_ACTIONS: dict[str, tuple[str, ...]] = {  # a CLOSED table: an action not 
 AUDIT_READ = "audit.read"
 
 
+# test-only: no product caller; used by tests/test_lookup_scope.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def lookup_allowed(conn: sqlite3.Connection, principal: Principal, original_action: Any, logical_target_id: Any, binding_revision: Any = None,
                    *, request_id: str | None = None, dev_mode: bool = False) -> bool:
     """The fresh Arx decision for a status lookup of an old action on `logical_target_id` (a station id). Fail closed: an

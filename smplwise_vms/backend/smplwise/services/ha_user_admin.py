@@ -239,6 +239,7 @@ def check_access(settings: Settings) -> str:
     return "ok"
 
 
+# test-only: no product caller; used by tests/test_username_normalisation.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def username_in_use(settings: Settings, username: str) -> bool:
     from ..auth import normalize_username  # HA 2026.10 trims and lower-cases usernames: compare the same way (strip + casefold)
 

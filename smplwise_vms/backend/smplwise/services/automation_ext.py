@@ -626,6 +626,7 @@ _ACTIVE: dict[str, float] = {}
 _ACTIVE_LOCK = threading.Lock()
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_kav079_api.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_listener(listener: Listener | None) -> None:
     global _LISTENER
     _LISTENER = listener or Listener()

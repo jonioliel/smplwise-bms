@@ -1053,6 +1053,7 @@ def slice_stream_element(list_xml: str, stream_ref: str) -> str | None:
     return None
 
 
+# test-only: no product caller; used by tests/test_nvr_stream_document.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def stream_element_etag(element: str) -> str:
     """The etag of one sliced element - the same function the LIST parser uses, so page, check and log agree."""
     return _stream_etag(xmlsafe.parse(element))
