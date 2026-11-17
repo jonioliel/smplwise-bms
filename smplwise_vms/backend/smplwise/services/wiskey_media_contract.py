@@ -21,8 +21,8 @@ Rules kept here (CLAUDE.md, AGENTS.md security, CR-036 S18 2.1):
   error never carries the offending value;
 - the stream lease's `source` is the one secret of the contract: it is held in a `StreamLease` whose repr hides it, it is
   returned to the caller that registers it in Arx's own go2rtc and nothing else - never logged, audited, cached on disk or served;
-- a `go2rtc_stream` alternative is accepted only inside Arx's own `smplwise_wiskey_` namespace (only `smplwise_` streams belong to
-  this product; a stream of another project is never named);
+- a lease names a source only: the v1 `go2rtc_stream` alternative went with its reader (CR-BE-DEAD-CODE-B-2442; v1.1 has none).
+  Only `smplwise_` streams belong to this product; a stream of another project is never named;
 - frames are base64 of one G.711 frame, numbered by `seq`; nothing here keeps audio.
 """
 from __future__ import annotations
@@ -76,7 +76,6 @@ K_API = "api_contract"
 
 # reply keys
 R_SOURCE = "source"
-R_STREAM = "go2rtc_stream"
 R_EXPIRES = "expires_at"
 R_TALK_REF = "talk_ref"
 R_CODEC = "codec"
@@ -135,11 +134,8 @@ BUSY_CODES = frozenset({"audio_busy"})
 
 HANDLE_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 STREAM_NS = "smplwise_wiskey_"
-STREAM_RE = re.compile(r"^smplwise_wiskey_[A-Za-z0-9_.-]{1,96}$")
 SOURCE_RE = re.compile(r"^rtsps?://[^\s]{1,2040}$", re.IGNORECASE)
-MAX_LEASE_S = 24 * 3600
 FRAME_MS = 20
-FRAME_CODECS = ("pcmu", "pcma")
 
 
 class ContractError(ValueError):
@@ -239,48 +235,6 @@ def project_descriptor(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ContractError("descriptor_not_an_object")
     return {DESCRIPTOR_KEYS.get(k, k): v for k, v in raw.items()}
-
-
-def parse_lease(raw: Any, *, now: float | None = None) -> StreamLease:
-    """`stream_lease`'s answer: `{source, expires_at}` (an RTSP source for Arx's own go2rtc) or `{go2rtc_stream}` (a stream in
-    Arx's namespace). Anything else - both, neither, a source that is not RTSP, a stream outside `smplwise_wiskey_`, an expiry in
-    the past or more than 24 h ahead - is refused with a rule code."""
-    now = time.time() if now is None else now
-    if not isinstance(raw, dict):
-        raise ContractError("lease_not_an_object")
-    source, stream = raw.get(R_SOURCE), raw.get(R_STREAM)
-    if (source is None) == (stream is None):
-        raise ContractError("lease_ambiguous")
-    expires = now + 600.0
-    if raw.get(R_EXPIRES) is not None or source is not None:
-        expires = _when(raw.get(R_EXPIRES), "lease_expires_at_invalid")
-        if expires <= now:
-            raise ContractError("lease_expired")
-        if expires - now > MAX_LEASE_S:
-            raise ContractError("lease_lifetime_too_long")
-    if source is not None:
-        if not isinstance(source, str) or not SOURCE_RE.fullmatch(source) or any(ord(ch) < 33 for ch in source):
-            raise ContractError("lease_source_invalid")
-        return StreamLease(expires_at=expires, source=source)
-    if not isinstance(stream, str) or not STREAM_RE.fullmatch(stream):
-        raise ContractError("lease_stream_foreign")  # only Arx's own namespace is ever named
-    return StreamLease(expires_at=expires, stream=stream)
-
-
-
-def parse_talk_open(raw: Any) -> TalkOpened:
-    if not isinstance(raw, dict):
-        raise ContractError("talk_open_not_an_object")
-    ref = raw.get(R_TALK_REF)
-    if not isinstance(ref, str) or not HANDLE_RE.fullmatch(ref):
-        raise ContractError("talk_ref_invalid")
-    codec = raw.get(R_CODEC)
-    if codec not in FRAME_CODECS:
-        raise ContractError("talk_codec_unsupported")
-    frame_ms = raw.get(R_FRAME_MS, FRAME_MS)
-    if isinstance(frame_ms, bool) or frame_ms != FRAME_MS:
-        raise ContractError("talk_frame_ms_unsupported")
-    return TalkOpened(talk_ref=ref, codec=codec, frame_ms=FRAME_MS)
 
 
 def talk_ref_of(raw: Any) -> str | None:
