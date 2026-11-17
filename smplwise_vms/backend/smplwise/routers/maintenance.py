@@ -334,6 +334,8 @@ def revoke_tag(request: Request, tag_id: str = Path(..., pattern=ID), principal:
 
 
 @router.get("/maintenance/scan/{token}")
-def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """A scanned sticker, for a signed-in person: the task or the device it opens (unknown, revoked or not visible: the same 404)."""
+def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A scanned sticker, for a signed-in person: the task or the device it opens (unknown, revoked or not visible: the same 404).
+    Stays on the WRITE connection (tests/get_write_allowlist_rest.txt): service.scan stamps the tag's `last_scan_at`, and on a
+    read connection that stamp is skipped silently (CR-READCONN-B had moved it; the tags list then never showed a scan)."""
     return service.scan(Viewer(conn, principal), token)

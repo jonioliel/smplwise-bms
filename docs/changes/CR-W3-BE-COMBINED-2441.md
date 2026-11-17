@@ -159,3 +159,74 @@ An earlier run of `test_get_routes_read_conn.py` (before any fix) was stopped by
 ## Pixels expected to change
 
 None. No frontend file, no baseline and no evidence image is touched by any of the 28 branches or by the fix commit.
+
+## Entry check 1 (`d4e316691`, RED) - main 2.43.7 merged, fixes (17.11.2026)
+
+Runner verdict `~/smplwise-results/entry_pilot-CR-W3-BE-COMBINED-2441_d4e316691.md`: 6 backend tests "failed twice", one frontend
+unit spec (3 projects) and one "expired quarantine" line. No guard was loosened and nothing was quarantined.
+
+### Merge of `origin/main` v2.43.7 (`cc69447f1`) - merge commit `a75af20b6`
+
+- `routers/settings.py`: main still defines the two PATCH words (`ALLOW_DISARM_WORD`, `LOCAL_PURGE_WORD`) in the router;
+  CR-SETTINGS-PATCH-B moved them to `settings_patch/identity.py` and re-exports them. The split layout kept (same values).
+- `tests/test_async_routes_no_inline_db.py`: `PENDING` empty on both sides; main's comment kept.
+- `smplwise_vms/www`, `www-public`: main's 2.43.7 build taken as is, minus its 282 debug source maps, and the 282
+  `sourceMappingURL` comments stripped with `frontend/scripts/sourcemaps-archive.mjs` (CR-BUILD-GUARDS-2438, the rule the
+  2.43.6 merge of CR-WAVE2-COMBINED-2439 followed). The file list equals main's minus the maps.
+- Backend content main brought: the version (2.43.7) and `services/home_interface.py` (+ its test). Design ratchet after the
+  merge: no count above the baseline.
+
+### Failures, causes, fixes
+
+1. `test_maintenance_215::test_a_tag_keeps_its_medium_and_the_time_of_the_last_scan_only` - **a product regression of
+   CR-READCONN-B-2440**, fixed in the code. It moved `GET /maintenance/scan/{token}` to the read connection; `service.scan`
+   stamps `maint_tags.last_scan_at` and skips the stamp silently on a read-only connection (`_read_only`), so the tags list
+   never showed a scan. The route is back on `current_principal` + `get_conn` and listed in
+   `tests/get_write_allowlist_rest.txt` ("the handler changes rows of its own"). The test is unchanged.
+2. `test_capmap_295::test_the_receiver_source_is_the_one_the_vectors_were_made_from` - three intended source changes of the
+   batch, each read against the vectors' path and recorded as a `REVIEWED_SUCCESSORS` entry (old -> new hash, reason), the
+   mechanism the test provides; WisKey's vectors file stays byte-identical:
+   - `services/ha_bridge.py` (CR-BRIDGE-PREVERIFY-2440): keyword-only `nonces` / `screen_only`, defaults take the old path;
+   - `custom_components/smplwise_bridge/keyset.py` and `lease_contract.py` (CR-BRIDGE-COMMON-2440): `canonical` /
+     `_canonical` are the one `_common.canonical` (same one-line body) instead of local copies.
+   The runner showed only the first; the other two would have failed next (the loop stops at the first drift).
+3. `test_wk4adopt_295::test_w005_the_arx_receiver_chain_is_the_one_mac_mapped_against` - the same `lease_contract.py`
+   change. This pin had no successor mechanism; it now has `MAC_REVIEWED_SUCCESSORS` in the shape and rule of
+   `test_capmap_295.REVIEWED_SUCCESSORS` (one entry, with the reason). Any further edit of a pinned file fails again.
+   **For the lead:** the pinned hashes are what WisKey (Mac) mapped against; if WisKey must be told that
+   `lease_contract.py` changed textually (not behaviourally), that message is not sent by this branch.
+4. `test_nvr_stream_batch_review_fixes::test_status_list_and_stop_use_a_read_connection_and_never_recover` - stale test.
+   The stop route IS on a read connection (the failure text shows `('read', 'POST /api/v1/nvr/stream-batches/{batch_id}/stop')`);
+   since CR-BRIDGE-PREVERIFY-2440 (`auth.conn_label`, 05:P3-08) a route with a path parameter is labelled with its template,
+   and the test looked for the concrete URL. The test accepts both labels (as `test_get_routes_read_conn.py` does).
+5. `test_provision_playback::test_rtsp_download_redacts_secrets_from_ffmpeg_errors` and
+   `::test_rtsp_download_cancel_kills_ffmpeg_and_removes_the_file` - stale test fakes. CR-EXPORTS-HOUSEKEEPING-2440 (03:F08)
+   drains ffmpeg's stderr pipe while it runs and reaps with `wait()` instead of `communicate()`; the two fake `Proc` classes
+   had neither. They now carry `stderr` (a `BytesIO`, with the same error text in the redaction test) and `wait()`. The
+   assertions are unchanged (the redaction test still proves no URL, user, password or host leaves).
+6. `frontend/tests/unit-tickets-1440-column-setting-2360.spec.ts:127` - stale path. CR-SPLIT-TICKETS-ADMIN-2440 moved the
+   settings PATCH body (`table_mid_width: Literal["sentence", "department"] | None = None`) from `routers/tickets_admin.py`
+   to its part `routers/tickets_admin_settings.py`; the spec reads the part. The line itself is unchanged.
+7. "expired quarantine: [mobile] pixel CR-036 S12 (FLAKY-S12-PIXEL-2412)" - **not in this branch.**
+   `scripts/gate/gate2_quarantine.json` here has `"entries": []` (main's removal `a7d7dde5c` was already contained in
+   `d4e316691`). The entry check reads the RUNNER's own copy, `~/gate2/gate2_quarantine.json` (dated 11.11 19:14, before the
+   removal), which still holds the entry. Read only; not touched (the runner's gate files are the lead's). **For the lead:**
+   refresh that copy, otherwise every entry-check report keeps listing the line.
+
+### Tests actually run (workstation, `.venv` of the main checkout, `pytest -p no:xdist`)
+
+- `test_provision_playback`, `test_nvr_stream_batch_review_fixes`, `test_capmap_295`, `test_wk4adopt_295`,
+  `test_maintenance_215`, `test_async_routes_no_inline_db` (the six failing tests' files in full, one process):
+  **225 passed, 0 failed**.
+- `test_get_routes_read_conn.py -k "allowlist or inventory or maintenance"` (the allow-list with the new line, the inventory
+  and the maintenance routes' behaviour cases): **20 passed, 0 failed**.
+- `scripts/design_ratchet.py`: no count above the baseline. `scripts/sync_integration.py --check`: mirror up to date.
+  `scripts/release_check.py`: ready (2.43.7; no `.map` and no `sourceMappingURL` in the add-on).
+
+### NOT_RUN
+
+- `unit-tickets-1440-column-setting-2360.spec.ts` (this worktree has no `node_modules` junction and no preview build): the
+  expected line was checked with grep in `routers/tickets_admin_settings.py`; the runner is the proof.
+- `tsc`, the full backend suite, `test_get_routes_read_conn.py` in full, Playwright, pixels: the entry check.
+- No lab, device or Home Assistant check.
+
