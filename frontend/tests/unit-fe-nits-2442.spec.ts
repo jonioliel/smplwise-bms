@@ -7,6 +7,15 @@ import { browserSession, browserStorage, dropStored, readStoredJson, storeText, 
 // other screen guards do (unit-floor-map-state, unit-shell-timers) - the screens are Lit elements and need a browser to run.
 const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 
+/** The body of a class member, from its header line to the next member at the same indent. */
+function member(code: string, header: string): string {
+  const from = code.indexOf(header);
+  expect(from, header).toBeGreaterThanOrEqual(0);
+  const end = code.indexOf('\n  }\n', from);
+  expect(end, `${header}: end`).toBeGreaterThan(from);
+  return code.slice(from, end);
+}
+
 // ------------------------------------------------------------------------------------------------ 06:NOOP-1
 
 test('NOOP-1: the no-op ternary, the unused parameters, the double imports and the duplicate glyphs are gone', () => {
@@ -145,4 +154,64 @@ test('STORE-1: the screens use the shared door, and the two wall keys no longer 
   expect(wall).toContain("export const WALL_STREAM_KEY = 'sw.wall.quality';"); // the stored key is unchanged: a device keeps its choice
   expect(wall).not.toMatch(/const WALL_QUALITY_KEY|Item\(WALL_QUALITY_KEY/); // the old name is left only in the comment that tells it
   expect(src('map/wall-plan-mode.ts')).toContain("export const WALL_QUALITY_KEY = 'sw.plan3d.wall_quality';");
+});
+
+// ------------------------------------------------------------------------------------------------ 06:TIMER-1 (the rest)
+
+test('TIMER-1: devices-area drops the "structure changed" badge timer, and the badge, on disconnect', () => {
+  const off = member(src('screens/devices-area.ts'), '  disconnectedCallback() {');
+  expect(off).toContain('window.clearTimeout(this.flashTimer);');
+  expect(off).toContain('this.flashTimer = 0;');
+  expect(off).toContain('this.structureFlash = false;'); // nothing is left to hide it: a re-attached screen would show it for good
+});
+
+test('TIMER-1: the quick sheet keeps one flick timer, restarted by the next release and cleared on disconnect', () => {
+  const qs = src('screens/area-quick-sheet.ts');
+  expect(qs).not.toContain("window.setTimeout(() => this.removeAttribute('data-flick'), OPEN_MS)"); // the untracked timer
+  expect(qs).toMatch(/window\.clearTimeout\(this\.flickTimer\);[^\n]*\n\s+this\.flickTimer = window\.setTimeout\(/);
+  expect(qs.match(/this\.flickTimer = window\.setTimeout\(/g)?.length).toBe(1);
+  const off = member(qs, '  disconnectedCallback() {');
+  expect(off).toContain('window.clearTimeout(this.flickTimer);');
+  expect(off).toContain("this.removeAttribute('data-flick');");
+});
+
+test('TIMER-1: the layout editor - a card\'s long press and a tile\'s long press have a timer each', () => {
+  const lay = src('screens/devices-layout.ts');
+  // one arming site per timer: the card's in onDown, the tile's in onTDown
+  expect(lay.match(/this\.pressTimer = window\.setTimeout\(/g)?.length).toBe(1);
+  expect(lay.match(/this\.tilePressTimer = window\.setTimeout\(/g)?.length).toBe(1);
+  expect(member(lay, '  private onDown(e: PointerEvent, key: string) {')).toContain('this.pressTimer = window.setTimeout(');
+  const tdown = member(lay, '  private onTDown(e: PointerEvent, key: string, id: string) {');
+  expect(tdown).toContain('this.tilePressTimer = window.setTimeout(');
+  expect(tdown).not.toContain('this.pressTimer');
+  // ending a tile gesture clears the tile's timer only (it used to clear the card's as well)
+  const end = member(lay, '  private endTileDrag() {');
+  expect(end).toContain('window.clearTimeout(this.tilePressTimer);');
+  expect(end).not.toContain('this.pressTimer');
+  // and both go when the host leaves the page
+  const off = member(lay, '  hostDisconnected() {');
+  expect(off).toContain('window.clearTimeout(this.pressTimer);');
+  expect(off).toContain('this.endTileDrag();');
+});
+
+test('TIMER-1: the plan editor clears its two search debounces on disconnect', () => {
+  const off = member(src('screens/explore-plan-editor.ts'), '  disconnectedCallback() {');
+  expect(off).toContain('window.clearTimeout(this.entTimer);');
+  expect(off).toContain('window.clearTimeout(this.circuitTimer);');
+});
+
+test('TIMER-1: the wall arms its size watch in connectedCallback, where disconnectedCallback drops it', () => {
+  const wall = src('screens/live-wall.ts');
+  expect(wall).not.toMatch(/\n {2}firstUpdated\(/); // ran once in the element's life: a wall attached again was not measured
+  const on = member(wall, '  connectedCallback() {');
+  expect(on).toContain('this.ro = new ResizeObserver(() => this.measure());');
+  expect(on).toContain('this.ro.observe(this);');
+  expect(on).toContain("window.addEventListener('resize', this.measure);");
+  const off = member(wall, '  disconnectedCallback() {');
+  expect(off).toContain('this.ro?.disconnect();');
+  expect(off).toContain('this.ro = undefined;');
+  expect(off).toContain("window.removeEventListener('resize', this.measure);");
+  // nothing else adds the listener or builds the observer
+  expect(wall.match(/addEventListener\('resize', this\.measure\)/g)?.length).toBe(1);
+  expect(wall.match(/new ResizeObserver\(/g)?.length).toBe(1);
 });

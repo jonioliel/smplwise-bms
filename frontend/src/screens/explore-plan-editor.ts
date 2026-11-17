@@ -403,6 +403,10 @@ export class ExplorePlanEditor extends LitElement {
     window.clearTimeout(this.infoTimer);
     window.clearTimeout(this.errorTimer);
     this.infoTimer = this.errorTimer = 0;
+    // CR-FE-NITS-2442 (06:TIMER-1): a search typed in the last 250 ms does not start after the editor closed
+    window.clearTimeout(this.entTimer);
+    window.clearTimeout(this.circuitTimer);
+    this.entTimer = this.circuitTimer = 0;
     this.cancelDragMove();
     void this.studio.flush(); // an edit younger than the autosave delay is still saved when the editor closes
   }

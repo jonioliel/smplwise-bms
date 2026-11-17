@@ -664,12 +664,6 @@ export class LiveWall extends LitElement {
     return Math.min(byWidth, byHeight);
   }
 
-  firstUpdated() {
-    this.ro = new ResizeObserver(() => this.measure());
-    this.ro.observe(this);
-    window.addEventListener('resize', this.measure);
-  }
-
   updated() {
     this.measure();
     this.observeTiles();
@@ -801,6 +795,11 @@ export class LiveWall extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // CR-FE-NITS-2442 (06:TIMER-1): the size watch is armed where disconnectedCallback drops it (was firstUpdated, which runs once
+    // in an element's life: a wall attached again was no longer measured on a size change)
+    this.ro = new ResizeObserver(() => this.measure());
+    this.ro.observe(this);
+    window.addEventListener('resize', this.measure);
     this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
     void this.load();
     this.poller.every('poster', 60_000, () => {
@@ -827,6 +826,7 @@ export class LiveWall extends LitElement {
     this.inView.clear();
     this.wanted.clear();
     this.ro?.disconnect();
+    this.ro = undefined;
     window.removeEventListener('resize', this.measure);
     window.clearTimeout(this.hintTimer);
     window.clearTimeout(this.hintHideTimer);

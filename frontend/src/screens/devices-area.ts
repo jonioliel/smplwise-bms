@@ -1353,6 +1353,10 @@ export class DevicesArea extends LitElement {
     this.stop = null;
     window.clearTimeout(this.timer);
     this.timer = 0;
+    // CR-FE-NITS-2442 (06:TIMER-1): the badge's timer goes with the screen, and so does the badge it would have hidden
+    window.clearTimeout(this.flashTimer);
+    this.flashTimer = 0;
+    this.structureFlash = false;
     window.clearInterval(this.presenceTimer);
     this.presenceTimer = 0;
     this.phoneMq?.removeEventListener('change', this.onPhone);

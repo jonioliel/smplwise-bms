@@ -462,6 +462,8 @@ export class DevicesLayoutController implements ReactiveController {
   private gridOf = new Map<string, string>();
   private drag: Drag | null = null;
   private pressTimer = 0;
+  /** CR-FE-NITS-2442 (06:TIMER-1): the device tile's long press has its own timer (it shared `pressTimer` with the card's). */
+  private tilePressTimer = 0;
 
   constructor(
     private host: LitElement,
@@ -515,6 +517,7 @@ export class DevicesLayoutController implements ReactiveController {
     this.offScreenEdit = null;
     this.mq?.removeEventListener('change', this.onMq);
     window.clearTimeout(this.pressTimer);
+    this.pressTimer = 0;
     this.endTileDrag();
     this.host.removeAttribute('data-lay-editing');
   }
@@ -1160,7 +1163,8 @@ export class DevicesLayoutController implements ReactiveController {
     window.addEventListener('pointercancel', this.onTUp);
     if (e.pointerType === 'touch' && !onHandle) {
       // a finger on a tile scrolls the page; a long press picks the tile (then the arrows / the panel move it)
-      this.pressTimer = window.setTimeout(() => {
+      this.tilePressTimer = window.setTimeout(() => {
+        this.tilePressTimer = 0;
         this.selectTile(id);
         el.focus({ preventScroll: true });
       }, 450);
@@ -1210,7 +1214,8 @@ export class DevicesLayoutController implements ReactiveController {
   };
 
   private endTileDrag() {
-    window.clearTimeout(this.pressTimer);
+    window.clearTimeout(this.tilePressTimer);
+    this.tilePressTimer = 0;
     this.tdrag = null;
     window.removeEventListener('pointermove', this.onTMove);
     window.removeEventListener('pointerup', this.onTUp);

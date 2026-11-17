@@ -135,6 +135,8 @@ export class AreaQuickSheet extends LitElement {
   /** The close in flight came from the keyboard: focus goes back to the opener. */
   private closedByKey = false;
   private hideTimer = 0;
+  /** CR-FE-NITS-2442 (06:TIMER-1): the one timer that ends a flick's spring (was an untracked timer per release). */
+  private flickTimer = 0;
 
   static styles = areaQuickSheetStyles;
 
@@ -155,6 +157,9 @@ export class AreaQuickSheet extends LitElement {
     this.releaseScroll?.();
     this.releaseScroll = null;
     window.clearTimeout(this.hideTimer);
+    window.clearTimeout(this.flickTimer);
+    this.flickTimer = 0;
+    this.removeAttribute('data-flick');
     super.disconnectedCallback();
   }
 
@@ -435,7 +440,11 @@ export class AreaQuickSheet extends LitElement {
     panel.style.transform = ''; // the stylesheet's resting transform takes over: the spring runs from the current value
     if (target === 'closed') this.close();
     else this.detent = target;
-    window.setTimeout(() => this.removeAttribute('data-flick'), OPEN_MS);
+    window.clearTimeout(this.flickTimer); // an earlier release's timer must not end this one's spring early
+    this.flickTimer = window.setTimeout(() => {
+      this.flickTimer = 0;
+      this.removeAttribute('data-flick');
+    }, OPEN_MS);
   };
 
   // ------------------------------------------------------------------------------------------------ data
