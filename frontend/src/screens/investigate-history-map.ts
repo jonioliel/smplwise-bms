@@ -847,7 +847,8 @@ export class InvestigateHistoryMap extends LitElement {
       --sw-lanes-label-w: 92px;
     }
     .track .tlwrap {
-      margin-left: calc(var(--sw-lanes-label-w) + 8px);
+      /* CR-FE-NITS-2442 (06:RTL-1): logical. .track is direction: ltr in every language (time runs left to right), so the start edge is the left one */
+      margin-inline-start: calc(var(--sw-lanes-label-w) + 8px);
       margin-block-start: 4px;
     }
     .track .rangenote {

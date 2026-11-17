@@ -327,3 +327,48 @@ test('RESIZE-1: the four screens coalesce their window resize work and cancel it
   // updated() still places the sheet on every update, so the one that opens it uses the current viewport
   expect(member(qs, '  protected updated(changed: PropertyValues<this>) {')).toContain('this.applyRest();');
 });
+
+// ------------------------------------------------------------------------------------------------ 06:RTL-1
+
+/** The declarations of the first rule whose selector line is `selector {`. */
+function rule(code: string, selector: string): string {
+  const from = code.indexOf(`${selector} {`);
+  expect(from, selector).toBeGreaterThanOrEqual(0);
+  return code.slice(from, code.indexOf('}', from));
+}
+
+test('RTL-1: the one physical margin is logical now, inside a track that is left-to-right in every language', () => {
+  const map = src('screens/investigate-history-map.ts');
+  expect(rule(map, '    .track')).toContain('direction: ltr;'); // time runs left to right: the start edge IS the left one
+  const wrap = rule(map, '    .track .tlwrap');
+  expect(wrap).toContain('margin-inline-start: calc(var(--sw-lanes-label-w) + 8px);');
+  expect(wrap).not.toContain('margin-left');
+  expect(wrap).not.toMatch(/\n\s+direction:/); // the wrapper keeps the track's direction, so the used margin is the same one
+  expect(map).toContain('<div class="track">');
+  expect(map).toMatch(/<div class="tlwrap">\n\s+<sw-timeline /);
+});
+
+test('RTL-1: the physical alignments that stay are all on left-to-right content (code, JSON, raw attributes)', () => {
+  // each of these aligns text that is LTR by its own rule (or by its wrapper / its dir attribute): physical is the correct value
+  const LTR_RULES: [file: string, selector: string][] = [
+    ['screens/automation-code.ts', '      textarea'],
+    ['screens/explore-entities.ts', '    .attrs'],
+    ['screens/system-fleet-report.ts', '    pre.json'],
+    ['screens/system-notices.ts', '      .link code'],
+  ];
+  for (const [f, sel] of LTR_RULES) {
+    const r = rule(src(f), sel);
+    expect(r, `${f} ${sel}`).toContain('direction: ltr;');
+    expect(r, `${f} ${sel}`).toContain('text-align: left;');
+  }
+  const conn = src('screens/system-video-conn-test.ts');
+  expect(conn).toMatch(/direction: ltr;\n\s+text-align: left;\n\s+white-space: pre-wrap;/);
+  // the code editor's line numbers: right-aligned against the code, inside the editor's LTR wrapper
+  const code = src('screens/automation-code.ts');
+  expect(rule(code, '      .wrap')).toContain('direction: ltr;');
+  expect(rule(code, '      .nums')).toContain('text-align: right;');
+  // the locked YAML block is rendered with dir="ltr"
+  const forms = src('screens/automation-block-forms.ts');
+  expect(forms).toContain('<div class="lockcode" data-locked-code dir="ltr">');
+  expect(rule(forms, '  .lockcode')).toContain('text-align: left;');
+});
