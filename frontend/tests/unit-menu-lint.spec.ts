@@ -251,6 +251,8 @@ const TRANSLUCENT = { test: (v: string): boolean => GLASS.test(v) && !(v.include
 /** The elements the canvases are mounted by or made of: a file that mounts one, plus the map's own implementers. */
 const CANVAS_TAG = /<(sw-plan-canvas|sw-plan-3d|sw-plan-stills|sw-wall-plan|sw-floor-image-align)\b/;
 const CANVAS_IMPLEMENTERS = ['map/sw-plan-canvas.ts', 'map/sw-plan-3d.ts', 'map/walk-hud.ts', 'map/sw-floor-image-align.ts', 'map/sw-plan-stills.ts'];
+/** CR-STRUCT-CSS-SPLIT-2442: a canvas host whose sheet lives in its own module (`<screen>-css.ts`) - the rules over the canvas are there. */
+const CANVAS_HOST_CSS = ['screens/explore-plan-editor-css.ts'];
 /** A file that mounts a canvas element but whose floating chrome is not over a plan (with the reason). */
 const CANVAS_HOST_SKIP: Record<string, string> = {
   'wall/sw-wall.ts': 'the live wall display: its floating chrome (the settings panel, the "updated" chip, the take-over layer) sits over camera video in its own dark wall palette (--wall-*); the plan band it mounts is a separate element whose HUD is hidden (kiosk)',
@@ -267,12 +269,12 @@ const HUD_EXEMPT: Record<string, string> = {
 
 const canvasHosts = files.filter((f) => {
   if (f.rel in CANVAS_HOST_SKIP) return false;
-  return CANVAS_IMPLEMENTERS.includes(f.rel) || CANVAS_TAG.test(readFileSync(f.abs, 'utf8'));
+  return CANVAS_IMPLEMENTERS.includes(f.rel) || CANVAS_HOST_CSS.includes(f.rel) || CANVAS_TAG.test(readFileSync(f.abs, 'utf8'));
 });
 
 test('the scan finds the canvas hosts (the floor map, the editor, the history and event maps, the 3D element, the walk, the 2D canvas)', () => {
   const names = canvasHosts.map((f) => f.rel);
-  for (const f of ['screens/explore-floor-map.ts', 'screens/explore-plan-editor.ts', 'screens/investigate-history-map.ts', 'screens/investigate-event-detail.ts', ...CANVAS_IMPLEMENTERS]) expect(names, f).toContain(f);
+  for (const f of ['screens/explore-floor-map.ts', 'screens/explore-plan-editor.ts', 'screens/investigate-history-map.ts', 'screens/investigate-event-detail.ts', ...CANVAS_IMPLEMENTERS, ...CANVAS_HOST_CSS]) expect(names, f).toContain(f);
 });
 
 test('every registered HUD panel paints var(--sw-menu-surface) (or re-points the surface token for the controls it holds) and never blurs', () => {
