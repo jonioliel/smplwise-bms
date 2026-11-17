@@ -5,6 +5,7 @@ import { canAnywhere, isApi } from '../api/session';
 import { VALIDATION_HREF } from '../api/wiskey-validation';
 import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
+import { mutedStyles } from '../styles/fragments';
 
 /**
  * הגדרות › מתגי מסכי כניסה › "בדיקת קבלה לעמדות" (WISKEY-LIVE-VALIDATION-2390): the entry to the acceptance tool, next to the WisKey
@@ -27,10 +28,7 @@ export class SystemWiskeyValidationCard extends LitElement {
       justify-content: space-between;
       gap: 8px 16px;
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
     a {
       color: var(--sw-accent);
       font-weight: var(--sw-fw-medium);

@@ -9,6 +9,7 @@ import { gauge } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
+import { errLineStyles } from '../styles/fragments';
 
 const ROLE_KEYS: [string, string][] = [['viewer', 'צופים'], ['operator', 'מפעילים'], ['site_admin', 'מנהלי אתר'], ['system_admin', 'מנהלי מערכת']];
 type Defaults = Record<string, boolean | number | string>;
@@ -102,7 +103,7 @@ export class TempWizard extends LitElement {
     .summ > div { display: flex; justify-content: space-between; gap: 10px; border-block-end: 1px solid var(--sw-border); padding-block: 5px; }
     .summ span { color: var(--sw-text-2); }
     .banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-sm); }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .def { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     details.more { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; background: var(--sw-surface); }
     details.more > summary { cursor: pointer; list-style-position: inside; }

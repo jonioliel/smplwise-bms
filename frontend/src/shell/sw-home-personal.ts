@@ -29,6 +29,7 @@ import '../screens/area-row-editor';
 import { HOME_SCREEN_DEFAULT, homeScreenOf, SUMMARY_KINDS, type HomeScreenOptions, type PersonalScreen, type SummaryKind } from '../api/home-screen';
 import { hs } from '../i18n/home-screen';
 import type { AreaRowChange } from '../screens/area-row-editor';
+import { segThumbPlainStyles } from '../styles/fragments';
 
 
 /**
@@ -111,12 +112,7 @@ export class SwHomePersonal extends LitElement {
       border-radius: 999px;
       cursor: pointer;
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
+    ${segThumbPlainStyles}
     .seg button:disabled {
       opacity: 0.45;
     }

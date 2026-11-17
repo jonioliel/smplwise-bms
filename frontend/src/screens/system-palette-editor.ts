@@ -14,7 +14,7 @@ import {
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButtonStyles } from '../styles/settings';
-import { segThumbStyles } from '../styles/fragments';
+import { segThumbStyles, okLineStyles } from '../styles/fragments';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
@@ -223,10 +223,7 @@ export class SystemPaletteEditor extends LitElement {
       font-size: var(--sw-fs-sm);
       padding-block: 8px;
     }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${okLineStyles}
     .pv {
       margin-block: 10px;
       padding: 14px;

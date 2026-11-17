@@ -14,6 +14,7 @@ import {
   type CalKind, type DaySegment,
 } from './calendar-model';
 import './elapsed-clock';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * TKCAL: the weekly calendar of the request list (`יומן שבועי`, the fourth mode of tickets/list-view-switch.ts). A Sunday-first week of seven
@@ -49,10 +50,7 @@ export class TicketsCalendar extends LitElement {
   private touch: { x: number; y: number } | null = null;
 
   static styles = [bubbleChrome, ...automationsStyles, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .cal {
       display: flex;
       flex-direction: column;

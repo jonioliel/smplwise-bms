@@ -31,6 +31,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayTimeText } from '../api/day-format';
 import { agoText } from './investigate-time';
+import { errLineStyles, ltrStyles, okLineStyles } from '../styles/fragments';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
@@ -232,10 +233,7 @@ export class InvestigateCases extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
   `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
@@ -782,18 +780,9 @@ export class InvestigateCaseDetail extends LitElement {
       flex-wrap: wrap;
       margin-block-start: 6px;
     }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${errLineStyles}
+    ${okLineStyles}
+    ${ltrStyles}
     @media (max-width: 767px) {
       .item {
         grid-template-columns: 1fr;

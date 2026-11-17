@@ -22,6 +22,7 @@ import {
   parseOptions, personDelta, problemsOf, resultTone, secondsLeft, sortPeople, toggleStation, valueText, type Problems,
 } from '../access-control/profiles-logic';
 import { PF_HE, pft, pftDynamic, type PfKey } from '../i18n/wiskey-profiles';
+import { srOnlyStyles } from '../styles/fragments';
 
 type Tab = 'draft' | 'versions' | 'suggest';
 type Phase = 'edit' | 'preview' | 'result';
@@ -730,7 +731,7 @@ export class WiskeyProfilesScreen extends LitElement {
     .chip[disabled] { opacity: 0.5; cursor: not-allowed; }
     .chip .dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-text-3); }
     .problem { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
-    .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    ${srOnlyStyles}
     .diff, .people, .versions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
     .diff li, .people li, .versions li { padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
       min-inline-size: 0; overflow-wrap: anywhere; }

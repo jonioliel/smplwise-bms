@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import { cardTime, objectLabel, spanText, type ReviewItem, type ReviewLayer } from '../api/frigate';
 import { fx } from '../i18n/frigate-text';
+import { hostBlockStyles } from '../styles/fragments';
 
 /** The table view's columns, one grid template shared by the header row (investigate-reviews) and every row (this element):
  * tick, still, camera, time, duration, objects, zones, where, state, actions. A CSS literal so both static sheets can interpolate it. */
@@ -27,10 +28,7 @@ export class FrigateReviewCard extends LitElement {
   @state() private loaded = false;
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     article {
       position: relative;
       display: flex;

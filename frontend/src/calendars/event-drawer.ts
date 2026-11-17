@@ -14,6 +14,7 @@ import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from 
 import { editableInDrawer } from './event-drawer-logic';
 import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
 import type { CalAttendeesSection } from './attendees-section';
+import { errLineStyles } from '../styles/fragments';
 
 /**
  * CALENDARS-UI-2310 slice A: the new / edit booking drawer (the approved round-8 mock-up, screen 4). Permission-aware: an operator books for
@@ -66,7 +67,7 @@ export class CalEventDrawer extends LitElement {
     .note.warn sw-icon { color: var(--sw-warning-text); }
     .note.bad sw-icon { color: var(--sw-danger-text); }
     .note .muted { display: block; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .slot:empty { display: none; }
     dl { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px 14px; font-size: var(--sw-fs-md); }
     dt { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }

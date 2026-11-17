@@ -1,5 +1,6 @@
 import { css } from 'lit';
 import { statusCss } from '../styles/status-palette';
+import { ltrStyles } from '../styles/fragments';
 
 /**
  * CR-INFRA-TEMPERATURE 2.9.1: the visual language of the temperature screens (owner-approved mockup 2026-10-19). Status colours are the
@@ -155,7 +156,7 @@ export const tempCss = css`
   .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 16px 18px; box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
   .panel h4 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.01em; }
   .hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-  .ltr { direction: ltr; unicode-bidi: isolate; }
+  ${ltrStyles}
   .mono { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }

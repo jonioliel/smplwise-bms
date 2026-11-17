@@ -14,6 +14,7 @@ import {
 } from './work-calendar-model';
 import { wct, type WorkCalendarTextKey } from './work-calendar-text';
 import { dateInputLang } from '../api/day-format';
+import { hostBlockStyles } from '../styles/fragments';
 
 const DEPT_MODES: readonly DeptMode[] = ['inherit', 'always', 'own'];
 
@@ -34,10 +35,7 @@ export class TicketsWorkCalendarCard extends LitElement {
   @state() private departments: { id: string; name: string }[] = [];
 
   static styles = [settingsStyles, ticketSettingsCss, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .days {
       display: flex;
       flex-wrap: wrap;

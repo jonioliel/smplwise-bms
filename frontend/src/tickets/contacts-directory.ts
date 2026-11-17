@@ -30,6 +30,7 @@ import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
 import { xt } from '../i18n/access-external';
 import { MARKER_FILTERS, byMarker, carriesMarker, filterKey, markerView, type MarkerFilter } from './vendor-marker';
+import { hostBlockStyles } from '../styles/fragments';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
 const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((x) => x[0] ?? '').join('');
@@ -123,10 +124,7 @@ export class TicketsContacts extends LitElement {
   private loadedKind: ContactKind | '' = '';
 
   static styles = [bubbleChrome, ...automationsStyles, settingsStyles, ticketSettingsCss, handlersGlass, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .sec {
       display: flex;
       flex-direction: column;

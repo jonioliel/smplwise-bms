@@ -31,6 +31,7 @@ import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dateInputLang } from '../api/day-format';
+import { errLineStyles } from '../styles/fragments';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** The kinds a speaker / player / receiver card may be set to (settings choose; the detected kind is the default). */
@@ -174,10 +175,7 @@ export class SystemMultimediaPlayers extends LitElement {
       flex-direction: column;
       font-size: var(--sw-fs-sm);
     }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${errLineStyles}
     .hd {
       display: flex;
       align-items: center;

@@ -7,6 +7,7 @@ import {
   CONTACT_NOTE, KIND_LABEL, ROLE_LABEL, STATUS_LABEL, chipLabel, draftOfGuest, freshHits, hasErrors, toggleRole, validateGuest,
   type AttendeeDraft, type GuestErrors,
 } from './attendee-logic';
+import { hostBlockStyles } from '../styles/fragments';
 
 /** What the picker asks its host to do (it is controlled: the host owns `value`). */
 export interface PickerAdd { draft: AttendeeDraft }
@@ -25,7 +26,7 @@ let uid = 0;
 @customElement('cal-attendee-picker')
 export class CalAttendeePicker extends LitElement {
   static styles = [calCss, css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .wrap { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .combo { position: relative; }
     .combo .inp { inline-size: 100%; padding-inline-start: 34px; }

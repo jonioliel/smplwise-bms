@@ -35,6 +35,7 @@ import type { BuildingSnapshot } from '../api/building-presence';
 import { XS_MINI_WIDGET_STYLES, renderXsMini } from '../xsection/xs-mini-widget'; // XS-MINI-WIDGET-2351
 import type { MiniFloor, MiniModel } from '../xsection/xs-mini-model';
 import '../door-windows/emergency';
+import { hostBlockStyles, segThumbPlainStyles } from '../styles/fragments';
 
 /** POLISH4-WP4 (D2, PRE-GATE-2360): in edit mode every shown card keeps room under its content for its edit bar, the bar's measured
  * height (--wg-e-h, set by home-widgets from a ResizeObserver: one row on a wide card, two or three when the controls wrap in a
@@ -287,10 +288,7 @@ export class HomeWidgetsView extends LitElement {
   @property({ type: Boolean, reflect: true, attribute: 'quick-hidden' }) quickHidden = false;
 
   static styles = [css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     :host([hidden]) {
       display: none;
     }
@@ -1145,12 +1143,7 @@ export class HomeWidgetsView extends LitElement {
         gap: 2px;
       }
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
+    ${segThumbPlainStyles}
     /* QUICKHIDE-295: with the quick actions hidden by the setting the notices card is not held to its natural width: it takes the rest of its row */
     :host([quick-hidden]) .wg.wg-notices {
       max-inline-size: none;

@@ -39,6 +39,7 @@ import {
 } from '../api/wiskey-triage';
 import { tt } from '../i18n/wiskey-triage';
 import { formatTime, UTC_ZONE } from '../screens/wiskey-format';
+import { mutedStyles } from '../styles/fragments';
 
 type Tab = 'conflicts' | 'alerts';
 const TONE: Record<TriageStatus, StateKind> = {
@@ -159,10 +160,7 @@ export class WkTriagePanel extends LitElement {
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
     .note {
       padding: 6px 10px;
       border-radius: var(--sw-r-md);

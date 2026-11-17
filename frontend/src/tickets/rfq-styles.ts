@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { ltrStyles } from '../styles/fragments';
 
 /**
  * TKRFQ2: the few rules the RFQ screens add to the module's page frame (styles/automations-glass.ts + media-page.ts: .page, .dh, .seg,
@@ -170,10 +171,7 @@ export const rfqStyles = css`
   .num {
     font-variant-numeric: tabular-nums;
   }
-  .ltr {
-    direction: ltr;
-    unicode-bidi: isolate;
-  }
+  ${ltrStyles}
   /* KPI glass tiles */
   .kpis {
     display: grid;

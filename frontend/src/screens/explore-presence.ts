@@ -12,6 +12,7 @@ import { can, canAnywhere, isApi, onSession, session } from '../api/session';
 import { pt, type PtKey } from '../i18n/presence';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { segThumbPlainStyles } from '../styles/fragments';
 
 /** The KPI filters of the list: everyone, the people placed on a floor, the people placed on a site only. */
 type Kpi = 'all' | 'floors' | 'site';
@@ -136,7 +137,7 @@ export class ExplorePresence extends LitElement {
       .body { grid-template-columns: minmax(0, 1fr); }
       .seg { display: inline-flex; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 2px; background: var(--sw-surface-2); flex: none; align-self: flex-start; }
       .seg button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); padding: 4px 14px; border-radius: var(--sw-r-pill); color: var(--sw-text-2); cursor: pointer; }
-      .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
+      ${segThumbPlainStyles}
       .body[data-view='map'] .listpanel, .body[data-view='list'] .mappanel { display: none; }
     }
     @media (max-width: 600px) {

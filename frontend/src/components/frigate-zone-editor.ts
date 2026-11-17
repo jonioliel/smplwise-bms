@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { toRelative, type ConfigZone, type Pt } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * FRGS: the zone stage - the camera's still with its Frigate zones drawn over it, and the polygon being edited. Purely presentational:
@@ -30,10 +31,7 @@ export class FrigateZoneEditor extends LitElement {
   private swallowClick = false;
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .stage {
       position: relative;
       inline-size: 100%;

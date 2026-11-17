@@ -5,6 +5,7 @@ import { can, canAnywhere, isApi, onSession } from '../api/session';
 import { WISKEY_HIDDEN, onWiskeyEmbedNav, wiskeyEmbedNav } from '../shell/nav';
 import { wkIcon } from '../screens/wiskey-stations-icons';
 import { deepLinksFor, mayOpenPanel, type DeepLink } from '../wiskey/deep-links';
+import { hostBlockStyles } from '../styles/fragments';
 
 /** What the control is called (no platform name: the embedded panel is "חלון האינטרקום" on every operator screen). */
 export const DEEP_LINKS_HEADING = 'פתיחה בחלון האינטרקום';
@@ -30,10 +31,7 @@ export class WkDeepLinks extends LitElement {
   private stops: Array<() => void> = [];
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     :host([hidden]) {
       display: none;
     }

@@ -31,6 +31,7 @@ import { limitsOf, openableDoors } from '../door-windows/events-logic';
 import { canManageGrants } from '../door-windows/grants-logic';
 import { dateInputLang } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
+import { errLineStyles } from '../styles/fragments';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -107,7 +108,7 @@ export class DoorWindowsScreen extends LitElement {
     .doors { display: grid; gap: 4px; max-block-size: 260px; overflow: auto; padding: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
     .doors label { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: var(--sw-r-sm); }
     .doors .st { font-size: var(--sw-fs-xs); color: var(--sw-text-3); padding: 6px 6px 0; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .preview { display: grid; gap: 8px; }
     .radio { display: grid; gap: 6px; }

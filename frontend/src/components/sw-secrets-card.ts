@@ -6,6 +6,7 @@ import './sw-badge';
 import { LOCAL_ONLY_GENERIC, onRemote } from '../api/session';
 import { describeError } from '../api/client';
 import { SECRET_TEST_LABEL, clearSecret, listSecrets, saveSecret, testSecret, type SecretStatus, type SecretTest } from '../api/secrets';
+import { ltrStyles } from '../styles/fragments';
 
 const STATE_BADGE: Record<string, [string, string]> = {
   set: ['live', 'מוגדר'],
@@ -66,10 +67,7 @@ export class SwSecretsCard extends LitElement {
       color: var(--sw-text-3);
       font-weight: var(--sw-fw-regular);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .acts {
       display: inline-flex;
       align-items: center;

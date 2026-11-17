@@ -17,6 +17,7 @@ import {
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { srOnlyStyles } from '../styles/fragments';
 
 type CardScope = 'style' | 'phone' | 'picker' | 'place' | 'settings-nav';
 
@@ -488,14 +489,7 @@ export class SystemTabsMode extends LitElement {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
     }
-    .sr {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
+    ${srOnlyStyles}
     @media (prefers-reduced-motion: reduce) {
       .opt,
       .reset,

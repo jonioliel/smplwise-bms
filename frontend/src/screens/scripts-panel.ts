@@ -10,6 +10,7 @@ import { mapAutomationError, runNeedsConfirm, runScriptNow, stopScriptNow, type 
 import type { DrawerResult } from './automation-drawer';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dialogRowStyles } from '../styles/fragments';
 
 /**
  * CR-017 `<scripts-panel .items .status .now>`: the script runner (CR §4.4). A big "הפעל" button per script; a script that has fields opens its sheet
@@ -171,11 +172,7 @@ export class ScriptsPanel extends LitElement {
       font-size: var(--sw-fs-md);
       display: block;
     }
-    .dlgrow {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
+    ${dialogRowStyles}
   `];
 
   connectedCallback() {

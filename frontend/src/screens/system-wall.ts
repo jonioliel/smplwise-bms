@@ -37,6 +37,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsLadderStyles } from '../styles/settings';
 import { PollController } from '../components/poll-controller';
 import { dateInputLang } from '../api/day-format';
+import { srOnlyStyles } from '../styles/fragments';
 
 type CamLite = { id: string; name: string };
 type FloorLite = { id: string; name: string };
@@ -111,7 +112,7 @@ export class SystemWall extends LitElement {
       .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
       .seen { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
       .acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-      .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      ${srOnlyStyles}
       .cards { display: none; gap: var(--sw-s-3); }
       .card { display: grid; gap: var(--sw-s-2); }
       .card .row { display: flex; justify-content: space-between; gap: var(--sw-s-2); align-items: center; min-inline-size: 0; }

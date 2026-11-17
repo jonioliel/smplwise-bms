@@ -12,6 +12,7 @@ import {
   WRITES_LABEL,
   writesStatusLine,
 } from '../screens/nvr-h264-preset';
+import { hostBlockStyles } from '../styles/fragments';
 
 const fmt = (iso: string): string => {
   const d = new Date(iso);
@@ -103,10 +104,7 @@ export class NvrWritesSwitch extends LitElement {
   }
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .row {
       display: flex;
       align-items: center;

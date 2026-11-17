@@ -8,6 +8,7 @@ import { REPORT_RANGES, bidi, chosenVendors, recipientPicks, unreachable, vendor
 import { tempCss } from './styles';
 import { TT_KEYS, tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
+import { errLineStyles } from '../styles/fragments';
 
 type Freq = 'daily' | 'weekly' | 'monthly';
 
@@ -86,7 +87,7 @@ export class TempWa extends LitElement {
     .status { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
     .wf { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); flex-wrap: wrap; }
     .wf .sp { flex: 1; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .okm { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
     @media (max-width: 600px) {
       :host { padding: 0; }

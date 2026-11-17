@@ -8,6 +8,7 @@ import { cameraSources, disableHaLive, enableHaLive, sameSource, type CameraSour
 import { bidi } from '../i18n/bidi';
 import { cap } from '../api/session';
 import { visibleRecorderGroups } from '../api/camera-visibility';
+import { hostBlockStyles } from '../styles/fragments';
 
 /** `camera-picked`: the user chose a camera. `detail.name` is the camera's own name (a title for the card, if it has none). */
 export interface CameraPickedDetail {
@@ -41,10 +42,7 @@ export class DevicesCameraPicker extends LitElement {
   @state() private liveError = '';
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .find {
       inline-size: 100%;
       box-sizing: border-box;

@@ -46,6 +46,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText, isoZ } from '../api/day-format';
 import { t as vt } from '../i18n/he';
+import { ltrStyles } from '../styles/fragments';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
@@ -601,10 +602,7 @@ export class InvestigatePlayback extends LitElement {
       display: grid;
       gap: 4px;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     /* full-system sweep: on a phone the floating control pill (frame step, speeds, skip) was wider than the
        screen and its end buttons were clipped; it wraps now, and speeds the relay refuses anyway (2×/4×) are
        dropped there instead of taking room as disabled buttons. */

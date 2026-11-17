@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * CR-038: the look of the tickets screens - ALWAYS the glass style of the automations area (styles/automations-glass.ts on top of
@@ -286,10 +287,7 @@ export const ticketCardStyles = css`
 
 /** The detail (drawer body and full screen): the sentence box, sections, the state strip, the handler block, photos, the timeline. */
 export const ticketDetailStyles = css`
-  :host {
-    display: block;
-    min-inline-size: 0;
-  }
+  ${hostBlockStyles}
   .stack {
     display: flex;
     flex-direction: column;

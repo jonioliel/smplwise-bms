@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import type { AreaEntry } from './nav';
 import { describeError } from '../api/client';
+import { srOnlyStyles } from '../styles/fragments';
 
 /**
  * CR-013 "סדר הלשוניות": the user's visible navigation tabs as a vertical list - drag a row by its handle (mouse and
@@ -141,14 +142,7 @@ export class SwNavOrder extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
-    .sr {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
+    ${srOnlyStyles}
     .foot {
       display: flex;
       gap: 8px;

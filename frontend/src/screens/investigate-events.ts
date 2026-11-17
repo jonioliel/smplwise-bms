@@ -31,6 +31,7 @@ import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i
 import { t as vt } from '../i18n/he';
 import { Latest } from '../api/latest';
 import { pushedAction, ThumbPoller } from './investigate-events-logic';
+import { ltrStyles } from '../styles/fragments';
 
 /** EVENTS-POLISH-2331: a phone (the drawer is a full-screen modal sheet there) and a wide desktop (the drawer docks beside the list). */
 const NARROW = '(max-width: 767px)';
@@ -777,10 +778,7 @@ export class InvestigateEvents extends LitElement {
       justify-content: space-between;
       gap: 8px;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
   `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {

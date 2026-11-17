@@ -16,6 +16,7 @@ import {
 import { commandId } from '../api/request-id';
 import { addressAction, areaLine, fieldDefaults, missingFields, type FieldChoice, cardChips, confirmLine, deletedText, floorLine, keepText, runRows, whenText, type DrawerView } from './automations-logic';
 import type { TrashRow } from '../api/automations';
+import { dialogRowStyles } from '../styles/fragments';
 
 export type DrawerResult = { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } };
 
@@ -344,11 +345,7 @@ export class AutomationDrawer extends LitElement {
       font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
-    .dlgrow {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
+    ${dialogRowStyles}
     .foot2 {
       display: flex;
       flex-wrap: wrap;

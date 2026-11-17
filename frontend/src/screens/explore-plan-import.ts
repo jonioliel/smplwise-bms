@@ -19,6 +19,7 @@ import { getDxfEntities, importDxfGeometry, type DetectResult, type DxfEntities,
 import { stashDxfCandidates } from '../map/candidates';
 import type { PlanAsset, PlanVersion } from '../api/types';
 import { dayTimeText } from '../api/day-format';
+import { okLineStyles } from '../styles/fragments';
 
 const STEPS = ['קובץ', 'עמוד', 'חיתוך וסיבוב', 'שם והערות', 'שמירה ופרסום'];
 
@@ -259,10 +260,7 @@ export class ExplorePlanImport extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
     }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${okLineStyles}
     .assets button {
       display: flex;
       justify-content: space-between;

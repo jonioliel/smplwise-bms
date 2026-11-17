@@ -16,6 +16,7 @@ import { commandId } from '../api/request-id';
 import { bulkCandidates, isOn, media, type BulkPreview, type MediaDevice } from '../api/media-screens';
 import { PLAYER_KINDS, isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { bidi } from '../i18n/bidi';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * The area screen's media card (CR-015 §7.5, owner decision 12a): ONE compact `<media-screen-card>` per PHYSICAL screen of the
@@ -69,10 +70,7 @@ export class MediaAreaCard extends LitElement {
   private stop = { stopped: false };
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     :host([hidden]) {
       display: none;
     }

@@ -16,6 +16,7 @@ import type { DrawerResult } from './automation-drawer';
 import type { SceneCapture } from '../components/scene-capture';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dialogRowStyles } from '../styles/fragments';
 
 /**
  * CR-017 `<scenes-panel .items .status .now .sceneId>`: the scenes of the installation (CR §4.3, owner decision 7א). The grid is grouped by area with
@@ -239,11 +240,7 @@ export class ScenesPanel extends LitElement {
       color: var(--dv-text-2);
       font-size: var(--sw-fs-md);
     }
-    .dlgrow {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
+    ${dialogRowStyles}
   `];
 
   connectedCallback() {

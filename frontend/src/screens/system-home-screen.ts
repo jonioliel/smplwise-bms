@@ -17,6 +17,7 @@ import { hs } from '../i18n/home-screen';
 import './home-screen-options';
 import type { HomeScreenForm, OptionsArea } from './home-screen-options';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { mutedStyles } from '../styles/fragments';
 
 /** A schematic of each direction (the mockup's three layouts): the widgets in the accent colour, the summary tiles, the floors. */
 function thumb(d: Direction, side: Side): TemplateResult {
@@ -165,10 +166,7 @@ export class SystemHomeScreen extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
     .hs-h {
       margin: 18px 0 8px;
       font-size: var(--sw-fs-md);

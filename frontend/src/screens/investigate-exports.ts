@@ -17,6 +17,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { PollController } from '../components/poll-controller';
+import { ltrStyles } from '../styles/fragments';
 
 const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק', paused_disk_full: 'מושהה · אין מקום בדיסק' };
 const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
@@ -215,10 +216,7 @@ export class InvestigateExports extends LitElement {
     .actions a {
       text-decoration: none;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .warn {
       font-size: var(--sw-fs-sm);
       color: var(--sw-warning-text);

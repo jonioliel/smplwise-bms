@@ -14,6 +14,7 @@ import { listRecorders, updateRecorder, STATE_TEXT, type Recorder, type Recorder
 import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 import type { StateKind } from './sw-badge';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * CR-024 section 7.2: what disabling really does. The cameras leave the live wall, the kiosk, the overview and every camera
@@ -221,10 +222,7 @@ export class NvrRecordersCard extends LitElement {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
     }
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .list {
       list-style: none;
       margin: 0;

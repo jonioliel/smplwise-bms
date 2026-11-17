@@ -21,6 +21,7 @@ import { handlersGlass } from './handlers-glass';
 import { seesLoad, type MemberLoad } from './handler-load';
 import { tIcon } from './icons';
 import { tt } from './text';
+import { hostBlockStyles } from '../styles/fragments';
 
 type Role = 'manager' | 'member';
 type Lang = 'he' | 'en' | 'ar' | 'ru';
@@ -87,10 +88,7 @@ export class TicketsHandlersMembers extends LitElement {
   @state() private manager = false;
 
   static styles = [bubbleChrome, ...automationsStyles, settingsStyles, ticketSettingsCss, handlersGlass, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     :host([hidden]) {
       display: none;
     }

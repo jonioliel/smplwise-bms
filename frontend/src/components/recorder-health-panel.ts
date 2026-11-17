@@ -11,6 +11,7 @@ import type { StateKind } from './sw-badge';
 import { SkinController } from '../design/skin';
 import { cameraHealthText, detectorOverloaded, frigateHealthFor, hoursLeftState, hoursLeftText, type FrigateHealth } from '../api/frigate';
 import { he } from '../i18n/he';
+import { ltrStyles } from '../styles/fragments';
 
 const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error: 'offline', unknown: 'unknown', off: 'neutral' };
 const STATUS_TEXT: Record<HealthState, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'תקלה', unknown: 'לא ידוע', off: '' };
@@ -406,10 +407,7 @@ export class RecorderHealthPanel extends LitElement {
       margin-block-start: 10px;
       flex-wrap: wrap;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
   `;
 
   private row(key: string, label: string, s: { state: HealthState } | null | undefined, value: string) {

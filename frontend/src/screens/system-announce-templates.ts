@@ -6,6 +6,7 @@ import { ANNOUNCE_LANGS, announcePutTemplates, type AnnounceTemplate, type Annou
 import { describeError } from '../api/client';
 import { blankTemplate, cleanTemplates, NAME_MAX, removeTemplate, setField, setKind, templateName, templatesProblem, TEMPLATES_MAX, TEXT_MAX } from '../announce/model';
 import { announceText, announceUiLang } from '../i18n/announce';
+import { errLineStyles } from '../styles/fragments';
 
 /**
  * ANNOUNCE-295: הגדרות › מולטימדיה › הכרזות קוליות › "תבניות הודעה". The ready-made announcements (routine and emergency; Hebrew, English, Russian) as one list
@@ -31,7 +32,7 @@ export class SystemAnnounceTemplates extends LitElement {
     input, textarea, select { box-sizing: border-box; min-block-size: 36px; padding-inline: 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); inline-size: 100%; }
     textarea { padding: 8px 10px; resize: vertical; min-block-size: 56px; }
     .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-block-start: 10px; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     @media (pointer: coarse) {
       input, select { min-block-size: 44px; }
     }

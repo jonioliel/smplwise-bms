@@ -87,6 +87,7 @@ import type { MessagingConfig, MessagingTransport } from '../access-control/mess
 import { pt } from '../i18n/access-people';
 import { t, UTC_ZONE } from './wiskey-format';
 import { stateBadge, syncKind, validityText } from './wiskey-person-drawer';
+import { ltrStyles } from '../styles/fragments';
 
 const POLL_MS = 30000; // while the change notices are down, the shown list is refetched this often
 const TYPING_DEBOUNCE_MS = 250;
@@ -1370,10 +1371,7 @@ export class WiskeyPeople extends LitElement {
       font-size: var(--sw-fs-sm);
       white-space: nowrap;
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));

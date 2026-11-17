@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { errLineStyles } from '../styles/fragments';
 
 /**
  * DOORWIN3-295: the shared form look of the three new door-windows parts (event rules, holidays, open for hours). Tokens only, logical
@@ -33,7 +34,7 @@ export const dweCss = css`
   .doors label, label.chk { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: var(--sw-r-sm); }
   .doors label, .doors .st, label.chk { min-inline-size: 0; overflow-wrap: anywhere; }
   .doors .st { font-size: var(--sw-fs-xs); color: var(--sw-text-3); padding: 6px 6px 0; }
-  .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+  ${errLineStyles}
   .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
   pre.snippet {
     margin: 0; padding: 10px 12px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); color: var(--sw-text); direction: ltr; text-align: start;
