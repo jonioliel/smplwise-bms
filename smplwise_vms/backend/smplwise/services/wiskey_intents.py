@@ -241,6 +241,8 @@ class LiveResolveTransport:
         return wp.verify_resolution(frame), receipt
 
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for W-010, the recovery caller of an UNKNOWN intent
+# (docs/changes/ADOPTR6-295-ADOPTION-RECEIPT.md, not built yet; DirectJoin.resolve_or_none is its transport).
 def resolve_intent(conn: sqlite3.Connection, o: ExactOriginal, original: wp.ResolveOriginal, current: wp.VerifiedPeerRef,
                    transport: LiveResolveTransport, now: str | None = None) -> tuple[str, wp.ResolutionVerdict, wp.PeerReadReceipt | None]:
     """One READ of one open intent's exact original, settled by `settle_resolution`: (settle result, verdict, receipt). Nothing is

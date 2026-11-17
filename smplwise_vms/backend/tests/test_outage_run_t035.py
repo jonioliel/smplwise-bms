@@ -39,6 +39,7 @@ from smplwise.errors import ApiError
 from smplwise.main import create_app
 from smplwise.routers import access_control
 from smplwise.services import autosync, events_ingest, go2rtc, ha_bridge, ha_client, ha_sync, health_report, intercom_sync, intercom_write_journal, nvr
+from support.waiting import wait_for as _wait_for
 
 
 def record(scenario: str, **observed: Any) -> None:
@@ -116,12 +117,7 @@ def wire(monkeypatch, gate: dict[str, Any]) -> list[GatedHa]:
 
 
 def wait_for(pred: Callable[[], bool], timeout: float = 8.0, what: str = "") -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met ({what}); feed state {intercom_sync.STATE.as_dict()}")
+    _wait_for(pred, timeout, what)
 
 
 def start_feed(feed, monkeypatch, gate: dict[str, Any]) -> tuple[Any, Any, list[GatedHa], TestClient]:

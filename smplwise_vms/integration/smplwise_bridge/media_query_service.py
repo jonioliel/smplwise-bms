@@ -28,6 +28,7 @@ from types import SimpleNamespace
 from typing import Any, Mapping
 
 from . import media_policy
+from ._common import window_full
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -152,16 +153,13 @@ def trim_library(response: Any) -> list[dict[str, Any]]:
 
 def _rate_limited(now: float, user_id: str | None = None) -> bool:
     """The global budget (`RATE_MAX` a window) with a per-user share (`RATE_USER_MAX`): a refusal by the share never takes a global slot."""
-    while _calls and now - _calls[0] > RATE_WINDOW_S:
-        _calls.popleft()
+    full = window_full(_calls, now, RATE_WINDOW_S, RATE_MAX)
     mine: deque[float] | None = None
     if user_id is not None:
         mine = _user_calls.setdefault(user_id, deque())
-        while mine and now - mine[0] > RATE_WINDOW_S:
-            mine.popleft()
-        if len(mine) >= RATE_USER_MAX:
+        if window_full(mine, now, RATE_WINDOW_S, RATE_USER_MAX):
             return True
-    if len(_calls) >= RATE_MAX:
+    if full:
         return True
     _calls.append(now)
     if mine is not None:

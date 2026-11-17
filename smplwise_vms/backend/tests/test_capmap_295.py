@@ -139,6 +139,39 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "2.40.7 WXH4-EMERGENCY-REVOKE-2407: signing_key() and verify_message() gain a revoked-key gate in front of the unchanged code "
      "(_raw_signing_key is the old body verbatim); with no revocation recorded both take exactly the old path. The revoked state is new "
      "and outside these vectors (it is covered by the bridge-key revocation tests)."),
+    ("smplwise_vms/backend/smplwise/services/trusted_caller.py",
+     "8d6a09fecd3d3635d32383201615a94e3dd9b5bc4d85d56dda250acd3681b0aa",
+     "b012e097481b84375215a3b5aab728bb0bbb31b7843ef169e788ce25c1f8e061",
+     "CR-TIMEUTIL-2438 (review 04:F14), reviewed in CR-WAVE2-COMBINED-2439: the module's own iso() body "
+     "(astimezone(utc).strftime('%Y-%m-%dT%H:%M:%SZ')) became the shared timeutil.iso_utc under the same name; that helper is "
+     "astimezone(UTC).replace(microsecond=0).isoformat() with '+00:00' -> 'Z', the same text for every aware datetime the module "
+     "signs (issued_at / expires_at, whole seconds). Nothing else in the file changed."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "3c55751c36110a39f3074c0c7f97d659fbf3c8e9626c610e2362eeb6dd11c3b4",
+     "2a416d09a9a9c622f1e32762f5287f0a9652e8e610e30f992e0d8d3cbc4b7b43",
+     "CR-BRIDGE-GAPS-2438 (review 05 P2-21, P3-07), reviewed in CR-WAVE2-COMBINED-2439: sign() with no key raises NoSigningKey, a "
+     "ValueError subclass with the same text (was a plain ValueError); handle_control() (the key-rotation service) refuses a message "
+     "carrying an answer's keys (reply_to / ok) as bad_format. verify() / _check(), the path lease_contract.validate takes for these "
+     "vectors, is unchanged, and no vector message carries reply_to or ok."),
+    ("smplwise_vms/backend/smplwise/services/ha_bridge.py",
+     "6bc46f37912f95086ad881e6e86a61c9fbfe7404d806ced33291c0e9078868e3",
+     "248bbfddeea0ec3716d2f0d4bf3c92c28f6cf717b597a5234c8280db1086ec02",
+     "CR-BRIDGE-PREVERIFY-2440 (review 05:P2-02), reviewed in CR-W3-BE-COMBINED-2441: verify() gains a keyword-only `nonces` and "
+     "verify_message() a keyword-only `screen_only` (default False). With the defaults `(nonces or bk.NONCES)` is bk.NONCES and every "
+     "call passes nonces=None on, so the path is the old one statement for statement; screen_only=True (the pre-check on a read "
+     "connection, before the write gate) is new and outside these vectors (test_bridge_preverify_2440). Nothing else changed."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "2a416d09a9a9c622f1e32762f5287f0a9652e8e610e30f992e0d8d3cbc4b7b43",
+     "2193b0d7e40f3eb96649abceb20f1352583ef425b1de5091a630c74800344ccb",
+     "CR-BRIDGE-COMMON-2440, reviewed in CR-W3-BE-COMBINED-2441: canonical() is imported from the bridge's _common.py under the same "
+     "name instead of being defined here; the body is the same one line (json.dumps(body, sort_keys=True, separators=(',', ':'), "
+     "ensure_ascii=False)). The `json` import went with it; nothing else changed."),
+    ("custom_components/smplwise_bridge/lease_contract.py",
+     "16b2e9eb91c46f7d9833525ab182df495d70cb84ba532ecede333712118d9a01",
+     "66849119e4e2283639a96cc03832df1d53c91a384ddd224509c592fdab7b4514",
+     "CR-BRIDGE-COMMON-2440, reviewed in CR-W3-BE-COMBINED-2441: _canonical is now the bridge's one _common.canonical (the same "
+     "function object under the old name) instead of a local copy with the same one-line body; an import line was added. validate() "
+     "and every stage it runs are unchanged."),
 )
 
 

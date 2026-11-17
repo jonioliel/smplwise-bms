@@ -77,4 +77,3 @@ import{i as f,n as g,r as h,a as m,tq as w,tr as x,ak as v,ts as $,tt as y,tm as
     }
     @media (prefers-reduced-motion: reduce) { .sw, .sw::after, .seg button { transition-duration: 0ms; } }
   `;l([g({type:Boolean,reflect:!0})],o.prototype,"sheet",2);l([h()],o.prototype,"values",2);l([h()],o.prototype,"draft",2);l([h()],o.prototype,"bounds",2);l([h()],o.prototype,"canEdit",2);l([h()],o.prototype,"error",2);l([h()],o.prototype,"saving",2);l([h()],o.prototype,"invalid",2);o=l([_("incident-settings-form")],o);
-//# sourceMappingURL=settings-form-DQR4PIPW.js.map

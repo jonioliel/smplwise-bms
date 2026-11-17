@@ -16,19 +16,16 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, Request
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import database_of, unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import camera_image_health as cih
 from ..services.access import visible_camera_ids
+from ._common import rid as _rid
 
 router = APIRouter()
 PERMISSION = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _answer(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
@@ -38,7 +35,7 @@ def _answer(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
 
 
 @router.get("/camera-image-health")
-def get_results(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_results(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CAMHEALTH091: the image health of every camera the caller may watch live (names, states and numbers only)."""
     return _answer(conn, principal)
 
@@ -62,7 +59,7 @@ def _settings_answer(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 @router.get("/camera-image-health/settings")
-def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CAMHEALTH091: the switch, the sampling interval and every threshold, with defaults and ranges."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return _settings_answer(conn)

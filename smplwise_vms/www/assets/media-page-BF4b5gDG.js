@@ -526,4 +526,3 @@ import{dI as d,i as l}from"./index-C5kZ9jiu.js";import{l as p}from"./lead-reserv
     /* header dropdown placement 4: the title row keeps the shell's start-edge chip room free (0 everywhere else) */
     ${p}
   `;function v(i,t){const e=i.querySelector(".dh");if(!e)return;const o=e.getBoundingClientRect().top;let a=0;const s=t&&!!e.querySelector(":scope > .dh-row > h1");for(const n of e.querySelectorAll(s?":scope > .dh-row > h1, :scope > .dh-row > .flwrap":":scope > .dh-row > *"))a=Math.max(a,n.getBoundingClientRect().bottom-o);const r=`${Math.ceil(a+(t?8:10))}px`;a&&e.style.getPropertyValue("--mm-bar-h")!==r&&e.style.setProperty("--mm-bar-h",r)}export{m as a,v as m};
-//# sourceMappingURL=media-page-BF4b5gDG.js.map

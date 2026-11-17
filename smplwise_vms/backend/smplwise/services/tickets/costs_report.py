@@ -20,24 +20,24 @@ import datetime as dt
 import io
 import json
 import re
-import threading
-import time
 from dataclasses import dataclass, replace
 from typing import Any, Iterator
 
 from ...db import get_setting
 from ..timeutil import parse_utc, zone
-from . import access, money, store_costs
+from . import access, fields, money, store_costs
 from .access import Viewer
 from .costs import COSTS_VIEW
 from .text_hygiene import csv_cell
+from .timeutil import zone_of
 
 GROUPS: tuple[str, ...] = ("vendor", "department", "device", "room", "month")
 STATUSES: tuple[str, ...] = ("submitted", "approved", "paid")
 EXPORT_MAX_ROWS = 5000
 RATE_S = 60.0
-_last: dict[str, float] = {}
-_lock = threading.Lock()
+# CR-TK-MONEY-UTILS (01:F-15): this module's OWN limiter instance (one successful export per RATE_S per user); the table
+# export, the costs report and the deletion never share a bucket
+_RATE = fields.RateWindow(lambda: 1, lambda: RATE_S)
 
 
 class ReportError(ValueError):
@@ -253,13 +253,7 @@ STATUS_TEXT = {"submitted": "הוגשה", "approved": "אושרה", "paid": "ש�
 KIND_TEXT = {"labor": "עבודה", "parts": "חלקים", "travel": "נסיעות", "other": "אחר"}
 
 
-def _local(iso: str | None, tz) -> str:
-    if not iso:
-        return ""
-    try:
-        return parse_utc(iso).astimezone(tz).strftime("%Y-%m-%d %H:%M")
-    except ValueError:
-        return ""
+_local = fields.local_minute  # CR-TK-MONEY-UTILS (01:F-15): the shared helper under this module's name
 
 
 def build_csv(conn, viewer: Viewer, f: Filters, rows_kind: str) -> list[list[Any]]:
@@ -308,24 +302,19 @@ def stream(cells: list[list[Any]]) -> Iterator[bytes]:
 
 
 def rate_check(user_id: str, now: float | None = None) -> float:
-    now = time.monotonic() if now is None else now
-    with _lock:
-        last = _last.get(user_id)
-    return 0.0 if last is None else max(0.0, RATE_S - (now - last))
+    return _RATE.wait(user_id, 1, now)
 
 
 def mark(user_id: str, now: float | None = None) -> None:
-    with _lock:
-        _last[user_id] = time.monotonic() if now is None else now
+    _RATE.mark(user_id, now)
 
 
 def reset_rate() -> None:
     """Tests only."""
-    with _lock:
-        _last.clear()
+    _RATE.reset()
 
 
 def filename(conn) -> str:
-    stamp = dt.datetime.now(zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")).strftime("%Y%m%d-%H%M")
+    stamp = dt.datetime.now(zone_of(conn)).strftime("%Y%m%d-%H%M")
     return f"ticket-costs-{stamp}.csv"
 

@@ -330,4 +330,3 @@ import{i as ts,a as ns,dq as is,bF as rs,bG as os,bl as ls,bm as ps,ak as ds,bH 
     @media (hover: hover) and (pointer: fine) { .lights-hit:hover { background: color-mix(in srgb, var(--sw-lit) 14%, transparent); } }
     :focus-visible { outline: 2px solid var(--sw-focus, var(--sw-accent)); outline-offset: 2px; }
   `,Bs];L([Ds({type:Boolean,reflect:!0})],y.prototype,"wall",2);L([I()],y.prototype,"tree",2);L([I()],y.prototype,"data",2);L([I()],y.prototype,"lightsOf",2);L([I()],y.prototype,"events",2);L([I()],y.prototype,"error",2);L([I()],y.prototype,"sel",2);L([I()],y.prototype,"now",2);L([I()],y.prototype,"info",2);L([I()],y.prototype,"multiOn",2);y=L([Hs("devices-synoptic")],y);export{y as DevicesSynoptic};
-//# sourceMappingURL=devices-synoptic-tf-uVul2.js.map

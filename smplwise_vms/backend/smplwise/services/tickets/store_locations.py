@@ -10,8 +10,7 @@ from ...db import new_id, now_iso
 FIELDS = ("name", "street", "city", "details", "lat", "lng", "active", "is_default", "sort_order", "plan_zone_id")
 
 
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
+from ._sql import row_dict as _dict  # noqa: E402 - CR-TK-SQL: the shared helper under its old name
 
 
 def location(conn: sqlite3.Connection, location_id: str) -> dict[str, Any] | None:

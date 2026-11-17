@@ -372,4 +372,3 @@ import{jk as A,i as T,r as c,a as C,R as E,q as a,cK as _,p as o,x as I,S as L,d
       }
     }
   `,J];p([c()],l.prototype,"phase",2);p([c()],l.prototype,"status",2);p([c()],l.prototype,"saved",2);p([c()],l.prototype,"draft",2);p([c()],l.prototype,"templates",2);p([c()],l.prototype,"notify",2);p([c()],l.prototype,"review",2);p([c()],l.prototype,"compat",2);p([c()],l.prototype,"trash",2);p([c()],l.prototype,"error",2);p([c()],l.prototype,"note",2);p([c()],l.prototype,"busy",2);p([c()],l.prototype,"trashOpen",2);p([c()],l.prototype,"now",2);p([c()],l.prototype,"candidates",2);l=p([I("system-automations")],l);export{l as SystemAutomations};
-//# sourceMappingURL=system-automations-ClQwqtN4.js.map

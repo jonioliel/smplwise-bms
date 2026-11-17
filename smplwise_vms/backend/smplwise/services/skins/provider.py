@@ -21,11 +21,12 @@ token usage is recorded as the fact.
 from __future__ import annotations
 
 import base64
-import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import httpx
+
+from .. import redact as _redact
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 OPENAI_EDIT_PATH = "/images/edits"
@@ -39,19 +40,12 @@ QUALITIES = ("low", "medium", "high")
 # Not from a price list (the pricing page gives token prices only); shown as an estimate, never as a charge.
 _EST_USD = {"low": 0.02, "medium": 0.07, "high": 0.25}
 MAX_REPLY_BYTES = 40 * 1024 * 1024
-_SK_RE = re.compile(r"sk-[A-Za-z0-9_\-]{6,}")
-_BEARER_RE = re.compile(r"(?i)(bearer\s+)[^\s\"',]+")
 
 
 def redact(text: str, *secrets: str | None) -> str:
     """Remove every secret (and anything shaped like an OpenAI key or a bearer token) from a text before it is logged,
     audited or returned: the go2rtc.redact_url rule for credentials in URLs, applied to free text."""
-    out = text
-    for s in secrets:
-        if s and len(s) >= 4:
-            out = out.replace(s, "***")
-    out = _SK_RE.sub("sk-***", out)
-    return _BEARER_RE.sub(r"\1***", out)
+    return _redact.secrets_in_text(text, *secrets)
 
 
 @dataclass(frozen=True)

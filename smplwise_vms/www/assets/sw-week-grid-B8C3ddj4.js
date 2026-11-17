@@ -98,4 +98,3 @@ import{i as g,n as h,r as f,a as m,p as w,q as a,x}from"./index-C5kZ9jiu.js";var
       border: 1px solid var(--sw-border-strong);
     }
   `;d([h({attribute:!1})],o.prototype,"days",2);d([h({attribute:!1})],o.prototype,"modes",2);d([h()],o.prototype,"mode",2);d([h({type:Boolean})],o.prototype,"editable",2);d([f()],o.prototype,"painting",2);o=d([x("sw-week-grid")],o);
-//# sourceMappingURL=sw-week-grid-B8C3ddj4.js.map

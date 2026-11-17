@@ -46,6 +46,7 @@ from ..services import intercom_consent as C
 from ..services import intercom_messaging as M
 from ..services import wiskey_wa_queue
 from ..services.intercom_messaging_adapter import MESSAGING, SendResult
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom")
@@ -54,10 +55,6 @@ MAX_ID = ia.MAX_ID
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"  # the people routes' person id (no control character, no slash)
 _ID = re.compile(ID_PATTERN)
 CONFIGURE = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _feed(settings: Any) -> dict[str, Any]:
@@ -75,16 +72,6 @@ def _feed(settings: Any) -> dict[str, Any]:
 def _gate(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
     """`access.people.message` somewhere a station can be, checked BEFORE any parameter or body is looked at; an audited 403 otherwise."""
     return ia.require_anywhere(conn, principal, M.PERMISSION, _rid(request))
-
-
-async def _raw_body(request: Request) -> bytes:
-    """The body, unparsed - declared after the permission dependency, so a caller without the permission gets 403 whatever they sent."""
-    return await request.body()
-
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
 _configure_gate = read_gate(lambda conn, principal: require(conn, principal, CONFIGURE, INSTALLATION))

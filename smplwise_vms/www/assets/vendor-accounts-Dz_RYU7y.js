@@ -173,4 +173,3 @@ import{a as C,S as D,M as S,K as y,bD as $,R as z,ak as u,$ as g,cK as m,q as l,
       }
     }
   `,A];c([d()],o.prototype,"filters",2);c([d()],o.prototype,"data",2);c([d()],o.prototype,"phase",2);c([d()],o.prototype,"loadError",2);c([d()],o.prototype,"selected",2);c([d()],o.prototype,"dialog",2);c([d()],o.prototype,"payRef",2);c([d()],o.prototype,"payDate",2);c([d()],o.prototype,"busy",2);c([d()],o.prototype,"ok",2);c([d()],o.prototype,"error",2);c([d()],o.prototype,"failures",2);o=c([F("tickets-vendor-accounts")],o);export{o as TicketsVendorAccounts};
-//# sourceMappingURL=vendor-accounts-Dz_RYU7y.js.map

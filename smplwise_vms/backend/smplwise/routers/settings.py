@@ -2,7 +2,6 @@
 snapshot freshness. Secrets stay in the add-on options."""
 from __future__ import annotations
 
-import json
 import re
 import sqlite3
 from typing import Any, Literal
@@ -10,18 +9,16 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
-from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..db import get_setting, get_settings_many, set_setting  # noqa: F401 - get_settings_many: kept as this module's attribute (tests patch it)
-from ..errors import ApiError
+from ..db import get_setting, get_settings_many  # noqa: F401 - get_settings_many: kept as this module's attribute (tests patch it)
 from ..rbac import INSTALLATION, Principal, authorize, require
-from . import ui_background
-from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, home_screen_options, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors, xs_options
+from . import settings_patch, ui_background
+from ..services import app_download, nvr_capacity, dd_style
 # CR-SETTINGS-STORE-2436: the registry lives in services/settings_store.py; these names are re-exported so every caller
 # (`from ..routers.settings import read_settings, DEFAULTS, ...`) keeps working unchanged.
 from ..services.settings_store import (
     DEFAULTS,
-    SCHEDULE_CLASSES,
+    SCHEDULE_CLASSES,  # noqa: F401 - re-export
     INT_KEYS,  # noqa: F401 - re-export
     FROZEN_SKINS,
     FROZEN_FALLBACK_SKIN,  # noqa: F401 - re-export
@@ -35,9 +32,9 @@ from ..services.settings_store import (
     _stored_xs,  # noqa: F401 - re-export
     _stored_timeline_colors,  # noqa: F401 - re-export
     _stored_area_row,  # noqa: F401 - re-export
-    PLAN_SURFACES,
+    PLAN_SURFACES,  # noqa: F401 - re-export
     stored_plan_surfaces,  # noqa: F401 - re-export
-    CLASSES_REV_KEY,
+    CLASSES_REV_KEY,  # noqa: F401 - re-export
     stored_schedule_classes,  # noqa: F401 - re-export
     TABS_SLUG,  # noqa: F401 - re-export
     TABS_MAX_SECTIONS,  # noqa: F401 - re-export
@@ -47,15 +44,22 @@ from ..services.settings_store import (
     TABS_MAX_PER_LIST,  # noqa: F401 - re-export
     TABS_MAX_JSON,  # noqa: F401 - re-export
     _stored_tabs,  # noqa: F401 - re-export
-    normalize_tabs,
+    normalize_tabs,  # noqa: F401 - re-export
     NORMALISED_KEYS,  # noqa: F401 - re-export
     setting_value,  # noqa: F401 - re-export
 )
 
+# CR-SETTINGS-PATCH-B-2440: the PATCH-only words and the local-only helper live with the checks that use them; re-exported
+from .settings_patch.identity import (
+    ALLOW_DISARM_WORD,  # noqa: F401 - re-export
+    LOCAL_PURGE_WORD,  # noqa: F401 - re-export
+    LOCAL_ONLY_IDENTITY_KEYS,  # noqa: F401 - re-export
+    LOCAL_ONLY_HE,  # noqa: F401 - re-export
+    _local_only_identity_key,  # noqa: F401 - re-export
+)
+
 router = APIRouter()
 
-ALLOW_DISARM_WORD = "אפשר נטרול"
-LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch the irreversible IDENT146 purge on
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
@@ -382,420 +386,9 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
     return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, "search_allowed": search_allowed(conn, principal), **_capacity_info(conn)}
 
 
-LOCAL_ONLY_IDENTITY_KEYS = ("security.local_public_url", "security.local_passkey_first", "security.local_passkey_android")
-LOCAL_ONLY_HE = "שינוי ההגדרה הזו אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית."
-
-
-def _local_only_identity_key(conn: sqlite3.Connection, request: Request, principal: Principal, key: str) -> None:
-    """USR2 review RELEASE_264 F4 (and the P2B/P3 review's F9): the settings that shape WHO can sign in to an Arx-only identity - the
-    public address (= the passkey RP id and where reset links point), passwordless sign-in, the Android app allowed to use this
-    site's passkeys - change only from the local channel (Ingress / the LAN), like the tickets public address (routers/tickets_admin).
-    The path itself cannot sit in remote_channel.BLOCKED_ON_REMOTE (every other setting stays remote-editable), so the refusal is per
-    key and only for an actual change: a remote PATCH that repeats the current value is untouched. Audited; the whole PATCH fails
-    (no partial write)."""
-    from ..remote_channel import is_remote
-
-    if not is_remote(request):
-        return
-    audit(conn, actor=principal, action="identity.local.setting_local_only", decision="denied", resource_type="installation", resource_id="local_identity",
-          reason="remote_channel", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
-    raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
-
-
 @router.patch("/settings")
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
-    changes = {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None}
-    if "ui.design_names" in changes:
-        try:
-            names = json.loads(changes["ui.design_names"])
-            assert isinstance(names, dict) and set(names) <= {"a", "b"} and all(isinstance(v, str) and 1 <= len(v.strip()) <= 24 for v in names.values())
-        except (ValueError, AssertionError):
-            raise ApiError(422, "validation", "שמות העיצובים: אובייקט עם a ו־b, עד 24 תווים לכל שם.")
-        changes["ui.design_names"] = json.dumps({"a": names.get("a", "SW A").strip(), "b": names.get("b", "SW B").strip()}, ensure_ascii=False)
-    if "ui.tabs" in changes:
-        changes["ui.tabs"] = normalize_tabs(changes["ui.tabs"])
-    if "ui.nav_size" in changes:
-        try:
-            changes["ui.nav_size"] = nav_size.normalize(changes["ui.nav_size"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "גודל הניווט: ערך לא תקין.", details={"ui.nav_size": str(exc)})
-    if "ui.look" in changes:
-        try:
-            changes["ui.look"] = look.normalize(changes["ui.look"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "מראה: ערך לא תקין.", details={"ui.look": str(exc)})
-    if "ui.palettes" in changes:
-        try:
-            changes["ui.palettes"] = palettes.normalize_customs(changes["ui.palettes"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", str(exc), details={"ui.palettes": str(exc)})
-    if "ui.tabs_mode_groups" in changes:
-        try:
-            changes["ui.tabs_mode_groups"] = tabs_mode.normalize_groups(changes["ui.tabs_mode_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "תצוגת לשוניות לפי קבוצה: ערך לא תקין.", details={"ui.tabs_mode_groups": str(exc)})
-    if "ui.dd_style_groups" in changes:
-        try:
-            changes["ui.dd_style_groups"] = dd_style.normalize_groups(changes["ui.dd_style_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "סגנון תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_style_groups": str(exc)})
-    if "ui.dd_size_groups" in changes:
-        try:
-            changes["ui.dd_size_groups"] = dd_style.normalize_size_groups(changes["ui.dd_size_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "גודל תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_size_groups": str(exc)})
-    if "ui.dd_ring_groups" in changes:
-        try:
-            changes["ui.dd_ring_groups"] = dd_style.normalize_ring_groups(changes["ui.dd_ring_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "עובי טבעת לפי קבוצה: ערך לא תקין.", details={"ui.dd_ring_groups": str(exc)})
-    if "ui.dd_panel_groups" in changes:
-        try:
-            changes["ui.dd_panel_groups"] = dd_style.normalize_panel_groups(changes["ui.dd_panel_groups"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "רוחב לוח פתוח לפי קבוצה: ערך לא תקין.", details={"ui.dd_panel_groups": str(exc)})
-    if "ui.mobile" in changes:
-        try:
-            changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "אפשרויות נייד: ערך לא תקין.", details={"ui.mobile": str(exc)})
-    if "ui.xs" in changes:
-        try:
-            changes["ui.xs"] = xs_options.normalize(changes["ui.xs"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "אפשרויות חתך הבניין: ערך לא תקין.", details={"ui.xs": str(exc)})
-    if "timeline.colors" in changes:
-        try:
-            changes["timeline.colors"] = timeline_colors.normalize(changes["timeline.colors"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "צבעי ציר הזמן: ערך לא תקין.", details={"timeline.colors": str(exc)})
-    for key in brand_colors.KEYS:
-        if key in changes:
-            try:
-                changes[key] = brand_colors.normalize(changes[key], key)
-            except ValueError as exc:
-                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן, קוד ‎#rrggbb, ולמתג גם \"כמו הצבע הראשי\".", details={key: str(exc)})
-    if "devices.area_row" in changes:
-        try:
-            changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "מה מוצג ליד שם האזור: ערך לא תקין.", details={"devices.area_row": str(exc)})
-    if "devices.floor_row" in changes:
-        try:
-            changes["devices.floor_row"] = area_row.normalize_floor(changes["devices.floor_row"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "מה מוצג בכותרת הקומה: ערך לא תקין.", details={"devices.floor_row": str(exc)})
-    if "home.screen" in changes:
-        try:  # HOME-295: a partial update over the stored options (the defaults when nothing was saved)
-            changes["home.screen"] = home_screen_options.normalize(changes["home.screen"], home_screen_options.stored(get_setting(conn, "home.screen", "")))
-        except ValueError as exc:
-            raise ApiError(422, "validation", "אפשרויות המסך הראשי: ערך לא תקין.", details={"home.screen": str(exc)})
-    if "plan.surfaces" in changes:
-        bad = [c for c in changes["plan.surfaces"] if c not in PLAN_SURFACES]
-        if bad:
-            raise ApiError(422, "validation", "מיקומי התוכנית החיה: ערך לא מוכר.", details={"plan.surfaces": bad})
-        changes["plan.surfaces"] = [c for c in PLAN_SURFACES if c in changes["plan.surfaces"]]
-    if "plan.view" in changes:
-        try:  # a partial update over the stored dials (the defaults when nothing was saved)
-            changes["plan.view"] = plan_view.normalize_site(changes["plan.view"], plan_view.stored_site(get_setting(conn, "plan.view", DEFAULTS["plan.view"])))
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרות התלת־ממד הריאליסטי: ערך לא תקין.", details={"plan.view": str(exc)})
-    for key, limit in (("site.latitude", 90.0), ("site.longitude", 180.0)):  # CR-029 S2: degrees inside their range
-        if key in changes and changes[key] != "" and abs(float(changes[key])) > limit:
-            raise ApiError(422, "validation", "מיקום האתר: קו רוחב בין -90 ל-90, קו אורך בין -180 ל-180.", details={key: changes[key]})
-    if "plan.bakes" in changes:
-        try:  # a partial update over the stored value (the defaults when nothing was saved)
-            changes["plan.bakes"] = plan_bakes.normalize_setting(changes["plan.bakes"], plan_bakes.stored_setting(get_setting(conn, "plan.bakes", DEFAULTS["plan.bakes"])))
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרות התמונות המוכנות: ערך לא תקין.", details={"plan.bakes": str(exc)})
-    if "schedules.classes" in changes:
-        bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
-        if bad:
-            raise ApiError(422, "validation", "סוגי התקנים בתזמונים: ערך לא מוכר.", details={"schedules.classes": bad})
-        changes["schedules.classes"] = [c for c in SCHEDULE_CLASSES if c in changes["schedules.classes"]]
-    for key in automation_settings.JSON_KEYS:  # CR-017: validated in full before anything is stored
-        if key in changes:
-            try:
-                changes[key] = automation_settings.normalize(key, changes[key])
-            except ValueError as exc:
-                raise ApiError(422, "validation", "הגדרות האוטומציות: ערך לא תקין.", details={key: str(exc)})
-    if "multimedia.remote_default" in changes:
-        try:
-            changes["multimedia.remote_default"] = media_layout.normalise_remote_config(changes["multimedia.remote_default"])
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרת השלט: ערך לא תקין.", details={"multimedia.remote_default": str(exc)})
-    app_download.normalize(changes)
-    disarm_confirm = changes.pop("schedules.allow_disarm_confirm", None)
-    disarm_change = None
-    if "schedules.allow_disarm" in changes:
-        current = get_setting(conn, "schedules.allow_disarm", DEFAULTS["schedules.allow_disarm"]) or DEFAULTS["schedules.allow_disarm"]
-        if changes["schedules.allow_disarm"] == current:
-            changes.pop("schedules.allow_disarm")
-        else:
-            from ..rbac import is_system_admin
-
-            if not is_system_admin(conn, principal.user_id):
-                audit(conn, actor=principal, action="schedules.allow_disarm", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-                      request_id=getattr(request.state, "correlation_id", None), details={"to": changes["schedules.allow_disarm"]})
-                raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לשנות את נטרול האזעקה בתזמונים.")
-            if changes["schedules.allow_disarm"] == "true" and (disarm_confirm or "").strip() != ALLOW_DISARM_WORD:
-                raise ApiError(422, "confirm_required", f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", details={"field": "schedules.allow_disarm_confirm"})
-            disarm_change = changes["schedules.allow_disarm"]
-    update_switch = None  # 2.4.4: the CR-021 self-update switch gets its own audit row when it actually changes
-    if "update.apply_enabled" in changes:
-        current_switch = get_setting(conn, "update.apply_enabled", DEFAULTS["update.apply_enabled"]) or DEFAULTS["update.apply_enabled"]
-        if changes["update.apply_enabled"] != ("false" if current_switch == "false" else "true"):
-            update_switch = changes["update.apply_enabled"]
-    local_switch = None  # USR2: the Arx-only identity switch - a system administrator only, its own audit row, off ends every local session
-    if "security.local_identity" in changes:
-        current_local = "on" if (get_setting(conn, "security.local_identity", "off") or "off") == "on" else "off"
-        if changes["security.local_identity"] == current_local:
-            changes.pop("security.local_identity")
-        else:
-            from ..rbac import is_system_admin
-
-            if not is_system_admin(conn, principal.user_id):
-                audit(conn, actor=principal, action="identity.local.feature", decision="denied", resource_type="installation", resource_id="local_identity",
-                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity"]})
-                raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את משתמשי Arx.")
-            local_switch = changes["security.local_identity"]
-    if "security.local_identity_extended" in changes:
-        # SVCIDENT2: the extended mode of the service identity widens what every Arx-only user may do in Home Assistant - like the switch
-        # itself, a system administrator only; turning it ON, like the sign-in shaping keys, from the local channel only; audited
-        # `identity.service_identity.*`. SVCIDENT-AMEND273 (owner decision 5, 2026-10-18; go-live pack R7): turning it OFF is a kill
-        # switch and works from the remote channel too (a system administrator, no second factor by the same decision) - never ON.
-        from ..remote_channel import is_remote
-        from ..services import service_identity as service_identity_svc
-
-        current_ext = "on" if (get_setting(conn, "security.local_identity_extended", "off") or "off") == "on" else "off"
-        if changes["security.local_identity_extended"] == current_ext:
-            changes.pop("security.local_identity_extended")
-        else:
-            from ..rbac import is_system_admin
-
-            if changes["security.local_identity_extended"] == "on":  # the ON direction: local channel only (the OFF direction: any channel)
-                _local_only_identity_key(conn, request, principal, "security.local_identity_extended")
-            if not is_system_admin(conn, principal.user_id):
-                audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
-                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity_extended"]})
-                raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את המצב המורחב של משתמשי Arx.")
-            if changes["security.local_identity_extended"] == "on" and not service_identity_svc.extended_go_live_permitted():
-                # integ/270 (2.7.0 security review S7): the go-live guard - after the authority checks, this build refuses to turn the
-                # extended mode on (turning it off always works); the stored value stays as it is; one audit row
-                audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
-                      reason="extended_not_permitted", request_id=getattr(request.state, "correlation_id", None), details={"to": "on"})
-                raise ApiError(409, "extended_not_permitted", "המצב המורחב של משתמשי Arx אינו זמין בגרסה הזו: הוא יופעל רק אחרי השלמת תיקוני האבטחה הנדרשים.")
-            audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="allowed", resource_type="installation", resource_id="service_identity",
-                  request_id=getattr(request.state, "correlation_id", None),
-                  details={"from": current_ext, "to": changes["security.local_identity_extended"], "channel": "remote" if is_remote(request) else "local"})
-    if "security.local_public_url" in changes:
-        # USR2 phase 2: where a link sent by WhatsApp points. Whoever sets it decides where reset tokens go, so - like the switch - only a
-        # system administrator changes it (system.configure alone could aim every reset link at a host of its choice); https + a DNS
-        # name only, no path / query / IP literal; "" clears it.
-        from ..rbac import is_system_admin
-        from ..services import local_reset
-
-        raw = changes["security.local_public_url"].strip()
-        value = local_reset.normalize_public_url(raw) if raw else ""
-        if value is None:
-            raise ApiError(422, "validation", "כתובת הגישה מרחוק: https://שם-מארח בלבד (בלי נתיב, בלי כתובת IP).", details={"field": "security.local_public_url"})
-        if value != (get_setting(conn, "security.local_public_url", "") or ""):
-            _local_only_identity_key(conn, request, principal, "security.local_public_url")
-            if not is_system_admin(conn, principal.user_id):
-                audit(conn, actor=principal, action="identity.local.public_url", decision="denied", resource_type="installation", resource_id="local_identity",
-                      reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None))
-                raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את כתובת הקישורים של משתמשי Arx.")
-            audit(conn, actor=principal, action="identity.local.public_url", decision="allowed", resource_type="installation", resource_id="local_identity",
-                  request_id=getattr(request.state, "correlation_id", None), details={"to": value or None})
-        changes["security.local_public_url"] = value
-    for key in ("security.local_passkey_first", "security.local_passkey_android"):
-        # USR2 phase 4: passwordless sign-in, and which app may use this site's passkeys - each shapes who can sign in, so (like the switch)
-        # only a system administrator changes them; audited; never restored from a backup (services/backup.SETTINGS_KEEP)
-        if key not in changes:
-            continue
-        from ..rbac import is_system_admin
-        from ..services import local_passkeys
-
-        value = changes[key].strip() if isinstance(changes[key], str) else changes[key]
-        if key == "security.local_passkey_android":
-            targets = local_passkeys.android_targets(value)
-            if targets is None:
-                raise ApiError(422, "validation", "אפליקציית אנדרואיד: שורות בצורה package.name:AA:BB:...(טביעת SHA-256).", details={"field": key})
-            value = "\n".join(f"{p}:{f}" for p, f in targets)
-        if value == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
-            changes.pop(key)
-            continue
-        _local_only_identity_key(conn, request, principal, key)
-        if not is_system_admin(conn, principal.user_id):
-            audit(conn, actor=principal, action="identity.local.passkey_setting", decision="denied", resource_type="installation", resource_id="local_identity",
-                  reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key})
-            raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את הגדרות מפתחות הגישה של משתמשי Arx.")
-        audit(conn, actor=principal, action="identity.local.passkey_setting", decision="allowed", resource_type="installation", resource_id="local_identity",
-              request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": value if key == "security.local_passkey_first" else ("set" if value else "cleared")})
-        changes[key] = value
-    purge_confirm = changes.pop("privacy.local_purge_confirm", None)
-    for key in ("privacy.local_purge", "privacy.local_purge_days"):
-        # REL2140 review M-1: the IDENT146 purge deletes personal rows for good. Like the Arx-only identity switch and the alarm-disarm
-        # restriction, only a system administrator changes it (system.configure alone is not enough), and turning it ON or changing the
-        # period only from the local channel, with the typed confirmation for ON; turning it OFF (the stop direction) works on any channel.
-        # The whole PATCH fails on a refusal (no partial write); every actual change is audited on its own row.
-        if key not in changes:
-            continue
-        from ..rbac import is_system_admin
-        from ..remote_channel import is_remote
-        from ..services import local_privacy
-
-        new = str(changes[key])
-        old = str(get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key])
-        if key == "privacy.local_purge_days":
-            old = str(local_privacy.purge_days(conn))
-        if new == old:
-            changes.pop(key)
-            continue
-        if not (key == "privacy.local_purge" and new == "off"):
-            _local_only_identity_key(conn, request, principal, key)
-        if not is_system_admin(conn, principal.user_id):
-            audit(conn, actor=principal, action="privacy.local_purge.setting", decision="denied", resource_type="installation", resource_id="local_privacy",
-                  reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": new})
-            raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את המחיקה האוטומטית של משתמשי Arx.")
-        if key == "privacy.local_purge" and new == "on" and (purge_confirm or "").strip() != LOCAL_PURGE_WORD:
-            due = len(local_privacy.purge_due(conn))
-            raise ApiError(422, "confirm_required", f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".",
-                           details={"field": "privacy.local_purge_confirm", "due_now": due})
-        audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
-              request_id=getattr(request.state, "correlation_id", None),
-              details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local"})
-    tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
-    if "tickets.enabled" in changes:
-        current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]
-        if changes["tickets.enabled"] != ("true" if current_tickets == "true" else "false"):
-            tickets_switch = changes["tickets.enabled"]
-    maintenance_switch = None  # CR-MAINT215: the module switch gets its own audit row when it actually changes
-    if "maintenance.enabled" in changes:
-        current_maint = get_setting(conn, "maintenance.enabled", DEFAULTS["maintenance.enabled"]) or DEFAULTS["maintenance.enabled"]
-        if changes["maintenance.enabled"] != ("true" if current_maint == "true" else "false"):
-            maintenance_switch = changes["maintenance.enabled"]
-    docread_switch = None  # SUPPLIERDOCS-297: the document-reading switch gets its own audit row when it actually changes
-    if "docread.enabled" in changes:
-        current_dr = get_setting(conn, "docread.enabled", DEFAULTS["docread.enabled"]) or DEFAULTS["docread.enabled"]
-        if changes["docread.enabled"] != ("true" if current_dr == "true" else "false"):
-            docread_switch = changes["docread.enabled"]
-    emergency_switch = None  # CR-EMERG104: the module switch gets its own audit row when it actually changes
-    if "emergency_readiness.enabled" in changes:
-        current_em = get_setting(conn, "emergency_readiness.enabled", DEFAULTS["emergency_readiness.enabled"]) or DEFAULTS["emergency_readiness.enabled"]
-        if changes["emergency_readiness.enabled"] != ("true" if current_em == "true" else "false"):
-            emergency_switch = changes["emergency_readiness.enabled"]
-    force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
-    forced = False
-    if changes.get("schedules.shabbat_sensor"):
-        row = conn.execute("SELECT entity_id, platform FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (changes["schedules.shabbat_sensor"],)).fetchone()
-        if not row:
-            raise ApiError(422, "validation", "חיישן השבת והחג לא נמצא.", details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
-        from ..services import home_screen
-
-        # the sensor's state is shown to schedule viewers and decides the presets: only a calendar sensor, unless an
-        # administrator says explicitly that this one is right (`schedules.shabbat_sensor_force`)
-        calendar_sensor = home_screen.is_jewish_calendar(dict(row)) or "issur_melacha" in row["entity_id"]
-        forced = force_sensor and not calendar_sensor
-        if not force_sensor and not calendar_sensor:
-            raise ApiError(422, "not_calendar_sensor", "זה לא נראה כחיישן של לוח השנה היהודי. לבחירה מפורשת שלחו schedules.shabbat_sensor_force.",
-                           details={"schedules.shabbat_sensor": changes["schedules.shabbat_sensor"]})
-    if changes.get("map.default_floor") and not conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (changes["map.default_floor"],)).fetchone():
-        raise ApiError(422, "validation", "קומת ברירת המחדל של המפה לא קיימת.", details={"map.default_floor": changes["map.default_floor"]})
-    if "home.title" in changes:
-        title = changes["home.title"].strip()
-        if any(ord(c) < 32 or ord(c) == 127 for c in title):
-            raise ApiError(422, "validation", "כותרת המסך: טקסט רגיל בלבד.", details={"home.title": "control_characters"})
-        changes["home.title"] = title
-    if "home.floor_order" in changes:
-        from ..services import home_screen
-
-        order = home_screen.normalise_floor_order(changes["home.floor_order"])
-        if order is None:
-            raise ApiError(422, "validation", "סדר הקומות: רשימה של מזהי קומות שונים זה מזה.", details={"home.floor_order": "invalid"})
-        changes["home.floor_order"] = json.dumps(order, ensure_ascii=False)
-    if "home.widgets" in changes:
-        # the whole widget configuration, validated in full; an empty object puts the setting back to "never saved" (the
-        # default with the catalogue's suggestions)
-        try:
-            cfg = home_config.normalise(changes["home.widgets"]) if changes["home.widgets"] else None
-        except ValueError as exc:
-            raise ApiError(422, "validation", "הגדרות הווידג׳טים: ערך לא תקין.", details={"home.widgets": str(exc)})
-        changes["home.widgets"] = cfg
-    if "time.zone" in changes:
-        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-        try:
-            ZoneInfo(changes["time.zone"])
-        except (ZoneInfoNotFoundError, ValueError):
-            raise ApiError(422, "validation", "אזור זמן לא מוכר.", details={"time.zone": changes["time.zone"]})
-    if changes.get("ai.provider") == "external":
-        # the adapter contract exists (privacy, model version, budget, opt-in) but no provider is bundled: refuse, never pretend
-        raise ApiError(422, "provider_not_available", "לא מצורף ספק ניתוח חיצוני; קיים רק חוזה המתאם (פרטיות, גרסת מודל, תקציב, opt-in).", details={"choices": ["none", "local"]})
-    for key, value in changes.items():
-        if key == "home.widgets":
-            set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
-            continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "ui.xs", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "home.screen", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
-    if "schedules.classes" in changes:
-        set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
-    if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
-        from ..services import schedules as schedules_svc
-
-        schedules_svc.MIRROR.feature_switched_on()
-    if changes.get("automations.enabled") == "true":  # CR-017: listen to the reload / run events and pull now
-        from ..services import automations as automations_svc
-
-        automations_svc.MIRROR.feature_switched_on()
-    if "remote.csp_enforce" in changes:  # CR-008 P2: the remote channel's next response already follows
-        from ..remote_channel import set_csp_enforce
-
-        set_csp_enforce(changes["remote.csp_enforce"] == "true")
-    if "access.station_media_provider" in changes:  # WISKEY-JOIN-LIVE-2382: WisKey's direct join follows the provider without a restart
-        from ..services import wiskey_join_live
-
-        wiskey_join_live.request_reevaluate("settings", actor=principal, request_id=getattr(request.state, "correlation_id", None))
-    if any(k in changes for k in ("access.station_media", "ui.hide_wiskey")):  # LAZYMIC-295: the microphone policy follows at once
-        from ..remote_channel import load_mic_mode_from
-
-        load_mic_mode_from(conn)
-    if any(k.startswith("security.local_") for k in changes):
-        from ..services import local_identity
-
-        local_identity.flag_changed()  # the hot path reads the switch again at once
-    if local_switch is not None:
-        from ..services import local_identity
-
-        ended = local_identity.revoke_all(conn, "feature_off") if local_switch == "off" else 0
-        if local_switch == "off":  # USR2-P2B: every live self-service reset code ends with the switch (migration 0097's trigger does it too)
-            conn.execute("DELETE FROM auth_local_reset_codes")
-        audit(conn, actor=principal, action="identity.local.feature_enabled" if local_switch == "on" else "identity.local.feature_disabled", decision="allowed",
-              resource_type="installation", resource_id="local_identity", request_id=getattr(request.state, "correlation_id", None),
-              details={"sessions_ended": ended} if ended else None)
-        if ended:
-            local_identity.close_sockets_from_thread()
-    if disarm_change is not None:
-        audit(conn, actor=principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
-              request_id=getattr(request.state, "correlation_id", None), details={"to": disarm_change})
-    if update_switch is not None:
-        audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
-              request_id=getattr(request.state, "correlation_id", None), details={"to": update_switch == "true"})
-    if tickets_switch is not None:
-        audit(conn, actor=principal, action="tickets.module.enable" if tickets_switch == "true" else "tickets.module.disable", decision="allowed",
-              resource_type="installation", resource_id="tickets", request_id=getattr(request.state, "correlation_id", None))
-        from ..services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the handler page follows at once (W3, W12)
-
-        tickets_public.module_switched(tickets_switch == "true")
-    if emergency_switch is not None:
-        audit(conn, actor=principal, action="emergency_readiness.module.enable" if emergency_switch == "true" else "emergency_readiness.module.disable", decision="allowed",
-              resource_type="installation", resource_id="emergency_readiness", request_id=getattr(request.state, "correlation_id", None))
-    if maintenance_switch is not None:
-        audit(conn, actor=principal, action="maintenance.module.enable" if maintenance_switch == "true" else "maintenance.module.disable", decision="allowed",
-              resource_type="installation", resource_id="maintenance", request_id=getattr(request.state, "correlation_id", None))
-    if docread_switch is not None:
-        audit(conn, actor=principal, action="docread.enable" if docread_switch == "true" else "docread.disable", decision="allowed",
-              resource_type="installation", resource_id="docread", request_id=getattr(request.state, "correlation_id", None))
-    audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
+    patch = settings_patch.Patch(conn, request, principal, {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None})
+    settings_patch.apply(patch)  # every check in its order, then the store, the followers and the audit rows (routers/settings_patch)
     return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}

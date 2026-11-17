@@ -546,4 +546,3 @@ import{q as i,i as N,L as Z,az as jt,au as wt,ch as Ut,av as Vt,n as m,r as p,a 
     @media (max-width: 767px) { :host { padding: 12px 14px 12px; gap: 12px; } }
     @media print { :host { overflow: visible; block-size: auto; } .body > * { overflow: visible; } }
   `,ye];dt([m({attribute:!1})],X.prototype,"route",2);dt([p()],X.prototype,"access",2);dt([p()],X.prototype,"emergency",2);X=dt([O("tickets-maintenance")],X);export{X as TicketsMaintenance};
-//# sourceMappingURL=tickets-maintenance-CG4AEY5N.js.map

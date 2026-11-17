@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import copy
 import json
-import time
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -34,6 +33,7 @@ from smplwise.db import Database
 from smplwise.services import intercom_authority as ia
 from smplwise.services import intercom_sync, wiskey_channels
 from smplwise.services import wiskey_station_ops as ops
+from support.waiting import wait_for
 
 API = "/api/v1/access-control/stations"
 AUTH_ROWS = [
@@ -83,15 +83,6 @@ class OpsFake(FakeWiskey):
 
 def env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:
     return {"client_request_id": uuid.uuid4().hex, "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%SZ"), **fields}
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 @pytest.fixture()
@@ -320,7 +311,8 @@ def test_the_per_operator_window_and_the_inflight_cap(wx, monkeypatch):
     third = run(c, "entry-a", "clock_refresh")
     assert third.status_code == 429 and third.json()["code"] == "station_ops_rate_limited"
     ops.LIMITS.reset()
-    ops.LIMITS._inflight = ops.MAX_INFLIGHT
+    for n in range(ops.MAX_INFLIGHT):  # other operators' commands hold every slot
+        assert ops.LIMITS.admit(f"other-{n}", f"entry-x{n}", "sync") is None
     busy = run(c, "entry-a", "sync")
     assert busy.status_code == 429 and busy.json()["code"] == "station_ops_busy"
     ops.LIMITS.reset()

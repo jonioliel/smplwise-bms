@@ -39,4 +39,3 @@ import"./settings-retention-DQjGw1P8.js";import{nF as f,nG as g,a as u,S as y,nH
       }
     }
   `,E];h([I({attribute:!1})],c.prototype,"route",2);h([O()],c.prototype,"access",2);c=h([T("infra-electricity")],c);export{d as ELECTRICITY_PAGES,c as InfraElectricity,M as pageOf};
-//# sourceMappingURL=infra-electricity-8HBJDRor.js.map

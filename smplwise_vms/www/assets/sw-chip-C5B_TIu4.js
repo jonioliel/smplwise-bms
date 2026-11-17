@@ -113,4 +113,3 @@ import{i as d,n as o,a as u,q as a,x as w}from"./index-C5kZ9jiu.js";var v=Object
       background: var(--sw-surface);
     }
   `;s([o({type:Boolean,reflect:!0})],e.prototype,"selected",2);s([o()],e.prototype,"icon",2);s([o({type:Number})],e.prototype,"count",2);s([o()],e.prototype,"dot",2);s([o({type:Boolean,reflect:!0})],e.prototype,"disabled",2);e=s([w("sw-chip")],e);
-//# sourceMappingURL=sw-chip-C5B_TIu4.js.map

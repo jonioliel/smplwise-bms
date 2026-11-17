@@ -493,6 +493,16 @@ MAC_PINNED_ARX = {
     "smplwise_vms/backend/smplwise/services/wiskey_capture_direct.py": "7b6a62ae0fb5bb0f8c56126a6263d7355aae07496c816c23df2649683e316fd1",
 }
 # W005_CAPTURE_REFUSALS.json `closed_native_tables.refused` (WisKey CAPTURE_ANSWER_CODES.json sha256 624383ca...), verbatim
+# A later revision of a pinned file is accepted only as a REVIEWED successor (the rule of test_capmap_295.REVIEWED_SUCCESSORS, same
+# shape): (file, the hash Mac mapped against, the new hash, why what Mac mapped is unchanged). Any further edit fails again.
+MAC_REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
+    ("custom_components/smplwise_bridge/lease_contract.py",
+     "16b2e9eb91c46f7d9833525ab182df495d70cb84ba532ecede333712118d9a01",
+     "66849119e4e2283639a96cc03832df1d53c91a384ddd224509c592fdab7b4514",
+     "CR-BRIDGE-COMMON-2440, reviewed in CR-W3-BE-COMBINED-2441: _canonical is the bridge's one _common.canonical (same one-line "
+     "json.dumps body) instead of a local copy, plus its import line; the schema tables, the refusal codes and validate() - what "
+     "W005_CAPTURE_MAP maps - are unchanged."),
+)
 MAC_REFUSED = {
     "capture_start": ["capture_station_busy", "capture_limit", "revision_conflict", "lease_gone", "binding_denied", "capture_unsupported",
                       "capture_reader_invalid", "capture_failed"],
@@ -528,8 +538,11 @@ def _with_params(text: str, mutate: Any) -> str:
 
 
 def test_w005_the_arx_receiver_chain_is_the_one_mac_mapped_against():
+    successors = {(rel, old): new for rel, old, new, why in MAC_REVIEWED_SUCCESSORS if why.strip()}
     for rel, want in MAC_PINNED_ARX.items():
-        assert hashlib.sha256((REPO / rel).read_bytes()).hexdigest() == want, rel
+        while (rel, want) in successors:
+            want = successors[(rel, want)]
+        assert hashlib.sha256((REPO / rel).read_bytes()).hexdigest() == want, f"{rel} (review a change into MAC_REVIEWED_SUCCESSORS)"
 
 
 def test_w005_seven_actions_two_commands_and_the_closed_params_keys_agree_with_arxs_own_messages():

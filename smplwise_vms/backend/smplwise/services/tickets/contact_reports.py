@@ -183,8 +183,8 @@ def render(conn: sqlite3.Connection, row: Any, recipient: Recipient, now: dt.dat
     lang = recipient.lang if recipient.lang in LANGS else DEFAULT_LANG
     try:
         body = provider.body(conn, row, lang)
-    except Exception:  # noqa: BLE001 - a provider failure is the module's; the message provably did not leave
-        log.warning("report provider failed module=%s", row.source_module)
+    except Exception as exc:  # noqa: BLE001 - a provider failure is the module's; the message provably did not leave
+        log.warning("report provider failed module=%s (%s)", row.source_module, type(exc).__name__)
         return None, "report_unavailable"
     if body is None:
         return None, "report_unavailable"
@@ -202,7 +202,8 @@ def render(conn: sqlite3.Connection, row: Any, recipient: Recipient, now: dt.dat
             return None, "document_not_live"
         try:
             link = out_documents.url(conn, doc)
-        except Exception:  # noqa: BLE001 - no public address / the key is gone: the link would open nothing
+        except Exception as exc:  # noqa: BLE001 - no public address / the key is gone: the link would open nothing
+            log.warning("report document link not built module=%s (%s)", row.source_module, type(exc).__name__)  # CR-TK-EXCEPT-LOG (01:F-11)
             return None, "document_not_live"
         parts.append(DOC_LINE[lang].format(until=_until(conn, doc["expires_at"]), link=link))
     message = "\n".join(parts)
@@ -220,8 +221,8 @@ def on_outcome(conn: sqlite3.Connection, row: Any) -> None:
         return
     try:
         provider.outcome(conn, row)
-    except Exception:  # noqa: BLE001 - the outbox's own state is already final; the module's mirror must not undo it
-        log.warning("report outcome hook failed module=%s", row.source_module)
+    except Exception as exc:  # noqa: BLE001 - the outbox's own state is already final; the module's mirror must not undo it
+        log.warning("report outcome hook failed module=%s (%s)", row.source_module, type(exc).__name__)
 
 
 def still_relevant(conn: sqlite3.Connection, row: Any) -> bool:
@@ -230,7 +231,8 @@ def still_relevant(conn: sqlite3.Connection, row: Any) -> bool:
         return False
     try:
         return bool(provider.still_relevant(conn, row))
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a provider that cannot answer: the report is not sent (CR-TK-EXCEPT-LOG (01:F-11): now logged)
+        log.warning("report relevance check failed module=%s (%s)", row.source_module, type(exc).__name__)
         return False
 
 

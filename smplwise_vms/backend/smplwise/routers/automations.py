@@ -29,6 +29,7 @@ from ..services import automation_view as view
 from ..services import automations as store
 from ..services import ha_compat
 from ..services import service_identity
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 
@@ -139,15 +140,6 @@ class MetaBody(_Body):
 
 # ---------------------------------------------------------------- plumbing
 
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
-
-
 def _parse(request: Request, raw: bytes, body_model: type[BaseModel]) -> Any:
     if not _is_json(request.headers.get("content-type")):
         raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
@@ -162,10 +154,6 @@ def _parse(request: Request, raw: bytes, body_model: type[BaseModel]) -> Any:
     except ValidationError as exc:
         fields = sorted({".".join(str(p) for p in err["loc"]) or "body" for err in exc.errors()})
         raise ApiError(422, "validation", "הבקשה אינה תקינה: " + ", ".join(fields), details={"fields": fields}) from None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _bind(request: Request) -> None:
@@ -306,7 +294,7 @@ def catalog(request: Request, principal: Principal = Depends(current_principal),
 
 
 @router.get("/automations/templates")
-def templates(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def templates(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 5 - the gallery (manage)."""
     _bind(request)
     _require_any(conn, principal, (scope.MANAGE,))
@@ -314,7 +302,7 @@ def templates(request: Request, principal: Principal = Depends(current_principal
 
 
 @router.get("/automations/trash")
-def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 20 - the trash the caller may see (30 days, setting `automations.trash_days`)."""
     return ops.trash_list(_writer(request, conn, principal))
 
@@ -522,7 +510,7 @@ def get_run(kind: str, item_id: str, run_id: str, request: Request, principal: P
 
 
 @router.get("/automations/{kind}/{item_id}/versions")
-def list_versions(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_versions(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 19 - the history (last `automations.versions_keep`)."""
     return ops.versions_list(_writer(request, conn, principal), _kind(kind), item_id)
 

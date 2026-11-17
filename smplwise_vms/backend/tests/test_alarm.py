@@ -745,8 +745,9 @@ def test_a_failure_inside_send_never_leaves_the_typed_slot_stuck(alarm_app, monk
         raise _sqlite3.OperationalError("database is locked")
 
     monkeypatch.setattr(alarm_router.ha_actions, "action_row", broken)
-    with pytest.raises(_sqlite3.OperationalError):
-        _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    # CR-MAIN-RUNTIME-2438 (05:P1-07): a busy database answers the retryable error envelope (500 database_busy), no longer a raw raise
+    r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)
+    assert r.status_code == 500 and r.json()["code"] == "database_busy" and CODE not in r.text, r.text
     assert alarm_router._PASS_THROUGH == {}
     monkeypatch.setattr(alarm_router.ha_actions, "action_row", real)
     r = _act(c, "alarm_control_panel.risco_house", "disarm", confirmed=True, code=CODE)

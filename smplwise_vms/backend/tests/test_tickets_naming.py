@@ -21,7 +21,7 @@ from smplwise.services.tickets import naming
 API = "/api/v1"
 BACKEND = Path(__file__).resolve().parents[1] / "smplwise"
 DEFAULT_WORDS = re.compile(r"קריא(ה|ות|ת|תך|ותיך|ות)|בקש(ת|ות) ה?שירות|ניהול השירות|\bTickets?\b")
-TICKETS_SOURCES = sorted((BACKEND / "services" / "tickets").glob("*.py")) + [BACKEND / "routers" / "tickets.py", BACKEND / "routers" / "tickets_admin.py"]
+TICKETS_SOURCES = sorted((BACKEND / "services" / "tickets").glob("*.py")) + [BACKEND / "routers" / "tickets.py", *sorted((BACKEND / "routers").glob("tickets_admin*.py"))]
 NAME = {"one": "תקלה", "many": "תקלות", "gender": "f"}
 NAME_STORED = {**NAME, "module": "תקלות"}  # no module sent: the module's name is the plural (owner rename 2026-10-14)
 MASCULINE = {"one": "דיווח", "many": "דיווחים", "gender": "m"}
@@ -225,7 +225,7 @@ def test_the_rename_lint_catches_a_planted_line():
 ARTICLE_BEFORE_TOKEN = re.compile(r"(?<![א-ת])ה\{tickets?\}")
 
 
-@pytest.mark.parametrize("path", _module_sources() + [BACKEND / "routers" / "access.py", BACKEND / "roles.json"], ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _module_sources() + [BACKEND / "services" / "rbac_admin.py", BACKEND / "roles.json"], ids=lambda p: p.name)
 def test_no_text_puts_the_article_in_front_of_a_name_token(path):
     """'ה' + {ticket} renders 'הבקשת שירות' with a two-word name: the article tokens {the_ticket} / {the_tickets} are the only way."""
     hits = [f"{i}: {ln.strip()[:100]}" for i, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1) if ARTICLE_BEFORE_TOKEN.search(ln)]

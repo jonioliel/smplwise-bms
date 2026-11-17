@@ -63,4 +63,3 @@ import{jm as b,i as f,n as y,r as h,a as $,jn as w,K as p,jo as S,ch as z,jl as 
       color: var(--sw-text-3);
     }
   `];c([y()],n.prototype,"list",2);c([h()],n.prototype,"sizes",2);c([h()],n.prototype,"view",2);c([h()],n.prototype,"canEdit",2);c([h()],n.prototype,"busy",2);c([h()],n.prototype,"note",2);c([h()],n.prototype,"error",2);n=c([j("sw-list-display-settings")],n);
-//# sourceMappingURL=sw-list-display-settings-CNpX0HGe.js.map

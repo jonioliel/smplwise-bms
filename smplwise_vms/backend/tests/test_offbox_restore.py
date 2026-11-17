@@ -7,6 +7,7 @@ line), the two-step confirmation, the pre-restore safety archive, and every refu
 foreign file, wrong expected hash, schema newer than the installation, full disk, expired or changed stage, non-administrators."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import shutil
@@ -18,7 +19,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from conftest import as_user, bind, seed_tree
+from conftest import as_user, bind, datetime_shim, seed_tree
 from fastapi.testclient import TestClient
 from test_offbox_s3 import AK, SK, FakeS3Service
 
@@ -139,9 +140,11 @@ def test_restore_into_an_existing_installation_brings_back_the_project_and_keeps
     assert m["kind"] == "auto-pre-restore" and m["tables"]["floors"] == 3, "the safety archive holds the state BEFORE the restore"
 
 
-def test_a_retried_restore_with_a_wrong_password_keeps_the_stage_and_leaves_no_extra_safety_archive(world):
+def test_a_retried_restore_with_a_wrong_password_keeps_the_stage_and_leaves_no_extra_safety_archive(world, monkeypatch):
     w = world
-    time.sleep(1.1)  # object names carry the second: the sealed copy gets a name of its own
+    # the sealed copy gets a name of its own: object names carry the second, so the backup clock is moved two seconds ahead of the
+    # one the fixture's backup was named with, instead of sleeping past it (05:P2-18)
+    monkeypatch.setattr(backup_svc, "dt", datetime_shim(lambda: dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=2)))
     r = w.c.post("/api/v1/backups", json={"note": "sealed", "backup_password": "correct horse battery staple"})
     assert r.status_code == 201, r.text
     assert offbox_runtime.run_push(w.db, w.settings, w.tid, trigger="manual", archive=backup_svc.backups_dir(w.settings) / r.json()["name"])["ok"]

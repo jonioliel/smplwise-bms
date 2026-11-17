@@ -5,8 +5,9 @@ Verifies what a release must get right before the owner signs it: one version ev
 label, backend __version__, CHANGELOG head, API inventory), the bridge integration's two copies identical and
 their version consistent (manifest + const), a contiguous migration sequence, the built UI present in the add-on,
 the release package document and the known-limits sources present, the Supervisor build inputs (base image by tag,
-the HA python base per arch, pip/python steps on a python stage, arch lists, image labels), and whether a git tag already exists for the
-version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
+the HA python base per arch, pip/python steps on a python stage, arch lists, image labels), no debug source map in the shipped UI
+(CR-BUILD-GUARDS-2438, 07:F7), the design-debt ratchet (scripts/design_ratchet.py: no count above its baseline), and whether a git
+tag already exists for the version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
 owner's approval (it never creates the tag itself).
 
 Usage: python scripts/release_check.py [--root .] [--json out.json] [--tag]
@@ -333,6 +334,47 @@ def git_tags(root: Path) -> list[str]:
         return []
 
 
+def shipped_source_maps(addon: Path) -> list[str]:
+    """CR-BUILD-GUARDS-2438 (review 07:F7, owner Q-CODE-3 a): debug maps stay on the runner (npm run build:addon moves them to
+    ~/smplwise-results/sourcemaps/<version>/). Any `.map` in www / www-public, or a JS/CSS file still pointing at one, is a finding."""
+    bad: list[str] = []
+    for folder in ("www", "www-public"):
+        d = addon / folder
+        if not d.is_dir():
+            continue
+        for p in sorted(d.rglob("*")):
+            if not p.is_file():
+                continue
+            rel = p.relative_to(addon).as_posix()
+            if p.suffix == ".map":
+                bad.append(rel)
+            elif p.suffix in (".js", ".css"):
+                with p.open("rb") as fh:   # the comment is the file's last line: read the tail only
+                    fh.seek(max(0, p.stat().st_size - 512))
+                    if b"sourceMappingURL=" in fh.read():
+                        bad.append(rel + " (sourceMappingURL comment)")
+    return bad
+
+
+_RATCHET_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def design_ratchet(root: Path) -> dict[str, Any]:
+    """CR-BUILD-GUARDS-2438 (owner Q-CODE-4 a): scripts/design_ratchet.py of the checkout under test; blocking only when a count
+    went up. Cached per root (run_checks + main in one process scan once)."""
+    key = str(root.resolve())
+    if key not in _RATCHET_CACHE:
+        mod = root / "scripts" / "design_ratchet.py"
+        if not mod.exists():
+            mod = Path(__file__).resolve().parent / "design_ratchet.py"
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("design_ratchet", mod)
+        dr = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        spec.loader.exec_module(dr)  # type: ignore[union-attr]
+        _RATCHET_CACHE[key] = dr.check(root)
+    return _RATCHET_CACHE[key]
+
+
 def run_checks(root: Path) -> dict[str, Any]:
     addon = root / "smplwise_vms"
     checks: list[dict[str, Any]] = []
@@ -378,6 +420,12 @@ def run_checks(root: Path) -> dict[str, Any]:
     pub = addon / "www-public"
     pub_built = (pub / "index.html").exists() and any((pub / "assets").glob("public-ticket-*.js")) if (pub / "assets").exists() else False
     check("handler page bundle present in the add-on (www-public)", pub_built, str(pub))
+    maps = shipped_source_maps(addon)
+    check("no debug source map shipped in the add-on (www, www-public)", not maps,
+          "none" if not maps else f"{len(maps)}: " + ", ".join(maps[:4]) + (" ..." if len(maps) > 4 else "") + " (run npm run build:addon: it moves them out)")
+    dr = design_ratchet(root)
+    where = "; ".join(f"{m}: {it['file']} {it['base']}->{it['now']}" for m, items in dr.get("where", {}).items() for it in items[:5])
+    check("design-debt ratchet (no count above scripts/design_ratchet_baseline.json)", dr["ok"], dr["detail"] + (f" [{where}]" if where else ""))
 
     # the bundled release APK (owner decision 2026-10-06): optional; when staged it must be valid, and no APK or signing key may be tracked
     dl = addon / "downloads"

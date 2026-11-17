@@ -128,4 +128,3 @@ import{L as w,au as y,av as q,a$ as U,a as g,ak as $,u as t,q as a,p as d,_ as I
         </select>
       </div>
       ${this.error?a`<div class="err" role="alert" data-sf-policy-error>${this.error}</div>`:d}`}};p.styles=k;r([x()],p.prototype,"kind",2);r([x()],p.prototype,"subjectId",2);r([o()],p.prototype,"value",2);r([o()],p.prototype,"busy",2);r([o()],p.prototype,"error",2);p=r([F("sw-second-factor-policy")],p);export{h as SwSecondFactor,p as SwSecondFactorPolicy,l as SwSecondFactorUser,B as qrSvg};
-//# sourceMappingURL=sw-second-factor-DI-rW9NY.js.map

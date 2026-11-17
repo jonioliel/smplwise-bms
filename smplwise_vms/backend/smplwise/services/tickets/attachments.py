@@ -23,6 +23,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import safe_paths
+
 MAX_BYTES = 8 * 1024 * 1024
 MAX_PIXELS = 16_000_000
 LONG_SIDE = 2048
@@ -159,9 +161,8 @@ def path_of(data_dir: Path, rel_path: str) -> Path:
     """The file of a stored row, confined to the attachment directory (the `floor_images.confine` precedent). ValueError otherwise."""
     if not isinstance(rel_path, str) or not _REL.fullmatch(rel_path):
         raise ValueError("bad attachment path")
-    base = root(data_dir).resolve()
-    p = (base / rel_path).resolve()
-    if base not in p.parents:
+    p = safe_paths.inside(root(data_dir), root(data_dir) / rel_path)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if p is None:
         raise ValueError("attachment path outside its folder")
     return p
 

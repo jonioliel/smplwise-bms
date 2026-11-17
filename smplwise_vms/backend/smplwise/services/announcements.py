@@ -233,11 +233,11 @@ def _load_notify(raw: Any) -> dict[str, Any]:
 
 def quiet_active(conn: sqlite3.Connection, now: dt.datetime, cfg: dict[str, Any] | None = None) -> bool:
     """Whether the announcement quiet window is active at `now` (the notification centre's `in_quiet_hours`, in the installation zone)."""
-    from ..routers.settings import read_settings
+    from .settings_store import setting_value
     from . import notify_settings as ns
 
     q = (cfg or config(conn))["quiet"]
-    return bool(q["enabled"]) and ns.in_quiet_hours(q, now, read_settings(conn)["time.zone"])
+    return bool(q["enabled"]) and ns.in_quiet_hours(q, now, setting_value(conn, "time.zone"))
 
 
 def update_config(conn: sqlite3.Connection, body: dict[str, Any], actor: str | None = None, settings: Settings | None = None) -> list[str]:
@@ -713,10 +713,10 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
                 rec(keys, t, "refused", "queue_full", parts)
                 aud(keys, "refused", "queue_full", length, parts)
                 raise err(409, "queue_full")
-            from ..routers.settings import read_settings
+            from .settings_store import setting_value
             from . import notify_settings as ns
 
-            release = iso_utc(ns.morning_after(cfg["quiet"], now, read_settings(conn)["time.zone"]))
+            release = iso_utc(ns.morning_after(cfg["quiet"], now, setting_value(conn, "time.zone")))
             aid = rec(keys, t, "queued", None, parts, release)
             if shown:  # the intent is kept on the held row (never shown before it is released): the screens it will reach
                 conn.execute("UPDATE announcements SET screens_json = ? WHERE id = ?", (json.dumps(shown), aid))

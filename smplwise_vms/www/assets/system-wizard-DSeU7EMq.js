@@ -501,4 +501,3 @@ import{a as z,S as _,uY as S,uZ as T,K as c,u_ as x,u$ as R,ak as $,v0 as E,R as
       }
     }
   `,j];u([f()],p.prototype,"data",2);u([f()],p.prototype,"error",2);u([f()],p.prototype,"busy",2);u([f()],p.prototype,"notes",2);p=u([U("system-wizard")],p);export{p as SystemWizard,X as announceSetup};
-//# sourceMappingURL=system-wizard-DSeU7EMq.js.map

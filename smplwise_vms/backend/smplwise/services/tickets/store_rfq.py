@@ -28,13 +28,7 @@ AWARD_COLUMNS = ("id", "rfq_id", "rfq_vendor_id", "quote_id", "state", "line_ind
                  "second_at", "decline_reason", "created_at", "updated_at", "revision")
 
 
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
-
-
-def _insert(conn: sqlite3.Connection, table: str, row: Mapping[str, Any]) -> None:
-    cols = list(row)
-    conn.execute(f"INSERT INTO {table}({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", tuple(row[c] for c in cols))
+from ._sql import has_table as _has_table, insert as _insert, row_dict as _dict  # noqa: E402 - CR-TK-SQL: the shared helpers under their old names
 
 
 def _update(conn: sqlite3.Connection, table: str, allowed: Iterable[str], row_id: str, fields: Mapping[str, Any], *,
@@ -158,10 +152,6 @@ def insert_vendor(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
 
 def update_vendor(conn: sqlite3.Connection, rfq_vendor_id: str, fields: Mapping[str, Any], *, expect_revision: int | None = None) -> bool:
     return _update(conn, "ticket_rfq_vendors", VENDOR_COLUMNS, rfq_vendor_id, fields, expect_revision=expect_revision)
-
-
-def vendors_of_contact(conn: sqlite3.Connection, contact_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_vendors WHERE contact_id = ?", (contact_id,)).fetchall()]
 
 
 # ---------------------------------------------------------------- vendor links (the handler-link token model, 0089)
@@ -383,12 +373,6 @@ def quotes_of_vendor(conn: sqlite3.Connection, rfq_vendor_id: str) -> list[dict[
     return [dict(r) for r in conn.execute("SELECT * FROM ticket_quotes WHERE rfq_vendor_id = ? ORDER BY version, rowid", (rfq_vendor_id,)).fetchall()]
 
 
-def quotes_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute(
-        "SELECT q.* FROM ticket_quotes q JOIN ticket_rfq_vendors v ON v.id = q.rfq_vendor_id WHERE v.rfq_id = ? ORDER BY q.created_at, q.version, q.rowid",
-        (rfq_id,)).fetchall()]
-
-
 def rfq_quote_of_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
     """TKRFQ4: the awarded RFQ quote an order linked to this ticket (its cost baseline), or None for a ticket not opened from an RFQ."""
     return _dict(conn.execute("SELECT * FROM ticket_quotes WHERE ticket_id = ? AND rfq_vendor_id IS NOT NULL ORDER BY created_at, rowid LIMIT 1",
@@ -559,7 +543,7 @@ def update_demand(conn: sqlite3.Connection, demand_id: str, fields: Mapping[str,
 # ---------------------------------------------------------------- CR-AWARD-NOTICE: the vendor's postponement notices (migration 0115)
 
 def has_postponements(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_postponements'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_postponements")
 
 
 def insert_postponement(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
@@ -722,8 +706,14 @@ def place_of_floor(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any] | 
 
 
 def active_user_ids(conn: sqlite3.Connection) -> list[str]:
-    """Every active user (the second-approver search walks them; an installation has tens, not thousands)."""
-    return [r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall()]
+    """Every active user, sorted (the second-approver search walks them; an installation has tens, not thousands).
+    CR-RBAC-EVAL-2438 (code review 01:F-05, owner decision O16 a): the system-wide definition (services/active_users) - disabled on
+    either side (`users.active = 0` or `ha_users.is_active = 0`) is not active, and a person known only to the HA directory counts.
+    It used to read `users.active = 1` alone, so a person disabled only on the HA side still counted as an available second
+    approver and held an award in `pending_second`."""
+    from ..active_users import active_user_ids as _ids
+
+    return sorted(_ids(conn))
 
 
 # ---------------------------------------------------------------- the outbox rows of a request
@@ -750,10 +740,6 @@ def outbox_states(conn: sqlite3.Connection, rfq_id: str) -> dict[str, dict[str, 
                           "WHERE rfq_id = ? AND link_id IS NOT NULL ORDER BY created_at, id", (rfq_id,)).fetchall():
         out[r["link_id"]] = {"purpose": r["purpose"], "state": r["state"], "channel": r["channel"], "at": r["at"]}
     return out
-
-
-def outbox_count_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> int:
-    return int(conn.execute("SELECT COUNT(*) FROM ticket_outbox WHERE rfq_id = ?", (rfq_id,)).fetchone()[0])
 
 
 # ---------------------------------------------------------------- retention and full deletion
@@ -808,7 +794,7 @@ def purge_rfq(conn: sqlite3.Connection, rfq_id: str) -> dict[str, int]:
     run("ticket_rfq_awards", "DELETE FROM ticket_rfq_awards WHERE rfq_id = ?", (rfq_id,))
     run("ticket_rfq_events", "DELETE FROM ticket_rfq_events WHERE rfq_id = ?", (rfq_id,))
     # RFQPAY2: the instalment demands of the quotes deleted below (an ordered quote keeps its demands - they belong to its baseline)
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_instalment_demands'").fetchone():
+    if _has_table(conn, "ticket_rfq_instalment_demands"):
         run("ticket_rfq_instalment_demands", f"DELETE FROM ticket_rfq_instalment_demands WHERE quote_id IN (SELECT id FROM ticket_quotes "
             f"WHERE ticket_id IS NULL AND rfq_vendor_id IN {vendors})", (rfq_id,))
     run("ticket_quote_decisions", f"DELETE FROM ticket_quote_decisions WHERE quote_id IN (SELECT id FROM ticket_quotes WHERE "
@@ -866,7 +852,7 @@ ATTACHMENT_COLUMNS = ("id", "rfq_id", "folder", "kind", "name", "caption", "mime
 
 def has_attachments(conn: sqlite3.Connection) -> bool:
     """Whether 0102 is applied (a database migrated only part of the way - some tests - has no attachment tables)."""
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_attachments'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_attachments")
 
 
 def insert_attachment(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:
@@ -957,7 +943,7 @@ def drop_orphan_attachments(conn: sqlite3.Connection) -> int:
 
 def has_vendor_files(conn: sqlite3.Connection) -> bool:
     """Whether 0109 is applied (a database migrated only part of the way - some tests - has no vendor-file table)."""
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ticket_rfq_vendor_files'").fetchone() is not None
+    return _has_table(conn, "ticket_rfq_vendor_files")
 
 
 def insert_vendor_file(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:

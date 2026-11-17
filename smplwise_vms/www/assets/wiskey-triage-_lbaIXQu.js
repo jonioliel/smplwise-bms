@@ -5,4 +5,3 @@ import{a as g,K as w,q as o,V as b,U as d,i as f,n as m,x as h}from"./index-C5kZ
       display: block;
     }
   `;u([m({attribute:!1})],i.prototype,"route",2);i=u([h("wiskey-triage")],i);export{i as WiskeyTriage};
-//# sourceMappingURL=wiskey-triage-_lbaIXQu.js.map

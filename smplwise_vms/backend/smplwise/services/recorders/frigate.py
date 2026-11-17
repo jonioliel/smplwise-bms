@@ -487,9 +487,6 @@ class FrigateAdapter:
         data = self.http.get_json("/api/review/activity/motion", {"after": f"{after:.0f}", "before": f"{before:.0f}"})
         return [r for r in data if isinstance(r, dict)] if isinstance(data, list) else []
 
-    def review_summary(self) -> Any:
-        return self.http.get_json("/api/review/summary")
-
     # ------------------------------------------------------------------------------------------ pictures
 
     def _image(self, path: str, params: dict[str, Any] | None = None) -> tuple[bytes, str]:
@@ -510,10 +507,6 @@ class FrigateAdapter:
 
     def event_thumbnail(self, event_id: str) -> tuple[bytes, str]:
         return self._image(f"/api/events/{q(event_id)}/thumbnail.jpg")
-
-    def recording_snapshot(self, camera: str, ts: float) -> tuple[bytes, str]:
-        self._camera(camera)
-        return self._image(f"/api/{camera}/recordings/{ts:.0f}/snapshot.jpg")
 
     # ------------------------------------------------------------------------------------------ recordings and playback
 

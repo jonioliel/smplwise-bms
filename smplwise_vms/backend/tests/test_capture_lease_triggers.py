@@ -223,7 +223,7 @@ def test_t12_person_change_revokes_only_that_persons_lease(lease_world):
     dto = _last_revoke(w)
     assert dto.params["scope"] == "lease" and dto.params["lease_ref"] == a.lease_ref and dto.params["reason"] == "person_changed"
     assert w.row(b.lease_ref)["state"] == "active"
-    src = (BACKEND / "smplwise" / "routers" / "access_control.py").read_text(encoding="utf-8")
+    src = (BACKEND / "smplwise" / "routers" / "access_control_command.py").read_text(encoding="utf-8")
     assert src.count('capture_lease.on_authority_change("person_changed"') == 2, "people writes: success and unknown outcome"
 
 

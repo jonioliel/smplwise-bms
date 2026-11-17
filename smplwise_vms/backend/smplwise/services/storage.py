@@ -14,7 +14,8 @@ import logging
 
 from ..config import Settings
 from ..db import unlocked
-from ..routers.settings import read_settings
+from ..test_reset import register_reset
+from .settings_store import setting_value
 from . import nvr, recordings
 from .timeutil import iso_utc, nvr_wall_to_utc, utc_to_nvr_wall, zone
 
@@ -80,7 +81,7 @@ def report(settings: Settings, conn: sqlite3.Connection, fresh: bool = False, no
             hit = _cache.get(key)
         if hit and time.time() - hit[0] < CACHE_S:
             return {**hit[1], "cached": True}
-    tz_name = read_settings(conn)["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     cams = [dict(r) for r in conn.execute("SELECT * FROM cameras WHERE recorder_id = ? ORDER BY sort_order, channel", (rid,)).fetchall()]
     rs = settings_for(settings, rid)
     with unlocked(conn):
@@ -132,6 +133,9 @@ def warm(db: Any, settings: Settings, force: bool = False) -> bool:
 def invalidate() -> None:
     with _lock:
         _cache.clear()
+
+
+register_reset(__name__, ("_cache",), invalidate)
 
 
 def build(settings: Settings, tz_name: str, cams: list[dict[str, Any]], now: dt.datetime) -> dict[str, Any]:

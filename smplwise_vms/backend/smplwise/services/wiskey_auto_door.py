@@ -19,8 +19,8 @@ incomplete policy, a pre-flight refusal), `refused` for a closed host refusal, `
 `acknowledged`, `unknown` for everything else (no answer, a running operation at the deadline, an off-contract receipt). One request id is
 admitted once (`wiskey_feature_intents`): never retried, never replayed.
 
-Nothing here turns the feature on: `door_automation.GO_LIVE_PERMITTED` stays False, so `_switch_reason` refuses (`feature_off`) before
-any sender is called in this build. Tests reach this sender with the permit patched on and a fake direct port only."""
+Nothing here turns the feature on: `_switch_reason` refuses (`feature_off`) before any sender is called while the administrator
+switch `doors.automation_open` is off (the default) or `door_automation.GO_LIVE_PERMITTED` (True; the owner's kill switch, O9 a) is False. Tests reach this sender with the permit patched on and a fake direct port only."""
 from __future__ import annotations
 
 import hashlib
@@ -65,7 +65,9 @@ def _principal(conn: Any, user_id: Any) -> Principal | None:
     if not isinstance(user_id, str) or not user_id:
         return None
     row = conn.execute("SELECT id, username, display_name, source, active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if row is None or not row["active"]:
+    from .active_users import has_active_account
+
+    if row is None or not has_active_account(conn, user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
         return None
     return Principal(user_id=row["id"], username=row["username"] or "", display_name=row["display_name"] or "", source=row["source"] or "")
 

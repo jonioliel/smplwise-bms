@@ -43,6 +43,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from ._common import entity_policy_refusal
 from .config_policy import has_template
 from .config_service import PLATFORM, entity_of, ha_deps
 from .config_store import StoreError
@@ -360,22 +361,12 @@ def analyse(kind: str, config: Any, level: int = 0) -> Facts:
 def policy_refusal(user: Any, policy_control: Any, entity_ids: Iterable[str], refused: str = POLICY_REFUSED) -> str | None:
     """The service user's own Home Assistant entity policy (`check_entity(entity_id, POLICY_CONTROL)`) for every entity - S2. Never skipped for
     an administrator: the service user is never one (service_identity.user_refusal), and an administrator here would be a fault - closed."""
-    if getattr(user, "is_admin", True):
-        return POLICY_UNAVAILABLE
-    check = getattr(getattr(user, "permissions", None), "check_entity", None)
-    if not callable(check) or policy_control is None:
-        return POLICY_UNAVAILABLE
-    for entity_id in entity_ids:
-        try:
-            allowed = check(entity_id, policy_control)
-        except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: closed
-            return POLICY_UNAVAILABLE
-        if allowed is not True:
-            return refused
-    return None
+    return entity_policy_refusal(user, policy_control, entity_ids, strict=True, unavailable=POLICY_UNAVAILABLE, refused=refused)
 
 
-async def _load_item(hass: Any, deps: Any, entity_id: str) -> tuple[str, Any]:
+async def _load_item(hass: Any, deps: Any, entity_id: str, cache: dict[str, Any] | None = None) -> tuple[str, Any]:
+    """The item's kind and stored config. `cache` (CR-BRIDGE-GAPS-2436, review 05 P3-07): one judgement - an item, the items it calls and
+    every target of one `execute` - builds the config store once and shares it, instead of once per item."""
     kind = entity_id.split(".", 1)[0]
     if kind not in NESTED_KINDS or not ENTITY_RE.fullmatch(entity_id):
         raise Impact("impact_unknown_item")
@@ -385,7 +376,11 @@ async def _load_item(hass: Any, deps: Any, entity_id: str) -> tuple[str, Any]:
     item_id = str(getattr(entry, "unique_id", "") or "")
     if not item_id:
         raise Impact("impact_unknown_item")
-    store = deps.store(hass)
+    store = cache.get("store") if cache is not None else None
+    if store is None:
+        store = deps.store(hass)
+        if cache is not None:
+            cache["store"] = store
     try:
         config = await deps.run_io(hass, lambda: store.get(kind, item_id))
     except StoreError:
@@ -419,12 +414,14 @@ def cover_refusal(hass: Any, deps: Any, covers: Iterable[str]) -> str | None:
     return None
 
 
-async def impact_refusal(hass: Any, deps: Any, user: Any, entity_id: str, level: int = 0, runnable: frozenset[str] | None = None) -> str | None:
+async def impact_refusal(hass: Any, deps: Any, user: Any, entity_id: str, level: int = 0, runnable: frozenset[str] | None = None,
+                         cache: dict[str, Any] | None = None) -> str | None:
     """S1 (b): None when the item - and every item it calls, one level - reaches no NEVER-LOCAL target and only allowed services on literal
     entities the service user may control; else the impact code. `runnable` (owner 2026-10-18): a nested item must be on the allowlist too
     (None = an empty list: every nested call refused)."""
+    cache = {} if cache is None else cache
     try:
-        kind, config = await _load_item(hass, deps, entity_id)
+        kind, config = await _load_item(hass, deps, entity_id, cache)
         facts = analyse(kind, config, level)
     except Impact as exc:
         return exc.code
@@ -434,7 +431,7 @@ async def impact_refusal(hass: Any, deps: Any, user: Any, entity_id: str, level:
     for nested in facts.nested:
         if nested not in (runnable or frozenset()):
             return "impact_nested_not_runnable"
-        why = await impact_refusal(hass, deps, user, nested, level + 1, runnable)
+        why = await impact_refusal(hass, deps, user, nested, level + 1, runnable, cache)
         if why:
             return why
     why = cover_refusal(hass, deps, facts.covers)
@@ -465,10 +462,11 @@ async def execute_refusal(hass: Any, user: Any, domain: str, service: str, data:
     if why:
         return why
     if (domain, service) in (("script", "turn_on"), ("scene", "turn_on")):
+        cache: dict[str, Any] = {}
         for entity_id in targets:
             if entity_id.split(".", 1)[0] != domain or entity_id not in runnable:
                 return NOT_RUNNABLE
-            why = await impact_refusal(hass, deps, user, entity_id, runnable=runnable)
+            why = await impact_refusal(hass, deps, user, entity_id, runnable=runnable, cache=cache)
             if why:
                 return why
     return None

@@ -1155,4 +1155,3 @@ import{i as I,n as m,r as c,a as j,ak as w,a0 as s,p as d,q as n,x as H,K as Y,a
       }
     }
   `,it];k([m({type:Boolean})],b.prototype,"embedded",2);k([c()],b.prototype,"seg",2);k([c()],b.prototype,"readiness",2);k([c()],b.prototype,"meta",2);k([c()],b.prototype,"dept",2);k([c()],b.prototype,"q",2);k([c()],b.prototype,"counts",2);k([c()],b.prototype,"loads",2);k([c()],b.prototype,"period",2);k([c()],b.prototype,"installDefault",2);k([c()],b.prototype,"handled",2);k([c()],b.prototype,"adding",2);k([c()],b.prototype,"ok",2);k([c()],b.prototype,"error",2);k([c()],b.prototype,"filterOpen",2);k([c()],b.prototype,"phone",2);b=k([H("tickets-handlers")],b);export{b as TicketsHandlersPage};
-//# sourceMappingURL=tickets-handlers-B6_BmR6U.js.map

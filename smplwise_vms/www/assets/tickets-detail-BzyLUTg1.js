@@ -28,4 +28,3 @@ import{a as h,S as m,O as f,Q as u,R as k,ak as w,u as g,q as r,a0 as c,p as b,p
       }
     }
   `,I];s([S()],a.prototype,"ticketId",2);s([p()],a.prototype,"module",2);s([p()],a.prototype,"failed",2);s([p()],a.prototype,"off",2);a=s([P("tickets-detail")],a);export{a as TicketsDetailPage};
-//# sourceMappingURL=tickets-detail-BzyLUTg1.js.map

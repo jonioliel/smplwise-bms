@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import set_setting as put_setting
 from ..db import unlocked
 from ..rbac import INSTALLATION, Principal, require
@@ -37,6 +37,7 @@ from ..services import announce_screens as scr
 from ..services import announce_templates as tpl
 from ..services import announce_translate as tr
 from ..services import announcements as svc
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -90,12 +91,8 @@ class TemplatesBody(_Body):
     templates: list[dict[str, Any]] = Field(max_length=tpl.MAX_TEMPLATES)
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 @router.get("/announcements/areas")
-def get_areas(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_areas(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
     cfg = svc.config(conn)
     return {"enabled": bool(cfg["enabled"] and svc.engine_ready(cfg)), "areas": svc.areas(conn) if cfg["enabled"] else [], "max_text": svc.MAX_TEXT,
@@ -126,7 +123,7 @@ def emergency(body: EmergencyBody, request: Request, principal: Principal = Depe
 
 
 @router.get("/announcements/config")
-def get_config(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_config(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     info = [{"entity_id": r[0], "name": r[1] or r[0], "platform": r[2] or "", "cloud": (r[2] or "") in svc.CLOUD_PLATFORMS}
             for r in conn.execute("SELECT entity_id, name, platform FROM ha_entities WHERE entity_id LIKE 'tts.%' AND disabled = 0 AND removed_at IS NULL ORDER BY entity_id LIMIT 50").fetchall()]
@@ -180,7 +177,7 @@ def translate(body: TranslateBody, request: Request, principal: Principal = Depe
 
 
 @router.get("/announcements/templates")
-def get_templates(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_templates(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
     return {"templates": tpl.load(conn), "languages": list(tpl.LANGUAGES)}
 
@@ -221,6 +218,6 @@ def stop_screens(announcement_id: str, request: Request, principal: Principal = 
 
 
 @router.get("/announcements/history")
-def get_history(limit: int = Query(20, ge=1, le=100), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_history(limit: int = Query(20, ge=1, le=100), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
     return {"history": svc.history(conn, limit)}

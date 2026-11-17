@@ -22,14 +22,12 @@ typed by the manager, counts (notes, photos, files, links, cost claims), `had_co
 description, notes, names, phones or link data. Backups taken before the deletion still contain the ticket (nothing extra is done)."""
 from __future__ import annotations
 
-import collections
 import logging
 import os
 import random
 import re
 import shutil
 import stat
-import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,7 +37,7 @@ from ...audit import audit
 from ...db import Database, now_iso
 from ...errors import ApiError
 from ...rbac import Principal
-from . import access, model, notify_bridge, store
+from . import access, fields, model, notify_bridge, store
 from .access import Seen, Viewer, text
 
 log = logging.getLogger("smplwise.tickets.deletion")
@@ -56,8 +54,8 @@ _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 # image_intake.store_image / cost_storage.store_pdf) and the temporary file of an atomic write (image_intake.write_atomic)
 _STORED_NAME = re.compile(r"^(?:[0-9a-f]{16}\.(?:jpg|pdf|docx|xlsx)|\.up\.[A-Za-z0-9_-]{1,32}\.tmp)$")  # RFQATT: + docx / xlsx
 ORPHAN_FILES_MAX = 2000  # per sweep: a huge backlog is worked off over several janitor ticks
-_RATE: dict[str, collections.deque[float]] = {}
-_RATE_LOCK = threading.Lock()
+# CR-TK-MONEY-UTILS (01:F-15): this module's OWN limiter instance (RATE_PER_HOUR deletions per RATE_WINDOW_S per user)
+_RATE = fields.RateWindow(lambda: RATE_PER_HOUR, lambda: RATE_WINDOW_S)
 
 
 # ---------------------------------------------------------------- the session and the rate (owner 14.10, points 6)
@@ -79,29 +77,16 @@ def require_interactive(conn, viewer: Viewer, rid: str | None) -> None:
 
 def rate_wait(user_id: str, n: int = 1, now: float | None = None) -> float:
     """Seconds until `n` more deletions fit in the user's hour (0 = now)."""
-    now = time.monotonic() if now is None else now
-    with _RATE_LOCK:
-        q = _RATE.setdefault(user_id, collections.deque())
-        while q and now - q[0] >= RATE_WINDOW_S:
-            q.popleft()
-        if len(q) + n <= RATE_PER_HOUR:
-            return 0.0
-        if n > RATE_PER_HOUR:
-            return RATE_WINDOW_S
-        # the oldest entries that must expire before n fit
-        return max(0.0, RATE_WINDOW_S - (now - q[len(q) + n - RATE_PER_HOUR - 1]))
+    return _RATE.wait(user_id, n, now)
 
 
 def rate_mark(user_id: str, now: float | None = None) -> None:
-    now = time.monotonic() if now is None else now
-    with _RATE_LOCK:
-        _RATE.setdefault(user_id, collections.deque()).append(now)
+    _RATE.mark(user_id, now)
 
 
 def reset_rate() -> None:
     """Tests only."""
-    with _RATE_LOCK:
-        _RATE.clear()
+    _RATE.reset()
 
 
 def require_rate(conn, viewer: Viewer, n: int, rid: str | None) -> None:

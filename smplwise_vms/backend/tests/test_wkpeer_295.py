@@ -250,7 +250,8 @@ def test_only_the_seam_modules_mint_sealed_values():
 
 def test_no_product_path_presents_a_local_identifier_as_a_peer():
     """The existing signed / journal paths never import the seam (nothing is wired yet) and never name a verified_peer_ref."""
-    for rel in ("routers/access_control.py", "services/intercom_sync.py", "services/intercom_write_journal.py", "services/capture_lease.py",
+    for rel in ("routers/access_control.py", "routers/access_control_base.py", "routers/access_control_entry.py", "routers/access_control_stills.py", "routers/access_control_credentials.py", "routers/access_control_command.py", "routers/access_control_door.py", "routers/access_control_calls.py", "routers/access_control_people.py", "routers/access_control_capture.py", "routers/access_control_ws.py",
+                "services/access_control_core.py", "services/intercom_sync.py", "services/intercom_write_journal.py", "services/capture_lease.py",
                 "services/access_grants.py", "services/access_grant_engine.py"):
         text = (PKG / rel).read_text(encoding="utf-8")
         assert "verified_peer_ref" not in text and "wiskey_peer" not in text, rel

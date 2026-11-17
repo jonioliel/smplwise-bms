@@ -6,4 +6,3 @@ import{p as i,X as r,q as n}from"./index-C5kZ9jiu.js";import{p,a as t,O as l,b a
       <option value=${l} ?selected=${e.pick===l}>${t("pickOther")}</option>
     </select>${e.pick!==l?e.error??i:i}</label>
     ${e.pick===l?o(t("otherLabel")):i}`:o(e.label??t("fLocation"))}export{f as l};
-//# sourceMappingURL=location-picker-FXrg4h6C.js.map

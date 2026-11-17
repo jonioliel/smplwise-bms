@@ -44,14 +44,8 @@ from typing import Any, Callable, Iterable, Protocol
 
 from ..db import get_setting
 from . import wiskey_access_state as was
-from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved them into the single parser
-    POLICY_KEYS,
-    PRESENCES,
+from .wiskey_access_state import (  # WKV2-295 moved them into the single parser; tests read AccessState / PendingQueues / schedule_ok here
     QUEUES,
-    REMOVAL_QUEUES,
-    ROW_KEYS,
-    SCHEDULE_KEYS,
-    SYNC_STATES,
     AccessState,
     Assignment,
     PendingQueues,
@@ -59,6 +53,7 @@ from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved t
     schedule_ok,
 )
 
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); each wiskey.acr5_* switch still defaults OFF and gates its read (G-01)
 FLAGS = {
     "acr5_01": "wiskey.acr5_access_state",
@@ -270,6 +265,8 @@ def visible_pending(pending: PendingQueues, allowed: Any) -> PendingView | None:
     return PendingView(out, complete)
 
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-03, the "externally deleted person" acknowledgement
+# (docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md, decision (a) still open).
 def presence_diagnostic(state: AccessState | Unknown) -> str | None:
     return state.presence if isinstance(state, AccessState) else None
 
@@ -281,6 +278,8 @@ def is_cleanup_proof(_state: Any) -> bool:
 
 # ---------------------------------------------------------------- ACR5-02 schedules/normalize_user
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-02 in access_grants._policy_is (today exact equality;
+# docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md). grant_policy_proven below is its proof.
 def normalize_request(schedule: Any) -> dict[str, Any]:
     if not schedule_ok(schedule):
         raise ValueError("invalid schedule")
@@ -328,6 +327,7 @@ def policy_equivalent(desired: Any, observed: Any, normalize: Normalizer) -> boo
     return a == b
 
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-02 (see normalize_request).
 def grant_policy_proven(desired_schedule: Any, observed_policy: Any, normalize: Normalizer) -> bool | None:
     """The grant proof: Arx requests {mode: ha, schedule, bindings: {}}; a native policy never proves it."""
     if desired_schedule is None and observed_policy is None:
@@ -353,6 +353,8 @@ class FeaturePlan:
         return False  # a draft is never a capability: no adapter exists on either side
 
 
+# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-04 feature dry plans (no adapter exists on either side;
+# consume_plan refuses; docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md).
 def parse_feature_plan(raw: Any) -> FeaturePlan | Unknown:
     if not isinstance(raw, dict) or set(raw) != PLAN_KEYS:
         return Unknown("fields")

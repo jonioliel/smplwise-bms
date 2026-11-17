@@ -127,6 +127,7 @@ test('the settings row sits in the display card next to the drawer rows, default
 test('the server and the frontend agree on the key, the values and the default', () => {
   const doc = readFileSync(path.resolve(ROOT, '../smplwise_vms/backend/smplwise/services/tickets/settings_doc.py'), 'utf8');
   expect(doc).toContain('("ui", "table_mid_width"): ("sentence", _choice("sentence", "department"))');
-  const admin = readFileSync(path.resolve(ROOT, '../smplwise_vms/backend/smplwise/routers/tickets_admin.py'), 'utf8');
+  // CR-SPLIT-TICKETS-ADMIN-2440: the settings PATCH body moved from routers/tickets_admin.py to its part tickets_admin_settings.py
+  const admin = readFileSync(path.resolve(ROOT, '../smplwise_vms/backend/smplwise/routers/tickets_admin_settings.py'), 'utf8');
   expect(admin).toContain('table_mid_width: Literal["sentence", "department"] | None = None');
 });

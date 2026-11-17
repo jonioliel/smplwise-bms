@@ -13,7 +13,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .bill_pdf_html import (ASSET_SCHEME, BRAND_FILE, BRAND_URL, FONT_FILES, LOGO_URL, STATE_MARKS, build_html, chart_series, dmy, kwh, moment,
                             money, price, reading)
@@ -329,6 +329,66 @@ def deny_network() -> None:
     socket.create_connection = refuse  # type: ignore[assignment]
 
 
+# ---------------------------------------------------------------- shared by the report children (CR-PDF-CHILD, review 04:F11)
+# services/building_report_engine.py and services/temperature_pdf_engine.py were copies of each other from here down: the
+# WeasyPrint step over a ready HTML page, the engine choice with its fallback, and the child's entry. Each keeps its own
+# `render_fpdf2` (the plain fallback differs per report) and hands it in.
+
+def render_html_weasyprint(page_html: str, max_pages: int = MAX_PAGES) -> bytes:
+    """A ready HTML page (built in the parent) to PDF: no base URL, the locked fetcher, the page and size caps."""
+    import logging
+
+    from weasyprint import HTML
+
+    logging.getLogger("weasyprint").setLevel(logging.ERROR)
+    doc = HTML(string=page_html, base_url=None, url_fetcher=LockedFetcher(None)).render()
+    if len(doc.pages) > max_pages:
+        raise RenderRefused("pdf_page_limit")
+    pdf = doc.write_pdf()
+    if len(pdf) > MAX_PDF_BYTES:
+        raise RenderRefused("pdf_too_large")
+    return pdf
+
+
+def run_report_job(job: dict[str, Any], weasyprint: Callable[[str, int], bytes], fpdf2: Callable[[dict[str, Any], int], bytes]) -> tuple[bytes, str]:
+    """A report job `{html, model, engine, max_pages}`: WeasyPrint over `html` first (`auto` / `weasyprint`), the report's own fpdf2
+    fallback over `model` when WeasyPrint cannot run (`auto`) or when `fpdf2` was asked. A refusal (page / size cap) is never retried
+    on the other engine."""
+    engine = job.get("engine") or "auto"
+    max_pages = int(job.get("max_pages") or MAX_PAGES)
+    if engine in ("auto", "weasyprint"):
+        try:
+            return weasyprint(job["html"], max_pages), "weasyprint"
+        except RenderRefused:
+            raise
+        except Exception as exc:
+            if engine == "weasyprint":
+                raise
+            print(f"weasyprint failed ({type(exc).__name__}); using fpdf2", file=sys.stderr)
+    return fpdf2(job["model"], max_pages), "fpdf2"
+
+
+def child_main(run: Callable[[dict[str, Any]], tuple[bytes, str]], selfcheck: Callable[[str], int] | None = None) -> int:
+    """The entry of a render child: the network lock, ONE JSON job on stdin, the resource limits it names, the PDF on stdout and
+    `engine=<name>` on stderr. Exit 3 with the refusal code on stderr for a page / size cap. `selfcheck` (the bill child only)
+    answers a `{"selfcheck": true}` job."""
+    deny_network()
+    job = json.loads(sys.stdin.buffer.read())
+    if selfcheck is not None and job.get("selfcheck"):
+        return selfcheck(str(job.get("engine") or "auto"))
+    if job.get("memory_bytes"):
+        apply_limits(int(job["memory_bytes"]), int(job.get("cpu_seconds") or 30), int(job.get("fsize_bytes") or 12_000_000))
+    try:
+        pdf, engine = run(job)
+    except RenderRefused as exc:
+        print(exc.code, file=sys.stderr)
+        return 3
+    sys.stderr.write(f"engine={engine}\n")
+    sys.stdout.buffer.write(pdf)
+    sys.stdout.buffer.flush()
+    return 0
+
+
 def run_job(job: dict[str, Any]) -> tuple[bytes, str]:
     logo = base64.b64decode(job["logo"]) if job.get("logo") else None
     s = BillSnapshot.from_billing_snapshot(job["snapshot"], logo=logo, watermark=job.get("watermark"))
@@ -387,21 +447,7 @@ def self_check(engine: str) -> int:
 
 
 def main() -> int:
-    deny_network()
-    job = json.loads(sys.stdin.buffer.read())
-    if job.get("selfcheck"):
-        return self_check(str(job.get("engine") or "auto"))
-    if job.get("memory_bytes"):
-        apply_limits(int(job["memory_bytes"]), int(job.get("cpu_seconds") or 30), int(job.get("fsize_bytes") or 12_000_000))
-    try:
-        pdf, engine = run_job(job)
-    except RenderRefused as exc:
-        print(exc.code, file=sys.stderr)
-        return 3
-    sys.stderr.write(f"engine={engine}\n")
-    sys.stdout.buffer.write(pdf)
-    sys.stdout.buffer.flush()
-    return 0
+    return child_main(run_job, self_check)  # the two names are read here, at each start
 
 
 if __name__ == "__main__":

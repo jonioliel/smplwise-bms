@@ -34,7 +34,8 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services import intercom_authority as ia
 from ..services import wiskey_ops_views as ov
-from .access_control import CommandEnvelope, _Action, _envelope, _parse, _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .access_control import CommandEnvelope, _Action, _envelope, _parse
 
 router = APIRouter()
 
@@ -44,10 +45,6 @@ CODE_PATTERN = r"^[a-z0-9][a-z0-9_./:-]{0,63}$"
 INSTALLATION_TYPE = "intercom_installation"
 TREND_DAYS = (7, 30, 90, 365)
 CSV_HEADERS = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _require_installation(conn: sqlite3.Connection, principal: Principal, permission: str, request_id: str | None) -> ia.Authority:

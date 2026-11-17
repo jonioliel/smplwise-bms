@@ -222,4 +222,3 @@ import{i as w,n as d,a as b,p as l,q as s,x as m}from"./index-C5kZ9jiu.js";var u
       color: var(--sw-text-3);
     }
   `;o([d({attribute:!1})],r.prototype,"columns",2);o([d({attribute:!1})],r.prototype,"rows",2);o([d()],r.prototype,"rowKey",2);o([d()],r.prototype,"selected",2);o([d()],r.prototype,"emptyText",2);o([d({type:Boolean,reflect:!0})],r.prototype,"dense",2);o([d({type:Boolean,reflect:!0,attribute:"focus-rows"})],r.prototype,"focusRows",2);r=o([m("sw-table")],r);
-//# sourceMappingURL=sw-table-BPsqqbv1.js.map

@@ -69,7 +69,7 @@ def _refuse(conn: sqlite3.Connection, principal: Principal, action: str, status:
 
 
 def _name(conn: sqlite3.Connection, subject_kind: str, subject_id: str) -> str:
-    from ..routers.access import _subject_name
+    from .rbac_admin import _subject_name
 
     return _subject_name(conn, subject_kind, subject_id)
 
@@ -90,7 +90,7 @@ def holder_rows(conn: sqlite3.Connection, principal: Principal) -> list[dict[str
 
 
 def candidates(conn: sqlite3.Connection) -> list[dict[str, str]]:
-    from ..routers.access import active_user_ids
+    from .rbac_admin import active_user_ids
     from . import service_identity
 
     ids = sorted(active_user_ids(conn))
@@ -145,7 +145,7 @@ def resolve_expiry(conn: sqlite3.Connection, principal: Principal, basis: str, e
 
 def grant(conn: sqlite3.Connection, request: Request, principal: Principal, *, user_id: str, scope_type: str, scope_id: str, expires_at: str | None, no_expiry: bool,
           now: dt.datetime, dev_mode: bool = False, remote: bool = True) -> dict[str, Any]:
-    from ..routers.access import BindingBody, _scope_exists, insert_binding, local_binding_check, user_known
+    from .rbac_admin import BindingBody, _scope_exists, insert_binding, local_binding_check, user_known
     from ..services import revocation, service_identity
     from ..rbac import LOCAL_ID_PREFIX
 
@@ -184,13 +184,13 @@ def grant(conn: sqlite3.Connection, request: Request, principal: Principal, *, u
 
 
 def _active_ids(conn: sqlite3.Connection) -> set[str]:
-    from ..routers.access import active_user_ids
+    from .rbac_admin import active_user_ids
 
     return active_user_ids(conn)
 
 
 def revoke(conn: sqlite3.Connection, settings: Any, request: Request, principal: Principal, binding_id: str, *, dev_mode: bool = False) -> dict[str, Any]:
-    from ..routers.access import _terminate
+    from .rbac_admin import _terminate
 
     action = "door.emergency.grant_revoke"
     dw.require_person(conn, principal, action, dev_mode=dev_mode)

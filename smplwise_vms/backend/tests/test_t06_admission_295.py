@@ -249,15 +249,16 @@ def test_the_installed_client_sends_only_the_pinned_installation_and_read_comman
     """WISKEY-R3-2272: `wiskey_auto_install.InstalledWiskeyClient.call` is a generic pass-through to the signing seam, so what the module
     itself puts on it is pinned by name. None is a door / people / program write: three are installation reads or the one restart under the
     durable Arx claim (reconcile, behind `wiskey.auto_install`, default off), one is a station still (routes check `access.read` on the
-    station chain and the switch), one is the template send v3 (no production caller yet; a caller must add its own admission)."""
+    station chain and the switch), two are the WhatsApp template registry read and enqueue. The template send v3 left this module with
+    CR-DEAD-CODE-BE-2438 (`send_installed_template_v3` had no caller; `wiskey_wa_queue` sends `whatsapp/template_send_v3` itself, pinned
+    in test_the_2400_signing_callers_send_only_their_pinned_commands), so the pin is one command narrower."""
     import ast as _ast
 
     src = (SERVICES / "wiskey_auto_install.py").read_text(encoding="utf-8")
     literal = {n.args[0].value for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
                and n.func.attr == "call" and n.args and isinstance(n.args[0], _ast.Constant) and isinstance(n.args[0].value, str)}
     assert literal == {"installation/readiness_v1", "installation/request_restart_v2", "installation/capability_preflight_v1",
-                       "media/station_snapshot_v1", "whatsapp/template_send_v3", "whatsapp/template_enqueue_v1",
-                       "whatsapp/template_registry_v1"}, literal
+                       "media/station_snapshot_v1", "whatsapp/template_enqueue_v1", "whatsapp/template_registry_v1"}, literal
 
 
 def test_the_relay_map_native_adapter_sends_only_the_pinned_installation_commands():

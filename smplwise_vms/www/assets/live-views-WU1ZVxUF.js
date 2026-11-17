@@ -281,4 +281,3 @@ import{a as m,S as g,K as w,ft as u,ak as p,ae as f,p as n,q as a,a_ as b,qN as 
       }
     }
   `,x];r([o()],i.prototype,"views",2);r([o()],i.prototype,"cams",2);r([o()],i.prototype,"canShare",2);r([o()],i.prototype,"canManageAll",2);r([o()],i.prototype,"editing",2);r([o()],i.prototype,"confirmDelete",2);r([o()],i.prototype,"busy",2);r([o()],i.prototype,"error",2);r([o()],i.prototype,"formError",2);i=r([y("live-views")],i);export{i as LiveViews};
-//# sourceMappingURL=live-views-WU1ZVxUF.js.map

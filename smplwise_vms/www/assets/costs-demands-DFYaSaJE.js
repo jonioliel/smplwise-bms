@@ -28,4 +28,3 @@ import{a as y,T as b,$ as l,ak as v,p,q as r,i as g,n as x,r as u,x as h}from"./
     .act .btn { min-block-size: 44px; }
     .err { color: var(--dv-danger); padding: 6px 8px; }
   `];d([x({attribute:!1})],o.prototype,"items",2);d([u()],o.prototype,"confirming",2);d([u()],o.prototype,"busy",2);d([u()],o.prototype,"err",2);o=d([h("ticket-costs-demands")],o);export{o as TicketCostsDemands};
-//# sourceMappingURL=costs-demands-DFYaSaJE.js.map

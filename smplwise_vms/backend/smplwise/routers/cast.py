@@ -26,12 +26,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import channel_of
 from ..services import cast_sessions as cs
 from ..services import media_store as store
+from ._common import rid as _rid
 
 router = APIRouter()
 SID = r"^[0-9a-f]{32}$"
@@ -63,10 +64,6 @@ class TestBody(_Body):
     camera_id: str = Field(min_length=1, max_length=64)
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _configure(conn: sqlite3.Connection, principal: Principal) -> None:
     require(conn, principal, cs.CONFIGURE, INSTALLATION)
 
@@ -92,7 +89,7 @@ def _sid(session_id: str) -> str:
 # ---------------------------------------------------------------- administration (local only)
 
 @router.get("/multimedia/cast/config")
-def get_config(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_config(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     settings = settings_of(request)
     ready, why = cs.readiness(conn, settings)
@@ -123,7 +120,7 @@ def check_origin(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.get("/multimedia/cast/screens")
-def admin_screens(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def admin_screens(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _configure(conn, principal)
     return {"screens": cs.admin_screens(conn)}
 
@@ -150,14 +147,14 @@ def test_cast(body: TestBody, request: Request, principal: Principal = Depends(c
 # ---------------------------------------------------------------- operators
 
 @router.get("/multimedia/cast/targets")
-def get_targets(request: Request, camera: str | None = Query(None, min_length=1, max_length=64), principal: Principal = Depends(current_principal),
-                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_targets(request: Request, camera: str | None = Query(None, min_length=1, max_length=64), principal: Principal = Depends(current_principal_ro),
+                conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _caster(conn, principal)
     return cs.targets(conn, settings_of(request), principal, camera)
 
 
 @router.get("/multimedia/cast/sessions")
-def list_sessions(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_sessions(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     access = store.Access(conn, principal, (store.PERM_READ, cs.PERM_CAST))
     if not (access.anywhere(store.PERM_READ) or access.anywhere(cs.PERM_CAST)):
         require(conn, principal, store.PERM_READ, INSTALLATION)
@@ -165,7 +162,7 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
 
 
 @router.get("/multimedia/cast/sessions/{session_id}")
-def get_session(session_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_session(session_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return cs.get_session(conn, principal, _sid(session_id))
 
 

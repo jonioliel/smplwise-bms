@@ -1,15 +1,48 @@
-"""Shared pieces of the in-memory session caches (local_identity._Cache, app_session._Cache).
+"""The in-memory session caches of the sign-in stores (code review 2026-11-13, part 02, P1-1 and P2-4).
 
-attach_if_live: the "review M2" rule of ha_user_auth.SessionStore.attach_socket for the two later caches (code review 2026-11-13,
-P1-1). A WebSocket handshake resolves its session in the thread pool and attaches afterwards; a revocation that lands in between drops
-the cache entry (and queues the sockets already attached), but a socket attached after it would never be closed. The liveness check and
-the attach therefore run under the cache's own lock, so a revocation is either before the check (refused) or after the attach (closed by
-the revocation). No database read: "live" means the entry the resolve just put is still there."""
+`SessionCache` is the one copy of the cache that `local_identity._Cache` (Arx-only sessions, sockets keyed by sign-in chain) and
+`app_session._Cache` (the phone app's web-view sessions, sockets keyed by session) used to carry twice: a dict of loaded sessions with a
+short time-to-live, the WebSockets attached to them, and the queue of sockets a revocation has to close. Each store keeps its own
+subclass for what differs (the socket key, which drops close sockets, `peek_live`).
+
+`get` is the stricter of the two former copies (lead decision L4, fail-closed): an entry loaded "in the future" (the wall clock moved
+back since it was loaded) is dropped like an expired one, so the next request re-reads the session from the database. The cache is a
+read-through cache only - a dropped entry never ends a session, it only costs one database read.
+
+attach_if_live: the "review M2" rule of ha_user_auth.SessionStore.attach_socket, shared by all three stores. A WebSocket handshake
+resolves its session in the thread pool and attaches afterwards; a revocation that lands in between drops the cache entry (and queues the
+sockets already attached), but a socket attached after it would never be closed. The liveness check and the attach therefore run under
+the cache's own lock, so a revocation is either before the check (refused) or after the attach (closed by the revocation). No database
+read: "live" means the entry the resolve just put is still there.
+
+Ended keys (the same idea as ha_user_auth.SessionStore._revoked_iss): a revocation drops the cache entries inside its own database
+transaction, before the commit. A resolve that read the session row just before that commit (a read transaction sees the last committed
+state) would otherwise put the revoked session back into the cache after the drop, where it would be served - and its WebSocket attached,
+with nothing left to close it - until the time-to-live ran out. The keys a revocation ends are therefore remembered for ENDED_KEEP_S and
+`put` refuses an entry under one of them: that request was concurrent with the revocation and is answered from its own read, every later
+one reads the database again. A revocation that then rolls back has only over-revoked the cache (the safe side): the session keeps
+working, read from the database on each request until the key is forgotten."""
 from __future__ import annotations
 
 import threading
+import time
 import weakref
-from typing import Any, Callable
+from typing import Any, Callable, Generic, Protocol, TypeVar
+
+MAX_ENTRIES = 5000  # above this, the oldest EVICT_BATCH entries go (insertion order); an evicted entry is simply re-read
+EVICT_BATCH = 500
+ENDED_KEEP_S = 300.0  # how long an ended key is refused by `put`: far longer than a revocation's transaction or a resolve's read
+
+
+class CachedSession(Protocol):
+    sid_hash: str
+    user_id: str
+    loaded_at: float
+    expires_at: float
+    idle_expires_at: float
+
+
+S = TypeVar("S", bound=CachedSession)
 
 
 def attach_if_live(lock: threading.Lock, sockets: dict[str, weakref.WeakSet], key: str, websocket: Any, *, live: Callable[[], bool]) -> bool:
@@ -20,3 +53,89 @@ def attach_if_live(lock: threading.Lock, sockets: dict[str, weakref.WeakSet], ke
             return False
         sockets.setdefault(key, weakref.WeakSet()).add(websocket)
         return True
+
+
+def take_queued(holder: Any) -> list[Any]:
+    """The sockets a revocation queued for closing (`holder._to_close`, under `holder._lock`), handed over once."""
+    with holder._lock:
+        out, holder._to_close = holder._to_close, []
+    return out
+
+
+class SessionCache(Generic[S]):
+    """Loaded sessions by sid hash, their sockets by a store-specific key, and the close queue - all under one lock.
+
+    `clock` and `ttl_s` are called on every lookup (not captured at construction), so a store's own clock - and a test that moves it -
+    stays the one the cache reads. A subclass names the key its sockets and its revocations use (`_ended_key`: the session by default)."""
+
+    def __init__(self, *, clock: Callable[[], float], ttl_s: Callable[[], float]) -> None:
+        self._clock = clock
+        self._ttl_s = ttl_s
+        self._lock = threading.Lock()
+        self._by_sid: dict[str, S] = {}
+        self._sockets: dict[str, weakref.WeakSet] = {}
+        self._to_close: list[Any] = []
+        self._ended: dict[str, float] = {}  # key -> time.monotonic() of its revocation (see the module docstring)
+
+    def _ended_key(self, s: S) -> str:
+        return s.sid_hash
+
+    def get(self, sid_hash: str) -> S | None:
+        now = self._clock()
+        with self._lock:
+            s = self._by_sid.get(sid_hash)
+            if s is None:
+                return None
+            if now - s.loaded_at > self._ttl_s() or now < s.loaded_at or s.expires_at <= now or s.idle_expires_at <= now:
+                self._by_sid.pop(sid_hash, None)
+                return None
+            return s
+
+    def put(self, s: S) -> None:
+        """Cache `s` - unless a revocation ended its key meanwhile (the resolve read the row before that revocation committed)."""
+        with self._lock:
+            ended_at = self._ended.get(self._ended_key(s)) if self._ended else None
+            if ended_at is not None and time.monotonic() - ended_at <= ENDED_KEEP_S:
+                return
+            if len(self._by_sid) > MAX_ENTRIES:
+                for k in list(self._by_sid)[:EVICT_BATCH]:
+                    self._by_sid.pop(k, None)
+            self._by_sid[s.sid_hash] = s
+
+    def drop_user(self, user_id: str) -> None:
+        """The user's entries only (the next request re-reads); attached sockets stay - a revocation closes them through its own drop."""
+        with self._lock:
+            for k in [k for k, v in self._by_sid.items() if v.user_id == user_id]:
+                self._by_sid.pop(k, None)
+
+    def _end_keys_locked(self, keys: Any) -> None:
+        """A revocation of `keys` (the caller holds the lock and has dropped their entries): the sockets attached under them are queued
+        for closing, and `put` refuses the keys for ENDED_KEEP_S."""
+        now = time.monotonic()
+        for key in [k for k, at in self._ended.items() if now - at > ENDED_KEEP_S]:
+            del self._ended[key]
+        for key in keys:
+            self._ended[key] = now
+            socks = self._sockets.pop(key, None)
+            if socks:
+                self._to_close.extend(list(socks))
+
+    def _attach(self, key: str, websocket: Any, live: Callable[[], bool]) -> bool:
+        return attach_if_live(self._lock, self._sockets, key, websocket, live=live)
+
+    def take_to_close(self) -> list[Any]:
+        return take_queued(self)
+
+    def forget_ended(self) -> None:
+        """Tests only (reset_for_tests): forget the ended keys."""
+        with self._lock:
+            self._ended.clear()
+
+    def clear(self) -> None:
+        """Every entry goes and every socket is queued for closing; the ended keys stay (a revocation of everything names its keys
+        through the subclass's drop first)."""
+        with self._lock:
+            self._by_sid.clear()
+            for socks in self._sockets.values():
+                self._to_close.extend(list(socks))
+            self._sockets.clear()

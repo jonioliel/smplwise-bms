@@ -134,8 +134,9 @@ def check(conn: sqlite3.Connection, principal: Principal, station_id: str, relay
     screen's permission gate, before the body names the relay)."""
     if not identity_ok(principal, dev_mode, conn):
         return DoorDecision(False, "identity_unmapped")
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is not None and not user["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ACTIVE-USER-REST-2438: the one rule - disabled on either side (services/active_users)
         return DoorDecision(False, "user_inactive")
     if is_wall_account(conn, principal.user_id):
         return DoorDecision(False, "wall_account")

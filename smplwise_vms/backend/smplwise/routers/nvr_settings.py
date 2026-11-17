@@ -22,7 +22,8 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured, after th
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr_settings
 from ..services.access import camera_allowed, camera_scope, require_camera
-from .nvr_write import _raw_body, json_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .nvr_write import json_body
 
 router = APIRouter()
 STREAM_REF_RE = re.compile(r"\d{1,6}")
@@ -38,10 +39,6 @@ STREAM_REF = Path(pattern=r"^\d{1,6}$")
 CODEC = Query(default=None, pattern=r"^[A-Za-z0-9.+_-]{1,32}$")
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _can_write(conn: sqlite3.Connection, principal: Principal, camera_id: str | None = None) -> bool:
     if not authorize(conn, principal, WRITE_PERMISSION, INSTALLATION).allowed:
         return False
@@ -49,7 +46,7 @@ def _can_write(conn: sqlite3.Connection, principal: Principal, camera_id: str | 
 
 
 @router.get("/nvr/recorders")
-def recorders(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def recorders(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     settings = settings_of(request)
     ensure_nvr(settings)
@@ -82,7 +79,7 @@ def camera(camera_id: str, request: Request, principal: Principal = Depends(curr
 
 @router.get("/nvr/cameras/{camera_id}/streams/{stream_ref}/options")
 def stream_options(camera_id: str, request: Request, stream_ref: str = STREAM_REF, codec: str | None = CODEC,
-                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """API 3.3: one stream's options from capability discovery; writable is a boolean here (null in the lists)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     require_camera(conn, principal, camera_id, PERMISSION)

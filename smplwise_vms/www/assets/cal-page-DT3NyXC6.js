@@ -1430,4 +1430,3 @@ import{i as tt,n as y,r as d,a as at,p as c,q as n,cK as _t,x as it,ak as _,R as
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
   `];ht([y({attribute:!1})],st.prototype,"route",2);ht([d()],st.prototype,"access",2);ht([d()],st.prototype,"cals",2);ht([d()],st.prototype,"error",2);ht([d()],st.prototype,"floor",2);ht([d()],st.prototype,"q",2);ht([d()],st.prototype,"floorNames",2);ht([d()],st.prototype,"slow",2);ht([d()],st.prototype,"device",2);ht([d()],st.prototype,"drawer",2);ht([d()],st.prototype,"toastText",2);st=ht([it("calendars-page")],st);export{st as CalendarsPage};
-//# sourceMappingURL=cal-page-DT3NyXC6.js.map

@@ -75,8 +75,9 @@ def test_busy_database_at_relock_leaves_the_pending_row_for_the_janitor(w, setti
         return real(conn)
 
     monkeypatch.setattr(dbmod, "_relock", flaky)
-    with pytest.raises(sqlite3.OperationalError):
-        put(c, ids[1], "101", {"svc": False}, etag)
+    # CR-MAIN-RUNTIME-2438 (05:P1-07): a busy database answers the retryable error envelope (500 database_busy), no longer a raw raise
+    r = put(c, ids[1], "101", {"svc": False}, etag)
+    assert r.status_code == 500 and r.json()["code"] == "database_busy", r.text
     monkeypatch.setattr(dbmod, "_relock", real)
     [ch] = rows(app, "SELECT * FROM nvr_changes")
     assert ch["status"] == "pending" and fake.writes == ["nvr PUT /ISAPI/Streaming/channels/101"], "the device acted and the committed row says so"

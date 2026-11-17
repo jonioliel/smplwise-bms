@@ -23,7 +23,9 @@ import sqlite3
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
-from .timeutil import iso_utc, parse_utc, zone
+from ..errors import ServiceInvalid
+from .timeutil import DEFAULT_ZONE, iso_utc, parse_utc, zone
+from .timeutil import site_zone as _site_zone  # this module's own site_zone wraps it
 
 KINDS: tuple[str, ...] = ("fridge", "freezer", "coldroom", "pharma", "server", "room")
 DEFROST_MODES: tuple[str, ...] = ("fixed", "learn", "none")
@@ -184,9 +186,11 @@ MESSAGES: dict[str, dict[str, str]] = {
 }
 
 
-class Invalid(ValueError):
+class Invalid(ServiceInvalid):
+    """CR-BE-TWINS-2440 (T7, review 04:F16): on the common base; the constructor, `code`, `fields` and `str()` are as before."""
+
     def __init__(self, code: str, fields: list[str] | None = None) -> None:
-        super().__init__(code)
+        ValueError.__init__(self, code)
         self.code, self.fields = code, fields or []
 
 
@@ -340,12 +344,10 @@ def validate_defrost(mode: Any, windows: Any) -> tuple[str, list[dict[str, Any]]
 # ---------------------------------------------------------------- time helpers (local wall clock of the installation zone)
 
 def site_zone(conn: sqlite3.Connection) -> ZoneInfo:
-    from ..db import get_setting
-
     try:
-        return zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+        return _site_zone(conn)
     except Exception:  # noqa: BLE001
-        return zone("Asia/Jerusalem")
+        return zone(DEFAULT_ZONE)
 
 
 def local_min(ts: float, tz: ZoneInfo) -> int:
@@ -631,7 +633,7 @@ def recipients_of(u: sqlite3.Row) -> dict[str, list[str]] | None:
 def mirror_connected() -> bool:
     from . import ha_sync
 
-    return bool(ha_sync.STATE.connected)
+    return ha_sync.connected()
 
 
 # ---------------------------------------------------------------- history: samples, rollup, query, statistics

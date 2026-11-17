@@ -93,3 +93,43 @@ def conflict(code: str, message: str, **details: Any) -> ApiError:
 
 def validation(message: str, **details: Any) -> ApiError:
     return ApiError(422, "validation", message, details=details)
+
+
+class ServiceInvalid(ValueError):
+    """The common base of the services' validation errors - CR-CORE-HELPERS-2438 (code review 2026-11-13, 04:F16 step one).
+
+    Today 23 classes in five shapes (`(message, field, code)`, `(field, code)`, `(field, message)`, `(code, fields)`, `(fields)`,
+    `(key)`, `(code, message, message_en, details)`) are translated by 53 router `except ...Invalid` blocks, each with its own
+    mapping to the 422 envelope. This base gives them one shape - `code`, `fields`, `message`, `details` - and one `to_api_error()`.
+    It is additive: nothing subclasses it in this branch. A class that adopts it later keeps its own constructor (it sets the
+    attributes it has; the class defaults cover the rest) and overrides `api_details()` when its endpoint's envelope carries
+    `details.field` or `details.key` instead of `details.fields` - envelope keys change only with a contract decision."""
+
+    status = 422
+    code = "validation"
+    message = ""
+    fields: tuple[str, ...] | list[str] = ()
+    details: dict[str, Any] | None = None
+
+    def __init__(self, message: str = "", *, code: str | None = None, fields: Any = (), details: dict[str, Any] | None = None,
+                 status: int | None = None) -> None:
+        super().__init__(message or code or self.code)
+        if code is not None:
+            self.code = code
+        self.message = message
+        self.fields = [str(f) for f in fields] if fields else []
+        self.details = dict(details) if details else {}
+        if status is not None:
+            self.status = status
+
+    def api_details(self) -> dict[str, Any]:
+        """The envelope's `details`: the error's own details, and `fields` when it names any."""
+        out = dict(self.details or {})
+        if self.fields:
+            out.setdefault("fields", list(self.fields))
+        return out
+
+    def to_api_error(self, message: str | None = None, *, status: int | None = None) -> ApiError:
+        """The ApiError a router raises for this error: its status (422 unless the class or the instance says otherwise), its code,
+        `message` when the router has the user-facing text (else the error's own message), and `api_details()`."""
+        return ApiError(status or self.status, self.code, message or self.message or str(self), details=self.api_details())

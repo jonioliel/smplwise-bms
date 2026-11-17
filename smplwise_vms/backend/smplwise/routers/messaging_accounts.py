@@ -38,13 +38,10 @@ from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
 from ..services import wa_pacing, wa_policy
 from ..services.tickets.channel import phone_digits
+from ._common import rid as _rid
 
 router = APIRouter()
 MANAGE = mr.MANAGE
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _reader(conn: sqlite3.Connection, principal: Principal) -> bool:

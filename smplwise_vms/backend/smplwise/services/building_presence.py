@@ -132,10 +132,6 @@ def tagged_ids(conn: sqlite3.Connection) -> list[str]:
     return [r["entity_id"] for r in conn.execute("SELECT entity_id FROM presence_building_sensors ORDER BY entity_id")]
 
 
-def has_tags(conn: sqlite3.Connection) -> bool:
-    return conn.execute("SELECT 1 FROM presence_building_sensors LIMIT 1").fetchone() is not None
-
-
 def sensor_state(state: str | None, last_changed: str | None, now: dt.datetime, hold_seconds: int, fresh: bool = True) -> tuple[str, dt.datetime | None]:
     """(`occupied` | `clear` | `unknown`, the instant it became clear when `clear`)."""
     if not fresh or state in UNKNOWN_STATES:
@@ -178,8 +174,8 @@ def _rows(conn: sqlite3.Connection, ids: list[str]) -> dict[str, sqlite3.Row]:
     return out
 
 
-def _iso(d: dt.datetime) -> str:
-    return d.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def overrides(conn: sqlite3.Connection) -> dict[str, str]:

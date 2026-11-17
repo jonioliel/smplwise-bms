@@ -61,4 +61,3 @@ import{i as v,n as p,a as d,q as o,x as w}from"./index-C5kZ9jiu.js";var u=Object
       background: var(--sw-live);
     }
   `;l([p({attribute:!1})],r.prototype,"steps",2);l([p({type:Number})],r.prototype,"current",2);r=l([w("sw-steps")],r);
-//# sourceMappingURL=sw-steps-BpugqeJS.js.map

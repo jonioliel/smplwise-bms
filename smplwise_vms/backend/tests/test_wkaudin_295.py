@@ -242,8 +242,8 @@ def test_a_reservation_never_attached_is_released_and_audited(feed, fake_go2rtc,
     c, s = camera_feed(feed)
     listen_mode(c, "on")
     first = start(c).json()
-    monkeypatch.setattr(il, "RESERVE_S", 0.0)
-    time.sleep(0.01)
+    # a negative grace: stale at once, whatever the clock's resolution (see test_intercom_media.py, 05:P2-18)
+    monkeypatch.setattr(il, "RESERVE_S", -1.0)
     assert start(c).status_code == 200, "the stale reservation was released"
     end = audit_rows(s, "intercom.listen.end")[-1]
     assert json.loads(end["details_json"])["outcome"] == "never_connected" and end["actor_user_id"] == "dev-joni"

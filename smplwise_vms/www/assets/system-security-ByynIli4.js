@@ -3239,4 +3239,3 @@ import{i as G,n as R,a as K,p as c,q as o,x as U,K as oe,a$ as ra,au as B,L as V
       </sw-card>
       ${Ie("system.configure")?o`<standalone-cameras-card></standalone-cameras-card>`:c}
     </sw-page>`}};Le.styles=[ye.styles,Ae];$e([d()],Le.prototype,"h",2);$e([d()],Le.prototype,"error",2);Le=$e([U("system-security-nvr")],Le);export{ye as SystemSecurity,Le as SystemSecurityNvr};
-//# sourceMappingURL=system-security-ByynIli4.js.map

@@ -221,10 +221,6 @@ def counts(doc: Mapping[str, Any]) -> dict[str, int]:
 
 # ---------------------------------------------------------------- measurement
 
-def polyline_length_px(points: list[Any], width: float, height: float) -> float:
-    return sum(math.hypot((b[0] - a[0]) * width, (b[1] - a[1]) * height) for a, b in zip(points, points[1:]))
-
-
 def wall_length_px(wall: Mapping[str, Any], width: float, height: float) -> float:
     """A wall's length along its path, arcs included (wall_path); the polyline length for a straight wall."""
     return wall_path.wall_length_px(wall, width, height)

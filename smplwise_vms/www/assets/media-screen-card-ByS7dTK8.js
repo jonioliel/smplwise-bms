@@ -366,4 +366,3 @@ import{gN as $,gO as f,K as z,gP as _,R as E,gQ as O,fS as B,i as M,n as b,r as 
       inset-inline-start: 8px;
     }
   `];p([b({attribute:!1})],l.prototype,"device",2);p([b({reflect:!0,attribute:"data-size"})],l.prototype,"size",2);p([b({type:Boolean,reflect:!0})],l.prototype,"compact",2);p([b({type:Boolean,reflect:!0})],l.prototype,"editing",2);p([b({type:Boolean,reflect:!0,attribute:"data-dimmed"})],l.prototype,"dimmed",2);p([u()],l.prototype,"pending",2);p([u()],l.prototype,"nack",2);p([u()],l.prototype,"note",2);p([u()],l.prototype,"shaking",2);p([u()],l.prototype,"menu",2);p([u()],l.prototype,"detail",2);p([u()],l.prototype,"detailBusy",2);l=p([A("media-screen-card")],l);
-//# sourceMappingURL=media-screen-card-ByS7dTK8.js.map

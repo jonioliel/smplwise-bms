@@ -39,4 +39,3 @@ import{i as w,n as u,r as n,a as v,ak as p,p as d,q as r,br as f,x as b}from"./i
       color: var(--sw-text);
     }
   `;o([u({attribute:!1})],i.prototype,"item",2);o([u()],i.prototype,"subheading",2);o([n()],i.prototype,"cases",2);o([n()],i.prototype,"loading",2);o([n()],i.prototype,"error",2);o([n()],i.prototype,"picked",2);o([n()],i.prototype,"newTitle",2);o([n()],i.prototype,"note",2);o([n()],i.prototype,"busy",2);o([n()],i.prototype,"done",2);o([n()],i.prototype,"canManage",2);i=o([b("sw-case-picker")],i);
-//# sourceMappingURL=sw-case-picker-B_RTQh7y.js.map

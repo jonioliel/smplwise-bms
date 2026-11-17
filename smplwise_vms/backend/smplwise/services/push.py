@@ -24,8 +24,9 @@ Rules of the road (CR-008 §3d):
 
 CR-018: the same worker thread also drains the notification outbox (services/notify_channels.py): notifications of EVERY source
 are planned there against the ADMINISTRATOR's policy and settings (no per-user preferences), pushed with payload v2 and sent
-by e-mail; each attempt is a row of the delivery log. The functions below that take a legacy "notice" dict (plan, notice_from_fired,
-payload_for, get_prefs ...) stay readable for one release, as the migration plan says; nothing in the product calls them but the tests.
+by e-mail; each attempt is a row of the delivery log. The functions below that take a legacy "notice" dict (plan, payload_for,
+get_prefs ...) stay readable for one release, as the migration plan says; nothing in the product calls them but the tests
+(CR-DEAD-CODE-BE-2438 removed `notice_from_fired` / `enqueue_fired`, which nothing called at all).
 """
 from __future__ import annotations
 
@@ -56,6 +57,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..db import Database, new_id, now_iso
 from ..rbac import Principal
+from .delayed_worker import heap_wait, wait_idle
 
 log = logging.getLogger("smplwise.push")
 
@@ -342,16 +344,6 @@ def category_of(event_type: str | None, source: str | None, availability: str | 
     return "alerts"
 
 
-def notice_from_fired(item: dict[str, Any]) -> dict[str, Any]:
-    """The part of a fired rule alert (services/rules.evaluate_event) the push path needs; nothing else crosses over."""
-    p = item.get("_push") or {}
-    return {
-        "alert_id": item.get("id"), "event_id": item.get("event_id"), "rule_name": item.get("rule_name") or "", "message": item.get("message") or "",
-        "camera_id": p.get("camera_id"), "entity_id": p.get("entity_id"), "event_type": p.get("event_type"), "source": p.get("source"),
-        "severity": p.get("severity") or "info", "availability": p.get("availability"), "occurred_at": p.get("occurred_at"), "place": p.get("place"),
-    }
-
-
 def _clip(text: str, n: int) -> str:
     text = " ".join(str(text or "").split())
     return text if len(text) <= n else text[: n - 1] + "…"
@@ -447,9 +439,9 @@ def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | No
 
     now = now or dt.datetime.now(dt.timezone.utc)
     if tz_name is None:
-        from ..routers.settings import read_settings
+        from .settings_store import setting_value
 
-        tz_name = read_settings(conn)["time.zone"]
+        tz_name = setting_value(conn, "time.zone")
     camera_id = notice.get("camera_id")
     cam = conn.execute("SELECT alias, name_source, channel FROM cameras WHERE id = ?", (camera_id,)).fetchone() if camera_id else None
     camera_name = (cam["alias"] or cam["name_source"] or f"ערוץ {cam['channel']}") if cam else None
@@ -740,14 +732,10 @@ class PushNotifier:
         the configuration) and `run_retry(notifier) -> None` (one more attempt, which may `schedule` again)."""
         heapq.heappush(self.retries, (time.monotonic() + delay, next(self.seq), job))
 
-    def _due(self) -> float | None:
-        return self.retries[0][0] - time.monotonic() if self.retries else None
-
     def _loop(self) -> None:
         while not self.stop_evt.is_set():
-            wait = self._due()
             try:
-                item = self.q.get(timeout=max(0.0, min(wait, 1.0)) if wait is not None else 1.0)
+                item = self.q.get(timeout=heap_wait(self.retries))  # CR-SENDER-WORKER: until the first retry is due, at most 1 s
             except queue.Empty:
                 item = None
             if self.stop_evt.is_set():
@@ -825,12 +813,10 @@ class PushNotifier:
     def drain(self, timeout: float = 5.0, retries: bool = True) -> bool:
         """Wait until nothing is queued or in flight (and, with `retries`, nothing waits in the retry heap); returns
         whether that happened within `timeout`. The notification outbox counts as queued work while the worker runs."""
-        deadline = time.monotonic() + timeout
-        while self.q.unfinished_tasks or self.inflight or self.dirty or (retries and self.retries) or (self.running and self.outbox_pending()):
-            if time.monotonic() >= deadline:
-                return False
-            time.sleep(0.02)
-        return True
+        def idle() -> bool:
+            return not (self.q.unfinished_tasks or self.inflight or self.dirty or (retries and self.retries) or (self.running and self.outbox_pending()))
+
+        return wait_idle(idle, timeout)  # CR-SENDER-WORKER: the shared 20 ms poll
 
 
 _LIVE: "weakref.WeakSet[PushNotifier]" = weakref.WeakSet()  # every running notifier (the app's NOTIFIER, and a private one a test or tool starts)
@@ -843,16 +829,3 @@ def wake_all() -> None:
 
 
 NOTIFIER = PushNotifier()
-
-
-def enqueue_fired(fired: list[dict[str, Any]]) -> int:
-    """Called by services/rules.deliver_pending after the caller's commit: one notice per fired alert."""
-    if not fired or not NOTIFIER.running:
-        for item in fired:
-            item.pop("_push", None)
-        return 0
-    notices = [notice_from_fired(item) for item in fired]
-    for item in fired:
-        item.pop("_push", None)
-    return NOTIFIER.enqueue(notices)
-

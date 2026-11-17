@@ -24,13 +24,10 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services.transit import catalogue, health, model, poller, stride
+from ._common import rid as _rid
 
 router = APIRouter()
 NO_RIGHT = "אין הרשאה להגדרות תחבורה ציבורית."
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _read(conn: sqlite3.Connection, principal: Principal) -> dict[str, bool]:

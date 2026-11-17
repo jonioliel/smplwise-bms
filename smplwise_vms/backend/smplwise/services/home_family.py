@@ -59,7 +59,7 @@ def features(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     from . import presence as P
     from .calendar import model as cal_model
     from .notices import store as notices_store
-    from ..routers.settings import read_settings as schedule_settings
+    from .settings_store import setting_value
     from .tickets import access as tk
     from .transit import model as transit_model
 
@@ -71,7 +71,7 @@ def features(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     from ..rbac import has_any_binding
 
     tcfg = transit_model.load_config(get_setting(conn, transit_model.CONFIG_KEY, ""))
-    sched_on = schedule_settings(conn)["schedules.enabled"] == "true"
+    sched_on = setting_value(conn, "schedules.enabled") == "true"
     phones = conn.execute("SELECT COUNT(*) FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL", (principal.user_id,)).fetchone()[0]
     return {
         "presence": {"on": bool(P.load_settings(conn)["enabled"]), "can": "presence.report" in perms},

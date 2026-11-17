@@ -21,6 +21,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.maintenance import access, files as mfiles, model, service
 from ..services.maintenance.access import Viewer
+from ._common import rid as _rid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 TOKEN = r"^[A-Za-z0-9_-]{16,64}$"
@@ -34,10 +35,6 @@ def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqli
 
 open_router = APIRouter()  # GET /maintenance/module only
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class _Body(BaseModel):
@@ -338,5 +335,7 @@ def revoke_tag(request: Request, tag_id: str = Path(..., pattern=ID), principal:
 
 @router.get("/maintenance/scan/{token}")
 def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """A scanned sticker, for a signed-in person: the task or the device it opens (unknown, revoked or not visible: the same 404)."""
+    """A scanned sticker, for a signed-in person: the task or the device it opens (unknown, revoked or not visible: the same 404).
+    Stays on the WRITE connection (tests/get_write_allowlist_rest.txt): service.scan stamps the tag's `last_scan_at`, and on a
+    read connection that stamp is skipped silently (CR-READCONN-B had moved it; the tags list then never showed a scan)."""
     return service.scan(Viewer(conn, principal), token)

@@ -28,6 +28,7 @@ from ..db import unlocked
 from ..errors import ApiError, not_found, validation
 from ..rbac import INSTALLATION, Principal, require
 from ..services import brand_assets as ba
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -45,10 +46,6 @@ def _variant(v: str) -> str:
     if v not in ba.VARIANTS:
         raise not_found("לא נמצא.")
     return v
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _image(mime: str, data: bytes, stamp: str, cache: str) -> Response:

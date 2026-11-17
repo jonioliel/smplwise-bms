@@ -20,6 +20,7 @@ import httpx
 
 from ...config import Settings
 from ...errors import ApiError
+from ...test_reset import register_reset
 from .. import nvr, xmlsafe
 from ..nvr_write import response_status
 from .base import (ChannelInfo, ChannelReading, DiskReading, HealthReading, RecorderCapabilities, RecorderHealth, StreamEncoding, StreamOptions,
@@ -135,6 +136,9 @@ _monotonic = time.monotonic  # tests move this clock
 def clear_options_cache() -> None:
     with _OPTIONS_LOCK:
         _OPTIONS.clear()
+
+
+register_reset(__name__, ("_OPTIONS",), clear_options_cache)
 
 
 def _unavailable(op: str, exc: Exception, *, outcome: str | None = None) -> ApiError:

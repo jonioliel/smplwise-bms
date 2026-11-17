@@ -3,6 +3,7 @@ Ingress (relative asset URLs, hash routing)."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import mimetypes
@@ -18,365 +19,35 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__, correlation_id
 from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
-from .db import Database, is_storage_full
+from .db import Database, is_busy, is_storage_full
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import home_mapping as home_mapping_router  # MAPPING-ASSIST-2330
-from .routers import access, access_control, wiskey_relay_map as wiskey_relay_map_router, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, popup_layout as popup_layout_router, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
+from . import routers as routers_pkg
+from . import startup_steps
+
+routers_pkg.import_eager()  # the router modules this module always imported at its own import, in the same order (routers.EAGER)
 
 log = logging.getLogger("smplwise")
 
 
+# CR-MAIN-ROUTERS-TABLE-2440: the conditions a routers.ROUTERS entry may name in `when`
+MOUNT_CONDITIONS = {
+    # developer identity mode only: truly absent otherwise, not merely a 404 raised from inside the handler
+    "dev_identity": lambda settings: bool(settings.dev_user and not settings.in_addon),
+}
+
+
 def janitor_tick(db: Database, settings: Settings) -> None:
     """One housekeeping pass (every 30 s): idle playback sessions, orphan relay streams, empty playback groups,
-    export retention, event / thumbnail / audit / HA-history pruning. A plain function so a test runs it end to
-    end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune."""
-    from . import audit as audit_mod
-    from .routers.settings import read_settings
-    from .services import demo_mode, events_derive, exports as ex, ha_history, playback as pb, playback_groups as pg, thumbnails
+    export retention, event / thumbnail / audit / HA-history pruning and every module's own retention. A plain function so a
+    test runs it end to end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune.
+    The steps, their order, arguments and warnings are the registry `services/janitors.py` (CR-JANITOR-REGISTRY-2438); every
+    step is guarded (BACKEND-SAFETY-2435) except the three that never were (NVR storage warm-up, manual-recording stop, WAL
+    checkpoint). Two failures end the pass on purpose: a demo state that cannot be read and settings that cannot be read."""
+    from .services import janitors
 
-    if demo_mode.tick(db, settings):  # CR-READY96: a running demo ends here when its time is up; while one runs the real installation's housekeeping waits
-        return
-    with db.connection() as conn:
-        s = read_settings(conn)
-    pb.expire_idle(settings, s["playback.lease_s"])
-    pb.sweep_orphans(settings)
-    pg.expire_empty()
-    ex.retention_sweep(db, settings, s["exports.retention_days"])
-    events_derive.prune(db, s["events.retention_days"])
-    thumbnails.prune(settings, s["events.retention_days"])
-    audit_mod.prune_db(db, s["audit.retention_days"])
-    from .services import ha_user_auth
-
-    ha_user_auth.flush_refusal_summaries(db)  # counted-but-quiet throttled refusals: the end-of-window summary rows
-    ha_history.prune_db(db)
-    from .services import device_activity
-
-    device_activity.prune_db(db)  # DEVHIST: retention + size caps (itself throttled to every 15 min)
-    from .services import push as push_svc
-
-    push_svc.prune(db)  # CR-008 P3: push subscriptions whose browser has not synced for months
-    try:  # CR-LIVEEVENT100: closed incidents past incidents.retention_days (an open incident is never pruned)
-        from .services import incidents as incidents_svc
-
-        incidents_svc.prune_db(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("incidents janitor failed", exc_info=True)
-    try:  # CR-014: expired schedule trash, runs past their retention, settled ops, due derived runs (no Home Assistant call)
-        from .services import schedules as schedules_svc
-
-        schedules_svc.janitor(db, s)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("schedules janitor failed", exc_info=True)
-    try:  # CR-017: expired automation trash, runs and ops past their retention (no Home Assistant call)
-        from .services import automations as automations_svc
-
-        automations_svc.janitor(db, s)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("automations janitor failed", exc_info=True)
-    try:  # CR-015: media devices deleted for 30 days, their layout keys, old command rows (no Home Assistant call)
-        from .services import media_store
-
-        media_store.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("media janitor failed", exc_info=True)
-    try:  # MU2: announcement log rows older than 90 days
-        from .services import announcements as announcements_svc
-
-        with db.connection(label="announce.prune") as conn:
-            announcements_svc.prune(conn)
-        announcements_svc.release_queued(db, settings)  # ANNOUNCE-295: announcements held in the quiet hours are spoken once the window ended
-    except Exception:  # noqa: BLE001
-        log.warning("announcements janitor failed", exc_info=True)
-    try:  # CR-023 P2: automatic electricity bills at the end of each period (throttled to every 5 minutes; idempotent)
-        from .services import energy_billing
-
-        energy_billing.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("energy billing janitor failed", exc_info=True)
-    try:  # CR-QUIET103: stamp quiet windows whose end instant has passed (the dispatch decides by the clock, not by this sweep; no device call)
-        from .services import quiet_windows
-
-        quiet_windows.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("quiet windows janitor failed", exc_info=True)
-    try:  # NEEDSREVIEW (2.8.0): the yearly "needs review" reminder (January, once, throttled to an hourly check; never a door-system call)
-        from .services import needs_review
-
-        needs_review.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("needs-review janitor failed", exc_info=True)
-    try:  # SECFIX2-295 / PUB-03: erase undecided vendor-typed technicians past access.external.pending_retention_days (default 90, owner 2026-10-21; a saved 0 = off)
-        from .services import pending_retention
-
-        pending_retention.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("pending retention janitor failed", exc_info=True)
-    try:  # IDENT146: purge local accounts disabled / deleted for privacy.local_purge_days (default 30; the switch privacy.local_purge is off by default)
-        from .services import local_privacy
-
-        local_privacy.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("local privacy janitor failed", exc_info=True)
-    try:  # ZONECOUNT107 / REL2140 M-2: people-count samples - all deleted while the switch is off, retention while on (read-gated)
-        from .services import zone_counts
-
-        zone_counts.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("zone count janitor failed", exc_info=True)
-    try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
-        from .services import ha_camera_streams
-
-        ha_camera_streams.reconcile(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("ha live reconcile failed", exc_info=True)
-    try:  # CAMERA-STREAM-SOURCES-2410: delete `smplwise_cam_` streams no manual source wants (throttled; nothing outside that shape)
-        from .services import camera_sources
-
-        camera_sources.reconcile(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("camera sources reconcile failed", exc_info=True)
-    try:  # CR-023: electricity retention (hourly inside; energy.db only, its own gate)
-        from .services import energy_sampler
-
-        energy_sampler.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("energy janitor failed", exc_info=True)
-    try:  # CR-WATER78: water retention (hourly inside; water.db only, its own gate; nothing while the module is off)
-        from .services import water_sampler
-
-        water_sampler.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("water janitor failed", exc_info=True)
-    try:  # CR-WATER78 slice 2: the leak evaluator, once per closed 15-minute bucket (water.db read-only; nothing while the module is off; never a device action)
-        from .services import water_runtime
-
-        water_runtime.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("water alerts evaluator failed", exc_info=True)
-    try:  # CR-WATER78 slice 3: automatic water bills at the end of each period (every 5 min inside) and bill retention (the shared keys)
-        from .services import water_billing
-
-        water_billing.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("water billing janitor failed", exc_info=True)
-    try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
-        from .services import generator_runtime
-
-        generator_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("generator janitor failed", exc_info=True)
-    try:  # CR-INSIGHT215 slice 3: the scheduled monthly building report (OFF until set up and enabled; self-throttled to once a minute)
-        from .services import insights_delivery
-
-        insights_delivery.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("insights delivery janitor failed", exc_info=True)
-    try:  # CR-INFRA-ELEVATORS 2.8.0: the elevators' state history past its retention (hourly inside; no Home Assistant call)
-        from .services import elevators_runtime
-
-        elevators_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("elevators janitor failed", exc_info=True)
-    try:  # CR-INFRA-TEMPERATURE 2.9.1: the temperature history and alert log past their retention (hourly inside; no Home Assistant call)
-        from .services import temperature_runtime
-
-        temperature_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("temperature janitor failed", exc_info=True)
-    try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
-        from .services import update_runs
-
-        update_runs.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("update runs janitor failed", exc_info=True)
-    try:  # CR-028: casts past their time end (one stop, the restore rule), casts whose screen vanished end, "not confirmed" after 15 s
-        from .services import cast_sessions
-
-        cast_sessions.janitor(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("cast janitor failed", exc_info=True)
-    try:  # CR-027: the phone app's presence event log past its retention, expired app push messages, revoked device rows
-        from .services import presence as presence_svc
-
-        presence_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("presence janitor failed", exc_info=True)
-    try:  # PRESENCE-2280: building-presence transitions (only while the master switch is on) and their retention
-        from .services import building_presence_history as bph
-
-        bph.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("building presence history failed", exc_info=True)
-    try:  # PARTNERAPI113-295: token expiry / creator-gone notices, purge of ended tokens, the delivery log and old outbox rows
-        from .services.partner import core as partner_core, webhooks as partner_webhooks
-
-        with db.connection(label="partner.janitor") as conn:
-            partner_core.janitor(conn)
-            partner_webhooks.janitor(conn)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("partner janitor failed", exc_info=True)
-    try:  # APPREFRESH-295: expired app access tokens, families that ran out, ended families past their audit keep
-        from .services import app_refresh as app_refresh_svc
-
-        app_refresh_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("app refresh janitor failed", exc_info=True)
-    try:  # SESSIONEXCH2-295: lapsed codes, web sessions past expiry or whose family ended (the sweep for a missed fan-out)
-        from .services import app_session as app_session_svc
-
-        app_session_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("app session janitor failed", exc_info=True)
-    try:  # TFA2: expired second-factor lockout rows
-        from .services import second_factor as second_factor_svc
-
-        second_factor_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("second factor janitor failed", exc_info=True)
-    try:  # SEC3 (review L4): the sign-in rate counters and expired block-counter rows
-        from .services import ha_user_auth as hua_svc
-
-        hua_svc.flush_limiter(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("rate limiter flush failed", exc_info=True)
-    try:  # USR2: the local identities' tiers (written behind), expired pending second steps, old link and session rows
-        from .services import local_identity as local_identity_svc
-
-        local_identity_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("local identity janitor failed", exc_info=True)
-    try:  # USR2-P2B: self-service reset code rows an hour past expiry, send-counter rows past 24 h
-        from .services import local_reset as local_reset_svc
-
-        local_reset_svc.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("local reset janitor failed", exc_info=True)
-    try:
-        from .services import alarm_codes as alarm_codes_svc
-
-        alarm_codes_svc.janitor(db)
-    except Exception:  # noqa: BLE001
-        log.warning("alarm code counter janitor failed", exc_info=True)
-    try:  # CR-038: the tickets module's housekeeping (hourly inside; the request-idempotency rows after 24 h)
-        from .services.tickets import retention as tickets_retention
-
-        tickets_retention.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("tickets janitor failed", exc_info=True)
-    try:  # CR-038 S4: the public listener's counters and switch, codes / sessions / redeem ids / access rows past retention, unused keys
-        from .services.tickets.public_runtime import RUNTIME as tickets_public
-
-        tickets_public.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others (W15)
-        log.warning("tickets public janitor failed", exc_info=True)
-    try:  # CR-038 S9: the claim window's end, pending invoice files after 24 h, claims past their own retention (every 10 min inside)
-        from .services.tickets import costs_retention
-        from .services.tickets.public_runtime import RUNTIME as tickets_runtime
-
-        if tickets_runtime.data_dir is not None:
-            costs_retention.janitor(db, tickets_runtime.attachments_root())
-    except Exception:  # noqa: BLE001
-        log.warning("tickets cost janitor failed", exc_info=True)
-    try:  # CR-MAINT215: reminders before a due date / an expiry and requests on schedule (every 15 min inside; nothing while the module is off)
-        from .services.maintenance import reminders as maintenance_reminders
-
-        maintenance_reminders.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("maintenance janitor failed", exc_info=True)
-    try:  # SUPPLIERDOCS-297: document-reading drafts past their retention, and those of removed files (hourly inside)
-        from .services.docread import service as docread_service
-
-        docread_service.janitor(db)
-    except Exception:  # noqa: BLE001
-        log.warning("docread janitor failed", exc_info=True)
-    try:  # CR-EMERG104: the readiness history (a row only when the verdict or an item changed, or once a day); nothing while the module is off
-        from .services.emergency import service as emergency_service
-
-        emergency_service.janitor(db, settings)
-    except Exception:  # noqa: BLE001
-        log.warning("emergency readiness history failed", exc_info=True)
-    try:  # CR-NOTICE106: archived / expired notices past `notices.retention_days` (soft delete, purge 30 days later) - hourly
-        from .services.notices import store as notices_store
-
-        notices_store.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("notices janitor failed", exc_info=True)
-    try:  # CALENDARS-298: guest personal data past its retention is erased (always); expiry / done / the nightly cache roll while the module is on
-        from .services.calendar import jobs as calendar_jobs
-
-        calendar_jobs.tick(db)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar janitor failed", exc_info=True)
-    try:  # CALENDARS-298 phase 2: due external-calendar syncs (polling, at most once a minute per process; nothing while the module or sync is off)
-        from .services.calendar import jobs as calendar_jobs
-
-        calendar_jobs.sync_tick(db, settings.data_dir)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar sync tick failed", exc_info=True)
-    try:  # CAL-GRID-EDIT-2343: held-back cancel / move notices whose undo window passed
-        from .services.calendar import jobs as calendar_jobs
-
-        calendar_jobs.notice_tick(db)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar notice tick failed", exc_info=True)
-    try:  # CAL-ATTENDEES-2343: due attendee notices (in-app / the guests' messaging channel; a cancel waits the undo window); guest-contact retention hourly
-        from .services.calendar import attendee_notices
-
-        attendee_notices.tick(db, settings.data_dir)
-    except Exception:  # noqa: BLE001
-        log.warning("calendar attendee notices tick failed", exc_info=True)
-    try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
-        from .services import messaging_runtime
-
-        messaging_runtime.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("messaging ledger janitor failed", exc_info=True)
-    try:  # WA-CONSENT-LINK: unanswered consent requests expire (held messages dropped, senders told), approved ones are released
-        from .services import intercom_consent
-
-        intercom_consent.tick(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("intercom consent janitor failed", exc_info=True)
-    try:  # WKR5-295: the WisKey people-write lineage keeps ENDED operations 30 days (open unknowns never purged); hourly inside; no-op uninstalled
-        from .services import wiskey_direct_join
-
-        wiskey_direct_join.janitor()
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("wiskey lineage janitor failed", exc_info=True)
-    try:  # WISKEY-ADOPT-2272: WisKey's automatic installation (registry sync / re-announce) - hourly inside; `off` unless wiskey.auto_install = on
-        from .services import wiskey_auto_install
-
-        wiskey_auto_install.reconcile_due(db, settings)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("wiskey installation reconcile failed", exc_info=True)
-    try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
-        from .services.tickets.messaging import RUNTIME as tickets_messaging
-
-        tickets_messaging.janitor(db)
-    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-        log.warning("tickets messaging janitor failed", exc_info=True)
-    from .services import storage
-
-    if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
-        storage.warm(db, settings)  # non-blocking; keeps the storage report warm between opens
-        from .services import nvr_write
-
-        nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
-        try:  # CR-020 S2: stream changes left pending (crash, busy database, unknown device answer) - settled by a read, never a write
-            from .services import nvr_settings
-
-            nvr_settings.settle_pending(db, settings)
-        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-            log.warning("nvr stream janitor failed", exc_info=True)
-        try:  # CR-020 S2C: a multi-camera batch whose runner is gone (stale heartbeat) ends `interrupted` - never resumed
-            from .services import nvr_batch
-
-            nvr_batch.recover_batches(db, settings)
-        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
-            log.warning("nvr batch recovery failed", exc_info=True)
-    db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
+    janitors.run_pass(db, settings)
 
 
 def warm_route_tables(app: FastAPI) -> int:
@@ -404,7 +75,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.plans_dir.mkdir(parents=True, exist_ok=True)
 
-    app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        # CR-MAIN-ROUTERS-TABLE-2440 (review 05:P3-01): the two former `@app.on_event` handlers (deprecated) as one lifespan
+        # context - the same two functions, defined further down, in the same order; like the event handlers, the stop does
+        # not run when the start raised.
+        await _start_janitor()
+        yield
+        await _stop_janitor()
+
+    app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.settings = settings
     from .services import demo_mode as _demo_mode
 
@@ -434,80 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
-    if 212 in (applied or []):  # HOME-SIMPLE-2421: people who arrived under 2.42.0 keep the interface default they had
-        try:
-            from .services import home_interface as _hi
-
-            with app.state.db.connection(label="home_interface.freeze_legacy_defaults") as conn:
-                frozen = _hi.freeze_legacy_defaults(conn)
-            if frozen:
-                log.info("home interface: kept the 2.42.0 default of %s person(s)", frozen)
-        except Exception:  # noqa: BLE001 - never block the start; such a person then gets the new default (full)
-            log.exception("could not keep the 2.42.0 home interface defaults")
-    try:  # LAZYMIC-295: the remote channel's microphone policy follows this installation's settings from the first response
-        from . import remote_channel as _rc
-
-        with app.state.db.connection(mode="read", label="mic mode") as conn:
-            _rc.load_mic_mode_from(conn)
-    except Exception:  # noqa: BLE001 - never block the start; the default allows the microphone
-        log.warning("could not read the microphone policy settings", exc_info=True)
-    try:  # review M2: objects of 0036 (alarm) and 0037 (user_prefs) exist whatever schema_migrations recorded
-        guarded = app.state.db.ensure_migration_objects()
-        if guarded:
-            log.warning("schema guard created objects missing despite the recorded migrations: %s", guarded)
-    except Exception:  # noqa: BLE001 - never block the start
-        log.exception("could not check the alarm / user_prefs schema")
-    try:  # CR-009 re-review: a dev database that ran an earlier shape of the shared-spaces migration gets what it lacks
-        from .services import shared_spaces as shared_spaces_svc
-
-        with app.state.db.connection(label="shared_spaces.ensure_schema") as conn:
-            fixed = shared_spaces_svc.ensure_schema(conn)
-        if fixed:
-            log.warning("shared spaces schema completed: %s", fixed)
-    except Exception:  # noqa: BLE001 - never block the start
-        log.exception("could not check the shared spaces schema")
-    backup_svc.record_version(app.state.db)
-    update_runs.on_startup(app.state.db, settings)  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
-    try:  # CR-021 S4: a release flagged `[platform-restart]` in its own notes adds the "restart required" reason once
-        from .services import release_notes
-
-        if os.environ.get("SW_RELEASE_MARKER", "1") != "0":  # tests switch the start-up read off (conftest)
-            with app.state.db.connection(label="release_notes.note_release_restart") as conn:
-                if release_notes.note_release_restart(conn):
-                    log.info("this release asks for one platform restart (reason added)")
-    except Exception:  # noqa: BLE001 - never block the start
-        log.exception("could not read the release's platform-restart marker")
-    try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
-        from .services import notify_policy
-
-        with app.state.db.connection(label="notify_policy.ensure_defaults") as conn:
-            notify_policy.ensure_defaults(conn)
-    except Exception:  # noqa: BLE001 - never block the start
-        log.exception("could not create the notification policies")
-    try:  # CR-007 slice 3 review: a bulk device action cut off by the previous process gets its outcome now
-        from .services import device_bulk
-
-        swept = device_bulk.sweep_unfinished(app.state.db)
-        if swept:
-            log.warning("settled %s bulk device action(s) left unfinished by the previous process", swept)
-    except Exception:  # noqa: BLE001 - never block the start
-        log.exception("could not settle unfinished bulk device actions")
-    try:  # CR-019: switch protection on the mirror the previous process left (renames, gone, switches not judged yet)
-        from .services import switch_protection
-
-        with app.state.db.connection(label="switch_protection.startup") as conn:
-            switch_protection.reconcile(conn, switch_protection.present_from_mirror(conn))
-    except Exception:  # noqa: BLE001 - never block the start; an unjudged switch stays out of group actions (fail-safe)
-        log.exception("could not reconcile the switch protection")
-    try:  # 0.1.74: HA Hikvision-integration events get their camera (one cheap pass; new events get it on insert)
-        from .services.correlation import backfill_ha_event_cameras
-
-        with app.state.db.connection() as _c:
-            fixed = backfill_ha_event_cameras(_c)
-        if fixed:
-            log.info("attached %s Home Assistant NVR events to their cameras", fixed)
-    except Exception:  # noqa: BLE001 - never block the start
-        log.exception("HA event camera backfill failed")
+    startup_steps.after_migrate(app, settings, applied)  # CR-MAIN-ROUTERS-TABLE-2440: the guards and one-time repairs, in their old order
     # CR-022: the NVR connection stored in Arx (recorder_connections), overlaid ONCE here - after the migrations, before any
     # background worker - and the one-time import of the add-on options. Every later reader sees the effective settings; a
     # save or a removal waits for the next start (connection_pending_restart).
@@ -551,13 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 
-    @app.middleware("http")
-    async def correlation(request: Request, call_next):
-        # SX-17: a client id is used only when it is one well-formed value (8-64 of [A-Za-z0-9_-]); never reflected otherwise
-        request.state.correlation_id = correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
-        response = await call_next(request)
-        response.headers["X-Correlation-Id"] = request.state.correlation_id
-        return response
+    app.add_middleware(CorrelationId)  # the same place in the stack as the former @app.middleware("http") (innermost of ours)
 
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
@@ -567,6 +168,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def storage_full(request: Request, exc: sqlite3.OperationalError):
         # T035 (outage run): a full data disk reaches the operator as a clear, enveloped answer instead of a bare 500. Every
         # other database error keeps its old path (re-raised: the server error and its trace, exactly as before).
+        if is_busy(exc):
+            # CR-MAIN-RUNTIME-2438 (review 05:P1-07): "database is locked" after the write-lock wait answers the error envelope,
+            # marked retryable. Status stays 500 (lead decision L1: the screens give 503 a meaning of its own - "the NVR / the
+            # intercom / the source is unavailable", the upload retry, "not sent" in messaging - so a busy database must not
+            # borrow it); Retry-After is a hint only. The database layer has already logged who held the lock.
+            cid = getattr(request.state, "correlation_id", "") or correlation_id.new()
+            log.warning("database busy: %s %s (correlation id %s)", request.method, request.url.path, cid, exc_info=True)
+            return JSONResponse(status_code=500, headers={"Retry-After": str(BUSY_RETRY_AFTER_S), correlation_id.HEADER: cid},
+                                content={"code": "database_busy", "user_message": "המערכת עמוסה כרגע והפעולה לא הושלמה. יש לנסות שוב בעוד רגע.",
+                                         "retryable": True, "correlation_id": cid, "details": {"retry_after_s": BUSY_RETRY_AFTER_S}})
         if not is_storage_full(exc):
             raise exc
         log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
@@ -584,440 +195,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # the same envelope as every other error, so a screen can show why a save was refused
         return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), getattr(request.state, "correlation_id", "")))
 
-    api = "/api/v1"
-    app.include_router(me.router, prefix=api, tags=["identity"])
-    app.include_router(catalog.router, prefix=api, tags=["catalog"])
-    app.include_router(home_mapping_router.router, prefix=api, tags=["catalog"])  # MAPPING-ASSIST-2330: the mapping assistant
-    app.include_router(plans.router, prefix=api, tags=["plans"])
-    app.include_router(plan_geometry.router, prefix=api, tags=["plans"])
-    app.include_router(plan_package_router.router, prefix=api, tags=["plans"])
-    app.include_router(plan_ifc_router.router, prefix=api, tags=["plans"])
-    app.include_router(plan_view_router.router, prefix=api, tags=["plans"])  # CR-029 S0: a person's own realistic-3D look dials
-    app.include_router(plan_catalog.router, prefix=api, tags=["catalog"])
-    app.include_router(anchors.router, prefix=api, tags=["anchors"])
-    from .routers import camera_sources as camera_sources_router
+    @app.exception_handler(Exception)
+    async def internal_error(request: Request, exc: Exception):
+        # CR-MAIN-RUNTIME-2438 (review 05:P1-07): any unexpected error (a bug, a database error other than "full" or "busy")
+        # answers the same envelope as every other error instead of Starlette's bare "Internal Server Error" text - same
+        # status 500, a code, the correlation id in the body and the header (this answer leaves outside the correlation
+        # middleware). Starlette re-raises the exception after this answer, so the server still logs the full traceback.
+        cid = getattr(request.state, "correlation_id", "") or correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
+        log.error("unexpected error: %s %s -> %s (correlation id %s)", request.method, request.url.path, type(exc).__name__, cid)
+        return JSONResponse(status_code=500, headers={correlation_id.HEADER: cid},
+                            content={"code": "internal_error", "user_message": "אירעה שגיאה בלתי צפויה. יש לנסות שוב; אם השגיאה חוזרת, יש לפנות לתמיכה עם מזהה הבקשה.",
+                                     "retryable": False, "correlation_id": cid, "details": {}})
+
+    # CR-MAIN-ROUTERS-TABLE-2440 (review 05:P2-05): the routers are mounted from the ordered table routers.ROUTERS - the order is
+    # behaviour (see that module); the wiring that always ran between two includes runs at its place as a Step.
+    for entry in routers_pkg.ROUTERS:
+        if isinstance(entry, routers_pkg.Step):
+            startup_steps.WIRING[entry.name](app, settings)
+            continue
+        module = routers_pkg.load(entry.module)
+        if isinstance(entry, routers_pkg.Load) or (entry.when is not None and not MOUNT_CONDITIONS[entry.when](settings)):
+            continue
+        if entry.prefix:
+            app.include_router(getattr(module, entry.attr), prefix=routers_pkg.API_PREFIX, tags=[entry.tag])
+        else:
+            app.include_router(getattr(module, entry.attr))
+    from .services.tickets.messaging import RUNTIME as tickets_messaging  # started and stopped by the lifespan below
+    from .services.tickets.public_runtime import RUNTIME as tickets_public
 
-    app.include_router(camera_sources_router.router, prefix=api, tags=["cameras"])  # CAMERA-STREAM-SOURCES-2410: a camera's video source, cameras without a recorder
-    app.include_router(cameras.router, prefix=api, tags=["cameras"])
-    app.include_router(settings_router.router, prefix=api, tags=["settings"])
-    app.include_router(ui_background.router, prefix=api, tags=["settings"])  # CRY: the background pictures behind the glass
-    app.include_router(white_label_router.router, prefix=api, tags=["settings"])  # WHITELABEL097-295: the installer brand profile and the customer pack
-    app.include_router(brand_router.router, prefix=api, tags=["settings"])  # LOGOS-295: the company logo, the logo size / dark-background choices, the tab title
-    app.include_router(media.router, prefix=api, tags=["media"])
-    app.include_router(recordings.router, prefix=api, tags=["recordings"])
-    app.include_router(playback.router, prefix=api, tags=["playback"])
-    app.include_router(playback_groups.router, prefix=api, tags=["playback"])
-    app.include_router(exports.router, prefix=api, tags=["exports"])
-    app.include_router(events.router, prefix=api, tags=["events"])
-    app.include_router(ha.router, prefix=api, tags=["home-assistant"])
-    if settings.dev_user and not settings.in_addon:
-        # developer identity mode only: truly absent otherwise, not merely a 404 raised from inside the handler
-        app.include_router(ha.dev_router, prefix=api, tags=["home-assistant"])
-    app.include_router(access.router, prefix=api, tags=["access"])
-    app.include_router(access_groups.router, prefix=api, tags=["access"])
-    app.include_router(access_control.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_reads  # CR-036 S4: the typed access-control reads (its own line: merges with CR-033 stay simple)
-
-    app.include_router(access_control_reads.router, prefix=api, tags=["access-control"])
-    from .routers import intercom_media as intercom_media_router  # CR-036 S18: station live video + talk (its own line)
-
-    app.include_router(intercom_media_router.router, prefix=api, tags=["access-control"])
-    from .routers import intercom_listen as intercom_listen_router  # WKAUDIN-295: listening to a station (its own line; off by default)
-    app.include_router(intercom_listen_router.router, prefix=api, tags=["access-control"])
-    from .routers import intercom_calls as intercom_calls_router  # WISKEY-INBOUND-CALLS-2382: the incoming-call banner, the call log (its own line)
-
-    app.include_router(intercom_calls_router.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
-
-    app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_station_ops  # WISKEY-STATION-OPS-2390: station maintenance (its own file and its own line)
-
-    app.include_router(access_control_station_ops.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_profiles  # WISKEY-PROFILES-EDIT-2390: the groups and profile fields editor (its own file and its own line)
-
-    app.include_router(access_control_profiles.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_schedule_writes  # WISKEY-SCHED-WRITE-2390: the device schedule library's writes (its own file and line)
-
-    app.include_router(access_control_schedule_writes.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_triage  # WISKEY-CONFLICTS-2400: conflict resolution and fleet alert actions (its own file and its own line)
-
-    app.include_router(access_control_triage.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_diag  # WISKEY-ACCESS-DIAG-2400: the "אבחון הרשאות" views (its own file and its own line)
-
-    app.include_router(access_control_diag.router, prefix=api, tags=["access-control"])
-    from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
-
-    app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_door_tech  # WISKEY-DOOR-TECH-2390: door technical writes (its own file and its own line)
-
-    app.include_router(access_control_door_tech.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
-
-    app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_template_v2  # TPLV2-295: WhatsApp template send v2 (OFF by default; fake-only)
-
-    app.include_router(access_control_template_v2.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_wa_queue  # WISKEY-WA-QUEUE-2400: registry refresh, durable queue, v3, paced send opt-in
-
-    app.include_router(access_control_wa_queue.router, prefix=api, tags=["access-control"])
-    from .routers import bulk_people as bulk_people_router  # CR-BULKPEOPLE-295: bulk edit, CSV import / export of people (its own line)
-
-    app.include_router(bulk_people_router.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_station_people  # WISKEY-PEOPLE-COMPLETE-2390: station-only people, duplicates, PIN check (its own line)
-
-    app.include_router(access_control_station_people.router, prefix=api, tags=["access-control"])
-    from .routers import wiskey_installer as wiskey_installer_router  # WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools (system.configure)
-
-    app.include_router(wiskey_installer_router.router, prefix=api, tags=["access-control"])
-    from .routers import access_control_ops as access_control_ops_router  # WISKEY-OPS-VIEWS-2400: Settings › תפעול האינטרקום (its own line)
-
-    app.include_router(access_control_ops_router.router, prefix=api, tags=["access-control"])
-    app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
-    app.include_router(wiskey_relay_map_router.router, prefix=api, tags=["access-control"])  # WISKEY-RELAYMAP-2310: the WisKey relay map approval
-    from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)
-
-    app.include_router(door_automations_router.router, prefix=api, tags=["access-control"])
-    from .routers import door_windows as door_windows_router
-
-    app.include_router(door_windows_router.router, prefix=api, tags=["access-control"])  # CR-039 DOORWIN-295: door windows + emergency controls (OFF)
-    from .routers import quiet as quiet_router
-
-    app.include_router(quiet_router.router, prefix=api, tags=["notifications"])  # CR-QUIET103 slice 1: quiet windows per floor / area (OFF)
-    from .routers import wiskey_validation as wiskey_validation_router  # WISKEY-LIVE-VALIDATION-2390: station acceptance runs (on demand only)
-
-    app.include_router(wiskey_validation_router.router, prefix=api, tags=["access-control"])
-    from .routers import readiness as readiness_router
-
-    app.include_router(readiness_router.router, prefix=api, tags=["ops"])  # CR-READY96 slice 1: installation readiness score (system.configure)
-    from .routers import demo as demo_router
-
-    app.include_router(demo_router.router, prefix=api, tags=["ops"])  # CR-READY96 slice 1: demo mode on a separate database (demo.run, sensitive, in no built-in role)
-    from .routers import occupancy as occupancy_router
-
-    app.include_router(occupancy_router.router, prefix=api, tags=["occupancy"])  # ZONECOUNT107-295: people count per area from Frigate reviews (OFF)
-    from .routers import camera_suggest as camera_suggest_router
-
-    app.include_router(camera_suggest_router.router, prefix=api, tags=["plan"])  # CAMSUGGEST138-295: nearest-camera suggestion settings + accepted zone camera
-    from .routers import scenarios as scenarios_router
-
-    app.include_router(scenarios_router.router, prefix=api, tags=["scenarios"])  # XSCENARIO109-295: cross-module scenarios (OFF; never a door or device action)
-    app.include_router(devices.router, prefix=api, tags=["devices"])
-    app.include_router(popup_layout_router.router, prefix=api, tags=["devices"])  # AREAEDIT-2290: the area pop-up layout (system.configure)
-    app.include_router(device_layouts.router, prefix=api, tags=["devices"])
-    app.include_router(device_cameras.router, prefix=api, tags=["devices"])
-    app.include_router(multimedia.router, prefix=api, tags=["multimedia"])  # CR-015: מולטימדיה - מסכים ושלט (/api/v1/multimedia; /api/v1/media is the camera video router)
-    app.include_router(schedules.router, prefix=api, tags=["schedules"])  # CR-014: תזמונים
-    app.include_router(automations.router, prefix=api, tags=["automations"])  # CR-017: אוטומציות · סצנות · סקריפטים
-    from .routers import automation_blueprints as automation_blueprints_router  # CR-BLUEPRINT80: ready-made automation templates (its own line)
-
-    app.include_router(automation_blueprints_router.router, prefix=api, tags=["automations"])
-    from .routers import automation_ext as automation_ext_router  # KAV079-295: the editors' extension (wall buttons, pre-save checks, on-device test)
-
-    app.include_router(automation_ext_router.router, prefix=api, tags=["automations"])
-    app.include_router(alarm.router, prefix=api, tags=["alarm"])  # CR-010: אבטחה › אזעקה
-    app.include_router(zones.router, prefix=api, tags=["zones"])
-    app.include_router(skins.router, prefix=api, tags=["plans"])
-    app.include_router(plan_area_links_router.router, prefix=api, tags=["zones"])  # K88: room <-> area links (table, suggestions, bulk apply)
-    app.include_router(floor_images_router.router, prefix=api, tags=["plans"])  # K88: own floor images (off / on) and their alignment
-    app.include_router(plan_bakes_router.router, prefix=api, tags=["plans"])  # CR-029 S3: stills, room masks and lightmaps rendered by an editor browser
-    app.include_router(search.router, prefix=api, tags=["search"])
-    from .routers import backup_offbox as backup_offbox_router
-
-    app.include_router(backup_offbox_router.router, prefix=api, tags=["backup"])  # DATASTORE-295 phase 2: before /backups/{name}
-    app.include_router(backup.router, prefix=api, tags=["backup"])
-    app.include_router(system_update.router, prefix=api, tags=["system-update"])  # CR-021 S1: self-update check and settings (system.update)
-    app.include_router(frames.router, prefix=api, tags=["recordings"])
-    app.include_router(cases.router, prefix=api, tags=["cases"])
-    app.include_router(storage.router, prefix=api, tags=["storage"])
-    app.include_router(rules.router, prefix=api, tags=["rules"])
-    app.include_router(push.router, prefix=api, tags=["push"])
-    app.include_router(energy_billing.router, prefix=api, tags=["energy"])  # CR-023 P2: electricity billing - customers, accounts, prices, bills
-    from .routers import mobile_notifications as mobile_notifications_router
-
-    app.include_router(mobile_notifications_router.router, prefix=api, tags=["notifications"])  # CR-027: the phone app's push registration and message fetch - BEFORE /notifications/{nid}
-    app.include_router(notifications.router, prefix=api, tags=["notifications"])  # CR-018: התראות - the inbox, the push action endpoint, administration (notify.manage)
-    from .routers import notify_whatsapp as notify_whatsapp_router
-
-    app.include_router(notify_whatsapp_router.router, prefix=api, tags=["notifications"])  # NOTIFWA: the WhatsApp channel - master switch, own-number test, own opt-out
-    from .services import temperature_whatsapp as _temperature_whatsapp  # noqa: F401 - TEMPREG-295: joins the messaging use registry at startup (gated by the module state), not when a temperature route first runs
-    from .services import insights_delivery as _insights_delivery  # noqa: F401 - CR-INSIGHT215: its WhatsApp use joins the account mapping at startup (shown only while the delivery is on)
-    from .services import access_grants as _access_grants  # noqa: F401 - REGSTART-295: the "access" messaging use joins at import; import it at startup, not via whichever router or worker ran first
-    from .services import local_reset as _local_reset  # noqa: F401 - REGSTART-295: the "identity" messaging use joins at import; it was imported only by the housekeeping step and the identity router
-
-    from .routers import presence as presence_router
-
-    app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
-    from .routers import building_presence as building_presence_router
-
-    app.include_router(building_presence_router.router, prefix=api, tags=["presence"])  # BUILDING-PRESENCE-2271: anonymous room / building occupancy from the tagged presence sensors (invisible while none is tagged)
-    from .routers import app_refresh as app_refresh_router
-
-    app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)
-    from .routers import app_brand as app_brand_router
-
-    app.include_router(app_brand_router.router, prefix=api, tags=["settings"])  # APP-SERVER-LEFTOVERS-2380: the company name + logo for the phone apps' splash / about screen (device token or session, read-only)
-    from .routers import ha_users as ha_users_router
-
-    app.include_router(ha_users_router.router, prefix=api, tags=["access"])  # USR1: home-system users created from Arx (users.ha_manage + an HA administrator)
-    app.include_router(health.router, prefix=api, tags=["ops"])
-    app.include_router(setup.router, prefix=api, tags=["ops"])
-    app.include_router(views.router, prefix=api, tags=["views"])
-    app.include_router(wall_router.router, prefix=api, tags=["wall"])
-    app.include_router(nvr_connection.router, prefix=api, tags=["nvr"])  # CR-022: vendors, the stored connection, its test, the restart that applies it
-    from .routers import app_secrets as app_secrets_router  # TKSECRETS2: the in-app secrets store (its own line)
-
-    app.include_router(app_secrets_router.router, prefix=api, tags=["settings"])
-    from .routers import video_services as video_services_router  # HEALTH-GO2RTC-FOLLOWUP-2431: which go2rtc services run, and the choice
-
-    app.include_router(video_services_router.router, prefix=api, tags=["settings"])
-    from .routers import recorders as recorders_router
-
-    app.include_router(recorders_router.router, prefix=api, tags=["nvr"])  # CR-024: recorders (multi-NVR) - list, add, edit, remove, connection, health
-    from .routers import frigate as frigate_router
-    from .routers import recorder_health as recorder_health_router
-
-    app.include_router(recorder_health_router.router, prefix=api, tags=["nvr"])  # CR-026: recorder health cards and thresholds
-    from .routers import camera_image_health as camera_image_health_router
-
-    app.include_router(camera_image_health_router.router, prefix=api, tags=["nvr"])  # CAMHEALTH091: camera image health (dark / blurred / frozen / shifted)
-    app.include_router(frigate_router.router, prefix=api, tags=["frigate"])  # NN5 F1: the Frigate provider API (read-only toward Frigate)
-    from .routers import frigate_control as frigate_control_router
-
-    app.include_router(frigate_control_router.router, prefix=api, tags=["frigate"])  # NN5 F2: the only routes that write to Frigate (every write class is off until switched on)
-    from .routers import frigate_f2b as frigate_f2b_router
-
-    app.include_router(frigate_f2b_router.router, prefix=api, tags=["frigate"])  # NN5 F2b: auto profile on alarm change, native exports / cases, manual events (classes off by default)
-    from .routers import frigate_config as frigate_config_router
-
-    app.include_router(frigate_config_router.router, prefix=api, tags=["frigate"])  # FRGS: config schema, zones and camera settings (class `config`, off by default)
-    app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
-    app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
-    from .routers import nvr_privacy as nvr_privacy_router
-
-    app.include_router(nvr_privacy_router.router, prefix=api, tags=["nvr"])  # NVRMASK-295: privacy-mask read / preview / guarded apply (off by default)
-    from .routers import mask_copy as mask_copy_router
-
-    app.include_router(mask_copy_router.router, prefix=api, tags=["nvr"])  # MASKCOPY62-295: privacy-mask copy PLAN only, no device write (off by default)
-    from .routers import energy_meters as energy_meters_router
-
-    from .routers import generator as generator_router
-
-    from .routers import elevators as elevators_router
-
-    from .routers import temperature as temperature_router
-
-    app.include_router(temperature_router.router, prefix=api, tags=["infra"])  # CR-INFRA-TEMPERATURE 2.9.1: טמפרטורות - units, history, alert log, routing (read-only)
-    app.include_router(elevators_router.router, prefix=api, tags=["infra"])  # CR-INFRA-ELEVATORS: מעליות - definitions, sensor mapping, derived live state (view only)
-    app.include_router(generator_router.router, prefix=api, tags=["generator"])  # CR-031: גנרטור - devices, live values, history, alerts, routing (view and alerts only)
-    app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
-    from .routers import shift_summary as shift_summary_router  # CR-SHIFT114: the shift / 24-hour summary (read-only; OFF by default)
-
-    app.include_router(shift_summary_router.router, prefix=api, tags=["reports"])
-    from .routers import incidents as incidents_router
-
-    app.include_router(incidents_router.router, prefix=api, tags=["events"])  # CR-LIVEEVENT100: אירוע חי - one page per incident (read-mostly; OFF by default)
-    from .routers import water as water_router
-
-    app.include_router(water_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 1: מים - meters, readings, consumption, settings (module switch, default off)
-    from .routers import insights as insights_router  # CR-INSIGHT215: insights and the monthly building report (its own line; every part OFF by default)
-
-    app.include_router(insights_router.router, prefix=api, tags=["insights"])
-    from .routers import water_billing as water_billing_router
-
-    app.include_router(water_billing_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 3: water accounts, tariffs, bills (shared billing settings)
-    from .routers import nvr_batch as nvr_batch_router
-
-    app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
-    from .routers import remote as remote_router
-
-    from .routers import second_factor as second_factor_router
-
-    app.include_router(second_factor_router.router, prefix=api, tags=["remote"])  # K11: the optional TOTP second factor (own enrolment, admin reset)
-    from .routers import capture_lease as capture_lease_router
-
-    app.include_router(capture_lease_router.router, prefix=api, tags=["access"])  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
-    from .routers import bridge_key as bridge_key_router
-
-    app.include_router(bridge_key_router.router, prefix=api, tags=["system"])  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)
-    from .routers import wiskey_pairing as wiskey_pairing_router
-
-    app.include_router(wiskey_pairing_router.router, prefix=api, tags=["system"])  # WISKEY-PAIRING-2382: Arx <-> WisKey pairing status, probe, guided re-pair
-    from .routers import partner as partner_router
-
-    app.include_router(partner_router.router, prefix=api, tags=["system"])  # PARTNERAPI113-295: partner tokens and webhooks (off; go-live not permitted; fakes only)
-    from .routers import access_grants as access_grants_router
-
-    app.include_router(access_grants_router.router, prefix=api, tags=["access"])  # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants (off; go-live not permitted)
-    from .routers import access_visitors as access_visitors_router
-
-    app.include_router(access_visitors_router.router, prefix=api, tags=["access"])  # EXTERNALBUILD-297 / CR-VISITOR105: visitor invitations (off by default)
-    from .routers import access_wiskey_visits  # WISKEY-VISITS-2407: WisKey visits / guest templates / the record of an Arx invitation (its own line)
-
-    app.include_router(access_wiskey_visits.router, prefix=api, tags=["access"])
-    from .routers import wiskey_switches as wiskey_switches_router
-
-    app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)
-    from .routers import wiskey_managed as wiskey_managed_router
-
-    app.include_router(wiskey_managed_router.router, prefix=api, tags=["access"])  # WISKEY-MANAGED-INSTALL-2382: WisKey installs and upgrades through Arx (owner-started, system administrator)
-    from .routers import fleet as fleet_router
-
-    # CR-FLEET215: the signed daily fleet report (switch OFF; system administrator). Its readiness block comes from CR-READY96's
-    # services/readiness.evaluate() (READYFLEET-295: one readiness, one screen); /readiness and /demo are CR-READY96's routers above.
-    app.include_router(fleet_router.router, prefix=api, tags=["system"])
-    from .routers import access_station_permissions as access_station_permissions_router
-
-    app.include_router(access_station_permissions_router.router, prefix=api, tags=["access"])  # STATIONPERM-295: per-station access of a person (off; go-live not permitted)
-    from .routers import compliance_export as compliance_export_router
-
-    app.include_router(compliance_export_router.router, prefix=api, tags=["access"])  # COMPLY108-295: who could enter which door and when (read-only export; off)
-    app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
-    from .routers import local_identity as local_identity_router
-
-    from .routers import local_privacy as local_privacy_router  # IDENT146: personal data export (off by default: privacy.personal_export)
-
-    app.include_router(local_privacy_router.router, prefix=api, tags=["identity"])
-    app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
-    from .routers import service_identity as service_identity_router
-
-    app.include_router(service_identity_router.router, prefix=api, tags=["identity"])  # USR2 P3: the service identity (local channel only; its off-only kill switch: either channel)
-    from .routers import local_passkeys as local_passkeys_router
-
-    app.include_router(local_passkeys_router.router, prefix=api, tags=["identity"])  # USR2 phase 4: passkeys of Arx-only identities
-    # the Android app's Digital Asset Links statement for passkeys in its WebView (404 unless the feature is on and an app is named)
-    app.add_api_route("/.well-known/assetlinks.json", local_passkeys_router.assetlinks, methods=["GET"], include_in_schema=False)
-    from .routers import cast as cast_router
-
-    app.include_router(cast_router.router, prefix=api, tags=["multimedia"])  # CR-028: שדר למסך - cast sessions, targets, the cast administration
-    from .services import cast_sessions as cast_svc
-
-    cast_svc.attach(app.state.db, settings)  # the relay's callbacks and the live tokens of open casts (an add-on restart keeps them)
-    from .routers import announcements as announcements_router
-    from .services import announcements as announcements_svc
-
-    app.include_router(announcements_router.router, prefix=api, tags=["multimedia"])  # MU2: הכרזות קוליות - speak, setup, test, history
-    from .services import announce_channel  # noqa: F401  (registers the `announce` notification channel)
-
-    announcements_svc.attach(app.state.db, settings)  # a rule's announce action writes its log through this
-    from .services import wa_policy as wa_policy_svc
-    from .services.tickets import channel_whatsapp as _wa_channel
-
-    _wa_channel.set_recipient_guard(wa_policy_svc.make_guard(app.state.db))  # WAPACE-295: the WhatsApp recipient allow-list, for every sender
-    from .routers import tickets as tickets_router, tickets_admin as tickets_admin_router  # CR-038 S1: the optional tickets module (its own lines)
-
-    app.include_router(tickets_router.open_router, prefix=api, tags=["tickets"])  # GET /tickets/module: the only route that answers while the module is off
-    app.include_router(tickets_admin_router.router, prefix=api, tags=["tickets"])  # settings, name, departments - BEFORE /tickets/{ticket_id}
-    from .routers import tickets_contacts as tickets_contacts_router, tickets_links as tickets_links_router  # CR-038 S4 (its own lines)
-
-    app.include_router(tickets_contacts_router.router, prefix=api, tags=["tickets"])  # the contact / vendor directory - BEFORE /tickets/{ticket_id}
-    from .routers import tickets_dept_handlers as tickets_dept_handlers_router  # CR-DEPT-MANAGER-HANDLERS (its own lines)
-
-    app.include_router(tickets_dept_handlers_router.router, prefix=api, tags=["tickets"])  # department managers' handlers - BEFORE /tickets/{ticket_id}
-    app.include_router(tickets_links_router.router, prefix=api, tags=["tickets"])  # handler links, health, address probe, key - BEFORE /tickets/{ticket_id}
-    from .routers import tickets_table as tickets_table_router  # CR-038 S6b: the board table (table, export.csv, bulk, views)
-    app.include_router(tickets_table_router.router, prefix=api, tags=["tickets"])  # CR-038 S6b - BEFORE /tickets/{ticket_id}
-    from .routers import tickets_budgets as tickets_budgets_router, tickets_vendor_stats as tickets_vendor_stats_router, \
-        tickets_visits as tickets_visits_router  # CR-SVC215 S1: budgets, the vendor card, vendor visits (their own lines)
-
-    app.include_router(tickets_budgets_router.router, prefix=api, tags=["tickets"])  # /tickets/costs/budgets... BEFORE the cost routes
-    app.include_router(tickets_vendor_stats_router.router, prefix=api, tags=["tickets"])  # /tickets/contacts/{id}/stats
-    app.include_router(tickets_visits_router.router, prefix=api, tags=["tickets"])  # /tickets/{id}/visits... BEFORE /tickets/{ticket_id}
-    from .routers import offline_field as offline_field_router  # OFFLINE110-295 S1: offline field work, server half (default OFF)
-
-    app.include_router(offline_field_router.router, prefix=api, tags=["tickets"])
-    from .routers import tickets_costs as tickets_costs_router  # CR-038 S9: cost claims (report, export, review, on-behalf, downloads)
-    app.include_router(tickets_costs_router.router, prefix=api, tags=["tickets"])  # CR-038 S9 - BEFORE /tickets/{ticket_id}
-    from .routers import tickets_detail as tickets_detail_router  # TKDETAILBE: owner, timeline, quotes, vendor messages, drafts
-
-    app.include_router(tickets_detail_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
-    from .routers import tickets_rules as tickets_rules_router  # TKRULES-291: tickets opened from alerts (system.configure)
-
-    app.include_router(tickets_rules_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
-    from .routers import tickets_intake as tickets_intake_router  # CR-INTAKE99: free-text request drafts (operator side only)
-
-    app.include_router(tickets_intake_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
-    from .routers import tickets_map as tickets_map_router  # TKMAP1: the map element of a request
-
-    app.include_router(tickets_map_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
-    from .routers import tickets_rfq as tickets_rfq_router  # TKRFQ1: requests for quotation (stage C1, the manager API)
-
-    app.include_router(tickets_rfq_router.router, prefix=api, tags=["tickets"])  # /tickets/rfqs... BEFORE /tickets/{ticket_id}
-    from .routers import tickets_messages as tickets_messages_router  # CR-038 S5b (its own lines)
-
-    app.include_router(tickets_messages_router.router, prefix=api, tags=["tickets"])  # channel, outbox, inbound, message templates - BEFORE /tickets/{ticket_id}
-    from .routers import tickets_board as tickets_board_router  # CR-038 S6: the manager board + the facet counts, BEFORE /tickets/{ticket_id}
-    app.include_router(tickets_board_router.router, prefix=api, tags=["tickets"])
-    app.include_router(tickets_router.router, prefix=api, tags=["tickets"])
-    from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
-
-    tickets_public.configure(settings, app.state.db)
-    from .routers import maintenance as maintenance_router  # CR-MAINT215: the optional maintenance module (its own lines)
-
-    app.include_router(maintenance_router.open_router, prefix=api, tags=["maintenance"])  # GET /maintenance/module: answers while the module is off
-    app.include_router(maintenance_router.router, prefix=api, tags=["maintenance"])  # ledger, plans, rounds, supplier documents, tags (off by default)
-    from .routers import docread as docread_router  # SUPPLIERDOCS-297: reading an attached certificate into proposed fields (off by default)
-
-    app.include_router(docread_router.open_router, prefix=api, tags=["docread"])  # GET /maintenance/docread/module
-    app.include_router(docread_router.router, prefix=api, tags=["docread"])
-    from .routers import emergency_readiness as emergency_router  # CR-EMERG104: the read-only emergency readiness view (off by default)
-
-    app.include_router(emergency_router.open_router, prefix=api, tags=["emergency-readiness"])  # GET /emergency-readiness/module answers while the module is off
-    app.include_router(emergency_router.router, prefix=api, tags=["emergency-readiness"])
-    from .services import ha_bridge as ha_bridge_svc
-
-    ha_bridge_svc.configure(settings.data_dir)  # HMACACT-295: the key set needs the data directory for a connection that does not know its database
-    from .routers import messaging_accounts as messaging_accounts_router  # CR-038 S5a: WhatsApp accounts per use (installation-level, no module gate)
-
-    app.include_router(messaging_accounts_router.router, prefix=api, tags=["messaging"])
-    from .routers import notices as notices_router  # CR-NOTICE106: לוח הודעות - notices, TV boards (module OFF by default)
-
-    app.include_router(notices_router.open_router, prefix=api, tags=["notices"])  # module state + settings: answer while the module is off
-    app.include_router(notices_router.display_router, prefix=api, tags=["notices"])  # the TV feed: no login, X-Board-Token
-    app.include_router(notices_router.router, prefix=api, tags=["notices"])
-    app.include_router(notices_router.page_router)  # GET /b/{slug}: the static TV page (before the www mount)
-    from .routers import calendar as calendar_router  # CALENDARS-298: יומנים - calendars, bookings, approvals, maintenance windows (module OFF by default)
-
-    app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
-    app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
-    from .routers import calendar_attendees as calendar_attendees_router  # CAL-ATTENDEES-2343: named attendees, their policy and notices
-
-    app.include_router(calendar_attendees_router.router, prefix=api, tags=["calendar"])
-    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync
-
-    app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
-    from .routers import calendar_feeds as calendar_feeds_router  # CALCONNECT-2330: iCal OUT feeds (management + the token document)
-    from .services.calendar_sync import credentials as calendar_credentials
-    from .services.calendar_sync import registry as calendar_registry
-
-    calendar_credentials.RUNTIME.configure(app.state.db, settings.data_dir)  # CALCONNECT-2330: the real adapters read sealed credentials through it
-    calendar_registry.install_builtin()  # iCal IN, Google, Microsoft; they run only for an authorised connection while the module is on
-    app.include_router(calendar_feeds_router.router, prefix=api, tags=["calendar"])
-    app.include_router(calendar_feeds_router.public_router, prefix=api, tags=["calendar"])  # the token document: no signed-in person (a subscriber cannot sign in)
-    from .routers import transit as transit_router  # BUSTIMES-295: הגדרות › תחבורה ציבורית (stops, catalogue, health); the TV digest is a notices display route
-
-    app.include_router(transit_router.router, prefix=api, tags=["transit"])
-    from .routers import home_interface as home_interface_router  # HOME-SIMPLE-2420: the home interface (policy, rooms, favourites, wall panel exit)
-
-    app.include_router(home_interface_router.router, prefix=api, tags=["home"])
-    from .routers import home_v3 as home_v3_router  # HOME-V3-P1-2430: room wallpapers for everyone, the doors a guest may be given
-
-    app.include_router(home_v3_router.router, prefix=api, tags=["home"])
-    from .routers import home_gaps as home_gaps_router  # HOME-V3-GAPS-2436: the alarm changes for the home diary
-
-    app.include_router(home_gaps_router.router, prefix=api, tags=["home"])
-    from .routers import home_family as home_family_router  # HOME-V3-P2-2431: family and building screens of the home interface
-
-    app.include_router(home_family_router.router, prefix=api, tags=["home"])
-    from .routers import home_wall_events as home_wall_events_router  # HOME-V3-FOLLOWUP-B-2431: a wall panel adds a family calendar event
-    from .routers import home_ticket_photo as home_ticket_photo_router  # HOME-V3-FOLLOWUP-B-2431: a photo on a new home ticket
-
-    app.include_router(home_wall_events_router.router, prefix=api, tags=["home"])
-    app.include_router(home_ticket_photo_router.router, prefix=api, tags=["home"])
-    from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
-
-    tickets_messaging.configure(settings, app.state.db)
-
-    @app.on_event("startup")
     async def _start_janitor() -> None:
         try:  # SEC3 (review L4): the sign-in rate counters of the previous process
             from .services import ha_user_auth as hua_svc
@@ -1042,7 +247,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import exports as ex
         from .services import playback as pb
         from .services import playback_groups as pg
-        from .routers.settings import read_settings
+        from .services.settings_store import setting_value  # CR-JANITOR-REGISTRY-2438 (05:P1-03): the zone is one key, not 261
 
         def _instance() -> str:
             from .db import get_setting, set_setting
@@ -1072,7 +277,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         def _tz() -> str:
             with app.state.db.connection(mode="read") as conn:  # never takes the write lock
-                return read_settings(conn)["time.zone"]
+                return setting_value(conn, "time.zone")  # per NVR alert (events_ingest): one key, as read_settings()["time.zone"]
 
         async def discover(reason: str) -> None:
             await run_in_threadpool(autosync.run_once, app.state.db, settings, reason)
@@ -1093,7 +298,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         row = conn.execute("SELECT time_zone FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
                     except Exception:  # noqa: BLE001 - a database before 0055
                         row = None
-                    return (row["time_zone"] if row and row["time_zone"] else None) or read_settings(conn)["time.zone"]
+                    return (row["time_zone"] if row and row["time_zone"] else None) or setting_value(conn, "time.zone")
             return getter
 
         app.state.tz_of = _tz_of  # CR-024: a recorder enabled while running starts its alert stream with its own zone
@@ -1289,129 +494,143 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("remote access (SmplWise Arx) is ON at %s/", settings.remote_path)
             app.state.remote_revalidation = asyncio.create_task(ha_user_auth.revalidate_loop(app.state.db, settings))
 
-    @app.on_event("shutdown")
     async def _stop_janitor() -> None:
-        from .services import nvr_batch
-
-        nvr_batch.signal_shutdown()  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
-        from .services import cast_relay
-
-        cast_relay.SERVER.stop()  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
-        from .services.notices import listener as notice_listener
-
-        notice_listener.SERVER.stop()  # CR-NOTICE106: the TV boards' LAN listener
+        # CR-MAIN-RUNTIME-2438 (review 05:P2-01): every stop runs through _shutdown_step / _in_thread_step, so one stop that
+        # raises is logged and the later ones still run - above all the capture-lease revocation and close_pool (last).
         from starlette.concurrency import run_in_threadpool as _stop_in_thread
 
-        await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
-        await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        # ASGI-295 F2: the daily backup loop is cancelled too, and every cancelled task is awaited (bounded; their own errors are not raised)
+        async def _in_thread_step(name: str, fn, *args) -> None:
+            try:
+                await _stop_in_thread(fn, *args)
+            except Exception:  # noqa: BLE001 - one failing stop never skips the later ones
+                log.warning("shutdown step %s failed", name, exc_info=True)
+
+        from .services import nvr_batch
+
+        _shutdown_step("nvr batch signal", nvr_batch.signal_shutdown)  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
+        from .services import cast_relay
+
+        _shutdown_step("cast relay", cast_relay.SERVER.stop)  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
+        from .services.notices import listener as notice_listener
+
+        _shutdown_step("notice listener", notice_listener.SERVER.stop)  # CR-NOTICE106: the TV boards' LAN listener
+
+        await _in_thread_step("tickets public", tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
+        await _in_thread_step("tickets outbox", tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
+        # ASGI-295 F2: the daily backup loop is cancelled too, and every cancelled task is awaited (bounded; their own errors are not raised).
+        # CR-MAIN-RUNTIME-2438: the start-up NVR discovery task is cancelled with them (a shutdown during start-up no longer leaves it running)
         stopping = []
         for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task",
-                     "backup_task"):
+                     "backup_task", "discovery"):
             task = getattr(app.state, name, None)
             if task and not task.done():
                 task.cancel()
                 stopping.append(task)
         if stopping:
             await asyncio.wait(stopping, timeout=5)
-        try:  # SEC3 (review L4): the last sign-in counters reach the database before the process ends
-            from .services import ha_user_auth as hua_svc
+        from .services import ha_user_auth as hua_svc
 
-            hua_svc.flush_limiter(app.state.db)
-        except Exception:  # noqa: BLE001
-            log.warning("rate limiter final flush failed", exc_info=True)
+        # SEC3 (review L4): the last sign-in counters reach the database before the process ends
+        _shutdown_step("rate limiter final flush", hua_svc.flush_limiter, app.state.db)
         from .services import events_ingest
         from .services import exports as ex
 
-        ex.WORKER.shutdown()
-        events_ingest.LISTENER.shutdown()
-        events_ingest.shutdown_extra()  # CR-024: the further recorders' alert streams
+        _shutdown_step("exports worker", ex.WORKER.shutdown)
+        _shutdown_step("alert listener", events_ingest.LISTENER.shutdown)
+        _shutdown_step("further alert listeners", events_ingest.shutdown_extra)  # CR-024: the further recorders' alert streams
         from .services import thumbnails as th
 
-        th.WORKER.stop_evt.set()
+        _shutdown_step("thumbnails worker", th.WORKER.stop_evt.set)
         from .services import ha_sync
 
-        ha_sync.SYNC.shutdown()
+        await _in_thread_step("ha sync", ha_sync.SYNC.shutdown)  # CR-WAVE2-COMBINED-2439: wakes and joins its loop thread (bounded), off the event loop
         from .services import lease_events
 
         # CR-WISKEY-LEASE-REVOCATION-EVENT T11: before the WisKey feed stops, any live capture lease is revoked (scope all) within 2 s
-        await _stop_in_thread(lease_events.WORKER.on_shutdown)
+        await _in_thread_step("capture lease revocation", lease_events.WORKER.on_shutdown)
         from .services import access_grants as access_grants_svc
 
-        access_grants_svc.WORKER.stop()
+        _shutdown_step("access grants worker", access_grants_svc.WORKER.stop)
         from .services import door_windows as door_windows_svc
 
-        door_windows_svc.WORKER.stop()
+        _shutdown_step("door windows worker", door_windows_svc.WORKER.stop)
         from .services import intercom_consent, intercom_sync
 
-        intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
+        _shutdown_step("intercom consent releaser", intercom_consent.RELEASER.stop)  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
         from .services import wiskey_direct_join as _wkj
 
         from .services import door_engine_live as _del
 
-        _del.uninstall()
+        _shutdown_step("door engine", _del.uninstall)
         from .services import wiskey_join_live as _wjl
 
-        _wjl.MANAGER.shutdown()  # WISKEY-JOIN-LIVE-2382: the manager's thread ends first, then the join stops cleanly (drained)
-        _wkj.shutdown()  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
-        intercom_sync.SYNC.shutdown()
-        intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
+        _shutdown_step("wiskey join manager", _wjl.MANAGER.shutdown)  # WISKEY-JOIN-LIVE-2382: the manager's thread ends first, then the join stops cleanly (drained)
+        _shutdown_step("wiskey direct join", _wkj.shutdown)  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
+        await _in_thread_step("intercom sync", intercom_sync.SYNC.shutdown)  # CR-WAVE2-COMBINED-2439: wakes and joins its loop thread (bounded)
+
+        def _detach_journal() -> None:
+            intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
+
+        _shutdown_step("intercom sync journal", _detach_journal)
         from .services import energy_sampler
 
-        energy_sampler.SAMPLER.shutdown()
+        _shutdown_step("energy sampler", energy_sampler.SAMPLER.shutdown)
         from .services import water_sampler as _wsm
 
-        _wsm.SAMPLER.shutdown()
+        _shutdown_step("water sampler", _wsm.SAMPLER.shutdown)
         from .services import generator_runtime
 
-        generator_runtime.RUNNER.shutdown()
+        _shutdown_step("generator runtime", generator_runtime.RUNNER.shutdown)
         from .services import elevators_runtime as _elr
 
-        _elr.RUNNER.shutdown()
+        _shutdown_step("elevators runtime", _elr.RUNNER.shutdown)
         from .services import temperature_runtime as _tmr
 
-        _tmr.RUNNER.shutdown()
+        _shutdown_step("temperature runtime", _tmr.RUNNER.shutdown)
         from .services import scenarios as _scn
 
-        _scn.RUNNER.shutdown()
+        _shutdown_step("scenarios runtime", _scn.RUNNER.shutdown)
         from .services import wiskey_background_feed as _wbf
 
-        _wbf.FEED.shutdown()
+        await _in_thread_step("wiskey background feed", _wbf.FEED.shutdown)  # CR-WAVE2-COMBINED-2439: wakes and joins its loop thread (bounded)
         from .services import push as push_svc
 
-        from starlette.concurrency import run_in_threadpool as _in_thread
-
-        await _in_thread(push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
+        await _in_thread_step("push notifier", push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
         from .services import notify_sources
 
-        await _in_thread(notify_sources.shutdown)
+        await _in_thread_step("notify sources", notify_sources.shutdown)
         from .services import intercom_calls as _intercom_calls
 
-        await _in_thread(_intercom_calls.WRITER.shutdown)
+        await _in_thread_step("intercom call writer", _intercom_calls.WRITER.shutdown)
         from .services import wiskey_triage as _wiskey_triage
 
-        await _in_thread(_wiskey_triage.FEED.shutdown)
+        await _in_thread_step("wiskey triage feed", _wiskey_triage.FEED.shutdown)
         from .services import intercom_media as _station_media
 
         # WKF01F02-295 (F01): the signed station-media provider's leased streams leave go2rtc and their timers are joined; never raises
-        await _in_thread(_station_media.shutdown_bridge)
+        await _in_thread_step("station media bridge", _station_media.shutdown_bridge)
         from .services import recorder_health
 
-        await _in_thread(recorder_health.POLLER.shutdown)
+        await _in_thread_step("recorder health poller", recorder_health.POLLER.shutdown)
         from .services import camera_image_health
 
-        await _in_thread(camera_image_health.POLLER.shutdown)
+        await _in_thread_step("camera image health poller", camera_image_health.POLLER.shutdown)
         from .services import camera_sources
 
-        await _in_thread(camera_sources.POLLER.shutdown)
+        await _in_thread_step("camera sources poller", camera_sources.POLLER.shutdown)
         from .services.transit import poller as transit_poller
 
-        await _in_thread(transit_poller.POLLER.shutdown)
-        await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
+        await _in_thread_step("transit poller", transit_poller.POLLER.shutdown)
+        await _in_thread_step("nvr batch runners", nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 
-        plan_geometry_router.shutdown_detect_pool()
-        app.state.db.close_pool()  # DB-CONN-POOL-2343: last, after every worker stopped - no idle connection keeps the files open
+        _shutdown_step("plan detect pool", plan_geometry_router.shutdown_detect_pool)
+        warmup = getattr(app.state, "startup_warmup", None)
+        if warmup is not None and warmup.is_alive():
+            # CR-MAIN-RUNTIME-2438: the read-only warm-up thread (a daemon, it cannot be cancelled) gets a bounded moment to end
+            # before the pool closes, so it never opens a connection behind close_pool
+            await _in_thread_step("startup warm-up", warmup.join, WARMUP_JOIN_S)
+        _shutdown_step("database pool", app.state.db.close_pool)  # DB-CONN-POOL-2343: last, after every worker stopped - no idle connection keeps the files open
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():
@@ -1449,13 +668,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-class CommitBeforeSend:
-    """ASGI middleware: when a response starts, the request's SQLite connections (auth.get_conn / get_read_conn, kept in
-    the request state) are committed first (auth.release_request), so the body is sent without the transaction. FastAPI
-    closes a dependency with yield only after the whole response went out, so a download (an export, a bundle, a backup)
-    or a slow client over Ingress otherwise held SQLite's single write lock for the whole transfer - one of the holders
-    behind the round-10 "database is locked" storm. A handler that raised is unchanged: its dependency has already
-    committed (expected API errors, with their audit rows) or rolled back before the error response starts."""
+WARMUP_JOIN_S = 2.0  # shutdown: the longest wait for a still-running start-up warm-up thread before the pool closes
+BUSY_RETRY_AFTER_S = 2  # a "database is locked" answer: the Retry-After a client may honour (status stays 500, lead decision L1)
+
+
+def _shutdown_step(name: str, fn, *args) -> None:
+    """CR-MAIN-RUNTIME-2438 (review 05:P2-01): one stop of the shutdown sequence; a stop that raises is logged and the
+    sequence goes on, so the later stops (the capture-lease revocation, close_pool) always run."""
+    try:
+        fn(*args)
+    except Exception:  # noqa: BLE001 - one failing stop never skips the later ones
+        log.warning("shutdown step %s failed", name, exc_info=True)
+
+
+COMMIT_THREADS = 4  # CommitBeforeSend: worker threads of its own for the early commit (never the shared 40-thread pool)
+
+
+class CorrelationId:
+    """ASGI middleware (CR-MAIN-RUNTIME-2438, review 05:P3-02; was an @app.middleware("http") BaseHTTPMiddleware): the
+    request's correlation id into the request state, and the X-Correlation-Id header onto the response. Pure ASGI like the
+    other middlewares - no extra task per request, and a streamed body passes straight through.
+    SX-17: a client id is used only when it is one well-formed value (8-64 of [A-Za-z0-9_-]); never reflected otherwise."""
 
     def __init__(self, app) -> None:
         self.app = app
@@ -1464,7 +697,49 @@ class CommitBeforeSend:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        from starlette.concurrency import run_in_threadpool
+        from starlette.datastructures import Headers, MutableHeaders
+
+        cid = correlation_id.resolve(Headers(scope=scope).getlist(correlation_id.HEADER))
+        scope.setdefault("state", {})["correlation_id"] = cid  # request.state.correlation_id
+
+        async def send_with_id(message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["X-Correlation-Id"] = cid
+            await send(message)
+
+        await self.app(scope, receive, send_with_id)
+
+
+class CommitBeforeSend:
+    """ASGI middleware: when a response starts, the request's SQLite connections (auth.get_conn / get_read_conn, kept in
+    the request state) are committed first (auth.release_request), so the body is sent without the transaction. FastAPI
+    closes a dependency with yield only after the whole response went out, so a download (an export, a bundle, a backup)
+    or a slow client over Ingress otherwise held SQLite's single write lock for the whole transfer - one of the holders
+    behind the round-10 "database is locked" storm. A handler that raised is unchanged: its dependency has already
+    committed (expected API errors, with their audit rows) or rolled back before the error response starts.
+
+    CR-MAIN-RUNTIME-2438 (review 05:P1-01): the commit runs on a thread limiter of its own (COMMIT_THREADS). On the shared
+    default pool (40 threads, handed out in arrival order) it queued behind the requests parked in pool threads waiting for
+    the very gate this commit frees, so with 40 waiting writers it waited until one of them timed out - a burst of
+    "database is locked" with no slow holder. Same function, same thread kind, same order; only the queue it waits in."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self._limiter: tuple[object, object] | None = None  # (event loop, its CapacityLimiter)
+
+    def _commit_limiter(self):
+        import anyio
+
+        loop = asyncio.get_running_loop()
+        if self._limiter is None or self._limiter[0] is not loop:  # one per event loop (a test client runs its own loop)
+            self._limiter = (loop, anyio.CapacityLimiter(COMMIT_THREADS))
+        return self._limiter[1]
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        import anyio.to_thread
 
         from .auth import release_conns
 
@@ -1474,7 +749,7 @@ class CommitBeforeSend:
             if message["type"] == "http.response.start":
                 conns = (scope.get("state") or {}).get("sw_conns")
                 if conns:
-                    await run_in_threadpool(release_conns, conns)
+                    await anyio.to_thread.run_sync(release_conns, conns, limiter=self._commit_limiter())
             await send(message)
 
         await self.app(scope, receive, send_after_commit)

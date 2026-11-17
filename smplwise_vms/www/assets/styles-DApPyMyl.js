@@ -305,4 +305,3 @@ import{nB as b,i as N}from"./index-C5kZ9jiu.js";const x={crumbArea:"ניהול �
     .actions .btn { flex: 1; justify-content: center; }
   }
 `;export{z as A,Q as B,te as C,oe as D,ie as E,ne as F,ae as G,I as R,E as a,B as b,M as c,ee as d,H as e,d as f,F as g,j as h,c as i,U as j,A as k,se as l,W as m,P as n,q as o,$ as p,w as q,G as r,_ as s,Z as t,Y as u,K as v,X as w,re as x,V as y,J as z};
-//# sourceMappingURL=styles-DApPyMyl.js.map

@@ -999,4 +999,3 @@ import{av as Me,K as G,L as P,az as et,au as O,aI as Ke,ch as wt,i as zt,a4 as a
       }
     }
   `,at];Wt([C({attribute:!1})],ft.prototype,"route",2);Wt([d()],ft.prototype,"access",2);Wt([d()],ft.prototype,"alerts",2);ft=Wt([Z("infra-water")],ft);export{ft as InfraWater,se as WATER_PAGES,Ne as pageAllowed,Zs as waterPageOf};
-//# sourceMappingURL=infra-water-C67HmC-S.js.map

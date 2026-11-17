@@ -721,19 +721,19 @@ def test_the_bridge_client_keeps_only_the_answer_and_never_forwards_a_body(setti
         seen["auth"] = request.headers.get("authorization")
         return httpx.Response(200, json={"changed_states": [], "service_response": {"ok": True, "request_id": "r", "stream_source": URL, "extra": "dropped"}})
 
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(handler)}))
     caplog.set_level(logging.DEBUG)
     out = ha_client.call_bridge_stream_source(s, {"user_id": "u", "entity_id": ENTITY})
     assert out == {"ok": True, "request_id": "r", "stream_source": URL}
     assert seen["url"] == "http://ha.local:8123/api/services/smplwise_bridge/stream_source?return_response" and seen["auth"] == "Bearer tok"
     assert_no_secret(caplog.text)
     for status, text, code in ((404, "Service not found", "bridge_too_old"), (500, f"boom {URL}", "bridge_error"), (401, "no", "ha_forbidden")):
-        monkeypatch.setattr(ha_client.httpx, "Client", lambda text=text, status=status, **kw: real(transport=httpx.MockTransport(lambda r: httpx.Response(status, text=text)), **kw))
+        monkeypatch.setattr(ha_client.httpx, "Client", lambda text=text, status=status, **kw: real(**{**kw, "transport": httpx.MockTransport(lambda r: httpx.Response(status, text=text))}))
         with pytest.raises(ApiError) as e:
             ha_client.call_bridge_stream_source(s, {"user_id": "u", "entity_id": ENTITY})
         assert e.value.code == code
         assert_no_secret(json.dumps({"m": e.value.user_message, "d": e.value.details}, ensure_ascii=False))
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x" * 9000)), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(lambda r: httpx.Response(200, content=b"x" * 9000))}))
     with pytest.raises(ApiError) as e:
         ha_client.call_bridge_stream_source(s, {})
     assert e.value.code == "bridge_error"
@@ -741,7 +741,7 @@ def test_the_bridge_client_keeps_only_the_answer_and_never_forwards_a_body(setti
     def down(request):
         raise httpx.ConnectError(f"cannot reach {URL}")
 
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(down), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(down)}))
     with pytest.raises(ApiError) as e:
         ha_client.call_bridge_stream_source(s, {})
     assert e.value.code == "ha_unavailable" and e.value.details == {"error": "ConnectError"}

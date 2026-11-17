@@ -159,4 +159,3 @@ import{i as u,n as a,a as h,p as w,q as i,x as v}from"./index-C5kZ9jiu.js";impor
       color: var(--sw-warning-text);
     }
   `;r([a({type:Boolean})],p.prototype,"sensitive",2);r([a({type:Boolean})],p.prototype,"lowering",2);p=r([v("sw-schedule-markers")],p);export{B as t};
-//# sourceMappingURL=sw-schedule-bar-DqQa0a05.js.map

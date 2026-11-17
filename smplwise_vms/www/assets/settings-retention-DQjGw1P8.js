@@ -1693,4 +1693,3 @@ import{br as us,r as d,x as T,q as i,nH as R,p as o,i as ht,n as $,a as ft,S as 
         }
       }
     `,ms];wt([d()],ct.prototype,"data",2);wt([d()],ct.prototype,"phase",2);wt([d()],ct.prototype,"error",2);wt([d()],ct.prototype,"values",2);wt([d()],ct.prototype,"saving",2);wt([d()],ct.prototype,"saveError",2);wt([d()],ct.prototype,"saved",2);wt([d()],ct.prototype,"access",2);ct=wt([T("elec-settings-retention")],ct);
-//# sourceMappingURL=settings-retention-DQjGw1P8.js.map

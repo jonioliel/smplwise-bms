@@ -19,4 +19,3 @@ import{i as r}from"./index-C5kZ9jiu.js";const a=r`
     color: var(--sw-accent-text);
   }
 `;export{a as t};
-//# sourceMappingURL=chip-selected-HVnpKhPo.js.map

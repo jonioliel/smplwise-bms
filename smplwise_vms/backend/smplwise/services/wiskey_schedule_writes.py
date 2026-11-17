@@ -68,14 +68,13 @@ import re
 import secrets
 import threading
 import time
-from collections import deque
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable
 
 from . import intercom_adapter as ad
 from . import intercom_client
-from .intercom_client import IntercomError, UnclearAnswer
+from . import wiskey_write_limits as wl
 
 CHANNEL = "schedules"  # services/wiskey_channels.py SCHEDULES
 LANE = "schedules"  # intercom_sync: no lane of its own -> a read slot and the read buckets; Limits below add the rest
@@ -190,24 +189,6 @@ def normalize(data: Any) -> dict[str, Any]:
 def digest(value: Any) -> str:
     """The identity of what was previewed (a draft, a document, bindings): sha256 of its canonical JSON."""
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
-
-
-def bindings_ok(data: Any, holidays: int) -> dict[str, Any]:
-    """WisKey's `schedule_compiler.bindings_for`: `{template, weekly, holiday_group, holidays}` device slot ids 1..65535; one holiday
-    slot per holiday (distinct), a holiday group only when there are holidays. Raises DraftError(`schedule_binding_invalid`)."""
-    if not isinstance(data, dict) or set(data) != {"template", "weekly", "holiday_group", "holidays"}:
-        raise DraftError("schedule_binding_invalid", "bindings")
-    slots = data["holidays"]
-    if not isinstance(slots, list) or len(slots) != holidays:
-        raise DraftError("schedule_binding_invalid", "bindings.holidays")
-    ids = [data["template"], data["weekly"], *slots]
-    if holidays:
-        ids.append(data["holiday_group"])
-    elif data["holiday_group"] is not None:
-        raise DraftError("schedule_binding_invalid", "bindings.holiday_group")
-    if any(type(i) is not int or not 1 <= i <= 65535 for i in ids) or len(set(slots)) != len(slots):
-        raise DraftError("schedule_binding_invalid", "bindings")
-    return {"template": data["template"], "weekly": data["weekly"], "holiday_group": data["holiday_group"], "holidays": list(slots)}
 
 
 # ---------------------------------------------------------------- projections (closed construction, like the adapter's)
@@ -510,16 +491,9 @@ def timeout_of(op: Op) -> float:
 def result_of(frame: dict[str, Any], command: str) -> Any:
     """`success: true` -> the result; `success: false` with a code -> a definite refusal (IntercomError: the outcome `refused`, shown
     as "WisKey refused: <reason>") - WisKey's schedule stores validate and compare-and-set BEFORE they persist, so its code is the
-    outcome; an unclear code or a frame that is neither -> UnclearAnswer (outcome `unknown`: "sent, no clear answer")."""
-    if frame.get("success") is True:
-        return frame.get("result")
-    if frame.get("success") is False:
-        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
-        code = str(error.get("code") or "")
-        if code not in UNCLEAR_CODES and ad.CODE.fullmatch(code):
-            raise IntercomError(code, command)
-        raise UnclearAnswer(command, code or "action_failed")
-    raise UnclearAnswer(command, "invalid_response")
+    outcome; an unclear code or a frame that is neither -> UnclearAnswer (outcome `unknown`: "sent, no clear answer"). The reading is the
+    shared one (services/wiskey_write_limits.py) with this module's UNCLEAR_CODES."""
+    return wl.result_of(frame, command, UNCLEAR_CODES)
 
 
 async def send(call: intercom_client.Call, op: Op, fields: dict[str, Any]) -> Any:
@@ -591,49 +565,39 @@ DEVICE_COOLDOWN_S = 10.0  # between two device reads of one station (only once a
 COOLDOWN_SCALE = 1.0  # tests shrink it
 
 
-class Limits:
+class Limits(wl.WriteLimits):
+    """services/wiskey_write_limits.py with this module's constants: a window per operator for the schedule writes (no slot, no
+    cool-down), and for the device reads one installation-wide slot class `device` plus a cool-down per station that starts only once a
+    read was sent (the unrounded reading: the last 50 ms refuse with a retry of 0.0)."""
+
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._users: dict[str, deque[float]] = {}
-        self._device = 0
-        self._last: dict[str, float] = {}
+        super().__init__("schedule", busy_retry_s=5.0)
 
     def admit_write(self, user: str) -> tuple[str, float] | None:
         now = time.monotonic()
         with self._lock:
-            window = self._users.setdefault(user, deque())
-            while window and now - window[0] >= USER_WINDOW_S:
-                window.popleft()
-            if len(window) >= USER_MAX:
-                return "schedule_rate_limited", round(USER_WINDOW_S - (now - window[0]), 1)
-            window.append(now)
+            retry = self._window_full_locked(user, now, USER_WINDOW_S, USER_MAX)
+            if retry is not None:
+                return "schedule_rate_limited", retry
+            self._users[user].append(now)
         return None
 
     def admit_device(self, station_id: str) -> tuple[str, float] | None:
         now = time.monotonic()
         with self._lock:
-            at = self._last.get(station_id)
-            left = 0.0 if at is None else DEVICE_COOLDOWN_S * COOLDOWN_SCALE - (now - at)
+            left = self._cooldown_raw_locked(station_id, DEVICE_COOLDOWN_S * COOLDOWN_SCALE, now)
             if left > 0:
                 return "schedule_station_cooldown", round(left, 1)
-            if self._device >= DEVICE_INFLIGHT:
-                return "schedule_device_busy", 5.0
-            self._device += 1
+            if self._slot_full_locked("device", DEVICE_INFLIGHT):
+                return "schedule_device_busy", self.busy_retry_s
+            self._take_slot_locked("device")
         return None
 
     def device_sent(self, station_id: str) -> None:
-        with self._lock:
-            self._last[station_id] = time.monotonic()
+        self.mark_sent(station_id)
 
     def device_done(self) -> None:
-        with self._lock:
-            self._device = max(0, self._device - 1)
-
-    def reset(self) -> None:
-        with self._lock:
-            self._users.clear()
-            self._last.clear()
-            self._device = 0
+        self.done("device")
 
 
 LIMITS = Limits()

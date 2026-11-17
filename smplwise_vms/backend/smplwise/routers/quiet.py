@@ -21,12 +21,9 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import quiet_windows as qw
 from ..services.timeutil import iso_utc
+from ._common import rid as _rid
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class StartBody(BaseModel):

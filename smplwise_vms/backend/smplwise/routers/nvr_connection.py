@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER, Settings
 from ..db import unlocked
 from ..errors import ApiError
@@ -32,6 +32,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..recorder_scope import PRIMARY, settings_for
 from ..services import addon_restart, connection_probe, connection_store, update_runs
 from ..services.recorders import registry
+from ._common import raw_body as _raw_body, rid as _rid
 
 log = logging.getLogger("smplwise.nvr_connection")
 router = APIRouter()
@@ -74,14 +75,6 @@ class RemoveIn(BaseModel):
 class RestartIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm: bool
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
@@ -365,13 +358,13 @@ def _require_revision(if_revision: int | None, conn: sqlite3.Connection, rid: st
 # ---------------------------------------------------------------- routes
 
 @router.get("/nvr/vendors")
-def vendors(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def vendors(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     return {"vendors": registry.catalogue()}
 
 
 @router.get("/nvr/connection")
-def get_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_connection(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     return connection_view(conn, request)
 

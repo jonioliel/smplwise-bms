@@ -124,4 +124,3 @@ import{i as u,n as i,a as w,q as n,p,x as f}from"./index-C5kZ9jiu.js";var b=Obje
       }
     }
   `;o([i({attribute:!1})],e.prototype,"rows",2);o([i()],e.prototype,"selected",2);o([i()],e.prototype,"heading",2);o([i()],e.prototype,"foldLabel",2);o([i()],e.prototype,"unfoldLabel",2);e=o([f("sw-place-tree")],e);
-//# sourceMappingURL=sw-place-tree-DZU5XNR8.js.map

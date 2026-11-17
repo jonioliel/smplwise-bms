@@ -20,21 +20,20 @@ threshold is an installation setting (`explain_*` in services/temperature.py INS
 Pure core first (`explain`, driven by the unit tests with synthetic series), the loader after."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 import sqlite3
 import statistics
 from typing import Any
 
 from . import temperature as t
-from .timeutil import iso_utc, parse_utc
+from .timeutil import epoch_or_none, iso_from_epoch
 
 NEIGHBORS_MAX = 12
 EXPLAIN_KINDS = ("high", "low")
 
 
 def _iso(ts: float | None) -> str | None:
-    return iso_utc(dt.datetime.fromtimestamp(int(ts), dt.timezone.utc)) if ts is not None else None
+    return iso_from_epoch(int(ts)) if ts is not None else None
 
 
 def _overlap(a: float, b: float, lo: float, hi: float) -> float:
@@ -197,13 +196,7 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
 
 # ---------------------------------------------------------------- the loader
 
-def _ts(iso: str | None) -> float | None:
-    if not iso:
-        return None
-    try:
-        return parse_utc(iso).timestamp()
-    except (ValueError, TypeError):
-        return None
+_ts = epoch_or_none  # CR-BE-TWINS-2440 (review 04:F20): was one of three identical copies
 
 
 def _points(conn: sqlite3.Connection, unit_id: str, lo: float, hi: float) -> list[tuple[float, float, int, float | None, float | None]]:

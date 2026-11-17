@@ -1502,10 +1502,39 @@ class TalkSession:
     @property
     def ref(self) -> str:
         """What the audit keeps of the session handle: a digest prefix (the handle itself admits its socket)."""
-        return hashlib.sha256(self.id.encode()).hexdigest()[:12]
+        return session_ref(self.id)
 
 
-class MediaState:
+def session_ref(session_id: str) -> str:
+    """What the audit keeps of a talk / listen session handle: a digest prefix (the handle itself admits its socket)."""
+    return hashlib.sha256(session_id.encode()).hexdigest()[:12]
+
+
+class SessionSlots:
+    """CR-INTERCOM-SHARED (review 02:P2-6): what the talk registry (MediaState) and the listen registry
+    (services/intercom_listen.ListenState) do the same way with a session: one socket attaches to it, once, and it is finished
+    once. The registry gives `_lock` and names its own dict of sessions. The reservation rules, the pruning and the lookups differ
+    per direction and stay in each registry."""
+
+    _lock: threading.Lock
+
+    def attach(self, session: Any) -> bool:
+        with self._lock:
+            if session.closed or session.attached:
+                return False
+            session.attached = True
+            return True
+
+    def _finish_in(self, sessions: dict[str, Any], session: Any, outcome: str) -> bool:
+        with self._lock:
+            if session.closed:
+                return False
+            session.closed, session.outcome = True, outcome
+            sessions.pop(session.id, None)
+            return True
+
+
+class MediaState(SessionSlots):
     """Process-wide, in memory (a restart ends every talk session and drops every descriptor - nothing is persisted)."""
 
     def __init__(self) -> None:
@@ -1611,21 +1640,9 @@ class MediaState:
             t = self.talks.get(session_id)
             return t if t is not None and not t.closed else None
 
-    def attach(self, session: TalkSession) -> bool:
-        with self._lock:
-            if session.closed or session.attached:
-                return False
-            session.attached = True
-            return True
-
     def finish(self, session: TalkSession, outcome: str) -> bool:
         """Closes the session once; True for the call that closed it (that one writes the end row)."""
-        with self._lock:
-            if session.closed:
-                return False
-            session.closed, session.outcome = True, outcome
-            self.talks.pop(session.id, None)
-            return True
+        return self._finish_in(self.talks, session, outcome)
 
 
 MEDIA = MediaState()

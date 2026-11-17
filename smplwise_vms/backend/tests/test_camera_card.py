@@ -418,7 +418,7 @@ def test_camera_image_helper_refuses_what_is_not_a_picture(settings, monkeypatch
         return httpx.Response(200, content=b"<html>login</html>")
 
     real = httpx.Client
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(handler)}))
     with pytest.raises(ApiError) as e:
         ha_client.camera_image(s, "camera.garden_cam")
     assert e.value.code == "snapshot_unavailable"
@@ -427,13 +427,13 @@ def test_camera_image_helper_refuses_what_is_not_a_picture(settings, monkeypatch
         ha_client.camera_image(s, "camera.x/../../states")
     with pytest.raises(ValueError):
         ha_client.camera_image(s, "light.lobby")
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=JPEG)), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(lambda r: httpx.Response(200, content=JPEG))}))
     assert ha_client.camera_image(s, "camera.garden_cam") == (JPEG, "image/jpeg")
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=JPEG + b"x" * ha_client.CAMERA_IMAGE_MAX)), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(lambda r: httpx.Response(200, content=JPEG + b"x" * ha_client.CAMERA_IMAGE_MAX))}))
     with pytest.raises(ApiError) as e2:
         ha_client.camera_image(s, "camera.garden_cam")
     assert e2.value.details.get("reason") == "too_large"
-    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(lambda r: httpx.Response(401)), **kw))
+    monkeypatch.setattr(ha_client.httpx, "Client", lambda **kw: real(**{**kw, "transport": httpx.MockTransport(lambda r: httpx.Response(401))}))
     with pytest.raises(ApiError) as e3:
         ha_client.camera_image(s, "camera.garden_cam")
     assert e3.value.code == "ha_forbidden"

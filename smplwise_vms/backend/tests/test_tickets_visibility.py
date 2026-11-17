@@ -178,7 +178,7 @@ def test_every_route_with_a_ticket_id_answers_the_uniform_404_for_an_invisible_t
     t = w.create("tom")
     att = w.c.post(f"{API}/tickets/{t['id']}/attachments", files={"file": ("a.jpg", _jpeg(), "image/jpeg")}, headers=w.h("tom")).json()["attachments"][0]
     requests = _route_requests(t["id"], att["id"])
-    routes = {(m, r.path) for router in (tickets_router.router, tickets_admin.router) for r in router.routes if isinstance(r, APIRoute)
+    routes = {(m, r.path) for router in (tickets_router.router, *tickets_admin.PARTS) for r in router.routes if isinstance(r, APIRoute)
               for m in r.methods if "{ticket_id}" in r.path}
     assert routes == set(requests), f"a route with a ticket id is missing from this test (add a valid request for it): {routes ^ set(requests)}"
     for (method, template), kwargs in requests.items():
@@ -221,7 +221,8 @@ def test_only_the_access_module_reads_ticket_rows_unchecked():
 
 def test_ticket_sql_lives_in_the_store():
     offenders = []
-    routers = [SMPLWISE / "routers" / n for n in ("tickets.py", "tickets_admin.py", "tickets_contacts.py", "tickets_links.py", "tickets_messages.py",
+    routers = [SMPLWISE / "routers" / n for n in ("tickets.py", "tickets_admin.py", "tickets_admin_base.py", "tickets_admin_settings.py", "tickets_admin_departments.py",
+                                                  "tickets_admin_catalogue.py", "tickets_admin_people.py", "tickets_admin_locations.py", "tickets_contacts.py", "tickets_links.py", "tickets_messages.py",
                                                   "tickets_detail.py", "tickets_rfq.py")]
     for path in list((SMPLWISE / "services" / "tickets").glob("*.py")) + [r for r in routers if r.is_file()]:
         # the storage layer: core (0079), directory and links (0080, slice 4), outbox and inbound (0081, slice 5b), cost claims (0083, slice 9),

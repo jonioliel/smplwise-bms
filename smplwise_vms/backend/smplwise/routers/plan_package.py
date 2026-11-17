@@ -35,11 +35,12 @@ from ..services import geometry_store as store
 from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_package as pkg_svc
 from ..services import signing
+from ._common import rid as _rid
 from .catalog import get_floor
 from .plan_catalog import _INSERT as CATALOG_INSERT
 from .plan_catalog import COLUMNS as CATALOG_COLUMNS
 from .plan_catalog import _ts as catalog_ts
-from .plan_geometry import NO_CACHE, _editable, _export_doc, _export_zones, _floor, _layers, _rid
+from .plan_geometry import NO_CACHE, _editable, _export_doc, _export_zones, _floor, _layers
 from .plans import get_version
 from .zones import floor_zones
 

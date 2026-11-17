@@ -20,8 +20,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..recorder_scope import camera_settings
 from ..services import mask_copy, nvr_privacy
 from ..services.access import require_camera
+from ._common import rid as _rid
 from .nvr_privacy import _camera, _name
-from .nvr_write import _rid
 
 router = APIRouter()
 

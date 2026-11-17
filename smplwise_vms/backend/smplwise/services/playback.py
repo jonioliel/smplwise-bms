@@ -125,6 +125,13 @@ def stream_name(session_id: str, generation: int) -> str:
     return f"{own_prefix()}{session_id}_g{generation}"
 
 
+# CR-GO2RTC-OWNED-2436 (review 03 F09): this instance's playback streams through the shared owned-streams helper. A generation's stream
+# is noted right before it is written, so the orphan sweep never deletes a stream written a moment ago whose session has not recorded
+# it yet (`session.stream` is set after the write). The startup sweep has no notes and removes every orphan at once, as before.
+_OWNED = g2.OwnedStreams(own_prefix)
+SWEEP_GRACE_S = 60.0
+
+
 def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
     from .recorders import vendor_io
 
@@ -163,7 +170,12 @@ def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datet
         src = vendor_io.go2rtc_source(rs, src)  # CR-025 live finding: go2rtc plays this NVR through its ffmpeg source
     # CR-GO2RTC-ADAPTER-2436 (review 03 F03): a generation's name is new by construction - written without listing go2rtc first
     create = getattr(client, "create_stream", None) or client.ensure_stream
-    create(name, src)
+    _OWNED.note_written(name)
+    try:
+        create(name, src)
+    except Exception:
+        _OWNED.forget(name)
+        raise
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))
 
@@ -171,6 +183,7 @@ def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datet
 def _delete_stream(settings: Settings, name: str) -> None:
     if not name.startswith(PB_PREFIX):
         return
+    _OWNED.forget(name)
     try:
         g2.Go2rtc(settings).delete_stream(name)
     except ApiError as exc:
@@ -383,15 +396,14 @@ def sweep_orphans(settings: Settings) -> list[str]:
     """Delete `smplwise_pb_*` streams in go2rtc that belong to no active session (startup + janitor)."""
     if not settings.go2rtc_url:
         return []
-    live = {s.stream for s in REGISTRY.active() if s.stream}
     removed: list[str] = []
-    prefix = own_prefix()
+
+    def live() -> set[str]:
+        return {s.stream for s in REGISTRY.active() if s.stream}
+
     try:
-        client = g2.Go2rtc(settings)
-        for name in client.list_streams():
-            if name.startswith(prefix) and name not in live:
-                client.delete_stream(name)
-                removed.append(name)
+        # only this instance's prefix (another instance sharing go2rtc keeps its streams); asked again right before each delete
+        _OWNED.reconcile(g2.Go2rtc(settings), live, grace_s=SWEEP_GRACE_S, on_deleted=removed.append)
     except ApiError as exc:
         log.warning("orphan sweep skipped: %s", exc.code)
     if removed:

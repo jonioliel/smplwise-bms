@@ -353,7 +353,7 @@ def test_the_setting_changes_the_retention_and_the_janitor_prunes(app_s):
         _insert(conn, "switch.sign", (now - dt.timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ"))
     from smplwise.main import janitor_tick
 
-    da._last_prune = 0.0
+    da._PRUNE.reset()  # CR-JANITOR-REGISTRY-2438: the shared throttle object (was _last_prune = 0.0)
     janitor_tick(app.state.db, s)
     assert len(rows(app)) == 1
 

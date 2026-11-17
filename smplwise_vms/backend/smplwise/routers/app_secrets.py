@@ -18,14 +18,15 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, read_gate, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import Settings
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import secrets_store
 from ..services.connection_store import SecretError
-from .nvr_connection import _parse, _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .nvr_connection import _parse
 
 router = APIRouter()
 
@@ -43,10 +44,6 @@ class TestIn(BaseModel):
 
 
 _admin_ro = read_gate(lambda conn, principal: require(conn, principal, PERMISSION, INSTALLATION))
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _spec(name: str) -> secrets_store.SecretSpec:
@@ -71,7 +68,7 @@ def _item(conn: sqlite3.Connection, settings: Settings, name: str) -> dict[str, 
 
 
 @router.get("/system/secrets")
-def list_secrets(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_secrets(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     settings = settings_of(request)
     return {"secrets": secrets_store.status(conn, settings), "in_addon": settings.in_addon}

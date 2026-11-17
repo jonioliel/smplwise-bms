@@ -31,16 +31,13 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import offline_field as svc
 from ..services.tickets import access
 from ..services.tickets.messaging import DEFAULT_TZ
+from ._common import rid as _rid
 
 router = APIRouter()
 
 MANAGE = "tickets.manage"
 CONFIGURE = "system.configure"
 ID = r"^[A-Za-z0-9_.:-]{1,80}$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(conn: sqlite3.Connection) -> None:
@@ -215,7 +212,7 @@ def post_point(body: PointBody, request: Request, principal: Principal = Depends
 
 
 @router.get("/field/offline/round-points/{point_id}/tag")
-def get_tag(request: Request, point_id: str = Path(pattern=ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_tag(request: Request, point_id: str = Path(pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn)
     require(conn, principal, MANAGE, INSTALLATION)
     if conn.execute("SELECT 1 FROM offline_round_points WHERE id = ?", (point_id,)).fetchone() is None:

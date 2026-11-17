@@ -1069,4 +1069,3 @@ import{m5 as Gt,m6 as W,m7 as e,m8 as b,p as l,m9 as Z,_ as C,ma as B,q as r,mb 
       .chips { justify-content: flex-start; }
     }
   `,Xe];D([k({attribute:!1})],O.prototype,"route",2);D([u()],O.prototype,"access",2);D([u()],O.prototype,"data",2);D([u()],O.prototype,"error",2);D([u()],O.prototype,"editing",2);D([u()],O.prototype,"kpi",2);D([u()],O.prototype,"openId",2);D([u()],O.prototype,"wizard",2);D([u()],O.prototype,"toast",2);D([u()],O.prototype,"report",2);D([u()],O.prototype,"wa",2);D([u()],O.prototype,"floor",2);D([u()],O.prototype,"collapsed",2);D([u()],O.prototype,"page",2);D([u()],O.prototype,"per",2);O=D([Y("infra-temperature")],O);export{O as InfraTemperature};
-//# sourceMappingURL=infra-temperature-CLSMcQwy.js.map

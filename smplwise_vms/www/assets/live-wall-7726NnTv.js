@@ -515,4 +515,3 @@ import{a as Z,S as ee,eo as te,bk as se,qS as ie,qT as ae,qU as oe,qV as re,qW a
       padding: 10px 12px;
     }
   `,ye];h([Q()],c.prototype,"cameras",2);h([Q({type:Boolean})],c.prototype,"fromMap",2);h([u()],c.prototype,"count",2);h([u()],c.prototype,"stream",2);h([u()],c.prototype,"liveSet",2);h([u()],c.prototype,"snapBust",2);h([u()],c.prototype,"view",2);h([u()],c.prototype,"cams",2);h([u()],c.prototype,"recorders",2);h([u()],c.prototype,"recorderFilter",2);h([u()],c.prototype,"settings",2);h([u()],c.prototype,"error",2);h([u()],c.prototype,"posterBust",2);h([u()],c.prototype,"canManage",2);h([u()],c.prototype,"editingRows",2);h([u()],c.prototype,"dialogError",2);h([u()],c.prototype,"dialogBusy",2);h([u()],c.prototype,"colsOverride",2);h([u()],c.prototype,"keyHintText",2);h([u()],c.prototype,"box",2);c=h([Se("live-wall")],c);export{c as LiveWall,I as WALL_QUALITY_KEY};
-//# sourceMappingURL=live-wall-7726NnTv.js.map

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..db import now_iso
+from . import values
 
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
@@ -359,9 +360,7 @@ def render(source: str, params: dict[str, Any]) -> tuple[str, str]:
     return _clip(s.title.format_map(p) or s.label, 80), _clip(body, 180)
 
 
-def _clip(text: str, n: int) -> str:
-    text = " ".join(str(text or "").split())
-    return text if len(text) <= n else text[: n - 1] + "…"
+_clip = values.clip  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): was a word-for-word copy
 
 
 # ---------------------------------------------------------------- the stored policy
@@ -508,11 +507,6 @@ def get_policy(conn: sqlite3.Connection, source: str) -> dict[str, Any] | None:
                 (source, int(d["enabled"]), d["severity"], d["category"], d["after_s"], d["dedupe_window_s"], int(d["resolve_notice"]), json.dumps(d["recipients"]), json.dumps(d["channels"]), now_iso()))
             r = conn.execute("SELECT * FROM notify_policies WHERE source = ?", (source,)).fetchone()
     return row_to_policy(r)
-
-
-def source_info(source: str) -> dict[str, Any]:
-    s = BY_KEY[source]
-    return {"source": s.key, "label": s.label, "subject_kind": s.subject, "category": s.category}
 
 
 # owner 2026-10-01: who is told that a schedule was not executed / an automation failed is ONE installation setting

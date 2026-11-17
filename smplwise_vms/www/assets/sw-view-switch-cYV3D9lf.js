@@ -48,4 +48,3 @@ import{i as p,n as c,a as v,gB as w,cQ as d,q as u,x as b}from"./index-C5kZ9jiu.
       }
     }
   `;i([c()],r.prototype,"value",2);i([c({attribute:!1})],r.prototype,"options",2);i([c()],r.prototype,"label",2);r=i([b("sw-view-switch")],r);
-//# sourceMappingURL=sw-view-switch-cYV3D9lf.js.map

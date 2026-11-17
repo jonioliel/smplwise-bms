@@ -16,8 +16,7 @@ COLUMNS = ("id", "ticket_id", "assignment_id", "department_id", "contact_id", "v
 MUTABLE = frozenset(COLUMNS) - {"id", "ticket_id", "created_at", "created_by_kind", "created_by", "revision"}
 
 
-def _d(row: Any) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
+from ._sql import row_dict as _d  # noqa: E402 - CR-TK-SQL: the shared helper under its old name
 
 
 def insert_visit(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str, Any]:
@@ -78,12 +77,6 @@ def latest_missed(conn: sqlite3.Connection, assignment_id: str | None, exclude_i
         return None
     return _d(conn.execute("SELECT * FROM ticket_visits WHERE assignment_id = ? AND state = 'missed' AND rescheduled_to IS NULL AND id != ? "
                            "ORDER BY planned_to DESC, rowid DESC LIMIT 1", (assignment_id, exclude_id)).fetchone())
-
-
-def visits_of_vendor(conn: sqlite3.Connection, vendor_id: str, since: str) -> list[dict[str, Any]]:
-    """Every visit of a vendor company (its technicians included - `vendor_id` is the company) planned since `since` (vendor stats)."""
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_visits WHERE vendor_id = ? AND planned_from >= ? ORDER BY planned_from",
-                                          (vendor_id, since)).fetchall()]
 
 
 def ticket_state(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:

@@ -15,4 +15,3 @@ import{i as f,n as p,r as v,a as h,lH as u,lI as b,lJ as m,lK as x,p as w,lL as 
     a:hover { text-decoration: underline; }
     a:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; border-radius: var(--sw-r-2xs); }
   `;o([p()],e.prototype,"kind",2);o([p()],e.prototype,"subjectId",2);o([v()],e.prototype,"access",2);o([v()],e.prototype,"items",2);e=o([$("maint-cert-row")],e);
-//# sourceMappingURL=cert-row-BtQcTpMF.js.map

@@ -133,4 +133,3 @@ import{i as $,n as c,r as m,a as I,c_ as z,c$ as C,cH as _,cQ as O,p as d,q as r
       font-variant-numeric: tabular-nums;
     }
   `;o([c()],n.prototype,"stationId",2);o([c({attribute:!1})],n.prototype,"talk",2);o([c({type:Boolean})],n.prototype,"live",2);o([c({type:Boolean})],n.prototype,"dial",2);o([c()],n.prototype,"idleLabel",2);o([c({attribute:!1})],n.prototype,"deps",2);o([m()],n.prototype,"tick",2);o([m()],n.prototype,"mic",2);n=o([M("wk-talk-button")],n);
-//# sourceMappingURL=wk-talk-button-DgbjEwVf.js.map

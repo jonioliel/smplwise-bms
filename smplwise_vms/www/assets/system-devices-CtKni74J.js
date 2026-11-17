@@ -287,4 +287,3 @@ import{i as P,n as E,r as d,a as F,S as q,ak as $,p as h,q as t,x as L,a_ as D,b
       }
     }
   `,Y];l.PHONE_KEYS=new Set(["name","state","image","lastEvent"]);p([d()],l.prototype,"selected",2);p([d()],l.prototype,"filter",2);p([d()],l.prototype,"offlineFirst",2);p([d()],l.prototype,"cameras",2);p([d()],l.prototype,"recorder",2);p([d()],l.prototype,"canSync",2);p([d()],l.prototype,"discovery",2);p([d()],l.prototype,"busy",2);p([d()],l.prototype,"message",2);p([d()],l.prototype,"error",2);p([d()],l.prototype,"dialog",2);p([d()],l.prototype,"formChannel",2);p([d()],l.prototype,"formAlias",2);p([d()],l.prototype,"alias",2);p([d()],l.prototype,"recorderOpen",2);p([d()],l.prototype,"image",2);p([d()],l.prototype,"imageFilter",2);p([d()],l.prototype,"phone",2);p([d()],l.prototype,"narrow",2);p([d()],l.prototype,"page",2);p([d()],l.prototype,"perPage",2);l=p([L("system-devices")],l);export{l as SystemDevices};
-//# sourceMappingURL=system-devices-CtKni74J.js.map

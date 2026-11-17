@@ -14,6 +14,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError, conflict, not_found, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services.safe_paths import confine  # BACKEND-SAFETY-2435: stored picture paths stay inside catalog_images
 
 router = APIRouter()
 
@@ -60,6 +61,13 @@ def _image_dir(request: Request) -> Any:
     d = settings_of(request).data_dir / "catalog_images"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def _unlink_stored(request: Request, rel: str) -> None:
+    """BACKEND-SAFETY-2435: remove a stored picture only when its path stays inside catalog_images."""
+    p = confine(_image_dir(request), rel)
+    if p is not None:
+        p.unlink(missing_ok=True)
 
 
 def _store_image(request: Request, kind: str, obj_id: str, file: UploadFile) -> str:
@@ -114,7 +122,7 @@ def site_image_delete(site_id: str, request: Request, principal: Principal = Dep
     r = get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
     if r["image_path"]:
-        (_image_dir(request) / r["image_path"]).unlink(missing_ok=True)
+        _unlink_stored(request, r["image_path"])
     conn.execute("UPDATE sites SET image_path = NULL, updated_at = ? WHERE id = ?", (now_iso(), site_id))
     audit(conn, actor=principal, action="site.update", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request), details={"image": False})
     return site_row(get_site(conn, site_id))
@@ -137,7 +145,7 @@ def building_image_delete(building_id: str, request: Request, principal: Princip
     r = get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
     if r["image_path"]:
-        (_image_dir(request) / r["image_path"]).unlink(missing_ok=True)
+        _unlink_stored(request, r["image_path"])
     conn.execute("UPDATE buildings SET image_path = NULL, updated_at = ? WHERE id = ?", (now_iso(), building_id))
     audit(conn, actor=principal, action="building.update", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request), details={"image": False})
     return building_row(get_building(conn, building_id))
@@ -155,8 +163,8 @@ def catalog_image(kind: str, obj_id: str, request: Request, principal: Principal
         raise not_found("לא נמצא.")
     if not r["image_path"]:
         raise not_found("אין תמונה.")
-    p = _image_dir(request) / r["image_path"]
-    if not p.is_file():
+    p = confine(_image_dir(request), r["image_path"])  # BACKEND-SAFETY-2435: a stored path outside catalog_images is refused
+    if p is None or not p.is_file():
         raise not_found("אין תמונה.")
     return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 

@@ -77,13 +77,6 @@ class Account:
     pacing: Pacing = Pacing()
     removed: bool = False
 
-    @property
-    def account_value(self) -> str | None:
-        """What goes into the service call's `account` field: the entry id (stable, never ambiguous) or the typed value."""
-        if self.kind == "discovered":
-            return self.key.split(":", 1)[1]
-        return self.value
-
 
 @dataclass(frozen=True)
 class MappingDoc:
@@ -570,8 +563,8 @@ class SendLedger(Protocol):
     def prune(self, before: dt.datetime) -> int: ...
 
 
-def _iso(moment: dt.datetime) -> str:
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+from .timeutil import iso_utc_ms
+_iso = iso_utc_ms  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse(value: str) -> dt.datetime:

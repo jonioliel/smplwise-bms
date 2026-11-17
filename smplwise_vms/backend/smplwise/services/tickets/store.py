@@ -13,6 +13,8 @@ import sqlite3
 from typing import Any, Iterable
 
 from ...db import new_id, now_iso
+from . import _sql
+from ._sql import has_table as _has_table, like as _like, row_dict as _dict  # CR-TK-SQL: the shared helpers under their old names
 
 # a ticket row with its CURRENT assignment (the one `current_assignment_id` names; NULL columns when unassigned)
 _TICKET_SELECT = (
@@ -26,10 +28,6 @@ def table_missing(exc: BaseException) -> bool:
     """F-03 (TICKETS-PERF-ERASE-2435): the one failure an erase / retention DELETE may ignore - an older database without the table
     (a migration not applied yet). Anything else (a locked database, a constraint, a broken file) is a real failure."""
     return isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc)
-
-
-def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
-    return dict(row) if row is not None else None
 
 
 def _dicts(cur: sqlite3.Cursor) -> list[dict[str, Any]]:
@@ -57,27 +55,45 @@ def display_name(conn: sqlite3.Connection, user_id: str | None) -> str:
     return user_id
 
 
+def display_names(conn: sqlite3.Connection, user_ids: Iterable[str | None]) -> dict[str, str]:
+    """`display_name` for many users in two statements (code review 01:F-08: the pickers read two per person): {id: name}, the same
+    precedence - the directory copy (ha_users) first, then the add-on's own row, then the id; an empty id reads as ""."""
+    seq = list(user_ids)
+    blank = {uid: "" for uid in seq if not uid}
+    ids = list(dict.fromkeys(uid for uid in seq if uid))
+    out: dict[str, str] = {uid: uid for uid in ids}
+    if not ids:
+        return blank
+    wanted = json.dumps(ids)
+    named: set[str] = set()
+    for uid, name, username in conn.execute("SELECT id, name, username FROM ha_users WHERE id IN (SELECT value FROM json_each(?))", (wanted,)).fetchall():
+        if name or username:
+            out[uid] = name or username
+            named.add(uid)
+    for uid, dname, username in conn.execute("SELECT id, display_name, username FROM users WHERE id IN (SELECT value FROM json_each(?))", (wanted,)).fetchall():
+        if uid not in named and (dname or username):
+            out[uid] = dname or username
+    out.update(blank)
+    return out
+
+
 def group_name(conn: sqlite3.Connection, group_id: str) -> str:
     row = conn.execute("SELECT name FROM groups WHERE id = ?", (group_id,)).fetchone()
     return row["name"] if row else group_id
 
 
 def user_is_active(conn: sqlite3.Connection, user_id: str) -> bool:
-    u = conn.execute("SELECT active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if u is not None and not u["active"]:
-        return False
-    h = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (user_id,)).fetchone()
-    if h is not None and not h["is_active"]:
-        return False
-    return u is not None or h is not None
+    """CR-RBAC-EVAL-2438 (owner decision O16 a): the system-wide definition (services/active_users)."""
+    from ..active_users import user_is_active as _active
+
+    return _active(conn, user_id)
 
 
 def active_user_ids(conn: sqlite3.Connection) -> set[str]:
-    ids = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    ids |= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 1").fetchall()}
-    ids -= {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 0").fetchall()}
-    ids -= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 0").fetchall()}
-    return ids
+    """CR-RBAC-EVAL-2438 (owner decision O16 a): the system-wide definition (services/active_users)."""
+    from ..active_users import active_user_ids as _ids
+
+    return _ids(conn)
 
 
 def groups(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -524,20 +540,11 @@ def candidate_rows(
     after `after`. Visibility is NOT decided here: access.visible_page() checks every row (unchecked on purpose)."""
     where: list[str] = []
     args: list[Any] = []
-    scope_parts: list[str] = []
-    if department_ids is not None:
-        ids = list(dict.fromkeys(department_ids))
-        if ids:
-            scope_parts.append(f"t.department_id IN ({', '.join('?' * len(ids))})")
-            args.extend(ids)
-    else:
-        scope_parts.append("1 = 1")
-    if user_id:
-        scope_parts.append("(t.created_by = ? OR (a.assignee_kind = 'user' AND a.user_id = ? AND a.ended_at IS NULL))")
-        args.extend([user_id, user_id])
-    if not scope_parts:
+    scope = _sql.scope_clause(department_ids, user_id)
+    if scope is None:
         return []
-    where.append("(" + " OR ".join(scope_parts) + ")")
+    where.append(scope[0])
+    args.extend(scope[1])
     if statuses is not None:
         sts = list(statuses)
         where.append(f"t.status IN ({', '.join('?' * len(sts))})")
@@ -545,17 +552,10 @@ def candidate_rows(
     if department_id:
         where.append("t.department_id = ?")
         args.append(department_id)
-    q = (query or "").strip()
-    if q:
-        digits = q.lstrip("#")
-        if digits.isdigit() and len(digits) <= 9:
-            where.append("(t.number = ? OR t.title LIKE ? ESCAPE '\\' OR t.device_name LIKE ? ESCAPE '\\')")
-            like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-            args.extend([int(digits), like, like])
-        else:
-            like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-            where.append("(t.title LIKE ? ESCAPE '\\' OR t.device_name LIKE ? ESCAPE '\\' OR t.place_text LIKE ? ESCAPE '\\')")
-            args.extend([like, like, like])
+    text = _sql.text_clause(query)
+    if text is not None:
+        where.append(text[0])
+        args.extend(text[1])
     if after:
         where.append("(t.last_activity_at < ? OR (t.last_activity_at = ? AND t.id < ?))")
         args.extend([after[0], after[0], after[1]])
@@ -849,19 +849,11 @@ def unassigned_since(conn: sqlite3.Connection, ticket: dict[str, Any]) -> str:
     return best
 
 
-def _has_table(conn: sqlite3.Connection, name: str) -> bool:
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
-
-
 def current_link(conn: sqlite3.Connection, assignment_id: str | None) -> dict[str, Any] | None:
     """The newest handler link of an external assignment (slice 4's table; None before migration 0080 exists)."""
     if not assignment_id or not _has_table(conn, "ticket_links"):
         return None
     return _dict(conn.execute("SELECT * FROM ticket_links WHERE assignment_id = ? ORDER BY generation DESC, created_at DESC LIMIT 1", (assignment_id,)).fetchone())
-
-
-def has_event_since(conn: sqlite3.Connection, ticket_id: str, kind: str, since: str) -> bool:
-    return conn.execute("SELECT 1 FROM ticket_events WHERE ticket_id = ? AND kind = ? AND at >= ? LIMIT 1", (ticket_id, kind, since)).fetchone() is not None
 
 
 def place_names(conn: sqlite3.Connection, ids: dict[str, set[str]]) -> dict[str, dict[str, Any]]:
@@ -928,10 +920,6 @@ TABLE_SORT_SQL: dict[str, str] = {
 _TABLE_FROM = (_TICKET_SELECT + " LEFT JOIN ticket_departments d ON d.id = t.department_id LEFT JOIN ticket_priorities p ON p.id = t.priority_id")
 
 
-def _like(q: str) -> str:
-    return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-
-
 def table_rows_unchecked(
     conn: sqlite3.Connection,
     *,
@@ -949,20 +937,11 @@ def table_rows_unchecked(
     as `_s0`, `_s1`... (the next cursor). Visibility is NOT decided here: access.visible_table_page() checks every row."""
     where: list[str] = []
     args: list[Any] = []
-    scope_parts: list[str] = []
-    if department_ids is not None:
-        ids = list(dict.fromkeys(department_ids))
-        if ids:
-            scope_parts.append(f"t.department_id IN ({', '.join('?' * len(ids))})")
-            args.extend(ids)
-    else:
-        scope_parts.append("1 = 1")
-    if user_id:
-        scope_parts.append("(t.created_by = ? OR (a.assignee_kind = 'user' AND a.user_id = ? AND a.ended_at IS NULL))")
-        args.extend([user_id, user_id])
-    if not scope_parts:
+    scope = _sql.scope_clause(department_ids, user_id)
+    if scope is None:
         return []
-    where.append("(" + " OR ".join(scope_parts) + ")")
+    where.append(scope[0])
+    args.extend(scope[1])
     f = filters
     if f.statuses is not None:
         where.append(f"t.status IN ({', '.join('?' * len(f.statuses))})")
@@ -1002,16 +981,10 @@ def table_rows_unchecked(
     if getattr(f, "cost_statuses", ()):  # slice 9 (0083)
         where.append(f"t.cost_status IN ({', '.join('?' * len(f.cost_statuses))})")
         args.extend(f.cost_statuses)
-    q = (f.q or "").strip()
-    if q:
-        digits = q.lstrip("#")
-        like = _like(q)
-        if digits.isdigit() and len(digits) <= 9:
-            where.append("(t.number = ? OR t.title LIKE ? ESCAPE '\\' OR t.device_name LIKE ? ESCAPE '\\')")
-            args.extend([int(digits), like, like])
-        else:
-            where.append("(t.title LIKE ? ESCAPE '\\' OR t.device_name LIKE ? ESCAPE '\\' OR t.place_text LIKE ? ESCAPE '\\')")
-            args.extend([like, like, like])
+    text = _sql.text_clause(f.q)
+    if text is not None:
+        where.append(text[0])
+        args.extend(text[1])
     exprs = [(TABLE_SORT_SQL[k], d) for k, d in sort]
     tie = exprs[0][1] if exprs else "desc"
     keys = exprs + [("t.id", tie)]
@@ -1165,8 +1138,7 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
     conn.execute("UPDATE tickets SET current_assignment_id = NULL WHERE id = ?", (ticket_id,))
     run("ticket_assignments", "DELETE FROM ticket_assignments WHERE ticket_id = ?", (ticket_id,))
-    like = "%" + ticket_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-    run("ticket_requests", "DELETE FROM ticket_requests WHERE response_json LIKE ? ESCAPE '\\'", (like,))
+    run("ticket_requests", "DELETE FROM ticket_requests WHERE response_json LIKE ? ESCAPE '\\'", (_like(ticket_id),))
     conn.execute("UPDATE tickets SET duplicate_of = NULL WHERE duplicate_of = ?", (ticket_id,))
     run("tickets", "DELETE FROM tickets WHERE id = ?", (ticket_id,))
     return {k: v for k, v in out.items() if v}

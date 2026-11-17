@@ -413,4 +413,3 @@ import{a4 as Q,i as V,n as _,r as m,a as Y,S as X,p as l,Z as c,q as r,X as S,x 
       }
     }
   `,Lt];f([_({attribute:!1})],g.prototype,"route",2);f([m()],g.prototype,"r",2);f([m()],g.prototype,"module",2);f([m()],g.prototype,"meta",2);f([m()],g.prototype,"data",2);f([m()],g.prototype,"screen",2);f([m()],g.prototype,"failed",2);f([m()],g.prototype,"phone",2);f([m()],g.prototype,"treeHidden",2);f([m()],g.prototype,"filterOpen",2);f([m()],g.prototype,"showClosed",2);f([m()],g.prototype,"drawerUsed",2);f([m()],g.prototype,"now",2);f([m()],g.prototype,"q",2);f([m()],g.prototype,"toast",2);f([m()],g.prototype,"filters",2);f([m()],g.prototype,"paged",2);f([m()],g.prototype,"cardPage",2);f([m()],g.prototype,"fit",2);g=f([Z("tickets-board")],g);export{g as TicketsBoard};
-//# sourceMappingURL=tickets-board-CxnN2nO6.js.map

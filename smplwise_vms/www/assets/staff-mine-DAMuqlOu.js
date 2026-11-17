@@ -25,4 +25,3 @@ import{a as m,O as u,R as b,ak as h,p as c,q as r,a0 as e,i as v,r as d,x as y}f
     input { font: inherit; width: 9ch; padding: 4px 8px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: transparent; color: inherit;
       direction: ltr; text-align: center; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; }
   `;o([d()],s.prototype,"view",2);o([d()],s.prototype,"busy",2);o([d()],s.prototype,"error",2);o([d()],s.prototype,"hiddenAll",2);o([d()],s.prototype,"codeSent",2);o([d()],s.prototype,"code",2);o([d()],s.prototype,"cooldown",2);s=o([y("tickets-staff-mine")],s);export{s as TicketsStaffMine};
-//# sourceMappingURL=staff-mine-DAMuqlOu.js.map

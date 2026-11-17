@@ -21,12 +21,13 @@ installation (the hand that sets the cost mode). Everything is behind the module
 from __future__ import annotations
 
 import datetime as dt
+import sqlite3
 from typing import Any, Mapping
 
-from ...db import get_setting
 from ...errors import ApiError
 from . import money, notify_bridge, settings_doc, store, store_budgets
 from .access import Viewer, module_on, text
+from .timeutil import iso_s, zone_of
 
 UTC = dt.timezone.utc
 SCOPES = ("installation", "department", "site", "building", "category")
@@ -55,10 +56,7 @@ def require_enabled(conn) -> None:
         raise ApiError(404, "feature_disabled", text(conn, "תקציבים כבויים בהגדרות {the_tickets}."))
 
 
-def _zone(conn) -> dt.tzinfo:
-    from .stuck import _zone as zone_of
-
-    return zone_of(get_setting(conn, "time.zone", None))
+_zone = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 # ---------------------------------------------------------------- periods
@@ -97,8 +95,7 @@ def bounds(conn, kind: str, start: dt.date) -> tuple[str, str]:
     return _iso(a), _iso(b)
 
 
-def _iso(v: dt.datetime) -> str:
-    return v.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def contains(conn, b: Mapping[str, Any], at: dt.datetime) -> bool:
@@ -191,7 +188,7 @@ def scope_label(conn, b: Mapping[str, Any]) -> str:
         return str((store.category_any(conn, sid) or {}).get("name") or "")
     try:
         row = conn.execute(f"SELECT name FROM {'sites' if kind == 'site' else 'buildings'} WHERE id = ?", (sid,)).fetchone()
-    except Exception:  # noqa: BLE001
+    except sqlite3.Error:  # a database without the sites / buildings table (a unit fixture): no name (CR-TK-EXCEPT-LOG (01:F-11): narrowed)
         row = None
     return str(row[0]) if row else ""
 

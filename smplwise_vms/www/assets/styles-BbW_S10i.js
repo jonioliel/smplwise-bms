@@ -1331,4 +1331,3 @@ import{i as e}from"./index-C5kZ9jiu.js";const a=e`
     border-block-end-color: color-mix(in srgb, var(--sw-border-strong) 45%, transparent);
   }
 `;export{a as e};
-//# sourceMappingURL=styles-BbW_S10i.js.map

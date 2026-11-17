@@ -24,7 +24,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import database_of, get_setting, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import INSTALLATION, Principal, require, require_system_admin
 from ..services import wiskey_pairing as wp
 
 router = APIRouter()
@@ -45,11 +45,7 @@ def pairing_status(request: Request, principal: Principal = Depends(current_prin
 @router.post("/system/wiskey-pairing/probe")
 def pairing_probe(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """"בדוק חיבור חתום": one signed read to WisKey - does it accept Arx's pairing key, which commands does it list. System administrators."""
-    require(conn, principal, CONFIGURE, INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action="wiskey.pairing.probe", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request))
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבדוק את החיבור החתום ל־WisKey.")
+    require_system_admin(conn, principal, action="wiskey.pairing.probe", request_id=_rid(request), text="רק מנהל מערכת יכול לבדוק את החיבור החתום ל־WisKey.")
     db = database_of(conn) or request.app.state.db
     result, ran = wp.probe(db, settings_of(request))
     if ran:
@@ -69,11 +65,7 @@ def pairing_repair(body: RepairBody, request: Request, principal: Principal = De
     """Re-pair Arx with the bridge (and so with WisKey): a new pairing code, announced to the bridge when possible. System administrators."""
     from ..services import bridge_install, bridge_rotation as br, bridge_rotation_peer as peer_mod, capture_lease, ha_bridge, lease_events
 
-    require(conn, principal, CONFIGURE, INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action="wiskey.pairing.repair", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request))
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצמד מחדש את Arx ו־WisKey.")
+    require_system_admin(conn, principal, action="wiskey.pairing.repair", request_id=_rid(request), text="רק מנהל מערכת יכול לצמד מחדש את Arx ו־WisKey.")
     if body.confirm is not True:
         raise ApiError(422, "confirm_required", "יש לאשר את הצימוד מחדש.")
     from ..services import bridge_key_revocation as bkr

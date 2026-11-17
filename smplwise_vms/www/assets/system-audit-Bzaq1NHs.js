@@ -89,4 +89,3 @@ import{a as w,S as b,K as u,L as g,ak as f,p as c,q as s,u9 as m,cK as v,rK as y
       }
     }
   `,$];n([l()],r.prototype,"rows",2);n([l()],r.prototype,"error",2);n([l()],r.prototype,"family",2);n([l()],r.prototype,"actor",2);n([l()],r.prototype,"limit",2);n([l()],r.prototype,"channel",2);n([l()],r.prototype,"view",2);r=n([k("system-audit")],r);export{r as SystemAudit};
-//# sourceMappingURL=system-audit-Bzaq1NHs.js.map

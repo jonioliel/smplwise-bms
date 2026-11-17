@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from smplwise import remote_channel
-from smplwise.routers import tickets_admin
+from smplwise.routers import tickets_admin_settings  # CR-SPLIT-TICKETS-ADMIN-2440: the part that reads is_remote
 from smplwise.services.tickets import export, text_hygiene
 from test_tickets_costs import LINES, decide, done, jpeg  # noqa: F401 - the slice 9 world
 from tickets_s4_world import API, build_s4
@@ -26,7 +26,7 @@ def test_the_key_rotation_is_never_reachable_through_the_tunnel():
 
 def test_the_public_settings_are_refused_from_a_remote_session(s4, monkeypatch):
     doc = s4.c.get(f"{API}/tickets/settings").json()
-    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    monkeypatch.setattr(tickets_admin_settings, "is_remote", lambda request: True)
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "public": {"base_url": "https://t-x.example.org"}})
     assert r.status_code == 403 and r.json()["code"] == "local_only"
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "ui": {"detail": "drawer"}})
@@ -36,7 +36,7 @@ def test_the_public_settings_are_refused_from_a_remote_session(s4, monkeypatch):
 def test_253_remote_put_without_public_keys_saves_and_the_settings_route_is_not_blocked(s4, monkeypatch):
     assert not any(b.startswith("/api/v1/tickets/settings") for b in remote_channel.BLOCKED_ON_REMOTE)
     doc = s4.c.get(f"{API}/tickets/settings").json()
-    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    monkeypatch.setattr(tickets_admin_settings, "is_remote", lambda request: True)
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "links": {"sliding_days": 5}, "organization_name": "מגדלי הדר"})
     assert r.status_code == 200, r.text
     assert r.json()["organization_name"] == "מגדלי הדר"
@@ -46,7 +46,7 @@ def test_253_remote_put_without_public_keys_saves_and_the_settings_route_is_not_
 
 def test_253_remote_put_with_a_public_key_is_refused_with_a_clean_message_and_no_partial_write(s4, monkeypatch):
     doc = s4.c.get(f"{API}/tickets/settings").json()
-    monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)
+    monkeypatch.setattr(tickets_admin_settings, "is_remote", lambda request: True)
     for public in ({"base_url": "https://t-x.example.org"}, {"trusted_proxy_cidrs": ["10.0.0.0/8"]}, {"client_ip_header": "x-forwarded-for"}):
         r = s4.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "organization_name": "שם חדש", "public": public})
         assert r.status_code == 403 and r.json()["code"] == "local_only", r.text

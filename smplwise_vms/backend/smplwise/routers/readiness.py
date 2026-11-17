@@ -21,16 +21,13 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import readiness as svc
+from ._common import rid as _rid
 
 router = APIRouter()
 
 CHECK_EVERY_S = 30.0
 _last_check: dict[str, float] = {}
 _lock = threading.Lock()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _payload(conn: sqlite3.Connection, request: Request) -> dict[str, Any]:

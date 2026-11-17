@@ -37,8 +37,9 @@ import sqlite3
 import time
 from typing import Any
 
-from ...db import Database, get_setting, now_iso, set_setting
+from ...db import Database, get_setting, set_setting
 from ...rbac import Principal
+from ..notify_recipients import expand
 from . import settings_doc, store
 from .notify_sources import RULE_ASSIGNEE, SOURCE_DEFS, SUBJECT
 
@@ -160,19 +161,13 @@ def channels_for(conn: sqlite3.Connection, n: dict[str, Any], channels: dict[str
 
 
 def role_members(conn: sqlite3.Connection, roles: list[str]) -> list[str]:
-    """The users bound to any of `roles` now (directly or through a group), at any scope - the caller keeps only who may see the ticket."""
+    """The users bound to any of `roles` now (directly or through a group), at any scope - the caller keeps only who may see the ticket.
+    Theme T4 of the code review: the one recipient expansion (services/notify_recipients.expand) - role holders through a user binding,
+    then through a group binding, live (not revoked, `allow`, not expired) bindings only, each user once; no active filter here (the
+    digest audience applies visibility itself)."""
     if not roles:
         return []
-    marks = ",".join("?" * len(roles))
-    now = now_iso()
-    out = [r[0] for r in conn.execute(
-        f"""SELECT DISTINCT b.subject_id FROM bindings b WHERE b.subject_kind = 'user' AND b.role_id IN ({marks})
-            AND b.revoked_at IS NULL AND b.effect = 'allow' AND (b.expires_at IS NULL OR b.expires_at > ?)""", (*roles, now)).fetchall()]
-    out += [r[0] for r in conn.execute(
-        f"""SELECT DISTINCT m.user_id FROM bindings b JOIN group_members m ON m.group_id = b.subject_id WHERE b.subject_kind = 'group'
-            AND b.role_id IN ({marks}) AND b.revoked_at IS NULL AND b.effect = 'allow' AND (b.expires_at IS NULL OR b.expires_at > ?)""",
-        (*roles, now)).fetchall()]
-    return list(dict.fromkeys(out))
+    return expand(conn, {"roles": roles}, roles, active_only=False)
 
 
 # ---------------------------------------------------------------- the queue

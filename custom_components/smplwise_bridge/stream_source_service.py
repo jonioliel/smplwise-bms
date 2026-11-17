@@ -39,6 +39,8 @@ from types import SimpleNamespace
 from typing import Any, Mapping
 from urllib.parse import parse_qsl, urlsplit
 
+from ._common import refusal as _refusal, window_full
+
 _LOGGER = logging.getLogger(__name__)
 
 ENTITY_RE = re.compile(r"^camera\.[a-z0-9_]{1,100}$")
@@ -57,8 +59,7 @@ _calls_by_entity: dict[str, deque[float]] = {}
 
 
 def _refuse(msg: Mapping[str, Any], error: str) -> dict[str, Any]:
-    request_id = msg.get("request_id")
-    return {"ok": False, "request_id": request_id if isinstance(request_id, str) else None, "error": error}
+    return _refusal(msg, error, text_id=True)
 
 
 def _ha() -> SimpleNamespace:
@@ -204,9 +205,7 @@ def _rate_limited(now: float, entity_id: str) -> bool:
     """Two windows: every camera has its own small budget (a failing camera cannot use up the others'), and all together a
     larger one. A refused call is not counted."""
     for queue, limit in ((_calls, RATE_MAX), (_calls_by_entity.setdefault(entity_id, deque()), RATE_MAX_PER_ENTITY)):
-        while queue and now - queue[0] > RATE_WINDOW_S:
-            queue.popleft()
-        if len(queue) >= limit:
+        if window_full(queue, now, RATE_WINDOW_S, limit):
             return True
     _calls.append(now)
     _calls_by_entity[entity_id].append(now)

@@ -845,7 +845,9 @@ class _Row:
 
 
 class _FakeRegistry:
-    """The entity registry the bridge reads: `entities` (live), `async_get`, `async_remove`."""
+    """The entity registry the bridge reads: `entities` (live), `async_get`, `async_get_entity_id`, `async_remove`."""
+
+    indexed_lookups = 0  # calls of async_get_entity_id, all instances together
 
     def __init__(self, hass: "FakeBridgeHass") -> None:
         self._hass = hass
@@ -856,6 +858,14 @@ class _FakeRegistry:
 
     def async_get(self, entity_id: str) -> _Row | None:
         return self._hass._reg_get(entity_id)
+
+    def async_get_entity_id(self, domain: str, platform: str, unique_id: str) -> str | None:
+        """Home Assistant's indexed lookup (CR-BRIDGE-GAPS-2436: config_service.entity_of asks it instead of walking `entities`)."""
+        _FakeRegistry.indexed_lookups += 1
+        for r in self._hass.fake.registry:
+            if r["platform"] == platform and str(r["unique_id"]) == unique_id and str(r["entity_id"]).startswith(domain + "."):
+                return r["entity_id"]
+        return None
 
     def async_remove(self, entity_id: str) -> None:
         self._hass._reg_remove(entity_id)

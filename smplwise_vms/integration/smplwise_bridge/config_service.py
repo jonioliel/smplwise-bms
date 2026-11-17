@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
 from . import config_policy as policy
+from ._common import entity_policy_refusal, refusal as _refusal
 from .config_store import ConfigStore, StoreError
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,11 +119,7 @@ def _write_state(hass: Any) -> _WriteState:
 
 
 def _refuse(msg: Mapping[str, Any], error: str, path: str | None = None, **extra: Any) -> dict[str, Any]:
-    out: dict[str, Any] = {"ok": False, "request_id": msg.get("request_id"), "error": error}
-    if path:
-        out["path"] = path
-    out.update(extra)
-    return out
+    return _refusal(msg, error, path, **extra)
 
 
 def _entries(registry: Any) -> list[Any]:
@@ -131,7 +128,15 @@ def _entries(registry: Any) -> list[Any]:
 
 
 def entity_of(registry: Any, domain: str, platform: str, unique_id: str) -> str | None:
-    """The entity id of an item (registry platform + unique_id == the config id; a script's unique_id is its object id)."""
+    """The entity id of an item (registry platform + unique_id == the config id; a script's unique_id is its object id).
+
+    CR-BRIDGE-GAPS-2436 (review 05 P2-21): Home Assistant's registry answers this from its (domain, platform, unique_id) index
+    (`async_get_entity_id`) - `_wait_entity` asks it every RELOAD_POLL_S, and a walk over every entity of the installation per poll is
+    what the review found. A registry without that method (a duck-typed one) is walked as before."""
+    lookup = getattr(registry, "async_get_entity_id", None)
+    if callable(lookup):
+        eid = lookup(domain, platform, unique_id)
+        return eid if isinstance(eid, str) and eid.startswith(domain + ".") else None
     for e in _entries(registry):
         if getattr(e, "platform", None) == platform and str(getattr(e, "unique_id", "")) == unique_id and str(getattr(e, "entity_id", "")).startswith(domain + "."):
             return e.entity_id
@@ -141,19 +146,7 @@ def entity_of(registry: Any, domain: str, platform: str, unique_id: str) -> str 
 def _check_permissions(user: Any, deps: SimpleNamespace, entity_ids: list[str]) -> str | None:
     """None when the person may control every entity (an administrator always may), else the refusal code. The config API's writes are not entity services,
     so Home Assistant would not check the entities named inside the item: this check does, with the user's own policy."""
-    if getattr(user, "is_admin", False):
-        return None
-    check = getattr(getattr(user, "permissions", None), "check_entity", None)
-    if not callable(check) or deps.POLICY_CONTROL is None:
-        return "permission_check_unavailable"
-    for entity_id in entity_ids:
-        try:
-            allowed = check(entity_id, deps.POLICY_CONTROL)
-        except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: closed
-            return "permission_check_unavailable"
-        if not allowed:
-            return "unauthorized"
-    return None
+    return entity_policy_refusal(user, deps.POLICY_CONTROL, entity_ids)
 
 
 # ---------------------------------------------------------------- the handler

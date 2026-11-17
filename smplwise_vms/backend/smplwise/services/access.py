@@ -45,7 +45,9 @@ class CameraScope:
 
 def _chains(conn: sqlite3.Connection) -> dict[str, set[tuple[str, str]]]:
     """Every registered camera's scope chain in three queries (the batched form of rbac.scope_chain('camera', …))."""
-    buildings = {r["id"]: r["site_id"] for r in conn.execute("SELECT id, site_id FROM buildings").fetchall()}
+    # CR-RBAC-EVAL-2438 (02:P3-4, owner decision O20 a): a deleted building no longer sits under its site (rbac.scope_chain); its own
+    # node stays in the chain so a deny bound on it still bites - an allow bound on it is already gone (rbac._active_bindings)
+    buildings = {r["id"]: r["site_id"] for r in conn.execute("SELECT id, site_id FROM buildings WHERE deleted_at IS NULL").fetchall()}
     floors = {r["id"]: r["building_id"] for r in conn.execute("SELECT id, building_id FROM floors WHERE deleted_at IS NULL").fetchall()}
     chains: dict[str, set[tuple[str, str]]] = {r["id"]: {("camera", r["id"]), INSTALLATION} for r in conn.execute("SELECT id FROM cameras").fetchall()}
     anchored = [(a["resource_id"], a["floor_id"]) for a in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall()]
@@ -66,8 +68,9 @@ def _chains(conn: sqlite3.Connection) -> dict[str, set[tuple[str, str]]]:
 
 
 def camera_scope(conn: sqlite3.Connection, principal: Principal, permission: str) -> CameraScope:
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is not None and not user["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ADMIN-GATE-2438: authorize()'s rule - disabled on either side holds nothing
         return CameraScope(permission, False)
     bindings = [b for b in _active_bindings(conn, principal) if permission in role_permissions(conn, b["role_id"])]
     allow = {(b["scope_type"], b["scope_id"]) for b in bindings if b["effect"] != "deny"}
@@ -144,14 +147,6 @@ def require_camera(conn: sqlite3.Connection, principal: Principal, camera_id: st
     """Refuse (403 with an audit row naming the camera and the reason) unless the caller holds `permission` on this
     camera; returns the allowing decision, whose binding / role / scope the caller's own audit row records."""
     return require(conn, principal, permission, ("camera", camera_id))
-
-
-def floor_cameras(conn: sqlite3.Connection, floor_id: str) -> set[str]:
-    """The cameras anchored on a floor, and those of a shared room it shows (CR-009)."""
-    from .shared_spaces import floor_mirrored
-
-    own = {r[0] for r in conn.execute("SELECT DISTINCT resource_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (floor_id,)).fetchall()}
-    return own | {rid for rtype, rid in floor_mirrored(conn, floor_id) if rtype == "camera"}
 
 
 def camera_reach_floors(conn: sqlite3.Connection, principal: Principal, permission: str = "map.read", scope: CameraScope | None = None) -> set[str]:

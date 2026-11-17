@@ -152,7 +152,13 @@ def test_system_admin_who_is_not_an_ha_admin_reads_but_never_writes(ha_settings,
 def test_an_inactive_ha_admin_is_refused(ha_settings, fake):
     c = _client(ha_settings)
     _seed_dir(ha_settings, "dev-joni", admin=True, active=False)
-    assert _create(c)[1]["code"] == "ha_admin_required"
+    # CR-ADMIN-GATE-2438 (owner decision O16 a): disabled on the Home Assistant side is "not active" for authorize() itself, so the
+    # refusal now comes one step earlier - require(users.ha_manage) with reason user_inactive - instead of the HA-admin check
+    status, err = _create(c)
+    assert status == 403 and err["code"] == "forbidden", err
+    with Database(ha_settings.db_path).connection() as conn:
+        row = conn.execute("SELECT reason FROM audit_log WHERE actor_user_id = 'dev-joni' AND decision = 'denied' ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert row[0] == "user_inactive"
 
 
 # ---------------------------------------------------------------- admin creation is impossible

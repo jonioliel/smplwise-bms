@@ -616,4 +616,3 @@ import{fS as R,i as I,n as k,r as v,a as L,S as j,gE as A,fT as H,gF as f,gG as 
       }
     }
   `];d([k({attribute:!1})],l.prototype,"device",2);d([k({reflect:!0,attribute:"data-size"})],l.prototype,"size",2);d([k({type:Boolean,reflect:!0})],l.prototype,"compact",2);d([k({type:Boolean,reflect:!0})],l.prototype,"editing",2);d([k({type:Boolean,reflect:!0,attribute:"data-dimmed"})],l.prototype,"dimmed",2);d([k({attribute:!1})],l.prototype,"leader",2);d([v()],l.prototype,"pending",2);d([v()],l.prototype,"nack",2);d([v()],l.prototype,"note",2);d([v()],l.prototype,"shaking",2);d([v()],l.prototype,"menu",2);d([v()],l.prototype,"detail",2);d([v()],l.prototype,"detailBusy",2);d([v()],l.prototype,"volOpen",2);l=d([D("media-player-card")],l);
-//# sourceMappingURL=media-player-card-DhYAJPbA.js.map

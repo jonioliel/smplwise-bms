@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import replace
 from typing import Any
 
@@ -24,6 +23,7 @@ from intercom_station_scope import station_scope  # noqa: F401 - a fixture
 
 from smplwise.db import Database
 from smplwise.services import intercom_adapter, intercom_authority as ia, intercom_sync
+from support.waiting import wait_for
 
 API = "/api/v1/access-control"
 NEVER = ("192.0.2.10", "last_access", "1234", "pin_configured", "card_count", "masked", "user_ref", "ha-user-0001", "Secret Department",
@@ -61,15 +61,6 @@ def ac(settings, monkeypatch, station_scope):  # noqa: F811
     if intercom_sync.SYNC.thread is not None:
         intercom_sync.SYNC.thread.join(timeout=5)
     intercom_sync.SYNC.reset()
-
-
-def wait_for(pred: Any, timeout: float = 5.0) -> None:
-    end = time.time() + timeout
-    while time.time() < end:
-        if pred():
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"condition not met; feed state {intercom_sync.STATE.as_dict()}")
 
 
 def get(c: TestClient, path: str, user: str, **params: Any) -> Any:
@@ -505,7 +496,7 @@ def test_the_reads_never_hold_the_write_lock_while_wiskey_answers():
     from fastapi.routing import APIRoute
 
     from smplwise.auth import get_conn, get_read_conn
-    from smplwise.routers import access_control, access_control_reads
+    from smplwise.routers import access_control_entry, access_control_reads  # CR-SPLIT-ACCESS-CONTROL-2440: the legacy reads' part
 
     def calls(dep: Any) -> list[Any]:
         out = []
@@ -516,7 +507,7 @@ def test_the_reads_never_hold_the_write_lock_while_wiskey_answers():
 
     legacy = {("GET", "/intercom/events"), ("GET", "/intercom/people"), ("GET", "/intercom/people/{user_id}")}
     routes = [r for r in access_control_reads.router.routes if isinstance(r, APIRoute)]
-    routes += [r for r in access_control.router.routes if isinstance(r, APIRoute) and any((m, r.path) in legacy for m in r.methods)]
+    routes += [r for r in access_control_entry.router.routes if isinstance(r, APIRoute) and any((m, r.path) in legacy for m in r.methods)]
     assert len(routes) == 25 + 1 + 3  # the 25 typed reads, the parity report (CR-036 S12), the three legacy reads
     for route in routes:
         deps = calls(route.dependant)

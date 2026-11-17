@@ -15,13 +15,10 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import rules as svc
 from ..services.access import require_camera, row_scope
-from .settings import read_settings
+from ._common import rid as _rid
+from ..services.settings_store import setting_value
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class Trigger(BaseModel):
@@ -117,7 +114,7 @@ def _with_counts(conn: sqlite3.Connection, rules: list[dict[str, Any]]) -> list[
 
 
 @router.get("/rules")
-def list_rules(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_rules(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
     rows = [svc.row_to_rule(r) for r in conn.execute("SELECT * FROM rules ORDER BY created_at").fetchall()]
     return {"rules": _with_counts(conn, rows), "types": ["motion", "person", "vehicle", "line", "field", "offline", "tamper", "door", "io", "storage", "system", "coverage_gap", "manual", "other"],
@@ -208,11 +205,11 @@ def dry_run(body: DryRunIn, principal: Principal = Depends(current_principal), c
         rule = svc.row_to_rule(_get(conn, body.rule_id))
     else:
         raise ApiError(422, "validation", "יש לשלוח חוק או מזהה חוק.")
-    return {"rule_name": rule["name"], **svc.dry_run(conn, rule, body.hours, read_settings(conn)["time.zone"])}
+    return {"rule_name": rule["name"], **svc.dry_run(conn, rule, body.hours, setting_value(conn, "time.zone"))}
 
 
 @router.get("/rules/{rule_id}")
-def get_rule(rule_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_rule(rule_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "rules.manage", INSTALLATION)
     return _with_counts(conn, [svc.row_to_rule(_get(conn, rule_id))])[0]
 

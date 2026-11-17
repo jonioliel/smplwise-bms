@@ -23,7 +23,7 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import Database, get_setting, new_id, now_iso, set_setting, unlocked
+from ..db import Database, get_setting, has_column, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..recorder_scope import PRIMARY, ready, ready_ids, settings_for
 from . import go2rtc as g2
@@ -202,7 +202,7 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
-    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
+    return has_column(conn, table, column)  # CR-SCHEMA-PROBES-2440 (review 05:P2-10): the cached schema answer
 
 
 def _removed_recorders(conn: sqlite3.Connection) -> list[str]:

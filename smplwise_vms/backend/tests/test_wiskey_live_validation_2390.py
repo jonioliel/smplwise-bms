@@ -447,10 +447,13 @@ def test_nothing_runs_by_itself(env, settings):
     assert env.port.calls == []
     src = (REPO / "smplwise_vms" / "backend" / "smplwise" / "services" / "wiskey_live_validation.py").read_text(encoding="utf-8")
     assert "Timer(" not in src and "schedule" not in src.lower().replace("scheduled", "")
-    main = (REPO / "smplwise_vms" / "backend" / "smplwise" / "main.py").read_text(encoding="utf-8")
-    assert [ln for ln in main.splitlines() if "wiskey_validation" in ln or "wiskey_live_validation" in ln] == [
-        "    from .routers import wiskey_validation as wiskey_validation_router  # WISKEY-LIVE-VALIDATION-2390: station acceptance runs (on demand only)",
-        '    app.include_router(wiskey_validation_router.router, prefix=api, tags=["access-control"])']
+    # CR-MAIN-ROUTERS-TABLE-2440: the include is one row of the routers table; main.py and the start-up steps name the feature nowhere
+    pkg = REPO / "smplwise_vms" / "backend" / "smplwise"
+    table = (pkg / "routers" / "__init__.py").read_text(encoding="utf-8")
+    assert [ln for ln in table.splitlines() if "wiskey_validation" in ln or "wiskey_live_validation" in ln] == [
+        '    Mount("wiskey_validation", "access-control"),  # WISKEY-LIVE-VALIDATION-2390: station acceptance runs (on demand only)']
+    for name in ("main.py", "startup_steps.py"):
+        assert "wiskey_validation" not in (pkg / name).read_text(encoding="utf-8") and "wiskey_live_validation" not in (pkg / name).read_text(encoding="utf-8")
 
 
 # ================================================================ the page, the gate, the export

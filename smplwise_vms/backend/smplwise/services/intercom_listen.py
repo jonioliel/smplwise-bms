@@ -14,7 +14,6 @@ Nothing is recorded, stored or served again: a frame goes from the downlink's sm
 """
 from __future__ import annotations
 
-import hashlib
 import logging
 import secrets
 import threading
@@ -89,10 +88,10 @@ class ListenSession:
     @property
     def ref(self) -> str:
         """What the audit keeps of the session handle: a digest prefix (the handle itself admits its socket)."""
-        return hashlib.sha256(self.id.encode()).hexdigest()[:12]
+        return im.session_ref(self.id)
 
 
-class ListenState:
+class ListenState(im.SessionSlots):
     """Process-wide, in memory (a restart ends every listen session; nothing is persisted)."""
 
     def __init__(self) -> None:
@@ -138,21 +137,9 @@ class ListenState:
             s = self.sessions.get(session_id)
             return s if s is not None and not s.closed else None
 
-    def attach(self, session: ListenSession) -> bool:
-        with self._lock:
-            if session.closed or session.attached:
-                return False
-            session.attached = True
-            return True
-
     def finish(self, session: ListenSession, outcome: str) -> bool:
         """Closes the session once; True for the call that closed it (that one writes the end row)."""
-        with self._lock:
-            if session.closed:
-                return False
-            session.closed, session.outcome = True, outcome
-            self.sessions.pop(session.id, None)
-            return True
+        return self._finish_in(self.sessions, session, outcome)
 
 
 LISTEN = ListenState()

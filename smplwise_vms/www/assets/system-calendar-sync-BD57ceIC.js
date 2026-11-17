@@ -208,4 +208,3 @@ import{qk as b,i as P,n as w,r,a as I,ak as m,ql as G,p as l,q as s,cc as U,x as
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
   `];u([w({attribute:!1})],h.prototype,"route",2);u([r()],h.prototype,"conns",2);u([r()],h.prototype,"flags",2);u([r()],h.prototype,"cals",2);u([r()],h.prototype,"s",2);u([r()],h.prototype,"canConfigure",2);u([r()],h.prototype,"error",2);u([r()],h.prototype,"forbidden",2);u([r()],h.prototype,"actionError",2);u([r()],h.prototype,"removing",2);u([r()],h.prototype,"newOpen",2);u([r()],h.prototype,"flagPage",2);u([r()],h.prototype,"toastText",2);u([r()],h.prototype,"compact",2);u([r()],h.prototype,"phone",2);u([r()],h.prototype,"shownProvider",2);u([r()],h.prototype,"dialog",2);h=u([L("system-calendar-sync")],h);export{h as SystemCalendarSync,R as agoText,gt as bindingText};
-//# sourceMappingURL=system-calendar-sync-BD57ceIC.js.map

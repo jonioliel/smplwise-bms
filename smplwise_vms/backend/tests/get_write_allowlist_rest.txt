@@ -1,0 +1,62 @@
+# GET routes outside the access area that stay on the WRITE connection (auth.get_conn: BEGIN IMMEDIATE, the single write lock).
+# One route per line: `GET <path>  # why`. Read by tests/test_get_routes_read_conn.py; the existence of this file puts every
+# router module in the test's scope (CR-READCONN-B-2440). A route that does not write belongs on current_principal_ro +
+# get_read_conn, not here; an entry whose route no longer uses get_conn fails the test (stale entry).
+
+# -- the automations mirror: store.MIRROR.ensure(conn) pulls and rewrites the cache on the request's connection when it was
+#    never synced (same case as the schedules mirror in get_write_allowlist_access.txt)
+GET /api/v1/automations/status  # store.MIRROR.ensure(conn)
+GET /api/v1/automations/catalog  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/automations/review  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/automations  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/automations/{kind}/{item_id}  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/automations/{kind}/{item_id}/runs  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/automations/{kind}/{item_id}/runs/{run_id}  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/automations-ext/conflicts  # automation_ext._ctx -> store.MIRROR.ensure(conn)
+GET /api/v1/automations-ext/wall-buttons  # automation_ext._ctx -> store.MIRROR.ensure(conn)
+GET /api/v1/automations-ext/wall-buttons/{device_id}  # automation_ext._ctx -> store.MIRROR.ensure(conn)
+GET /api/v1/home/schedules  # _sched_ctx -> schedules store.MIRROR.ensure(conn)
+
+# -- the handler changes rows of its own
+GET /api/v1/ha/actions/{action_id}  # ha_actions.refresh updates the action's status; media_commands.on_action_confirmed
+GET /api/v1/ha/bridge/pairing  # ha_bridge.ensure_pairing creates / resets the pairing secret; audit row bridge.pairing.regenerate
+GET /api/v1/field/offline/bundle  # offline_field.build_bundle registers the device and stamps bundle_issued_at
+GET /api/v1/wall/config  # wall.touch_seen writes the display's last contact (kept by CR-UPLOAD-SYNC-2436)
+GET /api/v1/maintenance/scan/{token}  # maintenance service.scan stamps maint_tags.last_scan_at (test_maintenance_215: the tags list shows the last scan)
+
+# -- the handler records an audit row on SUCCESS (a read of sensitive data or a download). On the read connection that row
+#    would be written aside while the request waits for the write lock anyway; moving these needs an entry in the test's
+#    AUDITS_ON_SUCCESS (owned by CR-READCONN-A) - left for the closing chain, see docs/changes/CR-READCONN-B-2440.md
+GET /api/v1/notices/boards/{board_id}/link  # audit notices.board.link_read (kept by CR-UPLOAD-SYNC-2436)
+GET /api/v1/backups/{name}/download  # audit backup.download
+GET /api/v1/calendar/events/{eid}/guests  # audit calendar.guests.read
+GET /api/v1/exports/{job_id}/download  # audit video.export.download
+GET /api/v1/auth/local/personal-data  # audit identity.local.user.data_exported
+GET /api/v1/identity/local-users/{user_id}/personal-data  # audit identity.local.user.data_exported
+GET /api/v1/messaging/whatsapp/pacing/lease/{request_id}  # audit messaging.pacing.lease_status
+GET /api/v1/nvr/cameras  # audit nvr.cameras.read
+GET /api/v1/nvr/cameras/{camera_id}  # audit nvr.cameras.read
+GET /api/v1/plan-versions/{version_id}/export.ifc  # audit geometry.ifc.export
+GET /api/v1/tickets/contacts/{contact_id}/export  # audit ticket.contact.export (services/tickets/contacts.export)
+GET /api/v1/tickets/costs/report  # audit ticket.costs.report
+GET /api/v1/tickets/costs/claims  # audit ticket.costs.claims
+GET /api/v1/tickets/costs/export.csv  # audit ticket.costs.export
+GET /api/v1/tickets/{ticket_id}/costs/files/{file_id}  # audit ticket.cost.file_download
+GET /api/v1/tickets/{ticket_id}/costs/{claim_id}/documents/{revision_id}/{doc}  # audit ticket.cost.file_download
+GET /api/v1/tickets/contacts/{contact_id}/stats  # audit tickets.stats.view
+GET /api/v1/tickets/contacts/{contact_id}/stats/tickets  # audit tickets.stats.list
+GET /api/v1/infra/water/consumption.csv  # audit infra.water.export
+GET /api/v1/brand/white-label/pack  # audit brand.installer.pack.export
+
+# -- not reviewed here: routers/cases.py and routers/catalog.py are outside this branch's file list (master plan: held by
+#    BACKEND-SAFETY-2435, converted in the closing chain, wave 3B BE-1 CR-ROUTER-COMMON-TAIL). Listed so the inventory is
+#    complete; each needs the same route-by-route check (known: signing_info writes the installation id, download_bundle audits)
+GET /api/v1/cases/{case_id}  # held for wave 3B (routers/cases.py)
+GET /api/v1/cases/{case_id}/items/{item_id}/file  # held for wave 3B (routers/cases.py)
+GET /api/v1/cases/{case_id}/bundles  # held for wave 3B (routers/cases.py)
+GET /api/v1/cases/{case_id}/bundles/{name}  # held for wave 3B (routers/cases.py); audits the download
+GET /api/v1/evidence/signing  # held for wave 3B (routers/cases.py); bundle.installation_id may write the setting
+GET /api/v1/catalog/images/{kind}/{obj_id}  # held for wave 3B (routers/catalog.py)
+GET /api/v1/sites  # held for wave 3B (routers/catalog.py)
+GET /api/v1/floors/{floor_id}  # held for wave 3B (routers/catalog.py)
+GET /api/v1/home-links  # held for wave 3B (routers/catalog.py)

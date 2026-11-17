@@ -652,4 +652,3 @@ import{i as R,n as h,a as T,q as i,p as l,X as f,kf as B,x as A,r as u,jS as b,j
     label { display: flex; gap: 6px; align-items: center; padding: 3px 4px; border-radius: var(--sw-r-xs); cursor: pointer; font-size: var(--sw-fs-base); }
     label:hover { background: var(--dv-surface-2, var(--sw-surface-2)); }
   `;C([h({attribute:!1})],$.prototype,"choices",2);C([h({attribute:!1})],$.prototype,"value",2);C([u()],$.prototype,"open",2);C([u()],$.prototype,"q",2);$=C([A("scenario-recipients")],$);export{Qe as a,g as b,Ne as c,Ye as d,Ae as e,Z as f,Be as g,Ze as h,K as i,ss as j,Ue as k,qe as l,We as m,es as n,He as o,Ve as p,Ge as q,ts as r,je as s,Ke as t,Le as u,O as v,Pe as w,Xe as x,Je as y};
-//# sourceMappingURL=scenario-recipients-BxdKayfe.js.map

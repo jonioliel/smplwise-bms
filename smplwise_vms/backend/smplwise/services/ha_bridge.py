@@ -123,8 +123,8 @@ def sign(secret: str, body: dict[str, Any], ts: int | None = None, nonce: str | 
     return {**body, "ts": ts, "nonce": nonce, "sig": digest}
 
 
-def verify(secret: str | None, message: dict[str, Any], now: float | None = None) -> None:
-    """Raises ApiError(401) unless the signature is valid, recent and unseen."""
+def verify(secret: str | None, message: dict[str, Any], now: float | None = None, *, nonces: "bk.NonceCache | None" = None) -> None:
+    """Raises ApiError(401) unless the signature is valid, recent and unseen. `nonces`: see verify_message(screen_only=True)."""
     if not secret:
         raise ApiError(401, "bridge_not_paired", "הגשר לא צומד עדיין.")
     try:
@@ -139,36 +139,41 @@ def verify(secret: str | None, message: dict[str, Any], now: float | None = None
     if not hmac.compare_digest(expected, sig):
         raise ApiError(401, "bridge_bad_signature", "חתימת הגשר לא תואמת.")
     # replay protection within the window: the ONE nonce cache of the key set, so a message cannot pass once here and once there
-    if not bk.NONCES.check_and_add(nonce, now):
+    if not (nonces or bk.NONCES).check_and_add(nonce, now):
         raise ApiError(401, "bridge_replay", "הודעה חוזרת.")
 
 
 _WIRE_CODE = {"stale": ("bridge_stale", "ההודעה מהגשר ישנה מדי."), "replay": ("bridge_replay", "הודעה חוזרת.")}
 
 
-def verify_message(conn: sqlite3.Connection, message: dict[str, Any], now: float | None = None, *, pairing: bool = False) -> None:
+def verify_message(conn: sqlite3.Connection, message: dict[str, Any], now: float | None = None, *, pairing: bool = False, screen_only: bool = False) -> None:
     """Verify one inbound bridge message: against the key set once it is adopted (every key that may verify now; a kid-less message only
     against `g0-legacy` inside its window), else against the plain pairing secret. Raises ApiError(401). One wire code for everything
     that did not prove a key (`bridge_bad_signature`); `bridge_stale` / `bridge_replay` only for a message that did.
 
     WXH4-EMERGENCY-REVOKE-2407: while the key is revoked every inbound message is refused (`bridge_revoked`) except the bridge's pairing
-    ping (`pairing=True`, routers/ha.bridge_ping), which verifies against the NEW plain code only (the key set was wiped by the revocation)."""
+    ping (`pairing=True`, routers/ha.bridge_ping), which verifies against the NEW plain code only (the key set was wiped by the revocation).
+
+    CR-BRIDGE-PREVERIFY-2440 (review 05:P2-02): `screen_only=True` is the same judgement on a READ connection, before the caller takes the
+    write gate - every check and every refusal as above, but the nonce goes to a throw-away cache (and a read connection records no
+    high-water mark), so the message is not spent: the caller verifies it again, for real, once it holds its write connection."""
     from . import bridge_key_revocation
 
+    nonces = bk.NonceCache() if screen_only else None
     if bridge_key_revocation.is_revoked(conn):
         if not pairing:
             raise ApiError(401, bridge_key_revocation.REVOKED_CODE, bridge_key_revocation.REVOKED_TEXT)
-        verify(get_setting(conn, "bridge.secret"), message, now)
+        verify(get_setting(conn, "bridge.secret"), message, now, nonces=nonces)
         return
     data_dir = _data_dir(conn)
     if data_dir is not None and bk.adopted(conn):
         try:
-            bk.verify(conn, data_dir, message, now=now)
+            bk.verify(conn, data_dir, message, now=now, nonces=nonces)
         except bk.VerifyError as exc:
             code, text = _WIRE_CODE.get(exc.code, ("bridge_bad_signature", "חתימת הגשר לא תואמת."))
             raise ApiError(401, code, text) from None
         return
-    verify(_raw_signing_key(conn), message, now)
+    verify(_raw_signing_key(conn), message, now, nonces=nonces)
 
 
 # ---------------------------------------------------------------- allow-listed actions

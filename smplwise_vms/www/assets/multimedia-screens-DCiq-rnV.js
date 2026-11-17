@@ -597,4 +597,3 @@ import{i as K,r as d,a as G,ep as g,R as x,ak as w,am as Y,K as R,aj as V,eu as 
       }
     }
   `];h([xe()],l.prototype,"remoteKey",2);h([d()],l.prototype,"phase",2);h([d()],l.prototype,"devices",2);h([d()],l.prototype,"status",2);h([d()],l.prototype,"res",2);h([d()],l.prototype,"homeFloors",2);h([d()],l.prototype,"filters",2);h([d()],l.prototype,"compactHeader",2);h([d()],l.prototype,"staleError",2);h([d()],l.prototype,"toast",2);h([d()],l.prototype,"phone",2);h([d()],l.prototype,"editing",2);h([d()],l.prototype,"scope",2);h([d()],l.prototype,"draft",2);h([d()],l.prototype,"base",2);h([d()],l.prototype,"busy",2);h([d()],l.prototype,"saveError",2);h([d()],l.prototype,"conflict",2);h([d()],l.prototype,"confirm",2);h([$e("media-bulk-dialog")],l.prototype,"bulk",2);l=h([X("multimedia-screens")],l);export{l as MultimediaScreens};
-//# sourceMappingURL=multimedia-screens-DCiq-rnV.js.map

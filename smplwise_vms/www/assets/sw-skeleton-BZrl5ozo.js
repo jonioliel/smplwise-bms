@@ -42,4 +42,3 @@ import{i as p,n as a,a as c,q as l,x as v}from"./index-C5kZ9jiu.js";var b=Object
       }
     }
   `;r([a({reflect:!0})],e.prototype,"variant",2);r([a({type:Number})],e.prototype,"lines",2);r([a()],e.prototype,"width",2);r([a()],e.prototype,"height",2);r([a()],e.prototype,"size",2);e=r([v("sw-skeleton")],e);
-//# sourceMappingURL=sw-skeleton-BZrl5ozo.js.map

@@ -353,4 +353,3 @@ import{a as v,ex as u,q as a,xJ as l,p as h,xC as b,ci as w,i as g,r as c,x as m
       position: relative;
     }
   `;o([c()],r.prototype,"devices",2);o([c()],r.prototype,"sheet",2);o([c()],r.prototype,"area",2);o([c()],r.prototype,"collapsed",2);r=o([m("bubble-demo")],r);export{r as BubbleDemo};
-//# sourceMappingURL=bubble-demo-Drra6Pmd.js.map

@@ -4,4 +4,3 @@ import{i as e}from"./index-C5kZ9jiu.js";const s=e`
     padding-inline-start: var(--sw-lead-reserve, 0px);
   }
 `;export{s as l};
-//# sourceMappingURL=lead-reserve-BLWZG4KN.js.map

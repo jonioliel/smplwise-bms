@@ -39,8 +39,10 @@ def _interface_block(conn: sqlite3.Connection, principal: Principal) -> dict | N
 
 
 def _active(conn: sqlite3.Connection, principal: Principal) -> bool:
-    row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    return row is None or bool(row["active"])
+    """CR-ACTIVE-USER-REST-2438: the one rule (services/active_users) - disabled on either side is not active; no row is not disabled."""
+    from ..services.active_users import is_disabled
+
+    return not is_disabled(conn, principal.user_id)
 
 
 @router.get("/me")

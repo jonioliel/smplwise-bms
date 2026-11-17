@@ -8,7 +8,6 @@ messages of the CR. The same check runs on the server when a meter is saved, so 
 sensor by crafting a request. Messages never name the platform (copy rule)."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 import re
 import sqlite3
@@ -17,6 +16,7 @@ from typing import Any
 
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
+from .timeutil import iso_from_epoch_or_none
 
 UNITS = {"kwh": ("kWh", 1000), "wh": ("Wh", 1), "mwh": ("MWh", 1_000_000)}
 POWER_UNITS = {"w", "kw", "mw", "gw", "va", "kva", "var", "kvar"}
@@ -360,13 +360,4 @@ def pause_for_unit_change(conn: sqlite3.Connection, meter_id: str) -> None:
                  (now_iso(), meter_id))
 
 
-def iso_to_epoch(text: str) -> int:
-    from .timeutil import parse_utc
-
-    return int(parse_utc(text).timestamp())
-
-
-def epoch_to_iso(ts: int | None) -> str | None:
-    if ts is None:
-        return None
-    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+epoch_to_iso = iso_from_epoch_or_none  # CR-BE-TWINS-2440: the same text for every input (tests/test_be_twins_2440.py)

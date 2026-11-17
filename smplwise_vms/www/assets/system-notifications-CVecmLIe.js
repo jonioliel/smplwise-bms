@@ -1065,4 +1065,3 @@ import{K as k,av as L,L as G,au as fe,R,fS as V,AB as X,AC as Z,i as W,n as he,r
         }
       }
     `];u([he()],h.prototype,"section",2);u([d()],h.prototype,"phase",2);u([d()],h.prototype,"error",2);u([d()],h.prototype,"settings",2);u([d()],h.prototype,"policies",2);u([d()],h.prototype,"stats",2);u([d()],h.prototype,"log",2);u([d()],h.prototype,"titles",2);u([d()],h.prototype,"users",2);u([d()],h.prototype,"devices",2);u([d()],h.prototype,"wa",2);u([d()],h.prototype,"onlyFailed",2);u([d()],h.prototype,"sec",2);u([d()],h.prototype,"phone",2);u([d()],h.prototype,"toast",2);u([d()],h.prototype,"invalid",2);u([d()],h.prototype,"mail",2);u([d()],h.prototype,"mailBusy",2);u([d()],h.prototype,"mailResult",2);u([d()],h.prototype,"mailError",2);u([d()],h.prototype,"picker",2);u([d()],h.prototype,"now",2);u([d()],h.prototype,"tz",2);h=u([M("system-notifications")],h);export{h as SystemNotifications};
-//# sourceMappingURL=system-notifications-CVecmLIe.js.map
