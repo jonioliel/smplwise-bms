@@ -1,0 +1,1 @@
+import{L as e,au as r}from"./index-C5kZ9jiu.js";const s=(t=!1)=>e(`storage${t?"?fresh=true":""}`),a=()=>e("storage/local"),n=()=>r("storage/exports/resume");function u(t){return t==null?"—":t>=1024*1024?`${(t/1024/1024).toFixed(2)} TB`:t>=1024?`${(t/1024).toFixed(0)} GB`:`${t} MB`}export{a,u as f,s as g,n as r};

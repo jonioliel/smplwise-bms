@@ -1,0 +1,8 @@
+elec-meters      h1 30/800x1  pg0 scr D0 T332 P642       hov P0 T0    off 0%   btn 2/2    rad 2    con L0 D0    touch 1   tiny 0   {"table":1}   dlg:div
+elec-accounts    h1 30/800x1  pg0 scr D0 T0 P39          hov P0 T0    off 0%   btn 1/1    rad 2    con L0 D0    touch 1   tiny 0   {"table":1}   
+elec-bills       h1 30/800x1  pg0 scr D77 T434 P756      hov P0 T0    off 0%   btn 1/1    rad 6    con L0 D0    touch 1   tiny 0   {"select":1,"table":1}   
+water            h1 30/800x1  pg0 scr D0 T0 P221         hov P0 T0    off 0%   btn 2/2    rad 2    con L0 D0    touch 1   tiny 0   {"table":1}   dlg:div
+generator        h1 30/800x1  pg0 scr D0 T375 P985       hov P0 T0    off 0%   btn 1/1    rad 2    con L0 D0    touch 1   tiny 0   {"table":1}   
+gen-charts       h1 30/800x1  pg0 scr D0 T0 P83          hov P0 T0    off 0%   btn 2/3    rad 10   con L0 D0    touch 1   tiny 0   {}   dlg:div
+temperature      h1 30/700x1  pg0 scr D0 T560 P1204      hov P0 T0    off 0%   btn 0/0    rad 0    con L2 D0    touch 1   tiny 0   {}   
+s-infra          h1 -x0       pg0 scr D0 T0 P80          hov P0 T0    off 0%   btn 2/3    rad 0    con L0 D0    touch 1   tiny 0   {"table":1}   

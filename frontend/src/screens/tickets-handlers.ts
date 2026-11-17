@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { liftRef } from '../components/top-layer';
+import '../components/sw-page'; // AUDIT30-C-TICKETS (#6): the one page frame
 import { customElement, property, state } from 'lit/decorators.js';
 import '../tickets/contacts-directory';
 import '../tickets/handlers-members';
@@ -28,6 +29,7 @@ import { tIcon } from '../tickets/icons';
 import { tt } from '../tickets/text';
 import { handlerDepartments } from '../tickets/dept-handlers-model';
 import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 /**
  * CR-038 owner request 2026-10-14: "מטפלים וספקים" (#/tickets/handlers[?seg=vendors|contacts]) - the fifth entry of the area's view
@@ -164,11 +166,12 @@ export class TicketsHandlersPage extends LitElement {
       padding: 0;
       min-block-size: 0;
     }
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
+    sw-page.page .dh {
+      position: static;
+      padding-block-start: 0;
+    }
     @media (max-width: 767px) {
-      .dh-row {
-        grid-template-areas: 't .';
-        grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
-      }
       .dh-det {
         gap: 10px;
       }
@@ -200,7 +203,7 @@ export class TicketsHandlersPage extends LitElement {
         margin-inline-start: 0;
       }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -456,12 +459,10 @@ export class TicketsHandlersPage extends LitElement {
     const canFilter = depts.length > 1 && !review;
     const chips = canFilter ? this.deptChips(depts) : [];
     const panel = canFilter && this.filterOpen ? this.deptPanel(depts) : nothing;
-    return html`<div class=${this.embedded ? 'page embedded' : 'page'} data-tickets-handlers data-seg=${this.seg} ?data-embedded=${this.embedded}>
+    // AUDIT30-C-TICKETS (#6): standalone, the page is sw-page (the title and its crumb in the frame's header, this header the controls
+    // row under it); embedded in the manager board it stays a plain block without a title
+    const inner = html`
       <header class="dh" data-tickets-header>
-        ${this.embedded ? nothing : html`<div class="dh-row">
-          <div class="titles"><div class="crumbs">${tt('area')}</div><h1 data-handlers-title>${tt('hdTitle')}</h1></div>
-          <span class="grow"></span>
-        </div>`}
         <div class="dh-det tb" role="group" aria-label=${tt('hdTitle')} data-toolbar>
           <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs style=${`--segs:${segs.length}`} @keydown=${this.onSegKey}>
             ${segs.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
@@ -482,8 +483,10 @@ export class TicketsHandlersPage extends LitElement {
       ${this.error ? html`<div class="toast bad" role="alert" data-handlers-error ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${tIcon('warning')}<span class="tx">${this.error}</span>
         <button type="button" class="x" aria-label=${t('actions.close')} data-handlers-error-close @click=${() => (this.error = '')}>${tIcon('x')}</button></div>`
         : this.ok ? html`<div class="toast" role="status" data-handlers-ok ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${tIcon('check')}<span class="tx">${this.ok}</span></div>` : nothing}
-      ${this.body()}
-    </div>`;
+      ${this.body()}`;
+    return this.embedded
+      ? html`<div class="page embedded" data-tickets-handlers data-seg=${this.seg} data-embedded>${inner}</div>`
+      : html`<sw-page wide class="page" data-tickets-handlers data-seg=${this.seg} heading=${tt('hdTitle')} crumbs=${tt('area')} data-handlers-title=${tt('hdTitle')}>${inner}</sw-page>`;
   }
 }
 

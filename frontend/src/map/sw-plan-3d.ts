@@ -559,6 +559,11 @@ export class SwPlan3d extends LitElement {
       --sw-surface-2: color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text));
       --hud-fill: var(--sw-menu-surface);
     }
+    /* the selected chip's soft field (classic skin rule 1, AUDIT30-B-SHARED) is a translucent accent in the dark schemes: over the canvas it
+       is the same tint laid on the opaque menu surface (an opaque mix), so the scene never shows through it (evidence-menu-opaque) */
+    :host-context(html[data-theme='dark']) .bar {
+      --sw-accent-soft: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-menu-surface));
+    }
     .bar select {
       font: inherit;
       font-size: var(--sw-fs-xs);

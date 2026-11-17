@@ -12,7 +12,7 @@ import type { CostStatus } from '../api/tickets-costs';
 import { autoCloseLine, waitingLabel } from './board-model';
 import { lt } from './list-text';
 import { priorityTone, runLine } from './model';
-import { SENTENCE_MAX, sentenceFor, statusChip, warningFor, type StatusChip, type ViewerRole } from './status-sentence';
+import { SENTENCE_MAX, sentenceAwaitsHandler, sentenceFor, statusChip, warningFor, type StatusChip, type ViewerRole } from './status-sentence';
 import { tt } from './text';
 
 /** A list item with the optional fields the cards read when the server sends them (the board's, a later cost / owner field of the list). */
@@ -146,7 +146,7 @@ export function cardModel(item: CardItem, ctx: { role: ViewerRole; now?: Date; b
   }
   const warning = ctx.board ? boardWarning(item, ctx.role) : null;
   // UXFIX-NAV-295: a request still waiting for its handler says so in the sentence; the footer then does not repeat "ללא מטפל"
-  const run = runLine(item, now, { omitUnassigned: !item.assignee && (item.status === 'new' || /שיוך|assign/i.test(sentence)) });
+  const run = runLine(item, now, { omitUnassigned: !item.assignee && (item.status === 'new' || sentenceAwaitsHandler(item.status)) });
   return {
     sentence,
     chip: statusChip(item),

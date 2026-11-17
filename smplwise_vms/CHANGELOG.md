@@ -1,5 +1,30 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.7 (pilot) - Home interface round 32; one design language on the management screens; faster loading and code-review fixes
+
+### חדש - New
+- ממשק ביתי: בטאבלט לאורך מוצג מבנה הטלפון עם הסרגל התחתון וארבע אריחים בשורה. - Home interface: a portrait tablet shows the phone layout with the bottom bar and four tiles per row.
+- ממשק ביתי: ביומן מתג "השבוע" / "הימים הקרובים" (שבעה ימים מהיום), והבחירה נשמרת. - Home interface: the calendar has a "this week" / "the coming days" switch (seven days from today), and the choice is remembered.
+- ממשק ביתי: מעבר בין מסכים מהיר (דהייה קצרה); מסך שנפתח מ"עוד" עולה למקומו. הגדרה חדשה "הגדרות › תצוגה › מעבר בין מסכים". - Home interface: a quick screen change (a short fade); a screen opened from "more" rises into place. New setting "Settings › Display › screen transition".
+- ממשק ביתי: מצלמה בלי וידאו חי מציגה "תמונה" עם נקודה אפורה ואת זמן הרענון האמיתי. - Home interface: a camera without live video shows "still" with a grey dot and its real refresh interval.
+
+### שופר - Improved
+- מסכי הניהול (פניות, מולטימדיה, תשתיות, יומנים, וידאו וחקירה, WisKey, התקנים, תזמונים, אוטומציות והגדרות התראות) עברו לרכיבים המשותפים של שפת העיצוב: אותה מסגרת עמוד, אותם כפתורים, תגים ובוררים, וניגודיות קריאה בתגים ובכרטיסיות הנבחרות במצב כהה. - The management screens (tickets, multimedia, infrastructure, calendars, video and investigation, WisKey, devices, schedules, automations and notification settings) now use the shared components of the design language: the same page frame, buttons, badges and selectors, and readable contrast in badges and selected tabs in dark mode.
+- טעינה מהירה יותר: מסכים, נתוני הדגמה ותכונות שלא צריך מיד נטענים רק כשנפתחים. - Faster loading: screens, demo data and features that are not needed at once load only when they are opened.
+- רשימות הפניות, שליחת ההתראות ומסכי ההרשאות קוראים פחות מבסיס הנתונים ולא ממתינים לכתיבות; העלאות קבצים לא עוצרות את השרת. - The tickets lists, notification sending and the access screens read the database less and no longer wait behind writes; file uploads no longer hold up the server.
+- מסך ההגדרות › כללי מציג את בריאות המערכת האמיתית; שגיאת גיבוי (יצירה, העלאה, מחיקה, שחזור, סיסמה שגויה) מוצגת בלשונית הגיבוי; כל לשונית מציגה את השגיאות שלה. - Settings › General shows the real system health; a backup error (create, upload, delete, restore, a wrong password) is shown on the backup tab; each tab shows its own errors.
+- עורך התוכניות מגיב מהר יותר בתוכניות גדולות. - The plan editor responds faster on large plans.
+
+### תוקן - Fixed
+- לחיצה על "רענון" בהודעת גרסה חדשה בזמן שהמסכים עדיין נטענים ברקע לא נתקעת יותר (הדף נטען מחדש). - Pressing "refresh" on the new-release notice while the screens still load in the background no longer stalls (the page reloads).
+- ממשק ביתי: הקלטה שהתנגנה נסגרת כשיוצאים מהמסך, ובקשה שנכשלה לא חוזרת בלולאה. - Home interface: a playing recording is closed when the screen is left, and a failed request no longer repeats in a loop.
+- אבטחה: חיבור חי שנפתח בדיוק כשההתחברות בוטלה נסגר. - Security: a live connection opened at the moment its sign-in was revoked is closed.
+- מחיקת פרטי איש קשר בפורטל הספקים מדווחת על כישלון במקום "נמחק" כשהמחיקה לא הצליחה. - Erasing a contact in the vendor portal reports a failure instead of "erased" when the erase did not succeed.
+- חשמל, חתך הבניין, המפה והפניות מחליטים לפי נתונים ולא לפי נוסח הטקסט המוצג. - Electricity, the building cross-section, the map and tickets decide by data, not by the wording of a displayed text.
+
+### התקנה - Install
+- גשר 0.10.7: נדרשת הפעלה מחדש אחת של מערכת הבית כדי לטעון אותו. מיגרציה 0216 (אינדקסים בלבד) רצה לבד בהפעלת התוסף. - Bridge 0.10.7: one home-system restart is needed to load it. Migration 0216 (indexes only) runs by itself when the add-on starts.
+
 ## 2.43.6 (pilot) - 3D map: one pill per room and the room card; no demo when the server is briefly unavailable
 
 ### חדש - New

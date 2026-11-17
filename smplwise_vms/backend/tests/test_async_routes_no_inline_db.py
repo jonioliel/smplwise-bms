@@ -26,7 +26,7 @@ PKG = Path(__file__).resolve().parents[1] / "smplwise"
 ROUTE_ATTRS = {"get", "post", "put", "patch", "delete", "head", "options", "api_route", "websocket", "route"}
 
 # "<module path relative to smplwise/>::<handler>" -> the branch that removes it
-PENDING: dict[str, str] = {}
+PENDING: dict[str, str] = {}  # RELEASE-2437-TRAIN: emptied - routers/wiskey_lineage.py::resolve fixed by pilot/AUTH-REVOKE-GATE-2435 (02:P1-6)
 
 
 def _is_route_decorator(dec: ast.expr) -> bool:

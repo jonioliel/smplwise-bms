@@ -56,7 +56,7 @@ export const playerBase = css`
     background: var(--mr-key-bg);
     color: var(--mr-key-fg);
     box-shadow: var(--mr-key-shadow);
-    transition: transform 120ms var(--mr-ease), box-shadow var(--mr-motion), color var(--mr-motion);
+    transition: transform var(--sw-t-press) var(--mr-ease), box-shadow var(--mr-motion), color var(--mr-motion);
   }
   .rb .ic {
     font-size: var(--sw-fs-xl);
@@ -80,7 +80,7 @@ export const playerBase = css`
     border-radius: 50%;
     border: 2px solid transparent;
     border-block-start-color: var(--mr-accent);
-    animation: mr-spin 900ms linear infinite;
+    animation: mr-spin calc(var(--sw-t-med) * 4) linear infinite;
     pointer-events: none;
   }
   @keyframes mr-spin {
@@ -134,17 +134,17 @@ export const playerBase = css`
   }
   .rng::-webkit-slider-runnable-track {
     block-size: 8px;
-    border-radius: 999px;
+    border-radius: var(--sw-r-pill);
     background: linear-gradient(to left, var(--mr-accent) var(--v, 50%), var(--mr-surface-3) var(--v, 50%));
   }
   .rng::-moz-range-track {
     block-size: 8px;
-    border-radius: 999px;
+    border-radius: var(--sw-r-pill);
     background: var(--mr-surface-3);
   }
   .rng::-moz-range-progress {
     block-size: 8px;
-    border-radius: 999px;
+    border-radius: var(--sw-r-pill);
     background: var(--mr-accent);
   }
   .rng::-webkit-slider-thumb {
@@ -208,7 +208,7 @@ export const playerBase = css`
     inset-block: 14px;
     inset-inline-start: calc(13px + (100% - 26px) * var(--capn) / 100 - 1px);
     inline-size: 2px;
-    border-radius: 1px;
+    border-radius: var(--sw-r-pill);
     background: var(--mr-warning);
     pointer-events: none;
     opacity: 0.9;
@@ -302,7 +302,7 @@ export const playerStyles = css`
     color: var(--mr-text-2);
     box-shadow: var(--mr-key-shadow);
     flex: none;
-    transition: transform 120ms var(--mr-ease), background var(--mr-motion);
+    transition: transform var(--sw-t-press) var(--mr-ease), background var(--mr-motion);
   }
   .hpw.on {
     background: var(--mr-accent);
@@ -431,7 +431,7 @@ export const playerStyles = css`
   .pprog .bar {
     flex: 1;
     block-size: 5px;
-    border-radius: 3px;
+    border-radius: var(--sw-r-pill);
     background: var(--mr-surface-3);
     overflow: hidden;
   }
@@ -440,7 +440,7 @@ export const playerStyles = css`
     block-size: 100%;
     inline-size: var(--p, 0%);
     background: var(--mr-text);
-    border-radius: 3px;
+    border-radius: var(--sw-r-pill);
   }
   .pprog .live {
     flex: 1;
@@ -458,7 +458,7 @@ export const playerStyles = css`
     border-radius: 50%;
     background: var(--sw-danger);
     box-shadow: 0 0 6px var(--sw-danger);
-    animation: pn-blink 1.6s ease-in-out infinite;
+    animation: pn-blink calc(var(--sw-t-med) * 8) ease-in-out infinite;
   }
   @keyframes pn-blink {
     50% { opacity: 0.35; }
@@ -495,7 +495,7 @@ export const playerStyles = css`
     padding: 4px 0;
   }
   .tport.shake {
-    animation: mr-shake 240ms var(--mr-ease);
+    animation: mr-shake var(--mr-motion) var(--mr-ease);
   }
   @keyframes mr-shake {
     20% { transform: translateX(-4px); }
@@ -504,7 +504,7 @@ export const playerStyles = css`
   }
   @media (prefers-reduced-motion: reduce) {
     .tport.shake {
-      animation: pn-flash 240ms linear;
+      animation: pn-flash var(--mr-motion) linear;
     }
     @keyframes pn-flash {
       50% { opacity: 0.6; }
@@ -533,7 +533,7 @@ export const playerStyles = css`
     background: var(--mr-key-bg);
     color: var(--mr-key-fg);
     box-shadow: var(--mr-key-shadow);
-    transition: transform 120ms var(--mr-ease), box-shadow 220ms var(--mr-ease), color 220ms;
+    transition: transform var(--sw-t-press) var(--mr-ease), box-shadow var(--mr-motion) var(--mr-ease), color var(--mr-motion);
   }
   .tport .kc .ic {
     font-size: var(--sw-fs-2xl);
@@ -754,7 +754,7 @@ export const playerStyles = css`
     color: var(--mr-text);
     min-inline-size: 0;
     touch-action: manipulation;
-    transition: transform 120ms, border-color var(--mr-motion), background var(--mr-motion);
+    transition: transform var(--sw-t-press), border-color var(--mr-motion), background var(--mr-motion);
   }
   .libi:hover {
     border-color: var(--mr-border-strong);
@@ -815,7 +815,7 @@ export const playerStyles = css`
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.4);
     border-block-start-color: var(--sw-on-video);
-    animation: mr-spin 800ms linear infinite;
+    animation: mr-spin calc(var(--sw-t-med) * 4) linear infinite;
     z-index: 3;
     background: none;
     box-shadow: none;

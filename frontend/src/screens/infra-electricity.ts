@@ -2,20 +2,19 @@ import { LitElement, html, css, nothing } from 'lit';
 import { html as shtml, unsafeStatic } from 'lit/static-html.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-tabs';
+import '../components/sw-page';
 import '../components/sw-state-panel';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../electricity/access';
-import { tabStyleOf, INFRA_ELECTRICITY_PAGES, INFRA_MONEY_PAGES, INFRA_TABS, infraPageTabs, visibleTabs } from '../shell/nav';
-import { canNav, isApi } from '../api/session';
+import { tabStyleOf, INFRA_ELECTRICITY_PAGES, INFRA_MONEY_PAGES, INFRA_TABS, infraPageTabs } from '../shell/nav';
+import { isApi } from '../api/session';
 import { navigate } from '../router';
 import { TabsModeController } from '../shell/tabs-mode';
 import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { leadReserveStyles } from '../styles/lead-reserve'; // LOGOFIX-295: the page row keeps the developer / installer logos' room free
-import { srHeading, srHeadingCss } from '../components/sr-heading';
 
 // Every screen file of the module registers itself: `screens/electricity/page-*.ts` (pages) and `settings-*.ts` (settings sections). A file added by
 // the other UI branch needs no edit here (docs/architecture/ELECTRICITY_UI_SHELL.md).
@@ -56,16 +55,18 @@ export class InfraElectricity extends LitElement {
   /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
   private pagesChip: PairChip | null = null;
 
-  static styles = [srHeadingCss, leadReserveStyles, css`
+  /* AUDIT30-E2 (round-30 audit #6, #9): the page is a <sw-page> - its header (the one h1, the logos' and the corner's reserves), padding
+     and width come from the shared component instead of a copy here */
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
-      gap: 14px;
       min-block-size: 100%;
-      padding: 14px var(--sw-page-pad) 24px;
-      max-inline-size: var(--sw-content-max);
       inline-size: 100%;
-      box-sizing: border-box;
+    }
+    sw-page {
+      flex: 1 1 auto;
+      min-block-size: 0;
     }
     .rows {
       display: flex;
@@ -120,8 +121,8 @@ export class InfraElectricity extends LitElement {
     const def = ELECTRICITY_PAGES.find((p) => p.id === page)!;
     // TABSET-293: the page row follows ui.tabs (`infra.electricity`: order, hidden pages) after the money gate
     const items: TabItem[] = infraPageTabs('infra.electricity', this.pages().map((p) => ({ id: p.id, label: p.label, href: `#/infra/electricity/${p.id}` })), isApi());
-    // the area row has a single tab until water and generators join: the shell draws it here (a row of one is not drawn by the navigation)
-    const l1 = visibleTabs(INFRA_TABS, isApi(), canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'electricity')} active="electricity" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
+    // AUDIT30-E2: no area row of one tab here any more (the lone "מוני חשמל" chip only repeated the page title); the navigation draws the
+    // area row itself once it holds two or more tabs
     let body;
     if (!this.access.view || (def.money && !this.access.bills)) {
       body = html`<sw-state-panel state="forbidden" data-elec=${page} data-state="forbidden"></sw-state-panel>`;
@@ -135,8 +136,9 @@ export class InfraElectricity extends LitElement {
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.electricity')} data-infra-pages></sw-tabs>`;
-    // UXFIX-NAV-295: the page carries one (visually hidden) h1, the navigation label of the area
-    return html`${srHeading(INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל', true)}<div class="rows lead-head" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
+    // UXFIX-NAV-295 / AUDIT30-E2: the page's one h1 is sw-page's heading, the navigation label of the area
+    const heading = INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל';
+    return html`<sw-page heading=${heading} data-infra-page="electricity">${row === nothing ? nothing : html`<div class="rows" data-elec-shell>${row}</div>`}<div class="body" data-page=${page}>${body}</div></sw-page>`;
   }
 
   protected updated() {

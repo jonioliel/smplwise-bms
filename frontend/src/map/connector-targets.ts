@@ -94,6 +94,8 @@ export interface FloorLinkEnd {
 export interface FloorLink {
   id: string;
   kindLabel: string;
+  /** The connector's kind as the geometry stores it (`stairs`, `elevator`, ...); program logic reads this, never the label. */
+  kind: string;
   a: FloorLinkEnd;
   /** The twin on the other floor; null when that floor's published structure does not hold it (yet). */
   b: FloorLinkEnd | null;
@@ -134,7 +136,7 @@ export function floorLinks(docs: readonly FloorLinkDoc[], floors: readonly { id:
       const sorted = [...list].sort((x, y) => (rank.get(x.floorId) ?? 0) - (rank.get(y.floorId) ?? 0));
       const first = sorted[0];
       const far = first.c.far;
-      return { id, kindLabel: KIND_HE[first.c.kind] ?? first.c.kind, a: end(first), b: sorted[1] ? end(sorted[1]) : null,
+      return { id, kindLabel: KIND_HE[first.c.kind] ?? first.c.kind, kind: first.c.kind, a: end(first), b: sorted[1] ? end(sorted[1]) : null,
         farLabel: far?.floor_name ? (far.level_name ? `${far.floor_name} · ${far.level_name}` : far.floor_name) : 'קומה אחרת' };
     });
 }

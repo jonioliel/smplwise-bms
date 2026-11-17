@@ -60,6 +60,16 @@ export const money = (v: unknown): number | null => {
 /** "1,234" - whole shekels, Latin digits (the product's number rule). */
 export const ils = (n: number): string => Math.round(n).toLocaleString('en-US');
 
+/** HOME-V3-AUDITFIX-2437 (audit item 17): a reading for people - thousands separated, at most one decimal ("12,480.5", "98,000"). */
+const NUM1 = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 1 });
+export const num1 = (n: number): string => NUM1.format(n);
+
+/** Today against a usual day in words; past 999 % a percentage says nothing, so "הרבה יותר" (audit item 17). `d` = whole percent. */
+export function diffWords(d: number, than: string): { pct: string | null; words: string } {
+  if (d > 999) return { pct: null, words: `הרבה יותר ${than}` };
+  return { pct: `${num1(Math.abs(d))}%`, words: `${d < 0 ? 'פחות' : 'יותר'} ${than}` };
+}
+
 /** The difference between the estimate and the last bill, in words. */
 export function vsLast(forecast: number | null, last: number | null): string {
   if (forecast == null || last == null) return '';

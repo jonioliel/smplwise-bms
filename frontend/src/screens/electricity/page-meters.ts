@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-button';
 import '../../components/sw-dialog';
+import '../../components/sw-place-tree';
+import type { PlaceRow } from '../wiskey-stations-logic';
 import '../../components/sw-state-panel';
 import '../../electricity/meter-picker';
 import '../../electricity/meter-card';
@@ -85,66 +87,6 @@ export class ElecMetersPage extends LitElement {
         grid-template-columns: 240px minmax(0, 1fr);
         gap: 14px;
         align-items: start;
-      }
-      .tree {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .tree button {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        inline-size: 100%;
-        min-block-size: var(--elec-touch);
-        padding: 0 10px;
-        border: 0;
-        background: transparent;
-        color: var(--sw-text);
-        font: inherit;
-        font-size: var(--sw-fs-sm);
-        border-radius: var(--sw-r-sm);
-        cursor: pointer;
-        text-align: start;
-        transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-      }
-      @media (hover: hover) and (pointer: fine) {
-        .tree button:hover {
-          background: var(--sw-surface-2);
-        }
-      }
-      .tree button:active {
-        transform: scale(var(--sw-press-scale));
-        background: var(--sw-surface-3);
-      }
-      /* R5-MEDIA-ENERGY-297: the chosen area is a filled accent field (status as a field), its count on it */
-      .tree button[aria-current='true'] {
-        background: var(--sw-accent);
-        color: var(--sw-text-inverse);
-        font-weight: var(--sw-fw-bold);
-        box-shadow: var(--sw-shadow-primary);
-      }
-      .tree button[aria-current='true'] .cnt {
-        color: var(--sw-text-inverse);
-        opacity: 0.85;
-      }
-      .tree .fl {
-        color: var(--sw-text-2);
-        font-weight: var(--sw-fw-semibold);
-        font-size: var(--sw-fs-xs);
-      }
-      .tree .ar {
-        padding-inline-start: 30px;
-      }
-      .tree .cnt {
-        margin-inline-start: auto;
-        color: var(--sw-text-3);
-        font-size: var(--sw-fs-xs);
-      }
-      .tree sw-icon {
-        flex: none;
       }
       .cards {
         display: grid;
@@ -342,7 +284,9 @@ export class ElecMetersPage extends LitElement {
   private visible(): Meter[] {
     const needle = this.q.trim().toLowerCase();
     const area = this.areaFilter;
-    return this.meters.filter((m) => (!area || m.area_id === area) && (!needle || meterSearchText(m).includes(needle) || (m.area_name ?? '').toLowerCase().includes(needle)));
+    // AUDIT30-E5: the shared places tree also picks a whole floor (`floor:<id>`, the key buildAreaTree gives the floor)
+    const floor = area.startsWith('floor:') ? area.slice(6) : '';
+    return this.meters.filter((m) => (!area || (floor ? (m.floor_id ?? m.floor_name ?? '_none') === floor : m.area_id === area)) && (!needle || meterSearchText(m).includes(needle) || (m.area_name ?? '').toLowerCase().includes(needle)));
   }
 
   private flash(text: string) {
@@ -429,18 +373,22 @@ export class ElecMetersPage extends LitElement {
     </div>`;
   }
 
+  /** AUDIT30-E5 (round-30 audit #14): the areas list is the shared places tree (sw-place-tree): "all", the floors (fold + pick) and their
+   * areas; the chosen row is the soft accent wash of every other tree, not a filled accent key. */
+  private placeRows(): PlaceRow[] {
+    const rows: PlaceRow[] = [{ id: 'all', kind: 'all', name: 'כל האזורים', depth: 0, count: this.meters.length, dot: null }];
+    for (const f of buildAreaTree(this.meters)) {
+      const open = !this.collapsed.includes(f.floor_id);
+      rows.push({ id: `floor:${f.floor_id}`, kind: 'floor', name: f.name, depth: 0, count: f.count, dot: null, open });
+      if (open) for (const a of f.areas) rows.push({ id: a.area_id, kind: 'area', name: a.name, depth: 1, count: a.count, dot: null });
+    }
+    return rows;
+  }
+
   private renderTree() {
-    const tree = buildAreaTree(this.meters);
-    const sel = this.areaFilter;
-    return html`<nav class="tree" aria-label="אזורים" data-area-tree>
-      <button type="button" aria-current=${!sel ? 'true' : 'false'} data-area="" @click=${() => this.setParams({ area: null })}>כל האזורים <span class="cnt num">${this.meters.length}</span></button>
-      ${tree.map((f) => {
-        const col = this.collapsed.includes(f.floor_id);
-        return html`<button type="button" class="fl" aria-expanded=${col ? 'false' : 'true'} data-floor=${f.floor_id} @click=${() => this.toggleFloor(f.floor_id)}>
-            <sw-icon name=${col ? 'chevronBack' : 'chevronDown'} size="14"></sw-icon>${f.name}<span class="cnt num">${f.count}</span></button>
-          ${col ? nothing : f.areas.map((a) => html`<button type="button" class="ar" aria-current=${sel === a.area_id ? 'true' : 'false'} data-area=${a.area_id} @click=${() => this.setParams({ area: a.area_id })}>${a.name}<span class="cnt num">${a.count}</span></button>`)}`;
-      })}
-    </nav>`;
+    return html`<sw-place-tree data-area-tree heading="אזורים" foldLabel="כיווץ" unfoldLabel="הרחבה" .rows=${this.placeRows()} .selected=${this.areaFilter || 'all'}
+      @place-select=${(e: CustomEvent<string>) => this.setParams({ area: e.detail === 'all' ? null : e.detail })}
+      @place-toggle=${(e: CustomEvent<string>) => this.toggleFloor(e.detail.slice(6))}></sw-place-tree>`;
   }
 
   /** The sensor's name under the device's name, only when it differs. */

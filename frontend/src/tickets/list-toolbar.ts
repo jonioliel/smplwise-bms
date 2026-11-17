@@ -135,7 +135,7 @@ export const ticketToolbarStyles = css`
   .tb > .seg {
     flex: none;
   }
-  .dh-row .pact {
+  .pact {
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -304,12 +304,13 @@ export const ticketToolbarStyles = css`
     font-variant-numeric: tabular-nums;
   }
   /* a single-choice group (the state) reads as the same chips; the chosen one takes the pressed look */
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): the chosen one is the Blue Wash pair, never the black key */
   .fchips .rc[aria-checked='true'] {
-    background: var(--dv-text);
+    background: var(--sw-accent-soft);
     border-color: transparent;
-    color: var(--mm-text-inverse);
-    font-weight: 600;
-    box-shadow: var(--dv-shadow-control);
+    color: var(--sw-accent-text);
+    font-weight: var(--sw-fw-semibold);
+    box-shadow: none;
   }
   .fchips .rc[aria-pressed='true'] small,
   .fchips .rc[aria-checked='true'] small {
@@ -353,7 +354,7 @@ export const ticketToolbarStyles = css`
   }
   @media (max-width: 1279px) {
     /* the label of the active view hides first: the icons keep their names in aria-label and title */
-    .dh-row .vsw button .lbl {
+    .pact .vsw button .lbl {
       display: none;
     }
   }
@@ -431,10 +432,10 @@ export const ticketToolbarStyles = css`
     .fpop .frow select {
       min-block-size: 44px;
     }
-    .dh-row .pact .newbtn .lbl {
+    .pact .newbtn .lbl {
       display: none;
     }
-    .dh-row .pact .newbtn {
+    .pact .newbtn {
       min-inline-size: 44px;
       min-block-size: 44px;
       justify-content: center;

@@ -125,13 +125,14 @@ export const notifyControls = css`
     color: var(--dv-text);
     background: var(--dv-surface);
   }
+  /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was a solid --dv-text block) */
   .rc[aria-pressed='true'],
   .rc.on {
-    background: var(--dv-text);
+    background: var(--sw-accent-soft);
     border-color: transparent;
-    color: var(--mm-text-inverse);
+    color: var(--sw-accent-text);
     font-weight: 600;
-    box-shadow: var(--dv-shadow-control);
+    box-shadow: none;
   }
   .rc .ic {
     font-size: var(--sw-fs-lg);

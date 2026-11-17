@@ -22,6 +22,7 @@ GET /api/v1/ha/actions/{action_id}  # ha_actions.refresh updates the action's st
 GET /api/v1/ha/bridge/pairing  # ha_bridge.ensure_pairing creates / resets the pairing secret; audit row bridge.pairing.regenerate
 GET /api/v1/field/offline/bundle  # offline_field.build_bundle registers the device and stamps bundle_issued_at
 GET /api/v1/wall/config  # wall.touch_seen writes the display's last contact (kept by CR-UPLOAD-SYNC-2436)
+GET /api/v1/maintenance/scan/{token}  # maintenance service.scan stamps maint_tags.last_scan_at (test_maintenance_215: the tags list shows the last scan)
 
 # -- the handler records an audit row on SUCCESS (a read of sensitive data or a download). On the read connection that row
 #    would be written aside while the request waits for the write lock anyway; moving these needs an entry in the test's

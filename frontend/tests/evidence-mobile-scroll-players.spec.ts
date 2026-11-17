@@ -6,6 +6,8 @@ import { ADMIN, fresh, install, open } from './media-players-harness';
 // folded the room chips (display: none) and the filter row (max-height 0) at scrollTop > 60, so the header shrank in the flow, every card
 // moved under the finger, the scroll was clamped back under the threshold and the header expanded again. Compacting is now purely visual
 // (the header keeps its height; the same fix the screens page got in 0.1.150).
+// AUDIT30-D3: the groups page is framed by sw-page and has no sticky filter bar any more (it only held the title and the counts): for it
+// the test checks that the cards move exactly with the scroll and that no bar appears.
 //   SW_BASE_URL=http://127.0.0.1:5190/ npx playwright test tests/evidence-mobile-scroll-players.spec.ts --project=mobile
 
 const DEEP = `const deep = (root, sel) => { const f = root.querySelector(sel); if (f) return f; for (const e of root.querySelectorAll('*')) { if (e.shadowRoot) { const r = deep(e.shadowRoot, sel); if (r) return r; } } return null; };`;
@@ -15,8 +17,8 @@ const probe = (page: Page, tag: string, card: string) =>
   page.evaluate(`(() => { ${DEEP}
     const host = deep(document, '${tag}'); const root = host.shadowRoot;
     const card = root.querySelector('${card}'); const dh = root.querySelector('.dh');
-    return { st: host.scrollTop, cardTop: card.getBoundingClientRect().top, hdr: dh.getBoundingClientRect().height,
-      compact: dh.classList.contains('compact'), max: host.scrollHeight - host.clientHeight };
+    return { st: host.scrollTop, cardTop: card.getBoundingClientRect().top, hdr: dh ? dh.getBoundingClientRect().height : 0,
+      compact: dh ? dh.classList.contains('compact') : false, max: host.scrollHeight - host.clientHeight };
   })()`) as Promise<Probe>;
 
 for (const [w, h] of [[390, 844], [360, 740]] as const) {
@@ -54,8 +56,11 @@ for (const [w, h] of [[390, 844], [360, 740]] as const) {
         await walk(15, 14);
         await walk(40, 4);
         for (let i = 0; i < 80 && prev.st > 0; i++) await walk(-30, 1);
-        expect(compacted).toBe(true);
-        expect(prev.compact).toBe(false);
+        if (name === 'groups') expect(first.hdr).toBe(0);
+        else {
+          expect(compacted).toBe(true);
+          expect(prev.compact).toBe(false);
+        }
         info.annotations.push({ type: 'worst-shift-px', description: String(worst) });
         expect(worst).toBeLessThanOrEqual(2);
       });

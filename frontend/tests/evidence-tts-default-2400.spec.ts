@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { installAccessMock, NOW, url, type MockOptions } from './access-control-mocks';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { settlePage } from './pixel-settle';
+import { ddItems, ddValue, pickOption } from './helpers/wk-choose';
 
 // TTS-DEFAULT-ENGINE-2400 (owner 04.11, answer 1א): the fixed announcement engine, against MOCKED backends (no WisKey, no station):
 //   - Settings › מתגי מסכי כניסה › תצוגת מסך התחנות: the two rows, the system default named, a save sends only the changed keys, a fixed
@@ -117,9 +118,9 @@ test.describe('the announcement dialogs', () => {
     await page.locator(`${SCREEN} [data-wk-announce]`).click();
     const dlg = composer(page);
     await dlg.locator('[data-wk-announce-more]').click();
-    await expect(dlg.locator('[data-wk-engine]')).toHaveValue('tts.cloud');
-    await expect(dlg.locator('[data-wk-engine] option[value="tts.cloud"]')).toHaveText('שירות ענן · קבוע');
-    await expect(dlg.locator('[data-wk-language]')).toHaveValue('en');
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-engine]'))).toBe('tts.cloud');
+    expect((await ddItems(dlg.locator('[data-wk-engine]'))).find((i) => i.id === 'tts.cloud')?.label).toBe('שירות ענן · קבוע');
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-language]'))).toBe('en');
     await expect(dlg.locator('[data-wk-announce-override]')).toHaveCount(0);
     await dlg.locator('[data-wk-announce-message]').fill('test');
     await dlg.locator('[data-wk-target]').first().click();
@@ -133,8 +134,8 @@ test.describe('the announcement dialogs', () => {
     await page.locator(`${SCREEN} [data-wk-announce]`).click();
     const dlg = composer(page);
     await dlg.locator('[data-wk-announce-more]').click();
-    await dlg.locator('[data-wk-engine]').selectOption('tts.local');
-    await expect(dlg.locator('[data-wk-language]')).toHaveValue('en'); // the fixed language, which this engine has too
+    await pickOption(dlg.locator('[data-wk-engine]'), 'tts.local');
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-language]'))).toBe('en'); // the fixed language, which this engine has too
     await expect(dlg.locator('[data-wk-announce-override]')).toContainText('להכרזה הזו בלבד');
     await shot(page, info, 'composer-override', `${SCREEN} wk-announce-dialog sw-dialog [role="dialog"]`);
     await dlg.locator('[data-wk-announce-message]').fill('test');
@@ -145,7 +146,7 @@ test.describe('the announcement dialogs', () => {
     await dlg.locator('[data-wk-announce-close]').click();
     await page.locator(`${SCREEN} [data-wk-announce]`).click();
     await dlg.locator('[data-wk-announce-more]').click();
-    await expect(dlg.locator('[data-wk-engine]')).toHaveValue('tts.cloud');
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-engine]'))).toBe('tts.cloud');
   });
 
   test('a fixed engine WisKey does not list: said plainly, nothing selected, nothing sent until another engine is picked', async ({ page }, info) => {
@@ -154,14 +155,14 @@ test.describe('the announcement dialogs', () => {
     const dlg = composer(page);
     await expect(dlg.locator('[data-wk-announce-engine-missing]')).toHaveText('המנוע הקבוע tts.gone לא זמין כרגע. בחרו מנוע אחר להכרזה הזו');
     await expect(dlg.locator('[data-wk-engine]')).toBeVisible(); // the engine choice is open by itself
-    await expect(dlg.locator('[data-wk-engine]')).toHaveValue('');
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-engine]'))).toBe('');
     await dlg.locator('[data-wk-announce-message]').fill('test');
     await dlg.locator('[data-wk-target]').first().click();
     await expect(dlg.locator('[data-wk-announce-send]')).toHaveAttribute('disabled', '');
     await shot(page, info, 'composer-missing', `${SCREEN} wk-announce-dialog sw-dialog [role="dialog"]`);
     expect(mock.spoken).toHaveLength(0);
-    await dlg.locator('[data-wk-engine]').selectOption('tts.local');
-    await expect(dlg.locator('[data-wk-language]')).toHaveValue('he');
+    await pickOption(dlg.locator('[data-wk-engine]'), 'tts.local');
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-language]'))).toBe('he');
     await dlg.locator('[data-wk-announce-send]').click();
     await expect.poll(() => mock.spoken.length).toBeGreaterThan(0);
     expect(mock.spoken.every((s) => s.body.engine_id === 'tts.local')).toBe(true);
@@ -176,8 +177,8 @@ test.describe('the announcement dialogs', () => {
     await expect(speak).toBeVisible({ timeout: 30_000 });
     await speak.click();
     const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
-    await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('tts.cloud', { timeout: 15_000 });
-    await expect(dialog.locator('select[data-wiskey-tts-language]')).toHaveValue('en');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-engine]')), { timeout: 15_000 }).toBe('tts.cloud');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-language]'))).toBe('en');
     await shot(page, info, 'overview-fixed', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await installAccessMock(page, { settings: { 'access.tts_engine': 'tts.gone' } });
@@ -185,7 +186,7 @@ test.describe('the announcement dialogs', () => {
     await page.goto(url('/wiskey/overview'));
     await page.locator('wiskey-overview [data-wiskey-speak]').first().click();
     await expect(dialog.locator('[data-wiskey-tts-engine-missing]')).toHaveText('המנוע הקבוע tts.gone לא זמין כרגע. בחרו מנוע אחר להכרזה הזו', { timeout: 15_000 });
-    await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-engine]'))).toBe('');
     await dialog.locator('textarea[data-wiskey-tts-message]').fill('test');
     await expect(dialog.locator('[data-wiskey-tts-send] button')).toBeDisabled();
     await shot(page, info, 'overview-missing', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');

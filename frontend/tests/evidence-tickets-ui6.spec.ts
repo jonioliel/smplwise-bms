@@ -233,11 +233,13 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
     for (const scheme of ['light', 'dark'] as const) {
       await go(page, '/system/tickets', {}, scheme);
       await page.waitForSelector(waits.general);
-      await expect(page.locator(`${S} [data-tickets-settings-tabs] [role="tab"]`)).toHaveCount(tabs.length);
-      for (const t of tabs) {
-        await page.locator(`${S} [data-settings-tab="${t}"]`).click();
+      // AUDIT30-C-TICKETS (#18): the tabs are an sw-tabs underline row (in its own shadow root; picked by their order)
+      const tab = (i: number) => page.locator(`${S} sw-tabs[data-tickets-settings-tabs] [role="tab"]`).nth(i);
+      await expect(page.locator(`${S} sw-tabs[data-tickets-settings-tabs] [role="tab"]`)).toHaveCount(tabs.length);
+      for (const [i, t] of tabs.entries()) {
+        await tab(i).click();
         await page.waitForSelector(waits[t], { timeout: 15_000 });
-        await expect(page.locator(`${S} [data-settings-tab="${t}"]`)).toHaveAttribute('aria-selected', 'true');
+        await expect(tab(i)).toHaveAttribute('aria-selected', 'true');
         await shot(page, `settings-${t}`, scheme);
       }
     }
@@ -258,15 +260,21 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
     await expect(page.locator(`${S} [data-card="display"]`)).toHaveCount(0);
   });
 
-  test('settings: keyboard - arrow keys move between the tabs (RTL: left is forward), Home and End jump, one tab stop', async ({ page }) => {
+  test('settings: keyboard - arrow keys move between the tabs (RTL: left is forward), Home and End jump, Enter opens, one tab stop', async ({ page }) => {
+    // AUDIT30-C-TICKETS (#18): the sw-tabs row of every settings page - the arrows move the focus, Enter opens the tab (manual activation)
     await go(page, '/system/tickets');
     await page.waitForSelector(`${S} [data-name-editor]`);
-    await page.locator(`${S} [data-settings-tab="general"]`).focus();
+    const tabs = page.locator(`${S} sw-tabs[data-tickets-settings-tabs] [role="tab"]`);
+    await tabs.nth(0).focus();
     await page.keyboard.press('ArrowLeft');
-    await expect(page.locator(`${S} [data-settings-tab="departments"]`)).toBeFocused();
-    await expect(page.locator(`${S} [data-settings-tab="departments"]`)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(1)).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await page.waitForSelector(`${S} tickets-dept-editor`);
+    await tabs.nth(1).focus();
     await page.keyboard.press('End');
-    await expect(page.locator(`${S} [data-settings-tab="permissions"]`)).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator(`${S} [data-settings-tab][tabindex="0"]`)).toHaveCount(1);
+    await page.keyboard.press('Enter');
+    await expect(tabs.last()).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator(`${S} sw-tabs[data-tickets-settings-tabs] [role="tab"][tabindex="0"]`)).toHaveCount(1);
   });
 });

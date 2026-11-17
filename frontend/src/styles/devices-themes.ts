@@ -197,7 +197,8 @@ export const devicesThemes = css`
     --sw-shadow-1: var(--dv-shadow-1);
     --sw-shadow-2: var(--dv-shadow-2);
     --sw-shadow-3: var(--dv-shadow-3);
-    --sw-font: var(--dv-font);
+    /* SYS-AUDIT-QUICKFIX-2437: no --sw-font bridge - the glass screens read the product face (--dv-font: var(--sw-font) below), so
+       --sw-font stays the inherited product stack here (a bridge both ways would be a custom-property cycle) */
     color-scheme: var(--dv-color-scheme);
     color: var(--dv-text);
     font-family: var(--dv-font);
@@ -238,7 +239,9 @@ export const devicesThemes = css`
     --dv-border: rgba(60, 60, 67, 0.12);
     --dv-border-strong: rgba(60, 60, 67, 0.22);
     --dv-overlay: rgba(15, 23, 42, 0.38);
-    --dv-font: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', 'Noto Sans Hebrew', 'Heebo', Roboto, Arial, sans-serif;
+    /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 2: 22 % of the sampled text on 12 glass screens was drawn in the OS face):
+       the One Face Rule - the glass screens use the product's font stack (Heebo first, design/tokens.ts --sw-font) */
+    --dv-font: var(--sw-font);
     --dv-text: #1c1c1e;
     --dv-text-2: #4c4c50;
     --dv-text-3: #67676c;
@@ -334,6 +337,39 @@ export const devicesThemes = css`
     --dv-icon-ring-on-bg: rgba(255, 255, 255, 0.18);
     --dv-icon-ring-fg: #f5f5f7;
     --dv-toggle-on: var(--sw-product-toggle-on);
+  }
+  /* AUDIT30-A-GLASS-BRIDGE (audit round 30, finding 13: two darks and two inks - the glass screens drew neutral #1c1c1e / black-grey
+     panels and their own ink beside the product's navy screens). Palette "default" whose scheme IS the product's scheme (no own
+     backdrop): the COLOUR knobs read the product tokens - one ink, one hairline, one navy - the SHAPE knobs (blur, radii, gaps,
+     shadows) stay the glass ones. The literal blocks above remain the palette's own ground for the case it is painted on a backdrop
+     of its own (devices.scheme / devices.glass_scheme differs from the product: the product tokens would be the other scheme's).
+     The bridge of section 1 writes --sw-text & co. FROM these knobs on the same host, so it is undone first (inherit = the product
+     value of the parent; the same move as mediaBubbleKnobs in media-glass.ts) - otherwise every pair would be a cycle.
+     --sw-surface-solid / --sw-surface-2-solid / --sw-canvas are never bridged, so the knobs may read them directly. The translucent
+     surfaces keep their glass alpha (the default palette's own: 64 / 50 % light, 72 / 62 % dark) over the product's solid twins, so
+     the dark glass is navy, not neutral black. A media host in the bubble skin keeps its own full bridge (mediaBubbleKnobs). */
+  :host([data-devices-style='glass'][data-devices-theme='default']:not([data-devices-own-backdrop]):not([data-skin='bubble'])) {
+    --sw-text: inherit;
+    --sw-heading: inherit;
+    --sw-text-2: inherit;
+    --sw-text-3: inherit;
+    --sw-border: inherit;
+    --sw-border-strong: inherit;
+    --dv-backdrop: var(--sw-canvas);
+    --dv-text: var(--sw-text);
+    --dv-text-2: var(--sw-text-2);
+    --dv-text-3: var(--sw-text-3);
+    --dv-icon-ring-fg: var(--sw-text);
+    --dv-surface-solid: var(--sw-surface-solid);
+    --dv-surface-2-solid: var(--sw-surface-2-solid);
+    --dv-surface: color-mix(in srgb, var(--dv-surface-solid) 64%, transparent);
+    --dv-surface-2: color-mix(in srgb, var(--dv-surface-2-solid) 50%, transparent);
+    --dv-border: var(--sw-border);
+    --dv-border-strong: var(--sw-border-strong);
+  }
+  :host([data-devices-style='glass'][data-devices-theme='default'][data-devices-scheme='dark']:not([data-devices-own-backdrop]):not([data-skin='bubble'])) {
+    --dv-surface: color-mix(in srgb, var(--dv-surface-solid) 72%, transparent);
+    --dv-surface-2: color-mix(in srgb, var(--dv-surface-2-solid) 62%, transparent);
   }
   /* palette "default": phone (sizes only; colours as above) - every palette (6b) */
   @media (max-width: 767px) {

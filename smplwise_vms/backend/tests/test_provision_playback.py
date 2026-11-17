@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import io
 import shutil
 import sys
 from pathlib import Path
@@ -451,11 +452,14 @@ def test_rtsp_download_redacts_secrets_from_ffmpeg_errors(settings, tmp_path, mo
         def __init__(self, args, **kw):
             assert args[args.index("-i") + 1] == uri and "-c" in args and "copy" in args
 
+            # CR-EXPORTS-HOUSEKEEPING-2440 (03:F08): stderr is drained while ffmpeg runs (a pipe), no longer by communicate()
+            self.stderr = io.BytesIO(f"{uri}: 401 Unauthorized for {USER} at {HOST}".encode())
+
         def poll(self):
             return 1
 
-        def communicate(self, timeout=None):
-            return b"", f"{uri}: 401 Unauthorized for {USER} at {HOST}".encode()
+        def wait(self, timeout=None):
+            return 1
 
         def kill(self):
             pass
@@ -475,12 +479,13 @@ def test_rtsp_download_cancel_kills_ffmpeg_and_removes_the_file(settings, tmp_pa
 
         def __init__(self, args, **kw):
             Path(args[-1]).write_bytes(b"x" * 10)
+            self.stderr = io.BytesIO(b"")  # CR-EXPORTS-HOUSEKEEPING-2440 (03:F08): the drained stderr pipe
 
         def poll(self):
             return None if not killed else -9
 
-        def communicate(self, timeout=None):
-            return b"", b""
+        def wait(self, timeout=None):
+            return -9
 
         def kill(self):
             killed.append(1)

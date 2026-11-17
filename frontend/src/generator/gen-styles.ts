@@ -946,7 +946,8 @@ export const genCss = css`
     .al .grow {
       flex-basis: calc(100% - 50px);
     }
-    .al > .btn {
+    .al > .btn,
+    .al > sw-button {
       margin-inline-start: auto;
     }
     .chooser {
@@ -965,7 +966,8 @@ export const genCss = css`
     }
     .filters > input[type='search'],
     .filters > .seg,
-    .filters > .btn {
+    .filters > .btn,
+    .filters > sw-button {
       grid-column: 1 / -1;
     }
     .filters > .seg {

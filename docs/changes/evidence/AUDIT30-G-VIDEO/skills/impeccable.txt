@@ -1,0 +1,2 @@
+$ impeccable.cmd detect --json investigate-incidents.ts system-devices.ts
+[]

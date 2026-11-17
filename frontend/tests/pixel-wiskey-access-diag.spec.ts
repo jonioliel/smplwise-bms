@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { NOW } from './access-control-mocks';
 import { settlePage } from './pixel-settle';
 import { installDiagMock, type DiagOptions } from './wiskey-access-diag-mocks';
+import { pickOption } from './helpers/wk-choose';
 
 // WISKEY-ACCESS-DIAG-2400 pixel baselines: "אבחון הרשאות" - the scenario's answer, a comparison of two people, a review with the decision
 // form, the lifecycle window and a station permission audit - classic light, desktop 1440 and phone 390, against the mocked backend
@@ -43,7 +44,7 @@ test.describe('pixel: אבחון הרשאות', () => {
   test('classic is pixel-stable: "can X open door Y" with its explanation', async ({ page }, info) => {
     await open(page);
     await pick(page, 'scenario', 'דנה', 'p1');
-    await page.locator(`${SCREEN} select[data-diag-door="scenario"]`).selectOption('entry-b:2');
+    await pickOption(page.locator(`${SCREEN} [data-diag-door="scenario"]`), 'entry-b:2');
     await page.locator(`${SCREEN} sw-button[data-diag-check]`).click();
     await expect(page.locator(`${SCREEN} [data-diag-answer="no"]`)).toBeVisible();
     await page.locator(`${SCREEN} [data-diag-answer]`).scrollIntoViewIfNeeded();

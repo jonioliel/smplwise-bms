@@ -211,6 +211,9 @@ test.describe('a menu inside a glass device screen is the palette\'s SOLID twin,
             h.setAttribute('data-devices-style', 'glass');
             h.setAttribute('data-devices-theme', t);
             h.setAttribute('data-devices-scheme', s);
+            // what devices-style.ts setScheme() writes beside the scheme: a glass scheme other than the product's (light here) paints its own
+            // backdrop, and only then the default palette keeps its own solid twin (AUDIT30-A-GLASS-BRIDGE bridges it to the product's otherwise)
+            h.toggleAttribute('data-devices-own-backdrop', s !== 'light');
           },
           [theme, scheme],
         );

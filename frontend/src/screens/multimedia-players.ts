@@ -11,6 +11,7 @@ import '../components/media-player-panel';
 import '../components/media-now-hero';
 import './multimedia-edit-panel';
 import '../components/sw-pager';
+import '../components/sw-page';
 import { PageFit } from './multimedia-page-fit';
 import { SkinController } from '../design/skin';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
@@ -124,9 +125,6 @@ export class MultimediaPlayers extends LitElement {
     :host([data-skin='bubble']) media-now-hero {
       margin-block-end: 4px;
     }
-    :host([data-skin='bubble']) .page {
-      gap: 18px;
-    }
     :host([data-skin='bubble']) .dh.compact {
       background: var(--sw-nav-glass);
       -webkit-backdrop-filter: var(--sw-glass-blur-nav);
@@ -134,10 +132,10 @@ export class MultimediaPlayers extends LitElement {
       box-shadow: none;
       border: 0;
     }
-    /* MEDIA-POLISH-2331: the room chips show where the keyboard is (the shared chip has no focus ring) */
-    .rc:focus-visible {
-      outline: 2px solid var(--dv-focus);
-      outline-offset: 2px;
+    .pacts {
+      display: flex;
+      align-items: center;
+      gap: var(--sw-s-2);
     }
     /* the loading skeleton: one placeholder card per slot, in the card's own geometry */
     .skc {
@@ -192,11 +190,11 @@ export class MultimediaPlayers extends LitElement {
       :host {
         overflow: hidden;
       }
+      /* the shared frame (sw-page) takes the screen's height; its body is a flex column, the region its growing child */
       .page {
         block-size: 100%;
         min-block-size: 0;
         padding-block-end: 0;
-        gap: var(--sw-s-4);
       }
       .scr {
         display: block;
@@ -208,8 +206,8 @@ export class MultimediaPlayers extends LitElement {
         scrollbar-width: thin;
         scrollbar-gutter: stable;
         /* the region spans the page's side padding, so its scrollbar sits at the screen's edge and a focus ring is never clipped */
-        margin-inline: -36px;
-        padding: var(--sw-s-1) 36px var(--sw-s-8);
+        margin-inline: calc(-1 * var(--mm-pad));
+        padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-8);
       }
       /* NOSCROLL-1366-2437 (audit round 30 #5: this region scrolled 1,537 px at 1366x768, all the cards in one panel): outside the
          editor the region never scrolls; the cards that fit are page 1, the rest are on the next pages (the pager in the filter row) */
@@ -628,33 +626,44 @@ export class MultimediaPlayers extends LitElement {
     return m === 'dropdown' || (m === 'hybrid' && items > HYBRID_MAX_ITEMS);
   }
 
-  private header(): TemplateResult {
+  /** AUDIT30-D3: the one-line summary under the title (sw-page's subheading); the phone keeps its header short and has none */
+  private summary(): string {
+    if (this.phone || this.editing || this.phase !== 'ready' || !this.devices.length) return '';
+    const c = playerCounts(this.devices);
+    return `${c.playing ? `${c.playing} מנגנים מתוך ${c.total}` : `אין ניגון כרגע · ${c.total} התקנים`}${c.unavailable ? ` · ${c.unavailable} לא זמין` : ''}`;
+  }
+
+  /** AUDIT30-D3: the floor menu sits at the end of sw-page's title row (slot "actions"). */
+  private floorAction(): TemplateResult | typeof nothing {
+    const { floors, unplaced } = playerFloors(this.devices, this.floorOrder());
+    const showFloor = this.hasFloors && (floors.length > 1 || unplaced > 0 || !!this.filters.floor);
+    const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
+    return tools && showFloor ? this.floorChip(floors, unplaced) : nothing;
+  }
+
+  /** The filter bar under the title: rooms, the pager, the state filter, the search (sticky and compacting while the page scrolls). */
+  private header(): TemplateResult | typeof nothing {
     const f = this.filters;
     const scoped = this.devices.filter((d) => filterPlayers([d], { ...PLAYER_NO_FILTER, floor: f.floor }).length);
     const rooms = roomChips(scoped);
     const c = playerCounts(this.devices);
-    const { floors, unplaced } = playerFloors(this.devices, this.floorOrder());
-    const showFloor = this.hasFloors && (floors.length > 1 || unplaced > 0 || !!f.floor);
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
     const lib = this.status?.library.state;
-    return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
+    if (!tools) return nothing;
+    return html`<div class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
       <div class="dh-row">
-        <h1>נגנים ורמקולים</h1>
-        ${tools && this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : tools ? html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
+        ${this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
           <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
-        </div>` : html`<span class="grow"></span>`}
-        ${tools && showFloor ? this.floorChip(floors, unplaced) : nothing}
+        </div>`}
       </div>
-      ${tools ? html`<div class="dh-det">
-        <span class="amb">${c.playing ? html`<em><span class="n">${c.playing}</span></em> מנגנים מתוך <span class="n">${c.total}</span>` : html`אין ניגון כרגע · <span class="n">${c.total}</span> התקנים`}${c.unavailable ? html` · <span class="n">${c.unavailable}</span> לא זמין` : nothing}</span>
+      <div class="dh-det">
         ${lib && lib !== 'ready' ? html`<span class="chipx libchip" data-lib-state=${lib}>${mIcon('music')}ספרייה לא זמינה</span>` : nothing}
-        <span class="grow"></span>
         ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
         <div class="seg sm" role="radiogroup" aria-label="סינון לפי מצב">${PLAYER_STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilters({ state: s.id })}>${s.label}${s.id === 'playing' ? html` <small>${c.playing}</small>` : s.id === 'unavailable' && c.unavailable ? html` <small>${c.unavailable}</small>` : nothing}</button>`)}</div>
         <label class="search">${mIcon('search')}<span class="vh">חיפוש נגן</span><input type="search" data-search placeholder="חיפוש נגן או חדר" .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
-      </div>` : nothing}
-    </header>`;
+      </div>
+    </div>`;
   }
 
   /** The floor filter as the capsule-capable dropdown (0.1.164): the same component, style, size, ring and panel width as every other dropdown of the multimedia group. */
@@ -755,7 +764,9 @@ export class MultimediaPlayers extends LitElement {
   render() {
     const editing = this.editing && !!this.draft;
     const body = this.body(); // first: it tells the pager in the header how many cards there are
-    return html`<div class="page" data-screen="multimedia-players">
+    const floor = this.floorAction();
+    return html`<sw-page class="page" wide heading="נגנים ורמקולים" subheading=${this.summary()} data-screen="multimedia-players">
+      ${floor === nothing ? nothing : html`<div slot="actions" class="pacts">${floor}</div>`}
       ${this.header()}
       ${editing ? html`<div class="editing-stack">${this.editBar()}</div>` : nothing}
       <div class=${classMap({ scr: true, editing })} data-mm-region @scroll=${this.onRegionScroll}>
@@ -763,7 +774,7 @@ export class MultimediaPlayers extends LitElement {
           ? html`<div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft!} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft!).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${body}</div></div>`
           : body}
       </div>
-    </div>
+    </sw-page>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     ${this.confirmDialog()}
     ${this.playerKey ? html`<media-player-panel .deviceKey=${this.playerKey} .open=${true} @close=${() => this.closePlayer()}></media-player-panel>` : nothing}

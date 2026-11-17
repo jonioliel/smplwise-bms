@@ -114,8 +114,12 @@ export class SwBadge extends LitElement {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
     }
-    /* R5-INVESTIGATE-297 (status as a filled field, not a wash): "filled" paints the badge in the state's own colour with inverse ink,
-       a solid edge and a slightly larger reading size; an outline-only kind (stale, unknown) keeps its dashed meaning in the dot */
+    /* R5-INVESTIGATE-297 (status as a filled field, not a wash): "filled" paints the badge as a solid field with a solid edge and a
+       slightly larger reading size; an outline-only kind (unknown) keeps its dashed meaning.
+       SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 12: "סגור" 2.54:1 and "קריטי" 3.76:1 in light, "מידע" 2.51:1 in dark): the field
+       is the state's contrast-proven INK (--sw-<kind>-text / --sw-text-2, >= 4.5:1 on the panel in both schemes) and the label is the
+       panel colour (--sw-surface-solid): the same pair inverted, so it keeps that ratio in every skin and scheme
+       (tests/unit-badge-tab-contrast-2437.spec.ts). The dot follows the label (currentColor). */
     :host([filled]) {
       border-style: solid;
       border-color: transparent;
@@ -123,8 +127,8 @@ export class SwBadge extends LitElement {
       font-size: var(--sw-fs-sm);
       line-height: 18px;
       padding: 2px 10px;
-      color: var(--sw-text-inverse);
-      background: var(--sw-text-3);
+      color: var(--sw-surface-solid);
+      background: var(--sw-text-2);
     }
     :host([filled]) .dot {
       background: currentColor;
@@ -133,20 +137,19 @@ export class SwBadge extends LitElement {
     }
     :host([filled][kind='live']) {
       background: var(--sw-success);
-      /* SKIN-QA-FOLLOWUP-2404: dark ink on the green (white read 1.8-3.5:1); the dot follows (currentColor) */
+      /* SKIN-QA-FOLLOWUP-2404 (owner round 22, Q5 = a): dark ink on the green (white read 1.8-3.5:1); the dot follows (currentColor) */
       color: var(--sw-on-success);
     }
     :host([filled][kind='recorded']),
     :host([filled][kind='historic']) {
-      background: var(--sw-accent);
+      background: var(--sw-accent-text);
     }
     :host([filled][kind='offline']) {
-      background: var(--sw-offline);
+      background: var(--sw-offline-text);
     }
     :host([filled][kind='stale']),
     :host([filled][kind='partial']) {
-      background: var(--sw-stale);
-      color: var(--sw-on-lit);
+      background: var(--sw-stale-text);
     }
     :host([filled][kind='unknown']) {
       background: var(--sw-surface-3);
@@ -155,7 +158,7 @@ export class SwBadge extends LitElement {
     }
     :host([filled][kind='forbidden']),
     :host([filled][kind='error']) {
-      background: var(--sw-danger);
+      background: var(--sw-danger-text);
     }
     @keyframes pulse {
       0%,

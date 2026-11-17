@@ -1,6 +1,8 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-drawer';
+import '../components/sw-button';
 import { ApiError, describeError } from '../api/client';
 import { dateInputLang } from '../api/day-format';
 import type { CalEvent, Calendar, EventPatch, EventPreview, NewEvent, OnBehalfKind, Occurrence } from '../api/calendars';
@@ -30,22 +32,11 @@ import type { CalAttendeesSection } from './attendees-section';
 @customElement('cal-event-drawer')
 export class CalEventDrawer extends LitElement {
   static styles = [calCss, css`
-    :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: block; }
-    .scrim { position: absolute; inset: 0; background: var(--sw-overlay); animation: fade var(--sw-t-med) var(--sw-ease); }
-    aside { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: min(500px, 100vw); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-3);
-      display: flex; flex-direction: column; animation: slide 240ms var(--sw-ease-drawer); }
-    @keyframes slide { from { transform: translateX(100%); } }
-    @keyframes fade { from { opacity: 0; } }
-    :host-context([dir='ltr']) aside { animation-name: slide-l; }
-    @keyframes slide-l { from { transform: translateX(-100%); } }
-    @media (prefers-reduced-motion: reduce) { aside, .scrim { animation: none; } }
-    header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 10px; }
-    header h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
-    header .muted { margin-block-start: 2px; }
-    header .x { margin-inline-start: auto; flex: none; }
-    .body { flex: 1; min-block-size: 0; padding: 4px 22px 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; overscroll-behavior: contain; }
-    /* CAL-GRID-EDIT-2343: the edit form (and a plugged-in section such as the attendee picker) may be taller than the drawer: it scrolls inside, never the page */
-    footer { display: flex; gap: 10px; padding: 12px 22px calc(16px + env(safe-area-inset-bottom, 0px)); border-block-start: 1px solid var(--sw-border); align-items: center; }
+    /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (sw-drawer modal: scrim, focus trap, Escape, focus return, the
+       same header and action row as every drawer). CAL-GRID-EDIT-2343: a tall form scrolls inside the drawer's body, never the page. */
+    :host { display: contents; }
+    sw-drawer { --sw-drawer-sheet-h: 88dvh; }
+    .content { display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
     .lockline { display: flex; align-items: center; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 8px 12px; border-radius: var(--sw-r-md);
       background: var(--sw-surface-3); }
     .ctls { display: flex; gap: 8px; min-inline-size: 0; align-items: center; }
@@ -82,11 +73,7 @@ export class CalEventDrawer extends LitElement {
     dd { margin: 0; min-inline-size: 0; overflow-wrap: anywhere; color: var(--sw-text); }
     input[type='date'], input[type='time'] { font-variant-numeric: tabular-nums; }
     @media (max-width: 699px) {
-      aside { inline-size: 100vw; }
-      header { padding: 14px 16px 6px; }
-      header h2 { font-size: var(--sw-fs-xl); }
-      .body { padding: 4px 16px 10px; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
-      footer { padding-inline: 16px; }
+      .content { gap: 8px; }
       .ctls { flex-wrap: wrap; }
       .ctls > .inp { flex: 1 1 120px; }
       .inp { min-block-size: 44px; }
@@ -121,13 +108,9 @@ export class CalEventDrawer extends LitElement {
   @state() private attendees: unknown = undefined;
   private previewTimer = 0;
   private dayKey = '';
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.close();
-  };
 
   connectedCallback(): void {
     super.connectedCallback();
-    document.addEventListener('keydown', this.onKey);
     const d = this.detail ?? {};
     if (d.eventId) {
       void this.loadEvent(d.eventId);
@@ -155,12 +138,12 @@ export class CalEventDrawer extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    document.removeEventListener('keydown', this.onKey);
     clearTimeout(this.previewTimer);
   }
 
   protected firstUpdated(): void {
-    (this.renderRoot.querySelector('[data-cal-field="title"]') as HTMLInputElement | null)?.focus({ preventScroll: true });
+    // AUDIT30-F3: after the shared drawer moved focus into itself (its first frame), the booking's title takes it
+    requestAnimationFrame(() => requestAnimationFrame(() => (this.renderRoot.querySelector('[data-cal-field="title"]') as HTMLInputElement | null)?.focus({ preventScroll: true })));
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -342,6 +325,12 @@ export class CalEventDrawer extends LitElement {
     this.dispatchEvent(new Event('close'));
   }
 
+  /** The shared drawer closed itself (Escape, the scrim, its close button): its composed event stops here, the page gets the module's own. */
+  private onDrawerClose = (e: Event): void => {
+    e.stopPropagation();
+    this.close();
+  };
+
   private problem(): string {
     const s = localInstant(this.date, this.from);
     const e = localInstant(this.date, this.to);
@@ -391,10 +380,16 @@ export class CalEventDrawer extends LitElement {
     const ctx = this.ctx;
     if (!ctx) return nothing;
     const existing = !!this.detail?.eventId;
-    return html`<div class="scrim" @click=${() => this.close()}></div>
-      <aside role="dialog" aria-modal="true" aria-labelledby="h" data-cal-drawer=${this.editMode ? 'edit' : existing ? 'event' : 'new'}>
-        ${this.editMode ? this.form() : existing ? this.viewEvent() : this.form()}
-      </aside>`;
+    return this.editMode ? this.form() : existing ? this.viewEvent() : this.form();
+  }
+
+  /** AUDIT30-F3: every face of the drawer (an entry, a new booking, an edit) is the one shared modal drawer. */
+  private frame(kind: string, heading: string, sub: string, body: unknown, footer: unknown, end: unknown = nothing) {
+    return html`<sw-drawer modal open heading=${heading} subheading=${sub} data-cal-drawer=${kind} @close=${this.onDrawerClose}>
+        <div class="content">${body}</div>
+        <div slot="footer" style="display:contents">${footer}</div>
+        ${end === nothing ? nothing : html`<div slot="footer-end" style="display:contents">${end}</div>`}
+      </sw-drawer>`;
   }
 
   // ---------- an existing entry ----------
@@ -404,9 +399,7 @@ export class CalEventDrawer extends LitElement {
     const cal = ev ? ctx.cals.find((c) => c.id === ev.calendar_id) : undefined;
     const canCancel = !!ev && ev.can.cancel && ['confirmed', 'displaced'].includes(ev.state);
     const canWithdraw = !!ev && ev.state === 'pending' && (ev.can.cancel || ev.can.edit);
-    return html`<header><div><h2 id="h" class="ell">${ev ? ev.title ?? 'תפוס' : 'טוען…'}</h2>${cal ? html`<div class="muted">${cal.name}</div>` : nothing}</div>
-        <button type="button" class="btn icon x" aria-label="סגירה" data-cal-close @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
-      <div class="body">
+    return this.frame('event', ev ? ev.title ?? 'תפוס' : 'טוען…', cal?.name ?? '', html`
         ${ev ? html`<dl>
           <dt>מתי</dt><dd class="num">${whenText(ev.start, ev.end, ctx.now).split(' · ')[0]} · <span class="ltr">${hm(ev.start)}–${hm(ev.end)}</span>${ev.recurring ? ' · חוזר' : ''}</dd>
           <dt>מצב</dt><dd><span class=${`chip ${ev.state === 'confirmed' ? 'ok' : ev.state === 'pending' ? 'dash' : ev.state === 'displaced' ? 'warn' : ''}`}>${STATE_LABEL[ev.state]}</span>${ev.contested ? html` <span class="chip warn">מתחרה על החלון</span>` : nothing}</dd>
@@ -422,13 +415,10 @@ export class CalEventDrawer extends LitElement {
         ${ev.state === 'displaced' ? html`<div class="note warn" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>ההזמנה נדחקה בגלל תחזוקה</b><span class="muted">היא לא נמחקה. אפשר לבחור מועד אחר ולבטל אותה.</span></div></div>` : nothing}
         ${this.confirmCancel ? html`<div class="note warn" role="alert"><sw-icon name="warning" size="18"></sw-icon><div><b>${canWithdraw ? 'למשוך את הבקשה?' : 'לבטל את ההזמנה?'}</b><span class="muted">${ev.recurring ? 'הביטול חל על כל הסדרה.' : 'המועד יתפנה לאחרים.'}</span></div></div>` : nothing}`
         : this.error ? nothing : html`<div class="skel" style="block-size:120px"></div>`}
-        ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}
-      </div>
-      <footer>
-        ${canCancel || canWithdraw ? html`<button type="button" class=${`btn bad${this.confirmCancel ? ' fill' : ''}`} ?disabled=${this.busy} data-cal-cancel-event @click=${() => void this.cancelEvent(canWithdraw)}>
-          <sw-icon name="trash" size="16"></sw-icon>${this.confirmCancel ? 'כן, לבטל' : canWithdraw ? 'משיכת הבקשה' : 'ביטול ההזמנה'}</button>` : nothing}
-        <button type="button" class="btn" @click=${() => this.close()}>סגירה</button>
-      </footer>`;
+        ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}`,
+      html`<sw-button variant="secondary" data-cal-close @click=${() => this.close()}>סגירה</sw-button>`,
+      canCancel || canWithdraw ? html`<sw-button variant=${this.confirmCancel ? 'danger' : 'ghost'} icon="trash" ?disabled=${this.busy} data-cal-cancel-event @click=${() => void this.cancelEvent(canWithdraw)}>
+          ${this.confirmCancel ? 'כן, לבטל' : canWithdraw ? 'משיכת הבקשה' : 'ביטול ההזמנה'}</sw-button>` : nothing);
   }
 
   private async cancelEvent(withdraw: boolean): Promise<void> {
@@ -478,9 +468,7 @@ export class CalEventDrawer extends LitElement {
     const series = !!ev?.recurring;
     const hint = ev ? this.editHint() : null;
     const toReq = ev ? !!hint && (hint.level === 'pend' || hint.level === 'contest') : toApproval;
-    return html`<header><div><h2 id="h">${ev ? 'עריכת הזמנה' : 'הזמנה חדשה'}</h2>${sub ? html`<div class="muted ell">${sub}</div>` : nothing}</div>
-        <button type="button" class="btn icon x" aria-label="סגירה" data-cal-close @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
-      <div class="body">
+    return this.frame(ev ? 'edit' : 'new', ev ? 'עריכת הזמנה' : 'הזמנה חדשה', sub, html`
         <div class="lockline" data-cal-roleline><sw-icon name="shield" size="16"></sw-icon><span class="ell">${this.roleLine(cal)}</span></div>
         ${ev?.held ? html`<div class="note warn" role="note" data-cal-held-note><sw-icon name="warning" size="18"></sw-icon><div><b>בקשת שינוי ממתינה</b>
           <span class="muted">המועד הקודם <span class="ltr num">${hm(ev.held.start)}–${hm(ev.held.end)}</span> שמור עד שתתקבל החלטה.</span></div></div>` : nothing}
@@ -520,14 +508,11 @@ export class CalEventDrawer extends LitElement {
         ${!ev && toApproval ? html`<div class="note" role="note" data-cal-approval-note><sw-icon name="info" size="18"></sw-icon><div><b>הבקשה תישלח לאישור</b>
           <span class="muted">${conflicts.length ? 'המועד חופף להזמנה שכבר אושרה; הבקשה תיכנס לתור והמנהל יחליט. ' : ''}${cal?.owner.name ? `${cal.owner.name}, מנהל/ת היומן, ת/יקבל התראה. ` : ''}בקשה לא שומרת את המועד: מי שמאושר ראשון מקבל אותו.</span></div></div>` : nothing}
         ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}
-        ${this.suggestions.length ? html`<div class="sugg">${this.suggestions.map((s) => html`<button type="button" class="num ltr" @click=${() => this.take(s)}>${hm(s.start)}–${hm(s.end)}</button>`)}</div>` : nothing}
-      </div>
-      <footer>
-        <button type="button" class="btn pri" ?disabled=${this.busy || !list.length || hint?.level === 'bad'} data-cal-submit @click=${() => void (ev ? this.saveEdit() : this.submit())}><sw-icon name="check" size="16"></sw-icon>${toReq ? 'שליחה לאישור' : 'שמירה'}</button>
-        <button type="button" class="btn" @click=${() => this.close()}>ביטול</button>
-        ${ev ? html`<span class="sp"></span><button type="button" class=${`btn bad${this.confirmCancel ? ' fill' : ''}`} ?disabled=${this.busy} data-cal-cancel-event
-          @click=${() => void this.cancelEvent(ev.state === 'pending' && !!ev.held)}><sw-icon name="trash" size="16"></sw-icon>${this.confirmCancel ? 'כן, לבטל' : ev.held ? 'משיכת השינוי' : ev.state === 'pending' ? 'משיכת הבקשה' : 'ביטול ההזמנה'}</button>` : nothing}
-      </footer>`;
+        ${this.suggestions.length ? html`<div class="sugg">${this.suggestions.map((s) => html`<button type="button" class="num ltr" @click=${() => this.take(s)}>${hm(s.start)}–${hm(s.end)}</button>`)}</div>` : nothing}`,
+      html`<sw-button variant="primary" icon="check" ?disabled=${this.busy || !list.length || hint?.level === 'bad'} data-cal-submit @click=${() => void (ev ? this.saveEdit() : this.submit())}>${toReq ? 'שליחה לאישור' : 'שמירה'}</sw-button>
+        <sw-button variant="secondary" data-cal-dismiss @click=${() => this.close()}>ביטול</sw-button>`,
+      ev ? html`<sw-button variant=${this.confirmCancel ? 'danger' : 'ghost'} icon="trash" ?disabled=${this.busy} data-cal-cancel-event
+          @click=${() => void this.cancelEvent(ev.state === 'pending' && !!ev.held)}>${this.confirmCancel ? 'כן, לבטל' : ev.held ? 'משיכת השינוי' : ev.state === 'pending' ? 'משיכת הבקשה' : 'ביטול ההזמנה'}</sw-button>` : nothing);
   }
 
   /** The edit form's availability: the day bar, and what moving it there means (from the day's entries; the server decides on save). */
