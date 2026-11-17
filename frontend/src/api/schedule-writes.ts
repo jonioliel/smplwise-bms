@@ -184,6 +184,7 @@ export const previewImport = (document: string) => readAction<ImportPreview>('im
 export const applyImport = (previewId: string) => writeAction<LibrarySchedule[]>('import_apply', { preview_id: previewId });
 export const exportLibrary = () => get<{ format: string; version: number; schedules: unknown[] }>(`${BASE}/export`);
 export const readReadiness = (stationId: string) => readAction<Readiness>('readiness', { station_id: stationId });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by WisKey T7 (device schedule library writes).
 export const readDependencies = (stationId: string) => readAction<{ users: PeopleCounts | null }>('dependencies', { station_id: stationId });
 export const assessDraft = (stationId: string, data: Draft) => readAction<Assessment>('assess', { station_id: stationId, data });
 export const saveBaseline = (stationId: string, previewId: string) => writeAction<{ revision: number | null }>('baseline_save', { station_id: stationId, preview_id: previewId });

@@ -158,6 +158,7 @@ export function stageEdit(edit: BulkEdit, key: string): Promise<{ job: BulkJob; 
   return api(`${BASE}/jobs/edit`, { method: 'POST', body: JSON.stringify(edit), headers: { 'Idempotency-Key': key } });
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by BULKPEOPLE-295 (bulk people jobs).
 export const getJob = (id: string) => get<{ job: BulkJob }>(`${BASE}/jobs/${encodeURIComponent(id)}`);
 export const dryRun = (id: string) => post<{ job: BulkJob; rows: DryRunRow[] }>(`${BASE}/jobs/${encodeURIComponent(id)}/dry-run`);
 export const confirmJob = (id: string, planDigest: string, typed: string) =>

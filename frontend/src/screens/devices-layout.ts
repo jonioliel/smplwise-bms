@@ -59,6 +59,7 @@ export const LAYOUT_ICONS = [
 type LayoutIcon = (typeof LAYOUT_ICONS)[number];
 
 /** The palette roles a card's colours may take (ROLES in routers/device_layouts.py; resolved in devices-palettes.ts). */
+// CR-FE-DEAD-CODE-2442: test-used, stays exported - smplwise_vms/backend/tests/test_device_layouts.py reads this declaration (parity with ROLES).
 export const LAYOUT_ROLES = ['accent', 'warm', 'cool', 'success', 'warning', 'danger', 'neutral'] as const satisfies readonly LayoutRoleId[];
 
 const ICON_HE: Record<LayoutIcon, string> = {

@@ -94,6 +94,7 @@ export interface HomeLayout {
 }
 export interface HomePrefs { favourites: Record<string, Fav[]>; layout: HomeLayout; seed: Record<string, Fav[]> }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by HOME-SIMPLE-2420 (home interface).
 export const getInterface = () => get<InterfacePolicy>('home/interface');
 export const switchInterface = (iface: Interface) => put<InterfacePolicy>('me/interface', { interface: iface });
 export const getOverview = () => get<Overview>('home/overview');

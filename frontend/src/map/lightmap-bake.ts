@@ -60,6 +60,7 @@ interface LightmapResult {
   meta: LightmapMeta;
 }
 /** What the level-3 view receives (the bundle's lightmap entry, the file decoded by the browser). */
+// CR-FE-DEAD-CODE-2442 (O15 a): no user yet - kept; built ahead by ST7-S3 for the level-3 view (see the header).
 export interface LightmapSet {
   url: string;
   width: number;

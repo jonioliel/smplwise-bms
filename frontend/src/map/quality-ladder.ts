@@ -182,6 +182,7 @@ function readLocal(key: string): string | null {
 }
 
 /** The wall display's live / stills choice: this browser's pinned value (`sw.plan3d.wall_display`), else the installation's. */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by ST7-S3 (the wall display's live / stills dial).
 export function wallDisplayMode(installation: 'live' | 'stills'): 'live' | 'stills' {
   const own = readLocal(WALL_DISPLAY_KEY);
   return own === 'live' || own === 'stills' ? own : installation;

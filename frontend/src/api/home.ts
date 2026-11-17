@@ -94,6 +94,7 @@ export async function saveHomeSettings(from: HomeSettings, to: HomeSettings): Pr
 }
 
 /** "אפס לברירת מחדל": the widget configuration back to "never saved" (the built-in default with the catalogue's suggestions). */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by the home widget system (CR-017).
 export async function resetHomeWidgets(): Promise<HomeSettings> {
   const r = await patch<{ settings: Record<string, unknown> }>('settings', { 'home.widgets': {} });
   invalidateSettings();

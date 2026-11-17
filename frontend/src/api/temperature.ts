@@ -422,6 +422,7 @@ function logQs(q: LogQuery, extra: Record<string, string> = {}): string {
 }
 
 export const listUnits = (spark = true) => get<UnitsResponse>(spark ? B : `${B}?spark=0`);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-INFRA-TEMPERATURE (2.9.1).
 export const getUnit = (id: string) => get<TempUnit>(`${B}/${enc(id)}`);
 export const getHistory = (id: string, range: RangeKey, from?: string, to?: string, points = 600) =>
   get<HistoryResponse>(`${B}/${enc(id)}/history${logQs({ range, from, to }, { points: String(points) })}`);
@@ -435,6 +436,7 @@ export const listCandidates = (kind: 'temp' | 'door' | 'power', q = '') => get<{
 export const createUnit = (body: UnitBody) => post<ManagedUnit>(B, body);
 export const updateUnit = (id: string, body: UnitBody) => put<ManagedUnit>(`${B}/${enc(id)}`, body);
 export const deleteUnit = (id: string) => del(`${B}/${enc(id)}`);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-INFRA-TEMPERATURE (2.9.1).
 export const reorderUnits = (ids: string[]) => put<ManageResponse>(`${B}/order`, { ids });
 export const getSettings = () => get<SettingsResponse>(`${B}/settings`);
 export const putSettings = (rules: Record<string, unknown>, row_version?: number) => put<SettingsResponse>(`${B}/settings`, { rules, row_version });

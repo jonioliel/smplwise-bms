@@ -104,6 +104,7 @@ export const createRule = (body: RuleBody) => post<Rule>('rules', body);
 export const updateRule = (id: string, body: RuleBody & { revision: number }) => patch<Rule>(path`rules/${id}`, body);
 export const deleteRule = (id: string) => del(path`rules/${id}`);
 export const dryRunRule = (rule: RuleBody, hours = 24) => post<DryRunResult>('rules/dry-run', { rule, hours });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T052 (alarm rules dry run).
 export const dryRunStored = (ruleId: string, hours = 24) => post<DryRunResult>('rules/dry-run', { rule_id: ruleId, hours });
 export const listAlerts = (unacked = false) => get<{ alerts: RuleAlert[]; unacked: number }>(`rules/alerts${unacked ? '?unacked=true' : ''}`);
 export const ackAlert = (id: string) => post<RuleAlert>(path`rules/alerts/${id}/ack`);

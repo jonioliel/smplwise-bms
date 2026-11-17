@@ -185,6 +185,7 @@ export const getPresenceSettings = () => get<PresenceSettingsResponse>('presence
 export const putPresenceSettings = (body: PresenceSettingsPatch) => put<PresenceSettingsResponse>('presence/settings', body);
 export const breakGlass = (hours: number, reason: string) => post<{ break_glass: PresenceSettings['break_glass'] }>('presence/settings/break-glass', { hours, reason });
 export const listPresenceDevices = () => get<{ devices: PresenceDevice[] }>('presence/devices');
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-027 (mobile presence).
 export const myPresenceGate = () => get<{ gate: PresenceGate | null }>('presence/gate');
 
 /** Pure: the policy the save sends - the sensors a policy requires must be allowed, or the phone could never satisfy it. */

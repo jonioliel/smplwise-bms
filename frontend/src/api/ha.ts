@@ -174,6 +174,7 @@ export function listEntities(opts: { domain?: string; q?: string; area?: string;
   const qs = p.toString();
   return get<HaCatalogue>(`ha/entities${qs ? `?${qs}` : ''}`);
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by the HA bridge entity sync (0.1.x).
 export const getEntity = (entityId: string) => get<HaEntity>(`ha/entities/${encodeURIComponent(entityId)}`);
 export const haStatus = () => get<HaStatus>('ha/status');
 /** BRIDGE-STALE-DISCOVERY-2383: `announced` = a regenerated code was sent to the existing bridge through Arx's own discovery message;

@@ -210,6 +210,7 @@ export const announceSpeak = (body: { scope: AnnounceScope; ref: string; text?: 
   /** ANNOUNCEB-295: `speakers` false = screens only; `screens` omitted = the configured default */ speakers?: boolean; screens?: boolean }) =>
   post<AnnounceResult>(BASE, body);
 /** ANNOUNCEB-295: take an announcement off the screens now (the speech is not touched). */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by ANNOUNCEB-295 (announcement text on screens).
 export const announceStopScreens = (id: string) => post<{ stopped: boolean }>(`${BASE}/${encodeURIComponent(id)}/screens/stop`);
 /** The ONE-CLICK emergency announcement: no confirmation step, every allowed speaker. */
 export const announceEmergency = (body: { template_id: string } | { texts: AnnouncePart[] }) => post<AnnounceResult>(`${BASE}/emergency`, body);
@@ -217,6 +218,8 @@ export const announceEmergency = (body: { template_id: string } | { texts: Annou
 export const announceTranslate = (text: string, targets?: AnnounceTranslateTarget[]) =>
   post<{ provider: string; source: 'he'; items: AnnounceTranslation[] }>(`${BASE}/translate`, { text, ...(targets ? { targets } : {}) });
 export const announceTest = (body: { scope: AnnounceScope; ref: string; language: AnnounceLang }) => post<AnnounceResult>(`${BASE}/test`, body);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by announcements stage A (templates).
 export const announceTemplates = () => get<{ templates: AnnounceTemplate[]; languages: AnnounceLang[] }>(`${BASE}/templates`);
 export const announcePutTemplates = (templates: AnnounceTemplate[]) => put<{ templates: AnnounceTemplate[] }>(`${BASE}/templates`, { templates });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by MU2 (announcements settings tab).
 export const announceHistory = (limit = 20) => get<{ history: AnnounceHistoryRow[] }>(`${BASE}/history?limit=${limit}`);

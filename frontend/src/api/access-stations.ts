@@ -102,6 +102,7 @@ interface AccessFeatures extends ReadHead {
 
 export const getAccessFeatures = () => get<AccessFeatures>('access-control/features');
 export const getAccessStations = () => get<AccessStationsReply>('access-control/stations');
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-036 S6 (stations screen).
 export const getAccessStation = (stationId: string) => get<AccessStationReply>(`access-control/stations/${encodeURIComponent(stationId)}`);
 
 // ---------------------------------------------------------------- one station's door settings (access.stations.read, view only)

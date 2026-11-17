@@ -214,10 +214,14 @@ export interface DoorConversionList {
 }
 
 /** Read-only. */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by WXD10A/WXD10B (door-path conversion; the backend feature has no screen yet).
 export const getDoorConversion = () => get<DoorConversionList>('intercom/door-path-conversion');
 /** One confirmed action on one listed item; `revision` is the item's revision as listed (a changed item is refused). */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by WXD10A/WXD10B (door-path conversion).
 export const runDoorConversion = (key: string, action: DoorConversionAction, revision: string | null) =>
   post<{ record: DoorConversionRecord; changed: boolean }>('intercom/door-path-conversion/actions', { key, action, revision, confirmed: true });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by WXD10A/WXD10B (door-path conversion).
 export const undoDoorConversion = (recordId: string) =>
   post<{ record: DoorConversionRecord; re_enabled: boolean; ha_steps_restored: boolean | null }>(`intercom/door-path-conversion/records/${encodeURIComponent(recordId)}/undo`, { confirmed: true });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by WXD10A/WXD10B (door-path conversion).
 export const setDoorConversionSwitch = (value: DoorSettings['conversion']) => put<DoorSettings>('doors/settings', { conversion: value, confirmed: true });

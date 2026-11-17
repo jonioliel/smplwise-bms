@@ -226,8 +226,10 @@ const EXPORT_MAX_S = 7200;
 /** The address of the clip Arx streams for a camera window (GET only, `video.playback`; `supervised` for the first read of a recorder). */
 export const clipUrl = (rid: string, cameraId: string, start: number, end: number, supervised = false): string =>
   apiUrl(`${base(rid)}/cameras/${encodeURIComponent(cameraId)}/clip.mp4?start=${start}&end=${end}${supervised ? '&supervised=true' : ''}`);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by FRIGATE-UI (review screen).
 export const eventClipUrl = (rid: string, eventId: string, supervised = false): string => apiUrl(`${base(rid)}/events/${encodeURIComponent(eventId)}/clip.mp4${supervised ? '?supervised=true' : ''}`);
 /** FRIGATE-295: the clip of one CLOSED review item of at most an hour (the server answers 409 `frigate_clip_window` otherwise). */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by FRIGATE-295 phase 3.
 export const reviewClipUrl = (rid: string, reviewId: string, supervised = false): string => apiUrl(`${base(rid)}/reviews/${encodeURIComponent(reviewId)}/clip.mp4${supervised ? '?supervised=true' : ''}`);
 
 /** The open manual events Arx created, read from the change log: an `event_create` row that is still reversible (the undo ends it). */

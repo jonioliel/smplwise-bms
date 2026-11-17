@@ -308,6 +308,7 @@ interface LiveInfo {
   h265?: { policy: 'auto' | 'sub' | 'transcode' | 'off'; max_transcodes: number; active_transcodes: number };
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by live video (go2rtc adapter, 0.1.x).
 export const liveInfo = (cameraId: string, profile: 'sub' | 'main') => get<LiveInfo>(path`media/live/${cameraId}` + query({ profile }));
 export const syncStreams = () => post<{ created: number; updated: number; unchanged: number; streams: string[]; foreign_streams_untouched: number }>('media/streams/sync');
 /** GO2RTC-STREAM-SYNC-2436: `online` = go2rtc pulls the stream right now. go2rtc connects a source on demand, so a stream nobody

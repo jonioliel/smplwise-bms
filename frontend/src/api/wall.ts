@@ -102,6 +102,7 @@ export interface WallAlert {
   last_at: string;
   camera_id: string | null;
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-030 (wall alert tiles).
 export const getWallAlerts = () => get<{ alerts: WallAlert[] }>('wall/alerts');
 /** ANNOUNCEB-295: the voice announcement this wall display shows right now (text only), and how often to ask (0 = this display is not an announcement screen). */
 export const getWallAnnouncement = () => get<{ poll_s: number; announcement: import('../announce/screen-overlay').ScreenAnnouncement | null;

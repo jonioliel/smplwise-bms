@@ -29,4 +29,5 @@ export async function stylizeVersion(versionId: string, opts: { strength: 'light
 }
 
 export const setRenderMode = (versionId: string, render_mode: 'source' | 'stylized') => patch<PlanVersion>(path`plan-versions/${versionId}`, { render_mode });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by the plan editor (plan versions, 0.1.9).
 export const getVersion = (versionId: string) => get<PlanVersion>(path`plan-versions/${versionId}`);

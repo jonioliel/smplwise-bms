@@ -199,6 +199,7 @@ const EVENTS_PAGE = 100;
 /** One page of the activity log. `before` is the previous page's `events.next` ("load more"); a pruned cursor comes
  * back as a 422 `intercom_cursor_expired`. WisKey has no event push: the caller refetches on the `intercom_refresh`
  * notice, as WisKey's own panel does. */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-005 phase 1b (WisKey activity log).
 export function getIntercomEvents(filters: IntercomEventFilters, before?: string | null, limit = EVENTS_PAGE): Promise<IntercomEventsReply> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
@@ -278,6 +279,7 @@ export const PEOPLE_PAGE = 50;
 
 /** One page of the people directory. `query` is matched by the SMPLWISE backend against name and employee number
  * only (never sent to WisKey); `snapshot` is the previous page's `people.snapshot`, so the reply can say `stale`. */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-005 phase 1b (WisKey people directory).
 export function getIntercomPeople(query: string, filters: IntercomPeopleFilters, offset = 0, limit = PEOPLE_PAGE, snapshot = ''): Promise<IntercomPeopleReply> {
   const qs = new URLSearchParams();
   if (query) qs.set('query', query);
@@ -288,6 +290,7 @@ export function getIntercomPeople(query: string, filters: IntercomPeopleFilters,
   return get<IntercomPeopleReply>(`intercom/people?${qs.toString()}`);
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-005 phase 1b (WisKey people directory).
 export const getIntercomPerson = (userId: string) => get<IntercomPersonReply>(`intercom/people/${encodeURIComponent(userId)}`);
 
 // ---------------------------------------------------------------- physical actions (door: access.doors.open; calls: access.call)

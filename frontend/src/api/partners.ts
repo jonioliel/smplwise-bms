@@ -142,6 +142,7 @@ export const rotateToken = (id: string) => post<PartnerToken>(`${B}/tokens/${enc
 export const revokeToken = (id: string) => post<PartnerToken>(`${B}/tokens/${encodeURIComponent(id)}/revoke`);
 export const listEndpoints = () => get<{ items: PartnerEndpoint[] }>(`${B}/endpoints`);
 export const createEndpoint = (clientId: string, body: EndpointBody) => post<PartnerEndpoint>(`${B}/clients/${encodeURIComponent(clientId)}/endpoints`, body);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by PARTNERAPI113-295 (partner interface).
 export const updateEndpoint = (id: string, body: Partial<EndpointBody>) => patch<PartnerEndpoint>(`${B}/endpoints/${encodeURIComponent(id)}`, body);
 export const deleteEndpoint = (id: string) => del(`${B}/endpoints/${encodeURIComponent(id)}`);
 export const pauseEndpoint = (id: string, paused: boolean) => post<PartnerEndpoint>(`${B}/endpoints/${encodeURIComponent(id)}/pause`, { paused });

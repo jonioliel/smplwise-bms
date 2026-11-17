@@ -114,6 +114,7 @@ export const requestBake = (floorId: string, scope: RegenerateScope = {}) =>
 export const claimBake = (floorId: string, jobId: string) => post<{ job: BakeJob; expected: string[] }>(`floors/${encodeURIComponent(floorId)}/bakes/jobs/${encodeURIComponent(jobId)}/claim`);
 export const finishBake = (floorId: string, jobId: string, status: 'done' | 'failed' | 'cancelled', error?: string) =>
   post<{ job: BakeJob }>(`floors/${encodeURIComponent(floorId)}/bakes/jobs/${encodeURIComponent(jobId)}/finish`, error ? { status, error } : { status });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by ST7-S3 (still bake).
 export const deleteBakes = (floorId: string) => del(`floors/${encodeURIComponent(floorId)}/bakes`);
 
 /** The bundle's bakes part with every URL resolved against the API root (the map adapter, api/maps.ts). */

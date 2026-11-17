@@ -136,6 +136,7 @@ const refresh = <T>(x: T): T => {
   return x;
 };
 export const createItem = (body: CustomItemBody) => post<CatalogItem>('catalog/objects', body).then(refresh);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by Plan Studio (object library, CR-003).
 export const updateItem = (id: string, body: CustomItemBody) => patch<CatalogItem>(`catalog/objects/${encodeURIComponent(id)}`, body).then(refresh);
 export const deleteItem = (id: string) => del(`catalog/objects/${encodeURIComponent(id)}`).then(refresh);
 export const importItems = (items: unknown[]) => post<{ imported: number; replaced: number; revision: string }>('catalog/import', { format: 'smplwise-catalog-1', items }).then(refresh);

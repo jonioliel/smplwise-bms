@@ -255,6 +255,7 @@ export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Prom
   const name = /filename="([^"]+)"/.exec(headers.get('Content-Disposition') ?? '')?.[1] ?? 'external-access.csv';
   return { blob, rows: Number(headers.get('X-Export-Rows') ?? 0), filename: name };
 }
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by SHAREDID-293 (external-access screen).
 export const getScreenSettings = () => get<GrantRules & ScreenSettings>('access-grants/settings');
 export const putScreenSettings = (body: Partial<ScreenSettings>) => put<GrantRules & ScreenSettings>('access-grants/settings', body);
 

@@ -65,6 +65,7 @@ export const closePlayback = (id: string) => {
   openSessions.delete(id);
   return del(path`playback/sessions/${id}`);
 };
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T028/T029 (playback sessions).
 export const listPlayback = () => get<{ sessions: (PlaybackSession & { username: string; bytes_down: number; seconds: number })[]; max_sessions: number; lease_s: number }>('playback/sessions');
 
 /** ws(s):// URL of a session's relay socket for one generation (works under Ingress). */

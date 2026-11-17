@@ -619,10 +619,12 @@ export function bulkSchedules(op: 'enable' | 'disable', ids: string[], opts: Wri
   return isApi() ? post<BulkResult>('schedules/bulk', body) : demoStore().then((s) => s.bulk(op, ids));
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-014 (schedules organisation).
 export function getOrganisation(): Promise<Organisation> {
   return isApi() ? get<Organisation>('schedules/organisation') : demoStore().then((s) => s.organisation());
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-014 (schedules organisation).
 export function putOrganisation(body: Organisation): Promise<Organisation> {
   return isApi() ? put<Organisation>('schedules/organisation', body) : demoStore().then((s) => s.setOrganisation(body));
 }
@@ -650,6 +652,7 @@ export function markScheduleScript(entityId: string, undo = false): Promise<{ en
   return isApi() ? post(`schedules/scripts/${enc(entityId)}/mark`, { undo }) : demoStore().then((s) => s.markScript(entityId, undo));
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by CR-014 (schedule tags).
 export function listScheduleTags(): Promise<{ tags: { name: string; count: number }[] }> {
   return isApi() ? get('schedules/tags') : demoStore().then((s) => s.tags());
 }

@@ -168,6 +168,7 @@ export const armRule = (id: string, armed: boolean) => post<{ rule: Rule }>(`${W
 export const newToken = (id: string) => post<{ token: string; snippet: string }>(`${W}/rules/${encodeURIComponent(id)}/token`, { confirmed: true });
 export const openFor = (station: string, relay: number, durationS: number) =>
   post<{ decision: { decision: string; end_at: string | null } }>(`${W}/doors/${encodeURIComponent(station)}/${relay}/open-for`, { duration_s: durationS, confirmed: true });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by DOORWIN2 (door windows).
 export const foreignHandled = (station: string, relay: number) => post<{ handled: boolean }>(`${W}/doors/${encodeURIComponent(station)}/${relay}/foreign-handled`, { confirmed: true });
 
 export interface HolidayRow {

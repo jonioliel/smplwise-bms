@@ -19,6 +19,7 @@ export function uploadLogo(file: File): Promise<LogoAnswer> {
 export const deleteLogo = () => api<LogoAnswer>('tickets/settings/logo', { method: 'DELETE' });
 
 /** The preview address (signed-in, system.configure); the stamp makes a new logo a new address. */
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by VPORTAL (tickets brand logo).
 export function logoPreviewUrl(stamp: string): string {
   return `${apiUrl('tickets/settings/logo')}?v=${encodeURIComponent(stamp)}`;
 }
