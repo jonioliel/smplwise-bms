@@ -210,7 +210,6 @@ export interface CommandResult {
 export const TEXT_MAX = 200;
 export const KEY_RATE_PER_S = 5;
 export const KEY_BURST = 8;
-export const VOLUME_RATE_PER_S = 4;
 export const CONFIRM_TIMEOUT_MS = 8000;
 export const HOLD_REPEAT_MS = 200;
 export const HOLD_MAX_MS = 10_000;

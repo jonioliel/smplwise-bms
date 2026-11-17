@@ -16,7 +16,6 @@ export type ActivityKind =
 export const ACTIVITY_KINDS: ActivityKind[] = ['light', 'switch', 'outlet', 'cover', 'garage_door', 'climate', 'heater', 'fan', 'water_heater', 'valve', 'vacuum', 'generic'];
 
 export type ActorType = 'person' | 'automation' | 'script' | 'schedule' | 'scene' | 'device' | 'system' | 'unknown';
-export const ACTOR_TYPES: ActorType[] = ['person', 'automation', 'script', 'schedule', 'scene', 'device', 'system', 'unknown'];
 export type EventType = 'power' | 'value' | 'availability';
 export type ActivityVia = 'arx' | 'ha' | 'device' | 'unknown';
 export type Confidence = 'exact' | 'inferred' | 'unknown';

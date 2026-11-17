@@ -7,7 +7,7 @@
  * Reply shape of the JSON reads: `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null unless `state` is
  * `ready`; `state` `unsupported` = this build of the access-control service does not offer the read (nothing was sent).
  */
-import { ApiError, apiResponse, get } from './client';
+import { apiResponse, get } from './client';
 import type { IntercomFeedState } from './intercom';
 import { peopleQueryString, type PeopleRequest } from '../access-control/people-logic';
 
@@ -159,6 +159,3 @@ export async function fetchPersonPhoto(id: string): Promise<{ url: string } | { 
   return { error: res.status === 403 ? 'forbidden' : res.status === 404 ? 'missing' : 'unavailable' };
 }
 
-/** A 403 / 404 of a person's page: the screen shows the "no permission" panel / "not found" and nothing else. */
-export const isForbidden = (err: unknown) => err instanceof ApiError && err.status === 403;
-export const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;

@@ -186,8 +186,6 @@ function memoised<T>(key: string, make: () => Promise<T>): Promise<T> {
   value.catch(() => memo.delete(key));
   return value;
 }
-/** Tests and a settings change forget what was remembered. */
-export const forgetFrigate = (): void => memo.clear();
 
 const missing = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 405);
 

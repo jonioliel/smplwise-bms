@@ -26,7 +26,6 @@ import {
   type BulkScope, type CommandResult, type Glyph, type KeyId, type MediaCan, type MediaCaps, type MediaCommand, type MediaDevice,
   type MediaLive, type MediaStatus, type NowKind, type NowShowing, type PowerState, type RecentItem, type RemoteConfig, type SourceItem,
 } from './media-screens';
-import type { EndpointRole as AdminEndpointRole } from './media-admin';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
 
@@ -40,8 +39,6 @@ export const GROUPABLE_KINDS: readonly PlayerKind[] = ['speaker', 'player', 'rec
 
 /** Which layer answers the music controls (CR §5.2). */
 export type MusicProvider = 'ma' | 'sonos' | 'heos' | 'vendor' | 'none';
-/** The admin client's endpoint roles plus `music` (the music layer, CR §5.2) and `mirror` (a poorer cloud twin, never primary). */
-export type PlayerEndpointRole = AdminEndpointRole | 'music' | 'mirror';
 export type RepeatMode = 'off' | 'one' | 'all';
 export type GroupRole = 'leader' | 'member' | 'none';
 export type PlayerNowKind = NowKind | 'music' | 'station';
@@ -613,11 +610,8 @@ export const sendApplyPreset = (id: string, confirmed = false, requestId: string
 
 // ------------------------------------------------------------------------------------------------ pure helpers: state
 
-export const isPlayerKind = (k: PlayerKind): boolean => PLAYER_KINDS.includes(k);
-export const isNonPhysical = (k: PlayerKind): boolean => NON_PHYSICAL_KINDS.includes(k);
 /** The leader's transport plays it: a member plays with the leader. */
 export const isMember = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role === 'member';
-export const isLeader = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role === 'leader';
 export const isGrouped = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.group.role !== 'none';
 export const isPlaying = (d: Pick<PlayerDevice, 'live'>): boolean => d.live.power === 'on' && d.live.play === 'playing';
 export const isAvailable = (l: Pick<PlayerLive, 'power'>): boolean => !isDead(l);

@@ -274,8 +274,6 @@ export type IntercomPeopleReply = ReadReply<'people', IntercomPeoplePage>;
 /** `person` is null unless `state` is `ready`; an unknown id is a 404 `intercom_person_not_found` (thrown as ApiError). */
 export type IntercomPersonReply = ReadReply<'person', IntercomPerson>;
 
-/** WisKey's own page sizes and default for the people list (panel.ts `_userPageSize`, the `[25, 50, 100, 200]` select). */
-export const PEOPLE_PAGE_SIZES = [25, 50, 100, 200] as const;
 export const PEOPLE_PAGE = 50;
 
 /** One page of the people directory. `query` is matched by the SMPLWISE backend against name and employee number

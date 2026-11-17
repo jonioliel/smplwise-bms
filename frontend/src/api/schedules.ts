@@ -79,7 +79,6 @@ export const STATE_LABEL: Record<ScheduleState, string> = {
   unavailable: 'אין הרצות קרובות',
   unknown: 'לא ידוע',
 };
-export const REPEAT_LABEL: Record<RepeatType, string> = { repeat: 'חוזר', pause: 'פעם אחת ואז מושהה (נשמר)', single: 'פעם אחת ואז נמחק' };
 export const RESULT_LABEL: Record<RunResult, string> = { pending: 'ממתין לאישור', confirmed: 'אושר', not_confirmed: 'לא אושר', skipped: 'דולג', unknown: 'לא ידוע' };
 export const MATCH_LABEL: Record<MatchType, string> = { is: 'שווה ל', not: 'שונה מ', above: 'מעל', below: 'מתחת' };
 export const PRESET_LABEL: Record<ConditionPreset, string> = { only_holy_days: 'רק בשבת ובחג', not_holy_days: 'לא בשבת ובחג' };
@@ -530,62 +529,6 @@ export interface Organisation {
   folders: { id: string; name: string; position: number }[];
   items: { schedule_id: string; folder_id: string | null; order: number | null; pinned: boolean }[];
 }
-
-/** Error codes of §3.20 (the server's `user_message` is shown as is). */
-export type ScheduleErrorCode =
-  | 'forbidden'
-  | 'entity_not_controllable'
-  | 'sensitive_permission_required'
-  | 'grant_required'
-  | 'condition_locked'
-  | 'condition_not_readable'
-  | 'remote_control_disabled'
-  | 'remote_disarm_disabled'
-  | 'wrong_code'
-  | 'schedule_not_found'
-  | 'trash_not_found'
-  | 'schedule_changed'
-  | 'confirmation_required'
-  | 'lowering_confirmation_required'
-  | 'code_required'
-  | 'feature_disabled'
-  | 'validation'
-  | 'action_not_allowed'
-  | 'class_not_allowed'
-  | 'alarm_managed_control'
-  | 'alarm_code_needed'
-  | 'lock_code_needed'
-  | 'code_not_allowed'
-  | 'arm_mode_not_supported'
-  | 'condition_domain_not_allowed'
-  | 'slots_overlap'
-  | 'slot_required'
-  | 'split_not_possible'
-  | 'unsupported_content'
-  | 'tags_not_supported'
-  | 'rate_limited'
-  | 'run_too_soon'
-  | 'code_locked'
-  | 'scheduler_refused'
-  | 'split_incomplete'
-  | 'scheduler_unavailable'
-  | 'ha_unavailable'
-  | 'bridge_not_paired'
-  | 'bridge_too_old'
-  | 'scheduler_timeout'
-  | 'disarm_not_allowed'
-  | 'service_not_supported'
-  | 'bridge_too_old_for_action'
-  | 'script_field_unsupported'
-  | 'action_invalid'
-  | 'issue_not_present'
-  | 'not_acknowledged'
-  | 'confirm_required'
-  | 'script_not_approved'
-  | 'media_not_approved'
-  | 'media_disabled'
-  | 'not_marked'
-  | 'mark_not_needed';
 
 // ------------------------------------------------------------------------------------------------ calls
 
@@ -1204,4 +1147,3 @@ export function nextRunLabel(s: Pick<Schedule, 'next_run' | 'enabled'>, now: Dat
   return s.next_run.conditional ? `${whenLabel(s.next_run.at, now)} · בתנאי` : whenLabel(s.next_run.at, now);
 }
 
-export const newClientRequestId = commandId;

@@ -106,8 +106,3 @@ export function sameRecorder(picked: string[], cams: { id: string; recorder_id: 
   return !first || !cam || first.recorder_id === cam.recorder_id;
 }
 
-/** The recorders a camera list names (`GET /cameras` → `recorders`): a filter is shown only when there are two or more. */
-export interface RecorderRef {
-  id: string;
-  name: string;
-}

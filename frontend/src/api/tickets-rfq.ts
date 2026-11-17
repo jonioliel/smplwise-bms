@@ -29,9 +29,6 @@ export type RfqAwardState = 'pending_second' | 'approved' | 'declined';
 export type RfqLinkState = 'live' | 'grace' | 'expired' | 'revoked' | 'none';
 
 export const RFQ_FILTERS: readonly RfqFilter[] = ['open', 'draft', 'collecting', 'due_passed', 'awarded', 'closed', 'cancelled', 'all'];
-/** The states the server calls open (an award or a close is still possible). */
-export const RFQ_OPEN: readonly RfqState[] = ['sent', 'collecting', 'due_passed'];
-export const RFQ_ENDED: readonly RfqState[] = ['closed', 'cancelled'];
 
 export interface RfqKpis {
   invited: number;

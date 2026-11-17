@@ -35,8 +35,6 @@ export interface FloorImagesInfo {
   layout: FloorImageLayout;
 }
 
-export const DEFAULT_CORNERS: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
-
 export const getFloorImages = (floorId: string) => get<FloorImagesInfo>(path`floors/${floorId}/images`);
 export const uploadFloorImage = (floorId: string, variant: FloorImageVariant, file: File) => {
   const form = new FormData();

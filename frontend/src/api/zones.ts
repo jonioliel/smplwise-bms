@@ -159,22 +159,3 @@ export function pointInPolygon(p: ZonePoint, poly: ZonePoint[]): boolean {
   return inside;
 }
 
-/** Polygon centroid (area-weighted; falls back to the vertex mean for degenerate rings). */
-export function zoneCentroid(poly: ZonePoint[]): ZonePoint {
-  let a = 0;
-  let cx = 0;
-  let cy = 0;
-  for (let i = 0; i < poly.length; i++) {
-    const p = poly[i];
-    const q = poly[(i + 1) % poly.length];
-    const f = p.x * q.y - q.x * p.y;
-    a += f;
-    cx += (p.x + q.x) * f;
-    cy += (p.y + q.y) * f;
-  }
-  if (Math.abs(a) < 1e-9) {
-    const n = poly.length || 1;
-    return { x: poly.reduce((s, p) => s + p.x, 0) / n, y: poly.reduce((s, p) => s + p.y, 0) / n };
-  }
-  return { x: cx / (3 * a), y: cy / (3 * a) };
-}

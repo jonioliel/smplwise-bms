@@ -30,7 +30,3 @@ export async function savePersonal(personal: MediaPersonal | null): Promise<Layo
   return loadLayout();
 }
 
-/** Specs: a fresh demo session. */
-export function resetDemoPersonal(): void {
-  demoPersonal = null;
-}

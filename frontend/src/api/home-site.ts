@@ -173,7 +173,6 @@ export function bulkTargets(tree: DeviceTree, b: SiteBuilding): BulkTarget[] {
 }
 
 export type SiteEntry = 'site' | 'last' | 'fixed';
-export const SITE_ENTRIES: readonly SiteEntry[] = ['site', 'last', 'fixed'];
 
 /** Where the home opens: the user's own choice over the installation's (whole site | the last building he was in | a fixed building);
  * a building that is not (or no longer) shown falls back to the whole site. */

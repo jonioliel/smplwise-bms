@@ -259,9 +259,6 @@ export function frigateRecorderIds(): Promise<Set<string>> {
   frigateIds ??= get<{ recorders: { id: string }[] }>('frigate/recorders').then((r) => new Set(r.recorders.map((x) => x.id))).catch(() => new Set<string>());
   return frigateIds;
 }
-export function resetFrigateRecorderIds(): void {
-  frigateIds = null;
-}
 
 // ---- pure helpers ----
 

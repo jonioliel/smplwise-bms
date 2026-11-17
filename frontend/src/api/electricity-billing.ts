@@ -204,12 +204,6 @@ export interface AccountStatusWire {
   notes: { code: string; text_he: string }[]; // the server sends note objects (services/energy_billing.py), like BillSnapshot.notes
   amount_so_far?: string;
 }
-export interface PeriodRow {
-  from: string;
-  to: string;
-  state: 'billed' | 'draft' | 'open' | 'future';
-  bill: BillSummary | null;
-}
 
 export interface BillSummary {
   id: string;

@@ -17,7 +17,6 @@ import type { DoorTechText } from '../i18n/wiskey-door-tech';
 import { isoZ } from './day-format';
 
 export type DoorTechKind = 'hold_save' | 'hold_delete' | 'code_write' | 'program_save' | 'program_action';
-export const DOOR_TECH_KINDS: readonly DoorTechKind[] = ['hold_save', 'hold_delete', 'code_write', 'program_save', 'program_action'];
 
 /** `acknowledged` / `partial`: the server's success; `refused` (WisKey answered a refusal - its reason in `code`), `not_sent`, `unknown`
  * (sent, no clear answer); `sending` is the screen's own while a request is out, `sent` an attempt row with no outcome yet. */

@@ -324,7 +324,6 @@ const FIELD_LABEL: Record<EncodingField, string> = {
   codec: 'קידוד', profile: 'פרופיל', resolution: 'רזולוציה', fps: 'FPS', bitrate_mode: 'סוג קצב', bitrate_kbps: 'קצב', quality: 'איכות', gop: 'GOP',
   svc: 'SVC', smart_codec: 'Smart codec', b_frames: 'B-frames',
 };
-export const fieldLabel = (f: EncodingField): string => FIELD_LABEL[f];
 export const ROLE_LABEL: Record<StreamRole, string> = { main: 'ראשי', sub: 'משני', third: 'שלישי', other: 'נוסף' };
 
 interface DemoChange {

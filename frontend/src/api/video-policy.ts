@@ -175,19 +175,6 @@ export function webrtcPossible(encoding: CameraEncoding | null | undefined, prof
   return encoding?.[profile]?.webrtc !== 'no';
 }
 
-/** The ladder for one player; may be empty (nothing can play under this policy - the player shows the message). */
-export function videoLadder(preferred: Profile, mseFallback: boolean, encoding?: CameraEncoding | null): VideoStep[] {
-  const steps: VideoStep[] = [];
-  if (webrtcPossible(encoding, preferred)) steps.push({ profile: preferred, transport: 'webrtc' });
-  if (mseFallback) {
-    steps.push({ profile: preferred, transport: 'mse' });
-  } else {
-    const other = otherProfile(preferred);
-    if (webrtcPossible(encoding, other)) steps.push({ profile: other, transport: 'webrtc' });
-  }
-  return steps;
-}
-
 /** `main:webrtc,main:mse` - a value (not an array) so a re-rendered parent does not reconnect the player. */
 export function encodeLadder(steps: VideoStep[]): string {
   return steps.map((s) => `${s.profile}:${s.transport}`).join(',');

@@ -443,12 +443,6 @@ export interface DoorProposal {
 }
 export const proposeDoor = (versionId: string, body: DoorProposalRequest) => post<DoorProposal>(path`plan-versions/${versionId}/door-proposal`, body);
 
-/** Error codes /detect, /detect/accept and /calibration (estimate) can answer with (the API review, backed by
- * routers/plan_geometry.py and tests/test_plan_detect_api.py): the client reads them off ApiError.code. detect_timeout
- * (504) is retryable. calibration_measured (409, "an estimate never replaces a measured calibration silently"): the
- * editor offers the estimate only while the calibration is not measured and never sends replace_measured (Task 9). */
-export type DetectErrorCode = 'detect_timeout' | 'stale_revision' | 'calibration_measured' | 'unknown_candidate' | 'orphan_opening' | 'candidate_source' | 'duplicate_candidate' | 'candidate_shape' | 'geometry_structure';
-
 export type DxfTarget = 'walls' | 'openings' | 'windows' | 'objects' | 'rooms' | 'ignore';
 export interface DxfEntityLayer {
   name: string;

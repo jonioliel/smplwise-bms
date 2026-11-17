@@ -287,7 +287,3 @@ export async function saveBoardPrefs(change: Partial<BoardPrefs>): Promise<Board
   }
 }
 
-/** Tests only: forget the cached preference. */
-export function resetBoardPrefsCache(): void {
-  prefsCache = null;
-}

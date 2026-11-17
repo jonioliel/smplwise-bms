@@ -27,8 +27,6 @@ export const BULK_KINDS: BulkKind[] = ['lights_off', 'covers_close', 'climate_of
 export const BULK_MENU_KINDS: BulkKind[] = ['lights_off', 'lights_on', 'covers_close', 'climate_off', 'heating_off', 'screens_off', 'all_off'];
 /** The kinds that turn something ON (the server's device_bulk.ON_KINDS): they look for devices that are off. */
 export const BULK_ON_KINDS: ReadonlySet<BulkKind> = new Set<BulkKind>(['switches_on', 'lights_on', 'screens_on']);
-/** The cover group control's own four actions (devices-area.ts): open all / stop all / close all / position all. */
-export const COVER_GROUP_KINDS: BulkKind[] = ['covers_open', 'covers_stop', 'covers_close', 'covers_position'];
 
 /** The mockup's menu wording (the quick actions of the floor menu, the area popover and the building buttons), plus
  * the cover group control's own four (CR-007 slice 4). */

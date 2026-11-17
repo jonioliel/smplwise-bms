@@ -253,8 +253,6 @@ export interface PendingFile { id: string; kind: 'photo' | 'pdf'; bytes: number;
 
 export type ReportGroupBy = 'vendor' | 'department' | 'device' | 'room' | 'month';
 export type ReportStatus = 'submitted' | 'approved' | 'paid';
-export const REPORT_GROUPS: readonly ReportGroupBy[] = ['vendor', 'department', 'device', 'room', 'month'];
-export const REPORT_STATUSES: readonly ReportStatus[] = ['submitted', 'approved', 'paid'];
 /** `vendor` (the vendor grouping's key) and `department` (an id): TK258's filters, also taken by the report and the export. */
 export interface ReportQuery { group_by: ReportGroupBy; from?: string; to?: string; status?: ReportStatus[]; currency?: string; vendor?: string; department?: string }
 export interface ReportGroupRow {

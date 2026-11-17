@@ -13,7 +13,7 @@ import { get, patch, post } from './client';
 import { isApi } from './session';
 import { lazyAdapter } from './demo-load';
 import { ticketsMock, withTicketsMock } from './tickets';
-import type { Eligible, Handler, PublicSettings, TicketDetail } from './tickets';
+import type { Eligible, Handler, TicketDetail } from './tickets';
 
 /** 'employee' (owner request 2026-10-14, migration 0084): an employee WITHOUT an account - assigned through a handler link like a contact. */
 export type ContactKind = 'person' | 'vendor' | 'employee';
@@ -192,7 +192,6 @@ export type TicketWithLink = TicketDetail & { link?: LinkBlock | null };
 export interface CopyAnswer { url: string; text: string }
 
 export type { PublicSettings } from './tickets';
-export type ClientIpHeader = PublicSettings['client_ip_header'];
 export type PublicMissing = 'option' | 'listener' | 'address' | 'key';
 export interface TicketsHealth {
   option: boolean;

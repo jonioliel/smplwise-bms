@@ -1695,7 +1695,6 @@ export function triggerEntities(draft: AnyDraft): string[] {
 }
 /** Any locked ACTION with unknown effects (CR §9.6: needs `confirm: true`, and installation-wide manage to run). */
 export const hasUnknownEffects = (draft: AnyDraft): boolean => walkDraft(draft).some((w) => w.section === 'action' && w.block.kind === 'locked' && w.block.effects === 'unknown');
-export const lockedCount = (draft: AnyDraft): number => lockedBlocks(draft).length;
 /** The number of action steps of a draft, nested ones included (the cap of §2.2 is 60). */
 export const stepsOfDraft = (_kind: ItemKind, draft: AnyDraft): number => walkDraft(draft).filter((w) => w.section === 'action').length;
 /** The sensitive calls of a draft with the grant each needs (the preview's `sensitive_steps`). `classOf` = the catalogue's entity class. */
@@ -1950,7 +1949,6 @@ export function sortItems(items: readonly Item[], sort: NonNullable<ListQuery['s
 export const countByKind = (items: readonly Item[]): Record<ItemKind, number> => ({
   automation: items.filter((i) => i.kind === 'automation').length, script: items.filter((i) => i.kind === 'script').length, scene: items.filter((i) => i.kind === 'scene').length,
 });
-export const RUN_RESULT_LABEL: Record<RunResult, string> = { ok: 'הושלמה', error: 'נכשלה', stopped: 'נעצרה', running: 'רצה', not_triggered: 'לא הופעלה' };
 
 // ------------------------------------------------------------------------------------------------ scope of the pickers (CR §7)
 

@@ -1181,7 +1181,3 @@ export function resetDemoStore(): ScheduleDemoStore {
   return STORE;
 }
 
-/** The raw component items of the demo seed (the verified shape, §9.3) - for specs that exercise the normaliser's input. */
-export function demoComponentItems(): Record<string, unknown>[] {
-  return seeds().map((s) => ({ ...(contentOf(s) as Record<string, unknown>), entity_id: s.entity_id, enabled: s.enabled, timestamps: [], next_entries: [] }));
-}

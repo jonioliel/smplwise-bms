@@ -71,11 +71,6 @@ export function setTileLayoutOverride(v: TileLayoutSetting | null) {
   notify();
 }
 
-/** The installation's setting as last read (or saved from the settings screen). */
-export function installationTileLayout(): TileLayoutSetting {
-  return installation;
-}
-
 /** The settings screen saved a new installation value: every open screen follows at once. */
 export function setInstallationTileLayout(v: unknown) {
   installation = isSetting(v) ? v : 'auto';

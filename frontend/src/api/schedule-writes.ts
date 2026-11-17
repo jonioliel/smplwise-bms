@@ -230,4 +230,3 @@ export function outcomeOf(err: unknown): Outcome {
   return { status: 'unknown', code: 'network', message: '', field: null, retryAfter: null };
 }
 
-export const JOB_ACTIVE: readonly string[] = ['pending', 'queued', 'checking'];

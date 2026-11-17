@@ -197,7 +197,3 @@ export function messagingAccountsApi(): MessagingAccountsBackend {
   return isApi() ? rest : demoBackend;
 }
 
-/** Tests only: forget the demo store's edits. */
-export function resetDemoMessagingAccounts(): void {
-  demo = null;
-}

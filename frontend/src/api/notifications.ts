@@ -247,7 +247,6 @@ export const DEDUPE_UNTIL_RESOLVED = 0;
 export const CENTER_LAYOUTS: readonly CenterLayout[] = ['sheet', 'page'];
 export const CENTER_LAYOUT_LABEL: Record<CenterLayout, string> = { sheet: 'חלונית בצד', page: 'מסך מלא' };
 export const FAILURES_AUDIENCES: readonly FailuresAudience[] = ['admins', 'visible'];
-export const FAILURES_AUDIENCE_LABEL: Record<FailuresAudience, string> = { admins: 'מנהלים', visible: 'כל מי שרואה את התזמון / האוטומציה' };
 /** The names of the two settings of the owner's 2026-10-01 answers, as the backend keys them. */
 export const NOTIFY_SETTING_KEYS = { center_layout: 'notify.center_layout', failures_audience: 'notify.failures_audience' } as const;
 /** The sources whose recipients the `failures_audience` setting decides (schedule and automation failures). */
@@ -983,7 +982,6 @@ export type DoorOpenEvent =
 export const doorButtonVisible = (n: Pick<Notification, 'door' | 'state'>): boolean => !!n.door && n.door.can_open && n.state !== 'resolved';
 export const doorOpenQuestion = (name: string): string => `האם אתה בטוח שברצונך לפתוח את ${name}?`;
 export const doorOpenResultText = (name: string): string => `הפקודה נשלחה אל ${name}`;
-export const doorOpenBusy = (s: DoorOpenState): boolean => s.phase === 'sending';
 const DOOR_ERROR_TEXT: Record<string, string> = { ...NOTIFY_ERROR_LABEL, forbidden: 'אין הרשאה לפתוח את הדלת' };
 /** The flow: a press only OPENS the confirmation; nothing is sent until `confirm` follows it (and `step_up_done` after a step-up); the notification
  * never opens a door by itself. A press on a row without `door.can_open` is ignored (no button exists for that user); `cancel` is not possible while a

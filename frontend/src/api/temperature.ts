@@ -7,7 +7,6 @@ import { api, apiBlob, del, get, post, put } from './client';
 import { dispositionName, saveBlob } from './download';
 
 export type UnitKind = 'fridge' | 'freezer' | 'coldroom' | 'pharma' | 'server' | 'room';
-export const UNIT_KINDS: readonly UnitKind[] = ['fridge', 'freezer', 'coldroom', 'pharma', 'server', 'room'];
 /** off = a climate unit switched off (a state, not an alarm; owner 2026-10-19) */
 export type UnitStatus = 'ok' | 'warning' | 'alarm' | 'offline' | 'off' | 'unknown';
 export type BandMode = 'fixed' | 'setpoint';

@@ -351,27 +351,6 @@ export function relayWsUrl(path: string): string {
   return u.toString();
 }
 
-const TRANSPORT_KEY = 'sw.transport';
-
-/** Per-browser override of the transport (set from the player); '' = follow the product default. */
-export function transportOverride(): Transport | '' {
-  try {
-    const v = localStorage.getItem(TRANSPORT_KEY);
-    return v === 'webrtc' || v === 'mse' || v === 'auto' ? v : '';
-  } catch {
-    return '';
-  }
-}
-
-export function setTransportOverride(v: Transport | '') {
-  try {
-    if (v) localStorage.setItem(TRANSPORT_KEY, v);
-    else localStorage.removeItem(TRANSPORT_KEY);
-  } catch {
-    /* per-browser convenience only */
-  }
-}
-
 /** The camera's detection configuration as the NVR holds it (T075, read-only). Coordinates are in the device's own normalized frame. */
 export interface ZoneMotion {
   enabled: boolean;

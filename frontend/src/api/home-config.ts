@@ -34,8 +34,6 @@ export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'me
 // NOTICEPAGE-295: `notices` (the notice board) is appended last; drawn only while the notice board module is on and the viewer may read (no options of its own).
 export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'xsection'];
 export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות', presence: 'נוכחות במבנה', xsection: 'חתך בניין' };
-/** The infrastructure-list widgets (the same mode / hidden / filter shape). */
-export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
 export type ElevatorMode = 'combined' | 'cards' | 'both';
 export type ElevatorFilter = 'all' | 'alerts';
