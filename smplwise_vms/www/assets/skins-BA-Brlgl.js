@@ -1,0 +1,2 @@
+import{L as e,au as r,aw as i}from"./index-C5kZ9jiu.js";import{b as l,d as g}from"./plan-view-B1wm5fGR.js";const u=()=>e("skins/status"),c=()=>r("skins/test"),k=t=>e(`floors/${t}/skins`);function f(t,o,a,n){const s=new FormData;return s.set("state",o),s.set("geometry_key",a),s.set("recipe",l),s.set("file",new Blob([g(n)],{type:"image/png"}),`control-${o}.png`),i(`floors/${t}/skins/control-image`,s)}export{u as a,k as g,c as r,f as u};
+//# sourceMappingURL=skins-BA-Brlgl.js.map
