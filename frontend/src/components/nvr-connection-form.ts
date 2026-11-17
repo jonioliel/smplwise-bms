@@ -10,7 +10,7 @@ import { he } from '../i18n/he';
 import { capabilitiesOfTest } from '../api/frigate';
 import { ApiError, describeError } from '../api/client';
 import {
-  nvrConnection, nvrVendors, removeNvrConnection, saveNvrConnection, testNvrConnection, REMOVE_WORD, SAVE_WORD,
+  nvrConnection, nvrVendors, removeNvrConnection, saveNvrConnection, testNvrConnection,
   type ConnectionBody, type NvrConnection, type SaveResult, type TestResult, type Vendor,
 } from '../api/nvr-connection';
 import {
@@ -19,6 +19,7 @@ import {
 import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 import { tr } from '../i18n/msg/components';
+import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
 
 /** Fields the server keeps as columns; any other field of a vendor's catalogue entry travels in `extra`. */
 const CORE = new Set(['host', 'http_port', 'rtsp_port', 'username', 'password']);
@@ -295,11 +296,12 @@ export class NvrConnectionForm extends LitElement {
 
   private async save(untested = false) {
     if (this.busy || !this.complete) return;
+    if (untested && !confirmWordMatches('nvr_save_untested', this.word)) return;
     this.busy = 'save';
     this.msg = null;
     this.testLine = null;
     try {
-      const extra = untested ? { save_untested: true, confirm_text: SAVE_WORD } : {};
+      const extra = untested ? { save_untested: true, confirm_text: this.word.trim() } : {}; // what was typed (Hebrew or English word)
       if (this.context === 'add') {
         const added = await addRecorder({ ...this.body(), name: this.addName.trim(), ...extra });
         this.untestedOpen = false;
@@ -354,7 +356,7 @@ export class NvrConnectionForm extends LitElement {
   }
 
   private async removeNvr() {
-    if (this.busy || this.word.trim() !== REMOVE_WORD) return;
+    if (this.busy || !confirmWordMatches('nvr_remove', this.word)) return;
     this.busy = 'remove';
     this.msg = null;
     try {
@@ -493,14 +495,14 @@ export class NvrConnectionForm extends LitElement {
       ${this.stale ? html`<div class="actions"><sw-button size=${this.btn} icon="refresh" data-conn-reload @click=${() => void this.load()}>${tr('טען מחדש')}</sw-button></div>` : nothing}
       ${this.untestedOpen
         ? html`<sw-dialog open heading=${tr('שמירה בלי בדיקת חיבור')} subheading=${tr('לא ניתן להתחבר ל־NVR כרגע')} data-conn-untested-dialog @close=${() => (this.untestedOpen = false)}>
-            <sw-field label=${tr('לאישור הקלידו „{word}”', { word: SAVE_WORD })}><input data-ltr data-conn-untested-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="primary" ?disabled=${this.busy !== '' || this.word.trim() !== SAVE_WORD} data-conn-untested-confirm @click=${() => this.save(true)}>${this.busy === 'save' ? tr('שומר…') : tr('שמור')}</sw-button><sw-button variant="ghost" @click=${() => (this.untestedOpen = false)}>${tr('ביטול')}</sw-button></div>
+            <sw-field label=${tr('לאישור הקלידו „{word}”', { word: confirmWord('nvr_save_untested') })}><input data-ltr data-conn-untested-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.busy !== '' || !confirmWordMatches('nvr_save_untested', this.word)} data-conn-untested-confirm @click=${() => this.save(true)}>${this.busy === 'save' ? tr('שומר…') : tr('שמור')}</sw-button><sw-button variant="ghost" @click=${() => (this.untestedOpen = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
       ${this.removeOpen
         ? html`<sw-dialog open heading=${tr('הסרת NVR')} subheading=${tr('המצלמות יישארו במערכת ויושבתו')} data-conn-remove-dialog @close=${() => (this.removeOpen = false)}>
-            <sw-field label=${tr('להסרה הקלידו „{word}”', { word: REMOVE_WORD })}><input data-ltr data-conn-remove-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="danger" ?disabled=${this.busy !== '' || this.word.trim() !== REMOVE_WORD} data-conn-remove-confirm @click=${() => this.removeNvr()}>${this.busy === 'remove' ? tr('מסיר…') : tr('הסר NVR')}</sw-button><sw-button variant="ghost" @click=${() => (this.removeOpen = false)}>${tr('ביטול')}</sw-button></div>
+            <sw-field label=${tr('להסרה הקלידו „{word}”', { word: confirmWord('nvr_remove') })}><input data-ltr data-conn-remove-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.busy !== '' || !confirmWordMatches('nvr_remove', this.word)} data-conn-remove-confirm @click=${() => this.removeNvr()}>${this.busy === 'remove' ? tr('מסיר…') : tr('הסר NVR')}</sw-button><sw-button variant="ghost" @click=${() => (this.removeOpen = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
     </div>`;

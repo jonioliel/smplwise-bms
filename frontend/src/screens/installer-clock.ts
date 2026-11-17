@@ -229,6 +229,7 @@ export class InstallerClock extends LitElement {
       heading: C.hostApplyHeading,
       body: fill(C.hostApplyBody, { server: s.server ?? '' }),
       typed: this.view.host_typed_phrase,
+      typedFixed: true,
       danger: true,
       maxSeconds: 45,
       send: (typed) => applyHostClock(s.revision, typed ?? ''),

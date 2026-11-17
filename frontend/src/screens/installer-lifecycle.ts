@@ -205,7 +205,7 @@ export class InstallerLifecycle extends LitElement {
     const f = this.flow;
     if (!f || !f.step_id) return;
     if (f.step_id === 'mapping') {
-      this.confirm = { heading: L.pulseHeading, body: L.pulseWarn, typed: PULSE_PHRASE, danger: true, maxSeconds: 55, send: (t) => this.sendStep(t) };
+      this.confirm = { heading: L.pulseHeading, body: L.pulseWarn, typed: PULSE_PHRASE, typedFixed: true, danger: true, maxSeconds: 55, send: (t) => this.sendStep(t) };
       return;
     }
     if (COMMITTING_STEPS.includes(f.step_id)) {
