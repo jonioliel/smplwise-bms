@@ -34,11 +34,13 @@ import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, count
 import { t as vt } from '../i18n/he';
 import { PollController } from '../components/poll-controller';
 
-/** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
-export const WALL_QUALITY_KEY = 'sw.wall.quality';
+/** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting.
+ * CR-FE-NITS-2442 (06:STORE-1): was named WALL_QUALITY_KEY, the name map/wall-plan-mode.ts gives ANOTHER key (the wall plan's 3D
+ * quality, 'sw.plan3d.wall_quality'). The stored key itself is unchanged, so a device keeps its choice. */
+export const WALL_STREAM_KEY = 'sw.wall.quality';
 function storedQuality(): 'auto' | 'main' | 'sub' {
   try {
-    const v = localStorage.getItem(WALL_QUALITY_KEY);
+    const v = localStorage.getItem(WALL_STREAM_KEY);
     return v === 'main' || v === 'sub' ? v : 'auto';
   } catch {
     return 'auto';
@@ -786,8 +788,8 @@ export class LiveWall extends LitElement {
   private setQuality(value: string) {
     this.stream = value === 'main' ? 'main' : value === 'sub' ? 'sub' : 'auto';
     try {
-      if (this.stream === 'auto') localStorage.removeItem(WALL_QUALITY_KEY);
-      else localStorage.setItem(WALL_QUALITY_KEY, this.stream);
+      if (this.stream === 'auto') localStorage.removeItem(WALL_STREAM_KEY);
+      else localStorage.setItem(WALL_STREAM_KEY, this.stream);
     } catch {
       /* private mode: the choice lasts until the page closes */
     }

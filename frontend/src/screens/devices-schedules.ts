@@ -87,6 +87,7 @@ import {
 import { toneColor } from '../components/sw-schedule-bar';
 import { SkinController } from '../design/skin';
 import { tablistKeydown } from '../components/a11y-keys';
+import { readStoredJson, storedText, writeStoredJson } from '../api/safe-storage';
 import { devicesSchedulesStyles } from './devices-schedules-css';
 
 const VIEW_KEY = 'sw.schedules.view';
@@ -106,31 +107,6 @@ const VIEWS: ListView[] = ['rows', 'cards', 'table', 'week'];
 /** POLISH-295: the minutes since local midnight of an instant, as a share of the day (the "today" timeline). */
 function dayShare(d: Date): number {
   return Math.min(1, Math.max(0, (d.getHours() * 60 + d.getMinutes()) / 1440));
-}
-
-function store(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function readStored<T>(key: string): T | null {
-  try {
-    const raw = store()?.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(key: string, value: unknown) {
-  try {
-    store()?.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage unavailable: the choice is not remembered */
-  }
 }
 
 /** CR-EDITORS-MEMO-2440: state that changes no size or position the header bar / the fit measurement reads (a popover menu, the toast, disabled buttons). */
@@ -232,9 +208,9 @@ export class DevicesSchedules extends LitElement {
     window.addEventListener('keydown', this.onKey);
     // the trash is in the user menu, as on the automations screen (screen-edit.ts)
     this.offEdit = registerScreenEdit({ id: 'schedules-trash', label: 'סל מחזור', icon: 'trash', can: () => screenState(this.status).kind === 'ready' && this.sub !== 'trash', run: () => this.go('trash') });
-    const stored = readStored<Partial<ListFilters>>(FILTERS_KEY);
-    // POLISH-295: the choice is written as JSON (writeStored); reading it raw never matched, so the browser's view was never remembered
-    const storedView = parseView(readStored<string>(VIEW_KEY)) ?? parseView(store()?.getItem(VIEW_KEY) ?? null);
+    const stored = readStoredJson<Partial<ListFilters>>(FILTERS_KEY);
+    // POLISH-295: the choice is written as JSON (writeStoredJson); reading it raw never matched, so the browser's view was never remembered
+    const storedView = parseView(readStoredJson<string>(VIEW_KEY)) ?? parseView(storedText(VIEW_KEY));
     const params = parseRoute().params;
     // the address carries the state (a link keeps it); without one, this browser's last choice
     this.filters = params.toString() ? parseFilters(params) : stored ? parseFilters(filtersToParams({ ...NO_FILTERS, ...stored })) : { ...NO_FILTERS };
@@ -375,7 +351,7 @@ export class DevicesSchedules extends LitElement {
       const p = this.params();
       this.lastWritten = p.toString();
       replaceRoute(this.path(this.sub), p);
-      writeStored(FILTERS_KEY, this.filters);
+      writeStoredJson(FILTERS_KEY, this.filters);
     }, delay);
   }
 
@@ -589,7 +565,7 @@ export class DevicesSchedules extends LitElement {
     this.view = v;
     this.page = 1;
     this.fitRows = null; // NOSCROLL-295: each view has its own item height
-    writeStored(VIEW_KEY, v);
+    writeStoredJson(VIEW_KEY, v);
     this.syncUrl();
   }
 

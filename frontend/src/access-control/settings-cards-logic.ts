@@ -96,14 +96,8 @@ export function saveOpenCard(storage: StorageLike | null, userId: string | null 
   }
 }
 
-/** The browser's storage, or null when touching it throws. */
-export function browserStorage(): Storage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
+// The browser's storage, or null when touching it throws: the shared helper (CR-FE-NITS-2442, 06:STORE-1), re-exported for the cards.
+export { browserStorage } from '../api/safe-storage';
 
 // ---------------------------------------------------------------- the one-line summaries
 

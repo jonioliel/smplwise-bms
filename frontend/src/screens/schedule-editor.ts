@@ -112,6 +112,7 @@ import { TEMPLATES, templateById, withPreset, type TemplateDraft } from './sched
 import { dateInputLang } from '../api/day-format';
 import { conflictMove, conflictSlotIndex, draftConflicts, warningsHeading, type ConflictRow } from '../api/automations-ext';
 import './automation-ext-dialogs';
+import { browserSession, dropStored, storeText, storedText } from '../api/safe-storage';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -140,23 +141,8 @@ const VIEW_KEY = 'sw.schedules.editor_view';
 const STASH_PREFIX = 'sw.schedules.stash.';
 
 function readView(): EditView | null {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === 'week' || v === 'day' || v === 'table' ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeSession(op: 'get' | 'set' | 'del', key: string, value?: string): string | null {
-  try {
-    if (op === 'get') return sessionStorage.getItem(key);
-    if (op === 'set') sessionStorage.setItem(key, value ?? '');
-    else sessionStorage.removeItem(key);
-  } catch {
-    /* storage unavailable */
-  }
-  return null;
+  const v = storedText(VIEW_KEY);
+  return v === 'week' || v === 'day' || v === 'table' ? v : null;
 }
 
 const CAT_ICON: Record<SlotCategory, GridSlotView['icon']> = { on: 'power', off: 'power', level: 'light', climate: 'thermo', cover: 'blinds', secure: 'shield', custom: 'lock', empty: 'plus' };
@@ -808,7 +794,7 @@ export class ScheduleEditor extends LitElement {
     this.stopSub?.();
     this.stopSub = null;
     // leaving with unsaved edits (a nav-rail click, the back button): keep the draft for the next visit
-    if (this.dirty && !this.savedOk && this.loadedFor) safeSession('set', STASH_PREFIX + this.loadedFor, JSON.stringify({ draft: this.currentDraft() }));
+    if (this.dirty && !this.savedOk && this.loadedFor) storeText(STASH_PREFIX + this.loadedFor, JSON.stringify({ draft: this.currentDraft() }), browserSession());
   }
 
   private onMq = (e: MediaQueryListEvent) => {
@@ -961,7 +947,7 @@ export class ScheduleEditor extends LitElement {
       this.meta = meta;
       if (sched) this.adopt(sched);
       else this.startNew(status, meta);
-      const raw = safeSession('get', STASH_PREFIX + this.loadedFor);
+      const raw = storedText(STASH_PREFIX + this.loadedFor, browserSession());
       if (raw) {
         try {
           this.stash = JSON.parse(raw) as { draft: ScheduleDraft };
@@ -1010,8 +996,8 @@ export class ScheduleEditor extends LitElement {
     const repeat: RepeatType = status?.settings.default_repeat ?? 'repeat';
     let td: TemplateDraft | null = null;
     if (params.get('draft')) {
-      const raw = safeSession('get', NEW_DRAFT_KEY);
-      safeSession('del', NEW_DRAFT_KEY);
+      const raw = storedText(NEW_DRAFT_KEY, browserSession());
+      dropStored(NEW_DRAFT_KEY, browserSession());
       if (raw) {
         try {
           const d = JSON.parse(raw) as ScheduleDraft;
@@ -1090,7 +1076,7 @@ export class ScheduleEditor extends LitElement {
 
   private go(href: string) {
     this.savedOk = true; // nothing to stash: the person chose to leave
-    safeSession('del', STASH_PREFIX + this.loadedFor);
+    dropStored(STASH_PREFIX + this.loadedFor, browserSession());
     if (href.startsWith('#')) navigate(href.slice(1).split('?')[0], Object.fromEntries(new URLSearchParams(href.split('?')[1] ?? '')));
     else window.location.assign(href);
   }
@@ -1253,11 +1239,7 @@ export class ScheduleEditor extends LitElement {
 
   private setView(v: EditView) {
     this.view = v;
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      /* not persisted */
-    }
+    storeText(VIEW_KEY, v);
   }
 
   // ------------------------------------------------------------------------------------------------ split (one day / some days)
@@ -1550,13 +1532,13 @@ export class ScheduleEditor extends LitElement {
     const d = this.stash.draft;
     this.draft = { ...d, slots: sorted(d.slots.map(withUid), this.sunNow).slots };
     this.stash = null;
-    safeSession('del', STASH_PREFIX + this.loadedFor);
+    dropStored(STASH_PREFIX + this.loadedFor, browserSession());
     this.mark();
   }
 
   private dropStash() {
     this.stash = null;
-    safeSession('del', STASH_PREFIX + this.loadedFor);
+    dropStored(STASH_PREFIX + this.loadedFor, browserSession());
   }
 
   // ------------------------------------------------------------------------------------------------ view models

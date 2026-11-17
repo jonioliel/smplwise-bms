@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { browserSession, browserStorage, dropStored, readStoredJson, storeText, storedText, writeStoredJson, type StorageLike } from '../src/api/safe-storage';
 
 // CR-FE-NITS-2442 (code review 06, frontend chain step FE-4): the small findings NOOP-1, STORE-1, TIMER-1 (rest), RESIZE-1 (rest), RTL-1.
 // Node only. The pure pieces (safe storage, the frame coalescer) are run; how the screens use them is checked in the source, as the
@@ -36,4 +37,112 @@ test('NOOP-1: the no-op ternary, the unused parameters, the double imports and t
   expect(diag).toMatch(/like the other switches\. \*\/\n {2}private async toggleLocalSafety\(/);
   expect(diag).not.toMatch(/\*\/\n {2}\/\*\* POLISH4-WP7/);
   expect(diag).not.toMatch(/\*\/\n {2}\/\*\* OFFBOX-RESTORE-2300 \(owner answer 2026-10-30\)/);
+});
+
+// ------------------------------------------------------------------------------------------------ 06:STORE-1
+
+/** A storage over a map; `broken` makes every call throw (a private window, blocked site data, a full quota). */
+function fakeStorage(seed: Record<string, string> = {}, broken = false) {
+  const m = new Map(Object.entries(seed));
+  const fail = () => {
+    throw new Error('storage refused');
+  };
+  const s: StorageLike = {
+    getItem: (k) => (broken ? fail() : m.has(k) ? m.get(k)! : null),
+    setItem: (k, v) => void (broken ? fail() : m.set(k, v)),
+    removeItem: (k) => void (broken ? fail() : m.delete(k)),
+  };
+  return { s, m };
+}
+
+test('STORE-1: text and JSON round-trip through a storage', () => {
+  const { s, m } = fakeStorage();
+  expect(storedText('a', s)).toBeNull();
+  storeText('a', 'week', s);
+  expect(storedText('a', s)).toBe('week');
+  expect(m.get('a')).toBe('week'); // text is stored as it is, not as JSON
+  writeStoredJson('f', { q: 'x', on: true }, s);
+  expect(m.get('f')).toBe('{"q":"x","on":true}');
+  expect(readStoredJson<{ q: string; on: boolean }>('f', s)).toEqual({ q: 'x', on: true });
+  dropStored('a', s);
+  expect(storedText('a', s)).toBeNull();
+  expect(m.has('a')).toBe(false);
+});
+
+test('STORE-1: nothing stored, an empty text and a text that is not JSON all read as null', () => {
+  const { s } = fakeStorage({ empty: '', raw: 'rows', bad: '{"a":' });
+  expect(readStoredJson('missing', s)).toBeNull();
+  expect(readStoredJson('empty', s)).toBeNull();
+  expect(readStoredJson('raw', s)).toBeNull(); // devices-schedules reads its old raw view value with storedText after this null
+  expect(storedText('raw', s)).toBe('rows');
+  expect(readStoredJson('bad', s)).toBeNull();
+  expect(storedText('empty', s)).toBe(''); // an empty text is a stored value (settings-cards: "no card open")
+});
+
+test('STORE-1: a storage that throws, or no storage at all, never throws to the caller', () => {
+  const { s } = fakeStorage({ a: '1' }, true);
+  for (const storage of [s, null]) {
+    expect(storedText('a', storage)).toBeNull();
+    expect(readStoredJson('a', storage)).toBeNull();
+    expect(() => storeText('a', '2', storage)).not.toThrow();
+    expect(() => writeStoredJson('a', { x: 1 }, storage)).not.toThrow();
+    expect(() => dropStored('a', storage)).not.toThrow();
+  }
+  // a value that cannot be serialised is not remembered either
+  const { s: ok, m } = fakeStorage();
+  const loop: Record<string, unknown> = {};
+  loop.self = loop;
+  expect(() => writeStoredJson('loop', loop, ok)).not.toThrow();
+  expect(m.has('loop')).toBe(false);
+});
+
+test('STORE-1: where there is no browser storage (node) the door answers null, and one that throws on the read is null too', () => {
+  expect(browserStorage()).toBeNull();
+  expect(browserSession()).toBeNull();
+  const g = globalThis as Record<string, unknown>;
+  for (const name of ['localStorage', 'sessionStorage']) {
+    Object.defineProperty(g, name, { configurable: true, get: () => { throw new Error('SecurityError'); } });
+  }
+  try {
+    expect(browserStorage()).toBeNull();
+    expect(browserSession()).toBeNull();
+    expect(storedText('a')).toBeNull(); // the default storage is the browser's
+    expect(() => storeText('a', '1')).not.toThrow();
+  } finally {
+    delete g.localStorage;
+    delete g.sessionStorage;
+  }
+  const { s } = fakeStorage({ a: '1' });
+  Object.defineProperty(g, 'localStorage', { configurable: true, value: s });
+  try {
+    expect(browserStorage()).toBe(s);
+    expect(storedText('a')).toBe('1');
+  } finally {
+    delete g.localStorage;
+  }
+});
+
+test('STORE-1: the screens use the shared door, and the two wall keys no longer share a name', () => {
+  const HAND_ROLLED = /\b(?:window\.)?(?:localStorage|sessionStorage)\b/;
+  for (const f of ['screens/schedule-editor.ts', 'screens/devices-schedules.ts', 'screens/system-access-parity.ts']) {
+    const code = src(f);
+    expect(code, f).toContain("from '../api/safe-storage';");
+    expect(HAND_ROLLED.test(code), `${f}: touches the storage itself`).toBe(false);
+  }
+  const sched = src('screens/schedule-editor.ts');
+  expect(sched).not.toContain('function safeSession(');
+  // the editor's stash and the "new schedule" hand-off are per tab: they stay in the session storage
+  expect(sched.match(/, browserSession\(\)\)/g)?.length).toBe(7);
+  const list = src('screens/devices-schedules.ts');
+  expect(list).not.toMatch(/function (store|readStored|writeStored)\(/);
+  // the cards' module keeps its export (system-diagnostics and its tests import it from there), now the shared one
+  const cards = src('access-control/settings-cards-logic.ts');
+  expect(cards).toContain("export { browserStorage } from '../api/safe-storage';");
+  expect(cards).not.toContain('export function browserStorage(');
+  expect(src('screens/system-access-parity.ts')).not.toContain('function browserStorage(');
+  // one name, one key
+  const wall = src('screens/live-wall.ts');
+  expect(wall).toContain("export const WALL_STREAM_KEY = 'sw.wall.quality';"); // the stored key is unchanged: a device keeps its choice
+  expect(wall).not.toMatch(/const WALL_QUALITY_KEY|Item\(WALL_QUALITY_KEY/); // the old name is left only in the comment that tells it
+  expect(src('map/wall-plan-mode.ts')).toContain("export const WALL_QUALITY_KEY = 'sw.plan3d.wall_quality';");
 });
