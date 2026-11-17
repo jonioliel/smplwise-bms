@@ -688,11 +688,9 @@ export class LiveCamera extends LitElement {
       max-block-size: min(60dvh, 640px);
       inline-size: 100%;
       margin-inline: auto;
-      border-radius: var(--sw-r-lg);
       overflow: hidden;
       background: var(--sw-video-bg);
       color: var(--sw-on-video);
-      box-shadow: var(--sw-shadow-2);
     }
     .video sw-scene,
     .video sw-live-player {
@@ -702,10 +700,6 @@ export class LiveCamera extends LitElement {
     .video.off {
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
-      box-shadow: inset 0 0 0 1px var(--sw-border-strong);
-    }
-    .video.off .center sw-icon {
-      color: var(--sw-offline);
     }
     .shade {
       position: absolute;
@@ -730,7 +724,6 @@ export class LiveCamera extends LitElement {
       inset-inline-start: 12px;
       inset-block-end: 10px;
       font-family: var(--sw-font-mono);
-      font-size: var(--sw-fs-xs);
       direction: ltr;
       color: var(--sw-on-video);
       text-shadow: 0 1px 2px var(--sw-video-scrim);
@@ -739,7 +732,6 @@ export class LiveCamera extends LitElement {
       position: absolute;
       inset-inline-end: 12px;
       inset-block-end: 10px;
-      font-size: var(--sw-fs-xs);
       color: var(--sw-on-video);
       text-shadow: 0 1px 2px var(--sw-video-scrim);
       direction: ltr;
@@ -790,27 +782,19 @@ export class LiveCamera extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
       flex-wrap: wrap;
-      margin-block-start: 12px;
     }
     .round {
       display: flex;
-      gap: 8px;
       align-items: center;
       flex-wrap: wrap;
     }
     .round button {
-      inline-size: 38px;
-      block-size: 38px;
       border-radius: 50%;
       border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
-      color: var(--sw-text-2);
       display: grid;
       place-items: center;
       cursor: pointer;
-      box-shadow: var(--sw-shadow-1);
     }
     @media (hover: hover) and (pointer: fine) {
       .round button:hover {
@@ -850,11 +834,7 @@ export class LiveCamera extends LitElement {
     .round .q {
       inline-size: auto;
       border-radius: var(--sw-r-pill);
-      padding-inline: 10px;
       font: inherit;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      block-size: 30px;
     }
     .round .q.on {
       background: var(--sw-accent);
@@ -871,15 +851,10 @@ export class LiveCamera extends LitElement {
     .round .transport button {
       display: inline-block;
       inline-size: auto;
-      block-size: 26px;
       border: 0;
       background: transparent;
       box-shadow: none;
       font: inherit;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      padding: 0 9px;
-      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
     }
@@ -963,32 +938,20 @@ export class LiveCamera extends LitElement {
     .grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 12px;
-      margin-block-start: 12px;
       align-items: start;
     }
     dl {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 6px 14px;
       margin: 0;
-      font-size: var(--sw-fs-sm);
-    }
-    dt {
-      color: var(--sw-text-3);
     }
     dd {
       margin: 0;
-      font-weight: var(--sw-fw-medium);
     }
     .tiles {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-    }
-    .note {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
     }
     @media (max-width: 767px) {
       .grid {
@@ -1059,14 +1022,10 @@ export class LiveCamera extends LitElement {
     .acc-root {
       margin-block-start: 12px;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
     }
     .acc-root > summary {
       padding: 12px 14px;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
     }
     .acc-root[open] > summary {
       border-block-end: 1px solid var(--sw-border);
@@ -1135,18 +1094,10 @@ export class LiveCamera extends LitElement {
        surface, the first shadow, rounded - that reads as the camera's control deck under the hero */
     .controls {
       margin-block-start: 14px;
-      padding: 10px 14px;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-xl);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-2);
-    }
-    .round {
-      gap: 10px;
     }
     .round button {
-      inline-size: 42px;
-      block-size: 42px;
       border-color: var(--sw-border);
       color: var(--sw-heading);
       -webkit-tap-highlight-color: transparent;
@@ -1173,10 +1124,6 @@ export class LiveCamera extends LitElement {
       box-shadow: none;
     }
     .round .q {
-      block-size: 36px;
-      padding-inline: 14px;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
     }
     .round .q.on,
@@ -1185,11 +1132,6 @@ export class LiveCamera extends LitElement {
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
       box-shadow: var(--sw-shadow-primary);
-    }
-    .round .transport button {
-      block-size: 30px;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
     }
     .grid {
       gap: 16px;
@@ -1266,9 +1208,6 @@ export class LiveCamera extends LitElement {
       block-size: 44px;
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);
-    }
-    .round .transport {
-      background: color-mix(in srgb, var(--sw-heading) 6%, var(--sw-surface));
     }
     .round .q {
       block-size: 40px;

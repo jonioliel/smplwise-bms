@@ -205,12 +205,9 @@ export class InvestigateHistoryMap extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-semibold);
     }
     .sub {
       font-size: var(--sw-fs-sm);
-      color: var(--sw-text-3);
       margin-block-start: 2px;
     }
     .grow {
@@ -223,18 +220,13 @@ export class InvestigateHistoryMap extends LitElement {
       align-items: center;
       gap: 10px;
       margin: 0 24px 10px;
-      padding: 8px 12px;
       background: var(--sw-recorded-soft);
       border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent);
-      border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       flex-wrap: wrap;
     }
     .time {
-      font-family: var(--sw-font-mono);
       direction: ltr;
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-accent-text);
     }
     input[type='range'] {
       inline-size: 260px;
@@ -254,7 +246,6 @@ export class InvestigateHistoryMap extends LitElement {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
       overflow: hidden;
     }
     .stage.alone {
@@ -279,19 +270,14 @@ export class InvestigateHistoryMap extends LitElement {
       border-radius: var(--sw-r-pill);
       padding: 3px 10px;
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
     }
     .chip {
       position: absolute;
       inset-inline-start: 12px;
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
-      background: var(--sw-menu-surface);
-      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       padding: 5px 10px;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
       display: inline-flex;
       gap: 6px;
       align-items: center;
@@ -308,7 +294,6 @@ export class InvestigateHistoryMap extends LitElement {
       border-radius: var(--sw-r-md);
       padding: 3px 9px; /* 4 / 10 minus the hairline: the tag keeps its size */
       font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
     }
     .hist.below {
       inset-block-start: 44px;
@@ -328,14 +313,11 @@ export class InvestigateHistoryMap extends LitElement {
       align-items: center;
     }
     dt {
-      color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
     dd {
       margin: 0;
-      font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-md);
-      color: var(--sw-heading);
       min-inline-size: 0;
       overflow-wrap: anywhere;
     }
@@ -351,24 +333,14 @@ export class InvestigateHistoryMap extends LitElement {
       gap: 8px;
       min-block-size: 42px;
       padding: 7px 12px;
-      background: var(--sw-surface-2);
       border-radius: var(--sw-r-sm);
       text-decoration: none;
       color: var(--sw-heading);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
-      transition: transform var(--sw-t-press) var(--sw-ease-out);
-    }
-    .evl a:active {
-      transform: scale(var(--sw-press-scale));
-    }
-    .evl a.hit {
-      border-color: var(--sw-accent);
-      background: var(--sw-accent-soft);
     }
     .evl .s {
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
     }
     .ltr {
       direction: ltr;
