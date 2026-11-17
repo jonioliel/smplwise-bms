@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import { cardChips, confirmLine, floorLine, areaLine, runLine } from './automations-logic';
 import { mapAutomationError, runNeedsConfirm, runScriptNow, stopScriptNow, type AutomationsStatus, type Item } from '../api/automations';

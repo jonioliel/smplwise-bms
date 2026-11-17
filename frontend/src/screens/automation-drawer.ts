@@ -6,7 +6,8 @@ import '../components/run-trace';
 import '../components/script-fields-form';
 import { aIcon, blockIcon, domainIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass, autoApi } from '../api/automations-demo';
+import { autoApi } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import {
   childLists, controlsSchedules, copyItem, deleteItem, mapAutomationError, readOnlyChip, runAutomation, runNeedsConfirm, runScriptNow, stopScriptNow, walkDraft,

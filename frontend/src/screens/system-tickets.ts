@@ -40,7 +40,7 @@ import { applyTicketsHidden, TICKETS_HANDLERS_HREF } from '../shell/nav';
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';

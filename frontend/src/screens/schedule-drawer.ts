@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import '../components/sw-schedule-bar';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { DEMO_SUN } from '../api/schedules-mock';

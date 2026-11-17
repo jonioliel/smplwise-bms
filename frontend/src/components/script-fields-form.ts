@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, state } from 'lit/decorators.js';
 import { aIcon } from './automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import type { ScriptField } from '../api/automations';
 
 import { fieldDefaults, missingFields, type FieldChoice } from '../screens/automations-logic';

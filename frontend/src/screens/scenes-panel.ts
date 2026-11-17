@@ -5,7 +5,8 @@ import '../components/sw-dialog';
 import '../components/scene-capture';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass, autoApi } from '../api/automations-demo';
+import { autoApi } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import {
   activateScene, createItem, deleteItem, mapAutomationError, replaceItem,

@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import '../tickets/table-toolbar';
 import '../tickets/table-bulk';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';

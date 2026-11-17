@@ -61,7 +61,7 @@ import {
 import { navigate, parseRoute } from '../router';
 import { devicesStyleTokens } from './devices-style';
 import { mediaGlassKnobs, mediaBubbleKnobs } from '../styles/media-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import {
   addEntitiesToSlots,
   classOfEntity,

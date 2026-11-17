@@ -22,8 +22,6 @@ import { ApiError } from './client';
 import { isApi } from './session';
 import { automations, type AutomationsAdapter } from './automations';
 import type { MockUserId } from './automations-mock';
-import { applyDevicesScheme } from '../screens/devices-style';
-import { applyMediaGlass } from '../styles/media-glass';
 
 export interface DemoControl {
   user?: MockUserId;
@@ -109,12 +107,5 @@ export function autoApi(): AutomationsAdapter {
   });
 }
 
-/** The glass style of the multimedia area (always glass), the installation's scheme with a backend, the demo control's scheme without one. */
-export function applyAutomationsGlass(host: HTMLElement): void {
-  void applyMediaGlass(host).then(() => {
-    const scheme = demoControl().scheme;
-    if (!isApi() && scheme && host.isConnected) applyDevicesScheme(host, scheme);
-  });
-  const scheme = demoControl().scheme;
-  if (!isApi() && scheme) applyDevicesScheme(host, scheme);
-}
+/** 08:F13: the glass helper moved to styles/glass.ts; this path keeps the name for old importers. New code imports it from there. */
+export { applyAutomationsGlass } from '../styles/glass';

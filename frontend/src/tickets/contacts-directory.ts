@@ -10,7 +10,7 @@ import './phone-verify';
 import '../access-external/identity-card'; // SHAREDID-293: the access-control identity of a person (renders nothing without the right)
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';

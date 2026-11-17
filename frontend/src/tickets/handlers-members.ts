@@ -8,7 +8,7 @@ import '../components/sw-state-panel';
 import './phone-verify';
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';

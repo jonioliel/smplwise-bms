@@ -5,7 +5,7 @@ import '../components/sw-dialog';
 import './ticket-cost-card';
 import './quote-form'; // TKUI3B: a quote entered on the vendor's behalf
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { session } from '../api/session';
 import { bubbleChrome } from '../styles/bubble-chrome';
