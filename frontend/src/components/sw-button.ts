@@ -177,9 +177,17 @@ export class SwButton extends LitElement {
     }
   `;
 
+  /** CR-LOCAL-USER-CREATE-2438: the native button lives in this element's shadow root, where it has NO form owner - a `type="submit"`
+   * there never submitted the form around the host (the Arx-users create form sent nothing since it was written). The host submits
+   * it: `requestSubmit()` runs the form's own validation and fires its `submit` event, exactly like a native submit button. */
+  private onClick = () => {
+    if (this.type !== 'submit' || this.disabled) return;
+    this.closest('form')?.requestSubmit();
+  };
+
   render() {
     return html`
-      <button type=${this.type} ?disabled=${this.disabled} aria-label=${this.iconOnly ? this.label : ''} title=${this.iconOnly ? this.label : ''}>
+      <button type=${this.type} ?disabled=${this.disabled} @click=${this.onClick} aria-label=${this.iconOnly ? this.label : ''} title=${this.iconOnly ? this.label : ''}>
         ${this.icon ? html`<sw-icon .name=${this.icon} size=${this.size === 'sm' ? 13 : this.size === 'lg' ? 18 : 15}></sw-icon>` : ''}
         ${this.iconOnly ? '' : html`<slot>${this.label}</slot>`}
       </button>

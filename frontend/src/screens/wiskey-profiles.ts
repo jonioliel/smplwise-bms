@@ -651,7 +651,7 @@ export class WiskeyProfilesScreen extends LitElement {
         <form class="row-inline" @submit=${(e: Event) => (e.preventDefault(), void this.searchPeople())}>
           <label class="f grow"><span>${pft('suggestSearch')}</span><input type="search" .value=${this.peopleQuery} placeholder=${pft('suggestSearchPh')} data-pf-people-q
             @input=${(e: Event) => (this.peopleQuery = (e.target as HTMLInputElement).value)} /></label>
-          <sw-button type="submit" variant="secondary" icon="search" data-pf-people-search @click=${() => void this.searchPeople()}>${pft('suggestSearch')}</sw-button>
+          <sw-button type="submit" variant="secondary" icon="search" data-pf-people-search>${pft('suggestSearch')}</sw-button>
         </form>
         ${this.people.length
           ? html`<div class="chips" role="listbox" aria-label=${pft('suggestSearch')}>${this.people.map((p) => html`<button type="button" role="option" class="chip ${this.person?.id === p.id ? 'on' : ''}"
