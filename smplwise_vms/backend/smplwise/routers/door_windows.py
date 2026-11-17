@@ -556,10 +556,6 @@ def put_door_flags(body: FlagsBody, request: Request, station_id: str = Path(min
 
 # ================================================================ emergency
 
-def _any(conn: sqlite3.Connection, principal: Principal, permission: str) -> bool:
-    return permission in permissions_anywhere(conn, principal)
-
-
 @router.get("/doors/emergency/state")
 def emergency_state(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The visible state (CR-039 8.1): the active incident (the red strip) for everyone who sees doors, and - for the holders of an
