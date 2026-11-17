@@ -91,6 +91,18 @@ export function deepActive(): HTMLElement | null {
 }
 
 /**
+ * Whether the focus is somewhere inside `host` - a light child or a part of its shadow tree, at any shadow depth - and not on `host`
+ * itself. The walk the 2.43.7 gate fix wrote into sw-dialog (a field focused in the frame before the dialog's own first focus keeps
+ * it), kept here so that the primitives hold no private focus walk (RELEASE-2438-TRAIN).
+ */
+export function focusWithin(host: Element): boolean {
+  for (let now: Element | null = document.activeElement; now && now !== document.body; now = now.shadowRoot?.activeElement ?? null) {
+    if (now !== host && (host.contains(now) || host.shadowRoot?.contains(now))) return true;
+  }
+  return false;
+}
+
+/**
  * Tab / Shift+Tab wrap inside a modal box. `all` are the box's focusable elements in visual order (deepFocusables), `active` the
  * element that holds focus and `inside` whether that element is in the box. Focus outside the box is pulled to the first element
  * (the last one with Shift); on an edge it wraps to the other edge; anywhere else the browser moves it. An edge also counts when
