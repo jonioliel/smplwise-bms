@@ -169,7 +169,9 @@ test('shared contracts: popover Escape, the dialog stack, the field names its co
   expect(pop).toMatch(/addEventListener\('keydown', this\.onKey\)/);
   expect(pop).toMatch(/e\.key !== 'Escape'/);
   expect(pop).toMatch(/back\.focus\(/);
-  expect(read('components/sw-dialog.ts')).toMatch(/OPEN_STACK\[OPEN_STACK\.length - 1\]/);
+  // CR-MODAL-STACK-2441: the list of open dialogs became the stack shared with the drawer and the sheet (components/modal-stack.ts)
+  expect(read('components/sw-dialog.ts')).toMatch(/if \(!takesEscape\(this, e\)\) return;/);
+  expect(read('components/modal-stack.ts')).toMatch(/export function takesEscape/);
   expect(read('components/sw-field.ts')).toMatch(/setAttribute\('aria-label', this\.label\)/);
   const keys = read('components/a11y-keys.ts');
   expect(keys).toMatch(/export function tablistKeydown/);

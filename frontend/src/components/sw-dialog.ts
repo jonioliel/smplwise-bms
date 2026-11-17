@@ -4,22 +4,23 @@ import './sw-button';
 import { t } from '../i18n/he';
 import { deepFocusables } from './sw-drawer';
 import { raiseLifted, setTopLayer } from './top-layer';
-
-/** A11Y-POLISHED-2342: the open dialogs, oldest first. Every dialog listens for Escape on the window, so a confirmation opened over
- * another dialog closed BOTH on one press; now only the top one answers the key. */
-const OPEN_STACK: SwDialog[] = [];
+import { deepActive, holdsTab, pushLayer, removeLayer, restoreFocus, takesEscape, trapTab } from './modal-stack';
 
 /** Small centred modal for short forms and confirmations. Closes on Escape, backdrop click or the ✕.
  *
  * DIALOG-TOPLAYER-2381: the backdrop is a manual popover shown in the browser's top layer, so it always covers the whole viewport and the
  * box is centred on the screen, whatever the dialog's ancestors carry (in the glass skins every sw-card has a backdrop-filter, which made
  * the card the containing block of the fixed backdrop: the dialog was centred on the card and only the card was dimmed). A dialog opened
- * from a dialog is shown later, so it paints above (the same order as OPEN_STACK). Nothing else changes: the focus trap, Escape, the
+ * from a dialog is shown later, so it paints above (the same order as the modal stack). Nothing else changes: the focus trap, Escape, the
  * return of focus and the page behind (not inert) are this element's own, as before. Without the Popover API the backdrop stays a fixed
  * element at --sw-z-modal.
  *
  * DIALOG-DRAWER-ONE-2439: the approved single dialog (owner round 33, Q-DES-8A) - see the rule block in the styles. `beforeclose`
- * (cancelable, not bubbling) is raised before the ✕ / Escape / the scrim close the dialog. */
+ * (cancelable, not bubbling) is raised before the ✕ / Escape / the scrim close the dialog.
+ *
+ * A11Y-POLISHED-2342 / CR-MODAL-STACK-2441: every dialog listens for Escape on the window, so a confirmation opened over another
+ * dialog closed BOTH on one press; only the top layer answers the key. The list of open layers is components/modal-stack.ts, shared
+ * with the modal sw-drawer and sw-sheet (a dialog over a sheet had the same fault). */
 @customElement('sw-dialog')
 export class SwDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
@@ -226,7 +227,7 @@ export class SwDialog extends LitElement {
   private restoreFocus() {
     const back = this.opener;
     this.opener = null;
-    if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+    restoreFocus(back);
   }
 
   private close() {
@@ -241,8 +242,7 @@ export class SwDialog extends LitElement {
   private onKey = (e: KeyboardEvent) => {
     if (!this.open) return;
     if (e.key === 'Escape') {
-      const top = OPEN_STACK[OPEN_STACK.length - 1];
-      if (top && top !== this) return; // a dialog above this one takes the key
+      if (!takesEscape(this, e)) return; // a layer above this one (a dialog, a sheet, a modal drawer) takes the key
       this.close();
     } else if (e.key === 'Tab') this.trapTab(e);
   };
@@ -252,25 +252,20 @@ export class SwDialog extends LitElement {
   private trapTab(e: KeyboardEvent) {
     const box = this.renderRoot.querySelector('.box');
     if (!box) return;
+    // a layer opened above this one keeps Tab for itself
+    if (!holdsTab(this)) return;
     const all = deepFocusables(box);
     if (!all.length) {
       e.preventDefault();
       return;
     }
-    let active: Element | null = document.activeElement;
-    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    const active: Element | null = deepActive();
     const inside = !!active && (box.contains(active) || this.contains(active) || this.shadowRoot?.contains(active) === true || (active.getRootNode() as ShadowRoot).host?.closest?.('sw-dialog') === this);
     // a second dialog opened above this one holds the focus: its own trap decides
     for (let n: Node | null = active; n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) {
       if (n instanceof SwDialog && n !== this && n.open) return;
     }
-    const first = all[0];
-    const last = all[all.length - 1];
-    const isEdge = (edge: HTMLElement) => active === edge || (edge.shadowRoot?.contains(active) ?? false) || (active?.getRootNode() as ShadowRoot | undefined)?.host === edge;
-    if (!inside || (e.shiftKey && isEdge(first)) || (!e.shiftKey && isEdge(last))) {
-      e.preventDefault();
-      (e.shiftKey ? last : first).focus({ preventScroll: true });
-    }
+    trapTab(e, all, active, inside);
   }
 
   /** Keyboard focus moves into the dialog when it opens (the first field, else the first button, else the box):
@@ -280,9 +275,8 @@ export class SwDialog extends LitElement {
     if (changed.has('open') && !this.open) this.layer(false);
     if (changed.has('open') && !this.open && changed.get('open') === true) this.restoreFocus();
     if (!changed.has('open') || !this.open) return;
-    let a: Element | null = document.activeElement;
-    while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
-    if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a as HTMLElement;
+    const a = deepActive();
+    if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a;
     this.layer(true);
     requestAnimationFrame(() => {
       // a field the user (or a test) already focused inside the dialog in the frame before keeps the focus: typing into the reason box
@@ -316,10 +310,10 @@ export class SwDialog extends LitElement {
     if (show) raiseLifted();
   }
 
+  /** In / out of the shared stack of open layers (components/modal-stack.ts). */
   private track(open: boolean) {
-    const at = OPEN_STACK.indexOf(this);
-    if (at >= 0) OPEN_STACK.splice(at, 1);
-    if (open) OPEN_STACK.push(this);
+    if (open) pushLayer(this);
+    else removeLayer(this);
   }
 
   connectedCallback() {

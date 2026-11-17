@@ -99,8 +99,9 @@ test('sw-dialog: the backdrop is a manual popover shown after the opener is kept
   const conn = s.slice(s.indexOf('  connectedCallback()'), s.indexOf('  disconnectedCallback()'));
   expect(conn).toMatch(/this\.track\(true\);\s*this\.layer\(true\)/);
   // Escape, the stack and the trap are the element's own, as before
-  expect(s).toContain('const OPEN_STACK: SwDialog[] = [];');
-  expect(s).toMatch(/if \(top && top !== this\) return;/);
+  // CR-MODAL-STACK-2441: the stack is components/modal-stack.ts, shared with the drawer and the sheet
+  expect(s).toContain("from './modal-stack'");
+  expect(s).toMatch(/if \(!takesEscape\(this, e\)\) return;/);
   expect(s).toContain('private trapTab(e: KeyboardEvent)');
   expect(s).toContain('role="dialog" aria-modal="true"');
 });
