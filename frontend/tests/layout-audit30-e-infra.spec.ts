@@ -264,9 +264,16 @@ test.describe('AUDIT30-E-INFRA: sources', () => {
   });
 
   test('E5: the meters pages use the shared places tree and no local filled-accent selection', () => {
+    // CR-DUP-METERS-2440: the two pages extend screens/meters-page-base.ts, which now draws the places tree for both (one copy instead
+    // of two). The guard follows the markup: the base holds the shared tree, each page extends the base and draws no tree of its own,
+    // and none of the three files styles a local filled-accent selection.
+    const base = read('screens/meters-page-base.ts');
+    expect(base, 'screens/meters-page-base.ts').toContain('<sw-place-tree data-area-tree');
+    expect(base, 'screens/meters-page-base.ts').not.toMatch(/\.tree button\[aria-current='true'\]/);
     for (const f of ['screens/electricity/page-meters.ts', 'screens/water/page-meters.ts']) {
       const s = read(f);
-      expect(s, f).toContain('<sw-place-tree data-area-tree');
+      expect(s, f).toMatch(/extends MetersPageBase\b/);
+      expect(s, f).not.toMatch(/<(ul|nav|div)[^>]*class="tree\b/);
       expect(s, f).not.toMatch(/\.tree button\[aria-current='true'\]/);
     }
   });

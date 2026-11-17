@@ -883,7 +883,23 @@ export class InvestigateEvents extends LitElement {
     }
   };
 
-  /** The selected row scrolls into the list's own view (never the page), clear of the sticky header. */
+  /** A row picked in the list (a click, or Enter / Space on the focused row - the rows are tab stops since CR-UI-CONTROLLERS-2440).
+   * The table's own Enter answers the key before `onKey` sees it, so the EVENTS-POLISH-2331 rule "Enter on the open event goes to its
+   * full review" is kept here: Enter on the row whose drawer is already open (desktop / tablet) navigates, anything else selects. */
+  private onRowSelect(d: { id: string; key?: string }) {
+    const windows = this.mode === 'windows';
+    if (d.key === 'Enter' && !this.narrow && d.id === (windows ? this.selectedWindow : this.selected)) {
+      const target = windows ? this.windows?.find((x) => x.id === d.id)?.first_event_id : d.id;
+      if (target) navigate(`/investigate/events/${target}`);
+      return;
+    }
+    if (windows) this.selectedWindow = d.id;
+    else this.select(d.id);
+  }
+
+  /** The selected row scrolls into the list's own view (never the page), clear of the sticky header. When the keyboard focus sits on a
+   * row of the list (the operator clicked or tabbed to one, then moved with Up / Down) it moves with the selection, so Enter still
+   * acts on the event the drawer shows. */
   private async revealRow(id: string) {
     await this.updateComplete;
     const table = this.renderRoot.querySelector('.stage sw-table') as HTMLElement | null;
@@ -892,6 +908,7 @@ export class InvestigateEvents extends LitElement {
     if (!row) return;
     row.style.scrollMarginBlock = '48px 12px';
     row.scrollIntoView({ block: 'nearest' });
+    if (table?.shadowRoot?.activeElement?.matches('tr[data-row-id]')) row.focus({ preventScroll: true });
   }
 
   private closeWindowDrawer() {
@@ -1402,12 +1419,12 @@ export class InvestigateEvents extends LitElement {
                   <sw-chip icon="target" ?selected=${this.spotlightOnly} data-window-spotlight-only count=${this.spotlightCount} @click=${() => { this.spotlightOnly = !this.spotlightOnly; void this.loadWindows(); }}>זרקורים</sw-chip>
                   <sw-field><select aria-label="קיבוץ" data-window-by @change=${(e: Event) => { this.windowBy = (e.target as HTMLSelectElement).value as WindowGroup; void this.loadWindows(); }}>${(Object.keys(WINDOW_GROUP_LABEL) as WindowGroup[]).map((k) => html`<option value=${k} ?selected=${this.windowBy === k}>${WINDOW_GROUP_LABEL[k]}</option>`)}</select></sw-field>
                   <sw-field><select aria-label="מרווח קיבוץ" data-window-gap @change=${(e: Event) => { this.windowGap = Number((e.target as HTMLSelectElement).value); void this.loadWindows(); }}>${[60, 180, 300, 600, 900, 1800, 3600].map((g) => html`<option value=${g} ?selected=${this.windowGap === g}>${g / 60} דק׳</option>`)}</select></sw-field></div>
-                <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selectedWindow = e.detail.id)}></sw-table>`
+                <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string; key?: string }>) => this.onRowSelect(e.detail)}></sw-table>`
               : this.spotlightOnly
                 ? html`<sw-state-panel icon="history" state="empty" heading="אין זרקורים ביום הזה"><div style="margin-block-start:10px"><sw-button size="sm" data-window-spotlight-off @click=${() => { this.spotlightOnly = false; void this.loadWindows(); }}>כל החלונות</sw-button></div></sw-state-panel>`
                 : html`<sw-state-panel icon="history" state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`
           : this.events.length
-            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
+            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string; key?: string }>) => this.onRowSelect(e.detail)}></sw-table>`
             : html`<sw-state-panel icon="history" state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מהמקליט רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
         ${this.renderRowPreview()}
         ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}

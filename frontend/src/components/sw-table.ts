@@ -278,15 +278,17 @@ export class SwTable extends LitElement {
     }
   `;
 
-  private pick(row: Record<string, unknown>) {
+  /** `key` is set when the row was picked from the keyboard ('Enter' or ' '): a screen whose open row has a next step on Enter (the
+   * event centre: Enter on the open event goes to its full review) tells it from a click. */
+  private pick(row: Record<string, unknown>, key?: string) {
     const id = String(row[this.rowKey] ?? '');
-    this.dispatchEvent(new CustomEvent('row-select', { detail: { id, row }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('row-select', { detail: key ? { id, row, key } : { id, row }, bubbles: true, composed: true }));
   }
 
   private onRowKey(e: KeyboardEvent, row: Record<string, unknown>) {
     if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
-    this.pick(row);
+    this.pick(row, e.key);
   }
 
   protected willUpdate() {

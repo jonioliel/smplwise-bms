@@ -126,3 +126,55 @@ only on this side (HOME-LAZY, HOME-LAZY, DUP-NVR-BATCH, none), so no union was n
 
 None. No source branch reports a pixel change and no resolution above touches markup or style. No PNG was regenerated or
 committed (the r28 baselines came with the `release/2437-train` merge).
+
+## Entry check 1 (17.11, head `40364cde9`): RED, 7 failures in 3 specs - causes and fixes
+
+Verdict file on the runner: `~/smplwise-results/entry_pilot-CR-W3-FE-COMBINED-2441_40364cde9.md`. Each failure was reproduced on
+the workstation (`npx vite build`, private port, `--workers=1`) before it was fixed. `origin/main` (2.43.7, `cc69447f1`) was
+already contained in the branch; no new merge.
+
+1. **`layout-audit30-e-infra.spec.ts:266` "E5: the meters pages use the shared places tree ..." (desktop, tablet, mobile) - the
+   guard was stale, the code is right.** CR-DUP-METERS-2440 moved the one `<sw-place-tree data-area-tree ...>` of the electricity
+   and the water meters page into their new common base `screens/meters-page-base.ts` (`renderTree()`); the guard read the two page
+   files only and no longer found the tag. The guard's intent (the shared tree, no local filled-accent selection) still holds, so
+   the guard follows the markup: the base must hold the shared tree, each page must extend `MetersPageBase` and draw no tree
+   element of its own, and none of the three files may style `.tree button[aria-current='true']`. No product file changed.
+2. **`evidence-events-polish.spec.ts:106` "list, drawer, keyboard and actions in view" (desktop, tablet) - a real regression of
+   CR-UI-CONTROLLERS-2440, fixed in the product.** Step that failed: Enter with an event's drawer open must go to the event's full
+   review (EVENTS-POLISH-2331; the hint under the list says so) - the address stayed `#/investigate/events`. Cause: since
+   CR-UI-CONTROLLERS-2440 every row of a listened-to `sw-table` is a tab stop whose own `keydown` answers Enter (`preventDefault`
+   + `row-select`). A clicked row keeps the focus, so its handler took the Enter, selected the already-selected row again, and
+   the screen's window `onKey` returned on `e.defaultPrevented`. Fix, both intents kept:
+   - `components/sw-table.ts`: the `row-select` detail carries `key` ('Enter' or ' ') when the row was picked from the keyboard
+     (a click sends `{ id, row }` as before; no listener reads the new field except the one below).
+   - `screens/investigate-events.ts`: one `onRowSelect()` for both tables (events, event windows): Enter on the row whose drawer is
+     already open (desktop / tablet) navigates to the full review, anything else selects as before. `revealRow()` moves the
+     keyboard focus with the selection when the focus sits on a row of the list, so after Up / Down the Enter acts on the event
+     the drawer shows (before the fix it would have gone back to the row that was clicked first).
+   The spec is unchanged.
+3. **`evidence-maintenance.spec.ts:27` "ledger: KPI row, places tree, table / phone cards" (tablet, light and dark) - the spec was
+   stale, the code is as intended.** Not caused by a -2440 branch: PAGING-SETTING-2439 of the wave-2 base (`33cffadd6`, owner
+   round 32 Q-SYS-5 a) pages the maintenance ledger from the desktop edge `(min-width: 1024px) and (min-height: 560px)` instead of
+   scrolling it. The tablet project is 1024x768: five of the six mock rows fit, the sixth is on page 2 (`[data-maint-pager]`),
+   so "6 rows" found 5. (That branch's note says nothing below the desktop edge changed - true, but the tablet project sits on
+   the edge - and its evidence suites were NOT_RUN.) The spec now counts the six rows across the pages (page 1 + page 2 through the
+   pager, then back to page 1 for the shot; a retry covers the frame in which the pages are measured). On 1440x900 all six fit and
+   the count is as before. The same failure is to be expected on `pilot/FE-WAVE2-COMBINED-2440` itself.
+
+### Tests actually run for this repair (workstation, 17.11)
+
+- `npx tsc --noEmit` after the fixes: **clean, exit 0**. `npx vite build`: done (for the preview on the private port).
+- Before the fix (same build, tablet): `evidence-events-polish.spec.ts:106` and `evidence-maintenance.spec.ts:27` light + dark
+  **3 failed** - the runner's failures reproduced with the same messages.
+- After the fix, `--workers=1`, all three projects (desktop, tablet, mobile): `tests/evidence-events-polish.spec.ts`,
+  `tests/evidence-maintenance.spec.ts` (whole files) and `tests/layout-audit30-e-infra.spec.ts:266`: 93 tests,
+  **91 passed, 2 skipped, 0 failed**.
+- Unit (`-c playwright.unit.config.ts`): `unit-inv-events-2440`, `unit-a11y-polished-lint`, `unit-dark-polish-beds`,
+  `unit-empty-state-icons`, `unit-poll-screens-b-2440` (the specs that read the two touched source files): **39 passed**.
+- The evidence PNGs the runs rewrote or created under `docs/evidence/` were restored / removed; none is committed.
+
+### NOT_RUN (this repair)
+
+- Everything else: the rest of `layout-audit30-e-infra.spec.ts` (page and pixel tests), every other browser spec, the pixel gate,
+  ESLint, the bundle budget - the second entry check (log `~/pre/entry_w3fe.log` on the runner).
+- No pixel is expected to change: the focus that follows the selection is drawn only as `:focus-visible`, after an arrow key.
