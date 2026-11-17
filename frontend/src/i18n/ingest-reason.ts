@@ -3,7 +3,7 @@
  * `disconnected`, `http_<status>`, and the exception class name of a failed connection (ConnectError, ReadTimeout, ...). */
 
 export type IngestLang = 'he' | 'en' | 'ar' | 'ru';
-export type IngestReasonKey = 'notConfigured' | 'rejected' | 'notFound' | 'serverError' | 'timeout' | 'unreachable' | 'disconnected' | 'unknown';
+type IngestReasonKey = 'notConfigured' | 'rejected' | 'notFound' | 'serverError' | 'timeout' | 'unreachable' | 'disconnected' | 'unknown';
 
 const TEXT: Record<IngestLang, Record<IngestReasonKey, string>> = {
   he: {
@@ -66,7 +66,7 @@ export function ingestReasonKey(code: string | null | undefined): IngestReasonKe
   return 'unknown';
 }
 
-export function ingestLang(): IngestLang {
+function ingestLang(): IngestLang {
   const l = (typeof document !== 'undefined' ? document.documentElement.lang : '').toLowerCase().slice(0, 2);
   return l === 'en' || l === 'ar' || l === 'ru' ? l : 'he';
 }

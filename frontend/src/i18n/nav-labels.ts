@@ -87,7 +87,7 @@ export const NAV_TT: Record<Lang2, Record<NavTtKey, string>> = {
 };
 
 /** tickets/board-text.ts: the manager board tab. */
-export type NavBtKey = 'tabBoard';
+type NavBtKey = 'tabBoard';
 export const NAV_BT: Record<Lang2, Record<NavBtKey, string>> = {
   he: {
     tabBoard: 'לוח מנהל',
@@ -98,7 +98,7 @@ export const NAV_BT: Record<Lang2, Record<NavBtKey, string>> = {
 };
 
 /** tickets/overview-text.ts: the overview tab. */
-export type NavOtKey = 'tab';
+type NavOtKey = 'tab';
 export const NAV_OT: Record<Lang2, Record<NavOtKey, string>> = {
   he: {
     tab: 'סקירה',
@@ -109,7 +109,7 @@ export const NAV_OT: Record<Lang2, Record<NavOtKey, string>> = {
 };
 
 /** tickets/cost-text.ts: the vendor accounts tab. */
-export type NavCtKey = 'vaTitle';
+type NavCtKey = 'vaTitle';
 export const NAV_CT: Record<Lang2, Record<NavCtKey, string>> = {
   he: {
     vaTitle: 'חשבון ספקים',
@@ -120,7 +120,7 @@ export const NAV_CT: Record<Lang2, Record<NavCtKey, string>> = {
 };
 
 /** i18n/access-external.ts: the external-access tab. */
-export type NavXtKey = 'tab';
+type NavXtKey = 'tab';
 export const NAV_XT: Record<Lang4, Record<NavXtKey, string>> = {
   he: {
     tab: 'גישת חוץ',
@@ -137,7 +137,7 @@ export const NAV_XT: Record<Lang4, Record<NavXtKey, string>> = {
 };
 
 /** i18n/door-windows.ts: the door-windows tab. */
-export type NavDwtKey = 'tab';
+type NavDwtKey = 'tab';
 export const NAV_DWT: Record<Lang4, Record<NavDwtKey, string>> = {
   he: {
     tab: 'חלונות פתיחה',
@@ -154,7 +154,7 @@ export const NAV_DWT: Record<Lang4, Record<NavDwtKey, string>> = {
 };
 
 /** i18n/announce.ts: the announce tab (`announceText().title`). */
-export type NavAnnounceKey = 'title';
+type NavAnnounceKey = 'title';
 export const NAV_ANNOUNCE: Record<Lang4, Record<NavAnnounceKey, string>> = {
   he: {
     title: 'הכרזות',
@@ -316,7 +316,7 @@ export const NAV_TST: Record<Lang4, Record<NavTstKey, string>> = {
 };
 
 /** i18n/maintenance.ts: the maintenance section (Arabic and Russian fall back to the Hebrew, as in mt()). */
-export type NavMtKey = 'section';
+type NavMtKey = 'section';
 export const NAV_MT: Record<Lang2, Record<NavMtKey, string>> = {
   he: {
     section: 'תחזוקה ובקרה',
@@ -327,7 +327,7 @@ export const NAV_MT: Record<Lang2, Record<NavMtKey, string>> = {
 };
 
 /** i18n/insights.ts: the building report page. */
-export type NavIxKey = 'pageBuilding';
+type NavIxKey = 'pageBuilding';
 export const NAV_IX: Record<Lang2, Record<NavIxKey, string>> = {
   he: {
     pageBuilding: 'דוחות בניין',
@@ -338,7 +338,7 @@ export const NAV_IX: Record<Lang2, Record<NavIxKey, string>> = {
 };
 
 /** i18n/transit.ts: the public-transport tab. */
-export type NavTrKey = 'tab';
+type NavTrKey = 'tab';
 export const NAV_TR: Record<Lang2, Record<NavTrKey, string>> = {
   he: {
     tab: 'תחבורה ציבורית',
@@ -349,7 +349,7 @@ export const NAV_TR: Record<Lang2, Record<NavTrKey, string>> = {
 };
 
 /** i18n/xsection.ts: the synoptic tab. */
-export type NavXsKey = 'synTab';
+type NavXsKey = 'synTab';
 export const NAV_XS: Record<Lang2, Record<NavXsKey, string>> = {
   he: {
     synTab: 'מפה סינופטית',
@@ -360,7 +360,7 @@ export const NAV_XS: Record<Lang2, Record<NavXsKey, string>> = {
 };
 
 /** i18n/presence.ts: the "who is in" tab. */
-export type NavPtKey = 'tab';
+type NavPtKey = 'tab';
 export const NAV_PT: Record<Lang2, Record<NavPtKey, string>> = {
   he: {
     tab: 'מי במבנה',
@@ -371,7 +371,7 @@ export const NAV_PT: Record<Lang2, Record<NavPtKey, string>> = {
 };
 
 /** i18n/incidents.ts: the live incident tab. */
-export type NavItKey = 'tab';
+type NavItKey = 'tab';
 export const NAV_IT: Record<Lang2, Record<NavItKey, string>> = {
   he: {
     tab: 'אירוע חי',

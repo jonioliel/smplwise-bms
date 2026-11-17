@@ -14,7 +14,7 @@
  * הראשי" opens `#/devices/building?edit=1` (shell/nav.ts isHomeEditRoute), so the home does not register here.
  * Per-item actions (edit a schedule, a rule, a user, a view) are not screen modes and stay where they are.
  */
-export interface ScreenEditAction {
+interface ScreenEditAction {
   /** Stable id (the menu item's `data-menu-screen-edit`). */
   id: string;
   /** The menu item's text, e.g. "עריכת פריסה", "עריכת מפה". */

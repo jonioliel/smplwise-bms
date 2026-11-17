@@ -496,7 +496,7 @@ export const IX_TABLES: Record<IxLang, Partial<Record<IxKey, string>>> = { he, e
 export const IX_KEYS = Object.keys(he) as IxKey[];
 
 /** The page language (the document's `lang`); the report preview passes the report's own language instead. */
-export function ixLang(): IxLang {
+function ixLang(): IxLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }

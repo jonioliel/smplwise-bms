@@ -99,7 +99,7 @@ const en: Record<Key, string> = {
 
 export const PLAN_GLASS_STRINGS = { he, en } as const;
 
-export function glassLang(): 'he' | 'en' {
+function glassLang(): 'he' | 'en' {
   const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';
   return lang.toLowerCase().startsWith('en') ? 'en' : 'he';
 }

@@ -42,7 +42,7 @@ export interface Caps {
   /** Part of the cache signature: a different screen density is a different device class for the probe. */
   dpr: number;
 }
-export type WeakReason = 'cores' | 'memory' | 'reduced-motion' | 'reduced-transparency';
+type WeakReason = 'cores' | 'memory' | 'reduced-motion' | 'reduced-transparency';
 
 /** The weak-signal check: the first weak capability, or null when none is weak (then the probe / the cache decide). */
 export function capsVerdict(c: Caps): WeakReason | null {
@@ -173,7 +173,7 @@ export function readCaps(): Caps {
 }
 
 /** The blurred test layer: a moving backdrop with a blurring pane over it, a corner of the page, near invisible, no pointer events. */
-export function mountProbeLayer(): () => void {
+function mountProbeLayer(): () => void {
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
   host.setAttribute('data-perf-probe', '');

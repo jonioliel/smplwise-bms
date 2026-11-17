@@ -24,7 +24,7 @@ export const STATUS_HEX = {
   unknown: '#667085',
 } as const;
 
-export type StatusTone = keyof typeof STATUS_HEX;
+type StatusTone = keyof typeof STATUS_HEX;
 
 const asCss = <K extends string>(hex: Record<K, string>): Record<K, CSSResult> =>
   Object.fromEntries(Object.entries<string>(hex).map(([k, v]) => [k, unsafeCSS(v)])) as Record<K, CSSResult>;

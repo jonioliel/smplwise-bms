@@ -87,9 +87,9 @@ const ru: Partial<Record<Key, string>> = {
 };
 
 export type GwtKey = Key;
-export type GwtLang = 'he' | 'en' | 'ar' | 'ru';
+type GwtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function gwtLang(): GwtLang {
+function gwtLang(): GwtLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

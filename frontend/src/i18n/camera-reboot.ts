@@ -50,9 +50,9 @@ const en: Record<Key, string> = {
 };
 
 export type CrKey = Key;
-export type CrLang = 'he' | 'en';
+type CrLang = 'he' | 'en';
 
-export function crLang(): CrLang {
+function crLang(): CrLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }

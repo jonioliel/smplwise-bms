@@ -18,7 +18,7 @@ const REASON: Record<string, string> = {
   not_allowed: 'אין הרשאה',
 };
 
-export interface MediaBulkRequest {
+interface MediaBulkRequest {
   scope: BulkScope;
   /** The HA floor / area id. */
   id: string;

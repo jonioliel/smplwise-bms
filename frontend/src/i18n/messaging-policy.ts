@@ -150,7 +150,7 @@ export const MW_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };
 export const MW_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const MW_KEYS = Object.keys(he) as Key[];
 
-export function mwLang(): Lang {
+function mwLang(): Lang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

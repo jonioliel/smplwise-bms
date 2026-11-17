@@ -14,13 +14,13 @@ import type { CommandOutcome } from './media-command';
 const POLL_MS = 600;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function playerErrorOutcome(err: unknown): { code: string | null; message: string } {
+function playerErrorOutcome(err: unknown): { code: string | null; message: string } {
   if (err instanceof ApiError) return { code: err.code, message: playerErrorText(err) || (PLAYER_ERROR_LABEL[err.code] ?? err.body.user_message ?? 'הפעולה נכשלה') };
   return { code: null, message: 'אין חיבור לשרת' };
 }
 
 /** Shows the server's preview of a party (a static group, four rooms or more, more than one floor) and answers whether the user confirmed. */
-export type AskParty = (preview: GroupPreview) => Promise<boolean>;
+type AskParty = (preview: GroupPreview) => Promise<boolean>;
 
 /** `ask`: when the server answers 409 `confirm_required` (a command to a static group or a party) the user is asked once; a yes resends the SAME command with
  * `confirmed: true`, a no is a quiet `refused` with code `cancelled` and no message. Without `ask` the 409 is a refusal like any other. */

@@ -90,9 +90,9 @@ const en: Record<Key, string> = {
   r_limit: 'over the limit',
 };
 
-export const PLAN_IFC_STRINGS = { he, en } as const;
+const PLAN_IFC_STRINGS = { he, en } as const;
 
-export function ifcLang(): 'he' | 'en' {
+function ifcLang(): 'he' | 'en' {
   const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';
   return lang.toLowerCase().startsWith('en') ? 'en' : 'he';
 }

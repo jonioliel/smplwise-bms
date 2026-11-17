@@ -316,9 +316,9 @@ const ru: Record<Key, string> = {
 
 const TABLES: Record<WmLang, Record<Key, string>> = { he, en, ar, ru };
 export type WmKey = Key;
-export type WmLang = 'he' | 'en' | 'ar' | 'ru';
+type WmLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function wmLang(): WmLang {
+function wmLang(): WmLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   if (l.startsWith('en')) return 'en';
   if (l.startsWith('ar')) return 'ar';

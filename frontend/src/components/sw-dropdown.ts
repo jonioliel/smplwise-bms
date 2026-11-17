@@ -14,7 +14,7 @@ import { limitNotice, pickedCount, pickedSummary, toggleCapped } from './multi-s
 export { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle };
 /** A single-choice list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items).
  * 2.0.2: a `multiple` list follows the installation's / the user's dial instead (`data-dd-search` on <html>: always | 4 (default) | 8 | never). */
-export const DD_SEARCH_MIN_ITEMS = 8;
+const DD_SEARCH_MIN_ITEMS = 8;
 type Present = 'pop' | 'sheet' | 'centred' | 'inline';
 
 export interface DropdownItem {

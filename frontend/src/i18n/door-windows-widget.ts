@@ -88,9 +88,9 @@ const ru: Partial<Record<Key, string>> = {
 };
 
 export type DwwtKey = Key;
-export type DwwtLang = 'he' | 'en' | 'ar' | 'ru';
+type DwwtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function dwwtLang(): DwwtLang {
+function dwwtLang(): DwwtLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

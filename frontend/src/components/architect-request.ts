@@ -28,14 +28,14 @@ export function mailtoHref(text: string): { href: string; full: boolean } {
   return { href: `mailto:?subject=${subject}&body=${encodeURIComponent(MAILTO_SHORT_BODY)}`, full: false };
 }
 
-export interface ClipboardDeps {
+interface ClipboardDeps {
   clipboard?: { writeText(text: string): Promise<void> } | null;
   /** Last resort for a page without the async clipboard (plain http, an old WebView): a hidden textarea and execCommand('copy'). */
   fallback?: (text: string) => boolean;
 }
 
 /** Hidden-textarea copy: works from a user gesture where `navigator.clipboard` is missing or refused. */
-export function execCommandCopy(text: string): boolean {
+function execCommandCopy(text: string): boolean {
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.setAttribute('readonly', '');

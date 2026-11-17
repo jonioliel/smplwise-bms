@@ -28,7 +28,7 @@ export interface PushSubscriptionRow {
   last_error: string | null;
 }
 
-export const getVapidKey = () => get<{ public_key: string }>('push/vapid-key');
+const getVapidKey = () => get<{ public_key: string }>('push/vapid-key');
 export const listSubscriptions = () => get<{ subscriptions: PushSubscriptionRow[] }>('push/subscriptions');
 export const deleteSubscription = (id: string) => del(`push/subscriptions/${encodeURIComponent(id)}`);
 export const getPrefs = () => get<PushPrefs>('push/prefs');

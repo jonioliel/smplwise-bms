@@ -50,7 +50,7 @@ const en: Partial<Record<Key, string>> = {
 
 const TABLES: Record<'he' | 'en', Partial<Record<Key, string>>> = { he, en };
 
-export function qwtLang(): 'he' | 'en' {
+function qwtLang(): 'he' | 'en' {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }

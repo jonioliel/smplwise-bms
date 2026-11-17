@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import './sw-icon';
 import { WEEKDAYS_HE, WEEKDAY_NAMES_HE, canGoNext, dayLabel, monthGrid, monthOf, monthTitle, shiftMonth, summaryText, type MonthCell } from './recorded-month-logic';
 
-export interface MonthAnswer {
+interface MonthAnswer {
   days: string[];
   coverage: 'complete' | 'partial';
 }

@@ -119,7 +119,7 @@ const en: Record<Key, string> = {
 export const OBR_KEYS = Object.keys(he) as Key[];
 export const OBR_TABLES = { he, en };
 
-export function obrLang(): 'he' | 'en' {
+function obrLang(): 'he' | 'en' {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }

@@ -425,7 +425,7 @@ const ru: Partial<Record<Key, string>> = {
   bl_bridge_revoked: 'Экстренно отозван, ждёт повторного сопряжения',
 };
 
-export type BktLang = 'he' | 'en' | 'ar' | 'ru';
+type BktLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function bktLang(): BktLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';

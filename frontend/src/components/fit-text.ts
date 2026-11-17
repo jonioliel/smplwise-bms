@@ -8,7 +8,7 @@
  * Pure DOM, no Lit: the callers decide when to run it (after a render, on a resize, when the web font arrives).
  */
 export const FIT_MIN_PX = 11;
-export const FIT_MIN_RATIO = 0.72;
+const FIT_MIN_RATIO = 0.72;
 const STEP = 0.5;
 
 /** The smallest font size (px) the label may shrink to, given the control's base size. */

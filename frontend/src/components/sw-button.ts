@@ -3,8 +3,8 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonSize = 'sm' | 'md' | 'lg';
 
 @customElement('sw-button')
 export class SwButton extends LitElement {

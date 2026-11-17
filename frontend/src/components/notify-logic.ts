@@ -76,8 +76,8 @@ export function whereText(n: Pick<Notification, 'subject' | 'category' | 'door'>
 /** The pictogram of a row (the source catalog's). */
 export const iconOf = (n: Pick<Notification, 'source'>): string => sourceInfo(n.source)?.icon ?? 'bell';
 
-export type RowTagKind = 'ack' | 'res' | 'snz' | 'fail' | 'held';
-export interface RowTag { kind: RowTagKind; text: string; icon: string }
+type RowTagKind = 'ack' | 'res' | 'snz' | 'fail' | 'held';
+interface RowTag { kind: RowTagKind; text: string; icon: string }
 /** The one state tag under a row's title (the mockup): resolved, acknowledged by, snoozed until, delivery failed, held by quiet hours. Null: an open row
  * nothing happened to. A resolved row says only "נפתר"; an acknowledged one names who. */
 export function rowTag(n: Notification, now: number, tz?: string): RowTag | null {
@@ -94,7 +94,7 @@ export function rowTag(n: Notification, now: number, tz?: string): RowTag | null
 export function filterCounts(rows: readonly Notification[], now: number): Record<InboxFilter, number> {
   return { all: rows.length, unread: rows.filter((n) => isUnread(n, now)).length, critical: rows.filter((n) => n.severity === 'critical').length };
 }
-export interface SourceOption { category: Category; label: string; count: number; icon: string }
+interface SourceOption { category: Category; label: string; count: number; icon: string }
 const CATEGORY_ICON: Record<Category, string> = { safety: 'siren', device_faults: 'warning', system: 'settings', doors: 'door', automations: 'bolt', security: 'key', alerts: 'cam', tickets: 'ticket', maintenance: 'clock', building: 'building' };
 /** The source filter's options: the categories that have rows, in the matrix order, with their counts. */
 export function sourceOptions(rows: readonly Pick<Notification, 'category'>[]): SourceOption[] {
@@ -115,7 +115,7 @@ export const visibleRows = (rows: readonly Notification[], filter: InboxFilter, 
 
 // ------------------------------------------------------------------------------------------------ the avatar badge
 
-export interface Badge {
+interface Badge {
   /** The count of the user menu's chip (0 = no chip). */
   count: number;
   /** The avatar's red dot: an open critical row (the server's summary), else the legacy "open rule alerts". */
@@ -140,7 +140,7 @@ export function badgeLabel(b: Badge, openCritical = 0): string {
 
 // ------------------------------------------------------------------------------------------------ live events (/me/ws)
 
-export interface LiveEffect { rows: Notification[]; summary: { unread: number; open_critical: number } | null; refetch: boolean }
+interface LiveEffect { rows: Notification[]; summary: { unread: number; open_critical: number } | null; refetch: boolean }
 /** What a socket event does to the loaded list: a new notification asks for a refetch (the row itself is built by the server, and a fold changes an existing one);
  * a state change patches the row in place (ack / resolve by a colleague); a summary replaces the chip numbers. Unknown events change nothing. */
 export function applyLiveEvent(rows: readonly Notification[], ev: { type: string; payload?: unknown }): LiveEffect {
@@ -188,7 +188,7 @@ export function matrixGroups(policies: readonly NotifyPolicy[], catalog: readonl
 }
 export const enabledCount = (policies: readonly Pick<NotifyPolicy, 'enabled'>[]): number => policies.filter((p) => p.enabled).length;
 
-export interface LockCard { title: string; body: string; actions: PushAction[]; ago: string }
+interface LockCard { title: string; body: string; actions: PushAction[]; ago: string }
 const SAMPLE_LEAK = (): Pick<Notification, 'id' | 'link' | 'can_ack' | 'door' | 'title' | 'severity' | 'last_at' | 'body' | 'count'> => ({
   id: 'sample', link: '#/devices/areas/kitchen', can_ack: true, door: null, title: 'דליפת מים', severity: 'critical', last_at: '2026-10-01T11:02:00.000Z', body: 'חיישן ההצפה מתחת לכיור דיווח על מים.', count: 1,
 });
@@ -208,7 +208,7 @@ export function lockPreview(level: NotifySettings['lockscreen'], tz?: string): L
   });
 }
 
-export interface FailureCard { channel: Channel; label: string; sent: number; failed: number; skipped: number; tone: 'ok' | 'bad' }
+interface FailureCard { channel: Channel; label: string; sent: number; failed: number; skipped: number; tone: 'ok' | 'bad' }
 /** The failures panel of the delivery log: per channel, the last 24 h (`/notify/stats`). */
 export function failurePanel(stats: NotifyStats | null): FailureCard[] {
   if (!stats) return [];

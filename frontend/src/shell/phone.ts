@@ -16,7 +16,7 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
  * This is a UX guard, NOT a security boundary: the server still enforces every permission on every write, and a wide
  * window (or a phone browser's desktop mode) reaches the same screens.
  */
-export const PHONE_MAX_WIDTH_PX = 767;
+const PHONE_MAX_WIDTH_PX = 767;
 export const PHONE_QUERY = `(max-width: ${PHONE_MAX_WIDTH_PX}px)`;
 
 /** The kinds of management a phone can be asked to hide (the keys of `ui.mobile`, without the `hide_` prefix). */
@@ -93,7 +93,7 @@ export function isPhoneWidth(): boolean {
 }
 
 /** Calls `fn` whenever the viewport crosses the phone breakpoint; returns the unsubscribe function. */
-export function onPhoneWidthChange(fn: (phone: boolean) => void): () => void {
+function onPhoneWidthChange(fn: (phone: boolean) => void): () => void {
   const q = query();
   if (!q) return () => undefined;
   const h = () => fn(q.matches);

@@ -150,7 +150,7 @@ const en: Partial<Record<MessagingKey, string>> = {
   'optout.note': 'A "do not message me" request applies to messages sent from here only; only a system administrator can clear it.',
 };
 
-export function messagingLang(): 'he' | 'en' {
+function messagingLang(): 'he' | 'en' {
   return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 

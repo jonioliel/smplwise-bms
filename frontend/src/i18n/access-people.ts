@@ -283,7 +283,7 @@ const he = {
   'optout.admin_only': 'רק מנהל מערכת יכול לבטל את הבקשה',
 } as const;
 
-export type PeopleKey = keyof typeof he;
+type PeopleKey = keyof typeof he;
 
 export function pt(key: PeopleKey, vars?: Record<string, string | number>): string {
   const text: string = he[key] ?? key;

@@ -122,9 +122,9 @@ const en: Record<Key, string> = {
 };
 
 export type CsKey = Key;
-export type CsLang = 'he' | 'en';
+type CsLang = 'he' | 'en';
 
-export function csLang(): CsLang {
+function csLang(): CsLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }

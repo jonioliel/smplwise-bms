@@ -76,7 +76,7 @@ export function doorLabel(lock: { physical_index: number; name: string | null },
 
 // ---------------------------------------------------------------- the call log
 
-export type LogTone = 'ok' | 'warn' | 'muted' | 'live';
+type LogTone = 'ok' | 'warn' | 'muted' | 'live';
 
 /** One line of the call log: what happened, in one phrase, and its tone (missed = warn). Never a visitor: the station never says who. */
 export function logLine(row: CallLogRow, t: IncomingCallText): { text: string; tone: LogTone } {

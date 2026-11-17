@@ -719,9 +719,9 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export type MtKey = Key;
-export type MtLang = 'he' | 'en' | 'ar' | 'ru';
+type MtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function mtLang(): MtLang {
+function mtLang(): MtLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

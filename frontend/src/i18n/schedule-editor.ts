@@ -170,7 +170,7 @@ const en: Partial<Record<Key, string>> = {
   confirmDeployWritesOff: 'WisKey does not write schedules to stations yet: the jobs are created and checked, stop as "blocked", and nothing is written to the stations.',
 };
 
-export function sedLang(): 'he' | 'en' {
+function sedLang(): 'he' | 'en' {
   return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 

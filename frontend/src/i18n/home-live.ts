@@ -24,9 +24,9 @@ const ru: Record<Key, string> = {
   stale: 'Данные не актуальны',
 };
 
-export type HlLang = 'he' | 'en' | 'ar' | 'ru';
+type HlLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function hlLang(): HlLang {
+function hlLang(): HlLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

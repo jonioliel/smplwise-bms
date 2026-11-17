@@ -102,7 +102,7 @@ const he = {
   day_Saturday: 'ש׳',
 };
 
-export type SchKey = keyof typeof he;
+type SchKey = keyof typeof he;
 
 const en: Partial<Record<SchKey, string>> = {
   title: 'Schedules',
@@ -134,7 +134,7 @@ const en: Partial<Record<SchKey, string>> = {
   retry: 'Try again',
 };
 
-export function schLang(): 'he' | 'en' {
+function schLang(): 'he' | 'en' {
   return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 

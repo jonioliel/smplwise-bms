@@ -38,9 +38,9 @@ export const WISKEY_TABS: TabItem[] = [...STATIC_WISKEY_TABS];
 /** SHAREDID-293 (owner decision 6, 2026-10-20): "גישת חוץ" (the shared Arx + WisKey identity screen) sits under the access-control
  * area, under service management, or both - the installation's `access.external.placement` (access | tickets | both), set by a system
  * administrator on the screen itself. An Arx-only tab: never a tab of the embedded panel. */
-export const EXTERNAL_WISKEY_HREF = '#/wiskey/external';
-export const EXTERNAL_TICKETS_HREF = '#/tickets/external';
-export type ExternalPlacement = 'access' | 'tickets' | 'both';
+const EXTERNAL_WISKEY_HREF = '#/wiskey/external';
+const EXTERNAL_TICKETS_HREF = '#/tickets/external';
+type ExternalPlacement = 'access' | 'tickets' | 'both';
 let EXTERNAL_PLACEMENT: ExternalPlacement = 'access';
 const externalTab = (href: string): TabItem => ({ id: 'external', get label() { return navXt('tab'); }, href });
 /** Apply `access.external.placement` (the shell once the product settings load; the screen right after the administrator saves). */
@@ -104,7 +104,7 @@ export function isWiskeyHref(href: string): boolean {
 /** The WisKey embed's navigation as last reported by the embedded panel (embed API v1): the handshake's catalog (kept
  * for the session, so leaving for a SMPLWISE WisKey screen does not flip the tab row back) and the CONFIRMED location
  * while an embed is attached (null otherwise). The shell re-renders on every change. */
-export interface WiskeyEmbedNav {
+interface WiskeyEmbedNav {
   catalog: WiskeyCatalog | null;
   confirmed: WiskeyLocation | null;
 }
@@ -200,7 +200,7 @@ function wiskeyActiveTab(r: RouteState | null): string {
 /** The SMPLWISE screens with a choice in הגדרות › מתגי מסכי כניסה (settings keys `access.ui.<screen>`). `stations` (CR-036 S6,
  * "תחנות ודלתות") takes the route segment of WisKey's own devices tab, `devices`: the tab keeps its place in the row. */
 export type WiskeyScreen = 'overview' | 'events' | 'people' | 'stations' | 'schedules';
-export type WiskeyUi = 'wiskey' | 'smplwise';
+type WiskeyUi = 'wiskey' | 'smplwise';
 export const WISKEY_SCREENS: WiskeyScreen[] = ['overview', 'events', 'people', 'stations', 'schedules'];
 
 /** The route segment (`#/wiskey/<segment>`) of each screen: its own name, except `stations`, which is WisKey's `devices` tab.
@@ -225,7 +225,7 @@ export let WISKEY_PHONE_EMBED = false;
 /** הגדרות › ממשק › "גודל תצוגת WisKey" (`ui.wiskey_size` / `ui.wiskey_scale`, owner 2026-09-30): how much of the screen the
  * embedded panel uses. normal = the content area at 100% (default); fit = the frame is rendered 1/scale larger and scaled
  * down; full = the whole viewport. The embed re-reads it on the `sw-wiskey-size` window event. */
-export type WiskeySize = 'normal' | 'fit' | 'full';
+type WiskeySize = 'normal' | 'fit' | 'full';
 export const WISKEY_SIZE_EVENT = 'sw-wiskey-size';
 export let WISKEY_SIZE: WiskeySize = 'normal';
 export let WISKEY_SCALE = 90;
@@ -284,7 +284,7 @@ export function isNvrRoute(r: RouteState | null): boolean {
 
 /** SMPLWISE route segment (#/wiskey/<segment>) → the WisKey panel's own tab id (panel.ts `_tab`; "people" is the
  * panel's "users"). Unknown segments fall back to the panel's start tab, overview. */
-export const WISKEY_PANEL_TABS: Record<string, string> = {
+const WISKEY_PANEL_TABS: Record<string, string> = {
   overview: 'overview',
   events: 'events',
   people: 'users',
@@ -321,14 +321,14 @@ function wiskeyPathSegment(r: RouteState | null): string {
  * - the same screen as `#/security/alarm` - next to its management
  * and the NVR summary. Sub-pages, each with the permission it always had: the alarm screen (alarm.view), its management
  * (system.configure) and the NVR (system.configure / sources.configure, like הגדרות › חיבורים). */
-export const SECURITY_SETTINGS_HREF = '#/system/security';
+const SECURITY_SETTINGS_HREF = '#/system/security';
 export const SECURITY_CAMERAS_HREF = '#/system/security/cameras';
 /** SECFIX2-295 (owner 2026-10-21): the public-interface hardening settings (system.configure; the server checks each group). */
 export const SECURITY_PUBLIC_HREF = '#/system/security/public';
 /** MASKUI-295: the privacy-mask editor (the page needs system.configure to open; writing needs nvr.config.privacy, checked by the server and shown on the page). */
 /** SWITCHUI-295: the four access-control read switches (GET / PUT /wiskey/switches; system administrators, installation scope). */
 export const SECURITY_WISKEY_HREF = '#/system/security/wiskey';
-export const SECURITY_PRIVACY_MASKS_HREF = '#/system/security/privacy-masks';
+const SECURITY_PRIVACY_MASKS_HREF = '#/system/security/privacy-masks';
 /** הגדרות › קטלוג התקנים (2026-09-30): the Home Assistant entity catalogue, formerly the map's "התקנים" tab
  * (#/explore/entities, which redirects here for holders of system.configure - see legacyRedirect). */
 export const ENTITIES_SETTINGS_HREF = '#/system/entities';
@@ -352,7 +352,7 @@ export const SECURITY_SETTINGS_TABS: TabItem[] = [
 /** Is there an alarm panel on this platform? null = not known yet (api/alarm-presence.ts fills it once per session and
  * refreshes it on a slow timer). The two alarm sub-pages of הגדרות › אבטחה exist only while it is true: with no panel the
  * tab is not shown at all (owner 2026-09-30), rather than an empty state. Only consulted with a backend (visibleTabs). */
-export let ALARM_PRESENT: boolean | null = null;
+let ALARM_PRESENT: boolean | null = null;
 export function applyAlarmPresent(v: boolean | null): void {
   ALARM_PRESENT = v;
 }
@@ -423,7 +423,7 @@ const TICKETS_LEGACY_PAGE_SECTION: Record<string, TicketsSection> = {
 /** SERVICEIA2-295: the three scope pages of the one-page-per-scope rows became the single page `list`. */
 const TICKETS_SCOPE_PAGE_ALIAS: Record<string, string> = { mine: 'list', department: 'list', all: 'list' };
 /** The section level-2 rows `ui.tabs` configures (a section with fewer than two pages has nothing to order). */
-export const TICKETS_CONFIGURABLE_SECTIONS: readonly TicketsSection[] = ['requests', 'vendors'];
+const TICKETS_CONFIGURABLE_SECTIONS: readonly TicketsSection[] = ['requests', 'vendors'];
 
 /** SERVICEIA1-295 (the `devices.schedules` precedent): a stored `tickets` entry written before the sections names the old page ids. On read
  * it becomes the new shape - each page's order / hidden goes to its section's row (`tickets.<section>`, only when that row has no entry of
@@ -503,13 +503,13 @@ function migrateRequestsRow(out: TabsConfig): void {
 // ---- 0.1.148: the look of the tab bars (sw-tabs `variant`), per hierarchy level with a per-section override ----
 
 /** The reserved key of `ui.tabs` that holds the defaults per level (`{ level1, level2 }`); it is not a section. */
-export const TAB_STYLES_KEY = 'styles';
-export const TAB_STYLE_VALUES: readonly TabStyle[] = ['pill', 'underline', 'underline-compact'];
+const TAB_STYLES_KEY = 'styles';
+const TAB_STYLE_VALUES: readonly TabStyle[] = ['pill', 'underline', 'underline-compact'];
 /** What a level looks like when nothing is configured (owner 2026-09-30): the first bar of an area is the narrow segmented
  * pill, the sub-tabs inside the security sections are the compact underline row. */
 export const TAB_STYLE_DEFAULTS: Required<TabStyleDefaults> = { level1: 'pill', level2: 'underline-compact' };
 /** Which hierarchy level a bar belongs to when its section is not in the registry (nothing today). */
-export type TabLevel = 1 | 2;
+type TabLevel = 1 | 2;
 
 function asTabStyle(v: unknown): TabStyle | undefined {
   return (TAB_STYLE_VALUES as readonly unknown[]).includes(v) ? (v as TabStyle) : undefined;
@@ -608,7 +608,7 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 /** CR-014: the schedules list (a tab of the home area) and its settings page (a tab of הגדרות). */
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
-export const WALL_SETTINGS_HREF = '#/system/wall'; // CR-030: wall display users (system.configure; the add / remove step also needs rbac.assign)
+const WALL_SETTINGS_HREF = '#/system/wall'; // CR-030: wall display users (system.configure; the add / remove step also needs rbac.assign)
 /** CR-036 S10: הגדרות › בקרת כניסה - the access-control status, the intercom's own action log, groups and fields (access.admin.read at any scope; the
  * pages inside it follow what the caller may have - the action log and the conflicts are installation-wide). */
 export const ACCESS_CONTROL_SETTINGS_HREF = '#/system/access-control';
@@ -621,12 +621,12 @@ export const AUTOMATIONS_SETTINGS_HREF = '#/system/automations';
 /** CR-015 / CR-016: the multimedia area ("מולטימדיה", #/multimedia/*) and its settings page. Three tabs: "מסכים", "נגנים
  * ורמקולים" and "קבוצות" (0.1.150). A tab is drawn only when the installation has something of its kind (the pages report
  * the status counts through `applyMultimediaKinds`); with one tab the row is not drawn at all (sw-app shows a row from two tabs). */
-export const MULTIMEDIA_SCREENS_HREF = '#/multimedia/screens';
-export const MULTIMEDIA_PLAYERS_HREF = '#/multimedia/players';
-export const MULTIMEDIA_GROUPS_HREF = '#/multimedia/groups';
-export const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
+const MULTIMEDIA_SCREENS_HREF = '#/multimedia/screens';
+const MULTIMEDIA_PLAYERS_HREF = '#/multimedia/players';
+const MULTIMEDIA_GROUPS_HREF = '#/multimedia/groups';
+const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
 /** CR-021 S2: הגדרות › עדכונים. */
-export const UPDATE_SETTINGS_HREF = '#/system/update';
+const UPDATE_SETTINGS_HREF = '#/system/update';
 export const MULTIMEDIA_TABS: TabItem[] = [
   { id: 'screens', label: 'מסכים', href: MULTIMEDIA_SCREENS_HREF },
   { id: 'players', label: 'נגנים ורמקולים', href: MULTIMEDIA_PLAYERS_HREF },
@@ -679,7 +679,7 @@ export const ANNOUNCE_HREF = '#/devices/announce';
  * `permittedTabs`); the static href below is that default (the static demo has no gates). With only one tab visible the tab row does not
  * appear at all, so a user without those rights sees the home screen exactly as before. */
 /** 2.29.0: the synoptic map (ראשי › מפה סינופטית) and the wall screen's separate address (a fixed control-room display, no shell). */
-export const SYNOPTIC_HREF = '#/devices/synoptic';
+const SYNOPTIC_HREF = '#/devices/synoptic';
 let SYNOPTIC_OFF = false;
 /** The option `ui.xs` syn_tab (on by default): the tab leaves the home area while it is off. The address still opens the screen. Re-applied by the shell after HIDDEN_HREFS is rebuilt. */
 export function applySynopticHidden(on: boolean | null | undefined): boolean {
@@ -697,7 +697,7 @@ export function applySynopticHidden(on: boolean | null | undefined): boolean {
  * home area (a tenant with calendars only, owner answer 25) always gets the rail entry. Off until GET /calendar/module says otherwise
  * (calendars/access.ts), the static demo too. */
 export const CALENDARS_HREF = '#/calendars/cal';
-export const CALENDARS_HOME_HREF = '#/devices/calendars/cal';
+const CALENDARS_HOME_HREF = '#/devices/calendars/cal';
 export const CALENDARS_SETTINGS_HREF = '#/system/calendars';
 export const CALENDAR_SYNC_SETTINGS_HREF = '#/system/calendar-sync';
 let CALENDARS_ON = false;
@@ -720,7 +720,7 @@ export function applyCalendarsNav(on: boolean, placement: 'rail' | 'home_tab' | 
 }
 /** The base address the calendars screens build their links on: the one the viewer is on. */
 export const calendarsBase = (r: RouteState | null): string => (r?.mode === 'devices' ? '#/devices/calendars' : '#/calendars');
-export const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', label: 'יומנים', href: CALENDARS_HREF };
+const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', label: 'יומנים', href: CALENDARS_HREF };
 
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
@@ -737,7 +737,7 @@ export const DEVICES_TABS: TabItem[] = [
 /** CR-NOTICE106: the notice board page (readers and managers) and its settings page (the switch, the defaults, the TV boards). */
 export const NOTICES_HREF = '#/devices/notices';
 export const NOTICES_SETTINGS_HREF = '#/system/notices';
-export const TRANSIT_SETTINGS_HREF = '#/system/transit'; // BUSTIMES-295: the installation's bus stops and rules (system.configure; board managers read)
+const TRANSIT_SETTINGS_HREF = '#/system/transit'; // BUSTIMES-295: the installation's bus stops and rules (system.configure; board managers read)
 let NOTICES_OFF = true;
 /** The module switch (/me modules.notices, and at once after a switch in Settings): the tab joins HIDDEN_HREFS while the module is off -
  * hidden by default, so nobody sees it flash. Re-applied by the shell after HIDDEN_HREFS is rebuilt from the product settings. */
@@ -793,11 +793,11 @@ export const INFRA_METERS_HREF = '#/infra/electricity/meters';
 export const INFRA_SETTINGS_HREF = '#/system/infra';
 export const INFRA_GENERATOR_HREF = '#/infra/generator/live';
 /** CR-INFRA-ELEVATORS: the elevators' live list (devices.read; offered only once an elevator is defined). */
-export const INFRA_ELEVATORS_HREF = '#/infra/elevators';
+const INFRA_ELEVATORS_HREF = '#/infra/elevators';
 /** CR-INFRA-TEMPERATURE 2.9.1: the temperature units (devices.read; offered once a unit is defined, or to a manager for setup). */
-export const INFRA_TEMPERATURE_HREF = '#/infra/temperature';
+const INFRA_TEMPERATURE_HREF = '#/infra/temperature';
 /** CR-WATER78: the water meters (water.view; offered only while the module is on and the viewer may see water meters - water/access.ts). */
-export const INFRA_WATER_HREF = '#/infra/water/meters';
+const INFRA_WATER_HREF = '#/infra/water/meters';
 export const INFRA_TABS: TabItem[] = [
   { id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF },
   // CR-WATER78 section 3: directly after the electricity meters; hidden while the module is off (default) or the viewer lacks water.view
@@ -956,7 +956,7 @@ const isMaintenanceHref = (href: string | undefined): boolean => href === TICKET
 // entry hrefs below are redirect-only addresses (legacyRedirect).
 // ---------------------------------------------------------------------------------------------
 export type TicketsSection = 'requests' | 'maintenance' | 'vendors' | 'reports';
-export const TICKETS_SECTION_IDS: readonly TicketsSection[] = ['requests', 'maintenance', 'vendors', 'reports'];
+const TICKETS_SECTION_IDS: readonly TicketsSection[] = ['requests', 'maintenance', 'vendors', 'reports'];
 /** The section entry addresses (new, redirect only: they land on the section's first visible page). */
 export const TICKETS_SECTION_HREFS: Record<TicketsSection, string> = {
   requests: '#/tickets/requests',
@@ -1007,7 +1007,7 @@ export const TICKETS_REPORTS_PAGES: TabItem[] = [
   { id: 'overview', get label() { return navOt('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: managers only (TAB_PERMISSIONS + the board's server gate)
   { id: 'reports', get label() { return navIx('pageBuilding'); }, href: TICKETS_REPORTS_HREF }, // CR-INSIGHT215: hidden until a part is on (applyInfraInsights)
 ];
-export const TICKETS_PAGE_ROWS: Record<TicketsSection, TabItem[]> = {
+const TICKETS_PAGE_ROWS: Record<TicketsSection, TabItem[]> = {
   requests: TICKETS_REQUESTS_PAGES,
   maintenance: TICKETS_MAINTENANCE_PAGES,
   vendors: TICKETS_VENDORS_PAGES,
@@ -1132,8 +1132,8 @@ export function areaDot(id: string): boolean {
 }
 
 // NOTICEADD-295: 'notices' is the rail entry of the notice board (NOTICES_AREA) - not a movable tab (NavTabId) and without a tab row
-export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets' | 'notices' | 'calendars';
-export type SecuritySection = 'live' | 'investigate' | 'alarm';
+type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets' | 'notices' | 'calendars';
+type SecuritySection = 'live' | 'investigate' | 'alarm';
 
 export interface AreaEntry {
   id: AreaId;
@@ -1175,11 +1175,11 @@ export const NAV_TAB_IDS: NavTabId[] = NAV_A.map((n) => n.id as NavTabId);
 export const NOTICES_AREA: AreaEntry = { id: 'notices', icon: 'pin', label: 'לוח הודעות', href: '#/devices/notices' };
 
 /** "מערכת" (the settings area): a route area of its own (crumbs, tabs) but, since CR-013, reached from the user menu. */
-export const SYSTEM_AREA: AreaEntry = { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' };
+const SYSTEM_AREA: AreaEntry = { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' };
 
 /** The settings tabs every signed-in user has (their own push notification preferences): holding only these is not
  * "a settings permission" - the user menu offers them as their own item instead of "מערכת". */
-export const PERSONAL_SYSTEM_HREFS = new Set<string>(['#/system/notifications']);
+const PERSONAL_SYSTEM_HREFS = new Set<string>(['#/system/notifications']);
 
 /** The security area's sections and their pages (CR-010). */
 export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
@@ -1208,7 +1208,7 @@ export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
   alarm: [{ id: 'alarm', label: 'אזעקה', href: '#/security/alarm' }],
 };
 
-export interface SectionEntry {
+interface SectionEntry {
   id: SecuritySection;
   label: string;
   icon: IconName;
@@ -1398,7 +1398,7 @@ export function rememberSection(s: SecuritySection): void {
   }
 }
 
-export function lastSection(): SecuritySection | null {
+function lastSection(): SecuritySection | null {
   try {
     const v = localStorage.getItem(LAST_SECTION_KEY);
     return v === 'live' || v === 'investigate' || v === 'alarm' ? v : null;
@@ -1415,7 +1415,7 @@ export function securityTarget(api: boolean, can?: Can): string {
 }
 
 /** Ctrl+K page targets (CR-010): the security sections by name, next to the server's rooms / cameras / entities. */
-export interface PageTarget {
+interface PageTarget {
   label: string;
   subtitle: string;
   href: string;
@@ -1438,10 +1438,10 @@ export function pageTargets(q: string, api: boolean, can?: Can): PageTarget[] {
 /** Screens that still show demo data only. With a real backend they are hidden from the tab bars until they are
  * built for real (live review 2026-09-17, F1 F3 F4 F5 F6 F7); the shell also redirects their routes. Empty since
  * T054: the access slot became the real WisKey entry center (CR-005). */
-export const DEMO_ONLY_HREFS = new Set<string>();
+const DEMO_ONLY_HREFS = new Set<string>();
 
 /** Tabs whose real screen has a different name than the design's demo screen. */
-export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן' };
+const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן' };
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 // CR-NOTICE106: the notice board tab until the session says the module is on; FIX2200: the same for the הכרזות tab (announce.enabled)
@@ -1720,7 +1720,7 @@ export function visibleAreas(api: boolean, can?: Can, order: readonly string[] =
 /** CALENDARS-UI-2310: the rail entry "יומנים" right after ראשי (the approved mock-up, nav B) while the module is on and the installation puts
  * it on the rail (rail / both) - or, whatever the setting, for a tenant of the calendars only (owner answer 25: no home area, or a home
  * screen without devices.read, which shows him nothing). Not a movable tab. */
-export function withCalendarsArea(list: AreaEntry[], tenant = false): AreaEntry[] {
+function withCalendarsArea(list: AreaEntry[], tenant = false): AreaEntry[] {
   if (!CALENDARS_ON) return list;
   const home = list.findIndex((n) => n.id === 'devices');
   if (CALENDARS_PLACEMENT === 'home_tab' && home >= 0 && !tenant) return list;
@@ -1840,7 +1840,7 @@ export function demoRedirect(path: string, api: boolean): string | null {
 /** The live overview, "תמונת מצב" - the first live page, hidden with הגדרות › ממשק › `ui.security_snapshot` (owner 2026-09-30):
  * its href joins HIDDEN_HREFS, so it leaves the navigation, and its route lands on the next live page
  * (liveOverviewTarget). The screen is not otherwise gated - hiding is navigation, not access control. */
-export const SNAPSHOT_HREF = '#/live';
+const SNAPSHOT_HREF = '#/live';
 
 /** The `ui.security_snapshot` setting as HIDDEN_HREFS state (true = hidden). Returns whether it is hidden. */
 export function applySnapshotHidden(settings: Record<string, unknown> | null | undefined): boolean {

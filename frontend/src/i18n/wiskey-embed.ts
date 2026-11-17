@@ -32,9 +32,9 @@ const ru: Record<Key, string> = {
   retry: 'Повторить',
 };
 
-export type WetLang = 'he' | 'en' | 'ar' | 'ru';
+type WetLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function wetLang(): WetLang {
+function wetLang(): WetLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

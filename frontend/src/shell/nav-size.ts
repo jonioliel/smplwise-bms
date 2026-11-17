@@ -12,7 +12,7 @@
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 
-export type NavPreset = 's' | 'm' | 'l' | 'xl';
+type NavPreset = 's' | 'm' | 'l' | 'xl';
 export type NavSize = { mode: 'rel'; preset: NavPreset } | { mode: 'free'; icon: number; label: number; item: number };
 
 export const NAV_PRESETS: readonly NavPreset[] = ['s', 'm', 'l', 'xl'];

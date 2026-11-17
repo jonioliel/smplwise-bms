@@ -22,7 +22,7 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
  *  - on disconnect the timer is stopped and the message dropped: a screen that comes back does not show an old message for ever.
  */
 
-export interface ToastOptions<Tone extends string = string> {
+interface ToastOptions<Tone extends string = string> {
   /** The message's tone - whatever the screen's CSS names ('ok', 'err', 'warn', ...). Default: the controller's `tone` option, else ''. */
   tone?: Tone | '';
   /** How long the message stays, in ms. Default: the controller's `ms`. 0 or Infinity: until cleared or replaced. */
@@ -34,7 +34,7 @@ export interface ToastTimers {
   clearTimeout: (handle: unknown) => void;
 }
 
-export interface ToastControllerOptions<Tone extends string = string> {
+interface ToastControllerOptions<Tone extends string = string> {
   /** The default duration (ms). Default 2500 - the most common value among the private copies. */
   ms?: number;
   /** The default tone. Default ''. */

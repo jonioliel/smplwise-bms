@@ -182,9 +182,9 @@ const ru: Record<Key, string> = {
   level2Hint: 'Страницы прямого эфира, расследования и инфраструктуры, а также безопасность в настройках',
 };
 
-export type TstLang = 'he' | 'en' | 'ar' | 'ru';
+type TstLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function tstLang(): TstLang {
+function tstLang(): TstLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

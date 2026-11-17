@@ -29,7 +29,7 @@ const he = {
 };
 
 type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };
-export type TtsDefaultText = Widen<typeof he>;
+type TtsDefaultText = Widen<typeof he>;
 
 const en: TtsDefaultText = {
   setting: {

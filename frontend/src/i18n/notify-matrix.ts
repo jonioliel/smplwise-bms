@@ -273,9 +273,9 @@ const ru: Partial<Record<Key, string>> = {
   src_ticket_cost_missing: 'Требование оплаты не подано',
 };
 
-export type NmtLang = 'he' | 'en' | 'ar' | 'ru';
+type NmtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function nmtLang(): NmtLang {
+function nmtLang(): NmtLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

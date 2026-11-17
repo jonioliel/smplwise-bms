@@ -213,9 +213,9 @@ const en: Partial<Record<Key, string>> = {
   capFull: 'Stream quota full', capRetry: 'Retrying shortly',
 };
 
-export type ItLang = 'he' | 'en';
+type ItLang = 'he' | 'en';
 
-export function itLang(): ItLang {
+function itLang(): ItLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : 'he';
 }

@@ -404,7 +404,7 @@ const en: Partial<Record<StKey, string>> = {
   sForbidden: 'This view is for administrators of every station only',
 };
 
-export function stLang(): 'he' | 'en' {
+function stLang(): 'he' | 'en' {
   return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 
@@ -415,7 +415,7 @@ export function st(key: StKey, vars?: Record<string, string | number>): string {
 }
 
 /** The text of a key built at run time (`sync_<word>`, `alert_<kind>`...), or `undefined` when there is none. */
-export function stMaybe(key: string, vars?: Record<string, string | number>): string | undefined {
+function stMaybe(key: string, vars?: Record<string, string | number>): string | undefined {
   return key in he ? st(key as StKey, vars) : undefined;
 }
 

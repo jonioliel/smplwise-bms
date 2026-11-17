@@ -21,8 +21,8 @@ import { hostBlockStyles } from '../styles/fragments';
  * picker (playback, sync, saved views, case snapshots); on a floor map they stay placed, without a picture. The camera table in
  * Settings keeps them, and events, cases and the change log keep their history.
  */
-export const DISABLE_TEXT = 'מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות שלו יורדות מהקיר ומבחירת המצלמות; בטבלת המצלמות ובמפה הן נשארות, בלי תמונה. ההיסטוריה נשמרת.';
-export const ENABLE_TEXT = 'ה־NVR חוזר לפעול מיד, והמצלמות שלו חוזרות לקיר.';
+const DISABLE_TEXT = 'מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות שלו יורדות מהקיר ומבחירת המצלמות; בטבלת המצלמות ובמפה הן נשארות, בלי תמונה. ההיסטוריה נשמרת.';
+const ENABLE_TEXT = 'ה־NVR חוזר לפעול מיד, והמצלמות שלו חוזרות לקיר.';
 
 const BADGE: Record<string, StateKind> = { online: 'live', error: 'error', unknown: 'unknown', pending_restart: 'stale', disabled: 'neutral', not_configured: 'neutral', unreadable: 'error', refused: 'error', removed: 'neutral' };
 

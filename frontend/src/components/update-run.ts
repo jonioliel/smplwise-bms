@@ -11,12 +11,12 @@ import { getRun, rollbackSteps, type BackupState, isTerminal, needsRollbackGuida
 const POLL_FAST_MS = 2_000;
 const POLL_SLOW_MS = 15_000;
 /** How long the screen waits for the system to answer again before it says so (the design's window for a locally built image). */
-export const WAIT_LIMIT_UPDATE_MS = 90 * 60_000; // the ceiling of an update (timeout_s 5400); the server settles a run past it
-export const EXPECTED_UPDATE_S = 1200;
-export const WAIT_LIMIT_RESTART_MS = 10 * 60_000;
+const WAIT_LIMIT_UPDATE_MS = 90 * 60_000; // the ceiling of an update (timeout_s 5400); the server settles a run past it
+const EXPECTED_UPDATE_S = 1200;
+const WAIT_LIMIT_RESTART_MS = 10 * 60_000;
 
 /** An answer that means "the system is down or restarting", not "the run is unknown". */
-export function isOutageError(err: unknown): boolean {
+function isOutageError(err: unknown): boolean {
   if (err instanceof ApiError) return err.status === 401 || err.status === 502 || err.status === 503 || err.status === 504 || err.status === 0 || err.code.startsWith('http_5');
   return true; // a TypeError from fetch: the connection is down
 }

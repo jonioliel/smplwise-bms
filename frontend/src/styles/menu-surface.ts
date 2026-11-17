@@ -109,7 +109,7 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
 ];
 
 /** A HUD panel over the plan canvas or the 3D canvas: how it is made opaque (see "WHAT IS A HUD PANEL" above). */
-export interface HudSurface extends MenuSurface {
+interface HudSurface extends MenuSurface {
   /** `background` (default): the rule paints `var(--sw-menu-surface)`. `surface-token`: the rule re-points `--sw-surface` at it (and `--sw-surface-2`,
    * the hover fill, at that surface washed towards the ink: `color-mix(in srgb, var(--sw-menu-surface) 92%, var(--sw-text))`) for the shared controls it
    * contains. `fill`: an SVG label pill drawn inside the canvas fills with it. */

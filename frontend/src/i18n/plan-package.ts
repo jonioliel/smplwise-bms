@@ -100,7 +100,7 @@ const en: Record<Key, string> = {
   items: 'Custom items',
 };
 
-export const PLAN_PACKAGE_STRINGS = { he, en } as const;
+const PLAN_PACKAGE_STRINGS = { he, en } as const;
 
 export function pkgLang(): 'he' | 'en' {
   const lang = typeof document !== 'undefined' ? document.documentElement.lang || '' : '';

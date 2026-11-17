@@ -6,7 +6,7 @@ import { frigateEn, type FrigateText } from './frigate-en';
 
 export type { FrigateText };
 
-export function frigateLang(): 'he' | 'en' {
+function frigateLang(): 'he' | 'en' {
   return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 

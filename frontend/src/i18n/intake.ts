@@ -180,9 +180,9 @@ const en: Partial<Record<Key, string>> = {
 };
 
 export type IntakeKey = Key;
-export type IntakeLang = 'he' | 'en' | 'ar' | 'ru';
+type IntakeLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function intakeLang(): IntakeLang {
+function intakeLang(): IntakeLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

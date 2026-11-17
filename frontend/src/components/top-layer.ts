@@ -17,7 +17,7 @@ import { ref } from 'lit/directives/ref.js';
 
 type PopEl = HTMLElement & { showPopover?: () => void; hidePopover?: () => void };
 
-export const hasTopLayer = (el: Element | null | undefined): el is PopEl & { showPopover: () => void; hidePopover: () => void } =>
+const hasTopLayer = (el: Element | null | undefined): el is PopEl & { showPopover: () => void; hidePopover: () => void } =>
   !!el && typeof (el as PopEl).showPopover === 'function' && typeof (el as PopEl).hidePopover === 'function';
 
 /** Show / hide a `popover` element in the top layer; quiet when it is already in that state, not connected, or the API is missing. */

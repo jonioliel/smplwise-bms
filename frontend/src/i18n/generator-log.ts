@@ -185,9 +185,9 @@ const ru: Partial<Record<Key, string>> = {
 };
 
 export type GltKey = Key;
-export type GltLang = 'he' | 'en' | 'ar' | 'ru';
+type GltLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function gltLang(): GltLang {
+function gltLang(): GltLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

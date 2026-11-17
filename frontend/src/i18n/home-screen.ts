@@ -406,9 +406,9 @@ const en: Record<HsKey, string> = {
   demo: 'Demo data: the settings are saved only with a server.',
 };
 
-export type HsLang = 'he' | 'en' | 'ar' | 'ru';
+type HsLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function hsLang(): HsLang {
+function hsLang(): HsLang {
   const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
   return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
 }

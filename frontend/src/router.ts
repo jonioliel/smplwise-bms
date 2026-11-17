@@ -39,7 +39,7 @@ export function navigate(path: string, params?: Record<string, string>): void {
 }
 
 /** Fired on `window` after `replaceRoute`: the address changed without a history entry and without a `hashchange`. */
-export const ROUTE_REPLACED = 'sw-route-replaced';
+const ROUTE_REPLACED = 'sw-route-replaced';
 
 /** Rewrite the current route in place (history.replaceState, the router's `history.state` kept): no new history entry
  * and no `hashchange`, so it is never mistaken for the user's intent. The shell re-reads the route on ROUTE_REPLACED.

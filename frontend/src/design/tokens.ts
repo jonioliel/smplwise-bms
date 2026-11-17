@@ -17,12 +17,12 @@
  *  - sizes in px, alphas as rgba(); RGB triplets only where the code composes an alpha.
  */
 
-export interface TokenValue {
+interface TokenValue {
   light: string;
   dark: string;
 }
 export type TokenTable = Record<string, TokenValue>;
-export interface TokenGroup {
+interface TokenGroup {
   id: string;
   title: string;
   tokens: TokenTable;

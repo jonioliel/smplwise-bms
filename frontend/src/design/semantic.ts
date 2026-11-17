@@ -16,14 +16,14 @@ import type { TokenTable } from './tokens';
 /** Ordered from the page up: the canvas, then the three panel levels (a card, a nested block, a well / pressed area). */
 export const SURFACE_LEVELS = ['--sw-bg', '--sw-surface', '--sw-surface-2', '--sw-surface-3'] as const;
 /** The opaque twin of each panel level (floating layers and the no-transparency fallback). */
-export const SURFACE_SOLID = { '--sw-surface': '--sw-surface-solid', '--sw-surface-2': '--sw-surface-2-solid', '--sw-surface-3': '--sw-surface-3-solid' } as const;
+const SURFACE_SOLID = { '--sw-surface': '--sw-surface-solid', '--sw-surface-2': '--sw-surface-2-solid', '--sw-surface-3': '--sw-surface-3-solid' } as const;
 /** Ordered from the strongest ink down: heading, body, secondary, muted. Plus the ink on an accent fill. */
 export const TEXT_LEVELS = ['--sw-heading', '--sw-text', '--sw-text-2', '--sw-text-3'] as const;
-export const TEXT_INVERSE = '--sw-text-inverse';
+const TEXT_INVERSE = '--sw-text-inverse';
 /** The hairline and the stronger divider / control outline; the menu hairline is its own (always opaque) pair. */
-export const BORDER_LEVELS = ['--sw-border', '--sw-border-strong'] as const;
+const BORDER_LEVELS = ['--sw-border', '--sw-border-strong'] as const;
 /** The ONE interaction colour of a skin and its companions. Never a status colour (see STATUS below). */
-export const ACCENT_ROLES = ['--sw-accent', '--sw-accent-hover', '--sw-accent-soft', '--sw-accent-text', '--sw-focus', '--sw-nav'] as const;
+const ACCENT_ROLES = ['--sw-accent', '--sw-accent-hover', '--sw-accent-soft', '--sw-accent-text', '--sw-focus', '--sw-nav'] as const;
 
 /**
  * The status colours. Each status has the bare colour (dot, bar, icon), a `-soft` fill and a `-text` ink on that fill. They are reserved
@@ -31,21 +31,21 @@ export const ACCENT_ROLES = ['--sw-accent', '--sw-accent-hover', '--sw-accent-so
  * a status value (validateSkinTable: rule `accent-is-status`), so "blue = can press, red = alarm" never blurs.
  */
 export const STATUS_NAMES = ['live', 'recorded', 'offline', 'stale', 'unknown', 'danger', 'warning', 'success', 'forbidden'] as const;
-export type StatusName = (typeof STATUS_NAMES)[number];
+type StatusName = (typeof STATUS_NAMES)[number];
 export const statusTokens = (s: StatusName) => ({ base: `--sw-${s}`, soft: `--sw-${s}-soft`, text: `--sw-${s}-text` });
 /** The statuses whose colour must never double as the accent (alarm / ok / attention): the hues a person reads as meaning. */
-export const ALARM_STATUSES: readonly StatusName[] = ['danger', 'warning', 'success', 'live', 'stale', 'forbidden'];
+const ALARM_STATUSES: readonly StatusName[] = ['danger', 'warning', 'success', 'live', 'stale', 'forbidden'];
 
 /** Radius scale, small to large (pill is the "fully round" end, outside the ordering). */
 export const RADIUS_SCALE = ['--sw-r-2xs', '--sw-r-xs', '--sw-r-sm', '--sw-r-md', '--sw-r-lg', '--sw-r-xl', '--sw-r-2xl'] as const;
-export const RADIUS_PILL = '--sw-r-pill';
+const RADIUS_PILL = '--sw-r-pill';
 /** Elevation scale: level 0 is "no shadow" (a flat surface); 1 resting card, 2 hover / raised, 3 floating (dialog, popover, toast). */
 export const ELEVATION_SCALE = ['--sw-shadow-1', '--sw-shadow-2', '--sw-shadow-3'] as const;
 /** Spacing scale (the 4 px grid; the half steps of the pill family are density helpers, not part of the ordered scale). */
 export const SPACING_SCALE = ['--sw-s-1', '--sw-s-2', '--sw-s-3', '--sw-s-4', '--sw-s-5', '--sw-s-6', '--sw-s-8', '--sw-s-10'] as const;
 /** Type scale, small to large. A screen never writes a px font size of its own. */
 export const TYPE_SCALE = ['--sw-fs-2xs', '--sw-fs-xs', '--sw-fs-sm', '--sw-fs-base', '--sw-fs-md', '--sw-fs-lg', '--sw-fs-xl', '--sw-fs-2xl', '--sw-fs-3xl', '--sw-fs-4xl'] as const;
-export const TYPE_WEIGHTS = ['--sw-fw-regular', '--sw-fw-medium', '--sw-fw-semibold', '--sw-fw-bold'] as const;
+const TYPE_WEIGHTS = ['--sw-fw-regular', '--sw-fw-medium', '--sw-fw-semibold', '--sw-fw-bold'] as const;
 
 /**
  * Motion. Three kinds of name, because reduced motion treats them differently (apple-design §14 / emil-design-eng "Accessibility":
@@ -56,10 +56,10 @@ export const TYPE_WEIGHTS = ['--sw-fw-regular', '--sw-fw-medium', '--sw-fw-semib
  * The ORDER of the lists is the order of the declarations in the generated reduced-motion block (css.ts) and is kept equal to the
  * block that was written by hand before (DESIGNTOKENS-297 changed no byte of the generated CSS).
  */
-export const MOTION_DURATIONS_CORE = ['--sw-t-fast', '--sw-t-med', '--sw-t-sheet', '--sw-t-state'] as const;
-export const MOTION_TRAVEL_CORE = ['--sw-hover-lift'] as const;
+const MOTION_DURATIONS_CORE = ['--sw-t-fast', '--sw-t-med', '--sw-t-sheet', '--sw-t-state'] as const;
+const MOTION_TRAVEL_CORE = ['--sw-hover-lift'] as const;
 /** The Arx motion layer (SKINFOUND-297, tokens.ts motion group). */
-export const MOTION_DURATIONS_ARX = [
+const MOTION_DURATIONS_ARX = [
   '--sw-t-press',
   '--sw-t-hover',
   '--sw-t-slow',
@@ -72,12 +72,12 @@ export const MOTION_DURATIONS_ARX = [
   '--sw-spring-kpi-ms',
   '--sw-stagger',
 ] as const;
-export const MOTION_TRAVEL_ARX = ['--sw-enter-y'] as const;
-export const MOTION_DURATIONS_ARX_TAIL = ['--sw-enter-ms'] as const;
+const MOTION_TRAVEL_ARX = ['--sw-enter-y'] as const;
+const MOTION_DURATIONS_ARX_TAIL = ['--sw-enter-ms'] as const;
 export const MOTION_SCALE = ['--sw-press-scale'] as const;
 export const MOTION_DURATIONS = [...MOTION_DURATIONS_CORE, ...MOTION_DURATIONS_ARX, ...MOTION_DURATIONS_ARX_TAIL] as const;
 export const MOTION_TRAVEL = [...MOTION_TRAVEL_CORE, ...MOTION_TRAVEL_ARX] as const;
-export const MOTION_EASINGS = ['--sw-ease', '--sw-ease-thumb', '--sw-ease-dialog', '--sw-ease-out', '--sw-ease-in-out', '--sw-ease-drawer', '--sw-ease-color'] as const;
+const MOTION_EASINGS = ['--sw-ease', '--sw-ease-thumb', '--sw-ease-dialog', '--sw-ease-out', '--sw-ease-in-out', '--sw-ease-drawer', '--sw-ease-color'] as const;
 
 const reduce = (names: readonly string[], value: string) => names.map((n) => `${n}:${value} !important;`).join('');
 /** The reduced-motion declarations of the core names (durations 0, no hover lift). */
@@ -109,7 +109,7 @@ export const SEMANTIC_NAMES: readonly string[] = [
   ...MOTION_EASINGS,
 ];
 
-export interface ContractProblem {
+interface ContractProblem {
   rule: 'missing' | 'both-columns' | 'scale-order' | 'accent-is-status' | 'motion-unit' | 'exit-slower-than-enter' | 'menu-translucent';
   scheme?: 'light' | 'dark';
   detail: string;

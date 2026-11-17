@@ -16,13 +16,13 @@ const CACHE_KEY = 'sw.nav.order';
 
 /** Known ids in the given order (unknown ids and duplicates dropped), then the missing ones in the default order - the
  * same rule as the server's normalize_nav_order. */
-export function normalizeOrder(value: unknown): NavTabId[] {
+function normalizeOrder(value: unknown): NavTabId[] {
   const seen: NavTabId[] = [];
   if (Array.isArray(value)) for (const v of value) if ((NAV_TAB_IDS as string[]).includes(v) && !seen.includes(v)) seen.push(v);
   return [...seen, ...NAV_TAB_IDS.filter((t) => !seen.includes(t))];
 }
 
-export function isDefaultOrder(o: readonly string[]): boolean {
+function isDefaultOrder(o: readonly string[]): boolean {
   return o.length === NAV_TAB_IDS.length && o.every((id, i) => id === NAV_TAB_IDS[i]);
 }
 

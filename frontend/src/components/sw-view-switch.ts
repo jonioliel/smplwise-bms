@@ -4,7 +4,7 @@ import './sw-icon';
 import type { IconName } from './sw-icon';
 import { isWkIcon, wkIcon } from '../screens/wiskey-stations-icons';
 
-export interface ViewOption {
+interface ViewOption {
   id: string;
   label: string;
   /** A shared icon name (sw-icon) or one of the local glyphs (screens/wiskey-stations-icons.ts). */

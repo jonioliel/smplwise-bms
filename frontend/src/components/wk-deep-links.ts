@@ -8,7 +8,7 @@ import { deepLinksFor, mayOpenPanel, type DeepLink } from '../wiskey/deep-links'
 import { hostBlockStyles } from '../styles/fragments';
 
 /** What the control is called (no platform name: the embedded panel is "חלון האינטרקום" on every operator screen). */
-export const DEEP_LINKS_HEADING = 'פתיחה בחלון האינטרקום';
+const DEEP_LINKS_HEADING = 'פתיחה בחלון האינטרקום';
 
 /**
  * WISKEY-DEEPLINKS-2382: the "no dead end" links of one Arx place into the embedded intercom panel - exactly the tab / tool where

@@ -76,7 +76,7 @@ function attrText(key: string, v: unknown): string {
   return VALUE_HE[String(v)] ?? String(v);
 }
 
-export interface Described {
+interface Described {
   /** The short action ("הדלקה", "שינוי יעד"). */
   verb: string;
   from: string;
@@ -117,7 +117,7 @@ export function describeEvent(item: Pick<ActivityItem, 'kind' | 'from' | 'to' | 
   return { verb, from: stateLabel(fromState), to: stateLabel(toState) + extra };
 }
 
-export interface ActorView {
+interface ActorView {
   type: ActorType;
   /** "אוטומציה" / "תזמון" / "סצנה" - shown in front of the name. */
   prefix: string;
@@ -156,7 +156,7 @@ export type Period = 'hour' | 'day' | 'week' | 'month';
 export const PERIODS: Period[] = ['hour', 'day', 'week', 'month'];
 export const PERIOD_LABEL: Record<Period, string> = { hour: 'שעה', day: '24 שעות', week: '7 ימים', month: '30 יום' };
 const PERIOD_MS: Record<Period, number> = { hour: 3600_000, day: 24 * 3600_000, week: 7 * 24 * 3600_000, month: 30 * 24 * 3600_000 };
-export const DEFAULT_PERIOD: Period = 'week';
+const DEFAULT_PERIOD: Period = 'week';
 
 export const ACTOR_FILTERS: { id: '' | ActorType; label: string }[] = [
   { id: '', label: 'כל הגורמים' },
@@ -205,7 +205,7 @@ export const DEFAULT_VIEW: ActivityView = 'cards';
 export const parseView = (v: string | null | undefined): ActivityView => (v === 'list' || v === 'cards' ? v : DEFAULT_VIEW);
 
 /** ACT-polish: the tone of one event - what the marker next to it says at a glance. */
-export type EventTone = 'on' | 'off' | 'value' | 'lost' | 'back' | 'neutral';
+type EventTone = 'on' | 'off' | 'value' | 'lost' | 'back' | 'neutral';
 
 export function eventTone(item: Pick<ActivityItem, 'kind' | 'from' | 'to'>, kind: ActivityKind): EventTone {
   const to = item.to.state ?? '';

@@ -23,7 +23,7 @@ export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
 
 export const TAB_MODES: readonly TabMode[] = ['tabs', 'hybrid', 'dropdown'];
-export const TAB_MODE_DEFAULT: TabMode = 'tabs';
+const TAB_MODE_DEFAULT: TabMode = 'tabs';
 export const TAB_MODE_LABEL: Record<TabMode, string> = { tabs: 'כמוסות ופסים', hybrid: 'משולב', dropdown: 'תפריטים נפתחים' };
 export const TAB_MODE_HINT: Record<TabMode, string> = {
   tabs: 'כמו היום: כל הלשוניות גלויות',
@@ -33,7 +33,7 @@ export const TAB_MODE_HINT: Record<TabMode, string> = {
 export const TAB_GROUPS: readonly TabGroup[] = ['home', 'area', 'multimedia', 'security', 'settings'];
 export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: 'אזורים בקומה (מסך האזור)', area: 'לשוניות האזור', multimedia: 'מולטימדיה', security: 'אבטחה', settings: 'הגדרות' };
 /** The phone's width (the shell's phone layout, the pair row); the mode itself no longer depends on it (0.1.157). */
-export const TAB_MODE_MAX_WIDTH = 767;
+const TAB_MODE_MAX_WIDTH = 767;
 /** `hybrid`: up to this many items stay a segmented control. */
 export const HYBRID_MAX_ITEMS = 3;
 
@@ -41,7 +41,7 @@ export type TabModeGroups = Partial<Record<TabGroup, TabMode>>;
 
 export type { DdStyle };
 export const DD_STYLES: readonly DdStyle[] = DD_STYLE_IDS;
-export const DD_STYLE_DEFAULT: DdStyle = 'auto';
+const DD_STYLE_DEFAULT: DdStyle = 'auto';
 export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כדור מלא', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה', capsule: 'קפסולה' };
 export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
 
@@ -75,7 +75,7 @@ export function asDdPanel(v: unknown): DdPanel | null {
  * One global value, installation (`ui.dd_phone`) and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
 export type DdPhone = 'sheet' | 'list';
 export const DD_PHONES: readonly DdPhone[] = ['sheet', 'list'];
-export const DD_PHONE_DEFAULT: DdPhone = 'list';
+const DD_PHONE_DEFAULT: DdPhone = 'list';
 export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: 'גיליון שעולה מלמטה', list: 'רשימה קטנה מתחת לשדה' };
 export function asDdPhone(v: unknown): DdPhone | null {
   return typeof v === 'string' && (DD_PHONES as readonly string[]).includes(v) ? (v as DdPhone) : null;
@@ -122,7 +122,7 @@ export function asDdStyle(v: unknown): DdStyle | null {
 }
 
 /** The stored per-group dropdown styles, reduced to known groups and styles (a stored string is parsed); never throws. */
-export function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
+function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
   let value = raw;
   if (typeof value === 'string') {
     try {
@@ -142,7 +142,7 @@ export function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
 }
 
 /** The stored per-group dropdown sizes, reduced to known groups and sizes (a stored string is parsed); never throws. */
-export function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
+function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
   let value = raw;
   if (typeof value === 'string') {
     try {
@@ -162,7 +162,7 @@ export function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
 }
 
 /** The stored per-group overrides, reduced to known groups and modes (a stored string is parsed); never throws. */
-export function normalizeTabModeGroups(raw: unknown): TabModeGroups {
+function normalizeTabModeGroups(raw: unknown): TabModeGroups {
   let value = raw;
   if (typeof value === 'string') {
     try {
@@ -226,7 +226,7 @@ export function isPhoneWidth(): boolean {
 }
 
 /** The configured mode of a group (user over installation, group over global), regardless of the screen width. */
-export function configuredTabMode(group: TabGroup): TabMode {
+function configuredTabMode(group: TabGroup): TabMode {
   return resolveTabMode(group).mode;
 }
 
@@ -500,7 +500,7 @@ export const ownDdSearch = (): DdSearch | null => searchChoice.own;
 export const saveOwnDdSearch = (search: DdSearch | null): Promise<void> => searchChoice.save(search);
 
 /** How the camera comparison pickers (recordings, synchronized playback) are drawn now. */
-export const ddPickerOf = (): DdPicker => pickerChoice.resolve().value;
+const ddPickerOf = (): DdPicker => pickerChoice.resolve().value;
 export const installationDdPicker = (): DdPicker => pickerChoice.inst;
 /** The user's own choice; null = follows the installation. */
 export const ownDdPicker = (): DdPicker | null => pickerChoice.own;
