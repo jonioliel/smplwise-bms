@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { settle } from './helpers/settle';
+import { pinnedNow } from './helpers/today-clock';
 import { mockGaps, type GapOpts } from './home-v3-gaps-mocks';
 import { mockP2 } from './home-v3-p2-mocks';
 
@@ -156,8 +157,9 @@ test.describe('HOME-V3-AUDITFIX-2437', () => {
       await page.goto('about:blank');
       await mockP2(page, { kiosk: true });
       const long = 'ארוחת ערב משפחתית גדולה אצל סבא וסבתא בבית שלהם בכפר עם כל הנכדים';
-      const start = new Date(Date.now() + 40 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-      const end = new Date(Date.now() + 160 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const now = pinnedNow(page); // TEST-STABLE-2442: the mock's fixed noon, so "the next event today" is today's at any hour of the run
+      const start = new Date(now + 40 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const end = new Date(now + 160 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
       await page.route('**/api/v1/calendar/occurrences?**', (r) => r.fulfill(json({ occurrences: [{ occurrence_id: 'x1', event_id: 'x1', calendar_id: 'cal-fam', room_calendar_ids: [], start, end, state: 'confirmed', kind: 'event', title: long, organizer: { id: 'x', name: 'נועה' }, revision: 'r1', all_day: false }] })));
       await page.goto('/#/home/r/living');
       await home(page).waitFor();
@@ -275,7 +277,8 @@ test.describe('HOME-V3-AUDITFIX-2437', () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('about:blank');
     await mockP2(page);
-    const at = (m: number) => new Date(Date.now() - m * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const now = pinnedNow(page); // TEST-STABLE-2442: minutes before the mock's fixed noon are today's (they were yesterday's at 00:01)
+    const at = (m: number) => new Date(now - m * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
     const people = [
       { user_id: 'u1', name: 'אלכסנדרה-מרגריטה בת-שבע לוינשטיין', me: true, home: true, at: at(1) },
       { user_id: 'u2', name: 'יונתן', me: false, home: false, at: at(2) },

@@ -25,10 +25,21 @@ async function compare(page: Page, name: string) {
   await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
 }
 
+// TEST-STABLE-2442: the stations-screen display card and the announcements card (both are `system-access-display`, mounted in layout a
+// even while their fold is closed, and their fold headers carry their summaries) are `ready` before the media readiness line and
+// WisKey's engine list have answered; those two answers still change the rows. `data-access-display-settled="true"` says that neither
+// is on its way (the marker of FLAKY-S12-FIX-2441). `count` = how many of these cards the layout mounts.
+const DISPLAY_CARD = `${D} system-access-display sw-card[data-access-display="ready"]`;
+async function displaySettled(page: Page, count: number) {
+  await expect(page.locator(`${DISPLAY_CARD}[data-access-display-settled="true"]`)).toHaveCount(count, { timeout: 30_000 });
+  await expect(page.locator(`${DISPLAY_CARD}[data-access-display-settled="false"]`)).toHaveCount(0);
+}
+
 async function openCard(page: Page, id: string) {
   const head = page.locator(`${FOLDS} [data-fold-toggle="${id}"]`);
   await head.click({ timeout: 30_000 });
   await expect(head).toHaveAttribute('aria-expanded', 'true');
+  await displaySettled(page, 2);
   await page.mouse.move(0, 0);
   await settlePage(page);
 }
@@ -37,6 +48,7 @@ async function ready(page: Page) {
   await page.locator(`${FOLDS} [data-fold-toggle="screens"]`).waitFor({ timeout: 30_000 });
   await expect(page.locator(`${FOLDS} [data-fold-summary="calls"]`)).not.toHaveText('טוען…', { timeout: 20_000 });
   await expect(page.locator(`${FOLDS} [data-fold-summary="pairing"]`)).not.toHaveText('טוען…', { timeout: 20_000 });
+  await displaySettled(page, 2);
   await settlePage(page);
 }
 
@@ -76,6 +88,7 @@ test.describe('pixel: SETTINGS-INTERCOM-CARDS-2401', () => {
     await openAccess(page, '/system/diagnostics?tab=access-voice');
     await page.locator(`${D} [data-access-voice] system-access-display[show="announce"] [data-access-display-tts-engine]`).waitFor({ timeout: 30_000 });
     await page.locator(`${D} [data-access-voice] system-call-banner sw-card[data-call-banner-setting="ready"]`).waitFor({ timeout: 20_000 });
+    await displaySettled(page, 1);
     await page.mouse.move(0, 0);
     await settlePage(page);
     await compare(page, 'tabs-voice-1440');
