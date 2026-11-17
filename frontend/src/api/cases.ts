@@ -3,6 +3,7 @@
  * bookmark into the NVR until an export job preserves a copy; footage the NVR no longer has is reported as missing.
  */
 import { api, apiUrl, del, get, patch, path, post, query } from './client';
+import { isoZ } from './day-format';
 
 export type CaseStatus = 'open' | 'in_review' | 'closed';
 export type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
@@ -160,7 +161,7 @@ export interface Bookmark {
 export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: 'עותק שמור', preserving: 'מעתיק מה־NVR…', nvr: 'סימנייה ל־NVR' };
 export const listBookmarks = (cameraId: string, date: string) => get<{ bookmarks: Bookmark[] }>(`cases/bookmarks?camera_id=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`);
 
-const isoSec = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+const isoSec = (d: Date) => isoZ(d);
 /** A clip bookmark around an instant (default 15 s before, 45 s after). */
 export const clipAround = (at: Date, beforeS = 15, afterS = 45) => ({ from_at: isoSec(new Date(at.getTime() - beforeS * 1000)), to_at: isoSec(new Date(at.getTime() + afterS * 1000)) });
 

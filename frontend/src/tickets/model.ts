@@ -8,6 +8,7 @@ import { bt, type BoardTextKey } from './board-text';
 
 const BOARD_REASONS = ['unassigned', 'overdue', 'unopened', 'ack', 'stuck', 'waiting'];
 import { dt } from './device-text';
+import { isoZ } from '../api/day-format';
 
 export const TICKETS_ROOT = '#/tickets';
 export const SCOPES: readonly Exclude<ListScope, 'visible'>[] = ['mine', 'department', 'all'];
@@ -181,7 +182,7 @@ export function toLocalInput(iso: string | null | undefined): string {
 export function fromLocalInput(v: string): string {
   if (!v) return '';
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString().replace(/\.\d+Z$/, 'Z');
+  return Number.isNaN(d.getTime()) ? '' : isoZ(d);
 }
 
 /** The card's "where" line: the place when the ticket has one (slice 3), else the department and the category. */

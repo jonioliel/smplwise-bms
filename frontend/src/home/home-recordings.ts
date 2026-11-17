@@ -12,6 +12,7 @@ import { ApiError, get } from '../api/client';
 import { closePlayback, createPlayback, dateInZone, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekPlayback, type PlaybackSession } from '../api/recordings';
 import { clockOf, dayWord, daySpans, diaryWord, inSpans, playbackError } from './home-v3-words';
 import '../components/sw-live-player';
+import { isoZ } from '../api/day-format';
 
 interface PbEvent { at: number; text: string; icon: string }
 
@@ -88,7 +89,7 @@ async function loadDay(h: HomeHost) {
 
 async function playAt(h: HomeHost, minute: number) {
   st.t = Math.max(0, Math.min(1439.99, minute));
-  const at = instantInZone(dateOf(st.back), st.t, st.tz).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const at = isoZ(instantInZone(dateOf(st.back), st.t, st.tz));
   st.note = '';
   const g = gen;
   const was = st.session?.id;

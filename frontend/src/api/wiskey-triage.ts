@@ -14,6 +14,7 @@ import { ApiError, get, post, put } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import type { FleetAlert, SyncConflict } from './access-status';
+import { isoZ } from './day-format';
 
 export const DIRECTIONS = ['central', 'device', 'delete'] as const;
 export type Direction = (typeof DIRECTIONS)[number];
@@ -117,7 +118,7 @@ export interface StepOutcome {
 }
 
 const TTL_MS = 15_000;
-const envelope = () => ({ client_request_id: commandId(), expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') });
+const envelope = () => ({ client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) });
 const enc = encodeURIComponent;
 
 export const getTriage = () => get<TriageView>('access-control/triage');

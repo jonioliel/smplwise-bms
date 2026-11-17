@@ -12,6 +12,7 @@ import type {
   RfqVendorState,
 } from '../api/tickets-rfq';
 import { vatOf } from './cost-model';
+import { isoZ } from '../api/day-format';
 
 export type Tone = 'ok' | 'info' | 'warn' | 'bad' | '';
 
@@ -105,7 +106,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export function localToIso(date: string, time = '00:00'): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return '';
   const d = new Date(`${date}T${time}:00`);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString().replace(/\.\d+Z$/, 'Z');
+  return Number.isNaN(d.getTime()) ? '' : isoZ(d);
 }
 
 /** A UTC instant into the form's local date and time. */

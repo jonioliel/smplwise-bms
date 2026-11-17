@@ -1,5 +1,6 @@
 import { apiBlob, get, post } from './client';
 import type { DisplayZone } from './intercom';
+import { isoZ } from './day-format';
 
 /**
  * WISKEY-OPS-VIEWS-2400 (integration plan T11): the client of Settings › תפעול האינטרקום (routers/access_control_ops.py). Every call is one
@@ -253,7 +254,7 @@ export interface CancelResult {
 
 /** Cancel one job. `revision` is the job's revision as listed (the intercom compares it); `nowMs` the server-aligned clock. */
 export function cancelJob(jobId: string, revision: number, nowMs: number = Date.now()): Promise<CancelResult> {
-  const expires = new Date(nowMs + 30_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const expires = isoZ(nowMs + 30_000);
   return post<CancelResult>(`${BASE}/jobs/${encodeURIComponent(jobId)}/cancel`, {
     client_request_id: crypto.randomUUID().replace(/-/g, ''),
     expires_at: expires,

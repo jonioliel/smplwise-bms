@@ -26,6 +26,7 @@ import type { PushSupport } from '../pwa/push';
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: a ticket / RFQ row offers no "open" while the module is off
 import { navTt } from '../i18n/nav-labels'; // CR-038 (spec 13.4 names this file): the `tickets` category's label is the module's configured name (CR-NAV-LABELS-2436: not the whole tickets catalogue)
 import type { Severity, Weekday } from './types';
+import { isoZ } from './day-format';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
@@ -1233,7 +1234,7 @@ async function call<T>(ctx: ErrorContext, fn: () => Promise<T>): Promise<T> {
   try { return await fn(); } catch (err) { throw mapNotifyError(err, ctx); }
 }
 const DEFAULT_PAGE = 50;
-const commandEnvelope = () => ({ client_request_id: commandId(), expires_at: new Date(Date.now() + 15_000).toISOString().replace(/\.\d{3}Z$/, 'Z') });
+const commandEnvelope = () => ({ client_request_id: commandId(), expires_at: isoZ(Date.now() + 15_000) });
 
 export const httpNotify: NotifyAdapter = {
   list: (q = {}) => call('user', async () => {

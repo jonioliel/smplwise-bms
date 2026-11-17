@@ -5,6 +5,7 @@ import { describeError } from '../api/client';
 import type { HomeHost } from './home-ext';
 import { getFamily, type FamilyInfo } from './home-p2-api';
 import { moreTiles } from './more-registry';
+import { isoZ } from '../api/day-format';
 
 const P2_TILES = new Set(['presence', 'calendar', 'notices', 'tickets', 'schedules', 'weather', 'notif']);
 
@@ -137,7 +138,7 @@ export function errText(e: unknown): string {
 }
 
 export function iso(d: Date): string {
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return isoZ(d);
 }
 
 /** For the hub tiles' `visible`: starts loading what the person may see (once) and answers true, so `seen(h) && has(...)` reads well. */

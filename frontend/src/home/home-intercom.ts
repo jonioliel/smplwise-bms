@@ -17,6 +17,7 @@ import { getCallLog, type CallLogRow } from '../api/intercom-calls';
 import { canAnywhere } from '../api/session';
 import { commandId } from '../api/request-id';
 import { callResult, guestState } from './home-v3-words';
+import { isoZ } from '../api/day-format';
 
 interface Visitor {
   id: string; state: string | null; confirmed: boolean; valid_from: string | null; valid_until: string | null; end_reason?: string | null;
@@ -103,7 +104,7 @@ function window_(d: Draft): { from: string; until: string } {
   const from = local(d.from);
   let until = local(d.to <= d.from ? d.to + 24 : d.to);
   if (until.getTime() <= Date.now()) until = new Date(Date.now() + 3_600_000);
-  const iso = (x: Date) => x.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const iso = (x: Date) => isoZ(x);
   return { from: iso(from.getTime() < Date.now() && d.day === 'today' ? new Date() : from), until: iso(until) };
 }
 

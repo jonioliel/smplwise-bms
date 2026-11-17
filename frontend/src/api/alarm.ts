@@ -5,6 +5,7 @@
  */
 import { del, get, patch, post, put } from './client';
 import { commandId } from './request-id';
+import { isoZ } from './day-format';
 
 export type ArmMode = 'arm_home' | 'arm_away' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass';
 export type AlarmAction = ArmMode | 'disarm';
@@ -106,7 +107,7 @@ export type CodePolicy = 'no_code' | 'code_required';
 export const alarmPanels = () => get<AlarmPanels>('alarm/panels');
 
 function envelope() {
-  return { client_request_id: commandId(), expires_at: new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+  return { client_request_id: commandId(), expires_at: isoZ(Date.now() + 60_000) };
 }
 
 export interface AlarmActionRecord {

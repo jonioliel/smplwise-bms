@@ -10,11 +10,12 @@ import type {
 import { ApiError } from './client';
 import { DEFAULT_TICKET_NAMES } from '../tickets/naming';
 import { demoCloseGate, demoCostBlock } from './tickets-costs-mock'; // CR-038 slice 9: the demo cost status and close gate
+import { isoZ } from './day-format';
 
 const ME = { id: 'demo', name: 'יוני' };
 const PEOPLE = [ME, { id: 'u-avi', name: 'אבי כהן' }, { id: 'u-dana', name: 'דנה לוי' }, { id: 'u-moshe', name: 'משה פרץ' }];
 const HOUR = 3_600_000;
-const ago = (h: number) => new Date(Date.now() - h * HOUR).toISOString().replace(/\.\d+Z$/, 'Z');
+const ago = (h: number) => isoZ(Date.now() - h * HOUR);
 const sleep = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 let seq = 1042;
@@ -121,7 +122,7 @@ const TRACKED = ['light', 'switch', 'input_boolean', 'climate', 'fan', 'humidifi
 
 /** Slice 3: the demo's 24 h history preview - a schedule and an automation, never a person's name. */
 function demoHistory(): HistorySummary {
-  const at = (h: number) => new Date(Date.now() - h * HOUR).toISOString().replace(/\.\d+Z$/, 'Z');
+  const at = (h: number) => isoZ(Date.now() - h * HOUR);
   const lines: HistorySummary['lines'] = [
     { at: at(0.5), kind: 'power', from: { state: 'cool' }, to: { state: 'off' }, changed: ['state'], actor: { type: 'person' } },
     { at: at(3), kind: 'value', from: { state: 'cool', temperature: 24 }, to: { state: 'cool', temperature: 22 }, changed: ['temperature'], actor: { type: 'schedule', name: 'קירור בוקר' } },

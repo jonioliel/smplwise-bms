@@ -7,6 +7,7 @@ import type { Grant, GrantState } from '../api/access-grants';
 import { dateInZone, instantInZone, minuteInZone } from '../api/recordings';
 import { addDays, daysInclusive } from '../format/day-key';
 import { hhmm } from '../format/pad';
+import { isoZ } from '../api/day-format';
 
 export type UiState = 'draft' | 'pending' | 'pushing' | 'verified' | 'accepted' | 'sync' | 'unknown' | 'revoking' | 'revoked' | 'revoked_unverified' | 'ended' | 'refused' | 'failed' | 'gone';
 export type Bucket = 'attention' | 'waiting' | 'moving' | 'active' | 'history';
@@ -244,7 +245,7 @@ export function narrowWindow(validFrom: string, validUntil: string, fromDay: str
 }
 
 function iso(d: Date): string {
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return isoZ(d);
 }
 
 // ---------------------------------------------------------------- references (mirrors of the server's rules)

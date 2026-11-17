@@ -4,6 +4,7 @@
  * tests/unit-wiskey-visits.spec.ts). Operator text never names the vendor or the platform ("מערכת בקרת הכניסה").
  */
 import type { GuestTemplate, LinkState, VisitCapability, VisitCapabilityName, VisitLink, VisitStatus, WiskeyVisit } from '../api/wiskey-visits';
+import { isoZ } from '../api/day-format';
 
 export type Tone = 'ok' | 'acc' | 'warn' | 'err' | 'off';
 
@@ -92,7 +93,7 @@ export function presetFromTemplate(t: GuestTemplate, startMs: number): InvitePre
   const from = new Date(startMs);
   from.setUTCSeconds(0, 0);
   const until = new Date(from.getTime() + t.duration_minutes * 60_000);
-  const iso = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const iso = (d: Date) => isoZ(d);
   const doors: Record<string, number[]> = {};
   for (const [sid, locks] of Object.entries(t.doors)) doors[sid] = [...locks].sort((a, b) => a - b);
   return { doors, valid_from: iso(from), valid_until: iso(until), category: t.access_category === 'contractor' ? 'contractor' : 'visitor' };

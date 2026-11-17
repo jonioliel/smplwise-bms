@@ -71,7 +71,7 @@ import { ot } from '../tickets/overview-text';
 import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
-import { dateInputLang, dayText } from '../api/day-format';
+import { dateInputLang, dayText, isoZ } from '../api/day-format';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Tab = (typeof SETTINGS_TABS)[number];
@@ -972,7 +972,7 @@ export class SystemTickets extends LitElement {
       const role = `tickets_${perm}`;
       if (on) {
         const [scopeType, ...rest] = this.grantScope.split(':');
-        const until = this.grantUntil ? new Date(`${this.grantUntil}T23:59:59`).toISOString().replace(/\.\d+Z$/, 'Z') : null;
+        const until = this.grantUntil ? isoZ(new Date(`${this.grantUntil}T23:59:59`)) : null;
         await createBinding({ subject_kind: 'user', subject_id: uid, role_id: role, scope_type: scopeType, scope_id: rest.join(':'), ...(until ? { expires_at: until } : {}) });
       } else {
         const grant = this.grantOf(uid, perm);

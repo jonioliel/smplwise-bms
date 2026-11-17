@@ -5,6 +5,7 @@
  */
 import { get, post, put } from './client';
 import { canAnywhere, isApi } from './session';
+import { isoZ } from './day-format';
 
 export type IncidentStatus = 'open' | 'closed';
 export type IncidentSource = 'alarm' | 'event' | 'notification' | 'manual';
@@ -112,7 +113,7 @@ export const DEFAULT_BOUNDS: Record<IncidentSettingKey, SettingBound> = {
 // ---------------------------------------------------------------- the static demo (no backend): fake data, never a real name or place
 
 const DEMO_NOW = Date.now();
-const ago = (s: number) => new Date(DEMO_NOW - s * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+const ago = (s: number) => isoZ(DEMO_NOW - s * 1000);
 const DEMO_ID = 'demo-incident';
 let demoSettings: IncidentSettings = { ...DEFAULT_SETTINGS, 'incident.enabled': true };
 const demoIncident = (): IncidentDetail => ({

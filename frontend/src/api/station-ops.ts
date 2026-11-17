@@ -11,6 +11,7 @@ import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import { fill } from '../i18n/wiskey-stations';
 import type { StationOpsText } from '../i18n/wiskey-station-ops';
+import { isoZ } from './day-format';
 
 export const STATION_OPS = ['sync', 'rescan', 'health_refresh', 'clock_refresh'] as const;
 export type StationOp = (typeof STATION_OPS)[number];
@@ -97,7 +98,7 @@ export const postMaintenance = (stationId: string, action: StationOp) =>
   post<OpReply>(`${one(stationId)}/${action}`, {
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + TTL_MS),
   });
 
 /** What a failed POST says: the server's `details.outcome` (`not_sent` / `refused` / `unknown`); a 403 / 404 / 409 / 422 / 429 refusal

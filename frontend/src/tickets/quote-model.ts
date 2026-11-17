@@ -15,7 +15,7 @@ import type { CostFlow, FlowStage, MessageDraft, Quote, QuoteLine, QuoteOnBehalf
 import type { TicketStatus } from '../api/tickets';
 import { lineProblem, vatOf, wireLine, type EditLine, type Tone } from './cost-model';
 import { fromLocalInput, HANDLING } from './model';
-import { dayText } from '../api/day-format';
+import { dayText, isoZ } from '../api/day-format';
 import type { QuoteTextKey } from './quote-text';
 
 export const KIND_ORDER: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
@@ -342,7 +342,7 @@ export function validUntilIso(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
   const at = new Date(y, m - 1, d, 23, 59, 59);
   if (Number.isNaN(at.getTime()) || at.getMonth() !== m - 1 || at.getDate() !== d) return '';
-  return at.toISOString().replace(/\.\d+Z$/, 'Z');
+  return isoZ(at);
 }
 
 /** The day text of a validity instant ('16.10.2026', the viewer's zone); '' when absent or invalid. */

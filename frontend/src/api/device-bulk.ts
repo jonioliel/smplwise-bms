@@ -9,6 +9,7 @@
  * button - and follows the record to its end.
  */
 import { get, post } from './client';
+import { isoZ } from './day-format';
 
 export type BulkScope = 'building' | 'floor' | 'area';
 /** CR-007 slice 4: covers_open / covers_stop / covers_position are the area's own "כל התריסים" group control
@@ -204,7 +205,7 @@ export function bulkBody(scope: BulkScope, id: string, kind: BulkKind, previewDi
     kind,
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + BULK_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + BULK_TTL_MS),
     preview_digest: previewDigest,
     ...(position !== undefined ? { position } : {}),
     ...(only ? { only } : {}),

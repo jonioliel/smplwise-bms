@@ -9,6 +9,7 @@
 import { ApiError, get, post, put } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
+import { isoZ } from './day-format';
 
 const BASE = 'access-control/installer';
 const TTL_MS = 20_000; // the server accepts at most 60 s; it sends within 15 s of arrival or not at all
@@ -100,7 +101,7 @@ export function envelope(typed?: string): Record<string, unknown> {
   return {
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + TTL_MS),
     ...(typed === undefined ? {} : { typed_confirmation: typed }),
   };
 }

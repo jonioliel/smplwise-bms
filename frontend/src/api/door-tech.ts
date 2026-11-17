@@ -14,6 +14,7 @@ import { serverNow } from './intercom';
 import type { Period, StationPolicy, WeekdayName } from './access-stations';
 import { fill } from '../i18n/wiskey-stations';
 import type { DoorTechText } from '../i18n/wiskey-door-tech';
+import { isoZ } from './day-format';
 
 export type DoorTechKind = 'hold_save' | 'hold_delete' | 'code_write' | 'program_save' | 'program_action';
 export const DOOR_TECH_KINDS: readonly DoorTechKind[] = ['hold_save', 'hold_delete', 'code_write', 'program_save', 'program_action'];
@@ -89,7 +90,7 @@ export const WEEK: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wed
 
 const one = (id: string) => `access-control/stations/${encodeURIComponent(id)}`;
 const TTL_MS = 15_000;
-const envelope = () => ({ confirmed: true, client_request_id: commandId(), expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') });
+const envelope = () => ({ confirmed: true, client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) });
 
 export const getDoorTech = (stationId: string) => get<DoorTechView>(`${one(stationId)}/door-tech`);
 export const getHold = (stationId: string, door: number) => get<HoldReply>(`${one(stationId)}/doors/${door}/hold`);

@@ -10,7 +10,7 @@ import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
 import type { MediaLive } from './media-screens';
 import type { PlayerLive } from './media-players';
-import { dayTimeText } from './day-format';
+import { dayTimeText, isoZ } from './day-format';
 
 export interface HaActionArgSpec {
   name: string;
@@ -197,7 +197,7 @@ export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install'
 
 /** Entity-action request (contracts/entity-action.request.schema.json): one client id per click, short expiry. */
 export function runAction(entityId: string, actionId: string, args: Record<string, unknown> = {}, confirmed = false, building = '') {
-  const body = actionBody(actionId, args, confirmed, commandId(), new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'), building);
+  const body = actionBody(actionId, args, confirmed, commandId(), isoZ(Date.now() + 60_000), building);
   return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);
 }
 

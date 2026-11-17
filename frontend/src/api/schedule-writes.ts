@@ -15,6 +15,7 @@ import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import type { LibrarySchedule, SchedulePlan, ScheduleJob } from './access-schedules';
 import type { Period, WeekdayName } from './access-stations';
+import { isoZ } from './day-format';
 
 export type Week = Record<WeekdayName, Period[]>;
 export interface HolidayDraft {
@@ -168,7 +169,7 @@ const BASE = 'access-control/schedules';
 const TTL_MS = 15_000;
 
 function envelope(): { confirmed: true; client_request_id: string; expires_at: string } {
-  return { confirmed: true, client_request_id: commandId(), expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+  return { confirmed: true, client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) };
 }
 
 export const readAction = <T>(action: string, body: Record<string, unknown>) => post<ReadReply<T>>(`${BASE}/actions/${action}`, body);

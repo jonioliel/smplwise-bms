@@ -7,6 +7,7 @@
 import { get, post, query } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
+import { isoZ } from './day-format';
 
 export type FieldType = 'text' | 'select' | 'number' | 'date';
 
@@ -217,7 +218,7 @@ export const postApply = (reviewId: string) =>
     review_id: reviewId,
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + TTL_MS),
   });
 export const postCheck = (reviewId: string) => post<CheckReply>(`${BASE}/reviews/${encodeURIComponent(reviewId)}/check`);
 export const getVersions = (offset = 0, limit = 20) => get<{ fetched_at: string | null; versions: VersionsPage }>(`${BASE}/versions` + query({ offset, limit }));

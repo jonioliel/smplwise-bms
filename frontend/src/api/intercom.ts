@@ -9,6 +9,7 @@
 import { ApiError, api, apiUrl, get, post, put } from './client';
 import { commandId } from './request-id';
 import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
+import { isoZ } from './day-format';
 
 /** A display zone as WisKey sends it (time.ts `DisplayZone`): an IANA zone, or a device's own DST rule. */
 export type DisplayZone =
@@ -349,7 +350,7 @@ const COMMAND_TTL_MS = 15_000;
 
 /** A fresh command id and expiry for one physical command - one per deliberate user action, never reused on a retry. */
 function envelope() {
-  return { client_request_id: commandId(), expires_at: new Date(serverNow() + COMMAND_TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+  return { client_request_id: commandId(), expires_at: isoZ(serverNow() + COMMAND_TTL_MS) };
 }
 
 type Actioned<T> = T & { command_id: string };

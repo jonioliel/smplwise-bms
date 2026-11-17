@@ -44,7 +44,7 @@ import { SeekCoalescer } from '../api/seek-coalescer';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
-import { dateInputLang, timeText } from '../api/day-format';
+import { dateInputLang, timeText, isoZ } from '../api/day-format';
 import { t as vt } from '../i18n/he';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
@@ -879,7 +879,7 @@ export class InvestigatePlayback extends LitElement {
     this.notice = '';
     this.scrubbing = false;
     try {
-      const iso = at.toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const iso = isoZ(at);
       if (this.groupMode) {
         const sent = performance.now();
         const g = this.group && this.group.sessions.some((s) => !FINISHED.includes(s.state)) ? await seekGroup(this.group.id, iso) : await createGroup(this.members, iso);
@@ -1222,7 +1222,7 @@ export class InvestigatePlayback extends LitElement {
     // aim ahead by this tile's measured start-up latency, so it lands on the clock instead of behind it again
     const ahead = Math.min(this.startLatency[cid] ?? 4000, 15000);
     try {
-      const next = await seekPlayback(sess.id, new Date(masterMs + ahead).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      const next = await seekPlayback(sess.id, isoZ(masterMs + ahead));
       if (this.group === g) this.group = { ...g, sessions: g.sessions.map((x) => (x.id === next.id ? next : x)) };
       // the tile reconnects only now (new generation in its socket URL): measure the start-up latency from here
       this.seekSentAt[cid] = performance.now();
@@ -1361,7 +1361,7 @@ export class InvestigatePlayback extends LitElement {
       this.exportError = 'זמן הסיום חייב להיות אחרי ההתחלה.';
       return null;
     }
-    return [a.toISOString().replace(/\.\d{3}Z$/, 'Z'), b.toISOString().replace(/\.\d{3}Z$/, 'Z')];
+    return [isoZ(a), isoZ(b)];
   }
 
   private async runEstimate() {

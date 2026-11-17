@@ -11,6 +11,7 @@ import { instantInZone } from '../api/recordings';
 import type { RtKey } from '../i18n/access-request';
 import { addDays, daysInclusive } from '../format/day-key';
 import { pad2 } from '../format/pad';
+import { isoZ } from '../api/day-format';
 
 export const MAX_WINS = 8;
 export const PURPOSE_MAX = 200;
@@ -137,7 +138,7 @@ export function windowOf(from: string, until: string, tz: string, maxDays: numbe
   let vu = instantInZone(addDays(until, 1), 0, tz);
   const cap = vf.getTime() + maxDays * 86400_000;
   if (vu.getTime() > cap) vu = new Date(cap);
-  const iso = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const iso = (d: Date) => isoZ(d);
   return { valid_from: iso(vf), valid_until: iso(vu) };
 }
 

@@ -1,4 +1,5 @@
 import type { EmergencyState, GrantsView } from '../api/door-windows';
+import { isoZ } from '../api/day-format';
 
 /**
  * EMROLE-295: the pure logic of the emergency-open holders panel. The server is the only authority (who may grant, the longest expiry, the
@@ -26,7 +27,7 @@ export function defaultExpiryValue(now: Date, hours: number): string {
 export function expiryToUtc(local: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) return null;
   const at = new Date(local);
-  return Number.isNaN(at.getTime()) ? null : at.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return Number.isNaN(at.getTime()) ? null : isoZ(at);
 }
 
 export type GrantProblem = 'person' | 'expiry_required' | 'expiry_past' | 'expiry_too_long' | null;

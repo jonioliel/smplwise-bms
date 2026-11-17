@@ -10,6 +10,7 @@
 import { get, post } from './client';
 import { serverNow, type DisplayZone } from './intercom';
 import { commandId } from './request-id';
+import { isoZ } from './day-format';
 
 export interface DiagHead {
   state: string;
@@ -315,6 +316,6 @@ export interface DecideInput {
 
 /** The review decision - only after the confirmation step (`confirmed: true`); sent once, never retried by the screen. */
 export function postDecide(input: DecideInput, nowMs = serverNow()) {
-  const expires = new Date(nowMs + 15_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const expires = isoZ(nowMs + 15_000);
   return post<DecideResult>(`${BASE}/reviews/decide`, { ...input, confirmed: true, client_request_id: commandId(), expires_at: expires });
 }

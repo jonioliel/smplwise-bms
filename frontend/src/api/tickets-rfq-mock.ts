@@ -14,13 +14,13 @@ import type {
   RfqMessage, RfqMeta, RfqOrder, RfqOrderAnswer, RfqOrderPreview, RfqQuestion, RfqQuestionCounts, RfqQuoteBody, RfqScope, RfqState, RfqSummary, RfqVendor, RfqVendorState,
 } from './tickets-rfq';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, quantityToMilli, vatOf } from '../tickets/cost-model';
-import { dayText, dayMonthText } from './day-format';
+import { dayText, dayMonthText, isoZ } from './day-format';
 
 const sleep = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
+const iso = (ms: number) => isoZ(ms);
 let idn = 0;
 const nid = (p: string) => `${p}${(++idn).toString(16).padStart(10, '0')}`;
 const ME = 'יוני';
