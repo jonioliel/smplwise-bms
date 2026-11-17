@@ -605,7 +605,6 @@ export const tr = msgCatalogue('msg/calendars', {
   'לחיצה על תאריך מוציאה אותו. המבקש יראה "אושר למעט N מועדים".': 'Selecting a date leaves it out. The requester sees "Approved except N dates".',
   'אישור למעט': 'Approve except',
   'אישור הסדרה': 'Approve the series',
-  'דחיית בקשה': 'Reject request',
   'לדחות את "{title}"?': 'Reject "{title}"?',
   'הערה למבקש (לא חובה, עד 300 תווים)': 'Note to the requester (optional, up to 300 characters)',
   '{from}–{to} ב{month} {year}': '{from}–{to} {month} {year}',

@@ -8,6 +8,7 @@ import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 // the feature registries (tickets/icons.ts, ...) take a glyph they share with this set from here instead of re-typing its path data.
 // Static, trusted markup of this file only - never user data - which is why it may go through unsafeSVG.
 export const ICON_PATHS: Record<string, string> = {
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', // I18N-EN-SWITCH-2438: the interface language
   live: '<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a12 12 0 0 0 0 17M20.5 3.5a12 12 0 0 1 0 17"/>',
   explore: '<path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/>',
   investigate: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3M11 8v3l2 1.5"/>',

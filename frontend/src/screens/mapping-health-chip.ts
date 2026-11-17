@@ -15,6 +15,7 @@ import { loadTree } from '../api/catalog';
 import { health, levelWaiting, resolve, type Health } from '../api/mapping-engine';
 import { loadMapping, type MappingData } from '../api/mapping';
 import { navigate } from '../router';
+import { tr } from '../i18n/msg/shell'; // the chip is in the entry chunk: its four words live in the shell's table, not in the settings family's
 
 const refsOf = (d: MappingData) => d.buildings.map((b) => ({ id: b.id, name: b.name, shared: b.is_shared }));
 
@@ -78,7 +79,7 @@ export class MappingHealthChip extends LitElement {
   render() {
     const h = this.h;
     if (!h || !h.fresh.length) return nothing;
-    return html`<button type="button" data-home-mapping-health @click=${() => navigate('/system/diagnostics', { tab: 'buildings' })}><sw-icon name="warning" size=${14}></sw-icon><b>${h.fresh.length}</b> ${h.fresh.length === 1 ? 'אזור חדש' : 'אזורים חדשים'} - ${h.ready.length ? 'אשר' : 'החלט'}</button>`;
+    return html`<button type="button" data-home-mapping-health @click=${() => navigate('/system/diagnostics', { tab: 'buildings' })}><sw-icon name="warning" size=${14}></sw-icon><b>${h.fresh.length}</b> ${h.fresh.length === 1 ? tr('אזור חדש') : tr('אזורים חדשים')} - ${h.ready.length ? tr('אשר') : tr('החלט')}</button>`;
   }
 }
 

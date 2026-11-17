@@ -61,7 +61,7 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
 
   protected readonly path = PATH;
   protected readonly tab = 'players';
-  protected readonly editEntry = { id: 'multimedia-players-layout', label: 'עריכת מסך הנגנים' };
+  protected readonly editEntry = { id: 'multimedia-players-layout', label: tr('עריכת מסך הנגנים') };
   protected readonly noFilter = PLAYER_NO_FILTER;
   protected readonly panelParam = 'player';
   /** Bubble phase C: the skin in force (the now-playing hero above the groups, the cards as pill rows). */

@@ -77,7 +77,7 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
 
   protected readonly path = PATH;
   protected readonly tab = 'groups';
-  protected readonly editEntry = { id: 'multimedia-groups-edit', label: 'עריכת הקבוצות השמורות' };
+  protected readonly editEntry = { id: 'multimedia-groups-edit', label: tr('עריכת הקבוצות השמורות') };
 
   static styles = [mediaGlassStyles, mediaPageStyles, css`
     .ggrid {

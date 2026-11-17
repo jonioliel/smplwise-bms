@@ -1,6 +1,8 @@
 // CR-CONFIRM-DIALOG-2438: the words of the shared confirmation dialog (components/confirm-dialog.ts), which replaced the browser's
 // native confirm() box. The question itself comes from the caller, in the caller's own table.
 
+import { docLang, registerCatalogue } from './core';
+
 const he = {
   heading: 'נדרש אישור',
   ok: 'אישור',
@@ -31,8 +33,7 @@ export type CdKey = Key;
 export type CdLang = 'he' | 'en' | 'ar' | 'ru';
 
 export function cdLang(): CdLang {
-  const l = typeof document !== 'undefined' ? (document.documentElement.lang || '').toLowerCase() : '';
-  return l.startsWith('en') ? 'en' : l.startsWith('ar') ? 'ar' : l.startsWith('ru') ? 'ru' : 'he';
+  return docLang(['en', 'ar', 'ru']);
 }
 
 const TABLES: Record<CdLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
@@ -45,3 +46,5 @@ export function cdt(key: Key, lang: CdLang = cdLang()): string {
 
 export const CD_KEYS = Object.keys(he) as Key[];
 export const CD_TABLES = TABLES;
+
+registerCatalogue('i18n/confirm-dialog', { he, en, ar, ru }, CD_DEV_MARKED);

@@ -4,10 +4,12 @@
  * wizard's model (geometry, candidates) into the settings chunk. wizard-model.ts re-exports everything here.
  */
 
+import { tr } from '../i18n/msg/plan-wizard';
+
 /** PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-10 a): the six kits of the mockup, in its order. */
 export const KIT_IDS = ['apartment', 'office', 'lobby', 'technical', 'commercial', 'empty'] as const;
 export type KitId = (typeof KIT_IDS)[number];
-export const KIT_HE: Readonly<Record<KitId, string>> = { apartment: 'דירה', office: 'משרד', lobby: 'לובי ושטחים ציבוריים', technical: 'טכני וחניון', commercial: 'מסחרי', empty: 'ריק' };
+export const KIT_HE: Readonly<Record<KitId, string>> = { apartment: tr('דירה'), office: tr('משרד'), lobby: tr('לובי ושטחים ציבוריים'), technical: tr('טכני וחניון'), commercial: tr('מסחרי'), empty: tr('ריק') };
 export type Unreviewed = 'as_detected' | 'reject';
 export interface WizardPrefs {
   /** Percent: an item at or above it goes in without review. */

@@ -5,6 +5,8 @@
  * unchanged. Pure, so it runs in node (tests/unit-editors-memo-2440.spec.ts).
  */
 
+import { tr } from '../i18n/msg/automation';
+
 export type SaveGateCode =
   | 'loading' // status, draft or catalogue not here yet
   | 'read_only' // the person may not edit this item
@@ -48,11 +50,11 @@ export interface SaveGateFacts {
 }
 
 export const GATE_TEXT = {
-  loading: 'טוען',
-  viewOnly: 'צפייה בלבד',
-  fix: 'יש דברים לתקן',
-  warnings: 'יש אזהרות',
-  warningsBlocked: 'יש אזהרות לטיפול',
+  loading: tr('טוען'),
+  viewOnly: tr('צפייה בלבד'),
+  fix: tr('יש דברים לתקן'),
+  warnings: tr('יש אזהרות'),
+  warningsBlocked: tr('יש אזהרות לטיפול'),
 } as const;
 
 /** null = the save may be pressed. */

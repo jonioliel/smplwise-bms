@@ -60,7 +60,7 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
 
   protected readonly path = PATH;
   protected readonly tab = 'screens';
-  protected readonly editEntry = { id: 'multimedia-layout', label: 'עריכת מסך המולטימדיה' };
+  protected readonly editEntry = { id: 'multimedia-layout', label: tr('עריכת מסך המולטימדיה') };
   protected readonly noFilter = NO_FILTER;
   protected readonly panelParam = 'remote';
   /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (components/page-fit.ts) */

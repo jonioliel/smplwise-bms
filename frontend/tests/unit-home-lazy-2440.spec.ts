@@ -98,7 +98,7 @@ test('the home screen renders its lazy tags through the loader and keeps a used 
 
 test('the chip module carries no part of the settings page or the assistant', () => {
   const imps = staticImports('screens/mapping-health-chip.ts');
-  expect(imps.sort()).toEqual(['api/catalog.ts', 'api/mapping-engine.ts', 'api/mapping.ts', 'api/session.ts', 'components/sw-icon.ts', 'router.ts']);
+  expect(imps.sort()).toEqual(['api/catalog.ts', 'api/mapping-engine.ts', 'api/mapping.ts', 'api/session.ts', 'components/sw-icon.ts', 'i18n/msg/shell.ts', 'router.ts']);
   expect(read('screens/mapping-health-chip.ts')).toContain("@customElement('mapping-health-chip')");
   expect(read('screens/mapping-health.ts')).not.toContain('@customElement(');
   // the settings family still defines the chip (mapping-all -> mapping-health -> the chip module)

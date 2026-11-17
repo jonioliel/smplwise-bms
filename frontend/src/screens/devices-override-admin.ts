@@ -4,6 +4,7 @@ import '../components/sw-card';
 import '../components/sw-state-panel';
 import { post, describeError } from '../api/client';
 import { parseRoute } from '../router';
+import { tr } from '../i18n/msg/devices';
 
 /**
  * CR-DUP-ADMIN-CARDS-2440 (06:DUP-6): the base of the "list the entities, set an override per entity" administrator cards under
@@ -222,7 +223,7 @@ export abstract class DevicesOverrideListAdmin<Row extends PlacedRow, F extends 
   }
 
   protected place(r: Row): string {
-    return [r.floor_name, r.area_name].filter(Boolean).join(' ‹ ') || 'ללא שיוך';
+    return [r.floor_name, r.area_name].filter(Boolean).join(` ${tr('‹')} `) || tr('ללא שיוך');
   }
 
   /** One call per batch, in order; the first failure stops the rest (the caller says so and reads the list again). */

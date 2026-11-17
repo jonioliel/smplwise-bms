@@ -53,8 +53,9 @@ export const tr = msgCatalogue('msg/map', {
   'החלף כיוון פתיחה': 'Switch the opening direction',
   'ברירת מחדל - בדוק': 'Default - check',
   // floor-finish.ts, look-style.ts
-  'שיש': 'Marble',
+  'שיש קלקטה מלוטש': 'Polished Calacatta marble',
   'קרמיקה יוקרתית': 'Premium ceramic',
+  'טרוורטין': 'Travertine',
   'אדריכלי בהיר': 'Architectural light',
   'תאום דיגיטלי כהה': 'Digital twin dark',
   // geometry.ts (labels only)

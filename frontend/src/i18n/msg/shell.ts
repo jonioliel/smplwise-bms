@@ -255,4 +255,10 @@ export const tr = msgCatalogue('msg/shell', {
   'כרטיסים בסקירה': 'Cards in the overview',
   'מצלמות בקיר': 'Cameras on the wall',
   'נקודת פתיחה בכל טעינה. שינוי בתוך WisKey אינו נשמר.': 'A starting point on every load. A change made inside WisKey is not saved.',
+
+  // screens/mapping-health-chip.ts: the home site bar's chip (CR-HOME-LAZY-2440 keeps it out of the settings family's chunk)
+  'אזור חדש': 'New area',
+  'אזורים חדשים': 'New areas',
+  'אשר': 'Confirm',
+  'החלט': 'Decide',
 });

@@ -26,7 +26,9 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
 }
 
-const NATIVE = /(?<![\w$#.])(?:(?:window|globalThis|self|top|parent)\s*\.\s*)?(confirm|alert|prompt)\s*\(/g;
+// RELEASE-2438-TRAIN: an unqualified call has its bracket right after the name, so English catalogue prose such as
+// 'Offline alert (seconds)' (i18n/wiskey-installer.ts, the English switch) is not read as a call; a qualified one may keep a space.
+const NATIVE = /(?<![\w$#.])(?:(?:window|globalThis|self|top|parent)\s*\.\s*(?:confirm|alert|prompt)\s*\(|(?:confirm|alert|prompt)\()/g;
 const QUALIFIED = /(?:window|globalThis|self|top|parent)\s*\.\s*(?:confirm|alert|prompt)\s*\(/;
 /** A class method / interface member of the same name (`private async confirm() {`, `prompt(): Promise<void>;`) is not a call. */
 const DEFINITION = /^\s*(?:(?:private|protected|public|static|async|override|readonly)\s+)*(?:confirm|alert|prompt)\s*\([^)]*\)\s*(?::\s*[^={;]+[{;]|\{)\s*$/;
@@ -60,6 +62,7 @@ test('the guard itself: it catches native calls and leaves methods of the same n
   expect(nativeDialogCalls(`await confirmDialog({ body: 'x' });`)).toHaveLength(0);
   expect(nativeDialogCalls(`// never confirm(): the dialog asks`)).toHaveLength(0);
   expect(nativeDialogCalls(`/* window.alert(1) */ go();`)).toHaveLength(0);
+  expect(nativeDialogCalls(`thresholds: { offline: 'Offline alert (seconds)' },`)).toHaveLength(0);
 });
 
 test('no native confirm() / alert() / prompt() in frontend/src - use confirmDialog() (components/confirm-dialog.ts)', () => {
