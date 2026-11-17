@@ -68,7 +68,7 @@ export function bpToPercent(bp: number): string {
 }
 
 /** A percent text ('18', '17.5') -> basis points, or null (at most two decimals). */
-export function percentToBp(value: string): number | null {
+function percentToBp(value: string): number | null {
   return decimalToMinor(value);
 }
 
@@ -120,7 +120,7 @@ export function costStatusTone(s: CostStatus | ClaimStatus): Tone {
 
 // ---------------------------------------------------------------- what a claim offers (the server decides; this only hides the impossible)
 
-export interface ClaimActions {
+interface ClaimActions {
   approve: boolean;
   adjust: boolean;
   reject: boolean;
@@ -181,7 +181,7 @@ export function editLineOf(l: StoredLine): EditLine {
   return e;
 }
 
-export type LineProblem = '' | 'description' | 'hours' | 'rate' | 'quantity' | 'unit_price' | 'amount';
+type LineProblem = '' | 'description' | 'hours' | 'rate' | 'quantity' | 'unit_price' | 'amount';
 
 /** The first problem of a line (the server's rules: parts / other need a description; quarter hours; at most two decimals). */
 export function lineProblem(l: EditLine): LineProblem {
@@ -254,7 +254,7 @@ export function vatModeFor(vatExempt: boolean, include: boolean, noCharge: boole
 
 // ---------------------------------------------------------------- the report: per currency, never across
 
-export interface CurrencySection { currency: string; total: ReportTotal | null; rows: ReportGroupRow[] }
+interface CurrencySection { currency: string; total: ReportTotal | null; rows: ReportGroupRow[] }
 
 /** The report's groups split by currency (the server's order inside each), with that currency's totals row. A currency only in the
  * totals (no group rows) still gets its section. Sums are never added across currencies. */

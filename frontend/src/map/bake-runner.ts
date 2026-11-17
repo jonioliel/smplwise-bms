@@ -17,7 +17,7 @@ export interface BakeUpload {
   meta?: Record<string, unknown>;
   file: Blob;
 }
-export interface BakeDeps {
+interface BakeDeps {
   bakeKey: string;
   levels: string[];
   setting: Pick<BakeSetting, 'presets' | 'styles' | 'bands' | 'lightmap' | 'size'>;
@@ -43,7 +43,7 @@ export interface BakeDeps {
   lightmap?: Pick<BakeOptions, 'samples' | 'texel_m' | 'maxSide'>;
   now?: () => number;
 }
-export interface BakeOutcome {
+interface BakeOutcome {
   done: string[];
   skipped: string[];
   failed: { slot: string; error: string }[];

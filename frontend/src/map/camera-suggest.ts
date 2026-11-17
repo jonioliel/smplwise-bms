@@ -20,7 +20,7 @@ export interface CameraSuggestSettings {
 }
 
 export const CAMERA_SUGGEST_DEFAULTS: CameraSuggestSettings = { maxDistance: 0.35, fovWeight: 0.5, maxSuggestions: 3 };
-export const CAMERA_SUGGEST_LIMIT = 3;
+const CAMERA_SUGGEST_LIMIT = 3;
 
 export interface SuggestZone {
   id: string;

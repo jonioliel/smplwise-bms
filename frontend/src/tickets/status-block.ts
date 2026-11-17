@@ -16,7 +16,7 @@ import { ballOf, sentenceFor, slaState, statusChip, warningFor, type ViewerRole 
  * Rendered inside the host's shadow root (`<ticket-detail>`) with `statusBlockStyles`; it never calls the API - `onAction` does.
  */
 
-export interface StatusBlockCtx {
+interface StatusBlockCtx {
   role: ViewerRole;
   now: Date;
   busy: boolean;
@@ -33,7 +33,7 @@ export function initials(name: string | null | undefined): string {
 }
 
 /** One action button of the block (also used by the phone sheet and the page hero). */
-export function actionButton(a: DrawerAction, ctx: Pick<StatusBlockCtx, 'busy' | 'onAction'>, slot: 'primary' | 'quiet'): TemplateResult {
+function actionButton(a: DrawerAction, ctx: Pick<StatusBlockCtx, 'busy' | 'onAction'>, slot: 'primary' | 'quiet'): TemplateResult {
   const cls = `btn ${a.tone === 'quiet' ? 'quiet' : a.tone}`;
   return html`<button type="button" class=${cls} data-action=${a.key} ?data-primary=${slot === 'primary'} ?data-quiet=${slot === 'quiet'} ?data-assign=${a.kind === 'assign' || a.kind === 'reassign'}
     ?disabled=${ctx.busy} @click=${() => ctx.onAction(a)}>${tIcon(a.icon)}<span>${a.label}</span></button>`;

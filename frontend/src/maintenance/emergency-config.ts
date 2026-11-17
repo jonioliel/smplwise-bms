@@ -13,7 +13,7 @@ import { errLineStyles, okLineStyles } from '../styles/fragments';
 const ITEM_IDS = ['E01', 'E02', 'E03', 'E04', 'E05', 'E06', 'E07', 'E09', 'E10', 'E11', 'E12', 'E14', 'E17', 'E18', 'E19'];
 
 /** Threshold keys that belong together on one row group (the order of the screen). */
-export const THRESHOLD_ORDER = Object.keys(TH_LABEL);
+const THRESHOLD_ORDER = Object.keys(TH_LABEL);
 
 const panelCss = css`
   :host { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 14px; }

@@ -21,7 +21,7 @@
  * administrator may switch the installation to "an open foldable is a phone" (Settings > wall displays, `me.wall.foldable_open`).
  * Only the open-foldable case moves; every other device keeps its class whatever the setting says.
  */
-export type DeviceClass = 'tablet' | 'phone' | 'desktop';
+type DeviceClass = 'tablet' | 'phone' | 'desktop';
 
 export interface DeviceEnv {
   /** `navigator.maxTouchPoints` */
@@ -40,8 +40,8 @@ export interface DeviceEnv {
 }
 
 /** The short side (CSS px) from which a touch device is a tablet (7 inch and up), and the larger bound that applies when the UA says "Mobile". */
-export const TABLET_MIN_SHORT = 600;
-export const TABLET_MIN_SHORT_MOBILE_UA = 700;
+const TABLET_MIN_SHORT = 600;
+const TABLET_MIN_SHORT_MOBILE_UA = 700;
 /** long / short under this is a near-square screen: the inner screen of an unfolded foldable (1.07-1.25), never a phone (1.8 and up). */
 export const FOLDABLE_MAX_ASPECT = 1.4;
 
@@ -49,12 +49,12 @@ export const FOLDABLE_MAX_ASPECT = 1.4;
 export type FoldableOpen = 'tablet' | 'phone';
 export const FOLDABLE_OPEN_DEFAULT: FoldableOpen = 'tablet';
 
-export interface ClassifyOptions {
+interface ClassifyOptions {
   foldableOpen?: FoldableOpen;
 }
 
 /** The largest short side (CSS px) an unfolded foldable's inner screen has (Galaxy Z Fold 3-7, Pixel Fold / 9 Pro Fold: 673-~790). */
-export const FOLDABLE_MAX_SHORT = 900;
+const FOLDABLE_MAX_SHORT = 900;
 
 /**
  * An unfolded foldable: a touch screen of tablet size (short side >= 600) that is either spread over a hinge (two viewport
@@ -104,7 +104,7 @@ export function readDeviceEnv(): DeviceEnv {
   };
 }
 
-export interface WallMe {
+interface WallMe {
   wall?: { enabled?: boolean; desktop?: boolean; foldable_open?: FoldableOpen } | null;
 }
 

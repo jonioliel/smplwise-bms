@@ -27,7 +27,7 @@ import { hostBlockStyles } from '../styles/fragments';
  * UXFIX-A11Y-295: a numeric range ("18–24") inside the RTL heading is an LTR island. The en dash is a neutral between two numbers, so in
  * a right-to-left line the bidi algorithm drew it "24–18"; the isolate keeps the numbers in reading order whatever the language.
  */
-export function isolateRanges(text: string): (string | TemplateResult)[] {
+function isolateRanges(text: string): (string | TemplateResult)[] {
   return text.split(/(\d+\s*[–-]\s*\d+)/).map((part, i) => (i % 2 ? html`<bdi dir="ltr">${part}</bdi>` : part));
 }
 

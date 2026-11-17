@@ -5,7 +5,7 @@
  */
 
 /** The environment facts the availability rule needs (injected so the rule is testable without a browser). */
-export interface CameraEnv {
+interface CameraEnv {
   secure: boolean;
   hasGetUserMedia: boolean;
 }

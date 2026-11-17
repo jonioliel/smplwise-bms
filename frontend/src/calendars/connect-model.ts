@@ -7,7 +7,7 @@ import { cardOf, type Connection, type Feed, type ProviderCard } from '../api/ca
 const GOOGLE_CLIENT = /^[0-9]{1,30}-[a-z0-9]{1,64}\.apps\.googleusercontent\.com$/;
 const MS_CLIENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Google's installed-app flow lands the browser here after the approval (nothing listens there; the owner pastes the address). */
-export const GOOGLE_LOOPBACK = 'http://127.0.0.1:8749/';
+const GOOGLE_LOOPBACK = 'http://127.0.0.1:8749/';
 
 /** The directions a binding of this connection may take (iCal IN reads only; a read connection only imports). */
 export function directionsFor(conn: Pick<Connection, 'provider' | 'scope'>): ('import' | 'export' | 'two_way')[] {
@@ -40,7 +40,7 @@ export const FEED_REMOTE_CONFIRM_HE =
 /** The server refuses the switch on the remote channel (local sessions only); the screen says so instead of failing on a click. */
 export const FEED_REMOTE_LOCAL_ONLY_HE = 'פתיחה או סגירה של פיד לגישה מרחוק אפשרית רק מתוך הרשת של הבניין. נכנסת עכשיו מרחוק, ולכן המתג נעול.';
 
-export type FeedRemoteView = { show: false } | { show: true; on: boolean; locked: boolean };
+type FeedRemoteView = { show: false } | { show: true; on: boolean; locked: boolean };
 
 /** 2A: the remote toggle of one feed - shown only to whom the server lets change it (`can_remote`: an administrator, or the creator who
  * manages every calendar of the feed), locked on the remote channel (`local` false). A live feed only. */

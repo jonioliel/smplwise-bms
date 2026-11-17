@@ -24,7 +24,7 @@ export const MINI_SITE_LEVEL = 'site';
 export const MINI_CAP: Readonly<Record<'s' | 'm' | 'l', number>> = { s: 6, m: 9, l: 14 };
 
 /** The lights tint of a floor: 0 = none on (or no lights), 1 = up to a third, 2 = up to two thirds, 3 = more. */
-export type MiniTint = 0 | 1 | 2 | 3;
+type MiniTint = 0 | 1 | 2 | 3;
 
 export interface MiniFloor {
   id: string;
@@ -83,7 +83,7 @@ export function levelMark(level: number): string {
   return level === 0 ? 'ק' : level > 0 ? String(level) : `‎${level}`;
 }
 
-export interface MiniInput {
+interface MiniInput {
   building: Pick<Building, 'id' | 'name'> & { floors?: Floor[] };
   tree: DeviceTree | null;
   ctx?: MatchContext;

@@ -22,7 +22,7 @@ export const PRESENCE_PLATE_BASE = 0.36; // scene-builder PRESENCE_TINT_OPACITY
  * an exterior wall is 0.25 m, so half of it plus a margin keeps the wash in front of the inner face). */
 export const GLOW_INSET_M = 0.14;
 /** The presence edge band on the floor. */
-export const PRESENCE_BAND_M = 0.55;
+const PRESENCE_BAND_M = 0.55;
 const WASH_MAX_M = 1.5;
 const LAMP_RADIUS: Record<string, number> = { floor: 1.5, wall: 1.3, pendant: 1.7 };
 
@@ -35,12 +35,12 @@ export interface GlowLamp {
   lumens: number;
   on: boolean;
 }
-export interface GlowLevel {
+interface GlowLevel {
   id: string;
   elevation_m: number;
   ceiling_height_m?: number;
 }
-export interface GlowPool {
+interface GlowPool {
   x: number;
   z: number;
   /** Radius of the pool (m): the gradient reaches 0 here. */

@@ -85,7 +85,7 @@ async function blobOf(path: string, c: Credentials, type?: string): Promise<Blob
   }
 }
 
-export interface TimelineItem {
+interface TimelineItem {
   id: number;
   at: string;
   kind: string;
@@ -102,7 +102,7 @@ export interface TimelineItem {
 }
 
 /** RFQATT (contract 19.4): one file of a request as a vendor sees it (no author, no flags, no hash, no path). */
-export interface RfqFileRef { id: string; name: string; caption?: string; kind: 'image' | 'pdf' | 'docx' | 'xlsx'; bytes: number; width?: number | null; height?: number | null; thumb?: boolean }
+interface RfqFileRef { id: string; name: string; caption?: string; kind: 'image' | 'pdf' | 'docx' | 'xlsx'; bytes: number; width?: number | null; height?: number | null; thumb?: boolean }
 
 export interface TicketView {
   number: number;
@@ -184,7 +184,7 @@ export const api = {
 export type RfqPageState = 'open' | 'due_passed' | 'declined' | 'awarded' | 'closed' | 'cancelled';
 export type RfqKind = 'labor' | 'parts' | 'travel' | 'other';
 
-export interface RfqQuoteLine {
+interface RfqQuoteLine {
   index: number;
   kind: RfqKind;
   description: string | null;
@@ -233,7 +233,7 @@ export interface RfqTerms {
 }
 
 /** CR-AWARD-NOTICE (contract 20.17): HIS award is binding - the scheduled window, his latest postponement notice, whether he may give one. */
-export interface RfqBinding {
+interface RfqBinding {
   /** the binding / advance-notice sentence in his language (server-owned, the same words as the WhatsApp award notice) */
   text: string;
   scheduled_from: string | null;

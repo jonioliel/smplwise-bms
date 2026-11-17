@@ -15,7 +15,7 @@ export interface Pt {
 
 export type Corners = [number, number][];
 
-export interface Affine {
+interface Affine {
   a: number;
   b: number;
   c: number;

@@ -85,7 +85,7 @@ export interface SharedAnchorMark {
 }
 
 export const isShared = (item: unknown): boolean => !!item && typeof item === 'object' && typeof (item as { shared?: unknown }).shared === 'object' && (item as { shared?: unknown }).shared !== null;
-export const isReadonlyShared = (item: unknown): boolean => isShared(item) && (item as { shared: SharedItemMark }).shared.readonly === true;
+const isReadonlyShared = (item: unknown): boolean => isShared(item) && (item as { shared: SharedItemMark }).shared.readonly === true;
 
 /** The chip text of a shared room ("רצפה בקומה -1"), bidi-safe; null for a room that is not shared. */
 export function sharedChip(mark: { label?: string | null } | null | undefined): string | null {
@@ -298,7 +298,7 @@ export function sharedUpperLevel(doc: Pick<GeometryDoc, 'shared_spaces' | 'level
   return null;
 }
 
-export interface TribuneLayout {
+interface TribuneLayout {
   rows: number;
   /** The rise of each row (metres). */
   step: number;

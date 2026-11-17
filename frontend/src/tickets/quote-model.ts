@@ -19,7 +19,7 @@ import { dayText, isoZ } from '../api/day-format';
 import type { QuoteTextKey } from './quote-text';
 
 export const KIND_ORDER: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
-export const QUOTE_APPROVED: readonly QuoteState[] = ['approved', 'partially_approved'];
+const QUOTE_APPROVED: readonly QuoteState[] = ['approved', 'partially_approved'];
 const NOT_LIVE: readonly QuoteState[] = ['superseded', 'withdrawn', 'not_awarded'];
 
 // ---------------------------------------------------------------- staff: no money surface
@@ -49,7 +49,7 @@ export function moneyQuotes(quotes: readonly Quote[], assignments: readonly Exte
 // ---------------------------------------------------------------- the stage chip and the stepper
 
 export type StepId = 'quote' | 'work' | 'demand' | 'paid';
-export interface StageView { key: QuoteTextKey; tone: Tone; steps: { id: StepId; state: 'done' | 'cur' | '' }[] }
+interface StageView { key: QuoteTextKey; tone: Tone; steps: { id: StepId; state: 'done' | 'cur' | '' }[] }
 
 const STAGE: Record<FlowStage, { tone: Tone; at: number }> = {
   none: { tone: '', at: -1 },
@@ -116,7 +116,7 @@ export function quoteTone(state: QuoteState): Tone {
 
 // ---------------------------------------------------------------- what a quote offers
 
-export interface QuoteActions { approve: boolean; partial: boolean; fix: boolean; reject: boolean }
+interface QuoteActions { approve: boolean; partial: boolean; fix: boolean; reject: boolean }
 
 /** The decisions a quote offers the viewer: the server's `can` (decide / reject) on a money assignment, a revision to send back, and
  *  a partial approval only when there is more than one line to choose from. */
@@ -196,7 +196,7 @@ export const MODES: readonly CostMode[] = ['required', 'optional', 'off'];
 
 // ---------------------------------------------------------------- "לשלוח הודעה לספק?" (approvals never send a message by themselves)
 
-export type DraftSubject = 'quote' | 'claim';
+type DraftSubject = 'quote' | 'claim';
 export interface SendDialog {
   subject: DraftSubject;
   /** the decision the dialog follows (its title) - quote: approved / partially_approved / fix_requested / rejected; claim: approved / rejected */
@@ -242,7 +242,7 @@ export function claimDecisionOf(action: 'approve' | 'adjust' | 'reject'): 'appro
 export interface OnBehalfTarget { assignmentId: string; name: string; replaces: boolean }
 
 /** The server's work-window bounds for a quote (services/tickets/quotes.py `_instant`): from yesterday to WORK_HORIZON_DAYS ahead. */
-export const WORK_PAST_DAYS = 1;
+const WORK_PAST_DAYS = 1;
 export const WORK_HORIZON_DAYS = 366;
 
 /**
@@ -291,7 +291,7 @@ export interface QuoteForm {
   lines: EditLine[];
 }
 
-export type WorkProblem = '' | 'format' | 'range' | 'order';
+type WorkProblem = '' | 'format' | 'range' | 'order';
 
 /** The work window as the server checks it: both ends optional, each a real instant between yesterday and a year ahead, `to` not before `from`. */
 export function workWindowProblem(from: string, to: string, now: Date = new Date()): WorkProblem {
@@ -307,7 +307,7 @@ export function workWindowProblem(from: string, to: string, now: Date = new Date
   return from && to && Date.parse(fromLocalInput(to)) < Date.parse(fromLocalInput(from)) ? 'order' : '';
 }
 
-export type ValidProblem = '' | 'format' | 'range';
+type ValidProblem = '' | 'format' | 'range';
 
 /**
  * TKQVALID: the quote's validity as the server checks it (services/tickets/quotes.py `_valid_until`): a day (`YYYY-MM-DD`), kept as the END
@@ -350,7 +350,7 @@ export function approvalNeedsExpiredConfirm(q: Pick<Quote, 'valid_until' | 'stat
   return (kind === 'approve' || kind === 'partial') && q?.state === 'submitted' && isQuoteExpired(q, now);
 }
 
-export type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order' | 'valid_format' | 'valid_range';
+type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order' | 'valid_format' | 'valid_range';
 
 /** The first problem of the form (nothing is sent while there is one). The server re-checks everything. */
 export function quoteFormProblem(f: QuoteForm, allowed: readonly LineKind[] | undefined, now: Date = new Date()): QuoteFormProblem {

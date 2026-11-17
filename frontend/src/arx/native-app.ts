@@ -6,11 +6,11 @@
  * capability it wants to use. A shell that lacks one simply gets no UI for it. The `?app=android` query parameter says
  * nothing about the platform (the iOS app sends it too); the bridge, when present, is the authority.
  */
-export type NativePlatform = 'android' | 'ios';
+type NativePlatform = 'android' | 'ios';
 type Fn = (...a: unknown[]) => unknown;
-export const NATIVE_PLATFORMS: readonly NativePlatform[] = ['android', 'ios'];
+const NATIVE_PLATFORMS: readonly NativePlatform[] = ['android', 'ios'];
 
-export interface NativeBridge {
+interface NativeBridge {
   readonly platform: NativePlatform;
   readonly shell?: string;
   readonly version?: string;

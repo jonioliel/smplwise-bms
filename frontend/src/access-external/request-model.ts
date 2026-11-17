@@ -18,7 +18,7 @@ export const PURPOSE_MAX = 200;
 export const NOTES_MAX = 1000;
 export const PRESETS: [string, string][] = [['07:00', '12:00'], ['07:00', '16:00'], ['08:00', '17:00'], ['12:00', '20:00'], ['07:00', '20:00'], ['00:00', '24:00']];
 /** WisKey's weekday names (intercom_writes.DAYS); index 0 = Sunday, as the form's pills. */
-export const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 export const LANGS = ['he', 'en', 'ar', 'ru'] as const;
 export type Lang = (typeof LANGS)[number];
 
@@ -159,7 +159,7 @@ export function codeDue(from: string, today: string, codeHour: number, nowMinute
 
 // ---------------------------------------------------------------- "I approve now" (owner decision a)
 
-export type BlockKey = 'blk_second' | 'blk_offline' | 'blk_doors' | 'blk_pin' | 'blk_numberNew' | 'blk_number';
+type BlockKey = 'blk_second' | 'blk_offline' | 'blk_doors' | 'blk_pin' | 'blk_numberNew' | 'blk_number';
 
 export interface Ctx {
   today: string;

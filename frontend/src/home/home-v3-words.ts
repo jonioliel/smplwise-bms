@@ -17,7 +17,7 @@ export function diaryWord(type: string, camera: string | null): { text: string; 
   }
 }
 
-export type CallTone = 'ok' | 'warn' | 'neutral';
+type CallTone = 'ok' | 'warn' | 'neutral';
 
 /** The result of one doorbell call in words: who opened, who answered, or that nobody did. HOME-V3-AUDITFIX-2437 (audit item 12): no
  * gendered slash - the sentence is about the call / the door, the person's name follows it. */
@@ -30,7 +30,7 @@ export function callResult(v: { outcome: string | null; answered_by_name: string
   return { text: 'הסתיימה', tone: 'neutral' };
 }
 
-export type GuestTone = 'ok' | 'warn' | 'neutral' | 'info';
+type GuestTone = 'ok' | 'warn' | 'neutral' | 'info';
 
 /** A guest invitation's state in words (the server never gives the code to the host: it goes to the guest's phone). */
 export function guestState(g: { state: string | null; confirmed: boolean; valid_from: string | null; valid_until: string | null; end_reason?: string | null }, now = Date.now()): { text: string; tone: GuestTone; live: boolean } {

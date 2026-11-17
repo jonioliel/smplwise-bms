@@ -3,7 +3,7 @@
 // and the person holds the permission - so a switched-off capability disappears from the hub entirely.
 import type { HomeHost } from './home-ext';
 
-export interface MoreLine {
+interface MoreLine {
   /** the live status line under the label (simple words) */
   text: unknown;
   /** status tone (green = ok only); omitted = plain */
@@ -16,7 +16,7 @@ export interface MoreLine {
   title?: string;
 }
 
-export interface MoreTile {
+interface MoreTile {
   id: string;
   /** sort key: phase 1 uses 10..40, phase 2 50..90, phase 3 100.. */
   order: number;

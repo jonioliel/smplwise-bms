@@ -9,11 +9,11 @@
  * checks are for a quick, local message only.
  */
 
-export interface DayWindow { start: string; end: string }
-export type DayWindows = Record<string, DayWindow>;
-export interface DeptCalendarOverride { enabled?: boolean; weekdays?: number[]; start?: string; end?: string; days?: DayWindows }
-export type AutoCloseMode = 'calendar' | 'working';
-export type LinkClockMode = 'wall' | 'working';
+interface DayWindow { start: string; end: string }
+type DayWindows = Record<string, DayWindow>;
+interface DeptCalendarOverride { enabled?: boolean; weekdays?: number[]; start?: string; end?: string; days?: DayWindows }
+type AutoCloseMode = 'calendar' | 'working';
+type LinkClockMode = 'wall' | 'working';
 
 /** The hours part of a calendar: what the installation and each own-hours department carry. */
 export interface HoursSpec { weekdays: number[]; start: string; end: string; days: DayWindows }
@@ -30,10 +30,10 @@ export interface WorkCalendar extends HoursSpec {
   departments: Record<string, DeptCalendarOverride>;
 }
 
-export const HOLIDAYS_MAX = 400;
+const HOLIDAYS_MAX = 400;
 /** the order the card lists the days in: Sunday first (the week of the default installation) */
 export const WEEK_ORDER: readonly number[] = [6, 0, 1, 2, 3, 4, 5];
-export const DEFAULT_WEEKDAYS: readonly number[] = [0, 1, 2, 3, 6];
+const DEFAULT_WEEKDAYS: readonly number[] = [0, 1, 2, 3, 6];
 export const AUTO_CLOSE_MODES: readonly AutoCloseMode[] = ['calendar', 'working'];
 export const LINK_CLOCK_MODES: readonly LinkClockMode[] = ['wall', 'working'];
 export const DEFAULT_CALENDAR: WorkCalendar = {
@@ -41,7 +41,7 @@ export const DEFAULT_CALENDAR: WorkCalendar = {
   auto_close: 'calendar', link_unopened: 'wall', departments: {},
 };
 
-export type CalendarProblem = 'weekdays' | 'time' | 'order' | 'holidays_many' | 'dept';
+type CalendarProblem = 'weekdays' | 'time' | 'order' | 'holidays_many' | 'dept';
 export type DeptMode = 'inherit' | 'always' | 'own';
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;

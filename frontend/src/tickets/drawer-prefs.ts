@@ -5,7 +5,7 @@ import { parseSize, type DrawerSize } from './drawer-model';
  * setting `ui.drawer_size` is the default; this choice wins when present. Storage can be missing or throw (a private window, blocked site
  * data): every access is guarded and the drawer then simply opens in the setting's size.
  */
-export const SIZE_KEY = 'sw.tickets.drawerSize';
+const SIZE_KEY = 'sw.tickets.drawerSize';
 
 export function loadOwnSize(): DrawerSize | null {
   try {

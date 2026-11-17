@@ -21,7 +21,7 @@ import { canonicalRoot, cleanCode, demandKeys, isView, money, plausiblePhone, qu
   type PortalView } from './portal-model';
 import { pt, type PortalKey } from './portal-text';
 
-export interface PortalHost {
+interface PortalHost {
   root: HTMLElement;
   chosenLang: Lang | null;
   fallbackLang: Lang;

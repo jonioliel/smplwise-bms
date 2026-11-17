@@ -25,17 +25,17 @@ import { levelExtent } from './scene-frame';
 export const LIGHTMAP_RECIPE = 'lightmap-2';
 export const SAMPLES = 64;
 export const AO_REACH_M = 2.5;
-export const DEFAULT_TEXEL_M = 0.1;
+const DEFAULT_TEXEL_M = 0.1;
 export const MAX_SIDE = 512;
 export const MIN_SIDE = 64;
-export const LAMP_EXPOSURE = 1.6;
-export const LAMP_REACH_M = 12;
+const LAMP_EXPOSURE = 1.6;
+const LAMP_REACH_M = 12;
 /** A part thinner than this does not occlude (state plates, floor tints). */
 const MIN_OCCLUDER_M = 0.04;
 const OCCLUDER_KINDS = new Set<ScenePart['kind']>(['wall', 'lintel', 'sill', 'head', 'door', 'object', 'connector']);
 const CELL_M = 1;
 
-export interface LightmapSurface {
+interface LightmapSurface {
   kind: 'floor';
   level_id: string;
   /** [u0, v0, u1, v1] of the atlas the surface covers. */
@@ -45,14 +45,14 @@ export interface LightmapSurface {
   /** The floor height the surface lies at. */
   y: number;
 }
-export interface LightmapMeta {
+interface LightmapMeta {
   version: 1;
   surfaces: LightmapSurface[];
   channels: { ao: 'r'; lamps: 'g' };
   samples: number;
   texel_m: number;
 }
-export interface LightmapResult {
+interface LightmapResult {
   width: number;
   height: number;
   /** RGBA, row 0 = the plan's top (z0), like an image. */
@@ -115,7 +115,7 @@ export function occluderOf(p: ScenePart): Occluder | null {
 }
 
 /** The distance along a ray (origin o, unit direction d) to an oriented box (yaw only), or Infinity. */
-export function rayBox(o: Vec3, d: Vec3, b: Occluder): number {
+function rayBox(o: Vec3, d: Vec3, b: Occluder): number {
   // into the box frame: undo the yaw (three.js Y rotation: x' = x cos + z sin, z' = -x sin + z cos)
   const rx = o[0] - b.c[0];
   const ry = o[1] - b.c[1];
@@ -234,13 +234,13 @@ export class OccluderGrid {
 }
 
 /** Lamp positions of a level: the glow lights of the all-on description, else the bodies of `obj-light` objects. */
-export function lampsOf(desc: SceneDescription, levelId: string): Vec3[] {
+function lampsOf(desc: SceneDescription, levelId: string): Vec3[] {
   const glows = desc.parts.filter((p) => p.level_id === levelId && p.kind === 'glow' && p.shape === 'light').map((p) => p.position);
   if (glows.length) return glows;
   return desc.parts.filter((p) => p.level_id === levelId && p.kind === 'object' && p.color === 'obj-light').map((p) => [p.position[0], p.position[1] + p.size[1] / 2, p.position[2]] as Vec3);
 }
 
-export function pow2(n: number): number {
+function pow2(n: number): number {
   let s = MIN_SIDE;
   while (s < n && s < 2048) s *= 2;
   return s;

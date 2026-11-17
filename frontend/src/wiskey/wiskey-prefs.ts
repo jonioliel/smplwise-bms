@@ -17,7 +17,7 @@ import { resolveWiskeyView, sameWiskeyView, WISKEY_AUTO, parseWiskeyDensity, par
 /** Fired on `window` when the view the panel's address carries changed (the embed reloads its frame). */
 export const WISKEY_VIEW_EVENT = 'sw-wiskey-view';
 /** How long the embed waits for the two answers before opening the frame with what it has (never blocks WisKey). */
-export const WISKEY_VIEW_WAIT_MS = 3000;
+const WISKEY_VIEW_WAIT_MS = 3000;
 
 export type WiskeyChoiceKey = 'density' | 'wall';
 

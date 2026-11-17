@@ -33,7 +33,7 @@ export const DEFAULT_ZONE = 'Asia/Jerusalem';
 
 /** Where the location the sun uses came from (owner 2026-10-11): the home's own configuration, an explicit override typed
  * in Settings, or the fallback above. */
-export type SiteSource = 'ha' | 'manual' | 'default';
+type SiteSource = 'ha' | 'manual' | 'default';
 export interface ResolvedSite {
   latitude: number;
   longitude: number;
@@ -163,7 +163,7 @@ export function lightRecipe(elevationDeg: number): LightRecipe {
   return { day, night, golden, sunColor, sunIntensity, skyTop, skyHorizon, hemiSky, hemiGround, hemiIntensity, exposure, moon: night * 0.35 };
 }
 
-export type TimeBand = 'night' | 'twilight' | 'golden' | 'day';
+type TimeBand = 'night' | 'twilight' | 'golden' | 'day';
 /** The band of an elevation (the time pill's icon and the shadow choice): night under -6, twilight to 0, golden to 15. */
 export function timeBand(elevationDeg: number): TimeBand {
   if (elevationDeg < -6) return 'night';

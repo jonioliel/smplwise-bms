@@ -18,7 +18,7 @@ export interface CalAccess {
   ui: CalUi;
 }
 
-export const UI_DEFAULTS: CalUi = {
+const UI_DEFAULTS: CalUi = {
   contested_order: 'first_come', displace_approver: 'calendar_manager', override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue',
   sync_conflict_display: 'side_by_side', tablet_panels: 'collapse', resident_pending_display: 'count', resident_cancel_until: 'start', resident_rooms: 'bookable',
   purge_confirm: 'type_word', loading_style: 'skeleton', allow_displace: true, guest_details_enabled: true,

@@ -25,7 +25,7 @@ export function validPrivacyLink(value: string): boolean {
   }
 }
 
-export interface PrivacyDraft { contact: string; link: string }
+interface PrivacyDraft { contact: string; link: string }
 
 /** The patch to send for the typed values, or null when nothing changed or a value is invalid. */
 export function privacyPatch(stored: { contact?: string; link?: string } | undefined, draft: PrivacyDraft): Partial<PrivacyDraft> | null {

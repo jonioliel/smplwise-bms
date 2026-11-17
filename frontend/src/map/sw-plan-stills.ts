@@ -13,7 +13,7 @@ import { bandAt, convexHull, stillKey, type BundleBakes, type MaskDoc, type Stil
 /** A kiosk shows the same still for hours: with `autoBand` the band (day / sunset / night) is re-read from the clock this often. */
 const BAND_TICK_MS = 60_000;
 
-export interface StillsRoomState {
+interface StillsRoomState {
   lit?: boolean | null;
   presence?: boolean | null;
 }

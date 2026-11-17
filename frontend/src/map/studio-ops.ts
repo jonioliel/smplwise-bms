@@ -242,7 +242,7 @@ export function patchLabel(doc: GeometryDoc, id: string, patch: Partial<GeomLabe
 
 // ---------------------------------------------------------------- objects (T085)
 
-export interface PlaceOpts {
+interface PlaceOpts {
   levelId: string;
   ceilingM: number;
 }
@@ -330,7 +330,7 @@ export function stretchedSize(o: Pick<GeomObject, 'position' | 'rotation_deg' | 
 
 // ---------------------------------------------------------------- arrays and groups (T085)
 
-export interface ArrayOpts {
+interface ArrayOpts {
   rows: number;
   cols: number;
   spacingX: number;
@@ -461,13 +461,13 @@ export function visibleUnderLevel(doc: GeometryDoc, id: string, levelId: string 
 /** What the editor's select tool can hold several of at once (owner report 2026-09-26): walls and objects of the
  * document, and zones (rooms), which live beside it on the server. Openings, labels, connectors, groups and circuits keep
  * their own single selection. */
-export type MultiKind = 'wall' | 'object' | 'zone';
+type MultiKind = 'wall' | 'object' | 'zone';
 export interface MultiItem {
   id: string;
   kind: MultiKind;
 }
 /** A zone as the selection sees it: its id, its normalized polygon and its level (unset = no particular level). */
-export interface ZoneShape {
+interface ZoneShape {
   id: string;
   polygon: readonly { x: number; y: number }[];
   level_id?: string | null;
@@ -977,7 +977,7 @@ export function distributeObjects(doc: GeometryDoc, ids: readonly string[], axis
 
 // ---------------------------------------------------------------- connectors (T085)
 
-export const CONNECTOR_DEFAULT_WIDTH_M: Record<ConnectorKind, number> = { stairs: 1.2, ramp: 1.5, tribune: 4, elevator: 1.6, ladder: 0.5 };
+const CONNECTOR_DEFAULT_WIDTH_M: Record<ConnectorKind, number> = { stairs: 1.2, ramp: 1.5, tribune: 4, elevator: 1.6, ladder: 0.5 };
 
 export function addConnector(doc: GeometryDoc, kind: ConnectorKind, a: Pt, b: Pt, levelFrom: string, levelTo: string | null): { doc: GeometryDoc; id: string } {
   const c: GeomConnector = { id: newId(), kind, level_from: levelFrom, level_to: levelTo, floor_ids: [], polyline: [clampPt(a), clampPt(b)], width_m: CONNECTOR_DEFAULT_WIDTH_M[kind], label: null,
@@ -1042,7 +1042,7 @@ export function rotateConnector(doc: GeometryDoc, id: string, deg: number, W: nu
   };
 }
 
-export interface StairOpts {
+interface StairOpts {
   shape: StairShape;
   start: Pt;
   /** The first flight's direction in plan pixels; up the plan when omitted. */

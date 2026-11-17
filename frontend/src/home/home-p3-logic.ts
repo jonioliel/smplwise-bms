@@ -17,7 +17,7 @@ export const plural = (n: number, one: string, many: string): string => (n === 1
 
 // ---------------------------------------------------------------- music and screens
 
-export type MediaLook = 'tv' | 'music';
+type MediaLook = 'tv' | 'music';
 /** A screen (and a receiver, which drives one) reads as a television; everything else as music. */
 export const mediaLook = (kind: string): MediaLook => (kind === 'screen' ? 'tv' : 'music');
 
@@ -82,7 +82,7 @@ export const BILL_STATE: Record<string, [string, string]> = {
   draft: ['בהכנה', 'neutral'], issued: ['לתשלום', 'warn'], sent: ['לתשלום', 'warn'], paid: ['שולם', 'ok'], void: ['בוטל', 'neutral'],
 };
 
-export const HE_MONTH = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const HE_MONTH = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 /** "אוקטובר 2026" for a period that is one calendar month, else "1.9 - 30.9". */
 export function periodName(from: string, to: string): string {
   const a = new Date(from + 'T00:00:00Z');
@@ -135,7 +135,7 @@ export const SUPPLY_WORD: Record<string, [string, string, string]> = {
 
 // ---------------------------------------------------------------- the home map (a schematic plan, drawn from the rooms; never mirrored)
 
-export interface PlanBox { id: string; x: number; y: number; w: number; h: number }
+interface PlanBox { id: string; x: number; y: number; w: number; h: number }
 
 /** A treemap of the floor's rooms in a 100 x 100 field, each room's area by its weight (its devices, at least 1), the heaviest first:
  * the field is split along its longer side into two groups of about equal weight, recursively. Deterministic; boxes never overlap. */

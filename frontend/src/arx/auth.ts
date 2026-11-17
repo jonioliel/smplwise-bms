@@ -12,11 +12,11 @@ import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
 import { holdNativeSession, releaseNativeSession, type NativeSignOutReason } from './native-app';
 
-export const TOKENS_KEY = 'arx.auth.v1';
+const TOKENS_KEY = 'arx.auth.v1';
 
 /** Why the Arx sign-in ended (the sign-in page says so once). CR-008 P2: `everywhere` = the user's "sign out everywhere",
  * `revoked` = this sign-in was ended from the sessions list (by the user elsewhere or by an administrator). */
-export type SignOutReason = 'expired' | 'idle' | 'logout' | 'everywhere' | 'revoked';
+type SignOutReason = 'expired' | 'idle' | 'logout' | 'everywhere' | 'revoked';
 
 /** SX-09: the native shell's closed reason for a page sign-out reason (`logout` / `everywhere` are the user's own). */
 export function nativeReasonOf(reason: SignOutReason): NativeSignOutReason {
@@ -46,7 +46,7 @@ export interface RemoteConfig {
   local_passkey_first?: boolean;
 }
 
-export interface ArxTokens {
+interface ArxTokens {
   hassUrl: string;
   clientId: string;
   access_token: string;
@@ -106,7 +106,7 @@ function saveTokens(t: ArxTokens): void {
 }
 
 let memory: ArxTokens | null = null;
-export const currentTokens = () => memory ?? loadTokens();
+const currentTokens = () => memory ?? loadTokens();
 
 function clearTokens(): void {
   memory = null;
@@ -295,7 +295,7 @@ function tokensFrom(data: Record<string, unknown>, refreshToken?: string): ArxTo
 
 // ---------------------------------------------------------------- the Arx session (cookie)
 
-export interface ExchangeResult {
+interface ExchangeResult {
   user: { id: string; username: string; display_name: string };
   session_expires_in: number;
 }

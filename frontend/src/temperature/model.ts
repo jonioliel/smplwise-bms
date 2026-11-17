@@ -36,7 +36,7 @@ export function fmt1(v: number | null | undefined): string {
 export function bidi(s: string): string {
   return `⁦${s}⁩`;
 }
-export function degT(v: number | null | undefined): string {
+function degT(v: number | null | undefined): string {
   return bidi(deg(v));
 }
 export function deg(v: number | null | undefined): string {
@@ -60,7 +60,7 @@ export function agoText(iso: string | null, now: number): string {
   return tt('agoDay', { n: Math.round(s / 86400) });
 }
 
-export function minutesSince(iso: string | null, now: number): number {
+function minutesSince(iso: string | null, now: number): number {
   return iso ? Math.max(0, (now - Date.parse(iso)) / MIN) : 0;
 }
 
@@ -180,7 +180,7 @@ export function matchesKpi(u: TempUnit, k: KpiKey | null, stale: boolean): boole
 
 // ---------------------------------------------------------------- phase 3: grouping by area / floor (idea 7)
 
-export interface UnitGroup {
+interface UnitGroup {
   /** the area id, or '' for the units without an area */
   key: string;
   name: string;
@@ -235,7 +235,7 @@ export function addAffordances(manage: boolean, editing: boolean): { newButton: 
 
 // ---------------------------------------------------------------- the gauge (240 degree arc)
 
-export interface GaugeGeo {
+interface GaugeGeo {
   gmin: number;
   gmax: number;
   frac: (v: number) => number;
@@ -334,7 +334,7 @@ export function niceTicks(lo: number, hi: number, n = 5): number[] {
 
 // ---------------------------------------------------------------- the 24-hour ring and the timeline runs
 
-export type HourState = 'ok' | 'warn' | 'alarm' | 'none' | 'defrost';
+type HourState = 'ok' | 'warn' | 'alarm' | 'none' | 'defrost';
 
 /** Per local hour of the last 24 (oldest first): the worst state measured. An hour mostly inside a defrost window is `defrost` unless it went
  * above the hard maximum. `alarm` = more than one degree outside the band. */
@@ -443,7 +443,7 @@ export function eventText(e: TempEvent): string {
 }
 
 /** The act rows of the log (one instant, no duration / value). */
-export const ACT_KINDS: readonly string[] = ['ack', 'mute', 'escalate', 'ticket'];
+const ACT_KINDS: readonly string[] = ['ack', 'mute', 'escalate', 'ticket'];
 
 export function eventValue(e: TempEvent): string {
   if (e.kind === 'door') return tt('valueOpen');

@@ -113,7 +113,7 @@ export function filterZone(f: EventFilterState, z: ZoneContext): DisplayZone {
   return (f.station_id ? z.zoneOf(f.station_id) : null) ?? z.fallback;
 }
 
-export type FilterError = 'clock_invalid_local' | 'clock_ambiguous' | 'clock_nonexistent' | 'filter_start_before_end';
+type FilterError = 'clock_invalid_local' | 'clock_ambiguous' | 'clock_nonexistent' | 'filter_start_before_end';
 
 /** The period as aware instants, or the reason it cannot be sent (nothing is ever guessed: a wall time a DST change repeats
  * or skips is refused). `known` keeps an instant whose displayed input has not changed (resolveLocalInput). */
@@ -196,7 +196,7 @@ export function groupByDay(rows: AccessEvent[], zoneOf: (e: AccessEvent) => Disp
 /** WisKey's event kinds that are an access attempt (they carry an authentication and a result). */
 const ACCESS_TYPES = new Set(['access_granted', 'access_denied', 'attempt_limit', 'unknown']);
 
-export type TitleKind = 'person' | 'employee' | 'ring' | 'unidentified' | 'event';
+type TitleKind = 'person' | 'employee' | 'ring' | 'unidentified' | 'event';
 
 /** What a row is called: the person, else the employee number, else what kind of record it is. */
 export function rowTitle(e: AccessEvent): { kind: TitleKind; text: string } {
@@ -251,7 +251,7 @@ export function incompleteHistory(page: AccessEventsPage): string[] {
 
 // ---------------------------------------------------------------- errors
 
-export type ReadFailure = 'rate' | 'unavailable' | 'unsupported' | 'other';
+type ReadFailure = 'rate' | 'unavailable' | 'unsupported' | 'other';
 
 /** A reply that is not `ready`, reduced to the one way the screen speaks about it. */
 export function failureOf(state: string, lastError: string | null): ReadFailure {

@@ -9,7 +9,7 @@ import { relTime, shortDateTime } from './model';
 import { tt, type TicketTextKey } from './text';
 
 /** What `<ticket-detail>` lends the panel (its run / flash, so every action behaves like the screen's own). */
-export interface LinkPanelHost {
+interface LinkPanelHost {
   busy: () => boolean;
   run: (fn: () => Promise<TicketDetail>, done: string) => Promise<boolean>;
   say: (text: string, tone?: 'ok' | 'bad') => void;

@@ -99,7 +99,7 @@ export function rebaseOnServer(base: GeometryDoc, local: GeometryDoc, server: Ge
 }
 
 /** The connectors and shared items the server changed against `base` (added, changed or removed; `far` ignored). */
-export function serverChangedItems(base: GeometryDoc, server: GeometryDoc): Map<MergedColl, Set<string>> {
+function serverChangedItems(base: GeometryDoc, server: GeometryDoc): Map<MergedColl, Set<string>> {
   const out = new Map<MergedColl, Set<string>>();
   for (const coll of MERGED) {
     const b = indexOf(mergedPart(base, coll));
@@ -113,7 +113,7 @@ export function serverChangedItems(base: GeometryDoc, server: GeometryDoc): Map<
 /** A document of the undo / redo history with the server's version of the items in `changed` (review M-1): an undo after
  * a rebase must never bring back the connector the other floor's sync replaced (and push it back there) - nor a shared
  * room's item the home floor changed (CR-009). */
-export function withServerItems(doc: GeometryDoc, server: GeometryDoc, changed: ReadonlyMap<MergedColl, ReadonlySet<string>>): GeometryDoc {
+function withServerItems(doc: GeometryDoc, server: GeometryDoc, changed: ReadonlyMap<MergedColl, ReadonlySet<string>>): GeometryDoc {
   if (!changed.size) return doc;
   const out: GeometryDoc = { ...doc, shared_spaces: server.shared_spaces ?? doc.shared_spaces };
   for (const [coll, ids] of changed) {

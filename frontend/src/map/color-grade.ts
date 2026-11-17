@@ -14,7 +14,7 @@
 import type { StyleId } from './look-style';
 
 export type Rgb = [number, number, number];
-export interface Grade {
+interface Grade {
   lift: Rgb;
   gamma: Rgb;
   gain: Rgb;

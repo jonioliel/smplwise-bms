@@ -13,8 +13,8 @@ export interface GeneratorAccess {
   view: boolean;
   manage: boolean;
 }
-export const GENERATOR_PERMISSIONS = ['generator.view', 'generator.manage'] as const;
-export const GENERATOR_PERMISSION_LABELS: Record<(typeof GENERATOR_PERMISSIONS)[number], string> = {
+const GENERATOR_PERMISSIONS = ['generator.view', 'generator.manage'] as const;
+const GENERATOR_PERMISSION_LABELS: Record<(typeof GENERATOR_PERMISSIONS)[number], string> = {
   'generator.view': 'צפייה בגנרטור והתראותיו',
   'generator.manage': 'ניהול הגנרטור (זיהוי, מיפוי, ניתוב התראות)',
 };

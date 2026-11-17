@@ -4,8 +4,8 @@ import { get } from '../api/client';
 import { canAnywhere } from '../api/session';
 import type { HomeHost } from './home-ext';
 
-export type AlarmChange = 'arm_away' | 'arm_home' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass' | 'disarm';
-export interface AlarmLogItem { at: string; panel: string; action: AlarmChange; by: string | null; me: boolean }
+type AlarmChange = 'arm_away' | 'arm_home' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass' | 'disarm';
+interface AlarmLogItem { at: string; panel: string; action: AlarmChange; by: string | null; me: boolean }
 export const getAlarmLog = () => get<{ items: AlarmLogItem[]; days: number }>('home/alarm-log');
 
 /** The diary's words for an alarm change (mockup: 'האזעקה נדרכה למצב "בבית"', 'האזעקה נוטרלה: יונתן'). */

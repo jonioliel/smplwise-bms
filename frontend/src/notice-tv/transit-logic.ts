@@ -4,7 +4,7 @@
  * the screen never talks to the third party and never converts a UTC time to a local one - it only counts minutes between instants.
  */
 
-export type TransitState = 'fresh' | 'cached' | 'expired' | 'off';
+type TransitState = 'fresh' | 'cached' | 'expired' | 'off';
 export type TransitLayout = 'side' | 'strip' | 'slide';
 export type TransitGroup = 'auto' | 'always' | 'never';
 
@@ -24,7 +24,7 @@ export interface TransitScreen {
 }
 
 /** `realtime` = a fresh estimate (the minutes count to it); `scheduled` = the timetable; `stale` = an estimate too old to trust (the timetable is shown). */
-export type TransitQuality = 'realtime' | 'scheduled' | 'stale';
+type TransitQuality = 'realtime' | 'scheduled' | 'stale';
 
 export interface TransitMore {
   at: string;
@@ -110,8 +110,8 @@ export function minsUntil(at: string, nowMs: number): number {
   return Math.max(0, Math.floor((t - nowMs) / 60_000));
 }
 
-export type EtaKind = 'now' | 'min' | 'clock';
-export interface Eta {
+type EtaKind = 'now' | 'min' | 'clock';
+interface Eta {
   kind: EtaKind;
   /** the number to draw (minutes, or the clock text) */
   text: string;
@@ -206,7 +206,7 @@ const STRINGS = {
     expiredTitle: 'Transit times are not available right now', expiredHint: 'They return when the source updates', line: 'Line', toward: 'Towards', moreOf: '+{n}',
   },
 };
-export type TransitStrKey = keyof typeof STRINGS.he;
+type TransitStrKey = keyof typeof STRINGS.he;
 
 export function ts(lang: 'he' | 'en', key: TransitStrKey, vars?: Record<string, string | number>): string {
   const raw = (STRINGS[lang] ?? STRINGS.he)[key];

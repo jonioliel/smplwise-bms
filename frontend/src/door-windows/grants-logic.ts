@@ -30,7 +30,7 @@ export function expiryToUtc(local: string): string | null {
   return Number.isNaN(at.getTime()) ? null : isoZ(at);
 }
 
-export type GrantProblem = 'person' | 'expiry_required' | 'expiry_past' | 'expiry_too_long' | null;
+type GrantProblem = 'person' | 'expiry_required' | 'expiry_past' | 'expiry_too_long' | null;
 
 /** What stops the "give the role" button before any request: the server repeats every one of these checks. */
 export function grantProblem(view: Pick<GrantsView, 'can_no_expiry' | 'max_hours'>, person: string, local: string, noExpiry: boolean, now: Date): GrantProblem {

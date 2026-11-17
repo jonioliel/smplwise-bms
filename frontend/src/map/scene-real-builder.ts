@@ -24,8 +24,8 @@ import { MODEL_MAP } from './plan3d-assets';
 import { daylightFactor } from './look-style';
 import type { ScenePart, SceneInput, Vec3 } from './scene-builder';
 
-export type RealShape = 'box' | 'rbox' | 'cyl' | 'sphere';
-export interface RealPart {
+type RealShape = 'box' | 'rbox' | 'cyl' | 'sphere';
+interface RealPart {
   id: string;
   /** The base part this part belongs to: picking reports its item, a door leaf carries it as it swings, a model replaces it. */
   owner: string;
@@ -43,7 +43,7 @@ export interface RealPart {
   bulb?: string;
   shadow: boolean;
 }
-export interface RealFloor {
+interface RealFloor {
   id: string;
   zone: string;
   level_id: string;
@@ -56,7 +56,7 @@ export interface RealFloor {
 }
 /** R3 G4: a room's ceiling plate (CR-029 section 5.2 `ceiling`, default true): the walk sees a ceiling, not the sky;
  * the orbit views cut it away with the section plane. */
-export interface RealCeiling {
+interface RealCeiling {
   id: string;
   zone: string;
   level_id: string;
@@ -64,13 +64,13 @@ export interface RealCeiling {
   polygon: [number, number][];
   material: string;
 }
-export interface RealCap {
+interface RealCap {
   id: string;
   level_id: string;
   y: number;
   polygon: [number, number][];
 }
-export interface RealModel {
+interface RealModel {
   id: string;
   owner: string;
   item: string;
@@ -83,7 +83,7 @@ export interface RealModel {
   /** Module centres along the run (one entry for a single model). */
   tiles: Vec3[];
 }
-export interface RealLamp {
+interface RealLamp {
   id: string;
   owner: string;
   level_id: string;
@@ -94,7 +94,7 @@ export interface RealLamp {
   beam_deg?: number;
   on: boolean;
 }
-export interface RealShutter {
+interface RealShutter {
   id: string;
   entity: string;
   level_id: string;
@@ -126,7 +126,7 @@ export interface RealWorld {
 }
 
 /** What the builder hands over (scene-builder.ts Builder): its metre conversion, levels and wall heights. */
-export interface RealContext {
+interface RealContext {
   input: SceneInput;
   parts: ScenePart[];
   prims: Primitive[];
@@ -144,7 +144,7 @@ function turned(x: number, z: number, yawDeg: number): [number, number] {
   return [x * Math.cos(t) + z * Math.sin(t), -x * Math.sin(t) + z * Math.cos(t)];
 }
 /** LOOK_SPEC section 6: no bevel under 0.12 m; furniture bodies 2-6 cm by their smallest side. */
-export function bevelRadius(w: number, h: number, d: number): number {
+function bevelRadius(w: number, h: number, d: number): number {
   const s = Math.min(w, h, d);
   if (s < 0.12) return 0;
   return r4(Math.min(0.05, Math.max(0.012, s * 0.06)));

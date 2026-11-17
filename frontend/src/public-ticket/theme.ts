@@ -8,9 +8,9 @@
 export type ThemeMode = 'light' | 'dark' | 'auto';
 export type ThemeChoice = 'light' | 'dark';
 
-export const THEME_KEYS = { choice: 'arx.t.theme', server: 'arx.t.theme.srv' } as const;
+const THEME_KEYS = { choice: 'arx.t.theme', server: 'arx.t.theme.srv' } as const;
 
-export function isMode(v: unknown): v is ThemeMode {
+function isMode(v: unknown): v is ThemeMode {
   return v === 'light' || v === 'dark' || v === 'auto';
 }
 

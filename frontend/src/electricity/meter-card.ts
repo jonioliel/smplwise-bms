@@ -24,7 +24,7 @@ const REASON_LABEL: Record<string, string> = { install: 'התקנה', reset: 'א
 /** A bar chart of kWh: the oldest bar at the start side (right in RTL). Data-viz rules (MEDIA-polish): thin bars (at most 24 px), the
  * latest period in the accent and the rest in the soft tint, a value only on the latest and the highest bar (every value is in the
  * bar's own title and in the readings table). */
-export function barChart(data: { label: string; value: number }[], ariaLabel: string) {
+function barChart(data: { label: string; value: number }[], ariaLabel: string) {
   const W = 640;
   const H = 170;
   const pad = 26;

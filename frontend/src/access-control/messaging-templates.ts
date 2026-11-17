@@ -84,7 +84,7 @@ export function bodyProblems(body: string, path: string, organization: string, l
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** The server's `send_hours_error`: null = a valid window (the tickets' send-hours rules: from < to, no window across midnight). */
-export function sendHoursProblem(v: { from: string; to: string } | null | undefined): string | null {
+function sendHoursProblem(v: { from: string; to: string } | null | undefined): string | null {
   if (v === null || v === undefined) return null;
   if (!HHMM.test(v.from) || !HHMM.test(v.to)) return 'window_invalid';
   if (v.from === v.to) return 'window_empty';

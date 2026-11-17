@@ -26,7 +26,7 @@ export function stepOf(job: BulkJob): Step {
   }
 }
 
-export interface PreviewCounts {
+interface PreviewCounts {
   create: number;
   update: number;
   unchanged: number;

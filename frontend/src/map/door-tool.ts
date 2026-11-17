@@ -9,11 +9,11 @@ import { addOpening, addWall, defaultLevelId, openingRange, patchOpening, patchW
 export const GHOST_WALL_ID = 'ghost-wall';
 export const GHOST_DOOR_ID = 'ghost-door';
 /** Widths a person can drag the ghost to (metres). */
-export const GHOST_WIDTH_M: [number, number] = [0.4, 3.0];
+const GHOST_WIDTH_M: [number, number] = [0.4, 3.0];
 /** A wall piece a door brings reaches this far past each side of it (services/plan_door_tool.py JAMB_M). */
 export const GHOST_JAMB_M = 0.12;
 /** A wall piece's end snaps onto a drawn wall's end this far past its jamb margin (instead of overlapping it). */
-export const GHOST_SNAP_M = 0.25;
+const GHOST_SNAP_M = 0.25;
 /** external_ids.origin of a wall piece the door tool added (the wall inspector says so). */
 export const DOOR_TOOL_ORIGIN = 'door_tool';
 
@@ -115,7 +115,7 @@ export function ghostDoc(doc: GeometryDoc, g: DoorGhost, defaults?: WallDefaults
 }
 
 /** The ends of the ghost's opening along its wall, in normalized plan space: [start side, end side]. */
-export function ghostGap(doc: GeometryDoc, g: DoorGhost, W: number, H: number): [Pt, Pt] | null {
+function ghostGap(doc: GeometryDoc, g: DoorGhost, W: number, H: number): [Pt, Pt] | null {
   const wall = ghostWall(doc, g);
   if (!wall) return null;
   const len = lengthM(wall, doc, W, H);

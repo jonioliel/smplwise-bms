@@ -3,7 +3,7 @@
  * session's permission check in, the ids out. The ids of the old tabs are unchanged (`messages` is the templates tab), so every
  * address that points into the settings keeps working; `display` is the new one.
  */
-export type SettingsTab = 'general' | 'departments' | 'locations' | 'display' | 'channel' | 'messages' | 'costs' | 'rules' | 'permissions';
+type SettingsTab = 'general' | 'departments' | 'locations' | 'display' | 'channel' | 'messages' | 'costs' | 'rules' | 'permissions';
 /** CR-ORG-LOCATIONS: `locations` ("מיקומים", the organisation's locations) sits next to the departments (tickets.configure). */
 /** TKRULES-291: `rules` ("פתיחה אוטומטית", tickets opened from alerts) is the installation's (system.configure). */
 export const SETTINGS_TABS: readonly SettingsTab[] = ['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'rules', 'permissions'];

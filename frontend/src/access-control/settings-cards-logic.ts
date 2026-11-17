@@ -101,7 +101,7 @@ export { browserStorage } from '../api/safe-storage';
 
 // ---------------------------------------------------------------- the one-line summaries
 
-export type ScreenChoice = 'wiskey' | 'smplwise';
+type ScreenChoice = 'wiskey' | 'smplwise';
 
 /** "מתגי מסכי כניסה": which screens are Arx's own. `screens` in the tab's order, with their labels. */
 export function screensSummary(screens: ReadonlyArray<{ label: string; choice: ScreenChoice }>): string {

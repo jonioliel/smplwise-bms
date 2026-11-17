@@ -15,9 +15,9 @@
 import { withBase } from '../base';
 import { h, icon, img } from '../dom';
 
-export type FileKind = 'image' | 'pdf' | 'docx' | 'xlsx';
-export interface PubFile { id: string; name: string; caption?: string; kind: FileKind; bytes: number; thumb?: boolean }
-export interface FilesCreds { token: string | null; session: string | null }
+type FileKind = 'image' | 'pdf' | 'docx' | 'xlsx';
+interface PubFile { id: string; name: string; caption?: string; kind: FileKind; bytes: number; thumb?: boolean }
+interface FilesCreds { token: string | null; session: string | null }
 type Lang = 'he' | 'en' | 'ar' | 'ru';
 
 const WORDS: Record<Lang, Record<'files' | 'open' | 'download' | 'close' | 'failed', string>> = {

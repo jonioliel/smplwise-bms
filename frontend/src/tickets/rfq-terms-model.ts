@@ -8,7 +8,7 @@
 import type { RfqAwardTerms, RfqInstalment, RfqPaymentProposal } from '../api/tickets-rfq';
 
 export type MgrDue = 'completion' | 'date' | 'after_completion';
-export interface MgrPayItem { kind: 'advance' | 'progress'; mode: 'percent' | 'amount'; value: string; date: string }
+interface MgrPayItem { kind: 'advance' | 'progress'; mode: 'percent' | 'amount'; value: string; date: string }
 export interface MgrPay { items: MgrPayItem[]; due: MgrDue; date: string; days: string }
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;

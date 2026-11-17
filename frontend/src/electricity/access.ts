@@ -20,7 +20,7 @@ export interface EnergyAccess {
 }
 
 export const ENERGY_PERMISSIONS = ['energy.view', 'energy.bills', 'energy.manage'] as const;
-export type EnergyPermission = (typeof ENERGY_PERMISSIONS)[number];
+type EnergyPermission = (typeof ENERGY_PERMISSIONS)[number];
 
 /** Hebrew labels of the electricity permissions: the fallback while the server's role catalogue carries none of its own. */
 export const ENERGY_PERMISSION_LABELS: Record<EnergyPermission, string> = {

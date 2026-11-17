@@ -60,7 +60,7 @@ export function matchesQuery(item: Pick<RfqSummary, 'title' | 'number' | 'ref' |
   return item.title.toLowerCase().includes(s) || item.ref.toLowerCase().includes(s) || item.department.name.toLowerCase().includes(s);
 }
 
-export interface ListTiles { open: number; collecting: number; decide: number; quotes: number; noReply: number }
+interface ListTiles { open: number; collecting: number; decide: number; quotes: number; noReply: number }
 
 /** The KPI tiles above the list: open requests, out waiting for quotes, waiting for a decision (deadline passed or quotes in), quotes
  * received and vendors without a reply - over the open requests only. */
@@ -220,7 +220,7 @@ export function initials(name: string): string {
   return `${first}${second}`;
 }
 
-export interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string;
+interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string;
   /** RFQATT: the `{files}` line - "N files are attached (see the link)", empty when no vendor-visible file (the line is dropped) */
   files?: string }
 
@@ -283,7 +283,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
 
 // ---------------------------------------------------------------- the comparison
 
-export interface CurrencyGroup { currency: string; ranked: boolean; quotes: RfqCompareQuote[] }
+interface CurrencyGroup { currency: string; ranked: boolean; quotes: RfqCompareQuote[] }
 
 /**
  * The quotes grouped by currency: the comparison's currency first (the only ranked one - lowest / earliest come from the server), then

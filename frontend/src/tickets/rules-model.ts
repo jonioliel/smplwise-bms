@@ -4,7 +4,7 @@
  * the server stays the authority and its 422 field problems are mapped back onto the same fields.
  */
 
-export type OnClear = 'comment' | 'comment_close';
+type OnClear = 'comment' | 'comment_close';
 
 export interface TicketRule {
   id: string | null;
@@ -35,21 +35,21 @@ export interface TicketRuleView extends TicketRule {
   problems?: string[];
 }
 
-export interface RuleSource {
+interface RuleSource {
   key: string;
   label: string;
   category: string;
   subject: string;
 }
 
-export interface RuleDepartment {
+interface RuleDepartment {
   id: string;
   name: string;
   priorities: { id: string; name: string; is_default: boolean }[];
   categories: { id: string; name: string }[];
 }
 
-export interface RuleBounds {
+interface RuleBounds {
   max_rules: number;
   hard_daily_max: number;
   default_daily: number;
@@ -71,7 +71,7 @@ export interface RulesDoc {
   bounds: RuleBounds;
 }
 
-export type DryRunOutcome = 'create' | 'absorb' | 'suppressed' | 'wait_hold' | 'nothing' | 'already_handled' | 'rule_off' | 'rules_off';
+type DryRunOutcome = 'create' | 'absorb' | 'suppressed' | 'wait_hold' | 'nothing' | 'already_handled' | 'rule_off' | 'rules_off';
 
 export interface DryRunAnswer {
   would: DryRunOutcome;

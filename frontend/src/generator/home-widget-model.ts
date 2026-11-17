@@ -22,12 +22,12 @@ import type { GwtKey } from '../i18n/generator-widget';
 export const GEN_HOME_HREF = '#/infra/generator/live';
 export const genDeviceHref = (id: string): string => `${GEN_HOME_HREF}?device=${encodeURIComponent(id)}`;
 
-export type GenHomeState = 'fault' | 'alarm' | 'unknown' | 'starting' | 'cooling' | 'running' | 'standby';
+type GenHomeState = 'fault' | 'alarm' | 'unknown' | 'starting' | 'cooling' | 'running' | 'standby';
 export type GenSupply = 'generator' | 'none' | 'mains' | 'unknown';
 /** The colour family of a state (`--sw-gw-*` tokens in home-widget.ts). */
 export type GenLook = 'fault' | 'warn' | 'unk' | 'trans' | 'run' | 'ok';
 
-export const STATE_LOOK: Record<GenHomeState, GenLook> = { fault: 'fault', alarm: 'warn', unknown: 'unk', starting: 'trans', cooling: 'trans', running: 'run', standby: 'ok' };
+const STATE_LOOK: Record<GenHomeState, GenLook> = { fault: 'fault', alarm: 'warn', unknown: 'unk', starting: 'trans', cooling: 'trans', running: 'run', standby: 'ok' };
 export const STATE_KEY: Record<GenHomeState, GwtKey> = {
   fault: 'stateFault', alarm: 'stateAlarm', unknown: 'stateUnknown', starting: 'stateStarting', cooling: 'stateCooling', running: 'stateRunning', standby: 'stateStandby',
 };

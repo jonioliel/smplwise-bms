@@ -9,7 +9,7 @@ import { addDays, daysInclusive } from '../format/day-key';
 import { hhmm } from '../format/pad';
 import { isoZ } from '../api/day-format';
 
-export type UiState = 'draft' | 'pending' | 'pushing' | 'verified' | 'accepted' | 'sync' | 'unknown' | 'revoking' | 'revoked' | 'revoked_unverified' | 'ended' | 'refused' | 'failed' | 'gone';
+type UiState = 'draft' | 'pending' | 'pushing' | 'verified' | 'accepted' | 'sync' | 'unknown' | 'revoking' | 'revoked' | 'revoked_unverified' | 'ended' | 'refused' | 'failed' | 'gone';
 export type Bucket = 'attention' | 'waiting' | 'moving' | 'active' | 'history';
 export type Filter = Bucket | 'live';
 export type Tone = 'ok' | 'acc' | 'warn' | 'err' | 'off';
@@ -115,7 +115,7 @@ export function whyKey(g: Grant): string {
   return `why_${s}`;
 }
 
-export type StepMark = 'done' | 'cur' | 'unk' | 'stop' | 'no';
+type StepMark = 'done' | 'cur' | 'unk' | 'stop' | 'no';
 
 /** The ladder (where the grant / the revocation honestly stands): the step keys and a mark per step. */
 export function ladder(g: Grant): { revoke: boolean; steps: { key: string; mark: StepMark }[] } {

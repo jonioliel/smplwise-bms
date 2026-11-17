@@ -7,9 +7,9 @@ import type { DetectResult } from '../api/geometry';
 import type { GeometryDoc, GeomOpening, GeomWall, OpeningKind, Pt, Swing, WallKind } from '../map/geometry';
 import type { PlaceCamera, PlaceEntity } from './wizard-model';
 
-export const DEMO_W = 1000;
-export const DEMO_H = 900;
-export const DEMO_SCALE = 0.012;
+const DEMO_W = 1000;
+const DEMO_H = 900;
+const DEMO_SCALE = 0.012;
 
 const n = (p: [number, number]): Pt => [Math.round((p[0] / DEMO_W) * 1e5) / 1e5, Math.round((p[1] / DEMO_H) * 1e5) / 1e5];
 

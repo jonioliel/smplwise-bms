@@ -22,8 +22,8 @@ import { LOOK_STYLES, bloomFor, type StyleId } from './look-style';
 import { GRADE_GLSL, gradeFor } from './color-grade';
 
 /** The GTAO blend share and samples while the baked AO volume is on (PLAN3D-REALISM2-2433). */
-export const BAKED_AO_GTAO_SCALE = 0.6;
-export const BAKED_AO_GTAO_SAMPLES = 4;
+const BAKED_AO_GTAO_SCALE = 0.6;
+const BAKED_AO_GTAO_SAMPLES = 4;
 const GTAO_SAMPLES = 6;
 
 /** PLAN3D-REALISM2-2433 S4: append the colour grade to an output pass's shader (its uniforms live on the pass). */
@@ -41,7 +41,7 @@ export function gradeOutput(pass: OutputPass): void {
   m.needsUpdate = true;
 }
 
-export type PostRung = 'realistic' | 'lite';
+type PostRung = 'realistic' | 'lite';
 
 /** ST7-odd: hides (or shows again) the meshes marked `userData.skipAO` - the backdrop: sky dome, horizon band, ground plate
  * and its contact shade - around the GTAO pass, so its normal / depth render sees them as background (depth 1, which the

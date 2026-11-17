@@ -17,7 +17,7 @@ import './grid-overlays';
 import type { Anchor, QuickDraft } from './grid-overlays';
 import { payloadOf, type AttendeeDraft } from './attendee-logic';
 
-export type CalMode = 'month' | 'week' | 'day';
+type CalMode = 'month' | 'week' | 'day';
 const FROM_H = 7;
 const TO_H = 22;
 const BAND: Band = { from: FROM_H * 60, to: TO_H * 60 };

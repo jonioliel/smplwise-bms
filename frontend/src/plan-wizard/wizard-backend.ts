@@ -23,7 +23,7 @@ export interface Draft {
   doc: GeometryDoc;
   revision: number;
 }
-export interface RoomCandidateIn {
+interface RoomCandidateIn {
   polygon: { x: number; y: number }[];
   /** The detector's name (DXF / demo) or empty. */
   name: string;
@@ -45,7 +45,7 @@ export interface VersionInfo {
   width: number;
   height: number;
 }
-export interface PlacedDevice {
+interface PlacedDevice {
   /** A device (`ha_entity`, the default) or a camera. */
   resource_type?: 'ha_entity' | 'camera';
   entity_id: string;
@@ -67,7 +67,7 @@ export interface ResumeInfo {
   createdAt: string;
 }
 /** A room of a resumed draft: the zone the wizard made earlier, its name and tags. */
-export interface ResumedRoom extends CreatedRoom {
+interface ResumedRoom extends CreatedRoom {
   name: string;
   tags: string[];
 }

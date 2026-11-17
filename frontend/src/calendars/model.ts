@@ -190,7 +190,7 @@ export function cancelClosed(start: string, until: 'start' | '1h' | '24h', now: 
 }
 
 /** Owner answer 13 as a setting: how a start time with pending requests reads for the resident. */
-export type SlotLook = 'free' | 'contest' | 'busy' | 'blocked';
+type SlotLook = 'free' | 'contest' | 'busy' | 'blocked';
 export function slotLook(s: Slot, display: 'count' | 'free' | 'blocked'): SlotLook {
   if (!s.free) return 'busy';
   if (!s.pending || display === 'free') return 'free';

@@ -46,7 +46,7 @@ const he = {
 };
 
 type Plain = Exclude<keyof typeof he, 'days' | 'daysShort' | 'months'>;
-export type CalTextKey = Plain;
+type CalTextKey = Plain;
 
 const enPlain: Partial<Record<Plain, string>> = {
   calGroup: 'Weekly calendar',

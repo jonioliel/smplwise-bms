@@ -15,7 +15,7 @@ import { ApiError, describeError } from '../api/client';
 import type { AccessEventFilters, AccessEventsPage, AccessEventsReply } from '../api/access-events';
 import { appendPage } from './events-logic';
 
-export type LoadMode = 'reload' | 'more' | 'notice';
+type LoadMode = 'reload' | 'more' | 'notice';
 
 export interface FeedSnapshot {
   /** The last answer (its state drives the page); null before the first one. */

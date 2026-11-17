@@ -10,7 +10,7 @@ const BOARD_REASONS = ['unassigned', 'overdue', 'unopened', 'ack', 'stuck', 'wai
 import { dt } from './device-text';
 import { isoZ } from '../api/day-format';
 
-export const TICKETS_ROOT = '#/tickets';
+const TICKETS_ROOT = '#/tickets';
 export const SCOPES: readonly Exclude<ListScope, 'visible'>[] = ['mine', 'department', 'all'];
 export const STATUS_FILTERS: readonly StatusFilter[] = ['open', 'unassigned', 'handling', 'done', 'closed', 'all'];
 /** The main line of a ticket's life, as the detail's state strip shows it (returned / cancelled are side states). */

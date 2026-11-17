@@ -14,7 +14,7 @@ export const CAPABILITY_LABEL: Record<VisitCapabilityName, string> = {
   push: 'רישום הזמנות Arx במערכת בקרת הכניסה',
 };
 
-export interface CapabilityLine {
+interface CapabilityLine {
   name: VisitCapabilityName;
   label: string;
   tone: Tone;
@@ -51,9 +51,9 @@ export function originText(v: Pick<WiskeyVisit, 'origin'>): { text: string; tone
   return v.origin === 'arx' ? { text: 'הזמנה של Arx', tone: 'acc' } : { text: 'נוצר במערכת בקרת הכניסה · צפייה בלבד', tone: 'off' };
 }
 
-export type LinkAction = 'push' | 'reconcile' | 'none';
+type LinkAction = 'push' | 'reconcile' | 'none';
 
-export interface LinkPlan {
+interface LinkPlan {
   action: LinkAction;
   text: string;
   tone: Tone;
@@ -80,7 +80,7 @@ export function linkPlan(link: VisitLink, pushAvailable: boolean): LinkPlan {
   return { action: 'push', text, tone: outdated ? 'warn' : tone };
 }
 
-export interface InvitePreset {
+interface InvitePreset {
   doors: Record<string, number[]>;
   valid_from: string;
   valid_until: string;

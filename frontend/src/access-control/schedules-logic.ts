@@ -87,7 +87,7 @@ export function doorGroups(doors: readonly DoorRef[]): { stationId: string; stat
 /** WisKey's week (and the week grid's data order, ISAPI's): Monday first. The screen shows Sunday first. */
 export const WEEKDAYS: readonly WeekdayName[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 /** The order the screen writes days in (a Hebrew week). */
-export const WEEK_SHOWN: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEK_SHOWN: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const HHMM = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$|^24:00$/;
 const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -95,7 +95,7 @@ const validPeriod = (p: unknown): p is Period =>
   !!p && typeof (p as Period).start === 'string' && typeof (p as Period).end === 'string' && HHMM.test((p as Period).start) && HHMM.test((p as Period).end) && minutes((p as Period).end) > minutes((p as Period).start);
 
 /** One range of the week grid (sw-week-grid's `WeekRange`, kept structural so this module stays DOM-free). */
-export interface GridRange {
+interface GridRange {
   begin: string;
   end: string;
   mode: string;
@@ -173,7 +173,7 @@ export function dateLines(holidays: StationPolicy['holidays'] | null | undefined
 
 // ---------------------------------------------------------------- a door's program
 
-export type ProgramState = 'active' | 'paused' | 'removing' | 'error' | 'draft' | 'unknown';
+type ProgramState = 'active' | 'paused' | 'removing' | 'error' | 'draft' | 'unknown';
 export type Tone = 'live' | 'stale' | 'error' | 'offline' | 'unknown' | 'neutral';
 
 /** The program's state word: an error the integration recorded wins, then a removal in progress, then enabled / paused. */
@@ -203,7 +203,7 @@ export function programTone(s: ProgramState): Tone {
   }
 }
 
-export interface DoorSchedule {
+interface DoorSchedule {
   door: DoorRef;
   /** No program and no saved draft: nothing scheduled on this door. */
   none: boolean;
@@ -295,7 +295,7 @@ export function jobTone(s: JobStatus | null | undefined): Tone {
   }
 }
 
-export function sourceTone(s: string | null | undefined): Tone {
+function sourceTone(s: string | null | undefined): Tone {
   switch (s) {
     case 'current':
       return 'live';
@@ -308,7 +308,7 @@ export function sourceTone(s: string | null | undefined): Tone {
   }
 }
 
-export interface PlanRow {
+interface PlanRow {
   id: string;
   name: string;
   station: string;
@@ -325,7 +325,7 @@ export interface PlanRow {
   checkedAt: string | null;
 }
 
-export type StationNames = (id: string | null) => string;
+type StationNames = (id: string | null) => string;
 
 export function stationNamer(stations: readonly Pick<AccessStation, 'id' | 'name'>[]): StationNames {
   const names = new Map(stations.map((s) => [s.id, s.name]));
@@ -353,7 +353,7 @@ export function planRows(plans: readonly SchedulePlan[] | null | undefined, ops:
   });
 }
 
-export interface LibraryRow {
+interface LibraryRow {
   id: string;
   name: string;
   version: string;

@@ -86,7 +86,7 @@ export function fmtChange(pct: number | null | undefined, lang: IxLang): string 
 
 export const REASON_ICON: Record<OmitReason, 'lock' | 'power' | 'layers'> = { not_permitted: 'lock', switch_off: 'power', module_off: 'layers' };
 
-export interface Figure {
+interface Figure {
   id: string;
   label: IxKey;
   value: string;

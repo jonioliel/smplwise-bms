@@ -10,11 +10,11 @@ export type MatrixMode = 'now' | 'digest' | 'off';
 export type NotifyMatrix = Record<string, Record<string, MatrixMode>>;
 export interface NotifySource { key: string; label: string; digest: boolean; assignee?: boolean; sla?: boolean }
 export type ChannelGroup = 'push' | 'email' | 'whatsapp';
-export type ChannelValue = 'on' | 'off';
+type ChannelValue = 'on' | 'off';
 export interface DeptRecipients { managers: boolean; users: string[]; roles: string[] }
-export interface DeptNotify { digest_time?: string; recipients?: DeptRecipients; channels?: Partial<Record<ChannelGroup, ChannelValue>> }
-export type NotifyDepartments = Record<string, DeptNotify>;
-export type SlaUrgent = Record<string, 'immediate' | 'matrix'>;
+interface DeptNotify { digest_time?: string; recipients?: DeptRecipients; channels?: Partial<Record<ChannelGroup, ChannelValue>> }
+type NotifyDepartments = Record<string, DeptNotify>;
+type SlaUrgent = Record<string, 'immediate' | 'matrix'>;
 export interface NotifyDoc {
   matrix_enabled: boolean;
   matrix: NotifyMatrix;
@@ -51,7 +51,7 @@ export function setCell(matrix: NotifyMatrix, dept: string, source: string, mode
   return out;
 }
 
-export interface EffectiveDept {
+interface EffectiveDept {
   digestTime: string;
   /** the time comes from the installation value (the department has none of its own) */
   timeInherited: boolean;

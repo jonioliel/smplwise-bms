@@ -16,7 +16,7 @@ import { glowLook, washSegments, type GlowLook, type GlowRoom } from './room-glo
 import { kelvinRgb } from './sun';
 import { LOOK_STYLES, type StyleId } from './look-style';
 
-export const FADE_MS = 450;
+const FADE_MS = 450;
 const FLOOR_LIFT_M = 0.014;
 
 let poolTex: CanvasTexture | null = null;

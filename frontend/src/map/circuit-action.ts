@@ -7,7 +7,7 @@
 import type { HaActionSpec } from '../api/ha';
 import type { CircuitState } from '../api/types';
 
-export interface CircuitAction {
+interface CircuitAction {
   spec: HaActionSpec | null;
   blocked: boolean;
   /** Hebrew reason when blocked (the strip's disabled title), else null. */

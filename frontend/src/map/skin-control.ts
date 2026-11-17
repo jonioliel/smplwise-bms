@@ -43,7 +43,7 @@ export const CONTROL_PALETTE: Readonly<Record<string, string>> = Object.freeze({
   'obj-safety': '#e0443c', 'obj-medical': '#2fa7b3', 'obj-sport': '#3fa25b', 'obj-sanitary': '#5b9bd5', 'obj-security': '#7a5cc7', 'obj-outdoor': '#5c9e4f',
   'circuit-1': '#2f6bff', 'circuit-2': '#f59e0b', 'circuit-3': '#22c55e', 'circuit-4': '#a855f7', 'circuit-5': '#ef4444', 'circuit-6': '#14b8a6',
 });
-export const CONTROL_FALLBACK = '#9aa7b8';
+const CONTROL_FALLBACK = '#9aa7b8';
 export const controlColor = (token: string): string => CONTROL_PALETTE[token] ?? CONTROL_FALLBACK;
 
 const KEEP_KINDS = new Set<ScenePart['kind']>(['floor', 'room', 'wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector']);

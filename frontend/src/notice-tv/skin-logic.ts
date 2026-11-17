@@ -10,8 +10,8 @@ import type { LiveBg, SystemsStatus, UrgentScreen } from './tv-logic';
  * gallery / concierge / stone = the classic-luxury lobby styles (LOBBY-STYLES-2300). All eight run on one engine (skin-board.ts). */
 export type Skin = 'ink' | 'sign' | 'lumen' | 'axis' | 'prism' | 'gallery' | 'concierge' | 'stone';
 export type Family = 'station' | 'hitech' | 'luxury';
-export const HITECH: readonly Skin[] = ['lumen', 'axis', 'prism'];
-export const LUXURY: readonly Skin[] = ['gallery', 'concierge', 'stone'];
+const HITECH: readonly Skin[] = ['lumen', 'axis', 'prism'];
+const LUXURY: readonly Skin[] = ['gallery', 'concierge', 'stone'];
 export const SKINS: Skin[] = ['ink', 'sign', 'lumen', 'axis', 'prism', 'gallery', 'concierge', 'stone'];
 export const isSkin = (design: unknown): design is Skin => typeof design === 'string' && (SKINS as string[]).includes(design);
 export const familyOf = (skin: Skin): Family => (HITECH.includes(skin) ? 'hitech' : LUXURY.includes(skin) ? 'luxury' : 'station');
@@ -24,7 +24,7 @@ export const FS_MIN_TAKE = 0.56;
 export const BODY_PX: Record<Skin, number> = { ink: 46, sign: 44, lumen: 40, axis: 40, prism: 40, gallery: 40, concierge: 38, stone: 40 };
 /** The lobby styles shrink further (owner 2026-10-30: to 55 %), in these steps; below them the body is set in two columns (three on a long landscape one). */
 export const HX_STEPS: readonly number[] = [1, 0.92, 0.84, 0.77, 0.7, 0.64, 0.59, 0.55];
-export const LOBBY_FS_MIN = 0.55;
+const LOBBY_FS_MIN = 0.55;
 export const minBodyPx = (skin: Skin, take = false): number => Math.round(BODY_PX[skin] * (take ? FS_MIN_TAKE : familyOf(skin) === 'station' ? FS_MIN : LOBBY_FS_MIN) * 10) / 10;
 
 /** The scale steps a fit starts from: the largest scale in [min, 1] for which `fits` holds (a binary search over `iterations` halvings,
@@ -50,7 +50,7 @@ export function infoIcon(kind: string): InfoIcon {
   return 'info';
 }
 
-export type WeatherIcon = 'sun' | 'cloudsun' | 'cloud' | 'moon';
+type WeatherIcon = 'sun' | 'cloudsun' | 'cloud' | 'moon';
 export function weatherIcon(condition: string): WeatherIcon {
   return condition === 'sun' || condition === 'cloudsun' || condition === 'cloud' || condition === 'moon' ? condition : 'cloud';
 }
@@ -134,7 +134,7 @@ export function fxStep(s: FxState, p90: number, cores: number): FxState {
 /** The level a device starts at: two cores or fewer start frozen. */
 export const fxStart = (cores: number): FxLevel => (cores <= 2 ? 'low' : 'high');
 
-export type Sky = 'morning' | 'noon' | 'evening' | 'night';
+type Sky = 'morning' | 'noon' | 'evening' | 'night';
 const mins = (hhmm: string | undefined): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;

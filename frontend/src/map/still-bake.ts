@@ -39,12 +39,12 @@ export const VARIANTS: readonly StillVariant[] = ['off', 'on'];
 export const STILL_RECIPE_Q2 = 'still-q2.2';
 export const MASK_RECIPE = 'mask-1';
 /** Where the lifted mask outline sits: this share of the level's ceiling height (prototype stills.js). */
-export const MASK_TOP_SHARE = 0.55;
+const MASK_TOP_SHARE = 0.55;
 /** A room's chip (temperature) anchor height above its floor. */
-export const MASK_CENTRE_Y_M = 1.2;
+const MASK_CENTRE_Y_M = 1.2;
 /** Fallback site position (CR-029 section 5.2: Israel) when the infrastructure gives none. */
 export const DEFAULT_SITE = { lat: 32.0, lon: 34.8 } as const;
-export const BAND_LIMITS = { day: 6, night: -4 } as const;
+const BAND_LIMITS = { day: 6, night: -4 } as const;
 
 export interface BakeSlot {
   kind: BakeKind;
@@ -54,8 +54,8 @@ export interface BakeSlot {
   band: StillBand | '';
   variant: StillVariant | '';
 }
-export type BakeTrigger = 'manual' | 'auto';
-export type BakeViews = 'iso' | 'iso_top';
+type BakeTrigger = 'manual' | 'auto';
+type BakeViews = 'iso' | 'iso_top';
 export interface BakeSetting {
   /** Read-only: derived from `bake_views` by the backend (services/plan_bakes.VIEW_PRESETS). */
   presets: StillPreset[];
@@ -154,7 +154,7 @@ export function stillPalette(style: StillStyle): Readonly<Record<string, string>
   palettes.set(style, frozen);
   return frozen;
 }
-export const STILL_FALLBACK = { light: '#9aa7b8', dark: '#4b5364' } as const;
+const STILL_FALLBACK = { light: '#9aa7b8', dark: '#4b5364' } as const;
 export const stillColor = (style: StillStyle) => (token: string): string => stillPalette(style)[token] ?? STILL_FALLBACK[style];
 /** The opaque backdrop a still is flattened on (its sky): the style's map sky. */
 export function stillBackdrop(style: StillStyle, band: StillBand): string {
@@ -199,7 +199,7 @@ export function stillDescription(desc: SceneDescription, levelId: string, varian
 // ---- projection and masks ------------------------------------------------------------------------------------------------
 
 export type Project = (p: Vec3) => [number, number] | null;
-export interface StillCamera {
+interface StillCamera {
   preset: StillPreset;
   width: number;
   height: number;
@@ -231,7 +231,7 @@ export function isoProject(cam: StillCamera): Project {
   };
 }
 
-export interface MaskRoom {
+interface MaskRoom {
   id: string;
   floor: [number, number][];
   top: [number, number][];

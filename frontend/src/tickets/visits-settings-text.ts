@@ -46,7 +46,7 @@ const en: Record<keyof typeof he, string> = {
   errRange: 'Value out of range',
 };
 
-export type VsKey = keyof typeof he;
+type VsKey = keyof typeof he;
 
 export function vst(key: VsKey): string {
   return ticketsLang() === 'en' ? en[key] : he[key];

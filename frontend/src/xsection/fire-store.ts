@@ -6,7 +6,7 @@
  */
 import { mockFire, realFire, type FireReport, type FloorSignal } from './xs-model';
 
-export interface FireAck { who: string; at: string }
+interface FireAck { who: string; at: string }
 
 let mockMode: string | null = null;
 let mockFloors: Pick<FloorSignal, 'id' | 'level'>[] = [];

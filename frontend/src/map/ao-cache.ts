@@ -28,7 +28,7 @@ function openDb(): Promise<IDBDatabase | null> {
   });
 }
 
-export async function cachedVolume(key: string): Promise<AoVolume | null> {
+async function cachedVolume(key: string): Promise<AoVolume | null> {
   const db = await openDb();
   if (!db) return null;
   try {
@@ -48,7 +48,7 @@ export async function cachedVolume(key: string): Promise<AoVolume | null> {
   }
 }
 
-export async function storeVolume(v: AoVolume): Promise<void> {
+async function storeVolume(v: AoVolume): Promise<void> {
   const db = await openDb();
   if (!db) return;
   try {

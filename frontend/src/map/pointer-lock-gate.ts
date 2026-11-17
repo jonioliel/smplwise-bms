@@ -23,7 +23,7 @@ export type LockVerdict = { state: 'locked' } | { state: 'refused'; reason: Refu
 
 /** How long a request may stay silent (no `pointerlockchange`, no `pointerlockerror`) before it counts as refused. */
 export const LOCK_WAIT_MS = 1200;
-export const LOCK_REFUSED_KEY = 'sw.plan3d.lockrefused';
+const LOCK_REFUSED_KEY = 'sw.plan3d.lockrefused';
 
 export interface LockDocument {
   addEventListener(type: 'pointerlockchange' | 'pointerlockerror', fn: () => void): void;

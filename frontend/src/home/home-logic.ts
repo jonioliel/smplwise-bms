@@ -10,7 +10,7 @@ export const MODES: Record<string, string> = { cool: 'קירור', heat: 'חימ
 export const PRESETS: [string, number][] = [['נעים', 23], ['חיסכון', 26], ['לילה', 22]];
 
 export const zoneOn = (z: HZone): boolean => z.mode !== 'off' && z.ok;
-export const roomActive = (r: HRoom): boolean => r.lights.some((l) => l.on) || r.zones.some(zoneOn);
+const roomActive = (r: HRoom): boolean => r.lights.some((l) => l.on) || r.zones.some(zoneOn);
 export const activeRooms = (rs: HRoom[]): HRoom[] => rs.filter(roomActive);
 export const loadsOn = (rs: HRoom[]): HLoad[] => rs.flatMap((r) => r.loads.filter((x) => x.on));
 

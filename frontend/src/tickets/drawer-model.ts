@@ -18,7 +18,7 @@ import type { ViewerRole } from './status-sentence';
 
 export type DrawerTab = 'overview' | 'conv' | 'costs' | 'history';
 export const DRAWER_TABS: readonly DrawerTab[] = ['overview', 'conv', 'costs', 'history'];
-export const DEFAULT_TAB: DrawerTab = 'overview';
+const DEFAULT_TAB: DrawerTab = 'overview';
 
 const TAB_ALIASES: Record<string, DrawerTab> = {
   overview: 'overview', conv: 'conv', conversation: 'conv', messages: 'conv', costs: 'costs', cost: 'costs', history: 'history', timeline: 'history',
@@ -36,7 +36,7 @@ export function initialTab(o: { deepLink?: string | null; focusTimeline?: boolea
 }
 
 /** What the tab badges read: the events (unread replies) and the cost block (an approval waiting for the viewer). */
-export interface TabTicket {
+interface TabTicket {
   events?: readonly { kind: string; at: string; actor?: { me: boolean; kind?: string } }[];
   cost?: { status: CostStatus; can_decide?: boolean } | null;
 }
@@ -118,7 +118,7 @@ export function effectiveSize(own: string | null | undefined, setting: string | 
 export type ActionKind =
   | 'assign' | 'reassign' | 'move' | 'close' | 'costs' | 'resend_link' | 'conv' | 'toggle_wait' | 'reopen' | 'cancel' | 'eta' | 'return'
   | 'edit' | 'page' | 'delete';
-export type ActionIcon = 'user' | 'check' | 'refresh' | 'send' | 'note' | 'clock' | 'edit' | 'expand' | 'x' | 'trash' | 'flag' | 'lock';
+type ActionIcon = 'user' | 'check' | 'refresh' | 'send' | 'note' | 'clock' | 'edit' | 'expand' | 'x' | 'trash' | 'flag' | 'lock';
 
 export interface DrawerAction {
   /** a stable key (tests, dedupe): the kind, plus the target state for a move */
@@ -242,7 +242,7 @@ export function menuActions(t: ActionTicket, role: ViewerRole, shown: readonly (
 }
 
 /** The read-only flow of the status block (IA §3.4: six steps that look like actions become one read-only stepper). */
-export const FLOW: readonly TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'done', 'closed'];
+const FLOW: readonly TicketStatus[] = ['new', 'assigned', 'acknowledged', 'in_progress', 'done', 'closed'];
 export function flowSteps(status: TicketStatus): { id: TicketStatus; label: string; state: 'done' | 'cur' | 'todo' }[] {
   const shown = status === 'waiting_part' ? 'in_progress' : status;
   const i = FLOW.indexOf(shown);

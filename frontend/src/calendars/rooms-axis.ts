@@ -9,7 +9,7 @@
  * rendered axis (the screen measures them); before the first measure the old share rule applies.
  */
 
-export interface AxisInput {
+interface AxisInput {
   /** where "now" falls on the axis, 0-100 (outside that range: no pill) */
   nowPct: number;
   /** hours on the axis (the labels are 0..hours, the first one aligned to the start, the last one to the end) */
@@ -26,14 +26,14 @@ export interface AxisInput {
   fallbackPct: number;
 }
 
-export interface AxisFit {
+interface AxisFit {
   /** the pill's left edge in px (kept inside the axis); null = place it by percent, centred on the line */
   pillLeftPx: number | null;
   /** the label indexes (0..hours) left out because the pill would meet them */
   hidden: Set<number>;
 }
 
-export const AXIS_GAP_PX = 6;
+const AXIS_GAP_PX = 6;
 
 export function axisFit(o: AxisInput): AxisFit {
   const hidden = new Set<number>();

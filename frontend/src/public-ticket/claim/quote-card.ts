@@ -33,12 +33,12 @@ import {
 import { type ClaimLang, type ItemLabels, claimDir, claimLang, ct, errorText, itemLabels } from './claim-text';
 import { type QuoteTextKey, qt } from './quote-text';
 
-export const QUOTE_PATH = '/t/api/quote';
+const QUOTE_PATH = '/t/api/quote';
 const DAY_MS = 86_400_000;
 
 export type QuoteState = 'none' | 'submitted' | 'approved' | 'rejected';
 
-export interface QuoteView {
+interface QuoteView {
   id: string;
   seq: number;
   state: QuoteState | 'superseded';
@@ -61,7 +61,7 @@ export interface QuoteView {
   approved?: { total_minor: number | null; partial?: boolean } | null;
 }
 
-export interface QuoteInfo {
+interface QuoteInfo {
   state: QuoteState;
   enabled: boolean;
   writable: boolean;
@@ -76,14 +76,14 @@ export interface QuoteInfo {
   };
 }
 
-export interface CostCardContext {
+interface CostCardContext {
   /** the ticket's status on the page (acknowledged, in_progress, waiting_part, done ...) */
   status: string | null;
   /** the `claim` block of GET /t/api/ticket (null before "done") */
   claim: { status: string } | null;
 }
 
-export interface CostCardOptions {
+interface CostCardOptions {
   fetchJson: (path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }) => Promise<ApiResult>;
   lang: string;
   dir?: 'rtl' | 'ltr';
@@ -95,7 +95,7 @@ export interface CostCardOptions {
   onState?: (state: QuoteState) => void;
 }
 
-export interface CostCardHandle {
+interface CostCardHandle {
   element: HTMLElement;
   update(ctx: CostCardContext): void;
   refresh(): Promise<void>;
@@ -107,7 +107,7 @@ export interface CostCardHandle {
 }
 
 /** Which of the six steps of the flow is the current one (0 quote ... 5 payment; 6 = all done). Pure, tested in node. */
-export function stepIndex(quote: QuoteState, status: string | null, claimStatus: string | null): number {
+function stepIndex(quote: QuoteState, status: string | null, claimStatus: string | null): number {
   if (claimStatus === 'paid') return 6;
   if (claimStatus === 'approved') return 5;
   if (claimStatus === 'submitted') return 4;
@@ -118,7 +118,7 @@ export function stepIndex(quote: QuoteState, status: string | null, claimStatus:
 }
 
 /** The kinds the editor offers: the server's list, in the fixed order, never empty (work is always there). */
-export function offeredKinds(allowed: readonly string[] | null | undefined): LineKind[] {
+function offeredKinds(allowed: readonly string[] | null | undefined): LineKind[] {
   const kinds = LINE_KINDS.filter((k) => (allowed ?? []).includes(k));
   return kinds.length ? kinds : ['labor', 'parts'];
 }

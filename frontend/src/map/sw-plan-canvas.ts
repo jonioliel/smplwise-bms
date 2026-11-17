@@ -41,7 +41,7 @@ export interface PlanMarker {
 
 /** A handle of the door ghost of the "סמן דלת" tool (T087): `width` is dragged along the wall, `hinge` and `swing` are
  * pressed (flip). `at` in normalized plan space. */
-export interface GhostHandle {
+interface GhostHandle {
   id: 'width' | 'hinge' | 'swing';
   at: Pt;
   label: string;
@@ -190,7 +190,7 @@ export type GeomDragMode = 'all' | 'items' | 'objects' | 'none';
 
 /** An alignment guide over the plan (T085): a vertical line at x = `at` (axis 'x') or a horizontal one at y = `at`, plan
  * pixels - the shape of studio-ops' Guide. */
-export interface PlanGuide {
+interface PlanGuide {
   axis: 'x' | 'y';
   at: number;
 }

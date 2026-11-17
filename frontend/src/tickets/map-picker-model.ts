@@ -19,7 +19,7 @@ export interface PickerElement {
   level: string | null;
 }
 
-export interface PickerObject {
+interface PickerObject {
   id: string;
   item_id: string;
   level_id?: string | null;
@@ -69,7 +69,7 @@ export function pickOf(floorId: string, e: Pick<PickerElement, 'kind' | 'id'>): 
 }
 
 /** The request's map line state: what to say and which actions apply. */
-export interface MapLine {
+interface MapLine {
   text: string;
   gone: boolean;
   canShow: boolean;

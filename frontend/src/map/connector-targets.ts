@@ -17,7 +17,7 @@ export interface LinkTargetFloor {
   frame?: 'sheet' | 'size' | null;
 }
 
-export interface TargetOption {
+interface TargetOption {
   /** `here:<level>` or `<floor id>:<level>` - the select's value. */
   value: string;
   label: string;
@@ -26,7 +26,7 @@ export interface TargetOption {
   levelId: string;
 }
 
-export interface TargetGroups {
+interface TargetGroups {
   here: TargetOption[];
   floors: { floorId: string; name: string; sameFrame: boolean; options: TargetOption[] }[];
 }
@@ -84,7 +84,7 @@ export interface FloorLinkDoc {
 export function isTwinCopy(doc: Pick<GeometryDoc, 'floor_id'>, c: Pick<GeomConnector, 'origin_floor_id' | 'floor_ids'>): boolean {
   return !!c.floor_ids?.length && !!c.origin_floor_id && c.origin_floor_id !== doc.floor_id;
 }
-export interface FloorLinkEnd {
+interface FloorLinkEnd {
   floorId: string;
   /** The middle of the connector on that floor's plan, normalized. */
   at: Pt;

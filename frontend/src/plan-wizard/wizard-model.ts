@@ -60,8 +60,8 @@ export function bandOf(confidence: number, p: Pick<WizardPrefs, 'auto_accept' | 
   return c >= p.auto_accept ? 'sure' : c >= p.review_min ? 'check' : 'doubt';
 }
 
-export type WallChoice = 'wall' | 'railing' | 'none';
-export type OpeningChoice = 'door' | 'sliding' | 'passage' | 'window' | 'none';
+type WallChoice = 'wall' | 'railing' | 'none';
+type OpeningChoice = 'door' | 'sliding' | 'passage' | 'window' | 'none';
 export type Choice = WallChoice | OpeningChoice;
 
 export interface ReviewItem {
@@ -120,7 +120,7 @@ export function detectedText(set: CandidateSet, id: string): string {
 }
 
 /** The edit an opening choice sends (only document-v2 editable fields; the server ignores the rest). */
-export function openingEdit(o: GeomOpening, c: OpeningChoice): Partial<GeomOpening> | null {
+function openingEdit(o: GeomOpening, c: OpeningChoice): Partial<GeomOpening> | null {
   if (c === 'none') return null;
   if (c === 'sliding') return o.kind === 'door' && o.swing === 'sliding' ? {} : { kind: 'door', swing: 'sliding', height_m: 2.1, sill_m: 0 };
   if (c === 'door') return o.kind === 'door' && o.swing !== 'sliding' ? {} : { kind: 'door', swing: 'left' as Swing, height_m: 2.1, sill_m: 0 };
@@ -128,7 +128,7 @@ export function openingEdit(o: GeomOpening, c: OpeningChoice): Partial<GeomOpeni
   return o.kind === 'window' ? {} : { kind: 'window', swing: 'none', height_m: 1.2, sill_m: 0.9 };
 }
 
-export function wallEdit(w: GeomWall, c: WallChoice): Partial<GeomWall> | null {
+function wallEdit(w: GeomWall, c: WallChoice): Partial<GeomWall> | null {
   if (c === 'none') return null;
   if (c === 'railing') return w.kind === 'railing' ? {} : { kind: 'railing' };
   return w.kind === 'railing' ? { kind: 'interior' } : {};
@@ -213,8 +213,8 @@ export function longestWall(set: Pick<CandidateSet, 'walls'>, width: number, hei
 
 // ---------------------------------------------------------------- rooms
 
-export type ZoneKindId = 'room' | 'zone' | 'corridor' | 'outdoor' | 'service';
-export interface RoomType {
+type ZoneKindId = 'room' | 'zone' | 'corridor' | 'outdoor' | 'service';
+interface RoomType {
   id: string;
   he: string;
   kind: ZoneKindId;
@@ -310,7 +310,7 @@ export const FURNITURE_SIZE: Readonly<Record<string, { w_m: number; d_m: number;
 };
 export const WIZARD_TAG = 'plan-wizard';
 
-export interface StyledRoom {
+interface StyledRoom {
   id: string;
   typeId: string;
   polygon: { x: number; y: number }[];
@@ -371,20 +371,20 @@ export interface PlaceEntity {
   device_class: string | null;
   area_id: string | null;
 }
-export interface PlaceRoom {
+interface PlaceRoom {
   id: string;
   name: string;
   area_id: string | null;
   polygon: { x: number; y: number }[];
 }
-export interface PlaceOpening {
+interface PlaceOpening {
   id: string;
   kind: OpeningKind;
   /** The opening's middle, normalized. */
   x: number;
   y: number;
 }
-export type PlaceWhere = 'door' | 'window' | 'centre' | 'manual' | 'none';
+type PlaceWhere = 'door' | 'window' | 'centre' | 'manual' | 'none';
 export interface Placement {
   /** The resource's id: an entity id (always `domain.object`) or a camera id (never has a dot). */
   entity_id: string;
@@ -401,7 +401,7 @@ export interface Placement {
 const DOOR_CLASSES = new Set(['door', 'garage_door', 'opening']);
 const WINDOW_CLASSES = new Set(['window']);
 /** Which opening an entity belongs at: a door contact or a lock at a door, a window contact or a shutter at a window. */
-export function openingFor(e: Pick<PlaceEntity, 'domain' | 'device_class'>): 'door' | 'window' | null {
+function openingFor(e: Pick<PlaceEntity, 'domain' | 'device_class'>): 'door' | 'window' | null {
   if (e.domain === 'lock') return 'door';
   if (e.domain === 'cover') return e.device_class === 'garage' || e.device_class === 'door' || e.device_class === 'gate' ? 'door' : 'window';
   if (e.domain === 'binary_sensor' && e.device_class && DOOR_CLASSES.has(e.device_class)) return 'door';

@@ -36,7 +36,7 @@
  */
 
 /** A place in the embedded panel: a top-level tab, or a management tool under `tools`. */
-export interface DeepTarget {
+interface DeepTarget {
   readonly tab: string;
   readonly tool: string | null;
 }
@@ -54,7 +54,7 @@ export type DeepPlace =
   | 'settings-messaging';
 
 /** A native Arx screen that took a capability over: its route and the permission(s) it needs (any one, at any scope). */
-export interface NativeRoute {
+interface NativeRoute {
   readonly href: string;
   readonly need?: readonly string[];
   /** WISKEY-OPS-VIEWS-2400: `need` counts only when held at the installation (the screen's server checks it there). */
@@ -116,12 +116,12 @@ const TRIAGE_NEED: readonly string[] = ['access.admin.read', 'access.stations.ma
 const tab = (t: string): DeepTarget => Object.freeze({ tab: t, tool: null });
 /** WISKEY-OPS-VIEWS-2400 (plan T11): the native views of Settings › תפעול האינטרקום (screens/system-intercom-ops.ts) - `access.read`, which the
  * server checks at installation scope (routers/access_control_ops.py). The panel link stays in the entry as `target` (deepLinkHref). */
-export const OPS_NATIVE_HREF = '#/system/intercom-operations';
+const OPS_NATIVE_HREF = '#/system/intercom-operations';
 const OPS_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${OPS_NATIVE_HREF}/${view}`, need: ['access.read'], installation: true });
 const tool = (t: string): DeepTarget => Object.freeze({ tab: 'tools', tool: t });
 /** WISKEY-INSTALLER-NATIVE-2400 (owner Q7 "ג"): the native tools of Settings › התקנה ותחזוקת מערכת האינטרקום (screens/system-intercom-installer.ts) -
  * `system.configure`, which the server checks at installation scope on every route (routers/wiskey_installer*.py). The panel link stays as `target`. */
-export const INSTALLER_NATIVE_HREF = '#/system/intercom-installer';
+const INSTALLER_NATIVE_HREF = '#/system/intercom-installer';
 const INSTALLER_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${INSTALLER_NATIVE_HREF}/${view}`, need: ['system.configure'], installation: true });
 
 /**
@@ -220,7 +220,7 @@ export function linkFor(capability: string, table: Readonly<Record<string, DeepL
 }
 
 /** The panel's handshake catalog (embed API v1 `wiskey:ready`), as far as this table needs it. */
-export interface CatalogLike {
+interface CatalogLike {
   readonly tabs: readonly { readonly id: string }[];
   readonly tools: readonly { readonly id: string }[];
 }
@@ -235,7 +235,7 @@ export function inCatalog(t: DeepTarget, catalog: CatalogLike | null | undefined
 
 /** Who is asking: whether they may open the panel at all, whether they are an access-control administrator, and (for native
  * screens) what they hold. */
-export interface DeepLinkViewer {
+interface DeepLinkViewer {
   /** `access.read` at installation scope, a backend, and the WisKey area not hidden (`ui.hide_wiskey`) - the rule of the area's tabs. */
   readonly panel: boolean;
   /** `access.admin.read` at installation scope (for the panel's administrator-only tools). */

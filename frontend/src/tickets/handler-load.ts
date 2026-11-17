@@ -6,7 +6,7 @@
 export interface MemberLoad { open: number; waiting: number; stuck: number; /** HANDLERLOAD: requests handled in the chosen period; absent = not available */ handled?: number }
 
 /** The part of a board item the load reads. */
-export interface LoadItem { assignee_key: string; waiting_on?: string; stuck?: unknown }
+interface LoadItem { assignee_key: string; waiting_on?: string; stuck?: unknown }
 
 export function loadsFromBoard(items: readonly LoadItem[]): Map<string, MemberLoad> {
   const out = new Map<string, MemberLoad>();

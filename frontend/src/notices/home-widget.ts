@@ -20,7 +20,7 @@ export type { NoticesWidgetData } from './home-widget-model';
  * Sizes: small = the top notice, medium = up to three, large = up to three with the first line of each text.
  */
 
-export interface NoticesWidgetHost {
+interface NoticesWidgetHost {
   data: NoticesWidgetData;
   editing: boolean;
   shell: (it: WidgetItem, cls: string, extra: Record<string, string>, body: TemplateResult) => TemplateResult;

@@ -35,16 +35,16 @@ export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
 /** 1 schematic, 2 full, 3 realistic (the rung - realistic or lite - is RealSettings.rung). */
 export type QualityLevel = 1 | 2 | 3;
 /** The sun's inputs (CR-029 S2): an instant, the site and the plan's north. */
-export interface SunInput {
+interface SunInput {
   utcMs: number;
   latitude: number;
   longitude: number;
 }
 /** LOOK_SPEC section 8: door swing / slide and shutters. */
-export const DOOR_ANIM_MS = 350;
+const DOOR_ANIM_MS = 350;
 /** The eye of the walk (CR-029 S4): metres on the description's axes, the map's bearing (clockwise from plan up) and the
  * pitch (positive looks up). */
-export interface WalkCameraPose {
+interface WalkCameraPose {
   x: number;
   y: number;
   z: number;
@@ -53,13 +53,13 @@ export interface WalkCameraPose {
 }
 /** LOOK_SPEC section 8: the walk entry flies down from the orbit pose. */
 export const WALK_ENTRY_MS = 650;
-export const WALK_NEAR_M = 0.06;
+const WALK_NEAR_M = 0.06;
 export interface SceneHit {
   id: string;
   kind: string;
   partId: string;
 }
-export interface SceneViewOptions {
+interface SceneViewOptions {
   mount: HTMLElement;
   color: (token: string) => string;
   /** A click (no drag); the client point lets the walk turn a click on the floor into a walk there (CR-029 S4). */
@@ -95,14 +95,14 @@ export const SMALL_PART_M = 0.6;
  * the camera is far, and level 2 runs HEAVY_CONFIG instead of FULL_CONFIG. The element's frame-budget probe then
  * measures that configuration, so a device that misses the budget with it falls back to level 1 - never a phone on
  * the full configuration of a heavy floor. */
-export const HIDE_SMALL_ABOVE_PARTS = 3000;
-export const HIDE_SMALL_DISTANCE_M = 45;
+const HIDE_SMALL_ABOVE_PARTS = 3000;
+const HIDE_SMALL_DISTANCE_M = 45;
 /** Every point light is a term in every lit shader: past a handful the frame rate (and the uniform budget) suffers. */
-export const MAX_GLOW_LIGHTS = 8;
+const MAX_GLOW_LIGHTS = 8;
 /** The shadow map of the level-2 sun (one map for the whole extent: a 20 m hall gets ~1 cm texels). */
-export const SHADOW_MAP_PX = 2048;
+const SHADOW_MAP_PX = 2048;
 /** What level 2 spends on a floor: the four levers of the heavy-floor budget (CR-006 §4.1.4 / 1c). */
-export interface HeavyConfig {
+interface HeavyConfig {
   /** The objects' instance groups cast and receive the sun's shadows (a second draw of every instance, PCF taps on
    * every fragment of 3,000 chairs covering the view). */
   objectShadows: boolean;
@@ -114,7 +114,7 @@ export interface HeavyConfig {
   /** The baked contact occlusion under walls and objects (one instanced, alpha-blended plane per part). */
   occlusion: boolean;
 }
-export const FULL_CONFIG: HeavyConfig = { objectShadows: true, lambertObjects: false, shadowMapPx: SHADOW_MAP_PX, occlusion: true };
+const FULL_CONFIG: HeavyConfig = { objectShadows: true, lambertObjects: false, shadowMapPx: SHADOW_MAP_PX, occlusion: true };
 /** Above HIDE_SMALL_ABOVE_PARTS parts. Chosen by the uncapped frame-cost measurements of slice 1c on the 3,000-chair
  * floor in real Chrome, three runs (CR-006 §7c records them): the Lambert objects take 30-35 % off a frame at 1440 px
  * and 25-35 % at 390 px in every run (the per-fragment standard shading of the chairs covering the view was the cost,
@@ -124,7 +124,7 @@ export const FULL_CONFIG: HeavyConfig = { objectShadows: true, lambertObjects: f
  * inside the noise, so the chairs keep their contact shadow. */
 export const HEAVY_CONFIG: HeavyConfig = { objectShadows: false, lambertObjects: true, shadowMapPx: 1024, occlusion: true };
 /** The contact occlusion under a part reaches this far past its footprint. */
-export const AO_SPREAD_M = 0.28;
+const AO_SPREAD_M = 0.28;
 /** PLAN3D-FURNMERGE-2434: the zoom buttons' ease and the iso camera's zoom bounds (1 = the preset's fit). */
 const ZOOM_MS = 180;
 const ZOOM_MIN = 0.4;
