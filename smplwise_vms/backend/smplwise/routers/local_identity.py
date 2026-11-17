@@ -57,7 +57,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, now_iso
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require, role_name, scope_name
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require, role_name, scope_name
 from ..remote_channel import csrf_reason, is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
@@ -448,7 +448,10 @@ def list_local_users(request: Request, include_deleted: bool = Query(False), pri
             # USR2 phase 2: can a code / a link leave by WhatsApp at all (an account mapped and connected), and where links point
             "whatsapp_ready": lr.channel_ready(conn), "public_url": lr.public_origin(conn, request),
             # USR2 phase 4: the owner switch of passkey-only sign-in (the tab shows it next to the address passkeys depend on)
-            "passkey_first_allowed": _passkey_first_allowed(conn)}
+            "passkey_first_allowed": _passkey_first_allowed(conn),
+            # CR-LOCAL-ID-SWITCH-2442: may THIS person turn the feature on / off (PATCH /settings `security.local_identity` asks the same
+            # question and is the authority; this only tells the tab whether to offer the switch)
+            "can_switch": is_system_admin(conn, principal.user_id)}
 
 
 def _passkey_first_allowed(conn: sqlite3.Connection) -> bool:

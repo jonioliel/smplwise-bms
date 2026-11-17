@@ -6,6 +6,7 @@ import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-table';
 import '../components/sw-state-panel';
+import '../components/sw-dialog'; // CR-LOCAL-ID-SWITCH-2442: the confirmation of the feature switch
 import './system-service-identity'; // USR2 P3: the service-identity card (local channel, system.configure)
 import type { TableColumn } from '../components/sw-table';
 import { ApiError, apiUrl, del, describeError, get, patch, post, put } from '../api/client';
@@ -59,6 +60,8 @@ export interface LocalUsersReply {
   public_url?: string | null;
   /** USR2 phase 4: the owner switch `security.local_passkey_first`. */
   passkey_first_allowed?: boolean;
+  /** CR-LOCAL-ID-SWITCH-2442: the viewer is a system administrator - the only one PATCH /settings lets switch the feature. */
+  can_switch?: boolean;
 }
 
 /** USR2 phase 2: a link that went by WhatsApp - nothing secret is shown, only where and until when. */
@@ -130,6 +133,9 @@ export class SystemLocalUsers extends LitElement {
   @state() private pk: { userId: string; items: PasskeyView[] } | null = null;
   @state() private pkStepUp = false;
   @state() private pkCode = '';
+  /** CR-LOCAL-ID-SWITCH-2442: the direction waiting for the administrator's confirmation, and the result line after it. */
+  @state() private switching: 'on' | 'off' | null = null;
+  @state() private switched = '';
 
   static styles = css`
     :host {
@@ -275,6 +281,10 @@ export class SystemLocalUsers extends LitElement {
       grid-column: 1 / -1;
       border-block-start: 1px solid var(--sw-border);
     }
+    /* CR-LOCAL-ID-SWITCH-2442: the switch button under the off-state text */
+    .note .actions {
+      margin-block-start: 10px;
+    }
   `;
 
   @state() private narrow = false;
@@ -377,6 +387,38 @@ export class SystemLocalUsers extends LitElement {
       this.publicUrl = '';
       await this.load();
     });
+  }
+
+  /** CR-LOCAL-ID-SWITCH-2442: the feature switch (PATCH /settings; a system administrator only - the server decides and audits).
+   * Afterwards the tab reads its data again, so the create / export / address sections follow the new state. */
+  private applySwitch() {
+    const to = this.switching;
+    if (!to) return;
+    this.switched = '';
+    void this.run(async () => {
+      try {
+        await patch('/settings', { 'security.local_identity': to });
+      } finally {
+        this.switching = null; // a refusal (403, offline) shows in the tab's error note, not behind the dialog
+      }
+      this.creating = false;
+      this.selected = null;
+      this.roleEdit = null;
+      this.link = null;
+      this.sent = null;
+      this.switched = lit(to === 'on' ? 'switchedOn' : 'switchedOff');
+      await this.load();
+    });
+  }
+
+  private renderSwitchDialog(): TemplateResult | typeof nothing {
+    const to = this.switching;
+    if (!to) return nothing;
+    return html`<sw-dialog open heading=${lit(to === 'on' ? 'switchOn' : 'switchOff')} ?locked=${this.busy} data-local-switch-dialog=${to} @close=${() => (this.switching = null)}>
+      <div class="sub" data-local-switch-body>${lit(to === 'on' ? 'switchOnBody' : 'switchOffBody')}</div>
+      <sw-button slot="footer" variant="ghost" ?disabled=${this.busy} @click=${() => (this.switching = null)}>${lit('cancel')}</sw-button>
+      <sw-button slot="footer" variant=${to === 'on' ? 'primary' : 'danger'} ?disabled=${this.busy} @click=${() => this.applySwitch()} data-local-switch-confirm>${lit(to === 'on' ? 'switchOn' : 'switchOff')}</sw-button>
+    </sw-dialog>`;
   }
 
   private async copy() {
@@ -701,7 +743,12 @@ export class SystemLocalUsers extends LitElement {
             </div>`
           : nothing}
       </div>
-      ${!d.enabled ? html`<div class="note warn" data-local-off>${lit('off')}</div>` : nothing}
+      ${!d.enabled
+        ? html`<div class="note warn" data-local-off>${lit('off')}${d.can_switch
+            ? html`<div class="actions"><sw-button variant="primary" @click=${() => (this.switching = 'on')} ?disabled=${this.busy} data-local-switch="on">${lit('switchOn')}</sw-button></div>`
+            : html` <span data-local-switch-readonly>${lit('offNotAdmin')}</span>`}</div>`
+        : nothing}
+      ${this.switched ? html`<div class="note" role="status" data-local-switched>${this.switched}</div>` : nothing}
       ${d.can_manage ? html`<system-service-identity ?remote=${this.remote}></system-service-identity>` : nothing}
       ${this.error ? html`<div class="note err" role="alert" data-local-error>${this.error}</div>` : nothing}
       ${this.suggest ? html`<div class="note warn" role="status">${this.suggest}</div>` : nothing}
@@ -717,6 +764,13 @@ export class SystemLocalUsers extends LitElement {
         : html`<sw-state-panel icon="users" state="empty" compact hint=${lit('empty')} data-local-empty></sw-state-panel>`}
       ${sel ? this.renderSelected(sel) : nothing}
       ${d.can_manage && d.enabled ? this.renderPublicUrl(d) : nothing}
+      ${d.enabled && d.can_switch
+        ? html`<div class="bar" data-local-on>
+            <div class="sub">${lit('onState')}</div>
+            <sw-button variant="danger" @click=${() => (this.switching = 'off')} ?disabled=${this.busy} data-local-switch="off">${lit('switchOff')}</sw-button>
+          </div>`
+        : nothing}
+      ${this.renderSwitchDialog()}
     </div>`;
   }
 }

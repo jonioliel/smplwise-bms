@@ -254,6 +254,113 @@ const ROWS = {
   ],
 };
 
+// ---------------------------------------------------------------- CR-LOCAL-ID-SWITCH-2442: the feature switch on the tab
+
+/** The tab against a server whose switch state follows the PATCH (or refuses it): every /settings and list call is recorded. */
+async function switchServer(page: import('@playwright/test').Page, start: { enabled: boolean; can_switch: boolean }, refuse?: { status: number; body: unknown } | 'offline') {
+  const state = { enabled: start.enabled };
+  const seen: Call[] = [];
+  await setup(page, {});
+  await page.route(`${ORIGIN}/arx/api/v1/identity/local-users`, (route) => {
+    seen.push({ path: 'local-users', method: route.request().method(), body: '' });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...P2_ROWS, enabled: state.enabled, can_manage: true, can_switch: start.can_switch, users: state.enabled ? P2_ROWS.users : [] }) });
+  });
+  await page.route(`${ORIGIN}/arx/api/v1/settings`, (route) => {
+    const body = route.request().postData() ?? '';
+    seen.push({ path: 'settings', method: route.request().method(), body });
+    if (refuse === 'offline') return route.abort('internetdisconnected');
+    if (refuse) return route.fulfill({ status: refuse.status, contentType: 'application/json', body: JSON.stringify(refuse.body) });
+    state.enabled = (JSON.parse(body) as Record<string, string>)['security.local_identity'] === 'on';
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ settings: { 'security.local_identity': state.enabled ? 'on' : 'off' } }) });
+  });
+  await mountUsers(page);
+  return seen;
+}
+
+const TAB = 'system-local-users';
+
+test('a system administrator turns Arx users on from the tab: confirm, the exact PATCH, then the tab reads again', async ({ page }) => {
+  const seen = await switchServer(page, { enabled: false, can_switch: true });
+  await expect(page.locator(`${TAB} [data-local-off]`)).toContainText('משתמשי Arx כבויים');
+  await expect(page.locator(`${TAB} [data-local-off]`)).not.toContainText('security.local_identity'); // the old note pointed at a screen that does not exist
+  await expect(page.locator(`${TAB} [data-local-add]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-public-url]`)).toHaveCount(0);
+  await page.locator(`${TAB} [data-local-switch="on"]`).click();
+  await expect(page.locator(`${TAB} [data-local-switch-dialog="on"] [data-local-switch-body]`)).toContainText('נכנסים בגישה מרחוק');
+  expect(seen.filter((c) => c.path === 'settings')).toHaveLength(0); // nothing is sent before the confirmation
+  // cancelling sends nothing
+  await page.locator(`${TAB} [data-local-switch-dialog] sw-button[variant="ghost"][slot="footer"]`).click();
+  await expect(page.locator(`${TAB} [data-local-switch-dialog]`)).toHaveCount(0);
+  expect(seen.filter((c) => c.path === 'settings')).toHaveLength(0);
+  const reads = seen.filter((c) => c.path === 'local-users').length;
+  await page.locator(`${TAB} [data-local-switch="on"]`).click();
+  await page.locator(`${TAB} [data-local-switch-confirm]`).click();
+  await expect(page.locator(`${TAB} [data-local-switched]`)).toContainText('הופעלו');
+  const sent = seen.filter((c) => c.path === 'settings');
+  expect(sent).toHaveLength(1);
+  expect(sent[0].method).toBe('PATCH');
+  expect(sent[0].body).toBe('{"security.local_identity":"on"}');
+  expect(seen.filter((c) => c.path === 'local-users').length).toBe(reads + 1); // the tab read its data again
+  await expect(page.locator(`${TAB} [data-local-off]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-add]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-public-url]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-switch="off"]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-switch-dialog]`)).toHaveCount(0);
+});
+
+test('turning Arx users off warns that every sign-in ends, sends the exact PATCH, and the sections leave', async ({ page }) => {
+  const seen = await switchServer(page, { enabled: true, can_switch: true });
+  await expect(page.locator(`${TAB} [data-local-off]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-public-url]`)).toBeVisible();
+  await page.locator(`${TAB} [data-local-add]`).click(); // an open create form does not survive the switch
+  await page.locator(`${TAB} [data-local-switch="off"]`).click();
+  const body = page.locator(`${TAB} [data-local-switch-dialog="off"] [data-local-switch-body]`);
+  await expect(body).toContainText('מסתיימות מיד');
+  await expect(body).toContainText('לא יוכלו להיכנס עד שהיכולת תופעל שוב');
+  await expect(page.locator(`${TAB} [data-local-switch-confirm]`)).toHaveAttribute('variant', 'danger');
+  await page.locator(`${TAB} [data-local-switch-confirm]`).click();
+  await expect(page.locator(`${TAB} [data-local-switched]`)).toContainText('כובו');
+  expect(seen.filter((c) => c.path === 'settings').map((c) => `${c.method} ${c.body}`)).toEqual(['PATCH {"security.local_identity":"off"}']);
+  await expect(page.locator(`${TAB} [data-local-off]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-switch="on"]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-add]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-create]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-public-url]`)).toHaveCount(0);
+});
+
+test('someone who is not a system administrator reads the state and gets no switch', async ({ page }) => {
+  const seen = await switchServer(page, { enabled: false, can_switch: false });
+  await expect(page.locator(`${TAB} [data-local-off]`)).toContainText('רק מנהל מערכת יכול להפעיל');
+  await expect(page.locator(`${TAB} [data-local-switch]`)).toHaveCount(0);
+  expect(seen.filter((c) => c.path === 'settings')).toHaveLength(0);
+});
+
+test('the on state shows no switch to someone who is not a system administrator', async ({ page }) => {
+  await switchServer(page, { enabled: true, can_switch: false });
+  await expect(page.locator(`${TAB} [data-local-add]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-switch]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-on]`)).toHaveCount(0);
+});
+
+test("a refused switch shows the server's own text in the tab and changes nothing", async ({ page }) => {
+  const text = 'רק מנהל מערכת יכול להפעיל או לכבות את משתמשי Arx.';
+  await switchServer(page, { enabled: false, can_switch: true }, { status: 403, body: { code: 'forbidden', user_message: text, retryable: false, details: {} } });
+  await page.locator(`${TAB} [data-local-switch="on"]`).click();
+  await page.locator(`${TAB} [data-local-switch-confirm]`).click();
+  await expect(page.locator(`${TAB} [data-local-error]`)).toHaveText(text);
+  await expect(page.locator(`${TAB} [data-local-switch-dialog]`)).toHaveCount(0);
+  await expect(page.locator(`${TAB} [data-local-off]`)).toBeVisible();
+  await expect(page.locator(`${TAB} [data-local-switched]`)).toHaveCount(0);
+});
+
+test('a switch with no connection says so and the off state stays', async ({ page }) => {
+  await switchServer(page, { enabled: false, can_switch: true }, 'offline');
+  await page.locator(`${TAB} [data-local-switch="on"]`).click();
+  await page.locator(`${TAB} [data-local-switch-confirm]`).click();
+  await expect(page.locator(`${TAB} [data-local-error]`)).toContainText('אין חיבור לשרת');
+  await expect(page.locator(`${TAB} [data-local-off]`)).toBeVisible();
+});
+
 for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 390, h: 844 }]) {
   test(`screens for review (${view.name})`, async ({ page }) => {
     await page.setViewportSize({ width: view.w, height: view.h });
