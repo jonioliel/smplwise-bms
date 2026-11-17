@@ -19,6 +19,7 @@ import { invalidateSettings } from './prefs';
 import { commandId } from './request-id';
 import { isApi } from './session';
 import { lazy } from './demo-load';
+import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 
 /** CR-MOCKS-LAZY-2436 (review 07:F2): the demo store (./schedules-mock.ts) is fetched on the first demo call - with a backend it is never
  * loaded. Each call reads the store in force (`demoStore()`), as before. */
@@ -45,8 +46,8 @@ export type ScheduleSource = 'arx' | 'external';
 export type RunResult = 'pending' | 'confirmed' | 'not_confirmed' | 'skipped' | 'unknown';
 
 export const DAY_ORDER: DayId[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const DAY_SHORT: Record<DayId, string> = { sun: 'א׳', mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳' };
-export const DAY_LONG: Record<DayId, string> = { sun: 'ראשון', mon: 'שני', tue: 'שלישי', wed: 'רביעי', thu: 'חמישי', fri: 'שישי', sat: 'שבת' };
+export const DAY_SHORT: Record<DayId, string> = { sun: tr('א׳'), mon: tr('ב׳'), tue: tr('ג׳'), wed: tr('ד׳'), thu: tr('ה׳'), fri: tr('ו׳'), sat: tr('ש׳') };
+export const DAY_LONG: Record<DayId, string> = { sun: tr('ראשון'), mon: tr('שני'), tue: tr('שלישי'), wed: tr('רביעי'), thu: tr('חמישי'), fri: tr('שישי'), sat: tr('שבת') };
 export const ALL_CLASSES: ScheduleClass[] = [
   'light', 'switch', 'cover', 'climate', 'fan', 'alarm', 'lock', 'door', 'script', 'scene', 'helper', 'humidifier', 'vacuum', 'siren', 'media', 'number', 'select',
 ];
@@ -1200,9 +1201,9 @@ export function whenLabel(iso: string | null | undefined, now: Date = new Date()
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - day0) / 86_400_000);
-  if (diff === 0) return `היום ${hm}`;
-  if (diff === 1) return `מחר ${hm}`;
-  if (diff > 1 && diff < 7) return `יום ${DAY_SHORT[DAY_ORDER[d.getDay()]]} ${hm}`;
+  if (diff === 0) return tr('היום {time}', { time: hm });
+  if (diff === 1) return tr('מחר {time}', { time: hm });
+  if (diff > 1 && diff < 7) return tr('יום {day} {time}', { day: DAY_SHORT[DAY_ORDER[d.getDay()]], time: hm });
   return `${d.getDate()}.${d.getMonth() + 1} ${hm}`;
 }
 

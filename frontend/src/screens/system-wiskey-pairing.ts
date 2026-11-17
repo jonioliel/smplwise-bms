@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -436,7 +437,7 @@ export class SystemWiskeyPairing extends LitElement {
               ${d ? html`<sw-badge kind=${d.paired ? 'live' : d.paired === false ? 'error' : 'unknown'} filled label=${VERDICT_TEXT[d.verdict]} data-wkp-verdict=${d.verdict}></sw-badge>
                   <span class="muted" data-wkp-talk>${d.talk_ready ? tr('דיבור דרך WisKey: מוכן') : tr('דיבור דרך WisKey: לא מוכן')}</span>` : html`<span class="muted">${this.busy === 'load' ? tr('טוען…') : ''}</span>`}
               <span class="sp"></span>
-              ${d?.probe ? html`<span class="muted" data-wkp-checked>${tr('נבדק ב־')}<bdi>${formatTime(d.probe.at, 'he-IL', UTC_ZONE)}</bdi>${probeIsStale(d.probe) ? ` · ${tr('בדיקה ישנה, מומלץ לבדוק שוב')}` : ''}</span>` : nothing}
+              ${d?.probe ? html`<span class="muted" data-wkp-checked>${tr('נבדק ב־')}<bdi>${formatTime(d.probe.at, uiLocale(), UTC_ZONE)}</bdi>${probeIsStale(d.probe) ? ` · ${tr('בדיקה ישנה, מומלץ לבדוק שוב')}` : ''}</span>` : nothing}
               <sw-button size="sm" variant="primary" icon="shield" data-wkp-probe ?disabled=${!!this.busy} @click=${() => this.probe()}>${this.busy === 'probe' ? tr('בודק…') : tr('בדוק חיבור חתום')}</sw-button>
             </div>
             ${this.error && !this.confirming ? html`<div class="err" role="alert" style="margin-block-start:8px">${this.error}</div>` : nothing}

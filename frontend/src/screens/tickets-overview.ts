@@ -35,6 +35,7 @@ import {
   type AgendaEntry, type CardKey, type HandlerRow, type KpiKey, type Kpis, type OverviewSettings,
 } from '../tickets/overview-model';
 import { timeText, dayMonthText } from '../api/day-format';
+import { uiLocale } from '../i18n/locale';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
@@ -939,7 +940,7 @@ export class TicketsOverview extends LitElement {
     const dot: Record<AgendaEntry['kind'], string> = { visit_vendor: 'acc', visit_staff: 'acc', work_start: 'ok', rfq_due: 'pur', payment: 'warn' };
     const dayTitle = (key: string, offset: number) => {
       const [y, m, dd] = key.split('-').map(Number);
-      const date = new Date(y, m - 1, dd).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'numeric' });
+      const date = new Date(y, m - 1, dd).toLocaleDateString(uiLocale(), { weekday: 'long', day: 'numeric', month: 'numeric' });
       return offset === 0 ? `${ot('agToday')} · ${date}` : offset === 1 ? `${ot('agTomorrow')} · ${date}` : date;
     };
     const partial = this.rfqFailed ? html`<div class="unavail" data-partial>${ot('agRfqPartial')}<button type="button" class="btn sm" @click=${this.retrySlow}>${tIcon('refresh')}${ot('retry')}</button></div>` : nothing;

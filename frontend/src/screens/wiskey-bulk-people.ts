@@ -32,6 +32,7 @@ import { blockerKey, canConfirm, expiryText, pageCount, pageOf, resultWords, sho
 import { attention, codesText, editRequest, EMPTY_EDIT, precheckFile, previewCounts, shouldContinue, stepOf, valueText, type EditForm } from '../access-control/bulk-people-logic';
 import { bt, btDynamic, btLang } from '../i18n/bulk-people';
 import { dateInputLang } from '../api/day-format';
+import { localeFor } from '../i18n/locale';
 
 export interface BulkStation {
   id: string;
@@ -462,7 +463,7 @@ export class SwBulkPeopleDialog extends LitElement {
     return html`<strong>${bt('v_title')}</strong>
       <div class="chips" data-verify-preview>
         <span class="chip">${bt('v_will_write', { n: vp.writes })}</span><span class="chip">${bt('unchanged', { n: vp.skipped })}</span><span class="chip">${bt('errors', { n: vp.errors })}</span>
-        <span class="chip">${bt('v_expires', { t: expiryText(vp.expires_at, btLang()) })}</span></div>
+        <span class="chip">${bt('v_expires', { t: expiryText(vp.expires_at, localeFor(btLang())) })}</span></div>
       <div class="vlist">${pageOf(vp.rows, at).map((r) => html`<div class="vrow" data-verify-row=${r.source_line}><span>${bt('v_line', { n: r.source_line })}</span><span>${r.op === 'create' ? bt('v_op_create') : bt('v_op_update')}</span></div>`)}</div>
       ${pages > 1 ? html`<div class="pager"><sw-button variant="ghost" data-verify-prev ?disabled=${at === 0} @click=${() => (this.vpage = at - 1)}>${bt('v_prev')}</sw-button>
         <span class="muted">${bt('v_page', { a: at + 1, b: pages })}</span><sw-button variant="ghost" data-verify-next ?disabled=${at >= pages - 1} @click=${() => (this.vpage = at + 1)}>${bt('v_next')}</sw-button></div>` : nothing}

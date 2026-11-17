@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import {
   filterItems, itemChips, manageRight, saveBlocker, sortItems, visibleKinds,
   type AutomationsStatus, type Item, type ItemChip, type ItemKind, type RunSummary, type SceneMember, type ScriptField,
@@ -155,7 +156,7 @@ export function areaLine(i: Pick<Item, 'areas'>): string {
   return n.length <= 3 ? n.join(' · ') : `${n.slice(0, 3).join(' · ')} +${n.length - 3}`;
 }
 
-const hhmm = (d: Date, timeZone?: string): string => new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone }).format(d);
+const hhmm = (d: Date, timeZone?: string): string => new Intl.DateTimeFormat(uiLocale(), { hour: '2-digit', minute: '2-digit', hour12: false, timeZone }).format(d);
 const dayKey = (d: Date, timeZone?: string): string => new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone }).format(d);
 /** "היום 18:42" / "אתמול 23:50" / "28/09 21:02": a time of a run for a chip or a row. */
 export function whenText(iso: string, now: Date, timeZone?: string): string {
@@ -166,7 +167,7 @@ export function whenText(iso: string, now: Date, timeZone?: string): string {
   const key = dayKey(d, timeZone);
   if (key === today) return tr('היום {time}', { time: hhmm(d, timeZone) });
   if (key === yesterday) return tr('אתמול {time}', { time: hhmm(d, timeZone) });
-  const parts = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', timeZone }).formatToParts(d);
+  const parts = new Intl.DateTimeFormat(uiLocale(), { day: '2-digit', month: '2-digit', timeZone }).formatToParts(d);
   const day = parts.find((x) => x.type === 'day')?.value ?? '';
   const month = parts.find((x) => x.type === 'month')?.value ?? '';
   return `${day}/${month} ${hhmm(d, timeZone)}`;

@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -255,7 +256,7 @@ export class SystemAnnouncements extends LitElement {
     const tc = d.config.translate;
     if (!tc) return nothing;
     const approved = !!tc.approval && tc.approval.provider === tc.provider;
-    const when = tc.approval ? new Intl.DateTimeFormat(announceLang() === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(tc.approval.at)) : '';
+    const when = tc.approval ? new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(tc.approval.at)) : '';
     return html`<sw-card heading=${t.translateCard} subheading=${t.translateHint} data-announce-translate-card>
       <div class="row"><span class="lbl">${t.translateProvider}</span>
         <select data-announce-translate-provider aria-label=${t.translateProvider} @change=${(e: Event) => void this.save({ translate: { provider: (e.target as HTMLSelectElement).value, ...(tc.enabled ? { enabled: false } : {}) } })}>
@@ -351,7 +352,7 @@ export class SystemAnnouncements extends LitElement {
         </div></sw-card>` : nothing}
       <sw-card heading=${t.history}>
         ${d.history.length ? html`<table data-announce-history><tbody>${d.history.map((h) => html`<tr>
-          <td>${new Intl.DateTimeFormat(announceLang() === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(h.at))}</td>
+          <td>${new Intl.DateTimeFormat(localeFor(announceLang()), { dateStyle: 'short', timeStyle: 'short' }).format(new Date(h.at))}</td>
           <td>${t.src[h.source] ?? h.source}</td><td class="msg">${h.message}</td><td>${t.status[h.status] ?? h.status}</td></tr>`)}</tbody></table>`
           : html`<div class="muted">${t.empty}</div>`}
       </sw-card>

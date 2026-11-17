@@ -5,6 +5,7 @@
  * that the entry center, the activity log and the people directory use. Kept verbatim in behaviour so SMPLWISE shows a WisKey instant exactly
  * as WisKey does - in the station's own clock zone (a device DST rule included), never with a fixed offset.
  */
+import { uiLocale } from '../i18n/locale';
 import type { DisplayZone } from '../api/intercom';
 import { tr } from '../i18n/msg/wiskey';
 
@@ -51,7 +52,7 @@ export function offsetLabel(offset: number) {
 /** AUDIT30-H (finding 15, owner Q10 = א): an operator view reads an instant in the installation's (or station's) zone WITHOUT the
  * `UTC+03:00` label - the offset is a technical detail and stays in `formatTime` (the event's technical details, installer and
  * system screens). The same zone arithmetic as `formatTime`; '—' for anything without an explicit offset. */
-export function formatLocalTime(value: string | null | undefined, locale = 'he-IL', zone: DisplayZone = UTC_ZONE) {
+export function formatLocalTime(value: string | null | undefined, locale = uiLocale(), zone: DisplayZone = UTC_ZONE) {
   if (!value || !/(Z|[+-][0-9]{2}:[0-9]{2})$/.test(value)) return '—';
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) return '—';
@@ -63,7 +64,7 @@ export function formatLocalTime(value: string | null | undefined, locale = 'he-I
 }
 
 /** An ISO instant (with an explicit offset) as local time in `zone` plus its UTC offset; '—' for anything else. */
-export function formatTime(value: string | null | undefined, locale = 'he-IL', zone: DisplayZone = UTC_ZONE) {
+export function formatTime(value: string | null | undefined, locale = uiLocale(), zone: DisplayZone = UTC_ZONE) {
   if (!value || !/(Z|[+-][0-9]{2}:[0-9]{2})$/.test(value)) return '—';
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) return '—';

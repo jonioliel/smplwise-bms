@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -478,7 +479,7 @@ export class SystemMapping extends LitElement {
     const d = this.data!;
     const when = (iso: string) => {
       const t = new Date(iso);
-      return Number.isNaN(t.getTime()) ? iso : t.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      return Number.isNaN(t.getTime()) ? iso : t.toLocaleString(uiLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     };
     return html`<sw-card heading=${tr('גרסאות')} subheading=${tr('חזרה לגרסה ישנה יוצרת גרסה חדשה עם התוכן שלה. שום דבר לא נמחק.')} data-mapping-versions>
       ${d.versions.length

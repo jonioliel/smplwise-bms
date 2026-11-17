@@ -27,6 +27,7 @@ import { commandId } from './request-id';
 import { isApi } from './session';
 import type { DayToken, ScheduleDraft } from './schedules';
 import { timeText } from './day-format';
+import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 
 // ------------------------------------------------------------------------------------------------ vocabulary and blocks (§2.1)
 
@@ -1907,15 +1908,15 @@ export const itemKey = (kind: ItemKind, id: string): string => `${kind}:${id}`;
 /** "לפני 12 דק׳", "לפני שעה", "אתמול", "לפני 3 ימים"; "רץ עכשיו" while running; '' when never run. */
 export function lastRunText(last: Item['last_run'], now: Date = new Date()): string {
   if (!last) return '';
-  if (last.result === 'running') return 'רץ עכשיו';
+  if (last.result === 'running') return tr('רץ עכשיו');
   const min = Math.floor((now.getTime() - Date.parse(last.at)) / 60000);
   if (!Number.isFinite(min)) return '';
-  if (min < 1) return 'עכשיו';
-  if (min < 60) return `לפני ${min} דק׳`;
+  if (min < 1) return tr('עכשיו');
+  if (min < 60) return tr('לפני {n} דק׳', { n: min });
   const h = Math.floor(min / 60);
-  if (h < 24) return h === 1 ? 'לפני שעה' : `לפני ${h} שע׳`;
+  if (h < 24) return h === 1 ? tr('לפני שעה') : tr('לפני {n} שע׳', { n: h });
   const days = Math.floor(h / 24);
-  return days === 1 ? 'אתמול' : `לפני ${days} ימים`;
+  return days === 1 ? tr('אתמול') : tr('לפני {n} ימים', { n: days });
 }
 const norm = (s: string): string => s.normalize('NFC').toLocaleLowerCase('he');
 /** The list's filters applied client-side (the server applies the same to `GET /automations`): name, description, sentence and target names. */

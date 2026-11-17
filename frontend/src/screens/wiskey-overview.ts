@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -576,7 +577,7 @@ export class WiskeyOverview extends LitElement {
   private renderStaleNote(feed: IntercomFeed) {
     return html`<div class="note stale" role="status" data-wiskey-stale>
       <sw-icon name="offline" size=${16}></sw-icon>
-      <span>${FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state].heading}. ${tr('מוצג המידע האחרון שהתקבל')}${feed.fetched_at ? html` (<bdi>${formatLocalTime(feed.fetched_at, 'he-IL', feed.overview?.default_zone ?? UTC_ZONE)}</bdi>)` : nothing} - ${tr('ייתכן שאינו עדכני.')}</span>
+      <span>${FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state].heading}. ${tr('מוצג המידע האחרון שהתקבל')}${feed.fetched_at ? html` (<bdi>${formatLocalTime(feed.fetched_at, uiLocale(), feed.overview?.default_zone ?? UTC_ZONE)}</bdi>)` : nothing} - ${tr('ייתכן שאינו עדכני.')}</span>
     </div>`;
   }
 
@@ -645,7 +646,7 @@ export class WiskeyOverview extends LitElement {
         <div class="title">
           <b title=${s.name}>${s.name}</b>
           <small>${!s.online && s.last_seen
-            ? html`${t('last_seen')}: <bdi>${formatLocalTime(s.last_seen, 'he-IL', zone)}</bdi>`
+            ? html`${t('last_seen')}: <bdi>${formatLocalTime(s.last_seen, uiLocale(), zone)}</bdi>`
             : t('access_by_permissions')}</small>
         </div>
         <sw-badge kind=${kind} ?filled=${status === 'ringing'} data-wiskey-door-badge=${status} label=${t(status)}></sw-badge>

@@ -4,11 +4,12 @@
  * snooze duration labels and end times, the bill lines split into water and sewage, and the snooze settings editor's checks (they mirror
  * the server: services/water_alerts.validate_snooze). No DOM, no network: node-only unit tests (tests/unit-water-billing.spec.ts).
  */
+import { uiLocale } from '../i18n/locale';
 import type { Account, BillLine, BillState, SnoozeSettings } from '../api/water-billing';
 
-const M3 = new Intl.NumberFormat('he-IL', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const L1 = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 1 });
-const ILS = new Intl.NumberFormat('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const M3 = new Intl.NumberFormat(uiLocale(), { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const L1 = new Intl.NumberFormat(uiLocale(), { maximumFractionDigits: 1 });
+const ILS = new Intl.NumberFormat(uiLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** "36.000" -> "36.000"; null / empty -> "-". The server's decimal string is never re-rounded beyond its 3 places. */
 export function fmtM3(v: string | number | null | undefined): string {
@@ -70,7 +71,7 @@ export function snoozeLabel(min: number): string {
 export function snoozeUntil(now: Date, min: number, timeZone = 'Asia/Jerusalem'): string {
   const end = new Date(now.getTime() + min * 60_000);
   const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-  const hm = new Intl.DateTimeFormat('he-IL', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(end);
+  const hm = new Intl.DateTimeFormat(uiLocale(), { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(end);
   const days = Math.round((Date.parse(day(end)) - Date.parse(day(now))) / 86_400_000);
   if (days <= 0) return hm;
   return days === 1 ? `מחר ${hm}` : `${days} ימים, ${hm}`;

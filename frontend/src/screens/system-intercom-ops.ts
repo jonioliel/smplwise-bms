@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -478,7 +479,7 @@ export class SystemIntercomOps extends LitElement {
   }
 
   private time(iso: string | null | undefined): string {
-    return formatTime(iso, 'he-IL', this.zone);
+    return formatTime(iso, uiLocale(), this.zone);
   }
 
   private async load(): Promise<void> {

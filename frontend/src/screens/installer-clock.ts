@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -327,7 +328,7 @@ export class InstallerClock extends LitElement {
       <div class="name"><b dir="auto">${st.name}</b><span class="muted">${st.online ? T.online : T.offline}</span></div>
       <div><span class="mlabel">${C.colSkew}</span><span class="tone-${tone}">${skew === null ? C.noClock : fill(C.skew, { s: skew })}</span></div>
       <div><span class="mlabel">${C.colMode}</span>${clock?.time_mode ? C.modes[clock.time_mode] ?? clock.time_mode : T.none}</div>
-      <div><span class="mlabel">${C.colChecked}</span><span class="muted">${clock?.checked_at ? formatTime(clock.checked_at, 'he-IL', LOCAL_ZONE) : T.none}</span>
+      <div><span class="mlabel">${C.colChecked}</span><span class="muted">${clock?.checked_at ? formatTime(clock.checked_at, uiLocale(), LOCAL_ZONE) : T.none}</span>
         ${chk?.error ? html`<div class="field-error" role="alert">${chk.error}</div>` : nothing}</div>
       <div class="acts">
         <sw-button size="sm" variant="ghost" ?disabled=${chk?.busy} @click=${() => void this.check(st.id)} data-clock-check>${C.check}</sw-button>

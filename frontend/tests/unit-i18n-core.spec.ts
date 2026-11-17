@@ -131,7 +131,8 @@ test('every *_DEV_MARKED constant under src/i18n is kept and handed to the regis
 test('every catalogue module registers its tables (the missing-keys report reads the registry)', () => {
   const dir = new URL('../src/i18n/', import.meta.url);
   const notCatalogues = new Set(['core.ts', 'msg.ts', 'ui-lang.ts', 'ui-lang-boot.ts', 'bidi.ts', 'en.ts', 'frigate-en.ts', 'frigate-text.ts', 'entity-label.ts', 'event-codes.ts',
-    'nav-labels.ts', 'nav-label-bridges.ts']); // CR-NAV-LABELS-2436 (from main): the shell's labels - each is a key of its own dictionary, which registers it
+    'nav-labels.ts', 'nav-label-bridges.ts', // CR-NAV-LABELS-2436 (from main): the shell's labels - each is a key of its own dictionary, which registers it
+    'locale.ts']); // CR-I18N-DATES-2442: the formatting locale of the interface language - no texts
   const missing = readdirSync(dir).filter((f) => f.endsWith('.ts') && !notCatalogues.has(f) && !/registerCatalogue\(/.test(readFileSync(new URL(f, dir), 'utf8')));
   expect(missing).toEqual([]);
 });

@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-badge';
@@ -417,7 +418,7 @@ export class WkTriagePanel extends LitElement {
   }
 
   private time(v: string | null | undefined): string {
-    return formatTime(v, 'he-IL', this.zone);
+    return formatTime(v, uiLocale(), this.zone);
   }
 
   // ------------------------------------------------------------- conflicts

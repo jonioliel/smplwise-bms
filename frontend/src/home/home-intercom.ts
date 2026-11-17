@@ -6,6 +6,7 @@
 //           `access.visitor.invite`; the server checks both again. The door code is NEVER shown here: the engine sends it to the guest's
 //           phone after the host confirmed the guest's number (the mockup's "show code" sheet became that confirmation - see the change doc)
 //   people  GET /intercom/people (access.people.read; names, validity and doors only - never phones, cards or codes)
+import { uiLocale } from '../i18n/locale';
 import { html, nothing } from 'lit';
 import { registerScreen, type ExtOvl, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
@@ -42,7 +43,7 @@ const peopleOk = () => canAnywhere('access.people.read');
 const today = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) === new Date().toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });
 const missedToday = () => st.calls.filter((c) => c.outcome === 'missed' && today(c.rang_at)).length;
 const hh = (n: number) => String((n + 24) % 24).padStart(2, '0') + ':00';
-const dm = (iso: string | null) => (iso ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }) : '');
+const dm = (iso: string | null) => (iso ? new Date(iso).toLocaleString(uiLocale(), { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }) : '');
 
 async function loadCalls(h: HomeHost) {
   try {
@@ -247,7 +248,7 @@ registerScreen((h: HomeHost) => {
       }
       if (tab === 'people') {
         const pg = paged(st.people, h.phone ? 4 : 6, h.pg('ppl'));
-        const until = (p: Person) => (!p.active ? tr('לא פעיל') : p.valid_until ? tr('עד {v1}', { v1: new Date(p.valid_until).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' }) }) : tr('קבוע'));
+        const until = (p: Person) => (!p.active ? tr('לא פעיל') : p.valid_until ? tr('עד {v1}', { v1: new Date(p.valid_until).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' }) }) : tr('קבוע'));
         const doors = (p: Person) => { const n = p.stations.filter((s) => s.enabled).reduce((a, s) => a + Math.max(1, s.doors.length), 0); return n === 0 ? tr('אין דלתות') : n === 1 ? tr('דלת אחת') : tr('{n} דלתות', { n }); };
         return html`${h.headT(tr('מי יכול להיכנס'), tr('בני הבית ואיזו דלת כל אחד יכול לפתוח'), sg, h.pager('ppl', pg.pages))}
           <div class="card-grid pplg">${!st.peopleLoaded ? html`<div class="empty loading" aria-busy="true">${hi('people')}<h2>${tr('טוענים…')}</h2></div>` : pg.items.length ? pg.items.map((p) => html`<div class=${'tile prow' + (p.active ? '' : ' away')}><span class="av">${(p.display_name || '?').slice(0, 1)}</span><span class="at"><b class="clamp1">${p.display_name}</b><span class="muted clamp1">${until(p)}</span></span><span class="pk"><span class="muted">${tr('נכנס ב')}</span><b class="clamp2">${doors(p)}</b></span></div>`) : h.empty('people', st.peopleError ? tr('הרשימה לא זמינה') : tr('עוד אין אנשים ברשימה'), st.peopleError || tr('מנהל הבית מוסיף אנשים וקודים בממשק המלא.'))}</div><p class="foot-note">${hi('lock')}${tr('הוספת אנשים, קודים ותגים נעשית על ידי מנהל הבית, בממשק המלא.')}</p>`;

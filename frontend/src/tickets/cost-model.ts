@@ -4,6 +4,7 @@
  * the record, 11A.4), which actions a claim offers, and the per-currency grouping of the report (never summed across currencies, 11A.9).
  * No DOM, no Lit: tests/unit-tickets-costs.spec.ts runs it in node.
  */
+import { localeFor } from '../i18n/locale';
 import type {
   ClaimStatus, CostClaim, CostMode, CostStatus, LineInput, LineKind, ReportGroupRow, ReportTotal, StoredLine, TicketCostBlock, VatMode,
 } from '../api/tickets-costs';
@@ -72,8 +73,6 @@ export function percentToBp(value: string): number | null {
 
 // ---------------------------------------------------------------- display
 
-const LOCALE: Record<string, string> = { he: 'he-IL', en: 'en-GB' };
-
 /**
  * An amount for DISPLAY ONLY: Intl.NumberFormat with the claim's currency in the screen's language. The division to main units is
  * the last step before the text and never feeds anything stored or sent.
@@ -82,7 +81,7 @@ export function formatMoney(minor: number | null | undefined, currency: string |
   if (minor === null || minor === undefined) return '';
   const cur = currency || 'ILS';
   try {
-    return new Intl.NumberFormat(LOCALE[lang] ?? 'he-IL', { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(minor / 100);
+    return new Intl.NumberFormat(localeFor(lang === 'en' ? 'en' : 'he'), { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(minor / 100);
   } catch {
     return `${minorToDecimal(minor)} ${cur}`;
   }

@@ -2,6 +2,7 @@
  * CALCONNECT-2330: the pure rules of the connect dialogs (Node-testable: tests/unit-calendars-connect-2330.spec.ts). The server decides
  * every one of them again; these only keep the screen from offering what the server would refuse.
  */
+import { uiLocale } from '../i18n/locale';
 import { cardOf, type Connection, type Feed, type ProviderCard } from '../api/calendars';
 import { tr } from '../i18n/msg/calendars';
 
@@ -62,7 +63,7 @@ export function feedDetailHe(f: Pick<Feed, 'detail' | 'detail_effective' | 'remo
 }
 
 function dayHe(iso: string): string {
-  return new Date(iso).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(uiLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 /** 3C: the expiry of the feed's current address (fixed when it was issued; "חידוש קישור" issues a new address with the current default). */

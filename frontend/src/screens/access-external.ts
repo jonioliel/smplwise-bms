@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -417,7 +418,7 @@ export class AccessExternalScreen extends LitElement {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
     try {
-      return d.toLocaleString(document.documentElement.lang || 'he-IL', { timeZone: this.tz, ...(withDate ? { day: '2-digit', month: '2-digit' } : {}), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      return d.toLocaleString(uiLocale(), { timeZone: this.tz, ...(withDate ? { day: '2-digit', month: '2-digit' } : {}), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
     } catch {
       return d.toLocaleString();
     }

@@ -9,6 +9,8 @@
  * directions. `resolveWidgets` turns config + data into the cards the screen draws (and, in edit mode, the ghosts that
  * explain why a widget is not shown).
  */
+import { uiLocale } from '../i18n/locale';
+import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 
 export type Direction = 'a' | 'b' | 'c';
 export const DIRECTIONS: Direction[] = ['a', 'b', 'c'];
@@ -705,7 +707,7 @@ export function timeOfState(state: string | null | undefined, zone: string): str
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     const d = new Date(s);
     if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat('he-IL', { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+    return new Intl.DateTimeFormat(uiLocale(), { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
   }
   return s;
 }
@@ -720,7 +722,7 @@ export function parshaText(state: string | null | undefined): string {
 /** The clock's parts in the site's zone: "14:32", ":07" (only with seconds), the weekday and the date in three lengths. */
 export function clockParts(now: Date, zone: string): { h: string; m: string; s: string; weekdayShort: string; weekdayLong: string; dateShort: string; dateLong: string; dateYear: string } {
   const tz = safeZone(zone);
-  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, ...o }).format(now);
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, ...o }).format(now);
   const two = (v: string) => v.padStart(2, '0');
   return {
     h: two(f({ hour: 'numeric', hourCycle: 'h23' }).replace(/\D/g, '') || '0'),
@@ -739,8 +741,8 @@ export function forecastLabel(iso: string, zone: string, daily: boolean): string
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const tz = safeZone(zone);
-  if (daily) return new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short' }).format(d).replace(/^יום\s*/, '');
-  return new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  if (daily) return new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'short' }).format(d).replace(/^יום\s*/, '');
+  return new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
 }
 
 /** Home Assistant's weather conditions, in Hebrew (an unknown condition shows as reported). */
@@ -842,9 +844,9 @@ export function agendaWhen(ev: Pick<AgendaEvent, 'start' | 'all_day'>, now: Date
   let day: string;
   if (key === today) day = 'היום';
   else if (key === tomorrow) day = 'מחר';
-  else if (days > 0 && days < 7) day = new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'long' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
-  else day = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
-  const time = ev.all_day ? 'כל היום' : new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  else if (days > 0 && days < 7) day = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'long' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
+  else day = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, day: 'numeric', month: 'numeric' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
+  const time = ev.all_day ? 'כל היום' : new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
   return `${day} · ${time}`;
 }
 
@@ -853,10 +855,10 @@ export function sinceText(iso: string | null | undefined, now: Date): string {
   const t = new Date(iso ?? '').getTime();
   if (!iso || Number.isNaN(t)) return '';
   const mins = Math.max(0, Math.round((now.getTime() - t) / 60_000));
-  if (mins < 2) return 'שונה עכשיו';
-  if (mins < 60) return `שונה לפני ${mins} דקות`;
+  if (mins < 2) return tr('שונה עכשיו');
+  if (mins < 60) return tr('שונה לפני {n} דקות', { n: mins });
   const h = Math.round(mins / 60);
-  if (h < 24) return h === 1 ? 'שונה לפני שעה' : `שונה לפני ${h} שעות`;
+  if (h < 24) return h === 1 ? tr('שונה לפני שעה') : tr('שונה לפני {n} שעות', { n: h });
   const d = Math.round(h / 24);
-  return d === 1 ? 'שונה אתמול' : `שונה לפני ${d} ימים`;
+  return d === 1 ? tr('שונה אתמול') : tr('שונה לפני {n} ימים', { n: d });
 }

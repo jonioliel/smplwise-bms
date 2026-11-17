@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-badge';
@@ -906,7 +907,7 @@ export class WkDoorTech extends LitElement {
             : `${h.kind === 'program_action' && h.program_action ? t.programActions[h.program_action] : t.kinds[h.kind]}${h.door ? ` · ${this.doorName(h.door)}` : ''}`;
         return html`<li data-wk-dt-history-row=${h.kind} data-status=${h.status}>
           <span>${what}</span>
-          <span class="line" data-tone=${statusTone(h.status)}><bdi>${new Date(h.at).toLocaleString(document.documentElement.lang || 'he', { dateStyle: 'short', timeStyle: 'short' })}</bdi> · ${statusText(h, t)}</span>
+          <span class="line" data-tone=${statusTone(h.status)}><bdi>${new Date(h.at).toLocaleString(uiLocale(), { dateStyle: 'short', timeStyle: 'short' })}</bdi> · ${statusText(h, t)}</span>
         </li>`;
       })}
     </ul>`;

@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -376,7 +377,7 @@ export class TempDetail extends LitElement {
     const door: Run[] = doorRuns(u.doors_24h ?? [], lo, now);
     const st: Run[] = stateRuns((u.spark ?? []).map((p) => [p[0], p[1]] as [number, number]), u.low, u.high, lo, now, u.defrost_24h ?? []);
     const s = u.stats_24h;
-    const lang = document.documentElement.lang || 'he-IL';
+    const lang = uiLocale();
     return html`
       ${u.door !== null || (u.doors_24h ?? []).length ? html`<div class="tlrow"><div class="lbl"><span>${tt('tlDoor')}</span><span>${tt('doorSummary', { n: s.door_opens, t: durationText(s.door_total_min), l: s.door_longest_min })}</span></div>
         <div class="tl" role="img" aria-label=${tt('tlDoor')} data-temp-doorbar>${door.map((r) => html`<span data-k=${r.k} style=${`flex:${r.pct.toFixed(2)}`}></span>`)}</div></div>` : nothing}
@@ -491,7 +492,7 @@ export class TempDetail extends LitElement {
     const u = this.unit;
     if (!u) return nothing;
     const now = Date.now();
-    const lang = document.documentElement.lang || 'he-IL';
+    const lang = uiLocale();
     const st = this.stale ? 'unknown' : u.status;
     const look = LOOK_OF[st];
     const chips = chipsOf(u, now, lang);

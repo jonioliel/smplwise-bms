@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -449,7 +450,7 @@ export class ScenariosPanel extends LitElement {
     const label = { off: sct('stateOff'), ok: sct('stateOk'), active: sct('stateActive'), degraded: sct('stateDegraded'), suppressed: sct('stateSuppressed') }[s.state];
     return html`<button type="button" class="card glass" data-scenario=${s.id} @click=${() => this.open(s.id)}>
       <div class="row"><b>${bidi(s.name)}</b><span class="grow"></span><span class=${`st ${tone}`} data-state=${s.state}>${label}</span></div>
-      <div class="meta">${s.state_reason_text || (s.last_fire_at ? sct('lastFire', { t: new Date(s.last_fire_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) }) : sct('never'))}</div>
+      <div class="meta">${s.state_reason_text || (s.last_fire_at ? sct('lastFire', { t: new Date(s.last_fire_at).toLocaleString(uiLocale(), { dateStyle: 'short', timeStyle: 'short' }) }) : sct('never'))}</div>
       <div class="row"><span class="mods">${s.modules.map((m) => html`<span class="chip">${m}</span>`)}</span><span class="grow"></span><span class="meta">${sct('firesToday', { n: s.fires_today })}</span></div>
     </button>`;
   }
@@ -475,7 +476,7 @@ export class ScenariosPanel extends LitElement {
 
   private runsView(): TemplateResult {
     if (!this.runs.length) return html`<div class="hint">${sct('noRuns')}</div>`;
-    return html`<div class="runs" data-scen-runs>${this.runs.map((r) => html`<div class="run"><div class="row"><b>${r.outcome}</b><span class="grow"></span><span class="meta">${new Date(r.at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'medium' })}</span></div>
+    return html`<div class="runs" data-scen-runs>${this.runs.map((r) => html`<div class="run"><div class="row"><b>${r.outcome}</b><span class="grow"></span><span class="meta">${new Date(r.at).toLocaleString(uiLocale(), { dateStyle: 'short', timeStyle: 'medium' })}</span></div>
       ${r.sentence ? html`<span>${r.sentence}</span>` : nothing}${r.reason_text ? html`<span class="hint">${r.reason_text}</span>` : nothing}
       ${r.actions.length ? html`<span class="hint">${r.actions.map((a) => `${a.type}: ${a.status}${a.reason ? ` (${a.reason})` : ''}`).join(' · ')}</span>` : nothing}</div>`)}</div>`;
   }

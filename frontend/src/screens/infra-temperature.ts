@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -526,7 +527,7 @@ export class InfraTemperature extends LitElement {
     const aff = addAffordances(this.access.manage, this.editing);
     const stale = this.data.stale;
     const now = Date.now();
-    const lang = document.documentElement.lang || 'he-IL';
+    const lang = uiLocale();
     const withDoor = list.filter((u) => u.door).length;
     const sub = stale ? tt('subtitleStale') : tt('subtitle', { n: list.length, d: withDoor });
     const actions = html`<div class="meta" slot="actions">

@@ -7,6 +7,7 @@
  * Nothing reaches the viewers before "פרסם": the version stays a draft and the devices are placed only when it is published.
  * Route: #/explore/floors/<id>/wizard (the shell's structure guard applies on a phone, like /edit and /import).
  */
+import { uiLocale } from '../i18n/locale';
 import { tr } from '../i18n/msg/plan-wizard';
 import { LitElement, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -48,7 +49,7 @@ type Replace = { kind: 'file'; file: File } | { kind: 'page' };
 const REFUSAL_HE: Record<string, string> = { forbidden: tr('אין הרשאה'), already_placed: tr('כבר הוצב'), validation: tr('לא קיים'), not_placeable: tr('לא ניתן להצבה') };
 const fmtWhen = (iso: string): string => {
   try {
-    return new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleString(uiLocale(), { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return '';
   }

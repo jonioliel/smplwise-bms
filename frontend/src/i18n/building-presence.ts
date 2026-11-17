@@ -1,8 +1,9 @@
+import { localeFor } from './locale';
 import { ptLang } from './presence';
 import { registerCatalogue } from './core';
 
 /** PRESENCE-DESIGN-2300: a count with the locale's group separator (1,284), never a raw number. */
-const num = (n: number) => new Intl.NumberFormat(ptLang() === 'en' ? 'en-US' : 'he-IL').format(n);
+const num = (n: number) => new Intl.NumberFormat(localeFor(ptLang())).format(n);
 
 /**
  * BUILDING-PRESENCE-2271 / PRESENCE-2280: the words of the building-presence chip and card (overview), the plan-map chips and the settings page.

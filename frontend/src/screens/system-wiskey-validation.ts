@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -218,10 +219,10 @@ export class SystemWiskeyValidation extends LitElement {
     const ok = printHtml(
       printDocument({
         title: tr('בדיקת קבלה לעמדות'),
-        subtitle: `${formatTime(r.created_at, 'he-IL', UTC_ZONE)} (UTC) · ${r.created_by_name ?? ''} · ${RUN_STATE_TEXT[r.state] ?? r.state} · ${tr('{n} עמדות', { n: r.station_count })}`,
+        subtitle: `${formatTime(r.created_at, uiLocale(), UTC_ZONE)} (UTC) · ${r.created_by_name ?? ''} · ${RUN_STATE_TEXT[r.state] ?? r.state} · ${tr('{n} עמדות', { n: r.station_count })}`,
         columns: [tr('עמדה'), tr('בדיקה'), tr('תוצאה'), tr('סיבה'), tr('פרטים')],
         rows,
-        footer: `SmplWise Arx · ${tr('הודפס {time}', { time: formatTime(new Date().toISOString(), 'he-IL', UTC_ZONE) })} (UTC) · ${r.id}`,
+        footer: `SmplWise Arx · ${tr('הודפס {time}', { time: formatTime(new Date().toISOString(), uiLocale(), UTC_ZONE) })} (UTC) · ${r.id}`,
         lang: 'he',
       }),
     );
@@ -309,7 +310,7 @@ export class SystemWiskeyValidation extends LitElement {
     return html`<div class="bar" data-lv-bar>
       ${d.runs.length
         ? html`<sw-field label=${tr('בדיקה')}><select data-lv-history @change=${(e: Event) => void this.openRun((e.target as HTMLSelectElement).value)}>
-            ${d.runs.map((x) => html`<option value=${x.id} ?selected=${r?.id === x.id}>${formatTime(x.created_at, 'he-IL', UTC_ZONE)} · ${x.scope === 'all' ? tr('כל העמדות') : tr('עמדה אחת')} · ${RUN_STATE_TEXT[x.state] ?? x.state}</option>`)}
+            ${d.runs.map((x) => html`<option value=${x.id} ?selected=${r?.id === x.id}>${formatTime(x.created_at, uiLocale(), UTC_ZONE)} · ${x.scope === 'all' ? tr('כל העמדות') : tr('עמדה אחת')} · ${RUN_STATE_TEXT[x.state] ?? x.state}</option>`)}
           </select></sw-field>`
         : html`<span class="muted" data-lv-no-runs>${tr('עוד לא הורצה בדיקה. בחרו עמדה או "בדוק את כל העמדות".')}</span>`}
       ${r

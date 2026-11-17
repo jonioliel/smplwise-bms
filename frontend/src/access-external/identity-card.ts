@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -278,9 +279,9 @@ function fmt(iso: string, tz?: string): string {
   if (Number.isNaN(d.getTime())) return '';
   const o: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
   try {
-    return d.toLocaleString(document.documentElement.lang || 'he-IL', tz ? { ...o, timeZone: tz } : o);
+    return d.toLocaleString(uiLocale(), tz ? { ...o, timeZone: tz } : o);
   } catch {
-    return d.toLocaleString(document.documentElement.lang || 'he-IL', o);
+    return d.toLocaleString(uiLocale(), o);
   }
 }
 

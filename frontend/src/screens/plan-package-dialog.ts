@@ -5,6 +5,7 @@
  * shown (the server checks the draft revision and the result hash). A package signed by another system needs the
  * person's explicit trust. Pure render function: the editor owns the state.
  */
+import { localeFor } from '../i18n/locale';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import type { PackageMode, PackageOrigin, PackagePreview } from '../api/geometry';
 import { pkgCollection, pkgLang, pkgT } from '../i18n/plan-package';
@@ -33,7 +34,7 @@ const ORDER = ['walls', 'openings', 'rooms', 'objects', 'labels', 'connectors', 
 function dateOf(iso: string | null, lang: 'he' | 'en'): string {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(localeFor(lang), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function renderChanges(p: PackagePreview, lang: 'he' | 'en'): TemplateResult {

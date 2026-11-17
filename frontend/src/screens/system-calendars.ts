@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -665,7 +666,7 @@ export class SystemCalendars extends LitElement {
     if (v === null) return;
     const n = await this.save({ guest_retention_days: v });
     this.draftRetention = null;
-    if (!this.saveError) this.toast(n ? tr('{n} רשומות יימחקו בהרצה הבאה', { n: n.toLocaleString('he-IL') }) : tr('נשמר'));
+    if (!this.saveError) this.toast(n ? tr('{n} רשומות יימחקו בהרצה הבאה', { n: n.toLocaleString(uiLocale()) }) : tr('נשמר'));
   }
 
   private async purge(): Promise<void> {
@@ -673,7 +674,7 @@ export class SystemCalendars extends LitElement {
     this.confirm = null;
     try {
       const r = await this.api.purgeGuests();
-      this.toast(tr('נמחקו פרטי אורחים מ־{n} רשומות', { n: r.erased.toLocaleString('he-IL') }));
+      this.toast(tr('נמחקו פרטי אורחים מ־{n} רשומות', { n: r.erased.toLocaleString(uiLocale()) }));
     } catch (e) {
       this.saveError = describeError(e);
     }

@@ -2,6 +2,7 @@
  * BUILDING-PRESENCE-2271: the pure rules of the building-presence chip and the settings card (no DOM, unit-tested).
  * Green is reserved for status: only an occupied building is `ok`; empty and unknown are neutral.
  */
+import { uiLocale } from '../i18n/locale';
 import { BP } from '../i18n/building-presence';
 import {
   CARD_CHOICES, EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE,
@@ -15,7 +16,7 @@ export function clockText(iso: string | null | undefined, zone = 'Asia/Jerusalem
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(d);
+  return new Intl.DateTimeFormat(uiLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(d);
 }
 
 /** Nothing at all unless the server says sensors are tagged (`configured`); a stale or unknown answer never reads as empty. */

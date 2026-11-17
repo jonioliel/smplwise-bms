@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -170,7 +171,7 @@ export class TicketsNeedsReview extends LitElement {
   private date(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat(ticketsLang() === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat(localeFor(ticketsLang()), { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
   }
 
   private open(r: ReviewRow): void {
