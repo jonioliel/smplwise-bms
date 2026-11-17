@@ -10,6 +10,7 @@ import { ApiError, del, get, patch, post } from './client';
 import { isApi } from './session';
 import { getDevicesTree } from './devices';
 import { lazy, lazyAdapter } from './demo-load';
+import { tr } from '../i18n/msg/api-electricity';
 
 /** reporting = מדווח, stale = לא מדווח (no reading within `energy.stale_after_minutes`), paused = מושהה. */
 export type MeterStatus = 'reporting' | 'stale' | 'paused';
@@ -103,22 +104,22 @@ export interface EnergySettings {
 
 /** Allowed ranges (CR-023 section 15) and the unit word of each value; the server's own `ranges` win when it sends them. */
 export const RETENTION_RANGES: Record<RetentionKey, { min: number; max: number; unit: string }> = {
-  raw_retention_days: { min: 7, max: 366, unit: 'ימים' },
-  interval_retention_months: { min: 3, max: 120, unit: 'חודשים' },
-  bill_retention_years: { min: 1, max: 15, unit: 'שנים' },
-  draft_retention_days: { min: 7, max: 365, unit: 'ימים' },
+  raw_retention_days: { min: 7, max: 366, unit: tr('ימים') },
+  interval_retention_months: { min: 3, max: 120, unit: tr('חודשים') },
+  bill_retention_years: { min: 1, max: 15, unit: tr('שנים') },
+  draft_retention_days: { min: 7, max: 365, unit: tr('ימים') },
 };
 
 /** Operator wording for a verdict (CR-023 section 5), used when the server sends no sentence of its own. */
 export const REASON_TEXT: Record<CandidateReason, string> = {
-  kw: 'החיישן שנבחר מודד הספק רגעי (קילוואט), לא צריכה מצטברת. לחשבון חשמל צריך מונה שמציג קוט״ש.',
-  unit: 'יחידת המידה של החיישן אינה קוט״ש. אפשר לבחור רק מונה שמודד קוט״ש, וואט־שעה או מגוואט־שעה.',
-  measurement: 'החיישן מציג ערך רגעי ולא מונה מצטבר. בחרו מונה צריכה.',
-  total: 'המונה מתאפס כל יום. מתאים, אבל מונה מצטבר עדיף.',
-  returned: 'מונה של אנרגיה מוחזרת לרשת. לא נתמך בחשבון צריכה.',
-  duplicate_device: 'כבר נבחר מונה מאותו מכשיר. ודאו שהצריכה לא תיספר פעמיים.',
-  not_sensor: 'ההתקן אינו חיישן צריכה.',
-  other: 'החיישן אינו מתאים כמונה צריכה.',
+  kw: tr('החיישן שנבחר מודד הספק רגעי (קילוואט), לא צריכה מצטברת. לחשבון חשמל צריך מונה שמציג קוט״ש.'),
+  unit: tr('יחידת המידה של החיישן אינה קוט״ש. אפשר לבחור רק מונה שמודד קוט״ש, וואט־שעה או מגוואט־שעה.'),
+  measurement: tr('החיישן מציג ערך רגעי ולא מונה מצטבר. בחרו מונה צריכה.'),
+  total: tr('המונה מתאפס כל יום. מתאים, אבל מונה מצטבר עדיף.'),
+  returned: tr('מונה של אנרגיה מוחזרת לרשת. לא נתמך בחשבון צריכה.'),
+  duplicate_device: tr('כבר נבחר מונה מאותו מכשיר. ודאו שהצריכה לא תיספר פעמיים.'),
+  not_sensor: tr('ההתקן אינו חיישן צריכה.'),
+  other: tr('החיישן אינו מתאים כמונה צריכה.'),
 };
 
 export function candidateMessage(c: MeterCandidate): string {
@@ -487,7 +488,7 @@ export async function addMeters(bodies: AddMeterBody[]): Promise<{ added: Meter[
     try {
       added.push(await addMeter(b));
     } catch (err) {
-      failed.push({ entity_id: b.entity_id, message: err instanceof ApiError ? err.body.user_message || err.body.code : 'ההוספה נכשלה' });
+      failed.push({ entity_id: b.entity_id, message: err instanceof ApiError ? err.body.user_message || err.body.code : tr('ההוספה נכשלה') });
     }
   }
   return { added, failed };
@@ -509,12 +510,12 @@ export function buildAreaTree(list: Meter[]): FloorNode[] {
   const floors = new Map<string, FloorNode>();
   for (const m of list) {
     const fid = m.floor_id ?? m.floor_name ?? '_none';
-    const f = floors.get(fid) ?? { floor_id: fid, name: m.floor_name ?? 'ללא קומה', count: 0, areas: [] };
+    const f = floors.get(fid) ?? { floor_id: fid, name: m.floor_name ?? tr('ללא קומה'), count: 0, areas: [] };
     f.count += 1;
     const aid = m.area_id ?? '_none';
     let a = f.areas.find((x) => x.area_id === aid);
     if (!a) {
-      a = { area_id: aid, name: m.area_name ?? 'ללא אזור', count: 0 };
+      a = { area_id: aid, name: m.area_name ?? tr('ללא אזור'), count: 0 };
       f.areas.push(a);
     }
     a.count += 1;

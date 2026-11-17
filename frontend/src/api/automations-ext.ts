@@ -16,6 +16,7 @@ import {
   canonicalJson, emitBlock, EXT_FLAGS_OFF,
   type AnyDraft, type AutomationDraft, type Block, type ExtFlags, type Issue, type ModelContext, type PreviewResult, type PressKind,
 } from './automations';
+import { tr } from '../i18n/msg/api-automation';
 
 // ------------------------------------------------------------------------------------------------ shapes
 
@@ -94,7 +95,7 @@ export const conflictMove = (c: Pick<ConflictRow, 'mine_at' | 'other_at' | 'wind
   return { to: `${String(Math.floor(target / 60)).padStart(2, '0')}:${String(target % 60).padStart(2, '0')}`, delta };
 };
 
-export const warningsHeading =(n: number): string => (n === 1 ? 'אזהרה אחת' : `${n} אזהרות`);
+export const warningsHeading =(n: number): string => (n === 1 ? tr('אזהרה אחת') : tr('{n} אזהרות', { n }));
 
 // ---- the three-way merge (state 5)
 
@@ -110,7 +111,7 @@ export interface MergePart {
 export interface MergeInput { base: AutomationDraft; mine: AutomationDraft; theirs: AutomationDraft; ctx: ModelContext }
 
 const SECTIONS: Array<{ key: 'triggers' | 'conditions' | 'actions'; section: 'trigger' | 'condition' | 'action'; noun: string }> = [
-  { key: 'triggers', section: 'trigger', noun: 'טריגר' }, { key: 'conditions', section: 'condition', noun: 'תנאי' }, { key: 'actions', section: 'action', noun: 'צעד' },
+  { key: 'triggers', section: 'trigger', noun: tr('טריגר') }, { key: 'conditions', section: 'condition', noun: tr('תנאי') }, { key: 'actions', section: 'action', noun: tr('צעד') },
 ];
 function formOf(b: Block | undefined, section: 'trigger' | 'condition' | 'action', ctx: ModelContext): string {
   if (!b) return '∅';
@@ -127,7 +128,7 @@ const pickOf = (c: MergePart['changed']): MergeSide => (c === 'mine' ? 'mine' : 
 /** The parts of an automation, position by position (name, mode and every trigger / condition / step), each judged against the base the editor started from. */
 export function mergeParts({ base, mine, theirs, ctx }: MergeInput): MergePart[] {
   const out: MergePart[] = [];
-  const head: Array<{ key: 'alias' | 'description' | 'mode'; label: string }> = [{ key: 'alias', label: 'שם' }, { key: 'description', label: 'תיאור' }, { key: 'mode', label: 'אפשרויות' }];
+  const head: Array<{ key: 'alias' | 'description' | 'mode'; label: string }> = [{ key: 'alias', label: tr('שם') }, { key: 'description', label: tr('תיאור') }, { key: 'mode', label: tr('אפשרויות') }];
   for (const h of head) {
     const b = String(base[h.key] ?? ''); const m = String(mine[h.key] ?? ''); const t = String(theirs[h.key] ?? '');
     const changed = judge(b, m, t);
@@ -138,7 +139,7 @@ export function mergeParts({ base, mine, theirs, ctx }: MergeInput): MergePart[]
     for (let i = 0; i < n; i++) {
       const bb = base[s.key][i] as Block | undefined; const mb = mine[s.key][i] as Block | undefined; const tb = theirs[s.key][i] as Block | undefined;
       const changed = judge(formOf(bb, s.section, ctx), formOf(mb, s.section, ctx), formOf(tb, s.section, ctx));
-      out.push({ key: `${s.key}.${i}`, label: `${s.noun} ${i + 1}`, sub: sentenceOf(bb), mine: mb ? sentenceOf(mb) : 'ללא', theirs: tb ? sentenceOf(tb) : 'ללא', changed, pick: pickOf(changed) });
+      out.push({ key: `${s.key}.${i}`, label: `${s.noun} ${i + 1}`, sub: sentenceOf(bb), mine: mb ? sentenceOf(mb) : tr('ללא'), theirs: tb ? sentenceOf(tb) : tr('ללא'), changed, pick: pickOf(changed) });
     }
   }
   return out;

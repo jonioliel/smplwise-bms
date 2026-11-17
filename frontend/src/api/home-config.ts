@@ -10,15 +10,17 @@
  * explain why a widget is not shown).
  */
 
+import { tr } from '../i18n/msg/api-home';
+
 export type Direction = 'a' | 'b' | 'c';
 export const DIRECTIONS: Direction[] = ['a', 'b', 'c'];
 export const DIRECTION_DEFAULT: Direction = 'a';
-export const DIRECTION_LABEL: Record<Direction, string> = { a: 'מרכז בקרה', b: 'לוח צד', c: 'מצומצם' };
-export const DIRECTION_LETTER: Record<Direction, string> = { a: 'א', b: 'ב', c: 'ג' };
+export const DIRECTION_LABEL: Record<Direction, string> = { a: tr('מרכז בקרה'), b: tr('לוח צד'), c: tr('מצומצם') };
+export const DIRECTION_LETTER: Record<Direction, string> = { a: tr('א'), b: tr('ב'), c: tr('ג') };
 export type Side = 'start' | 'end';
 export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
-export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
+export const SIDE_LABEL: Record<Side, string> = { end: tr('שמאל'), start: tr('ימין') };
 
 export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators' | 'doors' | 'notices' | 'presence' | 'xsection';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
@@ -33,7 +35,7 @@ export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'me
 // while the viewer may read the devices and the catalogue has a building with floors (no options of its own).
 // NOTICEPAGE-295: `notices` (the notice board) is appended last; drawn only while the notice board module is on and the viewer may read (no options of its own).
 export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'xsection'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות', presence: 'נוכחות במבנה', xsection: 'חתך בניין' };
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: tr('שעון'), weather: tr('מזג אוויר'), shabbat: tr('שבת'), alarm: tr('אזעקה'), quick: tr('פעולות מהירות'), media: tr('מולטימדיה'), agenda: tr('יומן'), launcher: tr('משגר מהיר'), elevators: tr('מעליות'), temperature: tr('טמפרטורות'), generators: tr('גנרטור'), doors: tr('דלתות'), notices: tr('לוח הודעות'), presence: tr('נוכחות במבנה'), xsection: tr('חתך בניין') };
 /** The infrastructure-list widgets (the same mode / hidden / filter shape). */
 export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
@@ -46,45 +48,45 @@ export const ELEVATOR_HIDDEN_MAX = 50;
 /** BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card). */
 export type TileStyle = 'card' | 'tile';
 export const TILE_STYLES: TileStyle[] = ['card', 'tile'];
-export const TILE_STYLE_LABEL: Record<TileStyle, string> = { card: 'כרטיס', tile: 'אריח' };
+export const TILE_STYLE_LABEL: Record<TileStyle, string> = { card: tr('כרטיס'), tile: tr('אריח') };
 export type AgendaDays = 1 | 3 | 7 | 14;
 export const AGENDA_DAYS: AgendaDays[] = [1, 3, 7, 14];
-export const AGENDA_DAYS_LABEL: Record<AgendaDays, string> = { 1: 'היום', 3: '3 ימים', 7: 'שבוע', 14: 'שבועיים' };
+export const AGENDA_DAYS_LABEL: Record<AgendaDays, string> = { 1: tr('היום'), 3: tr('3 ימים'), 7: tr('שבוע'), 14: tr('שבועיים') };
 export const AGENDA_CALENDARS_MAX = 6;
 /** How many events the agenda tile lists per size. */
 export const AGENDA_SHOWN: Record<Size, number> = { s: 1, m: 3, l: 6 };
 
 export type Size = 's' | 'm' | 'l';
 export const SIZES: Size[] = ['s', 'm', 'l'];
-export const SIZE_LABEL: Record<Size, string> = { s: 'קטן', m: 'בינוני', l: 'גדול' };
+export const SIZE_LABEL: Record<Size, string> = { s: tr('קטן'), m: tr('בינוני'), l: tr('גדול') };
 export type Sizes = Record<Direction, Size>;
 
 /** How the widgets are presented on a PHONE (under 600 px), edited apart from the desktop: a horizontal snap row, one card under the
  * other (the default) or two per row. */
 export type PhoneLayout = 'snap' | 'stack' | 'two';
 export const PHONE_LAYOUTS: PhoneLayout[] = ['stack', 'two', 'snap'];
-export const PHONE_LAYOUT_LABEL: Record<PhoneLayout, string> = { snap: 'בשורה גוללת', stack: 'אחד מתחת לשני', two: 'שתיים בשורה' };
+export const PHONE_LAYOUT_LABEL: Record<PhoneLayout, string> = { snap: tr('בשורה גוללת'), stack: tr('אחד מתחת לשני'), two: tr('שתיים בשורה') };
 export const PHONE_LAYOUT_DEFAULT: PhoneLayout = 'stack';
 /** The widest viewport that is a phone (the tiles' breakpoint: under 600 px). */
 export const PHONE_MAX_WIDTH = 599;
 
 export type ClockMode = 'time' | 'datetime';
 export const CLOCK_MODES: ClockMode[] = ['time', 'datetime'];
-export const CLOCK_MODE_LABEL: Record<ClockMode, string> = { time: 'שעה', datetime: 'שעה ותאריך' };
+export const CLOCK_MODE_LABEL: Record<ClockMode, string> = { time: tr('שעה'), datetime: tr('שעה ותאריך') };
 
 export type WeatherField = 'condition' | 'temperature' | 'apparent' | 'humidity' | 'wind' | 'pressure' | 'visibility' | 'uv' | 'precipitation' | 'forecast';
 export const WEATHER_FIELDS: WeatherField[] = ['condition', 'temperature', 'apparent', 'humidity', 'wind', 'pressure', 'visibility', 'uv', 'precipitation', 'forecast'];
 export const WEATHER_FIELD_LABEL: Record<WeatherField, string> = {
-  condition: 'מצב נוכחי',
-  temperature: 'טמפרטורה',
-  apparent: 'טמפרטורה מורגשת',
-  humidity: 'לחות',
-  wind: 'רוח',
-  pressure: 'לחץ אוויר',
-  visibility: 'ראות',
-  uv: 'מדד UV',
-  precipitation: 'משקעים',
-  forecast: 'תחזית',
+  condition: tr('מצב נוכחי'),
+  temperature: tr('טמפרטורה'),
+  apparent: tr('טמפרטורה מורגשת'),
+  humidity: tr('לחות'),
+  wind: tr('רוח'),
+  pressure: tr('לחץ אוויר'),
+  visibility: tr('ראות'),
+  uv: tr('מדד UV'),
+  precipitation: tr('משקעים'),
+  forecast: tr('תחזית'),
 };
 /** The numeric fields a sensor may feed instead of the weather entity's own value. */
 export const WEATHER_SOURCE_FIELDS: WeatherField[] = ['temperature', 'apparent', 'humidity', 'wind', 'pressure', 'visibility', 'uv', 'precipitation'];
@@ -96,11 +98,11 @@ export const FORECAST_MAX_SHOWN = 8;
 
 export type QuickAction = 'lights_off' | 'all_off';
 export const QUICK_ACTIONS: QuickAction[] = ['lights_off', 'all_off'];
-export const QUICK_ACTION_LABEL: Record<QuickAction, string> = { lights_off: 'כבה תאורה בלבד', all_off: 'כבה הכל בבניין' };
+export const QUICK_ACTION_LABEL: Record<QuickAction, string> = { lights_off: tr('כבה תאורה בלבד'), all_off: tr('כבה הכל בבניין') };
 
 export type CalendarField = 'date' | 'parsha' | 'candles' | 'havdalah' | 'holiday';
 export const CALENDAR_FIELDS: CalendarField[] = ['date', 'parsha', 'candles', 'havdalah', 'holiday'];
-export const CALENDAR_FIELD_LABEL: Record<CalendarField, string> = { date: 'תאריך עברי', parsha: 'פרשת השבוע', candles: 'הדלקת נרות', havdalah: 'צאת שבת', holiday: 'חג' };
+export const CALENDAR_FIELD_LABEL: Record<CalendarField, string> = { date: tr('תאריך עברי'), parsha: tr('פרשת השבוע'), candles: tr('הדלקת נרות'), havdalah: tr('צאת שבת'), holiday: tr('חג') };
 export const EXTRAS_MAX = 4;
 export const LABEL_MAX = 30;
 
@@ -745,21 +747,21 @@ export function forecastLabel(iso: string, zone: string, daily: boolean): string
 
 /** Home Assistant's weather conditions, in Hebrew (an unknown condition shows as reported). */
 export const WEATHER_HE: Record<string, string> = {
-  'clear-night': 'לילה בהיר',
-  cloudy: 'מעונן',
-  exceptional: 'חריג',
-  fog: 'ערפל',
-  hail: 'ברד',
-  lightning: 'ברקים',
-  'lightning-rainy': 'סופת רעמים',
-  partlycloudy: 'מעונן חלקית',
-  pouring: 'גשם שוטף',
-  rainy: 'גשם',
-  snowy: 'שלג',
-  'snowy-rainy': 'שלג וגשם',
-  sunny: 'שמשי',
-  windy: 'סוער',
-  'windy-variant': 'סוער ומעונן',
+  'clear-night': tr('לילה בהיר'),
+  cloudy: tr('מעונן'),
+  exceptional: tr('חריג'),
+  fog: tr('ערפל'),
+  hail: tr('ברד'),
+  lightning: tr('ברקים'),
+  'lightning-rainy': tr('סופת רעמים'),
+  partlycloudy: tr('מעונן חלקית'),
+  pouring: tr('גשם שוטף'),
+  rainy: tr('גשם'),
+  snowy: tr('שלג'),
+  'snowy-rainy': tr('שלג וגשם'),
+  sunny: tr('שמשי'),
+  windy: tr('סוער'),
+  'windy-variant': tr('סוער ומעונן'),
 };
 
 export type WeatherGlyph = 'sun' | 'moon' | 'cloud' | 'partly' | 'rain' | 'snow' | 'storm' | 'fog' | 'wind';
@@ -809,7 +811,7 @@ export function calendarText(field: CalendarField | 'extra', s: SensorData | und
   if (!hasValue(s)) return '';
   if (field === 'candles' || field === 'havdalah') return timeOfState(s.state, zone);
   if (field === 'parsha') return parshaText(s.state);
-  if (field === 'extra') return s.state === 'on' ? 'כן' : s.state === 'off' ? 'לא' : (timeOfState(s.state, zone) || s.state);
+  if (field === 'extra') return s.state === 'on' ? tr('כן') : s.state === 'off' ? tr('לא') : (timeOfState(s.state, zone) || s.state);
   return s.state;
 }
 

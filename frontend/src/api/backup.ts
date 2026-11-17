@@ -5,6 +5,7 @@
  * (`backup_password`); without one they are left out (`sensitive.state = 'omitted'`).
  */
 import { apiUrl, del, get, patch, post, upload } from './client';
+import { tr } from '../i18n/msg/api-system';
 
 export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | 'auto-pre-restore' | string;
 
@@ -40,26 +41,26 @@ export interface RestoreResult {
 }
 
 export const KIND_LABEL: Record<string, string> = {
-  manual: 'ידני',
-  upload: 'הועלה',
-  'auto-pre-upgrade': 'אוטומטי · לפני עדכון',
-  'auto-daily': 'אוטומטי · יומי',
-  'auto-pre-restore': 'אוטומטי · לפני שחזור',
+  manual: tr('ידני'),
+  upload: tr('הועלה'),
+  'auto-pre-upgrade': tr('אוטומטי · לפני עדכון'),
+  'auto-daily': tr('אוטומטי · יומי'),
+  'auto-pre-restore': tr('אוטומטי · לפני שחזור'),
 };
 
 export const TABLE_LABEL: Record<string, string> = {
-  sites: 'אתרים',
-  buildings: 'מבנים',
-  floors: 'קומות',
-  plan_assets: 'קבצי תוכנית',
-  plan_versions: 'גרסאות תוכנית',
-  map_anchors: 'עוגנים',
-  cameras: 'מצלמות',
-  spatial_zones: 'אזורים',
-  settings: 'הגדרות',
-  users: 'משתמשים',
-  bindings: 'הרשאות',
-  groups: 'קבוצות',
+  sites: tr('אתרים'),
+  buildings: tr('מבנים'),
+  floors: tr('קומות'),
+  plan_assets: tr('קבצי תוכנית'),
+  plan_versions: tr('גרסאות תוכנית'),
+  map_anchors: tr('עוגנים'),
+  cameras: tr('מצלמות'),
+  spatial_zones: tr('אזורים'),
+  settings: tr('הגדרות'),
+  users: tr('משתמשים'),
+  bindings: tr('הרשאות'),
+  groups: tr('קבוצות'),
 };
 
 export const listBackups = () => get<{ backups: BackupEntry[]; policy: Record<string, number>; bytes: number; schema_version: number }>('backups');

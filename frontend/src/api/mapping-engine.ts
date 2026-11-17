@@ -14,6 +14,8 @@
  * rows and layer 2 area overrides) plus the area -> building rows of the home's site level; the server checks and stores it, versioned.
  */
 
+import { tr } from '../i18n/msg/api-home';
+
 export type Position = 'start' | 'end' | 'label' | 'word';
 export type TokenKind = 'letter' | 'number' | 'word' | 'any';
 /** The separator chips (" · ", "-", ":", a space); any other string is a custom separator ("אחר…"). */
@@ -955,13 +957,13 @@ export function labelCoverage(items: MapItem[], res: Map<string, Res>, state: Ma
 
 /** One plain sentence about the labels (the health card's last line). */
 export function labelCoverageText(c: LabelCoverage): string {
-  if (!c.synced) return 'תוויות: עדיין לא נקראו ממערכת הבית, ולכן כללי "בתווית" לא נבדקים כאן.';
+  if (!c.synced) return tr('תוויות: עדיין לא נקראו ממערכת הבית, ולכן כללי "בתווית" לא נבדקים כאן.');
   const known = c.rows.length;
-  if (!c.labelled) return known ? `תוויות: יש ${known} ${known === 1 ? 'תווית' : 'תוויות'} במערכת הבית, אבל אף אזור לא מסומן באחת מהן.` : 'תוויות: אין תוויות במערכת הבית.';
+  if (!c.labelled) return known ? tr('תוויות: יש {known} {v} במערכת הבית, אבל אף אזור לא מסומן באחת מהן.', { known, v: known === 1 ? tr('תווית') : tr('תוויות') }) : tr('תוויות: אין תוויות במערכת הבית.');
   const top = c.rows.filter((r) => r.areas > 0).slice(0, 3).map((r) => `${r.name} (${r.areas})`).join(', ');
-  const parts = [`תוויות: ${c.labelled} מתוך ${c.areas} אזורים מסומנים בתווית - ${top}${c.rows.filter((r) => r.areas > 0).length > 3 ? ' ועוד' : ''}`];
-  parts.push(c.byLabel ? `${c.byLabel} משויכים לפי התווית` : 'אף אזור לא משויך לפי התווית');
-  if (c.differs) parts.push(`ב-${c.differs} התווית מצביעה על בניין אחר מהשם`);
+  const parts = [tr('תוויות: {labelled} מתוך {areas} אזורים מסומנים בתווית - {top}{v}', { labelled: c.labelled, areas: c.areas, top, v: c.rows.filter((r) => r.areas > 0).length > 3 ? tr(' ועוד') : '' })];
+  parts.push(c.byLabel ? tr('{byLabel} משויכים לפי התווית', { byLabel: c.byLabel }) : tr('אף אזור לא משויך לפי התווית'));
+  if (c.differs) parts.push(tr('ב-{differs} התווית מצביעה על בניין אחר מהשם', { differs: c.differs }));
   return `${parts.join('; ')}.`;
 }
 
@@ -1008,10 +1010,10 @@ export function autoAdded(versions: { kind: string; summary: Record<string, unkn
 export function autoNoticeText(d: { versions: { kind: string; summary: Record<string, unknown> }[] }): string {
   const a = autoAdded(d.versions);
   if (!a.areas && !a.floors) return '';
-  const areas = a.areas === 1 ? 'אזור אחד' : `${a.areas} אזורים`;
-  const floors = a.floors === 1 ? 'קומה אחת' : `${a.floors} קומות`;
-  const what = a.areas && a.floors ? `${areas} ${a.floors === 1 ? 'וקומה אחת' : `ו-${a.floors} קומות`}` : a.areas ? areas : floors;
-  return `${a.areas + a.floors > 1 ? 'נוספו' : a.areas ? 'נוסף' : 'נוספה'} אוטומטית ${what}`;
+  const areas = a.areas === 1 ? tr('אזור אחד') : tr('{areas} אזורים', { areas: a.areas });
+  const floors = a.floors === 1 ? tr('קומה אחת') : tr('{floors} קומות', { floors: a.floors });
+  const what = a.areas && a.floors ? `${areas} ${a.floors === 1 ? tr('וקומה אחת') : tr('ו-{floors} קומות', { floors: a.floors })}` : a.areas ? areas : floors;
+  return tr('{v} אוטומטית {what}', { v: a.areas + a.floors > 1 ? tr('נוספו') : a.areas ? tr('נוסף') : tr('נוספה'), what });
 }
 
 /** A stored level answer read back (null = junk). */

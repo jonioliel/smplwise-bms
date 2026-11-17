@@ -6,6 +6,7 @@ import { get, post, put } from './client';
 import { isApi } from './session';
 import { productSettings } from './prefs';
 import { emptyState, MAPPING_SETTINGS_DEFAULT, settingsOf, stateOf, type CurrentLinks, type HaLabel, type MapItem, type MappingSettings, type MappingState, type OurFloor, type Plan } from './mapping-engine';
+import { tr } from '../i18n/msg/api-home';
 
 export interface MappingVersion {
   number: number;
@@ -166,7 +167,7 @@ export async function saveSettings(siteId: string, change: Partial<MappingSettin
 /** Round 14 (owner 02.11): map placement only, or map placement + the home's area mapping (the default). */
 export type BuildingReach = 'map_and_mapping' | 'map';
 export const BUILDING_REACH_CHOICES: readonly BuildingReach[] = ['map_and_mapping', 'map'];
-export const BUILDING_REACH_TEXT: Record<BuildingReach, string> = { map_and_mapping: 'מפה + מיפוי אזורים', map: 'מיקום במפה' };
+export const BUILDING_REACH_TEXT: Record<BuildingReach, string> = { map_and_mapping: tr('מפה + מיפוי אזורים'), map: tr('מיקום במפה') };
 
 export async function setBuildingReach(mode: BuildingReach): Promise<{ mode: BuildingReach }> {
   if (!isApi()) {

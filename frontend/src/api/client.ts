@@ -3,6 +3,7 @@
  * the HA Ingress prefix and on the dev server. Errors follow the server's error model.
  */
 import { closedErrorText } from './closed-errors';
+import { tr } from '../i18n/msg/api-core';
 
 export interface ApiErrorBody {
   code: string;
@@ -162,7 +163,7 @@ export const del = (path: string, opts?: CallOptions) => api<void>(path, withSig
 export const upload = <T>(path: string, form: FormData) => api<T>(path, { method: 'POST', body: form });
 
 export function describeError(err: unknown): string {
-  if (err instanceof ApiError) return closedErrorText(err.body.code) ?? (err.body.user_message || err.body.code || `השרת דחה את הבקשה (${err.status})`);
-  if (err instanceof TypeError) return 'אין חיבור לשרת.';
+  if (err instanceof ApiError) return closedErrorText(err.body.code) ?? (err.body.user_message || err.body.code || tr('השרת דחה את הבקשה ({status})', { status: err.status }));
+  if (err instanceof TypeError) return tr('אין חיבור לשרת.');
   return err instanceof Error ? err.message : String(err);
 }

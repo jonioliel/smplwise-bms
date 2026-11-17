@@ -5,12 +5,13 @@
  * everyone's registered devices. A device token never reaches the page.
  */
 import { get, post, put } from './client';
+import { tr } from '../i18n/msg/api-home';
 
 export type SensorKey = 'location' | 'activity' | 'steps' | 'altitude' | 'battery' | 'network' | 'beacon' | 'app_state';
 export const SENSOR_KEYS: readonly SensorKey[] = ['location', 'activity', 'steps', 'altitude', 'battery', 'network', 'beacon', 'app_state'];
 export const SENSOR_LABEL: Record<SensorKey, string> = {
-  location: 'מיקום', activity: 'פעילות (הליכה, נסיעה)', steps: 'צעדים', altitude: 'שינוי גובה (קומה)', battery: 'סוללה', network: 'רשת ו-Wi-Fi',
-  beacon: 'קרבה לנקודות בבניין', app_state: 'פעילות האפליקציה',
+  location: tr('מיקום'), activity: tr('פעילות (הליכה, נסיעה)'), steps: tr('צעדים'), altitude: tr('שינוי גובה (קומה)'), battery: tr('סוללה'), network: tr('רשת ו-Wi-Fi'),
+  beacon: tr('קרבה לנקודות בבניין'), app_state: tr('פעילות האפליקציה'),
 };
 export const RETENTION_CHOICES: readonly number[] = [7, 14, 30, 60, 90, 180, 365];
 
@@ -191,9 +192,9 @@ export const myPresenceGate = () => get<{ gate: PresenceGate | null }>('presence
 export function policyProblem(s: PresenceSettings): string | null {
   const p = s.required_sensors;
   if (!p.enabled) return null;
-  if (!p.sensors.length) return 'בחרו לפחות חיישן אחד שנדרש.';
+  if (!p.sensors.length) return tr('בחרו לפחות חיישן אחד שנדרש.');
   const notAllowed = p.sensors.filter((k) => !s.sensors_allowed.includes(k));
-  if (notAllowed.length) return `חיישן נדרש חייב להיות מאושר: ${notAllowed.map((k) => SENSOR_LABEL[k]).join(', ')}`;
-  if (!s.enabled) return 'הדרישה תחול רק כשהשיתוף פעיל.';
+  if (notAllowed.length) return tr('חיישן נדרש חייב להיות מאושר: {v}', { v: notAllowed.map((k) => SENSOR_LABEL[k]).join(', ') });
+  if (!s.enabled) return tr('הדרישה תחול רק כשהשיתוף פעיל.');
   return null;
 }

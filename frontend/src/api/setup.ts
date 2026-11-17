@@ -4,6 +4,7 @@
 import { get, post } from './client';
 import type { InstallationBlock } from './health';
 import { summarizeSetup } from '../shell/setup-hint';
+import { tr } from '../i18n/msg/api-system';
 
 export type StepId = 'install' | 'nvr' | 'ha' | 'go2rtc' | 'floor' | 'camera';
 /** not_applicable: skipped on purpose (NVR-less mode) - neither done nor failed, and not counted in `total`. */
@@ -59,7 +60,7 @@ export interface SetupState {
 export const setupState = () => get<SetupState>('setup/state');
 export const setupCheck = (step: StepId) => post<SetupState>(`setup/check/${step}`);
 
-export const STATUS_TEXT: Record<StepStatus, string> = { done: 'הושלם', todo: 'לביצוע', failed: 'נכשל', skipped: 'ממתין לשלב קודם', not_applicable: 'דילוג' };
+export const STATUS_TEXT: Record<StepStatus, string> = { done: tr('הושלם'), todo: tr('לביצוע'), failed: tr('נכשל'), skipped: tr('ממתין לשלב קודם'), not_applicable: tr('דילוג') };
 
 // ---------------------------------------------------------------- demo fixture (no backend)
 

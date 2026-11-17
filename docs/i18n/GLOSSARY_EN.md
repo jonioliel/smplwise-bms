@@ -330,3 +330,39 @@ follows the commoner one, the button.
 
 Stay Hebrew in every interface language (data saved on the server, read by other people): the title of a room booking
 ("הזמנה: ...") and the default title of a service request ("תקלה: ...").
+
+## API layer texts (CR-I18N-API-2442, `src/i18n/msg/api-*.ts`)
+
+| Hebrew | English |
+| --- | --- |
+| תשתית המערכת (in an error or a state line) | the platform |
+| רכיב החיבור | the connection component |
+| הגשר / מצומד / צימוד | the bridge / paired / pairing |
+| דריכה מלאה / דריכה בבית / נטרול | Arm away / Arm home / Disarm |
+| ערכים חסויים / קוד חסוי | Hidden values / hidden code |
+| נשמרה בהאצלה | Saved by delegation |
+| הסלמה / ציר ההסלמה | Escalation / escalation timeline |
+| שעות שקט | Quiet hours |
+| דחיפה | Push |
+| מרכז (the notification channel) | Centre |
+| מטפל (service requests) | Handler |
+| דרישת תשלום | Payment request |
+| תעריף לפי שעות | Time-of-use tariff |
+| מונה מצטבר | Accumulating meter |
+| זרם ראשי / זרם משני | Main stream / sub stream |
+| תרגום (H.265 to H.264) | Transcode |
+| סימנייה ל־NVR | Bookmark to the NVR |
+| מוכן למסירה / חסם | Ready for handover / blocker |
+
+Sentence builders (`api/automations.ts`, `api/schedules.ts`, `api/notifications.ts`): the summary lines are joined from parts, so
+the English keys are lower-case parts ("detects motion", "for {for}", " and ", "before", "sunset") and each part carries the space
+the Hebrew part carries. The Hebrew joiner " ו" (no space after it) is " and " in English. The action verbs that end with a
+maqaf in Hebrew ("נגן ב־") have no maqaf in English, so the builder puts a space before the name.
+
+One Hebrew, two meanings in one table: in `api-automation`, "סגור" (Close a blind / a closed state) and "הפעל" (Turn on /
+Activate) follow the action verb; "נפתח" / "נסגר" (opens / is opening) follow the state label "Opening" / "Closing"; "שעה"
+is "hour" there (a unit) and "Time" in `api-home` (the clock widget).
+
+Stay Hebrew in every interface language: the words an operator types to confirm ("שמור", "הסר", "אפשר נטרול", "הרחב בירור",
+"פתיחת דלת לבדיקה" - the server compares them), the building marker and the name given to a new building ("בניין"), the demo
+stores, and the date / duration / unit helpers that CR-I18N-DATES-2442 owns.

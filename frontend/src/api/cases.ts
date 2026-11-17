@@ -3,19 +3,20 @@
  * bookmark into the NVR until an export job preserves a copy; footage the NVR no longer has is reported as missing.
  */
 import { api, apiUrl, del, get, patch, post } from './client';
+import { tr } from '../i18n/msg/api-video';
 
 export type CaseStatus = 'open' | 'in_review' | 'closed';
 export type CaseItemKind = 'event' | 'clip' | 'note' | 'snapshot';
 export type Preservation = 'preserved' | 'preserving' | 'nvr_only' | 'missing' | 'unknown' | 'not_in_bundle' | 'none';
 
-export const CASE_STATUS_LABEL: Record<CaseStatus, string> = { open: 'פתוח', in_review: 'בבדיקה', closed: 'סגור' };
+export const CASE_STATUS_LABEL: Record<CaseStatus, string> = { open: tr('פתוח'), in_review: tr('בבדיקה'), closed: tr('סגור') };
 export const PRESERVATION_LABEL: Record<Preservation, string> = {
-  preserved: 'עותק שמור',
-  preserving: 'מעתיק מה־NVR…',
-  nvr_only: 'סימנייה ל־NVR בלבד',
-  missing: 'חסר: ה־NVR כבר לא מחזיק את הקטע',
-  unknown: 'לא נבדק מול ה־NVR',
-  not_in_bundle: 'לא נכלל בחבילת המקור (סימנייה בלבד)',
+  preserved: tr('עותק שמור'),
+  preserving: tr('מעתיק מה־NVR…'),
+  nvr_only: tr('סימנייה ל־NVR בלבד'),
+  missing: tr('חסר: ה־NVR כבר לא מחזיק את הקטע'),
+  unknown: tr('לא נבדק מול ה־NVR'),
+  not_in_bundle: tr('לא נכלל בחבילת המקור (סימנייה בלבד)'),
   none: '',
 };
 
@@ -157,7 +158,7 @@ export interface Bookmark {
   added_by_username: string;
   preservation: 'preserved' | 'preserving' | 'nvr';
 }
-export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: 'עותק שמור', preserving: 'מעתיק מה־NVR…', nvr: 'סימנייה ל־NVR' };
+export const BOOKMARK_LABEL: Record<Bookmark['preservation'], string> = { preserved: tr('עותק שמור'), preserving: tr('מעתיק מה־NVR…'), nvr: tr('סימנייה ל־NVR') };
 export const listBookmarks = (cameraId: string, date: string) => get<{ bookmarks: Bookmark[] }>(`cases/bookmarks?camera_id=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`);
 
 const isoSec = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -195,7 +196,7 @@ export interface SigningInfo {
   can_rotate: boolean;
 }
 export type BundleFileStatus = 'ok' | 'mismatch' | 'missing' | 'corrupt';
-export const FILE_STATUS_LABEL: Record<BundleFileStatus, string> = { ok: 'תואם', mismatch: 'שונה', missing: 'חסר', corrupt: 'פגום' };
+export const FILE_STATUS_LABEL: Record<BundleFileStatus, string> = { ok: tr('תואם'), mismatch: tr('שונה'), missing: tr('חסר'), corrupt: tr('פגום') };
 /** The producing installation as the manifest names it; `confirmed_by_signature` = signed by a key of this installation. */
 export interface BundleOrigin {
   installation_id: string | null;
@@ -217,10 +218,10 @@ export function producerOf(o: { producer?: Producer; this_installation: boolean 
   return o.this_installation === true ? (o.confirmed_by_signature ? 'this_confirmed' : 'this_claimed') : o.this_installation === false ? 'other' : 'unknown';
 }
 export const PRODUCER_LABEL: Record<Producer, string> = {
-  this_confirmed: 'התקנה זו (מאושר בחתימה)',
-  this_claimed: 'התקנה זו לפי המזהה בלבד (לא מאושר בחתימה)',
-  other: 'התקנה אחרת',
-  unknown: 'לא ידוע (חבילה ללא מזהה התקנה)',
+  this_confirmed: tr('התקנה זו (מאושר בחתימה)'),
+  this_claimed: tr('התקנה זו לפי המזהה בלבד (לא מאושר בחתימה)'),
+  other: tr('התקנה אחרת'),
+  unknown: tr('לא ידוע (חבילה ללא מזהה התקנה)'),
 };
 export interface BundleVerification {
   ok: boolean;

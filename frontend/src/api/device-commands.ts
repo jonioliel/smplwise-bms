@@ -29,6 +29,7 @@
 import { ApiError, describeError } from './client';
 import { ACTION_ERROR_LABEL, getAction, haPushLive, onEntityPush, runAction, subscribeHa, waitEntityPush, type HaActionRecord, type HaEntity } from './ha';
 import { isApi } from './session';
+import { tr } from '../i18n/msg/api-devices';
 
 export type CommandPhase = 'pending' | 'confirmed' | 'sent' | 'rolled_back';
 
@@ -167,9 +168,9 @@ function noteTiming(t: CommandTiming): void {
 
 function settled<T>(a: HaActionRecord, optimistic: T, label: string, since: number): CommandState<T> {
   if (a.status === 'confirmed') return { phase: a.confirmation === 'none' ? 'sent' : 'confirmed', optimistic, label, note: null, since };
-  if (a.status === 'denied') return { phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? 'נדחה על ידי תשתית המערכת', since };
-  if (a.status === 'failed') return { phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? 'הפעולה נכשלה', since };
-  return { phase: 'rolled_back', optimistic, label, note: 'לא אושר בזמן: תשתית המערכת לא דיווחה על שינוי המצב', since }; // pending/unknown past the domain timeout
+  if (a.status === 'denied') return { phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? tr('נדחה על ידי תשתית המערכת'), since };
+  if (a.status === 'failed') return { phase: 'rolled_back', optimistic, label, note: ACTION_ERROR_LABEL[a.error ?? ''] ?? tr('הפעולה נכשלה'), since };
+  return { phase: 'rolled_back', optimistic, label, note: tr('לא אושר בזמן: תשתית המערכת לא דיווחה על שינוי המצב'), since }; // pending/unknown past the domain timeout
 }
 
 /**
@@ -236,7 +237,7 @@ export async function runCommand<T>(
     finish(settled(a, optimistic, label, since), a.status === 'pending' || a.status === 'unknown' ? 'timeout' : a.status === 'confirmed' ? 'poll' : 'answer');
   } catch (err) {
     if (done || !isCurrent()) return;
-    const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'הגשר אינו מצומד.' : describeError(err);
+    const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? tr('הגשר אינו מצומד.') : describeError(err);
     finish({ phase: 'rolled_back', optimistic, label, note: msg, since }, 'error');
   } finally {
     stopPush();

@@ -10,6 +10,7 @@
  */
 import type { CameraEncoding } from './types';
 import type { Profile, StepTransport, VideoStep } from './video-policy';
+import { tr } from '../i18n/msg/api-video';
 
 export interface H265Support {
   /** RTCRtpReceiver.getCapabilities('video') lists H.265 (Safari 17+ with the experimental flag on, some Chromium builds) */
@@ -132,10 +133,10 @@ export function h265Reaction(refusal: H265Refusal, hasNextStep: boolean): 'next'
   return refusal === 'transcode_cap' ? 'still' : 'message';
 }
 
-export const H265_UNSUPPORTED_HE = 'הדפדפן לא תומך בקידוד H.265 של המצלמה; אין זרם חלופי';
-export const H265_ALTERNATE_HE = 'הדפדפן לא תומך בקידוד H.265 של המצלמה; מוצג זרם חלופי';
-export const transcodeCapHe = (max: number) => `הדפדפן לא תומך בקידוד H.265 של המצלמה, ומכסת התרגומים במקביל${max > 0 ? ` (${max})` : ''} מלאה; מוצגת תמונה מתעדכנת`;
+export const H265_UNSUPPORTED_HE = tr('הדפדפן לא תומך בקידוד H.265 של המצלמה; אין זרם חלופי');
+export const H265_ALTERNATE_HE = tr('הדפדפן לא תומך בקידוד H.265 של המצלמה; מוצג זרם חלופי');
+export const transcodeCapHe = (max: number) => tr('הדפדפן לא תומך בקידוד H.265 של המצלמה, ומכסת התרגומים במקביל{v} מלאה; מוצגת תמונה מתעדכנת', { v: max > 0 ? ` (${max})` : '' });
 /** The short tag on a tile that plays a fallback (its tooltip carries the full sentence). */
-export const servedTag = (s: ServedStream): string => (s.kind === 'transcode' ? 'H.264 · תרגום' : s.profile === 'sub' ? 'זרם משני' : 'זרם ראשי');
+export const servedTag = (s: ServedStream): string => (s.kind === 'transcode' ? tr('H.264 · תרגום') : s.profile === 'sub' ? tr('זרם משני') : tr('זרם ראשי'));
 /** The settings hint next to an H.265 stream in the camera admin table. */
-export const H265_ADMIN_HINT = 'Chrome ו-Edge לא מנגנים H.265 ב-WebRTC. Arx יציג זרם חלופי לפי ההגדרה "קידוד H.265 בדפדפן" (הגדרות ‹ וידאו ומדיה); קידוד ה-NVR לא משתנה';
+export const H265_ADMIN_HINT = tr('Chrome ו-Edge לא מנגנים H.265 ב-WebRTC. Arx יציג זרם חלופי לפי ההגדרה "קידוד H.265 בדפדפן" (הגדרות ‹ וידאו ומדיה); קידוד ה-NVR לא משתנה');

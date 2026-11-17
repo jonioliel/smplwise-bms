@@ -5,9 +5,10 @@
  */
 import { get, patch, post, resourceUrl } from './client';
 import type { PlanVersion } from './types';
+import { tr } from '../i18n/msg/api-home';
 
 export type RoomFill = 'white' | 'tint' | 'none';
-export const ROOM_FILL_LABEL: Record<RoomFill, string> = { white: 'לבן', tint: 'גוון לכל חדר', none: 'ללא מילוי' };
+export const ROOM_FILL_LABEL: Record<RoomFill, string> = { white: tr('לבן'), tint: tr('גוון לכל חדר'), none: tr('ללא מילוי') };
 
 export interface StylizeResult {
   version_id: string;
