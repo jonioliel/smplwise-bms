@@ -330,11 +330,11 @@ export class RoomPillLayer implements ReactiveController {
 export const roomPillStyles = css`
   /* the spread view's backdrop when \`map.stack_backdrop\` is dark (round 28 Q7 b): the night sky whatever the theme */
   :host([data-stack-dark]) {
-    background: linear-gradient(180deg, #060b18 0%, #152442 100%);
+    background: var(--sw-map-stack-night);
   }
   /* PLAN3D-R32-ANSWERS-2438 (owner note on Q-MAP-7): locked to the light look - the day sky whatever the theme */
   :host([data-stack-light]) {
-    background: linear-gradient(180deg, #dfe8f4 0%, #f3f6fa 100%);
+    background: var(--sw-map-stack-day);
   }
   .rplayer {
     position: absolute;

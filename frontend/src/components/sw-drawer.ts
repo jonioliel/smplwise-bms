@@ -110,13 +110,13 @@ export class SwDrawer extends LitElement {
        keyframes: the resting panel carries no mask (a mask would cut its shadow). */
     @keyframes drawer-in-rtl {
       from {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: right;
         mask-size: 0% 100%;
       }
       to {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: right;
         mask-size: 100% 100%;
@@ -124,13 +124,13 @@ export class SwDrawer extends LitElement {
     }
     @keyframes drawer-in-ltr {
       from {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: left;
         mask-size: 0% 100%;
       }
       to {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: left;
         mask-size: 100% 100%;
@@ -138,13 +138,13 @@ export class SwDrawer extends LitElement {
     }
     @keyframes sheet-rise {
       from {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: bottom;
         mask-size: 100% 0%;
       }
       to {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: bottom;
         mask-size: 100% 100%;
