@@ -224,3 +224,25 @@ The first six are the merge-conflict files of round 3. No desktop baseline chang
 
 Not refreshed, on purpose: `docs/evidence/T087/visual/` (`unit-plan-3d-determinism`) - the 3D palette under Domus awaits the owner's
 decision, so `unit-plan-3d-determinism:193` x3 stays red on the runner. Not run: the entry check (not queued until that decision).
+
+## 3D determinism baselines refreshed on the runner (17.11)
+
+Owner decision 17.11: the 3D map follows the Domus palette (he compared the classic and the Domus renders and saw no difference).
+`origin/main` is still cc69447f1 (already merged). The runner was loaded (load average 36-40, entry checks running); nothing was
+stopped, one job, one worker.
+
+`run_remote.sh preview` puts `docs/` back at its end, so the same steps were run by a small script in the branch's own runner
+worktree (`~/work/pilot-DOMUS-DEFAULT-2439`: `npm run build`, then Playwright on the dist preview), the pictures were packed, and
+only then was `docs/` put back. Log on the runner: `~/pre/domus_t087_refresh.log`.
+
+| Run | Commit | Result |
+|---|---|---|
+| `SW_UPDATE_VISUAL=1`, `tests/unit-plan-3d-determinism.spec.ts`, desktop + tablet + mobile, `--workers=1` | afcb3117c | 12 passed; 42 pictures rewritten (36 scene pictures `plan-3d-l{1,2}-{top,iso,persp}[-state]-<project>.png`, 6 element pictures `plan-3d-element-l{1,2}-<project>.png`); committed bb15e0d48 |
+| the same without the update flag, `SW_REQUIRE_VISUAL=1` (a renderer mismatch would fail, not skip), `--workers=1 --repeat-each=2` | afcb3117c + the new pictures in the worktree (the committed bytes: the pack's sha256 was the same on both machines) | 24 passed; every one of the 72 comparisons: 0 pixels differ |
+
+Renderer: the three `renderer-<project>.json` files were rewritten by the run and are byte-identical to the committed ones
+(`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)`, the gate's renderer), so they are
+not part of the commit.
+
+NOT_RUN: the pictures were not looked at one by one here (the owner compared the two palettes); nothing else was run. The entry
+check is queued after the push (`~/pre/entry_domus.log`).
