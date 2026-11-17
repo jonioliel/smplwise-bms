@@ -93,7 +93,8 @@ const tempText = (t: number): string => `${Number.isInteger(Math.round(t * 10) /
 export class SwRoomCard extends LitElement {
   @property({ attribute: false }) model: RoomCardModel | null = null;
   @property({ reflect: true }) place: RoomCardPlace = 'side';
-  @property() camera: RoomCardCamera = 'snapshot';
+  /** PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-6 b): live video at once is the default. */
+  @property() camera: RoomCardCamera = 'live';
   /** The sheet's height: low (the quick row and what is open) or full (tabs). */
   @property({ reflect: true }) sheet: 'peek' | 'full' = 'peek';
   @state() private tab: Tab = 'lights';
@@ -610,7 +611,7 @@ export class SwRoomCard extends LitElement {
     const prev = changed.get('model') as RoomCardModel | null | undefined;
     if (changed.has('model') && prev && this.model && prev.id !== this.model.id) {
       this.pages = {};
-      this.liveOn = false;
+      this.liveOn = this.camera === 'live'; // PLAN3D-R32-ANSWERS-2438: another room in live mode plays its camera at once too
       this.sheet = 'peek';
     }
     if (changed.has('camera')) this.liveOn = this.camera === 'live';

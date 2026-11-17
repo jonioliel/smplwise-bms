@@ -208,6 +208,8 @@ export const PRESENCE_RING_W_M = 0.3;
 const LIT_TINT_Y_M = 0.014;
 const PRESENCE_TINT_Y_M = 0.02;
 const PRESENCE_RING_Y_M = 0.026;
+const ALARM_TINT_Y_M = 0.03; // PLAN3D-R32-ANSWERS-2438: above the lit / presence plates
+export const ALARM_TINT_OPACITY = 0.4;
 /** The open-opening frame: two jambs and a head bar (a sill bar too on a window) in the danger token, a little wider
  * than the wall so it reads from every side. */
 export const MARKER_T_M = 0.06;
@@ -653,6 +655,9 @@ class Builder {
       const ring = insetRing(polygon, PRESENCE_RING_W_M);
       if (ring.length) this.add({ id: `room:${z.id}#presence-ring`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + PRESENCE_RING_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'map-presence', opacity: r4(PRESENCE_RING_OPACITY * st.presenceFade), group: null, level_id: lv.id, polygon: ring, userData: ud });
     }
+    // PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-16 / Q-MAP-18): the room's alarm panel triggered - a red plate at levels 1-2, the red
+    // wall-top bar, floor line and band (pulsing) at level 3 (room-glow.ts reads this part; SceneView drops the plate there)
+    if (st.alarm === 'triggered') this.add({ id: `room:${z.id}#alarm`, kind: 'tint', shape: 'prism', position: [0, lv.elevation_m + ALARM_TINT_Y_M, 0], size: [0, ROOM_TINT_M, 0], rotation: [0, 0, 0], color: 'danger', opacity: ALARM_TINT_OPACITY, group: null, level_id: lv.id, polygon, userData: ud });
     if (st.temperature !== null) {
       // a chip: drawn by the element as a DOM label at the projected point (fixed pixel size, RTL), not by three
       const c = centroid(z.polygon);

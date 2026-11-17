@@ -163,3 +163,23 @@ export function takeDxfCandidates(versionId: string): DetectResult | null {
     return null;
   }
 }
+
+/**
+ * PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-9 a: "the editor can remove auto-added items"): the draft without the items the
+ * detector added (`source: 'auto'`) - walls, openings and objects that nobody locked; an opening standing on a removed wall goes
+ * with it. One edit (one undo step in the editor); counts for the confirmation. Manual, imported and locked items stay.
+ */
+export function removeAutoItems(doc: GeometryDoc): { doc: GeometryDoc; walls: number; openings: number; objects: number } {
+  const goneWalls = new Set(doc.walls.filter((w) => w.source === 'auto' && !w.locked).map((w) => w.id));
+  const openings = doc.openings.filter((o) => !(o.source === 'auto' || goneWalls.has(o.wall_id)));
+  const objects = doc.objects.filter((o) => !(o.source === 'auto' && !o.locked));
+  const walls = doc.walls.filter((w) => !goneWalls.has(w.id));
+  const removed = { walls: doc.walls.length - walls.length, openings: doc.openings.length - openings.length, objects: doc.objects.length - objects.length };
+  if (!removed.walls && !removed.openings && !removed.objects) return { doc, ...removed };
+  return { doc: { ...doc, walls, openings, objects }, ...removed };
+}
+/** How many items removeAutoItems would take away. */
+export function autoItemCount(doc: GeometryDoc): number {
+  const r = removeAutoItems(doc);
+  return r.walls + r.openings + r.objects;
+}

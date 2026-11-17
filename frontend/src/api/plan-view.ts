@@ -31,13 +31,28 @@ export interface PlanViewDials {
   backdrop: 'sky' | 'studio';
   /** PLAN3D-REALISM2-2433 (owner 2026-11-11): what the living floors are made of at the realistic level (map/floor-finish.ts):
    * the library's oak, or the generated marble / luxury ceramic. Per installation (the home's floors), marble at install. */
-  floor_finish: 'wood' | 'marble' | 'ceramic';
+  floor_finish: 'wood' | 'marble' | 'ceramic' | 'travertine';
   /** PLAN3D-LEVEL3-2435: the realistic rung's reflections on the polished floors (map/floor-reflect.ts); on by default, a person may
    * turn them off for themselves (a display / performance choice). */
   floor_reflections: boolean;
+  /** PLAN3D-R32-ANSWERS-2438 (owner round 32, the 3D map): the look answers, each the owner's choice by default. Q-MAP-13: the orbit
+   * views cut the walls low (1.25 m, the mockup) or at 0.6 of the ceiling (before). */
+  wall_cut: 'low' | 'mid';
+  /** Q-MAP-14: the day / evening / night light by the hour, or locked to one of them. */
+  light_mood: 'auto' | 'day' | 'evening' | 'night';
+  /** Q-MAP-16: a room's state (presence, alarm) as a wall-top bar + a floor perimeter line, the floor tint (before) or the bar only. */
+  room_marks: 'bar_edge' | 'floor' | 'bar';
+  /** Q-MAP-17: a light on (seen in the day) as a thin amber wall-top bar, nothing, or the bar and a floor line. */
+  light_mark: 'bar' | 'none' | 'bar_floor';
+  /** Q-MAP-18: an alarm room pulses slowly or stays steady (reduced motion keeps it steady anyway). */
+  alarm_motion: 'pulse' | 'steady';
+  /** Q-MAP-12 / Q-MAP-20: on a weak device, and first when the frame rate falls, the floor reflections go off. */
+  reflections_auto: boolean;
 }
-export type PersonalDial = 'style' | 'default_view' | 'time_source' | 'mouse_mode' | 'quality' | 'eye_m' | 'dpr_cap' | 'section_cut' | 'show_temps' | 'motion' | 'walk_guard' | 'backdrop' | 'floor_reflections';
-export const PERSONAL_DIALS: readonly PersonalDial[] = ['style', 'default_view', 'time_source', 'mouse_mode', 'quality', 'eye_m', 'dpr_cap', 'section_cut', 'show_temps', 'motion', 'walk_guard', 'backdrop', 'floor_reflections'];
+export type PersonalDial = 'style' | 'default_view' | 'time_source' | 'mouse_mode' | 'quality' | 'eye_m' | 'dpr_cap' | 'section_cut' | 'show_temps' | 'motion' | 'walk_guard' | 'backdrop' | 'floor_reflections'
+  | 'wall_cut' | 'light_mood' | 'room_marks' | 'light_mark' | 'alarm_motion' | 'reflections_auto';
+export const PERSONAL_DIALS: readonly PersonalDial[] = ['style', 'default_view', 'time_source', 'mouse_mode', 'quality', 'eye_m', 'dpr_cap', 'section_cut', 'show_temps', 'motion', 'walk_guard', 'backdrop', 'floor_reflections',
+  'wall_cut', 'light_mood', 'room_marks', 'light_mark', 'alarm_motion', 'reflections_auto'];
 export const CHOICES = {
   style: ['auto', 'light', 'dark'],
   default_view: ['schematic', 'realistic'],
@@ -49,13 +64,19 @@ export const CHOICES = {
   quality: ['auto', 'realistic', 'lite', 'full', 'schematic'],
   kiosk_idle_s: [0, 10, 30, 120, 600],
   backdrop: ['sky', 'studio'],
-  floor_finish: ['wood', 'marble', 'ceramic'],
+  floor_finish: ['wood', 'marble', 'ceramic', 'travertine'],
+  wall_cut: ['low', 'mid'],
+  light_mood: ['auto', 'day', 'evening', 'night'],
+  room_marks: ['bar_edge', 'floor', 'bar'],
+  light_mark: ['bar', 'none', 'bar_floor'],
+  alarm_motion: ['pulse', 'steady'],
 } as const;
 export const RANGES = { eye_m: [1.2, 2.0, 0.05], dpr_cap: [1.0, 2.0, 0.25] } as const;
 /** The owner's 2026-10-09 answers (services/plan_view.DEFAULT). */
 export const DEFAULT_VIEW: PlanViewDials = {
   style: 'auto', default_view: 'schematic', furniture: 'models', textures: 'files', wall_display: 'live', time_source: 'clock', mouse_mode: 'drag', quality: 'auto',
   kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true, backdrop: 'sky', floor_finish: 'marble', floor_reflections: true,
+  wall_cut: 'low', light_mood: 'auto', room_marks: 'bar_edge', light_mark: 'bar', alarm_motion: 'pulse', reflections_auto: true,
 };
 /** The home's location as the server last read it from the home's configuration (services/site_location.py). */
 export interface HomeLocation {
@@ -92,11 +113,17 @@ export const DIAL_HE: Record<keyof PlanViewDials, string> = {
   mouse_mode: 'מבט בעכבר בסיור', quality: 'איכות', kiosk_idle_s: 'מעבר לתמונה מוכנה במסך קיר', eye_m: 'גובה עין', dpr_cap: 'חדות מרבית',
   section_cut: 'חיתוך קירות במבט מלמעלה', show_temps: 'טמפרטורות בחדרים', motion: 'אנימציות', walk_guard: 'הורדת איכות אוטומטית בסיור',
   backdrop: 'רקע מאחורי הבית', floor_finish: 'ריצוף', floor_reflections: 'השתקפויות ברצפה',
+  wall_cut: 'גובה הקירות', light_mood: 'תאורה ביום, בערב ובלילה', room_marks: 'סימון מצב של חדר', light_mark: 'אור דולק ביום', alarm_motion: 'אזעקה במפה',
+  reflections_auto: 'כיבוי השתקפויות במכשיר חלש',
 };
 export const CHOICE_HE: Record<string, string> = {
   auto: 'אוטומטי', light: 'אדריכלי בהיר', dark: 'תאום דיגיטלי כהה', schematic: 'סכמטי', realistic: 'ריאליסטי', models: 'דגמים', procedural: 'גאומטרי',
   files: 'קבצי חומרים', live: 'תלת־ממד חי', stills: 'תמונות מוכנות', clock: 'לפי שעון האתר', manual: 'ידני', drag: 'גרירה', lock: 'נעילת סמן', lite: 'ריאליסטי קל', full: 'מלא',
-  sky: 'שמיים', studio: 'סטודיו כהה', wood: 'פרקט עץ', marble: 'שיש', ceramic: 'קרמיקה יוקרתית',
+  sky: 'שמיים', studio: 'סטודיו כהה', wood: 'פרקט עץ', marble: 'שיש קלקטה מלוטש', ceramic: 'קרמיקה יוקרתית', travertine: 'טרוורטין',
+  // PLAN3D-R32-ANSWERS-2438 (owner round 32)
+  low: 'נמוכים (1.25 מ׳)', mid: 'בגובה חלקי', day: 'תמיד יום', evening: 'תמיד ערב', night: 'תמיד לילה',
+  bar_edge: 'פס על ראש הקיר ופס ברצפה', floor: 'צביעת הרצפה', bar: 'פס על ראש הקיר', none: 'בלי סימון', bar_floor: 'פס על הקיר ופס ברצפה',
+  pulse: 'פועמת לאט', steady: 'קבועה',
 };
 
 let cache: PlanViewPrefs | null = null;

@@ -172,7 +172,9 @@ DEFAULTS["setup.hint"] = None
 # goes in without approval (review_min), what an unreviewed item in between becomes (as_detected | reject), the style kit chosen first,
 # whether starter furniture is placed and whether devices are placed by their area. A partial object; null = the recommended defaults.
 # Presentation of the wizard only: every write it leads to is still authorized by its own endpoint.
-PLAN_WIZARD_KITS: tuple[str, ...] = ("apartment", "office", "empty")
+# PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-10 a): the six kits of the mockup - apartment, office, lobby, technical / parking,
+# commercial, empty (frontend plan-wizard/wizard-model.ts KITS, the same ids)
+PLAN_WIZARD_KITS: tuple[str, ...] = ("apartment", "office", "lobby", "technical", "commercial", "empty")
 
 
 def _plan_wizard(value: Any) -> dict[str, Any]:

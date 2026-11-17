@@ -174,7 +174,7 @@ class SettingsPatch(BaseModel):
     map_room_card_place: str | None = Field(default=None, pattern="^(side|float|sheet_tablet)$", alias="map.room_card_place")
     map_room_card_confirm: str | None = Field(default=None, pattern="^(system|bulk)$", alias="map.room_card_confirm")
     map_room_card_camera: str | None = Field(default=None, pattern="^(snapshot|live|none)$", alias="map.room_card_camera")
-    map_stack_backdrop: str | None = Field(default=None, pattern="^(theme|dark)$", alias="map.stack_backdrop")
+    map_stack_backdrop: str | None = Field(default=None, pattern="^(theme|light|dark)$", alias="map.stack_backdrop")
     map_stack_pick: str | None = Field(default=None, pattern="^(two_tap|one_tap)$", alias="map.stack_pick")
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_camsuggest_distance: str | None = Field(default=None, pattern="^([1-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_distance")  # CAMSUGGEST138-295: 1-100 % of the plan width

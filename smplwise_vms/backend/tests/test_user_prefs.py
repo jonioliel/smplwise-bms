@@ -169,8 +169,10 @@ def test_plan_wizard_choices_default_null_validate_and_reset(client: TestClient)
     r = client.put("/api/v1/me/prefs", json={"plan.wizard": {"auto_accept": 90, "review_min": 40, "unreviewed": "reject", "kit": "office", "furniture": False, "auto_place": True}})
     assert r.status_code == 200
     assert r.json()["prefs"]["plan.wizard"] == {"auto_accept": 90, "review_min": 40, "unreviewed": "reject", "kit": "office", "furniture": False, "auto_place": True}
-    for bad in ({"auto_accept": 100}, {"auto_accept": 60, "review_min": 70}, {"kit": "lobby"}, {"unreviewed": "maybe"}, {"furniture": 1}, {"colour": "red"}, "x", {"auto_accept": True}):
+    for bad in ({"auto_accept": 100}, {"auto_accept": 60, "review_min": 70}, {"kit": "parking"}, {"unreviewed": "maybe"}, {"furniture": 1}, {"colour": "red"}, "x", {"auto_accept": True}):
         assert client.put("/api/v1/me/prefs", json={"plan.wizard": bad}).status_code == 422, bad
     assert client.get("/api/v1/me/prefs").json()["prefs"]["plan.wizard"]["kit"] == "office"  # a refused write changed nothing
+    for kit in ("lobby", "technical", "commercial", "empty", "apartment"):  # PLAN3D-R32-ANSWERS-2438: the six kits (owner Q-MAP-10 a)
+        assert client.put("/api/v1/me/prefs", json={"plan.wizard": {"kit": kit}}).status_code == 200, kit
     r = client.put("/api/v1/me/prefs", json={"plan.wizard": None})
     assert r.json()["prefs"]["plan.wizard"] is None and "plan.wizard" not in r.json()["stored"]

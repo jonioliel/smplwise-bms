@@ -14,12 +14,13 @@
  * sees a floor with alpha below 1. Off by the `floor_reflections` dial (the pass is disabled, the materials keep alpha 1).
  */
 import type { MeshStandardMaterial } from './three-bundle';
-import { FINISH_CERAMIC, FINISH_MARBLE } from './floor-finish';
+import { FINISH_CERAMIC, FINISH_MARBLE, FINISH_TRAVERTINE } from './floor-finish';
 
 /** The floor's reflectivity (0..1) by material id; unlisted ids do not reflect. */
 export const FLOOR_REFLECT: Readonly<Record<string, number>> = {
   [FINISH_MARBLE]: 1,
   [FINISH_CERAMIC]: 0.8,
+  [FINISH_TRAVERTINE]: 0.3, // PLAN3D-R32-ANSWERS-2438: honed stone - a soft sheen, not a mirror
   tiles_white: 0.4,
   tiles_grey: 0.35,
   floor_sport: 0.3,

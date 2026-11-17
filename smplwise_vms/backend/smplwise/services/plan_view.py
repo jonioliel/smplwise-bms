@@ -40,23 +40,33 @@ CHOICES: dict[str, tuple[Any, ...]] = {
     "backdrop": ("sky", "studio"),
     # PLAN3D-REALISM2-2433 (owner 2026-11-11): what the living floors are made of at the realistic level (frontend map/floor-finish.ts):
     # the library oak, or the generated marble / luxury ceramic. A content dial: per installation (the home's floors), marble at install
-    "floor_finish": ("wood", "marble", "ceramic"),
+    # PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-11): polished Calacatta marble at install, and a travertine floor added
+    "floor_finish": ("wood", "marble", "ceramic", "travertine"),
+    # PLAN3D-R32-ANSWERS-2438 (owner round 32): the 3D map's look answers, each the owner's choice by default and changeable here
+    "wall_cut": ("low", "mid"),                    # Q-MAP-13: the orbit views cut the walls low (1.25 m, the mockup) or at 0.6 of the ceiling (before)
+    "light_mood": ("auto", "day", "evening", "night"),  # Q-MAP-14: day / evening / night light by the hour, or locked to one
+    "room_marks": ("bar_edge", "floor", "bar"),    # Q-MAP-16: a room's state as a wall-top bar + a floor perimeter line, the floor tint (before), or the bar only
+    "light_mark": ("bar", "none", "bar_floor"),    # Q-MAP-17: a light on as a thin amber wall-top bar, nothing, or the bar and a floor line
+    "alarm_motion": ("pulse", "steady"),           # Q-MAP-18: an alarm room pulses slowly, or stays steady (reduced motion keeps it steady anyway)
 }
 # walk_guard: the walk drops a rung under 24 fps (a session flag); floor_reflections (PLAN3D-LEVEL3-2435): the realistic rung's
 # screen-space reflections on the polished floors - a display / performance choice, so a person may turn it off for themselves
-FLAGS = ("section_cut", "show_temps", "motion", "walk_guard", "floor_reflections")
+# reflections_auto (PLAN3D-R32-ANSWERS-2438, Q-MAP-12 / Q-MAP-20): on a weak device, and first when the frame rate falls, the floor
+# reflections go off before anything else is lowered
+FLAGS = ("section_cut", "show_temps", "motion", "walk_guard", "floor_reflections", "reflections_auto")
 RANGES: dict[str, tuple[float, float, float]] = {"eye_m": (1.2, 2.0, 0.05), "dpr_cap": (1.0, 2.0, 0.25)}
 DEFAULT: dict[str, Any] = {
     "style": "auto", "default_view": "schematic", "furniture": "models", "textures": "files", "wall_display": "live",
     "time_source": "clock", "mouse_mode": "drag", "quality": "auto", "kiosk_idle_s": 30, "eye_m": 1.65, "dpr_cap": 1.25,
     "section_cut": True, "show_temps": False, "motion": True, "walk_guard": True, "backdrop": "sky",
     "floor_finish": "marble", "floor_reflections": True,
+    "wall_cut": "low", "light_mood": "auto", "room_marks": "bar_edge", "light_mark": "bar", "alarm_motion": "pulse", "reflections_auto": True,
 }
 # the installation never makes realistic the default for everyone (owner Q11 א): default_view stays a person's choice
 SITE_DIALS: tuple[str, ...] = tuple(k for k in DEFAULT if k != "default_view")
 # what a person may set for themselves; the content (furniture, textures, floor_finish) and the display dials stay per installation
 USER_DIALS: tuple[str, ...] = ("style", "default_view", "time_source", "mouse_mode", "quality", "eye_m", "dpr_cap", "section_cut", "show_temps", "motion", "walk_guard",
-                               "backdrop", "floor_reflections")
+                               "backdrop", "floor_reflections", "wall_cut", "light_mood", "room_marks", "light_mark", "alarm_motion", "reflections_auto")
 
 
 def _dial(key: str, value: Any) -> Any:

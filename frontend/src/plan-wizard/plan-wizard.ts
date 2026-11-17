@@ -943,12 +943,14 @@ export class PlanWizardScreen extends LitElement {
 
   private sideStyle() {
     const dark = matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-    const sw = (k: (typeof KITS)[number]) => [kitFloor(k, 'living'), kitFloor(k, 'kitchen'), 'plaster_white', k.id === 'empty' ? 'plaster_ceiling' : k.id === 'office' ? 'fabric_accent' : 'wood_light'].map((m) => html`<i style="background:${tint(m, dark)}"></i>`);
+    // the fourth swatch: the kit's furniture tone (PLAN3D-R32-ANSWERS-2438: six kits, owner Q-MAP-10 a)
+    const accent: Record<string, string> = { empty: 'plaster_ceiling', office: 'fabric_accent', lobby: 'wood_dark', technical: 'metal_dark', commercial: 'metal_light' };
+    const sw = (k: (typeof KITS)[number]) => [kitFloor(k, 'living'), kitFloor(k, 'kitchen'), 'plaster_white', accent[k.id] ?? 'wood_light'].map((m) => html`<i style="background:${tint(m, dark)}"></i>`);
     return html`<h2>סגנון וריהוט</h2><p>ערכה קובעת חומרים וריהוט התחלתי לכל חדר לפי הסוג שלו. אפשר לשנות אחר כך חדר־חדר בסטודיו.</p>
       <div class="presets" role="radiogroup" aria-label="ערכת סגנון">${KITS.map((k) => html`<button class="preset" role="radio" data-kit=${k.id} aria-checked=${k.id === this.kit ? 'true' : 'false'} aria-pressed=${k.id === this.kit ? 'true' : 'false'}
           @click=${() => { this.kit = k.id; if (k.id === 'empty') this.furniture = false; else if (this.prefs.furniture) this.furniture = true; }}><span class="sw" aria-hidden="true">${sw(k)}</span><span class="tx"><b>${k.he}</b><span>${k.note}</span></span></button>`)}</div>
       <label class="check"><input type="checkbox" data-wz-furniture .checked=${this.furniture} ?disabled=${this.kit === 'empty'} @change=${(e: Event) => (this.furniture = (e.target as HTMLInputElement).checked)} /><sw-icon name="cube" size="16"></sw-icon>להציב ריהוט התחלתי</label>
-      <div class="card soft hide-ph">ערכות לובי, טכני וחניון ומסחרי יתווספו בהמשך.</div>`;
+`;
   }
 
   private sideDevices() {

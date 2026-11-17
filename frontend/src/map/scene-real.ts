@@ -35,7 +35,7 @@ import { LOOK_STYLES, type StyleId } from './look-style';
 import { MODEL_MAP, SLOT_ROUGHNESS, modelUrl, textureUrls, PLAN3D_BASE, type ModelEntry } from './plan3d-assets';
 import { boxUv, creaseNormals, fitModel, jitter, readGlb, type GlbModel } from './mesh-utils';
 import { kelvinRgb, type LightRecipe } from './sun';
-import { planGlow, type GlowRoom } from './room-glow';
+import { DEFAULT_MARKS, planGlow, type GlowRoom, type MarkPrefs } from './room-glow';
 import { RoomGlow } from './room-glow-mesh';
 import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading';
 import { floorReflectivity, injectFloorReflect } from './floor-reflect';
@@ -57,9 +57,22 @@ export interface RealSettings {
   /** PLAN3D-LEVEL3-2435: the floor reflections of the realistic rung (floor-reflect.ts; the dial `floor_reflections`). Optional:
    * older callers get them (true). */
   reflections?: boolean;
+  /** PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-13): the section cut low (`low`, 1.25 m - the mockup; the default) or at 0.6 of the
+   * ceiling (`mid`, before). Optional: older callers get `low`. */
+  wallCut?: WallCut;
+  /** Q-MAP-16..18: the room state marks (room-glow.ts). Optional: older callers get the owner's answers. */
+  marks?: MarkPrefs;
 }
 export type Backdrop = 'sky' | 'studio';
-export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH, reflections: true };
+export type WallCut = 'low' | 'mid';
+/** PLAN3D-R32-ANSWERS-2438: the low cut of the mockup (round 30 look-dev: every wall at 1.25 m, every room seen from any angle). */
+export const LOW_CUT_M = 1.25;
+/** The section plane's height over a level: low = 1.25 m (never above 0.6 of a low ceiling), mid = 0.6 of the ceiling (before). */
+export function sectionCutY(level: { elevation_m: number; ceiling_height_m: number }, cut: WallCut | undefined): number {
+  const mid = level.ceiling_height_m * 0.6;
+  return level.elevation_m + (cut === 'mid' ? mid : Math.min(LOW_CUT_M, mid));
+}
+export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH, reflections: true, wallCut: 'low', marks: DEFAULT_MARKS };
 
 // the library and the two generated floor finishes (render-time ids, floor-finish.ts)
 const BY_ID = new Map([...MATERIALS, ...FINISH_DEFS].map((m) => [m.id, m]));
@@ -933,7 +946,7 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     // the previous weights count only for the same levels (a level switch shows other rooms: no fade, no ghost of the last)
     const prev = inp.glow.prev && [...inp.glow.prev.values()].every((r) => levels.has(r.room.level_id)) ? inp.glow.prev : null;
     if (rooms.length || (prev && prev.size)) {
-      out.glow = new RoomGlow(rooms, settings.style, inp.glow.night, prev, inp.glow.now);
+      out.glow = new RoomGlow(rooms, settings.style, inp.glow.night, prev, inp.glow.now, settings.marks ?? DEFAULT_MARKS); // PLAN3D-R32-ANSWERS-2438: the marks
       out.root.add(out.glow.root);
     }
   }

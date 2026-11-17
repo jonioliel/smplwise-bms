@@ -12,6 +12,12 @@
  *   cutaway render, with no extra light, shader or shadow pass;
  * - presence: a cool inner-edge glow on the floor, a faint fill and a low wash on the walls, weighted by the presence fade.
  *
+ * PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-16..18): the room's state mark - a coloured bar on the wall tops of the room (at the
+ * section cut) and a thin line along its walls on the floor, in one colour by the strongest state: alarm (red, pulsing slowly) over
+ * presence (the style's blue) over a light on (a thin amber bar, the day's cue - a lit room barely reads lit in daylight). The marks
+ * are settings (`room_marks`, `light_mark`, `alarm_motion`); `floor` keeps the floor tint of before. An alarm comes from the
+ * `room:<zone>#alarm` tint (scene-builder roomState: the room's alarm panel triggered).
+ *
  * Deterministic: the same parts, levels and lamps give the same plan in the same order (zones sorted by id).
  */
 import type { ScenePart } from './scene-builder';
@@ -23,6 +29,47 @@ export const PRESENCE_PLATE_BASE = 0.36; // scene-builder PRESENCE_TINT_OPACITY
 export const GLOW_INSET_M = 0.14;
 /** The presence edge band on the floor. */
 export const PRESENCE_BAND_M = 0.55;
+/** PLAN3D-R32-ANSWERS-2438: the state bar on the wall tops (from the wall's centre line into the room) and the floor line. */
+export const MARK_BAR_M = 0.05;
+export const MARK_LINE_M = 0.07;
+
+/** Q-MAP-16: bar_edge = the wall-top bar and the floor line (the owner's answer) | floor = the floor tint of before | bar = the bar only. */
+export type RoomMarksMode = 'bar_edge' | 'floor' | 'bar';
+/** Q-MAP-17: a light on - bar = a thin amber wall-top bar (the answer) | none | bar_floor = the bar and the floor line. */
+export type LightMarkMode = 'bar' | 'none' | 'bar_floor';
+/** Q-MAP-18: an alarm pulses slowly (the answer) or stays steady; reduced motion keeps it steady anyway. */
+export type AlarmMotion = 'pulse' | 'steady';
+export interface MarkPrefs {
+  marks: RoomMarksMode;
+  light: LightMarkMode;
+  alarm: AlarmMotion;
+}
+export const DEFAULT_MARKS: MarkPrefs = { marks: 'bar_edge', light: 'bar', alarm: 'pulse' };
+export type MarkState = 'alarm' | 'presence' | 'light';
+/** The state a room's mark shows: the strongest of alarm, presence, a light on (null: none). */
+export function markState(w: { alarm?: number; presence: number; lit: number }): MarkState | null {
+  if ((w.alarm ?? 0) > 0.001) return 'alarm';
+  if (w.presence > 0.001) return 'presence';
+  if (w.lit > 0.001) return 'light';
+  return null;
+}
+/** Which mark layers a state draws under the settings: the wall-top bar, the crisp floor line, the soft band / the old floor tint. */
+export function markLayers(state: MarkState | null, prefs: MarkPrefs): { bar: boolean; line: boolean; floor: boolean } {
+  if (!state) return { bar: false, line: false, floor: false };
+  if (state === 'light') return { bar: prefs.light !== 'none', line: prefs.light === 'bar_floor', floor: false };
+  if (prefs.marks === 'floor') return { bar: false, line: false, floor: true };
+  if (prefs.marks === 'bar') return { bar: true, line: false, floor: false };
+  return { bar: true, line: true, floor: true };
+}
+/** The alarm's slow pulse (a 1.4 s period, between 0.44 and 1) - the mockup's; 1 without motion. */
+export function alarmPulse(now: number, moving: boolean): number {
+  return moving ? 0.72 + 0.28 * Math.sin((now / 1400) * Math.PI * 2) : 1;
+}
+/** The height of a room's wall-top bar: the section cut on its level (never above its walls), else the top of its walls. */
+export function barHeight(room: Pick<GlowRoom, 'y' | 'ceiling' | 'level_id'>, cutY: number | null, cutLevel: string | null): number {
+  const top = room.y + room.ceiling;
+  return cutY !== null && cutLevel === room.level_id ? Math.min(top, cutY) : top;
+}
 const WASH_MAX_M = 1.5;
 const LAMP_RADIUS: Record<string, number> = { floor: 1.5, wall: 1.3, pendant: 1.7 };
 
@@ -66,6 +113,16 @@ export interface GlowRoom {
   lit: number;
   /** The presence weight 0..1 (the fade). */
   presence: number;
+  /** PLAN3D-R32-ANSWERS-2438: 1 while the room's alarm is triggered. */
+  alarm: number;
+  /** The room's outline on the walls' centre line (counter-clockwise; the wall-top bar runs from it into the room). */
+  outline: [number, number][];
+  /** The inner outline of the wall-top bar ([] where the room is too narrow). */
+  barInner: [number, number][];
+  /** The inner outline of the floor line ([] where the room is too narrow). */
+  lineInner: [number, number][];
+  /** The level's ceiling height (the walls' top). */
+  ceiling: number;
 }
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
@@ -164,16 +221,19 @@ export function poolStrength(x: number, z: number, pools: readonly GlowPool[]): 
 
 /** The glow plan of a description's state parts (module note). */
 export function planGlow(parts: readonly ScenePart[], levels: readonly GlowLevel[], lamps: readonly GlowLamp[]): GlowRoom[] {
-  const byZone = new Map<string, { lit: boolean; presence: number; polygon: [number, number][] | null; level: string }>();
+  const byZone = new Map<string, { lit: boolean; presence: number; alarm: boolean; polygon: [number, number][] | null; level: string }>();
   for (const p of parts) {
     if (p.kind !== 'tint' || !p.id.startsWith('room:')) continue;
     const hash = p.id.lastIndexOf('#');
     if (hash < 0) continue;
     const zone = p.userData?.id ?? p.id.slice(5, hash);
     const tag = p.id.slice(hash + 1);
-    if (tag !== 'lit' && tag !== 'presence' && tag !== 'presence-ring') continue;
-    const e = byZone.get(zone) ?? { lit: false, presence: 0, polygon: null, level: p.level_id ?? '' };
-    if (tag === 'lit') {
+    if (tag !== 'lit' && tag !== 'presence' && tag !== 'presence-ring' && tag !== 'alarm') continue;
+    const e = byZone.get(zone) ?? { lit: false, presence: 0, alarm: false, polygon: null, level: p.level_id ?? '' };
+    if (tag === 'alarm') {
+      e.alarm = true; // PLAN3D-R32-ANSWERS-2438
+      e.polygon = p.polygon ?? e.polygon;
+    } else if (tag === 'lit') {
       e.lit = true;
       e.polygon = p.polygon ?? e.polygon;
     } else if (tag === 'presence') {
@@ -186,8 +246,9 @@ export function planGlow(parts: readonly ScenePart[], levels: readonly GlowLevel
   const out: GlowRoom[] = [];
   for (const [zone, e] of [...byZone].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     if (!e.polygon || e.polygon.length < 3) continue;
+    const outline = insetPolygon(e.polygon, 0);
     const polygon = insetPolygon(e.polygon, GLOW_INSET_M);
-    if (!polygon.length) continue;
+    if (!polygon.length || !outline.length) continue;
     const level = lv.get(e.level);
     const roomLamps = lamps.filter((l) => l.level_id === e.level);
     const lit = roomLamps.filter((l) => l.on && inside(l.position[0], l.position[2], polygon));
@@ -196,6 +257,7 @@ export function planGlow(parts: readonly ScenePart[], levels: readonly GlowLevel
       zone, level_id: e.level, y: level?.elevation_m ?? 0, polygon, band: insetPolygon(polygon, PRESENCE_BAND_M),
       pools: poolsFor(polygon, roomLamps), color_k: lit.length ? Math.round(lit.reduce((s, l) => s + l.color_k, 0) / lit.length) : 2900,
       wash: r4(Math.min(WASH_MAX_M, ceiling * 0.6 - 0.12)), lit: e.lit ? 1 : 0, presence: r4(Math.max(0, Math.min(1, e.presence))),
+      alarm: e.alarm ? 1 : 0, outline, barInner: insetPolygon(outline, MARK_BAR_M), lineInner: insetPolygon(polygon, MARK_LINE_M), ceiling,
     });
   }
   return out;
