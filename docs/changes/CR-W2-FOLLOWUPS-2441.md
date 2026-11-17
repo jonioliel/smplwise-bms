@@ -143,3 +143,49 @@ test_the_waiting_list_names_only_routers_that_still_hold_a_copy` failed with `re
 ## Pixels to refresh
 
 None (backend only).
+
+## Entry check 1 (`09f2e6e94`, RED) - the combined branch merged, one golden list (17.11.2026)
+
+Runner verdict: 10 failures outside the quarantine. No guard was loosened and nothing was quarantined.
+
+### Nine failures of the base - merged, not redone
+
+The maintenance scan on a read connection, the `test_capmap_295` / `test_wk4adopt_295` hash pins, the stream-batch label, the
+two provision `Proc` fakes and the tickets column spec path are failures of the wave-2 base and are fixed on
+`pilot/CR-W3-BE-COMBINED-2441` at `35bcf973e` (its note, "Entry check 1"). That branch was merged here
+(`git merge --no-ff`, merge commit `d2ebbafb8`): **no conflicts**. The merge also brings main 2.43.7 (`cc69447f1`: the
+version, the built UI, `services/home_interface.py`). `cf06aa896` ("'access' leaves the helper waiting list") merged cleanly
+with the same change on the other side.
+
+### One failure of this branch: `test_bill_ledger_lifecycle_b::test_automatic_generation_statements_labels_logs_and_outcomes_are_unchanged[energy]`
+
+A golden list of the SQL statements of an automatic bill generation (`tests/fixtures/bill_ledger_b_sql_golden.json`). 13
+entries of `auto:energy` (`auto_first_pass` 8, `auto_before_retry` 3, `auto_after_retry` 2) were
+`SELECT id FROM users WHERE active = 1 ORDER BY id` and are now the one rule's statement
+(`... WHERE users.active = 1 AND NOT EXISTS (SELECT 1 FROM ha_users h WHERE h.id = users.id AND h.is_active = 0) ORDER BY id`).
+
+**Cause.** That statement is not the billing code: it is `notify._active_users`, the candidates of the recipient rule
+`energy_bills` - the notification "a draft bill is ready" (`energy.bill_draft`) that `services/energy_notify.draft_ready`
+emits to the STAFF who hold `energy.bills`. Item 2 above changed it on purpose and names it ("the `scope` and `energy_bills` recipients"). The test is
+stale; the golden was regenerated for the `auto` section only (`SW_BILL_LEDGER_GOLDEN_WRITE=1`) and compared with the old
+file: the same keys, the same number of statements per list, only these 13 entries differ. `auto:water`, `drafts:*` and
+`retention:*` are byte-identical. Statement count, order, labels, logs and outcomes are unchanged.
+
+**Behaviour for billing.** None on who gets a bill: accounts, customers, periods, amounts, numbering and PDFs do not read
+this list (`services/energy_billing.py` and `services/bill_ledger.py` have no active-user read). The only list that moved is the staff notification's candidates, and
+only in the drift case (a user with `users.active = 1` whose `ha_users` row says `is_active = 0`). Such a user was already
+dropped from this notification by the visibility step (`rbac.authorize` refuses them since CR-ADMIN-GATE-2438, and the
+subject kind `energy_bills` is checked by permission), so the people notified are the same before and after.
+
+### Tests actually run (workstation, `.venv` of the main checkout, `pytest -p no:xdist`, on the merged tree)
+
+- One process, 11 files in full: `test_bill_ledger_lifecycle_b`, `test_singletons_registered`, `test_wk4adopt_295`,
+  `test_nvr_stream_batch_review_fixes`, `test_maintenance_215`, `test_capmap_295`, `test_provision_playback`,
+  `test_active_user_rest_2438`, `test_router_common_helpers`, `test_async_routes_no_inline_db`, `test_home_interface` -
+  **305 passed, 0 failed**. The merge had no conflict list; the files are the failing tests' files, the files the merge
+  changed and this branch's own.
+
+### NOT_RUN
+
+- `unit-tickets-1440-column-setting-2360.spec.ts`, `tsc`, the full backend suite, Playwright, pixels: the entry check.
+- No device or lab access.
