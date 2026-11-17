@@ -398,19 +398,20 @@ export class ExploreSites extends LitElement {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/png,image/jpeg';
-    input.addEventListener('change', async () => {
+    input.addEventListener('change', () => {
       const f = input.files?.[0];
       if (!f) return;
       this.busy = true;
-      try {
+      // CR-FE-PROMISES-2442: a refused or failed upload is the screen's notice line, as before
+      (async () => {
         await uploadImage(kind, id, f);
         this.notice = 'התמונה נשמרה.';
         await this.reload();
-      } catch (err) {
+      })().catch((err: unknown) => {
         this.notice = describeError(err);
-      } finally {
+      }).finally(() => {
         this.busy = false;
-      }
+      });
     });
     input.click();
   }

@@ -206,7 +206,8 @@ export class MaintRoundRun extends LitElement {
     if (missing.length) {
       this.error = mt('missingRequired');
       this.i = r.checklist.findIndex((x) => x.key === missing[0]);
-      if (this.view === 'list') this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-maint-point="${missing[0]}"]`)?.scrollIntoView({ block: 'center' }));
+      // CR-FE-PROMISES-2442: deliberately not handled - only the scroll to the missing point; the message above is already shown
+      if (this.view === 'list') void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-maint-point="${missing[0]}"]`)?.scrollIntoView({ block: 'center' }));
       return;
     }
     this.busy = true;

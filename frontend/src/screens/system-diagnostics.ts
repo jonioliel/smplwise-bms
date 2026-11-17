@@ -1713,7 +1713,7 @@ export class SystemDiagnostics extends LitElement {
             <div class="row" data-remote-android-switch><span class="lbl">שרתים באפליקציה<span class="muted">רשימת השרתים של האפליקציה: מעבר לשרת אחר, הוספה ועריכה</span></span><sw-button size="sm" icon="list" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</sw-button></div>
           </sw-card>`
         : nothing}
-      <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
+      <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://&lt;שם ה־Home Assistant&gt;/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
         <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
         <div class="row" data-remote-admins-default-row><span class="lbl">מנהלים – גישה מרחוק כברירת מחדל<span class="muted">מנהל מערכת נכנס מרחוק בלי דגל אישי · חל על "דגל אישי לכל משתמש"</span></span>

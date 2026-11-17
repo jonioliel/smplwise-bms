@@ -912,14 +912,22 @@ export class SwLivePlayer extends LitElement {
     this.capTimer = window.setTimeout(() => {
       if (gen === this.generation && this.status === 'connecting') this.connectTimedOut();
     }, CONNECTING_CAP_MS);
+    // CR-FE-PROMISES-2442: startWebrtc() handles the failures it expects by itself. Anything else it throws (a browser that
+    // refuses a transceiver, a fault in the first-frame watch) used to vanish and leave "מתחבר…" up until the connecting cap;
+    // it now ends the WebRTC attempt the usual way - the next step or MSE, else the player's error with its retry.
+    const webrtc = () => {
+      this.startWebrtc().catch(() => {
+        if (gen === this.generation) this.webrtcFailed('WebRTC לא נתמך בדפדפן');
+      });
+    };
     ws.onopen = () => {
       if (gen !== this.generation) return;
       window.clearTimeout(this.openTimer);
       if (step) {
         if (step.transport === 'mse') this.startMse();
-        else this.startWebrtc();
+        else webrtc();
       } else if (this.wsUrl || this.mode === 'mse' || (this.mode === 'auto' && mseNow)) this.startMse();
-      else this.startWebrtc();
+      else webrtc();
     };
     ws.onmessage = (ev) => {
       if (gen !== this.generation) return;

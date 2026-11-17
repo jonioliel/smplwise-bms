@@ -169,16 +169,17 @@ export class TempReport extends LitElement {
       return;
     }
     const n = ++this.seq;
-    this.timer = window.setTimeout(async () => {
-      try {
+    // CR-FE-PROMISES-2442: a failed preview is the dialog's error line, as before
+    this.timer = window.setTimeout(() => {
+      (async () => {
         const m = await getReportPreview(this.params());
         if (n === this.seq) {
           this.model = m;
           this.err = '';
         }
-      } catch (e) {
+      })().catch((e: unknown) => {
         if (n === this.seq) this.err = describeError(e);
-      }
+      });
     }, 250);
   }
 

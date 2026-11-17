@@ -101,9 +101,10 @@ export class ElecBillPage extends ElecBase {
 
   private issue() {
     const b = this.bill as Bill;
-    void this.act(() => elec().issueBill(b), async () => {
+    void this.act(() => elec().issueBill(b), () => {
       // the first PDF is rendered when the bill is issued: a failure is shown at once, the bill stays issued
-      await this.pdf('check');
+      // (CR-FE-PROMISES-2442: pdf() never rejects - a failed render is the PDF note of this page, `pdfFail`)
+      void this.pdf('check');
     });
   }
   private async pdf(mode: 'download' | 'view' | 'check') {

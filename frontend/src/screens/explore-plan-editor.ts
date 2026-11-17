@@ -4284,8 +4284,13 @@ export class ExplorePlanEditor extends LitElement {
         importIfc: (file) => void this.importIfc(file),
         reload: () => void this.loadStudio(b, true),
         calibrate: () => this.pickTool('calibrate'),
-        retry: async () => {
-          if (await this.studio.flush()) void this.loadStudio(b); // a version switch held back by the failed save goes ahead
+        retry: () => {
+          // CR-FE-PROMISES-2442: a save that fails again keeps the studio's own "not saved" state; a fault outside it is the editor's error line
+          this.studio.flush().then((saved) => {
+            if (saved) void this.loadStudio(b); // a version switch held back by the failed save goes ahead
+          }).catch((err: unknown) => {
+            this.error = describeError(err);
+          });
         },
         setLevel: (id, lv) => {
           this.edit((d) => (d.walls.some((w) => w.id === id) ? patchWall(d, id, { level_id: lv }) : patchLabel(d, id, { level_id: lv })));

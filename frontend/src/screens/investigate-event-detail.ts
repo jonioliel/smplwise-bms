@@ -695,14 +695,19 @@ export class InvestigateEventDetail extends LitElement {
 
   private pollThumb(id: string) {
     window.clearTimeout(this.pollTimer);
-    this.pollTimer = window.setTimeout(async () => {
-      const st = await pollThumbnail(id).catch(() => 'unavailable' as const);
-      if (this.ev?.id !== id) return;
-      if (st === 'pending') this.pollThumb(id);
-      else {
-        this.ev = { ...this.ev, thumbnail: st };
-        if (st === 'ready') this.thumbVersion = Date.now();
-      }
+    // CR-FE-PROMISES-2442: a poll that fails reads as "no picture" (the placeholder), never a silent stop on "preparing"
+    this.pollTimer = window.setTimeout(() => {
+      (async () => {
+        const st = await pollThumbnail(id).catch(() => 'unavailable' as const);
+        if (this.ev?.id !== id) return;
+        if (st === 'pending') this.pollThumb(id);
+        else {
+          this.ev = { ...this.ev, thumbnail: st };
+          if (st === 'ready') this.thumbVersion = Date.now();
+        }
+      })().catch(() => {
+        if (this.ev?.id === id) this.ev = { ...this.ev, thumbnail: 'unavailable' };
+      });
     }, 1500);
   }
 

@@ -130,6 +130,7 @@ export class AccessIdentityCard extends LitElement {
     }
   }
 
+  /** One action of the card. Never rejects (CR-FE-PROMISES-2442): a refusal or a failure is the error line (`this.error`). */
   private async run(fn: () => Promise<unknown>, done: XtKey): Promise<void> {
     this.busy = true;
     this.error = '';
@@ -246,7 +247,7 @@ export class AccessIdentityCard extends LitElement {
         ${this.act('close', 'act_unlink', 'act_unlinkText', 'act_unlinkBtn', d.can.unlink, d.link ? why('act_noRight') : why('act_unlinkWhy'), () => this.open('unlink'), 'unlink')}
         ${this.act('trash', 'act_delete', 'act_deleteText', 'act_deleteBtn', d.can.delete, d.link?.origin === 'matched' ? why('act_deleteWhyMatched') : !d.link ? why('act_deleteWhyNone') : why('act_noRight'), () => this.open('delete'), 'delete', true)}
         ${d.link?.origin === 'created_from_arx'
-          ? this.act('refresh', 'act_push', 'act_pushText', 'act_pushBtn', d.can.push_name && drift, auto ? why('act_pushAuto') : drift ? why('act_noRight') : why('id_drift'), () => this.run(() => pushName(d.link!.id), 'act_pushDone'), 'push')
+          ? this.act('refresh', 'act_push', 'act_pushText', 'act_pushBtn', d.can.push_name && drift, auto ? why('act_pushAuto') : drift ? why('act_noRight') : why('id_drift'), () => void this.run(() => pushName(d.link!.id), 'act_pushDone'), 'push')
           : nothing}
         ${d.unresolved
           ? html`<div class="act wide ${d.can.attach ? '' : 'dis'}" data-identity-act="attach"><h4><sw-icon name="user" size="16"></sw-icon>${xt('act_attach')}</h4>${xt('act_attachText')}

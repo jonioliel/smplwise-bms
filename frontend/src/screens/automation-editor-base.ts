@@ -1339,7 +1339,8 @@ export abstract class AutomationEditorBase extends LitElement {
     if (!b) return;
     this.change(addBlock(this.draft, p.owner, p.name, b));
     this.openUid = b.uid;
-    this.updateComplete.then(() => this.scrollToBlock(b.uid));
+    // CR-FE-PROMISES-2442: deliberately not handled - only the scroll to the new block; the block is added and open either way
+    void this.updateComplete.then(() => this.scrollToBlock(b.uid));
   }
 
   protected scrollToBlock(uid: string) {
@@ -1352,7 +1353,8 @@ export abstract class AutomationEditorBase extends LitElement {
     const w = walkDraft(this.draft).filter((x) => path === x.path || path.startsWith(`${x.path}.`)).sort((a, b) => b.path.length - a.path.length)[0];
     if (!w) return;
     this.openUid = w.block.uid;
-    this.updateComplete.then(() => this.scrollToBlock(w.block.uid));
+    // CR-FE-PROMISES-2442: deliberately not handled - only the scroll to the block; it is open either way
+    void this.updateComplete.then(() => this.scrollToBlock(w.block.uid));
   }
 
   // ------------------------------------------------------------------------------------------------ render parts

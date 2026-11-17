@@ -166,14 +166,15 @@ export class TempWa extends LitElement {
       this.ok = tt('waQueued', { n: r.queued });
       window.clearInterval(this.poll);
       let left = 12;
-      this.poll = window.setInterval(async () => {
+      // CR-FE-PROMISES-2442: a failed status read stops the follow-up; the list keeps the last statuses it showed
+      this.poll = window.setInterval(() => {
         if (--left <= 0) window.clearInterval(this.poll);
-        try {
+        (async () => {
           this.sends = (await getSends(r.batch_id)).sends;
           if (this.sends.every((s) => s.status !== 'queued' && s.status !== 'retry' && s.status !== 'handed')) window.clearInterval(this.poll);
-        } catch {
+        })().catch(() => {
           window.clearInterval(this.poll);
-        }
+        });
       }, 10_000);
     } catch (e) {
       this.err = describeError(e);

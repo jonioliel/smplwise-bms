@@ -85,14 +85,15 @@ export class NoticeCompose extends LitElement {
     clearTimeout(this.audTimer);
     const d = this.d;
     if (!d) return;
-    this.audTimer = window.setTimeout(async () => {
-      try {
+    // CR-FE-PROMISES-2442: a failed count (any failure) shows no number - the dialog's "audience unknown" state
+    this.audTimer = window.setTimeout(() => {
+      (async () => {
         const r = await audiencePreview(audienceOf(d));
         this.audCount = r.users;
         this.audScope = r.in_scope;
-      } catch {
+      })().catch(() => {
         this.audCount = null;
-      }
+      });
     }, 250);
   }
 

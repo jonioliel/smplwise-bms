@@ -234,7 +234,7 @@ export class SwHomePersonal extends LitElement {
   private setScreen(patch: Partial<PersonalScreen>) {
     const next: PersonalScreen = { ...(this.personal.screen ?? {}), ...patch };
     for (const k of Object.keys(next) as (keyof PersonalScreen)[]) if (next[k] === undefined) delete next[k];
-    this.commit({ ...this.personal, screen: next });
+    void this.commit({ ...this.personal, screen: next });
   }
 
   private screenChoices() {
@@ -302,6 +302,10 @@ export class SwHomePersonal extends LitElement {
     return this.personal.order ?? this.base?.config.order ?? [];
   }
 
+  /**
+   * Saves one choice at once. Never rejects (CR-FE-PROMISES-2442): a refused or failed save puts the previous choice back and
+   * shows the reason in the note under the list (`data-home-personal-error`), so the setters start it with `void`.
+   */
   private async commit(next: HomePersonal) {
     const before = this.personal;
     this.personal = next;
@@ -338,11 +342,11 @@ export class SwHomePersonal extends LitElement {
   }
 
   private setDirection(d: Direction | null) {
-    this.commit({ ...this.personal, direction: d });
+    void this.commit({ ...this.personal, direction: d });
   }
 
   private setPhoneLayout(p: PhoneLayout | null) {
-    this.commit({ ...this.personal, phone_layout: p });
+    void this.commit({ ...this.personal, phone_layout: p });
   }
 
   private setOn(id: WidgetId, on: boolean) {
@@ -363,7 +367,7 @@ export class SwHomePersonal extends LitElement {
     const widgets = { ...this.personal.widgets };
     if (Object.keys(entry).length) widgets[id] = entry;
     else delete widgets[id];
-    this.commit({ ...this.personal, widgets });
+    void this.commit({ ...this.personal, widgets });
   }
 
   /** The widgets offered here: the elevators / generators widget only to a user who sees one (no such device = the module is never named). */
@@ -377,7 +381,7 @@ export class SwHomePersonal extends LitElement {
     const target = offered[Math.max(0, Math.min(offered.length - 1, to))];
     const order = target === undefined || target === id ? this.order : moveWidget(this.order, id, this.order.indexOf(target));
     const same = JSON.stringify(order) === JSON.stringify(this.base?.config.order);
-    this.commit({ ...this.personal, order: same ? null : order });
+    void this.commit({ ...this.personal, order: same ? null : order });
   }
 
   render() {
