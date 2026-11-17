@@ -16,6 +16,8 @@ import {
 } from '../api/building-presence';
 import { cardOptions, filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
+import { LongListsController, perPageFor } from '../api/long-lists';
+import { settingsPillSegKeyStyles } from '../styles/settings';
 
 const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true, area_line: false };
 
@@ -40,6 +42,8 @@ export class SystemBuildingPresence extends LitElement {
   /** Mockup round 7: the sensor list is a filtered, paged table (no scrolling list); the "..." of a row opens the tag editor drawer. */
   @state() private filter: SensorFilter = 'all';
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> every sensor on one page (this settings card grows). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private editId = '';
   @state() private narrow = false;
   /** PRESENCE-DESIGN-2300: the first read failed (not a refusal) - an error panel with a retry, never the switch drawn as "off". */
@@ -250,26 +254,7 @@ export class SystemBuildingPresence extends LitElement {
       background: var(--sw-surface-2);
       flex-wrap: wrap;
     }
-    .seg button {
-      border: 0;
-      background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      padding: 4px 14px;
-      border-radius: var(--sw-r-pill);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
-    }
+    ${settingsPillSegKeyStyles}
     input[type='checkbox'] {
       accent-color: var(--sw-accent);
       inline-size: 18px;
@@ -421,7 +406,7 @@ export class SystemBuildingPresence extends LitElement {
   private renderSensors(list: PresenceCandidate[]) {
     const tagged = list.filter((c) => c.tagged).length;
     const filtered = filterSensors(list, this.filter);
-    const size = this.narrow ? 5 : 6;
+    const size = perPageFor(this.lists.paged, this.narrow ? 5 : 6, filtered.length);
     const pg = pageSlice(filtered, this.page, size);
     const chip = (v: SensorFilter, label: string) => html`<button type="button" aria-pressed=${String(this.filter === v)} data-building-filter=${v} @click=${() => { this.filter = v; this.page = 1; }}>${label}</button>`;
     return html`<sw-card heading=${BP.heading} subheading=${tagged ? `${tagged} ${BP.tagged} · ${list.length} ${BP.found}` : BP.subheading} data-building-presence-card>

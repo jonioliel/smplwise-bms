@@ -774,6 +774,18 @@ export const genCss = css`
     background: var(--sw-success-soft);
     color: var(--sw-success);
   }
+  /* PAGING-SETTING-2439 (code review 08:F23): the two pickers of the settings drawers (the users of a route, the devices to register)
+     scroll inside their own box - an inner panel with a search above it, not a page (the inline styles moved here) */
+  .chooser.users {
+    max-block-size: 220px;
+    overflow: auto;
+  }
+  .list.picklist {
+    flex-direction: column;
+    margin-block-start: 8px;
+    max-block-size: 300px;
+    overflow: auto;
+  }
   .chooser {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, svg } from 'lit';
+import { LitElement, html, css, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError } from '../api/client';
+import { Latest } from '../api/latest';
 import { can, isApi, onRemote } from '../api/session';
 import { getSettings, patchSettings, snapshotUrl } from '../api/media';
 import { nvrSettings, type NvrCamera } from '../api/nvr-settings';
@@ -60,6 +61,9 @@ const CORNERS: Corner[] = ['tl', 'tr', 'bl', 'br'];
  * or the page runs on the remote channel (the server refuses there). The picture and its regions are never mirrored by RTL.
  * Test hooks: data-pm-* attributes.
  */
+/** CR-EDITORS-MEMO-2440 (06:PERF-4): state that only redraws the regions inside the picture (nothing above the layout moves). */
+const REGION_ONLY_STATE: ReadonlySet<string> = new Set(['drafts', 'ghost', 'regionKey']);
+
 @customElement('system-security-privacy-masks')
 export class SystemSecurityPrivacyMasks extends LitElement {
   @state() private cameras: NvrCamera[] | null = null;
@@ -974,11 +978,22 @@ export class SystemSecurityPrivacyMasks extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ fit to the viewport
 
-  private onResize = () => this.measure();
+  private onResize = () => {
+    this.scroller = null; // a resize can change which ancestor scrolls
+    this.measure();
+  };
 
-  protected updated() {
+  /** CR-EDITORS-MEMO-2440 (06:PERF-4): `measure` forces a layout. While a region is dragged every pointer move renders (the draft, the
+   * ghost), and none of that moves the layout's top - so no measurement during a drag, nor for an update that changed only the
+   * region being edited. Everything else (step, camera, loads, the switch row, the result) still measures, and so does a resize. */
+  protected updated(changed: PropertyValues) {
+    if (this.drag) return;
+    if (changed.size && [...changed.keys()].every((k) => REGION_ONLY_STATE.has(k as string))) return;
     this.measure();
   }
+
+  /** The scrolling ancestor found by the last measurement (null: none found yet - looked for again). */
+  private scroller: Element | null = null;
 
   /** CAMADMIN-POLISH-2331 (owner rule: no page scroll on a control screen): the height the editor may take - from the layout's top (in the
    * page, not the scrolled view) to the bottom of the window. The wide layout (CSS) uses it to fit the picture and the inspector; a phone
@@ -986,15 +1001,19 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   private measure() {
     const el = this.shadowRoot?.querySelector<HTMLElement>('[data-pm-layout]');
     if (!el) return;
-    let scroller: Element | null = null;
-    for (let n: Node | null = el.parentNode; n; n = n instanceof ShadowRoot ? n.host : n.parentNode) {
-      if (n instanceof Element) {
-        const o = getComputedStyle(n).overflowY;
-        if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) {
-          scroller = n;
-          break;
+    // the walk reads a computed style per ancestor: the scroller found is kept while it is still in the page and still scrolls
+    let scroller: Element | null = this.scroller && this.scroller.isConnected && this.scroller.scrollHeight > this.scroller.clientHeight ? this.scroller : null;
+    if (!scroller) {
+      for (let n: Node | null = el.parentNode; n; n = n instanceof ShadowRoot ? n.host : n.parentNode) {
+        if (n instanceof Element) {
+          const o = getComputedStyle(n).overflowY;
+          if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) {
+            scroller = n;
+            break;
+          }
         }
       }
+      this.scroller = scroller;
     }
     const top = el.getBoundingClientRect().top + (scroller ? scroller.scrollTop : window.scrollY);
     const avail = Math.round(window.innerHeight - top - 24);
@@ -1089,13 +1108,19 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
   }
 
+  /** CR-EDITORS-MEMO-2440 (06:RACE-7): the history shown is the SELECTED camera's. A read for a camera the person already left
+   * neither blanks the list on its way out nor fills it on its way back; of two reads for the same camera the newer wins. */
+  private historyReads = new Latest();
+
   private async loadHistory(id: string) {
+    if (this.selected !== id) return;
+    const current = this.historyReads.begin();
     this.history = null;
     try {
       const r = await privacyMaskApi.changes(id, 20);
-      if (this.selected === id) this.history = r.changes.filter((c) => c.kind === 'privacy_mask');
+      if (this.selected === id && current()) this.history = r.changes.filter((c) => c.kind === 'privacy_mask');
     } catch {
-      if (this.selected === id) this.history = [];
+      if (this.selected === id && current()) this.history = [];
     }
   }
 
@@ -1104,7 +1129,10 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     this.regionKey = '';
     this.line = '';
     this.history = null;
+    this.historyReads.cancel();
     await this.loadMask(id);
+    // another camera was chosen while this one's mask was read: its own `select` loads its history
+    if (this.selected !== id) return;
     void this.loadHistory(id);
   }
 

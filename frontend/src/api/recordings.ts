@@ -1,5 +1,5 @@
 /** Recording search and playback sessions against the add-on backend (chapters 23/24). */
-import { apiUrl, del, get, post } from './client';
+import { apiUrl, del, get, path, post, query } from './client';
 
 export interface RecordingSegment {
   start_at: string; // UTC ISO
@@ -24,7 +24,7 @@ export interface RecordingsResponse {
   note: string;
 }
 
-export const recordingsForDay = (cameraId: string, date: string) => get<RecordingsResponse>(`cameras/${cameraId}/recordings?date=${date}`);
+export const recordingsForDay = (cameraId: string, date: string) => get<RecordingsResponse>(path`cameras/${cameraId}/recordings` + query({ date }));
 
 export interface PlaybackSession {
   id: string;
@@ -48,8 +48,8 @@ const openSessions = new Set<string>();
 const openGroups = new Set<string>();
 function releaseOnUnload(): void {
   if (!openSessions.size && !openGroups.size) return;
-  for (const id of openGroups) navigator.sendBeacon?.(apiUrl(`playback/groups/${id}/close`), '');
-  for (const id of openSessions) navigator.sendBeacon?.(apiUrl(`playback/sessions/${id}/close`), '');
+  for (const id of openGroups) navigator.sendBeacon?.(apiUrl(path`playback/groups/${id}/close`), '');
+  for (const id of openSessions) navigator.sendBeacon?.(apiUrl(path`playback/sessions/${id}/close`), '');
   openSessions.clear();
   openGroups.clear();
 }
@@ -60,30 +60,53 @@ export const createPlayback = async (cameraId: string, startAt: string) => {
   openSessions.add(s.id);
   return s;
 };
-export const seekPlayback = (id: string, startAt: string) => post<PlaybackSession>(`playback/sessions/${id}/seek`, { start_at: startAt });
+export const seekPlayback = (id: string, startAt: string) => post<PlaybackSession>(path`playback/sessions/${id}/seek`, { start_at: startAt });
 export const closePlayback = (id: string) => {
   openSessions.delete(id);
-  return del(`playback/sessions/${id}`);
+  return del(path`playback/sessions/${id}`);
 };
 export const listPlayback = () => get<{ sessions: (PlaybackSession & { username: string; bytes_down: number; seconds: number })[]; max_sessions: number; lease_s: number }>('playback/sessions');
 
 /** ws(s):// URL of a session's relay socket for one generation (works under Ingress). */
 export function playbackWsUrl(session: PlaybackSession): string {
-  const u = new URL(apiUrl(`playback/sessions/${session.id}/ws?generation=${session.generation}`));
+  const u = new URL(apiUrl(path`playback/sessions/${session.id}/ws` + query({ generation: session.generation })));
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
   return u.toString();
 }
 
+/**
+ * CR-INV-PLAYBACK-2440 (review 06:PERF-1): one formatter per zone. `minuteInZone` runs for every segment, event marker and bookmark of
+ * a day and twice a second for the playing cursor; building an `Intl.DateTimeFormat` each time was the cost. The formatters are
+ * immutable, so they are kept; an unknown zone still throws where it did (nothing is cached for it).
+ */
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+const minuteFormats = new Map<string, Intl.DateTimeFormat>();
+function zoneFormat(cache: Map<string, Intl.DateTimeFormat>, timeZone: string, make: () => Intl.DateTimeFormat): Intl.DateTimeFormat {
+  let f = cache.get(timeZone);
+  if (!f) {
+    f = make();
+    cache.set(timeZone, f);
+  }
+  return f;
+}
+
+/** CR-INV-PLAYBACK-2440 (review 06:PLAY-2): a seek that the server answers with "this session is over / not found" is tried once
+ * more as a new session - only when there was a session to lose, and only once (a create that itself answers `not_found` used to
+ * be tried again without end). */
+export function retryLostSession(code: string | undefined, hadSession: boolean, retried: boolean): boolean {
+  return (code === 'session_over' || code === 'not_found') && hadSession && !retried;
+}
+
 /** Local calendar date (YYYY-MM-DD) of an instant in a zone. */
 export function dateInZone(at: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
+  const parts = zoneFormat(dayFormats, timeZone, () => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })).formatToParts(at);
   const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${g('year')}-${g('month')}-${g('day')}`;
 }
 
 /** Minute of the local day (0..1439, fractional) for an instant, in a zone. */
 export function minuteInZone(at: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(at);
+  const parts = zoneFormat(minuteFormats, timeZone, () => new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })).formatToParts(at);
   const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
   return g('hour') * 60 + g('minute') + g('second') / 60;
 }
@@ -150,16 +173,16 @@ export const createGroup = async (cameraIds: string[], startAt: string) => {
   openGroups.add(g.id);
   return g;
 };
-export const seekGroup = (id: string, startAt: string) => post<PlaybackGroup>(`playback/groups/${id}/seek`, { start_at: startAt });
+export const seekGroup = (id: string, startAt: string) => post<PlaybackGroup>(path`playback/groups/${id}/seek`, { start_at: startAt });
 export const closeGroup = (id: string) => {
   openGroups.delete(id);
-  return del(`playback/groups/${id}`);
+  return del(path`playback/groups/${id}`);
 };
 export const reportGroupSync = (id: string, stats: SyncStats) =>
-  post<{ ok: boolean; sync_report: SyncReport }>(`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
+  post<{ ok: boolean; sync_report: SyncReport }>(path`playback/groups/${id}/sync`, { p95_s: stats.p95, quality: stats.quality, samples: stats.samples, partial: stats.partial, members: stats.members });
 
 /** JPEG frame from the recording at a UTC instant (T044); 404 when there is no picture there. */
-export const frameUrl = (cameraId: string, atIso: string) => apiUrl(`cameras/${cameraId}/frame?at=${encodeURIComponent(atIso)}`);
+export const frameUrl = (cameraId: string, atIso: string) => apiUrl(path`cameras/${cameraId}/frame` + query({ at: atIso }));
 
 /** RECORDED-DAYS-MONTH-2407: local dates of one month (YYYY-MM, the installation's zone) with any recording of a camera. */
 export interface RecordedDaysResponse {
@@ -173,4 +196,4 @@ export interface RecordedDaysResponse {
   searched_at: string;
   note: string;
 }
-export const recordedDays = (cameraId: string, month: string) => get<RecordedDaysResponse>(`cameras/${cameraId}/recordings/days?month=${month}`);
+export const recordedDays = (cameraId: string, month: string) => get<RecordedDaysResponse>(path`cameras/${cameraId}/recordings/days` + query({ month }));

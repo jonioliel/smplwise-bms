@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { ingestReason } from '../i18n/ingest-reason';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -29,6 +29,8 @@ import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
 import { t as vt } from '../i18n/he';
+import { Latest } from '../api/latest';
+import { pushedAction, ThumbPoller } from './investigate-events-logic';
 
 /** EVENTS-POLISH-2331: a phone (the drawer is a full-screen modal sheet there) and a wide desktop (the drawer docks beside the list). */
 const NARROW = '(max-width: 767px)';
@@ -111,8 +113,21 @@ export class InvestigateEvents extends LitElement {
   private clock = 0;
   private qTimer = 0;
   private unsubscribe: (() => void) | undefined;
-  private thumbTimers = new Map<string, number>();
-  private thumbInFlight = 0;
+  /** CR-INV-EVENTS-2440 (06:RACE-3): every filter control reads the list; only the newest read's answer is drawn. */
+  private reads = new Latest();
+  /** 06:EVT-2: the filters the list was last read for - a route that changes `cameraId` / `date` on a mounted screen reads again. */
+  private loadedFor: { cameraId: string; date: string } | null = null;
+  /** 06:EVT-1: one read for a burst of pushes that only the server can match against the place / text filters. */
+  private pushReloadTimer = 0;
+  /** 06:EVT-2: the pending thumbnails' polls; the count belongs to the event, not to the render (investigate-events-logic.ts). */
+  private thumbs = new ThumbPoller({
+    poll: (id) => pollThumbnail(id),
+    alive: (id) => this.isConnected && !!this.events?.some((e) => e.id === id),
+    done: (id, st) => this.setThumb(id, st),
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (h) => window.clearTimeout(h as number),
+  });
+  private thumbWanted = new Set<string>();
 
   static styles = [techDetailsStyles, css`
     .filters {
@@ -805,9 +820,21 @@ export class InvestigateEvents extends LitElement {
     window.removeEventListener('keydown', this.onKey);
     window.clearInterval(this.clock);
     this.unsubscribe?.();
-    for (const t of this.thumbTimers.values()) window.clearTimeout(t);
-    this.thumbTimers.clear();
+    this.thumbs.stop();
+    this.thumbWanted.clear();
+    // 06:EVT-2: the search debounce, the hover preview and the push reload were left armed on a screen that left the page
+    window.clearTimeout(this.qTimer);
+    window.clearTimeout(this.rowPreviewTimer);
+    window.clearTimeout(this.pushReloadTimer);
+    this.reads.cancel();
     void this.stopPlayer();
+  }
+
+  /** 06:EVT-2: `cameraId` and `date` are route properties - when the address changes them on a mounted screen (another camera's
+   * events from a link) the list is read again. The screen's own controls read at once and are not read twice (loadedFor). */
+  protected willUpdate(changed: PropertyValues) {
+    if (!(changed.has('cameraId') || changed.has('date')) || !this.loadedFor || !isApi()) return;
+    if (this.loadedFor.cameraId !== this.cameraId || this.loadedFor.date !== this.date) void this.load();
   }
 
   private onMedia = () => {
@@ -856,7 +883,23 @@ export class InvestigateEvents extends LitElement {
     }
   };
 
-  /** The selected row scrolls into the list's own view (never the page), clear of the sticky header. */
+  /** A row picked in the list (a click, or Enter / Space on the focused row - the rows are tab stops since CR-UI-CONTROLLERS-2440).
+   * The table's own Enter answers the key before `onKey` sees it, so the EVENTS-POLISH-2331 rule "Enter on the open event goes to its
+   * full review" is kept here: Enter on the row whose drawer is already open (desktop / tablet) navigates, anything else selects. */
+  private onRowSelect(d: { id: string; key?: string }) {
+    const windows = this.mode === 'windows';
+    if (d.key === 'Enter' && !this.narrow && d.id === (windows ? this.selectedWindow : this.selected)) {
+      const target = windows ? this.windows?.find((x) => x.id === d.id)?.first_event_id : d.id;
+      if (target) navigate(`/investigate/events/${target}`);
+      return;
+    }
+    if (windows) this.selectedWindow = d.id;
+    else this.select(d.id);
+  }
+
+  /** The selected row scrolls into the list's own view (never the page), clear of the sticky header. When the keyboard focus sits on a
+   * row of the list (the operator clicked or tabbed to one, then moved with Up / Down) it moves with the selection, so Enter still
+   * acts on the event the drawer shows. */
   private async revealRow(id: string) {
     await this.updateComplete;
     const table = this.renderRoot.querySelector('.stage sw-table') as HTMLElement | null;
@@ -865,6 +908,7 @@ export class InvestigateEvents extends LitElement {
     if (!row) return;
     row.style.scrollMarginBlock = '48px 12px';
     row.scrollIntoView({ block: 'nearest' });
+    if (table?.shadowRoot?.activeElement?.matches('tr[data-row-id]')) row.focus({ preventScroll: true });
   }
 
   private closeWindowDrawer() {
@@ -945,7 +989,7 @@ export class InvestigateEvents extends LitElement {
       return html`<img class="thumb" src=${thumbnailUrl(ev.id, this.thumbVersion.get(ev.id) ?? 0)} alt="" loading="lazy" data-thumb=${ev.id} style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3);cursor:zoom-in" />`;
     }
     if ((ev.thumbnail === 'pending' || ev.thumbnail === 'none') && ev.camera_id) {
-      this.schedulePoll(ev.id, 3000, 0);
+      this.wantThumb(ev.id);
       return html`<div class="thumb pending" style=${box} title="מכין תמונה מההקלטה…"><sw-icon name="camera" size=${14} style="opacity:.45"></sw-icon></div>`;
     }
     return html`<div class="thumb none" style=${box}><sw-icon name=${ev.type === 'offline' || ev.type === 'coverage_gap' ? 'offline' : ev.type === 'person' ? 'user' : ev.type === 'vehicle' ? 'route' : ev.type === 'door' || ev.type === 'io' ? 'door' : 'bell'} size=${14}></sw-icon></div>`;
@@ -966,36 +1010,17 @@ export class InvestigateEvents extends LitElement {
     }
   }
 
-  private schedulePoll(id: string, delay: number, attempt: number) {
-    if (this.thumbTimers.has(id)) return;
-    this.thumbTimers.set(id, window.setTimeout(() => void this.poll(id, attempt), delay));
-  }
-
-  private cancelPoll(id: string) {
-    const t = this.thumbTimers.get(id);
-    if (t !== undefined) window.clearTimeout(t);
-    this.thumbTimers.delete(id);
-  }
-
-  private async poll(id: string, attempt: number) {
-    this.thumbTimers.delete(id);
-    if (!this.isConnected || !this.events?.some((e) => e.id === id)) return;
-    if (this.thumbInFlight >= 2) {
-      this.schedulePoll(id, 1500, attempt);
-      return;
+  /** 06:EVT-2: a row with a pending thumbnail was drawn (inside sw-table's render). Nothing is scheduled from the render itself: the
+   * ids of one paint are handed to the poller together, right after it. */
+  private wantThumb(id: string) {
+    if (!this.thumbWanted.size) {
+      queueMicrotask(() => {
+        const ids = [...this.thumbWanted];
+        this.thumbWanted.clear();
+        if (this.isConnected) for (const x of ids) this.thumbs.want(x);
+      });
     }
-    this.thumbInFlight++;
-    let st: 'ready' | 'pending' | 'unavailable';
-    try {
-      st = await pollThumbnail(id);
-    } finally {
-      this.thumbInFlight--;
-    }
-    if (st === 'pending') {
-      if (attempt < 14) this.schedulePoll(id, Math.min(15000, 3000 * 1.35 ** attempt), attempt + 1);
-      return;
-    }
-    this.setThumb(id, st);
+    this.thumbWanted.add(id);
   }
 
   private setThumb(id: string, st: 'ready' | 'unavailable') {
@@ -1084,14 +1109,20 @@ export class InvestigateEvents extends LitElement {
   }
 
   private async load() {
+    const current = this.reads.begin(); // 06:RACE-3: a slower answer for an earlier filter never overwrites this one
+    this.loadedFor = { cameraId: this.cameraId, date: this.date };
+    window.clearTimeout(this.pushReloadTimer);
     try {
       const r = await listEvents({ ...this.searchWindow(), cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined, query: this.q.trim() || undefined, recorderId: this.recorderId || undefined });
+      if (!current()) return;
       this.events = r.events;
+      this.thumbs.prune(new Set(r.events.map((e) => e.id)));
       this.unsupported = (r as { filters?: { unsupported: UnsupportedFilter[] } }).filters?.unsupported ?? [];
       this.ingest = r.ingest;
       this.error = '';
       if (this.mode === 'windows') await this.loadWindows();
     } catch (err) {
+      if (!current()) return;
       this.error = describeError(err);
     }
   }
@@ -1259,18 +1290,26 @@ export class InvestigateEvents extends LitElement {
 
   private onPushed(ev: VmsEvent) {
     if (!this.events) return;
-    const today = dateInZone(new Date(ev.occurred_at), this.tz);
-    if (this.date && today !== this.date) return;
-    if (this.cameraId && ev.camera_id !== this.cameraId) return;
-    if (this.recorderId && ev.recorder_id !== this.recorderId && this.cams?.find((c) => c.id === ev.camera_id)?.recorder_id !== this.recorderId) return;
-    if (this.type && ev.type !== this.type) return;
-    const name = this.cams?.find((c) => c.id === ev.camera_id)?.name ?? null;
-    const row = { ...ev, camera_name: ev.camera_name ?? name };
+    const cam = this.cams?.find((c) => c.id === ev.camera_id);
+    const idx = this.events.findIndex((e) => e.id === ev.id);
+    // 06:EVT-1: every filter decides, not only the date, the camera, the recorder and the type (investigate-events-logic.ts)
+    const action = pushedAction(
+      ev,
+      { date: this.date, cameraId: this.cameraId, recorderId: this.recorderId, type: this.type, source: this.source, filter: this.filter, placeFloor: this.placeFloor, placeZone: this.placeZone, q: this.q },
+      { day: dateInZone(new Date(ev.occurred_at), this.tz), cameraRecorder: cam?.recorder_id ?? null, known: idx >= 0 },
+    );
+    if (action === 'drop') return;
+    if (action === 'reload') {
+      // a place or a text filter is set: only the server can say whether the new event belongs - one read for a burst of pushes
+      window.clearTimeout(this.pushReloadTimer);
+      this.pushReloadTimer = window.setTimeout(() => void this.load(), 1000);
+      return;
+    }
+    const row = { ...ev, camera_name: ev.camera_name ?? cam?.name ?? null };
     if (ev.thumbnail === 'ready' || ev.thumbnail === 'unavailable') {
-      this.cancelPoll(ev.id);
+      this.thumbs.cancel(ev.id);
       if (ev.thumbnail === 'ready') this.thumbVersion = new Map(this.thumbVersion).set(ev.id, Date.now());
     }
-    const idx = this.events.findIndex((e) => e.id === ev.id);
     this.events = idx >= 0 ? this.events.map((e, i) => (i === idx ? { ...e, ...row } : e)) : [row, ...this.events];
   }
 
@@ -1380,12 +1419,12 @@ export class InvestigateEvents extends LitElement {
                   <sw-chip icon="target" ?selected=${this.spotlightOnly} data-window-spotlight-only count=${this.spotlightCount} @click=${() => { this.spotlightOnly = !this.spotlightOnly; void this.loadWindows(); }}>זרקורים</sw-chip>
                   <sw-field><select aria-label="קיבוץ" data-window-by @change=${(e: Event) => { this.windowBy = (e.target as HTMLSelectElement).value as WindowGroup; void this.loadWindows(); }}>${(Object.keys(WINDOW_GROUP_LABEL) as WindowGroup[]).map((k) => html`<option value=${k} ?selected=${this.windowBy === k}>${WINDOW_GROUP_LABEL[k]}</option>`)}</select></sw-field>
                   <sw-field><select aria-label="מרווח קיבוץ" data-window-gap @change=${(e: Event) => { this.windowGap = Number((e.target as HTMLSelectElement).value); void this.loadWindows(); }}>${[60, 180, 300, 600, 900, 1800, 3600].map((g) => html`<option value=${g} ?selected=${this.windowGap === g}>${g / 60} דק׳</option>`)}</select></sw-field></div>
-                <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selectedWindow = e.detail.id)}></sw-table>`
+                <sw-table .columns=${this.windowColumns} .rows=${this.windows as unknown as Record<string, unknown>[]} .selected=${this.selectedWindow} @row-select=${(e: CustomEvent<{ id: string; key?: string }>) => this.onRowSelect(e.detail)}></sw-table>`
               : this.spotlightOnly
                 ? html`<sw-state-panel icon="history" state="empty" heading="אין זרקורים ביום הזה"><div style="margin-block-start:10px"><sw-button size="sm" data-window-spotlight-off @click=${() => { this.spotlightOnly = false; void this.loadWindows(); }}>כל החלונות</sw-button></div></sw-state-panel>`
                 : html`<sw-state-panel icon="history" state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`
           : this.events.length
-            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
+            ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string; key?: string }>) => this.onRowSelect(e.detail)}></sw-table>`
             : html`<sw-state-panel icon="history" state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מהמקליט רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
         ${this.renderRowPreview()}
         ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}

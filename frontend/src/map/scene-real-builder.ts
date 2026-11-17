@@ -17,6 +17,7 @@
  *   its state; `rooms`: each room's daylight factor (glazed area / floor area x 5).
  * Rounded to 0.1 mm like every part; sorted by id.
  */
+import { deg, r4, rad } from './num';
 import type { GeomLevel, GeomOpening, GeomWall, GeometryDoc, Primitive, DoorPrim, WindowPrim } from './geometry';
 import { canonicalMaterial, resolveMaterials, roomFloorByTags, type CatalogMaterialLookup, type ResolvedMaterials } from './material-resolve';
 import { MODEL_MAP } from './plan3d-assets';
@@ -135,10 +136,7 @@ export interface RealContext {
   wallHeight: (w: GeomWall, lv: GeomLevel) => number;
 }
 
-const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4;
 const v3 = (a: number, b: number, c: number): Vec3 => [r4(a), r4(b), r4(c)];
-const rad = (d: number): number => (d * Math.PI) / 180;
-const deg = (r: number): number => (r * 180) / Math.PI;
 const cmp = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 /** A local offset (x right, z down the plan) turned by a yaw (the mapping three applies to the parts). */
 function turned(x: number, z: number, yawDeg: number): [number, number] {

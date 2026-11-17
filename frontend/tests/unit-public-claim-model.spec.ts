@@ -661,7 +661,8 @@ test('the claim sources: no unsafe HTML sinks, no style attributes, no old Hebre
     expect(src, f).not.toMatch(/setAttribute\(\s*['"]style['"]|\.style\.cssText|\.style\s*=/);
     expect(src, f).not.toMatch(/getUserMedia/);
     // LAZYLANG-295: the catalogues read the lazy Arabic / Russian words through the page's own loader
-    for (const m of src.matchAll(/from\s+'([^']+)'/g)) expect(m[1].startsWith('./') || m[1] === '../lang-packs', `${f} imports ${m[1]}`).toBe(true);
+    // CR-FORMAT-2440: the pure formatting helpers of src/format/ (no DOM, no imports of their own) are the one thing outside the page
+    for (const m of src.matchAll(/from\s+'([^']+)'/g)) expect(m[1].startsWith('./') || m[1] === '../lang-packs' || /^\.\.\/\.\.\/format\/[\w-]+$/.test(m[1]), `${f} imports ${m[1]}`).toBe(true);
   }
   // the editor is loaded lazily: the step imports it only as a type and through import()
   const step = readFileSync(path.join(CLAIM_DIR, 'claim-step.ts'), 'utf8');

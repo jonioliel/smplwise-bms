@@ -1,5 +1,5 @@
-import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/ticket-card';
 import { parseAssignParam, withAssign } from '../tickets/create-assign-model'; // TKUI1: the new-request sheet's vendor flow
@@ -12,7 +12,8 @@ import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top of "שלי" (owner decision, question 4 b)
 import '../components/sw-pager';
 import '../components/sw-page';
-import { PAGED_MQ, gridCols, packPages, rowGap } from './tickets-pages';
+import { gridCols, packPages, rowGap } from './tickets-pages';
+import { LongListsController } from '../api/long-lists';
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
@@ -20,46 +21,28 @@ import { calendarWanted, setCalendarWanted } from '../tickets/calendar-mode';
 import { BOARD_HREF } from '../tickets/board-model';
 import { boardApi } from '../api/tickets-board';
 import { foldCounts, NO_COUNTS, countText, type ListCounts } from '../tickets/list-counts';
-import { applyCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
+import { applyCardFilters, NO_CARD_FILTERS } from '../tickets/list-filters';
 import { cardFilterChips, filterRow } from '../tickets/list-filter-row';
-import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
+import { activeChips, filterPanel, filterToggle, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
+import { TicketsViewBase, ticketViewStyles, writeHref } from '../tickets/list-view-base'; // CR-DUP-TICKETS-VIEWS: the plumbing shared with the manager board
 import { tableFilterChips, tableFilterPanelStyles, tableFilterSections } from '../tickets/table-filter-panel';
 import { NO_TABLE_FILTERS, type ExtraFilters } from '../tickets/table-model';
 import { roleFor, type CardItem } from '../tickets/list-card-model';
 import { lt } from '../tickets/list-text';
 import { ticketListFrameStyles } from '../tickets/list-styles';
 import { automationsStyles } from '../styles/automations-glass';
-import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
-import { applyAutomationsGlass } from '../api/automations-demo';
-import { SkinController } from '../design/skin';
+import { mediaPageStyles } from '../styles/media-page';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
-import { ApiError, describeError } from '../api/client';
 import { can, canNav, isApi } from '../api/session';
 import { ticketsScopesAllowed } from '../shell/nav';
-import { replaceRoute, type RouteState } from '../router';
-import { ticketsApi, type ListPage, type Meta, type ModuleState, type TicketDetail, type TicketItem } from '../api/tickets';
+import { ticketsApi, type ListPage, type TicketDetail, type TicketItem } from '../api/tickets';
 import { NO_FILTERS, SCOPES, STATUS_FILTERS, filterLabel, listHref, parseTicketsRoute, rememberScope, scopeLabel, ticketHref, type ListFilters, type TicketsRoute } from '../tickets/model';
 import { tt } from '../tickets/text';
 import { dlt } from '../tickets/delete-text';
 import { LiveRefresh } from '../tickets/live-refresh';
 import { tIcon } from '../tickets/icons';
-import { onTicketNames, setTicketNames } from '../tickets/naming';
-import type { TicketCardAction } from '../tickets/ticket-card';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
-
-type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
-
-/** `#/tickets/mine?status=open` -> the path and the params the router writes (no history entry for a filter keystroke). */
-function writeHref(href: string, replace: boolean): void {
-  if (!replace) {
-    window.location.hash = href;
-    return;
-  }
-  const raw = href.replace(/^#/, '');
-  const [path, query = ''] = raw.split('?');
-  replaceRoute(path, new URLSearchParams(query));
-}
 
 /**
  * CR-038 slice 1, the tickets area (`#/tickets/<mine|department|all>`; mock-up v2's board page frame, the automations list anatomy): the large
@@ -70,81 +53,46 @@ function writeHref(href: string, replace: boolean): void {
  * empty per scope, no match, error, forbidden, the module switched off. Later slices add the board (D19-D21), the table and kanban (D24).
  */
 @customElement('tickets-list')
-export class TicketsList extends LitElement {
-  readonly bubbleSkin = new SkinController(this);
-  @property({ attribute: false }) route: RouteState | null = null;
+export class TicketsList extends TicketsViewBase {
   @state() private r: TicketsRoute = parseTicketsRoute(['tickets', 'mine'], new URLSearchParams());
-  @state() private module: ModuleState | null = null;
-  @state() private meta: Meta | null = null;
   @state() private items: TicketItem[] | null = null;
   @state() private next: string | null = null;
-  @state() private screen: Screen = 'loading';
-  @state() private failed = '';
   @state() private loadingMore = false;
-  @state() private phone = window.matchMedia('(max-width: 767px)').matches;
-  @state() private drawerUsed = false;
-  @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
-  @state() private now = new Date();
-  @state() private q = '';
   @state() private view: BoardView = 'cards'; // CR-038 S6b (D24): cards | table, the user's tickets.board.view
   /** TKCAL: the weekly calendar mode (per tab; the cards / table preference above is the server's) */
   @state() private cal = calendarWanted();
   /** NOSCROLL-1366-2437: on a desktop the cards are cut into pages that fit the room under the numbers (whole rows, measured); the pager sits
    *  on the toolbar row. `fit` = the measured room / columns / row height (null until measured: everything is drawn once and measured). */
-  @state() private paged = window.matchMedia(PAGED_MQ).matches;
-  @state() private cardPage = 1;
   @state() private fit: { room: number; cols: number; rowH: number; gap: number } | null = null;
-  private pagedMq = window.matchMedia(PAGED_MQ);
-  private onPaged = () => {
-    this.paged = this.pagedMq.matches;
+  protected resetFit(): void {
     this.fit = null;
     this.rowMax = 0;
     this.cardH.clear();
-  };
+  }
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages; the cards scroll inside their own region (.scr). */
+  private lists = new LongListsController(this, () => {
+    this.cardPage = 1;
+    this.onPaged();
+  });
   private rowMax = 0;
-  /** the tallest each card was seen (by request id): a row of the pages is as tall as its tallest card */
-  private cardH = new Map<string, number>();
-  private fitObserver: ResizeObserver | null = null;
-  private fitBox: Element | null = null;
-  /** the pages of the current render (counted in render() before the toolbar is drawn) */
-  private pageCount = 1;
-  private pageKey = '';
   /** TKUI4: the page frame's counts (scope, state, department) and the filter row over the held cards */
   @state() private counts: ListCounts = NO_COUNTS;
-  @state() private filterOpen = false;
-  @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
   /** POLISH-LEFTOVERS-2341: the table view's server-side filters live here (the one "סינון" panel edits them; <tickets-table .extra>) */
   @state() private tableExtra: ExtraFilters = { ...NO_TABLE_FILTERS };
   @state() private tableHolders: { key: string; name: string }[] = [];
-  /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
-  readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
   private countSeq = 0;
-  /** the text last typed into the search box, until the address carries it */
-  private pendingQ: string | null = null;
   private listKey = '';
-  private seq = 0;
-  private phoneMq = window.matchMedia('(max-width: 767px)');
-  private onPhone = () => (this.phone = this.phoneMq.matches);
-  private qTimer = 0;
-  private toastTimer = 0;
   private extraPages = 0;
   /** 2.5.4: cards (and the table, which polls itself) refetch every 20 s while visible, on focus and after every mutation */
-  private live = new LiveRefresh(() => this.refreshQuiet());
+  protected live = new LiveRefresh(() => this.refreshQuiet());
 
   private refreshQuiet(): void {
     if (this.screen !== 'ready' || (this.view !== 'cards' && !this.cal) || this.extraPages > 0 || this.loadingMore) return;
     void this.loadPage(false);
   }
   private clock = 0;
-  private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketToolbarStyles, tableFilterPanelStyles, css`
-    .cgrid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-      gap: var(--dv-gap-lg, 16px);
-      align-items: stretch;
-    }
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketToolbarStyles, tableFilterPanelStyles, ticketViewStyles, css`
     .more {
       display: flex;
       justify-content: center;
@@ -154,32 +102,7 @@ export class TicketsList extends LitElement {
        and the ONE toolbar) the numbers and the requests scroll in their own region - the page itself never scrolls and the controls stay
        in place. In the table view the region does not scroll at all: the table card fills it and scrolls its rows under its sticky head.
        On a phone the region is transparent (display: contents) and the page scrolls, the header compacting over it. */
-    .scr {
-      display: contents;
-    }
     @media (min-width: 768px) {
-      :host {
-        overflow: hidden;
-      }
-      .page {
-        block-size: 100%;
-        min-block-size: 0;
-        box-sizing: border-box;
-        padding-block-end: 0;
-        gap: 18px;
-      }
-      .scr {
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-        flex: 1 1 auto;
-        min-block-size: 0;
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: var(--dv-border-strong) transparent;
-        margin-inline: -36px;
-        padding: 2px 36px 28px;
-      }
       .scr.fill {
         overflow: hidden;
         padding-block-end: 20px;
@@ -187,12 +110,6 @@ export class TicketsList extends LitElement {
       .scr.fill > tickets-table {
         flex: 1 1 auto;
         min-block-size: 0;
-      }
-    }
-    @media (min-width: 768px) and (max-width: 1023px) {
-      .scr {
-        margin-inline: -24px;
-        padding-inline: 24px;
       }
     }
     /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop the cards view is paged - the
@@ -216,29 +133,6 @@ export class TicketsList extends LitElement {
         align-content: start;
       }
     }
-    .flt {
-      position: fixed;
-      inset-block-end: 24px;
-      inset-inline: 0;
-      margin-inline: auto;
-      inline-size: fit-content;
-      max-inline-size: calc(100% - 32px);
-      box-sizing: border-box;
-      z-index: 40;
-      box-shadow: var(--dv-shadow-2);
-    }
-    /* AUDIT30-C-TICKETS (#6): sw-page is the frame (its header row: the title, the actions slot); the toolbar under it no longer sticks or
-       compacts - the title it compacted moved into the frame (on a phone the page scrolls, the toolbar with it) */
-    .pact {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .dh {
-      position: static;
-      padding-block-start: 0;
-    }
     .qchips {
       display: inline-flex;
       align-items: center;
@@ -258,40 +152,22 @@ export class TicketsList extends LitElement {
         order: 2;
         margin-inline-start: 0;
       }
-      .flt {
-        inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
-      }
     }
   `, ticketChipSelected];
 
   connectedCallback() {
     super.connectedCallback();
-    applyAutomationsGlass(this);
-    this.phoneMq.addEventListener('change', this.onPhone);
-    this.pagedMq.addEventListener('change', this.onPaged);
-    this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
-    this.live.start();
-    void this.boot();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.phoneMq.removeEventListener('change', this.onPhone);
-    this.pagedMq.removeEventListener('change', this.onPaged);
-    this.fitObserver?.disconnect();
-    this.fitObserver = null;
-    this.fitBox = null;
-    this.offNames?.();
     window.clearInterval(this.clock);
-    this.live.stop();
-    window.clearTimeout(this.qTimer);
-    window.clearTimeout(this.toastTimer);
   }
 
   /** NOSCROLL-1366-2437: the pages of cards (hidden when one page holds them) and, on the last page, "load more" of the server's next page. */
   private pagerRow(): TemplateResult | typeof nothing {
-    const at = Math.min(Math.max(1, this.cardPage), this.pageCount);
+    const at = this.pageAt();
     const more = !!this.next && at === this.pageCount;
     if (this.pageCount <= 1 && !more) return nothing;
     return html`<span class="lpager">
@@ -300,32 +176,16 @@ export class TicketsList extends LitElement {
     </span>`;
   }
 
-  protected updated(): void {
-    measureHeaderBar(this.renderRoot, this.phone);
-    this.watchFit();
-  }
-
   /** The cards are paged: a desktop, the cards view (not the calendar, not the table), the list drawn. */
   private pagedCards(): boolean {
-    return this.paged && this.view !== 'table' && !this.cal && this.screen === 'ready';
+    return this.paged && this.lists.paged && this.view !== 'table' && !this.cal && this.screen === 'ready';
   }
 
-  /** Observe the pages box (its height is the room the layout leaves it, not its content) and measure after every draw. */
-  private watchFit() {
-    const box = this.pagedCards() ? this.renderRoot.querySelector('[data-tickets-pages]') : null;
-    if (box !== this.fitBox) {
-      this.fitObserver?.disconnect();
-      this.fitObserver = null;
-      this.fitBox = box;
-      if (box && typeof ResizeObserver !== 'undefined') {
-        this.fitObserver = new ResizeObserver(() => this.measureFit());
-        this.fitObserver.observe(box);
-      }
-    }
-    if (box) this.measureFit();
+  protected fitTarget(): Element | null {
+    return this.pagedCards() ? this.renderRoot.querySelector('[data-tickets-pages]') : null;
   }
 
-  private measureFit() {
+  protected measureFit() {
     const box = this.fitBox as HTMLElement | null;
     if (!box || !box.isConnected) return;
     const grid = box.querySelector('[data-tickets-grid]');
@@ -333,14 +193,7 @@ export class TicketsList extends LitElement {
     if (!grid || !cards.length) return;
     // a row is as tall as its tallest card; the tallest card seen so far keeps every page inside the room (it only grows: no loop)
     this.rowMax = Math.max(this.rowMax, ...cards.map((c) => c.offsetHeight));
-    let grew = false;
-    for (const c of cards) {
-      const id = (c as unknown as { item?: { id?: string } }).item?.id;
-      if (id && c.offsetHeight > (this.cardH.get(id) ?? 0)) {
-        this.cardH.set(id, c.offsetHeight);
-        grew = true;
-      }
-    }
+    const grew = this.noteCardHeights(cards);
     if (grew && this.fit) this.fit = { ...this.fit };
     const next = { room: box.clientHeight, cols: gridCols(grid), rowH: this.rowMax, gap: rowGap(grid) };
     const f = this.fit;
@@ -352,48 +205,23 @@ export class TicketsList extends LitElement {
       this.r = parseTicketsRoute(this.route.segments, this.route.params);
       rememberScope(this.r.scope);
       if (this.r.ticketId) this.drawerUsed = true;
-      // the search box keeps what is being typed when the address change is our own debounced write (a trailing space survives)
-      if (this.pendingQ === null || this.r.filters.q !== this.pendingQ.trim()) {
-        this.q = this.r.filters.q;
-        this.pendingQ = null;
-      }
+      this.syncSearch(this.r.filters.q);
       if (this.screen === 'ready' || this.screen === 'error') this.reloadIfNeeded();
       // a new scope or filter starts at the first page of cards (opening a request - the drawer's address - keeps the page)
-      const key = `${this.r.scope}|${JSON.stringify(this.r.filters)}`;
-      if (key !== this.pageKey) {
-        this.pageKey = key;
-        this.cardPage = 1;
-      }
+      this.firstPageOn(`${this.r.scope}|${JSON.stringify(this.r.filters)}`);
     }
     if ((changed as Map<PropertyKey, unknown>).has('filters')) this.cardPage = 1; // a private state: not in PropertyValues<this>
   }
 
   // ---------------------------------------------------------------- data
 
-  private async boot(): Promise<void> {
+  protected boot(): Promise<void> {
     void boardPrefs().then((p) => (this.view = p.view === 'table' ? 'table' : 'cards')); // CR-038 S6b
-    try {
-      const m = await ticketsApi().module();
-      this.module = m;
-      setTicketNames(m.name);
-      if (!m.enabled) {
-        this.screen = 'off';
-        return;
-      }
-      this.meta = await ticketsApi().meta();
-      this.reloadIfNeeded(true);
-    } catch (e) {
-      this.fail(e);
-    }
+    return super.boot();
   }
 
-  private fail(e: unknown): void {
-    if (e instanceof ApiError && e.status === 403) this.screen = 'forbidden';
-    else if (e instanceof ApiError && e.status === 404 && e.body.code === 'feature_disabled') this.screen = 'off';
-    else {
-      this.failed = describeError(e);
-      this.screen = 'error';
-    }
+  protected async loadMeta(): Promise<void> {
+    this.meta = await ticketsApi().meta();
   }
 
   private key(): string {
@@ -401,7 +229,7 @@ export class TicketsList extends LitElement {
     return `${this.r.scope}|${f.status}|${f.department}|${f.q.trim()}`;
   }
 
-  private reloadIfNeeded(force = false): void {
+  protected reloadIfNeeded(force = false): void {
     const k = this.key();
     if (!force && k === this.listKey) return;
     this.listKey = k;
@@ -463,12 +291,6 @@ export class TicketsList extends LitElement {
     this.counts = foldCounts({ scopes: { mine, department, all }, states, departments: f.department ? depts : cur });
   }
 
-  private say(text: string, tone: 'ok' | 'bad' = 'ok'): void {
-    this.toast = { text, tone };
-    window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => (this.toast = null), tone === 'bad' ? 7000 : 3500);
-  }
-
   // ---------------------------------------------------------------- navigation
 
   private setFilters(patch: Partial<ListFilters>, replace = false): void {
@@ -476,34 +298,17 @@ export class TicketsList extends LitElement {
     writeHref(listHref(this.r.scope, f, { t: this.r.ticketId || undefined }), replace);
   }
 
-  private onSearch(v: string): void {
-    this.q = v;
-    this.pendingQ = v;
-    window.clearTimeout(this.qTimer);
-    this.qTimer = window.setTimeout(() => this.setFilters({ q: v }, true), 300);
+  protected searchTo(v: string): void {
+    this.setFilters({ q: v }, true);
   }
 
-  private detailMode() {
-    return this.module?.ui.detail ?? 'drawer_fullscreen';
+  protected openHref(id: string): string {
+    return listHref(this.r.scope, this.r.filters, { t: id });
   }
 
-  private hrefOf(id: string, timeline = false): string {
-    if (this.detailMode() === 'fullscreen') return ticketHref(id);
-    const href = listHref(this.r.scope, this.r.filters, { t: id });
-    return timeline ? `${href}${href.includes('?') ? '&' : '?'}view=timeline` : href;
+  protected plainHref(): string {
+    return listHref(this.r.scope, this.r.filters);
   }
-
-  private onCardAction = (e: CustomEvent<{ item: TicketItem; action: TicketCardAction }>) => {
-    const { item, action } = e.detail;
-    if (action === 'open') writeHref(this.hrefOf(item.id), false);
-    else if (action === 'full') writeHref(ticketHref(item.id), false);
-    else if (action === 'copy') {
-      const url = `${location.origin}${location.pathname}${location.search}${ticketHref(item.id)}`;
-      void navigator.clipboard?.writeText(url).then(() => this.say(tt('linkCopied'))).catch(() => this.say(url));
-    }
-  };
-
-  private closeDrawer = () => this.isConnected && writeHref(listHref(this.r.scope, this.r.filters), false);
 
   /** Returned by a non-member handler, or deleted (owner 14.10): the drawer closes, the cards and the table drop it and reload. */
   private onTicketGone = (e: CustomEvent<{ id: string; deleted?: boolean }>) => {
@@ -645,10 +450,6 @@ export class TicketsList extends LitElement {
     </header>`;
   }
 
-  private stateBox(icon: Parameters<typeof tIcon>[0], title: string, kind: string, action?: TemplateResult): TemplateResult {
-    return html`<div class="statebox glass" role="status" data-tickets-state=${kind}><span class="ring">${tIcon(icon)}</span><b>${title}</b>${action ?? nothing}</div>`;
-  }
-
   private body(): TemplateResult {
     switch (this.screen) {
       case 'loading': {
@@ -699,7 +500,7 @@ export class TicketsList extends LitElement {
       const f = this.fit;
       const pages = f ? packPages([{ id: 'list', head: false, groups: [{ key: 'all', sub: false, items: shown, cols: f.cols, rowH: f.rowH, gap: f.gap, heightOf: (t) => this.cardH.get(t.id) }] }], { room: f.room, headH: 0, subH: 0, secGap: 0, inGap: 0, blkGap: 0 }) : [];
       this.pageCount = Math.max(1, pages.length);
-      const at = Math.min(Math.max(1, this.cardPage), this.pageCount);
+      const at = this.pageAt();
       const list = f ? pages[at - 1]?.[0]?.groups[0]?.items ?? [] : shown;
       return html`<div class="pgbox" data-tickets-pages data-page=${at} data-pages=${this.pageCount}>${grid(list)}</div>`;
     }
@@ -725,7 +526,7 @@ export class TicketsList extends LitElement {
       @drawer-close=${this.closeDrawer} @ticket-changed=${this.onTicketChanged} @ticket-gone=${this.onTicketGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${this.r.scope} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}
       @close=${() => writeHref(listHref(this.r.scope, this.r.filters), false)} @created=${this.onCreated}></ticket-create>` : nothing}
-    ${this.toast ? html`<div class=${`banner flt ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-tickets-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div>${this.toast.text}</div></div>` : nothing}`;
+    ${this.toastView()}`;
   }
 }
 

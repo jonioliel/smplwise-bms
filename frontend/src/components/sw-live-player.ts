@@ -6,6 +6,7 @@ import { can, cap, isApi, onRemote } from '../api/session';
 import { frameSaysDown, isDownState, videoService, VIDEO_SERVICE_DOWN_HE, VIDEO_SERVICE_HINT_ADMIN, VIDEO_SERVICE_HINT_OTHER } from '../api/video-service';
 import './sw-video-service-picker';
 import { productSettings } from '../api/prefs';
+import { PollController } from './poll-controller';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mainFirst, mseFirst, noteSubDown, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, subDown, subFallbackStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type SubFallbackReason, type VideoStep } from '../api/video-policy';
 import { frameSaysReplaced, replacedCloseCode } from '../api/socket-replaced';
@@ -162,7 +163,9 @@ export class SwLivePlayer extends LitElement {
   /** the transcode cap is full: the refreshing snapshot's notice (the live socket is retried meanwhile) */
   @state() stillNotice = '';
   @state() private posterTick = 0;
-  private stillTimer: number | undefined;
+  /** CR-SHELL-TIMERS-2439 (07:F14): the snapshot re-fetch every STILL_REFRESH_MS while the transcode cap holds the tile on it - paused
+   * while the page is hidden (no image request), refreshed once on return. */
+  private stillPoll = new PollController(this);
   /** LAN / Ingress fallback chain of a live camera (no plan) and the step being tried */
   private chain: VideoStep[] = [];
   private chainIndex = 0;
@@ -1084,13 +1087,12 @@ export class SwLivePlayer extends LitElement {
       return;
     }
     this.stillNotice = message || transcodeCapHe(Number(max) || 0);
-    if (this.stillTimer === undefined) this.stillTimer = window.setInterval(() => (this.posterTick += 1), STILL_REFRESH_MS);
+    if (!this.stillPoll.has('still')) this.stillPoll.every('still', STILL_REFRESH_MS, () => void (this.posterTick += 1));
     this.fail(this.stillNotice, true, refusal);
   }
 
   private endStill() {
-    if (this.stillTimer !== undefined) window.clearInterval(this.stillTimer);
-    this.stillTimer = undefined;
+    this.stillPoll.cancel('still');
     this.stillNotice = '';
   }
 

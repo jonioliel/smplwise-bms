@@ -18,6 +18,7 @@ import type { Camera } from '../api/types';
 import { LOCAL_ONLY_GENERIC, can, canAnywhere, isApi, onRemote } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { mediaAdminRowCss } from './media-admin-form-css';
 import { castChip } from './media-cast-label';
 import type { CastCapability } from '../api/media-admin';
 import { CastWatch, castStore } from '../components/cast-store';
@@ -51,7 +52,7 @@ export class SystemCast extends LitElement {
   @state() private testMsg = '';
   private watch = new CastWatch(this);
 
-  static styles = [bubbleChrome, css`
+  static styles = [bubbleChrome, mediaAdminRowCss, css`
     :host {
       display: block;
     }
@@ -59,31 +60,6 @@ export class SystemCast extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 14px;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-      flex-wrap: wrap;
-    }
-    .row:last-child {
-      border-block-end: 0;
-    }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-inline-size: 0;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-    }
-    .muted {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-regular);
     }
     .mono {
       font-family: var(--sw-font-mono);

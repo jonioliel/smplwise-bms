@@ -7,6 +7,7 @@
 import type { DisplayZone } from '../api/intercom';
 import type { AccessAuth, AccessEvent, AccessEventFilters, AccessEventsPage, AccessResult } from '../api/access-events';
 import { fromLocalInput, localInput, offsetAt, resolveLocalInput, UTC_ZONE } from '../screens/wiskey-format';
+import { addDaysIso } from '../format/day-key';
 
 // ---------------------------------------------------------------- the filter state of the chips
 
@@ -67,7 +68,7 @@ export function localDate(ms: number, zone: DisplayZone): string {
 
 /** `date` (YYYY-MM-DD) moved by `days` calendar days (pure date arithmetic - no zone, no DST). */
 export function addDays(date: string, days: number): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  return addDaysIso(date, days); // CR-FORMAT-2440: format/day-key.ts (the ISO-parsing form this feed always used)
 }
 
 /** The first instant of the local day `date` in `zone`, as an aware ISO string (UTC). A midnight that a DST change skips

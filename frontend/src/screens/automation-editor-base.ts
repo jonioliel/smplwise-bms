@@ -31,7 +31,11 @@ import {
   makeBlock, mergeIssues, moveBlock, moveBlockTo, placeChips, removeBlock, resolveList, saveRoute, scanJson, storedConfigOf, subtreeUids, updateBlock, withTemplateText,
   type EditorEnv, type Section,
 } from './automation-editor-logic';
+import { KeyedMemo } from './editor-guards';
+import { GATE_TEXT, saveGateOf, warningsOnly, type SaveGate } from './automation-save-gate';
 
+/** CR-EDITORS-MEMO-2440 (06:INFILE-1): the button row of a dialog's footer (it was written out eight times). */
+const dlgFoot = (buttons: TemplateResult): TemplateResult => html`<div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%">${buttons}</div>`;
 /** The short reason chip of a locked block ("why locked"). */
 const WHY_SHORT: Record<string, string> = { template: 'תבנית', device: 'מכשיר', purpose_trigger: 'ייעודי', custom_service: 'שירות מיוחד', service_not_allowed: 'לא מותר', unsupported_step: 'מתקדם', disabled_step: 'מושבת', secret: 'חסוי', code: 'חסוי', unknown: 'לא מוכר' };
 /** Item read-only reasons that block only the SAVE (editing, preview and the dry-run still work; mockup 25-26). */
@@ -112,6 +116,13 @@ export abstract class AutomationEditorBase extends LitElement {
   private lastDialogClose = 0;
   private lastKeyEsc = 0;
   private suggestDraft: unknown = null;
+  // CR-EDITORS-MEMO-2440 (06:PERF-3): `issues`, `issuesBy`, `dirty` and the block paths are read once per list, per nested block and per
+  // card in one render; each is computed once per set of inputs (the draft is always REPLACED, and `version` moves with it), and
+  // forgotten at the start of every update.
+  private readonly issuesMemo = new KeyedMemo<Issue[]>();
+  private readonly issuesByMemo = new KeyedMemo<Record<string, Issue[]>>();
+  private readonly dirtyMemo = new KeyedMemo<boolean>();
+  private readonly pathsMemo = new KeyedMemo<Map<string, string>>();
   @query('dialog.sheet') protected sheet!: HTMLDialogElement;
   @query('automation-code') protected codeEl?: HTMLElement & { focusLine(n: number): void };
 
@@ -781,7 +792,9 @@ export abstract class AutomationEditorBase extends LitElement {
   protected get dirty(): boolean {
     if (!this.draft || !this.env) return false;
     if (this.view === 'code' && this.codeText !== this.codeBase) return true;
-    return canonicalOf(this.kind, this.draft, this.env.ctx, this.item?.config_id ?? null) !== this.initial;
+    const { kind, draft, env, initial } = this;
+    const id = this.item?.config_id ?? null;
+    return this.dirtyMemo.get([kind, draft, this.version, env, id, initial], () => canonicalOf(kind, draft, env.ctx, id) !== initial);
   }
   protected get hardReadOnly(): boolean {
     if (!this.status) return false;
@@ -802,8 +815,12 @@ export abstract class AutomationEditorBase extends LitElement {
 
   protected get issues(): Issue[] {
     if (!this.draft || !this.env) return [];
-    const local = validateDraft(this.kind, this.draft, { shabbatSensor: this.env.catalog.shabbat_sensor, notifyTargets: this.env.notifyActions, ...(this.env.catalog.allowed_actions ? { allowedActions: this.env.catalog.allowed_actions } : {}) });
-    return mergeIssues(local, this.freshPreview?.errors ?? [], this.serverIssues);
+    const { kind, draft, env, serverIssues } = this;
+    const remote = this.freshPreview?.errors;
+    return this.issuesMemo.get([kind, draft, this.version, env, remote, serverIssues], () => {
+      const local = validateDraft(kind, draft, { shabbatSensor: env.catalog.shabbat_sensor, notifyTargets: env.notifyActions, ...(env.catalog.allowed_actions ? { allowedActions: env.catalog.allowed_actions } : {}) });
+      return mergeIssues(local, remote ?? [], serverIssues);
+    });
   }
   protected get missingGrants(): NonNullable<PreviewResult['sensitive_steps']> {
     if (!this.draft || !this.env) return [];
@@ -812,25 +829,27 @@ export abstract class AutomationEditorBase extends LitElement {
   }
 
   /** Why the save is off right now (null = it may be pressed). */
-  protected get saveGate(): { text: string } | null {
+  protected get saveGate(): SaveGate | null {
     const s = this.status;
-    if (!s || !this.draft || !this.env) return { text: 'טוען' };
-    if (this.hardReadOnly) return { text: this.roText };
-    if (this.busy) return { text: '' };
-    const sb = saveBlocker(this.kind, s);
-    if (sb) return { text: sb.text };
-    if (this.view === 'code') {
-      if (this.codeMode === 'readonly') return { text: 'צפייה בלבד' };
-      return this.codeOk && this.codeDirtyOrDraft ? null : { text: this.codeOk ? '' : 'יש דברים לתקן' };
-    }
-    if (this.issues.length) return { text: 'יש דברים לתקן' };
-    if (this.missingGrants.length) return { text: grantText(this.missingGrants[0].action, this.env.ctx.names!(this.missingGrants[0].entity_id)) };
-    const p = this.freshPreview;
-    if (p) { const pb = previewSaveBlocker(p, s); if (pb && pb.code !== 'invalid') return { text: pb.text }; }
-    if (!this.isNew && !this.dirty) return { text: '' };
-    // KAV079-295: last, so every other gate (grants, the code-view rule, unchanged) still holds; "שמירה עם אזהרות" overrides only this one
-    if (this.warnMode !== 'save') return { text: this.warnMode === 'blocked' ? 'יש אזהרות לטיפול' : 'יש אזהרות' };
-    return null;
+    const env = this.env;
+    if (!s || !this.draft || !env) return { code: 'loading', text: GATE_TEXT.loading };
+    return saveGateOf({
+      loaded: true,
+      hardReadOnly: this.hardReadOnly,
+      roText: this.roText,
+      busy: !!this.busy,
+      blockerText: saveBlocker(this.kind, s)?.text ?? null,
+      view: this.view,
+      codeMode: this.codeMode,
+      codeOk: this.codeOk,
+      codeDirtyOrDraft: () => this.codeDirtyOrDraft,
+      issueCount: () => this.issues.length,
+      grantText: () => { const g = this.missingGrants[0]; return g ? grantText(g.action, env.ctx.names!(g.entity_id)) : null; },
+      previewText: () => { const p = this.freshPreview; const pb = p ? previewSaveBlocker(p, s) : null; return pb && pb.code !== 'invalid' ? pb.text : null; },
+      isNew: this.isNew,
+      dirty: () => this.dirty,
+      warnMode: this.warnMode,
+    });
   }
   protected get codeDirtyOrDraft(): boolean { return this.isNew || this.codeText !== this.codeBase || this.dirty; }
 
@@ -862,6 +881,7 @@ export abstract class AutomationEditorBase extends LitElement {
   };
 
   protected willUpdate(changed: PropertyValues<this>) {
+    this.issuesMemo.clear(); this.issuesByMemo.clear(); this.dirtyMemo.clear(); this.pathsMemo.clear();
     if (changed.has('scheme') && this.scheme) applyDevicesScheme(this, this.scheme);
     if (changed.has('open') && !this.open) { window.clearTimeout(this.previewTimer); }
     if ((changed.has('itemId') || changed.has('mode') || changed.has('draft0') || (changed.has('open') && this.open)) && this.open) void this.init();
@@ -923,8 +943,13 @@ export abstract class AutomationEditorBase extends LitElement {
   /** A push said this item changed in the platform: re-read it; a moved revision shows the conflict banner (mockup 27). */
   async notifyExternalChange(): Promise<void> {
     if (this.isNew || !this.item || this.busy) return;
+    // CR-EDITORS-MEMO-2440 (06:RACE-7): the editor is re-used for another item (and re-loads) while this read is in flight; the answer
+    // then belongs to the item that was open when it was asked, and must not raise a conflict banner on the one open now
+    const id = this.itemId!;
+    const token = this.loadToken;
     try {
-      const cur = await automations().get(this.kind, this.itemId!);
+      const cur = await automations().get(this.kind, id);
+      if (token !== this.loadToken || this.itemId !== id || !this.item) return;
       if (cur.revision !== this.item.revision) this.conflict = cur;
     } catch { /* the item may be gone: the next save says so */ }
   }
@@ -994,7 +1019,8 @@ export abstract class AutomationEditorBase extends LitElement {
 
   private async save(confirm = false, withWarnings = false) {
     if (!this.draft || !this.env || !this.status) return;
-    if (!confirm && this.saveGate && !(withWarnings && this.warnMode === 'with_warnings' && this.saveGate.text === 'יש אזהרות')) return;
+    const gate = confirm ? null : this.saveGate;
+    if (gate && !(withWarnings && warningsOnly(gate, this.warnMode))) return;
     if (!confirm && this.view === 'builder' && (this.freshPreview?.requires.confirm ?? hasUnknownEffects(this.draft))) { this.dialog = 'confirm-save'; return; }
     this.busy = 'save'; this.saveError = ''; this.dialog = null;
     try {
@@ -1062,12 +1088,16 @@ export abstract class AutomationEditorBase extends LitElement {
     this.draft = d; this.storedDraft = clone(cur.draft); this.initial = canonicalOf(this.kind, d, this.env.ctx, cur.config_id);
     this.lockedFps = lockedFingerprints(d); this.conflict = null; this.touched = false; this.openUid = null; this.view = 'builder'; this.version++; this.schedulePreview(0);
   }
+  /** The edit continues on top of the other person's revision: the item (and its revision) are theirs, the draft stays mine. */
+  private rebaseOn(cur: ItemDetail) {
+    this.item = { ...cur, draft: this.item?.draft ?? cur.draft } as ItemDetail;
+    this.storedDraft = clone(cur.draft);
+  }
   private keepMine() {
     const cur = this.conflict;
     if (!cur) return;
     // the same edit on top of the current revision (an explicit choice; the server re-checks everything)
-    this.item = { ...cur, draft: this.item?.draft ?? cur.draft } as ItemDetail;
-    this.storedDraft = clone(cur.draft);
+    this.rebaseOn(cur);
     this.conflict = null;
     void this.save();
   }
@@ -1099,15 +1129,18 @@ export abstract class AutomationEditorBase extends LitElement {
     if (!this.draft) return;
     this.busy = 'dry'; this.note = '';
     try {
-      const saved = !this.isNew && !this.dirty && this.item;
-      if (saved) this.dryResult = await automations().dryRun(this.kind, this.item!.id);
-      else {
-        const p = await automations().preview({ kind: this.kind, id: this.isNew ? null : this.item?.id ?? null, draft: this.draft });
-        this.dryResult = { conditions: ('conditions' in this.draft ? this.draft.conditions : []).map((c) => ({ sentence: c.sentence, passed: null })), effects: p.effects };
-      }
+      this.dryResult = await this.computeDry(this.draft);
       this.dialog = 'dry';
     } catch (e) { this.note = automationErrorText(e); }
     this.busy = '';
+  }
+
+  /** What a test would do: the saved item is dry-run by the server; an unsaved draft shows the preview's effects (its conditions cannot be checked). */
+  private async computeDry(draft: AnyDraft): Promise<DryRunResult> {
+    const saved = !this.isNew && !this.dirty && this.item;
+    if (saved) return automations().dryRun(this.kind, saved.id);
+    const p = await automations().preview({ kind: this.kind, id: this.isNew ? null : this.item?.id ?? null, draft });
+    return { conditions: ('conditions' in draft ? draft.conditions : []).map((c) => ({ sentence: c.sentence, passed: null })), effects: p.effects };
   }
 
   private async toggleEnabled(on: boolean, confirm = false) {
@@ -1188,7 +1221,12 @@ export abstract class AutomationEditorBase extends LitElement {
     if (!this.draft || this.kind !== 'automation') return [];
     const ws = precheckWarnings(this.freshPreview);
     if (!ws.length) return [];
-    const path = walkDraft(this.draft).find((w) => w.block.uid === b.uid)?.path;
+    const draft = this.draft;
+    const path = this.pathsMemo.get([draft, this.version], () => {
+      const m = new Map<string, string>();
+      for (const w of walkDraft(draft)) if (!m.has(w.block.uid)) m.set(w.block.uid, w.path);
+      return m;
+    }).get(b.uid);
     if (!path) return [];
     return ws.filter((w) => w.path === path).map((w) => ({ tone: 'warn' as const, icon: 'warning',
       text: w.code === 'conflict' ? `התנגשות${typeof w.delta_min === 'number' ? ` · ${w.delta_min} דק׳` : ''}` : w.code === 'button_in_use' ? 'בשימוש' : 'התקן לא זמין' }));
@@ -1220,7 +1258,10 @@ export abstract class AutomationEditorBase extends LitElement {
   }
 
   private get issuesBy(): Record<string, Issue[]> {
-    return this.draft ? issuesByUid(this.draft, this.issues) : {};
+    const draft = this.draft;
+    if (!draft) return {};
+    const issues = this.issues;
+    return this.issuesByMemo.get([draft, issues], () => issuesByUid(draft, issues));
   }
 
   protected renderCard(b: Block, section: Section, ref: { owner: string; name: string; index: number; count: number }, by: Record<string, Issue[]>) {
@@ -1469,7 +1510,7 @@ export abstract class AutomationEditorBase extends LitElement {
       ${sug ? html`<button class="sugg" type="button" data-suggest-schedule @click=${() => { this.suggestDraft = sug.schedule_draft; this.dialog = 'suggest'; }}>${icon('calendar')}צור כתזמון</button>` : nothing}
       <span class="sp"></span>
       <button class="btn quiet" type="button" data-editor-cancel @click=${() => this.requestCancel()}>ביטול</button>
-      ${this.warnMode === 'with_warnings' && gate?.text === 'יש אזהרות' ? html`<button class="btn warn" type="button" data-editor-save-warnings ?disabled=${!!this.busy} @click=${() => void this.save(false, true)}>${icon('warning')}${this.busy === 'save' ? 'שומר…' : 'שמירה עם אזהרות'}</button>` : nothing}
+      ${warningsOnly(gate, this.warnMode) ? html`<button class="btn warn" type="button" data-editor-save-warnings ?disabled=${!!this.busy} @click=${() => void this.save(false, true)}>${icon('warning')}${this.busy === 'save' ? 'שומר…' : 'שמירה עם אזהרות'}</button>` : nothing}
       <button class="btn primary" type="button" data-editor-save title=${gate?.text ?? ''} ?disabled=${!!gate} @click=${() => void this.save()}>${icon('check')}${this.busy === 'save' ? 'שומר…' : 'שמירה'}</button>
     </footer>${this.note ? html`<div class="runnote" role="status" data-note>${this.note}</div>` : nothing}`;
   }
@@ -1518,23 +1559,23 @@ export abstract class AutomationEditorBase extends LitElement {
     return html`
       <sw-dialog heading="לצאת בלי לשמור?" ?open=${d === 'discard'} @close=${close}>
         <div class="dlg-body">השינויים שעשיתם לא יישמרו.</div>
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" data-discard="keep" @click=${() => (this.dialog = null)}>המשך עריכה</button><button class="btn danger" type="button" data-discard="leave" @click=${() => this.cancel()}>צא בלי לשמור</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" data-discard="keep" @click=${() => (this.dialog = null)}>המשך עריכה</button><button class="btn danger" type="button" data-discard="leave" @click=${() => this.cancel()}>צא בלי לשמור</button>`)}
       </sw-dialog>
       <sw-dialog heading="לשמור?" ?open=${d === 'confirm-save'} @close=${close}>
         <div class="dlg-body">כולל פעולה מתקדמת שהמערכת לא יודעת לתאר – ${name ? `"${name}"` : 'הפריט'} עלול לשנות מכשירים נוספים.</div>
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn primary" type="button" data-confirm-save @click=${() => void this.save(true)}>שמירה</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn primary" type="button" data-confirm-save @click=${() => void this.save(true)}>שמירה</button>`)}
       </sw-dialog>
       <sw-dialog heading="להריץ עכשיו?" ?open=${d === 'run'} @close=${close}>
         <div class="dlg-body" data-run-confirm>${this.item?.sensitive ? 'כולל פעולה רגישה – נבדקת כמו שליטה ידנית.' : 'כולל פעולה מתקדמת שהמערכת לא יודעת לתאר.'}${this.dirty ? ' ההרצה תתבצע על הגרסה השמורה.' : ''}</div>
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn primary" type="button" data-run-confirm-ok @click=${() => void this.runNow(true)}>הרץ</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn primary" type="button" data-run-confirm-ok @click=${() => void this.runNow(true)}>הרץ</button>`)}
       </sw-dialog>
       <sw-dialog heading="להפעיל?" ?open=${d === 'enable'} @close=${close}>
         <div class="dlg-body">כולל פעולה מתקדמת שהמערכת לא יודעת לתאר.</div>
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn primary" type="button" @click=${() => void this.toggleEnabled(true, true)}>הפעל</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn primary" type="button" @click=${() => void this.toggleEnabled(true, true)}>הפעל</button>`)}
       </sw-dialog>
       <sw-dialog heading="למחוק?" ?open=${d === 'delete'} @close=${close}>
         <div class="dlg-body">${name ? `"${name}"` : 'הפריט'} יועבר לסל המחזור, ואפשר לשחזר אותו משם.</div>
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn danger" type="button" data-delete-confirm @click=${() => void this.deleteNow()}>מחיקה</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" @click=${() => (this.dialog = null)}>ביטול</button><button class="btn danger" type="button" data-delete-confirm @click=${() => void this.deleteNow()}>מחיקה</button>`)}
       </sw-dialog>
       <sw-dialog heading="בדיקה · בלי להפעיל כלום" ?open=${d === 'dry'} @close=${close}>
         ${this.dryResult ? html`<div class="dlg-body" data-dry-result>
@@ -1543,9 +1584,8 @@ export abstract class AutomationEditorBase extends LitElement {
           ${this.dryResult.effects.entities.length ? this.dryResult.effects.entities.map((e) => html`<div class="kvrow"><span>${e.name}</span><span>${e.from ? `${e.from} → ` : ''}${e.to ?? ''}</span></div>`) : html`<div class="kvrow"><span>לא ידוע אילו מכשירים ישתנו</span></div>`}
           ${this.dryResult.effects.unknown ? html`<div class="kvrow"><span>כולל פעולה מתקדמת</span></div>` : nothing}
         </div>` : nothing}
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%">
-          ${!this.isNew && this.kind === 'automation' && this.item?.can.run ? html`<button class="btn" type="button" data-dry-run-then @click=${() => { this.dialog = null; void this.runNow(!(this.item && runNeedsConfirm(this.item)), false); }}>${icon('play')}בדוק תנאים ואז הרץ</button>` : nothing}
-          <button class="btn primary" type="button" data-dry-close @click=${() => (this.dialog = null)}>סגירה</button></div>
+        ${dlgFoot(html`${!this.isNew && this.kind === 'automation' && this.item?.can.run ? html`<button class="btn" type="button" data-dry-run-then @click=${() => { this.dialog = null; void this.runNow(!(this.item && runNeedsConfirm(this.item)), false); }}>${icon('play')}בדוק תנאים ואז הרץ</button>` : nothing}
+          <button class="btn primary" type="button" data-dry-close @click=${() => (this.dialog = null)}>סגירה</button>`)}
       </sw-dialog>
       <sw-dialog heading="בדיקה" ?open=${d === 'devtest'} @close=${close}>${d === 'devtest' ? html`<kav-device-test .itemId=${this.item?.id ?? null} .draft=${this.dirty ? this.draft : null} .dry=${this.dryResult} .flags=${this.ext}
         @need-dry=${() => void this.loadDry()} @test-close=${() => { this.dialog = null; this.emit('item-changed', { kind: this.kind, id: this.item?.id }); }}></kav-device-test>` : nothing}</sw-dialog>
@@ -1553,11 +1593,11 @@ export abstract class AutomationEditorBase extends LitElement {
         .base=${this.storedDraft} .mine=${this.draft} .theirs=${this.conflict.draft} .ctx=${this.env.ctx} theirsLabel=${this.theirsLabel()}
         @merge-cancel=${() => (this.dialog = null)} @merge-save=${(e: CustomEvent<{ draft: AnyDraft }>) => this.saveMerged(e.detail.draft)}></kav-merge>` : nothing}</sw-dialog>
       <sw-dialog heading="השוואה" subheading="שלי מול הגרסה החדשה" ?open=${d === 'compare'} @close=${close}>${this.renderCompare()}
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" @click=${() => (this.dialog = null)}>סגירה</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" @click=${() => (this.dialog = null)}>סגירה</button>`)}
       </sw-dialog>
       <sw-dialog heading="ליצור כתזמון?" ?open=${d === 'suggest'} @close=${close}>
         <div class="dlg-body" data-suggest-body>"${name || 'האוטומציה'}" היא שעון + שליטה במכשירים – בתזמונים זה פשוט יותר. חלון התזמון ייפתח עם הנתונים שכבר הזנתם.</div>
-        <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;inline-size:100%"><button class="btn" type="button" data-suggest-no @click=${() => (this.dialog = null)}>השאר אוטומציה</button><button class="btn primary" type="button" data-suggest-yes @click=${() => this.openSchedule()}>פתח תזמון חדש</button></div>
+        ${dlgFoot(html`<button class="btn" type="button" data-suggest-no @click=${() => (this.dialog = null)}>השאר אוטומציה</button><button class="btn primary" type="button" data-suggest-yes @click=${() => this.openSchedule()}>פתח תזמון חדש</button>`)}
       </sw-dialog>`;
   }
 
@@ -1570,12 +1610,7 @@ export abstract class AutomationEditorBase extends LitElement {
   private async loadDry() {
     if (!this.draft || this.dryResult) return;
     try {
-      const saved = !this.isNew && !this.dirty && this.item;
-      if (saved) this.dryResult = await automations().dryRun(this.kind, this.item!.id);
-      else {
-        const p = await automations().preview({ kind: this.kind, id: this.isNew ? null : this.item?.id ?? null, draft: this.draft });
-        this.dryResult = { conditions: ('conditions' in this.draft ? this.draft.conditions : []).map((c) => ({ sentence: c.sentence, passed: null })), effects: p.effects };
-      }
+      this.dryResult = await this.computeDry(this.draft);
     } catch (e) { this.note = automationErrorText(e); }
   }
   /** "של <name> · HH:MM" for the other version (the last version row's actor when the history says it), else "החדש · HH:MM". */
@@ -1589,8 +1624,7 @@ export abstract class AutomationEditorBase extends LitElement {
     const cur = this.conflict;
     if (!cur || !this.env) return;
     refreshSentences(merged, this.env.ctx);
-    this.item = { ...cur, draft: this.item?.draft ?? cur.draft } as ItemDetail;
-    this.storedDraft = clone(cur.draft);
+    this.rebaseOn(cur);
     this.draft = merged;
     this.conflict = null;
     this.dialog = null;

@@ -86,3 +86,10 @@ export function dateInputLangFor(lang?: string | null): string {
 export function dateInputLang(): string {
   return dateInputLangFor(typeof document === 'undefined' ? '' : document.documentElement.lang);
 }
+
+/** CR-CSS-FRAGMENTS-2440 (review finding 06:DUP-11): an instant as UTC ISO without milliseconds (`2026-11-16T08:05:00Z`) - the form the
+ * API routes take for a range bound. `.toISOString().replace(/\.\d{3}Z$/, 'Z')` was typed out in 48 places; this is that expression
+ * once (moved here from api/history-scrub.ts, which re-exports it). Throws `RangeError` for an invalid date, as `toISOString` does. */
+export function isoZ(d: Date | number): string {
+  return new Date(d).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}

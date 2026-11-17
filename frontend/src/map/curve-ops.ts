@@ -6,13 +6,13 @@
  *
  * The maths is wall-path.ts (plan pixels; positive bulge = clockwise on screen). No DOM, no Lit: tests/unit-curve-ops.spec.ts.
  */
+import { round5 } from './num';
 import { isClosedOutline, pointOnWall, type GeometryDoc, type GeomWall, type Pt } from './geometry';
 import { bulgeForRadius, bulgeThrough, bulgesOf, cumulative, fillet, MAX_BULGE, pathLength, pointAtS, project, radius, sample, wallPx, type P } from './wall-path';
 import { addWall, curveThrough, defaultLevelId, newId, withBulges, withThrough, type WallDefaults } from './studio-ops';
 import { fitCurve, minRadiusPx } from './curve-fit';
 import { withDocVersion } from './glass-wall';
 
-const round5 = (v: number): number => Math.round(v * 1e5) / 1e5;
 const clampPt = (p: Pt): Pt => [round5(Math.min(1, Math.max(0, p[0]))), round5(Math.min(1, Math.max(0, p[1])))];
 const toPx = (p: Pt, W: number, H: number): P => [p[0] * W, p[1] * H];
 

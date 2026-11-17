@@ -2,8 +2,8 @@
  * TKCAL: the words of the weekly calendar of the request list. A catalogue of its own (the list-text.ts / board-text.ts pattern):
  * Hebrew first, the English column falls back to the Hebrew, module-name tokens rendered with the configured name (D33).
  */
-import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { renderText, type TextVars } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   calGroup: 'יומן שבועי',
@@ -96,10 +96,11 @@ export function calTemplate(key: CalTextKey, lang: 'he' | 'en' = ticketsLang()):
   return (lang === 'en' ? enPlain[key] : undefined) ?? (he[key] as string);
 }
 
-export function ct(key: CalTextKey, vars?: Record<string, string | number>): string {
+/** A text of the calendar. CR-TK-CATALOGUE-2440: was `ct`, the same short name as cost-text's - a wrong auto-import compiled only by
+ * luck of the key types (review 08:F07). */
+export function calt(key: CalTextKey, vars?: TextVars): string {
   const lang = ticketsLang();
-  const named = tn(calTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
+  return renderText(calTemplate(key, lang), lang, vars);
 }
 
 type NameList = 'days' | 'daysShort' | 'months';

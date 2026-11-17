@@ -26,6 +26,7 @@ import { DEFAULT_NIGHT, parseCeiling, parseNight, presetFloors, presetRooms } fr
 import { SkinController } from '../design/skin';
 import { adminTable, mediaAdminListCss } from './media-admin-list';
 import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
+import { mediaAdminRowCss, mediaAdminFormCss } from './media-admin-form-css';
 import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -92,34 +93,9 @@ export class SystemMultimediaPlayers extends LitElement {
   private noteTimer = 0;
   private offPush: (() => void) | null = null;
 
-  static styles = [mediaAdminListCss, css`
+  static styles = [mediaAdminListCss, mediaAdminRowCss, mediaAdminFormCss, css`
     :host {
       display: contents;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-      flex-wrap: wrap;
-    }
-    .row:last-child {
-      border-block-end: 0;
-    }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-inline-size: 0;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-medium);
-    }
-    .muted {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-regular);
     }
     code,
     .mono {
@@ -128,38 +104,6 @@ export class SystemMultimediaPlayers extends LitElement {
       color: var(--sw-text-2);
       direction: ltr;
       unicode-bidi: isolate;
-    }
-    .dev {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 8px 0 0;
-    }
-    .line {
-      display: flex;
-      align-items: center;
-      gap: 10px 16px;
-      flex-wrap: wrap;
-    }
-    .line .grow {
-      flex: 1;
-    }
-    .f {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it on a phone */
-      max-inline-size: 100%;
-      min-inline-size: 0;
-    }
-    .f.inline {
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
     }
     input[type='text'],
     input[type='number'],
@@ -175,15 +119,8 @@ export class SystemMultimediaPlayers extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
     }
-    select {
-      max-inline-size: 100%;
-      min-inline-size: 0;
-    }
     input[type='text'] {
       min-inline-size: 200px;
-    }
-    input[type='number'] {
-      inline-size: 88px;
     }
     .night {
       display: inline-flex;
@@ -192,28 +129,6 @@ export class SystemMultimediaPlayers extends LitElement {
       flex-wrap: wrap;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
-    }
-    .ep {
-      display: grid;
-      grid-template-columns: minmax(140px, 1.4fr) minmax(90px, 0.8fr) minmax(0, 2fr) auto;
-      gap: 6px 12px;
-      align-items: center;
-      padding: 6px 0;
-      font-size: var(--sw-fs-sm);
-      border-block-end: 1px dashed var(--sw-border);
-    }
-    .ep:last-child {
-      border-block-end: 0;
-    }
-    .link {
-      color: var(--sw-accent-text);
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-      background: none;
-      border: 0;
-      padding: 0;
-      font-family: inherit;
-      min-block-size: 32px;
     }
     a.link {
       text-decoration: none;
@@ -231,10 +146,6 @@ export class SystemMultimediaPlayers extends LitElement {
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
-    }
-    .ib:disabled {
-      opacity: 0.35;
-      cursor: default;
     }
     .acts {
       display: flex;
@@ -261,10 +172,6 @@ export class SystemMultimediaPlayers extends LitElement {
       min-inline-size: 0;
       display: flex;
       flex-direction: column;
-      font-size: var(--sw-fs-sm);
-    }
-    .ok {
-      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {

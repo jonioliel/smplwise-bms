@@ -8,6 +8,7 @@ import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
 import { PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measureFitItems, pageCount, pageSlice } from '../api/screen-display';
+import { LongListsController, perPageFor } from '../api/long-lists';
 import { pl } from '../i18n/polish';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
@@ -15,6 +16,7 @@ import type { DropdownItem } from '../components/sw-dropdown';
 import { aIcon, type AutomationIconName } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
+import { KeyedMemo, NewestApplied, SingleFlight } from './editor-guards';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { applyAutomationsGlass, autoApi, autoReady } from '../api/automations-demo';
@@ -131,6 +133,9 @@ function writeStored(key: string, value: unknown) {
   }
 }
 
+/** CR-EDITORS-MEMO-2440: state that changes no size or position the header bar / the fit measurement reads (a popover menu, the toast, disabled buttons). */
+const NO_LAYOUT_STATE: ReadonlySet<string> = new Set(['menuFor', 'note', 'busy']);
+
 /** The floor of a schedule's devices when they share one ("קומת קרקע"), else '' (the card's bold "where" word). */
 function floorOf(s: Schedule): string {
   const floors = [...new Set(s.entities.map((e) => e.floor_name).filter((x): x is string => !!x))];
@@ -170,6 +175,12 @@ export class DevicesSchedules extends LitElement {
   /** FIX2200: the schedules that fit the screen's height in the rows view (NOSCROLL-295: and the table and cards views; null: not measured). The page size setting stays the maximum;
    * a shorter window (1366x768, a tablet) takes fewer rows a page instead of scrolling (owner rule: control screens never scroll). */
   @state() private fitRows: number | null = null;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the installation's long-lists setting - pages (the default) or every item drawn, the
+   * screen's own scroller scrolling (api/long-lists.ts). A change starts again at page 1 and measures the fit anew. */
+  private lists = new LongListsController(this, () => {
+    this.page = 1;
+    this.fitRows = null;
+  });
   /** POLISH-295: the selection boxes show only in selection mode (the user menu's "בחירה מרובה") or while something is picked. */
   @state() private selecting = false;
   @state() private filtersOpen = false;
@@ -196,10 +207,37 @@ export class DevicesSchedules extends LitElement {
   private offSelect: (() => void) | null = null;
   private stopWs: (() => void) | null = null;
   private lastWritten = '';
+  // CR-EDITORS-MEMO-2440 (06:RACE-6): one refresh round in flight and one waiting - a burst of pushes costs one extra round, and
+  // rounds cannot land out of order; `recheck` of any caller that shares the waiting round is kept
+  private readonly rounds = new SingleFlight<boolean>((recheck) => this.refreshRound(recheck), (a, b) => a || b);
+  /** The open schedule is read by `onSub` and by every round: an older answer never lands on a newer one. */
+  private readonly detailReads = new NewestApplied();
+  // CR-EDITORS-MEMO-2440 (06:PERF-6): the filtered and the sorted list, once per list / filters (both are replaced, never edited in place)
+  private readonly filteredMemo = new KeyedMemo<Schedule[]>();
+  private readonly sortedMemo = new KeyedMemo<Schedule[]>();
   private urlTimer = 0;
   private noteTimer = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* PAGING-SETTING-2439 (owner round 32, Q-SYS-4 a: the page itself never moves): with the long lists set to scroll (הגדרות › כללי) the
+       screen keeps its box on a desktop - the title, the chips, the toolbar and the upcoming strip stay - and only the list panel (.groups) scrolls */
+    @media (min-width: 1024px) {
+      :host([data-list-panel]) {
+        overflow: hidden;
+      }
+      :host([data-list-panel]) sw-page.page {
+        block-size: 100%;
+        min-block-size: 0;
+      }
+      :host([data-list-panel]) .groups {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+    }
     /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
       --sw-surface: var(--sw-surface-solid);
@@ -1243,9 +1281,18 @@ export class DevicesSchedules extends LitElement {
     window.clearTimeout(this.noteTimer);
   }
 
-  protected updated(_c: PropertyValues) {
-    measureHeaderBar(this.renderRoot, this.phone);
-    this.measureFit();
+  /** PAGING-SETTING-2439: the list panel scrolls, not the screen (the lists scroll; the rows, table or cards views of the main list). */
+  protected willUpdate() {
+    this.toggleAttribute('data-list-panel', !this.lists.paged && this.view !== 'week' && this.sub !== 'trash' && this.sub !== 'review' && !!this.items?.length);
+  }
+
+  protected updated(changed: PropertyValues) {
+    // CR-EDITORS-MEMO-2440 (06:PERF-6): the two measurements force a layout; an update that only opened a card's menu, showed a note
+    // or flipped `busy` moved nothing they read. An update with no changed property (requestUpdate after a resize) still measures.
+    if (!changed.size || [...changed.keys()].some((k) => !NO_LAYOUT_STATE.has(k as string))) {
+      measureHeaderBar(this.renderRoot, this.phone);
+      this.measureFit();
+    }
     const t = this.renderRoot.querySelector<HTMLElement>('.toast[popover]');
     if (t) {
       try {
@@ -1260,7 +1307,7 @@ export class DevicesSchedules extends LitElement {
    * NOSCROLL-295: the rows, the table and the cards views alike (a grid takes whole rows of cards); the ungrouped list only. */
   private measureFit(): void {
     const sel = this.view === 'rows' ? '[data-sched-rows]' : this.view === 'table' ? '[data-sched-table]' : this.view === 'cards' ? '[data-sched-grid]' : '';
-    const list = sel && !this.filters.group && !this.sub ? this.renderRoot.querySelector<HTMLElement>(sel) : null;
+    const list = sel && !this.filters.group && !this.sub && this.lists.paged ? this.renderRoot.querySelector<HTMLElement>(sel) : null;
     const fit = measureFitItems({ host: this, list, itemSelector: '[data-schedule]', pager: this.renderRoot.querySelector<HTMLElement>('[data-sched-pager]'), padded: [this.renderRoot.querySelector<HTMLElement>('.page')] });
     if (fit !== null && (this.fitRows === null || fit < this.fitRows)) this.fitRows = fit; // only ever smaller until a reset (no oscillation)
   }
@@ -1362,9 +1409,10 @@ export class DevicesSchedules extends LitElement {
     this.drawerUsed = true;
     this.detailMissing = false;
     this.detail = this.items?.find((s) => s.id === sub) ?? null;
+    const land = this.detailReads.begin();
     try {
       const fresh = await getSchedule(sub);
-      if (this.sub === sub) this.detail = fresh;
+      if (this.sub === sub && land()) this.detail = fresh;
     } catch (err) {
       if (this.sub === sub && err instanceof ApiError && err.status === 404) {
         this.detail = null;
@@ -1408,8 +1456,13 @@ export class DevicesSchedules extends LitElement {
     }
   }
 
-  /** The server says something changed (or a write finished): status, list and whatever is open, again. */
-  private async refresh(recheck = false) {
+  /** The server says something changed (or a write finished): status, list and whatever is open, again. One round at a time; a call
+   * made while a round runs waits for ONE further round that starts after it (so it reads what the caller just wrote). */
+  private refresh(recheck = false): Promise<void> {
+    return this.rounds.run(recheck);
+  }
+
+  private async refreshRound(recheck: boolean) {
     try {
       this.status = await getScheduleStatus(recheck);
     } catch {
@@ -1419,8 +1472,12 @@ export class DevicesSchedules extends LitElement {
     if (this.sub === 'trash') await this.loadTrash();
     else if (this.sub === 'review') await this.loadReview();
     else if (this.sub) {
+      // the person may open another schedule (or close the drawer) while this read is in flight: the answer is for `sub`
+      const sub = this.sub;
+      const land = this.detailReads.begin();
       try {
-        this.detail = await getSchedule(this.sub);
+        const fresh = await getSchedule(sub);
+        if (this.sub === sub && land()) this.detail = fresh;
       } catch {
         /* the detail keeps its last copy */
       }
@@ -1594,7 +1651,8 @@ export class DevicesSchedules extends LitElement {
       this.say(scheduleErrorText(err), 'error');
     } finally {
       this.busy = false;
-      await this.loadReview();
+      // the round reads the review list itself while the review is open (it used to be read twice in a row)
+      if (this.sub !== 'review') await this.loadReview();
       await this.refresh();
     }
   }
@@ -1891,10 +1949,12 @@ export class DevicesSchedules extends LitElement {
       return html`<schedules-week-view .schedules=${rows} .sun=${isApi() ? null : DEMO_SUN} .snap=${this.status?.settings.snap_minutes ?? 15} @open-schedule=${(e: CustomEvent<{ id: string }>) => this.go(e.detail.id)}></schedules-week-view>`;
     }
     // POLISH-295: one page at a time (control screens never scroll): the sorted list is cut to the page, then grouped
-    const sorted = sortSchedules(rows, this.filters.sort);
+    const sort = this.filters.sort;
+    const sorted = this.sortedMemo.get([rows, sort], () => sortSchedules(rows, sort));
     const setting = this.phone ? this.perPage.phone : this.perPage.wide;
     // FIX2200 / NOSCROLL-295: the rows, table and cards views take no more than fit the screen's height (measureFit); the setting is the maximum
-    const per = !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting;
+    // PAGING-SETTING-2439: the long lists scroll -> every schedule on one page (no pager)
+    const per = perPageFor(this.lists.paged, !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting, sorted.length);
     const pages = pageCount(sorted.length, per);
     const page = clampPage(this.page, sorted.length, per);
     const groups = groupSchedules(pageSlice(sorted, page, per), this.filters.group);
@@ -1962,7 +2022,8 @@ export class DevicesSchedules extends LitElement {
 
   private renderReady(st: ReturnType<typeof screenState>) {
     const all = this.items ?? [];
-    const rows = filterSchedules(all, this.filters);
+    const filters = this.filters;
+    const rows = this.filteredMemo.get([all, filters], () => filterSchedules(all, filters));
     const manage = !!this.status?.can.manage;
     let content: TemplateResult;
     if (!all.length) {

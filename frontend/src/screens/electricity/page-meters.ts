@@ -1,77 +1,57 @@
-import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { html, css, nothing, type TemplateResult } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-button';
 import '../../components/sw-dialog';
 import '../../components/sw-place-tree';
-import type { PlaceRow } from '../wiskey-stations-logic';
 import '../../components/sw-state-panel';
 import '../../electricity/meter-picker';
 import '../../electricity/meter-card';
-import { describeError } from '../../api/client';
 import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../../api/electricity-meters';
-import { navigate } from '../../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
 import { checkMeterName, meterNames, meterSearchText } from '../../electricity/meter-name';
 import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
-import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { MetersPageBase, metersGridCss, metersResponsiveCss, type MetersFrameState, type MetersPageTexts } from '../meters-page-base';
 
-const VIEW_KEY = 'sw.elec.meters.view';
-const COLLAPSE_KEY = 'sw.elec.meters.collapsed';
-const POLL_MS = 60_000;
-
-function stored<T>(key: string, fallback: T): T {
-  try {
-    const v = localStorage.getItem(key);
-    return v ? (JSON.parse(v) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-function store(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage unavailable: the choice lasts until the page closes */
-  }
-}
+/** The words of the shared parts of the page (screens/meters-page-base.ts). */
+const TEXTS: MetersPageTexts = {
+  search: 'חיפוש מונה',
+  view: 'תצוגה',
+  cards: 'כרטיסים',
+  table: 'טבלה',
+  area: 'אזור',
+  areas: 'אזורים',
+  allAreas: 'כל האזורים',
+  fold: 'כיווץ',
+  unfold: 'הרחבה',
+  addMeter: 'הוספת מונה',
+  loadError: 'לא ניתן לטעון את המונים',
+  retry: 'נסה שוב',
+};
 
 /**
  * תשתיות › מוני חשמל › מונים (CR-023, mockups "מונים: טבלה / כרטיסים / טעינה / ריק / שגיאה", "כרטיס מונה", "הוספת מונה"): the tiles, the floors and
  * areas tree (per-floor collapse) beside a table or cards of the meters, search, the meter card in a drawer (`?meter=<id>`), and the add-a-meter dialog
  * (`?add=1`) with the search by name and the kWh / kW verdicts. Meters carry no money: the screen needs only `energy.view`; `energy.manage` adds the
- * add button and the card's actions.
+ * add button and the card's actions. CR-DUP-METERS-2440: the page's frame, head row, areas tree, poll and filters are screens/meters-page-base.ts;
+ * this file is the electricity adapter (the kWh tiles, table, cards and rows, the add dialog with the meter picker, and the meter card).
  */
 @customElement('elec-meters-page')
-export class ElecMetersPage extends LitElement {
-  readonly bubbleSkin = new SkinController(this);
-  /** Set by the shell: the route segments after `meters` and the query. */
-  @property({ attribute: false }) segments: string[] = [];
-  @property({ attribute: false }) params: URLSearchParams = new URLSearchParams();
-
-  @state() private meters: Meter[] = [];
-  @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
-  @state() private error = '';
-  @state() private q = '';
-  @state() private view: 'table' | 'cards' = stored<'table' | 'cards'>(VIEW_KEY, 'table');
-  @state() private collapsed: string[] = stored<string[]>(COLLAPSE_KEY, []);
-  @state() private access: EnergyAccess = energyAccess();
+export class ElecMetersPage extends MetersPageBase<Meter, EnergyAccess> {
   @state() private picked: string[] = [];
   /** the friendly name typed for each picked sensor (pre-filled from the picker's suggestion) */
   @state() private pickedNames: Record<string, string> = {};
   @state() private nameTouched = false;
   @state() private adding = false;
   @state() private addErrors: string[] = [];
-  @state() private notice = '';
-  private stopAccess?: () => void;
-  private poll = 0;
   private noticeTimer = 0;
 
   static styles = [
     elecCss,
+    metersGridCss,
     css`
       :host {
         display: flex;
@@ -81,17 +61,6 @@ export class ElecMetersPage extends LitElement {
       }
       .head .inp {
         flex: 0 1 280px;
-      }
-      .cols {
-        display: grid;
-        grid-template-columns: 240px minmax(0, 1fr);
-        gap: 14px;
-        align-items: start;
-      }
-      .cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-        gap: 12px;
       }
       .ent {
         font-weight: 400;
@@ -103,34 +72,6 @@ export class ElecMetersPage extends LitElement {
       }
       td .ent {
         max-inline-size: 320px;
-      }
-      .mcard {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        text-align: start;
-        font: inherit;
-        color: inherit;
-        cursor: pointer;
-        min-block-size: var(--elec-touch);
-      }
-      /* R5-MEDIA-ENERGY-297: the reading is the card's display numeral; the card answers the press */
-      .mcard .big {
-        font-size: var(--sw-fs-4xl);
-        font-weight: 800;
-        letter-spacing: -0.03em;
-        line-height: 1.05;
-        font-variant-numeric: tabular-nums;
-        color: var(--sw-heading, var(--sw-text));
-      }
-      .mcard {
-        transition: transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-      }
-      .mcard:active {
-        transform: scale(var(--sw-press-scale));
-        box-shadow: var(--sw-shadow-1);
       }
       .phone-only {
         display: none;
@@ -145,22 +86,12 @@ export class ElecMetersPage extends LitElement {
         gap: 6px;
         margin-block-start: 8px;
       }
+    `,
+    metersResponsiveCss,
+    css`
       @media (max-width: 899px) {
-        .cols {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .tree-card {
-          display: none;
-        }
         .phone-only {
           display: flex;
-        }
-        .head .inp {
-          flex: 1 1 200px;
-        }
-        /* the phone's area select fills the row beside the add button (one tidy row instead of a short select and a shorter button) */
-        .head .inp.phone-only {
-          flex: 1 1 160px;
         }
         .desk-only {
           display: none;
@@ -169,52 +100,6 @@ export class ElecMetersPage extends LitElement {
       @media (max-width: 1099px) {
         .dsk {
           display: none;
-        }
-      }
-      /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the tree and the meters list take the height left
-         under the head and the tiles; the table (its header row stays in place), the cards and the tree each scroll inside their own
-         box, never the page. Below 240 px of room the row keeps that height and the page scrolls (a very short window). */
-      @media (min-width: 900px) {
-        [data-elec='meters'][data-state='ready'] {
-          flex: 1 1 auto;
-          min-block-size: 0;
-        }
-        .cols {
-          flex: 1 1 auto;
-          min-block-size: 240px;
-          grid-template-rows: minmax(0, 1fr);
-        }
-        .cols > .tree-card {
-          max-block-size: 100%;
-          box-sizing: border-box;
-          overflow-y: auto;
-          scrollbar-width: thin;
-        }
-        .cols > .mlist {
-          display: flex;
-          flex-direction: column;
-          max-block-size: 100%;
-          min-block-size: 0;
-          min-inline-size: 0;
-        }
-        .mlist > .scrollx,
-        .mlist > .cards {
-          min-block-size: 0;
-          overflow: auto;
-          scrollbar-width: thin;
-        }
-        /* GATEFIX2240-297: in a box of fixed height the grid shared that height out among its rows (the cards are overflow-clipped, so
-           their automatic minimum is 0): at 1024 px the meter cards were squeezed and their reading row spilled below the card, at 1440 px
-           they were stretched. Rows keep their content height and start at the top; the box scrolls. */
-        .mlist > .cards {
-          padding: 2px;
-          grid-auto-rows: max-content;
-          align-content: start;
-        }
-        .mlist table.t thead th {
-          position: sticky;
-          inset-block-start: 0;
-          z-index: 1;
         }
       }
       /* R5 fix: the R5 type (bolder chips and names) made the meters table 8 px wider than its card at 1024 px (classic); the cells
@@ -227,66 +112,34 @@ export class ElecMetersPage extends LitElement {
     bubbleChrome,
   ];
 
-  connectedCallback() {
-    super.connectedCallback();
-    this.stopAccess = onEnergyAccess((a) => (this.access = a));
-    void this.load(true);
-    this.poll = window.setInterval(() => void this.load(false), POLL_MS);
+  constructor() {
+    super({ viewKey: 'sw.elec.meters.view', collapseKey: 'sw.elec.meters.collapsed', route: '/infra/electricity/meters', access: energyAccess, onAccess: onEnergyAccess });
   }
 
   disconnectedCallback() {
-    this.stopAccess?.();
-    window.clearInterval(this.poll);
     window.clearTimeout(this.noticeTimer);
     super.disconnectedCallback();
   }
 
-  /** `initial`: show the loading state; a later refresh keeps the rows and only an error on the first load is a screen state. */
-  private async load(initial: boolean) {
-    if (initial) this.phase = 'loading';
-    try {
-      this.meters = await listMeters();
-      this.phase = 'ready';
-      this.error = '';
-    } catch (err) {
-      if (initial || this.phase !== 'ready') {
-        this.error = describeError(err);
-        this.phase = 'error';
-      }
-    }
+  protected texts(): MetersPageTexts {
+    return TEXTS;
   }
 
-  private get areaFilter(): string {
-    return this.params.get('area') ?? '';
+  protected fetchMeters(): Promise<Meter[]> {
+    return listMeters();
   }
 
-  private setParams(patch: Record<string, string | null>) {
-    const p = new URLSearchParams(this.params);
-    for (const [k, v] of Object.entries(patch)) {
-      if (v) p.set(k, v);
-      else p.delete(k);
-    }
-    const rec: Record<string, string> = {};
-    p.forEach((v, k) => (rec[k] = v));
-    navigate('/infra/electricity/meters', rec);
+  protected areaTree() {
+    return buildAreaTree(this.meters);
   }
 
-  private setView(v: 'table' | 'cards') {
-    this.view = v;
-    store(VIEW_KEY, v);
-  }
-
-  private toggleFloor(id: string) {
-    this.collapsed = this.collapsed.includes(id) ? this.collapsed.filter((x) => x !== id) : [...this.collapsed, id];
-    store(COLLAPSE_KEY, this.collapsed);
-  }
-
-  private visible(): Meter[] {
-    const needle = this.q.trim().toLowerCase();
-    const area = this.areaFilter;
-    // AUDIT30-E5: the shared places tree also picks a whole floor (`floor:<id>`, the key buildAreaTree gives the floor)
+  protected inArea(m: Meter, area: string): boolean {
     const floor = area.startsWith('floor:') ? area.slice(6) : '';
-    return this.meters.filter((m) => (!area || (floor ? (m.floor_id ?? m.floor_name ?? '_none') === floor : m.area_id === area)) && (!needle || meterSearchText(m).includes(needle) || (m.area_name ?? '').toLowerCase().includes(needle)));
+    return floor ? (m.floor_id ?? m.floor_name ?? '_none') === floor : m.area_id === area;
+  }
+
+  protected matchesSearch(m: Meter, needle: string): boolean {
+    return meterSearchText(m).includes(needle) || (m.area_name ?? '').toLowerCase().includes(needle);
   }
 
   private flash(text: string) {
@@ -295,7 +148,7 @@ export class ElecMetersPage extends LitElement {
     this.noticeTimer = window.setTimeout(() => (this.notice = ''), 6000);
   }
 
-  private openAdd() {
+  protected openAdd() {
     this.picked = [];
     this.pickedNames = {};
     this.nameTouched = false;
@@ -352,18 +205,11 @@ export class ElecMetersPage extends LitElement {
     return m.status === 'stale' && m.last_report_at ? html` <span class="mut">מ-<span class="num">${fmtTime(m.last_report_at)}</span></span>` : nothing;
   }
 
-  private open(m: Meter) {
+  protected openMeter(m: Meter) {
     this.setParams({ meter: m.id });
   }
 
-  private onKey(e: KeyboardEvent, m: Meter) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      this.open(m);
-    }
-  }
-
-  private renderTiles() {
+  protected renderTiles() {
     const s = summarize(this.meters);
     return html`<div class="tiles" data-tiles>
       <div class="tile"><div class="k">היום</div><div class="v"><span class="num">${fmtInt(s.today_kwh)}</span><span class="u">קוט״ש</span></div></div>
@@ -371,24 +217,6 @@ export class ElecMetersPage extends LitElement {
       <div class="tile"><div class="k">מדווחים</div><div class="v"><span class="num" data-count="reporting">${s.reporting}</span><span class="u">מתוך ${s.total}</span></div></div>
       <div class="tile" ?data-warn=${s.stale > 0}><div class="k">לא מדווחים</div><div class="v" style=${s.stale ? 'color:var(--sw-warning-text)' : ''}><span class="num" data-count="stale">${s.stale}</span></div></div>
     </div>`;
-  }
-
-  /** AUDIT30-E5 (round-30 audit #14): the areas list is the shared places tree (sw-place-tree): "all", the floors (fold + pick) and their
-   * areas; the chosen row is the soft accent wash of every other tree, not a filled accent key. */
-  private placeRows(): PlaceRow[] {
-    const rows: PlaceRow[] = [{ id: 'all', kind: 'all', name: 'כל האזורים', depth: 0, count: this.meters.length, dot: null }];
-    for (const f of buildAreaTree(this.meters)) {
-      const open = !this.collapsed.includes(f.floor_id);
-      rows.push({ id: `floor:${f.floor_id}`, kind: 'floor', name: f.name, depth: 0, count: f.count, dot: null, open });
-      if (open) for (const a of f.areas) rows.push({ id: a.area_id, kind: 'area', name: a.name, depth: 1, count: a.count, dot: null });
-    }
-    return rows;
-  }
-
-  private renderTree() {
-    return html`<sw-place-tree data-area-tree heading="אזורים" foldLabel="כיווץ" unfoldLabel="הרחבה" .rows=${this.placeRows()} .selected=${this.areaFilter || 'all'}
-      @place-select=${(e: CustomEvent<string>) => this.setParams({ area: e.detail === 'all' ? null : e.detail })}
-      @place-toggle=${(e: CustomEvent<string>) => this.toggleFloor(e.detail.slice(6))}></sw-place-tree>`;
   }
 
   /** The sensor's name under the device's name, only when it differs. */
@@ -401,18 +229,18 @@ export class ElecMetersPage extends LitElement {
     return html`${meterNames(m).primary}${this.entityLine(m, 'mut')}`;
   }
 
-  private renderTable(list: Meter[]) {
+  protected renderTable(list: Meter[]) {
     const showAcc = list.some((m) => m.accounts_count != null);
     return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
       <thead><tr><th>שם</th><th>אזור</th><th class="n">קריאה נוכחית (קוט״ש)</th><th class="n">היום</th><th class="n">מתחילת החודש</th><th>מצב</th>${showAcc ? html`<th class="dsk">בחשבונות</th>` : nothing}</tr></thead>
-      <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
+      <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
         <td class="b">${this.nameOf(m)}</td><td>${m.area_name ?? '-'}<span class="mut dsk"> · ${m.floor_name ?? ''}</span></td>
         <td class="n"><span class="num">${fmtKwh(m.reading_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.today_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.month_kwh)}</span></td>
         <td>${this.statusChip(m)}${this.staleNote(m)}</td>${showAcc ? html`<td class="dsk">${m.accounts_count || html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table></div>`;
   }
 
-  private renderCards(list: Meter[]) {
-    return html`<div class="cards desk-only" data-meters-cards>${list.map((m) => html`<div class="card mcard" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
+  protected renderCards(list: Meter[]) {
+    return html`<div class="cards desk-only" data-meters-cards>${list.map((m) => html`<div class="card mcard" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="row"><b>${meterNames(m).primary}</b><span class="sp"></span>${this.statusChip(m)}</div>
       ${this.entityLine(m, 'mut')}
       <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}</div>
@@ -420,8 +248,8 @@ export class ElecMetersPage extends LitElement {
   }
 
   /** The phone's list (the same rows as the table, one line of context). */
-  private renderRows(list: Meter[]) {
-    return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
+  protected renderRows(list: Meter[]) {
+    return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="grow"><div class="t1">${meterNames(m).primary}</div>${this.entityLine(m, 't2')}<div class="t2">${m.area_name ?? ''} · היום <span class="num">${fmtKwh(m.today_kwh)}</span> קוט״ש</div></div>
       <div style="text-align:end">${this.statusChip(m)}<div class="t2 num" style="margin-block-start:4px">${fmtKwh(m.reading_kwh)}</div></div></div>`)}</div>`;
   }
@@ -440,7 +268,7 @@ export class ElecMetersPage extends LitElement {
     </div>`;
   }
 
-  private renderAdd() {
+  protected renderAdd() {
     const open = this.params.get('add') === '1' && this.access.manage;
     return html`<sw-dialog ?open=${open} wide heading="הוספת מונה" data-add-dialog @close=${() => this.closeAdd()}>
       ${open ? html`<elec-meter-picker mode="register" multi .selected=${this.picked} @change=${(e: CustomEvent<{ selected: string[]; names?: Record<string, string> }>) => this.onPick(e)}></elec-meter-picker>` : nothing}
@@ -451,43 +279,28 @@ export class ElecMetersPage extends LitElement {
     </sw-dialog>`;
   }
 
-  private renderHead() {
-    const tree = buildAreaTree(this.meters);
-    return html`<div class="row head">
-      <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-meters-search placeholder="חיפוש מונה" aria-label="חיפוש מונה" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
-      <div class="seg desk-only" role="group" aria-label="תצוגה"><button type="button" aria-pressed=${this.view === 'cards' ? 'true' : 'false'} data-view="cards" @click=${() => this.setView('cards')}>כרטיסים</button><button type="button" aria-pressed=${this.view === 'table' ? 'true' : 'false'} data-view="table" @click=${() => this.setView('table')}>טבלה</button></div>
-      <span class="sp"></span>
-      <label class="inp phone-only"><select data-area-select aria-label="אזור" @change=${(e: Event) => this.setParams({ area: (e.target as HTMLSelectElement).value || null })}>
-        <option value="" ?selected=${!this.areaFilter}>כל האזורים</option>
-        ${tree.flatMap((f) => f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.areaFilter}>${a.name}</option>`))}</select></label>
-      ${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>הוספת מונה</sw-button>` : nothing}
-    </div>`;
+  protected frame(state: MetersFrameState, body: TemplateResult) {
+    return html`<div data-elec="meters" data-state=${state} aria-busy=${state === 'loading' ? 'true' : nothing} style=${state === 'ready' ? 'display:flex;flex-direction:column;gap:14px' : nothing}>${body}</div>`;
   }
 
-  render() {
-    if (!this.access.view) return html`<sw-state-panel state="forbidden" data-elec="meters" data-state="forbidden"></sw-state-panel>`;
-    const meterId = this.params.get('meter') ?? '';
-    const card = meterId ? html`<elec-meter-card .meterId=${meterId} ?canManage=${this.access.manage} @close=${() => this.setParams({ meter: null })} @changed=${() => void this.load(false)}></elec-meter-card>` : nothing;
-    if (this.phase === 'loading') {
-      return html`<div data-elec="meters" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
-    }
-    if (this.phase === 'error') {
-      return html`<div data-elec="meters" data-state="error"><sw-state-panel state="error" heading="לא ניתן לטעון את המונים" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load(true)}></sw-state-panel></div>`;
-    }
-    if (!this.meters.length) {
-      return html`<div data-elec="meters" data-state="empty"><sw-state-panel icon="bolt" state="empty" heading="אין מונים עדיין">${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>הוספת מונה</sw-button>` : nothing}</sw-state-panel>${this.renderAdd()}</div>`;
-    }
-    const list = this.visible();
-    const body = !list.length
-      ? html`<sw-state-panel icon="bolt" state="empty" compact heading="לא נמצאו מונים" data-no-results></sw-state-panel>`
-      : html`${this.view === 'cards' ? this.renderCards(list) : this.renderTable(list)}${this.renderRows(list)}`;
-    return html`<div data-elec="meters" data-state="ready" style="display:flex;flex-direction:column;gap:14px">
-      ${this.renderHead()}
-      ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
-      ${this.renderTiles()}
-      <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div class="mlist">${body}</div></div>
-      ${this.renderAdd()}${card}
-    </div>`;
+  protected renderForbidden() {
+    return html`<sw-state-panel state="forbidden" data-elec="meters" data-state="forbidden"></sw-state-panel>`;
+  }
+
+  protected skeletonRow(cells: TemplateResult) {
+    return html`<div class="row" style="padding:10px 0">${cells}</div>`;
+  }
+
+  protected renderEmpty(addButton: TemplateResult | typeof nothing) {
+    return html`<sw-state-panel icon="bolt" state="empty" heading="אין מונים עדיין">${addButton}</sw-state-panel>`;
+  }
+
+  protected renderNoResults() {
+    return html`<sw-state-panel icon="bolt" state="empty" compact heading="לא נמצאו מונים" data-no-results></sw-state-panel>`;
+  }
+
+  protected renderCard(meterId: string) {
+    return html`<elec-meter-card .meterId=${meterId} ?canManage=${this.access.manage} @close=${() => this.setParams({ meter: null })} @changed=${() => void this.load(false)}></elec-meter-card>`;
   }
 }
 

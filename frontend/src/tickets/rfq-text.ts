@@ -8,9 +8,8 @@
  * price; "דרישת תשלום" = the payment demand after the work. The retired cost word and the retired item words never appear here (the
  * unit spec reads this file).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
 import { NAV_RFQ_EN, NAV_RFQ_HE } from './nav-text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // the page and the navigation
@@ -1317,22 +1316,19 @@ const en: Partial<Record<RfqTextKey, string>> = {
   err_postponement_not_found: 'There is no open postponement notice from the vendor',
 };
 
-export function rfqTemplate(key: RfqTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<RfqTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const rfqTemplate = catalogue.template;
 
 /** A text of the RFQ screens: the template in the document's language, the module's names rendered (D33), then `{var}`s. */
-export function rt(key: RfqTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(rfqTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const rt = catalogue.t;
 
 /** Whether a key exists (a server code mapped to words, a timeline kind). */
 export function hasRfqText(key: string): key is RfqTextKey {
   return key in he;
 }
 
-export const RFQ_TEXT_KEYS = Object.keys(he) as RfqTextKey[];
-export const RFQ_TEXT_EN_KEYS = Object.keys(en) as RfqTextKey[];
+export const RFQ_TEXT_KEYS = catalogue.KEYS;
+export const RFQ_TEXT_EN_KEYS = catalogue.EN_KEYS;
 export const RFQ_TEXT_HE: Readonly<Record<RfqTextKey, string>> = he;

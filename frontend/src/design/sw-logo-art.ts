@@ -29,6 +29,10 @@ export const SW_TONES: Record<SwTone, { symbol: string; wordmark: string }> = {
   black: { symbol: '#000000', wordmark: '#000000' },
 };
 
+/** CR-ICONS-PALETTE-2440 (review finding 07:F22): `alt` goes into an attribute of markup built by string, so it is escaped here.
+ * Every caller passes a fixed string today; this keeps a future caller that passes a site or company name from breaking the markup. */
+const escAttr = (v: string): string => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 /** The logo as an inline `<svg>` string. `alt` empty = decorative (hidden from assistive technology). */
 export function swLogoSvg(layout: SwLayout, tone: SwTone, alt = ''): string {
   const l = SW_LAYOUTS[layout];
@@ -38,6 +42,6 @@ export function swLogoSvg(layout: SwLayout, tone: SwTone, alt = ''): string {
     return t ? '<path fill="' + c[p] + '" fill-rule="evenodd" d="' + d + '" transform="translate(' + t[0] + ' ' + t[1] + ') scale(' + t[2] + ')"/>' : '';
   };
   return '<svg class="sw" viewBox="0 0 ' + l.w + ' ' + l.h + '" width="' + l.w + '" height="' + l.h + '" ' +
-    (alt ? 'role="img" aria-label="' + alt + '"' : 'role="presentation" aria-hidden="true"') +
+    (alt ? 'role="img" aria-label="' + escAttr(alt) + '"' : 'role="presentation" aria-hidden="true"') +
     ' data-brand-img="product" data-brand-art="kit-' + layout + '-' + tone + '">' + part('symbol', SYMBOL_D) + part('wordmark', WORDMARK_D) + '</svg>';
 }

@@ -3,7 +3,7 @@
  * reference), the historical map by the version's publish timeline; the editor works on the draft through the studio
  * controller.
  */
-import { apiBlob, get, patch, post, put, resourceUrl, upload } from './client';
+import { apiBlob, get, patch, path, post, put, query, resourceUrl, upload } from './client';
 import type { GeomConnector, GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from '../map/geometry';
 import type { LinkTargetFloor } from '../map/connector-targets';
 import type { MapBundle } from './maps';
@@ -111,7 +111,7 @@ export function getGeometry(versionId: string, opts: { draft?: boolean; at?: str
   if (opts.draft) q.set('draft', 'true');
   if (opts.at) q.set('at', opts.at);
   const qs = q.toString();
-  return get<GeometryResponse>(`plan-versions/${versionId}/geometry${qs ? `?${qs}` : ''}`);
+  return get<GeometryResponse>(path`plan-versions/${versionId}/geometry` + (qs ? `?${qs}` : ''));
 }
 
 /** The structure a live map shows: fetched once per hash. A map without its structure still works (null on error). */
@@ -140,7 +140,7 @@ export async function geometryFor(bundle: MapBundle): Promise<GeometryDoc | null
 export async function geometryAt(versionId: string, iso: string): Promise<GeometryDoc | null> {
   let tl = timelines.get(versionId);
   if (!tl) {
-    const fetched: Promise<GeometryPeriod[]> = get<{ timeline: GeometryPeriod[] }>(`plan-versions/${versionId}/geometry/timeline`)
+    const fetched: Promise<GeometryPeriod[]> = get<{ timeline: GeometryPeriod[] }>(path`plan-versions/${versionId}/geometry/timeline`)
       .then((r) => r.timeline)
       .catch(() => {
         if (timelines.get(versionId) === fetched) timelines.delete(versionId); // a failed read is not remembered: the next move asks again
@@ -163,37 +163,37 @@ export async function geometryAt(versionId: string, iso: string): Promise<Geomet
 }
 
 export const saveGeometryDraft = (versionId: string, doc: GeometryDoc, baseRevision: number) =>
-  put<GeometryResponse>(`plan-versions/${versionId}/geometry`, { doc, base_revision: baseRevision });
+  put<GeometryResponse>(path`plan-versions/${versionId}/geometry`, { doc, base_revision: baseRevision });
 /** A publish changes the version's timeline: the cached one is dropped (documents stay cached by hash), so an open
  * historical map shows the new structure at instants after it. */
 export async function publishGeometry(versionId: string, sharedSkip: string[] = []): Promise<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }> {
   const r = await post<{ published: GeometryRow | null; diff: GeometryDiff; unchanged: boolean; shared_published?: { home_floor_id: string; zone_ids: string[]; changes: number }[] }>(
-    `plan-versions/${versionId}/geometry/publish`, sharedSkip.length ? { shared_skip: sharedSkip } : undefined);
+    path`plan-versions/${versionId}/geometry/publish`, sharedSkip.length ? { shared_skip: sharedSkip } : undefined);
   timelines.delete(versionId);
   return r;
 }
-export const geometryDiff = (versionId: string) => get<GeometryDiffResponse>(`plan-versions/${versionId}/geometry/diff`);
+export const geometryDiff = (versionId: string) => get<GeometryDiffResponse>(path`plan-versions/${versionId}/geometry/diff`);
 /** K88 (editor leftover): every published structure of the version, newest first, with what each held. */
 export interface GeometryVersionRow extends GeometryRow {
   counts: Record<string, number>;
 }
-export const listGeometryVersions = (versionId: string) => get<{ versions: GeometryVersionRow[] }>(`plan-versions/${versionId}/geometry/versions`);
+export const listGeometryVersions = (versionId: string) => get<{ versions: GeometryVersionRow[] }>(path`plan-versions/${versionId}/geometry/versions`);
 /** Publish an archived structure again as a new published copy (the history is never deleted); map.publish. */
 export async function rollbackGeometry(versionId: string, geometryId: string) {
-  const r = await post<{ published: GeometryRow }>(`plan-versions/${versionId}/geometry/rollback`, { geometry_id: geometryId });
+  const r = await post<{ published: GeometryRow }>(path`plan-versions/${versionId}/geometry/rollback`, { geometry_id: geometryId });
   timelines.delete(versionId);
   return r;
 }
 export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>
-  post<GeometryResponse>(`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
+  post<GeometryResponse>(path`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
 export const calibrate = (versionId: string, pairs: { a: Pt; b: Pt; metres: number }[]) =>
-  patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, { pairs });
+  patch<CalibrationResult>(path`plan-versions/${versionId}/calibration`, { pairs });
 export function exportUrl(versionId: string, fmt: 'svg' | 'png' | 'dxf' | 'ifc', opts: { draft?: boolean; layers?: string[] } = {}): string {
   const q = new URLSearchParams();
   if (opts.draft) q.set('draft', 'true');
   if (opts.layers?.length) q.set('layers', opts.layers.join(','));
   const qs = q.toString();
-  return resourceUrl(`api/v1/plan-versions/${versionId}/export.${fmt}${qs ? `?${qs}` : ''}`);
+  return resourceUrl(path`api/v1/plan-versions/${versionId}/export.${fmt}` + (qs ? `?${qs}` : ''));
 }
 // ---- Plan Studio 5 (T088): the signed plan package ----
 
@@ -263,7 +263,7 @@ const packageForm = (file: File | Blob) => {
 /** The signed package of the draft (or the published structure) as a file to save; map.edit. `dxf` (PLN2): the package
  * also carries assets/plan.dxf beside the plan picture its IMAGE names (an importer before PLN2 refuses that file). */
 export async function exportPlanPackage(versionId: string, draft: boolean, opts: { dxf?: boolean } = {}): Promise<{ blob: Blob; name: string }> {
-  const { blob, headers } = await apiBlob(`plan-versions/${versionId}/package`, {
+  const { blob, headers } = await apiBlob(path`plan-versions/${versionId}/package`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.dxf ? { draft, dxf: true } : { draft }),
   });
   const cd = headers.get('content-disposition') ?? '';
@@ -274,11 +274,12 @@ export async function exportPlanPackage(versionId: string, draft: boolean, opts:
 /** A package signed by another system (or by a retired key of this one) answers 409 `package_foreign` with
  * `details.origin` until the person trusts it and the preview is asked again with `acceptForeign` (security review 2.2.0). */
 export const previewPlanPackage = (versionId: string, file: File | Blob, mode: PackageMode, acceptForeign = false) =>
-  upload<PackagePreview>(`plan-versions/${versionId}/package/preview?mode=${mode}${acceptForeign ? '&accept_foreign=true' : ''}`, packageForm(file));
+  upload<PackagePreview>(path`plan-versions/${versionId}/package/preview` + query({ mode, accept_foreign: acceptForeign || undefined }), packageForm(file));
 /** The import itself, into the draft: the revision and the result hash the preview showed. */
 export const importPlanPackage = (versionId: string, file: File | Blob, preview: PackagePreview, acceptForeign: boolean) =>
   upload<PackageImportResult>(
-    `plan-versions/${versionId}/package/import?mode=${preview.mode}&base_revision=${preview.base_revision}&expect_hash=${preview.result_hash}${acceptForeign ? '&accept_foreign=true' : ''}`,
+    path`plan-versions/${versionId}/package/import` +
+      query({ mode: preview.mode, base_revision: preview.base_revision, expect_hash: preview.result_hash, accept_foreign: acceptForeign || undefined }),
     packageForm(file),
   );
 /** Stairs / an elevator to another floor: the same connector id lands on the other floor's draft (T085). */
@@ -287,14 +288,14 @@ export const importPlanPackage = (versionId: string, file: File | Blob, preview:
  * be placed) or an existing twin kept its own position (kept). */
 export const linkConnector = (versionId: string, connectorId: string, floorId: string, levelTo?: string | null, replace = false) =>
   post<{ connector: GeomConnector; removed_floors: string[]; target: { floor_id: string; version_id: string; revision: number; level_id: string; placement: 'aligned' | 'centred' | 'kept'; frame: 'sheet' | 'size' | null } }>(
-    `plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId, ...(levelTo ? { level_to: levelTo } : {}), ...(replace ? { replace: true } : {}) });
+    path`plan-versions/${versionId}/geometry/link`, { connector_id: connectorId, floor_id: floorId, ...(levelTo ? { level_to: levelTo } : {}), ...(replace ? { replace: true } : {}) });
 
 /** The other floors of the building a connector can reach, each with its levels (the "מחבר אל" picker). */
-export const getLinkTargets = (versionId: string) => get<{ floors: LinkTargetFloor[] }>(`plan-versions/${versionId}/geometry/link-targets`);
+export const getLinkTargets = (versionId: string) => get<{ floors: LinkTargetFloor[] }>(path`plan-versions/${versionId}/geometry/link-targets`);
 
 /** Remove the twin of a cross-floor connector from the other floor's draft ("למחוק גם בקומה השנייה?"). */
 export const deleteTwin = (versionId: string, connectorId: string, floorId: string) =>
-  post<{ removed: boolean; floor_id: string }>(`plan-versions/${versionId}/geometry/twin-delete`, { connector_id: connectorId, floor_id: floorId });
+  post<{ removed: boolean; floor_id: string }>(path`plan-versions/${versionId}/geometry/twin-delete`, { connector_id: connectorId, floor_id: floorId });
 
 // ---------------------------------------------------------------- detection (phase 3, T086)
 
@@ -388,7 +389,7 @@ export interface AcceptRequest {
   base_revision: number;
   detector: DetectorInfo | null;
 }
-export const detectStructure = (versionId: string, body: DetectRequest) => post<DetectResult>(`plan-versions/${versionId}/detect`, body);
+export const detectStructure = (versionId: string, body: DetectRequest) => post<DetectResult>(path`plan-versions/${versionId}/detect`, body);
 /** What the merge did (services/plan_geometry.py merge_candidates): with replace_auto the draft's earlier items of the
  * candidates' source went first (`removed_auto`), and the openings of another source that sat on a removed wall went
  * with it (`removed_manual_openings`); `reided` counts accepted ids that collided with the draft and were re-issued as
@@ -403,12 +404,12 @@ export interface AcceptMerge {
 export interface AcceptResponse extends GeometryResponse {
   merge?: AcceptMerge;
 }
-export const acceptDetection = (versionId: string, body: AcceptRequest) => post<AcceptResponse>(`plan-versions/${versionId}/detect/accept`, body);
+export const acceptDetection = (versionId: string, body: AcceptRequest) => post<AcceptResponse>(path`plan-versions/${versionId}/detect/accept`, body);
 /** The door-width hint as an estimated calibration (design 6.3): metres then show with "≈". The server refuses an
  * estimate over a measured calibration (409 calibration_measured) unless `replaceMeasured` confirms it; the editor
  * never sends it (it offers the estimate only while the calibration is not measured). */
 export const calibrateEstimate = (versionId: string, scaleMPerPx: number, reason: string, replaceMeasured?: boolean) =>
-  patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, {
+  patch<CalibrationResult>(path`plan-versions/${versionId}/calibration`, {
     estimate: { scale_m_per_px: scaleMPerPx, method: 'door_width', reason },
     ...(replaceMeasured === undefined ? {} : { replace_measured: replaceMeasured }),
   });
@@ -440,7 +441,7 @@ export interface DoorProposal {
   version_id: string;
   level_id: string;
 }
-export const proposeDoor = (versionId: string, body: DoorProposalRequest) => post<DoorProposal>(`plan-versions/${versionId}/door-proposal`, body);
+export const proposeDoor = (versionId: string, body: DoorProposalRequest) => post<DoorProposal>(path`plan-versions/${versionId}/door-proposal`, body);
 
 /** Error codes /detect, /detect/accept and /calibration (estimate) can answer with (the API review, backed by
  * routers/plan_geometry.py and tests/test_plan_detect_api.py): the client reads them off ApiError.code. detect_timeout
@@ -472,9 +473,9 @@ export interface DxfEntities {
   targets: { id: DxfTarget; label: string }[];
   catalog_choices: { id: string | null; name: string }[];
 }
-export const getDxfEntities = (assetId: string) => get<DxfEntities>(`plan-assets/${assetId}/dxf/entities`);
+export const getDxfEntities = (assetId: string) => get<DxfEntities>(path`plan-assets/${assetId}/dxf/entities`);
 export const importDxfGeometry = (versionId: string, body: { layer_map: Record<string, DxfTarget>; block_map: Record<string, string | null>; level_id?: string }) =>
-  post<DetectResult>(`plan-versions/${versionId}/import-dxf-geometry`, body);
+  post<DetectResult>(path`plan-versions/${versionId}/import-dxf-geometry`, body);
 /** POST /plan-versions/{id}/import-ifc (CR-037): the file's candidates for one document level in the shape of /detect
  * plus the report under `ifc`; nothing is stored (the accept goes through /detect/accept). map.import. */
 export function importIfcGeometry(versionId: string, file: File | Blob, opts: { levelId?: string; storey?: number } = {}): Promise<DetectResult> {
@@ -484,5 +485,5 @@ export function importIfcGeometry(versionId: string, file: File | Blob, opts: { 
   const form = new FormData();
   form.append('file', file, file instanceof File ? file.name : 'plan.ifc');
   const qs = q.toString();
-  return upload<DetectResult>(`plan-versions/${versionId}/import-ifc${qs ? `?${qs}` : ''}`, form);
+  return upload<DetectResult>(path`plan-versions/${versionId}/import-ifc` + (qs ? `?${qs}` : ''), form);
 }

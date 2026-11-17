@@ -12,11 +12,12 @@ import { lazy, lazyAdapter } from './demo-load';
 import type { TicketLang, TicketName } from '../tickets/naming';
 import type { CostMode, TicketCostBlock } from './tickets-costs';
 import type { RequestLocation } from './tickets-locations';
+import type { Severity } from './types';
 
 export type TicketStatus = 'new' | 'assigned' | 'acknowledged' | 'in_progress' | 'waiting_part' | 'done' | 'returned' | 'closed' | 'cancelled';
 export type StatusFilter = 'open' | 'unassigned' | 'handling' | 'done' | 'closed' | 'all';
 export type ListScope = 'visible' | 'mine' | 'department' | 'all';
-export type Severity = 'info' | 'alert' | 'critical';
+export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
 export type DetailMode = 'drawer' | 'fullscreen' | 'drawer_fullscreen';
 export type NewTicketMode = 'sheet' | 'dialog';
 

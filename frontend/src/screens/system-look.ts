@@ -20,6 +20,8 @@ import {
 } from '../design/look';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsPlainRowStyles, settingsMutedHintStyles, settingsSegKeyStateStyles, settingsPreviewColStyles, settingsPreviewButtonStyles, settingsFootStatusStyles } from '../styles/settings';
+import { segTrackStyles, segThumbStyles } from '../styles/fragments';
 
 type Target = 'own' | 'installation';
 
@@ -47,18 +49,7 @@ export class SystemLook extends LitElement {
   private stops: (() => void)[] = [];
 
   static styles = [css`
-    :host {
-      display: block;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
+    ${settingsPlainRowStyles}
     .lbl {
       display: flex;
       flex-direction: column;
@@ -66,19 +57,8 @@ export class SystemLook extends LitElement {
       font-weight: var(--sw-fw-medium);
       min-inline-size: 120px;
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-regular);
-    }
-    .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
-      flex-wrap: wrap;
-    }
+    ${settingsMutedHintStyles}
+    ${segTrackStyles}
     .seg button {
       all: unset;
       box-sizing: border-box;
@@ -92,20 +72,8 @@ export class SystemLook extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
     }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-key, var(--sw-surface));
-      color: var(--sw-seg-key-ink, var(--sw-accent-text));
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
-    }
-    .seg button[disabled] {
-      cursor: default;
-      opacity: 0.6;
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 1px;
-    }
+    ${segThumbStyles}
+    ${settingsSegKeyStateStyles}
     /* LOOK-POLISH-2331: every key gives on pointer-down and washes on hover only under a pointer that hovers */
     .seg button,
     .range button,
@@ -243,11 +211,7 @@ export class SystemLook extends LitElement {
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       direction: rtl;
     }
-    .pv-col {
-      display: grid;
-      gap: var(--sw-gap);
-      align-content: start;
-    }
+    ${settingsPreviewColStyles}
     .pv-sheet {
       position: relative;
       border-radius: var(--sw-r-xl);
@@ -286,18 +250,7 @@ export class SystemLook extends LitElement {
       position: relative;
       isolation: isolate;
     }
-    .pv-btn {
-      min-block-size: var(--sw-touch-desktop);
-      padding: 0 16px;
-      border: 0;
-      border-radius: var(--sw-r-pill);
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-      font: inherit;
-      font-weight: var(--sw-fw-semibold);
-      justify-self: start;
-      pointer-events: none;
-    }
+    ${settingsPreviewButtonStyles}
     .sb {
       inline-size: var(--sw-sub-size, var(--sw-sub));
       block-size: var(--sw-sub-size, var(--sw-sub));
@@ -312,21 +265,7 @@ export class SystemLook extends LitElement {
       padding: 0;
       pointer-events: none;
     }
-    .foot {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding-block-start: 12px;
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
-    }
+    ${settingsFootStatusStyles}
     .note {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);

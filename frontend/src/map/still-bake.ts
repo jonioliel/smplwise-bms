@@ -18,6 +18,7 @@
  * Determinism: the same description, level, preset and size give the same camera, the same masks (rounded to 0.1 px) and the
  * same palette on every machine. The pixels depend on the GPU that draws them (the notes, section 1).
  */
+import { deg, rad } from './num';
 import type { SceneDescription, SceneInput, ScenePart, Vec3 } from './scene-builder';
 import { ISO_DIR, ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
 import { controlSceneInput, withoutCameraBodies } from './skin-control';
@@ -102,8 +103,6 @@ export function sizeOf(setting: Pick<BakeSetting, 'size'>): { w: number; h: numb
 
 // ---- time bands --------------------------------------------------------------------------------------------------------
 
-const rad = (d: number): number => (d * Math.PI) / 180;
-const deg = (r: number): number => (r * 180) / Math.PI;
 
 /** The sun's elevation in degrees at a UTC instant and a place (NOAA's low-accuracy formulas: about 0.5 deg, enough to pick a
  * band; S2's sun model is the precise one). */

@@ -1,5 +1,5 @@
 /** Media, settings and snapshots against the add-on backend. */
-import { apiUrl, get, patch, post, resourceUrl } from './client';
+import { apiUrl, get, patch, path, post, query, resourceUrl } from './client';
 import type { CameraEncoding } from './types';
 import type { NavSizeWire } from './me-prefs';
 
@@ -153,6 +153,9 @@ export interface ProductSettings {
   'ui.design_names'?: string;
   /** Owner 2026-09-29: the summary tiles' shape (Live overview, devices screens) - api/tile-layout.ts. */
   'ui.tile_layout'?: 'auto' | 'cards' | 'compact';
+  /** POLISH-CONTROL-297 / PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists of the control screens - `paged` (the default) or
+   * `scroll` (every item drawn, the list's own panel scrolls; the page itself never does) - api/long-lists.ts. */
+  'ui.long_lists'?: 'paged' | 'scroll';
   /** Owner-set defaults (0.1.61): wall tile count, kiosk page layout, hidden AI search tab. */
   'ui.wall_count'?: number | string;
   'ui.kiosk_cols'?: number | string;
@@ -306,7 +309,7 @@ export interface LiveInfo {
   h265?: { policy: 'auto' | 'sub' | 'transcode' | 'off'; max_transcodes: number; active_transcodes: number };
 }
 
-export const liveInfo = (cameraId: string, profile: 'sub' | 'main') => get<LiveInfo>(`media/live/${cameraId}?profile=${profile}`);
+export const liveInfo = (cameraId: string, profile: 'sub' | 'main') => get<LiveInfo>(path`media/live/${cameraId}` + query({ profile }));
 export const syncStreams = () => post<{ created: number; updated: number; unchanged: number; streams: string[]; foreign_streams_untouched: number }>('media/streams/sync');
 /** GO2RTC-STREAM-SYNC-2436: `online` = go2rtc pulls the stream right now. go2rtc connects a source on demand, so a stream nobody
  * watches is `idle` - ready, not down (lab 12.11: 41/41 idle between viewers, every one played in under a second). */
@@ -325,7 +328,7 @@ export const listSessions = () => get<{ sessions: { id: string; camera_id: strin
 
 /** Snapshot URL; `bust` forces the browser past its cache (the server keeps its own max-age). */
 export function snapshotUrl(cameraId: string, bust?: number): string {
-  return apiUrl(`cameras/${cameraId}/snapshot.jpg${bust ? `?t=${bust}` : ''}`);
+  return apiUrl(path`cameras/${cameraId}/snapshot.jpg` + query({ t: bust || undefined }));
 }
 
 /** ws(s):// URL of the live relay for a camera, relative to the page (works under Ingress). */
@@ -333,7 +336,7 @@ export function snapshotUrl(cameraId: string, bust?: number): string {
  * '' = not said (the server plays the stream as it is). `fallback` (VIDEO-SUB-FALLBACK-2402): why this main socket replaces the sub stream
  * (sw-live-player; recorded on the session's audit rows). */
 export function liveWsUrl(cameraId: string, profile: 'sub' | 'main', h265: '' | '0' | '1' = '', fallback = ''): string {
-  const u = new URL(apiUrl(`media/live/${cameraId}/ws?profile=${profile}${h265 ? `&h265=${h265}` : ''}${fallback ? `&fallback=${fallback}` : ''}`));
+  const u = new URL(apiUrl(path`media/live/${cameraId}/ws` + query({ profile, h265: h265 || undefined, fallback: fallback || undefined })));
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
   return u.toString();
 }
@@ -416,7 +419,7 @@ export interface CameraZones {
   line_crossing: { enabled: boolean; normalized: ZoneFrame; lines: ZoneLine[] } | null;
   unsupported: Record<string, string>;
 }
-export const cameraZones = (cameraId: string, refresh = false) => get<CameraZones>(`cameras/${cameraId}/zones${refresh ? '?refresh=true' : ''}`);
+export const cameraZones = (cameraId: string, refresh = false) => get<CameraZones>(path`cameras/${cameraId}/zones` + query({ refresh: refresh || undefined }));
 
 /** Capability facts the NVR reports for a camera (T045 / T012, read-only): never guessed, 'unknown' is an honest state. */
 export interface CameraCapabilities {
@@ -433,5 +436,5 @@ export interface CameraCapabilities {
   /** CR-008 D7: the stream encodings from the capability registry (the last discovery), with the settings hint. */
   video?: CameraEncoding | null;
 }
-export const cameraCapabilities = (cameraId: string, refresh = false) => get<CameraCapabilities>(`cameras/${cameraId}/capabilities${refresh ? '?refresh=true' : ''}`);
+export const cameraCapabilities = (cameraId: string, refresh = false) => get<CameraCapabilities>(path`cameras/${cameraId}/capabilities` + query({ refresh: refresh || undefined }));
 

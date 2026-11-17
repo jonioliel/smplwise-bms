@@ -1,5 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
+import { round5 } from './num';
 import { DEFAULT_LEVEL_ID, MAX_STAIR_STEPS, OPENING_DEFAULTS, STAIR_GOING_M, isClosedOutline, isCurved, objectCorners, pointAt, rotated, stairPath, wallTangentAt, type ConnectorKind, type StairShape, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 import { GLAZING_DEFAULTS, withDocVersion } from './glass-wall';
@@ -16,7 +17,6 @@ export function newId(): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 }
 
-const round5 = (v: number): number => Math.round(v * 1e5) / 1e5;
 const clampPt = (p: Pt): Pt => [round5(Math.min(1, Math.max(0, p[0]))), round5(Math.min(1, Math.max(0, p[1])))];
 
 export function defaultLevelId(doc: GeometryDoc): string {

@@ -10,6 +10,7 @@ import { CAL_COLORS, CAL_ROLES, CAL_TYPES, type ApprovalMode, type ApprovedMove,
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
 import { APPROVAL_LABEL, APPROVED_MOVE_LABEL, colorVar, OVERLAP_SHORT, pageOf, PROVIDER_LABEL, ROLE_HINT, ROLE_LABEL, rowsThatFit, STRICTNESS, TYPE_LABEL } from './model';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 const TYPE_ICON: Record<CalType, 'door' | 'users' | 'wrench' | 'calendar'> = { room: 'door', team: 'users', maintenance: 'wrench', event: 'calendar' };
 const KIND_LABEL: Record<Member['subject_kind'], string> = { user: 'משתמש', role: 'תפקיד', department: 'מחלקה', everyone: 'כולם' };
@@ -33,6 +34,9 @@ interface Draft { name: string; type: CalType; color: CalColor; capacity: string
 @customElement('cal-view-manage')
 export class CalViewManage extends LitElement {
   static styles = [calCss, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .list { overflow-y: auto !important; overscroll-behavior: contain; }
+    :host([data-long-lists='scroll']) .tablewrap { overflow-y: auto !important; overscroll-behavior: contain; }
     :host { display: flex; gap: 14px; min-block-size: 0; min-inline-size: 0; position: relative; }
     .main { flex: 1; }
     .list { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
@@ -111,6 +115,9 @@ export class CalViewManage extends LitElement {
   @property({ type: Boolean, reflect: true }) shrink = false;
   @state() private typ: CalType | '' = '';
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private menuFor = '';
   @state() private confirmArchive: Calendar | null = null;
   @state() private members: Member[] | null = null;
@@ -220,7 +227,7 @@ export class CalViewManage extends LitElement {
     }
     const list = this.typ ? all.filter((c) => c.type === this.typ) : all;
     const phone = ctx.device === 'phone';
-    const pg = pageOf(list, this.page, this.perPage(phone ? 72 : 62, phone ? 5 : 9));
+    const pg = pageOf(list, this.page, perPageFor(this.lists.paged, this.perPage(phone ? 72 : 62, phone ? 5 : 9), list.length));
     const counts = CAL_TYPES.map((t) => [t, all.filter((c) => c.type === t).length] as const);
     return html`<section class="panel main" data-manage-list>
       <div class="ph">
@@ -279,6 +286,7 @@ export class CalViewManage extends LitElement {
   }
 
   private pager(page: number, pages: number) {
+    if (!this.lists.paged) return nothing; // PAGING-SETTING-2439: the list scrolls, no pager
     return html`<div class="pager" data-pager><button type="button" class="btn" aria-label="הקודם" ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevron" size="14"></sw-icon></button>
       <span class="num" data-page>${page} / ${pages}</span>
       <button type="button" class="btn" aria-label="הבא" ?disabled=${page >= pages} @click=${() => (this.page = page + 1)}><sw-icon name="chevronBack" size="14"></sw-icon></button></div>`;
@@ -392,7 +400,7 @@ export class CalViewManage extends LitElement {
     const all = this.members ?? [];
     // the table's head row takes its own height from the space the member rows share
     const per = this.listH ? rowsThatFit(this.listH - (phone ? 0 : 46), Math.max(phone ? 62 : 54, this.rowH)) : phone ? 4 : 6;
-    const pg = pageOf(all, this.page, per);
+    const pg = pageOf(all, this.page, perPageFor(this.lists.paged, per, all.length));
     return html`<section class="panel main" data-members=${c.id}>
       <div class="calhead">
         <a class="btn icon sm" href=${this.href('')} aria-label="לכל היומנים" data-back><sw-icon name="chevronBack" size="16"></sw-icon></a>

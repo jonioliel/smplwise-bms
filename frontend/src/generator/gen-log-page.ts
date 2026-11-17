@@ -5,6 +5,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { getRuns, type GenDevice, type GenRun, type RunKind, type RunRange, type RunsResponse } from '../api/generator';
 import { describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -42,7 +43,8 @@ export class GenLogPage extends LitElement {
   @state() private data: RunsResponse | null = null;
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the run-log re-read every 30 s - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
   private seq = 0;
 
   static styles = [elecCss, genCss, css`
@@ -68,11 +70,7 @@ export class GenLogPage extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.timer = window.setInterval(() => { if (!document.hidden) void this.load(true); }, POLL_MS);
-  }
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('runs', POLL_MS, () => this.load(true));
   }
   protected updated(c: Map<string, unknown>) {
     if (c.has('device')) { this.page = 1; void this.load(); }

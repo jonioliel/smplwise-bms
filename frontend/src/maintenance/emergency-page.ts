@@ -2,8 +2,11 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { emergencyApi, type ItemGroup, type ItemStatus, type ReadinessItem, type ReadinessPage, type Verdict } from '../api/emergency';
 import { em, emLang, EN_SUMMARY, EN_TITLES, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
@@ -35,7 +38,12 @@ export class EmergencyReadinessPage extends LitElement {
   @state() private error = '';
   @state() private filter: Filter = 'all';
   @state() private view: View = 'list';
-  private timer?: number;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5 a; code review 08:F23): on a desktop the checklist no longer scrolls inside its panel -
+   * the rows that fit are page 1, the rest are on the next pages (a group that runs over repeats its heading; the pager in the panel's
+   * foot). The long lists set to scroll (הגדרות › כללי): the checklist scrolls inside its panel as before. Printing draws every row. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('[data-emerg-list]'), () => this.view === 'list' && !!this.data);
+  /** CR-POLL-FEATURES-2439: the readiness re-read every 60 s - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [maintCss, css`
     :host { flex: 1; min-block-size: 0; }
@@ -59,6 +67,14 @@ export class EmergencyReadinessPage extends LitElement {
     a.fix { color: var(--sw-accent-text); text-decoration: none; font-weight: var(--sw-fw-semibold); white-space: nowrap; }
     @media (hover: hover) and (pointer: fine) { a.fix:hover { text-decoration: underline; } }
     .foot { padding: 8px 14px; color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+    .gsec { display: block; }
+    /* the panel's foot: the rows the caller may not see, and the pager (its band is kept while the checklist fits the window) */
+    .pgfoot { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-block-start: 1px solid var(--sw-border); color: var(--sw-text-3); font-size: var(--sw-fs-sm); min-block-size: 44px; box-sizing: border-box; }
+    .pgfoot .sp { flex: 1; }
+    @media screen and (min-width: 1024px) and (min-height: 560px) {
+      :host([data-fit][data-long-lists='paged']) .scroller { overflow: hidden; }
+      :host([data-fit]) [data-off] { display: none !important; }
+    }
     .printonly { display: none; }
     @media (max-width: 767px) { .item { grid-template-columns: auto minmax(0, 1fr); } .item .side { grid-column: 2; } }
     @media print {
@@ -72,14 +88,11 @@ export class EmergencyReadinessPage extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void this.load();
-    }, 60_000);
+    this.poll.every('readiness', 60_000, () => this.load());
   }
 
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+  protected willUpdate() {
+    this.toggleAttribute('data-fit', this.fit.fits);
   }
 
   private async load() {
@@ -99,10 +112,10 @@ export class EmergencyReadinessPage extends LitElement {
     return emLang() === 'en' && i.code && EN_SUMMARY[i.code] && !i.redacted ? EN_SUMMARY[i.code] : i.summary;
   }
 
-  private row(i: ReadinessItem) {
+  private row(i: ReadinessItem, off = false) {
     const look = LOOK[i.status];
     const age = ageText(i.age_s, emLang());
-    return html`<div class="item ${i.status}" data-look=${look} data-emerg-item=${i.id} data-status=${i.status}>
+    return html`<div class="item ${i.status}" data-fit-item ?data-off=${off} data-look=${look} data-emerg-item=${i.id} data-status=${i.status}>
       <span class="disc" aria-hidden="true"><sw-icon name=${ICON[i.status]} size="16"></sw-icon></span>
       <div><div class="t1">${this.itemTitle(i)}${i.critical && !i.redacted ? html`<span class="chip" data-look="unk">${em('critical')}</span>` : nothing}</div>
         <div class="t2">${this.summary(i)}${i.na ? html` · ${em('naBy', { by: i.na.by, at: fmtInstant(i.na.at, false) })}${i.na.note ? ` · ${i.na.note}` : ''}` : nothing}${age ? html` · ${em('age', { n: age })}` : nothing}</div>
@@ -141,10 +154,23 @@ export class EmergencyReadinessPage extends LitElement {
           @click=${() => { this.filter = k; }}><span class="dot" aria-hidden="true"></span><span><b>${counts[k]}</b><span class="l">${em(FILTER_LABEL[k])}</span></span></button>`)}
       </div>
       <div class="panel flush fill"><div class="scroller" data-emerg-list>
-        ${groups.length ? groups.map((g) => html`<div class="grp">${em(`grp_${g}` as EmKey)}</div>${shown.filter((i) => i.group === g).map((i) => this.row(i))}`)
-          : html`<div class="nomatch">${em('empty')}</div>`}
-        ${d.counts.hidden ? html`<div class="foot">${em('hidden', { n: d.counts.hidden })}</div>` : nothing}
-      </div></div>`;
+        ${groups.length ? this.sections(shown, groups) : html`<div class="nomatch">${em('empty')}</div>`}
+      </div>${d.counts.hidden || this.fit.fits ? html`<div class="pgfoot"><span data-emerg-hidden>${d.counts.hidden ? em('hidden', { n: d.counts.hidden }) : nothing}</span><span class="sp"></span>
+        ${this.fit.pages > 1 ? html`<sw-pager class="noprint" data-emerg-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</div>` : nothing}</div>`;
+  }
+
+  /** The groups in reading order, each a section (its heading over its rows): a page that starts inside a group draws its heading again;
+   * a group with no row on this page is out of the layout (data-off). */
+  private sections(shown: readonly ReadinessItem[], groups: readonly ItemGroup[]) {
+    const ordered = groups.map((g) => ({ g, items: shown.filter((i) => i.group === g) }));
+    this.fit.sync(ordered.reduce((n, x) => n + x.items.length, 0), `${this.filter}|${ordered.map((x) => x.items.map((i) => i.id).join(',')).join('|')}`);
+    let at = 0;
+    return ordered.map(({ g, items }) => {
+      const first = at;
+      at += items.length;
+      const off = items.map((_, k) => !this.fit.shows(first + k));
+      return html`<section class="gsec" ?data-off=${off.every(Boolean)} data-emerg-group=${g}><div class="grp">${em(`grp_${g}` as EmKey)}</div><div class="gitems">${items.map((i, k) => this.row(i, off[k]))}</div></section>`;
+    });
   }
 }
 

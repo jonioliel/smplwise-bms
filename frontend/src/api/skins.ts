@@ -1,6 +1,6 @@
 /** AI-rendered floor skins (CR-006 phase 2, slice 2a): the settings section's status and connection test, and the
  * floor's control images. The API key never reaches the browser - only whether it is configured. */
-import { get, post, upload } from './client';
+import { get, path, post, upload } from './client';
 import type { ControlState } from '../map/skin-control';
 import { CONTROL_RECIPE, dataUrlBytes } from '../map/skin-control';
 
@@ -67,7 +67,7 @@ export interface FloorSkins {
 
 export const getSkinsStatus = () => get<SkinsStatus>('skins/status');
 export const runSkinsTest = () => post<SkinsTestResult>('skins/test');
-export const getFloorSkins = (floorId: string) => get<FloorSkins>(`floors/${floorId}/skins`);
+export const getFloorSkins = (floorId: string) => get<FloorSkins>(path`floors/${floorId}/skins`);
 
 export function uploadControlImage(floorId: string, state: ControlState, geometryKey: string, pngDataUrl: string): Promise<SkinControl> {
   const form = new FormData();
@@ -75,5 +75,5 @@ export function uploadControlImage(floorId: string, state: ControlState, geometr
   form.set('geometry_key', geometryKey);
   form.set('recipe', CONTROL_RECIPE); // STILLCAM-SKIN: the backend refuses a control drawn with camera-bound bodies
   form.set('file', new Blob([dataUrlBytes(pngDataUrl)], { type: 'image/png' }), `control-${state}.png`);
-  return upload<SkinControl>(`floors/${floorId}/skins/control-image`, form);
+  return upload<SkinControl>(path`floors/${floorId}/skins/control-image`, form);
 }

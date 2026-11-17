@@ -4,6 +4,7 @@
  */
 import { hasNameTokens, tn } from './naming';
 import { ticketsLang } from './text';
+import { fillVars } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   tab: 'מיקומים',
@@ -133,8 +134,9 @@ const en: Record<LocTextKey, string> = {
 export const LOC_TEXT_HE: Readonly<Record<LocTextKey, string>> = he;
 export const LOC_TEXT_EN: Readonly<Record<LocTextKey, string>> = en;
 
-export function lt(key: LocTextKey, vars?: Record<string, string | number>): string {
+/** CR-TK-CATALOGUE-2440: was `lt`, the same short name as list-text's (review 08:F07). */
+export function loct(key: LocTextKey, vars?: Record<string, string | number>): string {
   const s = (ticketsLang() === 'en' ? en[key] : he[key]) ?? he[key];
-  const out = vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  const out = fillVars(s, vars);
   return hasNameTokens(out) ? tn(out) : out; // D33: the module's name through the naming tokens (integ/264)
 }

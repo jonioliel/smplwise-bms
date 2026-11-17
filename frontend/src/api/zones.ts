@@ -3,7 +3,7 @@
  * to the plan image; candidates come from local room detection on the plan and are saved only once the
  * editor accepts them.
  */
-import { api, del, get, patch, post, put } from './client';
+import { api, del, get, patch, path, post, put, query } from './client';
 import type { SpatialZone, ZonePoint } from './types';
 
 export type { SpatialZone, ZonePoint } from './types';
@@ -36,14 +36,14 @@ export interface DetectResult {
   existing_auto: number;
 }
 
-export const listZones = (floorId: string) => get<{ zones: SpatialZone[] }>(`floors/${floorId}/zones`);
+export const listZones = (floorId: string) => get<{ zones: SpatialZone[] }>(path`floors/${floorId}/zones`);
 export const createZone = (floorId: string, body: { name: string; kind?: ZoneKind; polygon: ZonePoint[]; color?: string; searchable?: boolean }) =>
-  post<SpatialZone>(`floors/${floorId}/zones`, body);
+  post<SpatialZone>(path`floors/${floorId}/zones`, body);
 /** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4).
  * `fromFloorId` (CR-009): a shared room edited on another floor's map - its polygon is in that plan's coordinates. */
 export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[]; area_id?: string | null }, signal?: AbortSignal, fromFloorId?: string) => {
-  const path = `zones/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`;
-  return signal ? api<SpatialZone>(path, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(path, body);
+  const url = path`zones/${id}` + query({ from_floor_id: fromFloorId });
+  return signal ? api<SpatialZone>(url, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(url, body);
 };
 
 // ---------------------------------------------------------------- the zone's camera (CAMSUGGEST138-295)
@@ -54,9 +54,9 @@ export interface ZoneCameraLink {
   anchor_id: string | null;
   updated_at: string | null;
 }
-export const getZoneCamera = (zoneId: string) => get<ZoneCameraLink>(`zones/${zoneId}/suggested-camera`);
-export const acceptZoneCamera = (zoneId: string, anchorId: string) => put<ZoneCameraLink>(`zones/${zoneId}/suggested-camera`, { anchor_id: anchorId });
-export const clearZoneCamera = (zoneId: string) => api<ZoneCameraLink>(`zones/${zoneId}/suggested-camera`, { method: 'DELETE' });
+export const getZoneCamera = (zoneId: string) => get<ZoneCameraLink>(path`zones/${zoneId}/suggested-camera`);
+export const acceptZoneCamera = (zoneId: string, anchorId: string) => put<ZoneCameraLink>(path`zones/${zoneId}/suggested-camera`, { anchor_id: anchorId });
+export const clearZoneCamera = (zoneId: string) => api<ZoneCameraLink>(path`zones/${zoneId}/suggested-camera`, { method: 'DELETE' });
 
 // ---------------------------------------------------------------- shared space (CR-009)
 
@@ -105,15 +105,15 @@ export interface SharePreview {
   attach: { objects: number; labels: number; connectors: number; circuits: number; members: number };
   share_id?: string;
 }
-export const previewShare = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share/preview`, body);
-export const shareZone = (zoneId: string, body: ShareRequest) => post<SharePreview>(`zones/${zoneId}/share`, body);
-export const unshareZone = (zoneId: string, floorId: string) => del(`zones/${zoneId}/share/${floorId}`);
+export const previewShare = (zoneId: string, body: ShareRequest) => post<SharePreview>(path`zones/${zoneId}/share/preview`, body);
+export const shareZone = (zoneId: string, body: ShareRequest) => post<SharePreview>(path`zones/${zoneId}/share`, body);
+export const unshareZone = (zoneId: string, floorId: string) => del(path`zones/${zoneId}/share/${floorId}`);
 /** Members of a shared room (security review B1): reach follows this list, never where an anchor lies. Adding one needs
  * the share rights on every floor of the room. */
 export const addShareMember = (zoneId: string, resourceType: ShareMember['resource_type'], resourceId: string) =>
-  post<{ zone_id: string; added: boolean }>(`zones/${zoneId}/share/members`, { resource_type: resourceType, resource_id: resourceId });
+  post<{ zone_id: string; added: boolean }>(path`zones/${zoneId}/share/members`, { resource_type: resourceType, resource_id: resourceId });
 export const removeShareMember = (zoneId: string, resourceType: ShareMember['resource_type'], resourceId: string) =>
-  del(`zones/${zoneId}/share/members/${resourceType}/${encodeURIComponent(resourceId)}`);
+  del(path`zones/${zoneId}/share/members/${resourceType}/${resourceId}`);
 
 /** One member of a shared space as the READER may see it (owner 2026-09-30: each member filtered by the reader's own
  * permissions - a camera they may not view is not listed). `floors`: where it is anchored ("קומה אחרת" and no id for a
@@ -137,16 +137,16 @@ export interface ShareMembers {
   /** can_manage only: the anchors of the room's floors that are not members yet. */
   candidates?: ShareMember[];
 }
-export const listShareMembers = (zoneId: string) => get<ShareMembers>(`zones/${zoneId}/share/members`);
+export const listShareMembers = (zoneId: string) => get<ShareMembers>(path`zones/${zoneId}/share/members`);
 /** `withUnshare` (CR-009 §14): a shared room, from its HOME floor - ends every share and its members and deletes the room in one
  * server transaction. Without it a shared room answers 409 `zone_shared`. */
 export const deleteZone = (id: string, signal?: AbortSignal, withUnshare = false) => {
-  const path = withUnshare ? `zones/${id}?with_unshare=true` : `zones/${id}`;
-  return signal ? api<void>(path, { method: 'DELETE', signal }) : del(path);
+  const url = path`zones/${id}` + query({ with_unshare: withUnshare || undefined });
+  return signal ? api<void>(url, { method: 'DELETE', signal }) : del(url);
 };
-export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(`floors/${floorId}/zones/detect`, { strength });
+export const detectZones = (floorId: string, strength: 'light' | 'medium' | 'strong' = 'medium') => post<DetectResult>(path`floors/${floorId}/zones/detect`, { strength });
 export const acceptZones = (floorId: string, candidates: { polygon: ZonePoint[]; name?: string; kind?: ZoneKind }[], replaceAuto: boolean) =>
-  post<{ zones: SpatialZone[]; created: string[] }>(`floors/${floorId}/zones/accept`, { candidates, replace_auto: replaceAuto });
+  post<{ zones: SpatialZone[]; created: string[] }>(path`floors/${floorId}/zones/accept`, { candidates, replace_auto: replaceAuto });
 
 /** Ray-casting point-in-polygon test (normalized coordinates). */
 export function pointInPolygon(p: ZonePoint, poly: ZonePoint[]): boolean {

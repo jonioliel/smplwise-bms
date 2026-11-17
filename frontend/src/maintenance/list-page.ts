@@ -3,9 +3,12 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-place-tree';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import { liftRef } from '../components/top-layer';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { maintApi, type Task, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
@@ -62,21 +65,27 @@ export class MaintListPage extends LitElement {
   @state() private vendor: string | null = null;
   @state() private run: string | null = null;
   @state() private toast = '';
-  private timer?: number;
+  /** CR-POLL-FEATURES-2439: the task list re-read every POLL_MS (not while a round or the form is open) - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
   private loadedFor = '';
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5 a; code review 08:F23): on a desktop the table no longer scrolls inside its panel - the
+   * rows that fit are page 1, the rest are on the next pages (the pager at the end of the toolbar). With the long lists set to scroll
+   * (הגדרות › כללי) the table scrolls inside its panel as before. The phone's cards are unchanged. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scrollx'), () => !this.run && !!this.items?.length);
 
-  static styles = [maintCss, css`:host { flex: 1; overflow: hidden; }`];
+  static styles = [maintCss, css`
+    :host { flex: 1; overflow: hidden; }
+    /* the pager's place at the end of the toolbar is kept while the table fits the window (its height never moves the table) */
+    .toolbar .pg { margin-inline-start: auto; min-inline-size: 150px; display: flex; justify-content: flex-end; }
+    .fitsec { display: block; }
+    @media (min-width: 1024px) and (min-height: 560px) {
+      :host([data-fit][data-long-lists='paged']) .cols > .panel.flush > .scrollx { overflow-y: hidden; }
+    }
+  `];
 
   connectedCallback() {
     super.connectedCallback();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && !this.run && !this.form) void this.load();
-    }, POLL_MS);
-  }
-
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('tasks', POLL_MS, () => this.load(), { when: () => !this.run && !this.form });
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
@@ -92,6 +101,7 @@ export class MaintListPage extends LitElement {
     }
     if (changed.has('openTask') && this.openTask && this.items) this.openById(this.openTask);
     if (changed.has('openRun') && this.openRun) this.run = this.openRun;
+    this.toggleAttribute('data-fit', this.fit.fits);
   }
 
   private async load() {
@@ -301,6 +311,7 @@ export class MaintListPage extends LitElement {
     const n = kpiCounts(base);
     const rows = treeRows(list.filter((x) => applyFilter([x], { kpi: 'all', place: 'all', seg: this.seg, q: this.q }).shown.length), this.collapsed);
     const segs = segsOf(this.page, this.access.ticketsOn);
+    this.fit.sync(shown.length, `${this.page}|${shown.map((r) => r.id).join(',')}`);
     return html`${this.top(list)}
       <div class="kpis" role="group" aria-label=${mt('kpiStatus')} data-maint-kpis>
         ${PAGE_KPIS[this.page].map((k) => html`<button type="button" class="kpi" data-k=${k.key} data-look=${k.key === 'all' ? nothing : k.key} aria-pressed=${String(this.kpi === k.key)} data-maint-kpi=${k.key}
@@ -317,12 +328,13 @@ export class MaintListPage extends LitElement {
               ${segs.map((s) => html`<button type="button" aria-pressed=${String(this.seg === s.key)} data-seg=${s.key} @click=${() => { this.seg = s.key; }}>${mt(s.label)}</button>`)}</div>` : nothing}
             <label class="search"><sw-icon name="search" size="14"></sw-icon><input type="search" placeholder=${mt('search')} aria-label=${mt('search')} .value=${this.q} data-maint-search
               @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; }}></label>
+            ${this.fit.fits ? html`<span class="pg">${this.fit.pages > 1 ? html`<sw-pager data-maint-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</span>` : nothing}
           </div>
           ${shown.length ? html`
-            <div class="scrollx"><table class="t" data-maint-table><thead><tr>${this.head()}</tr></thead><tbody>
-              ${shown.map((r) => html`<tr class="go" tabindex="0" data-look=${lookOf(r)} data-maint-row=${r.id} @click=${() => this.openRow(r)}
-                  @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.openRow(r); } }}>${this.cells(r)}</tr>`)}
-            </tbody></table></div>
+            <div class="scrollx"><section class="fitsec"><table class="t" data-maint-table><thead><tr>${this.head()}</tr></thead><tbody>
+              ${shown.map((r, i) => (this.fit.shows(i) ? html`<tr class="go" tabindex="0" data-fit-item data-look=${lookOf(r)} data-maint-row=${r.id} @click=${() => this.openRow(r)}
+                  @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.openRow(r); } }}>${this.cells(r)}</tr>` : nothing))}
+            </tbody></table></section></div>
             <div class="cards-m" data-maint-cards>${shown.map((r) => this.card(r))}</div>`
             : html`<div class="nomatch" data-maint-nomatch>${mt('noMatch')}</div>`}
         </div>

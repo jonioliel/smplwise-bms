@@ -2,6 +2,7 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import type { WidgetItem } from '../api/home-config';
 import { DOORS_HOME_HREF, doorsHomeView, type DoorsHomeRow, type DoorsWidgetData } from './home-widget-model';
 import { dwwt } from '../i18n/door-windows-widget';
+import { statusCss } from '../styles/status-palette';
 
 /**
  * DOORWIN2-295: the doors home widget, built like the elevators / generator ones: one card in the host's shell, drawn only while the doors tab is on
@@ -24,10 +25,10 @@ const ROWS: Record<WidgetItem['size'], number> = { s: 0, m: 4, l: 8 };
 
 export const DOORS_WIDGET_STYLES = css`
   :host {
-    --sw-dw-err: #c81e1e;
-    --sw-dw-warn: #c2410c;
-    --sw-dw-ok: #15803d;
-    --sw-dw-off: #667085;
+    --sw-dw-err: ${statusCss.fault};
+    --sw-dw-warn: ${statusCss.warn};
+    --sw-dw-ok: ${statusCss.ok};
+    --sw-dw-off: ${statusCss.unknown};
   }
   .wg-doors [data-look='err'] { --dw-c: var(--sw-dw-err); }
   .wg-doors [data-look='warn'] { --dw-c: var(--sw-dw-warn); }

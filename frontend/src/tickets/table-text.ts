@@ -5,8 +5,7 @@
  * name tokens). A separate file so slice 6b never edits slice 1's catalogue; tests/unit-tickets-table.spec.ts checks completeness
  * and the D33 lint covers it (it lives in src/tickets/).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // the view switch (D24: cards / table / kanban, remembered per user)
@@ -297,16 +296,13 @@ const en: Partial<Record<TableTextKey, string>> = {
   prio_low: 'Low',
 };
 
-export function tableTemplate(key: TableTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<TableTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const tableTemplate = catalogue.template;
 
 /** A text of the table: the template in the document's language, the module's name rendered (D33), then `{var}`s. */
-export function tbt(key: TableTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(tableTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const tbt = catalogue.t;
 
-export const TABLE_TEXT_KEYS = Object.keys(he) as TableTextKey[];
-export const TABLE_TEXT_EN_KEYS = Object.keys(en) as TableTextKey[];
+export const TABLE_TEXT_KEYS = catalogue.KEYS;
+export const TABLE_TEXT_EN_KEYS = catalogue.EN_KEYS;

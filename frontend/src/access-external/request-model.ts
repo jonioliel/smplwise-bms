@@ -9,6 +9,8 @@ import type { Contact } from '../api/tickets-s4';
 import type { GrantableDoors, RequestBody, Timing } from '../api/access-grants';
 import { instantInZone } from '../api/recordings';
 import type { RtKey } from '../i18n/access-request';
+import { addDays, daysInclusive } from '../format/day-key';
+import { pad2 } from '../format/pad';
 
 export const MAX_WINS = 8;
 export const PURPOSE_MAX = 200;
@@ -111,14 +113,9 @@ export function keepRequestable(doors: Set<string>, g: GrantableDoors | null): S
 
 const mins = (t: string) => (t === '24:00' ? 1440 : Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)));
 
-function addDays(date: string, n: number): string {
-  const t = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))) + n * 86400_000;
-  return new Date(t).toISOString().slice(0, 10);
-}
-
-/** Inclusive number of calendar days. */
+/** Inclusive number of calendar days. CR-FORMAT-2440: the day arithmetic of this file is format/day-key.ts. */
 export function daySpan(from: string, until: string): number {
-  return Math.round((Date.UTC(+until.slice(0, 4), +until.slice(5, 7) - 1, +until.slice(8, 10)) - Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10))) / 86400_000) + 1;
+  return daysInclusive(from, until);
 }
 
 /** Every day of the range (at most 31, for the "specific dates" pills). */
@@ -156,7 +153,7 @@ export function codeDue(from: string, today: string, codeHour: number, nowMinute
   if (!from) return null;
   const eve = addDays(from, -1);
   if (eve < today || (eve === today && nowMinutes >= codeHour * 60)) return null;
-  return `${dm(eve)} ${String(codeHour).padStart(2, '0')}:00`;
+  return `${dm(eve)} ${pad2(codeHour)}:00`;
 }
 
 // ---------------------------------------------------------------- "I approve now" (owner decision a)

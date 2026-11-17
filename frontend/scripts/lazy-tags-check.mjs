@@ -118,6 +118,19 @@ const NOT_IN_ENTRY = [
   'arx/arx-welcome.ts',
   'tickets/rfq-text.ts', // the RFQ dictionary (the shell reads its two words from tickets/nav-text.ts)
   'xsection/sw-xsection.ts', // the building cross-section (xsection/sw-floor-home-link loads it when its dialog opens)
+  // CR-HOME-LAZY-2440 (review 06:BUNDLE-1 home side, 07:F4 d): the home screen's on-demand parts and the mapping family
+  'screens/devices-tiles-panel.ts', // the tiles' panel (first press on a count pill)
+  'screens/area-quick-sheet.ts', // the area quick-control pop-up (first press on an area)
+  'screens/home-edit-panel.ts', // edit mode's drawer
+  'screens/home-screen-options.ts',
+  'screens/home-site-view.ts', // a multi-building site only
+  'screens/home-site-off.ts',
+  'screens/mapping-all.ts', // the settings page of buildings and mapping (the home imports screens/mapping-health-chip alone)
+  'screens/system-mapping.ts',
+  'screens/mapping-health.ts',
+  'screens/mapping-assistant.ts', // the assistant and its slices (system-mapping loads them when it is first opened)
+  'screens/mapping-decide.ts',
+  'screens/mapping-rules.ts',
 ];
 for (const m of NOT_IN_ENTRY) {
   const f = path.join(ROOT, ...m.split('/'));
@@ -141,7 +154,10 @@ for (const [root, c] of groups) {
     for (const tag of uses.get(f) ?? []) {
       if (!defines.has(tag)) continue;
       if (definedIn(tag, eager) || definedIn(tag, c)) continue;
-      const own = [...(lazyEdges.get(f) ?? [])].some((r) => groups.get(r)?.has(defines.get(tag)));
+      // "own": this module starts the defining chunk itself - or a helper it imports directly does it for it (CR-MAP-SHARED-2440:
+      // the floor screens ask map/floor-view-shared.ts `loadPlan3d()`, which holds the one `import('./sw-plan-3d')`). One hop only.
+      const starters = [f, ...(eagerEdges.get(f) ?? [])];
+      const own = starters.some((x) => [...(lazyEdges.get(x) ?? [])].some((r) => groups.get(r)?.has(defines.get(tag))));
       if (!own) findings.push(`lazy ${rel(f)} (group ${rel(root)}) uses <${tag}> defined in ${rel(defines.get(tag))}, outside its group`);
     }
   }

@@ -867,16 +867,22 @@ export class InvestigateCaseDetail extends LitElement {
     this.error = '';
     try {
       const [s, d] = await Promise.all([productSettings(), getCase(id)]);
+      // CR-INV-EVENTS-2440 (06:RACE-7): another case was opened while this one was being read - its own read decides what is shown
+      if (this.caseId !== id) return;
       this.tz = s['time.zone'] ?? this.tz;
       this.data = d;
-      this.bundles = (await listBundles(id).catch(() => ({ bundles: [] as Bundle[] }))).bundles;
+      const bundles = (await listBundles(id).catch(() => ({ bundles: [] as Bundle[] }))).bundles;
+      if (this.caseId !== id) return;
+      this.bundles = bundles;
       if (!this.cams.length) {
         this.cams = (await listCameras().catch(() => ({ cameras: [] as Camera[] }))).cameras.filter((c) => c.enabled && c.recorder_enabled !== false); // CR-024: no snapshot from a disabled recorder
         if (!this.snapCam && this.cams[0]) this.snapCam = this.cams[0].id;
+        if (this.caseId !== id) return;
       }
       window.clearTimeout(this.pollTimer);
       if (d.items.some((i) => i.preservation === 'preserving')) this.pollTimer = window.setTimeout(() => void this.load(), 5000);
     } catch (err) {
+      if (this.caseId !== id) return;
       this.error = describeError(err);
     }
   }

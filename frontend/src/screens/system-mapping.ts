@@ -5,7 +5,6 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../xsection/sw-floor-home-link';
-import './mapping-assistant';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
 import { loadTree, type HomeLinks } from '../api/catalog';
@@ -13,7 +12,20 @@ import type { Floor } from '../api/types';
 import { loadXsData, type XsData } from '../xsection/xs-data';
 import { detect, health, itemKey, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
-import { MappingAssistant } from './mapping-assistant';
+
+/** CR-HOME-LAZY-2440 (review 07:F4 d): the assistant with its slices - "החלטות" (mapping-decide) and "מתקדם" (mapping-rules), which
+ * register on its class - is one chunk, fetched when it is first opened. A failed fetch may be tried again by the next press. */
+let assistantChunk: Promise<void> | null = null;
+function loadAssistant(): Promise<void> {
+  assistantChunk ??= Promise.all([import('./mapping-assistant'), import('./mapping-decide'), import('./mapping-rules')]).then(
+    () => undefined,
+    (err: unknown) => {
+      assistantChunk = null;
+      throw err;
+    },
+  );
+  return assistantChunk;
+}
 
 const SETTING_TEXT: { [K in keyof MappingSettings]: { label: string; hint: string; options: Record<MappingSettings[K], string> } } = {
   floor_inherit: { label: 'אזור בלי סימון בקומה של בניין ברור', hint: 'למשל "חדר אשפה" בקומה "א · קרקע"', options: { on: 'לפי הקומה', off: 'לשאול' } },
@@ -37,6 +49,8 @@ export class SystemMapping extends LitElement {
   @state() private forbidden = false;
   @state() private busy = false;
   @state() private assistant: { start: 'mark' | 'table' | 'decide' | 'summary'; advanced: boolean } | null = null;
+  /** CR-HOME-LAZY-2440: the assistant's chunk landed - <mapping-assistant> is rendered only then (never upgraded in place). */
+  @state() private assistantReady = false;
   @state() private confirmRestore: MappingVersion | null = null;
   @state() private floorDialog: Floor | null = null;
   @state() private singleFloors: Floor[] = [];
@@ -402,7 +416,7 @@ export class SystemMapping extends LitElement {
     if (this.forbidden) return html`<sw-card heading="בניינים ומיפוי"><div class="msg">רק מי שמנהל את תוכן האתר יכול לראות ולשנות את המיפוי.</div></sw-card>`;
     if (!this.data) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : html`<div class="msg">טוען…</div>`;
     const d = this.data;
-    const assistant = this.assistant
+    const assistant = this.assistant && this.assistantReady
       ? html`<mapping-assistant .data=${d} start=${this.assistant.start} ?advancedOpen=${this.assistant.advanced}
           @close=${() => { this.assistant = null; void this.load(); }} @applied=${() => void 0}></mapping-assistant>`
       : nothing;
@@ -454,6 +468,18 @@ export class SystemMapping extends LitElement {
   showError(msg: string) {
     this.error = msg;
   }
+
+  /** CR-HOME-LAZY-2440: an assistant was asked for - bring its chunk (once); a failed fetch closes the request and says so. */
+  protected willUpdate() {
+    if (!this.assistant || this.assistantReady) return;
+    void loadAssistant().then(
+      () => (this.assistantReady = true),
+      (err: unknown) => {
+        this.assistant = null;
+        this.error = describeError(err);
+      },
+    );
+  }
   openAssistant(start: 'mark' | 'table' | 'decide' | 'summary') {
     this.assistant = { start, advanced: false };
   }
@@ -469,7 +495,7 @@ export class SystemMapping extends LitElement {
             <span class="t"><b>${this.bName(b.target)}</b><span>${b.floors} קומות · ${b.areas} אזורים${b.tokens.length ? ` · ${b.tokens.map((t) => `"${t}"`).join(', ')}` : ''}${b.manual ? ` · ${b.manual} החלטות ידניות` : ''}</span></span></div>`;
         })}
         <div class="row"><span class="g un">?</span><span class="t"><b>לא משויך</b><span>${sum.unassigned.floors} קומות · ${sum.unassigned.areas} אזורים${sum.open ? ` · ${sum.open} מחכים להחלטה` : ''}</span></span>
-          ${sum.open ? html`<sw-button size="sm" data-mapping-decide @click=${() => (this.assistant = { start: MappingAssistant.hasDecisions ? 'decide' : 'table', advanced: false })}>החלט עכשיו</sw-button>` : nothing}</div>
+          ${sum.open ? html`<sw-button size="sm" data-mapping-decide @click=${() => (this.assistant = { start: 'decide', advanced: false })}>החלט עכשיו</sw-button>` : nothing}</div>
       </div></sw-card>`;
   }
 

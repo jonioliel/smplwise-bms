@@ -46,6 +46,7 @@ import { loadHomeScreen, type DesktopArea } from '../api/home-screen';
 import { getAreaPresence, type AreaPresence } from '../api/building-presence'; // AREA-PRESENCE-LINE-2351: the area's presence line
 import { areaLineView, POLL_MS as PRESENCE_POLL_MS } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
+import { LongListsController } from '../api/long-lists';
 
 export { rowLabel };
 
@@ -442,6 +443,12 @@ const AREA_DESIGN = css`
       overflow: clip;
       overflow-clip-margin: 12px;
     }
+    /* PAGING-SETTING-2439: the long lists scroll (הגדרות › כללי) - every card is drawn and the region scrolls inside itself */
+    :host([data-pages][data-long-lists='scroll']) .fitbox {
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
     :host([data-pages]) .fitbox > .grid {
       transform: translateY(calc(-1 * var(--band-y, 0px)));
     }
@@ -698,6 +705,11 @@ export class DevicesArea extends LitElement {
   private bandRo?: ResizeObserver;
   private bandObserved: HTMLElement | null = null;
   private bandMq = window.matchMedia(BANDS_MQ);
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages; the cards region scrolls inside itself. */
+  private lists = new LongListsController(this, () => {
+    this.bandPage = 0;
+    if (!this.fitRaf) this.fitRaf = window.requestAnimationFrame(this.measureFit);
+  });
   private onBandMq = () => this.requestUpdate();
   @state() private error = '';
   @state() private forbidden = false;
@@ -880,7 +892,7 @@ export class DevicesArea extends LitElement {
       if (this.bandCount !== 1) this.bandCount = 1;
       if (this.bandPage !== 0) this.bandPage = 0;
     };
-    if (!box || !grid || !this.bandsOn()) return clear();
+    if (!box || !grid || !this.bandsOn() || !this.lists.paged) return clear();
     const h = box.clientHeight;
     const g0 = grid.getBoundingClientRect().top;
     const geo = items

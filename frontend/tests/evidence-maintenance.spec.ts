@@ -37,7 +37,23 @@ test.describe('maintenance evidence', () => {
         await expect(page.locator(`${M} [data-maint-place-select]`)).toBeVisible();
         await expect(page.locator(`${M} [data-maint-table]`)).toBeHidden();
       } else {
-        await expect(page.locator(`${M} [data-maint-row]`)).toHaveCount(6);
+        // PAGING-SETTING-2439: a desktop window too short for the six rows (the tablet project, 1024x768) pages the table instead of
+        // scrolling it - the rows that fit are page 1, the pager at the end of the toolbar leads to the rest. The six are counted
+        // across the pages (the pages are measured a frame after the first draw, hence the retry); the shot is page 1.
+        const rows = page.locator(`${M} [data-maint-row]`);
+        const pager = page.locator(`${M} [data-maint-pager]`);
+        await expect(async () => {
+          let total = await rows.count();
+          if (await pager.count()) {
+            await expect(pager.locator('[data-pager-at]')).toHaveText('1 / 2', { timeout: 1000 });
+            await pager.locator('[data-pager-next]').click();
+            await expect(pager.locator('[data-pager-at]')).toHaveText('2 / 2', { timeout: 1000 });
+            total += await rows.count();
+            await pager.locator('[data-pager-prev]').click();
+            await expect(pager.locator('[data-pager-at]')).toHaveText('1 / 2', { timeout: 1000 });
+          }
+          expect(total, 'the six rows of the ledger, over its pages').toBe(6);
+        }).toPass({ timeout: 10_000 });
         await expect(page.locator(`${M} [data-maint-tree]`)).toBeVisible();
         await expect(page.locator(`${M} [data-maint-row="d1"] [data-maint-badge]`)).toHaveText('פג');
         await expect(page.locator(`${M} [data-maint-row="c1"] [data-maint-badge]`)).toHaveText('עוד 30 ימים');

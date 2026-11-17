@@ -183,7 +183,7 @@ export class GenSettings_ extends LitElement {
     if (!this.picking) return nothing;
     return html`<div class="card" data-manual-list><div class="hd"><span class="h3">${S.manualPick}</span></div>
       <input type="search" placeholder=${S.manualSearch} .value=${this.candQ} @input=${(e: Event) => { this.candQ = (e.target as HTMLInputElement).value; void this.searchCands(); }} />
-      <div class="list" style="flex-direction:column;margin-block-start:8px;max-block-size:300px;overflow:auto">${this.cands.length ? this.cands.map((c) => html`<div class="li"><div class="grow"><div class="t1">${c.name}</div><div class="t2">${fill(S.manualRoles, { n: c.mapped_roles })}</div></div>
+      <div class="list picklist">${this.cands.length ? this.cands.map((c) => html`<div class="li"><div class="grow"><div class="t1">${c.name}</div><div class="t2">${fill(S.manualRoles, { n: c.mapped_roles })}</div></div>
         <sw-button size="sm" ?disabled=${c.registered || this.busy} @click=${() => this.run(async () => { const g = await addDevice(c.ha_device_id); this.picking = false; await this.load(); this.go(this.sub(), g.id); })}>${c.registered ? S.manualRegistered : S.manualAdd}</sw-button></div>`) : html`<div class="mut">${S.manualNone}</div>`}</div></div>`;
   }
 

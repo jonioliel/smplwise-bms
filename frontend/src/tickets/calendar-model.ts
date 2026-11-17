@@ -9,6 +9,8 @@
  * item carries one).
  */
 import type { TicketItem } from '../api/tickets';
+import { addDaysByParts } from '../format/day-key';
+import { dayKey, hhmm } from '../format/pad';
 
 export const DEFAULT_TZ = 'Asia/Jerusalem';
 const HOUR = 3_600_000;
@@ -35,8 +37,8 @@ export function partsOf(ms: number, tz: string = DEFAULT_TZ): Parts {
   return { y: o.year, m: o.month, d: o.day, h: o.hour === 24 ? 0 : o.hour, min: o.minute, s: o.second };
 }
 
-const p2 = (n: number) => String(n).padStart(2, '0');
-export const keyOf = (y: number, m: number, d: number) => `${y}-${p2(m)}-${p2(d)}`;
+/** CR-FORMAT-2440: format/pad.ts (`dayKey`), under the name this module always had. */
+export const keyOf = dayKey;
 
 /** `yyyy-mm-dd` of an instant in `tz`; '' for an invalid one. */
 export function dayKeyOf(ms: number, tz: string = DEFAULT_TZ): string {
@@ -58,9 +60,7 @@ function ymd(key: string): [number, number, number] {
 
 /** Calendar arithmetic on day keys (no clock involved, so no DST): `addDays('2026-03-27', 1)` is '2026-03-28'. */
 export function addDays(key: string, n: number): string {
-  const [y, m, d] = ymd(key);
-  const t = new Date(Date.UTC(y, m - 1, d + n));
-  return keyOf(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+  return addDaysByParts(key, n); // CR-FORMAT-2440: format/day-key.ts (the by-the-numbers form this calendar always used)
 }
 
 /** 0 = Sunday ... 6 = Saturday. */
@@ -108,7 +108,7 @@ export function dayHours(key: string, tz: string = DEFAULT_TZ): number {
 /** "09:05" in `tz`. */
 export function timeText(ms: number, tz: string = DEFAULT_TZ): string {
   const p = partsOf(ms, tz);
-  return `${p2(p.h)}:${p2(p.min)}`;
+  return hhmm(p.h, p.min);
 }
 
 export function todayKey(now: Date = new Date(), tz: string = DEFAULT_TZ): string {

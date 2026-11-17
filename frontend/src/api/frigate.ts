@@ -12,7 +12,7 @@
  * and `recorder-health` cards carry `vendor_details` for a Frigate recorder. This file turns those wire shapes into the UI model
  * below (ReviewItem, ReviewList, FrigateCapabilities, FrigateHealth) so a change of the server contract is a change HERE only.
  * Everything else is pure helpers; the screens only render. Times are UTC ISO strings, shown in the site's zone by the screens. */
-import { ApiError, apiUrl, get, post, resourceUrl } from './client';
+import { ApiError, apiUrl, get, path, post, query, resourceUrl } from './client';
 import { isPendingRestart } from './closed-errors';
 import { isApi } from './session';
 import type { Camera } from './types';
@@ -529,7 +529,7 @@ export async function listReviews(f: ReviewFilters, cursor: string | null = null
   await Promise.all(recs.map(async (r) => {
     const rid = encodeURIComponent(r.id);
     try {
-      const [st, sum] = await Promise.all([statusOf(r.id).catch(() => null), get<WireSummary>(`frigate/${rid}/reviews/summary?days=${periodDays(f.period)}`).catch(() => null)]);
+      const [st, sum] = await Promise.all([statusOf(r.id).catch(() => null), get<WireSummary>(path`frigate/${rid}/reviews/summary` + query({ days: periodDays(f.period) })).catch(() => null)]);
       if (st?.sync?.last_poll_error) stale = true;
       const mode = recordingMode(st?.retention);
       if (mode === 'motion' || mode === 'events') partial = true;
@@ -540,12 +540,12 @@ export async function listReviews(f: ReviewFilters, cursor: string | null = null
       if (f.layer === 'motion') {
         const nowMs = now.getTime();
         const since = Math.max(Date.parse(periodSince(f.period, now)), nowMs - MOTION_MAX_MS);
-        const [act, cams] = await Promise.all([get<WireActivity>(`frigate/${rid}/activity?from=${Math.floor(since / 1000)}&to=${Math.floor(nowMs / 1000)}`), camerasOf(r.id)]);
+        const [act, cams] = await Promise.all([get<WireActivity>(path`frigate/${rid}/activity` + query({ from: Math.floor(since / 1000), to: Math.floor(nowMs / 1000) })), camerasOf(r.id)]);
         const spans = motionSpans(r.id, act.buckets, cams).filter((s) => !f.camera || s.camera_id === f.camera);
         items = items.concat(spans);
         counts.motion = Math.max(0, counts.motion) + spans.length;
       } else {
-        const page = await get<{ items: WireReview[]; next_before: number | null }>(`frigate/${rid}/reviews?${reviewQuery(f, before[r.id] ?? null, now)}`);
+        const page = await get<{ items: WireReview[]; next_before: number | null }>(path`frigate/${rid}/reviews` + `?${reviewQuery(f, before[r.id] ?? null, now)}`);
         items = items.concat(page.items.map(itemOf));
         if (page.next_before != null) next[r.id] = page.next_before;
       }

@@ -48,7 +48,9 @@ test('the route, the station link and the wiring', () => {
   expect(read('shell/sw-app.ts')).toContain("if (s[1] === 'wiskey-validation') return html`<system-wiskey-validation></system-wiskey-validation>`;");
   expect(read('shell/lazy-screens.ts')).toContain("'system-wiskey-validation': () => import('../screens/system-wiskey-validation')");
   const diag = read('screens/system-diagnostics.ts');
-  expect(diag).toContain("import './system-wiskey-validation-card';");
+  // CR-DIAG-TABS-2440: the card is imported by the tab's own module, fetched when "מתגי מסכי כניסה" is first opened
+  expect(read('screens/system-diagnostics-access.ts')).toContain("import './system-wiskey-validation-card';");
+  expect(diag).toContain("import('./system-diagnostics-access')");
   expect(diag).toContain('<system-wiskey-validation-card></system-wiskey-validation-card>');
   const views = read('screens/wiskey-stations-views.ts');
   expect(views.split('\n').filter((l) => l.includes('liveValidationRow(')).length).toBe(1);

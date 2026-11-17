@@ -245,3 +245,103 @@ test.describe('notification rules table (desktop)', () => {
     }
   });
 });
+
+// CR-UI-CONTROLLERS-2440 (review finding 07:F17, D14 component half): a table whose host listens for `row-select` is operable from the
+// keyboard without `focus-rows`; a table nobody listens to gains no tab stop; `no-focus-rows` opts out. And sw-state-panel takes the
+// refusal from the caller (`forbidden`), not only from the Hebrew wording of the hint.
+test.describe('keyboard rows and the forbidden flag (desktop)', () => {
+  test.skip(({ hasTouch, viewport }) => hasTouch || (viewport?.width ?? 0) < 1200, 'a keyboard pass: one desktop run is enough');
+
+  test('sw-table: a listened-to table has tab-stop rows that open on Enter and Space', async ({ page }) => {
+    await openDemo(page, '/investigate/cases');
+    const table = page.locator('sw-app investigate-cases sw-table');
+    const rows = table.locator('tbody tr');
+    await expect(rows.first()).toBeVisible();
+    expect(await table.getAttribute('focus-rows'), 'the screen did not opt in').toBeNull();
+    for (const r of await rows.all()) await expect(r).toHaveAttribute('tabindex', '0');
+    const firstId = await rows.first().getAttribute('data-row-id');
+    await rows.first().focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(new RegExp(`#/investigate/cases/${firstId}$`));
+
+    await openDemo(page, '/investigate/cases');
+    const second = page.locator('sw-app investigate-cases sw-table tbody tr').nth(1);
+    const secondId = await second.getAttribute('data-row-id');
+    await second.focus();
+    await page.keyboard.press('Space');
+    await expect(page).toHaveURL(new RegExp(`#/investigate/cases/${secondId}$`));
+  });
+
+  test('sw-table: no listener, no tab stop; the listener adds it, no-focus-rows removes it, focus-rows wins', async ({ page }) => {
+    await openDemo(page, '/investigate/cases');
+    await expect(page.locator('sw-app investigate-cases sw-table tbody tr').first()).toBeVisible();
+    const seen = await page.evaluate(async () => {
+      type T = HTMLElement & { columns: unknown; rows: unknown; noFocusRows: boolean; focusRows: boolean; updateComplete: Promise<unknown> };
+      const t = document.createElement('sw-table') as T;
+      t.columns = [{ key: 'name', label: 'Name' }];
+      t.rows = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }];
+      document.body.append(t);
+      const stops = async () => {
+        await t.updateComplete;
+        return [...t.shadowRoot!.querySelectorAll('tbody tr')].map((r) => r.getAttribute('tabindex')).join(',');
+      };
+      const out: Record<string, string> = {};
+      out.plain = await stops();
+      const picked: string[] = [];
+      const onPick = (e: Event) => picked.push((e as CustomEvent<{ id: string }>).detail.id);
+      t.addEventListener('row-select', onPick);
+      out.listened = await stops();
+      const row = t.shadowRoot!.querySelector<HTMLElement>('tbody tr')!;
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true }));
+      out.picked = picked.join(',');
+      t.noFocusRows = true;
+      out.optedOut = await stops();
+      t.focusRows = true;
+      out.explicit = await stops();
+      t.focusRows = false;
+      t.noFocusRows = false;
+      t.removeEventListener('row-select', onPick);
+      out.removed = await stops();
+      t.remove();
+      return out;
+    });
+    expect(seen).toEqual({ plain: ',', listened: '0,0', picked: 'a', optedOut: ',', explicit: '0,0', removed: ',' });
+  });
+
+  test('sw-state-panel: forbidden set by the caller gives the lock and no retry, in any language', async ({ page }) => {
+    await openDemo(page, '/styleguide');
+    await expect(page.locator('styleguide-screen sw-state-panel').first()).toBeVisible();
+    const seen = await page.evaluate(async () => {
+      type P = HTMLElement & { state: string; hint: string; actionLabel: string; forbidden: boolean; updateComplete: Promise<unknown> };
+      const look = async (set: (p: P) => void) => {
+        const p = document.createElement('sw-state-panel') as P;
+        p.state = 'error';
+        p.actionLabel = 'Retry';
+        set(p);
+        document.body.append(p);
+        await p.updateComplete;
+        const icon = p.shadowRoot!.querySelector('.icon')!;
+        const res = `${icon.getAttribute('data-icon')}/${icon.getAttribute('data-look') || '-'}/${p.shadowRoot!.querySelector('sw-button') ? 'retry' : 'no-retry'}`;
+        p.remove();
+        return res;
+      };
+      return {
+        english: await look((p) => { p.hint = 'You are not allowed to see this'; }),
+        englishFlag: await look((p) => { p.hint = 'You are not allowed to see this'; p.forbidden = true; }),
+        hebrewFallback: await look((p) => { p.hint = 'אין לך הרשאה לצפות במסך הזה'; }),
+        otherState: await (async () => {
+          const p = document.createElement('sw-state-panel') as P;
+          p.state = 'empty';
+          p.forbidden = true;
+          document.body.append(p);
+          await p.updateComplete;
+          const res = p.shadowRoot!.querySelector('.icon')!.getAttribute('data-icon');
+          p.remove();
+          return res;
+        })(),
+      };
+    });
+    expect(seen).toEqual({ english: 'warning/-/retry', englishFlag: 'lock/forbidden/no-retry', hebrewFallback: 'lock/forbidden/no-retry', otherState: 'inbox' });
+  });
+});

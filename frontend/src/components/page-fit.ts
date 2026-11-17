@@ -1,4 +1,5 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import { LongListsController } from '../api/long-lists';
 
 /**
  * NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; design audit round 30, finding #5): the pages of a card region on the
@@ -13,6 +14,11 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
  * cards changes (`sync(total, signature)`: a filter, a device added or removed), never on a live state update. Below FIT_MQ, and while
  * `enabled()` is false (the layout editor), every card is drawn and nothing changes. A card the screen draws carries `data-fit-item`,
  * in reading order, inside its section's `<section>` element.
+ *
+ * PAGING-SETTING-2439: moved here from screens/multimedia-page-fit.ts as THE measured-pages helper of every card or row region of a
+ * control screen (owner round 32, Q-SYS-4/5). It honours the installation's long-lists setting (api/long-lists.ts): in `scroll` every
+ * card is drawn, the pager shows one page and the host carries `data-long-lists="scroll"`, so the screen's CSS lets the region scroll
+ * inside itself. `mq` is the screen's desktop edge (default FIT_MQ). A region without `<section>` elements is one section.
  */
 export const FIT_MQ = '(min-width: 1024px) and (min-height: 560px)';
 
@@ -34,19 +40,30 @@ export class PageFit implements ReactiveController {
   private ro?: ResizeObserver;
   private observed: HTMLElement | null = null;
   private size = '';
-  private mq = window.matchMedia(FIT_MQ);
+  private mq: MediaQueryList;
+  /** the installation's long-lists setting: `scroll` draws every card (the region scrolls inside itself) */
+  readonly lists: LongListsController;
 
   constructor(
     private host: ReactiveControllerHost & HTMLElement,
     private region: () => HTMLElement | null,
     private enabled: () => boolean,
+    mq: string = FIT_MQ,
   ) {
+    this.mq = window.matchMedia(mq);
+    this.lists = new LongListsController(host, () => this.reset());
     host.addController(this);
   }
 
-  /** the pages are in force (a desktop window tall enough, not editing) */
-  get on(): boolean {
+  /** the screen takes the window's height (a desktop window tall enough, not editing): its region pages - or, when the long lists
+   * scroll, scrolls inside itself; the page never does */
+  get fits(): boolean {
     return this.mq.matches && this.enabled();
+  }
+
+  /** the pages are in force (the screen fits and the long lists are paged) */
+  get on(): boolean {
+    return this.fits && this.lists.paged;
   }
 
   get pages(): number {

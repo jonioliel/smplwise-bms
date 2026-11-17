@@ -32,6 +32,7 @@ import { pkgT } from '../i18n/plan-package';
 import { ifcT } from '../i18n/plan-ifc';
 import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportPlanPackage, exportUrl, geometryDiff, importIfcGeometry, importPlanPackage, previewPlanPackage, type PackageMode, type PackageOrigin, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
 import { getPlanAreas, type PlanArea } from '../api/plan-links';
+import { isTypingTarget, readPlanImage, writePlanImage } from '../map/floor-view-shared';
 import { deleteFloorImage, floorImageUrl, getFloorImages, putFloorImageLayout, uploadFloorImage, type FloorImageVariant, type FloorImagesInfo } from '../api/floor-images';
 import { isDefaultCorners, type Corners } from '../map/floor-image';
 import '../map/sw-floor-image-align';
@@ -1125,11 +1126,7 @@ export class ExplorePlanEditor extends LitElement {
         this.levelFilter = null; // another floor: back to every level (the setting below may narrow it once it resolves)
         this.linkTargets = []; // and another floor's targets cannot outlive the floor they were listed for (final review item 4)
         this.linkTargetsFor = null;
-        try {
-          this.planImage = localStorage.getItem(`sw.editor.background.${b.floorId}`) !== '0'; // a floor never switched shows its picture
-        } catch {
-          this.planImage = true;
-        }
+        this.planImage = readPlanImage('editor', b.floorId); // a floor never switched shows its picture
         this.grid = readGrid(b.floorId);
       }
       this.bundle = b;
@@ -1679,7 +1676,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private handleKey(e: KeyboardEvent) {
     const target = e.composedPath()[0] as HTMLElement | undefined;
-    const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+    const typing = isTypingTarget(target);
     if (e.key === 'Escape') {
       if (this.shortcutsOpen) { this.shortcutsOpen = false; return; }
       if (this.doorGhost || this.doorAsking) { this.dropDoorGhost(); return; } // the proposal first; a second Esc clears the selection
@@ -2086,11 +2083,7 @@ export class ExplorePlanEditor extends LitElement {
   /** The plan picture switch of the layers tool, per floor in this browser (its own key: the live map keeps its own). */
   private setPlanImage(floorId: string, on: boolean) {
     this.planImage = on;
-    try {
-      localStorage.setItem(`sw.editor.background.${floorId}`, on ? '1' : '0');
-    } catch {
-      /* private mode or blocked storage: the choice lives for this page only */
-    }
+    writePlanImage('editor', floorId, on);
   }
 
   /** The grid switch and spacing of the layers tool (T085), per floor in this browser, beside the plan picture switch. */

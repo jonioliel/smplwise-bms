@@ -1,10 +1,11 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-state-panel';
 import { get, put, describeError } from '../api/client';
 import { bidi } from '../i18n/bidi';
 import { entityLabel, TECH_ID_ATTR } from '../i18n/entity-label';
+import { DevicesOverrideAdmin, overrideTableStyles } from './devices-override-admin';
 
 export type ClimateKindSetting = 'auto' | 'ac' | 'heating';
 
@@ -28,40 +29,13 @@ const KIND_HE: Record<'ac' | 'heating', string> = { ac: 'מיזוג', heating: '
  * heating); an administrator may fix either group per entity. The operator screens say nothing about it.
  */
 @customElement('devices-climate-kind-admin')
-export class DevicesClimateKindAdmin extends LitElement {
-  @state() private rows: ClimateKindRow[] | null = null;
-  @state() private error = '';
+export class DevicesClimateKindAdmin extends DevicesOverrideAdmin<ClimateKindRow> {
   @state() private busyId = '';
+  protected readonly heading = 'מיזוג וחימום';
 
-  static styles = css`
+  static styles = [overrideTableStyles, css`
     :host {
       display: block;
-    }
-    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
-    table {
-      inline-size: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: var(--sw-fs-base);
-    }
-    th,
-    td {
-      text-align: start;
-      padding: 10px 10px;
-      border-block-end: 1px solid var(--sw-border);
-      vertical-align: middle;
-    }
-    th {
-      background: var(--sw-surface-2);
-      color: var(--sw-heading, var(--sw-text));
-      font-weight: var(--sw-fw-bold);
-      white-space: nowrap;
-    }
-    th:first-child {
-      border-start-start-radius: var(--sw-r-md);
-    }
-    th:last-child {
-      border-start-end-radius: var(--sw-r-md);
     }
     td:first-child {
       font-weight: var(--sw-fw-semibold);
@@ -89,20 +63,10 @@ export class DevicesClimateKindAdmin extends LitElement {
     .err {
       color: var(--sw-danger);
     }
-  `;
+  `];
 
-  connectedCallback() {
-    super.connectedCallback();
-    void this.load();
-  }
-
-  private async load() {
-    try {
-      this.rows = (await get<{ climate: ClimateKindRow[] }>('devices/climate-kinds')).climate;
-      this.error = '';
-    } catch (err) {
-      this.error = describeError(err);
-    }
+  protected async fetchRows() {
+    return (await get<{ climate: ClimateKindRow[] }>('devices/climate-kinds')).climate;
   }
 
   private async choose(r: ClimateKindRow, kind: ClimateKindSetting) {
@@ -119,9 +83,9 @@ export class DevicesClimateKindAdmin extends LitElement {
   }
 
   render() {
-    const heading = 'מיזוג וחימום';
-    if (this.rows === null && this.error) return html`<sw-card heading=${heading}><sw-state-panel compact state="error" heading="לא ניתן לטעון את התקני האקלים" hint=${this.error}></sw-state-panel></sw-card>`;
-    if (!this.rows) return html`<sw-card heading=${heading}><sw-state-panel compact state="loading"></sw-state-panel></sw-card>`;
+    const heading = this.heading;
+    if (this.rows === null && this.error) return this.errorCard('לא ניתן לטעון את התקני האקלים');
+    if (!this.rows) return this.loadingCard();
     if (!this.rows.length) return nothing;
     return html`<sw-card heading=${heading} subheading="התקן שאינו יכול לקרר (אין לו מצב קירור, ייבוש או מאוורר) נספר כחימום. אפשר לקבוע ידנית לכל התקן." data-climate-kind-admin>
       <table>

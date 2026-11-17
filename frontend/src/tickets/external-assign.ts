@@ -11,7 +11,7 @@ import { assignLines } from './message-lines';
 import { mtt } from './messages-text';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { ct, type CostTextKey } from './cost-text'; // slice 9
-import { lt } from './org-locations-text';
+import { loct } from './org-locations-text';
 import { navForAssign, navForPreview, navSwitch, type NavAnswer } from './assign-nav-model';
 import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
 import { insuranceMark } from '../maintenance/model'; // MAINT215B: the supplier insurance mark of the picker
@@ -320,7 +320,7 @@ export class ExternalAssign implements ReactiveController {
     if (!sw.visible) return nothing;
     return html`<label class="chk" data-nav-switch><input type="checkbox" data-location-nav .checked=${sw.checked} ?disabled=${this.lend.busy()}
       @change=${(e: Event) => { this.locationNav = (e.target as HTMLInputElement).checked; void this.loadPreview(t); }} />
-      <span><b>${lt('navOn')}</b><small class="muted">${lt('navOnSub')}</small></span></label>`;
+      <span><b>${loct('navOn')}</b><small class="muted">${loct('navOnSub')}</small></span></label>`;
   }
 
   /** GRANTS3-295: the "access needed" tick (hidden unless the preview offers it). */

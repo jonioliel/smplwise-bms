@@ -83,14 +83,13 @@ test('the old track (--sw-border-strong) was below 3:1 on a card - the reason fo
 /** Every file that draws its own switch track. */
 const OWN_TRACKS: [string, RegExp][] = [
   ['components/sw-toggle.ts', /button \{[^}]*background: var\(--sw-toggle-off\)/s],
+  // CR-DUP-ADMIN-CARDS-2440: the access settings cards (messaging, policy) and the person's messages tab share this one track
+  ['messaging/policy-switch.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/s],
   ['incidents/settings-form.ts', /\.sw \{[^}]*background: var\(--sw-toggle-off\)/],
   ['screens/security-alarm.ts', /button\.tgl \{[^}]*background: var\(--sw-toggle-off\)/s],
-  ['screens/system-access-messaging.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/s],
-  ['screens/system-access-policy.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/s],
   ['screens/system-brand-installer.ts', /\.tgl \{[^}]*background: var\(--sw-toggle-off\)/],
   ['screens/system-security-privacy-masks.ts', /\.sw-switch \.track \{[^}]*background: var\(--sw-toggle-off\)/s],
   ['screens/system-security-public.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/],
-  ['screens/wiskey-person-messages.ts', /\.track \{[^}]*background: var\(--sw-toggle-off\)/s],
 ];
 
 test('every switch that draws its own off track reads --sw-toggle-off (not the hairline border)', () => {

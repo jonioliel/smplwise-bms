@@ -26,7 +26,7 @@ import { ticketsLang } from './text';
 import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
 import { locationPicker } from './location-picker';
 import { OTHER, defaultPick, locationBody, navAvailable, pickPreview } from './org-locations-model';
-import { lt } from './org-locations-text';
+import { loct } from './org-locations-text';
 import type { FileRow } from './rfq-files';
 import { DEFAULT_LIMITS, displayName, formatBytes, localKind } from './rfq-files-model';
 import { dateInputLang } from '../api/day-format';
@@ -455,7 +455,7 @@ export class TicketsRfqNew extends LitElement {
         ${this.mode === 'auto' && this.d.location_pick && this.d.location_pick !== OTHER ? html`<label class="chk" data-rfq-location-nav>
             <input type="checkbox" .checked=${!!this.d.location_nav} ?disabled=${this.busy || !navAvailable(this.locs, this.d.location_pick)}
               @change=${(e: Event) => this.set('location_nav', (e.target as HTMLInputElement).checked)} />
-            <span><b>${lt('navOn')}</b><small>${navAvailable(this.locs, this.d.location_pick) ? lt('navOnSub') : lt('navNoCoords')}</small></span></label>` : nothing}
+            <span><b>${loct('navOn')}</b><small>${navAvailable(this.locs, this.d.location_pick) ? loct('navOnSub') : loct('navNoCoords')}</small></span></label>` : nothing}
         ${this.mode === 'auto' ? html`<pre class="pv" dir=${ticketsLang() === 'en' ? 'ltr' : 'rtl'} data-rfq-send-preview>${this.preview()}</pre>` : nothing}
         ${this.sendFiles()}
         ${this.error ? html`<div class="err" role="alert" data-rfq-send-error>${this.error}</div>` : nothing}

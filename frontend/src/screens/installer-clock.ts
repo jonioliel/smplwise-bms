@@ -6,7 +6,7 @@ import '../components/sw-badge';
 import '../components/sw-state-panel';
 import '../components/wk-installer-confirm';
 import type { ConfirmRequest } from '../components/wk-installer-confirm';
-import { settingsStyles } from '../styles/settings';
+import { settingsStyles, settingsFieldInvalidStyles, settingsOptRowStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import {
   applyHostClock,
@@ -24,6 +24,7 @@ import {
 } from '../api/installer';
 import { fill, installerText as T } from '../i18n/wiskey-installer';
 import { formatTime } from './wiskey-format';
+import { mutedStyles } from '../styles/fragments';
 
 const LOCAL_ZONE = { kind: 'iana' as const, name: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' };
 
@@ -84,9 +85,7 @@ export class InstallerClock extends LitElement {
         direction: ltr;
         text-align: start;
       }
-      label.f input[aria-invalid='true'] {
-        border-color: var(--sw-danger, var(--sw-err));
-      }
+      ${settingsFieldInvalidStyles}
       .field-error {
         color: var(--sw-danger-text, var(--sw-err));
         font-size: var(--sw-fs-xs, var(--sw-fs-sm));
@@ -138,10 +137,7 @@ export class InstallerClock extends LitElement {
       .tone-err {
         color: var(--sw-danger-text, var(--sw-text));
       }
-      .muted {
-        color: var(--sw-text-3);
-        font-size: var(--sw-fs-sm);
-      }
+      ${mutedStyles}
       .mlabel {
         display: none;
       }
@@ -167,11 +163,7 @@ export class InstallerClock extends LitElement {
           margin-inline-end: 4px;
         }
       }
-      .opt {
-        display: flex;
-        gap: 8px;
-        align-items: flex-start;
-      }
+      ${settingsOptRowStyles}
       .opt input {
         margin-block-start: 4px;
         inline-size: 18px;

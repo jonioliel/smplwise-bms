@@ -5,8 +5,8 @@
  * (all open the history directly) and the visible history button of the card (`data-elevator-history`, a normal button).
  * One delegated controller per screen; it reads `data-elevator` of the composed path and never starts on a link or button.
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import { LONG_PRESS_MS, exceedsSlop } from '../components/device-activity-press';
+import type { ReactiveControllerHost } from 'lit';
+import { LONG_PRESS_MS, PressController } from '../components/press-controller';
 
 export { LONG_PRESS_MS };
 
@@ -28,40 +28,20 @@ export function elevatorIdOf(path: readonly PressNode[]): string | null {
   return null;
 }
 
-export class ElevatorHistoryPress implements ReactiveController {
-  private timer: number | undefined;
-  private start: { x: number; y: number; id: string; el: HTMLElement } | null = null;
-  private swallowUntil = 0;
-  private lastType = 'mouse';
+/** The card a press, a click or a menu gesture belongs to. */
+interface ElevatorHit {
+  id: string;
+  el: HTMLElement;
+}
 
-  constructor(private host: ReactiveControllerHost & HTMLElement, private open: (id: string, opener: HTMLElement | null) => void) {
-    host.addController(this);
+/** A thin configuration of the shared long-press controller (components/press-controller.ts): it owns the listener set
+ * (pointerdown / pointermove / pointerup / pointercancel, click, contextmenu, keydown), the timer and `swallowUntil`. */
+export class ElevatorHistoryPress extends PressController<ElevatorHit> {
+  constructor(host: ReactiveControllerHost & HTMLElement, private open: (id: string, opener: HTMLElement | null) => void) {
+    super(host);
   }
 
-  hostConnected() {
-    const h = this.host;
-    h.addEventListener('pointerdown', this.down, true);
-    h.addEventListener('pointermove', this.move, true);
-    h.addEventListener('pointerup', this.up, true);
-    h.addEventListener('pointercancel', this.up, true);
-    h.addEventListener('click', this.click, true);
-    h.addEventListener('contextmenu', this.ctx, true);
-    h.addEventListener('keydown', this.key);
-  }
-
-  hostDisconnected() {
-    const h = this.host;
-    h.removeEventListener('pointerdown', this.down, true);
-    h.removeEventListener('pointermove', this.move, true);
-    h.removeEventListener('pointerup', this.up, true);
-    h.removeEventListener('pointercancel', this.up, true);
-    h.removeEventListener('click', this.click, true);
-    h.removeEventListener('contextmenu', this.ctx, true);
-    h.removeEventListener('keydown', this.key);
-    this.cancel();
-  }
-
-  private find(e: Event) {
+  private find(e: Event): ElevatorHit | null {
     const path = e.composedPath() as unknown as (PressNode & HTMLElement)[];
     const id = elevatorIdOf(path);
     if (!id) return null;
@@ -69,63 +49,24 @@ export class ElevatorHistoryPress implements ReactiveController {
     return el ? { id, el } : null;
   }
 
-  private down = (e: PointerEvent) => {
-    this.lastType = e.pointerType || 'mouse';
-    this.cancel();
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (!e.isPrimary) return;
-    const hit = this.find(e);
-    if (!hit) return;
-    this.start = { x: e.clientX, y: e.clientY, ...hit };
-    this.timer = window.setTimeout(() => this.fire(), LONG_PRESS_MS);
-  };
+  protected findPress(e: Event) {
+    return this.find(e);
+  }
 
-  private move = (e: PointerEvent) => {
-    if (!this.start || this.timer === undefined) return;
-    if (exceedsSlop(e.clientX - this.start.x, e.clientY - this.start.y)) this.cancel();
-  };
+  protected findMenu(e: Event) {
+    return this.find(e);
+  }
 
-  private up = () => this.cancel();
-
-  private fire() {
-    const s = this.start;
-    this.timer = undefined;
-    this.start = null;
-    if (!s) return;
-    this.swallowUntil = Date.now() + 800;
-    try {
-      navigator.vibrate?.(10);
-    } catch {
-      /* no haptics */
-    }
+  protected longPress(s: ElevatorHit) {
     this.open(s.id, s.el);
   }
 
-  private cancel() {
-    if (this.timer !== undefined) window.clearTimeout(this.timer);
-    this.timer = undefined;
-    this.start = null;
+  /** Mouse / keyboard: the menu gesture opens the history directly (touch: the long press itself opens it). */
+  protected contextMenu(_e: MouseEvent, hit: ElevatorHit) {
+    this.open(hit.id, hit.el);
   }
 
-  private click = (e: MouseEvent) => {
-    if (Date.now() < this.swallowUntil && this.find(e)) {
-      e.stopPropagation();
-      e.preventDefault();
-      this.swallowUntil = 0;
-    }
-  };
-
-  private ctx = (e: MouseEvent) => {
-    const hit = this.find(e);
-    if (!hit) return;
-    e.preventDefault(); // touch: the long press itself opens the history; mouse / keyboard: the menu gesture opens it directly
-    if (this.lastType === 'touch' || this.lastType === 'pen') return;
-    this.cancel();
-    this.lastType = 'mouse';
-    this.open(hit.id, hit.el);
-  };
-
-  private key = (e: KeyboardEvent) => {
+  protected keyDown(e: KeyboardEvent) {
     const alt = e.key === 'Enter' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
     const menu = e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey);
     if (!alt && !menu) return;
@@ -134,5 +75,5 @@ export class ElevatorHistoryPress implements ReactiveController {
     e.preventDefault();
     e.stopPropagation();
     this.open(hit.id, hit.el);
-  };
+  }
 }

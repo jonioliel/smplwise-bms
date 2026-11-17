@@ -13,6 +13,7 @@
  * and the result does not depend on the order of anything but the input. Heading is the map's bearing (clockwise from plan
  * up, the camera anchors' convention); forward is (sin h, -cos h) on the description's axes (x east, z south).
  */
+import { clamp, r4round as r4 } from './num';
 import { bearingOf, type WalkBand, type WalkDoor, type WalkRamp, type WalkRoom, type WalkSeg, type WalkStart, type WalkWorld } from './walk-world';
 import { closestOnSeg as closest, findPath, levelSegments, lineFree as lineFreeOn, pointInPoly as inPoly } from './walk-path';
 
@@ -81,8 +82,6 @@ const wrap180 = (d: number): number => {
   return x;
 };
 const wrap360 = (d: number): number => ((d % 360) + 360) % 360;
-const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
-const r4 = (v: number): number => Math.round(v * 1e4) / 1e4 + 0;
 
 export class WalkController {
   world!: WalkWorld;

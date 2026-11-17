@@ -16,6 +16,7 @@
 import { ApiError } from '../api/client';
 import type { TalkStartReply } from '../api/station-media';
 import { MicFailure, type MicHandle } from './talk-mic';
+import { openSessionSocket } from './session-socket';
 
 export type TalkPhase = 'idle' | 'starting' | 'open' | 'talking';
 export type TalkProblem =
@@ -198,15 +199,8 @@ export class TalkSession {
     }
     this.reply = reply;
     this.endsAt = this.deps.now() + reply.max_seconds * 1000;
-    let ws: SocketLike;
-    try {
-      ws = this.deps.socket(reply.ws_path);
-    } catch {
-      void this.deps.stop(reply.session).catch(() => undefined);
-      this.fail('network');
-      return;
-    }
-    ws.binaryType = 'arraybuffer';
+    const ws = openSessionSocket(this.deps, reply, () => this.fail('network')); // CR-SOCKETS-2439: the shared socket start (08:F24)
+    if (!ws) return;
     this.ws = ws;
     ws.onmessage = (ev) => {
       if (gen !== this.gen) return;

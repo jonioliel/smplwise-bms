@@ -8,8 +8,7 @@
  * name, and the `{var}`s are filled after the name tokens. The default name is never written here and the retired word of the old module
  * name is never used (tests/unit-tickets-list.spec.ts reads this file).
  */
-import { tn, type TicketLang } from './naming';
-import { ticketsLang } from './text';
+import { makeCatalogue } from './catalogue'; // CR-TK-CATALOGUE-2440: the shared template / text / key-list lines
 
 const he = {
   // ---- the page frame
@@ -167,16 +166,13 @@ const en: Partial<Record<ListTextKey, string>> = {
 };
 
 /** The raw template of a key (the unit tests read it). */
-export function listTemplate(key: ListTextKey, lang: 'he' | 'en' = ticketsLang()): string {
-  return (lang === 'en' ? en[key] : undefined) ?? he[key];
-}
+const catalogue = makeCatalogue<ListTextKey>(he, en);
+
+/** The raw template of a key in a language; English falls back to Hebrew (the unit tests and the completeness spec read it). */
+export const listTemplate = catalogue.template;
 
 /** A text of the list: the template in the document's language, the module's name rendered (D33), then the `{var}`s. */
-export function lt(key: ListTextKey, vars?: Record<string, string | number>): string {
-  const lang = ticketsLang();
-  const named = tn(listTemplate(key, lang), lang as TicketLang);
-  return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
-}
+export const lt = catalogue.t;
 
-export const LIST_TEXT_KEYS = Object.keys(he) as ListTextKey[];
-export const LIST_TEXT_EN_KEYS = Object.keys(en) as ListTextKey[];
+export const LIST_TEXT_KEYS = catalogue.KEYS;
+export const LIST_TEXT_EN_KEYS = catalogue.EN_KEYS;

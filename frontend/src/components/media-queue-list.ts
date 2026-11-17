@@ -4,6 +4,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { errorCode, partialDone, playerErrorText, players, queueDropTarget, queueResultLine, reorderRows, sendQueueEdit, toggleSelected, upcomingCount, QUEUE_SELECT_MAX, UP_NEXT_REFRESH_MS, type QueueList, type QueueOp, type QueueRow } from '../api/media-players';
 import { bidi } from '../i18n/bidi';
+import { PollController } from './poll-controller';
 import { mmss } from './media-remote-logic';
 import { remoteStyles } from './media-remote-css';
 import { playerBase, playerStyles } from './media-player-css';
@@ -37,7 +38,8 @@ export class MediaQueueList extends LitElement {
   @state() private selected: string[] = [];
   @state() private note = '';
 
-  private timer = 0;
+  /** CR-SHELL-TIMERS-2439 (07:F14): the "up next" re-read every UP_NEXT_REFRESH_MS (it used to keep requesting in a hidden tab) - paused while the page is hidden, never two at once, read once on return. */
+  private poll = new PollController(this);
   private noteTimer = 0;
   private token = 0;
   private rects: { index: number; top: number; bottom: number }[] = [];
@@ -257,12 +259,11 @@ export class MediaQueueList extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.timer = window.setInterval(() => void this.load(), UP_NEXT_REFRESH_MS);
+    this.poll.every('upnext', UP_NEXT_REFRESH_MS, () => this.load());
   }
 
   disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.clearInterval(this.timer);
+    super.disconnectedCallback(); // the poll stops with it (PollController)
     window.clearTimeout(this.noteTimer);
   }
 

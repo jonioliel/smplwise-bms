@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { statusCss } from '../styles/status-palette';
 
 /**
  * CR-INFRA-TEMPERATURE 2.9.1: the visual language of the temperature screens (owner-approved mockup 2026-10-19). Status colours are the
@@ -18,7 +19,7 @@ export const tempCss = css`
     --tc-line: var(--sw-accent);
     --tc-band: color-mix(in srgb, var(--sw-success) 14%, transparent);
     /* R5-MEDIA-ENERGY-297: the solid fills behind white text (badges, the selected counter); the status tokens themselves stay the marks' colours */
-    --tc-alarm-solid: #c81e1e;
+    --tc-alarm-solid: ${statusCss.fault};
     --tc-warn-solid: #b45309;
   }
   [data-look='ok'] { --c: var(--tc-ok); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
