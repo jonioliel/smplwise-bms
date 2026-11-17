@@ -666,15 +666,10 @@ def mint_tokens(conn: sqlite3.Connection, nid: str, user_id: str, actions: list[
     return out
 
 
-def redeem_token(conn: sqlite3.Connection, token: str, action: str, tz_name: str, expect_user: str | None = None) -> dict[str, Any] | None:
-    """Single use: returns {user_id, notification_id, result} when the token authorises `action` on its row for its user AND the
-    user still sees (and for ack may acknowledge) it; None for anything else (expired, used, other action, lost reach). A token
-    that fails for lost reach is not burned; a used or expired one never works again."""
-    return redeem_token_ex(conn, token, action, tz_name, expect_user)[0]
-
-
 def redeem_token_ex(conn: sqlite3.Connection, token: str, action: str, tz_name: str, expect_user: str | None = None) -> tuple[dict[str, Any] | None, str]:
-    """redeem_token plus WHY it failed: `malformed` | `unknown` (no such token - a guess) | `expired` | `used` | `mismatch` (another action or another user's
+    """Single use: ({user_id, notification_id, result}, `ok`) when the token authorises `action` on its row for its user AND the
+    user still sees (and for ack may acknowledge) it; (None, why) for anything else. A token that fails for lost reach is not
+    burned; a used or expired one never works again. WHY it failed: `malformed` | `unknown` (no such token - a guess) | `expired` | `used` | `mismatch` (another action or another user's
     session) | `lost_reach` | `ok`. The action endpoint's throttle counts only the first two: a stale button is not an attack."""
     if action not in ACTIONS or not isinstance(token, str) or not 8 <= len(token) <= 128:
         return None, "malformed"
