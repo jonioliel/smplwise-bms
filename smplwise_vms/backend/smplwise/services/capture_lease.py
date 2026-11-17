@@ -37,6 +37,7 @@ from typing import Any, Callable, Iterable
 
 from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import ApiError
+from . import confirm_words
 
 log = logging.getLogger("smplwise.capture_lease")
 
@@ -48,7 +49,7 @@ SECONDS_KEY = "access.capture_lease_seconds"
 SECONDS_VALUES = ("120", "90", "60")  # owner decision 2026-10-16 q1: default 120 = the cap; the setting may only lower it
 LOOKUP_KEY = "access.lookup_scope"
 LOOKUP_VALUES = ("holder", "holder_or_audit_readers")  # owner decision 2026-10-16 q5
-LOOKUP_WIDE_WORD = "הרחב בירור"  # the typed confirmation for the WIDER lookup value (never stored)
+LOOKUP_WIDE_WORD = confirm_words.he("capture_lookup_wide")  # the typed confirmation for the WIDER lookup value (never stored; Hebrew or its English counterpart, services/confirm_words.py)
 KEYS = (FLAG_KEY, SECONDS_KEY, LOOKUP_KEY)
 DEFAULTS = {FLAG_KEY: "off", SECONDS_KEY: "120", LOOKUP_KEY: "holder"}
 

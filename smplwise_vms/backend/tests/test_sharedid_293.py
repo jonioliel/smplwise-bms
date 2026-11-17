@@ -362,3 +362,35 @@ def test_the_identity_card_is_hidden_from_a_caller_without_the_contacts_or_the_g
     assert _get(env, f"/access-grants/contacts/{env.vendor}/identity").status_code == 404, "a company has no access identity"
     ident = _get(env, f"/access-grants/contacts/{env.tech}/identity").json()["identity"]
     assert ident["link"] is None and ident["can"]["link"] is True and ident["can"]["delete"] is False
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_confirmed_gone_takes_the_hebrew_or_the_english_word_only(env, lang):
+    gid, _ = _missing_revocation(env)
+    for text in bad("access_gone"):
+        r = env.post(f"/access-grants/{gid}/confirm-gone", {**GONE, "confirm": text})
+        assert r.status_code == 422 and r.json()["details"]["field"] == "confirm", text
+    assert env.grant(gid)["state"] == "revoking"
+    r = env.post(f"/access-grants/{gid}/confirm-gone", {**GONE, "confirm": good("access_gone", lang)})
+    assert r.status_code == 200 and r.json()["grant"]["state"] == "ended", r.text
+    decision, _reason, _rid, details = _audits(env, "access.grant.confirm_gone")[-1]
+    assert decision == "allowed" and json.loads(details)["confirm_word"] == lang
+
+
+def test_cw2442_the_english_word_replaces_no_other_rule_of_confirmed_gone(env):
+    gid, _ = _missing_revocation(env)
+    en = good("access_gone", "en")
+    bind(env.c, env.settings, "sa3", "site_admin", "installation", "*")
+    assert env.post(f"/access-grants/{gid}/confirm-gone", {**GONE, "confirm": en}, user="sa3").status_code == 403
+    r = env.post(f"/access-grants/{gid}/confirm-gone", {**GONE, "confirm": en, "checks": [True, True, False]})
+    assert r.status_code == 422 and r.json()["details"]["field"] == "checks"
+    r = env.post(f"/access-grants/{gid}/confirm-gone", {**GONE, "confirm": en, "reference": "קצר"})
+    assert r.status_code == 422 and r.json()["details"]["field"] == "reference"
+    assert env.grant(gid)["state"] == "revoking"

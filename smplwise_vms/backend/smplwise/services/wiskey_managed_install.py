@@ -53,6 +53,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any, Callable
 
+from . import confirm_words
 from . import wiskey_versions as wv
 from .wiskey_distribution_digest import digest as tree_digest, digest_rows, files as tree_files
 
@@ -72,8 +73,11 @@ DEPENDENT_KEYS = (K_RISK, K_STARTUP)  # need the managed switch ON, and go OFF w
 SWITCH_NAMES = {"enabled": K_ENABLED, "core_risk": K_RISK, "startup": K_STARTUP}
 # Owner decision 04.11 Q7 = A: the three typed phrases stay as they are. The start-up switch adds no fourth phrase: it asks for the
 # managed switch's own phrase again (the same approval, given once more for the start-up path).
-PHRASES = {K_ENABLED: "מאשר ניהול התקנה", K_RISK: "מאשר סיכון סביבה", K_STARTUP: "מאשר ניהול התקנה"}
-ADOPT_PHRASE = "מאשר העברה לניהול"
+# CR-I18N-CONFIRM-WORDS-2442: the phrases live in services/confirm_words.py (Hebrew, or the fixed English counterpart).
+PHRASE_WORDS = {K_ENABLED: "managed_enabled", K_RISK: "managed_core_risk", K_STARTUP: "managed_enabled"}
+ADOPT_WORD = "managed_adopt"
+PHRASES = {k: confirm_words.he(w) for k, w in PHRASE_WORDS.items()}  # "מאשר ניהול התקנה", "מאשר סיכון סביבה", "מאשר ניהול התקנה"
+ADOPT_PHRASE = confirm_words.he(ADOPT_WORD)  # "מאשר העברה לניהול"
 
 COMPONENT_MARKER = "_manual_upgrade_profile.json"
 CONFIG_MARKER = "hikvision_intercom_manual_upgrade.json"
@@ -182,8 +186,20 @@ def _audit(db: Any, action: str, decision: str, *, reason: str | None = None, de
 
 # ---------------------------------------------------------------- the owner switches (the ONE writer)
 
-def _phrase_ok(given: Any, expected: str) -> bool:
-    return isinstance(given, str) and len(given) <= 200 and unicodedata.normalize("NFC", given.strip()) == unicodedata.normalize("NFC", expected)
+def _nfc(text: str) -> str:
+    return unicodedata.normalize("NFC", text.strip())
+
+
+def _phrase_lang(given: Any, word: str) -> str | None:
+    """Which phrase was typed: "he" (compared as always: trimmed, NFC), "en" (the fixed English counterpart), None = refused."""
+    if not isinstance(given, str) or len(given) > 200:
+        return None
+    return confirm_words.typed_lang(word, given, he_norm=_nfc)
+
+
+def switch_confirm_word(key: Any, value: Any, confirm: Any) -> str | None:
+    """For the audit row of a switch turned ON: which phrase confirmed it ("he" / "en"); None when no phrase is asked (OFF)."""
+    return _phrase_lang(confirm, PHRASE_WORDS[key]) if value == "on" and key in PHRASE_WORDS else None
 
 
 def check_switch(conn: Any, key: Any, value: Any, confirm: Any) -> None:
@@ -192,7 +208,7 @@ def check_switch(conn: Any, key: Any, value: Any, confirm: Any) -> None:
     if value not in ("off", "on"):  # a null / missing / any other value is never ON
         raise ManagedRefused("validation", 422)
     if value == "on":
-        if not _phrase_ok(confirm, PHRASES[key]):
+        if _phrase_lang(confirm, PHRASE_WORDS[key]) is None:
             raise ManagedRefused("confirmation_required", 422)
         if key in DEPENDENT_KEYS and not enabled(conn):
             raise ManagedRefused("managed_off", 409)
@@ -635,7 +651,8 @@ def _now_iso() -> str:
 def adopt(db: Any, settings: Any, confirm: Any, *, actor: Any = None, request_id: str | None = None) -> dict[str, Any]:
     """The owner's explicit conversion of a manual / recognised legacy install into "managed by Arx". Private backup, adoption record,
     one audit row. NOTHING in the config tree is changed: the markers leave with the next stopped-Core swap."""
-    if not _phrase_ok(confirm, ADOPT_PHRASE):
+    confirm_word = _phrase_lang(confirm, ADOPT_WORD)
+    if confirm_word is None:
         raise ManagedRefused("confirmation_required", 422)
     cfg = _config_dir()
     if cfg is None:
@@ -668,7 +685,7 @@ def adopt(db: Any, settings: Any, confirm: Any, *, actor: Any = None, request_id
         _write_json(db, K_ADOPTION, record)
         _audit(db, "wiskey.managed.adopt", "allowed", actor=actor, request_id=request_id,
                details={"version": record["version"], "label": record["label"], "digest": record["digest"], "backup": backup_id,
-                        "markers": record["markers"], "config_written": False})
+                        "markers": record["markers"], "config_written": False, "confirm_word": confirm_word})
         return record
     finally:
         _RUN_LOCK.release()

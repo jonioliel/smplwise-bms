@@ -34,6 +34,7 @@ from ..db import set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import capture_lease as cl
+from ..services import confirm_words
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -78,9 +79,9 @@ class LeaseSettingsBody(BaseModel):
     degraded_reenable: bool | None = None
 
 
-def _changed(conn: sqlite3.Connection, request: Request, principal: Principal, key: str, before: Any, after: Any) -> None:
+def _changed(conn: sqlite3.Connection, request: Request, principal: Principal, key: str, before: Any, after: Any, confirm_word: str | None = None) -> None:
     audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-          details={"key": key, "before": before, "after": after})
+          details={"key": key, "before": before, "after": after, **({"confirm_word": confirm_word} if confirm_word else {})})
 
 
 @router.put("/access/capture-lease/settings")
@@ -94,7 +95,9 @@ def put_lease_settings(body: LeaseSettingsBody, request: Request, principal: Pri
               request_id=_rid(request), details={"keys": sorted(k for k in ("capture_lease", "capture_lease_seconds", "lookup_scope", "clock_reenable", "degraded_reenable")
                                                                  if getattr(body, k) is not None)})
         raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו.")
-    if body.lookup_scope == "holder_or_audit_readers" and cl.lookup_scope(conn) != "holder_or_audit_readers" and (body.lookup_scope_confirm or "").strip() != cl.LOOKUP_WIDE_WORD:
+    widening = body.lookup_scope == "holder_or_audit_readers" and cl.lookup_scope(conn) != "holder_or_audit_readers"
+    wide_word = confirm_words.typed_lang("capture_lookup_wide", body.lookup_scope_confirm) if widening else None  # "he" / "en", for the audit row
+    if widening and wide_word is None:
         raise ApiError(422, "confirm_required", f"כדי להרחיב את הבירור גם למחזיקי הרשאת צפייה באודיט יש להקליד \"{cl.LOOKUP_WIDE_WORD}\".", details={"field": "lookup_scope_confirm"})
     if body.capture_lease is not None:
         before = cl.mode(conn)
@@ -120,7 +123,7 @@ def put_lease_settings(body: LeaseSettingsBody, request: Request, principal: Pri
         before_l = cl.lookup_scope(conn)
         if body.lookup_scope != before_l:
             set_setting(conn, cl.LOOKUP_KEY, body.lookup_scope)
-            _changed(conn, request, principal, cl.LOOKUP_KEY, before_l, body.lookup_scope)
+            _changed(conn, request, principal, cl.LOOKUP_KEY, before_l, body.lookup_scope, wide_word)
     if body.clock_reenable:
         was = cl.GUARDS.clock_untrusted
         cl.clock_trusted_again("administrator")

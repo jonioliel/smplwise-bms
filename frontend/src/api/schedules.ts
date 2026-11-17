@@ -19,6 +19,7 @@ import { invalidateSettings } from './prefs';
 import { commandId } from './request-id';
 import { isApi } from './session';
 import { lazy } from './demo-load';
+import { CONFIRM_WORDS } from '../i18n/confirm-words';
 import { tr } from '../i18n/msg/api-automation';
 import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
 
@@ -785,8 +786,9 @@ export interface ScheduleSettings {
   allowDisarm: boolean;
 }
 
-/** The word a system administrator types to allow scheduled disarming (the server compares it; it is never stored). */
-export const ALLOW_DISARM_WORD = 'אפשר נטרול';
+/** The word a system administrator types to allow scheduled disarming (the server compares it; it is never stored): the Hebrew
+ * word of i18n/confirm-words.ts `schedules_allow_disarm` (the server takes its English counterpart too; the screen shows `confirmWord(...)`). */
+export const ALLOW_DISARM_WORD = CONFIRM_WORDS.schedules_allow_disarm.he;
 
 export const SCHEDULE_SETTINGS_DEFAULT: ScheduleSettings = { enabled: true, classes: [...ALL_CLASSES], snapMinutes: 15, defaultRepeat: 'repeat', runsRetentionDays: 90, shabbatSensor: '', allowDisarm: true };
 

@@ -310,7 +310,7 @@ def test_on_with_the_phrase_is_written_audited_and_installs_nothing(world):
     r = _switch_on(world)
     assert r.status_code == 200 and r.json()["switches"]["enabled"] == "on", r.text
     rows = [r for r in _audit_rows(world["db"], "settings.changed") if r["decision"] == "allowed"]
-    assert [json.loads(r["details_json"]) for r in rows] == [{"key": wmi.K_ENABLED, "before": "off", "after": "on"}]
+    assert [json.loads(r["details_json"]) for r in rows] == [{"key": wmi.K_ENABLED, "before": "off", "after": "on", "confirm_word": "he"}]  # CR-I18N-CONFIRM-WORDS-2442: which phrase
     assert tree_state(world["cfg"]) == before and world["platform"].calls == [], "switching on stops, swaps and reads nothing"
 
 
@@ -699,3 +699,55 @@ def test_an_invalid_shipped_bundle_is_refused(world):
     assert body["bundle"]["state"] == "bundle_invalid" and body["runnable"] is False
     r = world["client"].post(API + "/upgrade")
     assert r.status_code == 409 and r.json()["code"] == "bundle_invalid" and world["platform"].calls == []
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_the_managed_switch_takes_the_hebrew_or_the_english_phrase_only(world, lang):
+    for text in bad("managed_enabled"):
+        r = _switch_on(world, "enabled", text)
+        assert r.status_code == 422 and r.json()["code"] == "confirmation_required", text
+    assert _setting(world["db"], wmi.K_ENABLED) is None
+    r = _switch_on(world, "enabled", good("managed_enabled", lang))
+    assert r.status_code == 200 and r.json()["switches"]["enabled"] == "on", r.text
+    row = [x for x in _audit_rows(world["db"], "settings.changed") if x["decision"] == "allowed"][-1]
+    assert json.loads(row["details_json"]) == {"key": wmi.K_ENABLED, "before": "off", "after": "on", "confirm_word": lang}
+    # off needs no phrase and records none
+    r = world["client"].put(API + "/switch", json={"switch": "enabled", "value": "off"})
+    assert r.status_code == 200
+    row = [x for x in _audit_rows(world["db"], "settings.changed") if x["decision"] == "allowed"][-1]
+    assert "confirm_word" not in json.loads(row["details_json"])
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_the_risk_and_start_up_switches_take_their_own_phrase_in_hebrew_or_english_only(world, lang):
+    assert _switch_on(world).status_code == 200
+    for switch, word, other in (("core_risk", "managed_core_risk", "managed_enabled"), ("startup", "managed_enabled", "managed_core_risk")):
+        for text in bad(word) + [good(other, "he"), good(other, "en"), good("managed_adopt", "en")]:
+            r = _switch_on(world, switch, text)
+            assert r.status_code == 422 and r.json()["code"] == "confirmation_required", (switch, text)
+        assert _setting(world["db"], wmi.SWITCH_NAMES[switch]) is None
+        r = _switch_on(world, switch, good(word, lang))
+        assert r.status_code == 200 and r.json()["switches"][switch] == "on", r.text
+        row = [x for x in _audit_rows(world["db"], "settings.changed") if x["decision"] == "allowed"][-1]
+        assert json.loads(row["details_json"]) == {"key": wmi.SWITCH_NAMES[switch], "before": "off", "after": "on", "confirm_word": lang}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_adoption_takes_the_hebrew_or_the_english_phrase_only(world, lang):
+    _install_manual(world)
+    _switch_on(world)
+    for text in bad("managed_adopt") + [good("managed_enabled", "he"), good("managed_enabled", "en")]:
+        r = world["client"].post(API + "/adopt", json={"confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirmation_required", text
+    assert _setting(world["db"], wmi.K_ADOPTION) is None
+    r = world["client"].post(API + "/adopt", json={"confirm": good("managed_adopt", lang)})
+    assert r.status_code == 200 and r.json()["installed"]["ownership"] == "adopted", r.text
+    (row,) = [x for x in _audit_rows(world["db"], "wiskey.managed.adopt") if x["decision"] == "allowed"]
+    assert json.loads(row["details_json"])["confirm_word"] == lang

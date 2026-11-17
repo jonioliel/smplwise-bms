@@ -147,7 +147,7 @@ def approve_relay_map(body: SaveBody, request: Request, station_id: str = Path(m
         raise ApiError(status, e.code, msg, details=e.details) from None
     audit(conn, actor=principal, action="wiskey.relay_map.approved", decision="allowed", resource_type=STATION, resource_id=station_id, request_id=_rid(request),
           details={"revision_before": res.revision_before, "revision": res.revision, "before": rm.as_list(res.before), "after": rm.as_list(res.after),
-                   "affected_doors": res.affected, "automated_doors": res.automated})
+                   "affected_doors": res.affected, "automated_doors": res.automated, **({"confirm_word": res.confirm_word} if res.confirm_word else {})})
     _sync_native(request, conn, principal, station_id)
     return {"revision": res.revision, "station": _station_view(conn, station_id, s)}
 

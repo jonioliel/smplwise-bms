@@ -20,7 +20,6 @@ import { applySchedulesHidden } from '../shell/nav';
 import { demoStore } from '../api/schedules-mock';
 import {
   ALL_CLASSES,
-  ALLOW_DISARM_WORD,
   CLASS_LABEL,
   SCHEDULE_SETTINGS_DEFAULT,
   SENSITIVE_CLASSES,
@@ -43,6 +42,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-b';
+import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
 
 /** The technical name of each class as the settings page shows it (a settings screen keeps the exact names). */
 const CLASS_DOMAIN: Record<ScheduleClass, string> = {
@@ -595,10 +595,10 @@ export class SystemSchedules extends LitElement {
         : nothing}
       ${this.disarmAsk
         ? html`<sw-dialog open heading=${tr('להסיר את ההגבלה על נטרול אזעקה בתזמונים?')} data-disarm-confirm @close=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>
-            <p class="dlgtext">${tr('תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו')} <b>${ALLOW_DISARM_WORD}</b></p>
+            <p class="dlgtext">${tr('תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו')} <b data-disarm-word-shown>${confirmWord('schedules_allow_disarm')}</b></p>
             <sw-field><input aria-label=${tr('אישור מוקלד')} data-disarm-word .value=${this.disarmWord} @input=${(e: Event) => (this.disarmWord = (e.target as HTMLInputElement).value)} /></sw-field>
             <sw-button slot="footer" variant="ghost" data-disarm-cancel @click=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>${tr('ביטול')}</sw-button>
-            <sw-button slot="footer" variant="danger" data-disarm-ok ?disabled=${this.disarmWord.trim() !== ALLOW_DISARM_WORD || this.busy} @click=${() => void this.setAllowDisarm(true, this.disarmWord)}>${tr('אפשר')}</sw-button>
+            <sw-button slot="footer" variant="danger" data-disarm-ok ?disabled=${!confirmWordMatches('schedules_allow_disarm', this.disarmWord) || this.busy} @click=${() => void this.setAllowDisarm(true, this.disarmWord)}>${tr('אפשר')}</sw-button>
           </sw-dialog>`
         : nothing}
       <div class="cols">

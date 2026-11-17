@@ -363,11 +363,45 @@ One Hebrew, two meanings in one table: in `api-automation`, "סגור" (Close a 
 Activate) follow the action verb; "נפתח" / "נסגר" (opens / is opening) follow the state label "Opening" / "Closing"; "שעה"
 is "hour" there (a unit) and "Time" in `api-home` (the clock widget).
 
-Stay Hebrew in every interface language: the words an operator types to confirm ("שמור", "הסר", "אפשר נטרול", "הרחב בירור",
-"פתיחת דלת לבדיקה" - the server compares them), the building marker and the name given to a new building ("בניין"), the demo
+Stay Hebrew in every interface language: the building marker and the name given to a new building ("בניין"), the demo
 stores, and the Hebrew calendar date (the day and year in letters, "פרשת" - an owner question of CR-I18N-UNITS-2442).
 
 Durations, weekday letters and weather units (`msg/time`, CR-I18N-UNITS-2442): a duration in words is spelled with its number
 ("שעה" = "1 hour", "שעתיים" = "2 hours", "{n} שעות" = "{n} hours"; parts joined by " and "); the short forms are "ms", "s", "min", "h",
 "d" ("2 min 5 s", "1 h 30 min", "3 d 2 h"); "עוד ..." is "In ..."; the day toggles are "S M T W T F S" and the day names in a
 sentence "Sun" ... "Sat"; weather units are the SI symbols ("km/h", "m/s", "hPa", "mbar").
+
+## Typed confirmation words (CR-I18N-CONFIRM-WORDS-2442, `src/i18n/confirm-words.ts`)
+
+The fixed words an operator types before a dangerous action have one English counterpart each (owner decision 17.11). The server
+accepts the Hebrew word or the English one (trimmed, case ignored); the English interface shows the English word, every other
+language the Hebrew one. The table is shared with the backend (`smplwise_vms/backend/smplwise/services/confirm_words.py`); a word
+is changed in both files, never in a screen. The English is lower case, a plain imperative or the name of the thing, no article.
+
+| Hebrew | English |
+|---|---|
+| שמור | save |
+| הסר | remove |
+| אפשר נטרול | allow disarm |
+| מחיקה לצמיתות | delete permanently |
+| הרחב בירור | widen lookup |
+| פתיחת דלת לבדיקה | open door for test |
+| שעון השרת | server clock |
+| הצגת המפתח | show key |
+| ייבוא תצורה | import configuration |
+| מחיקת אירועים | delete events |
+| החלה על העמדות | apply to stations |
+| תזמון תחזוקה | schedule maintenance |
+| אתחול | reinitialise |
+| אשר | confirm |
+| נמחק | deleted |
+| בטל הכל | revoke all |
+| מחק | delete |
+| בטל מבקרים | revoke visitors |
+| מאשר ניהול התקנה | approve managed install |
+| מאשר סיכון סביבה | approve environment risk |
+| מאשר העברה לניהול | approve move to managed |
+| קוד {slot} | code {slot} |
+| מחיקה (calendar guest details; compared in the browser only) | delete |
+
+What the operator types that is DATA stays as the screen shows it in every language: a station's name, a user name, a count.

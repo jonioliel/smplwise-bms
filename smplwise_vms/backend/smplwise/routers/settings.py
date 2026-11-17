@@ -16,6 +16,7 @@ from ..db import get_setting, get_settings_many, set_setting  # noqa: F401 - get
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import ui_background
+from ..services import confirm_words
 from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, home_screen_options, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors, xs_options
 # CR-SETTINGS-STORE-2436: the registry lives in services/settings_store.py; these names are re-exported so every caller
 # (`from ..routers.settings import read_settings, DEFAULTS, ...`) keeps working unchanged.
@@ -54,8 +55,9 @@ from ..services.settings_store import (
 
 router = APIRouter()
 
-ALLOW_DISARM_WORD = "אפשר נטרול"
-LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch the irreversible IDENT146 purge on
+# CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
+ALLOW_DISARM_WORD = confirm_words.he("schedules_allow_disarm")
+LOCAL_PURGE_WORD = confirm_words.he("privacy_local_purge")  # REL2140 M-1: typed to switch the irreversible IDENT146 purge on
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
@@ -528,6 +530,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     app_download.normalize(changes)
     disarm_confirm = changes.pop("schedules.allow_disarm_confirm", None)
     disarm_change = None
+    disarm_word: str | None = None  # which word confirmed the switch to true ("he" / "en"), for the audit row
     if "schedules.allow_disarm" in changes:
         current = get_setting(conn, "schedules.allow_disarm", DEFAULTS["schedules.allow_disarm"]) or DEFAULTS["schedules.allow_disarm"]
         if changes["schedules.allow_disarm"] == current:
@@ -539,7 +542,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
                 audit(conn, actor=principal, action="schedules.allow_disarm", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
                       request_id=getattr(request.state, "correlation_id", None), details={"to": changes["schedules.allow_disarm"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לשנות את נטרול האזעקה בתזמונים.")
-            if changes["schedules.allow_disarm"] == "true" and (disarm_confirm or "").strip() != ALLOW_DISARM_WORD:
+            if changes["schedules.allow_disarm"] == "true":
+                disarm_word = confirm_words.typed_lang("schedules_allow_disarm", disarm_confirm)
+            if changes["schedules.allow_disarm"] == "true" and disarm_word is None:
                 raise ApiError(422, "confirm_required", f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", details={"field": "schedules.allow_disarm_confirm"})
             disarm_change = changes["schedules.allow_disarm"]
     update_switch = None  # 2.4.4: the CR-021 self-update switch gets its own audit row when it actually changes
@@ -659,13 +664,14 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             audit(conn, actor=principal, action="privacy.local_purge.setting", decision="denied", resource_type="installation", resource_id="local_privacy",
                   reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": new})
             raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את המחיקה האוטומטית של משתמשי Arx.")
-        if key == "privacy.local_purge" and new == "on" and (purge_confirm or "").strip() != LOCAL_PURGE_WORD:
+        purge_word = confirm_words.typed_lang("privacy_local_purge", purge_confirm) if key == "privacy.local_purge" and new == "on" else None
+        if key == "privacy.local_purge" and new == "on" and purge_word is None:
             due = len(local_privacy.purge_due(conn))
             raise ApiError(422, "confirm_required", f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".",
                            details={"field": "privacy.local_purge_confirm", "due_now": due})
         audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
               request_id=getattr(request.state, "correlation_id", None),
-              details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local"})
+              details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local", **({"confirm_word": purge_word} if purge_word else {})})
     tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
     if "tickets.enabled" in changes:
         current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]
@@ -777,7 +783,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             local_identity.close_sockets_from_thread()
     if disarm_change is not None:
         audit(conn, actor=principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
-              request_id=getattr(request.state, "correlation_id", None), details={"to": disarm_change})
+              request_id=getattr(request.state, "correlation_id", None), details={"to": disarm_change, **({"confirm_word": disarm_word} if disarm_word else {})})
     if update_switch is not None:
         audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
               request_id=getattr(request.state, "correlation_id", None), details={"to": update_switch == "true"})

@@ -24,6 +24,7 @@ import ipaddress
 import re
 from typing import Any
 
+from . import confirm_words
 from . import intercom_adapter as ad
 from .wiskey_installer import DEVICE_TIMEOUT_S, WRITE_TIMEOUT_S, Op
 
@@ -167,7 +168,7 @@ OPS: dict[str, Op] = {
     "settings_update": Op("settings_update", "clock/settings_update", "write", "intercom.installer.clock_settings_update", ("revision", "values"),
                           danger="confirm", cooldown_s=2.0, project=project_settings, summary=_sum_settings),
     "host_apply": Op("host_apply", "clock/host_apply", "write", "intercom.installer.clock_host_apply", ("revision",), danger="typed",
-                     timeout_s=DEVICE_TIMEOUT_S, cooldown_s=30.0, typed_word="שעון השרת", project=project_host_apply, summary=_sum_host),
+                     timeout_s=DEVICE_TIMEOUT_S, cooldown_s=30.0, typed_word=confirm_words.he("installer_host_clock"), project=project_host_apply, summary=_sum_host),
     "station_sync": Op("station_sync", "clock/station_sync", "write", "intercom.installer.clock_station_sync", ("station_id", "revision", "copy_system"),
                        danger="typed", scope="station", timeout_s=WRITE_TIMEOUT_S, cooldown_s=60.0, project=project_station_sync, summary=_sum_station),
 }

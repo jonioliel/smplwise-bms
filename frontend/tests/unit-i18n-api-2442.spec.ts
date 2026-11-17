@@ -55,7 +55,8 @@ const DEMO = 'the demo store of the module (fake data and the demo server\'s ans
 /** The second translator of an api file: the shared time words (`import { tr as trTime } from '../i18n/msg/time'`). */
 const TRANSLATORS = ['tr', 'trTime'];
 const HEBREW_DATE = 'the Hebrew calendar date, Hebrew in both languages until the owner decides otherwise (docs/changes/CR-I18N-UNITS-2442.md, owner question 1): the letters of gematria 29, its geresh / gershayim 2, the two particles of hebrewDate 2, the word of parshaText 1';
-const TYPED = 'a confirmation word the operator types and the server compares (owner question in docs/changes/CR-I18N-API-2442.md)';
+// CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11): the typed confirmation words left src/api - they live, with their English
+// counterparts, in src/i18n/confirm-words.ts (tests/unit-confirm-words-2442.spec.ts), so the four entries that listed them are gone.
 
 /**
  * Literals that stay Hebrew in a file that is otherwise translated. `texts` are named one by one (each as many times as it is
@@ -64,24 +65,20 @@ const TYPED = 'a confirmation word the operator types and the server compares (o
 const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = {
   'automations.ts': { why: 'the maqaf the verb table is tested for', texts: ['־'] },
   'calendar-attendees.ts': { why: DEMO, count: 5 },
-  'capture-lease.ts': { why: TYPED, texts: ['הרחב בירור'] },
   'door-automations.ts': { why: DEMO, count: 4 },
   'electricity-meters.ts': { why: DEMO, count: 6 },
   'electricity-readings.ts': { why: DEMO, count: 25 },
   'ha-users.ts': { why: DEMO, count: 14 },
   'home-config.ts': { why: HEBREW_DATE, count: 34 },
   'incidents.ts': { why: DEMO, count: 39 },
-  'installer.ts': { why: TYPED, texts: ['פתיחת דלת לבדיקה'] },
   'mapping-engine.ts': { why: 'data: the building marker of the naming rule and the name saved for a new building', texts: ['בניין', 'משותף', 'בניין'] },
   'mapping.ts': { why: DEMO, count: 3 },
   'media-admin.ts': { why: DEMO, count: 39 },
   'messaging-accounts.ts': { why: DEMO, count: 11 },
   'messaging-policy.ts': { why: DEMO, count: 2 },
   'notify-whatsapp.ts': { why: DEMO, count: 9 },
-  'nvr-connection.ts': { why: TYPED, texts: ['שמור', 'הסר'] },
   'nvr-settings.ts': { why: DEMO, count: 25 },
   'readiness.ts': { why: DEMO, count: 48 },
-  'schedules.ts': { why: TYPED, texts: ['אפשר נטרול'] },
   'setup.ts': { why: DEMO, count: 82 },
   'tickets-board.ts': { why: DEMO, count: 6 },
   'tickets-locations.ts': { why: DEMO, count: 15 },
@@ -153,9 +150,9 @@ test('lint: catches a new literal - plain string, template text, a second copy o
   expect(found("export const a = tr('שלום') + 'עולם';")).toHaveLength(1);
   expect(found('export const a = tr(`עוד ${1} פריטים`);')).toHaveLength(2); // a template with a value is not a catalogue key
   expect(found("export const a: Record<string, string> = { x: 'שלום' };")).toHaveLength(1);
-  expect(found("export const a = 'שמור';", 'nvr-connection.ts')).toEqual([]);
-  expect(found("export const a = ['שמור', 'הסר', 'שמור'];", 'nvr-connection.ts')).toHaveLength(1);
-  expect(check('nvr-connection.ts', src('export const a = 1;')).stale).toHaveLength(2);
+  expect(found("export const a = 'עברית';", 'tts-default.ts')).toEqual([]);
+  expect(found("export const a = ['עברית', 'עברית', 'עברית'];", 'tts-default.ts')).toHaveLength(1);
+  expect(check('tts-default.ts', src('export const a = 1;')).stale).toHaveLength(2);
 });
 
 interface Used {

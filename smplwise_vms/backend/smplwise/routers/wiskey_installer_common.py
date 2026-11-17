@@ -26,6 +26,7 @@ from pydantic import ConfigDict, Field
 from ..auth import current_principal_ro, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import confirm_words
 from ..services import wiskey_installer as wi
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
 
@@ -89,8 +90,18 @@ class Write:
         return self.act.refuse(ApiError(status, code, message, details={"operation": self.op.name, **details}))
 
     def typed(self, body: WriteBody, expected: str) -> None:
-        """A dangerous write: the typed phrase must equal `expected` (whitespace and Unicode form normalised)."""
-        if self.op.danger == "typed" and not wi.typed_ok(expected, body.typed_confirmation):
+        """A dangerous write: the typed phrase must equal `expected` (whitespace and Unicode form normalised). CR-I18N-CONFIRM-WORDS-2442:
+        when `expected` is the operation's own FIXED phrase (`op.typed_word`, a word of services/confirm_words.py) its fixed English
+        counterpart is accepted too, and the audit row records which was typed (`confirm_word`). A station's name is data: only itself."""
+        if self.op.danger != "typed":
+            return
+        key = confirm_words.key_of(expected) if expected and expected == self.op.typed_word else None
+        if key is not None:
+            lang = confirm_words.typed_lang(key, body.typed_confirmation, he_norm=wi.normalized)
+            if lang is not None:
+                self.act.details["confirm_word"] = lang
+                return
+        if not wi.typed_ok(expected, body.typed_confirmation):
             raise self.refuse(409, "typed_confirmation_required", f"כדי לבצע {self.what} יש להקליד בדיוק: {expected}", expected=expected)
 
     def _admit(self) -> None:

@@ -48,6 +48,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .. import rbac
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal
+from . import confirm_words
 from . import intercom_adapter as ad
 from . import intercom_authority as ia
 from . import intercom_client
@@ -325,8 +326,13 @@ def code_value(value: Any, field: str) -> str:
 
 
 def confirm_phrase(slot: int) -> str:
-    """The text the operator types to confirm a code write (the typed confirmation of owner Q5)."""
-    return f"קוד {slot}"
+    """The text the operator types to confirm a code write (the typed confirmation of owner Q5): "קוד {slot}"."""
+    return confirm_words.he("door_code", slot=slot)
+
+
+def confirm_phrase_lang(slot: int, typed: Any) -> str | None:
+    """CR-I18N-CONFIRM-WORDS-2442: which phrase was typed - "he" ("קוד 3"), "en" ("code 3", case ignored), None = refused."""
+    return confirm_words.typed_lang("door_code", typed, slot=slot)
 
 
 def wiskey_code_action(action: str, expected: bool) -> str:

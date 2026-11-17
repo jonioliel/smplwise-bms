@@ -4,6 +4,7 @@
  * the Core gate, the backup check); nothing here grants anything. The screen only words what the server says.
  */
 import { ApiError, get, post, put } from './client';
+import { serverWordMatches } from '../i18n/confirm-words';
 
 export type OnOff = 'off' | 'on';
 /** `startup`: owner decision 04.11 (round 18 Q3 = B) - a run may also start when the add-on starts (default off, same phrase as `enabled`). */
@@ -91,9 +92,12 @@ export const adoptManaged = (confirm: string) => post<ManagedView>(`${BASE}/adop
 export const startUpgrade = () => post<{ job: ManagedJob }>(`${BASE}/upgrade`);
 export const startRollback = () => post<{ job: ManagedJob }>(`${BASE}/rollback`);
 
-/** The typed phrase matches the server's exactly (trimmed, NFC); the server checks again. */
+const nfc = (text: string): string => text.trim().normalize('NFC');
+
+/** The typed phrase matches the server's exactly (trimmed, NFC) - or, CR-I18N-CONFIRM-WORDS-2442, the fixed English counterpart of that
+ * phrase (i18n/confirm-words.ts; trimmed, case ignored); the server checks again. */
 export function phraseMatches(typed: string, phrase: string): boolean {
-  return typed.trim().normalize('NFC') === phrase.normalize('NFC') && phrase.length > 0;
+  return phrase.length > 0 && serverWordMatches(phrase, typed, null, nfc);
 }
 
 /** The default and the range of the kept-runs setting (owner decision 04.11 Q8 = B: the last 5). */
