@@ -291,6 +291,29 @@ Collected from the module passes; the first column is the Hebrew as the screens 
 | כיסוי / שדה ראייה | Coverage / field of view |
 | מ׳ | m |
 
+### The "3D map" settings card (CR-UI-POLISH-2443, `src/i18n/msg/api-plan-view.ts`, `src/i18n/msg/plan-view-card.ts`)
+
+| Hebrew | English |
+| --- | --- |
+| מפה תלת־ממדית (the settings card) | 3D map |
+| לפי ההתקנה / ההעדפה שלי / ברירת המחדל של ההתקנה | As the installation / My preference / Installation default (as the look card) |
+| פעיל / כבוי (a dial of the card) | On / Off (a switch; "Active" stays the word for a status) |
+| אוטומטי (a choice) | Automatic (as the 3D view's own menu) |
+| חיתוך קירות | Wall cut-away |
+| מבט מלמעלה | Top view |
+| תצוגת כל הקומות | The all-floors view |
+| תווית (על המפה) | Label (the room's label on the map) |
+| חלון פירוט | Details window |
+| פאנל בצד / כרטיס צף / גיליון | Side panel / floating card / sheet |
+| סימון מצב החדר | Room state marking |
+| פס על ראש הקיר / פס ברצפה / צביעת הרצפה | Wall-top bar / floor line / floor tint |
+| רקע (מאחורי הבית, בתצוגת כל הקומות) | Backdrop |
+| ריצוף | Flooring |
+| סף (האשף) | Threshold |
+| נכנס / לא נכנס (פריט שזוהה) | Included / not included (as the wizard's settings dialog) |
+| מוקד | Control room |
+| נגיעה | Tap |
+
 ## Known single-key compromises
 
 A source-text table has one English per Hebrew text in a module. Where one Hebrew word carries two meanings in the same module,
