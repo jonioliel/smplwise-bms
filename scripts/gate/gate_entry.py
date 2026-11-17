@@ -21,11 +21,15 @@ CLI (all print JSON, except rule):
   gate_entry.py decide  --results DIR [--quarantine FILE] [--max-age-h 36] [--now ISO]
   gate_entry.py tagcheck --results DIR [--days 7]     rc 0 when a FULL green nightly on main is <= N days old (plan rule 3A for tagging)
   gate_entry.py rule
-  gate_entry.py lint                                   the backend static check (lint_backend.py), report only, rc 0
+  gate_entry.py lint                                   the backend static check (lint_backend.py); rc 1 when it blocks, else 0
 
-Non-blocking lane (CR-BE-GATES-2436): `decide` also runs the backend static check (ruff, pyflakes rules) and prints its one-line count
-to STDERR, so the gate log shows it while gate_release.sh reads only the JSON on stdout. It never changes the decision or the exit code;
-a missing ruff or a missing lint_backend.py next to this file prints NOT_RUN. GATE_BACKEND_LINT=0 switches the lane off.
+Backend lint lane (CR-BE-GATES-2436; BLOCKING since CR-PYFLAKES-ENFORCE-2442): `decide` also runs the backend static check (ruff, the
+pyflakes rule set F over the package smplwise/) and prints its summary to STDERR, so the gate log shows it while gate_release.sh reads
+only the JSON on stdout. A finding in a tree that carries the `# ruff-lane: blocking` marker (smplwise_vms/backend/pyproject.toml) makes
+`decide` exit LINT_BLOCK_RC (3) after printing the decision; gate_release.sh stops the gate on that code. A tree without the marker is
+only reported; a missing ruff or a missing lint_backend.py next to this file prints NOT_RUN and never blocks. The tree linted is
+GATE_LINT_ROOT, else the checkout this script sits in, else ~/smplwisebms. GATE_BACKEND_LINT=0 switches the lane off, =warn keeps the
+report and never blocks.
 """
 from __future__ import annotations
 
@@ -135,18 +139,26 @@ def tag_ok(results: Path, days: float = 7.0, now: dt.datetime | None = None) -> 
     return {"ok": False, "why": f"no full green nightly on main within {days:g} days"}
 
 
-def backend_lint_lane(stream=None) -> str:
-    """Run the non-blocking backend lint lane and print its summary to `stream` (stderr). Never raises; returns the text printed."""
+LINT_BLOCK_RC = 3   # `decide` exit code when the backend lint lane blocks (gate_release.sh stops on it)
+
+
+def backend_lint_lane(stream=None) -> tuple[str, bool]:
+    """Run the backend lint lane and print its summary to `stream` (stderr). Never raises. Returns (the text printed, blocked):
+    blocked is True only for a finding in a tree that carries the blocking marker (lint_backend.blocks); a lane that could not
+    run is NOT_RUN and does not block."""
     stream = stream if stream is not None else sys.stderr
-    if os.environ.get("GATE_BACKEND_LINT", "1") == "0":
-        return ""
+    knob = os.environ.get("GATE_BACKEND_LINT", "1")
+    if knob == "0":
+        return "", False
+    blocked = False
     try:
         import lint_backend as lb
-        txt = lb.text(lb.run(lb.default_root()))
+        res = lb.run(lb.default_root())
+        txt, blocked = lb.text(res), lb.blocks(res) and knob != "warn"
     except Exception as exc:  # noqa: BLE001  (a lane problem must never touch the gate decision)
-        txt = f"backend lint (ruff F, non-blocking): NOT_RUN - {exc.__class__.__name__}: {str(exc)[:200]}"
+        txt = f"backend lint (ruff F): NOT_RUN - {exc.__class__.__name__}: {str(exc)[:200]} (not blocking: the lint did not run)"
     print(txt, file=stream)
-    return txt
+    return txt, blocked
 
 
 def main(argv=None) -> int:
@@ -167,8 +179,7 @@ def main(argv=None) -> int:
     if ns.cmd == "enabled":
         return 0 if fast_enabled(ns.flag) else 1
     if ns.cmd == "lint":
-        backend_lint_lane(sys.stdout)
-        return 0
+        return 1 if backend_lint_lane(sys.stdout)[1] else 0
     if ns.cmd == "tagcheck":
         r = tag_ok(Path(ns.results), ns.days, now)
         print(json.dumps(r, indent=1))
@@ -176,8 +187,7 @@ def main(argv=None) -> int:
     r = decide(Path(ns.results), Path(ns.quarantine) if ns.quarantine else None, now, ns.max_age_h, ns.flag, ns.full)
     print(json.dumps(r, indent=1, ensure_ascii=False))
     sys.stdout.flush()
-    backend_lint_lane()
-    return 0
+    return LINT_BLOCK_RC if backend_lint_lane()[1] else 0
 
 
 if __name__ == "__main__":

@@ -37,7 +37,10 @@ if [ "$AFTER" = 1 ] && [ "$FULL" = 0 ]; then
   exec "$G/release_gate2.sh" "${HEAD_ARGS[@]}" ${TAIL_ARGS[@]+-- "${TAIL_ARGS[@]}"}
 fi
 
-DEC="$("$PY3" "$G/gate_entry.py" decide --results "$RES" $([ "$FULL" = 1 ] && echo --full))" || { echo "gate_entry.py failed; running the FULL tier"; DEC='{"mode": "full", "state": "entry-error", "why": "gate_entry.py failed"}'; }
+DEC="$("$PY3" "$G/gate_entry.py" decide --results "$RES" $([ "$FULL" = 1 ] && echo --full))"; DRC=$?
+# CR-PYFLAKES-ENFORCE-2442: exit 3 = the backend lint lane blocks (ruff F finding in a tree with the blocking marker; listed above on stderr)
+if [ "$DRC" = 3 ]; then echo "gate_release: RED - the backend lint (ruff F) has findings; nothing was run. Fix them (GATE_BACKEND_LINT=warn reports without blocking)."; exit 1; fi
+[ "$DRC" = 0 ] || { echo "gate_entry.py failed; running the FULL tier"; DEC='{"mode": "full", "state": "entry-error", "why": "gate_entry.py failed"}'; }
 jget() { printf '%s' "$DEC" | "$PY3" -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"; }
 MODE="$(jget mode)"; STATE="$(jget state)"; WHY="$(jget why)"
 echo "gate_release: mode=$MODE (nightly/entry state: $STATE) - $WHY"
