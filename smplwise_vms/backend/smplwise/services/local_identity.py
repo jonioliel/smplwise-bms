@@ -72,6 +72,10 @@ ROTATE_EVERY_S = 24 * 3600
 ROTATE_GRACE_S = 60.0
 TOUCH_EVERY_S = 60.0
 CACHE_TTL_S = 15.0
+# CR-LOCAL-USER-CREATE-2438: after a chain's entries are dropped (a revocation), nothing of that chain is cached for this long. The drop
+# happens inside the revoking transaction, before its commit; a request that read the session row before the commit used to put the
+# session back into the cache after the drop, and the revoked session then lived for CACHE_TTL_S. Longer than any transaction lives.
+DROP_HOLD_S = 30.0
 FLAG_TTL_S = 5.0
 PENDING_TTL_S = 300.0
 PENDING_MAX_ATTEMPTS = 5
@@ -322,6 +326,7 @@ class _Cache:
         self._by_sid: dict[str, LocalSession] = {}
         self._sockets: dict[str, weakref.WeakSet] = {}
         self._to_close: list[Any] = []
+        self._dropped: dict[str, float] = {}  # chain id -> when its entries were dropped (DROP_HOLD_S)
 
     def get(self, sid_hash: str) -> LocalSession | None:
         now = time.time()
@@ -340,6 +345,11 @@ class _Cache:
 
     def put(self, s: LocalSession) -> None:
         with self._lock:
+            dropped = self._dropped.get(s.chain_id)
+            if dropped is not None:
+                if time.time() - dropped < DROP_HOLD_S:
+                    return  # the chain was just revoked: the caller's row may predate the revocation's commit - the next request reads again
+                self._dropped.pop(s.chain_id, None)
             if len(self._by_sid) > 5000:
                 for k in list(self._by_sid)[:500]:
                     self._by_sid.pop(k, None)
@@ -356,6 +366,12 @@ class _Cache:
 
     def drop_chains(self, chains: set[str]) -> None:
         with self._lock:
+            now = time.time()
+            if len(self._dropped) > 5000:
+                for k in [k for k, t in self._dropped.items() if now - t >= DROP_HOLD_S]:
+                    self._dropped.pop(k, None)
+            for c in chains:
+                self._dropped[c] = now
             for k in [k for k, v in self._by_sid.items() if v.chain_id in chains]:
                 self._by_sid.pop(k, None)
             for c in chains:
@@ -382,6 +398,7 @@ class _Cache:
     def clear(self) -> None:
         with self._lock:
             self._by_sid.clear()
+            self._dropped.clear()
             for socks in self._sockets.values():
                 self._to_close.extend(list(socks))
             self._sockets.clear()
