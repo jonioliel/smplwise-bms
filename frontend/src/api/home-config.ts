@@ -10,7 +10,7 @@
  * explain why a widget is not shown).
  */
 import { uiLocale } from '../i18n/locale';
-import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words; CR-I18N-UNITS-2442: the durations and the weather units
 
 import { tr } from '../i18n/msg/api-home';
 
@@ -796,7 +796,8 @@ export function weatherGlyph(condition: string): WeatherGlyph {
   }
 }
 
-const UNIT_HE: Record<string, string> = { 'km/h': 'קמ״ש', 'm/s': 'מ׳/שנ׳', kph: 'קמ״ש', km: 'ק״מ', m: 'מ׳', mm: 'מ״מ', hPa: 'הקטופסקל', mbar: 'מ״ב' };
+/** The unit words of the interface language (in English the unit as the integration reports it; `kph` reads km/h). */
+const unitWords = (): Record<string, string> => ({ 'km/h': trTime('קמ״ש'), 'm/s': trTime('מ׳/שנ׳'), kph: trTime('קמ״ש'), km: trTime('ק״מ'), m: trTime('מ׳'), mm: trTime('מ״מ'), hPa: trTime('הקטופסקל'), mbar: trTime('מ״ב') });
 
 /** A weather value as text: "61%", "14 קמ״ש", "1012 hPa". Temperatures keep their degree sign, without repeating the unit letter twice. */
 export function valueText(field: WeatherField, v: WeatherValue): string {
@@ -805,7 +806,7 @@ export function valueText(field: WeatherField, v: WeatherValue): string {
   if (field === 'temperature' || field === 'apparent') return `${Math.round(v.v)}${unit.startsWith('°') ? unit : `°${unit}`}`;
   if (field === 'humidity') return `${Math.round(v.v)}%`;
   if (field === 'uv') return n;
-  return unit ? `${n} ${UNIT_HE[unit] ?? unit}` : n;
+  return unit ? `${n} ${unitWords()[unit] ?? unit}` : n;
 }
 
 /** A calendar sensor's state as the card shows it (a time sensor as HH:mm, the parsha with its word). */
@@ -822,13 +823,13 @@ export function untilText(iso: string | null | undefined, now: Date): string {
   const t = new Date(iso ?? '').getTime();
   if (!iso || !/^\d{4}-\d{2}-\d{2}T/.test(iso) || Number.isNaN(t) || t <= now.getTime()) return '';
   const mins = Math.round((t - now.getTime()) / 60_000);
-  if (mins < 60) return `עוד ${mins} דקות`;
+  if (mins < 60) return trTime('עוד {n} דקות', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `עוד ${hours === 1 ? 'שעה' : `${hours} שעות`}`;
+  if (hours < 24) return trTime('עוד {v}', { v: hours === 1 ? trTime('שעה') : trTime('{n} שעות', { n: hours }) });
   const days = Math.floor(hours / 24);
   const rest = hours % 24;
-  const d = days === 1 ? 'יום' : days === 2 ? 'יומיים' : `${days} ימים`;
-  return rest ? `עוד ${d} ו־${rest === 1 ? 'שעה' : `${rest} שעות`}` : `עוד ${d}`;
+  const d = days === 1 ? trTime('יום') : days === 2 ? trTime('יומיים') : trTime('{n} ימים', { n: days });
+  return rest ? trTime('עוד {v} ו־{v2}', { v: d, v2: rest === 1 ? trTime('שעה') : trTime('{n} שעות', { n: rest }) }) : trTime('עוד {v}', { v: d });
 }
 
 /** BV1: when an agenda event happens, in the site's zone and relative to today: "היום · 14:30", "מחר · כל היום", "יום ג׳ · 10:00",
@@ -844,11 +845,11 @@ export function agendaWhen(ev: Pick<AgendaEvent, 'start' | 'all_day'>, now: Date
   const tomorrow = dayKey(new Date(now.getTime() + 86_400_000));
   const days = Math.round((Date.parse(`${key}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
   let day: string;
-  if (key === today) day = 'היום';
-  else if (key === tomorrow) day = 'מחר';
+  if (key === today) day = trTime('היום');
+  else if (key === tomorrow) day = trTime('מחר');
   else if (days > 0 && days < 7) day = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'long' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
   else day = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, day: 'numeric', month: 'numeric' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
-  const time = ev.all_day ? 'כל היום' : new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  const time = ev.all_day ? trTime('כל היום') : new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
   return `${day} · ${time}`;
 }
 

@@ -236,7 +236,7 @@ export const SEVERITIES: readonly Severity[] = ['info', 'alert', 'critical'];
 export const SEVERITY_RANK: Record<Severity, number> = { info: 0, alert: 1, critical: 2 };
 export const SEVERITY_LABEL: Record<Severity, string> = { info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') };
 export const WEEKDAYS: readonly Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const WEEKDAY_LETTER: Record<Weekday, string> = { sun: 'א', mon: 'ב', tue: 'ג', wed: 'ד', thu: 'ה', fri: 'ו', sat: 'ש' };
+export const WEEKDAY_LETTER: Record<Weekday, string> = { sun: trTime('א'), mon: trTime('ב'), tue: trTime('ג'), wed: trTime('ד'), thu: trTime('ה'), fri: trTime('ו'), sat: trTime('ש') };
 const WEEKDAY_NAME = (): string[] => [trTime('ראשון'), trTime('שני'), trTime('שלישי'), trTime('רביעי'), trTime('חמישי'), trTime('שישי'), trTime('שבת')];
 export const RETENTION_CHOICES: readonly RetentionDays[] = [7, 14, 30, 60, 90];
 export const ESCALATION_AFTER_MIN = { min: 1, max: 60 } as const;

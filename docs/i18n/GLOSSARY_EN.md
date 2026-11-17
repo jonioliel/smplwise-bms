@@ -365,4 +365,9 @@ is "hour" there (a unit) and "Time" in `api-home` (the clock widget).
 
 Stay Hebrew in every interface language: the words an operator types to confirm ("שמור", "הסר", "אפשר נטרול", "הרחב בירור",
 "פתיחת דלת לבדיקה" - the server compares them), the building marker and the name given to a new building ("בניין"), the demo
-stores, and the date / duration / unit helpers that CR-I18N-DATES-2442 owns.
+stores, and the Hebrew calendar date (the day and year in letters, "פרשת" - an owner question of CR-I18N-UNITS-2442).
+
+Durations, weekday letters and weather units (`msg/time`, CR-I18N-UNITS-2442): a duration in words is spelled with its number
+("שעה" = "1 hour", "שעתיים" = "2 hours", "{n} שעות" = "{n} hours"; parts joined by " and "); the short forms are "ms", "s", "min", "h",
+"d" ("2 min 5 s", "1 h 30 min", "3 d 2 h"); "עוד ..." is "In ..."; the day toggles are "S M T W T F S" and the day names in a
+sentence "Sun" ... "Sat"; weather units are the SI symbols ("km/h", "m/s", "hPa", "mbar").

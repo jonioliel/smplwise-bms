@@ -17,6 +17,7 @@ import { isPendingRestart } from './closed-errors';
 import { isApi } from './session';
 import type { Camera } from './types';
 import { he } from '../i18n/he';
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-UNITS-2442: the short durations
 import { dayTimeText, timeText, dayMonthText } from './day-format';
 
 // ---- what a recorder offers (the capability summary) ----
@@ -610,9 +611,9 @@ export function spanText(start: string, end: string | null): string | null {
   if (!end) return null;
   const s = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
   if (!Number.isFinite(s)) return null;
-  if (s < 60) return `${s} שנ׳`;
+  if (s < 60) return trTime('{n} שנ׳', { n: s });
   const m = Math.floor(s / 60);
-  return s % 60 ? `${m} דק׳ ${s % 60} שנ׳` : `${m} דק׳`;
+  return s % 60 ? trTime('{m} דק׳ {s} שנ׳', { m, s: s % 60 }) : trTime('{n} דק׳', { n: m });
 }
 
 /** Why "פתח הקלטה" is not offered (the existing playback entry is used when the backend says it can open the item). */

@@ -215,6 +215,83 @@ test('English: the relative-time and weekday words', async () => {
   }
 });
 
+// ---------------------------------------------------------------- CR-I18N-UNITS-2442: durations, units, weekday letters
+
+/** One fixed input set per helper that CR-I18N-UNITS-2442 moved to msg/time; the Hebrew column was recorded from the sources before the move. */
+async function unitTexts() {
+  const auto = await import('../src/api/automations');
+  const frigate = await import('../src/api/frigate');
+  const health = await import('../src/api/health');
+  const home = await import('../src/api/home-config');
+  const now = AT.getTime();
+  const until = (minutes: number) => home.untilText(new Date(now + minutes * 60_000).toISOString(), AT);
+  const span = (s: number) => frigate.spanText(ISO, new Date(now + s * 1000).toISOString());
+  const agenda = (addMs: number, all_day: boolean) => home.agendaWhen({ start: all_day ? `${new Date(now + addMs).toISOString().slice(0, 10)}T00:00:00Z` : new Date(now + addMs).toISOString(), all_day }, AT, TZ);
+  return {
+    durationText: [{ hours: 1 }, { hours: 2 }, { hours: 3 }, { minutes: 1 }, { minutes: 2 }, { minutes: 5 }, { seconds: 1 }, { seconds: 2 }, { seconds: 30 }, { hours: 1, minutes: 30 }, { hours: 2, minutes: 2, seconds: 2 }, {}, null].map((d) => auto.durationText(d as never)),
+    wait: auto.actionSentence({ kind: 'typed', type: 'delay', delay: { minutes: 5 } } as never),
+    weekdays: auto.conditionSentence({ kind: 'typed', type: 'time', weekday: ['sun', 'tue', 'sat'] } as never),
+    formatDuration: [0, 999, 1500, 12_000, 60_000, 125_000, 3_600_000, 5_400_000, null].map((ms) => auto.formatDuration(ms)),
+    spanText: [span(34), span(120), span(125), frigate.spanText(ISO, null)],
+    fmtUptime: [300, 3900, 90_000, 3 * 86_400 + 2 * 3600].map((s) => health.fmtUptime(s)),
+    untilText: [until(45), until(60), until(5 * 60), until(24 * 60), until(25 * 60), until(48 * 60), until(60 * 60), until(72 * 60), until(77 * 60), until(-5)],
+    agendaWhen: [agenda(2 * 3_600_000, false), agenda(0, true), agenda(86_400_000, true), agenda(86_400_000, false)],
+    valueText: [
+      home.valueText('wind', { v: 14, unit: 'km/h' }), home.valueText('wind', { v: 4.25, unit: 'm/s' }), home.valueText('wind', { v: 14, unit: 'kph' }), home.valueText('visibility', { v: 10, unit: 'km' }),
+      home.valueText('visibility', { v: 800, unit: 'm' }), home.valueText('precipitation', { v: 2.5, unit: 'mm' }), home.valueText('pressure', { v: 1012.34, unit: 'hPa' }), home.valueText('pressure', { v: 1012, unit: 'mbar' }),
+      home.valueText('pressure', { v: 30, unit: 'inHg' }),
+    ],
+  };
+}
+
+test('Hebrew: the duration, unit and weekday-letter helpers return the texts that were written in the sources', async () => {
+  page('he');
+  expect(await unitTexts()).toEqual({
+    durationText: ['שעה', 'שעתיים', '3 שעות', 'דקה', 'שתי דקות', '5 דקות', 'שנייה', 'שתי שניות', '30 שניות', 'שעה ו30 דקות', 'שעתיים ושתי דקות ושתי שניות', '', ''],
+    wait: 'המתן 5 דקות',
+    weekdays: 'בימים א׳, ג׳, ש׳',
+    formatDuration: ['0 מ״ש', '999 מ״ש', '1.5 שנ׳', '12 שנ׳', '1 דק׳', '2 דק׳ 5 שנ׳', '1 שע׳', '1 שע׳ 30 דק׳', ''],
+    spanText: ['34 שנ׳', '2 דק׳', '2 דק׳ 5 שנ׳', null],
+    fmtUptime: ['5 דק׳', '1 שע׳ 5 דק׳', '1 ימים 1 שע׳', '3 ימים 2 שע׳'],
+    untilText: ['עוד 45 דקות', 'עוד שעה', 'עוד 5 שעות', 'עוד יום', 'עוד יום ו־שעה', 'עוד יומיים', 'עוד יומיים ו־12 שעות', 'עוד 3 ימים', 'עוד 3 ימים ו־5 שעות', ''],
+    agendaWhen: ['היום · 16:05', 'היום · כל היום', 'מחר · כל היום', 'מחר · 14:05'],
+    valueText: ['14 קמ״ש', '4.3 מ׳/שנ׳', '14 קמ״ש', '10 ק״מ', '800 מ׳', '2.5 מ״מ', '1012.3 הקטופסקל', '1012 מ״ב', '30 inHg'],
+  });
+  // the day maps of the screens (built when the module loads, like schedules DAY_SHORT; the language changes only by a reload)
+  const notif = await import('../src/api/notifications');
+  const rules = await import('../src/api/rules');
+  expect(notif.WEEKDAY_LETTER).toEqual({ sun: 'א', mon: 'ב', tue: 'ג', wed: 'ד', thu: 'ה', fri: 'ו', sat: 'ש' });
+  expect(rules.DAY_LABEL).toEqual({ mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳', sun: 'א׳' });
+  expect(Object.keys(rules.DAY_LABEL)).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+  // the Hebrew calendar date stays Hebrew in every language (owner question in docs/changes/CR-I18N-UNITS-2442.md)
+  const home = await import('../src/api/home-config');
+  expect([home.gematria(19), home.gematria(15), home.gematria(787)]).toEqual(['י״ט', 'ט״ו', 'תשפ״ז']);
+});
+
+test('English: the duration, unit and weekday-letter helpers; the Hebrew calendar date stays Hebrew', async () => {
+  page('en');
+  expect(await unitTexts()).toEqual({
+    durationText: ['1 hour', '2 hours', '3 hours', '1 minute', '2 minutes', '5 minutes', '1 second', '2 seconds', '30 seconds', '1 hour and 30 minutes', '2 hours and 2 minutes and 2 seconds', '', ''],
+    wait: 'Wait 5 minutes', // was "Wait 5 דקות"
+    weekdays: 'on days Sun, Tue, Sat',
+    formatDuration: ['0 ms', '999 ms', '1.5 s', '12 s', '1 min', '2 min 5 s', '1 h', '1 h 30 min', ''],
+    spanText: ['34 s', '2 min', '2 min 5 s', null],
+    fmtUptime: ['5 min', '1 h 5 min', '1 d 1 h', '3 d 2 h'],
+    untilText: ['In 45 min', 'In 1 hour', 'In 5 hours', 'In 1 day', 'In 1 day and 1 hour', 'In 2 days', 'In 2 days and 12 hours', 'In 3 days', 'In 3 days and 5 hours', ''],
+    agendaWhen: ['Today · 16:05', 'Today · All day', 'Tomorrow · All day', 'Tomorrow · 14:05'],
+    valueText: ['14 km/h', '4.3 m/s', '14 km/h', '10 km', '800 m', '2.5 mm', '1012.3 hPa', '1012 mbar', '30 inHg'],
+  });
+  // the day maps are built when their module loads (this process loaded them in Hebrew above), so their English is read from the table
+  const { tr } = await import('../src/i18n/msg/time');
+  expect(['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((d) => tr(d))).toEqual(['S', 'M', 'T', 'W', 'T', 'F', 'S']);
+  expect(['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'].map((d) => tr(d))).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+  // Hebrew by nature, in both languages (owner question 1 in docs/changes/CR-I18N-UNITS-2442.md)
+  const home = await import('../src/api/home-config');
+  expect([home.gematria(19), home.gematria(15), home.gematria(787)]).toEqual(['י״ט', 'ט״ו', 'תשפ״ז']);
+  expect(home.hebrewDate(AT, TZ)).toBe('ז׳ בכסלו התשפ״ז');
+  expect(home.parshaText('נח')).toBe('פרשת נח');
+});
+
 // ---------------------------------------------------------------- the guard: no new hard-coded locale
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));

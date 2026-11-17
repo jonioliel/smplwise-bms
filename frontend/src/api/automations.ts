@@ -28,7 +28,7 @@ import { isApi } from './session';
 import type { DayToken, ScheduleDraft } from './schedules';
 import { timeText } from './day-format';
 import { tr } from '../i18n/msg/api-automation';
-import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words; CR-I18N-UNITS-2442: the durations
 
 // ------------------------------------------------------------------------------------------------ vocabulary and blocks (§2.1)
 
@@ -1492,12 +1492,12 @@ export function joinNames(ids: readonly string[], ctx: ModelContext = {}): strin
 export function durationText(d: Duration | null | undefined): string {
   if (!d) return '';
   const p: string[] = [];
-  if (d.hours) p.push(d.hours === 1 ? 'שעה' : d.hours === 2 ? 'שעתיים' : `${d.hours} שעות`);
-  if (d.minutes) p.push(d.minutes === 1 ? 'דקה' : d.minutes === 2 ? 'שתי דקות' : `${d.minutes} דקות`);
-  if (d.seconds) p.push(d.seconds === 1 ? 'שנייה' : d.seconds === 2 ? 'שתי שניות' : `${d.seconds} שניות`);
-  return p.join(' ו');
+  if (d.hours) p.push(d.hours === 1 ? trTime('שעה') : d.hours === 2 ? trTime('שעתיים') : trTime('{n} שעות', { n: d.hours }));
+  if (d.minutes) p.push(d.minutes === 1 ? trTime('דקה') : d.minutes === 2 ? trTime('שתי דקות') : trTime('{n} דקות', { n: d.minutes }));
+  if (d.seconds) p.push(d.seconds === 1 ? trTime('שנייה') : d.seconds === 2 ? trTime('שתי שניות') : trTime('{n} שניות', { n: d.seconds }));
+  return p.join(trTime(' ו'));
 }
-const WD_SHORT: Record<Weekday, string> = { sun: 'א׳', mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳' };
+const WD_SHORT = (): Record<Weekday, string> => ({ sun: trTime('א׳'), mon: trTime('ב׳'), tue: trTime('ג׳'), wed: trTime('ד׳'), thu: trTime('ה׳'), fri: trTime('ו׳'), sat: trTime('ש׳') });
 const clock = (t: string): string => (/^\d{1,2}:\d{2}:00$/.test(t) ? t.slice(0, -3) : t);
 
 /** What a device "does" when it reaches `to` (by its domain, and for sensors by the id: motion, door, window, leak). */
@@ -1608,7 +1608,7 @@ export function conditionSentence(b: ConditionBlock | LockedBlock, ctx: ModelCon
     case 'time': {
       const p: string[] = [];
       if (b.after && b.before) p.push(tr('בין {after} ל־{before}', { after: clock(b.after), before: clock(b.before) })); else if (b.after) p.push(tr('אחרי {after}', { after: clock(b.after) })); else if (b.before) p.push(tr('לפני {before}', { before: clock(b.before) }));
-      if (b.weekday && b.weekday.length) p.push(b.weekday.length === 7 ? tr('בכל יום') : tr('בימים {v}', { v: WEEKDAYS.filter((d) => b.weekday!.includes(d)).map((d) => WD_SHORT[d]).join(', ') }));
+      if (b.weekday && b.weekday.length) p.push(b.weekday.length === 7 ? tr('בכל יום') : tr('בימים {v}', { v: WEEKDAYS.filter((d) => b.weekday!.includes(d)).map((d) => WD_SHORT()[d]).join(', ') }));
       return p.join(' ') || tr('בכל שעה');
     }
     case 'sun': {
@@ -2014,12 +2014,12 @@ export function itemVisibleTo(draft: AnyDraft, scope: UserScope, place: (entityI
 
 export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return '';
-  if (ms < 1000) return `${Math.round(ms)} מ״ש`;
-  if (ms < 10_000) return `${(ms / 1000).toFixed(1)} שנ׳`;
-  if (ms < 60_000) return `${Math.round(ms / 1000)} שנ׳`;
-  if (ms < 3_600_000) { const m = Math.floor(ms / 60_000); const s = Math.round((ms % 60_000) / 1000); return s ? `${m} דק׳ ${s} שנ׳` : `${m} דק׳`; }
+  if (ms < 1000) return trTime('{n} מ״ש', { n: Math.round(ms) });
+  if (ms < 10_000) return trTime('{n} שנ׳', { n: (ms / 1000).toFixed(1) });
+  if (ms < 60_000) return trTime('{n} שנ׳', { n: Math.round(ms / 1000) });
+  if (ms < 3_600_000) { const m = Math.floor(ms / 60_000); const s = Math.round((ms % 60_000) / 1000); return s ? trTime('{m} דק׳ {s} שנ׳', { m, s }) : trTime('{n} דק׳', { n: m }); }
   const h = Math.floor(ms / 3_600_000); const m = Math.round((ms % 3_600_000) / 60_000);
-  return m ? `${h} שע׳ ${m} דק׳` : `${h} שע׳`;
+  return m ? trTime('{h} שע׳ {m} דק׳', { h, m }) : trTime('{n} שע׳', { n: h });
 }
 export const TRACE_RESULT_LABEL: Record<RunTrace['result'], string> = { ok: tr('הושלמה'), error: tr('נכשלה'), stopped: tr('נעצרה'), running: tr('רצה'), not_triggered: tr('לא הופעלה') };
 export const STEP_RESULT_LABEL: Record<RunTrace['steps'][number]['result'], string> = { done: tr('בוצע'), skipped: tr('דולג'), error: tr('נכשל'), running: tr('רץ'), not_run: tr('לא רץ') };

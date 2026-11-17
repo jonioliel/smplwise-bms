@@ -2,13 +2,13 @@
  "totals": {
   "lang": "en",
   "catalogues": 144,
-  "keys": 28173,
+  "keys": 28212,
   "missing": 20,
   "identical": 3,
   "hebrew": 3,
   "gap": 7,
   "hardcodedModules": 45,
-  "hardcodedLiterals": 4668,
+  "hardcodedLiterals": 4661,
   "hardcodedFiles": 191
  },
  "catalogues": [
@@ -1316,7 +1316,7 @@
   },
   {
    "name": "msg/time",
-   "keys": 41,
+   "keys": 80,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1765,7 +1765,7 @@
    "module": "api",
    "kind": "app",
    "files": 35,
-   "literals": 648,
+   "literals": 641,
    "fileList": [
     {
      "file": "api/automations-demo.ts",
@@ -1773,7 +1773,7 @@
     },
     {
      "file": "api/automations.ts",
-     "literals": 34
+     "literals": 32
     },
     {
      "file": "api/calendar-attendees.ts",
@@ -1801,7 +1801,7 @@
     },
     {
      "file": "api/frigate.ts",
-     "literals": 4
+     "literals": 3
     },
     {
      "file": "api/ha-users.ts",
@@ -1809,11 +1809,11 @@
     },
     {
      "file": "api/health.ts",
-     "literals": 5
+     "literals": 3
     },
     {
      "file": "api/home-config.ts",
-     "literals": 64
+     "literals": 62
     },
     {
      "file": "api/incidents.ts",

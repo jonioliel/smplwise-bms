@@ -25,6 +25,8 @@ import { hasHebrew, hebrewOutsideTr, trCalls, trModule } from './helpers/i18n-so
 // the Hebrew interface shows the text exactly as written (the Hebrew is the key, so a Hebrew screen cannot move).
 // CR-I18N-COMBINED-B-2442: the relative-time and weekday words of five api files are read from the shared table src/i18n/msg/time.ts
 // (CR-I18N-DATES-2442) under the alias `trTime`; the lint accepts both translators, and the lists below lost the texts that moved.
+// CR-I18N-UNITS-2442: the durations, the weekday letters and the weather units moved to the same table (73 literals left the lists,
+// 107 -> 34); what is still listed as a format text is the Hebrew calendar date of api/home-config.ts.
 
 const DIR = new URL('../src/api/', import.meta.url);
 const FILES = readdirSync(DIR).filter((f) => f.endsWith('.ts')).sort();
@@ -52,7 +54,7 @@ const OWN_FILES: Record<string, string> = {
 const DEMO = 'the demo store of the module (fake data and the demo server\'s answers, never shown outside the demo mode)';
 /** The second translator of an api file: the shared time words (`import { tr as trTime } from '../i18n/msg/time'`). */
 const TRANSLATORS = ['tr', 'trTime'];
-const FORMAT = 'duration / unit / weekday-letter texts that neither CR-I18N-API-2442 nor CR-I18N-DATES-2442 moved (DATES took the relative-time words and the weekday names; these are joined into sentences letter by letter or number by number - a row of their own)';
+const HEBREW_DATE = 'the Hebrew calendar date, Hebrew in both languages until the owner decides otherwise (docs/changes/CR-I18N-UNITS-2442.md, owner question 1): the letters of gematria 29, its geresh / gershayim 2, the two particles of hebrewDate 2, the word of parshaText 1';
 const TYPED = 'a confirmation word the operator types and the server compares (owner question in docs/changes/CR-I18N-API-2442.md)';
 
 /**
@@ -60,16 +62,14 @@ const TYPED = 'a confirmation word the operator types and the server compares (o
  * written); `count` is the number of further literals of the stated kind (a block of demo data or a format helper).
  */
 const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = {
-  'automations.ts': { why: `${FORMAT} (durationText 10, the weekday letters of the sentence builder 7, formatDuration 9); the maqaf the verb table is tested for`, count: 26, texts: ['־'] },
+  'automations.ts': { why: 'the maqaf the verb table is tested for', texts: ['־'] },
   'calendar-attendees.ts': { why: DEMO, count: 5 },
   'capture-lease.ts': { why: TYPED, texts: ['הרחב בירור'] },
   'door-automations.ts': { why: DEMO, count: 4 },
   'electricity-meters.ts': { why: DEMO, count: 6 },
   'electricity-readings.ts': { why: DEMO, count: 25 },
-  'frigate.ts': { why: FORMAT, count: 4 },
   'ha-users.ts': { why: DEMO, count: 14 },
-  'health.ts': { why: FORMAT, count: 5 },
-  'home-config.ts': { why: `${FORMAT} (the Hebrew calendar date 33 - Hebrew by nature, parshaText 1, the weather units 8, untilText 13, agendaWhen 3)`, count: 58 },
+  'home-config.ts': { why: HEBREW_DATE, count: 34 },
   'incidents.ts': { why: DEMO, count: 39 },
   'installer.ts': { why: TYPED, texts: ['פתיחת דלת לבדיקה'] },
   'mapping-engine.ts': { why: 'data: the building marker of the naming rule and the name saved for a new building', texts: ['בניין', 'משותף', 'בניין'] },
@@ -77,12 +77,10 @@ const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = 
   'media-admin.ts': { why: DEMO, count: 39 },
   'messaging-accounts.ts': { why: DEMO, count: 11 },
   'messaging-policy.ts': { why: DEMO, count: 2 },
-  'notifications.ts': { why: `${FORMAT} (the weekday letters)`, count: 7 },
   'notify-whatsapp.ts': { why: DEMO, count: 9 },
   'nvr-connection.ts': { why: TYPED, texts: ['שמור', 'הסר'] },
   'nvr-settings.ts': { why: DEMO, count: 25 },
   'readiness.ts': { why: DEMO, count: 48 },
-  'rules.ts': { why: `${FORMAT} (the weekday letters)`, count: 7 },
   'schedules.ts': { why: TYPED, texts: ['אפשר נטרול'] },
   'setup.ts': { why: DEMO, count: 82 },
   'tickets-board.ts': { why: DEMO, count: 6 },
@@ -251,13 +249,15 @@ test('the shared time words: an api file reads them as trTime from msg/time, eve
     missing.push(...calls.keys.filter((k) => !(k in trTime.en)).map((k) => `${f}: ${k}`));
     notLiteral.push(...calls.notLiteral.map((x) => `${f}:${x}`));
   }
-  expect(readers).toEqual(['automations.ts', 'home-config.ts', 'notifications.ts', 'remote.ts', 'schedules.ts']);
+  expect(readers).toEqual(['automations.ts', 'frigate.ts', 'health.ts', 'home-config.ts', 'notifications.ts', 'remote.ts', 'rules.ts', 'schedules.ts']);
   expect(missing, 'add the English to src/i18n/msg/time.ts').toEqual([]);
   expect(notLiteral).toEqual([]);
   // what DATES moved is read through trTime and is no longer allow-listed: seen by `tr` alone, each of these files would hold more
   // Hebrew literals than its list allows (remote.ts has no list at all)
   for (const f of readers) expect(hebrewOutsideTr(f, read(f)).length, f).toBeGreaterThan(hebrewOutsideTr(f, read(f), TRANSLATORS).length);
-  expect('remote.ts' in KEPT, 'remote.ts holds no Hebrew outside its translators').toBe(false);
+  for (const f of ['frigate.ts', 'health.ts', 'notifications.ts', 'remote.ts', 'rules.ts']) expect(f in KEPT, `${f} holds no Hebrew outside its translators`).toBe(false);
+  // CR-I18N-UNITS-2442: the allow-list of format texts is the Hebrew calendar date alone - 34 literals in one file
+  expect(Object.entries(KEPT).filter(([, k]) => k.why === HEBREW_DATE).map(([f, k]) => [f, k.count])).toEqual([['home-config.ts', 34]]);
 });
 
 test('completeness: no table carries a key twice in its source (a later line would silently win)', () => {
