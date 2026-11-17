@@ -113,7 +113,7 @@ export class ScriptsPanel extends LitElement {
     }
     .where b {
       color: var(--dv-text);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
     }
     .where .ic {
       font-size: var(--sw-fs-md);
@@ -153,7 +153,7 @@ export class ScriptsPanel extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 7px;
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-text);
     }
     .chip.live {

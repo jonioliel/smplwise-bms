@@ -298,7 +298,7 @@ export class ExplorePlanImport extends LitElement {
       vertical-align: middle;
     }
     table.map th {
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
       white-space: nowrap;
     }

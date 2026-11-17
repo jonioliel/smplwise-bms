@@ -63,12 +63,12 @@ export class SceneEditor extends AutomationEditorBase {
         flex-direction: column;
         gap: 1px;
         font-size: var(--sw-fs-md);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         min-inline-size: 0;
       }
       .mrow .nm small {
         font-size: var(--sw-fs-xs);
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
         color: var(--dv-text-2);
       }
       .mrow .vals {
@@ -107,7 +107,7 @@ export class SceneEditor extends AutomationEditorBase {
         color: var(--dv-text-2);
         border: 1.5px dashed var(--dv-border-strong);
         border-radius: var(--dv-radius-sm, 14px);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
     `,
   ];

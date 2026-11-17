@@ -151,7 +151,7 @@ export abstract class AutomationEditorBase extends LitElement {
         font-size: var(--sw-fs-base);
       }
       .vbox > b small {
-        font-weight: 400;
+        font-weight: var(--sw-fw-regular);
         color: var(--dv-text-2);
       }
       .vbox .iss {
@@ -269,7 +269,7 @@ export abstract class AutomationEditorBase extends LitElement {
       .shh h3 {
         margin: 0;
         font-size: var(--sw-fs-2xl);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         letter-spacing: -0.025em;
       }
       .shh .bk {
@@ -291,7 +291,7 @@ export abstract class AutomationEditorBase extends LitElement {
         background: transparent;
         font: inherit;
         font-size: var(--sw-fs-2xl);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         letter-spacing: -0.025em;
         color: var(--dv-text);
         outline: none;
@@ -303,7 +303,7 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       .namein::placeholder {
         color: var(--dv-text-3);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .shh .tgl {
         flex: none;
@@ -358,7 +358,7 @@ export abstract class AutomationEditorBase extends LitElement {
         border: 1px solid color-mix(in srgb, var(--dv-accent) 45%, transparent);
         background: var(--dv-accent-soft);
         color: var(--dv-accent-text);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         font-size: var(--sw-fs-base);
       }
       /* ---- banners ---- */
@@ -422,7 +422,7 @@ export abstract class AutomationEditorBase extends LitElement {
         color: var(--dv-text);
         font-size: var(--sw-fs-lg);
         line-height: 1.55;
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
       }
       .sentbox > .ic {
         font-size: var(--sw-fs-2xl);
@@ -435,7 +435,7 @@ export abstract class AutomationEditorBase extends LitElement {
         align-items: center;
         font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
         margin-block-start: 3px;
       }
       .valbox {
@@ -467,7 +467,7 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       .valbox button span {
         color: var(--dv-text-2);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       /* ---- sections ---- */
       .bsec2 {
@@ -488,7 +488,7 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       .bsec2 > h4 small {
         font-size: var(--sw-fs-sm);
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
         color: var(--dv-text-2);
       }
       .bsec2 > h4 .k {
@@ -541,7 +541,7 @@ export abstract class AutomationEditorBase extends LitElement {
         border: 1.5px dashed var(--dv-border-strong);
         background: transparent;
         color: var(--dv-accent-text);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         font-size: var(--sw-fs-base);
         inline-size: 100%;
       }
@@ -584,7 +584,7 @@ export abstract class AutomationEditorBase extends LitElement {
         grid-column: 1 / -1;
         font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         padding: 4px 10px 0;
       }
       .typepop button {
@@ -597,7 +597,7 @@ export abstract class AutomationEditorBase extends LitElement {
         padding: 8px 10px;
         text-align: start;
         font-size: var(--sw-fs-base);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         min-block-size: 50px;
         color: var(--dv-text);
       }
@@ -623,7 +623,7 @@ export abstract class AutomationEditorBase extends LitElement {
         display: block;
         font-size: var(--sw-fs-xs);
         color: var(--dv-text-2);
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
       }
       .pickpop {
         position: absolute;
@@ -689,11 +689,11 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       .kvrow .bad {
         color: var(--dv-danger);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .kvrow .ok {
         color: var(--ab-ok-text);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .diff {
         display: grid;
@@ -702,7 +702,7 @@ export abstract class AutomationEditorBase extends LitElement {
         font-size: var(--sw-fs-sm);
       }
       .diff .h {
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         color: var(--dv-text-2);
       }
       .diff .c {
@@ -715,7 +715,7 @@ export abstract class AutomationEditorBase extends LitElement {
         background: var(--dv-accent-soft);
       }
       .diff .g {
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         padding-block: 6px;
       }
       @media (max-width: 767px) {

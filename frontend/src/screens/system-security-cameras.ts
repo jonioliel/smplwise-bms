@@ -254,7 +254,7 @@ export class SystemSecurityCameras extends LitElement {
       background: var(--sw-warning-soft);
       color: var(--sw-text);
       font-size: var(--sw-fs-2xs);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       cursor: help;
     }
     .repeat .cam {

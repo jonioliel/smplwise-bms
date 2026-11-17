@@ -376,7 +376,7 @@ export class WiskeyEmbed extends LitElement {
       gap: 6px;
       color: var(--sw-accent-text);
       text-decoration: none;
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
     }
     a.full:hover {
@@ -405,7 +405,7 @@ export class WiskeyEmbed extends LitElement {
     nav.tools a.on {
       background: var(--sw-surface-3);
       color: var(--sw-accent-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     /* the framed screen: the stage fills the host, the frame fills the stage - no border, outline, padding, margin,
        minimum height or darker canvas anywhere around it */

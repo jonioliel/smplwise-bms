@@ -79,7 +79,7 @@ export class ScenesPanel extends LitElement {
     .sh h2 {
       margin: 0;
       font-size: var(--sw-fs-2xl);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       letter-spacing: -0.025em;
     }
     .sh small {
@@ -134,7 +134,7 @@ export class ScenesPanel extends LitElement {
     }
     .badge {
       font-size: var(--sw-fs-sm);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       padding: 5px 11px;
       border-radius: 999px;
       background: var(--dv-surface-3);

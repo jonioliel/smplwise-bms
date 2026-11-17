@@ -85,11 +85,11 @@ export class ScriptEditor extends AutomationEditorBase {
         flex-direction: column;
         gap: 2px;
         font-size: var(--sw-fs-md);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .frow2 .nm small {
         font-size: var(--sw-fs-sm);
-        font-weight: 500;
+        font-weight: var(--sw-fw-medium);
         color: var(--dv-text-2);
       }
       .frow2 .x {

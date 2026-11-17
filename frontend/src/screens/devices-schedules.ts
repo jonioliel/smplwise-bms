@@ -298,7 +298,7 @@ export class DevicesSchedules extends LitElement {
     }
     .foldbtn small {
       font-size: var(--sw-fs-xs);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--dv-accent-text);
     }
     .vwrap {
@@ -485,7 +485,7 @@ export class DevicesSchedules extends LitElement {
     }
     .where b {
       color: var(--dv-text);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       white-space: nowrap;
     }
     .where .ic {
@@ -648,7 +648,7 @@ export class DevicesSchedules extends LitElement {
     }
     .lr .name {
       display: block;
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-lg);
       color: var(--sw-heading, var(--dv-text));
       letter-spacing: -0.01em;
@@ -678,7 +678,7 @@ export class DevicesSchedules extends LitElement {
     }
     .lname .sub b {
       color: var(--dv-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .lsel,
     .ltog,
@@ -710,7 +710,7 @@ export class DevicesSchedules extends LitElement {
     }
     .lr.off .name {
       color: var(--dv-text-2);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .lbar {
       min-inline-size: 0;
@@ -736,7 +736,7 @@ export class DevicesSchedules extends LitElement {
     }
     .lnext.warn {
       color: var(--sw-warning-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     /* the pager sits close under its page (the groups' 30 px gap is for groups), so a page of rows fits 1440x900 */
     .lfoot {
@@ -751,7 +751,7 @@ export class DevicesSchedules extends LitElement {
       gap: 6px;
     }
     .rc.attn small {
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-warning-text);
     }
     .wdot {
@@ -925,7 +925,7 @@ export class DevicesSchedules extends LitElement {
       background: var(--dv-surface-2);
       color: var(--sw-heading, var(--dv-text));
       font-size: var(--sw-fs-base);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       padding-block: 10px;
     }
     .tr[data-picked] {
@@ -940,7 +940,7 @@ export class DevicesSchedules extends LitElement {
     }
     .tr .name {
       display: block;
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-lg);
       color: var(--sw-heading, var(--dv-text));
       letter-spacing: -0.01em;
@@ -974,7 +974,7 @@ export class DevicesSchedules extends LitElement {
     }
     .sr .w {
       font-variant-numeric: tabular-nums;
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-md);
       color: var(--sw-heading, var(--dv-text));
       direction: ltr;
@@ -1003,7 +1003,7 @@ export class DevicesSchedules extends LitElement {
     }
     .linkbtn {
       font-size: var(--sw-fs-sm);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-accent-text);
       background: none;
       border: 0;
@@ -1031,7 +1031,7 @@ export class DevicesSchedules extends LitElement {
       border-radius: var(--sw-r-2xl);
     }
     .li .t {
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-lg);
     }
     .li .d {
@@ -1069,7 +1069,7 @@ export class DevicesSchedules extends LitElement {
       background: transparent;
       color: var(--dv-text-2);
       border: 1px solid var(--dv-line, var(--sw-border));
-      font-weight: 500;
+      font-weight: var(--sw-fw-medium);
     }
     /* ---- the bulk bar: the edit bar of the glass style, kept at the bottom while scrolling ---- */
     .bulk {

@@ -204,7 +204,7 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
     }
     .gnp .t b {
       font-size: var(--sw-fs-md);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -261,7 +261,7 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
     .vrow .lbl {
       font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       flex: none;
       min-inline-size: 52px;
     }
@@ -346,7 +346,7 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
     .psh h4 {
       margin: 0;
       font-size: var(--sw-fs-md);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading, var(--dv-text));
     }
     .lnk {
@@ -357,7 +357,7 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
       gap: 4px;
       min-block-size: 44px;
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-accent-text);
     }
     .lnk:focus-visible {
@@ -389,7 +389,7 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
     }
     .mrow .nm b {
       font-size: var(--sw-fs-md);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading, var(--dv-text));
       white-space: nowrap;
       overflow: hidden;
@@ -404,11 +404,11 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
     }
     .mrow .nm small.bad {
       color: var(--dv-danger);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .mrow .nm small.ok {
       color: var(--dv-success);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .mrow .vv {
       font-size: var(--sw-fs-lg);
@@ -469,11 +469,11 @@ export class MultimediaGroups extends MediaScreenBase<PlayerStatus, PlayerDevice
     }
     .gfoot .st.ok {
       color: var(--sw-success-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .gfoot .st.bad {
       color: var(--dv-danger);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .gfoot .btn.pend .ic {
       animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;

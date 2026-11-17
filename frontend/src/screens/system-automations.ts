@@ -147,7 +147,7 @@ export class SystemAutomations extends LitElement {
       background: var(--sw-accent-soft);
       border-color: transparent;
       color: var(--sw-accent-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       box-shadow: none;
     }
     .rc:disabled {

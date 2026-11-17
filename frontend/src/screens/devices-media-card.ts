@@ -88,7 +88,7 @@ export class MediaAreaCard extends LitElement {
       margin-block-start: 4px;
       padding-inline: 4px;
       font-size: var(--sw-fs-sm);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
     }
     .off-all {
@@ -103,7 +103,7 @@ export class MediaAreaCard extends LitElement {
       color: var(--dv-danger, var(--sw-danger));
       font: inherit;
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       cursor: pointer;
     }
     .bar {

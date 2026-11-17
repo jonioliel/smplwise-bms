@@ -124,7 +124,7 @@ export class AutomationCode extends LitElement {
         align-items: flex-start;
         color: var(--dv-danger);
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         padding: 10px 12px;
         border-block-start: 1px solid var(--dv-border);
         background: var(--dv-danger-soft);

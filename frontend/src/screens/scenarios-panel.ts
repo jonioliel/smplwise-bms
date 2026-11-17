@@ -69,8 +69,8 @@ export class ScenariosPanel extends LitElement {
     @media (hover: hover) and (pointer: fine) { .card:hover { box-shadow: var(--dv-shadow-3, var(--dv-shadow-2)); } }
     .card b { font-size: var(--sw-fs-xl); font-weight: 800; color: var(--sw-heading, var(--dv-text)); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .row { display: flex; align-items: center; gap: 8px; min-inline-size: 0; }
-    .meta { color: var(--dv-text-2); font-size: var(--sw-fs-base); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .st { display: inline-flex; align-items: center; min-block-size: 26px; font-size: var(--sw-fs-sm); font-weight: 700; padding: 0 10px; border-radius: 999px; background: var(--dv-surface-3); color: var(--dv-text-2); white-space: nowrap; }
+    .meta { color: var(--dv-text-2); font-size: var(--sw-fs-base); font-weight: var(--sw-fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .st { display: inline-flex; align-items: center; min-block-size: 26px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); padding: 0 10px; border-radius: 999px; background: var(--dv-surface-3); color: var(--dv-text-2); white-space: nowrap; }
     .st.ok { background: var(--dv-success-soft); color: var(--au-ok-text, var(--dv-success)); }
     .st.warn { background: var(--dv-warning-soft); color: var(--au-warn-text, var(--dv-warning)); }
     .st.bad { background: var(--dv-danger-soft); color: var(--au-bad-text, var(--dv-danger)); }
@@ -90,7 +90,7 @@ export class ScenariosPanel extends LitElement {
     .leaf input[type='number'] { inline-size: 84px; }
     .leaf .sm { inline-size: 64px; }
     .red { color: var(--dv-text-3); font-style: italic; padding: 6px 8px; }
-    .tri { inline-size: 22px; block-size: 22px; display: inline-grid; place-items: center; border-radius: 50%; font-size: var(--sw-fs-sm); font-weight: 700; }
+    .tri { inline-size: 22px; block-size: 22px; display: inline-grid; place-items: center; border-radius: 50%; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); }
     .tri.t { background: var(--dv-success-soft); color: var(--dv-success); }
     .tri.f { background: var(--dv-surface-3); color: var(--dv-text-2); }
     .tri.u { background: var(--dv-warning-soft); color: var(--dv-warning); }

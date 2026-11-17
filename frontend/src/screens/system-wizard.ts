@@ -364,7 +364,7 @@ export class SystemWizard extends LitElement {
       max-inline-size: 100%;
     }
     .opt {
-      font-weight: 400;
+      font-weight: var(--sw-fw-regular);
       opacity: 0.75;
       font-size: 0.85em;
     }

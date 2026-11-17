@@ -91,7 +91,7 @@ export class DevicesSynoptic extends LitElement {
     .chip.warm { background: color-mix(in srgb, var(--sw-lit) 26%, var(--sw-surface)); }
     .chip.alert { background: color-mix(in srgb, var(--sw-danger) 14%, var(--sw-surface)); color: var(--sw-danger-text, var(--sw-danger)); }
     .chip.dash { background: transparent; outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; }
-    .chip.mock { background: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--sw-border-strong) 45%, transparent) 5px 6px), var(--sw-surface); box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text); font-weight: 600; }
+    .chip.mock { background: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--sw-border-strong) 45%, transparent) 5px 6px), var(--sw-surface); box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text); font-weight: var(--sw-fw-semibold); }
     .live { margin-inline-start: auto; color: var(--sw-text-3); font-size: var(--sw-fs-state); display: inline-flex; gap: 6px; align-items: center; }
     .live i { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-live); }
     .clock { font-size: var(--sw-fs-2xl); font-weight: 800; font-variant-numeric: tabular-nums; direction: ltr; color: var(--sw-heading); }
@@ -146,8 +146,8 @@ export class DevicesSynoptic extends LitElement {
     .alarmpanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 80%, black); color: var(--sw-text-inverse); }
     .alarmpanel.ackd { background: color-mix(in srgb, var(--sw-danger) 66%, black); }
     .alarmpanel .tx { flex: 1 1 220px; min-inline-size: 0; display: flex; flex-direction: column; }
-    .alarmpanel .tag { display: inline-flex; padding: 1px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); font-size: var(--sw-fs-xs); font-weight: 700; margin-inline-start: 8px; }
-    .alarmpanel .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: var(--sw-text-inverse); font: inherit; font-weight: 600; cursor: pointer; }
+    .alarmpanel .tag { display: inline-flex; padding: 1px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); margin-inline-start: 8px; }
+    .alarmpanel .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: var(--sw-text-inverse); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; }
     aside.events { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; align-self: stretch; }
     aside.events h3 { margin: 0; font-size: var(--sw-fs-md); color: var(--sw-heading); display: flex; gap: 6px; align-items: center; }
     .ev { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; font-size: var(--sw-fs-sm); }

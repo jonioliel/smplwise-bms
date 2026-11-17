@@ -119,13 +119,13 @@ export class AutomationDrawer extends LitElement {
       flex: 1;
       min-inline-size: 0;
       font-size: var(--sw-fs-md);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .dev .bt small {
       display: block;
       color: var(--dv-text-2);
       font-size: var(--sw-fs-sm);
-      font-weight: 500;
+      font-weight: var(--sw-fw-medium);
     }
     .run {
       display: flex;
@@ -195,7 +195,7 @@ export class AutomationDrawer extends LitElement {
       border: 1px solid var(--dv-border);
       background: var(--dv-surface-2);
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-text);
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the product's Blue Wash pair, never a solid text-colour block */
@@ -203,7 +203,7 @@ export class AutomationDrawer extends LitElement {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       border-color: transparent;
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       box-shadow: none;
     }
     .ver {
@@ -224,7 +224,7 @@ export class AutomationDrawer extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-md);
       flex-wrap: wrap;
     }
@@ -290,7 +290,7 @@ export class AutomationDrawer extends LitElement {
       background: var(--dv-surface-2);
       border: 1px solid transparent;
       font-size: var(--sw-fs-md);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .dry-row .st {
       display: grid;

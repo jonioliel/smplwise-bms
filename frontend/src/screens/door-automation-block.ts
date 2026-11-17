@@ -394,7 +394,7 @@ export class DoorAutomationBlock extends LitElement {
         border: none;
         padding: 0;
         color: var(--da-accent-text);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         min-block-size: 32px;
       }
       .form {
@@ -410,7 +410,7 @@ export class DoorAutomationBlock extends LitElement {
         gap: 8px;
       }
       legend {
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         font-size: var(--sw-fs-sm);
         padding-inline: 4px;
       }
@@ -466,7 +466,7 @@ export class DoorAutomationBlock extends LitElement {
         border: 1px solid var(--da-line);
         background: transparent;
         font-size: var(--sw-fs-sm);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .day.on {
         background: var(--da-accent);
@@ -488,7 +488,7 @@ export class DoorAutomationBlock extends LitElement {
       }
       summary {
         cursor: pointer;
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         font-size: var(--sw-fs-sm);
         min-block-size: 32px;
         display: flex;

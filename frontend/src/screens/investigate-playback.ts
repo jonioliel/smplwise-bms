@@ -280,7 +280,7 @@ export class InvestigatePlayback extends LitElement {
     }
     .tile .drift {
       font-family: var(--sw-font-mono);
-      font-weight: 400;
+      font-weight: var(--sw-fw-regular);
       direction: ltr;
       background: var(--sw-video-scrim);
       border-radius: var(--sw-r-2xs);

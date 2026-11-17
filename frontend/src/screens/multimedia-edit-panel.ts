@@ -52,7 +52,7 @@ export class MultimediaEditPanel extends LitElement {
     h4 {
       margin: 0;
       font-size: var(--sw-fs-md);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading, var(--dv-text));
     }
     h4 {
@@ -114,7 +114,7 @@ export class MultimediaEditPanel extends LitElement {
       flex: none;
     }
     .check b {
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .check small {
       color: var(--dv-text-2);
@@ -134,7 +134,7 @@ export class MultimediaEditPanel extends LitElement {
       color: var(--dv-text-2);
     }
     .phone .pl {
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
     }
     select {
       min-block-size: 32px;

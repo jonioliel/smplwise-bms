@@ -761,7 +761,7 @@ export class LiveCamera extends LitElement {
     /* EVIDENCE-CAMERAS-2412: the "no WebRTC server" link was the browser's default blue on the dark video area */
     .center[data-webrtc-required] a {
       color: inherit;
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       text-decoration: underline;
       text-underline-offset: 3px;
     }

@@ -86,7 +86,7 @@ export class AutomationEntityPicker extends LitElement {
       h5 {
         margin: 6px 6px 2px;
         font-size: var(--sw-fs-sm);
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         color: var(--dv-text-2);
         display: flex;
         gap: 6px;
@@ -162,14 +162,14 @@ export class AutomationEntityPicker extends LitElement {
       }
       .pf .cnt em {
         font-style: normal;
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         color: var(--dv-text);
       }
       .none {
         padding: 30px 10px;
         text-align: center;
         color: var(--dv-text-2);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
     `,
   ];

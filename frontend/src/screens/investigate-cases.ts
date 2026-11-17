@@ -199,7 +199,7 @@ export class InvestigateCases extends LitElement {
       color: var(--sw-text-3);
     }
     .kv strong {
-      font-weight: 500;
+      font-weight: var(--sw-fw-medium);
       overflow-wrap: anywhere;
     }
     .files {

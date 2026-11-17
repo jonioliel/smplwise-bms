@@ -236,7 +236,7 @@ export class ScheduleEditor extends LitElement {
     .kav-vbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--sw-r-lg); margin-block-end: 10px;
       background: color-mix(in srgb, var(--dv-warning) 10%, transparent); border: 1px solid color-mix(in srgb, var(--dv-warning) 35%, transparent); }
     .kav-vbox > b { display: flex; gap: 8px; align-items: center; }
-    .kav-vbox > b small { font-weight: 400; color: var(--dv-text-2, var(--sw-text-2)); }
+    .kav-vbox > b small { font-weight: var(--sw-fw-regular); color: var(--dv-text-2, var(--sw-text-2)); }
     .kav-iss { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
     .kav-iss span { font-size: var(--sw-fs-sm); color: var(--dv-text-2, var(--sw-text-2)); }
     :host {

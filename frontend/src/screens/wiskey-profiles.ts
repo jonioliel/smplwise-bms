@@ -691,7 +691,7 @@ export class WiskeyProfilesScreen extends LitElement {
       max-inline-size: 100%; overflow-x: auto; }
     .tabs button { font: inherit; font-size: var(--sw-fs-sm); padding: 6px 14px; border: 0; border-radius: calc(var(--sw-r-md) - 2px); background: transparent; color: var(--sw-text-2); cursor: pointer;
       white-space: nowrap; min-block-size: 36px; }
-    .tabs button.on { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: 600; box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
+    .tabs button.on { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .tabs button:focus-visible, .chip:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
     .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface);
       border: 1px solid var(--sw-border); position: sticky; inset-block-start: 0; z-index: 2; }
@@ -699,7 +699,7 @@ export class WiskeyProfilesScreen extends LitElement {
     .bar-acts { display: flex; flex-wrap: wrap; gap: 8px; }
     .card { display: grid; gap: 10px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
     .card header { display: grid; gap: 2px; }
-    h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: 700; color: var(--sw-text); }
+    h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); color: var(--sw-text); }
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .note { margin: 0; padding: 10px 12px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); font-size: var(--sw-fs-sm); }
     .note ul { margin: 6px 0 0; padding-inline-start: 18px; }
@@ -726,7 +726,7 @@ export class WiskeyProfilesScreen extends LitElement {
     .chips { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; min-inline-size: 0; }
     .chip { font: inherit; font-size: var(--sw-fs-sm); padding: 5px 12px; min-block-size: 32px; border-radius: 999px; border: 1px solid var(--sw-border); background: var(--sw-surface);
       color: var(--sw-text); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-    .chip.on { background: var(--sw-accent-soft); border-color: var(--sw-accent); color: var(--sw-accent-text); font-weight: 600; }
+    .chip.on { background: var(--sw-accent-soft); border-color: var(--sw-accent); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
     .chip.unknown { border-style: dashed; }
     .chip[disabled] { opacity: 0.5; cursor: not-allowed; }
     .chip .dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-text-3); }
@@ -741,16 +741,16 @@ export class WiskeyProfilesScreen extends LitElement {
     .diff dt { color: var(--sw-text-2); }
     .diff dd { margin: 0; }
     .before { text-decoration: line-through; color: var(--sw-text-2); }
-    .after { font-weight: 600; }
+    .after { font-weight: var(--sw-fw-semibold); }
     .people li.changed { border-color: var(--sw-accent); }
     .gain { color: var(--sw-success); font-size: var(--sw-fs-sm); }
     .lose { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
     .warn-t { color: var(--sw-warning); font-size: var(--sw-fs-sm); }
-    .err-t { color: var(--sw-danger); font-size: var(--sw-fs-sm); font-weight: 600; }
+    .err-t { color: var(--sw-danger); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
     .fi { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-block: 4px; border-block-end: 1px solid var(--sw-border); }
     .fi .ex { flex-basis: 100%; }
     .kv { display: grid; gap: 4px; }
-    .count { font-weight: 700; }
+    .count { font-weight: var(--sw-fw-bold); }
     .versions .acts { display: inline-flex; gap: 6px; margin-inline-start: auto; }
     .result.ok { border-color: var(--sw-success); }
     .result.warn { border-color: var(--sw-warning); }

@@ -811,7 +811,7 @@ export class ExploreFloorMap extends LitElement {
       gap: 6px;
       padding: 8px 10px;
       border-block-end: 1px solid var(--sw-border);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .sidelist .sh .grow {
       flex: 1;
@@ -1235,7 +1235,7 @@ export class ExploreFloorMap extends LitElement {
       gap: 4px;
       margin-block-start: 8px;
       color: var(--sw-accent-text, var(--sw-accent));
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       text-decoration: none;
     }
     /* K88 3D round 2: the floor strip beside the 3D view */
@@ -1278,7 +1278,7 @@ export class ExploreFloorMap extends LitElement {
       cursor: default;
     }
     .floorstrip .fs-short {
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-md);
       direction: ltr;
     }

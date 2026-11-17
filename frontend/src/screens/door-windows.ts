@@ -60,11 +60,11 @@ export class DoorWindowsScreen extends LitElement {
     .stack { display: grid; gap: 16px; } /* round 2 loop 2: the larger titles cost 26 px of inner scroll at 1440x900 - the stack gap and the card padding give it back */
     section { display: grid; gap: 10px; }
     /* round 2: section titles one step larger and tight; the cards carry the lit top edge of the elevation ladder; a card title is a real heading */
-    h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--sw-text); }
+    h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; color: var(--sw-text); }
     .card { display: grid; gap: 8px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
     .card.alarm { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
     .card .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-    .card .top b { font-size: var(--sw-fs-lg); font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+    .card .top b { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; overflow-wrap: anywhere; }
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .doorrow { display: grid; gap: 8px; }
     .occ { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -81,7 +81,7 @@ export class DoorWindowsScreen extends LitElement {
     @media (max-width: 899px) { .rules .head { display: none; } }
     .form { display: grid; gap: 14px; }
     .field { display: grid; gap: 6px; }
-    .field > label, .field > .lbl { font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text-2); }
+    .field > label, .field > .lbl { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); }
     input[type='text'], input[type='date'], input[type='time'], select, textarea {
       font: inherit; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text);
       min-inline-size: 0;
