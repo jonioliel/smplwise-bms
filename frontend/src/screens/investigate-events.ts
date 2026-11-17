@@ -404,47 +404,6 @@ export class InvestigateEvents extends LitElement {
     .mono {
       font-family: var(--sw-font-mono);
     }
-    /* R5-INVESTIGATE-297: the picture is how an event is recognised - 88x56, rounded, a thumb shadow (was 64x40) */
-    sw-scene.thumb,
-    .thumb.none {
-      inline-size: 88px;
-      block-size: 56px;
-      border-radius: var(--sw-r-sm);
-      overflow: hidden;
-      box-shadow: var(--sw-shadow-thumb);
-    }
-    .thumb.none {
-      background: var(--sw-surface-3);
-      display: grid;
-      place-items: center;
-      color: var(--sw-text-3);
-    }
-    .thumb img {
-      inline-size: 88px;
-      block-size: 56px;
-      object-fit: cover;
-      border-radius: var(--sw-r-sm);
-      display: block;
-      background: var(--sw-surface-3);
-    }
-    .thumb.pending {
-      background: linear-gradient(90deg, var(--sw-surface-3) 25%, var(--sw-surface-2) 50%, var(--sw-surface-3) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.6s linear infinite;
-    }
-    @keyframes shimmer {
-      from {
-        background-position: 200% 0;
-      }
-      to {
-        background-position: -200% 0;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .thumb.pending {
-        animation: none;
-      }
-    }
     .big {
       position: relative;
       aspect-ratio: 16 / 9;
