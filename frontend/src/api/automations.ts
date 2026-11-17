@@ -37,13 +37,13 @@ export type Duration = { hours?: number; minutes?: number; seconds?: number };
 /** HA's weekday tokens (§2.1). */
 export type { Weekday } from './types'; // CR-API-PATHS-2439 (07:F21): one definition (the same seven values; WEEKDAYS below keeps the order)
 export const WEEKDAYS: readonly Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export type SunRef = 'sunrise' | 'sunset';
+type SunRef = 'sunrise' | 'sunset';
 export type Mode = 'single' | 'restart' | 'queued' | 'parallel';
 export const MODES: readonly Mode[] = ['single', 'restart', 'queued', 'parallel'];
 
 /** Every block keeps the stored form. The writer re-emits `raw` byte-for-byte while the typed fields still equal the ones
  *  parsed from it; only a changed block is rebuilt (new schema, HA key order). A new block has raw = null. */
-export interface BlockBase { uid: string; raw: unknown | null; sentence: string }
+interface BlockBase { uid: string; raw: unknown | null; sentence: string }
 
 export type TriggerBlock = BlockBase & { kind: 'typed'; id?: string | null } & (
   | { type: 'state'; entity_ids: string[]; from?: string | null; to?: string | null; for?: Duration | null }
@@ -84,7 +84,7 @@ export type ActionBlock = BlockBase & { kind: 'typed' } & (
   | { type: 'condition'; condition: ConditionBlock }
   | { type: 'stop'; message: string });
 
-export type LockedReason = 'template' | 'device' | 'purpose_trigger' | 'custom_service' | 'service_not_allowed' | 'unsupported_step'
+type LockedReason = 'template' | 'device' | 'purpose_trigger' | 'custom_service' | 'service_not_allowed' | 'unsupported_step'
   | 'disabled_step' | 'secret' | 'code' | 'unknown';
 
 export interface LockedBlock extends BlockBase {
@@ -112,7 +112,7 @@ export interface ScriptField { key: string; name: string; required: boolean; def
           | { kind: 'locked'; raw: unknown } }
 export interface SceneMember { entity_id: string; state: string; attributes: Record<string, number | string | boolean | number[]> }
 export type AnyDraft = AutomationDraft | ScriptDraft | SceneDraft;
-export type DraftOf<K extends ItemKind> = K extends 'automation' ? AutomationDraft : K extends 'script' ? ScriptDraft : SceneDraft;
+type DraftOf<K extends ItemKind> = K extends 'automation' ? AutomationDraft : K extends 'script' ? ScriptDraft : SceneDraft;
 
 /** Caps of §2.2. */
 export const CAPS = {
@@ -238,7 +238,7 @@ export interface ExtFlags {
   /** The entity the presence condition compiles to (only in the catalogue). */
   presence_entity?: string | null;
 }
-export interface PresenceSources { enabled: boolean; geofence: boolean; beacon: boolean; wifi: boolean; wifi_mode: 'phone' | 'server' }
+interface PresenceSources { enabled: boolean; geofence: boolean; beacon: boolean; wifi: boolean; wifi_mode: 'phone' | 'server' }
 export const EXT_FLAGS_OFF: ExtFlags = {
   wall_buttons: false, wall_timing: { double_ms: 400, long_ms: 800, debounce_ms: 50, listen_s: 30 }, precheck: false, conflict_window_min: 10, save_with_warnings: true,
   button_reuse: 'warn', device_test: false, device_test_end: 'ask', presence: false,
@@ -257,9 +257,9 @@ export const REVIEW_LABEL: Record<ReviewIssue, string> = {
   owner_lost_rights: 'ליוצר אין עוד הרשאה', masked_values: 'ערכים חסויים', delegated_write: 'נשמרה בהאצלה', not_loaded: 'לא נטענה',
 };
 /** HA 2026.10 compatibility scan (§3.1 row 24, `GET /automations/compat`, `system.configure`): read-only over the mirror. */
-export type CompatCode = 'state_for_attribute' | 'state_for_list' | 'state_for_input_helper' | 'admin_only_service';
-export interface CompatIssue { code: CompatCode; path: string; service?: string }
-export interface CompatItem { kind: ItemKind; id: string; entity_id: string | null; name: string; source: string; issues: CompatIssue[] }
+type CompatCode = 'state_for_attribute' | 'state_for_list' | 'state_for_input_helper' | 'admin_only_service';
+interface CompatIssue { code: CompatCode; path: string; service?: string }
+interface CompatItem { kind: ItemKind; id: string; entity_id: string | null; name: string; source: string; issues: CompatIssue[] }
 export interface CompatScan { scanned: number; mirror_seen_at: string | null; counts: Record<CompatCode, number>; items: CompatItem[]; truncated: boolean }
 export const COMPAT_LABEL: Record<CompatCode, string> = {
   state_for_attribute: '"במשך" עם מאפיין',
@@ -277,7 +277,7 @@ export interface ListQuery {
 export interface MetaPatch { pinned?: boolean; favourite?: boolean; hidden?: boolean }
 
 /** The settings tab (§3.1 row 23; CR §4.7). Delegation is NOT here: it is read-only state from `status.delegation` / `status.admin`. */
-export interface AutomationLimits { writes_per_min: number; preview_per_min: number; run_interval_s: number; scene_apply_interval_s: number; storm_item_per_min: number; storm_total_per_min: number }
+interface AutomationLimits { writes_per_min: number; preview_per_min: number; run_interval_s: number; scene_apply_interval_s: number; storm_item_per_min: number; storm_total_per_min: number }
 export interface AutomationSettings {
   enabled: boolean; code_view_roles: string[]; trash_days: number; versions_keep: number; limits: AutomationLimits; storm_auto_disable: boolean;
   sensitive_warning: boolean; templates_enabled: boolean; templates_hidden: string[]; templates_order: string[]; notify_targets: string[]; ask_when_on_new: boolean;
@@ -290,7 +290,7 @@ export interface AutomationSettings {
   precheck_enabled: boolean; conflict_window_min: number; save_with_warnings: boolean; button_reuse: 'warn' | 'error';
   device_test_enabled: boolean; device_test_end: 'ask' | 'restore' | 'keep'; presence_entity: string;
 }
-export type PhoneFilter = 'fold' | 'rows';
+type PhoneFilter = 'fold' | 'rows';
 export type SensitiveChip = 'amber' | 'red';
 export const AUTOMATION_SETTINGS_DEFAULT: AutomationSettings = {
   enabled: true, code_view_roles: ['site_admin', 'system_admin'], trash_days: 30, versions_keep: 20,
@@ -371,7 +371,7 @@ export function automationSettingsPatch(from: AutomationSettings, to: Automation
 
 // ------------------------------------------------------------------------------------------------ errors (§3.3)
 
-export type AutomationErrorCode =
+type AutomationErrorCode =
   | 'forbidden' | 'entity_not_controllable' | 'grant_required' | 'code_view_required' | 'locked_block_changed' | 'delegation_off' | 'not_ha_admin' | 'requires_ha_admin'
   | 'item_not_found' | 'trash_not_found' | 'item_changed' | 'confirmation_required' | 'feature_disabled' | 'validation' | 'ha_validation'
   | 'action_not_allowed' | 'code_not_allowed' | 'not_editable' | 'masked_values' | 'rate_limited' | 'run_too_soon' | 'config_refused'
@@ -409,8 +409,8 @@ export const AUTOMATION_ERROR_LABEL: Record<AutomationErrorCode, string> = {
 };
 
 /** What a screen does with a failure. */
-export type FailureKind = 'forbidden' | 'conflict' | 'confirm' | 'validation' | 'not_found' | 'rate' | 'unavailable' | 'timeout' | 'refused' | 'locked' | 'unknown';
-export interface AutomationFailure {
+type FailureKind = 'forbidden' | 'conflict' | 'confirm' | 'validation' | 'not_found' | 'rate' | 'unavailable' | 'timeout' | 'refused' | 'locked' | 'unknown';
+interface AutomationFailure {
   code: string; status: number; kind: FailureKind; message: string; retryable: boolean; details: Record<string, unknown>;
   /** 409 `item_changed`: the current item to reload / compare against. */
   current: ItemDetail | null;
@@ -737,7 +737,7 @@ const hasMask = (v: unknown): boolean => (typeof v === 'string' ? v.includes(MAS
 const ENTITY_RE = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 const SERVICE_RE = /^[a-z0-9_]+\.[a-z0-9_]+$/;
-export const isEntityId = (v: unknown): v is string => typeof v === 'string' && ENTITY_RE.test(v);
+const isEntityId = (v: unknown): v is string => typeof v === 'string' && ENTITY_RE.test(v);
 const entityList = (v: unknown): string[] | null => {
   const arr = toList(v);
   return arr.every(isEntityId) ? (arr as string[]) : null;
@@ -787,7 +787,7 @@ const LOCK_KEY_LABEL: Record<string, string> = {
   variables: 'משתנים', wait_template: 'המתנה לתנאי', wait_for_trigger: 'המתנה לאירוע', parallel: 'פעולות במקביל', sequence: 'רצף צעדים', event: 'שליחת אירוע',
   scene: 'הפעלת סצנה (פורמט ישן)', set_conversation_response: 'תגובת שיחה', stop: 'עצירה',
 };
-export function lockedLabel(raw: unknown, reason: LockedReason, section: Section, ctx: ModelContext = {}): string {
+function lockedLabel(raw: unknown, reason: LockedReason, section: Section, ctx: ModelContext = {}): string {
   const r = isObj(raw) ? raw : {};
   switch (reason) {
     case 'template': return 'תבנית';
@@ -1105,7 +1105,7 @@ export function parseAction(raw: unknown, ctx: ModelContext = {}): ActionBlock |
   const scriptCall = cls.role === 'script' && svc.split('.')[1] !== 'turn_on' && svc.split('.')[1] !== 'turn_off';
   return mk<ActionBlock>({ kind: 'typed', raw, type: 'service', action: svc, entity_ids: scriptCall ? [svc] : ids, data, role: cls.role, ...(critical ? { critical: true } : {}) });
 }
-export const parseActions = (v: unknown, ctx: ModelContext = {}): Array<ActionBlock | LockedBlock> => toList(v).map((a) => parseAction(a, ctx));
+const parseActions = (v: unknown, ctx: ModelContext = {}): Array<ActionBlock | LockedBlock> => toList(v).map((a) => parseAction(a, ctx));
 
 // ---- parse: items
 
@@ -1202,7 +1202,7 @@ export class ModelError extends Error {
 // ---- KAV079-295: wall-button vocabulary (the twin of services/wall_buttons.py) and the critical sound
 
 export const PRESSES: readonly PressKind[] = ['short', 'double', 'long'];
-export const PRESS_FAMILIES: ReadonlyArray<Record<PressKind, string>> = [
+const PRESS_FAMILIES: ReadonlyArray<Record<PressKind, string>> = [
   { short: 'remote_button_short_press', double: 'remote_button_double_press', long: 'remote_button_long_press' },
   { short: 'single', double: 'double', long: 'long' },
   { short: 'single_push', double: 'double_push', long: 'long_push' },
@@ -1231,7 +1231,7 @@ export function subtypeFor(haSubtype: string, button: number): string | null {
   const m = BUTTON_RE.exec(haSubtype);
   return m && button >= 1 && button <= 12 ? `${m[1]}${button}` : null;
 }
-export function isButtonTrigger(r: Raw): boolean {
+function isButtonTrigger(r: Raw): boolean {
   if ((r.trigger ?? r.platform) !== 'device' || !Object.keys(r).every((k) => BUTTON_KEYS.includes(k))) return false;
   if (typeof r.device_id !== 'string' || !r.device_id || typeof r.domain !== 'string' || !r.domain) return false;
   if (r.id !== undefined && typeof r.id !== 'string') return false;
@@ -1410,7 +1410,7 @@ export function codeToDraft(kind: ItemKind, text: string, ctx?: ModelContext): {
 
 // ---- walking blocks
 
-export interface BlockLists { name: string; blocks: Block[]; section: Section }
+interface BlockLists { name: string; blocks: Block[]; section: Section }
 /** The child lists of a block with their path segment (`choose.0.conditions`, `then` ...). */
 export function childLists(b: Block): BlockLists[] {
   if (b.kind !== 'typed') return [];
@@ -1625,7 +1625,7 @@ export function conditionSentence(b: ConditionBlock | LockedBlock, ctx: ModelCon
   }
 }
 /** One action step. `short` = the one-line form of a nested step ("בחר לפי תנאים (2 ענפים)"); the long form spells the branches. */
-export function actionSentence(b: ActionBlock | LockedBlock, ctx: ModelContext = {}, short = false): string {
+function actionSentence(b: ActionBlock | LockedBlock, ctx: ModelContext = {}, short = false): string {
   if (b.kind === 'locked') return b.label;
   switch (b.type) {
     case 'service': return serviceSentence(b, ctx);
@@ -1659,8 +1659,8 @@ export function automationSentence(d: AutomationDraft, ctx: ModelContext = {}): 
   if (co.length) s += `, אם ${co.join(' ו')}`;
   return `${s} – ${d.actions.length ? stepsPhrase(d.actions, ctx) : '…'}`;
 }
-export const scriptSentence = (d: ScriptDraft, ctx: ModelContext = {}): string => (d.sequence.length ? stepsPhrase(d.sequence, ctx) : '…');
-export const sceneSentence = (d: SceneDraft, ctx: ModelContext = {}): string => (d.members.length ? `מכוון ${joinNames(d.members.map((m) => m.entity_id), ctx)}` : 'סצנה ריקה');
+const scriptSentence = (d: ScriptDraft, ctx: ModelContext = {}): string => (d.sequence.length ? stepsPhrase(d.sequence, ctx) : '…');
+const sceneSentence = (d: SceneDraft, ctx: ModelContext = {}): string => (d.members.length ? `מכוון ${joinNames(d.members.map((m) => m.entity_id), ctx)}` : 'סצנה ריקה');
 export function draftSentence(kind: ItemKind, draft: AnyDraft, ctx: ModelContext = {}): string {
   return kind === 'automation' ? automationSentence(draft as AutomationDraft, ctx) : kind === 'script' ? scriptSentence(draft as ScriptDraft, ctx) : sceneSentence(draft as SceneDraft, ctx);
 }
@@ -1722,7 +1722,7 @@ export const blockIsSensitive = (b: Block, classOf: (e: string) => string | null
 
 // ------------------------------------------------------------------------------------------------ validation (§2.2 caps)
 
-export interface ValidateOptions {
+interface ValidateOptions {
   /** Approved notify actions (`notify.mobile_app_x`); when given, any other notify action is refused. */
   notifyTargets?: readonly string[] | null;
   shabbatSensor?: string | null;
@@ -1845,7 +1845,7 @@ export const visibleKinds = (s: Pick<AutomationsStatus, 'can'>): ItemKind[] =>
 export function delegationState(s: Pick<AutomationsStatus, 'delegation' | 'admin'>): { state: 'not_needed' | 'on' | 'off'; changed_at: string | null } {
   return { state: !s.delegation.needed ? 'not_needed' : s.delegation.on ? 'on' : 'off', changed_at: s.admin?.delegation_changed_at ?? null };
 }
-export type SaveBlockCode = 'no_permission' | NonNullable<AutomationsStatus['write_block']> | 'unavailable';
+type SaveBlockCode = 'no_permission' | NonNullable<AutomationsStatus['write_block']> | 'unavailable';
 const SAVE_BLOCK_TEXT: Record<SaveBlockCode, string> = {
   no_permission: 'אין הרשאת עריכה', feature_disabled: 'האוטומציות כבויות בהגדרות המערכת', ha_unavailable: 'תשתית המערכת אינה זמינה כרגע', bridge_missing: 'נדרש עדכון של רכיב החיבור כדי לשמור אוטומציות',
   bridge_unpaired: 'רכיב החיבור אינו מצומד', bridge_too_old: 'נדרש עדכון של רכיב החיבור כדי לשמור אוטומציות', delegation_off: 'שמירה דורשת מנהל', authoring_blocked: 'שמירה אינה זמינה כרגע', unavailable: 'עריכה אינה זמינה כרגע',
@@ -1978,7 +1978,7 @@ export function pickerEntities(entities: readonly CatalogEntity[], scope: UserSc
     return !q || norm(`${e.name} ${e.entity_id} ${e.area?.name ?? ''} ${e.floor?.name ?? ''}`).includes(q);
   }).sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
-export interface PickerGroup { floor: { id: string; name: string } | null; areas: Array<{ area: { id: string; name: string } | null; entities: CatalogEntity[] }> }
+interface PickerGroup { floor: { id: string; name: string } | null; areas: Array<{ area: { id: string; name: string } | null; entities: CatalogEntity[] }> }
 /** Floor -> area -> entities; entities with no placement are one last group ("כל הבית" in the UI: floor null, area null). */
 export function groupPicker(entities: readonly CatalogEntity[]): PickerGroup[] {
   const floors = new Map<string, PickerGroup>();
@@ -2018,15 +2018,15 @@ export function formatDuration(ms: number | null | undefined): string {
   const h = Math.floor(ms / 3_600_000); const m = Math.round((ms % 3_600_000) / 60_000);
   return m ? `${h} שע׳ ${m} דק׳` : `${h} שע׳`;
 }
-export const TRACE_RESULT_LABEL: Record<RunTrace['result'], string> = { ok: 'הושלמה', error: 'נכשלה', stopped: 'נעצרה', running: 'רצה', not_triggered: 'לא הופעלה' };
-export const STEP_RESULT_LABEL: Record<RunTrace['steps'][number]['result'], string> = { done: 'בוצע', skipped: 'דולג', error: 'נכשל', running: 'רץ', not_run: 'לא רץ' };
+const TRACE_RESULT_LABEL: Record<RunTrace['result'], string> = { ok: 'הושלמה', error: 'נכשלה', stopped: 'נעצרה', running: 'רצה', not_triggered: 'לא הופעלה' };
+const STEP_RESULT_LABEL: Record<RunTrace['steps'][number]['result'], string> = { done: 'בוצע', skipped: 'דולג', error: 'נכשל', running: 'רץ', not_run: 'לא רץ' };
 /** Who ran it: the context user (a display name, never an id), else what called it. */
 export function traceWho(c: RunTrace['context']): string {
   if (c.user) return `${c.user} (ידנית)`;
   return c.parent === 'user' ? 'ידנית' : c.parent === 'automation' ? 'אוטומציה' : c.parent === 'script' ? 'סקריפט' : c.parent === 'system' ? 'המערכת' : 'הטריגר';
 }
 /** A variable value as one short text; secret-like keys are masked first (the server masks too: this protects a mock or a stale cache). */
-export function variableText(v: unknown): string {
+function variableText(v: unknown): string {
   return typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : v === null || v === undefined ? '—' : JSON.stringify(v);
 }
 export const variableLines = (vars: Record<string, unknown> | null | undefined): Array<[string, string]> => Object.entries(maskSecrets(vars ?? {})).map(([k, v]) => [k, variableText(v)]);
@@ -2035,7 +2035,7 @@ export interface TraceRow {
   path: string; depth: number; sentence: string; status: 'ok' | 'bad' | 'skip' | 'run' | 'info'; tag: string;
   time: string | null; duration: string; error: string | null; vars: Array<[string, string]>;
 }
-export interface TraceView {
+interface TraceView {
   run_id: string; sentence: string; result: { id: RunTrace['result']; label: string }; at: string; duration: string; who: string;
   trigger: TraceRow; conditions: TraceRow[]; steps: TraceRow[];
   counts: { conditions_passed: number; conditions: number; steps_done: number; steps: number };
@@ -2094,7 +2094,7 @@ export const tracePathToBlockPath = (p: string): string => normalisePath(p.repla
 /** Capture domains v1. Alarm panels are not one (reproducing their state needs a code and codes are never stored, CR §4.3). */
 export const SCENE_CAPTURE_DOMAINS = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'lock'] as const;
 /** The attributes kept per domain (HA attribute names). Lights: by color mode, see `captureMember`. */
-export const CAPTURE_ATTRS: Record<string, readonly string[]> = {
+const CAPTURE_ATTRS: Record<string, readonly string[]> = {
   switch: [], lock: [], fan: ['percentage', 'preset_mode'], cover: ['current_position', 'current_tilt_position'],
   climate: ['temperature', 'target_temp_high', 'target_temp_low', 'fan_mode', 'preset_mode', 'swing_mode'], media_player: ['volume_level', 'source'], light: ['brightness'],
 };
@@ -2150,7 +2150,7 @@ export function memberSummary(m: SceneMember): string {
   void dom;
   return parts.join(' · ');
 }
-export interface MemberDiff { entity_id: string; change: 'added' | 'removed' | 'changed' | 'same'; fields: Array<{ key: string; from: unknown; to: unknown }>; from: string | null; to: string | null }
+interface MemberDiff { entity_id: string; change: 'added' | 'removed' | 'changed' | 'same'; fields: Array<{ key: string; from: unknown; to: unknown }>; from: string | null; to: string | null }
 /** The diff between two member lists (a fresh capture vs the saved scene, or the edited table vs the stored one): per entity added / removed / changed / same,
  * with the changed fields (`state` and attributes) and the one-line summaries. Order: `to` first, then removed. */
 export function sceneCaptureDiff(from: readonly SceneMember[], to: readonly SceneMember[]): MemberDiff[] {
@@ -2174,7 +2174,7 @@ export function sceneCaptureDiff(from: readonly SceneMember[], to: readonly Scen
 // ------------------------------------------------------------------------------------------------ the schedule suggestion (CR §5)
 
 const SCHEDULE_DOMAINS = new Set(['light', 'switch', 'climate', 'fan', 'cover']);
-export interface SuggestOptions { schedulerPresent: boolean; shabbatSensor?: string | null; classOf?: (entityId: string) => string | null }
+interface SuggestOptions { schedulerPresent: boolean; shabbatSensor?: string | null; classOf?: (entityId: string) => string | null }
 /** "צור כתזמון": when a draft has only `time` / `sun` triggers and only device control (lights, switches, climate, fans, covers; nothing sensitive) and the
  * scheduler is present, the pre-filled CR-014 draft; else null. A suggestion, never a refusal. Time -> slot start (one slot per trigger), weekdays -> days,
  * the Shabbat condition -> a condition on CR-014's sensor. Anything else (other conditions, choose, delay, notify ...) -> no suggestion. */

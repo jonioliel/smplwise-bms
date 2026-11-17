@@ -18,9 +18,9 @@ export type StationOp = (typeof STATION_OPS)[number];
 
 /** `acknowledged` / `completed`: the server's success; `failed` (WisKey answered a failure), `not_sent`, `unknown` (sent, no clear
  * answer); `sending` / `sent` are the screen's own while a request is out, or an attempt row with no outcome yet. */
-export type OpStatus = 'sending' | 'sent' | 'acknowledged' | 'completed' | 'failed' | 'not_sent' | 'unknown';
+type OpStatus = 'sending' | 'sent' | 'acknowledged' | 'completed' | 'failed' | 'not_sent' | 'unknown';
 
-export interface AuthFailure {
+interface AuthFailure {
   source: 'sync' | 'event_stream' | 'event_history' | 'station_sync' | string;
   step: string | null;
   at: string | null;
@@ -29,7 +29,7 @@ export interface AuthFailure {
   observed?: boolean;
 }
 
-export interface AuthSummary {
+interface AuthSummary {
   last_failure: AuthFailure | null;
   retained: number;
   steps: Record<string, number>;
@@ -40,7 +40,7 @@ export interface AuthSummary {
   retention: string | null;
 }
 
-export interface HealthCard {
+interface HealthCard {
   loaded: boolean | null;
   online: boolean | null;
   consecutive_poll_failures: number | null;
@@ -94,7 +94,7 @@ const TTL_MS = 15_000;
 
 export const getMaintenance = (stationId: string) => get<MaintenanceView>(one(stationId));
 
-export const postMaintenance = (stationId: string, action: StationOp) =>
+const postMaintenance = (stationId: string, action: StationOp) =>
   post<OpReply>(`${one(stationId)}/${action}`, {
     confirmed: true,
     client_request_id: commandId(),

@@ -11,7 +11,7 @@ export type SwitchName = 'enabled' | 'core_risk' | 'startup';
 export type StepState = 'running' | 'done' | 'failed' | 'skipped';
 export type JobState = 'running' | 'succeeded' | 'aborted' | 'rolled_back' | 'rollback_failed' | 'interrupted' | 'failed';
 
-export interface ManagedStep {
+interface ManagedStep {
   name: string;
   state: StepState;
   code: string | null;
@@ -68,7 +68,7 @@ export interface ManagedView {
   unattended_permitted: boolean;
 }
 
-export interface CheckItem {
+interface CheckItem {
   name: 'preflight' | 'supervisor' | 'core_gate' | 'backup_check' | string;
   state: 'pass' | 'warn' | 'fail';
   code: string | null;
@@ -136,7 +136,7 @@ export function jobTone(job: ManagedJob | null | undefined): 'ok' | 'warn' | 'da
   return 'danger';
 }
 
-export type ManagedRefusal = 'forbidden' | 'confirm' | 'conflict' | 'invalid' | 'other';
+type ManagedRefusal = 'forbidden' | 'confirm' | 'conflict' | 'invalid' | 'other';
 
 /** The closed refusals of the routes (never the server's text). */
 export function managedRefusal(err: unknown): ManagedRefusal {

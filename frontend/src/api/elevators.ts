@@ -10,7 +10,7 @@ export type ElevatorRole = (typeof ELEVATOR_ROLES)[number];
 export type ElevatorState = 'fire_service' | 'fault' | 'out_of_service' | 'active' | 'moving_up' | 'moving_down' | 'door_open' | 'waiting' | 'travelling' | 'unknown';
 export const MAX_EXTRAS = 4;
 
-export interface ElevatorLive {
+interface ElevatorLive {
   state: ElevatorState;
   reason: string;
   partial: boolean;
@@ -42,7 +42,7 @@ export interface ElevatorsResponse {
   stale: boolean;
   at: string;
 }
-export interface ManagedSensor {
+interface ManagedSensor {
   entity_id: string;
   entity_name: string;
   missing: boolean;

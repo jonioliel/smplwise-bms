@@ -70,10 +70,10 @@ export interface Contact {
    *  that department; `other` = created by another department (no name, no id); null / absent = created in Settings */
   created_department?: CreatedDepartment | null;
 }
-export interface CreatedDepartment { id: string | null; name: string | null; other: boolean }
+interface CreatedDepartment { id: string | null; name: string | null; other: boolean }
 /** `handler_departments`: the departments in which the caller manages handlers without tickets.configure (CR-DEPT-MANAGER-HANDLERS) */
 /** `can_edit_staff` (TICKPERM-295): may edit handlers' rows (employees, user-linked); a directory-only holder gets false (an older server: absent) */
-export interface ContactsPage { contacts: Contact[]; can_edit: boolean; can_edit_staff?: boolean; handler_departments?: string[] }
+interface ContactsPage { contacts: Contact[]; can_edit: boolean; can_edit_staff?: boolean; handler_departments?: string[] }
 export interface ContactBody {
   kind?: ContactKind;
   display_name?: string;
@@ -152,7 +152,7 @@ export interface AssignPreview {
   /** GRANTS3-295: the "access needed" tick (the arrival step on the vendor's page) - offered only while the external-access feature is on */
   access_needed?: { available: boolean };
 }
-export interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null;
+interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null;
   /** slice 9 (D32): the cost claim requirement of THIS assignment; null = the server's preselection */
   costClaim?: 'required' | 'optional' | 'off' | null;
   /** CR-ORG-LOCATIONS: add the map link to the message (default off; only where the preview says it is available) */
@@ -161,7 +161,7 @@ export interface AssignContactBody { contactId: string; note?: string | null; no
   accessNeeded?: boolean | null; revision: number }
 
 export type LinkState = 'live' | 'grace' | 'expired' | 'revoked';
-export type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased' | 'user_inactive';
+type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased' | 'user_inactive';
 /** The `link` block of a ticket (managers only; never the token or the URL - the copy route returns that once). */
 export interface LinkBlock {
   /** TKSTAFF1: 'staff' = an internal employee's no-login link (WhatsApp only, never copied) */
@@ -189,10 +189,10 @@ export interface LinkBlock {
   access_needed?: { available: boolean; on: boolean };
 }
 export type TicketWithLink = TicketDetail & { link?: LinkBlock | null };
-export interface CopyAnswer { url: string; text: string }
+interface CopyAnswer { url: string; text: string }
 
 export type { PublicSettings } from './tickets';
-export type PublicMissing = 'option' | 'listener' | 'address' | 'key';
+type PublicMissing = 'option' | 'listener' | 'address' | 'key';
 export interface TicketsHealth {
   option: boolean;
   listener: { running?: boolean; port?: number; stats?: Record<string, unknown> } | null;
@@ -204,7 +204,7 @@ export interface TicketsHealth {
   missing: PublicMissing[];
   attachments_bytes?: number | null;
 }
-export type ProbeResult = 'reachable' | 'not_configured' | 'invalid' | 'unresolved' | 'blocked_address' | 'tls_error' | 'unreachable' | 'wrong_answer' | 'not_seen';
+type ProbeResult = 'reachable' | 'not_configured' | 'invalid' | 'unresolved' | 'blocked_address' | 'tls_error' | 'unreachable' | 'wrong_answer' | 'not_seen';
 export interface ProbeAnswer { result: ProbeResult | string; code?: string; status_class?: string; listener?: { seen: boolean; source: string | null; peer: string | null; header_ok: boolean } }
 
 export interface TicketsS4Backend {

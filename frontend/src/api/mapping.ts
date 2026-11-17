@@ -18,7 +18,7 @@ export interface MappingVersion {
   current: boolean;
 }
 
-export interface MappingBuilding {
+interface MappingBuilding {
   id: string;
   name: string;
   is_shared: boolean;

@@ -10,8 +10,8 @@ import { isApi } from './session';
 import type { TicketDetail } from './tickets';
 
 export type MessagePurpose = 'assign' | 'reminder' | 'code' | 'closed' | 'reassigned' | 'reopened' | 'update' | 'test';
-export type MessageState = 'queued' | 'held' | 'sending' | 'sent' | 'refused' | 'unknown' | 'not_sent' | 'cancelled' | 'superseded';
-export type HeldReason = 'send_hours' | 'channel_down' | 'account_unmapped' | 'module_off';
+type MessageState = 'queued' | 'held' | 'sending' | 'sent' | 'refused' | 'unknown' | 'not_sent' | 'cancelled' | 'superseded';
+type HeldReason = 'send_hours' | 'channel_down' | 'account_unmapped' | 'module_off';
 export type MessageLang = 'he' | 'en' | 'ar' | 'ru';
 
 /** One delivery line of a ticket (D14): managers and holders of tickets.external only. */
@@ -40,7 +40,7 @@ export type TicketWithMessages = TicketDetail & {
   link?: { state: string; can?: { resend?: boolean; copy?: boolean; new?: boolean; revoke?: boolean }; sent_via?: string | null } | null;
 };
 
-export interface ChannelUse {
+interface ChannelUse {
   key: string;
   label: string;
   value: string | null;
@@ -51,7 +51,7 @@ export interface ChannelUse {
   queued: number;
   departments?: { id: string; name: string; value: string | null; resolved: string | null }[];
 }
-export interface ChannelAccount {
+interface ChannelAccount {
   key: string;
   label: string;
   last4: string | null;
@@ -122,7 +122,7 @@ export interface AssignPreviewExtra {
   fallback?: 'email' | 'manual' | null;
 }
 
-export interface MessagesBackend {
+interface MessagesBackend {
   channel(): Promise<ChannelView>;
   saveChannel(revision: number, patch: ChannelPatch): Promise<ChannelView>;
   sendNow(ticketId: string, outboxId: string): Promise<TicketWithMessages>;

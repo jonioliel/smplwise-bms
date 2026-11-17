@@ -7,7 +7,7 @@ export const INTERVAL_CHOICES = [0, 1, 3, 6, 12, 24] as const;
 export type CheckResult = 'current' | 'update_available' | 'refresh_failed_read_ok' | 'not_permitted' | 'unreachable' | 'error' | string;
 
 /** One release-notes entry (S1 returns an empty list; the notes arrive with a later slice). */
-export interface UpdateNote {
+interface UpdateNote {
   version: string;
   he?: string;
   en?: string;
@@ -33,7 +33,7 @@ export interface UpdateState {
   run?: RunRef | null;
 }
 
-export interface CheckOut {
+interface CheckOut {
   checked_at: string | null;
   check_result: CheckResult;
   installed: string;

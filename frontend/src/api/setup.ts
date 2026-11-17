@@ -9,7 +9,7 @@ export type StepId = 'install' | 'nvr' | 'ha' | 'go2rtc' | 'floor' | 'camera';
 /** not_applicable: skipped on purpose (NVR-less mode) - neither done nor failed, and not counted in `total`. */
 export type StepStatus = 'done' | 'todo' | 'failed' | 'skipped' | 'not_applicable';
 
-export interface SetupLink {
+interface SetupLink {
   href: string;
   label: string;
 }

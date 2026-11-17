@@ -16,7 +16,7 @@ import { he } from '../i18n/he';
 export type WriteClass = 'analytics' | 'record' | 'profile' | 'review' | 'events' | 'ptz' | 'exports' | 'cases' | 'config';
 export type SwitchGroup = 'analytics' | 'record';
 
-export interface PolicyClass {
+interface PolicyClass {
   class: WriteClass;
   enabled: boolean;
   per_action: boolean;
@@ -33,14 +33,14 @@ export interface ControlPolicy {
   classes: PolicyClass[];
   ptz_released: boolean;
 }
-export interface ControlSwitch {
+interface ControlSwitch {
   feature: string;
   class: SwitchGroup;
   /** null = Frigate does not report it */
   value: boolean | null;
 }
 /** FRIGATE-295: a runtime switch of ONE named zone / motion mask / object mask; `feature` is "<kind>:<name>" (class analytics). */
-export interface NamedSwitch {
+interface NamedSwitch {
   feature: string;
   kind: 'zone' | 'motion_mask' | 'object_mask';
   name: string;
@@ -64,7 +64,7 @@ export interface ProfilesView {
   alarm_states: string[];
   can_switch: boolean;
 }
-export interface SwitchResult {
+interface SwitchResult {
   changed: boolean;
   verified: boolean;
   value: boolean;
@@ -130,12 +130,12 @@ export interface FirstWrites {
 export const getFirstWrites = (rid: string) => get<FirstWrites>(`${base(rid)}/control/first-writes`);
 
 /** The server refuses the first write of a kind without `supervised: true` from a system administrator. */
-export const FIRST_WRITE_CODE = 'frigate_first_write_unsupervised';
+const FIRST_WRITE_CODE = 'frigate_first_write_unsupervised';
 export const isFirstWriteRefusal = (e: unknown): boolean => !!e && typeof e === 'object' && (e as { body?: { code?: string } }).body?.code === FIRST_WRITE_CODE;
 
 export type AutoMode = 'off' | 'suggest' | 'apply';
 export const AUTO_MODES: AutoMode[] = ['off', 'suggest', 'apply'];
-export interface AutoSetting {
+interface AutoSetting {
   recorder_id: string;
   mode: AutoMode;
   auto_apply_consent: boolean;
@@ -146,7 +146,7 @@ export interface AutoSetting {
   /** the four conditions hold: an alarm change will switch the profile by itself */
   will_apply: boolean;
 }
-export type AutoStatus = 'pending' | 'suggested' | 'applied' | 'unverified' | 'skipped' | 'failed' | 'expired' | 'dismissed' | 'superseded';
+type AutoStatus = 'pending' | 'suggested' | 'applied' | 'unverified' | 'skipped' | 'failed' | 'expired' | 'dismissed' | 'superseded';
 export interface AutoItem {
   id: string;
   alarm_state: string;
@@ -221,7 +221,7 @@ export const endManualEvent = (rid: string, eventId: string, supervised = false)
 /** The longest manual event (seconds) and the longest clip window / export range the server accepts. */
 export const EVENT_MAX_S = 600;
 export const CLIP_MAX_S = 3600;
-export const EXPORT_MAX_S = 7200;
+const EXPORT_MAX_S = 7200;
 
 /** The address of the clip Arx streams for a camera window (GET only, `video.playback`; `supervised` for the first read of a recorder). */
 export const clipUrl = (rid: string, cameraId: string, start: number, end: number, supervised = false): string =>
@@ -323,7 +323,7 @@ export const anyWriteOn = (p: ControlPolicy | null): boolean => !!p && p.classes
 
 // ---- FRGS (routers/frigate_config.py, CR-029 section 13): the config schema, zones and the curated camera settings ----
 
-export type ConfigFieldType = 'int' | 'number' | 'labels' | 'polygon';
+type ConfigFieldType = 'int' | 'number' | 'labels' | 'polygon';
 export interface ConfigField {
   key: string;
   type: ConfigFieldType;

@@ -4,7 +4,7 @@ import { get } from './client';
 /** off: not part of this installation (NVR-less mode) - neutral, never lowers the overall status. */
 export type CheckStatus = 'ok' | 'warn' | 'error' | 'off';
 
-export interface HealthCheck {
+interface HealthCheck {
   id: string;
   label: string;
   status: CheckStatus;

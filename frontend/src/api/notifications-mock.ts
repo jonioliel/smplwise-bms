@@ -186,7 +186,7 @@ function buildLog(): Delivery[] {
 
 // ------------------------------------------------------------------------------------------------ the store
 
-export interface NotifyMockOptions {
+interface NotifyMockOptions {
   viewer?: MockUserId;
   /** The clock (epoch ms); default `MOCK_NOW`. */
   clock?: number;
@@ -203,7 +203,7 @@ export interface NotifyMockOptions {
   /** The door release asks for a step-up first (`step_up_required`) until `completeStepUp()`. */
   stepUp?: boolean;
 }
-export interface MockSignal {
+interface MockSignal {
   source: string;
   subject_kind: SubjectKind;
   subject_id: string | null;
@@ -216,7 +216,7 @@ export interface MockSignal {
 }
 const RATE_PER_MIN = 3;
 
-export class NotifyMockStore implements NotifyAdapter {
+class NotifyMockStore implements NotifyAdapter {
   clock: number;
   readonly tz = MOCK_TZ;
   viewerId: MockUserId;

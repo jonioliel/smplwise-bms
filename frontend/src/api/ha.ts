@@ -38,13 +38,13 @@ export interface HaActionSpec {
   reason?: string | null;
 }
 
-export interface HaPlacement {
+interface HaPlacement {
   floor_id: string;
   floor_name: string;
 }
 
 /** State of an entity at an instant, from the local history (T041); `known` false carries the reason. */
-export interface HaStateAt {
+interface HaStateAt {
   state: string | null;
   changed_at: string | null;
   known: boolean;
@@ -92,7 +92,7 @@ export interface HaEntity {
   alarm_managed?: boolean;
 }
 
-export type HaActionStatus = 'pending' | 'confirmed' | 'unknown' | 'failed' | 'denied';
+type HaActionStatus = 'pending' | 'confirmed' | 'unknown' | 'failed' | 'denied';
 
 export interface HaActionRecord {
   id: string;

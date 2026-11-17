@@ -7,12 +7,12 @@ import { del, get, patch, post, put } from './client';
 import { commandId } from './request-id';
 import { isoZ } from './day-format';
 
-export type ArmMode = 'arm_home' | 'arm_away' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass';
+type ArmMode = 'arm_home' | 'arm_away' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass';
 export type AlarmAction = ArmMode | 'disarm';
 /** What the user must type for an action: nothing, their personal PIN, the panel's code; or why they cannot. */
 export type CodePrompt = 'none' | 'pin' | 'panel' | 'unverifiable' | 'pin_missing';
 
-export interface ZoneBypass {
+interface ZoneBypass {
   entity_id: string;
   domain: 'switch' | 'select';
   name: string;
@@ -53,7 +53,7 @@ export interface AlarmZone {
   redacted?: boolean;
 }
 
-export interface UnpairedControl {
+interface UnpairedControl {
   entity_id: string;
   domain: string;
   name: string;
@@ -110,7 +110,7 @@ function envelope() {
   return { client_request_id: commandId(), expires_at: isoZ(Date.now() + 60_000) };
 }
 
-export interface AlarmActionRecord {
+interface AlarmActionRecord {
   id: string;
   entity_id: string;
   action_id: string;
@@ -144,7 +144,7 @@ export function setMyPin(pin: string, currentPin?: string, panelCode?: string) {
 }
 
 // ---- administration (system.configure)
-export interface AlarmOverride {
+interface AlarmOverride {
   zone_entity_id: string;
   panel_entity_id: string | null;
   bypass_entity_id: string | null;
@@ -152,7 +152,7 @@ export interface AlarmOverride {
   updated_at: string;
   updated_by: string | null;
 }
-export interface EntityBrief {
+interface EntityBrief {
   entity_id: string;
   name: string;
   platform: string | null;

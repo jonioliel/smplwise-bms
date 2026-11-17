@@ -149,7 +149,7 @@ export function getWiskeyDiagnostics(): Promise<WiskeyDiagnostics> {
 
 /** One `events/list` row as the backend projects it (intercom_sync EVENT_KEYS): WisKey's AuditEvent without the masked
  * card, portrait, evidence block and raw ISAPI codes. */
-export interface IntercomEvent {
+interface IntercomEvent {
   id: string;
   station_id: string;
   timestamp: string;
@@ -165,7 +165,7 @@ export interface IntercomEvent {
 }
 
 /** One page of WisKey's bounded event cache, newest first. `next` is the cursor for the following (older) page. */
-export interface IntercomEventPage {
+interface IntercomEventPage {
   records: IntercomEvent[];
   next: string | null;
   retention_days: number | null;
@@ -175,12 +175,12 @@ export interface IntercomEventPage {
   stations: Record<string, { stream: string | null; history: string | null }>;
 }
 
-export type IntercomEventResult = 'granted' | 'denied' | 'unknown';
-export type IntercomEventAuth = 'card' | 'pin' | 'unknown';
+type IntercomEventResult = 'granted' | 'denied' | 'unknown';
+type IntercomEventAuth = 'card' | 'pin' | 'unknown';
 
 /** The filters GET /intercom/events accepts (routers/access_control.py), all optional. `start` / `end` are aware ISO
  * instants. WisKey's own `current_group` / `current_profile` / `event_type` filters are not offered here. */
-export interface IntercomEventFilters {
+interface IntercomEventFilters {
   station_id?: string;
   person?: string;
   result?: IntercomEventResult;
@@ -191,10 +191,10 @@ export interface IntercomEventFilters {
 }
 
 /** `events` is null unless `state` is `ready`; `state` can also be `unsupported` (this WisKey has no `events/list`). */
-export type IntercomEventsReply = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null; events: IntercomEventPage | null };
+type IntercomEventsReply = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null; events: IntercomEventPage | null };
 
 /** WisKey's own page size for the activity log (events.ts `limit: 100`). */
-export const EVENTS_PAGE = 100;
+const EVENTS_PAGE = 100;
 
 /** One page of the activity log. `before` is the previous page's `events.next` ("load more"); a pruned cursor comes
  * back as a 422 `intercom_cursor_expired`. WisKey has no event push: the caller refetches on the `intercom_refresh`
@@ -211,7 +211,7 @@ export function getIntercomEvents(filters: IntercomEventFilters, before?: string
 
 /** One of a person's station assignments as the backend projects it (intercom_sync project_person): WisKey's
  * `Assignment` without `last_error` and the desired / applied revisions. */
-export interface IntercomPersonStation {
+interface IntercomPersonStation {
   station_id: string;
   enabled: boolean;
   /** WisKey `allowed_locks`: the door numbers the grant covers. */
@@ -223,7 +223,7 @@ export interface IntercomPersonStation {
 /** One person as the backend projects it (intercom_sync PERSON_KEYS + project_person): identity, active flag, validity
  * window, group ids and station assignments. Never phones, cards, PIN flags, profile values or photos - deliberately
  * (0.1.105 review), so nothing here can imply they exist. */
-export interface IntercomPerson {
+interface IntercomPerson {
   id: string;
   employee_no: string;
   display_name: string;
@@ -235,13 +235,13 @@ export interface IntercomPerson {
   stations: IntercomPersonStation[];
 }
 
-export type IntercomPeopleRights = 'assigned' | 'unassigned' | 'disabled';
-export type IntercomPeopleState = 'active' | 'inactive' | 'expired' | 'upcoming';
-export type IntercomPeopleSort = 'name' | 'name_desc' | 'employee';
+type IntercomPeopleRights = 'assigned' | 'unassigned' | 'disabled';
+type IntercomPeopleState = 'active' | 'inactive' | 'expired' | 'upcoming';
+type IntercomPeopleSort = 'name' | 'name_desc' | 'employee';
 
 /** The filters GET /intercom/people accepts (routers/access_control.py). WisKey's `credential` (PIN / card) and
  * `profile` filters are deliberately not offered. */
-export interface IntercomPeopleFilters {
+interface IntercomPeopleFilters {
   station?: string;
   group?: string;
   rights?: IntercomPeopleRights;
@@ -253,7 +253,7 @@ export interface IntercomPeopleFilters {
  * the page is over SMPLWISE's match list (`total` counts matches, `total_all` stays the directory size); `complete`
  * false means the scan stopped early (`incomplete_reason` scan_limit | rate_limited) and `total` is a lower bound;
  * `stale` means the directory changed under the paging (the caller's `snapshot` is out of date). */
-export interface IntercomPeoplePage {
+interface IntercomPeoplePage {
   records: IntercomPerson[];
   total: number | null;
   total_all: number | null;
@@ -270,9 +270,9 @@ export interface IntercomPeoplePage {
 type ReadReply<K extends string, T> = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null } & { [P in K]: T | null };
 
 /** `people` is null unless `state` is `ready`; `state` can also be `unsupported` (this WisKey has no `users/query`). */
-export type IntercomPeopleReply = ReadReply<'people', IntercomPeoplePage>;
+type IntercomPeopleReply = ReadReply<'people', IntercomPeoplePage>;
 /** `person` is null unless `state` is `ready`; an unknown id is a 404 `intercom_person_not_found` (thrown as ApiError). */
-export type IntercomPersonReply = ReadReply<'person', IntercomPerson>;
+type IntercomPersonReply = ReadReply<'person', IntercomPerson>;
 
 export const PEOPLE_PAGE = 50;
 
@@ -297,7 +297,7 @@ export const getIntercomPerson = (userId: string) => get<IntercomPersonReply>(`i
 type ActionReply<K extends string, T> = { state: IntercomFeedState | 'unsupported'; configured: boolean; last_error: string | null; fetched_at: string | null } & { [P in K]: T | null };
 
 /** `accepted` only: WisKey took the command. It is not a confirmation that the door moved. */
-export type IntercomReleaseReply = ActionReply<'release', { accepted: boolean }> & { note: string };
+type IntercomReleaseReply = ActionReply<'release', { accepted: boolean }> & { note: string };
 
 /** WisKey's CallResult (`media/signal`). `acknowledged: null` = the device's answer was lost. */
 export interface IntercomCallResult {
@@ -368,7 +368,7 @@ export const speakAtIntercom = (stationId: string, body: { engine_id: string; la
 
 /** One of a person's cards as WisKey returns it after a save (`ManagedCard.public()`): the number is ALWAYS the
  * masked form `•••• 1234` - the full number exists only in the form that typed it, never in any reply. */
-export interface IntercomEditorCard {
+interface IntercomEditorCard {
   id: string;
   masked_number: string;
   label: string;
@@ -377,7 +377,7 @@ export interface IntercomEditorCard {
 }
 
 /** A station assignment with WisKey's sync bookkeeping (the editor projection only). */
-export interface IntercomEditorStation extends IntercomPersonStation {
+interface IntercomEditorStation extends IntercomPersonStation {
   last_error: string | null;
   desired_revision: number | null;
   applied_revision: number | null;
@@ -395,7 +395,7 @@ export interface IntercomTimingSchedule {
 
 /** The enforced timing policy: `ha` = enforced by the system through the access window it renews; `native` = the device's own
  * schedule, bound per station to device slots (edited only through the API; the screen shows it). */
-export interface IntercomTimingPolicy {
+interface IntercomTimingPolicy {
   mode: 'ha' | 'native' | 'unknown';
   schedule: IntercomTimingSchedule | null;
   bindings: Record<string, { template: number | null; weekly: number | null; holiday_group: number | null; holidays: number[] }>;
@@ -472,9 +472,9 @@ export interface IntercomPersonDraft {
   access_timing_policy?: { mode: 'ha'; schedule: { mode: 'weekly' | 'dates'; timezone: string; days: string[]; dates: string[]; periods: { start: string; end: string }[] }; bindings: Record<string, never> } | null;
 }
 
-export type IntercomEditorContextReply = ReadReply<'context', IntercomEditorContext>;
-export type IntercomEditorPersonReply = ReadReply<'person', IntercomEditorPerson>;
-export type IntercomPinReply = ReadReply<'pin', { pin: string }>;
+type IntercomEditorContextReply = ReadReply<'context', IntercomEditorContext>;
+type IntercomEditorPersonReply = ReadReply<'person', IntercomEditorPerson>;
+type IntercomPinReply = ReadReply<'pin', { pin: string }>;
 /** A save's reply: `person` is the saved record as WisKey returned it (WisKey accepted it into its store; the stations
  * follow through WisKey's own sync, per assignment `sync_state`). Anything short of that is thrown as an ApiError whose
  * `details.outcome` is `not_sent`, `refused` (`intercom_pin_conflict`, `intercom_revision_conflict`, ...) or `unknown`. */
@@ -484,8 +484,8 @@ export interface WriteEffect {
   effect?: 'sync' | 'unknown_effect' | 'personal_value';
   pending?: boolean;
 }
-export type IntercomPersonSaveReply = Actioned<ActionReply<'person', IntercomEditorPerson> & { note: string } & WriteEffect>;
-export type IntercomPersonDeleteReply = Actioned<ActionReply<'deleted', { accepted: boolean }> & { note: string } & WriteEffect>;
+type IntercomPersonSaveReply = Actioned<ActionReply<'person', IntercomEditorPerson> & { note: string } & WriteEffect>;
+type IntercomPersonDeleteReply = Actioned<ActionReply<'deleted', { accepted: boolean }> & { note: string } & WriteEffect>;
 
 export const getIntercomEditorContext = () => get<IntercomEditorContextReply>('intercom/people-editor/context');
 export const getIntercomPersonForEdit = (userId: string) => get<IntercomEditorPersonReply>(`intercom/people/${encodeURIComponent(userId)}/editor`);
@@ -503,10 +503,10 @@ export const deleteIntercomPerson = (userId: string, revision: number) =>
 /** A station's card readers (WisKey `cards/reader_capabilities`): reader ids (0 = the station's default reader) and the
  * card-number length bounds. `readers` is null unless `state` is `ready`; `last_error` then carries WisKey's code
  * (`capture_unsupported`, `station_offline` ...). */
-export type IntercomReadersReply = ReadReply<'readers', { readers: number[]; card_min: number | null; card_max: number | null }>;
+type IntercomReadersReply = ReadReply<'readers', { readers: number[]; card_min: number | null; card_max: number | null }>;
 
 /** The collected card as WisKey shows it (`CapturedCard.public()`): masked only - the number never leaves WisKey. */
-export interface IntercomCaptureCard {
+interface IntercomCaptureCard {
   masked_number: string;
   technology: string | null;
   reader_id: number | null;
@@ -515,7 +515,7 @@ export interface IntercomCaptureCard {
 /** preparing | waiting | captured | applying (active; WisKey's own states) or error | cancelled | cancel_unknown | expired
  * | lost | confirmed | unconfirmed | closed | revoked (over; SMPLWISE's reading of how it ended). `revoked`: the capture-lease
  * route only (CR-WISKEY-LEASE-REVOCATION-EVENT L5, OFF by default) - the lease's authority went away mid-session. */
-export type IntercomCaptureState =
+type IntercomCaptureState =
   | 'preparing'
   | 'waiting'
   | 'captured'
@@ -553,9 +553,9 @@ export interface IntercomCapture {
   reader_may_be_collecting: boolean;
 }
 
-export type IntercomCaptureStartReply = Actioned<ActionReply<'capture', IntercomCapture> & { note: string } & WriteEffect>;
-export type IntercomCaptureCancelReply = Actioned<ActionReply<'cancelled', { cancelled: boolean }> & { note: string; capture: IntercomCapture } & WriteEffect>;
-export type IntercomCaptureConfirmReply = IntercomPersonSaveReply & { capture: IntercomCapture };
+type IntercomCaptureStartReply = Actioned<ActionReply<'capture', IntercomCapture> & { note: string } & WriteEffect>;
+type IntercomCaptureCancelReply = Actioned<ActionReply<'cancelled', { cancelled: boolean }> & { note: string; capture: IntercomCapture } & WriteEffect>;
+type IntercomCaptureConfirmReply = IntercomPersonSaveReply & { capture: IntercomCapture };
 
 export const getIntercomCardReaders = (stationId: string) => get<IntercomReadersReply>(`${station(stationId)}/card-readers`);
 /** Start reading a card at `stationId` (PHYSICAL: the reader enters collection mode). `confirmed` is sent only from the
@@ -590,7 +590,7 @@ export interface IntercomCredentialsList {
 }
 
 /** One station's own status as PUT / DELETE / GET on `.../{id}/credentials` answer it (write-only: no value). */
-export interface IntercomStationCredentialsStatus {
+interface IntercomStationCredentialsStatus {
   station_id: string;
   override: boolean;
   override_updated_at: string | null;

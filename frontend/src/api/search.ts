@@ -6,7 +6,7 @@ import { get } from './client';
 import type { IconName } from '../components/sw-icon';
 
 /** page (CR-010): a screen of the app itself (the security sections), matched in the browser - never sent to the server. */
-export type SearchKind = 'zone' | 'camera' | 'floor' | 'building' | 'entity' | 'object' | 'page';
+type SearchKind = 'zone' | 'camera' | 'floor' | 'building' | 'entity' | 'object' | 'page';
 
 export interface SearchResult {
   kind: SearchKind;
@@ -29,7 +29,7 @@ export function routeFor(r: SearchResult, currentPath: string | null | undefined
   return r.route.replace(/^\/explore\/floors\/[^/?]+/, `/explore/floors/${here}`);
 }
 
-export interface SearchResponse {
+interface SearchResponse {
   q: string;
   results: SearchResult[];
   counts: Partial<Record<SearchKind, number>>;
@@ -41,7 +41,7 @@ export const KIND_ICON: Record<SearchKind, IconName> = { zone: 'map', camera: 'c
 export const search = (q: string, limit = 8) => get<SearchResponse>(`search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
 /** Semantic search (T063): the local baseline parses the question into the event centre's filters; results are metadata matches, never identity evidence. */
-export interface SemanticPlace {
+interface SemanticPlace {
   kind: 'zone' | 'floor' | 'camera';
   id: string;
   name: string;
@@ -49,7 +49,7 @@ export interface SemanticPlace {
   match: 'exact' | 'partial';
   term: string;
 }
-export interface SemanticParsed {
+interface SemanticParsed {
   objects: string[];
   types: string[];
   places: SemanticPlace[];
@@ -58,7 +58,7 @@ export interface SemanticParsed {
   unsupported: { term: string; reason: string }[];
   leftovers: string[];
 }
-export interface SemanticProvider {
+interface SemanticProvider {
   id: string;
   name: string;
   model_version: string;
@@ -70,7 +70,7 @@ export interface SemanticProvider {
   available?: boolean;
   reason?: string;
 }
-export interface SemanticHit {
+interface SemanticHit {
   id: string;
   type: string;
   source: string;

@@ -46,7 +46,7 @@ export const switchDoorSubject = (kind: 'user' | 'group', id: string, enabled: b
 export const switchDoorRole = (roleId: string, enabled: boolean, revision: number) =>
   put<{ includes: boolean; revision: number }>(`access/door-grants/roles/${encodeURIComponent(roleId)}`, { enabled, revision, confirmed: true });
 
-export interface DoorMapStation {
+interface DoorMapStation {
   id: string;
   name: string;
   online: boolean;
@@ -82,7 +82,7 @@ export const applyDoorSuggestions = () => post<{ applied: string[] }>('intercom/
 export const placeStation = (stationId: string, place: { site_id?: string | null; building_id?: string | null }) =>
   put<{ placement: DoorMapStation['placement']; scope_name: string }>(`intercom/stations/${encodeURIComponent(stationId)}/placement`, { ...place, confirmed: true });
 
-export interface DoorLockJob {
+interface DoorLockJob {
   schedule_id: string;
   name: string;
   locks: string[];
@@ -148,7 +148,7 @@ export const getDoorPathInventory = () => get<DoorPathInventory>('intercom/door-
 // ---------------------------------------------------------------- disable and list (WXD10A / WXD10B, CR-033 6.4)
 
 export type DoorConversionAction = 'disable' | 'convert_event_job' | 'hand_over_program';
-export type DoorConversionCategory = 'event_automation' | 'schedule' | 'script' | 'scene' | 'launcher' | 'unknown';
+type DoorConversionCategory = 'event_automation' | 'schedule' | 'script' | 'scene' | 'launcher' | 'unknown';
 
 /** One action for one item: offered now, or the reason it is not (`reason_text` is the server's Hebrew; never show `reason`). */
 export interface DoorConversionOffer {

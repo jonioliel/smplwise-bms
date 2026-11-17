@@ -45,7 +45,7 @@ export interface FleetLogRow {
   payload: Record<string, unknown> | null;
 }
 
-export interface FleetPreview {
+interface FleetPreview {
   preview: true;
   id_assigned: boolean;
   bytes: number;
@@ -61,7 +61,7 @@ export interface FleetEnrollment {
   code: string;
 }
 
-export interface FleetSendResult {
+interface FleetSendResult {
   sent: boolean;
   result: string;
   http_status?: number | null;

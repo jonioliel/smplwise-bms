@@ -22,7 +22,7 @@ export const VALUE_CHECK_DEFAULT: ValueCheck = 'off';
 /** The stored mode as the API sent it; an older backend (no key) or an unknown value reads as the default. */
 export const valueCheckOf = (v: unknown): ValueCheck => (VALUE_CHECK_MODES.includes(v as ValueCheck) ? (v as ValueCheck) : VALUE_CHECK_DEFAULT);
 
-export interface RequiredSensorsPolicy {
+interface RequiredSensorsPolicy {
   enabled: boolean;
   sensors: SensorKey[];
   hardware_required?: SensorKey[];
@@ -78,9 +78,9 @@ export interface PresenceSettings {
   people_opt_out_count?: number;
 }
 
-export interface SensorInfo { key: SensorKey; name_he: string; purpose_he: string }
+interface SensorInfo { key: SensorKey; name_he: string; purpose_he: string }
 
-export interface PresenceSettingsResponse { settings: PresenceSettings; sensors: SensorInfo[]; devices: number }
+interface PresenceSettingsResponse { settings: PresenceSettings; sensors: SensorInfo[]; devices: number }
 
 export interface PresenceDevice {
   device_id: string;
@@ -108,7 +108,7 @@ export interface PresenceGate {
   reason: 'presence_disabled' | 'exempt' | 'not_in_scope' | 'web_not_covered' | 'break_glass' | 'missing_sensors' | null;
 }
 
-export type PresenceSettingsPatch = Partial<Pick<PresenceSettings, 'enabled' | 'notice_text' | 'sensors_allowed' | 'retention_days' | 'interval_s' | 'distance_filter_m' | 'wifi_match_mode' | 'value_check'>> & {
+type PresenceSettingsPatch = Partial<Pick<PresenceSettings, 'enabled' | 'notice_text' | 'sensors_allowed' | 'retention_days' | 'interval_s' | 'distance_filter_m' | 'wifi_match_mode' | 'value_check'>> & {
   required_sensors?: Partial<RequiredSensorsPolicy>;
   sites?: Partial<PresenceSite>[];
   beacons?: Partial<PresenceBeacon>[];

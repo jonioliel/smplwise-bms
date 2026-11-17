@@ -8,7 +8,7 @@ import { t } from '../i18n/he';
 
 export type RunKind = 'update' | 'platform_restart';
 export type RunState = 'requested' | 'backing_up' | 'updating' | 'restarting' | 'verifying' | 'succeeded' | 'failed' | 'abandoned';
-export const TERMINAL_STATES: readonly RunState[] = ['succeeded', 'failed', 'abandoned'];
+const TERMINAL_STATES: readonly RunState[] = ['succeeded', 'failed', 'abandoned'];
 
 /** What `GET /runs/{id}` answers (the status screen polls it). */
 export interface RunView {
@@ -62,7 +62,7 @@ export const getRun = (runId: string) => get<RunView>(`system/update/runs/${enco
 /** The Arx-only restart (the shared helper of the "הפעלות מחדש" card; the route is the add-on restart's). 202: the process ends after the answer. */
 export const restartArx = () => post<{ restarting: true }>('system/restart', { confirm: true });
 
-export type RunFailure =
+type RunFailure =
   | { kind: 'in_progress' }
   | { kind: 'update_running' }
   | { kind: 'not_available' }
@@ -131,7 +131,7 @@ export function runFailureRequestText(f: RunFailure, what: 'update' | 'restart' 
   }
 }
 
-export interface RunStep {
+interface RunStep {
   id: 'backup' | 'install' | 'restart' | 'verify' | 'config' | 'platform';
   label: string;
 }

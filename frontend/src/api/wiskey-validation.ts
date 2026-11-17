@@ -6,7 +6,7 @@ export type CheckStatus = 'pending' | 'running' | 'pass' | 'fail' | 'unsupported
 export type RunState = 'running' | 'done' | 'cancelled' | 'interrupted';
 export type WitnessVerdict = 'opened' | 'not_opened' | 'unsure';
 
-export interface ValidationDoor {
+interface ValidationDoor {
   door: number;
   name: string | null;
 }
@@ -19,7 +19,7 @@ export interface ValidationStation {
   can_pulse: boolean;
 }
 
-export interface ValidationCheckDef {
+interface ValidationCheckDef {
   key: string;
   label: string;
 }
@@ -56,7 +56,7 @@ export interface CheckResult {
   finished_at: string | null;
 }
 
-export interface StationResult {
+interface StationResult {
   station_id: string;
   name: string | null;
   checks: CheckResult[];
@@ -82,7 +82,7 @@ export interface ValidationRun {
   pulses: ValidationRun[];
 }
 
-export interface PulseRequest {
+interface PulseRequest {
   station_id: string;
   door: number;
   confirm_text: string;

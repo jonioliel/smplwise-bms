@@ -44,7 +44,7 @@ export interface StationUsersReply {
   people: StationUser[] | null;
 }
 
-export interface DuplicateMatch {
+interface DuplicateMatch {
   id: string;
   display_name: string;
   employee_no: string | null;

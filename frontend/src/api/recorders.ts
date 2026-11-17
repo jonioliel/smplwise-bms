@@ -7,7 +7,7 @@ import type { ConnectionBody, NvrConnection, SaveResult, TestResult } from './nv
 
 export const PRIMARY_RECORDER = 'nvr-1';
 
-export type RecorderState = 'online' | 'error' | 'unknown' | 'pending_restart' | 'disabled' | 'removed' | 'not_configured' | 'unreadable' | 'refused';
+type RecorderState = 'online' | 'error' | 'unknown' | 'pending_restart' | 'disabled' | 'removed' | 'not_configured' | 'unreadable' | 'refused';
 
 export interface Recorder {
   id: string;

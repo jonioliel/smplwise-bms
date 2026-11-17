@@ -15,7 +15,7 @@ import type { PlayersMockStore } from './media-players-mock';
 
 export type Control = 'power' | 'volume' | 'mute' | 'sources' | 'apps' | 'keys' | 'now_playing';
 /** CR-016: `music` (the device's music layer, CR §5.2) and `mirror` (a poorer cloud twin, hidden, never primary) join the CR-015 roles. */
-export type EndpointRole = 'vendor' | 'remote' | 'cast' | 'dlna' | 'smartthings' | 'ma_export' | 'ma_import' | 'ma_native' | 'ma_universal' | 'other' | 'music' | 'mirror';
+type EndpointRole = 'vendor' | 'remote' | 'cast' | 'dlna' | 'smartthings' | 'ma_export' | 'ma_import' | 'ma_native' | 'ma_universal' | 'other' | 'music' | 'mirror';
 
 export interface AdminEndpoint {
   endpoint_id: string;
@@ -82,7 +82,7 @@ export interface AdminDevice {
   cast?: CastCapability;
 }
 
-export interface AdminSuggestion {
+interface AdminSuggestion {
   endpoint_id: string;
   device_key: string;
   rule: 'weak';
@@ -116,10 +116,10 @@ export interface AdminDevicePatch {
 
 /** `link` merges the endpoint into `device_key` (it moves WITH its cluster); `ignore` + `device_key` dismisses that merge suggestion only (the merge wizard's
  * "התעלם"); a plain `ignore` (no device) hides the endpoint from every device - the CR-015 meaning, unchanged. */
-export type LinkOp = { op: 'link' | 'unlink' | 'ignore' | 'restore'; endpoint_id: string; device_key?: string };
+type LinkOp = { op: 'link' | 'unlink' | 'ignore' | 'restore'; endpoint_id: string; device_key?: string };
 
 /** The server's answer of `approve`: the counts; with `kinds`, also the players (speakers, players, receivers, groups) approved and still pending. */
-export interface ApproveResult {
+interface ApproveResult {
   requested: number;
   changed: number;
   approved: number;
@@ -128,7 +128,7 @@ export interface ApproveResult {
   pending_players?: number;
 }
 
-export interface AdminAdapter {
+interface AdminAdapter {
   list(): Promise<AdminList>;
   update(key: string, patch: AdminDevicePatch): Promise<AdminDevice>;
   link(op: LinkOp): Promise<AdminList>;

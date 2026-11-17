@@ -35,7 +35,7 @@ export interface AreaLinksTable {
   counts: { linked: number; suggested: number; none: number; dangling: number };
 }
 
-export interface AreaLinkChange {
+interface AreaLinkChange {
   zone_id: string;
   /** null / '' clears the link. */
   area_id: string | null;

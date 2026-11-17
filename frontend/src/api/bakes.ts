@@ -7,7 +7,7 @@
 import { ApiError, del, get, post, resourceUrl, upload } from './client';
 import type { BakeKind, BakeSetting, BakeSlot, BundleBakes } from '../map/still-bake';
 
-export interface BakeRow extends BakeSlot {
+interface BakeRow extends BakeSlot {
   id: string;
   slot: string;
   /** Security review 2.4.7 L1: null for a reader from whom a camera may be withheld when the row is of an older structure. */
@@ -26,7 +26,7 @@ export interface BakeRow extends BakeSlot {
   identical?: boolean;
   evicted?: string[];
 }
-export interface BakeJob {
+interface BakeJob {
   id: string;
   status: 'requested' | 'claimed' | 'done' | 'failed' | 'cancelled';
   /** As the floor's bake_key for the current structure; null (a scoped reader) for a request of an older one. */
@@ -40,7 +40,7 @@ export interface BakeJob {
   finished_at: string | null;
   error: string | null;
 }
-export interface FloorBakes {
+interface FloorBakes {
   floor_id: string;
   bake_key: string | null;
   geometry_key: string | null;
@@ -60,7 +60,7 @@ export interface FloorBakes {
 
 export const floorBakes = (floorId: string) => get<FloorBakes>(`floors/${encodeURIComponent(floorId)}/bakes`);
 
-export interface UploadBakeInput {
+interface UploadBakeInput {
   slot: BakeSlot;
   bakeKey: string;
   recipe: string;
@@ -102,7 +102,7 @@ function fileName(kind: BakeKind, mime: string): string {
   return `${kind}.${ext}`;
 }
 
-export interface RegenerateScope {
+interface RegenerateScope {
   levels?: string[];
   presets?: string[];
   styles?: string[];

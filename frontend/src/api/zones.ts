@@ -20,7 +20,7 @@ export const ZONE_KINDS: { id: ZoneKind; label: string }[] = [
 
 export const zoneKindLabel = (kind: string) => ZONE_KINDS.find((k) => k.id === kind)?.label ?? kind;
 
-export interface RoomCandidate {
+interface RoomCandidate {
   index: number;
   polygon: ZonePoint[];
   area_ratio: number;
@@ -66,14 +66,14 @@ export interface ShareRequest {
   rotation_deg?: number;
   auto?: boolean;
 }
-export interface ShareCandidate {
+interface ShareCandidate {
   zone_id: string;
   name: string;
   name_score: number;
   overlap: number | null;
   score: number;
 }
-export interface ShareAnchorFate {
+interface ShareAnchorFate {
   anchor_id: string;
   floor_id: string;
   resource_type: 'camera' | 'ha_entity';

@@ -2,7 +2,7 @@
 import { apiUrl, del, get, post } from './client';
 import { formatByteSize } from '../format/bytes';
 
-export interface ExportFile {
+interface ExportFile {
   name: string;
   start_at: string;
   end_at: string;

@@ -133,14 +133,14 @@ export interface VideoStep {
   transport: StepTransport;
 }
 
-export interface RemoteVideo {
+interface RemoteVideo {
   defaultProfile: Profile;
   mseFallback: boolean;
 }
 
 /** The owner's wording (CR-008 step 6). */
 export const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ‹ וידאו';
-export const SUB_UNDECODABLE = 'הזרם המשני אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ‹ וידאו';
+const SUB_UNDECODABLE = 'הזרם המשני אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ‹ וידאו';
 
 export function undecodableMessage(profile: Profile): string {
   return profile === 'main' ? MAIN_UNDECODABLE : SUB_UNDECODABLE;
@@ -166,12 +166,12 @@ export function remoteVideoFor(transport: string | null | undefined, me: Me | nu
   return policy && transport === 'webrtc' ? { ...policy, mseFallback: false } : policy;
 }
 
-export function otherProfile(p: Profile): Profile {
+function otherProfile(p: Profile): Profile {
   return p === 'main' ? 'sub' : 'main';
 }
 
 /** False only when the NVR's encoding says this profile will not decode over WebRTC; unknown is tried. */
-export function webrtcPossible(encoding: CameraEncoding | null | undefined, profile: Profile): boolean {
+function webrtcPossible(encoding: CameraEncoding | null | undefined, profile: Profile): boolean {
   return encoding?.[profile]?.webrtc !== 'no';
 }
 
@@ -201,7 +201,7 @@ export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null,
 }
 
 /** The registry's WebRTC verdicts per profile (false only for `webrtc: 'no'`; unknown is tried). */
-export function webrtcOkFrom(encoding: CameraEncoding | null | undefined): Record<Profile, boolean> {
+function webrtcOkFrom(encoding: CameraEncoding | null | undefined): Record<Profile, boolean> {
   return { main: webrtcPossible(encoding, 'main'), sub: webrtcPossible(encoding, 'sub') };
 }
 
@@ -227,7 +227,7 @@ const SMART_CODEC_GOP_MS = 20000;
 
 /** The key-frame interval of a stream in ms when the NVR reported it (GovLength frames at the stream's frame rate, 25
  * when it runs at the camera's full rate), for the player's first-frame watch; 0 = unknown. */
-export function gopMs(encoding: CameraEncoding | null | undefined, profile: Profile): number {
+function gopMs(encoding: CameraEncoding | null | undefined, profile: Profile): number {
   const e = encoding?.[profile];
   if (!e) return 0;
   if (e.smart_codec) return SMART_CODEC_GOP_MS;

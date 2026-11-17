@@ -14,7 +14,7 @@
 import { ApiError, get } from './client';
 import { actionOutcome, speakAtIntercom, type DisplayZone, type IntercomFeedState, type IntercomLock, type IntercomTtsStatus } from './intercom';
 
-export type ReadState = IntercomFeedState | 'unsupported';
+type ReadState = IntercomFeedState | 'unsupported';
 
 export interface ReadHead {
   state: ReadState;
@@ -63,13 +63,13 @@ export interface StationTechnical {
 
 /** The station's last sync / scan error texts: only where the sync-error rule lets this caller see them (`access.admin.read`
  * on the station, or the administrator's `access.sync_errors_everyone`); null otherwise. A machine code, never free text. */
-export interface StationErrors {
+interface StationErrors {
   last_error: string | null;
   scan_error: string | null;
 }
 
 export type CallState = 'idle' | 'ringing' | 'in_call' | 'ending' | 'unavailable' | 'unknown';
-export type StationSync = 'offline' | 'pending' | 'syncing' | 'synced' | 'error' | 'unknown';
+type StationSync = 'offline' | 'pending' | 'syncing' | 'synced' | 'error' | 'unknown';
 
 /** One station as the typed endpoint serves it (services/intercom_authority.view_station): the entry-center fields, the call
  * state (no caller name exists in it), the relays, and the technical / error parts under their own rules. */
@@ -90,11 +90,11 @@ export interface AccessStation {
 }
 
 export type AccessStationsReply = ReadHead & { stations: AccessStation[] | null; default_zone: DisplayZone | null };
-export type AccessStationReply = ReadHead & { station: AccessStation | null; default_zone: DisplayZone | null };
+type AccessStationReply = ReadHead & { station: AccessStation | null; default_zone: DisplayZone | null };
 
 /** `GET features`: per native feature whether the installed WisKey offers it (its `api.commands`); `available` is null while
  * there is no served copy yet. A screen hides what is not available. */
-export interface AccessFeatures extends ReadHead {
+interface AccessFeatures extends ReadHead {
   client_api: number;
   api: { version: number | null; min_client: number | null } | null;
   features: Record<string, { available: boolean | null; reason: string | null }>;
@@ -135,7 +135,7 @@ export interface StationPrograms {
   timezone: string | null;
   native_supported: boolean;
 }
-export type PublicPinState = 'configured' | 'absent' | 'unknown';
+type PublicPinState = 'configured' | 'absent' | 'unknown';
 /** Presence only: whether a public door code is set, per slot (`configured` true / false / null = unknown). Never a value. */
 export interface StationCodes {
   public_pin_state: PublicPinState | null;
@@ -144,8 +144,8 @@ export interface StationCodes {
   checked_at: string | null;
 }
 
-export type ProgramsReply = ReadHead & { programs: StationPrograms | null };
-export type CodesReply = ReadHead & { codes: StationCodes | null };
+type ProgramsReply = ReadHead & { programs: StationPrograms | null };
+type CodesReply = ReadHead & { codes: StationCodes | null };
 
 const one = (stationId: string) => `access-control/stations/${encodeURIComponent(stationId)}`;
 export const getStationPrograms = (stationId: string) => get<ProgramsReply>(`${one(stationId)}/programs`);
@@ -153,7 +153,7 @@ export const getStationCodes = (stationId: string) => get<CodesReply>(`${one(sta
 
 // ---------------------------------------------------------------- the announcement (a write, behind ONE named function)
 
-export interface AnnounceRequest {
+interface AnnounceRequest {
   /** The stations to speak at, resolved by the dialog from its choice (a station, a place or all) over the stations the
    * caller sees, online only. */
   stationIds: string[];
@@ -162,7 +162,7 @@ export interface AnnounceRequest {
   message: string;
 }
 
-export type AnnounceOutcomeKind = 'sent' | 'not_sent' | 'refused' | 'unknown';
+type AnnounceOutcomeKind = 'sent' | 'not_sent' | 'refused' | 'unknown';
 
 export interface AnnounceOutcome {
   station_id: string;

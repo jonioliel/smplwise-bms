@@ -34,7 +34,7 @@ export function sumCounts(list: DeviceCounts[]): DeviceCounts {
 }
 
 /** One of OUR floors of a building, with the home-system areas resolved onto it. */
-export interface SiteFloor {
+interface SiteFloor {
   id: string;
   name: string;
   level: number;

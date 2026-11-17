@@ -20,7 +20,7 @@ export type Verdict = 'ok' | 'no' | 'unknown';
 export type BitrateMode = 'CBR' | 'VBR';
 export type EncodingField = 'codec' | 'profile' | 'resolution' | 'fps' | 'bitrate_mode' | 'bitrate_kbps' | 'quality' | 'gop' | 'svc' | 'smart_codec' | 'b_frames';
 
-export interface RecorderCapabilities {
+interface RecorderCapabilities {
   read_encodings: boolean;
   write_encodings: boolean;
   add_channel: boolean;
@@ -44,7 +44,7 @@ export interface Recorder {
 }
 
 /** Only the exceptions are listed: an absent field is supported and editable when the page may write. */
-export interface FieldState {
+interface FieldState {
   supported: boolean;
   editable: boolean;
   /** The field another field's value locks (e.g. GOP under smart codec). */
@@ -149,13 +149,13 @@ export interface EncodingChanges {
   b_frames?: boolean;
 }
 
-export interface StreamWriteRequest {
+interface StreamWriteRequest {
   if_match: string;
   confirm: true;
   changes: EncodingChanges;
 }
 
-export type ChangeStatus = 'pending' | 'applied' | 'unchanged' | 'no_effect' | 'refused' | 'failed' | 'diverged' | 'rolled_back';
+type ChangeStatus = 'pending' | 'applied' | 'unchanged' | 'no_effect' | 'refused' | 'failed' | 'diverged' | 'rolled_back';
 
 export interface ChangeRef {
   id: string;
@@ -194,7 +194,7 @@ export interface UndoResult {
 }
 
 /** S3. The password exists only in this request; the server never stores or returns it. */
-export interface NewChannel {
+interface NewChannel {
   confirm: true;
   name: string;
   address: string;
@@ -205,13 +205,13 @@ export interface NewChannel {
   src_input_port: number;
 }
 
-export interface AddChannelResult {
+interface AddChannelResult {
   change: ChangeRef;
   channel: { source_ref: string; name: string; online: boolean | null };
   discovery: 'queued';
 }
 
-export interface NvrSettingsAdapter {
+interface NvrSettingsAdapter {
   recorders(): Promise<{ recorders: Recorder[]; can_write: boolean }>;
   cameras(recorderId?: string): Promise<CameraList>;
   camera(cameraId: string): Promise<CameraDetail>;
@@ -245,7 +245,7 @@ const http: NvrSettingsAdapter = {
 // ------------------------------------------------------------------------------------------------ verdict (mirror of nvr.webrtc_verdict)
 
 /** The server's verdict logic for one ISAPI-read stream (nvr.webrtc_verdict, 0.1.151: H.265 and SVC are `unknown`, only MJPEG and B-frames are `no`). */
-export function webrtcVerdict(s: Pick<StreamEncoding, 'codec' | 'svc' | 'b_frames' | 'profile'>): [Verdict, string] {
+function webrtcVerdict(s: Pick<StreamEncoding, 'codec' | 'svc' | 'b_frames' | 'profile'>): [Verdict, string] {
   if (!s.codec) return ['unknown', 'codec_unknown'];
   if (s.codec === 'H.265') return ['unknown', 'h265'];
   if (s.codec === 'MJPEG') return ['no', 'mjpeg'];

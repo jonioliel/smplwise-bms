@@ -10,7 +10,7 @@
  */
 import { get, post } from './client';
 
-export type BatchKind = 'write' | 'rollback';
+type BatchKind = 'write' | 'rollback';
 /** running; completed (all applied / unchanged); stopped (the user's stop); failed (an item failed); stopped_unknown (an item's outcome is unknown); interrupted (the runner died). */
 export type BatchState = 'running' | 'completed' | 'stopped' | 'failed' | 'stopped_unknown' | 'interrupted';
 export type BatchItemStatus =
@@ -71,7 +71,7 @@ export interface ItemVerify {
   checked_at?: string | null;
 }
 
-export interface VerifyListItem {
+interface VerifyListItem {
   index: number;
   camera_id: string | null;
   stream_ref: string;
@@ -99,7 +99,7 @@ export interface BatchVerify {
 export type RefusalPolicy = 'skip' | 'stop';
 
 /** CR-020 phase D: `svc` = the SVC-off batch of phase C; `encoding` = a bulk encoding change (older servers send no mode: svc). */
-export type BatchMode = 'svc' | 'encoding';
+type BatchMode = 'svc' | 'encoding';
 
 export interface Batch {
   batch_id: string;
@@ -149,12 +149,12 @@ export interface EncodingSettings {
   smart_codec?: boolean;
 }
 
-export interface StreamRef {
+interface StreamRef {
   camera_id: string;
   stream_ref: string;
 }
 
-export interface PlanNote {
+interface PlanNote {
   /** adjusted: another value than the one asked (the closest valid one); kept: this stream keeps the field as it is. */
   kind: 'adjusted' | 'kept';
   field: string;
@@ -195,7 +195,7 @@ export interface EncodingPreview {
   on_refusal?: RefusalPolicy;
 }
 
-export interface EncodingPreviewRequest {
+interface EncodingPreviewRequest {
   settings: EncodingSettings;
   targets: StreamRef[];
   recorder_id?: string;
@@ -210,20 +210,20 @@ export interface EncodingStartRequest {
   on_refusal?: RefusalPolicy;
 }
 
-export interface BatchTarget {
+interface BatchTarget {
   camera_id: string;
   stream_ref: string;
   if_match: string;
 }
 
-export interface BatchStartRequest {
+interface BatchStartRequest {
   confirm: true;
   changes: { svc: false };
   targets: BatchTarget[];
   recorder_id?: string;
 }
 
-export interface NvrBatchAdapter {
+interface NvrBatchAdapter {
   /** Starts the run (202). Sent ONCE. */
   start(req: BatchStartRequest): Promise<Batch>;
   get(batchId: string): Promise<Batch>;

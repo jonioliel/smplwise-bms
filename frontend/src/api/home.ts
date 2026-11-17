@@ -36,7 +36,7 @@ export interface HomeSettings {
 
 export const HOME_DEFAULT: HomeSettings = { title: '', floorOrder: [], direction: DIRECTION_DEFAULT, side: 'end', config: defaultConfig() };
 
-export function parseFloorOrder(v: unknown): string[] {
+function parseFloorOrder(v: unknown): string[] {
   let data: unknown = v;
   if (typeof v === 'string') {
     try {

@@ -12,14 +12,14 @@ import {
   DEFAULT_BOUNDS, effectiveLimit, placeholdersOk, type DryRunAnswer, type RulesDoc, type TicketRule, type TicketRuleView,
 } from '../tickets/rules-model';
 
-export interface RulesSave {
+interface RulesSave {
   revision: number;
   enabled: boolean;
   daily_limit_default: number;
   rules: TicketRule[];
 }
 
-export interface RulesBackend {
+interface RulesBackend {
   load(): Promise<RulesDoc>;
   save(body: RulesSave): Promise<RulesDoc>;
   test(rule: TicketRule): Promise<DryRunAnswer>;

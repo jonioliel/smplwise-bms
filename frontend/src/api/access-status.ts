@@ -120,7 +120,7 @@ export const getStationHealthHistory = (id: string, signal?: AbortSignal) => api
 
 // ---------------------------------------------------------------- sync
 
-export interface SyncOperations {
+interface SyncOperations {
   pending: number | null;
   failed: number | null;
   verified: number | null;
@@ -142,7 +142,7 @@ export interface SyncStationRow {
   last_error: string | null;
 }
 
-export interface SyncTotals {
+interface SyncTotals {
   pending_users: number | null;
   managed_users: number | null;
   revocations_pending: number | null;
@@ -165,7 +165,7 @@ export const getSyncStatus = () => get<SyncStatusReply>('access-control/status/s
 
 // ---------------------------------------------------------------- conflicts
 
-export interface ConflictPerson {
+interface ConflictPerson {
   id: string | null;
   display_name: string | null;
   employee_no: string | null;
@@ -191,7 +191,7 @@ export const getConflicts = () => get<ConflictsReply>('access-control/status/con
 export const ALERT_KINDS = ['offline', 'sync_stalled', 'sync_conflict', 'sync_error', 'event_gap', 'clock_drift'] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
-export interface AlertSuppression {
+interface AlertSuppression {
   kind: string | null;
   /** planned_maintenance / network_work / investigating (or `unknown`). */
   reason: string | null;
@@ -239,9 +239,9 @@ export interface AlertsQuery {
   limit?: number;
 }
 
-export const ALERTS_PAGE = 50;
+const ALERTS_PAGE = 50;
 
-export function alertsQueryString(o: AlertsQuery): string {
+function alertsQueryString(o: AlertsQuery): string {
   const qs = new URLSearchParams();
   if (o.kind) qs.set('kind', o.kind);
   if (o.includeSuppressed) qs.set('include_suppressed', 'true');
@@ -283,7 +283,7 @@ export interface AuditReply extends StatusHead {
   audit: AuditPage | null;
 }
 
-export interface AuditQuery {
+interface AuditQuery {
   station_id?: string;
   action?: string;
   /** CR-036 S12: one person's records (the integration's person id, from a record the page showed). */
@@ -295,7 +295,7 @@ export interface AuditQuery {
   limit?: number;
 }
 
-export const AUDIT_PAGE = 50;
+const AUDIT_PAGE = 50;
 
 export function auditQueryString(o: AuditQuery): string {
   const qs = new URLSearchParams();
@@ -371,6 +371,6 @@ export interface VersionsReply extends StatusHead {
   versions: PolicyVersions | null;
 }
 
-export const VERSIONS_PAGE = 20;
+const VERSIONS_PAGE = 20;
 
 export const getGroupVersions = (offset = 0, limit = VERSIONS_PAGE) => get<VersionsReply>(`access-control/groups/versions?offset=${offset}&limit=${limit}`);

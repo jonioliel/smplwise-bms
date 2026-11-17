@@ -43,14 +43,14 @@ export interface Policy extends PolicyValues {
   templates: number;
 }
 
-export interface ProfilesStation {
+interface ProfilesStation {
   id: string;
   name: string;
   online: boolean;
   lock_enabled: boolean;
 }
 
-export type ProfilesPart = 'view' | 'edit' | 'versions' | 'compare' | 'suggestions';
+type ProfilesPart = 'view' | 'edit' | 'versions' | 'compare' | 'suggestions';
 
 export interface ProfilesView {
   state: string;
@@ -62,7 +62,7 @@ export interface ProfilesView {
   features: Record<ProfilesPart, { available: boolean | null; reason: string | null }>;
 }
 
-export interface DiffChange {
+interface DiffChange {
   property: string;
   before: unknown;
   after: unknown;
@@ -86,7 +86,7 @@ export interface ImpactPerson {
   overrides: number;
 }
 
-export interface FieldImpact {
+interface FieldImpact {
   field_id: string;
   label: string;
   new: boolean;
@@ -129,7 +129,7 @@ export interface PreviewReply {
   values: PolicyValues;
 }
 
-export interface Readback {
+interface Readback {
   state: string;
   revision: number | null;
   matches: boolean | null;
@@ -150,14 +150,14 @@ export interface ApplyReply {
   confirmed_by?: 'readback';
 }
 
-export interface CheckReply {
+interface CheckReply {
   review_id: string;
   verdict: 'applied' | 'not_applied' | 'changed_elsewhere';
   readback: Readback;
   result: ApplyReply | null;
 }
 
-export interface VersionRecord {
+interface VersionRecord {
   revision: number | null;
   saved_at: string | null;
   action: string | null;

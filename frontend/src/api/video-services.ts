@@ -8,8 +8,8 @@
  */
 import { api, get, put } from './client';
 
-export type ServiceState = 'started' | 'stopped' | 'startup' | 'error' | 'unknown';
-export type ProbeOutcome = 'ok' | 'auth_required' | 'unreachable' | 'error' | 'not_probed';
+type ServiceState = 'started' | 'stopped' | 'startup' | 'error' | 'unknown';
+type ProbeOutcome = 'ok' | 'auth_required' | 'unreachable' | 'error' | 'not_probed';
 
 export interface VideoServiceCandidate {
   slug: string;

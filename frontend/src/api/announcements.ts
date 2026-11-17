@@ -7,7 +7,7 @@
  */
 import { get, post, put } from './client';
 
-export interface AnnounceConfig {
+interface AnnounceConfig {
   enabled: boolean;
   engine: string;
   language: string;
@@ -30,9 +30,9 @@ export interface AnnounceConfig {
   /** ANNOUNCE-297 (stage C): automatic translation of a Hebrew text into ar / en / ru for review; OFF by default (absent on an older server) */
   translate?: AnnounceTranslateConfig;
 }
-export type AnnounceTranslateTarget = 'ar' | 'en' | 'ru';
+type AnnounceTranslateTarget = 'ar' | 'en' | 'ru';
 export const ANNOUNCE_TRANSLATE_TARGETS: readonly AnnounceTranslateTarget[] = ['ar', 'en', 'ru'];
-export interface AnnounceTranslateConfig {
+interface AnnounceTranslateConfig {
   enabled: boolean;
   /** ANNOUNCE2-297: `google` by default (the free Google translation, no key); `cloud` = OpenAI (its key lives in the secrets store, never here); `off` */
   provider: string;
@@ -43,13 +43,13 @@ export interface AnnounceTranslateConfig {
   key_set: boolean;
 }
 /** One draft translation: shown to the sender for review and edit, never sent by itself. */
-export interface AnnounceTranslation {
+interface AnnounceTranslation {
   language: AnnounceTranslateTarget;
   text: string;
   machine: true;
   cached: boolean;
 }
-export interface AnnounceScreensConfig {
+interface AnnounceScreensConfig {
   enabled: boolean;
   /** shown on the screens when the sender does not choose */
   default_on: boolean;
@@ -75,13 +75,13 @@ export interface AnnounceScreenOption {
   device_key: string | null;
   allowed: boolean;
 }
-export interface AnnounceScreenOptions {
+interface AnnounceScreenOptions {
   screens: AnnounceScreenOption[];
   /** the approved media screens (TVs) a target can be linked to, so a "device" announcement reaches it */
   devices: { key: string; name: string; area_id: string | null }[];
 }
 export const ANNOUNCE_SCREEN_RANGE = { seconds: [5, 600], critical_seconds: [10, 3600], poll_s: [2, 30], critical_close_s: [0, 600] } as const;
-export interface AnnounceQuiet {
+interface AnnounceQuiet {
   enabled: boolean;
   from: string;
   to: string;
@@ -91,7 +91,7 @@ export interface AnnounceQuiet {
 }
 export type AnnounceQuietMode = 'suppress' | 'lower' | 'queue' | 'allow';
 export const ANNOUNCE_QUIET_MODES: readonly AnnounceQuietMode[] = ['suppress', 'lower', 'queue', 'allow'];
-export type AnnounceEngineKind = 'local' | 'cloud';
+type AnnounceEngineKind = 'local' | 'cloud';
 /** The spoken languages (automatic translation between them is a later stage). */
 export type AnnounceLang = 'he' | 'en' | 'ru' | 'ar';
 export const ANNOUNCE_LANGS: readonly AnnounceLang[] = ['he', 'en', 'ru', 'ar'];
@@ -102,8 +102,8 @@ export interface AnnounceTemplate {
   name: Partial<Record<AnnounceLang, string>>;
   text: Partial<Record<AnnounceLang, string>>;
 }
-export type AnnounceSeverity = 'info' | 'alert' | 'critical';
-export interface AnnounceNotify {
+type AnnounceSeverity = 'info' | 'alert' | 'critical';
+interface AnnounceNotify {
   enabled: boolean;
   scope: 'area' | 'device';
   ref: string;
@@ -119,7 +119,7 @@ export interface AnnounceSpeaker {
   area_name: string | null;
   allowed: boolean;
 }
-export interface AnnounceHistoryRow {
+interface AnnounceHistoryRow {
   id: string;
   at: string;
   source: 'manual' | 'test' | 'rule' | 'notification' | 'emergency';
@@ -170,12 +170,12 @@ export interface AnnounceForm {
   translate_targets?: AnnounceTranslateTarget[];
 }
 /** A part of an announcement; `machine` = taken from the automatic translation (an editable draft; ANNOUNCE2-297: never a gate on sending), never Hebrew. */
-export interface AnnouncePart {
+interface AnnouncePart {
   language: AnnounceLang;
   text: string;
   machine?: boolean;
 }
-export interface AnnounceResult {
+interface AnnounceResult {
   id: string;
   status: 'sent' | 'queued';
   targets: number;

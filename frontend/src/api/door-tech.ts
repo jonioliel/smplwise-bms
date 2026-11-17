@@ -20,9 +20,9 @@ export type DoorTechKind = 'hold_save' | 'hold_delete' | 'code_write' | 'program
 
 /** `acknowledged` / `partial`: the server's success; `refused` (WisKey answered a refusal - its reason in `code`), `not_sent`, `unknown`
  * (sent, no clear answer); `sending` is the screen's own while a request is out, `sent` an attempt row with no outcome yet. */
-export type DoorTechStatus = 'sending' | 'sent' | 'acknowledged' | 'partial' | 'refused' | 'not_sent' | 'unknown';
+type DoorTechStatus = 'sending' | 'sent' | 'acknowledged' | 'partial' | 'refused' | 'not_sent' | 'unknown';
 
-export interface DoorTechHistory {
+interface DoorTechHistory {
   kind: DoorTechKind;
   at: string;
   status: DoorTechStatus;
@@ -52,7 +52,7 @@ export interface HoldDraft {
   revision: number | null;
   policy: StationPolicy | null;
 }
-export interface HoldReply {
+interface HoldReply {
   state: string;
   last_error: string | null;
   hold: { draft: HoldDraft | null; active: boolean; blocker: string | null; timezone: string | null } | null;
@@ -102,7 +102,7 @@ export const saveProgram = (stationId: string, door: number, revision: number, p
 export const programAction = (stationId: string, door: number, revision: number, action: 'pause' | 'remove') =>
   post<DoorTechReply>(`${one(stationId)}/doors/${door}/program/${action}`, { ...envelope(), revision });
 
-export interface CodeRequest {
+interface CodeRequest {
   slot: number;
   action: 'set' | 'clear';
   door: number;
@@ -174,7 +174,7 @@ export const emptyBody = (zone: string, name = ''): PolicyBody => toBody({ timez
 const HHMM = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const minute = (v: string, end = false): number | null => (HHMM.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : end && v === '24:00' ? 1440 : null);
 
-export type PolicyProblem = { field: string; key: 'name' | 'time' | 'order' | 'overlap' | 'tooMany' | 'date' | 'dateOrder' | 'dateOverlap' | 'zone' };
+type PolicyProblem = { field: string; key: 'name' | 'time' | 'order' | 'overlap' | 'tooMany' | 'date' | 'dateOrder' | 'dateOverlap' | 'zone' };
 
 function periodProblems(list: Period[], field: string): PolicyProblem[] {
   if (list.length > 8) return [{ field, key: 'tooMany' }];
@@ -231,7 +231,7 @@ export function weekLines(b: PolicyBody | null, t: DoorTechText): string[] {
 
 // ---------------------------------------------------------------- codes
 
-export const DIGITS = /^\d{4,16}$/;
+const DIGITS = /^\d{4,16}$/;
 
 /** Whether the code form may be sent, and the first reason it may not (never a value in it). */
 export function codeFormProblem(f: { action: 'set' | 'clear'; expected: boolean; newCode: string; repeatCode: string; currentCode: string; typed: string; phrase: string }):

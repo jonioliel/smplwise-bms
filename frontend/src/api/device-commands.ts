@@ -73,7 +73,7 @@ const POLL_INTERVAL_MS = 500;
  * the line then tells the truth about it. */
 export const PENDING_VISIBLE_MS = 700;
 
-export function domainTimeoutMs(domain: string): number {
+function domainTimeoutMs(domain: string): number {
   return DOMAIN_TIMEOUT_MS[domain] ?? DEFAULT_TIMEOUT_MS;
 }
 
@@ -143,7 +143,7 @@ export function warmCommandChannel(): void {
 
 /** LAT1 instrumentation: the last commands' tap -> outcome times (ms), readable in the browser console as
  * `__swCommandTimings` and as `sw:cmd` entries in DevTools -> Performance. */
-export interface CommandTiming {
+interface CommandTiming {
   entity_id: string;
   action_id: string;
   outcome: CommandPhase;

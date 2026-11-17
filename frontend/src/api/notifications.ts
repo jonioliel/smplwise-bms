@@ -99,7 +99,7 @@ export interface Notification {
   digest?: { total: number; hidden: number; items: { ticket_id: string; number: number | null; title: string; event: string; event_label: string }[] };
 }
 
-export interface QuietHours {
+interface QuietHours {
   enabled: boolean;
   /** "22:00", in the installation zone (`time.zone`). */
   from: string;
@@ -240,7 +240,7 @@ export const WEEKDAY_LETTER: Record<Weekday, string> = { sun: 'א', mon: 'ב', t
 const WEEKDAY_NAME = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 export const RETENTION_CHOICES: readonly RetentionDays[] = [7, 14, 30, 60, 90];
 export const ESCALATION_AFTER_MIN = { min: 1, max: 60 } as const;
-export const ESCALATION_STEPS = { min: 1, max: 3 } as const;
+const ESCALATION_STEPS = { min: 1, max: 3 } as const;
 /** `NotifyPolicy.dedupe_window_s` of a condition that folds until it is resolved ("until closed", "until back"): the contract's number
  * field has no "forever", so 0 stands for it (a window of zero seconds would fold nothing, which is never wanted). */
 export const DEDUPE_UNTIL_RESOLVED = 0;
@@ -255,8 +255,8 @@ export const LOCKSCREEN_LEVELS: readonly LockscreenLevel[] = ['generic', 'type_p
 export const LOCKSCREEN_LABEL: Record<LockscreenLevel, string> = { generic: 'גנרי', type_place: 'סוג ומקום', full: 'מלא' };
 export const CHANNEL_LABEL: Record<Channel, string> = { inbox: 'מרכז', webpush: 'דחיפה', email: 'דוא"ל', ha_mobile: 'Companion', whatsapp: 'WhatsApp', app: 'אפליקציה' };
 /** Channels a v1 policy can switch; the rest are reserved. */
-export const EDITABLE_CHANNELS: readonly Channel[] = ['webpush', 'email', 'app']; // CR-027: app = the SmplWise Arx phone app through the push relay
-export const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile']; // NOTIFWA: whatsapp left the reserved list (its policy flag is editable; the section in Settings holds its master switch)
+const EDITABLE_CHANNELS: readonly Channel[] = ['webpush', 'email', 'app']; // CR-027: app = the SmplWise Arx phone app through the push relay
+const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile']; // NOTIFWA: whatsapp left the reserved list (its policy flag is editable; the section in Settings holds its master switch)
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   safety: 'בטיחות', device_faults: 'תקלות', system: 'מערכת', doors: 'דלתות וכניסה', automations: 'אוטומציות ותזמונים', security: 'אבטחת חשבון', alerts: 'מצלמות (חוקים)',
@@ -287,7 +287,7 @@ export const NOTIFY_ERROR_LABEL: Record<string, string> = {
   intercom_station_offline: 'עמדת הכניסה אינה מחוברת',
   intercom_no_lock: 'לעמדה אין מנעול משולב',
 };
-export const NOTIFY_ERROR_STATUS: Record<string, number> = {
+const NOTIFY_ERROR_STATUS: Record<string, number> = {
   notification_not_found: 404, ack_not_allowed: 403, action_token_invalid: 401, settings_conflict: 412, quiet_invalid: 422, escalation_invalid: 422,
   channel_reserved: 422, channel_unavailable: 409, email_invalid: 422, rate_limited: 429, forbidden: 403,
 };
@@ -313,7 +313,7 @@ export function notifyErrorText(err: unknown): string {
   }
   return describeError(err);
 }
-export type ErrorContext = 'item' | 'ack' | 'action' | 'settings' | 'policy' | 'email' | 'email_test' | 'admin' | 'user';
+type ErrorContext = 'item' | 'ack' | 'action' | 'settings' | 'policy' | 'email' | 'email_test' | 'admin' | 'user';
 /** A response without a code of its own (`http_<n>`) gets the contract's code for that status on that kind of route; a coded response is
  * returned untouched. */
 export function mapNotifyError(err: unknown, ctx: ErrorContext): unknown {
@@ -492,7 +492,7 @@ export function sourcesByCategory(catalog: readonly SourceInfo[] = SOURCE_CATALO
 
 // ------------------------------------------------------------------------------------------------ defaults (CR §5, §8, §10)
 
-export const DEFAULT_PASS_THROUGH = (): PassThrough => ({
+const DEFAULT_PASS_THROUGH = (): PassThrough => ({
   info: { webpush: false, email: false, ha_mobile: false, whatsapp: false },
   alert: { webpush: false, email: false, ha_mobile: false, whatsapp: false },
   critical: { webpush: true, email: true, ha_mobile: true, whatsapp: true },
@@ -577,7 +577,7 @@ export function summarize(rows: readonly Notification[], now: number): NotifySum
 
 /** Shared state: open -> acknowledged -> resolved. An acknowledge of an acknowledged or resolved row changes nothing; a resolve ends any
  * state; a resolved row is final (a new signal creates a new row: the partial unique index of CR §12 covers unresolved rows only). */
-export type StateEvent = 'ack' | 'resolve';
+type StateEvent = 'ack' | 'resolve';
 export function nextState(state: NotifyState, event: StateEvent): NotifyState {
   if (state === 'resolved') return 'resolved';
   if (event === 'resolve') return 'resolved';
@@ -649,7 +649,7 @@ export function dayLabel(at: string | number, now: number, tz?: string): string 
   return `יום ${WEEKDAY_NAME[t.wd]} ${t.d}.${t.m}`;
 }
 export interface DayGroup { key: string; label: string; rows: Notification[] }
-export interface InboxLayout { pinned: Notification[]; days: DayGroup[] }
+interface InboxLayout { pinned: Notification[]; days: DayGroup[] }
 /** The center's list: the pinned critical rows first, then the rest grouped by the local day of `last_at`, newest first. */
 export function layoutInbox(rows: readonly Notification[], now: number, tz?: string): InboxLayout {
   const sorted = [...rows].sort(byLastDesc);
@@ -668,7 +668,7 @@ export function layoutInbox(rows: readonly Notification[], now: number, tz?: str
   return { pinned, days };
 }
 
-export interface ConditionGroup {
+interface ConditionGroup {
   key: string;
   source: string;
   subject: Notification['subject'];
@@ -696,7 +696,7 @@ export function groupByCondition(rows: readonly Notification[]): ConditionGroup[
     };
   }).sort((a, b) => Date.parse(b.last_at) - Date.parse(a.last_at));
 }
-export interface InboxView { filter?: InboxFilter; category?: Category | null; now: number }
+interface InboxView { filter?: InboxFilter; category?: Category | null; now: number }
 /** The center's filters: all / unread / critical, plus the source filter (by category). */
 export function filterInbox(rows: readonly Notification[], v: InboxView): Notification[] {
   let list = [...rows];
@@ -720,7 +720,7 @@ export function stateText(n: Pick<Notification, 'state' | 'acked_by_display'>): 
 
 // ------------------------------------------------------------------------------------------------ helpers: delivery lines and banners
 
-export const DELIVERY_REASON_LABEL: Record<string, string> = {
+const DELIVERY_REASON_LABEL: Record<string, string> = {
   quiet_hours: 'שעות שקט', category_off: 'ערוץ כבוי למקור', rate_limited: 'הוגבל בקצב', no_reach: 'אין מכשיר רשום', muted: 'מושתק', channel_unavailable: 'הערוץ לא מוגדר',
   timeout: 'שירות הדחיפה לא ענה (timeout)', dns: 'שם השרת לא נמצא (dns)', connect: 'החיבור נדחה (connect)', tls: 'כשל בהצפנה (tls)', auth: 'פרטי ההתחברות שגויים (auth)', refused: 'השרת דחה את ההודעה (refused)',
   // NOTIFWA (WhatsApp)
@@ -738,7 +738,7 @@ export function deliveryReasonText(reason: string | null): string {
 export const DELIVERY_STATUS_LABEL: Record<Delivery['status'], string> = { queued: 'ממתין', sent: 'נשלח', retry: 'ינסה שוב', failed: 'נכשל', gone: 'ההרשמה בוטלה', skipped: 'לא נשלח' };
 const channelTo = (c: Channel): string => (c === 'email' ? 'בדוא"ל' : c === 'inbox' ? 'למרכז' : 'לטלפון');
 const isFailed = (s: Delivery['status']) => s === 'failed' || s === 'gone';
-export interface DeliveryLine { tone: 'ok' | 'bad' | 'held' | 'pending'; text: string; at: string | null }
+interface DeliveryLine { tone: 'ok' | 'bad' | 'held' | 'pending'; text: string; at: string | null }
 /** The detail view's "my delivery" line: "נשלח לטלפון · 14:02" / "לא נשלח · שעות שקט" / "המסירה לטלפון נכשלה · 14:02". Sent wins over a failure on another
  * channel; null when nothing was attempted (a source without push). The inbox itself (the center) is never a delivery line. */
 export function deliveryLine(n: Pick<Notification, 'my_deliveries'>, tz?: string): DeliveryLine | null {
@@ -763,21 +763,21 @@ export function deliveryChip(n: Pick<Notification, 'my_deliveries'>): { tone: 'b
 /** A row whose only attempts failed (the "delivery failed" banner counts these). */
 export const hasDeliveryProblem = (n: Pick<Notification, 'my_deliveries'>): boolean => deliveryLine(n)?.tone === 'bad';
 
-export const PUSH_BANNER: Record<Exclude<PushSupport, 'ok'>, string> = {
+const PUSH_BANNER: Record<Exclude<PushSupport, 'ok'>, string> = {
   insecure: 'התראות דחיפה דורשות חיבור מאובטח',
   unsupported: 'התראות דחיפה לא נתמכות במכשיר הזה',
   ios_install: 'כדי לקבל התראות הוסיפו את Arx למסך הבית',
   denied: 'ההתראות נחסמו בדפדפן',
   android_shell: 'התראות דחיפה לא נתמכות באפליקציה הזו',
 };
-export const PUSH_OFF_BANNER = 'ההתראות לא מופעלות במכשיר הזה';
+const PUSH_OFF_BANNER = 'ההתראות לא מופעלות במכשיר הזה';
 /** The banner of a device that cannot (or does not yet) receive push; null when it can and has at least one registered device. */
 export function pushBannerText(support: PushSupport, registeredHere: number): string | null {
   if (support !== 'ok') return PUSH_BANNER[support];
   return registeredHere > 0 ? null : PUSH_OFF_BANNER;
 }
-export interface CenterBanner { kind: 'quiet' | 'push' | 'failed'; text: string }
-export interface BannerInput { settings: NotifySettings | null; now: number; tz?: string; support: PushSupport; registeredHere: number; rows: readonly Notification[] }
+interface CenterBanner { kind: 'quiet' | 'push' | 'failed'; text: string }
+interface BannerInput { settings: NotifySettings | null; now: number; tz?: string; support: PushSupport; registeredHere: number; rows: readonly Notification[] }
 /** The center's header banners, in order: quiet hours active, push unavailable on this device, delivery failed. */
 export function centerBanners(i: BannerInput): CenterBanner[] {
   const out: CenterBanner[] = [];
@@ -841,7 +841,7 @@ export function escalationTimeline(n: Notification, esc: EscalationSettings | nu
 export const timelineTitle = (n: Pick<Notification, 'severity'>): string => (n.severity === 'critical' ? 'ציר ההסלמה' : 'ציר זמן');
 /** Whether the detail view shows a timeline at all (the mockup: critical, folded or no longer open). */
 export const showsTimeline = (n: Pick<Notification, 'severity' | 'count' | 'state'>): boolean => n.severity === 'critical' || n.count > 1 || n.state !== 'open';
-export const escalationTarget = (esc: Pick<EscalationSettings, 'to'>): string => (esc.to === 'managers' ? 'מנהלי התראות' : `משתמשים נבחרים (${esc.to.length})`);
+const escalationTarget = (esc: Pick<EscalationSettings, 'to'>): string => (esc.to === 'managers' ? 'מנהלי התראות' : `משתמשים נבחרים (${esc.to.length})`);
 /** The settings section's preview: the first send, each step, the stop. */
 export function escalationPreview(esc: EscalationSettings): { minute: number; text: string }[] {
   const out = [{ minute: 0, text: 'התראה קריטית נשלחת' }];
@@ -853,7 +853,7 @@ export function escalationPreview(esc: EscalationSettings): { minute: number; te
 
 // ------------------------------------------------------------------------------------------------ helpers: lock screen (CR §11)
 
-export interface LockscreenInput {
+interface LockscreenInput {
   /** The notification's type title ("דליפת מים"). */
   title: string;
   place: string | null;
@@ -865,7 +865,7 @@ export interface LockscreenInput {
   device: string | null;
   count: number;
 }
-export interface LockscreenText { title: string; body: string }
+interface LockscreenText { title: string; body: string }
 /** The only fields a lock-screen text can be built from: no person's name, no visitor, no image URL exists in the input. */
 export const lockscreenInputOf = (n: Pick<Notification, 'title' | 'severity' | 'last_at' | 'body' | 'count'>, place: string | null, device: string | null = null): LockscreenInput => ({
   title: n.title, place, severity: n.severity, at: n.last_at, body: n.body, device, count: n.count,
@@ -909,7 +909,7 @@ export function pushActions(level: LockscreenLevel, n: Pick<Notification, 'id' |
 
 // ------------------------------------------------------------------------------------------------ helpers: quiet hours and the pass-through matrix (CR §8.1)
 
-export interface QuietWindow { active: boolean; /** The instant the active window ends (ISO), else null. */ until: string | null }
+interface QuietWindow { active: boolean; /** The instant the active window ends (ISO), else null. */ until: string | null }
 /** Whether `now` is inside the installation's quiet window. A window that crosses midnight belongs to the day it STARTS on (22:00-07:00 with
  * "fri" ticked is quiet from Friday 22:00 to Saturday 07:00); from == to is empty; an empty day list never goes quiet. */
 export function quietWindow(q: QuietHours, now: number, tz?: string): QuietWindow {
@@ -927,7 +927,7 @@ export function quietWindow(q: QuietHours, now: number, tz?: string): QuietWindo
   return { active: false, until: null };
 }
 export const isQuietNow = (q: QuietHours, now: number, tz?: string): boolean => quietWindow(q, now, tz).active;
-export interface PassDecision { send: boolean; reason: 'quiet_hours' | null }
+interface PassDecision { send: boolean; reason: 'quiet_hours' | null }
 /** The pass-through matrix: outside quiet hours everything is sent; inside, the center always receives, push / email / Companion follow the severity x
  * channel matrix, whatsapp has its own column (NOTIFWA), the app follows push, and an ESCALATION step bypasses quiet hours (CR §8.3). */
 export function passThrough(settings: Pick<NotifySettings, 'quiet' | 'pass_through'>, severity: Severity, channel: Channel, now: number, tz?: string, opts: { escalation?: boolean } = {}): PassDecision {
@@ -935,7 +935,7 @@ export function passThrough(settings: Pick<NotifySettings, 'quiet' | 'pass_throu
   const col = settings.pass_through[severity] as Record<string, boolean | undefined>;
   return col[channel === 'app' ? 'webpush' : channel] === true ? { send: true, reason: null } : { send: false, reason: 'quiet_hours' };
 }
-export interface ChannelDecision { channel: Channel; send: boolean; reason: string | null }
+interface ChannelDecision { channel: Channel; send: boolean; reason: string | null }
 /** What a notification of `severity` would do on each channel of its policy now (the settings preview and the specs): `category_off` for a channel the
  * policy has off, `channel_unavailable` for email that is not configured, `quiet_hours` from the matrix. The center is always `send`. */
 export function planChannels(settings: Pick<NotifySettings, 'quiet' | 'pass_through' | 'email'>, policy: Pick<NotifyPolicy, 'channels'>, severity: Severity, now: number, tz?: string, opts: { escalation?: boolean } = {}): ChannelDecision[] {
@@ -959,7 +959,7 @@ export function quietBannerText(settings: Pick<NotifySettings, 'quiet' | 'pass_t
 
 // ------------------------------------------------------------------------------------------------ helpers: the door-open flow (CR §9)
 
-export type DoorOpenPhase = 'idle' | 'confirm' | 'sending' | 'step_up' | 'done' | 'failed';
+type DoorOpenPhase = 'idle' | 'confirm' | 'sending' | 'step_up' | 'done' | 'failed';
 export interface DoorOpenState {
   phase: DoorOpenPhase;
   notification_id: string | null;
@@ -970,7 +970,7 @@ export interface DoorOpenState {
   text: string | null;
 }
 export const DOOR_OPEN_IDLE: DoorOpenState = { phase: 'idle', notification_id: null, door: null, error: null, text: null };
-export type DoorOpenEvent =
+type DoorOpenEvent =
   | { type: 'press'; notification: Pick<Notification, 'id' | 'state' | 'door'> }
   | { type: 'confirm' }
   | { type: 'cancel' }
@@ -981,7 +981,7 @@ export type DoorOpenEvent =
 /** The button is shown only on a doorbell row that is not resolved, to a caller who may open that door (`door.can_open`, computed by the server). */
 export const doorButtonVisible = (n: Pick<Notification, 'door' | 'state'>): boolean => !!n.door && n.door.can_open && n.state !== 'resolved';
 export const doorOpenQuestion = (name: string): string => `האם אתה בטוח שברצונך לפתוח את ${name}?`;
-export const doorOpenResultText = (name: string): string => `הפקודה נשלחה אל ${name}`;
+const doorOpenResultText = (name: string): string => `הפקודה נשלחה אל ${name}`;
 const DOOR_ERROR_TEXT: Record<string, string> = { ...NOTIFY_ERROR_LABEL, forbidden: 'אין הרשאה לפתוח את הדלת' };
 /** The flow: a press only OPENS the confirmation; nothing is sent until `confirm` follows it (and `step_up_done` after a step-up); the notification
  * never opens a door by itself. A press on a row without `door.can_open` is ignored (no button exists for that user); `cancel` is not possible while a
@@ -1048,7 +1048,7 @@ export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], stri
   bridge_key_owner: 'The owner contacts and every system administrator',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
-export interface ChannelCell {
+interface ChannelCell {
   on: boolean;
   editable: boolean;
   /** `always`: the center; `soon`: a reserved channel ("בקרוב"); `unconfigured`: email without a mail server. */
@@ -1095,7 +1095,7 @@ export function recipientsRuleFor(policy: Pick<NotifyPolicy, 'source' | 'recipie
 }
 /** How the center is presented: a phone always gets the full-height bottom sheet (CR §6.1); on a larger screen the administrator's `center_layout`. */
 export const centerPresentation = (settings: Pick<NotifySettings, 'center_layout'>, phone: boolean): 'bottom_sheet' | 'sheet' | 'page' => (phone ? 'bottom_sheet' : settings.center_layout);
-export interface SnoozeOption { choice: SnoozeChoice; label: string }
+interface SnoozeOption { choice: SnoozeChoice; label: string }
 /** The snooze choices a row offers now (owner 2026-10-01: both "שעה" and "עד הבוקר"); none for a row that is not open or already snoozed. */
 export function snoozeOptions(n: Pick<Notification, 'state' | 'me'>, now: number): SnoozeOption[] {
   if (n.state !== 'open' || isSnoozed(n, now)) return [];
@@ -1136,7 +1136,7 @@ export function validateEmailBody(b: EmailBody): 'email_invalid' | null {
 }
 /** "owner@example.net" -> "o***@example.net" (what the delivery log shows). */
 export const maskAddress = (a: string): string => a.replace(/^([^@])[^@]*@/, '$1***@');
-export const EMAIL_TEST_DETAIL_LABEL: Record<string, string> = {
+const EMAIL_TEST_DETAIL_LABEL: Record<string, string> = {
   dns: 'שם השרת לא נמצא', connect: 'החיבור נדחה', tls: 'כשל בהצפנה', auth: 'שם משתמש או סיסמה שגויים', refused: 'השרת דחה את ההודעה', timeout: 'השרת לא ענה בזמן',
 };
 /** The test button's result in place: "נשלח מייל בדיקה" or "החיבור נדחה (connect)". */

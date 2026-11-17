@@ -80,7 +80,7 @@ export interface DoorAutomationStatus {
   limits?: Limits;
 }
 
-export interface SimGate {
+interface SimGate {
   gate: string;
   ok: boolean;
   reason: string | null;

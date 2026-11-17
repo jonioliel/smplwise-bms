@@ -18,9 +18,9 @@ export interface DiagHead {
   fetched_at: string | null;
 }
 
-export type DiagFeature = 'pickers' | 'scenario' | 'compare' | 'compare_doors' | 'reviews' | 'review_decide' | 'quality' | 'lifecycle' | 'sync' | 'permission_audit';
+type DiagFeature = 'pickers' | 'scenario' | 'compare' | 'compare_doors' | 'reviews' | 'review_decide' | 'quality' | 'lifecycle' | 'sync' | 'permission_audit';
 
-export interface DiagDoor {
+interface DiagDoor {
   lock_id: 1 | 2;
   name: string | null;
 }
@@ -47,7 +47,7 @@ export interface DiagOption {
   archived: boolean;
 }
 
-export interface DiagPage {
+interface DiagPage {
   total: number | null;
   offset: number | null;
   limit: number | null;
@@ -55,8 +55,8 @@ export interface DiagPage {
   previous_offset: number | null;
 }
 
-export type ScenarioReason = 'allowed' | 'archived' | 'inactive' | 'no_assignment' | 'lock_not_assigned' | 'outside_validity' | 'outside_schedule' | 'unknown';
-export type GrantSource = 'personal_deny' | 'personal_allow' | 'inherited' | 'restricted' | 'assignment' | 'none' | 'group_policy' | 'unknown';
+type ScenarioReason = 'allowed' | 'archived' | 'inactive' | 'no_assignment' | 'lock_not_assigned' | 'outside_validity' | 'outside_schedule' | 'unknown';
+type GrantSource = 'personal_deny' | 'personal_allow' | 'inherited' | 'restricted' | 'assignment' | 'none' | 'group_policy' | 'unknown';
 
 export interface GrantSide {
   granted: boolean;
@@ -67,7 +67,7 @@ export interface GrantSide {
   sources_known: boolean;
 }
 
-export interface DiagLabel {
+interface DiagLabel {
   kind: 'person' | 'group' | 'unknown';
   id: string | null;
   name: string;
@@ -120,7 +120,7 @@ export interface Comparison {
   summary: Record<'shared' | 'left_only' | 'right_only' | 'neither', number>;
 }
 
-export interface DoorCompareRow {
+interface DoorCompareRow {
   user_id: string;
   display_name: string;
   relation: Relation;
@@ -145,7 +145,7 @@ export interface Schedule {
   periods: { start: string; end: string }[];
 }
 
-export interface Central {
+interface Central {
   active: boolean;
   archived: boolean;
   valid_from: string | null;
@@ -187,7 +187,7 @@ export interface ReviewsPage extends DiagPage {
   summary: Record<Exclude<ReviewStatus, 'unknown'>, number>;
 }
 
-export interface ReviewPreview {
+interface ReviewPreview {
   user_id: string | null;
   station_id: string | null;
   lock_id: 1 | 2 | null;
@@ -200,7 +200,7 @@ export interface ReviewPreview {
 
 export type PreviewReply = DiagHead & { preview: ReviewPreview | null; decide: { available: boolean | null; reason: string | null; allowed: boolean } };
 
-export interface DecideResult {
+interface DecideResult {
   status: 'saved';
   command_id: string;
   receipt: Receipt;
@@ -216,7 +216,7 @@ export interface QualityIssue {
   related_people: { id: string; display_name: string; archived: boolean; employee_no: string | null }[];
 }
 
-export interface QualityRow {
+interface QualityRow {
   id: string;
   display_name: string;
   employee_no: string | null;
@@ -302,7 +302,7 @@ export const getLifecycle = (days: number) => get<DiagHead & { lifecycle: Lifecy
 export const getSyncDiag = () => get<DiagHead & { diagnostics: SyncDiag | null }>(`${BASE}/sync`);
 export const getPermissionAudit = (stationId: string) => get<DiagHead & { audit: PermissionAudit | null }>(`${BASE}/stations/${encodeURIComponent(stationId)}/permission-audit`);
 
-export interface DecideInput {
+interface DecideInput {
   user_id: string;
   station_id: string;
   lock_id: number;

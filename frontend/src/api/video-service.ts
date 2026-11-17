@@ -31,9 +31,9 @@ export const VIDEO_SERVICE_DOWN_HE = 'שירות הווידאו לא זמין';
 export const VIDEO_SERVICE_HINT_ADMIN = 'בדקו שהשירות פועל ואת הגדרת שירות הווידאו (go2rtc_url) בתצורת התוסף';
 export const VIDEO_SERVICE_HINT_OTHER = 'ננסה שוב אוטומטית; אם זה נמשך, פנו למנהל המערכת';
 /** The relay's error values that mean the service itself is down / absent (routers/media.refuse_media). */
-export const MEDIA_DOWN_VALUES: ReadonlySet<string> = new Set(['media_unavailable', 'media_not_configured']);
+const MEDIA_DOWN_VALUES: ReadonlySet<string> = new Set(['media_unavailable', 'media_not_configured']);
 
-export const BACKOFF_BASE_MS = 5000;
+const BACKOFF_BASE_MS = 5000;
 export const BACKOFF_MAX_MS = 60000;
 /** The wait before the n-th re-check (0-based): 5 s, 10 s, 20 s, 40 s, 60 s, 60 s ... */
 export const backoffMs = (n: number): number => Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** Math.max(0, Math.min(n, 10)));

@@ -7,9 +7,9 @@
 import { get, put } from './client';
 import { isApi } from './session';
 
-export type ViewStyle = 'auto' | 'light' | 'dark';
+type ViewStyle = 'auto' | 'light' | 'dark';
 export type MouseMode = 'drag' | 'lock' | 'auto';
-export type QualityRung = 'auto' | 'realistic' | 'lite' | 'full' | 'schematic';
+type QualityRung = 'auto' | 'realistic' | 'lite' | 'full' | 'schematic';
 export interface PlanViewDials {
   style: ViewStyle;
   default_view: 'schematic' | 'realistic';
@@ -58,7 +58,7 @@ export const DEFAULT_VIEW: PlanViewDials = {
   kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true, backdrop: 'sky', floor_finish: 'marble', floor_reflections: true,
 };
 /** The home's location as the server last read it from the home's configuration (services/site_location.py). */
-export interface HomeLocation {
+interface HomeLocation {
   latitude: number;
   longitude: number;
   elevation_m: number | null;

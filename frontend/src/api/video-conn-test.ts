@@ -14,17 +14,17 @@
  */
 
 export type Profile = 'main' | 'sub';
-export type AddrClass = 'private' | 'cgnat' | 'public' | 'ipv6' | 'mdns' | 'unknown';
-export type CandType = 'host' | 'srflx' | 'prflx' | 'relay' | 'unknown';
-export type CandProtocol = 'udp' | 'tcp' | 'unknown';
+type AddrClass = 'private' | 'cgnat' | 'public' | 'ipv6' | 'mdns' | 'unknown';
+type CandType = 'host' | 'srflx' | 'prflx' | 'relay' | 'unknown';
+type CandProtocol = 'udp' | 'tcp' | 'unknown';
 
 /** The same ICE servers the live player uses (components/sw-live-player.ts imports this constant). */
 export const LIVE_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 /** Longest a single run listens. */
-export const PROBE_MAX_MS = 20000;
+const PROBE_MAX_MS = 20000;
 /** After the first decoded frame the run keeps sampling this long (to show a rate), then ends. */
-export const PROBE_AFTER_FRAME_MS = 3000;
+const PROBE_AFTER_FRAME_MS = 3000;
 const POLL_MS = 500;
 const SAMPLE_EVERY_MS = 1000;
 
@@ -60,7 +60,7 @@ export function classifyAddress(address: string | null | undefined): AddrClass {
   return 'public';
 }
 
-export interface ParsedCandidate {
+interface ParsedCandidate {
   type: CandType;
   protocol: CandProtocol;
   cls: AddrClass;
@@ -92,7 +92,7 @@ export function candidatesFromSdp(sdp: string): string[] {
 
 // ---------------------------------------------------------------- user agent
 
-export interface UaInfo {
+interface UaInfo {
   /** `Chrome 129`, `Safari 17`, … - the major version only */
   browser: string;
   os: string;
@@ -138,7 +138,7 @@ export function scrub(text: string): string {
 export type StatsRec = Record<string, unknown> & { type?: string; id?: string };
 
 /** An RTCStatsReport (or any Map-like with forEach) as a plain list. */
-export function statsList(report: { forEach: (cb: (v: unknown) => void) => void } | null | undefined): StatsRec[] {
+function statsList(report: { forEach: (cb: (v: unknown) => void) => void } | null | undefined): StatsRec[] {
   const out: StatsRec[] = [];
   report?.forEach((v) => {
     if (v && typeof v === 'object') out.push(v as StatsRec);
@@ -149,7 +149,7 @@ export function statsList(report: { forEach: (cb: (v: unknown) => void) => void 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-export interface VideoSample {
+interface VideoSample {
   /** ms since the run started */
   at: number;
   bytes: number;
@@ -186,7 +186,7 @@ export function readVideoSample(list: StatsRec[], at: number): VideoSample {
   };
 }
 
-export interface PairSide {
+interface PairSide {
   type: CandType;
   protocol: CandProtocol;
   cls: AddrClass;
@@ -194,7 +194,7 @@ export interface PairSide {
   networkType: string;
 }
 
-export interface PairInfo {
+interface PairInfo {
   local: PairSide;
   remote: PairSide;
   /** how the relay was reached when the local side is a relay candidate */
@@ -229,7 +229,7 @@ export function selectedPairOf(list: StatsRec[]): PairInfo | null {
   return { local: side(local), remote: side(remote), relayProtocol: str(local?.relayProtocol), rttMs: rtt == null ? null : Math.round(rtt * 1000) };
 }
 
-export interface PairChecks {
+interface PairChecks {
   states: Record<string, number>;
   requestsSent: number;
   responsesReceived: number;
@@ -249,7 +249,7 @@ export function pairChecksOf(list: StatsRec[]): PairChecks {
 }
 
 /** The network types the browser's own candidates were gathered on (`cellular`, `wifi`, `vpn`, …), distinct. */
-export function localNetworkTypes(list: StatsRec[]): string[] {
+function localNetworkTypes(list: StatsRec[]): string[] {
   const set = new Set<string>();
   for (const r of list) if (r.type === 'local-candidate' && str(r.networkType)) set.add(str(r.networkType));
   return [...set].sort();
@@ -257,7 +257,7 @@ export function localNetworkTypes(list: StatsRec[]): string[] {
 
 // ---------------------------------------------------------------- the report
 
-export type EndReason = 'frame' | 'timeout' | 'ice_failed' | 'refused' | 'ws_closed' | 'ws_failed' | 'aborted' | 'error';
+type EndReason = 'frame' | 'timeout' | 'ice_failed' | 'refused' | 'ws_closed' | 'ws_failed' | 'aborted' | 'error';
 
 export interface TimelineEntry {
   at: number;
@@ -265,7 +265,7 @@ export interface TimelineEntry {
   value: string;
 }
 
-export interface CandidateGroup {
+interface CandidateGroup {
   type: CandType;
   protocol: CandProtocol;
   cls: AddrClass;
@@ -346,13 +346,13 @@ export function addCandidate(groups: CandidateGroup[], c: Pick<ParsedCandidate, 
   else groups.push({ type: c.type, protocol: c.protocol, cls: c.cls, count: 1 });
 }
 
-export const countOfType = (groups: CandidateGroup[], type: CandType): number => groups.filter((g) => g.type === type).reduce((n, g) => n + g.count, 0);
-export const hasIpv6 = (groups: CandidateGroup[]): boolean => groups.some((g) => g.cls === 'ipv6');
+const countOfType = (groups: CandidateGroup[], type: CandType): number => groups.filter((g) => g.type === type).reduce((n, g) => n + g.count, 0);
+const hasIpv6 = (groups: CandidateGroup[]): boolean => groups.some((g) => g.cls === 'ipv6');
 
 /** Whether the peer connection reached `connected` at any point. */
-export const everConnected = (r: ProbeReport): boolean => r.connectedAt != null || r.timeline.some((e) => (e.kind === 'conn' && e.value === 'connected') || (e.kind === 'ice' && (e.value === 'connected' || e.value === 'completed')));
+const everConnected = (r: ProbeReport): boolean => r.connectedAt != null || r.timeline.some((e) => (e.kind === 'conn' && e.value === 'connected') || (e.kind === 'ice' && (e.value === 'connected' || e.value === 'completed')));
 
-export const liveCapText = (max: number): string => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''} - הבדיקה לא רצה`;
+const liveCapText = (max: number): string => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''} - הבדיקה לא רצה`;
 
 /** The one-line verdict (Hebrew) of a finished (or running) run. */
 export function verdictOf(r: ProbeReport): string {
@@ -390,7 +390,7 @@ function sideText(s: PairSide): string {
 }
 
 /** The header lines of a report (once per copy): browser, channel, network. */
-export function formatHeader(env: ProbeEnv): string[] {
+function formatHeader(env: ProbeEnv): string[] {
   return [
     'SmplWise video connection test',
     `browser: ${env.browser} / ${env.os}${env.mobile ? ' (mobile)' : ''}`,
@@ -400,7 +400,7 @@ export function formatHeader(env: ProbeEnv): string[] {
 }
 
 /** One profile's section. Plain text; every value is a number, a type name, an address class or a scrubbed code. */
-export function formatSection(r: ProbeReport): string[] {
+function formatSection(r: ProbeReport): string[] {
   const out: string[] = [];
   out.push(`=== ${r.cameraLabel} / ${r.profile} ===`);
   out.push(`verdict: ${r.verdict || verdictOf(r)}`);
@@ -444,7 +444,7 @@ export function formatReports(reports: ProbeReport[]): string {
 
 // ---------------------------------------------------------------- the run
 
-export interface ProbeOptions {
+interface ProbeOptions {
   /** ws(s):// URL of `media/live/<camera>/ws?profile=…` (api/media.ts `liveWsUrl`: the remote channel prefix is in it) */
   wsUrl: string;
   profile: Profile;

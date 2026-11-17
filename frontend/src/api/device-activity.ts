@@ -17,9 +17,9 @@ export const ACTIVITY_KINDS: ActivityKind[] = ['light', 'switch', 'outlet', 'cov
 
 export type ActorType = 'person' | 'automation' | 'script' | 'schedule' | 'scene' | 'device' | 'system' | 'unknown';
 export type EventType = 'power' | 'value' | 'availability';
-export type ActivityVia = 'arx' | 'ha' | 'device' | 'unknown';
+type ActivityVia = 'arx' | 'ha' | 'device' | 'unknown';
 export type Confidence = 'exact' | 'inferred' | 'unknown';
-export type ActivityAvailability = 'ok' | 'partial' | 'unavailable';
+type ActivityAvailability = 'ok' | 'partial' | 'unavailable';
 
 /** A snapshot of the device at one moment: `state` plus the watched attributes the server stores for its domain, flat (brightness_pct,
  * color_temp_kelvin, temperature, target_temp_low / high, fan_mode, preset_mode, swing_mode, humidity, percentage, oscillating, direction,
@@ -43,7 +43,7 @@ export interface ActivityItem {
   note?: string | null;
 }
 
-export interface ActivityEntity {
+interface ActivityEntity {
   entity_id: string;
   name?: string;
   domain?: string;

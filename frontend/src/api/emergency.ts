@@ -45,7 +45,7 @@ export interface EmergencyModule {
 export type Slot = 'fire_certificate' | 'extinguishers' | 'hydrants_sprinklers' | 'emergency_lighting' | 'evacuation_round' | 'elevator_inspection';
 export const SLOTS: readonly Slot[] = ['fire_certificate', 'extinguishers', 'hydrants_sprinklers', 'emergency_lighting', 'evacuation_round', 'elevator_inspection'];
 
-export interface SlotTask {
+interface SlotTask {
   id: string;
   title: string;
   kind: string;
@@ -64,7 +64,7 @@ export interface EmergencyConfig {
   history_keep_days: number;
 }
 
-export interface ConfigPatch {
+interface ConfigPatch {
   revision?: number;
   thresholds?: Record<string, number | null>;
   cameras?: string[];

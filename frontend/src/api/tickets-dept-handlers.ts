@@ -28,7 +28,7 @@ export interface ManagedMember {
 /** One vendor of the exact-phone lookup: the number masked, nothing about its other departments. */
 export interface VendorMatch { id: string; kind: ContactKind; display_name: string; company: string; phone: string | null; active: boolean; shared: boolean; attached: boolean }
 export interface ManagedDepartment { id: string; name: string; active: boolean; can_manage: boolean; members: ManagedMember[] }
-export interface ManagerOverview { departments: ManagedDepartment[]; can_manage: boolean; full_phones: boolean }
+interface ManagerOverview { departments: ManagedDepartment[]; can_manage: boolean; full_phones: boolean }
 export interface ManagerContactBody {
   kind?: ContactKind;
   display_name?: string;
@@ -46,7 +46,7 @@ export interface ManagerContactBody {
   revision?: number;
 }
 
-export interface DeptHandlersBackend {
+interface DeptHandlersBackend {
   overview(): Promise<ManagerOverview>;
   people(q?: string): Promise<{ users: { id: string; name: string }[] }>;
   addMember(deptId: string, userId: string): Promise<ManagedDepartment>;

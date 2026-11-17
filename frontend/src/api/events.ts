@@ -29,7 +29,7 @@ export interface VmsEvent {
 }
 
 /** Where the event's camera sits (its current anchor); `zone` is the smallest room / zone containing the pin. */
-export interface EventLocation {
+interface EventLocation {
   anchor_id: string;
   floor_id: string;
   floor_name: string;
@@ -81,13 +81,13 @@ export interface EventWindow {
 }
 
 /** One deterministic rule a window met (M047); `why` is the rule in the operator's words. */
-export interface SpotlightRule {
+interface SpotlightRule {
   code: string;
   score: number;
   label: string;
   why: string;
 }
-export interface Spotlight {
+interface Spotlight {
   on: boolean;
   score: number;
   rules: SpotlightRule[];
@@ -95,7 +95,7 @@ export interface Spotlight {
   sources: string[];
 }
 
-export interface WindowsResponse {
+interface WindowsResponse {
   windows: EventWindow[];
   from: string;
   to: string;
@@ -118,14 +118,14 @@ export interface IngestState {
   started_at: string | null;
 }
 
-export interface DeriveState {
+interface DeriveState {
   last_run: string | null;
   last_ok: string | null;
   last_error: string | null;
   derived: number;
 }
 
-export interface EventsResponse {
+interface EventsResponse {
   /** Filters echoed back; `unsupported` names filters that cannot match by construction (T062). */
   filters?: { applied: Record<string, string>; unsupported: UnsupportedFilter[] };
   events: VmsEvent[];
@@ -273,7 +273,7 @@ export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: I
 /** Door–camera–sensor neighbourhood of an event (T053): every link carries its certainty; a command is never proof. */
 export type Certainty = 'measured' | 'inferred' | 'command' | 'availability';
 export const CERTAINTY_LABEL: Record<Certainty, string> = { measured: 'נמדד', inferred: 'נגזר', command: 'פקודה', availability: 'זמינות' };
-export interface CorrelationLink {
+interface CorrelationLink {
   kind: 'sensor' | 'command' | 'camera';
   event_id?: string;
   action_id?: string;
@@ -326,8 +326,8 @@ export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע N
 
 /** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. M064: the
  * floors reached through the published stairs / elevators near the camera rank last, each naming its connector. */
-export type RouteRelation = 'same_zone' | 'adjacent_zone' | 'nearby' | 'via_connector';
-export interface RouteVia {
+type RouteRelation = 'same_zone' | 'adjacent_zone' | 'nearby' | 'via_connector';
+interface RouteVia {
   connector_id: string;
   kind: string;
   kind_label: string;
@@ -337,7 +337,7 @@ export interface RouteVia {
   direction: 'up' | 'down' | null;
   twin_published: boolean;
 }
-export interface RouteSuggestion {
+interface RouteSuggestion {
   camera_id: string;
   name: string;
   relation: RouteRelation;

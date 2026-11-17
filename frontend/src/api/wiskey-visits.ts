@@ -44,7 +44,7 @@ export interface WiskeyVisit {
   read_only: true;
 }
 
-export interface VisitPage {
+interface VisitPage {
   state: string;
   last_error: string | null;
   fetched_at: string | null;
@@ -61,7 +61,7 @@ export interface GuestTemplate {
   updated_at: string | null;
 }
 
-export interface TemplatesReply {
+interface TemplatesReply {
   state: string;
   last_error: string | null;
   templates: { items: GuestTemplate[]; revision: number | null } | null;

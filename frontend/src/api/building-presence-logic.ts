@@ -8,7 +8,7 @@ import {
   type AreaPresence, type BuildingPresenceSettings, type BuildingSnapshot, type CardAllEmpty, type CardDetails, type CardEmptyRooms, type CardStyle, type PresenceCandidate,
 } from './building-presence';
 
-export interface ChipView { show: boolean; tone: 'ok' | 'neutral'; text: string }
+interface ChipView { show: boolean; tone: 'ok' | 'neutral'; text: string }
 
 /** Local clock text (HH:MM, 24 h) of an ISO instant in the given zone; '' for anything unparsable. */
 export function clockText(iso: string | null | undefined, zone = 'Asia/Jerusalem'): string {
@@ -73,8 +73,8 @@ export function pageSlice<T>(items: readonly T[], page: number, size: number): {
   return { items: items.slice((p - 1) * size, p * size), page: p, pages };
 }
 
-export interface CardRoom { name: string; text: string; tone: 'ok' | 'neutral' | 'unknown' }
-export interface CardView { show: boolean; tone: 'ok' | 'neutral'; big: string; sub: string; rooms: CardRoom[] }
+interface CardRoom { name: string; text: string; tone: 'ok' | 'neutral' | 'unknown' }
+interface CardView { show: boolean; tone: 'ok' | 'neutral'; big: string; sub: string; rooms: CardRoom[] }
 
 /** The overview card (display = card): the state word, one quiet line and the rooms with a sensor. Nothing unless the server says configured. */
 export function cardView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CardView {
@@ -98,7 +98,7 @@ export const presenceWidgetAvailable = (s: BuildingSnapshot | null | undefined):
 
 // ---- PRESENCE-COMPACT-2310: the compact home card (round-9 mockup, owner answers 31.10) ----
 
-export interface CardOptions { style: CardStyle; emptyRooms: CardEmptyRooms; details: CardDetails; allEmpty: CardAllEmpty }
+interface CardOptions { style: CardStyle; emptyRooms: CardEmptyRooms; details: CardDetails; allEmpty: CardAllEmpty }
 
 const pick = <T extends string>(list: readonly T[], v: unknown): T => (list.includes(v as T) ? (v as T) : list[0]);
 
@@ -113,7 +113,7 @@ export function cardOptions(s: Partial<BuildingPresenceSettings> | null | undefi
 }
 
 export interface CompactRoom { name: string; tone: 'ok' | 'neutral' | 'unknown'; title: string }
-export interface CompactFloor { name: string; on: number; of: number }
+interface CompactFloor { name: string; on: number; of: number }
 export interface CompactView {
   show: boolean;
   tone: 'ok' | 'clear' | 'unknown';
@@ -162,7 +162,7 @@ const TITLE_NAMES = 30;
  * run, so a long list ends in the line's own ellipsis instead of name boxes running past the card. */
 export const isolate = (s: string) => `\u2068${s}\u2069`;
 
-export interface CountBar {
+interface CountBar {
   /** 'ticks' = one tick a room (at most TICK_CAP); 'share' = one bar filled to `pct`; 'none' = no room with a sensor. */
   kind: 'ticks' | 'share' | 'none';
   ticks: { tone: 'on' | 'off' | 'unk'; title: string }[];
@@ -170,7 +170,7 @@ export interface CountBar {
   title: string;
 }
 
-export interface CountView {
+interface CountView {
   /** The big number: the active rooms ("–" while the sensors do not report). */
   num: string;
   /** "/5" beside it ('' when no room has a sensor). */

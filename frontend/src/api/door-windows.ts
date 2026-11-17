@@ -10,7 +10,7 @@ import { commandId } from './request-id';
 export type Tier = 'program' | 'prepared';
 export type RuleKind = 'weekly' | 'once' | 'event';
 export type TriggerSource = 'ha_event' | 'arx_automation';
-export type RuleState = 'draft' | 'enabled' | 'paused' | 'retired';
+type RuleState = 'draft' | 'enabled' | 'paused' | 'retired';
 export type CalendarPolicy = 'skip_holidays' | 'holidays_like_friday' | 'ignore_calendar';
 export type OccState =
   | 'prepared' | 'planned' | 'armed' | 'starting' | 'active' | 'not_started' | 'ending' | 'relock_unconfirmed'
@@ -68,7 +68,7 @@ export interface RuleTrigger {
   can_arm: boolean;
 }
 
-export interface TriggerBody {
+interface TriggerBody {
   source: TriggerSource;
   duration_s: number;
   allowed_from?: string | null;
@@ -194,7 +194,7 @@ export const putWindowSettings = (changes: Record<string, string>) =>
 // ---------------------------------------------------------------- emergency
 
 export type EmergencyKind = 'lock_secure' | 'open';
-export type ScopeType = 'installation' | 'site' | 'building';
+type ScopeType = 'installation' | 'site' | 'building';
 export type DoorResult = 'pending' | 'sent' | 'acknowledged' | 'refused' | 'unknown' | 'skipped';
 
 export interface Scope {
@@ -304,7 +304,7 @@ export const retryOpenDoor = (incidentId: string, stationId: string, relay: numb
 
 // ---------------------------------------------------------------- EMROLE-295: who holds the emergency-open role
 
-export interface GrantHolder {
+interface GrantHolder {
   id: string;
   subject_kind: 'user' | 'group';
   subject_id: string;

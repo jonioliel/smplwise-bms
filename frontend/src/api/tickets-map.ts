@@ -7,8 +7,8 @@
 import { api, apiUrl, get, put } from './client';
 import { isApi } from './session';
 
-export type MapElementKind = 'anchor' | 'object';
-export type MapElementType = 'camera' | 'ha_entity' | 'object';
+type MapElementKind = 'anchor' | 'object';
+type MapElementType = 'camera' | 'ha_entity' | 'object';
 
 /** What the request stores (the snapshot) and, for a reader of that map, where to show it. */
 export interface MapElementInfo {

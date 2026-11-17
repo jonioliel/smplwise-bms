@@ -49,7 +49,7 @@ export interface Capability {
 }
 export type Kind = 'template' | 'weekly' | 'holiday_group' | 'holiday';
 
-export interface PeopleCounts {
+interface PeopleCounts {
   state: 'complete' | 'failed' | 'unknown' | null;
   error: string | null;
   read: number | null;
@@ -57,13 +57,13 @@ export interface PeopleCounts {
   implicit: number | null;
   malformed: number | null;
 }
-export interface StationImpact {
+interface StationImpact {
   id: string;
   name: string | null;
   online: boolean | null;
   doors: { index: number | null; name: string | null }[];
 }
-export interface ResourceRow {
+interface ResourceRow {
   kind: Kind | 'unknown' | null;
   id: number | null;
   coverage: string | null;
@@ -151,7 +151,7 @@ export interface DeployResult {
   reason: string | null;
   job?: Job;
 }
-export interface DeployReply {
+interface DeployReply {
   action: 'deploy';
   results: DeployResult[];
   summary: Record<'queued' | 'refused' | 'unknown' | 'not_sent', number>;
@@ -172,8 +172,8 @@ function envelope(): { confirmed: true; client_request_id: string; expires_at: s
   return { confirmed: true, client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) };
 }
 
-export const readAction = <T>(action: string, body: Record<string, unknown>) => post<ReadReply<T>>(`${BASE}/actions/${action}`, body);
-export const writeAction = <T>(action: string, body: Record<string, unknown>) => post<WriteReply<T>>(`${BASE}/actions/${action}`, { ...body, ...envelope() });
+const readAction = <T>(action: string, body: Record<string, unknown>) => post<ReadReply<T>>(`${BASE}/actions/${action}`, body);
+const writeAction = <T>(action: string, body: Record<string, unknown>) => post<WriteReply<T>>(`${BASE}/actions/${action}`, { ...body, ...envelope() });
 
 export const checkDraft = (data: Draft, date: string, time: string) => readAction<CheckResult>('check', { data, date, time });
 export const createSchedule = (data: Draft, checkId: string) => writeAction<LibrarySchedule>('create', { data, check_id: checkId });

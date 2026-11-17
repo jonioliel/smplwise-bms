@@ -5,8 +5,8 @@
  * stay Latin. `timeZone` is the installation's IANA zone (omit for the browser zone). Pure functions, no DOM; '' for an
  * empty or invalid value. Built on Intl.formatToParts('en-US') so the output never depends on the browser's own locale.
  */
-export type DateInput = string | number | Date | null | undefined;
-export interface DateFmtOptions { timeZone?: string; lang?: string; seconds?: boolean }
+type DateInput = string | number | Date | null | undefined;
+interface DateFmtOptions { timeZone?: string; lang?: string; seconds?: boolean }
 
 const BARE_DAY = /^\d{4}-\d{2}-\d{2}$/;
 

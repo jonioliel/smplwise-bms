@@ -24,16 +24,16 @@ export interface ConflictRow {
   entity_id: string; mine_at: string; other_at: string; delta_min: number; mine: 'on' | 'off'; theirs: 'on' | 'off';
   path: string; other_path: string; title: string; detail: string; window_min: number;
 }
-export interface ConflictSummary { enabled: boolean; window_min: number | null; items: Array<{ kind: 'automation' | 'schedule'; id: string; count: number }> }
+interface ConflictSummary { enabled: boolean; window_min: number | null; items: Array<{ kind: 'automation' | 'schedule'; id: string; count: number }> }
 export interface WallDevice { device_id: string; name: string; area: string | null; floor: string | null }
-export interface ButtonPress { press: PressKind; ha_type: string; ha_subtype: string; domain: string; discovery_id?: string; used_by: Array<{ id: string; name: string }> }
-export interface WallButton { button: number; presses: ButtonPress[]; used: boolean }
+interface ButtonPress { press: PressKind; ha_type: string; ha_subtype: string; domain: string; discovery_id?: string; used_by: Array<{ id: string; name: string }> }
+interface WallButton { button: number; presses: ButtonPress[]; used: boolean }
 export interface DeviceButtons { device_id: string; buttons: WallButton[]; source: 'platform' | 'stored' }
-export interface Detected { detected: boolean; button?: number | null; press?: PressKind | null; ha_type?: string; ha_subtype?: string; domain?: string; listen_s: number }
-export interface TestStep { path: string; sentence: string; action: string; data: Record<string, unknown>; entity_ids: string[]; sensitive: boolean; now: Array<{ entity_id: string; state: string | null }> }
+interface Detected { detected: boolean; button?: number | null; press?: PressKind | null; ha_type?: string; ha_subtype?: string; domain?: string; listen_s: number }
+interface TestStep { path: string; sentence: string; action: string; data: Record<string, unknown>; entity_ids: string[]; sensitive: boolean; now: Array<{ entity_id: string; state: string | null }> }
 export interface Snapshot { entity_id: string; state: string | null; attributes: Record<string, unknown> }
 export interface TestPlan { steps: TestStep[]; snapshot: Snapshot[]; triggers: Array<{ path: string; device_id: string; button: number; press: PressKind; sentence: string }>; end: ExtFlags['device_test_end'] }
-export interface RestoreAction { entity_id: string; action: string; arguments: Record<string, unknown>; sensitive: boolean }
+interface RestoreAction { entity_id: string; action: string; arguments: Record<string, unknown>; sensitive: boolean }
 
 // ------------------------------------------------------------------------------------------------ calls
 
@@ -63,7 +63,7 @@ export const extFlags = (v: { ext?: ExtFlags } | { extension?: ExtFlags } | null
 };
 
 /** The warning codes of the pre-save checks (the others - sensitive, suggest_schedule ... - never change the save button). */
-export const PRECHECK_CODES = new Set(['conflict', 'button_in_use', 'device_unavailable']);
+const PRECHECK_CODES = new Set(['conflict', 'button_in_use', 'device_unavailable']);
 export const precheckWarnings = (p: Pick<PreviewResult, 'warnings'> | null | undefined): Issue[] => (p?.warnings ?? []).filter((w) => PRECHECK_CODES.has(w.code));
 
 /** What the footer offers: a plain save, "שמירה עם אזהרות" (owner: allowed by default), or blocked by warnings the setting does not let one override. */
@@ -107,7 +107,7 @@ export interface MergePart {
   changed: 'mine' | 'theirs' | 'both' | 'none';
   pick: MergeSide;             // the pre-selection (owner 366: `both` -> the other person's version, waiting for approval)
 }
-export interface MergeInput { base: AutomationDraft; mine: AutomationDraft; theirs: AutomationDraft; ctx: ModelContext }
+interface MergeInput { base: AutomationDraft; mine: AutomationDraft; theirs: AutomationDraft; ctx: ModelContext }
 
 const SECTIONS: Array<{ key: 'triggers' | 'conditions' | 'actions'; section: 'trigger' | 'condition' | 'action'; noun: string }> = [
   { key: 'triggers', section: 'trigger', noun: 'טריגר' }, { key: 'conditions', section: 'condition', noun: 'תנאי' }, { key: 'actions', section: 'action', noun: 'צעד' },

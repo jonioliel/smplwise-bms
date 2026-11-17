@@ -9,7 +9,7 @@
  * The rules applied here (classes, allow-list, lowering, permissions) only imitate the server for demo purposes; the
  * server is the authority.
  *
- * Specs steer the demo through localStorage key `sw.demo.schedules` (read on first use and on `resetDemoStore()`):
+ * Specs steer the demo through localStorage key `sw.demo.schedules` (read on first use):
  * `{"persona": "admin" | "manager" | "viewer" | "none", "availability": "ok" | "component_missing" | "ha_unavailable" |
  * "feature_disabled" | "error", "empty": true}`.
  */
@@ -68,9 +68,9 @@ import {
   type TrashItem,
 } from './schedules';
 
-export const DEMO_CONTROL_KEY = 'sw.demo.schedules';
-export type DemoPersona = 'admin' | 'manager' | 'viewer' | 'none';
-export const DEMO_SHABBAT_SENSOR = 'binary_sensor.shabbat_mode';
+const DEMO_CONTROL_KEY = 'sw.demo.schedules';
+type DemoPersona = 'admin' | 'manager' | 'viewer' | 'none';
+const DEMO_SHABBAT_SENSOR = 'binary_sensor.shabbat_mode';
 export const DEMO_SUN: SunTimes = { sunrise: 6 * 60 + 33, sunset: 18 * 60 + 12 };
 
 // ------------------------------------------------------------------------------------------------ demo installation
@@ -139,7 +139,7 @@ export const DEMO_ENTITIES: DemoEntity[] = [
   { entity_id: 'select.irrigation_program', name: 'תוכנית השקיה', domain: 'select', class: 'select', area_id: 'yard', area_name: 'חצר', ...F0, attributes: { options: ['קצרה', 'ארוכה', 'כבויה'] } },
 ];
 
-export const DEMO_CONDITION_ENTITIES: ConditionCandidate[] = [
+const DEMO_CONDITION_ENTITIES: ConditionCandidate[] = [
   { entity_id: DEMO_SHABBAT_SENSOR, name: 'איסור מלאכה', domain: 'binary_sensor', device_class: null, state: 'off', unit: null, numeric: false, suggested_shabbat: true },
   { entity_id: 'binary_sensor.office_occupancy', name: 'נוכחות – משרדים', domain: 'binary_sensor', device_class: 'occupancy', state: 'on', unit: null, numeric: false, suggested_shabbat: false },
   { entity_id: 'sensor.outdoor_temperature', name: 'טמפרטורה בחוץ', domain: 'sensor', device_class: 'temperature', state: '27.4', unit: '°C', numeric: true, suggested_shabbat: false },
@@ -1172,12 +1172,6 @@ let STORE: ScheduleDemoStore | null = null;
 /** The demo store (created on first use, so the module cycle with ./schedules is harmless). */
 export function demoStore(): ScheduleDemoStore {
   STORE ??= new ScheduleDemoStore();
-  return STORE;
-}
-
-/** Re-read `sw.demo.schedules` and restore the seed data (specs call it after changing the control key). */
-export function resetDemoStore(): ScheduleDemoStore {
-  STORE = new ScheduleDemoStore();
   return STORE;
 }
 

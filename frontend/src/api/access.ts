@@ -134,7 +134,7 @@ export interface AccessGroup {
   bindings: AccessBinding[];
 }
 
-export interface GroupsResponse {
+interface GroupsResponse {
   groups: AccessGroup[];
   /** rbac.roles.manage: create, rename, delete. */
   can_manage: boolean;

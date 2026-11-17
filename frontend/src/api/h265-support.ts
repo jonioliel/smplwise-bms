@@ -11,7 +11,7 @@
 import type { CameraEncoding } from './types';
 import type { Profile, StepTransport, VideoStep } from './video-policy';
 
-export interface H265Support {
+interface H265Support {
   /** RTCRtpReceiver.getCapabilities('video') lists H.265 (Safari 17+ with the experimental flag on, some Chromium builds) */
   webrtc: boolean;
   /** MediaSource.isTypeSupported(...hvc1 / hev1...) (Safari; Chrome / Edge with hardware HEVC decoding) */
@@ -19,7 +19,7 @@ export interface H265Support {
 }
 
 /** The fMP4 codec strings go2rtc uses for H.265 (Main profile, level 5.1 and a plain one). */
-export const HEVC_MSE_TYPES = ['video/mp4; codecs="hvc1.1.6.L153.B0"', 'video/mp4; codecs="hev1.1.6.L153.B0"', 'video/mp4; codecs="hvc1"'];
+const HEVC_MSE_TYPES = ['video/mp4; codecs="hvc1.1.6.L153.B0"', 'video/mp4; codecs="hev1.1.6.L153.B0"', 'video/mp4; codecs="hvc1"'];
 
 export interface H265Env {
   RTCRtpReceiver?: { getCapabilities?: (kind: string) => { codecs?: { mimeType?: string }[] } | null } | undefined;
@@ -61,7 +61,7 @@ export function h265Param(support: H265Support, transport: StepTransport): '1' |
   return canDecodeH265(support, transport) ? '1' : '0';
 }
 
-export type CodecFamily = 'h264' | 'h265' | 'mjpeg' | 'other' | 'unknown';
+type CodecFamily = 'h264' | 'h265' | 'mjpeg' | 'other' | 'unknown';
 
 /** The codec family of one profile from the camera registry (the same folding as services/live_codec.codec_family). */
 export function streamCodec(encoding: CameraEncoding | null | undefined, profile: Profile): CodecFamily {

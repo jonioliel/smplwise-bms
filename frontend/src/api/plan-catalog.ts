@@ -52,7 +52,7 @@ export interface CatalogItem {
   created_at?: string;
   updated_at?: string;
 }
-export interface CatalogCategory {
+interface CatalogCategory {
   id: string;
   he: string;
   en: string;
@@ -65,7 +65,7 @@ export interface CatalogLibrary {
   color_tokens: string[];
   items: CatalogItem[];
 }
-export interface CustomItemBody {
+interface CustomItemBody {
   based_on?: string | null;
   names?: { he: string; en?: string };
   category?: string;
@@ -98,7 +98,7 @@ export function loadLibrary(revision?: string | null): Promise<CatalogLibrary> {
   return inflight;
 }
 
-export function invalidateLibrary(): void {
+function invalidateLibrary(): void {
   cache = null;
 }
 

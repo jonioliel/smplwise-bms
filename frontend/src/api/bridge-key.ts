@@ -6,11 +6,11 @@
 import { get, post, put } from './client';
 
 export type RotationMode = 'routine' | 'hard_cut';
-export type RotationState =
+type RotationState =
   | 'prepared' | 'publishing' | 'published' | 'confirmed' | 'switching' | 'switched' | 'retiring'
   | 'retired' | 'verified' | 'verify_failed' | 'rolled_back' | 'needs_repair';
 
-export interface BridgeKeyInfo {
+interface BridgeKeyInfo {
   kid: string;
   generation: number;
   state: string;
@@ -99,7 +99,7 @@ export interface RevealResult {
   revocation_id: string;
 }
 
-export interface OwnerContacts {
+interface OwnerContacts {
   ids: string[];
   users: { id: string; name: string; valid: boolean }[];
   candidates: { id: string; name: string }[];
@@ -114,7 +114,7 @@ export interface NoticeBanner {
   contacts_set: boolean;
 }
 
-export type WatchdogCode = 'overlap_overdue' | 'needs_repair' | 'verify_failed' | 'generation_mismatch';
+type WatchdogCode = 'overlap_overdue' | 'needs_repair' | 'verify_failed' | 'generation_mismatch';
 
 export interface WatchdogCondition {
   code: WatchdogCode;
@@ -124,7 +124,7 @@ export interface WatchdogCondition {
   bridge_generation?: number;
 }
 
-export interface HandOver {
+interface HandOver {
   key_generation: number | null;
   last_rotation: { rotation_id: string; mode: RotationMode; state: RotationState; verified_old_rejected: boolean; anchor_eligible: boolean; completed_at: string | null } | null;
   anchor_decrease_available: boolean;

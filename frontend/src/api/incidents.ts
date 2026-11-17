@@ -7,9 +7,9 @@ import { get, post, put } from './client';
 import { canAnywhere, isApi } from './session';
 import { isoZ } from './day-format';
 
-export type IncidentStatus = 'open' | 'closed';
-export type IncidentSource = 'alarm' | 'event' | 'notification' | 'manual';
-export type StepKind = 'opened' | 'notified' | 'acked' | 'door_open' | 'door_state' | 'note' | 'event_added' | 'closed';
+type IncidentStatus = 'open' | 'closed';
+type IncidentSource = 'alarm' | 'event' | 'notification' | 'manual';
+type StepKind = 'opened' | 'notified' | 'acked' | 'door_open' | 'door_state' | 'note' | 'event_added' | 'closed';
 
 export interface IncidentStep {
   at: string;
@@ -78,15 +78,15 @@ export interface IncidentDetail extends Incident {
   policy: string;
 }
 
-export interface IncidentCamera { camera_id: string; name: string; relation: string; relation_label: string; distance: number }
+interface IncidentCamera { camera_id: string; name: string; relation: string; relation_label: string; distance: number }
 export interface IncidentCameras { cameras: IncidentCamera[]; withheld: boolean; max_live: number; max_live_phone: number; snapshot_refresh_s: number }
-export interface IncidentDoor {
+interface IncidentDoor {
   entity_id: string; name: string; area_name: string | null; domain: string; state: string | null; open: boolean | null; since: string | null;
   available: boolean | null; station_id?: string; door?: number;
 }
 export interface IncidentDoors { doors: IncidentDoor[]; state_visible: boolean; window: { from: string; to: string }; window_s: number }
 export interface IncidentSummary { enabled: boolean; open: number; latest_id: string | null; latest_title?: string | null; red_dot: 'active' | 'off' }
-export interface IncidentList { incidents: Incident[]; retention_days: number; can_open: boolean; can_configure: boolean; settings: Partial<IncidentSettings> }
+interface IncidentList { incidents: Incident[]; retention_days: number; can_open: boolean; can_configure: boolean; settings: Partial<IncidentSettings> }
 export interface SettingsAnswer { settings: IncidentSettings; bounds: Record<IncidentSettingKey, SettingBound>; can_edit: boolean; notify_source?: string; policy?: string }
 
 export const DEFAULT_SETTINGS: IncidentSettings = {

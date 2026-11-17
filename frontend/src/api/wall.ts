@@ -2,8 +2,8 @@
 import { api, apiUrl, del, get, patch, post, upload } from './client';
 import type { WallPlanSetting } from '../map/wall-plan-mode';
 
-export type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
-export type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
+type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
+type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
 
 export interface WallWindow { days: number[]; from: string; to: string }
 export interface WallConfig {
@@ -88,7 +88,7 @@ export const removeWallProfile = (userId: string) => del(`wall/profiles/${encode
 export const WALL_STATUS_LABEL: Record<WallStatus, string> = { connected: 'מחובר', not_connected: 'לא מחובר', never: 'טרם התחבר', disabled: 'מושבת' };
 
 // ---- WDX: alert tiles and the picture frame
-export type WallAlertSeverity = 'info' | 'alert' | 'critical';
+type WallAlertSeverity = 'info' | 'alert' | 'critical';
 export interface WallAlert {
   id: string;
   source: string;
@@ -111,7 +111,7 @@ export const getFrameList = () => get<{ photos: { id: string; w: number; h: numb
 export const frameUrl = (id: string) => apiUrl(`wall/frame/${encodeURIComponent(id)}`);
 
 export interface PhotoSet { id: string; name: string; count: number; bytes: number; used_by: string[] }
-export interface PhotoSetsResponse { sets: PhotoSet[]; limits: { max_files: number; max_bytes: number; formats: string[] } }
+interface PhotoSetsResponse { sets: PhotoSet[]; limits: { max_files: number; max_bytes: number; formats: string[] } }
 export const listPhotoSets = () => get<PhotoSetsResponse>('wall/photo-sets');
 export const createPhotoSet = (name: string) => post<PhotoSet>('wall/photo-sets', { name });
 export const deletePhotoSet = (id: string) => api<{ deleted: boolean; profiles_turned_off: number }>(`wall/photo-sets/${encodeURIComponent(id)}`, { method: 'DELETE' });

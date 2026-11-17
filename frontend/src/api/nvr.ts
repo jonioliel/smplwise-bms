@@ -2,8 +2,8 @@
  * Reading needs system.configure; writing needs the sensitive permission `nvr.config.events` (custom role). */
 import { get, path, post, put } from './client';
 
-export interface NotifyType { supported: boolean; center: boolean | null }
-export interface NotifyChannel {
+interface NotifyType { supported: boolean; center: boolean | null }
+interface NotifyChannel {
   camera_id: string;
   channel: number;
   name: string;
@@ -13,7 +13,7 @@ export interface NotifyChannel {
   smart_center: number;
 }
 export interface NotifyStatus { channels: NotifyChannel[]; permission: string; can_write: boolean; labels: Record<string, string> }
-export interface NotifyResult { results: { channel: number; type: string; status: string; reason?: string; change_id?: string }[]; applied: number; unchanged: number; skipped: number; failed: number }
+interface NotifyResult { results: { channel: number; type: string; status: string; reason?: string; change_id?: string }[]; applied: number; unchanged: number; skipped: number; failed: number }
 export interface NvrChange {
   id: string;
   kind: string;
@@ -35,7 +35,7 @@ export const setNotify = (body: { channels?: number[] | null; smart?: boolean; e
 export const listNvrChanges = (limit = 20) => get<{ changes: NvrChange[] }>(`nvr/changes?limit=${limit}`);
 export const rollbackNvrChange = (id: string) => post<NvrChange>(path`nvr/changes/${id}/rollback`);
 /** A1: manual recording started from the VMS (the NVR keeps no readable state; the VMS stops it on time). */
-export interface ManualRecording { id: string; camera_id: string; track_id: number; started_at: string; stop_at: string; stopped_at: string | null; stop_reason: string | null; remaining_s: number }
+interface ManualRecording { id: string; camera_id: string; track_id: number; started_at: string; stop_at: string; stopped_at: string | null; stop_reason: string | null; remaining_s: number }
 export interface RecordStatus { camera_id: string; active: ManualRecording | null; can_write: boolean; max_minutes: number; track_id: number | null }
 export const recordStatus = (cameraId: string) => get<RecordStatus>(path`cameras/${cameraId}/record`);
 export const recordStart = (cameraId: string, minutes: number) => post<ManualRecording>(path`cameras/${cameraId}/record/start`, { minutes });
@@ -45,10 +45,10 @@ export const recordStop = (cameraId: string) => post<ManualRecording>(path`camer
 export const setMotion = (cameraId: string, body: { cells?: boolean[][]; sensitivity?: number; enabled?: boolean }) => put<NvrChange>(path`cameras/${cameraId}/motion`, body);
 
 // ---- 0.1.71: system (clock / NTP, disks, alarm outputs, reboot), connection, OSD ----
-export interface NvrTime { mode: string | null; local_time: string | null; time_zone: string | null; windows_zone: string | null; drift_s: number | null; ntp: { host: string | null; port: number; interval_min: number } | null }
-export interface NvrSmart { temperature_c: number | null; power_on_days: number | null; self_eval: string | null; all_eval: string | null; test_percent: number; test_status: string | null; test_type: string | null }
-export interface NvrDisk { id: number; name: string; type: string; status: string; capacity_mb: number; free_mb: number; property: string; smart: NvrSmart | null }
-export interface NvrOutput { id: number; name: string; use_type: string; enabled: boolean; io_type: string; pulse_ms: number | null; default_state: string; pulse_supported: boolean }
+interface NvrTime { mode: string | null; local_time: string | null; time_zone: string | null; windows_zone: string | null; drift_s: number | null; ntp: { host: string | null; port: number; interval_min: number } | null }
+interface NvrSmart { temperature_c: number | null; power_on_days: number | null; self_eval: string | null; all_eval: string | null; test_percent: number; test_status: string | null; test_type: string | null }
+interface NvrDisk { id: number; name: string; type: string; status: string; capacity_mb: number; free_mb: number; property: string; smart: NvrSmart | null }
+interface NvrOutput { id: number; name: string; use_type: string; enabled: boolean; io_type: string; pulse_ms: number | null; default_state: string; pulse_supported: boolean }
 export interface NvrSystem { time: NvrTime | null; disks: NvrDisk[]; outputs: NvrOutput[]; errors: Record<string, string>; can: Record<'time' | 'storage' | 'alarm' | 'reboot' | 'osd' | 'connection', boolean>; writes_enabled?: boolean;
   /** TKFRIGLIVE: false for a recorder that is not Hikvision (no request reached it; `reason: not_supported_for_recorder`). */
   supported?: boolean; reason?: string; vendor?: string | null }
@@ -93,8 +93,8 @@ export interface CameraSchedules {
 export const cameraSchedules = (cameraId: string) => get<CameraSchedules>(path`cameras/${cameraId}/schedules`);
 export const setArming = (cameraId: string, kind: ArmingKind, days: WeekRange[][]) => put<NvrChange>(path`cameras/${cameraId}/schedules/${kind}`, { days });
 export const setRecordSchedule = (cameraId: string, body: { days?: WeekRange[][]; enabled?: boolean; schedule_enabled?: boolean }) => put<NvrChange>(path`cameras/${cameraId}/record-schedule`, body);
-export interface SmartLine { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }
-export interface SmartRegion { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }
+interface SmartLine { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }
+interface SmartRegion { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }
 export interface CameraSmart { camera_id: string; channel: number; can_write: boolean; line: { enabled: boolean; lines: SmartLine[] } | null; field: { enabled: boolean; regions: SmartRegion[] } | null }
 export const cameraSmart = (cameraId: string) => get<CameraSmart>(path`cameras/${cameraId}/smart`);
 export const setSmart = (cameraId: string, body: { line?: { enabled?: boolean; lines?: Partial<SmartLine>[] }; field?: { enabled?: boolean; regions?: Partial<SmartRegion>[] } }) => put<Record<string, NvrChange & { enable_refused?: boolean }>>(path`cameras/${cameraId}/smart`, body);
@@ -102,7 +102,7 @@ export const writeChannelName = (cameraId: string, name?: string) => post<NvrCha
 
 // ---- CAMERA-REBOOT-2407: reboot ONE camera through its NVR channel (sensitive permission, NVR-writes switch, confirmation) ----
 /** Why the action is not available now: the recorder type has none / the permission is missing / NVR changes are off / it just ran. */
-export type CameraRebootReason = 'not_supported' | 'no_permission' | 'writes_off' | 'cooldown';
+type CameraRebootReason = 'not_supported' | 'no_permission' | 'writes_off' | 'cooldown';
 export interface CameraRebootState {
   camera_id: string; supported: boolean; permitted: boolean; writes_enabled: boolean; can_reboot: boolean;
   reason: CameraRebootReason | null; cooldown_s: number; recorder_id: string;

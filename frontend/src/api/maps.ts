@@ -16,7 +16,7 @@ import type { StateKind } from '../components/sw-badge';
 
 /** K88: own floor images as the map draws them (urls already resolved). Corners: top-left, top-right, bottom-right,
  * bottom-left in plan-normalised coordinates. */
-export interface FloorImageLayer {
+interface FloorImageLayer {
   off: string | null;
   on: string | null;
   corners: [number, number][];
@@ -238,7 +238,7 @@ export const registerCamera = (body: { channel: number; alias: string }) => post
 export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(path`cameras/${id}`, body);
 
 /** DXF source details and options (T065): what the drawing holds, what is drawn, what is skipped. */
-export interface DxfLayer {
+interface DxfLayer {
   name: string;
   drawable: number;
   off: boolean;

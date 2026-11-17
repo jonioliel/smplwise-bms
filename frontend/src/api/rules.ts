@@ -6,7 +6,7 @@ export interface RuleTrigger {
   sources: string[];
   severity_min: 'info' | 'alert' | 'critical';
 }
-export interface RuleScope {
+interface RuleScope {
   site_ids: string[];
   building_ids: string[];
   floor_ids: string[];
@@ -14,7 +14,7 @@ export interface RuleScope {
   camera_ids: string[];
   entity_ids: string[];
 }
-export interface RuleWindow {
+interface RuleWindow {
   days: string[];
   from: string | null;
   to: string | null;

@@ -8,7 +8,7 @@ import type { TvFitDefaults } from '../notices/display-fit-model';
 import type { Severity } from './types';
 
 export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one definition
-export type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
+type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
 
 export interface Audience {
   everyone?: boolean;
@@ -42,7 +42,7 @@ export interface Notice {
   push_generation?: number;
 }
 
-export interface NoticesCan {
+interface NoticesCan {
   view: boolean;
   manage: boolean;
   manage_all: boolean;
@@ -76,7 +76,7 @@ export interface Board {
   updated_at?: string;
 }
 
-export interface NoticesSettings {
+interface NoticesSettings {
   enabled: boolean;
   default_days: number;
   default_severity: 'info' | 'alert';

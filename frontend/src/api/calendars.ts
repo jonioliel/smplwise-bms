@@ -18,8 +18,8 @@ export type OnBehalfKind = 'self' | 'team' | 'class' | 'customer' | 'department'
 export type MenuPosition = 'rail' | 'home_tab' | 'both';
 /** CAL-GRID-EDIT-2343 (owner answer 3C, per calendar): moving an approved booking that now needs an approval. */
 export type ApprovedMove = 'reapproval' | 'managers';
-export type GridEdit = 'drag' | 'create_only';
-export interface OpenHours { weekdays: number[]; start: string; end: string }
+type GridEdit = 'drag' | 'create_only';
+interface OpenHours { weekdays: number[]; start: string; end: string }
 export type Equipment = 'screen' | 'projector' | 'video_call' | 'whiteboard' | 'kitchen' | 'accessible';
 
 export const CAL_TYPES: readonly CalType[] = ['room', 'team', 'maintenance', 'event'];
@@ -27,7 +27,7 @@ export const CAL_COLORS: readonly CalColor[] = ['blue', 'rose', 'cyan', 'orange'
 export const CAL_ROLES: readonly CalRole[] = ['view', 'book', 'edit', 'manage'];
 
 export interface Person { id: string; name: string }
-export interface SyncInfo { state: 'ok' | 'error' | 'paused' | 'needs_reauth' | 'revoked' | 'pending'; provider: 'ical' | 'ics_in' | 'ics_out' | 'google' | 'microsoft'; direction: string; detail?: string; dedicated?: boolean }
+interface SyncInfo { state: 'ok' | 'error' | 'paused' | 'needs_reauth' | 'revoked' | 'pending'; provider: 'ical' | 'ics_in' | 'ics_out' | 'google' | 'microsoft'; direction: string; detail?: string; dedicated?: boolean }
 
 export interface Calendar {
   id: string;
@@ -208,7 +208,7 @@ export interface ModuleState {
 }
 
 /** The provider names of the server (`ics_in` iCal subscription, `ics_out` iCal feed) and the screen's card names (`ical`). */
-export type ServerProvider = 'ics_in' | 'ics_out' | 'google' | 'microsoft';
+type ServerProvider = 'ics_in' | 'ics_out' | 'google' | 'microsoft';
 export type ProviderCard = 'ical' | 'google' | 'microsoft';
 
 /** CALCONNECT-2330: what the server says about a connection's credentials - flags only, never a value. */
@@ -243,7 +243,7 @@ export interface Connection {
 export type AuthorizeStart =
   | { flow: 'paste'; authorize_url: string; redirect_prefix: string; expires_in: number }
   | { flow: 'device'; user_code: string; verification_url: string; expires_in: number; interval: number };
-export interface AuthorizePoll { state: 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected'; interval?: number; connection?: Connection }
+interface AuthorizePoll { state: 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected'; interval?: number; connection?: Connection }
 export interface ExtCalendar { id_ref: string; name: string; can_write: boolean; is_primary: boolean }
 export interface BindingBody { connection_id: string | null; external_calendar_ref?: string; direction?: 'export' | 'import' | 'two_way'; detail?: 'busy' | 'titles' | 'details'; dedicated?: boolean }
 export interface Feed {
@@ -259,11 +259,11 @@ export interface Feed {
   token_set_at?: string;
 }
 /** GET /calendar/feeds. `local` false = this page came through the remote channel, where the server refuses the remote switch. */
-export interface FeedList { feeds: Feed[]; enabled: boolean; local?: boolean; default_max_age_days?: number }
+interface FeedList { feeds: Feed[]; enabled: boolean; local?: boolean; default_max_age_days?: number }
 
 export interface SyncFlag { event_id: string; calendar: { id: string; name: string; color: CalColor }; title: string | null; start: string; end: string; flag: 'conflict' | 'deleted_external'; source: string; state: EntryState; revision: number }
 
-export interface MaintOverlap { event_id: string; calendar_id: string; start: string; end: string; title: string | null; organizer: Person | null; state: EntryState }
+interface MaintOverlap { event_id: string; calendar_id: string; start: string; end: string; title: string | null; organizer: Person | null; state: EntryState }
 export interface MaintPreview { overlaps: MaintOverlap[]; mode: OverlapMode; alternatives: { start: string; end: string }[] }
 
 export interface NewEvent {
@@ -354,7 +354,7 @@ const q = (o: Record<string, string | undefined>) => {
   return s ? `?${s}` : '';
 };
 
-export const httpCalendars: CalendarsApi = {
+const httpCalendars: CalendarsApi = {
   module: () => get('/calendar/module'),
   settings: () => get('/calendar/settings'),
   saveSettings: (doc) => put('/calendar/settings', doc),

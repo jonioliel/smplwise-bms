@@ -22,9 +22,9 @@ import { dayTimeText, timeText, dayMonthText } from './day-format';
 // ---- what a recorder offers (the capability summary) ----
 
 /** Discovered abilities (`status.features`): never version guesses. `null` = unknown (the viewer role could not read the document). */
-export type FrigateFeature = 'review_items' | 'object_events' | 'timeline' | 'snapshots_latest' | 'recordings' | 'hls_playback' | 'restream' | 'search_text' | 'search_semantic' | 'audio_events' | 'faces' | 'lpr' | 'genai';
+type FrigateFeature = 'review_items' | 'object_events' | 'timeline' | 'snapshots_latest' | 'recordings' | 'hls_playback' | 'restream' | 'search_text' | 'search_semantic' | 'audio_events' | 'faces' | 'lpr' | 'genai';
 
-export interface FrigateDetector {
+interface FrigateDetector {
   name: string;
   /** cpu | edgetpu | openvino | tensorrt | ... as Frigate names it (absent in the health reading) */
   type?: string;
@@ -32,7 +32,7 @@ export interface FrigateDetector {
 }
 
 /** What the recorder's retention does: `motion` keeps only segments with motion, `all` is continuous, `events` keeps only around alerts / detections. */
-export type RecordingMode = 'all' | 'motion' | 'events' | 'off' | 'unknown';
+type RecordingMode = 'all' | 'motion' | 'events' | 'off' | 'unknown';
 
 export interface FrigateCapabilities {
   /** Frigate's own version string (a test before saving knows only this and the camera count) */
@@ -190,7 +190,7 @@ function memoised<T>(key: string, make: () => Promise<T>): Promise<T> {
 const missing = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 405);
 
 /** The enabled Frigate recorders; an older server without the route, or a caller who may not read recorders, has none. */
-export async function frigateRecorders(): Promise<WireRecorder[]> {
+async function frigateRecorders(): Promise<WireRecorder[]> {
   return memoised('recorders', async () => {
     try {
       return (await get<{ recorders: WireRecorder[] }>('frigate/recorders')).recorders.filter((r) => r.enabled);
@@ -365,7 +365,7 @@ export interface ReviewList {
   partial_coverage?: boolean;
 }
 
-export type TimelineKind = 'enter' | 'zone' | 'stationary' | 'active' | 'exit' | 'attribute' | 'start' | 'end' | 'ongoing';
+type TimelineKind = 'enter' | 'zone' | 'stationary' | 'active' | 'exit' | 'attribute' | 'start' | 'end' | 'ongoing';
 
 export interface TimelineRow {
   at: string;
@@ -375,7 +375,7 @@ export interface TimelineRow {
 }
 
 /** One tracked object with its lifecycle rows. The F1 server does not send these yet; the drawer shows them when it does. */
-export interface TrackedObject {
+interface TrackedObject {
   id: string;
   label: string;
   sub_label?: string | null;
@@ -410,10 +410,10 @@ export const DEFAULT_FILTERS: ReviewFilters = { layer: 'alert', camera: '', peri
 
 const DAY = 86_400_000;
 /** The server's motion activity window is at most 24 h. */
-export const MOTION_MAX_MS = DAY;
+const MOTION_MAX_MS = DAY;
 /** Merge motion buckets of one camera into one span when they are at most this far apart (three 30 s buckets). */
 export const MOTION_GAP_S = 90;
-export const MOTION_BUCKET_S = 30;
+const MOTION_BUCKET_S = 30;
 export const PAGE = 50;
 
 /** Start of the period as a UTC ISO instant. `today` = local midnight of the viewer's zone (the browser's, as the other screens). */
@@ -457,7 +457,7 @@ export const decodeCursor = (s: string | null): Record<string, number> => {
 
 /** The server's playback plan marks its anchors UNPROVEN (media-anchor rule): until a measured anchor says otherwise the card says the
  * recording cannot be opened from here. Flip when the backend proves seek / anchor accuracy. */
-export const PLAYBACK_PROVEN = false;
+const PLAYBACK_PROVEN = false;
 
 export function itemOf(w: WireReview): ReviewItem {
   return {
@@ -646,7 +646,7 @@ export function timelineText(kind: TimelineKind, zone?: string | null, note?: st
 
 /** Smallest interval between two refreshes of one still (the study R4: Frigate's CPU, poll no faster than 5 s). */
 export const STILL_MIN_MS = 5000;
-export const STILL_DEFAULT_MS = 10_000;
+const STILL_DEFAULT_MS = 10_000;
 
 export const stillIntervalMs = (seconds: number | null | undefined): number => Math.max(STILL_MIN_MS, Math.round((seconds && seconds > 0 ? seconds : STILL_DEFAULT_MS / 1000) * 1000));
 

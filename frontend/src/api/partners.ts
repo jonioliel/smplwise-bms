@@ -108,7 +108,7 @@ export interface PartnerOptions {
   templates: { id: string; name: string; department_id: string | null }[];
 }
 
-export interface TokenBody {
+interface TokenBody {
   label?: string;
   scopes: string[];
   restriction_kind: string;
@@ -119,7 +119,7 @@ export interface TokenBody {
   expires_days?: number;
 }
 
-export interface EndpointBody {
+interface EndpointBody {
   label?: string;
   url: string;
   events: string[];

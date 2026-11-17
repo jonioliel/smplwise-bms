@@ -15,10 +15,10 @@
 import { apiResponse } from './client';
 import { isoZ } from './day-format';
 
-export const FRAME_BUCKET_S = 10;
+const FRAME_BUCKET_S = 10;
 
 export type FrameAnswer = { ok: true; blob: Blob; at: string | null } | { ok: false; status: number };
-export type FrameFetch = (url: string, signal: AbortSignal) => Promise<FrameAnswer>;
+type FrameFetch = (url: string, signal: AbortSignal) => Promise<FrameAnswer>;
 
 export interface PreviewState {
   /** The bucket the pointer is over now. */
@@ -33,7 +33,7 @@ export interface PreviewState {
   none: boolean;
 }
 
-export interface FramePreviewOptions {
+interface FramePreviewOptions {
   fetchFrame: FrameFetch;
   onChange: (state: PreviewState) => void;
   maxConcurrent?: number;

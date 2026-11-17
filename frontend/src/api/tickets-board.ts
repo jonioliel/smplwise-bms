@@ -13,7 +13,7 @@ export type Grouping = 'always' | 'no_status_filter' | 'never';
 export type ClosedStrip = 'week' | 'all' | 'hidden';
 export type BoardState = 'all' | 'waiting' | 'stuck' | 'unassigned' | 'closed';
 export type StuckKind = 'unassigned' | 'overdue' | 'unopened' | 'ack' | 'stuck' | 'waiting';
-export type BoardGroup = 'waiting' | 'stuck' | 'handling' | 'closed';
+type BoardGroup = 'waiting' | 'stuck' | 'handling' | 'closed';
 
 /** The board's part of `tickets.settings.ui` (GET /tickets/module carries it to every signed-in user). */
 export interface BoardUi { board_floors: BoardFloors; grouping: Grouping; closed_strip: ClosedStrip; /** HANDLERLOAD: the default period (days) of the handled number; optional - an older server does not send it */ handled_days?: 1 | 7 | 30 }
@@ -31,7 +31,7 @@ export interface BoardItem extends TicketItem {
 }
 
 export interface TreeNode { key: string; kind: 'site' | 'building' | 'floor' | 'zone' | 'area' | 'none'; name: string; parent: string | null; count: number; order: number }
-export interface HandlingGroup { key: string; kind: 'user' | 'contact' | 'none'; name: string; count: number; oldest_at: string | null; last_activity_at: string | null; eta_at: string | null; ids: string[] }
+interface HandlingGroup { key: string; kind: 'user' | 'contact' | 'none'; name: string; count: number; oldest_at: string | null; last_activity_at: string | null; eta_at: string | null; ids: string[] }
 export interface BoardCounts { all: number; waiting: number; stuck: number; unassigned: number; closed_week: number; closed_all: number }
 
 export interface BoardResponse {
@@ -47,7 +47,7 @@ export interface BoardResponse {
   ui: Partial<BoardUi> & Record<string, unknown>;
 }
 
-export interface BoardQuery {
+interface BoardQuery {
   department_id?: string;
   priority?: string;
   assignee?: string;
@@ -69,11 +69,11 @@ export interface Facets {
 }
 
 /** GET /tickets/handler-load: the handled count per assignee key for the period (a count only; the days are the allow-list 1 / 7 / 30). */
-export interface HandlerLoadResponse { days: 1 | 7 | 30; default_days: 1 | 7 | 30; since: string; now: string; handled: Record<string, number>; truncated: boolean }
+interface HandlerLoadResponse { days: 1 | 7 | 30; default_days: 1 | 7 | 30; since: string; now: string; handled: Record<string, number>; truncated: boolean }
 
 export interface BoardSettingsDoc { revision: number; ui: Record<string, unknown> & Partial<BoardUi>; urgent_is_critical?: boolean }
 
-export interface BoardBackend {
+interface BoardBackend {
   board(q: BoardQuery): Promise<BoardResponse>;
   facets(q: BoardQuery & { scope?: string; status?: string }): Promise<Facets>;
   /** HANDLERLOAD: requests handled per handler in the period (omitted days = the installation default) */

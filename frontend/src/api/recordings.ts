@@ -1,7 +1,7 @@
 /** Recording search and playback sessions against the add-on backend (chapters 23/24). */
 import { apiUrl, del, get, path, post, query } from './client';
 
-export interface RecordingSegment {
+interface RecordingSegment {
   start_at: string; // UTC ISO
   end_at: string;
   kind: 'continuous' | 'motion' | 'alarm' | 'event' | 'manual' | 'unknown';
@@ -129,8 +129,8 @@ export function instantInZone(date: string, minute: number, timeZone: string): D
 
 /** Playback group (chapter 25): one reference time for 2–4 cameras, each with its own session. */
 /** T042: what the browser measured for a group — |drift| p95 per member against the master clock. */
-export type SyncQuality = 'waiting' | 'synced' | 'slight' | 'out_of_sync';
-export interface SyncMember {
+type SyncQuality = 'waiting' | 'synced' | 'slight' | 'out_of_sync';
+interface SyncMember {
   p95: number | null;
   samples: number;
   last: number | null;
@@ -149,7 +149,7 @@ export interface SyncStats {
   missing: string[];
   members: Record<string, SyncMember>;
 }
-export interface SyncReport {
+interface SyncReport {
   p95_s: number | null;
   quality: SyncQuality;
   samples: number;
@@ -185,7 +185,7 @@ export const reportGroupSync = (id: string, stats: SyncStats) =>
 export const frameUrl = (cameraId: string, atIso: string) => apiUrl(path`cameras/${cameraId}/frame` + query({ at: atIso }));
 
 /** RECORDED-DAYS-MONTH-2407: local dates of one month (YYYY-MM, the installation's zone) with any recording of a camera. */
-export interface RecordedDaysResponse {
+interface RecordedDaysResponse {
   camera_id: string;
   month: string;
   timezone: string;

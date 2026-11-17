@@ -31,7 +31,7 @@ const demoStore = () => schedulesMock().then((m) => m.demoStore());
 /** The component's weekday tokens (V-SRC); only `daily` is verified in real data (P0-1). */
 export type DayToken = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'daily' | 'workday' | 'weekend';
 export type DayId = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
-export type DaysKind = 'days' | 'daily' | 'workday' | 'weekend' | 'mixed';
+type DaysKind = 'days' | 'daily' | 'workday' | 'weekend' | 'mixed';
 export type RepeatType = 'repeat' | 'pause' | 'single';
 /** The schedule switch's state (V-LIVE on/off; the others V-SRC). */
 export type ScheduleState = 'on' | 'off' | 'triggered' | 'completed' | 'unavailable' | 'unknown';
@@ -40,9 +40,9 @@ export type ScheduleClass =
   | 'light' | 'switch' | 'cover' | 'climate' | 'fan' | 'alarm' | 'lock' | 'door' | 'script' | 'scene' | 'helper' | 'humidifier' | 'vacuum'
   | 'siren' | 'media' | 'number' | 'select';
 export type MatchType = 'is' | 'not' | 'above' | 'below';
-export type ConditionType = 'and' | 'or';
+type ConditionType = 'and' | 'or';
 export type ConditionPreset = 'only_holy_days' | 'not_holy_days';
-export type ScheduleSource = 'arx' | 'external';
+type ScheduleSource = 'arx' | 'external';
 export type RunResult = 'pending' | 'confirmed' | 'not_confirmed' | 'skipped' | 'unknown';
 
 export const DAY_ORDER: DayId[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -105,7 +105,7 @@ export interface ScheduleAction {
   blocked?: { code: 'script_not_approved'; message: string };
 }
 
-export type UnsupportedCode =
+type UnsupportedCode =
   | 'action_without_entity'
   | 'action_not_allowed'
   | 'argument_not_allowed'
@@ -153,7 +153,7 @@ export interface ScheduleConditions {
   preset: ConditionPreset | null;
 }
 
-export interface ScheduleEntity {
+interface ScheduleEntity {
   entity_id: string;
   name: string;
   domain: string;
@@ -173,7 +173,7 @@ export interface UpcomingRun {
   summary?: string;
 }
 
-export interface NextRun extends UpcomingRun {
+interface NextRun extends UpcomingRun {
   source: 'component' | 'computed';
   /** The schedule has conditions: the run happens only if they hold then - show "בתנאי", never a promise (§6.5). */
   conditional: boolean;
@@ -185,7 +185,7 @@ export interface LastRun {
   result: RunResult;
 }
 
-export interface ScheduleCan {
+interface ScheduleCan {
   edit: boolean;
   toggle: boolean;
   run: boolean;
@@ -296,7 +296,7 @@ export interface ScheduleDraft {
 // ------------------------------------------------------------------------------------------------ status (§3.1)
 
 export type Availability = 'ok' | 'component_missing' | 'ha_unavailable' | 'not_configured' | 'feature_disabled' | 'error';
-export type WriteBlock = 'feature_disabled' | 'component_missing' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old';
+type WriteBlock = 'feature_disabled' | 'component_missing' | 'ha_unavailable' | 'bridge_missing' | 'bridge_unpaired' | 'bridge_too_old';
 
 export interface ShabbatSensor {
   entity_id: string;
@@ -305,7 +305,7 @@ export interface ShabbatSensor {
   available: boolean;
 }
 
-export interface ScheduleSettingsView {
+interface ScheduleSettingsView {
   snap_minutes: 5 | 15 | 30;
   default_repeat: RepeatType;
   classes: ScheduleClass[];
@@ -446,7 +446,7 @@ export interface PreviewResult {
   requires: { sensitive_permission: boolean; confirm_lowering: boolean; alarm_code: boolean };
 }
 
-export interface WriteOptions {
+interface WriteOptions {
   confirm_lowering?: boolean;
   alarm_code?: string | null;
   client_request_id?: string;
@@ -1043,7 +1043,7 @@ export function pairedOffSlot(slots: DraftSlot[], index: number): number | null 
 
 // ------------------------------------------------------------------------------------------------ conditions (§2.4, §12.5)
 
-export const NO_CONDITIONS: DraftConditions = { items: [], type: null, track: false };
+const NO_CONDITIONS: DraftConditions = { items: [], type: null, track: false };
 
 /** The preset blocks (V-LIVE form: attribute "state", match "is"). */
 export function presetConditions(preset: ConditionPreset, sensor: string): DraftConditions {

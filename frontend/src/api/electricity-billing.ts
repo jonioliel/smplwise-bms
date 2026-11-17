@@ -65,7 +65,7 @@ export const ERROR_TEXT: Record<string, string> = {
 
 // ------------------------------------------------------------------------------------------------ wire types
 
-export interface CustomerRef {
+interface CustomerRef {
   id: string;
   customer_number: string;
   name: string;
@@ -83,7 +83,7 @@ export interface Customer extends CustomerRef {
   accounts?: { id: string; name: string; status: string }[];
   bills?: BillSummary[];
 }
-export interface CustomerBody {
+interface CustomerBody {
   name: string;
   customer_number?: string;
   address: string;
@@ -148,7 +148,7 @@ export interface CalendarYear {
   note_he: string;
   drafts_to_recalculate?: number;
 }
-export interface VatRate {
+interface VatRate {
   id: string;
   effective_from: string;
   rate_percent: string;
@@ -333,19 +333,19 @@ export interface Bill extends BillSummary {
   pdf?: BillPdf;
 }
 /** POST /energy/bills/{id}/sent: `at` a date (`YYYY-MM-DD`, default today on the server) */
-export interface SentBody {
+interface SentBody {
   at?: string;
   how: SentHow;
   note?: string;
   row_version?: number;
 }
 /** POST /energy/bills/{id}/paid: `at` a date (`YYYY-MM-DD`) */
-export interface PaidBody {
+interface PaidBody {
   at?: string;
   reference?: string;
   row_version?: number;
 }
-export interface BillEventWire {
+interface BillEventWire {
   at: string;
   action: string;
   actor: { kind: string; display_name?: string };
@@ -382,7 +382,7 @@ export interface BillingSettings {
   /** the PDF engine of this installation (read only; null or absent from an older server) */
   pdf_engine?: PdfEngine | null;
 }
-export interface PdfEngine {
+interface PdfEngine {
   configured: string;
   active: 'weasyprint' | 'fpdf2' | null;
   checked: string | null;
@@ -393,9 +393,9 @@ export interface PdfEngine {
   crash_fallbacks?: number;
   fallback_after_s: number;
 }
-export type BillingSettingsPatch = Partial<Pick<BillingSettings, 'default_price_mode' | 'payment_terms' | 'business' | 'auto'>>;
+type BillingSettingsPatch = Partial<Pick<BillingSettings, 'default_price_mode' | 'payment_terms' | 'business' | 'auto'>>;
 
-export interface FormulaCheckWire {
+interface FormulaCheckWire {
   ok: boolean;
   errors: { code: string; message: string; pos?: number }[];
   warnings: { code: string; message: string }[];
@@ -427,7 +427,7 @@ export interface AccountRow {
   amount?: string;
   stale: boolean;
 }
-export interface StatusRow {
+interface StatusRow {
   meter_id: string;
   name: string;
   stale: boolean;
@@ -664,7 +664,7 @@ export function eventText(e: BillEventWire): string {
 }
 
 /** A period's label: the month for a period of one calendar month, the dates otherwise. */
-export function periodRowLabel(from: string, to: string): string {
+function periodRowLabel(from: string, to: string): string {
   return from.slice(0, 7) === to.slice(0, 7) && from.endsWith('-01') && addDays(to, 1).endsWith('-01') ? monthShort(to) : fmtRange(from, to);
 }
 

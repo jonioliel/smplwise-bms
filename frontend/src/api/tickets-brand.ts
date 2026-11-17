@@ -3,7 +3,7 @@
  * answers its public file name. system.configure, audited as tickets.settings.update. */
 import { api, apiUrl, upload } from './client';
 
-export interface LogoAnswer {
+interface LogoAnswer {
   logo: string | null;
   revision: number;
 }

@@ -84,7 +84,7 @@ export interface BulkPreview {
   position?: number | null;
 }
 
-export interface BulkItem {
+interface BulkItem {
   entity_id: string;
   name: string;
   domain: string;

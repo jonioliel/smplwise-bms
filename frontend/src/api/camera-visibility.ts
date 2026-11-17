@@ -81,7 +81,7 @@ export const STANDALONE_OFFLINE_TILE = 'המצלמה אינה עונה בכתו�
 /** EVIDENCE-CAMERAS-2412: what the camera screen draws in place of the video. Without the WebRTC server the notice wins over a stored
  * "offline" status too: such a status is left over from before the server was removed (nothing can check the camera without it), and
  * the 2.41.1 screen said "the camera does not answer" instead of the owner's "a WebRTC server is required" (answer Q1). */
-export type CameraPane = 'still' | 'webrtc_required' | 'player' | 'off';
+type CameraPane = 'still' | 'webrtc_required' | 'player' | 'off';
 export function cameraPane(c: { can_view_live?: boolean; status?: string | null; live_kind?: string | null }, webrtc: boolean): CameraPane {
   const allowed = c.can_view_live !== false;
   const canView = allowed && c.status !== 'offline';

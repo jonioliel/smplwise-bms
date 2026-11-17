@@ -9,7 +9,7 @@ import { canAnywhere } from './session';
 import { activateScene, automations, runScriptNow, type ItemKind } from './automations';
 import { navigate } from '../router';
 
-export type LaunchKind = 'route' | 'scene' | 'script' | 'quick';
+type LaunchKind = 'route' | 'scene' | 'script' | 'quick';
 export interface LaunchItem {
   kind: LaunchKind;
   /** A route id of LAUNCH_ROUTES, a `scene.*` / `script.*` entity id, or a quick action. */
@@ -21,7 +21,7 @@ export const LAUNCH_KINDS: LaunchKind[] = ['route', 'scene', 'script', 'quick'];
 export const LAUNCH_KIND_LABEL: Record<LaunchKind, string> = { route: 'מסך', scene: 'סצנה', script: 'סקריפט', quick: 'פעולה מהירה' };
 export const LAUNCHER_ITEMS_MAX = 12;
 
-export interface LaunchRoute {
+interface LaunchRoute {
   id: string;
   label: string;
   icon: IconName;
@@ -49,8 +49,8 @@ export const LAUNCH_ROUTE_IDS = LAUNCH_ROUTES.map((r) => r.id);
 export const launchRoute = (id: string): LaunchRoute | undefined => LAUNCH_ROUTES.find((r) => r.id === id);
 
 /** The permissions the apply / run routes gate on (routers/automations.py `_scene_gate`, `script.run`). */
-export const SCENE_PERMS = ['scene.manage', 'devices.control', 'ha.entity.control'];
-export const SCRIPT_PERMS = ['script.run'];
+const SCENE_PERMS = ['scene.manage', 'devices.control', 'ha.entity.control'];
+const SCRIPT_PERMS = ['script.run'];
 
 /** Whether this user may press the item: the route's permission, the scene's / script's gate, the quick action's bulk right. */
 export function launchAllowed(item: LaunchItem, quickAllowed: Partial<Record<string, boolean>>, can: (p: string) => boolean = canAnywhere): boolean {

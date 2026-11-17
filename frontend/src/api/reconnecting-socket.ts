@@ -34,7 +34,7 @@ export interface SocketEnv {
   create(url: string): SocketLike;
 }
 
-export interface ReconnectingSocketOptions {
+interface ReconnectingSocketOptions {
   /** The absolute ws(s):// address (see `wsUrl`). */
   url: string;
   /** Every frame's text, as received (the caller parses its own envelope). */
@@ -61,7 +61,7 @@ export const SOCKET_SILENT_MS = 75_000;
 export const SOCKET_CONNECT_MS = 20_000;
 export const SOCKET_WATCHDOG_MS = 20_000;
 export const SOCKET_MIN_DELAY_MS = 2_000;
-export const SOCKET_MAX_DELAY_MS = 60_000;
+const SOCKET_MAX_DELAY_MS = 60_000;
 const JITTER = 0.2;
 
 /** `api/v1/<path>` of this page as a ws:// or wss:// address. */

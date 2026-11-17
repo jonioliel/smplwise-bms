@@ -9,9 +9,9 @@ import { dispositionName, saveBlob } from './download';
 export type UnitKind = 'fridge' | 'freezer' | 'coldroom' | 'pharma' | 'server' | 'room';
 /** off = a climate unit switched off (a state, not an alarm; owner 2026-10-19) */
 export type UnitStatus = 'ok' | 'warning' | 'alarm' | 'offline' | 'off' | 'unknown';
-export type BandMode = 'fixed' | 'setpoint';
+type BandMode = 'fixed' | 'setpoint';
 export type SourceKind = 'sensor' | 'climate';
-export interface Hvac {
+interface Hvac {
   setpoint: number | null;
   setpoint_low: number | null;
   setpoint_high: number | null;
@@ -21,8 +21,8 @@ export interface Hvac {
 /** phase 3: predict (an early warning), battery / frozen / recovery / duty (health), maint / escalate / ticket (acts) */
 export type EventKind = 'high' | 'low' | 'door' | 'offline' | 'defrost' | 'ack' | 'mute' | 'predict' | 'battery' | 'frozen' | 'recovery' | 'duty' | 'maint' | 'escalate' | 'ticket';
 export type Severity = 'info' | 'warning' | 'alarm';
-export type DefrostMode = 'fixed' | 'learn' | 'none';
-export type DefrostState = 'learning' | 'learned' | 'none_found' | 'fixed' | 'none';
+type DefrostMode = 'fixed' | 'learn' | 'none';
+type DefrostState = 'learning' | 'learned' | 'none_found' | 'fixed' | 'none';
 export type RangeKey = '24h' | '7d' | '30d' | 'custom';
 
 export interface TempEvent {
@@ -62,7 +62,7 @@ export interface DefrostWindow {
   repeats?: number;
 }
 
-export interface UnitRules {
+interface UnitRules {
   warn_on_excursion: boolean;
   high_alarm: boolean;
   high_alarm_min: number;
@@ -103,14 +103,14 @@ export interface UnitRules {
 }
 
 /** Phase 3 (idea 5): the projection of the slope of the last 30 minutes towards an edge of the band. */
-export interface Prediction {
+interface Prediction {
   side: 'high' | 'low';
   threshold: number;
   eta_min: number;
   rate_h: number;
 }
 /** Phase 3 (idea 8): the temperature sensor's own device - battery, signal, reading age, a frozen value; `issues` adds recovery / duty. */
-export type HealthIssue = 'battery' | 'frozen' | 'signal' | 'recovery' | 'duty';
+type HealthIssue = 'battery' | 'frozen' | 'signal' | 'recovery' | 'duty';
 export interface Health {
   battery: number | null;
   battery_low: boolean;
@@ -121,7 +121,7 @@ export interface Health {
   frozen_since: string | null;
   issues: HealthIssue[];
 }
-export interface DoorEffect {
+interface DoorEffect {
   opened: number;
   closed: number;
   open_min: number;
@@ -131,7 +131,7 @@ export interface DoorEffect {
   recovery_min: number | null;
   interrupted: boolean;
 }
-export interface DoorInsight {
+interface DoorInsight {
   opens: number;
   avg_rise: number | null;
   max_rise: number | null;
@@ -140,7 +140,7 @@ export interface DoorInsight {
   slow: boolean;
   last: DoorEffect[];
 }
-export interface DutyInsight {
+interface DutyInsight {
   recent: number | null;
   before: number | null;
   rising: boolean;
@@ -159,7 +159,7 @@ export interface Maintenance {
   reason: string;
   by_name: string | null;
 }
-export interface LinkedTicket {
+interface LinkedTicket {
   ticket_id: string;
   number: number;
   event_id: string | null;
@@ -167,7 +167,7 @@ export interface LinkedTicket {
   created_at: string;
 }
 
-export interface Stats {
+interface Stats {
   min: number | null;
   max: number | null;
   avg: number | null;
@@ -314,7 +314,7 @@ export interface ManagedUnit {
   defrost_windows: { start: string; minutes: number }[];
 }
 
-export interface RuleSpec {
+interface RuleSpec {
   type: 'bool' | 'int' | 'float' | 'hhmm' | 'choice' | 'id' | 'text' | 'ids';
   min: number | null;
   max: number | null;
@@ -372,13 +372,13 @@ export interface SettingsResponse {
 
 export type AlertKind = 'alarm' | 'warning' | 'offline' | 'health';
 export type AlertChannel = 'push' | 'app' | 'email' | 'whatsapp';
-export interface AlertKindSettings {
+interface AlertKindSettings {
   enabled: boolean;
   recipients: Recipients;
   channels: AlertChannel[];
 }
 /** Phase 3 (idea 4): an alarm nobody acknowledged climbs a tier per step (its own notification and log row). */
-export interface EscalationStep {
+interface EscalationStep {
   after_min: number;
   recipients: Recipients;
 }
@@ -413,7 +413,7 @@ export interface LogQuery {
 const B = 'infra/temperature';
 const enc = encodeURIComponent;
 
-export function logQs(q: LogQuery, extra: Record<string, string> = {}): string {
+function logQs(q: LogQuery, extra: Record<string, string> = {}): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
@@ -487,7 +487,7 @@ export interface ReportParams {
   /** TEMPVENDOR-295: the text as a vendor gets it (no "available in the system" note) */
   external?: boolean;
 }
-export interface ReportUnit {
+interface ReportUnit {
   id: string;
   name: string;
   area: string | null;
@@ -629,7 +629,7 @@ export interface ReportLink {
   sent?: boolean;
   recipient?: string | null;
 }
-export interface ReportLinksResponse {
+interface ReportLinksResponse {
   available: boolean;
   hours: number;
   max_opens: number;
@@ -638,7 +638,7 @@ export interface ReportLinksResponse {
   links: ReportLink[];
 }
 /** WALINK-295: one recipient's typed result. `not_sendable` is never shown as sent. */
-export interface LinkSendResult {
+interface LinkSendResult {
   user_id: string;
   name: string;
   status: 'sent' | 'not_sendable' | 'failed';
@@ -654,7 +654,7 @@ export interface LinkSendResponse {
 export type ReportLinkCreated = ReportLink & { url: string };
 
 /** The create body: the same choices as the PDF; dates travel only with a custom range. */
-export function reportLinkBody(p: ReportParams): Record<string, unknown> {
+function reportLinkBody(p: ReportParams): Record<string, unknown> {
   return { units: p.units, range: p.range, lang: p.lang, chart: p.chart !== false, events: p.events !== false, signature: p.signature !== false,
     layout: p.layout === 'haccp' ? 'haccp' : 'standard', samples: p.samples === true, ...(p.range === 'custom' ? { from: p.from, to: p.to } : {}) };
 }
