@@ -812,6 +812,21 @@ def _log_text(log):
     return Path(log).read_text(encoding="utf-8", errors="replace") if Path(log).exists() else ""
 
 
+def tsc_commands(fe):
+    """CR-TSCONFIG-SPLIT-2443: the type-check commands of a tree, in run order.
+
+    Since the split, frontend/tsconfig.json is the app alone (src + the two vite configs) and tsconfig.tests.json is everything the gate
+    checked before (src, tests/ without the archive, the vite and Playwright configs) - a superset of tsconfig.json with the same
+    compiler options, so tsconfig.json is not run a second time. Every other frontend/tsconfig.*.json (tsconfig.scripts.json: the
+    .mjs tools) is a program of its own and runs too: a config added later is in the gate without an engine change.
+    A tree from before the split has no tsconfig.tests.json; its tsconfig.json still includes tests/, so plain `tsc --noEmit` is the
+    full check there (plus any other tsconfig.*.json it may carry)."""
+    fe = Path(fe)
+    extra_cfgs = sorted(p.name for p in fe.glob("tsconfig.*.json") if p.name != "tsconfig.tests.json")
+    first = ["npx", "tsc", "--noEmit", "-p", "tsconfig.tests.json"] if (fe / "tsconfig.tests.json").is_file() else ["npx", "tsc", "--noEmit"]
+    return [first] + [["npx", "tsc", "--noEmit", "-p", c] for c in extra_cfgs]
+
+
 def fe_static_sync(wt, fe, logd, extra, built=True):
     """The two fast checks, right after the build. The budget needs dist: without a build it is not run (the build already failed)."""
     why = fe_static_skip(wt)
@@ -2209,10 +2224,16 @@ def main():
                 with Phase("backend-start", "backend: 3 shards started"):
                     procs, nbackend = backend_start(wt, logd, only=only)
         with Phase("tsc", "tsc --noEmit"):
-            rc, to = run(["npx", "tsc", "--noEmit"], fe, logd / "tsc.log", timeout=900)
-            count("tsc", "pass" if rc == 0 else "fail")
-            if rc != 0:
-                item("tsc", "tsc --noEmit", "FAIL", f"rc={rc} (see tsc.log)")
+            # CR-TSCONFIG-SPLIT-2443: every type-check program of the tree, one after the other into the same tsc.log; one count,
+            # the first failing config is named in the reason
+            bad = []
+            for cmd in tsc_commands(fe):
+                rc, to = run(cmd, fe, logd / "tsc.log", timeout=900)
+                if rc != 0:
+                    bad.append(f"{cmd[-1] if '-p' in cmd else 'tsconfig.json'} rc={rc}")
+            count("tsc", "pass" if not bad else "fail")
+            if bad:
+                item("tsc", "tsc --noEmit", "FAIL", f"{'; '.join(bad)} (see tsc.log)")
         with Phase("build", "vite build"):
             rc, to = run(["npx", "vite", "build"], fe, logd / "build.log", timeout=900)
             count("build", "pass" if rc == 0 else "fail")
