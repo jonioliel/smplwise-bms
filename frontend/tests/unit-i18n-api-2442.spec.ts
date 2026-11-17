@@ -10,6 +10,7 @@ import { tr as trHome } from '../src/i18n/msg/api-home';
 import { tr as trMedia } from '../src/i18n/msg/api-media';
 import { tr as trNotify } from '../src/i18n/msg/api-notify';
 import { tr as trSystem } from '../src/i18n/msg/api-system';
+import { tr as trTime } from '../src/i18n/msg/time';
 import { tr as trVideo } from '../src/i18n/msg/api-video';
 import { warningsHeading } from '../src/api/automations-ext';
 import { describeError } from '../src/api/client';
@@ -22,6 +23,8 @@ import { hasHebrew, hebrewOutsideTr, trCalls, trModule } from './helpers/i18n-so
 // purpose is listed below with its reason; a listed text or count that no longer matches fails too, so the lists only shrink.
 // Completeness: every `tr()` text has its English, the tables hold nothing else, both sides name the same `{placeholders}`, and
 // the Hebrew interface shows the text exactly as written (the Hebrew is the key, so a Hebrew screen cannot move).
+// CR-I18N-COMBINED-B-2442: the relative-time and weekday words of five api files are read from the shared table src/i18n/msg/time.ts
+// (CR-I18N-DATES-2442) under the alias `trTime`; the lint accepts both translators, and the lists below lost the texts that moved.
 
 const DIR = new URL('../src/api/', import.meta.url);
 const FILES = readdirSync(DIR).filter((f) => f.endsWith('.ts')).sort();
@@ -47,7 +50,9 @@ const OWN_FILES: Record<string, string> = {
 };
 
 const DEMO = 'the demo store of the module (fake data and the demo server\'s answers, never shown outside the demo mode)';
-const FORMAT = 'date / duration / unit helpers: owned by CR-I18N-DATES-2442';
+/** The second translator of an api file: the shared time words (`import { tr as trTime } from '../i18n/msg/time'`). */
+const TRANSLATORS = ['tr', 'trTime'];
+const FORMAT = 'duration / unit / weekday-letter texts that neither CR-I18N-API-2442 nor CR-I18N-DATES-2442 moved (DATES took the relative-time words and the weekday names; these are joined into sentences letter by letter or number by number - a row of their own)';
 const TYPED = 'a confirmation word the operator types and the server compares (owner question in docs/changes/CR-I18N-API-2442.md)';
 
 /**
@@ -55,7 +60,7 @@ const TYPED = 'a confirmation word the operator types and the server compares (o
  * written); `count` is the number of further literals of the stated kind (a block of demo data or a format helper).
  */
 const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = {
-  'automations.ts': { why: `${FORMAT} (durationText, the weekday letters, lastRunText, formatDuration); the maqaf the verb table is tested for`, count: 35, texts: ['־'] },
+  'automations.ts': { why: `${FORMAT} (durationText 10, the weekday letters of the sentence builder 7, formatDuration 9); the maqaf the verb table is tested for`, count: 26, texts: ['־'] },
   'calendar-attendees.ts': { why: DEMO, count: 5 },
   'capture-lease.ts': { why: TYPED, texts: ['הרחב בירור'] },
   'door-automations.ts': { why: DEMO, count: 4 },
@@ -64,7 +69,7 @@ const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = 
   'frigate.ts': { why: FORMAT, count: 4 },
   'ha-users.ts': { why: DEMO, count: 14 },
   'health.ts': { why: FORMAT, count: 5 },
-  'home-config.ts': { why: `${FORMAT} (the Hebrew calendar date, parshaText, the weather units, untilText, agendaWhen, sinceText)`, count: 67 },
+  'home-config.ts': { why: `${FORMAT} (the Hebrew calendar date 33 - Hebrew by nature, parshaText 1, the weather units 8, untilText 13, agendaWhen 3)`, count: 58 },
   'incidents.ts': { why: DEMO, count: 39 },
   'installer.ts': { why: TYPED, texts: ['פתיחת דלת לבדיקה'] },
   'mapping-engine.ts': { why: 'data: the building marker of the naming rule and the name saved for a new building', texts: ['בניין', 'משותף', 'בניין'] },
@@ -72,14 +77,13 @@ const KEPT: Record<string, { why: string; count?: number; texts?: string[] }> = 
   'media-admin.ts': { why: DEMO, count: 39 },
   'messaging-accounts.ts': { why: DEMO, count: 11 },
   'messaging-policy.ts': { why: DEMO, count: 2 },
-  'notifications.ts': { why: `${FORMAT} (the weekday letters and names, relativeTime, dayLabel)`, count: 23 },
+  'notifications.ts': { why: `${FORMAT} (the weekday letters)`, count: 7 },
   'notify-whatsapp.ts': { why: DEMO, count: 9 },
   'nvr-connection.ts': { why: TYPED, texts: ['שמור', 'הסר'] },
   'nvr-settings.ts': { why: DEMO, count: 25 },
   'readiness.ts': { why: DEMO, count: 48 },
-  'remote.ts': { why: FORMAT, count: 3 },
   'rules.ts': { why: `${FORMAT} (the weekday letters)`, count: 7 },
-  'schedules.ts': { why: `${FORMAT} (the weekday letters and names, whenLabel); the typed confirmation word`, count: 17, texts: ['אפשר נטרול'] },
+  'schedules.ts': { why: TYPED, texts: ['אפשר נטרול'] },
   'setup.ts': { why: DEMO, count: 82 },
   'tickets-board.ts': { why: DEMO, count: 6 },
   'tickets-locations.ts': { why: DEMO, count: 15 },
@@ -94,7 +98,7 @@ const translated = (f: string): boolean => !DEMO_FILE.test(f) && !(f in OWN_FILE
 function check(rel: string, source: string): { extra: string[]; stale: string[] } {
   const left = [...(KEPT[rel]?.texts ?? [])];
   const extra: string[] = [];
-  for (const lit of hebrewOutsideTr(rel, source)) {
+  for (const lit of hebrewOutsideTr(rel, source, TRANSLATORS)) {
     const i = left.indexOf(lit.text);
     if (i >= 0) left.splice(i, 1);
     else extra.push(`${rel}:${lit.line}: ${lit.text.slice(0, 70)}`);
@@ -233,6 +237,28 @@ for (const [module, tr] of Object.entries(TABLES)) {
     expect(Object.keys(cat!.tables.en ?? {})).toHaveLength(keys.length);
   });
 }
+
+test('the shared time words: an api file reads them as trTime from msg/time, every text has its English, and the lists hold no moved text', () => {
+  const readers: string[] = [];
+  const missing: string[] = [];
+  const notLiteral: string[] = [];
+  for (const f of FILES) {
+    const source = read(f);
+    const calls = trCalls(f, source, ['trTime']);
+    if (!calls.keys.length && !calls.notLiteral.length) continue;
+    readers.push(f);
+    expect(source, `${f}: trTime is the translator of msg/time`).toMatch(/import \{ tr as trTime \} from '\.\.\/i18n\/msg\/time';/);
+    missing.push(...calls.keys.filter((k) => !(k in trTime.en)).map((k) => `${f}: ${k}`));
+    notLiteral.push(...calls.notLiteral.map((x) => `${f}:${x}`));
+  }
+  expect(readers).toEqual(['automations.ts', 'home-config.ts', 'notifications.ts', 'remote.ts', 'schedules.ts']);
+  expect(missing, 'add the English to src/i18n/msg/time.ts').toEqual([]);
+  expect(notLiteral).toEqual([]);
+  // what DATES moved is read through trTime and is no longer allow-listed: seen by `tr` alone, each of these files would hold more
+  // Hebrew literals than its list allows (remote.ts has no list at all)
+  for (const f of readers) expect(hebrewOutsideTr(f, read(f)).length, f).toBeGreaterThan(hebrewOutsideTr(f, read(f), TRANSLATORS).length);
+  expect('remote.ts' in KEPT, 'remote.ts holds no Hebrew outside its translators').toBe(false);
+});
 
 test('completeness: no table carries a key twice in its source (a later line would silently win)', () => {
   let all = 0;

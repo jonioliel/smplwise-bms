@@ -116,7 +116,9 @@ function catalogueRow(cat) {
 }
 
 // ---------------------------------------------------------------- part 1b: source-text tables
-const TR_CALL = /\btr\(\s*(['"`])((?:\\.|(?!\1)[^\\])*?)\1/g;
+// CR-I18N-COMBINED-B-2442: a file that reads two tables imports the second under an alias (`import { tr as trTime } from '../i18n/msg/time'`);
+// each call is counted for the table its own translator reads.
+const TR_CALL = /\b(\w+)\(\s*(['"`])((?:\\.|(?!\2)[^\\])*?)\2/g;
 function unescape(s) {
   return s.replace(/\\(['"`\\])/g, '$1').replace(/\\n/g, '\n');
 }
@@ -125,11 +127,13 @@ function msgRows(catalogues) {
   const used = new Map([...tables.keys()].map((k) => [k, new Set()]));
   for (const p of files) {
     const src = readFileSync(p, 'utf8');
-    const imp = [...src.matchAll(/from\s+['"][./]*(?:i18n\/)?msg\/([\w-]+)['"]/g)].map((m) => `msg/${m[1]}`).filter((n) => used.has(n));
+    const imp = [...src.matchAll(/(?:import\s*\{([^}]*)\}\s*)?from\s+['"][./]*(?:i18n\/)?msg\/([\w-]+)['"]/g)]
+      .map((m) => ({ name: `msg/${m[2]}`, local: /\btr\s+as\s+(\w+)/.exec(m[1] ?? '')?.[1] ?? 'tr' }))
+      .filter((i) => used.has(i.name));
     if (!imp.length || rel(p).startsWith('i18n/msg/')) continue;
     for (const m of src.matchAll(TR_CALL)) {
-      if (m[1] === '`' && m[2].includes('${')) continue;
-      for (const name of imp) used.get(name).add(unescape(m[2]));
+      if (m[2] === '`' && m[3].includes('${')) continue;
+      for (const i of imp) if (i.local === m[1]) used.get(i.name).add(unescape(m[3]));
     }
   }
   return [...tables.entries()].map(([name, en]) => {

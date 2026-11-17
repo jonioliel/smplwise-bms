@@ -1,15 +1,15 @@
 {
  "totals": {
   "lang": "en",
-  "catalogues": 135,
-  "keys": 26557,
+  "catalogues": 144,
+  "keys": 28173,
   "missing": 20,
   "identical": 3,
   "hebrew": 3,
   "gap": 7,
   "hardcodedModules": 45,
-  "hardcodedLiterals": 6540,
-  "hardcodedFiles": 239
+  "hardcodedLiterals": 4668,
+  "hardcodedFiles": 191
  },
  "catalogues": [
   {
@@ -28,7 +28,7 @@
   },
   {
    "name": "msg/system-a",
-   "keys": 999,
+   "keys": 998,
    "missing": 0,
    "identical": 0,
    "hebrew": 2,
@@ -39,7 +39,7 @@
     "הקלדת \"מחיקה\"",
     "כדי לאשר, יש להקליד \"מחיקה\""
    ],
-   "unused": 0
+   "unused": 1
   },
   {
    "name": "i18n/announce",
@@ -1039,8 +1039,8 @@
    "gapKeys": []
   },
   {
-   "name": "msg/automation",
-   "keys": 983,
+   "name": "msg/api-automation",
+   "keys": 439,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1051,8 +1051,8 @@
    "unused": 0
   },
   {
-   "name": "msg/calendars",
-   "keys": 743,
+   "name": "msg/api-core",
+   "keys": 13,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1061,6 +1061,114 @@
    "devMarked": false,
    "gapKeys": [],
    "unused": 0
+  },
+  {
+   "name": "msg/api-devices",
+   "keys": 278,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 1
+  },
+  {
+   "name": "msg/api-electricity",
+   "keys": 73,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/api-home",
+   "keys": 224,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/api-media",
+   "keys": 124,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/api-notify",
+   "keys": 203,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/api-system",
+   "keys": 114,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/api-video",
+   "keys": 151,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 0
+  },
+  {
+   "name": "msg/automation",
+   "keys": 982,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 1
+  },
+  {
+   "name": "msg/calendars",
+   "keys": 742,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "unused": 1
   },
   {
    "name": "msg/components",
@@ -1530,346 +1638,6 @@
  ],
  "hardcoded": [
   {
-   "module": "api",
-   "kind": "app",
-   "files": 83,
-   "literals": 2520,
-   "fileList": [
-    {
-     "file": "api/access.ts",
-     "literals": 21
-    },
-    {
-     "file": "api/alarm.ts",
-     "literals": 33
-    },
-    {
-     "file": "api/area-row.ts",
-     "literals": 43
-    },
-    {
-     "file": "api/automations-demo.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/automations-ext.ts",
-     "literals": 10
-    },
-    {
-     "file": "api/automations-presence.ts",
-     "literals": 14
-    },
-    {
-     "file": "api/automations.ts",
-     "literals": 446
-    },
-    {
-     "file": "api/backup.ts",
-     "literals": 17
-    },
-    {
-     "file": "api/calendar-attendees.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/calendars.ts",
-     "literals": 21
-    },
-    {
-     "file": "api/camera-card.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/camera-visibility.ts",
-     "literals": 13
-    },
-    {
-     "file": "api/capabilities.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/capture-lease.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/cases.ts",
-     "literals": 20
-    },
-    {
-     "file": "api/client.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/closed-errors.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/device-bulk.ts",
-     "literals": 32
-    },
-    {
-     "file": "api/device-commands.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/devices.ts",
-     "literals": 117
-    },
-    {
-     "file": "api/door-automations.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/electricity-billing.ts",
-     "literals": 58
-    },
-    {
-     "file": "api/electricity-meters.ts",
-     "literals": 21
-    },
-    {
-     "file": "api/electricity-readings.ts",
-     "literals": 34
-    },
-    {
-     "file": "api/events.ts",
-     "literals": 26
-    },
-    {
-     "file": "api/frigate.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/h265-support.ts",
-     "literals": 8
-    },
-    {
-     "file": "api/ha-sync-status.ts",
-     "literals": 7
-    },
-    {
-     "file": "api/ha-users.ts",
-     "literals": 14
-    },
-    {
-     "file": "api/ha.ts",
-     "literals": 110
-    },
-    {
-     "file": "api/health.ts",
-     "literals": 9
-    },
-    {
-     "file": "api/home-config.ts",
-     "literals": 129
-    },
-    {
-     "file": "api/home-site.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/home.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/incidents.ts",
-     "literals": 39
-    },
-    {
-     "file": "api/installer.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/launcher.ts",
-     "literals": 18
-    },
-    {
-     "file": "api/mapping-demo.ts",
-     "literals": 98
-    },
-    {
-     "file": "api/mapping-engine.ts",
-     "literals": 29
-    },
-    {
-     "file": "api/mapping.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/media-admin.ts",
-     "literals": 71
-    },
-    {
-     "file": "api/media-players.ts",
-     "literals": 71
-    },
-    {
-     "file": "api/media-screens.ts",
-     "literals": 33
-    },
-    {
-     "file": "api/media.ts",
-     "literals": 6
-    },
-    {
-     "file": "api/messaging-accounts.ts",
-     "literals": 11
-    },
-    {
-     "file": "api/messaging-fake.ts",
-     "literals": 13
-    },
-    {
-     "file": "api/messaging-policy.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/notifications.ts",
-     "literals": 228
-    },
-    {
-     "file": "api/notify-whatsapp.ts",
-     "literals": 9
-    },
-    {
-     "file": "api/nvr-connection.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/nvr-settings.ts",
-     "literals": 35
-    },
-    {
-     "file": "api/plan-view.ts",
-     "literals": 39
-    },
-    {
-     "file": "api/plans.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/playback-display.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/prefs.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/presence.ts",
-     "literals": 11
-    },
-    {
-     "file": "api/readiness.ts",
-     "literals": 78
-    },
-    {
-     "file": "api/recorders.ts",
-     "literals": 9
-    },
-    {
-     "file": "api/remote.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/rules.ts",
-     "literals": 11
-    },
-    {
-     "file": "api/schedules.ts",
-     "literals": 129
-    },
-    {
-     "file": "api/search.ts",
-     "literals": 13
-    },
-    {
-     "file": "api/secrets.ts",
-     "literals": 10
-    },
-    {
-     "file": "api/session.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/setup.ts",
-     "literals": 87
-    },
-    {
-     "file": "api/system-update-runs.ts",
-     "literals": 47
-    },
-    {
-     "file": "api/system-update.ts",
-     "literals": 8
-    },
-    {
-     "file": "api/tickets-board.ts",
-     "literals": 6
-    },
-    {
-     "file": "api/tickets-locations.ts",
-     "literals": 15
-    },
-    {
-     "file": "api/tickets-messages.ts",
-     "literals": 14
-    },
-    {
-     "file": "api/tickets-rules.ts",
-     "literals": 20
-    },
-    {
-     "file": "api/tile-layout.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/timeline-colors.ts",
-     "literals": 17
-    },
-    {
-     "file": "api/tts-default.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/video-conn-test.ts",
-     "literals": 19
-    },
-    {
-     "file": "api/video-policy.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/video-service.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/video-services.ts",
-     "literals": 23
-    },
-    {
-     "file": "api/wall.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/water.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/wiskey-pairing.ts",
-     "literals": 9
-    },
-    {
-     "file": "api/wiskey-validation.ts",
-     "literals": 14
-    },
-    {
-     "file": "api/zones.ts",
-     "literals": 5
-    }
-   ]
-  },
-  {
    "module": "screens/system-*",
    "kind": "app",
    "files": 23,
@@ -1990,6 +1758,154 @@
     {
      "file": "screens/explore-presence.ts",
      "literals": 13
+    }
+   ]
+  },
+  {
+   "module": "api",
+   "kind": "app",
+   "files": 35,
+   "literals": 648,
+   "fileList": [
+    {
+     "file": "api/automations-demo.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/automations.ts",
+     "literals": 34
+    },
+    {
+     "file": "api/calendar-attendees.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/capture-lease.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/closed-errors.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/door-automations.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/electricity-meters.ts",
+     "literals": 6
+    },
+    {
+     "file": "api/electricity-readings.ts",
+     "literals": 25
+    },
+    {
+     "file": "api/frigate.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/ha-users.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/health.ts",
+     "literals": 5
+    },
+    {
+     "file": "api/home-config.ts",
+     "literals": 64
+    },
+    {
+     "file": "api/incidents.ts",
+     "literals": 39
+    },
+    {
+     "file": "api/installer.ts",
+     "literals": 1
+    },
+    {
+     "file": "api/mapping-demo.ts",
+     "literals": 98
+    },
+    {
+     "file": "api/mapping-engine.ts",
+     "literals": 4
+    },
+    {
+     "file": "api/mapping.ts",
+     "literals": 3
+    },
+    {
+     "file": "api/media-admin.ts",
+     "literals": 39
+    },
+    {
+     "file": "api/messaging-accounts.ts",
+     "literals": 11
+    },
+    {
+     "file": "api/messaging-fake.ts",
+     "literals": 13
+    },
+    {
+     "file": "api/messaging-policy.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/notifications.ts",
+     "literals": 21
+    },
+    {
+     "file": "api/notify-whatsapp.ts",
+     "literals": 9
+    },
+    {
+     "file": "api/nvr-connection.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/nvr-settings.ts",
+     "literals": 25
+    },
+    {
+     "file": "api/readiness.ts",
+     "literals": 48
+    },
+    {
+     "file": "api/remote.ts",
+     "literals": 2
+    },
+    {
+     "file": "api/rules.ts",
+     "literals": 7
+    },
+    {
+     "file": "api/schedules.ts",
+     "literals": 18
+    },
+    {
+     "file": "api/setup.ts",
+     "literals": 82
+    },
+    {
+     "file": "api/tickets-board.ts",
+     "literals": 6
+    },
+    {
+     "file": "api/tickets-locations.ts",
+     "literals": 15
+    },
+    {
+     "file": "api/tickets-messages.ts",
+     "literals": 14
+    },
+    {
+     "file": "api/tickets-rules.ts",
+     "literals": 20
+    },
+    {
+     "file": "api/tts-default.ts",
+     "literals": 2
     }
    ]
   },
