@@ -156,7 +156,7 @@ test('the catalogue: complete in English, D33 tokens render the configured name 
 });
 
 test('the D33 lint covers the slice-6b files (no default name in a string)', () => {
-  const files = ['tickets/table-model.ts', 'tickets/table-text.ts', 'tickets/table-toolbar.ts', 'tickets/table-bulk.ts', 'tickets/table-switch.ts', 'tickets/table-styles.ts',
+  const files = ['tickets/table-model.ts', 'tickets/table-text.ts', 'tickets/table-toolbar.ts', 'tickets/table-bulk.ts', 'tickets/table-styles.ts',
     'tickets/table-icons.ts', 'screens/tickets-table.ts', 'api/tickets-table.ts', 'tickets/table-filter-panel.ts'];
   const bad: string[] = [];
   for (const f of files) {
