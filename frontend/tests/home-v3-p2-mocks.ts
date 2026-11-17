@@ -1,14 +1,18 @@
 import type { Page, Route } from '@playwright/test';
+import { pinToday } from './helpers/today-clock';
 import { mockHome, type HomeMock } from './home-simple-mocks';
 
 // HOME-V3-P2-2431: the mock layer of the family and building screens, on top of home-simple-mocks (registered after it, so these routes
 // win). Invented household and building data in the wire shapes of routers/home_family.py and the calendar / notice-board routes; every
 // write is recorded in `calls` and answered as accepted. Nothing is sent anywhere.
+// TEST-STABLE-2442: every stamp is relative to `now`. By default the mock fixes the page's clock at noon of the current day (pinToday)
+// and builds on that instant, so "today's" rows are today's at any hour of the run (they started 30 minutes from the real clock and
+// fell on tomorrow after 23:30). A caller that fixes its own clock passes `now`.
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-const at = (minsFromNow: number) => new Date(Date.now() + minsFromNow * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 export interface P2Opts {
+  now?: number;
   features?: Record<string, unknown>;
   modules?: string[] | null;
   kiosk?: boolean;
@@ -23,8 +27,10 @@ export const FEATURES = {
 };
 
 export async function mockP2(page: Page, o: P2Opts = {}): Promise<HomeMock> {
+  const now = o.now ?? await pinToday(page);
+  const at = (minsFromNow: number) => new Date(now + minsFromNow * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
   const policy = { ...(o.kiosk ? { kiosk: true, home_only: true, may_switch: false, kiosk_area_id: 'living' } : {}), ...(o.modules !== undefined ? { modules: o.modules } : {}), ...o.policy };
-  const mock = await mockHome(page, { policy, layout: { welcomed: true }, perms: ['devices.read', 'devices.control', 'video.live', 'map.read', 'scene.manage', 'presence.report', 'calendar.view', 'calendar.book'] });
+  const mock = await mockHome(page, { now, policy, layout: { welcomed: true }, perms: ['devices.read', 'devices.control', 'video.live', 'map.read', 'scene.manage', 'presence.report', 'calendar.view', 'calendar.book'] });
   const rec = (r: Route) => { const u = new URL(r.request().url()); mock.calls.push({ method: r.request().method(), path: u.pathname.replace(/^.*api\/v1\//, ''), body: r.request().postDataJSON?.() ?? null }); };
   const features = { ...FEATURES, ...(o.features ?? {}) };
   const long = 'שם ארוך מאוד של אדם שמשתמש בשם מלא עם שם משפחה כפול ועוד כינוי';
@@ -73,7 +79,7 @@ export async function mockP2(page: Page, o: P2Opts = {}): Promise<HomeMock> {
   await page.route('**/api/v1/home/weather', (r) => json(r, { weather: o.empty ? null : {
     now: { t: 22, condition: 'sun', text: 'בהיר', feels: 23, wind: 12, wind_unit: 'km/h', humidity: 40, rain: 0 },
     hours: ['20:00', '21:00', '22:00', '23:00', '00:00', '01:00'].map((h, i) => ({ at: h, t: 21 - i, condition: i < 3 ? 'night' : 'cloud' })),
-    days: Array.from({ length: 5 }, (_, i) => ({ date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + i * 86_400_000)) /* HOME-V3-FOLLOWUP-A-2431: the installation's date, not UTC's (00:00-02:00 lost a day) */, t: 24 - i, lo: 15 - i, condition: i === 2 ? 'rain' : 'sun' })),
+    days: Array.from({ length: 5 }, (_, i) => ({ date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(now + i * 86_400_000)) /* HOME-V3-FOLLOWUP-A-2431: the installation's date, not UTC's (00:00-02:00 lost a day) */, t: 24 - i, lo: 15 - i, condition: i === 2 ? 'rain' : 'sun' })),
   } }));
   // tickets
   const tk = (id: string, title: string, step: number, status: string, place: string) => ({ id, number: id, title, excerpt: '', status, step, category: { id: 'c1', name: 'אינסטלציה' }, place_text: place, created_at: at(-100), last_activity_at: at(-50), eta_at: null, waiting_on: null, closed_at: null, department: 'אחזקה' });

@@ -58,7 +58,7 @@ const scene = (id: string, name: string, areas: { id: string; name: string }[] =
 
 export interface HomeMock { calls: { method: string; path: string; body: unknown }[]; ring: (on: boolean) => void }
 
-export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Record<string, unknown>; perms?: string[]; layout?: Record<string, unknown>; ringing?: boolean; lockReasons?: Record<string, string> } = {}): Promise<HomeMock> {
+export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Record<string, unknown>; perms?: string[]; layout?: Record<string, unknown>; ringing?: boolean; lockReasons?: Record<string, string>; now?: number } = {}): Promise<HomeMock> {
   const mock: HomeMock = { calls: [], ring: () => undefined };
   const ds = opts.ds ?? 'demo';
   const perms = opts.perms ?? ['alarm.view', 'alarm.arm', 'alarm.disarm', 'devices.read', 'devices.control', 'ha.entity.control', 'devices.control_bulk', 'video.live', 'map.read', 'energy.view', 'access.call', 'access.doors.open'];
@@ -91,7 +91,9 @@ export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Re
     { id: 'cam3', name: 'גינה', can_view_live: true, recorder_enabled: true, area_id: 'garden' }, { id: 'cam4', name: 'מרפסת', can_view_live: false, recorder_enabled: true },
   ], recorders: [], recorder: null, can_sync: false, media: {} }));
   await page.route('**/api/v1/cameras/*/snapshot.jpg**', (r) => r.fulfill({ status: 404, body: '' }));
-  const now = Date.now();
+  // TEST-STABLE-2442: `opts.now` is the instant of a page whose clock a mock layer fixed (home-v3-p2-mocks pins noon of today); the
+  // stamps and the server time then follow that clock instead of the real one
+  const now = opts.now ?? Date.now();
   // HOME-V3-FOLLOWUP-A-2431: the missed call is "today" whatever the hour (5 hours back, but never before the installation's midnight;
   // an entry check that ran at 01:00 saw it as yesterday's)
   const hms = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(now)).map((x) => [x.type, +x.value]));
@@ -106,14 +108,14 @@ export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Re
     { id: 'c1', station_id: 's1', station_name: 'דלת הכניסה', rang_at: new Date(now - 40 * 60000).toISOString(), observed: 'ringing', state: 'ended', outcome: 'answered', answered_at: null, answered_via: 'arx', answered_by_name: 'נועה', answered_by_me: true, ended_at: null, ended_by_name: null, door_opened_at: new Date(now - 39 * 60000).toISOString(), door_opened_by_name: 'נועה', updated_at: '' },
     { id: 'c2', station_id: 's2', station_name: 'שער החניה', rang_at: new Date(missedAt).toISOString(), observed: 'ringing', state: 'ended', outcome: 'missed', answered_at: null, answered_via: null, answered_by_name: null, answered_by_me: false, ended_at: null, ended_by_name: null, door_opened_at: null, door_opened_by_name: null, updated_at: '' },
   ], next: null, retention_days: 30 }));
-  await page.route('**/api/v1/intercom/calls/active', (r) => json(r, { server_time_ms: Date.now(), enabled: true, sound: 'silent', sound_reason: null, calls: ringing.active ? [{
+  await page.route('**/api/v1/intercom/calls/active', (r) => json(r, { server_time_ms: opts.now ?? Date.now(), enabled: true, sound: 'silent', sound_reason: null, calls: ringing.active ? [{
     call_id: 'call-1', station_id: 'st-front', station_name: 'דלת הכניסה', state: 'ringing', rang_at: new Date(now - 4000).toISOString(), answered_at: null, answered_by_me: false,
     elapsed_s: 4, online: true, has_camera: true, still: true, can_open_door: true, locks: [{ physical_index: 0, name: null }],
   }] : [] }));
   await page.route('**/api/v1/access-control/stations/*/media', (r) => json(r, { station_id: 'st-front', mode: 'native', state: 'ready', reason: null, listen: true, expires_at: null,
     video: { profiles: ['sub'], default_profile: 'sub', allowed: true, paths: { sub: 'media/station/st-front/sub' }, max_viewers: 4, viewers: 0 },
     talk: { available: true, reason: null, transport: 'ws', codec: 'pcmu', duplex: 'full', sample_rate: 8000, frame_ms: 20 } }));
-  await page.route('**/api/v1/intercom/overview', (r) => json(r, { state: 'ready', server_time_ms: Date.now(), stations: [{ id: 'st-front', name: 'דלת הכניסה', online: true, call_state: 'idle', sync_state: 'ok', lock_enabled: true, lock_count: 1, locks: [], has_camera: true, camera_entity: null, last_error: null, last_seen: null }] }));
+  await page.route('**/api/v1/intercom/overview', (r) => json(r, { state: 'ready', server_time_ms: opts.now ?? Date.now(), stations: [{ id: 'st-front', name: 'דלת הכניסה', online: true, call_state: 'idle', sync_state: 'ok', lock_enabled: true, lock_count: 1, locks: [], has_camera: true, camera_entity: null, last_error: null, last_seen: null }] }));
   await page.route('**/api/v1/intercom/stations/*/release', (r) => { mock.calls.push({ method: 'POST', path: 'intercom/release', body: r.request().postDataJSON() }); return json(r, { status: 'sent', result: {} }); });
   await page.route('**/api/v1/intercom/stations/*/camera-snapshot.jpg**', (r) => r.fulfill({ status: 404, body: '' }));
   await page.route('**/api/v1/energy/tariffs', (r) => json(r, { items: [{ id: 't1', name: 'ביתי', currency: 'ILS', kind: 'fixed', versions: [], current: { price: '0.6400' }, used_by: 1 }] }));
