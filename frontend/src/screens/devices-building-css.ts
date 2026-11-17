@@ -209,19 +209,6 @@ const BUILDING_BUBBLE = css`
   :host([data-skin='bubble']) button.chip:focus-visible {
     background: var(--sw-surface-3);
   }
-  :host([data-skin='bubble']) .seg .opts {
-    border: 0;
-    border-radius: var(--sw-r-pill);
-    background: var(--sw-surface-2);
-    padding: 3px;
-  }
-  :host([data-skin='bubble']) .seg button {
-    border-radius: var(--sw-r-pill);
-    background: transparent;
-  }
-  :host([data-skin='bubble']) .seg button[aria-pressed='true'] {
-    background: var(--sw-surface-solid);
-  }
   :host([data-skin='bubble']) .floor-filter .opts {
     border: 0;
     border-radius: var(--sw-r-pill);
@@ -255,29 +242,6 @@ const BUILDING_GLASS = css`
   :host([data-devices-style='glass']) sw-kpi {
     padding-block: var(--dv-item-pad-block);
     padding-inline: var(--dv-item-pad-inline);
-  }
-  /* iOS-like segmented control for "פריסה" */
-  :host([data-devices-style='glass']) .seg .opts {
-    border: 0;
-    border-radius: var(--dv-radius-control);
-    background: var(--dv-surface-3);
-    padding: 3px;
-    gap: 2px;
-  }
-  :host([data-devices-style='glass']) .seg button {
-    border-radius: var(--dv-radius-control);
-    background: transparent;
-    padding-block: 6px;
-    padding-inline: var(--dv-item-pad-inline);
-    font-weight: var(--sw-fw-semibold);
-  }
-  :host([data-devices-style='glass']) .seg button + button {
-    border-inline-start: 0;
-  }
-  :host([data-devices-style='glass']) .seg button[aria-pressed='true'] {
-    background: var(--sw-surface);
-    color: var(--dv-text);
-    box-shadow: var(--dv-shadow-control);
   }
   /* the tree panel: pill rows */
   :host([data-devices-style='glass']) .split {
@@ -864,10 +828,6 @@ export const devicesBuildingStyles = [devicesStyleTokens, css`
     .ha-refresh {
       display: inline-flex;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .ha-refresh {
       position: relative;
     }
     .ha-refresh .stale-dot {
@@ -969,42 +929,6 @@ export const devicesBuildingStyles = [devicesStyleTokens, css`
       align-items: center;
       gap: 10px 16px;
       flex-wrap: wrap;
-    }
-    .seg {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-    }
-    .seg .opts {
-      display: inline-flex;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      overflow: hidden;
-    }
-    .seg button {
-      border: 0;
-      padding: 5px 12px;
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border-strong);
-    }
-    .seg button:hover {
-      background: var(--sw-hover-wash);
-    }
-    .seg button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: -2px;
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
     }
     .toolbar .bulk-buttons {
       margin-inline-start: auto;
@@ -1641,10 +1565,6 @@ export const devicesBuildingStyles = [devicesStyleTokens, css`
       font-weight: var(--sw-fw-semibold);
     }
     .pills .none {
-      color: var(--sw-text-3);
-    }
-    .note {
-      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     /* ---- the loading skeleton (HOME polish 2026-10-10) ---- */
