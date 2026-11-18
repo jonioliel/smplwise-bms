@@ -79,6 +79,7 @@ import {
   type FoldSummaryDetail,
 } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
+import { tr } from '../i18n/msg/system-a';
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -825,19 +826,21 @@ export class SystemDiagnostics extends LitElement {
     const ro = !api || !this.canEdit;
     const mode = this.value('site.location_source') === 'manual' ? 'manual' : 'home';
     const home = this.siteLoc?.home ?? null;
+    // CR-HA-WORDING-2443 (lead decision 3a of CR-UI-POLISH-2443): these rows read their text through msg/system-a; the Hebrew is
+    // unchanged. A settings screen, so "Home Assistant" stays where the Hebrew says it (owner Q-DES-10).
     const homeLine = home
-      ? `מיקום הבית בהגדרות Home Assistant: ${home.latitude.toFixed(2)}, ${home.longitude.toFixed(2)}${home.time_zone ? ` · ${home.time_zone}` : ''}`
-      : 'מיקום הבית עדיין לא נקרא מ־Home Assistant; עד אז השמש מחושבת למרכז הארץ';
+      ? `${tr('מיקום הבית בהגדרות Home Assistant: {lat}, {lon}', { lat: home.latitude.toFixed(2), lon: home.longitude.toFixed(2) })}${home.time_zone ? ` · ${home.time_zone}` : ''}`
+      : tr('מיקום הבית עדיין לא נקרא מ־Home Assistant; עד אז השמש מחושבת למרכז הארץ');
     const coord = (key: 'site.latitude' | 'site.longitude', attr: string, label: string) => html`<sw-field class="ctl"><input type="text" inputmode="decimal" data-ltr
         aria-label=${label} placeholder=${label} data-set-site=${attr} ?disabled=${ro} .value=${String(this.value(key) ?? '')}
         @change=${(e: Event) => this.set(key, (e.target as HTMLInputElement).value.trim())} /></sw-field>`;
-    return html`<div class="row" data-set-site-location-row><span class="lbl">מיקום האתר לשמש בתלת־ממד<span class="muted">${homeLine}</span></span>
+    return html`<div class="row" data-set-site-location-row><span class="lbl">${tr('מיקום האתר לשמש בתלת־ממד')}<span class="muted">${homeLine}</span></span>
         <sw-field class="ctl"><select data-set-site-location ?disabled=${ro} @change=${(e: Event) => this.set('site.location_source', (e.target as HTMLSelectElement).value === 'manual' ? 'manual' : 'home')}>
-          <option value="home" ?selected=${mode === 'home'}>לפי מיקום הבית (ברירת מחדל)</option><option value="manual" ?selected=${mode === 'manual'}>ידני</option>
+          <option value="home" ?selected=${mode === 'home'}>${tr('לפי מיקום הבית (ברירת מחדל)')}</option><option value="manual" ?selected=${mode === 'manual'}>${tr('ידני')}</option>
         </select></sw-field></div>
       ${mode === 'manual'
-        ? html`<div class="row" data-set-site-manual-row><span class="lbl">מיקום ידני<span class="muted">קו רוחב וקו אורך במעלות (צפון ומזרח חיוביים); בלי שניהם — מיקום הבית</span></span>
-            ${coord('site.latitude', 'lat', 'קו רוחב')}${coord('site.longitude', 'lon', 'קו אורך')}</div>`
+        ? html`<div class="row" data-set-site-manual-row><span class="lbl">${tr('מיקום ידני')}<span class="muted">${tr('קו רוחב וקו אורך במעלות (צפון ומזרח חיוביים); בלי שניהם — מיקום הבית')}</span></span>
+            ${coord('site.latitude', 'lat', tr('קו רוחב'))}${coord('site.longitude', 'lon', tr('קו אורך'))}</div>`
         : nothing}`;
   }
 
