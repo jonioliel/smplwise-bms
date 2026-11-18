@@ -8,7 +8,7 @@
  * Prism's colour field) has three levels - high / low (frozen) / off - set by the administrator or, on "auto", measured on the screen itself and
  * degraded on a slow device (skin-logic.ts: fxStep). Nothing scrolls; no inline style attributes are written in markup (the page's CSP).
  */
-import { esc, str, type FeedNotice, type Item } from './tv-logic';
+import { esc, num, str, type FeedNotice, type Item } from './tv-logic';
 import { HX_STEPS, colsFor, familyOf, fxLevelFor, fxStart, fxStep, greetingKey, lobbyDrift, lobbyPhoto, skyOf, systemsShown, urgentInRotation, type FxLevel, type FxState } from './skin-logic';
 import { digitsHtml, hoursRow, metaHtml, tx, words } from './hx-parts';
 import type { EngineApi } from './skin-board';
@@ -143,7 +143,7 @@ export function createHx(api: EngineApi): Hx {
     hd.innerHTML =
       '<div class="nb-brand">' + i.company + '<div class="nb-nm"><b dir="auto" title="' + esc(i.building) + '">' + esc(i.building) + '</b><span dir="auto" title="' + esc(i.place) + '">' + esc(i.place) + '</span></div></div>' +
       '<div class="nb-time"><span class="nb-t nb-num" dir="ltr" data-nb-digits></span><span class="nb-d" data-nb-date>' + esc(c.d) + '</span></div>' +
-      '<div class="nb-wx" data-has="' + (w ? '1' : '0') + '">' + (w ? '<span class="nb-tmp nb-num" dir="ltr">' + w.t + '°</span><span class="nb-tx" dir="auto">' + esc(w.text) + '</span>' + hours : '') + '</div>';
+      '<div class="nb-wx" data-has="' + (w ? '1' : '0') + '">' + (w ? '<span class="nb-tmp nb-num" dir="ltr">' + num(w.t) + '°</span><span class="nb-tx" dir="auto">' + esc(w.text) + '</span>' + hours : '') + '</div>';
     if (lux()) {
       const t = hd.querySelector<HTMLElement>('.nb-t');
       if (t) { t.textContent = c.t; t.dataset.t = c.t; }
@@ -169,7 +169,7 @@ export function createHx(api: EngineApi): Hx {
     const ft = api.$('.nb-ft');
     ft.dataset.news = i.news.length ? '1' : '0';
     ft.innerHTML = '<ul class="nb-info">' + info + '</ul><div class="nb-news" aria-label="' + esc(str(i.lang, 'news')) + '"><div class="nb-track">' + news + '</div></div>' +
-      '<div class="nb-live" data-net="' + i.net + '"><span class="nb-st8">' + api.liveHtml() + '</span>' + api.logo(i.dark) + '</div>';
+      '<div class="nb-live" data-net="' + esc(i.net) + '"><span class="nb-st8">' + api.liveHtml() + '</span>' + api.logo(i.dark) + '</div>';
     fitInfo(ft);
   }
   /** The building-systems row never runs past the footer. TV-FIT-2380: in portrait (`rows`, the default) every style gives the entries a

@@ -14,7 +14,7 @@
  */
 import { swLogoSvg } from '../design/sw-logo-art';
 import { MACHINE_MARK, dirOf, type ScreenAnnouncement } from '../announce/screen-overlay';
-import { esc, str, type FeedNotice, type FeedSlide, type Item, type LiveBg, type Net, type SystemsStatus, type UrgentScreen } from './tv-logic';
+import { esc, num, str, type FeedNotice, type FeedSlide, type Item, type LiveBg, type Net, type SystemsStatus, type UrgentScreen } from './tv-logic';
 import { createHx, type Hx } from './hx-engine';
 import {
   familyOf, FS_MIN, FS_MIN_TAKE, GHOST_MS, GHOST_OPACITY, LANG_NAME, bestScale, canvasOf, infoIcon, isEventWhen, queueMax, queueRows, slatCount, tickSeconds, weatherIcon,
@@ -238,7 +238,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     const ink = i.skin === 'ink';
     const nm = '<div class="nb-nm' + (ink ? '' : ' nb-sgn') + '"><b dir="auto" title="' + esc(i.building) + '">' + esc(i.building) + '</b><span dir="auto">' + esc(i.place) + '</span></div>';
     const ck = '<div class="nb-ck' + (ink ? '' : ' nb-plate') + '"><span class="nb-t nb-num" data-nb-time>' + esc(c.t) + '</span><span class="nb-d" data-nb-date>' + esc(c.d) + '</span></div>';
-    const wx = w ? '<div class="nb-wx' + (ink ? '' : ' nb-sgn') + '">' + ic(weatherIcon(w.icon), ink ? 48 : 64) + '<span class="nb-tmp nb-num">' + w.t + '°</span><span class="nb-tx" dir="auto">' + esc(w.text) + '</span></div>' : '';
+    const wx = w ? '<div class="nb-wx' + (ink ? '' : ' nb-sgn') + '">' + ic(weatherIcon(w.icon), ink ? 48 : 64) + '<span class="nb-tmp nb-num">' + num(w.t) + '°</span><span class="nb-tx" dir="auto">' + esc(w.text) + '</span></div>' : '';
     const el = $('.nb-hd');
     el.dataset.wx = w ? '1' : '0';
     el.innerHTML = ink ? nm + wx + ck : nm + ck + wx;
@@ -269,7 +269,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     const ft = $('.nb-ft');
     ft.dataset.news = i.news.length ? '1' : '0';
     ft.innerHTML = '<div class="nb-tk"><div class="nb-lb">' + ic('rss', 26) + esc(str(i.lang, 'news')) + '</div><div class="nb-win"><div class="nb-track">' + news + '</div></div></div>' +
-      '<div class="nb-row"><ul class="nb-info">' + info + '</ul><div class="nb-live" data-net="' + i.net + '"><span class="nb-st8">' + liveHtml() + '</span>' + i.company + logo(i.dark) + '</div></div>';
+      '<div class="nb-row"><ul class="nb-info">' + info + '</ul><div class="nb-live" data-net="' + esc(i.net) + '"><span class="nb-st8">' + liveHtml() + '</span>' + i.company + logo(i.dark) + '</div></div>';
   }
 
   /** One headline at a time, a new one every 8 s: Ink = a two-step partial refresh, Sign = the blank beat of a message sign. */
@@ -333,7 +333,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     }
     if (face === 1 && w) {
       const parts = w.text.split(' · ');
-      return '<div class="nb-panel nb-sgn"><div class="nb-pic-col">' + ic(weatherIcon(w.icon), 150) + '</div><div class="nb-txt"><h1 class="nb-ttl"><span class="nb-num">' + w.t + '°</span> ' + esc(parts[0]) + '</h1><p class="nb-bd">' + esc(parts[1] ?? '') +
+      return '<div class="nb-panel nb-sgn"><div class="nb-pic-col">' + ic(weatherIcon(w.icon), 150) + '</div><div class="nb-txt"><h1 class="nb-ttl"><span class="nb-num">' + num(w.t) + '°</span> ' + esc(parts[0]) + '</h1><p class="nb-bd">' + esc(parts[1] ?? '') +
         '</p></div></div><div class="nb-sup nb-plate">' + ic('clock', 38) + '<span>' + esc(c.d) + '</span></div>';
     }
     return '<div class="nb-panel nb-sgn"><div class="nb-pic-col">' + picto('info', 150) + '</div><div class="nb-txt"><h1 class="nb-ttl">' + esc(str(i.lang, 'empty')) + '</h1><p class="nb-bd">' + esc(str(i.lang, 'niceDay')) +
@@ -413,11 +413,11 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     const { rows, more } = queueRows(items, S.i, queueMax(S.portrait, S.ratio10));
     const li = rows.map(({ item }) => {
       const n = item.n;
-      if (hitech()) return '<li dir="auto" data-sev="' + n.severity + '">' + txn(n.title) + '</li>';
+      if (hitech()) return '<li dir="auto" data-sev="' + esc(n.severity) + '">' + txn(n.title) + '</li>';
       const label = item.slide ? esc(str(i.lang, 'slideWord')) : txn(i.whenOf(n));
       return i.skin === 'ink'
-        ? '<li data-sev="' + n.severity + '"><i class="nb-sq"></i><b dir="auto">' + txn(n.title) + '</b><span dir="auto">' + label + '</span></li>'
-        : '<li data-sev="' + n.severity + '" data-kind="' + (item.slide ? 'slide' : 'msg') + '"><b dir="auto">' + txn(n.title) + '</b><span dir="auto">' + label + '</span></li>';
+        ? '<li data-sev="' + esc(n.severity) + '"><i class="nb-sq"></i><b dir="auto">' + txn(n.title) + '</b><span dir="auto">' + label + '</span></li>'
+        : '<li data-sev="' + esc(n.severity) + '" data-kind="' + (item.slide ? 'slide' : 'msg') + '"><b dir="auto">' + txn(n.title) + '</b><span dir="auto">' + label + '</span></li>';
     }).join('');
     q.innerHTML = hitech() ? '<h2>' + esc(str(i.lang, 'next')) + '<span class="nb-pos nb-num" dir="ltr">' + (S.i + 1) + ' / ' + items.length + '</span></h2><ol>' + li + '</ol>' : '<h2>' + esc(str(i.lang, 'next')) + '<small>' + esc(str(i.lang, 'ofN', { i: S.i + 1, n: items.length })).replace(/(\d+)/g, '<span class="nb-num">$1</span>') + '</small></h2><ol>' + li + '</ol>';
     // drop rows from the end until the list fits its column (never scroll, never clip), then say how many wait
@@ -823,7 +823,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     const ink = i.skin === 'ink';
     const crit = a.critical;
     const head = '<div class="nb-ah' + (ink ? '' : ' nb-sgn') + '">' + ic('speaker', 56) + '<span>' + esc(str(i.lang, crit ? 'annUrgent' : 'annNormal')) + '</span><span class="nb-lock">' + esc(str(i.lang, 'shownUntil', { t: until })) + '</span></div>';
-    const blocks = a.texts.map((t) => '<div dir="' + dirOf(t.language) + '" lang="' + t.language + '"><p>' + esc(t.text) + '</p><small>' + esc(LANG_NAME[t.language] ?? t.language) + (t.machine ? ' · ' + esc(MACHINE_MARK[t.language] ?? MACHINE_MARK.en) : '') + '</small></div>').join('');
+    const blocks = a.texts.map((t) => '<div dir="' + esc(dirOf(t.language)) + '" lang="' + esc(t.language) + '"><p>' + esc(t.text) + '</p><small>' + esc(LANG_NAME[t.language] ?? t.language) + (t.machine ? ' · ' + esc(MACHINE_MARK[t.language] ?? MACHINE_MARK.en) : '') + '</small></div>').join('');
     return head + '<div class="nb-al">' + blocks + '</div>';
   }
 
