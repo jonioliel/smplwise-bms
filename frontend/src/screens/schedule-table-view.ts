@@ -15,6 +15,7 @@ import { applyTableEdit, tableRows, timeInputText, type TableField } from './sch
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/automation';
+import { activateKeydown } from '../components/a11y-keys'; // CR-A11Y-ROWS-2443 (D14): Enter / Space on a clickable row or card
 
 /**
  * CR-014 S4: the table view of the same scheme (mockup 07 / 23): one row per slot, "from" and "to" typed inline (07:30,
@@ -351,7 +352,7 @@ export class ScheduleTableView extends LitElement {
     const names = [...new Set(slot.actions.map((a) => (a.entity_id ? this.meta.get(a.entity_id)?.name ?? a.entity_id : tr('ללא התקן'))))];
     const pair = this.pairOf(r.index);
     const ce = this.cellError?.uid === slot.uid ? this.cellError : null;
-    return html`<tr class="${slot.uid === this.selected ? 'sel' : ''} ${errs.length ? 'bad' : ''}" data-row=${slot.uid} @click=${() => this.fire('slot-select', { uid: slot.uid })}>
+    return html`<tr class="${slot.uid === this.selected ? 'sel' : ''} ${errs.length ? 'bad' : ''}" data-row=${slot.uid} tabindex="0" @click=${() => this.fire('slot-select', { uid: slot.uid })} @keydown=${activateKeydown(() => this.fire('slot-select', { uid: slot.uid }))}>
       <td class="n" title=${errs.map((e) => e.message).join(' · ')}>${errs.length ? html`<sw-icon name="warning" size="14" role="img" aria-label=${`${tr('משבצת {n}', { n: display })}: ${errs.map((e) => e.message).join(' · ')}`}></sw-icon>` : display}</td>
       <td data-label="משעה">
         <input class="t ${ce?.field === 'from' ? 'err' : ''}" data-cell="from" ?disabled=${ro} .value=${r.from} aria-label=${tr('משעה, משבצת {n}', { n: display })} @change=${(e: Event) => this.commit(slot, 'from', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
