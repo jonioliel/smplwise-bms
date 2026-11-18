@@ -51,6 +51,11 @@ CODE_PREFIX = "arxc_"
 CODE_TTL_S = 60
 COOKIE_PREFIX = "a."
 CACHE_TTL_S = 15.0
+# CR-APP-SESSION-CACHE-2443 (the shape CR-LOCAL-USER-CREATE-2438 fixed in local_identity): every ending drops the cache entry inside the
+# ending transaction, before its commit; a request that read the session row before that commit used to put the session back after the
+# drop, and the ended session then answered from the cache for CACHE_TTL_S (and a WebSocket attached meanwhile was never closed). After a
+# drop, nothing of that session / user (after a clear: nothing at all) is cached for this long. Longer than any transaction lives.
+DROP_HOLD_S = 30.0
 TOUCH_EVERY_S = 60.0
 RATE_EXCHANGE = (5, 0.5)  # per family: burst 5, 30 per hour
 KEEP_ENDED_DAYS = 30
@@ -482,10 +487,24 @@ def is_app_session(s: Any) -> bool:
 
 class _Cache(SessionCache[AppWebSession]):
     """The phone app's web-view sessions; sockets are keyed by session (a web session never rotates). The shared cache is
-    services/session_cache.py (code review 2026-11-13 P2-4)."""
+    services/session_cache.py (code review 2026-11-13 P2-4): an ended session is refused by a late put (ended keys), a user whose state
+    changed is held for DROP_HOLD_S (CR-APP-SESSION-CACHE-2443). Here only: after a clear (the switch off, a start-up) nothing at all is
+    cached for DROP_HOLD_S - a request that read before the clear's commit must not put its session back."""
 
     def __init__(self) -> None:
-        super().__init__(clock=lambda: _now(), ttl_s=lambda: CACHE_TTL_S)
+        super().__init__(clock=lambda: _now(), ttl_s=lambda: CACHE_TTL_S, user_hold_s=lambda: DROP_HOLD_S)
+        self._cleared_at: float | None = None
+
+    def _clear_held_locked(self, now: float) -> bool:
+        if self._cleared_at is None:
+            return False
+        if now - self._cleared_at < DROP_HOLD_S:
+            return True  # a clock that went back keeps the hold (fail closed)
+        self._cleared_at = None
+        return False
+
+    def _put_refused_locked(self, s: AppWebSession) -> bool:
+        return self._clear_held_locked(_now()) or super()._put_refused_locked(s)
 
     def drop(self, sid_hashes: set[str]) -> None:
         with self._lock:
@@ -493,10 +512,31 @@ class _Cache(SessionCache[AppWebSession]):
                 self._by_sid.pop(sh, None)
             self._end_keys_locked(sid_hashes)
 
-    def attach(self, sid_hash: str, websocket: Any) -> bool:
+    def attach(self, sid_hash: str, websocket: Any, user_id: str = "") -> bool:
         """False when the session's entry is gone (ended between the resolve and the attach, review M2 / code review 2026-11-13 P1-1):
-        the caller refuses the socket. Every ending drops the entry (drop, drop_user, clear); a web session never rotates."""
-        return self._attach(sid_hash, websocket, lambda: sid_hash in self._by_sid)
+        the caller refuses the socket. Every ending drops the entry by session (drop, clear); a web session never rotates.
+        CR-APP-SESSION-CACHE-2443: a session the resolve could not cache only because its USER is held (a factor / access change, not an
+        ending) still attaches - an ending of it ends the session's key, which refuses here, or closes the socket once attached."""
+
+        def live() -> bool:
+            if sid_hash in self._by_sid:
+                return True
+            return not self._clear_held_locked(_now()) and self._user_held_live_locked(sid_hash, user_id)
+
+        return self._attach(sid_hash, websocket, live)
+
+    def clear(self) -> None:
+        """Everything ends (the switch off, a start-up): nothing is cached for DROP_HOLD_S either."""
+        super().clear()
+        with self._lock:
+            self._cleared_at = _now()
+
+    def reset(self) -> None:
+        """Tests only: an empty cache with no holds."""
+        super().clear()
+        with self._lock:
+            self._cleared_at = None
+        self.forget_ended()
 
 
 CACHE = _Cache()
@@ -509,6 +549,16 @@ def take_sockets_to_close() -> list[Any]:
 def drop_user_cache(user_id: str) -> None:
     """The user's factor / directory state changed: the next request re-reads (local_identity.on_factor_removed)."""
     CACHE.drop_user(user_id)
+
+
+def on_access_changed(user_ids: Any) -> None:
+    """CR-APP-SESSION-CACHE-2443: services/revocation.mark / changed (a binding granted / revoked / denied, a role edit, a user disabled):
+    the users' web sessions are re-checked on their next request (permission fingerprint, user state, the administrators' caps) instead
+    of when the cache entry ages out. Memory only; never raises."""
+    try:
+        CACHE.drop_users({str(u) for u in user_ids if u})
+    except Exception:  # noqa: BLE001 - a signal never fails the change that sent it
+        log.warning("app web session cache could not follow an access change", exc_info=True)
 
 
 def _lease(user_ids: list[str]) -> None:
@@ -662,7 +712,7 @@ async def remote_principal_ws(websocket: Any, settings: Any, cookie_value: str) 
     s = await run_in_threadpool(lambda: resolve(websocket.app.state.db, websocket, cookie_value))
     if s is None or s.gate:
         return None
-    if not CACHE.attach(s.sid_hash, websocket):
+    if not CACHE.attach(s.sid_hash, websocket, s.user_id):
         return None  # review M2 (P1-1): the session ended between the resolve and the attach - nothing would close this socket
     try:
         websocket.state.sw_remote_session = s
@@ -866,7 +916,7 @@ install_log_filter()
 
 
 def reset_for_tests() -> None:
-    CACHE.clear()
+    CACHE.reset()
     CACHE.take_to_close()
     CACHE.forget_ended()
 

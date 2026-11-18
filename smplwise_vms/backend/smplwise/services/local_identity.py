@@ -72,6 +72,10 @@ ROTATE_EVERY_S = 24 * 3600
 ROTATE_GRACE_S = 60.0
 TOUCH_EVERY_S = 60.0
 CACHE_TTL_S = 15.0
+# CR-APP-SESSION-CACHE-2443: after drop_user (a factor / display-name change) the user's sessions are not cached again for this long - the
+# change commits after the drop, and a request that read before the commit must not cache the old principal back. Longer than any
+# transaction lives; it costs that user only database reads meanwhile.
+DROP_HOLD_S = 30.0
 FLAG_TTL_S = 5.0
 PENDING_TTL_S = 300.0
 PENDING_MAX_ATTEMPTS = 5
@@ -318,10 +322,12 @@ class LocalSession:
 
 class _Cache(SessionCache[LocalSession]):
     """Arx-only sessions; sockets are keyed by sign-in chain (a rotation keeps the chain's sockets). The shared cache is
-    services/session_cache.py (code review 2026-11-13 P2-4); `get` there also drops an entry loaded "in the future" (lead decision L4)."""
+    services/session_cache.py (code review 2026-11-13 P2-4); `get` there also drops an entry loaded "in the future" (lead decision L4).
+    CR-APP-SESSION-CACHE-2443: `drop_user` (a factor removed / enrolled, a display-name change) holds the user for DROP_HOLD_S, so a
+    request that read before the change's commit does not cache the old principal (its factor_ok) back."""
 
     def __init__(self) -> None:
-        super().__init__(clock=lambda: time.time(), ttl_s=lambda: CACHE_TTL_S)
+        super().__init__(clock=lambda: time.time(), ttl_s=lambda: CACHE_TTL_S, user_hold_s=lambda: DROP_HOLD_S)
 
     def _ended_key(self, s: LocalSession) -> str:
         return s.chain_id  # a revocation ends a whole sign-in chain (drop_chains)
@@ -340,13 +346,17 @@ class _Cache(SessionCache[LocalSession]):
                 self._by_sid.pop(k, None)
             self._end_keys_locked(chains)
 
-    def attach(self, sid_hash: str, chain_id: str, websocket: Any) -> bool:
+    def attach(self, sid_hash: str, chain_id: str, websocket: Any, user_id: str = "") -> bool:
         """False when the chain has no live entry any more (revoked between the resolve and the attach, review M2 / code review
         2026-11-13 P1-1): the caller refuses the socket. The session's own entry, or a rotated successor of the same chain (a concurrent
-        request rotated it; the chain is still live) - every revocation drops the chain's entries (drop_chains, drop_user, clear)."""
+        request rotated it; the chain is still live) - every revocation drops the chain's entries (drop_chains, drop_user, clear).
+        CR-APP-SESSION-CACHE-2443: not cached only because the USER is held (drop_user, not a revocation): still live. A revocation ends
+        the chain's key, which refuses here, or closes the socket once attached."""
 
         def live() -> bool:
-            return sid_hash in self._by_sid or any(v.chain_id == chain_id for v in self._by_sid.values())
+            if sid_hash in self._by_sid or any(v.chain_id == chain_id for v in self._by_sid.values()):
+                return True
+            return self._user_held_live_locked(chain_id, user_id)
 
         return self._attach(chain_id, websocket, live)
 
@@ -694,7 +704,7 @@ async def remote_principal_ws(websocket: Any, settings: Settings, cookie_value: 
     s = await run_in_threadpool(lambda: resolve(websocket.app.state.db, settings, websocket, cookie_value, rotate=False))
     if s is None or s.gate:
         return None
-    if not CACHE.attach(s.sid_hash, s.chain_id, websocket):
+    if not CACHE.attach(s.sid_hash, s.chain_id, websocket, s.user_id):
         return None  # review M2 (P1-1): the session ended between the resolve and the attach - nothing would close this socket
     try:
         websocket.state.sw_remote_session = s
