@@ -7,7 +7,7 @@
 import type { WalkWorld } from './walk-world';
 import type { WalkPose } from './walk-controller';
 
-export interface MinimapColors {
+interface MinimapColors {
   bg: string;
   wall: string;
   low: string;

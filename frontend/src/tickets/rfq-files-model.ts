@@ -43,7 +43,7 @@ export function localKind(f: { name: string; type: string }): RfqFileKind | null
 }
 
 export type Refusal = 'type' | 'office' | 'size' | 'count' | 'total';
-export interface PickResult<F> { accepted: F[]; refused: { name: string; reason: Refusal }[] }
+interface PickResult<F> { accepted: F[]; refused: { name: string; reason: Refusal }[] }
 
 /**
  * The files of one pick that may be sent: the allowed kinds (Word / Excel only while the server lists them), each within its size, never more than the request's count, and documents

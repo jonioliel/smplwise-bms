@@ -29,6 +29,7 @@ import { formatTime, UTC_ZONE } from './wiskey-format';
 import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
 import { tr } from '../i18n/msg/system-b';
+import { mutedStyles } from '../styles/fragments';
 
 const LINE_KIND: Record<PairingLineState, StateKind> = { ok: 'live', warn: 'stale', blocked: 'error', unknown: 'unknown' };
 const LINE_TEXT: Record<PairingLineState, string> = { ok: tr('תקין'), warn: tr('לתשומת לב'), blocked: tr('חסום'), unknown: tr('לא ידוע') };
@@ -81,10 +82,7 @@ export class SystemWiskeyPairing extends LitElement {
     .top .sp {
       flex: 1 1 auto;
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
     .lines {
       display: flex;
       flex-direction: column;

@@ -5,14 +5,14 @@
  * else). No map, no plan data, nothing interactive reaches this page.
  */
 
-export interface MapElementView {
+interface MapElementView {
   name: string;
   floor: string;
   room: string;
   image: boolean;
 }
 
-export interface MapBlock {
+interface MapBlock {
   /** "<name> · <floor> · <room>" (empty parts left out) */
   line: string;
   /** a picture should be fetched and shown */

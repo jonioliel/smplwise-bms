@@ -17,7 +17,7 @@ import { po } from '../i18n/passkey-only';
 import { confirmDialog } from '../components/confirm-dialog';
 
 /** USR2: one Arx-only identity as GET /identity/local-users lists it (never a hash, never a link). */
-export interface LocalUser {
+interface LocalUser {
   id: string;
   username: string;
   display_name: string;
@@ -50,7 +50,7 @@ export interface LocalUser {
   passkey_only?: boolean;
 }
 
-export interface LocalUsersReply {
+interface LocalUsersReply {
   enabled: boolean;
   can_manage: boolean;
   channel: 'local' | 'remote';
@@ -99,7 +99,7 @@ const BADGES = 'display:flex;flex-wrap:wrap;gap:4px';
 /** The permissions that make a role administrative for a local identity (rbac.LOCAL_ADMIN_PERMISSIONS on the server). */
 const ADMIN_PERMISSIONS = new Set(['rbac.assign', 'identity.directory.read', 'system.configure', 'identity.local.manage', 'rbac.roles.manage', 'sources.configure', 'audit.read', 'backup.manage', 'nvr.configure', 'system.update']);
 
-export function roleIsAdmin(role: RoleInfo | undefined): boolean {
+function roleIsAdmin(role: RoleInfo | undefined): boolean {
   return !!role && role.permissions.some((p) => ADMIN_PERMISSIONS.has(p));
 }
 
@@ -109,7 +109,7 @@ export function localRoles(roles: RoleInfo[]): RoleInfo[] {
 }
 
 /** The full address of a link: the server gives it on the remote channel; under Ingress the public host is not known here. */
-export function linkText(link: LinkShown): string {
+function linkText(link: LinkShown): string {
   return link.url ?? `https://<כתובת הגישה מרחוק>${link.path}`;
 }
 

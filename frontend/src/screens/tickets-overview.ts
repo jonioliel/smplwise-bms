@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page'; // AUDIT30-C-TICKETS (#6): the one page frame
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
@@ -45,10 +45,10 @@ interface OverviewWidget { key: CardKey; title: string; span: number; alert: boo
 
 /** the board and the numbers row every minute while visible (spec 5); the requests for quotation, the payment dates, the handled counts and
  * the cost claims - which do not change minute by minute - every ten minutes */
-export const OVERVIEW_REFRESH_MS = 60_000;
-export const SLOW_REFRESH_MS = 600_000;
+const OVERVIEW_REFRESH_MS = 60_000;
+const SLOW_REFRESH_MS = 600_000;
 /** at most this many awarded requests are read in detail for their payment dates (one request each) */
-export const DETAIL_CAP = 12;
+const DETAIL_CAP = 12;
 const DEPT_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 const KPI_STORE = 'sw.tickets.overview.kpis.';
 
@@ -141,13 +141,13 @@ export class TicketsOverview extends LitElement {
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
     .n { direction: ltr; unicode-bidi: isolate; display: inline-block; font-variant-numeric: tabular-nums; }
     .amb { font-size: var(--sw-fs-md); color: var(--dv-text-2); }
-    .amb em { font-style: normal; color: var(--dv-text); font-weight: 600; }
+    .amb em { font-style: normal; color: var(--dv-text); font-weight: var(--sw-fw-semibold); }
     /* AUDIT30-C-TICKETS (#6): sw-page is the frame; the controls row under its header neither sticks nor compacts */
     .dh { position: static; padding-block-start: 0; }
     .crumbs { font-size: var(--sw-fs-sm); color: var(--dv-text-2); margin-block-end: 2px; }
     .titles { min-inline-size: 0; }
-    .seg button small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); font-weight: 600; font-variant-numeric: tabular-nums; margin-inline-start: 6px; }
-    .offline-top { position: sticky; inset-block-start: 0; z-index: 16; margin: 0 -36px -16px; padding: 8px 36px; background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface-solid); border-block-end: 1px solid color-mix(in srgb, var(--dv-warning) 38%, transparent); font-size: var(--sw-fs-sm); font-weight: 600; color: var(--au-warn-text); display: flex; align-items: center; gap: 8px; }
+    .seg button small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); font-weight: var(--sw-fw-semibold); font-variant-numeric: tabular-nums; margin-inline-start: 6px; }
+    .offline-top { position: sticky; inset-block-start: 0; z-index: 16; margin: 0 -36px -16px; padding: 8px 36px; background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface-solid); border-block-end: 1px solid color-mix(in srgb, var(--dv-warning) 38%, transparent); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--au-warn-text); display: flex; align-items: center; gap: 8px; }
     /* the numbers row: the RFQ board's tiles */
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--sw-s-3); }
     .kpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border-radius: var(--sw-r-xl); border: 1px solid var(--dv-border); background: var(--dv-surface); -webkit-backdrop-filter: var(--dv-surface-blur); backdrop-filter: var(--dv-surface-blur); box-shadow: var(--dv-shadow-1); min-inline-size: 0; color: inherit; text-decoration: none; font: inherit; text-align: start; cursor: pointer; }
@@ -162,11 +162,11 @@ export class TicketsOverview extends LitElement {
     .kpi { gap: 6px; padding: 16px 20px; }
     .kpi.warn b { color: var(--au-warn-text); }
     .kpi.bad b { color: var(--dv-danger); }
-    .kpi .d { display: inline-flex; align-items: center; gap: 2px; font-size: var(--sw-fs-xs); font-weight: 600; color: var(--dv-text-3); font-variant-numeric: tabular-nums; }
+    .kpi .d { display: inline-flex; align-items: center; gap: 2px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); color: var(--dv-text-3); font-variant-numeric: tabular-nums; }
     .kpi .d.up { color: var(--dv-danger); }
     .kpi .d.down { color: var(--au-ok-text); }
     .kpi .d .ic { font-size: var(--sw-fs-2xs); stroke-width: 2.4; }
-    .kpi .least { font-size: var(--sw-fs-xs); font-weight: 600; color: var(--dv-text-3); }
+    .kpi .least { font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); color: var(--dv-text-3); }
     .page.stale .kpi b, .page.stale .lane .big, .page.stale .tree .n, .page.stale .cell { color: var(--dv-text-3); }
     .page.stale .load i.on, .page.stale .load i.hot { background: var(--dv-border-strong); }
     /* the widget grid and the widget card */
@@ -175,8 +175,8 @@ export class TicketsOverview extends LitElement {
     .w.wide { grid-column: span 2; }
     .w.full { grid-column: 1 / -1; }
     .w > header { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-    .w > header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; min-inline-size: 0; }
-    .w > header .q { font-size: var(--sw-fs-sm); font-weight: 500; color: var(--dv-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
+    .w > header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); letter-spacing: -0.015em; line-height: 1.25; min-inline-size: 0; }
+    .w > header .q { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--dv-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
     .w > header .fold { all: unset; box-sizing: border-box; margin-inline-start: auto; display: grid; place-items: center; inline-size: 32px; block-size: 32px; border-radius: 50%; color: var(--dv-text-3); cursor: pointer; flex: none; }
     .w > header .fold { transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .w > header .fold:active { transform: scale(0.92); }
@@ -185,20 +185,20 @@ export class TicketsOverview extends LitElement {
     .w.folded > header .fold .ic { transform: rotate(90deg); }
     .w.folded > :not(header) { display: none; }
     .w .body { display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
-    .cnt { display: inline-grid; place-items: center; min-inline-size: 22px; block-size: 22px; padding-inline: 6px; box-sizing: border-box; border-radius: var(--sw-r-pill); background: var(--dv-warning-soft); color: var(--au-warn-text); font-size: var(--sw-fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cnt { display: inline-grid; place-items: center; min-inline-size: 22px; block-size: 22px; padding-inline: 6px; box-sizing: border-box; border-radius: var(--sw-r-pill); background: var(--dv-warning-soft); color: var(--au-warn-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .cnt.info { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
     .cnt.bad { background: var(--dv-danger-soft); color: var(--dv-danger); }
-    .quiet { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; font-size: var(--sw-fs-base); font-weight: 600; color: var(--au-ok-text); }
+    .quiet { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; font-size: var(--sw-fs-base); font-weight: var(--sw-fw-semibold); color: var(--au-ok-text); }
     .quiet .ic { font-size: var(--sw-fs-lg); }
     /* round 2 loop 1 (impeccable harden): a widget's "not available now" is a tinted field with its retry, not a grey line in an empty card */
-    .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 52px; padding: 10px 14px; border-radius: var(--sw-r-lg); background: color-mix(in srgb, var(--dv-text) 5%, transparent); font-size: var(--sw-fs-base); font-weight: 600; color: var(--dv-text-2); }
+    .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 52px; padding: 10px 14px; border-radius: var(--sw-r-lg); background: color-mix(in srgb, var(--dv-text) 5%, transparent); font-size: var(--sw-fs-base); font-weight: var(--sw-fw-semibold); color: var(--dv-text-2); }
     .unavail .btn { margin-inline-start: auto; }
     .skel { display: flex; flex-direction: column; gap: 10px; }
     .mut { color: var(--dv-text-3); font-size: var(--sw-fs-sm); }
     .note { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
     /* where stuck */
     .rooms { flex-wrap: wrap; }
-    .rc small { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding-inline: 5px; box-sizing: border-box; margin-inline-start: 8px; border-radius: var(--sw-r-pill); background: color-mix(in srgb, var(--dv-text) 8%, transparent); color: var(--dv-text-2); font-size: var(--sw-fs-xs); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .rc small { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding-inline: 5px; box-sizing: border-box; margin-inline-start: 8px; border-radius: var(--sw-r-pill); background: color-mix(in srgb, var(--dv-text) 8%, transparent); color: var(--dv-text-2); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); font-variant-numeric: tabular-nums; }
     .rc[aria-pressed='true'] small { background: color-mix(in srgb, currentColor 18%, transparent); color: inherit; }
     .tree { display: flex; flex-direction: column; gap: 2px; }
     .place { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; align-items: center; gap: 12px; }
@@ -206,10 +206,10 @@ export class TicketsOverview extends LitElement {
     .tree .row { transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .tree .row:active { transform: scale(0.99); }
     .tree .row:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: -2px; }
-    .tree .row.l0 .nm { font-weight: 700; }
+    .tree .row.l0 .nm { font-weight: var(--sw-fw-bold); }
     .tree .row.l1 { padding-inline-start: 28px; color: var(--dv-text-2); }
     .tree .row.l2 { padding-inline-start: 48px; color: var(--dv-text-2); }
-    .tree .row .n { color: var(--dv-accent-text); font-size: var(--sw-fs-sm); font-weight: 600; }
+    .tree .row .n { color: var(--dv-accent-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
     .tree .row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .track { display: flex; block-size: 6px; border-radius: var(--sw-r-pill); background: var(--dv-surface-3); overflow: hidden; }
     .track span { background: var(--dv-warning); }
@@ -227,15 +227,15 @@ export class TicketsOverview extends LitElement {
     .crow:last-child { border-block-end: 0; }
     .crow { transition: background-color var(--sw-t-fast) var(--sw-ease); }
     .crow:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: -2px; }
-    .crow b { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-weight: 700; }
+    .crow b { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-weight: var(--sw-fw-bold); }
     .crow .nm small { display: block; color: var(--dv-text-3); font-size: var(--sw-fs-xs); }
     .av { display: inline-grid; place-items: center; flex: none; inline-size: 36px; block-size: 36px; border-radius: 50%; font-weight: 800; font-size: var(--sw-fs-sm); background: var(--dv-accent-soft); color: var(--dv-accent-text); }
     .av.ext { color: var(--au-warn-text); background: var(--dv-warning-soft); }
     .st { display: flex; gap: 0; }
     .cell { font-size: var(--sw-fs-md); color: var(--dv-text); font-variant-numeric: tabular-nums; min-inline-size: 58px; text-align: center; }
     .cell small { display: none; font-size: var(--sw-fs-xs); color: var(--dv-text-3); }
-    .cell.bad { color: var(--dv-danger); font-weight: 700; }
-    .cell.warn { color: var(--au-warn-text); font-weight: 700; }
+    .cell.bad { color: var(--dv-danger); font-weight: var(--sw-fw-bold); }
+    .cell.warn { color: var(--au-warn-text); font-weight: var(--sw-fw-bold); }
     .ldc { min-inline-size: 70px; display: grid; justify-items: center; gap: 3px; }
     .ldc small { font-size: var(--sw-fs-xs); color: var(--dv-text-3); }
     .load { display: inline-flex; gap: 3px; align-items: center; }
@@ -248,7 +248,7 @@ export class TicketsOverview extends LitElement {
     .hhead .ldc { min-inline-size: 70px; text-align: center; }
     .chip.pur { background: color-mix(in srgb, var(--sw-purple) 16%, transparent); color: color-mix(in srgb, var(--sw-purple) 68%, var(--dv-text)); }
     .sect { display: flex; flex-direction: column; gap: 8px; }
-    .sect > h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--dv-text-2); }
+    .sect > h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--dv-text-2); }
     .sect > h4 .today { color: var(--dv-accent-text); }
     /* who waits for whom */
     .lanes { display: grid; gap: 8px; }
@@ -265,21 +265,21 @@ export class TicketsOverview extends LitElement {
     .closedrows .cr { transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .closedrows .cr:active { transform: scale(0.99); }
     .closedrows .cr:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: -2px; }
-    .closedrows .cr .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; color: var(--dv-text-3); font-weight: 600; }
+    .closedrows .cr .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; color: var(--dv-text-3); font-weight: var(--sw-fw-semibold); }
     .closedrows .cr b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-inline-size: 0; }
-    .closedrows .cr b small { display: block; font-weight: 400; color: var(--dv-text-2); overflow: hidden; text-overflow: ellipsis; }
+    .closedrows .cr b small { display: block; font-weight: var(--sw-fw-regular); color: var(--dv-text-2); overflow: hidden; text-overflow: ellipsis; }
     .closedrows .cr .who { color: var(--dv-text-2); white-space: nowrap; }
-    .cwarn { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--au-warn-text); }
+    .cwarn { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--sw-fw-semibold); color: var(--au-warn-text); }
     .cwarn.bad { color: var(--dv-danger); }
     .back { color: var(--dv-text-3); }
     /* the department comparison */
     .rtbl { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-base); }
-    .rtbl th { text-align: start; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--dv-text-2); padding: 6px 8px; border-block-end: 1px solid var(--dv-border); white-space: nowrap; }
+    .rtbl th { text-align: start; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--dv-text-2); padding: 6px 8px; border-block-end: 1px solid var(--dv-border); white-space: nowrap; }
     .rtbl td { padding: 10px 8px; border-block-end: 1px solid var(--dv-border); vertical-align: middle; font-variant-numeric: tabular-nums; }
     .rtbl tr:last-child td { border-block-end: 0; }
     .rtbl .num { text-align: center; }
-    .rtbl td.bad { color: var(--dv-danger); font-weight: 700; }
-    .tl { display: inline-flex; align-items: center; gap: 5px; color: var(--dv-accent-text); font-weight: 600; text-decoration: none; min-block-size: 32px; }
+    .rtbl td.bad { color: var(--dv-danger); font-weight: var(--sw-fw-bold); }
+    .tl { display: inline-flex; align-items: center; gap: 5px; color: var(--dv-accent-text); font-weight: var(--sw-fw-semibold); text-decoration: none; min-block-size: 32px; }
     @media (hover: hover) and (pointer: fine) {
       .tl:hover { text-decoration: underline; }
     }
@@ -287,9 +287,9 @@ export class TicketsOverview extends LitElement {
     /* phase 3: how much was handled, opened vs closed, waiting for my approval, requests for quotation */
     .w > header .pseg { margin-inline-start: auto; flex: none; }
     .w > header .pseg + .fold { margin-inline-start: 4px; }
-    .rtbl.tp td.who { font-weight: 600; max-inline-size: 0; inline-size: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rtbl.tp td.who { font-weight: var(--sw-fw-semibold); max-inline-size: 0; inline-size: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .rtbl.tp td.mut { color: var(--dv-text-2); font-size: var(--sw-fs-sm); }
-    .rtbl tfoot td { font-weight: 700; border-block-start: 1px solid var(--dv-border-strong, var(--dv-border)); border-block-end: 0; }
+    .rtbl tfoot td { font-weight: var(--sw-fw-bold); border-block-start: 1px solid var(--dv-border-strong, var(--dv-border)); border-block-end: 0; }
     .net { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
     .bars { display: grid; gap: 6px; }
     .bars svg { inline-size: 100%; block-size: 132px; display: block; overflow: visible; }
@@ -303,7 +303,7 @@ export class TicketsOverview extends LitElement {
     .bars .lg i { inline-size: 10px; block-size: 10px; border-radius: var(--sw-r-2xs); display: inline-block; }
     .bars .lg i.o { background: var(--dv-accent); }
     .bars .lg i.c { background: var(--dv-success, var(--sw-success)); }
-    .closedrows .cr .amt { font-weight: 700; color: var(--dv-text); white-space: nowrap; }
+    .closedrows .cr .amt { font-weight: var(--sw-fw-bold); color: var(--dv-text); white-space: nowrap; }
     .closedrows .cr .tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
     .closedrows .cr .tags .chip .ic { font-size: var(--sw-fs-xs); }
     .dcard.total { background: transparent; }
@@ -361,7 +361,7 @@ export class TicketsOverview extends LitElement {
       .pager .pd[aria-current='page']:hover i { background: var(--dv-accent); }
     }
     .pager .pgb:focus-visible, .pager .pd:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; border-radius: var(--sw-r-pill); }
-    .pager .pgn { font-size: var(--sw-fs-sm); color: var(--dv-text-2); font-weight: 600; min-inline-size: 30px; text-align: center; }
+    .pager .pgn { font-size: var(--sw-fs-sm); color: var(--dv-text-2); font-weight: var(--sw-fw-semibold); min-inline-size: 30px; text-align: center; }
     @media (pointer: coarse) {
       .pager .pgb { inline-size: 44px; block-size: 44px; }
       .pager .pd { block-size: 44px; }
@@ -399,7 +399,7 @@ export class TicketsOverview extends LitElement {
       .dcards { display: flex; flex-direction: column; gap: 8px; }
       .dcard { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--sw-r-lg); background: var(--dv-surface); border: 1px solid var(--dv-border); color: inherit; text-decoration: none; min-block-size: 44px; }
       .dcard .nums { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
-      .dcard .nums em { font-style: normal; font-weight: 700; color: var(--dv-text); font-variant-numeric: tabular-nums; }
+      .dcard .nums em { font-style: normal; font-weight: var(--sw-fw-bold); color: var(--dv-text); font-variant-numeric: tabular-nums; }
       .bars svg { block-size: 110px; }
       .closedrows .cr.ap { grid-template-columns: auto minmax(0, 1fr) auto; }
       .closedrows .cr.ap .back, .closedrows .cr.rq .back { display: none; }

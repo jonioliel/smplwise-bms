@@ -15,6 +15,7 @@ import { diaryWord } from './home-v3-words';
 import { playbackHref } from './home-recordings';
 import { alarmChangeText, alarmLogOk, getAlarmLog } from './home-gaps-alarm'; // HOME-V3-GAPS-2436: the "אזעקה" filter
 import { tr } from '../i18n/msg/home';
+import { isoZ } from '../api/day-format';
 
 interface Row { id: string; at: string; text: string; icon: string; kind: 'cam' | 'door' | 'alarm'; cam: string | null; panel?: string }
 
@@ -26,8 +27,8 @@ export const diaryOk = (h: HomeHost) => h.d.modules.has('log') && (canAnywhere('
 async function load(h: HomeHost, force = false) {
   if (st.loading || (!force && st.loaded && Date.now() - st.at < 60_000)) return;
   st.loading = true;
-  const from = new Date(Date.now() - 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const to = new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const from = isoZ(Date.now() - 7 * 86_400_000);
+  const to = isoZ(Date.now() + 60_000);
   const [evs, calls, alarm] = await Promise.all([
     canAnywhere('events.read') ? listEvents({ from, to, limit: 200 }).then((r) => r.events).catch(() => null) : Promise.resolve([]),
     h.d.modules.has('doors') && canAnywhere('access.read') ? getCallLog(null, 40).then((p) => p.calls).catch(() => []) : Promise.resolve([]),

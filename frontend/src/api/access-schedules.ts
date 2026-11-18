@@ -25,9 +25,9 @@ export interface LibrarySchedule {
   holidays: StationPolicy['holidays'];
 }
 
-export type PlanSourceState = 'current' | 'changed' | 'missing' | 'unavailable' | 'unknown';
-export type ResourceCoverage = 'complete' | 'partial' | 'failed' | 'unsupported' | 'not_checked' | 'unknown';
-export type ResourceState = 'matches' | 'different' | 'not_observed' | 'unreadable' | 'unsupported' | 'unknown';
+type PlanSourceState = 'current' | 'changed' | 'missing' | 'unavailable' | 'unknown';
+type ResourceCoverage = 'complete' | 'partial' | 'failed' | 'unsupported' | 'not_checked' | 'unknown';
+type ResourceState = 'matches' | 'different' | 'not_observed' | 'unreadable' | 'unsupported' | 'unknown';
 
 /** A deployment proposal: a library schedule prepared for one station, with the integration's last read-only comparison. */
 export interface SchedulePlan {
@@ -75,9 +75,9 @@ export interface ScheduleOperations {
   writes_enabled: boolean;
 }
 
-export type LibraryReply = ReadHead & { schedules: LibrarySchedule[] | null };
-export type PlansReply = ReadHead & { schedules: SchedulePlan[] | null };
-export type OperationsReply = ReadHead & { schedules: ScheduleOperations | null };
+type LibraryReply = ReadHead & { schedules: LibrarySchedule[] | null };
+type PlansReply = ReadHead & { schedules: SchedulePlan[] | null };
+type OperationsReply = ReadHead & { schedules: ScheduleOperations | null };
 
 export const getScheduleLibrary = () => get<LibraryReply>('access-control/schedules');
 export const getSchedulePlans = () => get<PlansReply>('access-control/schedules/plans');

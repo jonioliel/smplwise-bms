@@ -22,7 +22,7 @@ export interface TermsHost {
 /** The arrival part of the page's state (kept by the page between renders). CR-AWARD-NOTICE: `pp` = the postponement form is open,
  * `pf` its new day, `why` its reason (the page resets the object after a write). */
 export interface ArrivalUi { ack: boolean; open: boolean; from: string; to: string; pp?: boolean; pf?: string; why?: string }
-export type ArrivalAct = 'confirm' | 'propose' | 'postpone';
+type ArrivalAct = 'confirm' | 'propose' | 'postpone';
 
 // CR-AWARD-NOTICE (contract 20.17): his award is BINDING and he must give notice IN ADVANCE here if he postpones the work. The sentence
 // itself is the SERVER's (`binding.text`, code-owned, his language - the same words as the WhatsApp notice), so this chunk carries only

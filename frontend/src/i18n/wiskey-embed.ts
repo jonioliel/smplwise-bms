@@ -33,10 +33,9 @@ const ru: Record<Key, string> = {
   retry: 'Повторить',
 };
 
-export type WetKey = Key;
-export type WetLang = 'he' | 'en' | 'ar' | 'ru';
+type WetLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function wetLang(): WetLang {
+function wetLang(): WetLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

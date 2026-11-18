@@ -6,7 +6,7 @@ import type { IconName } from './sw-icon';
 import { LookController } from '../design/look';
 import { tr } from '../i18n/msg/components';
 
-export type PillVariant = 'plain' | 'toggle' | 'slider';
+type PillVariant = 'plain' | 'toggle' | 'slider';
 
 /**
  * The pill row of the Bubble foundation (owner 2026-10-02; the Bubble Card "button"): an icon ring, a label, a state line and

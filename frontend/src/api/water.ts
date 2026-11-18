@@ -69,14 +69,14 @@ export interface Candidate {
   already_meter_id: string | null;
 }
 
-export interface SeriesItem {
+interface SeriesItem {
   start: string;
   end: string;
   date?: string;
   litres: number | null;
 }
 
-export interface ConsumptionItem {
+interface ConsumptionItem {
   meter_id: string;
   display_name: string;
   kind: MeterKind;
@@ -208,7 +208,7 @@ export const water = {
 let openCount = 0;
 const countListeners = new Set<(n: number) => void>();
 export const openAlertCount = (): number => openCount;
-export function setOpenAlertCount(n: number): void {
+function setOpenAlertCount(n: number): void {
   if (n === openCount) return;
   openCount = n;
   for (const l of countListeners) l(n);

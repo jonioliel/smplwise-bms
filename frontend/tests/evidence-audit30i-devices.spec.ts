@@ -43,7 +43,7 @@ function ruleOf(file: string, selector: string): string {
 
 test.describe('I2 (#4, Q3 a): the chosen chip is the Blue Wash pair', () => {
   test('the .rc rules of the branch read --sw-accent-soft / --sw-accent-text', () => {
-    for (const f of ['screens/automation-drawer.ts', 'screens/system-automations.ts', 'components/notify-css.ts', 'screens/devices-schedules.ts', 'screens/devices-automations.ts']) {
+    for (const f of ['screens/automation-drawer.ts', 'screens/system-automations.ts', 'components/notify-css.ts', 'screens/devices-schedules-css.ts', 'screens/devices-automations.ts']) {
       // DOMUS-DEFAULT-2439: the rule is the shared fragment (styles/chip-selected.ts: the soft field, the deeper ink, the ring)
       const body = ruleOf(f, ".rc[aria-pressed='true']");
       expect(body, f).toContain('${chipSelected'); // ruleOf ends at the fragment's own closing brace

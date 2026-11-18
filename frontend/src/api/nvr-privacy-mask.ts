@@ -45,7 +45,7 @@ export interface MaskItem {
   etag?: string | null;
 }
 
-export type PreviewStatus = 'ready' | 'unchanged' | 'invalid' | 'skipped';
+type PreviewStatus = 'ready' | 'unchanged' | 'invalid' | 'skipped';
 
 export interface MaskState {
   enabled: boolean;
@@ -73,9 +73,9 @@ export interface PreviewResult {
   skipped: number;
 }
 
-export type ApplyStatus = 'applied' | 'unchanged' | 'skipped' | 'failed' | 'not_attempted' | string;
+type ApplyStatus = 'applied' | 'unchanged' | 'skipped' | 'failed' | 'not_attempted' | string;
 
-export interface ApplyRow {
+interface ApplyRow {
   camera_id: string;
   channel: number;
   status: ApplyStatus;
@@ -106,7 +106,7 @@ export interface MaskChange {
 
 const enc = encodeURIComponent;
 
-export interface PrivacyMaskAdapter {
+interface PrivacyMaskAdapter {
   readMask(cameraId: string): Promise<MaskView>;
   previewMasks(items: MaskItem[]): Promise<PreviewResult>;
   applyMasks(items: MaskItem[]): Promise<ApplyResult>;

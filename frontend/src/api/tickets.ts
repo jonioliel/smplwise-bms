@@ -21,8 +21,8 @@ export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one defi
 export type DetailMode = 'drawer' | 'fullscreen' | 'drawer_fullscreen';
 export type NewTicketMode = 'sheet' | 'dialog';
 
-export interface DeptBrief { id: string; key: string; name: string; icon: string | null; color: string | null }
-export interface PriorityBrief { id: string; key: string; name: string; rank: number; severity: Severity }
+interface DeptBrief { id: string; key: string; name: string; icon: string | null; color: string | null }
+interface PriorityBrief { id: string; key: string; name: string; rank: number; severity: Severity }
 export interface Assignee { kind: 'user' | 'contact'; id: string | null; name: string; since: string | null; acknowledged_at: string | null }
 
 /** One row of a list (a card). `view: limited` = a creator or internal assignee who is not a member (no internal content). */
@@ -108,7 +108,7 @@ export interface TicketEvent {
   external: boolean;
 }
 
-export interface TicketAttachment {
+interface TicketAttachment {
   id: string;
   at: string;
   width: number;
@@ -121,7 +121,7 @@ export interface TicketAttachment {
   url: string;
 }
 
-export interface TicketAssignment {
+interface TicketAssignment {
   id: string;
   kind: 'user' | 'contact';
   name: string;
@@ -181,7 +181,7 @@ export interface TicketDetail extends Omit<TicketItem, 'excerpt'> {
   rfq_origin?: RfqOrigin | null;
 }
 
-export interface RfqOrigin { id: string | null; number: number; ref: string; work_from: string | null; work_to: string | null; siblings: { id: string; number: number }[];
+interface RfqOrigin { id: string | null; number: number; ref: string; work_from: string | null; work_to: string | null; siblings: { id: string; number: number }[];
   /** RFQ-VENDOR-UPLOAD (contract 19.10): the awarded vendor's files the work order references - [] without tickets.costs.view */
   vendor_files?: { id: string; name: string; kind: string; bytes: number }[] }
 
@@ -191,9 +191,9 @@ export function rfqVendorFileUrl(ticketId: string, fileId: string): string {
 }
 
 /** TKUI1 (2.6.0): the request drawer's defaults - the tab it opens on, its desktop size (a viewer's own switch wins) and the phone sheet. */
-export type DetailTab = 'overview' | 'conv' | 'costs' | 'history';
-export type DrawerSizeSetting = 'drawer' | 'wide' | 'full';
-export type PhoneSheetSetting = 'full' | 'half';
+type DetailTab = 'overview' | 'conv' | 'costs' | 'history';
+type DrawerSizeSetting = 'drawer' | 'wide' | 'full';
+type PhoneSheetSetting = 'full' | 'half';
 export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode; detail_tab?: DetailTab; drawer_size?: DrawerSizeSetting; phone_sheet?: PhoneSheetSetting; /* TICKETS-1440-COLUMN-SETTING-2360 */ table_mid_width?: 'sentence' | 'department'; /* HANDLERLOAD */ handled_days?: 1 | 7 | 30; /* CR-CAMVF-295 (default off) */ camera_viewfinder?: boolean;
   /* MGRDASH (read through tickets/overview-model.ts overviewSettingsOf) */ dash_handler_numbers?: string; dash_vendors?: string; dash_busy?: number; dash_busy_departments?: Record<string, number>; dash_compare?: string;
   /* MGRDASH phase 5: the alerts' values */ dash_digest_hour?: number; dash_dept_stuck?: number }
@@ -285,12 +285,12 @@ export interface AssigneesList { users: Eligible[]; handlers?: Handler[] }
 
 export interface AdminCategory { id: string; name: string; parent_id: string | null; default_priority_id: string | null; domains: string[]; sort_order: number; active: boolean }
 export type PriorityKey = 'urgent' | 'high' | 'normal' | 'low';
-export interface SendHours { from: string; to: string }
-export interface LinkDurations { sliding_days: number; cap_days: number; grace_hours: number }
+interface SendHours { from: string; to: string }
+interface LinkDurations { sliding_days: number; cap_days: number; grace_hours: number }
 /** slice 2: the department's own overrides (null = the installation value). */
-export interface PolicyOverrides { link_sliding_days: number | null; link_cap_days: number | null; link_grace_hours: number | null; send_hours: SendHours | null; urgent_is_critical: boolean | null }
+interface PolicyOverrides { link_sliding_days: number | null; link_cap_days: number | null; link_grace_hours: number | null; send_hours: SendHours | null; urgent_is_critical: boolean | null }
 /** slice 2: what is in force for a department (services/tickets/policy.py). */
-export interface EffectivePolicy { links: LinkDurations; send_hours: SendHours; urgent_is_critical: boolean; auto_close_after_days: number | null; share_history_external: boolean; reopen_days: number; overridden: string[] }
+interface EffectivePolicy { links: LinkDurations; send_hours: SendHours; urgent_is_critical: boolean; auto_close_after_days: number | null; share_history_external: boolean; reopen_days: number; overridden: string[] }
 export interface InstallationDefaults { links: LinkDurations; send_hours: SendHours; urgent_is_critical: boolean }
 /** slice 2: one row of the SLA grid (minutes; null = off). */
 export interface SlaRow {
@@ -299,12 +299,12 @@ export interface SlaRow {
   stuck_waiting_min: number | null; resolve_within_min: number | null; remind_every_min: number | null; max_reminders: number; manager_alert_after_steps: number;
   revision: number; updated_at: string | null; updated_by: string | null;
 }
-export type SlaField = 'unassigned_after_min' | 'link_unopened_min' | 'ack_within_min' | 'stuck_after_min' | 'stuck_waiting_min' | 'resolve_within_min'
+type SlaField = 'unassigned_after_min' | 'link_unopened_min' | 'ack_within_min' | 'stuck_after_min' | 'stuck_waiting_min' | 'resolve_within_min'
   | 'remind_every_min' | 'max_reminders' | 'manager_alert_after_steps';
 export type SlaPatch = { priority_id: string; revision: number } & Partial<Record<SlaField, number | null>>;
 export interface AdminTemplate { id: string; kind: 'ticket'; name: string; title: string; body: string; category_id: string | null; priority_key: PriorityKey | null; active: boolean; revision: number; updated_at: string }
 export interface TemplateBody { name?: string; title?: string; body?: string; category_id?: string | null; priority_key?: PriorityKey | null; active?: boolean; revision?: number }
-export interface AdminPriority { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean; active: boolean }
+interface AdminPriority { id: string; key: string; name: string; rank: number; severity: Severity; is_default: boolean; active: boolean }
 export interface AdminMember {
   kind: 'user' | 'group'; id: string; name: string; role: 'manager' | 'member'; notify_new: boolean; added_at: string;
   /** TKSTAFF1: a user member's mobile for the no-login staff link (display form; null = none), its message language and the user's WhatsApp switch */
@@ -318,11 +318,11 @@ export interface AdminMember {
 export interface StaffMine { has_phone: boolean; phone: string | null; confirmed: boolean; confirm: string | null; notify_whatsapp: boolean; lang: string;
   /** TKNOTIFOTP: the number is confirmed only by typing the code sent to it */
   verify_required?: boolean; code_pending?: boolean; confirmed_via?: 'user' | 'manager' | 'code' | null }
-export type StaffMineBody = { confirm: string } | { confirmed: false } | { notify_whatsapp: boolean };
+type StaffMineBody = { confirm: string } | { confirmed: false } | { notify_whatsapp: boolean };
 /** TKSTAFF1: PUT /tickets/admin/staff/{user_id} (tickets.configure) - the mobile of an internal employee with an account */
 export interface StaffMobile { user_id: string; contact_id: string | null; phone: string | null; has_phone: boolean; notify_whatsapp: boolean; lang: 'he' | 'en' | 'ar' | 'ru'; active: boolean; live_links: number;
   confirmed?: boolean; phone_verify?: boolean; verify_required?: boolean; confirm?: string | null }
-export interface StaffMobileBody { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean; /** TKNOTIFOTP */ phone_verify?: boolean }
+interface StaffMobileBody { phone?: string | null; lang?: 'he' | 'en' | 'ar' | 'ru'; notify_whatsapp?: boolean; /** TKNOTIFOTP */ phone_verify?: boolean }
 export interface AdminDepartment {
   id: string;
   key: string;
@@ -356,10 +356,10 @@ export interface DepartmentBody {
 }
 /** A soft-deleted department (owner 2026-10-14: "מחלקות שנמחקו" with its restore action). */
 export interface DeletedDepartment { id: string; name: string; deleted_at: string; tickets: number }
-export interface DepartmentsResponse { departments: AdminDepartment[]; all_departments: boolean; installation?: InstallationDefaults; deleted?: DeletedDepartment[] }
+interface DepartmentsResponse { departments: AdminDepartment[]; all_departments: boolean; installation?: InstallationDefaults; deleted?: DeletedDepartment[] }
 /** slice 2: a row of the "who may" matrix (a role and the ticket permissions it carries). */
 export interface RoleRow { id: string; name: string; builtin: boolean; permissions: string[] }
-export interface Holder {
+interface Holder {
   id: string;
   name: string;
   active: boolean;
@@ -370,7 +370,7 @@ export interface HoldersResponse { users: Holder[]; grant_roles: string[]; roles
 /** slice 4: the handler page's keys of the document - its public address and the proxies whose client-address header is believed. */
 export interface PublicSettings { base_url: string; trusted_proxy_cidrs: string[]; client_ip_header: 'cf-connecting-ip' | 'x-forwarded-for'; theme: 'light' | 'dark' | 'auto'; /* TK255 */ path_prefix?: string; legacy_t_paths?: boolean; /* a request field only */ confirm_live_links?: boolean }
 /** CR-RFQ-PAYMENT-SCHEDULE: the requests-for-quotation keys the settings screen edits (the rest of the `rfq` block is read-only here). */
-export interface RfqSettings { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean;
+interface RfqSettings { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean;
   /** RFQPAY2: hours between two reminders of the same overdue instalments (0 = once only) */
   instalment_reminder_hours?: number; vendor_uploads?: RfqVendorUploadSettings; [key: string]: unknown }
 /** RFQ-VENDOR-UPLOAD (contract 19.10): a vendor's files on his quote / question - the switch (OFF by default) and the limits per vendor
@@ -378,11 +378,11 @@ export interface RfqSettings { award_notice?: 'confirm' | 'auto' | 'off'; postpo
 export interface RfqVendorUploadSettings { enabled: boolean; max_files: number; max_uploads: number; max_image_mb: number; max_doc_mb: number; max_total_mb: number }
 /** VPORTAL: the vendor portal on the public page (OFF by default), how far back closed requests are listed and (2.6.4 review F1,
  * default ON) whether only a number confirmed by code may sign in */
-export interface VendorPortalSettings { enabled: boolean; closed_months: number; require_confirmed_number?: boolean;
+interface VendorPortalSettings { enabled: boolean; closed_months: number; require_confirmed_number?: boolean;
   /** VPORTALRFQ (default OFF): open requests for quotation / company technician requests inside the portal */
   rfqs?: boolean; technician_requests?: boolean }
 /** SLACAL: the working-hours calendar of the ticket timers (tickets/work-calendar-model.ts); OFF by default = around the clock */
-export interface WorkCalendarDoc { enabled: boolean; weekdays: number[]; start: string; end: string; days?: Record<string, { start: string; end: string }>; holidays: string[];
+interface WorkCalendarDoc { enabled: boolean; weekdays: number[]; start: string; end: string; days?: Record<string, { start: string; end: string }>; holidays: string[];
   hold_internal?: boolean; auto_close?: 'calendar' | 'working'; link_unopened?: 'wall' | 'working';
   departments: Record<string, { enabled?: boolean; weekdays?: number[]; start?: string; end?: string; days?: Record<string, { start: string; end: string }> }> }
 export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; calendar?: WorkCalendarDoc; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */;
@@ -405,7 +405,7 @@ export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDur
 export interface IntakeSettings { enabled: boolean; whatsapp: boolean; default_department: string; classifier: 'rules' | 'off'; approval_reply: boolean; unlisted_reply: boolean;
   unlisted_reply_per_day: number; coalesce_min: number; sender_per_day: number; sender_per_week: number; installation_per_hour: number; installation_per_day: number;
   open_max: number; draft_ttl_days: number; rejected_keep_days: number; block_days: number }
-export interface VisitsDocSettings { enabled: boolean; public_arrival: boolean; claim_counts: boolean; offer_access_request: boolean; notify_vendor_on_miss: boolean; grace_min: number; early_min: number }
+interface VisitsDocSettings { enabled: boolean; public_arrival: boolean; claim_counts: boolean; offer_access_request: boolean; notify_vendor_on_miss: boolean; grace_min: number; early_min: number }
 export interface SettingsPatch { ui?: Partial<UiSettings>;  intake?: Partial<IntakeSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; calendar?: WorkCalendarDoc; urgent_is_critical?: boolean; organization_name?: string; privacy?: { contact?: string; link?: string }; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones?: boolean; review_pending_days?: number; review_idle_months?: number };
   rfq?: { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; instalment_reminder_hours?: number; vendor_uploads?: Partial<RfqVendorUploadSettings> }; vendor_portal?: Partial<VendorPortalSettings>;
   reports?: Partial<{ to_contacts: boolean; email: boolean; documents: boolean; document_hours: number; document_max_opens: number }>; visits?: Partial<VisitsDocSettings> }

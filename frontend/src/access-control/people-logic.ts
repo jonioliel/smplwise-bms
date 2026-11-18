@@ -20,12 +20,12 @@ import { tr } from '../i18n/msg/misc';
 
 export const PEOPLE_PAGE = 50;
 export const PEOPLE_MAX_LIMIT = 200;
-export const MAX_QUERY = 160;
-export const MAX_PROFILE_FILTERS = 8;
+const MAX_QUERY = 160;
+const MAX_PROFILE_FILTERS = 8;
 
-export type PeopleRights = 'assigned' | 'unassigned' | 'disabled';
-export type PeopleState = 'active' | 'inactive' | 'expired' | 'upcoming' | 'archived';
-export type PeopleCredential = 'pin' | 'no_pin' | 'card' | 'no_card';
+type PeopleRights = 'assigned' | 'unassigned' | 'disabled';
+type PeopleState = 'active' | 'inactive' | 'expired' | 'upcoming' | 'archived';
+type PeopleCredential = 'pin' | 'no_pin' | 'card' | 'no_card';
 
 export const RIGHTS: readonly PeopleRights[] = ['assigned', 'unassigned', 'disabled'];
 export const STATES: readonly PeopleState[] = ['active', 'inactive', 'expired', 'upcoming', 'archived'];
@@ -54,7 +54,7 @@ export interface PeopleRequest {
 }
 
 /** What a caller is allowed to filter by. Mirrors the server: `people` for the ordinary filters, `sensitive` for the field ones. */
-export interface FilterAccess {
+interface FilterAccess {
   people: boolean;
   sensitive: boolean;
 }
@@ -171,7 +171,7 @@ export function nextOffset(page: Pick<AcPeoplePage, 'next_offset' | 'offset'>): 
   return next > (page.offset ?? 0) ? next : null;
 }
 
-export interface CountLine {
+interface CountLine {
   shown: number;
   total: number | null;
   /** `total` is a lower bound (the scan stopped early). */
@@ -187,7 +187,7 @@ export function countLine(shown: number, page: Pick<AcPeoplePage, 'total' | 'tot
 
 // ---------------------------------------------------------------- what a person's page shows, per level
 
-export interface PersonSections {
+interface PersonSections {
   /** The "sensitive details" section exists at all (absent, not greyed, for a names-level person). */
   sensitive: boolean;
   employeeNo: boolean;
@@ -215,7 +215,7 @@ export function personSections(p: AcPerson): PersonSections {
   };
 }
 
-export type CredentialKind = 'card' | 'pin';
+type CredentialKind = 'card' | 'pin';
 
 /** The credential kinds a sensitive-level person has (for the icons of a row): null = not shown / unknown. */
 export function credentialKinds(p: Pick<AcPerson, 'level' | 'credentials'>): { kinds: CredentialKind[]; cards: number; none: boolean } | null {
@@ -247,7 +247,7 @@ export function stateOf(p: Pick<AcPerson, 'archived' | 'active' | 'valid_from' |
   return 'active';
 }
 
-export type ValidityState = 'permanent' | 'validity_unknown' | 'validity_future' | 'validity_expired' | 'validity_current';
+type ValidityState = 'permanent' | 'validity_unknown' | 'validity_future' | 'validity_expired' | 'validity_current';
 
 /** WisKey panel.ts `validitySummary(user)`, the state part: no window at all is `permanent`; a half or inverted window is
  * `validity_unknown`; else where `now` falls against it. */
@@ -320,7 +320,7 @@ export function dayWords(days: readonly string[]): string[] {
 /** "08:00–17:00, 18:00–20:00" from the periods (empty list = all day). */
 export const hoursText = (periods: readonly { start: string; end: string }[]): string => periods.map((p) => `${p.start}–${p.end}`).join(', ');
 
-export interface TimingView {
+interface TimingView {
   mode: 'weekly' | 'dates' | 'unknown';
   days: string[];
   /** The listed dates (dd.mm.yyyy), at most six; `moreDates` counts the rest. */

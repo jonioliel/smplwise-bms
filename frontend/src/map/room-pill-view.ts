@@ -29,7 +29,7 @@ export interface StackLevelDetail {
   enter: boolean;
 }
 /** What the controller needs from the element. */
-export interface PillHost extends ReactiveControllerHost, HTMLElement {
+interface PillHost extends ReactiveControllerHost, HTMLElement {
   renderRoot: HTMLElement | DocumentFragment;
 }
 interface Projector {

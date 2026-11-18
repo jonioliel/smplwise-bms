@@ -10,7 +10,7 @@ export const ANCHOR_3D_DEFAULTS = {
   other: { mount_height_m: 1.2, tilt_deg: 0 },
 } as const;
 
-export type Anchor3dKind = keyof typeof ANCHOR_3D_DEFAULTS;
+type Anchor3dKind = keyof typeof ANCHOR_3D_DEFAULTS;
 
 /** A camera; an entity on the doors layer (a lock, a door station, a gate) at hand height; every other entity. */
 export function anchor3dKind(a: { resource_type: string; layer_id: string }): Anchor3dKind {

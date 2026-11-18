@@ -47,7 +47,7 @@ export function messageContent(t: FrameText, title: string, bodyKey: string, ic:
   ];
 }
 
-export interface FrameBanner { key: string; tone: 'ok' | 'bad' | 'info'; n?: number }
+interface FrameBanner { key: string; tone: 'ok' | 'bad' | 'info'; n?: number }
 
 /** The page's one banner (a bad one is an alert, the others a status), or null when there is none. */
 export function bannerEl(b: FrameBanner | null, t: FrameText): HTMLElement | null {
@@ -55,7 +55,7 @@ export function bannerEl(b: FrameBanner | null, t: FrameText): HTMLElement | nul
   return h('div', { class: `banner ${b.tone}`, attrs: { role: b.tone === 'bad' ? 'alert' : 'status', 'data-banner': b.key } }, t(b.key, { n: b.n ?? '' }));
 }
 
-export interface CodeCard {
+interface CodeCard {
   t: FrameText;
   /** the page's code state: `value` is written back on every keystroke */
   code: { sent: boolean; value: string; message: null | { key: string; n?: number } };

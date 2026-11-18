@@ -77,7 +77,7 @@ const steps = (t: Ticket) => html`<span class="steps" aria-label=${tr('מצב: '
 const noteOf = (t: Ticket) => (t.step === 2 ? tr('הפנייה טופלה.') : t.eta_at ? tr('מטפל יגיע ב{v1}', { v1: whenText(t.eta_at) }) : t.step === 1 ? tr('מישהו כבר מטפל בפנייה.') : tr('הפנייה התקבלה. נעדכן כשמישהו יתחיל לטפל.'));
 
 /** Opens the new-ticket sheet (also from other screens, e.g. a leak). */
-export function openNewTicket(h: HomeHost, where = '') {
+function openNewTicket(h: HomeHost, where = '') {
   st.draft = { cat: -1, where, text: '', note: '', crid: rid() };
   dropPhotos();
   h.ovl = { type: 'ext', mod: 'p2tickets', kind: 'new' } as ExtOvl;

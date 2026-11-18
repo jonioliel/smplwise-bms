@@ -73,7 +73,7 @@ const DECODE_GRACE_MIN_MS = 6000;
 const DECODE_GRACE_MAX_MS = 20000;
 /** The relay's media server is down (error `upstream_unavailable`, close 4503): no step of a plan can help. WARMUP-POLISH-2421: the
  * same plain words on every tile (a LAN tile used to show the internal component's name). */
-export const VIDEO_SERVER_DOWN = VIDEO_SERVICE_DOWN_HE; // HEALTH-GO2RTC-2430: one message for "the video service is down" everywhere
+const VIDEO_SERVER_DOWN = VIDEO_SERVICE_DOWN_HE; // HEALTH-GO2RTC-2430: one message for "the video service is down" everywhere
 /** WARMUP-POLISH-2421: the socket to the video relay has not opened in this bound - the server does not answer (no media server, a
  * proxy holding the upgrade): the tile says so, keeps its snapshot, offers a retry and retries by itself as after any failure. */
 export const SOCKET_OPEN_MS = 10000;
@@ -89,8 +89,8 @@ const RETRY_MAX_MS = 30000;
 
 /** The remote live cap (`remote_live_cap`, WebSocket close 4429): what the tile says, and who may raise it. Never a retry. */
 export const liveCapTitle = (max: number) => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''}`;
-export const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק';
-export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
+const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק';
+const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
 /** LIVE-H265-2341: how often the snapshot behind the "transcode cap full" notice refreshes. */
 /** How often the snapshot behind a capped / still-only stream is re-fetched (exported for the home tile's "מתעדכנת כל" line). */
@@ -102,9 +102,9 @@ export const SUB_FALLBACK_HE = 'עבר לזרם הראשי';
 export const SUB_CHIP_MAX = 160;
 /** The chip's long press, with the wall phone bar's timings (wall-phone-bar.ts KEY_HINT_*): the hold, how long the words show, and the
  * movement that makes it a scroll. */
-export const SUB_HINT_PRESS_MS = 450;
-export const SUB_HINT_SHOW_MS = 2500;
-export const SUB_HINT_MOVE_PX = 10;
+const SUB_HINT_PRESS_MS = 450;
+const SUB_HINT_SHOW_MS = 2500;
+const SUB_HINT_MOVE_PX = 10;
 /** VIDEO-SUB-FALLBACK-2402: an explicit quality whose stream gives nothing (never switched). */
 const NO_MEDIA_HE = (p: Profile) => (p === 'sub' ? 'הזרם המשני לא מגיע מהמצלמה' : 'הזרם הראשי לא מגיע מהמצלמה');
 
@@ -912,14 +912,22 @@ export class SwLivePlayer extends LitElement {
     this.capTimer = window.setTimeout(() => {
       if (gen === this.generation && this.status === 'connecting') this.connectTimedOut();
     }, CONNECTING_CAP_MS);
+    // CR-FE-PROMISES-2442: startWebrtc() handles the failures it expects by itself. Anything else it throws (a browser that
+    // refuses a transceiver, a fault in the first-frame watch) used to vanish and leave "מתחבר…" up until the connecting cap;
+    // it now ends the WebRTC attempt the usual way - the next step or MSE, else the player's error with its retry.
+    const webrtc = () => {
+      this.startWebrtc().catch(() => {
+        if (gen === this.generation) this.webrtcFailed('WebRTC לא נתמך בדפדפן');
+      });
+    };
     ws.onopen = () => {
       if (gen !== this.generation) return;
       window.clearTimeout(this.openTimer);
       if (step) {
         if (step.transport === 'mse') this.startMse();
-        else this.startWebrtc();
+        else webrtc();
       } else if (this.wsUrl || this.mode === 'mse' || (this.mode === 'auto' && mseNow)) this.startMse();
-      else this.startWebrtc();
+      else webrtc();
     };
     ws.onmessage = (ev) => {
       if (gen !== this.generation) return;

@@ -13,7 +13,7 @@ export interface TransitStop {
   city?: string;
 }
 
-export interface TransitConfig {
+interface TransitConfig {
   enabled: boolean;
   stops: TransitStop[];
   /** minutes up to this are counted, then the clock time (0 = always the clock) */
@@ -34,7 +34,7 @@ export interface TransitConfig {
   outage_warn_h: number;
 }
 
-export interface CatalogueStatus {
+interface CatalogueStatus {
   count: number;
   date: string | null;
   ok_at: string | null;
@@ -42,7 +42,7 @@ export interface CatalogueStatus {
   error_at: string | null;
 }
 
-export interface TransitHealth {
+interface TransitHealth {
   enabled: boolean;
   /** source_down (BUSSTATUS-297): the provider is failing and the last good data is younger than outage_warn_h */
   state: 'off' | 'ok' | 'stale' | 'down' | 'source_down';
@@ -58,7 +58,7 @@ export interface TransitHealth {
   backoff_until: string | null;
 }
 
-export interface TransitLimits {
+interface TransitLimits {
   max_stops: number;
   windows: number[];
   window_range: [number, number];
@@ -92,7 +92,7 @@ export interface CatalogueStop {
   lon: number | null;
 }
 
-export type TransitConfigPatch = Partial<Omit<TransitConfig, 'stops'>> & { stops?: { code: number; name: string }[] };
+type TransitConfigPatch = Partial<Omit<TransitConfig, 'stops'>> & { stops?: { code: number; name: string }[] };
 
 export const transitSettings = () => get<TransitSettings>('transit/settings');
 export const putTransitSettings = (body: TransitConfigPatch) => put<TransitSettings>('transit/settings', body);

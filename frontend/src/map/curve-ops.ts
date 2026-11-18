@@ -43,7 +43,7 @@ export function bendSegment(doc: GeometryDoc, id: string, seg: number, through: 
 }
 
 /** Segment `seg` with this bulge (clamped to +-MAX_BULGE; tiny values straighten it). */
-export function setSegmentBulge(doc: GeometryDoc, id: string, seg: number, bulge: number, W: number, H: number): GeometryDoc {
+function setSegmentBulge(doc: GeometryDoc, id: string, seg: number, bulge: number, W: number, H: number): GeometryDoc {
   const w = wallOf(doc, id);
   if (!w || seg < 0 || seg >= w.polyline.length - 1 || !Number.isFinite(bulge)) return doc;
   const bulges = bulgesOf(w);

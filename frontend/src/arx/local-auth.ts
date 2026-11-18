@@ -10,7 +10,7 @@ import { ArxAuthError } from './auth';
 import { lit } from '../i18n/local-identity';
 import { getPasskey, type RequestOptionsJSON } from './webauthn';
 
-export interface LocalSignIn {
+interface LocalSignIn {
   second_factor: 'none' | 'required' | 'enroll_required';
   must_change_password?: boolean;
   user?: { id: string; username: string; display_name: string; source: string };
@@ -18,7 +18,7 @@ export interface LocalSignIn {
   methods?: ('totp' | 'passkey')[];
 }
 
-export interface LocalMe {
+interface LocalMe {
   user: { id: string; source: string };
   local_identity?: { gate: string | null; admin_permissions_blocked: boolean; must_change_password: boolean };
 }

@@ -113,9 +113,9 @@ const ru: Record<Key, string> = {
   nextRun: 'Следующий запуск',
 };
 
-export type PlLang = 'he' | 'en' | 'ar' | 'ru';
+type PlLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function plLang(): PlLang {
+function plLang(): PlLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

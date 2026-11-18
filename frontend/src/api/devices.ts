@@ -58,7 +58,7 @@ export interface DeviceArea {
 }
 
 /** K88: where an area sits on the maps - the plan floor and the linked room. */
-export interface AreaMapLink {
+interface AreaMapLink {
   floor_id: string;
   zone_id: string;
 }
@@ -288,7 +288,7 @@ export function itemsQuery(kind: TileKind, scope: ItemsScope = 'building', id = 
 /** "רענן מ-Home Assistant" (CR-007 HA refresh): re-read HA's entity / device / area / floor registries now.
  * `devices.read`; one per user per 10 s (429 `refresh_rate_limited`, details.retry_after_s); 503 while HA is not
  * connected. The open screens also receive the `structure_changed` push when something moved. */
-export interface DevicesRefreshResult {
+interface DevicesRefreshResult {
   changed: boolean;
   last_registry_at: string | null;
   sync: HaSyncState;
@@ -369,7 +369,7 @@ export const PRESET_HE: Record<string, string> = {
   home: tr('בבית'), away: tr('מחוץ לבית'), eco: tr('חיסכון'), comfort: tr('נוחות'), sleep: tr('שינה'), boost: tr('מוגבר'), none: tr('ללא'), auto: tr('אוטומטי'), off: tr('כבוי'), activity: tr('פעילות'),
   normal: tr('רגיל'), baby: tr('תינוק'), night: tr('לילה'), quiet: tr('שקט'), manual: tr('ידני'), smart: tr('חכם'), turbo: tr('טורבו'), vacation: tr('חופשה'), frost_protection: tr('הגנה מקיפאון'),
 };
-export type ClimateChoice = 'hvac' | 'fan' | 'swing' | 'preset' | 'hmode';
+type ClimateChoice = 'hvac' | 'fan' | 'swing' | 'preset' | 'hmode';
 /** A climate / humidifier mode value in words for the screen - display only (the device always receives the raw value).
  * Case-insensitive; an unknown value is shown as the device reports it. */
 export function climateWord(kind: ClimateChoice, value: string | null | undefined): string {

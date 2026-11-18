@@ -4,7 +4,7 @@ import './sw-icon';
 import { WEEKDAYS_HE, WEEKDAY_NAMES_HE, canGoNext, dayLabel, monthGrid, monthOf, monthTitle, shiftMonth, summaryText, type MonthCell } from './recorded-month-logic';
 import { tr } from '../i18n/msg/components';
 
-export interface MonthAnswer {
+interface MonthAnswer {
   days: string[];
   coverage: 'complete' | 'partial';
 }

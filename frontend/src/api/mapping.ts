@@ -19,7 +19,7 @@ export interface MappingVersion {
   current: boolean;
 }
 
-export interface MappingBuilding {
+interface MappingBuilding {
   id: string;
   name: string;
   is_shared: boolean;
@@ -272,7 +272,3 @@ export async function multiBuildingOn(): Promise<boolean> {
   }
 }
 
-/** Test seam: forget the demo store (unit specs run the module more than once). */
-export function resetDemoMapping() {
-  demo = null;
-}

@@ -109,7 +109,7 @@ export class MediaRemoteEditor extends LitElement {
         display: flex;
         align-items: center;
         gap: 8px;
-        font-weight: 700;
+        font-weight: var(--sw-fw-bold);
         font-size: var(--sw-fs-lg);
       }
       .bar .t .ic {
@@ -125,7 +125,7 @@ export class MediaRemoteEditor extends LitElement {
         margin: 6px 4px 0;
         font-size: var(--sw-fs-sm);
         color: var(--mr-text-2);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
       }
       .row {
         display: flex;
@@ -311,7 +311,7 @@ export class MediaRemoteEditor extends LitElement {
       .err {
         color: var(--mr-danger);
         font-size: var(--sw-fs-base);
-        font-weight: 600;
+        font-weight: var(--sw-fw-semibold);
         padding: 0 4px;
       }
     `,

@@ -38,7 +38,7 @@ export const SEEK_DEBOUNCE_MS = 300;
 
 /** What the panel shows: the full body (`on`), the big power button over a dimmed body (`off`), or only "לא זמין" (`unavailable`:
  * unavailable or unknown). An `art` power never occurs on a player, it counts as on. */
-export type PanelMode = 'on' | 'off' | 'unavailable';
+type PanelMode = 'on' | 'off' | 'unavailable';
 
 export function panelMode(d: Pick<PlayerDevice, 'live'>): PanelMode {
   switch (d.live.power) {
@@ -70,7 +70,7 @@ export function playerUnavailableLine(d: Pick<PlayerDevice, 'live' | 'kind'>): {
 }
 
 /** The big button of the off state: what it does, whether it is enabled and why not (tooltip only). */
-export interface PlayerPowerOffer {
+interface PlayerPowerOffer {
   action: 'on' | 'off' | 'none';
   enabled: boolean;
   reason: string | null;
@@ -104,7 +104,7 @@ export function nowStatusWord(d: Pick<PlayerDevice, 'live'>, leader: Pick<Player
 export const hasNow = (l: Pick<PlayerLive, 'play' | 'now'>): boolean => (l.play === 'playing' || l.play === 'paused') && !!l.now.title;
 
 /** The transport buttons of the pad, in order, each only where `caps` allow it (shuffle / repeat only with the music layer). */
-export interface TransportButton {
+interface TransportButton {
   id: 'shuffle' | 'previous' | 'play_pause' | 'next' | 'repeat';
   offered: boolean;
 }
@@ -142,7 +142,7 @@ export const fraction = (pos: number | null, dur: number | null): number => (pos
 
 /** What the "הבא בתור" block draws: `none` (this device has no queue read at all: no section), `loading` (nothing read yet),
  * `unavailable` ("לא זמין", never an empty list), or the rows. A partial queue is never shown as empty. */
-export type UpNextView =
+type UpNextView =
   | { kind: 'none' }
   | { kind: 'loading' }
   | { kind: 'unavailable' }
@@ -181,7 +181,7 @@ export function groupSliderLevel(rooms: readonly PlayerDevice[]): number | null 
 }
 
 /** A device as the group-volume plan reads it. */
-export function planMember(d: PlayerDevice): PlanMember {
+function planMember(d: PlayerDevice): PlanMember {
   return { key: d.key, volume_max: d.volume_max, volume_night: d.volume_night, can: { control: d.can.control }, live: { power: d.live.power, volume: { level: d.live.volume.level, muted: d.live.volume.muted } } };
 }
 
@@ -236,7 +236,7 @@ export function isGroupedView(lead: PlayerDevice, rooms: readonly RoomRow[]): bo
 export const groupVolumeOffered = (lead: Pick<PlayerDevice, 'caps' | 'can' | 'live'>): boolean => lead.caps.volume_group && lead.can.group && lead.can.control && lead.live.caps_known && !isDead(lead.live);
 
 /** The rooms of the "קבוצה" section: the leader first (ticked, fixed), then the candidates of the SAME layer by floor, each with its tick state. */
-export interface GroupRow {
+interface GroupRow {
   key: string;
   name: string;
   sub: string;
@@ -329,7 +329,7 @@ export function zoneView(d: Pick<PlayerDevice, 'zones' | 'live'>, id: string | n
 
 /** Why a press was not sent: `not_offered` (caps / state / permission), `dropped` (over a rate: a short shake, no text), `busy` (a
  * power command is still in flight), `cooldown` (a second tap on a slow command). */
-export type PlayerGateVerdict = 'send' | 'not_offered' | 'dropped' | 'busy' | 'cooldown';
+type PlayerGateVerdict = 'send' | 'not_offered' | 'dropped' | 'busy' | 'cooldown';
 
 const KEYLIKE: readonly PlayerCommand['command'][] = ['transport', 'volume_step', 'mute', 'key'];
 
@@ -393,7 +393,7 @@ export class RateGap {
 
 /** `null` = the effect is not observable (steps, next / previous): the press is "sent", never "confirmed". Otherwise the predicate
  * the fresh `live` must satisfy; it is evaluated until true or `CONFIRM_TIMEOUT_MS`. */
-export type PlayerExpectation = ((live: PlayerLive) => boolean) | null;
+type PlayerExpectation = ((live: PlayerLive) => boolean) | null;
 
 export interface ExpectContext {
   /** The library item being started (its name is what a track / station shows once it plays). */

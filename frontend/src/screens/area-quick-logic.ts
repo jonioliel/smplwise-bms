@@ -12,7 +12,7 @@ export type DesktopArea = 'drawer' | 'popup' | 'screen';
 export type Detent = 'peek' | 'half' | 'full';
 export const DETENTS: readonly Detent[] = ['peek', 'half', 'full'];
 
-export interface QuickState {
+interface QuickState {
   open: boolean;
   mode: QuickMode;
   /** Desktop: the larger view (a wider panel with two columns). */
@@ -53,7 +53,7 @@ export function setDetent(s: QuickState, detent: Detent): QuickState {
 // ------------------------------------------------------------------------------------------------ the bottom sheet's detents
 
 /** The sheet's height per detent, as a share of the viewport height (peek = the head and the quick strip, half, nearly full). */
-export const DETENT_SHARE: Record<Detent, number> = { peek: 0.34, half: 0.62, full: 0.92 };
+const DETENT_SHARE: Record<Detent, number> = { peek: 0.34, half: 0.62, full: 0.92 };
 
 export function detentHeight(detent: Detent, viewportH: number): number {
   return Math.round(viewportH * DETENT_SHARE[detent]);
@@ -160,7 +160,7 @@ export function flipTransform(f: { x: number; y: number; sx: number; sy: number 
 // ------------------------------------------------------------------------------------------------ permissions and sections
 
 export type QuickSection = 'quick' | 'lighting' | 'switches' | 'climate' | 'heating' | 'covers' | 'media' | 'sensors' | 'cameras' | 'scenes' | 'schedules' | 'events';
-export const CONTROL_CARDS: readonly (CardId & QuickSection)[] = ['lighting', 'switches', 'climate', 'heating', 'covers', 'media'];
+const CONTROL_CARDS: readonly (CardId & QuickSection)[] = ['lighting', 'switches', 'climate', 'heating', 'covers', 'media'];
 
 /** The rows of a control section a person sees: only what he may control (the owner's rule), that is available. */
 export function controllableRows(card: Pick<DeviceCard, 'entities'> | null | undefined, equipmentDomains: ReadonlySet<string> = new Set()): DeviceRow[] {
@@ -172,7 +172,7 @@ export function sensorRows(card: Pick<DeviceCard, 'entities'> | null | undefined
   return (card?.entities ?? []).filter((r) => r.available).slice(0, max);
 }
 
-export interface SectionInput {
+interface SectionInput {
   cards: Partial<Record<CardId, Pick<DeviceCard, 'entities'>>> | null;
   cameras: number;
   scenes: number;
@@ -202,7 +202,7 @@ export function peekSections(all: readonly QuickSection[]): QuickSection[] {
 }
 
 /** Which permissions a side list needs (any one of them, at any scope); a 403 from the server hides the section too - the server is the authority. */
-export const SECTION_PERMISSION: Record<'scenes' | 'schedules' | 'events' | 'cameras', readonly string[]> = {
+const SECTION_PERMISSION: Record<'scenes' | 'schedules' | 'events' | 'cameras', readonly string[]> = {
   scenes: ['scene.manage', 'automation.manage', 'devices.control', 'ha.entity.control'],
   schedules: ['schedule.view', 'schedule.manage'],
   events: ['events.read'],

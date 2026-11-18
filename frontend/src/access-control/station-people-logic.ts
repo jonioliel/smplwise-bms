@@ -5,7 +5,7 @@
  */
 import type { DuplicateGroup, StationUser, StepResult } from '../api/station-people';
 
-export interface StationEntry extends StationUser {
+interface StationEntry extends StationUser {
   station_id: string;
   station_name: string;
 }

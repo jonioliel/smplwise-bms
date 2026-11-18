@@ -11,12 +11,12 @@ import { inNativeApp } from '../arx/native-app';
 import { quietScreenLoads } from '../shell/lazy-screens';
 
 /** Chromium's install prompt event (not in the DOM typings). */
-export interface InstallPromptEvent extends Event {
+interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export interface PwaState {
+interface PwaState {
   registration: ServiceWorkerRegistration | null;
   updateReady: boolean;
   installEvent: InstallPromptEvent | null;
@@ -79,7 +79,7 @@ export function dismiss(key: string): void {
 }
 
 /** MOBILE214: inside either native app (Android or iOS): the app is the installed form, no install banner or hint. */
-export function inNativeShell(): boolean {
+function inNativeShell(): boolean {
   return inAndroidApp() || inNativeApp();
 }
 
@@ -107,9 +107,9 @@ export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unava
 }
 
 /** How long "רענון" waits for the new worker to start activating before it reloads the page anyway (applyUpdate). */
-export const UPDATE_STALL_MS = 3000;
+const UPDATE_STALL_MS = 3000;
 /** How long a reload of applyUpdate may stay pending (this document still here) before it is asked again. */
-export const UPDATE_RELOAD_RETRY_MS = 8000;
+const UPDATE_RELOAD_RETRY_MS = 8000;
 
 /**
  * Let the waiting worker take over and reload once it controls the page.

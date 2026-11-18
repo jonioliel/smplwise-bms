@@ -13,7 +13,7 @@ import { fmtDate, fmtInstant, kindText, stickerUrl } from './model';
 import { maintCss } from './styles';
 
 /** A sticker's QR code as one inline SVG path (no data: URL - the strict remote CSP stays untouched), like the second-factor enrolment. */
-export function qrPath(text: string): { d: string; size: number } {
+function qrPath(text: string): { d: string; size: number } {
   const qr = qrcode(0, 'M');
   qr.addData(text);
   qr.make();

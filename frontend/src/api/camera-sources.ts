@@ -6,20 +6,20 @@
 import { del, get, post, put } from './client';
 import type { Camera } from './types';
 
-export interface SourceSide {
+interface SourceSide {
   /** The address with its password masked. */
   url: string;
   has_password: boolean;
 }
 
-export interface SourceProbe {
+interface SourceProbe {
   codec: string | null;
   width: number | null;
   height: number | null;
   at: string | null;
 }
 
-export interface SourceHealth {
+interface SourceHealth {
   state: 'ok' | 'failing' | 'unknown';
   code: string | null;
   checked_at: string | null;
@@ -41,7 +41,7 @@ export interface CameraSource {
   capabilities: { live: boolean; snapshot: boolean; recording: boolean; playback: boolean; events: boolean; reboot: boolean };
 }
 
-export interface SourceSave {
+interface SourceSave {
   mode: 'nvr' | 'manual';
   main_url?: string | null;
   sub_url?: string | null;
@@ -53,7 +53,7 @@ export type StreamTest =
   | { ok: true; width: number; height: number; codec: string | null; codec_label: string | null; preview: string }
   | { ok: false; code: string; message: string };
 
-export interface StandaloneIn {
+interface StandaloneIn {
   name: string;
   area_id?: string | null;
   main_url?: string | null;

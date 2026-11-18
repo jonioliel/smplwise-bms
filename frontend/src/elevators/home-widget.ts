@@ -12,7 +12,7 @@ import { elt } from '../i18n/elevators';
  * medium = the summary and the first rows, large = every row with how long ago its state began. Read-only: a tap opens תשתיות › מעליות.
  * No direction is ever shown. Drawn by `home-widgets` through `renderElevators` (the host's own card shell and edit bar).
  */
-export interface ElevatorsWidgetHost {
+interface ElevatorsWidgetHost {
   cfg: ElevatorsCfg;
   elevators: readonly Elevator[];
   stale: boolean;

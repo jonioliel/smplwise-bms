@@ -134,7 +134,7 @@ export function injectBakedAo(m: MeshStandardMaterial, u: AoUniforms): void {
 }
 
 /** The glass look per style (alpha added at the grazing edge, and per unit of reflected luminance). */
-export const GLASS_FRESNEL = { edge: 0.55, reflect: 0.9, max: 0.88, power: 4 } as const;
+const GLASS_FRESNEL = { edge: 0.55, reflect: 0.9, max: 0.88, power: 4 } as const;
 
 /** S3: the fresnel edge and the kept reflection on a translucent glass material. */
 export function injectGlassFresnel(m: MeshStandardMaterial): void {

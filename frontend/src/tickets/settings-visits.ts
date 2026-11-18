@@ -4,7 +4,7 @@ import { ApiError, describeError, put } from '../api/client';
 import { intIn } from './durations';
 import { vst } from './visits-settings-text';
 
-export interface VisitsSettings {
+interface VisitsSettings {
   enabled: boolean;
   public_arrival: boolean;
   claim_counts: boolean;

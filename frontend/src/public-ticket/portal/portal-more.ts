@@ -14,7 +14,7 @@ import { money, type Answer } from './portal-model';
 import { isRfqs, isTechs, plausibleName, techRefusal, type Company, type RfqItem, type TechView } from './portal-more-model';
 import { mt, type MoreKey } from './portal-more-text';
 
-export interface MoreHost {
+interface MoreHost {
   lang(): Lang;
   when(iso: string | null | undefined): string;
   call(method: 'GET' | 'POST', route: string, body?: unknown): Promise<Answer>;

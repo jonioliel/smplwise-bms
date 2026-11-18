@@ -124,7 +124,5 @@ export function cit(key: Key, vars?: Record<string, string | number>): string {
   return fill(raw, vars);
 }
 
-export const CIT_KEYS = Object.keys(he) as Key[];
-export const CIT_TABLES = TABLES;
 
 registerCatalogue('i18n/camera-image-health', { he, en });

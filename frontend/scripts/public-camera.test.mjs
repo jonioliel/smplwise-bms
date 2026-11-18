@@ -6,8 +6,9 @@ import { readFileSync } from 'node:fs';
 
 function fakeDom() {
   const made = [];
-  globalThis.window = { addEventListener() {}, removeEventListener() {} };
-  globalThis.document = {
+  // a minimal stand-in, not a real Window / Document (the casts are for the type check only)
+  globalThis.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {} });
+  globalThis.document = /** @type {any} */ ({
     body: { appendChild() {} },
     createElement() {
       const el = { attrs: {}, hidden: false, type: '', accept: '', setAttribute(k, v) { this.attrs[k] = v; },
@@ -15,7 +16,7 @@ function fakeDom() {
       made.push(el);
       return el;
     },
-  };
+  });
   return made;
 }
 

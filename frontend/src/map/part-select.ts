@@ -4,9 +4,9 @@ import type { GeometryDoc } from './geometry';
  * entity is itself; a door or an object bound to an entity (`anchor_ref`) selects that entity's anchor; an unbound object
  * is the object; anything else (a room, a wall, a connector, a label, an unbound opening) is a stray click - null, the
  * screen keeps its selection. The empty click (no part: the floor or the background) is the screen's own business. */
-export type PartTarget = { anchor: string } | { object: string } | null;
+type PartTarget = { anchor: string } | { object: string } | null;
 
-export interface PartAnchorRef {
+interface PartAnchorRef {
   id: string;
   resource_type: string;
   resource_id: string;

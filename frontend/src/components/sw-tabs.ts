@@ -29,9 +29,9 @@ export interface TabItem {
 
 /** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
  * or the compact underline row. The first hierarchy level of an area is a pill by default, its sub-tabs the compact row. */
-export type TabVariant = 'pill' | 'underline' | 'underline-compact' | 'dropdown';
+type TabVariant = 'pill' | 'underline' | 'underline-compact' | 'dropdown';
 /** hybrid (0.1.153): up to this many items stay the bar the host asked for, more become a dropdown. */
-export const ADAPTIVE_MAX_ITEMS = 3;
+const ADAPTIVE_MAX_ITEMS = 3;
 
 /**
  * Tabs as on the boards ("All Sites (3) | Buildings | Map"). `variant` picks the look:

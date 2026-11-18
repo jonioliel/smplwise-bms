@@ -28,7 +28,7 @@ import { tr } from '../i18n/msg/misc';
 
 export type Scheme = 'light' | 'dark';
 
-export interface PaletteScheme {
+interface PaletteScheme {
   bg: string;
   surface: string;
   surface2: string;
@@ -63,15 +63,13 @@ export const DEFAULTS_FOR_OPEN_QUESTIONS = {
 };
 
 export const MAX_CUSTOM = 12;
-export const CUSTOM_PREFIX = 'custom-';
 export const CUSTOM_ID_RE = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const DEFAULT_PALETTE_ID = 'default';
 
 const FILE = rawPalettes as unknown as { defaultPalette: string; palettes: Palette[] };
 /** The ten ready palettes, in the file's order. */
 export const BUILTIN_PALETTES: readonly Palette[] = FILE.palettes.filter((p) => !DEFAULTS_FOR_OPEN_QUESTIONS.OFFERED || DEFAULTS_FOR_OPEN_QUESTIONS.OFFERED.includes(p.id));
 export const BUILTIN_IDS: readonly string[] = BUILTIN_PALETTES.map((p) => p.id);
-export const isBuiltinId = (id: string): boolean => BUILTIN_IDS.includes(id);
+const isBuiltinId = (id: string): boolean => BUILTIN_IDS.includes(id);
 export const isCustomId = (id: string): boolean => id.length <= 40 && CUSTOM_ID_RE.test(id);
 
 // ---- the schema (a closed set; the same list as the backend and validate_palettes.mjs) ----
@@ -251,7 +249,7 @@ export function checkScheme(s: PaletteScheme): Row[] {
   return rows;
 }
 
-export interface FailingRow extends Row {
+interface FailingRow extends Row {
   scheme: Scheme;
 }
 /** The failing rows of a well-formed palette, both schemes, of the colours as they are APPLIED (the dark accent derived, see effectiveScheme). */
@@ -308,7 +306,7 @@ export function validatePalette(pal: unknown, opts: { custom?: boolean } = {}): 
 // ---- colour helpers for the token mapping ----
 
 const hex2 = (n: number): string => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
-export const toHex = (c: RGBA): string => `#${hex2(c[0])}${hex2(c[1])}${hex2(c[2])}`;
+const toHex = (c: RGBA): string => `#${hex2(c[0])}${hex2(c[1])}${hex2(c[2])}`;
 const rgbaStr = (c: RGBA, a: number): string => `rgba(${Math.round(c[0])}, ${Math.round(c[1])}, ${Math.round(c[2])}, ${Math.round(a * 100) / 100})`;
 /** `a` toward `b` by `t` (0..1), in sRGB. */
 const mix = (a: RGBA, b: RGBA, t: number): RGBA => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, 1];

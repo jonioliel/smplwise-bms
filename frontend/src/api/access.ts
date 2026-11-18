@@ -135,7 +135,7 @@ export interface AccessGroup {
   bindings: AccessBinding[];
 }
 
-export interface GroupsResponse {
+interface GroupsResponse {
   groups: AccessGroup[];
   /** rbac.roles.manage: create, rename, delete. */
   can_manage: boolean;
@@ -185,6 +185,7 @@ export const setRemoteAccess = (userId: string, enabled: boolean) =>
   put<{ user_id: string; remote_access: boolean; sessions_ended: number }>(`access/users/${encodeURIComponent(userId)}/remote-access`, { enabled });
 export const syncDirectory = () => post<{ requested: boolean; note?: string; result?: unknown }>('identity/sync');
 export const listRoles = () => get<RolesResponse>('access/roles');
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T076-T080 (users, groups and roles).
 export const listBindings = () => get<{ bindings: AccessBinding[]; revision: number }>('access/bindings');
 export const createBinding = (body: { subject_kind: 'user' | 'group'; subject_id: string; role_id: string; scope_type: string; scope_id: string; effect?: 'allow' | 'deny'; expires_at?: string | null }) =>
   post<AccessBinding & { revision: number }>('access/bindings', body);
@@ -248,5 +249,6 @@ export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles
 export const updateRole = (id: string, body: CustomRoleBody & { revision: number }) => patch<RoleInfo & { impact: RoleImpact }>(path`access/roles/${id}`, body);
 export const deleteRole = (id: string) => del(path`access/roles/${id}`);
 export const previewRole = (body: { role_id?: string | null; permissions: string[]; sensitive: string[] }) => post<RoleImpact>('access/roles/preview', body);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by T082 (delegated permissions).
 export const getDelegation = () => get<{ delegable_roles: string[]; default: string[]; rules: string[]; blocked: Record<string, string>; revision: number }>('access/delegation');
 export const setDelegation = (roles: string[]) => put<{ delegable_roles: string[]; revision: number }>('access/delegation', { delegable_roles: roles });

@@ -23,7 +23,7 @@ export function orderBy<T>(list: readonly T[], key: (t: T) => string, order: rea
 }
 
 /** A sensor that is in alarm: a binary sensor of a safety / opening class that is on (an ordinary "on" - motion, a plain input - is not an alarm). */
-export const ALARM_CLASSES: readonly string[] = ['smoke', 'gas', 'carbon_monoxide', 'moisture', 'tamper', 'problem', 'safety', 'heat', 'vibration', 'door', 'window', 'opening', 'garage_door'];
+const ALARM_CLASSES: readonly string[] = ['smoke', 'gas', 'carbon_monoxide', 'moisture', 'tamper', 'problem', 'safety', 'heat', 'vibration', 'door', 'window', 'opening', 'garage_door'];
 export function isAlarming(r: Pick<DeviceRow, 'domain' | 'device_class' | 'active' | 'available'>): boolean {
   return r.domain === 'binary_sensor' && r.available && r.active && !!r.device_class && ALARM_CLASSES.includes(r.device_class);
 }
@@ -36,7 +36,7 @@ export function isTechnical(r: Pick<DeviceRow, 'entity_id' | 'name'>): boolean {
   return raw.test(name) || raw.test(id) || /(^|_)input_?\d+(_|$)/.test(id) || name === 'idle' || /(^|_)idle($|_)/.test(id);
 }
 
-export interface ShownItems<T> {
+interface ShownItems<T> {
   rows: T[];
   /** Entity ids shown only because they are alarming while hidden (drawn red with a note). */
   revealed: Set<string>;

@@ -4,11 +4,11 @@
  */
 import { get, post, put } from './client';
 
-export type SpEffect = 'allow' | 'deny' | 'inherit';
+type SpEffect = 'allow' | 'deny' | 'inherit';
 export type SpSource = 'group' | 'personal' | 'blocked' | 'blocked_group' | 'none' | 'unknown';
 export type SpSyncState = 'none' | 'pending' | 'applied' | 'unverified' | 'failed';
 
-export interface SpRecord {
+interface SpRecord {
   effect: SpEffect;
   relays: number[];
   sync_state: SpSyncState;
@@ -18,7 +18,7 @@ export interface SpRecord {
   last_error: string | null;
 }
 
-export interface SpRequest {
+interface SpRequest {
   effect: 'allow' | 'inherit';
   relays: number[];
   requested_at: string | null;
@@ -26,7 +26,7 @@ export interface SpRequest {
   mine: boolean;
 }
 
-export interface SpActions {
+interface SpActions {
   allow: boolean;
   deny: boolean;
   inherit: boolean;
@@ -68,7 +68,7 @@ export interface SpPerson {
   addable: SpAddable[];
 }
 
-export interface SpOutcome {
+interface SpOutcome {
   outcome: 'decided' | 'requested' | 'refused';
   sync_state?: SpSyncState;
   code?: string | null;

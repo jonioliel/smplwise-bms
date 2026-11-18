@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { mutedStyles } from '../styles/fragments';
 
 /**
  * Styles of the native schedules screen (CR-036 slice S9). Only `--sw-*` tokens (unit-token-lint), no skin rules: the skins reach
@@ -228,10 +229,7 @@ export const schedulesCss = css`
     font-size: var(--sw-fs-md);
     color: var(--sw-heading, var(--sw-text));
   }
-  .muted {
-    color: var(--sw-text-3);
-    font-size: var(--sw-fs-sm);
-  }
+  ${mutedStyles}
   .lines {
     display: flex;
     flex-direction: column;

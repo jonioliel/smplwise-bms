@@ -71,7 +71,7 @@ export const lookOf = (state: ElevatorState): Look => (CHIPS[state] ?? CHIPS.unk
 
 /** Loudest first: fire service, fault, out of service, unknown, then the calm states. */
 export const RANK: Record<ElevatorState, number> = { fire_service: 0, fault: 1, out_of_service: 2, unknown: 3, moving_up: 4, moving_down: 4, active: 4, travelling: 4, door_open: 5, waiting: 6 };
-export const ALERT_STATES: readonly ElevatorState[] = ['fire_service', 'fault', 'out_of_service'];
+const ALERT_STATES: readonly ElevatorState[] = ['fire_service', 'fault', 'out_of_service'];
 
 // ------------------------------------------------------------------------------------------------ the Infrastructure screen
 
@@ -100,7 +100,7 @@ export function kpisOf(list: readonly Elevator[], stale = false): Kpis {
   return k;
 }
 
-export interface Led {
+interface Led {
   role: ElevatorRole;
   label: string;
   /** true = lit, false = off, null = no live value; `na` = the role is not linked (drawn faded). */
@@ -197,7 +197,7 @@ export interface ShownElevator {
   chip: Chip;
 }
 
-export interface WidgetView {
+interface WidgetView {
   /** the elevators the widget lists (configured order; hidden ones out; with `alerts` only the alerting states) */
   items: ShownElevator[];
   /** the elevators left after hiding, before the state filter (the counts of the combined card) */
@@ -244,7 +244,7 @@ export const effectiveHidden = (installation: readonly string[], mine: readonly 
 
 // ------------------------------------------------------------------------------------------------ the KPI-row tiles (CR-INFRA-ELEVATORS 2.7.x)
 
-export type HomeTile =
+type HomeTile =
   | { kind: 'elevator'; id: string; name: string; chip: Chip; href: string }
   | { kind: 'summary'; label: string; value: string; detail: string; icon: IconName; tone: StateKind; href: string };
 

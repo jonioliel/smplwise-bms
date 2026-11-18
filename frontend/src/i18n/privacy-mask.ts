@@ -363,14 +363,14 @@ const ru: Record<PmKey, string> = {
   sw_err: 'Изменение не сохранено. Повторите попытку.',
 };
 
-export type PmLang = 'he' | 'en' | 'ar' | 'ru';
+type PmLang = 'he' | 'en' | 'ar' | 'ru';
 const TABLES: Record<PmLang, Record<PmKey, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
 export const PM_DEV_MARKED: readonly PmLang[] = ['ar', 'ru'];
 export const PM_KEYS = Object.keys(he) as PmKey[];
 export const PM_TABLES = TABLES;
 
-export function pmLang(): PmLang {
+function pmLang(): PmLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

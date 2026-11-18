@@ -14,7 +14,7 @@ export interface FoldCard {
 /** From this width of the list the open card stands beside the headers; narrower, it unfolds under its own header. */
 export const FOLD_WIDE_MIN = 820;
 /** What stays free under the open card of a wide list: the page's bottom padding and a little air. */
-export const FOLD_BOTTOM_RESERVE = 32;
+const FOLD_BOTTOM_RESERVE = 32;
 /**
  * SKIN-QA-2403: below this room for the open card (px) a wide list is drawn a step tighter - the headers' column at its 232 px minimum
  * (the open card gets the width back, so its rows wrap less) and the host's rows a step denser (`tight` on the host). At 1366x768 the

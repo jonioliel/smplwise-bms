@@ -5,6 +5,7 @@
  * literal (unit-token-lint).
  */
 import { css } from 'lit';
+import { ltrStyles } from '../styles/fragments';
 
 export const statusStyles = css`
   :host {
@@ -129,10 +130,7 @@ export const statusStyles = css`
     border-color: var(--sw-accent);
     color: var(--sw-heading);
   }
-  .ltr {
-    direction: ltr;
-    unicode-bidi: isolate;
-  }
+  ${ltrStyles}
   .muted {
     color: var(--sw-text-3);
   }

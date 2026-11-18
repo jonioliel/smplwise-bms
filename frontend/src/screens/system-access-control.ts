@@ -24,7 +24,7 @@ import { settingsLadderStyles } from '../styles/settings';
 import { st } from '../i18n/access-status';
 import { mt } from '../i18n/access-messaging';
 
-export type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messaging';
+type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messaging';
 
 /**
  * CR-036 S10: the Settings page "בקרת כניסה" (#/system/access-control[/audit|/groups]) - the technical truth of the access-control

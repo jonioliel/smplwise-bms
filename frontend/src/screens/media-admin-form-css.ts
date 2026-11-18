@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { okLineStyles } from '../styles/fragments';
 
 /**
  * CR-MULTIMEDIA-BASE-2440 (06:DUP-5): the CSS the multimedia settings lists carried as copies - הגדרות › מולטימדיה
@@ -105,8 +106,5 @@ export const mediaAdminFormCss = css`
     opacity: 0.35;
     cursor: default;
   }
-  .ok {
-    color: var(--sw-success-text);
-    font-size: var(--sw-fs-sm);
-  }
+  ${okLineStyles}
 `;

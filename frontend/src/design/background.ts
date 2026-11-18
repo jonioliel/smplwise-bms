@@ -22,7 +22,7 @@ export const BACKGROUND_SLOTS = ['day', 'night'] as const;
 export type BackgroundSlot = (typeof BACKGROUND_SLOTS)[number];
 /** The version stamp of each uploaded slot (null = no picture). */
 export type BackgroundImages = Record<BackgroundSlot, string | null>;
-export const DEFAULT_BACKGROUND: BackgroundMode = 'builtin';
+const DEFAULT_BACKGROUND: BackgroundMode = 'builtin';
 export const isBackgroundMode = (v: unknown): v is BackgroundMode => typeof v === 'string' && (BACKGROUND_MODES as readonly string[]).includes(v);
 
 /** The built-in pair: original artworks drawn in code for this product (docs/design/evidence/cry/README.md). Paths relative to the page. */
@@ -124,7 +124,7 @@ export function saveDemoBackground(mode: BackgroundMode): void {
 export const installationBackground = (): Installation => ({ mode: installation.mode, images: { ...installation.images } });
 export const ownBackgroundChoice = (): BackgroundMode | null => own;
 /** The mode in force (query > own > installation). */
-export const currentBackground = (): BackgroundMode => query ?? own ?? installation.mode;
+const currentBackground = (): BackgroundMode => query ?? own ?? installation.mode;
 
 /** Once the session is known: this user's cached choice at once, then the server's (`ui.background` of /me/prefs). */
 export async function loadBackgroundPref(userId: string, api: boolean): Promise<void> {

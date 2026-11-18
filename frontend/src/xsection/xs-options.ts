@@ -7,16 +7,16 @@
 
 /* ---------------------------------------------------------------- options (ui.xs) */
 
-export const XS_DESKTOP_PLACE = ['left', 'right', 'off'] as const; // A: in the empty area (default), B: at the other side, C: off
+const XS_DESKTOP_PLACE = ['left', 'right', 'off'] as const; // A: in the empty area (default), B: at the other side, C: off
 export const XS_PHONE_PLACE = ['side', 'card', 'sheet'] as const; // A: a tile beside each card (default), B: a compact card, C: a button
-export const XS_MANY = ['steps', 'scroll', 'near'] as const; // A: cards shrink in steps (default), B: the list scrolls, C: selected + neighbours
+const XS_MANY = ['steps', 'scroll', 'near'] as const; // A: cards shrink in steps (default), B: the list scrolls, C: selected + neighbours
 export const XS_LINKS = ['fold', 'full', 'hide'] as const; // A: folds to one row when space is short (default), B: always full, C: no drawing
-export const XS_CLICK = ['select', 'open'] as const; // A: first selects, second opens (default), B: opens at once
+const XS_CLICK = ['select', 'open'] as const; // A: first selects, second opens (default), B: opens at once
 export const XS_COLUMNS_ALL = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts'] as const; // the fire column is not listed: it follows the connection
-export const XS_ACK = ['hold', 'confirm', 'tap'] as const; // A: long press 1.2 s (default), B: press then confirm, C: one press
+const XS_ACK = ['hold', 'confirm', 'tap'] as const; // A: long press 1.2 s (default), B: press then confirm, C: one press
 export const XS_ACK_WHO = ['separate', 'viewers', 'admin'] as const; // A: anyone who sees the board, B: a new separate permission (default), C: administrators
-export const XS_ALARM_BAR = ['everywhere', 'home'] as const; // A: a red bar on every screen (default), B: only Home and the synoptic map
-export const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until connected (default), A: a dashed "not connected" column
+const XS_ALARM_BAR = ['everywhere', 'home'] as const; // A: a red bar on every screen (default), B: only Home and the synoptic map
+const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until connected (default), A: a dashed "not connected" column
 /** SWITCH-LIGHT-DIMMER-2331 "מפסקים בעמודת התאורה": only the switches typed as a light (default) / every switch.* entity. */
 export const XS_SYN_SWITCHES = ['typed', 'all'] as const;
 /** SYNOPTIC-MOBILE-2342 "תצוגת המפה הסינופטית בטלפון" (under 768 px): A compact table (default), B one card per floor, C the cross-section first. */
@@ -29,7 +29,7 @@ export const XS_SYN_PHONE_VIEW = ['table', 'cards', 'section'] as const;
 export const XS_SYN_PHONE_LIGHT = ['bar', 'segments', 'number'] as const;
 /** SYNOPTIC-PHONE-SETTINGS-2360 "שורת סיכום בטלפון": the board's summary behind an info button in the head (default, today's), as a line under the board, or none. */
 export const XS_SYN_PHONE_SUMMARY = ['button', 'line', 'off'] as const;
-export const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
+const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
 /** SYN-COLUMNS-2321: every column of the board in its fixed order (the custom choice ticks any of them; the order never changes). */
 export const SYN_COLUMN_ORDER = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts', 'fire'] as const;
 

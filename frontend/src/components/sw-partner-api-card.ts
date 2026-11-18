@@ -14,6 +14,7 @@ import {
   type Delivery, type OutboxRow, type PartnerClient, type PartnerEndpoint, type PartnerOptions, type PartnerSettings, type PartnerToken,
 } from '../api/partners';
 import { pt, ptCode, ptLang } from '../i18n/partners';
+import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
 type Tab = 'partners' | 'tokens' | 'endpoints' | 'log' | 'settings';
 
@@ -57,12 +58,12 @@ export class SwPartnerApiCard extends LitElement {
   @state() private values: Record<string, number> = {};
 
   static styles = css`
-    :host { display: block; min-inline-size: 0; }
+    ${hostBlockStyles}
     .row { display: flex; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 8px 0; border-block-end: 1px solid var(--sw-border); flex-wrap: wrap; }
     .row:last-child { border-block-end: 0; }
     .lbl { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); min-inline-size: 0; overflow-wrap: anywhere; }
     .val, .note { font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; overflow-wrap: anywhere; }
-    .ltr { direction: ltr; unicode-bidi: isolate; }
+    ${ltrStyles}
     .acts { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; padding-block: 8px; border-block-end: 1px solid var(--sw-border); }
     .tabs button { font: inherit; font-size: var(--sw-fs-sm); min-block-size: 32px; padding-inline: 10px; border: 1px solid var(--sw-border-strong);

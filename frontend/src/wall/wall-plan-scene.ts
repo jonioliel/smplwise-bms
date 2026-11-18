@@ -47,7 +47,7 @@ export function wallLevel(b: Pick<MapBundle, 'levels'>): string | null {
   return b.levels.find((l) => l.is_default)?.id ?? b.levels[0].id;
 }
 
-export interface WallSceneParts {
+interface WallSceneParts {
   bundle: MapBundle;
   geometry: GeometryDoc | null;
   catalog3d: Catalog3DLookup | null;

@@ -88,8 +88,6 @@ const heInstaller = {
   },
 };
 
-export type InstallerText = typeof heInstaller;
-
 export function fill(template: string, values: Record<string, string | number>): string {
   return coreFill(template, values);
 }
@@ -309,6 +307,7 @@ const hePlatform = {
   saved: 'נשמר.',
 };
 
+type InstallerText = typeof heInstaller;
 
 const enInstaller: InstallerText = {
   title: 'Intercom system installation and maintenance',

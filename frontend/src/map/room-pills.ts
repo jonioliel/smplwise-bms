@@ -18,12 +18,12 @@ import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 
 /** Round 28 Q1 (א1): one pill per room, devices one by one when near (`room`, recommended), one pill per room even when near
  * (`room_always`), or one pill per device as before (`device`). */
-export type PillMode = 'room' | 'room_always' | 'device';
+type PillMode = 'room' | 'room_always' | 'device';
 /** Round 28 Q2 (א2): a tap on a room pill opens the small detail popover (`popover`, recommended) or the room card at once (`card`). */
-export type PillTap = 'popover' | 'card';
+type PillTap = 'popover' | 'card';
 /** Round 28 Q3 (א3): a room with nothing to report shows its name only (`name`, recommended), nothing (`hide`), or a pill that
  * says "הכול סגור" (`bubble`). */
-export type PillQuiet = 'name' | 'hide' | 'bubble';
+type PillQuiet = 'name' | 'hide' | 'bubble';
 export interface RoomPillPrefs {
   mode: PillMode;
   tap: PillTap;
@@ -46,7 +46,7 @@ export function pillPrefsOf(s: Record<string, unknown> | null | undefined): Room
 }
 
 /** What a device tells about its room: open (a door / window / lock open), lit, presence, a reading, or nothing special. */
-export type DeviceKind = 'open' | 'lit' | 'pres' | 'temp' | 'stale' | 'other';
+type DeviceKind = 'open' | 'lit' | 'pres' | 'temp' | 'stale' | 'other';
 export interface RoomDevice {
   /** The anchor id (the entity pill's part is `ent:<anchorId>`, a click selects it). */
   anchorId: string;
@@ -89,7 +89,7 @@ export interface PillAnchor {
   y: number;
   level_id: string | null;
 }
-export interface PillZone {
+interface PillZone {
   id: string;
   name: string;
   polygon: { x: number; y: number }[];
@@ -101,7 +101,7 @@ const byId = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1
 const WEIGHT: Record<DeviceKind, number> = { open: 0, pres: 1, lit: 2, temp: 3, stale: 4, other: 5 };
 
 /** The kind and icon of one device from its domain, class and state. */
-export function deviceKind(a: Pick<PillAnchor, 'domain' | 'device_class' | 'layer_id' | 'state' | 'resource_id'>): { kind: DeviceKind; icon: string } {
+function deviceKind(a: Pick<PillAnchor, 'domain' | 'device_class' | 'layer_id' | 'state' | 'resource_id'>): { kind: DeviceKind; icon: string } {
   const e = { id: a.resource_id, domain: a.domain, device_class: a.device_class, layer_id: a.layer_id };
   const stale = a.state === null || a.state === 'unavailable' || a.state === 'unknown';
   if (isLightEntity(e)) return { kind: stale ? 'stale' : a.state === 'on' ? 'lit' : 'other', icon: 'light' };
@@ -187,14 +187,14 @@ export type PillLod = 'far' | 'mid';
 export const FAR_PX_PER_M = 14;
 /** A room is near when its larger side covers at least this share of the stage's shorter side and its point is in the
  * middle of the stage (NEAR_CENTRE of each axis). */
-export const NEAR_SHARE = 0.5;
-export const NEAR_CENTRE = 0.7;
+const NEAR_SHARE = 0.5;
+const NEAR_CENTRE = 0.7;
 /** ... and only while the camera is closer than the overview: the floor (the pills' rooms together) spans more than this many
  * times the stage's longer side. At the overview of a small floor a big room fills half the stage too - it is not "near". */
-export const NEAR_ZOOM = 1.2;
+const NEAR_ZOOM = 1.2;
 
 /** The floor's larger side (metres) from the pills: their points widened by half their rooms' extents. */
-export function floorExtent(pills: readonly RoomPill[]): number {
+function floorExtent(pills: readonly RoomPill[]): number {
   if (!pills.length) return 0;
   let x0 = Infinity;
   let x1 = -Infinity;

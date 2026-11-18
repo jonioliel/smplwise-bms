@@ -26,7 +26,7 @@ export interface RemoteSession {
   live_streams: number;
 }
 
-export interface RemoteSessionsList {
+interface RemoteSessionsList {
   scope: 'own' | 'all';
   can_manage: boolean;
   channel: 'remote' | 'local';

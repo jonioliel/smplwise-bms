@@ -5,7 +5,7 @@
 
 /** The outcome of a toggle: the next ids, and `refused` when the pick was a `max + 1`th one (the ids are then unchanged). */
 import { tr } from '../i18n/msg/components';
-export interface TogglePick {
+interface TogglePick {
   ids: string[];
   refused: boolean;
 }

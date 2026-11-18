@@ -9,11 +9,11 @@ import { del, get, post, put } from './client';
 
 export type CastTargetState = 'free' | 'casting' | 'playing_music' | 'off' | 'unavailable';
 export type CastBlocked = 'no_permission' | 'unsupported' | 'not_allowed' | 'public' | 'unavailable';
-export type CastBlockedDisplay = 'grey_reason' | 'hide' | 'grey_admin';
+type CastBlockedDisplay = 'grey_reason' | 'hide' | 'grey_admin';
 export type CastProfile = 'sub' | 'main';
-export type CastDuration = 'default' | 'permanent';
+type CastDuration = 'default' | 'permanent';
 /** `ready: false` carries the first reason: relay_off / disabled / origin_missing / origin_unverified / bridge_not_paired / bridge_outdated. */
-export type CastNotReady = 'relay_off' | 'disabled' | 'origin_missing' | 'origin_unverified' | 'bridge_not_paired' | 'bridge_outdated';
+type CastNotReady = 'relay_off' | 'disabled' | 'origin_missing' | 'origin_unverified' | 'bridge_not_paired' | 'bridge_outdated';
 
 export interface CastTarget {
   key: string;
@@ -41,8 +41,8 @@ export interface CastTargets {
   active: number;
 }
 
-export type CastSessionState = 'starting' | 'playing' | 'not_confirmed' | 'stopped';
-export type CastStopReason = 'user' | 'timeout' | 'replaced' | 'target_gone' | 'error' | 'admin' | 'refused';
+type CastSessionState = 'starting' | 'playing' | 'not_confirmed' | 'stopped';
+type CastStopReason = 'user' | 'timeout' | 'replaced' | 'target_gone' | 'error' | 'admin' | 'refused';
 
 export interface CastSession {
   session_id: string;
@@ -73,12 +73,12 @@ export interface CastSession {
   can: { stop: boolean; extend: boolean; switch: boolean };
 }
 
-export interface CastSessions {
+interface CastSessions {
   sessions: CastSession[];
   max_sessions: number;
 }
 
-export interface CastStartBody {
+interface CastStartBody {
   target_key: string;
   camera_id: string;
   profile?: CastProfile;
@@ -89,7 +89,7 @@ export interface CastStartBody {
 }
 
 /** 202 accepted, or 200 with `status: refused` and the `error` code (the bridge or the TV refused after the row was written). */
-export interface CastStartResult {
+interface CastStartResult {
   status: 'accepted' | 'existing' | 'refused';
   error: string | null;
   session: CastSession;
@@ -102,7 +102,7 @@ export interface CastStopResult {
   session: CastSession;
 }
 
-export interface CastConfig {
+interface CastConfig {
   enabled: boolean;
   origin: string | null;
   origin_verified_at: string | null;
@@ -133,7 +133,7 @@ export interface CastScreenSettings {
   allow_main: boolean | null;
 }
 
-export interface CastScreenCap {
+interface CastScreenCap {
   method: string;
   confidence: string;
   reason: string;
@@ -154,7 +154,7 @@ export interface CastAdminScreen {
   casting_session_id: string | null;
 }
 
-export type CastOriginReason = 'relay_off' | 'origin_missing' | 'unreachable' | 'not_this_relay';
+type CastOriginReason = 'relay_off' | 'origin_missing' | 'unreachable' | 'not_this_relay';
 
 const BASE = 'multimedia/cast';
 

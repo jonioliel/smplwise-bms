@@ -10,7 +10,7 @@ import { nt } from '../i18n/notices';
  */
 
 export type PlaceKind = 'all' | 'building' | 'floor' | 'area';
-export type PlaceLook = 'ok' | 'warn' | 'alarm' | 'acc';
+type PlaceLook = 'ok' | 'warn' | 'alarm' | 'acc';
 
 export interface PlaceNode {
   id: string;
@@ -33,7 +33,7 @@ const RANK: Record<PlaceLook, number> = { acc: 1, ok: 1, warn: 2, alarm: 3 };
 const LOOK_OF: Record<Notice['severity'], PlaceLook> = { info: 'acc', alert: 'warn', critical: 'alarm' };
 
 /** The place ids a notice is tagged to: the floors and areas of its audience, the floor of each area, and (when there are several) the building of each floor. */
-export function placesOfNotice(n: Notice, floors: readonly FloorOpt[], areas: readonly AreaOpt[], multiBuilding: boolean): Set<string> {
+function placesOfNotice(n: Notice, floors: readonly FloorOpt[], areas: readonly AreaOpt[], multiBuilding: boolean): Set<string> {
   const out = new Set<string>();
   const a = n.audience;
   if (!a) return out;

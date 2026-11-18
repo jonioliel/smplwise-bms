@@ -9,7 +9,7 @@ import type { DweKey } from '../i18n/door-windows-events';
 
 /** The rate rule the server applies to every source over the last hour (`STORM_PER_HOUR`); the screen shows it, the server enforces it. */
 export const STORM_PER_HOUR = 20;
-export const MIN_DURATION_MIN = 1;
+const MIN_DURATION_MIN = 1;
 export const RULE_SOURCES: readonly TriggerSource[] = ['ha_event', 'arx_automation'];
 export const AUTOMATION_RE = /^automation\.[a-z0-9_]{1,80}$/;
 
@@ -120,7 +120,7 @@ export function eventBodyOf(d: EventDraft, enable: boolean): RuleBody {
 
 // ---------------------------------------------------------------- simulate / armed
 
-export interface ArmView {
+interface ArmView {
   /** the word of the current state: `arm_simulate` | `arm_armed` */
   state: 'arm_simulate' | 'arm_armed';
   tone: Tone;
@@ -163,7 +163,7 @@ export const reasonKey = (code: string | null | undefined): string => `reason_${
 // ---------------------------------------------------------------- holidays
 
 export type DayKind = HolidayRow['kind'];
-export const DAY_KINDS: readonly DayKind[] = ['holiday', 'holiday_eve', 'regular', 'closed'];
+const DAY_KINDS: readonly DayKind[] = ['holiday', 'holiday_eve', 'regular', 'closed'];
 
 export const KIND_TONE: Record<DayKind, Tone> = { holiday: 'acc', holiday_eve: 'acc', regular: 'off', closed: 'warn' };
 

@@ -6,6 +6,7 @@ import { describeError } from '../api/client';
 import { getTicketDraft, openTicket, type TicketDraft } from '../api/temperature';
 import { tempCss } from './styles';
 import { tt, ttLang } from '../i18n/temperature';
+import { errLineStyles } from '../styles/fragments';
 
 /**
  * CR-INFRA-TEMPERATURE phase 3 (idea 11): "קריאת שירות" from a unit's detail - a ticket in the service module, opened AS the person, through
@@ -38,7 +39,7 @@ export class TempTicket extends LitElement {
     .sw { display: inline-flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm); }
     .sw input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
     .bar { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
   `];
 
   connectedCallback() {

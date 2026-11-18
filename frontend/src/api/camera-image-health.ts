@@ -3,7 +3,7 @@
 import { get, post, put } from './client';
 
 export type ImageKind = 'dark' | 'blurred' | 'frozen' | 'shifted';
-export type ImageState = 'ok' | 'warn' | 'unknown' | 'excluded' | 'off';
+type ImageState = 'ok' | 'warn' | 'unknown' | 'excluded' | 'off';
 export const IMAGE_KINDS: ImageKind[] = ['dark', 'blurred', 'frozen', 'shifted'];
 
 export interface ImageCamera {

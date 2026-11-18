@@ -33,7 +33,7 @@ export interface PackSection<T> {
   /** no groups: a header-only section (the folded "closed" strip) */
   groups: readonly PackGroup<T>[];
 }
-export interface PackMetrics {
+interface PackMetrics {
   /** the room for the pages */
   room: number;
   headH: number;
@@ -45,7 +45,7 @@ export interface PackMetrics {
   /** between a group's sub-header and its cards */
   blkGap: number;
 }
-export interface PageGroup<T> {
+interface PageGroup<T> {
   key: string;
   items: T[];
 }

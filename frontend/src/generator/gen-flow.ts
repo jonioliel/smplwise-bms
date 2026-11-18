@@ -17,7 +17,7 @@ const ICON = {
 type Tone = 'gen' | 'grid' | 'load';
 type Pt = [number, number];
 
-export interface FlowOpts {
+interface FlowOpts {
   id: string;
   vertical: boolean;
   /** The generator's display name. */

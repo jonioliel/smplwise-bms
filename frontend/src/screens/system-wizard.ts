@@ -20,7 +20,7 @@ import { settingsLadderStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-b';
 
 /** Tells the shell's "השלם את ההתקנה" hint what the wizard just learned, so it does not wait for its own next read. */
-export function announceSetup(s: SetupState) {
+function announceSetup(s: SetupState) {
   window.dispatchEvent(new CustomEvent('sw-setup-state', { detail: summarizeSetup(s) satisfies SetupSummary }));
 }
 
@@ -366,7 +366,7 @@ export class SystemWizard extends LitElement {
       max-inline-size: 100%;
     }
     .opt {
-      font-weight: 400;
+      font-weight: var(--sw-fw-regular);
       opacity: 0.75;
       font-size: 0.85em;
     }

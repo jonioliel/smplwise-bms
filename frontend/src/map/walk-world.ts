@@ -26,20 +26,20 @@ import { isOpenState } from './coverage';
 import { anchor3d } from './anchor-3d';
 import type { SceneAnchor, SceneInput } from './scene-builder';
 
-export const WALK_WORLD_VERSION = 'walk-1' as const;
+const WALK_WORLD_VERSION = 'walk-1' as const;
 /** A wall whose base is at least this high above its level never meets the body (above the tallest eye, 2.0 m). */
-export const HEAD_CLEAR_M = 2.0;
+const HEAD_CLEAR_M = 2.0;
 /** Objects this tall or taller block by their footprint (CR-029 section 4.3: a counter does, a mat does not). */
-export const OBJECT_BLOCK_H_M = 0.9;
+const OBJECT_BLOCK_H_M = 0.9;
 /** An object whose base is this high is above the body (a ceiling lamp, a shelf on the wall, a projector). */
-export const OBJECT_BLOCK_BASE_M = 1.0;
+const OBJECT_BLOCK_BASE_M = 1.0;
 /** The pad around a level's walls the walk is clamped to (the soft "קצה התוכנית" edge, section 4.3). */
-export const EXTENT_PAD_M = 0.5;
+const EXTENT_PAD_M = 0.5;
 /** How far inside an exterior door the door start stands. */
-export const DOOR_START_IN_M = 0.8;
+const DOOR_START_IN_M = 0.8;
 
-export type DoorWalkState = 'open' | 'unlocked' | 'unsensed' | 'closed' | 'locked' | 'stale';
-export type SegKind = 'wall' | 'low' | 'window' | 'door' | 'object' | 'band' | 'cap';
+type DoorWalkState = 'open' | 'unlocked' | 'unsensed' | 'closed' | 'locked' | 'stale';
+type SegKind = 'wall' | 'low' | 'window' | 'door' | 'object' | 'band' | 'cap';
 export interface WalkSeg {
   a: [number, number];
   b: [number, number];
@@ -80,7 +80,7 @@ export interface WalkBand {
   /** The blocking sides of the band (stair sides, landing edges, the far cap of a stair to another floor). */
   sides: WalkSeg[];
 }
-export interface WalkLevel {
+interface WalkLevel {
   id: string;
   name: string;
   elevation_m: number;
@@ -95,7 +95,7 @@ export interface WalkRoom {
   poly: [number, number][];
   centre: [number, number];
 }
-export type StartKind = 'saved' | 'door' | 'room' | 'camera' | 'centre';
+type StartKind = 'saved' | 'door' | 'room' | 'camera' | 'centre';
 export interface WalkStart {
   id: string;
   kind: StartKind;
@@ -121,7 +121,7 @@ export interface WalkWorld {
   defaultStart: string | null;
 }
 /** What the walk world reads from the catalog: the role and the walkable flag (catalog 2026.10.1). */
-export interface WalkCatalogItem {
+interface WalkCatalogItem {
   role: string;
   walkable?: boolean;
 }
@@ -145,7 +145,7 @@ export function doorWalkState(o: Pick<GeomOpening, 'kind' | 'anchor_ref'>, state
   if (id.startsWith('lock.')) return LOCKED.has(s) ? 'locked' : UNLOCKED.has(s) ? 'unlocked' : 'stale';
   return isOpenState(s) ? 'open' : 'closed';
 }
-export const isPassable = (s: DoorWalkState): boolean => s === 'open' || s === 'unlocked' || s === 'unsensed';
+const isPassable = (s: DoorWalkState): boolean => s === 'open' || s === 'unlocked' || s === 'unsensed';
 export const DOOR_STATE_HE: Record<DoorWalkState, string> = { open: tr('פתוחה'), unlocked: tr('לא נעולה'), unsensed: tr('ללא חיישן'), closed: tr('סגורה'), locked: tr('נעולה'), stale: tr('מצב לא ידוע') };
 
 function polyCentroid(poly: [number, number][]): [number, number] {
@@ -188,7 +188,7 @@ const segDist = (x: number, z: number, s: WalkSeg): number => {
 /** The "centre of the plan" start: the open spot nearest the middle of the level (the most clearance from every capsule,
  * up to 1.5 m, less a little for the distance from the middle - on a 0.5 m grid), facing the longest free view of 16
  * bearings. Never a spot pressed against a wall (owner review of the walk: the plain centre stood in front of one). */
-export function openSpot(lv: Pick<WalkLevel, 'extent' | 'segs'>): { x: number; z: number; heading: number } {
+function openSpot(lv: Pick<WalkLevel, 'extent' | 'segs'>): { x: number; z: number; heading: number } {
   const e = lv.extent;
   const cx = (e.minX + e.maxX) / 2;
   const cz = (e.minZ + e.maxZ) / 2;

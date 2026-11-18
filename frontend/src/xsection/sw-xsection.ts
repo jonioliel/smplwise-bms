@@ -45,7 +45,7 @@ export function xsTile(f: FloorSignal, o: XsOptions, selected: boolean, pick: ()
 }
 
 /** The chips of the section head and the compact card: the whole building, with the unknown left out in words. */
-export function totalChips(fl: FloorSignal[], o: XsOptions, withNoData = true): TemplateResult {
+function totalChips(fl: FloorSignal[], o: XsOptions, withNoData = true): TemplateResult {
   const t = totalsOf(fl, o.temp_threshold);
   const m = xsMetrics(fl, o);
   return html`<span class="chips">

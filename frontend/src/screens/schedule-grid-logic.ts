@@ -26,9 +26,8 @@ import { DAY_ORDER, resolveDays } from '../api/schedules';
 import { tr } from '../i18n/msg/automation';
 
 export const DAY_MIN = 1440;
-export const SNAP_CHOICES = [5, 15, 30] as const;
 
-export interface Span {
+interface Span {
   start: number;
   end: number;
 }
@@ -90,7 +89,7 @@ export function spansOf(slots: DraftSlot[], sun: SunTimes | null): (Span | null)
 }
 
 /** Indexes of `slots` in start order (unparseable ones last, stable). */
-export function orderOf(slots: DraftSlot[], sun: SunTimes | null): number[] {
+function orderOf(slots: DraftSlot[], sun: SunTimes | null): number[] {
   const spans = spansOf(slots, sun);
   return slots
     .map((_, i) => i)
@@ -104,7 +103,7 @@ export function sorted<S extends DraftSlot>(slots: S[], sun: SunTimes | null, ke
 }
 
 /** The sun's minute for an anchor (today's value; the fallback when unknown). */
-export function sunMinute(event: 'sunrise' | 'sunset', sun: SunTimes | null): number {
+function sunMinute(event: 'sunrise' | 'sunset', sun: SunTimes | null): number {
   return (sun ?? SUN_FALLBACK)[event];
 }
 
@@ -112,7 +111,7 @@ export function sunMinute(event: 'sunrise' | 'sunset', sun: SunTimes | null): nu
  * The same anchor at a new minute: a fixed time becomes "HH:MM:00"; a sun-anchored time keeps its event and gets the
  * offset that lands on `minute` (never below zero unless `allowNegative`). `end: true` writes 24:00 as "00:00:00".
  */
-export function retime(raw: string, minute: number, sun: SunTimes | null, allowNegative = false, end = false): string {
+function retime(raw: string, minute: number, sun: SunTimes | null, allowNegative = false, end = false): string {
   const spec = parseTime(raw);
   if (spec && spec.kind === 'sun') {
     let offset = Math.round(minute) - sunMinute(spec.event, sun);
@@ -235,11 +234,6 @@ export function duplicateSlot<S extends DraftSlot>(slots: S[], i: number, o: OpO
   return { slots: r.slots, index: r.index };
 }
 
-/** Index of the slot whose stop is exactly this slot's start (contiguous predecessor). */
-export function contiguousBefore(slots: DraftSlot[], i: number, sun: SunTimes | null): number {
-  return linkedNeighbour(spansOf(slots, sun), slots.map((s) => s.stop == null), i, 'start');
-}
-
 /** Index of the slot whose start is exactly this slot's stop (contiguous successor). */
 export function contiguousAfter(slots: DraftSlot[], i: number, sun: SunTimes | null): number {
   return linkedNeighbour(spansOf(slots, sun), slots.map((s) => s.stop == null), i, 'end');
@@ -251,7 +245,7 @@ export function contiguousAfter(slots: DraftSlot[], i: number, sun: SunTimes | n
  * The slot that shares `edge` of slot `i`: for the end edge the one starting exactly there, for the start edge the one
  * ending exactly there. Point actions (`points[k]`) never share a boundary. -1 when there is none.
  */
-export function linkedNeighbour(spans: (Span | null)[], points: boolean[], i: number, edge: 'start' | 'end'): number {
+function linkedNeighbour(spans: (Span | null)[], points: boolean[], i: number, edge: 'start' | 'end'): number {
   const s = spans[i];
   if (!s || points[i]) return -1;
   for (let k = 0; k < spans.length; k++) {
@@ -376,7 +370,7 @@ export function overlaps(a: Span, b: Span): boolean {
 
 // ------------------------------------------------------------------------------------------------ text input of a time
 
-export type TimeInput = { raw: string } | { error: 'empty' | 'format' | 'range' | 'negative_sun' };
+type TimeInput = { raw: string } | { error: 'empty' | 'format' | 'range' | 'negative_sun' };
 
 /**
  * Parse what a person types into a time cell: "7:30", "07:30", "0730", "18", "שקיעה", "שקיעה+30", "שקיעה +00:30",
@@ -416,7 +410,7 @@ export function parseTimeInput(text: string, opts: { end?: boolean; allowNegativ
   return { raw: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00` };
 }
 
-export const TIME_INPUT_ERROR: Record<'empty' | 'format' | 'range' | 'negative_sun', string> = {
+const TIME_INPUT_ERROR: Record<'empty' | 'format' | 'range' | 'negative_sun', string> = {
   empty: tr('נא למלא שעה.'),
   format: tr('שעה כמו 07:30, או "שקיעה+30".'),
   range: tr('שעה מחוץ לטווח.'),
@@ -515,7 +509,7 @@ export function applyTableEdit<S extends DraftSlot>(slots: S[], index: number, f
 
 // ------------------------------------------------------------------------------------------------ days and rows
 
-export interface DayRow {
+interface DayRow {
   day: DayId;
   /** The day belongs to the schedule. */
   active: boolean;
@@ -580,8 +574,3 @@ export const CATEGORY_LABEL: Record<SlotCategory, string> = {
   empty: tr('ללא פעולה'),
 };
 
-/** Only the sun's markers a grid draws: null when both are the fallback (still drawn, as an estimate). */
-export function sunMarks(sun: SunTimes | null): { rise: number; set: number } {
-  const s = sun ?? SUN_FALLBACK;
-  return { rise: s.sunrise, set: s.sunset };
-}

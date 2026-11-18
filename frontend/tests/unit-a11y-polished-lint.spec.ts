@@ -39,9 +39,9 @@ const POLISHED = [
   'components/nvr-connection-form.ts', 'components/nvr-writes-switch.ts', 'components/sw-automation-row.ts', 'components/sw-dialog.ts',
   'components/sw-popover.ts', 'components/sw-state-panel.ts', 'components/sw-table.ts', 'components/sw-tabs.ts', 'components/tab-strip.ts',
   'insights/chrome.ts', 'insights/styles.ts',
-  'screens/area-quick-sheet.ts', 'screens/devices-area-bubble.ts', 'screens/devices-area.ts', 'screens/devices-automations.ts',
-  'screens/devices-building.ts', 'screens/devices-bulk.ts', 'screens/devices-controls.ts', 'screens/devices-layout-css.ts', 'screens/devices-layout.ts',
-  'screens/devices-notices-css.ts', 'screens/devices-notices.ts', 'screens/devices-schedules.ts', 'screens/devices-synoptic.ts',
+  'screens/area-quick-sheet.ts', 'screens/area-quick-sheet-css.ts', 'screens/devices-area-bubble.ts', 'screens/devices-area.ts', 'screens/devices-automations.ts',
+  'screens/devices-building.ts', 'screens/devices-building-css.ts', 'screens/devices-bulk.ts', 'screens/devices-controls.ts', 'screens/devices-layout-css.ts', 'screens/devices-layout.ts',
+  'screens/devices-notices-css.ts', 'screens/devices-notices.ts', 'screens/devices-schedules.ts', 'screens/devices-schedules-css.ts', 'screens/devices-synoptic.ts',
   'screens/devices-tiles-panel.ts', 'screens/explore-floor-map.ts', 'screens/explore-floors.ts', 'screens/home-ambient-bar.ts',
   'screens/home-edit-drawer.ts', 'screens/home-edit-panel.ts', 'screens/home-screen-options.ts', 'screens/home-widgets-bv1.ts', 'screens/infra-generator.ts',
   'screens/infra-report.ts', 'screens/infra-water.ts', 'screens/insights-doors.ts', 'screens/insights-settings.ts', 'screens/insights-waste.ts',
@@ -144,7 +144,7 @@ const BARE_OK: Record<string, string> = {
   "screens/plan-studio6-panel.ts | .walkrow .star[aria-pressed='true']": 'the star glyph: the bare colour is the fallback line, light-dark() draws the warning ink in light',
   'screens/explore-floors.ts | .floor.on .chev': 'the chevron glyph of the open floor',
   'screens/devices-layout-css.ts | .lay-libIcon': 'a library icon tile',
-  'screens/devices-building.ts | .fcard header h2 .ftitle:hover': 'the hover tint of a floor title (at rest it is the heading ink)',
+  'screens/devices-building-css.ts | .fcard header h2 .ftitle:hover': 'the hover tint of a floor title (at rest it is the heading ink)',
 };
 const BARE_TEXT = /(^|[^-])color:\s*var\(--sw-(warning|danger|success|accent|shared|stale|forbidden)\)/;
 

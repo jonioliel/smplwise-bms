@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import '../components/sw-schedule-bar';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { DEMO_SUN } from '../api/schedules-mock';
@@ -101,7 +101,7 @@ export class ScheduleActions extends LitElement {
       border-radius: var(--sw-r-md);
       background: var(--dv-surface-2);
       font-size: var(--sw-fs-md);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       cursor: pointer;
     }
     label.opt:has(input:checked) {
@@ -135,7 +135,7 @@ export class ScheduleActions extends LitElement {
     .err {
       color: var(--dv-danger);
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
   `];
 
@@ -367,7 +367,7 @@ export class ScheduleDrawer extends LitElement {
       border: 1px solid transparent;
       box-shadow: var(--dv-shadow-1);
       font-size: var(--sw-fs-xl);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading, var(--dv-text));
       letter-spacing: -0.01em;
     }
@@ -432,11 +432,11 @@ export class ScheduleDrawer extends LitElement {
       background: var(--dv-surface-2);
       border: 1px solid transparent;
       font-size: var(--sw-fs-md);
-      font-weight: 500;
+      font-weight: var(--sw-fw-medium);
     }
     .li span:last-child {
       color: var(--dv-text);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
       flex: none;
     }

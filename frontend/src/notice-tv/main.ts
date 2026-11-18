@@ -1484,7 +1484,7 @@ addEventListener('resize', () => {
 });
 
 void poll(true).then(() => {
-  if (document.fonts && document.fonts.ready) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : layoutAfter()));
+  if (document.fonts && document.fonts.ready !== undefined) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : layoutAfter()));
   restartRotation();
 });
 if (!FIXED && !NOW_Q) {

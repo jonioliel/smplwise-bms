@@ -17,6 +17,7 @@ import { wt } from '../i18n/access-writes';
 import type { MessagingTransport } from '../access-control/messaging-logic';
 import { credentialKinds, enabledStations, formatDay, initials, personSections, personSyncStatus, stateOf, timingView, validityState, type SyncStatus } from '../access-control/people-logic';
 import { UTC_ZONE } from './wiskey-format';
+import { ltrStyles } from '../styles/fragments';
 
 export type DrawerTab = 'details' | 'access' | 'groups' | 'messages';
 
@@ -200,10 +201,7 @@ export class WiskeyPersonDrawer extends LitElement {
     .sub {
       color: var(--sw-text-3);
     }
-    .ltr {
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+    ${ltrStyles}
     ul {
       list-style: none;
       margin: 0;

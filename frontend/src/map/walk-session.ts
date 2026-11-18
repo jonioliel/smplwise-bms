@@ -19,11 +19,11 @@ import { TouchGestures, type TouchAction } from './walk-touch';
 import { LookEase } from './walk-look';
 import { RoutePlayer, ROUTE_DWELL_MS, routeStops } from './walk-route';
 
-export const LOOK_DEG_PER_PX = 0.22;
-export const LOW_WALK_FPS = 24;
+const LOOK_DEG_PER_PX = 0.22;
+const LOW_WALK_FPS = 24;
 const LOW_FPS_WINDOW_MS = 2000;
 /** The dim before a jump between two stops of a route. */
-export const ROUTE_FADE_MS = 150;
+const ROUTE_FADE_MS = 150;
 
 export interface WalkRouteState {
   playing: boolean;
@@ -61,7 +61,7 @@ export interface WalkSessionHost {
   onRoute?(state: WalkRouteState): void;
 }
 
-export interface WalkSessionOptions {
+interface WalkSessionOptions {
   eye_m: number;
   mouseMode: MouseMode;
   start?: WalkStart | null;

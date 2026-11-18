@@ -285,7 +285,7 @@ const he = {
   'optout.admin_only': 'רק מנהל מערכת יכול לבטל את הבקשה',
 } as const;
 
-export type PeopleKey = keyof typeof he;
+type PeopleKey = keyof typeof he;
 
 const en: Partial<Record<PeopleKey, string>> = {
   // ---- the page

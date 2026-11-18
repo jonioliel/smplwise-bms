@@ -36,7 +36,7 @@ function badge(line: string): string {
 }
 
 /** The time of one arrival: "now" (gold), minutes + "min", or the clock time (over the clock threshold, and always for cached data). */
-export function v2Eta(it: Pick<TransitItem, 'at' | 'hm' | 'quality'>, d: TransitDigest, c: V2TransitCtx): string {
+function v2Eta(it: Pick<TransitItem, 'at' | 'hm' | 'quality'>, d: TransitDigest, c: V2TransitCtx): string {
   const e = etaOf(it.at, it.hm, d, c.nowMs);
   const main = e.kind === 'now' ? '<b class="now">' + esc(ts(c.lang, 'now')) + '</b>' : e.kind === 'min' ? '<b class="num">' + e.text + '</b><small>' + esc(ts(c.lang, 'min')) + '</small>' : '<b class="cl num">' + esc(e.text) + '</b>';
   const rt = it.quality === 'realtime' && d.state === 'fresh';

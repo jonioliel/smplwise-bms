@@ -71,8 +71,8 @@ test.describe('sw-tabs renders a real tablist (components/sw-tabs.ts)', () => {
   });
 });
 
-test.describe('plan editor icon bar (screens/explore-plan-editor.ts)', () => {
-  const src = read('screens/explore-plan-editor.ts');
+test.describe('plan editor icon bar (screens/explore-plan-editor-css.ts)', () => {
+  const src = read('screens/explore-plan-editor-css.ts'); // CR-STRUCT-CSS-SPLIT-2442: the editor's sheet moved there
   test('desktop look unchanged: the key is 26 px', () => {
     expect(src).toMatch(/\.bar button\.icon \{[^}]*inline-size: 26px;[^}]*block-size: 26px;/s);
   });

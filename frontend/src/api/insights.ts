@@ -124,7 +124,7 @@ export const getDoors = (q: RangeQuery) => get<DoorsAnswer>(`insights/doors?${ra
 
 // ---------------------------------------------------------------- waste
 
-export type WasteKind = 'empty_room' | 'after_hours';
+type WasteKind = 'empty_room' | 'after_hours';
 export interface WasteItem {
   key: string;
   kind: WasteKind;
@@ -138,7 +138,7 @@ export interface WasteItem {
   first_at: string;
   last_at: string;
 }
-export interface EnergyAnomaly {
+interface EnergyAnomaly {
   key: string;
   kind: 'energy';
   name: string;
@@ -162,11 +162,11 @@ export const getWaste = (q: RangeQuery) => get<WasteAnswer>(`insights/waste?${ra
 
 // ---------------------------------------------------------------- the building report
 
-export interface OmittedSection {
+interface OmittedSection {
   section: SectionId;
   reason: OmitReason;
 }
-export interface ReportData {
+interface ReportData {
   summary?: { section: SectionId; title: string; text: string }[];
   tickets?: {
     opened: number;
@@ -210,7 +210,7 @@ export interface ReportData {
     anomaly_top: EnergyAnomaly[];
   };
 }
-export interface GeneratorRuns {
+interface GeneratorRuns {
   devices: { name: string; runs: number; hours: number; longest_min: number; meter_hours: number | null }[];
   runs: number;
   hours: number;
@@ -251,9 +251,9 @@ export async function downloadReportPdf(q: ReportQuery): Promise<void> {
 
 // ---------------------------------------------------------------- the scheduled monthly delivery (slice 3)
 
-export type DeliveryProblem = 'no_channel' | 'email_not_configured' | 'no_recipients' | 'report_off';
-export type RecipientReach = 'ok' | 'no_address' | 'no_consent' | 'no_permission';
-export interface DeliveryConfig {
+type DeliveryProblem = 'no_channel' | 'email_not_configured' | 'no_recipients' | 'report_off';
+type RecipientReach = 'ok' | 'no_address' | 'no_consent' | 'no_permission';
+interface DeliveryConfig {
   /** On only after setup AND an explicit switch (needs system.configure). */
   enabled: boolean;
   enabled_at: string | null;

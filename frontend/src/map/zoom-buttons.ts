@@ -14,15 +14,15 @@ import { html, css, nothing } from 'lit';
 import '../components/sw-icon';
 
 /** One press: the view 1.35x closer (+) or farther (-). */
-export const ZOOM_STEP = 1.35;
+const ZOOM_STEP = 1.35;
 /** The group's inline size plus a gap to the bar's last chip. */
-export const ZOOM_W = 100;
+const ZOOM_W = 100;
 /** Below this element width (a phone, an event card) the group is not shown. */
-export const ZOOM_MIN_HOST = 700;
+const ZOOM_MIN_HOST = 700;
 
 /** Where the group stands (pure: the element's width, the bar's width; the bar starts 12 px in): on the bar's `row`,
  * `above` it, or nowhere (null) on a narrow element. */
-export function zoomPlace(hostW: number, barW: number): 'row' | 'above' | null {
+function zoomPlace(hostW: number, barW: number): 'row' | 'above' | null {
   if (hostW < ZOOM_MIN_HOST) return null;
   return hostW - 12 - barW - 12 >= ZOOM_W ? 'row' : 'above';
 }

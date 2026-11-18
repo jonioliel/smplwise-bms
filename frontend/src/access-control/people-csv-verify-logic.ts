@@ -10,7 +10,7 @@ export const PAGE_SIZE = 8;
 export const POLL_MS = 1500;
 export const POLL_MAX = 20;
 
-export type VerifyMode = 'off' | 'blocked' | 'ready';
+type VerifyMode = 'off' | 'blocked' | 'ready';
 
 /** `off` = the switch is off (the ordinary dry-run flow stays); `blocked` = switched on but something is missing; `ready` = verify may run. */
 export function verifyMode(settings: Pick<BulkSettings, 'wiskey_csv' | 'may_import'> | null): VerifyMode {

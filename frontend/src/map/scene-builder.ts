@@ -24,8 +24,8 @@ import type { CatalogMaterialLookup } from './material-resolve';
 import { stateLabel, type HaEntity } from '../api/ha';
 
 export type { MeshPart };
-export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
-export type PartShape = 'box' | 'cylinder' | 'prism' | 'sprite' | 'light';
+type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
+type PartShape = 'box' | 'cylinder' | 'prism' | 'sprite' | 'light';
 export type Vec3 = [number, number, number];
 
 export interface ScenePart {
@@ -114,7 +114,7 @@ export interface SceneZone {
   polygon: { x: number; y: number }[];
   level_id?: string | null;
 }
-export interface SceneLayers {
+interface SceneLayers {
   structure: boolean;
   objects: boolean;
   connectors: boolean;
@@ -122,7 +122,7 @@ export interface SceneLayers {
   entities: boolean;
   zones: boolean;
 }
-export interface Catalog3D {
+interface Catalog3D {
   shape: ObjectShape;
   color_token: string;
   role: string;
@@ -180,7 +180,7 @@ export interface SceneDescription {
   /** Only with SceneInput.realistic (CR-029 S1): the realistic level's data. */
   real?: RealWorld;
 }
-export interface IsoFace {
+interface IsoFace {
   points: [number, number][];
   face: 'plate' | 'side' | 'top';
   color: string;
@@ -191,9 +191,9 @@ export interface IsoScene {
   levels: number;
 }
 
-export const DEFAULT_LAYERS: SceneLayers = { structure: true, objects: true, connectors: true, cameras: true, entities: true, zones: true };
+const DEFAULT_LAYERS: SceneLayers = { structure: true, objects: true, connectors: true, cameras: true, entities: true, zones: true };
 /** The canvas default cone radius in plan pixels (sw-plan-canvas coneRadius). */
-export const DEFAULT_CONE_RADIUS_PX = 140;
+const DEFAULT_CONE_RADIUS_PX = 140;
 
 const FLOOR_PLATE_M = 0.05;
 const ROOM_TINT_M = 0.01;
@@ -240,7 +240,7 @@ export const MAX_WELL_SLICES = 12;
 
 /** A plate [x0, z0, x1, z1] less the holes: the plate cut on a grid of every hole edge, the cells outside every hole
  * merged along each row - axis-aligned boxes that cover the plate except the holes (review M-c). No hole: the plate. */
-export function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
+function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
   const [x0, z0, x1, z1] = plate;
   const inside = holes.map((h): Box2 => [Math.max(x0, h[0]), Math.max(z0, h[1]), Math.min(x1, h[2]), Math.min(z1, h[3])]).filter((h) => h[2] - h[0] > 1e-6 && h[3] - h[1] > 1e-6);
   if (!inside.length) return [plate];

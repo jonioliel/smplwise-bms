@@ -89,7 +89,7 @@ export function fmtDate(d: string | null | undefined): string {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
 }
 
-export function fmtShort(d: string | null | undefined): string {
+function fmtShort(d: string | null | undefined): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d ?? '');
   return m ? `${m[3]}.${m[2]}` : '';
 }
@@ -142,7 +142,7 @@ export function kpiCounts(list: readonly Task[]): Record<KpiKey, number> {
 // ---------------------------------------------------------------- the places tree
 
 /** A row of the tree with a state dot (the worst look under it). */
-export type TreeRow = Omit<PlaceRow, 'dot'> & { dot: PlaceRow['dot'] };
+type TreeRow = Omit<PlaceRow, 'dot'> & { dot: PlaceRow['dot'] };
 
 /** The node of a task: its floor (`f:`), else its building (`b:`), else its site (`s:`); a placeless supplier document sits under
  * "ספקים", any other placeless task under "ללא מקום". */
@@ -220,7 +220,7 @@ export function segsOf(page: ListPage, ticketsOn: boolean): { key: Seg; label: M
   return [{ key: 'all', label: 'all' }, { key: 'daily', label: 'daily' }, { key: 'weekly', label: 'weekly' }];
 }
 
-export function matchesSeg(t: Task, seg: Seg): boolean {
+function matchesSeg(t: Task, seg: Seg): boolean {
   switch (seg) {
     case 'cert': return t.kind === 'certificate';
     case 'vendor': return t.kind === 'vendor_document';
@@ -468,11 +468,6 @@ export function placeOptions(o: Pick<Options, 'places'>): { value: string; label
   };
   for (const p of o.places) if (!p.parent_id || !known.has(p.parent_id)) walk(p, 0);
   return out;
-}
-
-/** A task as a list row (the scan answer and a create return a detail; the lists keep the list shape). */
-export function asRow(t: TaskDetail): Task {
-  return t;
 }
 
 

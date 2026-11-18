@@ -7,7 +7,7 @@ import { get, post } from './client';
 import { tr } from '../i18n/msg/api-devices';
 
 export type PairingLineState = 'ok' | 'warn' | 'blocked' | 'unknown';
-export type PairingLineKey = 'bridge' | 'component' | 'key' | 'acceptance' | 'discovery' | 'provider' | 'rotation' | 'events' | 'last_error';
+type PairingLineKey = 'bridge' | 'component' | 'key' | 'acceptance' | 'discovery' | 'provider' | 'rotation' | 'events' | 'last_error';
 
 export interface PairingLine {
   key: PairingLineKey;
@@ -40,9 +40,9 @@ export interface PairingProbe {
 }
 
 export type FeatureState = 'on' | 'off' | 'blocked' | 'unknown';
-export type ReasonKind = 'SET' | 'POL' | 'PAIR' | 'WK' | 'OWN' | 'RUN';
+type ReasonKind = 'SET' | 'POL' | 'PAIR' | 'WK' | 'OWN' | 'RUN';
 
-export interface FeatureReason {
+interface FeatureReason {
   code: string;
   kind: ReasonKind;
   text: string;

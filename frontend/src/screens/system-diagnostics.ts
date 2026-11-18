@@ -1097,7 +1097,6 @@ export class SystemDiagnostics extends LitElement {
     if (this.settings) setLongListsMode(this.settings['ui.long_lists']); // PAGING-SETTING-2439: the open control screens follow at once
   }
 
-  /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   /** POLISH4-WP7: the ONE save row of the host's tabs (it was copied six times): the primary action first, the saved / error line next
    * to it, only on the tab that produced the message. `.foot.sticky` (settingsKitStyles) keeps it in view on a phone while a long tab
    * scrolls under it. `hook` is the data attribute the specs and the walkthroughs find the button by. */
@@ -1107,6 +1106,7 @@ export class SystemDiagnostics extends LitElement {
     return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? 'שמור'}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.errorOf(o.tab) ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf(o.tab)}</span>` : nothing}</div>`;
   }
 
+  /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
       <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות ‹ חיבורים.</div>
@@ -1698,7 +1698,7 @@ export class SystemDiagnostics extends LitElement {
             <div class="row" data-remote-android-switch><span class="lbl">שרתים באפליקציה<span class="muted">רשימת השרתים של האפליקציה: מעבר לשרת אחר, הוספה ועריכה</span></span><sw-button size="sm" icon="list" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</sw-button></div>
           </sw-card>`
         : nothing}
-      <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://<שם ה־Home Assistant>/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
+      <sw-card heading="גישה מרחוק · SmplWise Arx" subheading="כניסה דרך https://&lt;שם ה־Home Assistant&gt;/arx עם מסך הכניסה של המערכת (שם משתמש וסיסמה של Home Assistant). הערוץ עצמו מופעל באפשרות ה־add-on remote_access.">
         <div class="row"><span class="lbl">מי רשאי להיכנס מרחוק<span class="muted">דגל אישי: רק משתמשים שהופעלה להם גישה מרחוק במסך משתמשים והרשאות · כל בעל תפקיד: כל משתמש Home Assistant עם תפקיד כלשהו במערכת</span></span>
           ${sel('remote.policy', 'flag', [['flag', 'דגל אישי לכל משתמש'], ['any_role', 'כל משתמש עם תפקיד']])}</div>
         <div class="row" data-remote-admins-default-row><span class="lbl">מנהלים – גישה מרחוק כברירת מחדל<span class="muted">מנהל מערכת נכנס מרחוק בלי דגל אישי · חל על "דגל אישי לכל משתמש"</span></span>
@@ -1973,7 +1973,6 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
-  /** OFFBOX-RESTORE-2300: `backup.safety_before_local_restore` (default on), saved at once like the other switches. */
   /** OFFBOX-RESTORE-2300 (owner answer 2026-10-30): `backup.local_restore_scope` (default project+access), saved at once. */
   private async toggleLocalScope(on: boolean) {
     this.localSafetyBusy = true;
@@ -1990,6 +1989,7 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  /** OFFBOX-RESTORE-2300: `backup.safety_before_local_restore` (default on), saved at once like the other switches. */
   private async toggleLocalSafety(on: boolean) {
     this.localSafetyBusy = true;
     this.setError('backup', '');

@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * CR-038 slice 9: the look of the cost card, its dialogs and page viewer, and the cost report - on top of the tickets glass layers
@@ -7,10 +8,7 @@ import { css } from 'lit';
  * gets its component-level rules here (its skin sheet is at its rule budget).
  */
 export const costCardStyles = css`
-  :host {
-    display: block;
-    min-inline-size: 0;
-  }
+  ${hostBlockStyles}
   .claims {
     display: flex;
     flex-direction: column;

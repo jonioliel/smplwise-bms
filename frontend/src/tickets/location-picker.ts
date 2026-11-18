@@ -4,7 +4,7 @@ import type { LocationsAnswer } from '../api/tickets-locations';
 import { OTHER, OTHER_MAX, addressLine, pickerOptions } from './org-locations-model';
 import { loct } from './org-locations-text';
 
-export interface LocationPickerOptions {
+interface LocationPickerOptions {
   ans: LocationsAnswer | null;
   pick: string;
   other: string;

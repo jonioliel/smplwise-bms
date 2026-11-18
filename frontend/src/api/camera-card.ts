@@ -16,7 +16,7 @@ import { tr } from '../i18n/msg/api-video';
 /** A card's source: an NVR channel of the camera catalogue, or a Home Assistant camera entity. */
 export type CameraSource = { kind: 'nvr'; recorder_id: string; channel: number } | { kind: 'ha'; entity_id: string };
 
-export type CameraCardState = 'live' | 'ha_live' | 'still_only' | 'forbidden' | 'missing' | 'disabled';
+type CameraCardState = 'live' | 'ha_live' | 'still_only' | 'forbidden' | 'missing' | 'disabled';
 
 /** `GET /devices/camera-card/resolve`: one card's source for THIS caller. `forbidden` names nothing else. */
 export interface CameraResolved {
@@ -36,7 +36,7 @@ export interface CameraResolved {
   live_path?: string;
 }
 
-export interface PickerNvrCamera {
+interface PickerNvrCamera {
   recorder_id: string;
   channel: number;
   camera_id: string;
@@ -45,7 +45,7 @@ export interface PickerNvrCamera {
   entity_id: string | null;
 }
 
-export interface PickerRecorder {
+interface PickerRecorder {
   recorder_id: string;
   name: string;
   cameras: PickerNvrCamera[];

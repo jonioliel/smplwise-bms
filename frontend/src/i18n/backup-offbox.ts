@@ -661,9 +661,9 @@ const ru: Partial<Record<Key, string>> = {
 };
 
 export type ObtKey = Key;
-export type ObtLang = 'he' | 'en' | 'ar' | 'ru';
+type ObtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function obtLang(): ObtLang {
+function obtLang(): ObtLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

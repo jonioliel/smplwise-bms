@@ -11,10 +11,11 @@ import type {
   AssignPreview, AssigneesAnswer, Contact, ContactBody, ContactExport, ExternalAssignee, LinkBlock, ProbeAnswer, Readiness, TicketWithLink, TicketsHealth,
   TicketsS4Backend,
 } from './tickets-s4';
+import { isoZ } from './day-format';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
+const iso = (ms: number) => isoZ(ms);
 const sleep = (ms = 90) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 let idn = 0;

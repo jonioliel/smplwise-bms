@@ -24,18 +24,18 @@ export const QUICK_KINDS: readonly QuickKind[] = ['lights', 'climate', 'covers',
 /** An area nobody configured shows the kinds it has, in QUICK_KINDS order, at most this many. */
 export const DEFAULT_QUICK_MAX = 3;
 
-export type SummaryChooser = 'admin' | 'user';
+type SummaryChooser = 'admin' | 'user';
 export type RowActions = 'quick' | 'indicators';
-export type TileBlinds = 'pct' | 'buttons';
-export type TileClimate = 'both' | 'target' | 'room';
-export type PhoneArea = 'sheet' | 'full';
+type TileBlinds = 'pct' | 'buttons';
+type TileClimate = 'both' | 'target' | 'room';
+type PhoneArea = 'sheet' | 'full';
 /** AREAPOPUP-297: how an area opens on a desktop / tablet - the quick-control side drawer (default), the pop-up that grows out of the tile, or its screen. */
 export type DesktopArea = 'drawer' | 'popup' | 'screen';
-export type FloorOff = 'menu' | 'buttons';
-export type ManyFloors = 'more' | 'tree_scroll';
-export type BuildingOffTablet = 'hide' | 'keep';
-export type QuickCard = 'show' | 'hide';
-export type PhoneFloors = 'selector' | 'all';
+type FloorOff = 'menu' | 'buttons';
+type ManyFloors = 'more' | 'tree_scroll';
+type BuildingOffTablet = 'hide' | 'keep';
+type QuickCard = 'show' | 'hide';
+type PhoneFloors = 'selector' | 'all';
 /** AREAEDIT-2290: a section's sensor the manager hid appears in the area pop-up, red, only while it is in alarm (show), or stays hidden (hide). */
 export type PopupAlert = 'show' | 'hide';
 
@@ -62,7 +62,7 @@ export const CHOICES = {
   edit_drawer_space: ['free', 'keep'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
-export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
+const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
 
 /** The owner's answers (round 2): the defaults of a new installation. */
 export const CHOICE_DEFAULTS = {
@@ -117,14 +117,14 @@ export interface HomeScreenOptions {
    * the preview takes the width back) | keep (its column stays reserved, as before). Below 1200 px nothing changes. */
   edit_drawer_space: EditDrawerSpace;
 }
-export type EditDrawerSpace = 'free' | 'keep';
+type EditDrawerSpace = 'free' | 'keep';
 
 /** HOME-EDIT-DRAWER-2351: does the page keep the edit drawer's column while the drawer is closed? Open, it always does. */
 export function editDrawerReserved(mode: EditDrawerSpace, open: boolean): boolean {
   return open || mode === 'keep';
 }
 export type SiteEntry = 'site' | 'last' | 'fixed';
-export type SiteOffShared = 'exclude' | 'include';
+type SiteOffShared = 'exclude' | 'include';
 export type TreeUnassigned = 'always' | 'editing' | 'never';
 
 /** TREE-HIDE-UNASSIGNED-2331: does the building tree draw its "ללא שיוך" row? Presentation only - the bucket, its screen and the
@@ -215,7 +215,7 @@ export function effectiveScreen(site: HomeScreenOptions, personal: PersonalScree
 // ------------------------------------------------------------------------------------------------ the summary tiles
 
 /** How many of a kind the scope has (alarm: 1 when there is a panel). */
-export function kindTotal(c: DeviceCounts, k: SummaryKind): number {
+function kindTotal(c: DeviceCounts, k: SummaryKind): number {
   if (k === 'alarm') return c.alarm ? 1 : 0;
   return c[k] ?? 0;
 }
@@ -273,9 +273,9 @@ export function showRoomTemp(a: DeviceArea, mode: TileClimate): boolean {
 /** Phones scroll; everything wider is a control screen that must fit (no scroll, 1366x768 reference). */
 export const PHONE_WIDTH = 600;
 /** A landscape tablet (the approved first tablet target is 1180x820). */
-export const TABLET_MAX_WIDTH = 1180;
+const TABLET_MAX_WIDTH = 1180;
 /** The cards view shows this many floor cards in one row; the rest through "more floors" / the tree. */
-export const FLOOR_CARDS_MAX = 4;
+const FLOOR_CARDS_MAX = 4;
 
 export function isTabletLandscape(width: number, height: number): boolean {
   return width > 900 && width <= TABLET_MAX_WIDTH && width > height;
@@ -298,7 +298,7 @@ export function floorCardsMax(width: number): number {
 
 // ------------------------------------------------------------------------------------------------ the alerts strip
 
-export interface HomeAlert {
+interface HomeAlert {
   kind: 'alarm';
   scope: 'building' | 'floor' | 'area';
   id: string;

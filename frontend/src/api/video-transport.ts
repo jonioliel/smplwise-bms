@@ -125,9 +125,3 @@ export async function setPersonalTransport(choice: TransportChoice | null): Prom
   return loadVideoPolicy();
 }
 
-/** Tests: forget the cached policy and the one-time seed. */
-export function resetVideoPolicy(): void {
-  cached = null;
-  inflight = null;
-  migrated = false;
-}

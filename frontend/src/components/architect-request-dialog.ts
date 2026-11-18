@@ -8,7 +8,7 @@ import { REQUEST_FILE_NAME, REQUEST_TITLE, copyText, mailtoHref, normalizeReques
 import { tr } from '../i18n/msg/components';
 
 /** The request text, as the dialog shows, copies, shares and downloads it. */
-export const ARCHITECT_REQUEST_TEXT = normalizeRequest(REQUEST_RAW);
+const ARCHITECT_REQUEST_TEXT = normalizeRequest(REQUEST_RAW);
 
 /** "בקשה לאדריכל": the Hebrew request for the plans the system needs, opened on demand (setup wizard, plan editor, floors list, plan import)
  * so a person with no plan yet can read it, copy it and send it to the architect. One instance serves the whole app: `openArchitectRequest()`. */

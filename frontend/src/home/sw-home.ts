@@ -94,7 +94,7 @@ export const HOME_PHONE_MQ = '(max-width: 700px), (max-width: 899px) and (orient
 const isPhone = () => window.matchMedia(HOME_PHONE_MQ).matches;
 /** HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-1 a): the portrait tablet band of the phone layout - four tiles per row (home-styles-extra.ts
  *  uses the same query). */
-export const HOME_TABLET_PORTRAIT_MQ = '(min-width: 701px) and (max-width: 899px) and (orientation: portrait)';
+const HOME_TABLET_PORTRAIT_MQ = '(min-width: 701px) and (max-width: 899px) and (orientation: portrait)';
 const isTabletPortrait = () => window.matchMedia(HOME_TABLET_PORTRAIT_MQ).matches;
 /** HOME-V3-AUDITFIX-2437 (audit item 7): the theme, scheme and background this device last drew the home in (read by public/home-paint.js). */
 const PAINT_KEY = 'arx-home-paint';

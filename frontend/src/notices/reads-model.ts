@@ -3,9 +3,9 @@ import type { ReadsAnswer } from '../api/notices';
 /** NOTICEPAGE-295: the pure shape of the "מי קרא" sheet (no DOM). */
 export type ReadsSeg = 'read' | 'unread';
 
-export interface ReadsRow { name: string; place: string; at: string }
+interface ReadsRow { name: string; place: string; at: string }
 
-export interface ReadsView {
+interface ReadsView {
   read: number;
   unread: number;
   total: number;

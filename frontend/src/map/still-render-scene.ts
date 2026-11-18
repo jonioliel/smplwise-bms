@@ -14,8 +14,8 @@ import type { SceneDescription } from './scene-builder';
 import { STILL_RECIPE_Q2, bandScene, stillBackdrop, stillColor, stillDescription, type Project, type StillRenderRequest, type StillRenderResult, type StillRenderer, type StillVariant } from './still-bake';
 
 /** The warm grade of the q2 sunset picture (multiply), fixed so the same description gives the same bytes. */
-export const SUNSET_GRADE = { color: '#ffb98a', alpha: 0.42 } as const;
-export const STILL_QUALITY = 0.9;
+const SUNSET_GRADE = { color: '#ffb98a', alpha: 0.42 } as const;
+const STILL_QUALITY = 0.9;
 
 export class SceneStillRenderer implements StillRenderer {
   readonly recipe = STILL_RECIPE_Q2;

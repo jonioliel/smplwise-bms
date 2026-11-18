@@ -13,9 +13,9 @@ export const DEFAULT_COLUMNS: readonly ColumnKey[] = ['number', 'title', 'depart
 /** always shown, never hidden by the chooser */
 export const REQUIRED_COLUMNS: readonly ColumnKey[] = ['number', 'title'];
 export const DEFAULT_SORT: readonly SortKey[] = [{ key: 'activity', dir: 'desc' }];
-export const MAX_SORT_KEYS = 2;
+const MAX_SORT_KEYS = 2;
 export const LIMITS: readonly number[] = [25, 50, 100, 200];
-export const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 50;
 export const PRIORITY_KEYS = ['urgent', 'high', 'normal', 'low'] as const;
 /** CR-038 slice 9 (11A.9): the cost columns - offered (chooser, sort, filter) only to holders of tickets.costs.view at the installation;
  * the host turns them on with setCostColumns (the server answers 403 to a cost sort / filter otherwise). */
@@ -28,7 +28,7 @@ export function costColumnsOn(): boolean {
   return COST_COLUMNS;
 }
 /** The columns this user may see: the slice-6b set, plus the cost columns when turned on. */
-export function knownColumns(): readonly ColumnKey[] {
+function knownColumns(): readonly ColumnKey[] {
   return COST_COLUMNS ? [...COLUMN_KEYS, ...COST_COLUMN_KEYS] : COLUMN_KEYS;
 }
 /** columns whose first click sorts newest / most urgent first */
@@ -131,7 +131,7 @@ export function parseTableMid(v: unknown): TableMidWidth {
 }
 
 /** `choice` = the viewer's own sentence tick (readSentenceChoice): `default` = never touched. */
-export interface FittedTable { columns: ColumnKey[]; sentence: boolean; /** the sentence column is wanted but the table's width left it out */ sentenceFitted: boolean }
+interface FittedTable { columns: ColumnKey[]; sentence: boolean; /** the sentence column is wanted but the table's width left it out */ sentenceFitted: boolean }
 export function fitTable(cols: readonly ColumnKey[], width: number, select: boolean, choice: 'on' | 'off' | 'default', mid: TableMidWidth = TABLE_MID_DEFAULT): FittedTable {
   const wanted = choice !== 'off';
   if (width <= 0 || !isDefaultColumns(cols) || !wanted) return { columns: fitColumns(cols, width, select, wanted ? ['sentence'] : []), sentence: wanted, sentenceFitted: false };
@@ -212,7 +212,7 @@ export function queryParams(f: TableFilters, sort: readonly SortKey[], extra: { 
   return p;
 }
 
-export const MONTHLY_MAX_DAYS = 366;
+const MONTHLY_MAX_DAYS = 366;
 export type MonthlyGroup = 'department' | 'vendor';
 
 /** The monthly-counts report (GET tickets/reports/monthly.csv): both days are required, from <= to, at most MONTHLY_MAX_DAYS days. '' = fine. */

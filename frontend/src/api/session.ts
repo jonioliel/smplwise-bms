@@ -34,7 +34,7 @@ const listeners = new Set<(s: Session) => void>();
 export let session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
 
 /** SX-10: the native shell's reason for a 401 from the server (the only path that may say `expired`). */
-export function nativeReasonOf401(code: string | undefined): NativeSignOutReason {
+function nativeReasonOf401(code: string | undefined): NativeSignOutReason {
   return code === 'remote_login_required' ? 'expired' : 'unknown'; // remote_session_revoked and the rest: no silent re-exchange
 }
 
@@ -54,7 +54,7 @@ export function onSession(fn: (s: Session) => void): () => void {
 }
 
 /** SESSION-DEMO-WS-2435: the retry schedule of a /me that failed while a backend is (or may be) there: 1 s, 2 s, 4 s, then every 10 s. */
-export const ME_RETRY_MS = [1_000, 2_000, 4_000, 10_000] as const;
+const ME_RETRY_MS = [1_000, 2_000, 4_000, 10_000] as const;
 
 /** Statuses a gateway answers while the backend behind it is restarting or unreachable (HA Ingress: 502 while the add-on restarts). */
 const GATEWAY_STATUSES = new Set([502, 503, 504]);
@@ -161,7 +161,7 @@ export function watchPermissions(onChanged: () => void, env?: SocketEnv): () => 
 }
 
 /** One frame of `/me/ws`: to every `onMeEvent` listener, then the permissions check. */
-export function meFrame(data: string, onChanged: () => void): void {
+function meFrame(data: string, onChanged: () => void): void {
   try {
     const env = JSON.parse(data) as { type: string; payload?: { permissions_fingerprint?: string } };
     meListeners.forEach((fn) => fn(env));

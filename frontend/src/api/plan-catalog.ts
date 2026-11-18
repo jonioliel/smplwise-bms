@@ -52,7 +52,7 @@ export interface CatalogItem {
   created_at?: string;
   updated_at?: string;
 }
-export interface CatalogCategory {
+interface CatalogCategory {
   id: string;
   he: string;
   en: string;
@@ -65,7 +65,7 @@ export interface CatalogLibrary {
   color_tokens: string[];
   items: CatalogItem[];
 }
-export interface CustomItemBody {
+interface CustomItemBody {
   based_on?: string | null;
   names?: { he: string; en?: string };
   category?: string;
@@ -98,7 +98,7 @@ export function loadLibrary(revision?: string | null): Promise<CatalogLibrary> {
   return inflight;
 }
 
-export function invalidateLibrary(): void {
+function invalidateLibrary(): void {
   cache = null;
 }
 
@@ -136,6 +136,7 @@ const refresh = <T>(x: T): T => {
   return x;
 };
 export const createItem = (body: CustomItemBody) => post<CatalogItem>('catalog/objects', body).then(refresh);
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by Plan Studio (object library, CR-003).
 export const updateItem = (id: string, body: CustomItemBody) => patch<CatalogItem>(`catalog/objects/${encodeURIComponent(id)}`, body).then(refresh);
 export const deleteItem = (id: string) => del(`catalog/objects/${encodeURIComponent(id)}`).then(refresh);
 export const importItems = (items: unknown[]) => post<{ imported: number; replaced: number; revision: string }>('catalog/import', { format: 'smplwise-catalog-1', items }).then(refresh);

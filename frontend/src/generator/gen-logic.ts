@@ -6,9 +6,9 @@
 import type { Availability, GenAlert, GenDevice, GenRange, GenValues, HistoryPoint, HistoryResponse, PolicyItem, Severity, SeverityDefaults, ViewMode } from '../api/generator';
 import { timeText, dayMonthText } from '../api/day-format';
 
-export const GEN_V = ['gen_v_l1', 'gen_v_l2', 'gen_v_l3'] as const;
-export const GEN_A = ['gen_a_l1', 'gen_a_l2', 'gen_a_l3'] as const;
-export const MAINS_V = ['mains_v_l1', 'mains_v_l2', 'mains_v_l3'] as const;
+const GEN_V = ['gen_v_l1', 'gen_v_l2', 'gen_v_l3'] as const;
+const GEN_A = ['gen_a_l1', 'gen_a_l2', 'gen_a_l3'] as const;
+const MAINS_V = ['mains_v_l1', 'mains_v_l2', 'mains_v_l3'] as const;
 export const RANGES: GenRange[] = ['1h', '24h', '7d', '30d', 'custom'];
 
 export type EngineState = 'running' | 'stopped' | 'starting' | 'cooling' | 'fault' | 'unknown';
@@ -178,8 +178,8 @@ export function gaugeList(values: GenValues | undefined, caps: Caps, th: Record<
 
 // ---------------------------------------------------------------- phase table
 
-export type PhaseCol = 'v' | 'a' | 'kw' | 'bar';
-export interface PhaseRow {
+type PhaseCol = 'v' | 'a' | 'kw' | 'bar';
+interface PhaseRow {
   label: number | null;
   v: number | null;
   a: number | null;
@@ -223,7 +223,7 @@ export function phaseTable(values: GenValues | undefined, caps: Caps, ratedKva: 
 
 // ---------------------------------------------------------------- engine card rows and phone KPIs
 
-export type EngineRowKey = 'state' | 'mode' | 'hours' | 'rpm' | 'last_start' | 'last_test' | 'next_test' | 'service';
+type EngineRowKey = 'state' | 'mode' | 'hours' | 'rpm' | 'last_start' | 'last_test' | 'next_test' | 'service';
 export function engineRows(caps: Caps): EngineRowKey[] {
   const r: EngineRowKey[] = ['state'];
   if (caps.has('controller_mode')) r.push('mode');
@@ -291,7 +291,7 @@ export function viewModeOf(v: unknown): ViewMode {
   return v === 'charts' ? 'charts' : 'gauges';
 }
 
-export interface Plot {
+interface Plot {
   /** One path per run of points; a gap larger than 2.5 buckets starts a new run (the chart draws a break). */
   lines: string[];
   areas: string[];
@@ -304,7 +304,7 @@ export interface Plot {
   n: number;
 }
 
-export function niceDomain(min: number, max: number, fixed?: [number, number]): [number, number] {
+function niceDomain(min: number, max: number, fixed?: [number, number]): [number, number] {
   if (fixed) return fixed;
   if (!(max > min)) {
     const pad = Math.max(1, Math.abs(min) * 0.05);
@@ -364,9 +364,9 @@ export function toCsv(h: HistoryResponse, roles: string[]): string {
 
 // ---------------------------------------------------------------- alerts
 
-export const SEV_ORDER: Record<Severity, number> = { critical: 0, alert: 1, info: 2 };
+const SEV_ORDER: Record<Severity, number> = { critical: 0, alert: 1, info: 2 };
 
-export interface AlertCounts {
+interface AlertCounts {
   open: number;
   unacked: number;
   acked: number;
@@ -423,7 +423,7 @@ export function durationMin(a: Pick<GenAlert, 'raised_at' | 'cleared_at'>, now =
 
 // ---------------------------------------------------------------- routing and message templates
 
-export interface RouteGroup {
+interface RouteGroup {
   key: string;
   title: string;
   items: PolicyItem[];
@@ -444,8 +444,8 @@ export const routingEmpty = (items: PolicyItem[], defaults?: SeverityDefaults | 
   items.filter((i) => i.available && (i.policy?.enabled ?? true)).every((i) => { const r = effectiveRecipients(i, defaults); return r.roles.length === 0 && r.users.length === 0; });
 export const hasRecipients = (p: PolicyItem['policy']): boolean => !!p && (p.recipients.roles.length > 0 || p.recipients.users.length > 0);
 
-export const TEMPLATE_VARS = ['device', 'name', 'detail', 'time', 'battery', 'fuel', 'load', 'site'] as const;
-export type TemplateVar = (typeof TEMPLATE_VARS)[number];
+const TEMPLATE_VARS = ['device', 'name', 'detail', 'time', 'battery', 'fuel', 'load', 'site'] as const;
+type TemplateVar = (typeof TEMPLATE_VARS)[number];
 /** The roles a variable needs; a variable whose role is missing is dropped from the sentence. */
 const VAR_ROLES: Partial<Record<TemplateVar, string[]>> = { battery: ['battery_v'], fuel: ['fuel_pct', 'fuel_l'], load: ['load_pct', 'gen_kw'] };
 export const availableVars = (caps: Caps): TemplateVar[] => TEMPLATE_VARS.filter((v) => !VAR_ROLES[v] || caps.any(...VAR_ROLES[v]!));

@@ -19,14 +19,14 @@ export const DAYS: readonly WeekdayName[] = ['Monday', 'Tuesday', 'Wednesday', '
 export const DAYS_UI: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const WORKDAYS: readonly WeekdayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 export const MAX_PERIODS = 8;
-export const MAX_HOLIDAYS = 64;
+const MAX_HOLIDAYS = 64;
 export const NAME_MAX = 32;
 
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const END = /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export const emptyWeek = (): Week => Object.fromEntries(DAYS.map((d) => [d, []])) as unknown as Week;
+const emptyWeek = (): Week => Object.fromEntries(DAYS.map((d) => [d, []])) as unknown as Week;
 export const emptyDraft = (name = ''): Draft => ({ name, weekly: emptyWeek(), holidays: [] });
 
 /** A library schedule as an editable draft (every day present, copies only). */
@@ -82,7 +82,7 @@ function dateOk(v: string): boolean {
   return y >= 2000 && y <= 2037 && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-export function nameFault(name: string): boolean {
+function nameFault(name: string): boolean {
   // eslint-disable-next-line no-control-regex
   return name.length > NAME_MAX || !name.trim() || /[\u0000-\u001f]/.test(name);
 }
@@ -114,7 +114,7 @@ export const faultAt = (all: DraftFault[], where: string): DraftFault | undefine
 
 // ---------------------------------------------------------------- edits (pure: each returns a new draft)
 
-export function setPeriods(d: Draft, day: WeekdayName, periods: Period[]): Draft {
+function setPeriods(d: Draft, day: WeekdayName, periods: Period[]): Draft {
   return { ...d, weekly: { ...d.weekly, [day]: periods } };
 }
 

@@ -15,6 +15,7 @@ import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import type { LibrarySchedule, SchedulePlan, ScheduleJob } from './access-schedules';
 import type { Period, WeekdayName } from './access-stations';
+import { isoZ } from './day-format';
 
 export type Week = Record<WeekdayName, Period[]>;
 export interface HolidayDraft {
@@ -48,7 +49,7 @@ export interface Capability {
 }
 export type Kind = 'template' | 'weekly' | 'holiday_group' | 'holiday';
 
-export interface PeopleCounts {
+interface PeopleCounts {
   state: 'complete' | 'failed' | 'unknown' | null;
   error: string | null;
   read: number | null;
@@ -56,13 +57,13 @@ export interface PeopleCounts {
   implicit: number | null;
   malformed: number | null;
 }
-export interface StationImpact {
+interface StationImpact {
   id: string;
   name: string | null;
   online: boolean | null;
   doors: { index: number | null; name: string | null }[];
 }
-export interface ResourceRow {
+interface ResourceRow {
   kind: Kind | 'unknown' | null;
   id: number | null;
   coverage: string | null;
@@ -150,7 +151,7 @@ export interface DeployResult {
   reason: string | null;
   job?: Job;
 }
-export interface DeployReply {
+interface DeployReply {
   action: 'deploy';
   results: DeployResult[];
   summary: Record<'queued' | 'refused' | 'unknown' | 'not_sent', number>;
@@ -168,11 +169,11 @@ const BASE = 'access-control/schedules';
 const TTL_MS = 15_000;
 
 function envelope(): { confirmed: true; client_request_id: string; expires_at: string } {
-  return { confirmed: true, client_request_id: commandId(), expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z') };
+  return { confirmed: true, client_request_id: commandId(), expires_at: isoZ(serverNow() + TTL_MS) };
 }
 
-export const readAction = <T>(action: string, body: Record<string, unknown>) => post<ReadReply<T>>(`${BASE}/actions/${action}`, body);
-export const writeAction = <T>(action: string, body: Record<string, unknown>) => post<WriteReply<T>>(`${BASE}/actions/${action}`, { ...body, ...envelope() });
+const readAction = <T>(action: string, body: Record<string, unknown>) => post<ReadReply<T>>(`${BASE}/actions/${action}`, body);
+const writeAction = <T>(action: string, body: Record<string, unknown>) => post<WriteReply<T>>(`${BASE}/actions/${action}`, { ...body, ...envelope() });
 
 export const checkDraft = (data: Draft, date: string, time: string) => readAction<CheckResult>('check', { data, date, time });
 export const createSchedule = (data: Draft, checkId: string) => writeAction<LibrarySchedule>('create', { data, check_id: checkId });
@@ -183,6 +184,7 @@ export const previewImport = (document: string) => readAction<ImportPreview>('im
 export const applyImport = (previewId: string) => writeAction<LibrarySchedule[]>('import_apply', { preview_id: previewId });
 export const exportLibrary = () => get<{ format: string; version: number; schedules: unknown[] }>(`${BASE}/export`);
 export const readReadiness = (stationId: string) => readAction<Readiness>('readiness', { station_id: stationId });
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by WisKey T7 (device schedule library writes).
 export const readDependencies = (stationId: string) => readAction<{ users: PeopleCounts | null }>('dependencies', { station_id: stationId });
 export const assessDraft = (stationId: string, data: Draft) => readAction<Assessment>('assess', { station_id: stationId, data });
 export const saveBaseline = (stationId: string, previewId: string) => writeAction<{ revision: number | null }>('baseline_save', { station_id: stationId, preview_id: previewId });
@@ -229,4 +231,3 @@ export function outcomeOf(err: unknown): Outcome {
   return { status: 'unknown', code: 'network', message: '', field: null, retryAfter: null };
 }
 
-export const JOB_ACTIVE: readonly string[] = ['pending', 'queued', 'checking'];

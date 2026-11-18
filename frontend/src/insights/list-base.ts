@@ -10,7 +10,7 @@ import { ALL_PLACES, customRange, placeTree, type PlaceNode } from './model';
 import { ix } from '../i18n/insights';
 import { SkinController } from '../design/skin';
 
-export type ListPhase = 'loading' | 'ready' | 'error' | 'off' | 'forbidden';
+type ListPhase = 'loading' | 'ready' | 'error' | 'off' | 'forbidden';
 const RANGES: readonly [RangeId, 'r24h' | 'r7d' | 'r30d' | 'rCustom'][] = [['24h', 'r24h'], ['7d', 'r7d'], ['30d', 'r30d'], ['custom', 'rCustom']];
 
 /**

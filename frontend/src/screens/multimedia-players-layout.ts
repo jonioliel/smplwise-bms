@@ -11,7 +11,7 @@
  * `tabs: {screens, players, groups}`"): `screens` stays the document's own top level (0.1.149 layouts keep working), the new tabs
  * are `tabs.players` / `tabs.groups` (see TabLayout).
  */
-import type { CardGroup, GroupBy, MediaDevice, MediaLayout } from '../api/media-screens';
+import type { GroupBy, MediaDevice, MediaLayout } from '../api/media-screens';
 import { DEFAULT_CARD } from '../api/media-screens';
 import {
   ALL_ROOMS_LABEL, GROUPABLE_KINDS, OUTCOME_FAILED, UNPLACED_LABEL, isPlaying, liveGroupKeys, matchesState,
@@ -22,12 +22,12 @@ import { tr } from '../i18n/msg/media';
 
 // ------------------------------------------------------------------------------------------------ the layout of a tab
 
-export type PlayerTab = 'players' | 'groups';
+type PlayerTab = 'players' | 'groups';
 
 /** One tab's layout: how its cards are grouped, their order, the "מועדפים" row and which are hidden (only `on: false` is written). The server stores each
  * tab as a full layout (`MediaLayout` without `version`): it fills `floor_order` and every card's `size` / `phone_on` / `phone_size` on write, and the page reads
  * back what it needs (`on`); the floors' order of these tabs is the document's own `floor_order`. */
-export interface TabLayout {
+interface TabLayout {
   group_by: GroupBy;
   order: string[];
   pinned: string[];
@@ -110,7 +110,7 @@ export function matchesPlayerFilters(d: PlayerDevice, f: PlayerFilters): boolean
 }
 export const filterPlayers = (devices: readonly PlayerDevice[], f: PlayerFilters): PlayerDevice[] => devices.filter((d) => matchesPlayerFilters(d, f));
 
-export interface PlayerCounts {
+interface PlayerCounts {
   total: number;
   playing: number;
   unavailable: number;
@@ -157,9 +157,9 @@ export interface PlayerGroup {
 /** Section / filter ids: the unplaced bucket (no room) and the rooms that have no floor in an installation that has floors. */
 export const UNPLACED_ID = 'none';
 export const NOFLOOR_ID = 'nofloor';
-export const PINNED_LABEL = tr('מועדפים');
-export const NO_FLOOR_LABEL = tr('ללא קומה');
-export const ALL_PLAYERS_LABEL = tr('כל הנגנים');
+const PINNED_LABEL = tr('מועדפים');
+const NO_FLOOR_LABEL = tr('ללא קומה');
+const ALL_PLAYERS_LABEL = tr('כל הנגנים');
 
 /**
  * The players tab's sections: "מועדפים" first, then by floor / room / one list as the layout says, with "לא משויכים" (no room)
@@ -209,7 +209,6 @@ export function editPlayerGroups(devices: readonly PlayerDevice[], view: MediaLa
   const all: MediaLayout = { ...view, cards: Object.fromEntries(devices.map((d) => [d.key, { ...(view.cards[d.key] ?? DEFAULT_CARD), on: true }])) };
   return resolvePlayerGroups(devices, all, o);
 }
-export const asCardGroups = (g: readonly PlayerGroup[]): CardGroup[] => g.map((x) => ({ id: x.id, label: x.label, items: x.devices.map((d) => ({ device: d as unknown as MediaDevice, size: 'm' as const })) }));
 
 /** Whether a section is a floor (it may offer "עצור מוזיקה") rather than a room, the unplaced bucket or a free list. */
 export const isFloorSection = (g: Pick<PlayerGroup, 'id'>, groupBy: GroupBy, floors: boolean): boolean =>
@@ -217,7 +216,7 @@ export const isFloorSection = (g: Pick<PlayerGroup, 'id'>, groupBy: GroupBy, flo
 
 // ------------------------------------------------------------------------------------------------ the groups tab
 
-export type GroupType = 'live' | 'static' | 'helper';
+type GroupType = 'live' | 'static' | 'helper';
 
 /** A group of `GET /multimedia/groups`: live (the leader's members), static (a device of kind `group`) or a helper shortcut (a
  * `group` helper entity: a fan-out with no grouping of its own, CR §5.3 - its device is not in the players list at all). */
@@ -277,7 +276,7 @@ export function summarizeRecord(rec: Pick<GroupRecord, 'status' | 'members'> | n
 // ------------------------------------------------------------------------------------------------ the saved group's editor
 
 export const PRESET_NAME_MAX = 40;
-export const PRESET_MEMBERS_MAX = 16;
+const PRESET_MEMBERS_MAX = 16;
 
 export interface PresetDraft {
   /** '' = a new group. */

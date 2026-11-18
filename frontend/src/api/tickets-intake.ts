@@ -12,7 +12,7 @@ import { del, get, post, put } from './client';
 import { isApi } from './session';
 
 export type IntakeUrgency = 'urgent' | 'high' | 'normal' | 'low';
-export type IntakeConfidence = 'high' | 'medium' | 'low' | 'none';
+type IntakeConfidence = 'high' | 'medium' | 'low' | 'none';
 export type RejectReason = 'not_a_request' | 'duplicate' | 'spam' | 'abusive' | 'out_of_scope' | 'test';
 
 export interface IntakeSummary { open: number; can: boolean; enabled: boolean; list?: boolean }
@@ -23,7 +23,7 @@ export interface IntakeDraftRow {
 }
 /** [start, end, rule id] offsets into the ORIGINAL text of the draft */
 export type Evidence = [number, number, string];
-export interface IntakeSuggestion {
+interface IntakeSuggestion {
   department_id: string | null;
   category: { value: string | null; confidence: IntakeConfidence; evidence: Evidence[]; candidates: string[] };
   location: { value: string | null; confidence: IntakeConfidence; evidence: Evidence[] };

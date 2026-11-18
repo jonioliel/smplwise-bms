@@ -8,12 +8,12 @@ import { actionForIntent, motzashDraft, type EntityMeta, type Intent, type Inten
 import { tokensOf } from './schedule-grid-logic';
 import { tr } from '../i18n/msg/automation';
 
-export type TemplateId = 'weekly' | 'sunset' | 'season' | 'ac' | 'once' | 'shabbat_climate' | 'motzash' | 'blank';
+type TemplateId = 'weekly' | 'sunset' | 'season' | 'ac' | 'once' | 'shabbat_climate' | 'motzash' | 'blank';
 
 /** A draft whose slots may still carry intents. */
 export type TemplateDraft = Omit<ScheduleDraft, 'slots'> & { slots: IntentSlot[] };
 
-export interface TemplateContext {
+interface TemplateContext {
   /** The configured "issur melacha" sensor entity id, or null. */
   sensor: string | null;
   defaultRepeat: ScheduleDraft['repeat'];
@@ -221,7 +221,7 @@ export function quickActions(e: EntityMeta | undefined): QuickAction[] {
   }
 }
 
-export interface QuickChoice {
+interface QuickChoice {
   entities: EntityMeta[];
   action: QuickAction | null;
   time: QuickTime | null;

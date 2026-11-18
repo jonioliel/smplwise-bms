@@ -7,8 +7,8 @@
  * pointer or key press anywhere (`armRingTone`), so a call arriving later can ring; before that `blocked` is true and the banner says
  * so in one short line instead of ringing silently.
  */
-export const RING_EVERY_MS = 3_000;
-export const RING_MAX_MS = 45_000;
+const RING_EVERY_MS = 3_000;
+const RING_MAX_MS = 45_000;
 
 type Ctx = AudioContext;
 let ctx: Ctx | null = null;

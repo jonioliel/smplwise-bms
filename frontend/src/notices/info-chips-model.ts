@@ -10,7 +10,7 @@
  */
 export const INFO_KINDS = ['elevators', 'generator', 'parking', 'gym'] as const;
 export type InfoKind = (typeof INFO_KINDS)[number];
-export const SOURCE_KINDS = ['parking', 'gym'] as const;
+const SOURCE_KINDS = ['parking', 'gym'] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 export const SOURCE_MAX = 8;
 

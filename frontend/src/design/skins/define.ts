@@ -38,11 +38,11 @@ export interface SkinFeatures {
 
 /** Owner policy (DESIGNTOKENS-297 brief, 2026-10-27): bevels are allowed in the classic and domus skins only. */
 export const BEVEL_SKINS: readonly SkinId[] = ['classic', 'domus'];
-export const NO_FEATURES: SkinFeatures = { material: false, bevel: false, pixelEdge: false, glass: false };
+const NO_FEATURES: SkinFeatures = { material: false, bevel: false, pixelEdge: false, glass: false };
 
 /** Limits of the picker labels (break-ui: a label without a limit is a layout bug waiting for a long name). */
-export const SKIN_NAME_MAX = 24;
-export const SKIN_NOTE_MAX = 90;
+const SKIN_NAME_MAX = 24;
+const SKIN_NOTE_MAX = 90;
 
 /** What a merged token table really draws: the two token-driven features. */
 export function derivedFeatures(t: TokenTable): Pick<SkinFeatures, 'pixelEdge' | 'glass'> {

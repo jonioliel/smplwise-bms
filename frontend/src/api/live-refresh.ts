@@ -18,7 +18,7 @@
  *  - `lastOkAt()` / `staleMs()` let the screen show a tiny "not current" state; no text is produced here.
  */
 
-export interface LiveSource {
+interface LiveSource {
   id: string;
   /** Runs one read. Resolve `false` (or throw) for a failure; anything else is a success. */
   run: () => Promise<unknown> | unknown;

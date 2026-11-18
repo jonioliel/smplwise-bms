@@ -88,9 +88,9 @@ const ru: Partial<Record<Key, string>> = {
 };
 
 export type GwtKey = Key;
-export type GwtLang = 'he' | 'en' | 'ar' | 'ru';
+type GwtLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function gwtLang(): GwtLang {
+function gwtLang(): GwtLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

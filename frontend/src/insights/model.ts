@@ -3,7 +3,7 @@
  * "not included" rows, the places tree of the door / waste lists, and the settings form with the server's bounds. Unit-tested.
  */
 import { localeFor } from '../i18n/locale';
-import type { DoorItem, DoorRow, DoorsAnswer, InsightSettings, OmitReason, RangeId, ReportModel, SectionId, WasteAnswer, WasteItem } from '../api/insights';
+import type { DoorItem, DoorsAnswer, InsightSettings, OmitReason, RangeId, ReportModel, SectionId, WasteAnswer, WasteItem } from '../api/insights';
 import { ix, type IxKey, type IxLang } from '../i18n/insights';
 
 // ---------------------------------------------------------------- months
@@ -87,7 +87,7 @@ export function fmtChange(pct: number | null | undefined, lang: IxLang): string 
 
 export const REASON_ICON: Record<OmitReason, 'lock' | 'power' | 'layers'> = { not_permitted: 'lock', switch_off: 'power', module_off: 'layers' };
 
-export interface Figure {
+interface Figure {
   id: string;
   label: IxKey;
   value: string;
@@ -327,5 +327,3 @@ export function numErrors(fields: readonly string[]): Set<NumKey> {
 export const fieldHint = (k: NumKey): string => ix('fieldRange', { lo: BOUNDS[k].lo, hi: BOUNDS[k].hi });
 export const hasField = (fields: readonly string[], prefix: string): boolean => fields.some((f) => f === prefix || f.startsWith(`${prefix}.`) || f.startsWith(`${prefix}[`));
 
-/** True when a door row came back with nothing to list (used by the unit specs and the empty state). */
-export const doorRowQuiet = (d: DoorRow): boolean => d.unexplained === 0 && d.unverifiable === 0;

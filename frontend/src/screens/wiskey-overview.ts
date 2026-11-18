@@ -144,7 +144,7 @@ const DEMO: IntercomOverview = {
 };
 
 /** The honest message for each feed state the entry center cannot show stations in (the activity log reuses it). */
-export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: PanelState; heading: string; hint: string }> = {
+const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: PanelState; heading: string; hint: string }> = {
   ha_not_configured: {
     panel: 'stale',
     heading: tr('WisKey אינו מחובר בסביבה הזו'),
@@ -162,7 +162,7 @@ export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: P
 };
 
 /** The feed badge in a WisKey page's header (kind and label per feed state), shared by the WisKey screens. */
-export function feedBadge(state: IntercomFeedState, version?: string | null): { kind: StateKind; label: string } {
+function feedBadge(state: IntercomFeedState, version?: string | null): { kind: StateKind; label: string } {
   const kind: StateKind = state === 'ready' ? 'live' : state === 'connecting' ? 'unknown' : state === 'forbidden' ? 'forbidden' : state === 'error' ? 'error' : 'offline';
   const label = state === 'ready' ? `${tr('מחובר ל־WisKey')}${version ? ` ${version}` : ''}` : state === 'connecting' ? tr('מתחבר') : tr('לא מחובר');
   return { kind, label };

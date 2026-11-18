@@ -7,6 +7,7 @@
 import { get, post, query } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
+import { isoZ } from './day-format';
 
 export type FieldType = 'text' | 'select' | 'number' | 'date';
 
@@ -42,14 +43,14 @@ export interface Policy extends PolicyValues {
   templates: number;
 }
 
-export interface ProfilesStation {
+interface ProfilesStation {
   id: string;
   name: string;
   online: boolean;
   lock_enabled: boolean;
 }
 
-export type ProfilesPart = 'view' | 'edit' | 'versions' | 'compare' | 'suggestions';
+type ProfilesPart = 'view' | 'edit' | 'versions' | 'compare' | 'suggestions';
 
 export interface ProfilesView {
   state: string;
@@ -61,7 +62,7 @@ export interface ProfilesView {
   features: Record<ProfilesPart, { available: boolean | null; reason: string | null }>;
 }
 
-export interface DiffChange {
+interface DiffChange {
   property: string;
   before: unknown;
   after: unknown;
@@ -85,7 +86,7 @@ export interface ImpactPerson {
   overrides: number;
 }
 
-export interface FieldImpact {
+interface FieldImpact {
   field_id: string;
   label: string;
   new: boolean;
@@ -128,7 +129,7 @@ export interface PreviewReply {
   values: PolicyValues;
 }
 
-export interface Readback {
+interface Readback {
   state: string;
   revision: number | null;
   matches: boolean | null;
@@ -149,14 +150,14 @@ export interface ApplyReply {
   confirmed_by?: 'readback';
 }
 
-export interface CheckReply {
+interface CheckReply {
   review_id: string;
   verdict: 'applied' | 'not_applied' | 'changed_elsewhere';
   readback: Readback;
   result: ApplyReply | null;
 }
 
-export interface VersionRecord {
+interface VersionRecord {
   revision: number | null;
   saved_at: string | null;
   action: string | null;
@@ -217,7 +218,7 @@ export const postApply = (reviewId: string) =>
     review_id: reviewId,
     confirmed: true,
     client_request_id: commandId(),
-    expires_at: new Date(serverNow() + TTL_MS).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expires_at: isoZ(serverNow() + TTL_MS),
   });
 export const postCheck = (reviewId: string) => post<CheckReply>(`${BASE}/reviews/${encodeURIComponent(reviewId)}/check`);
 export const getVersions = (offset = 0, limit = 20) => get<{ fetched_at: string | null; versions: VersionsPage }>(`${BASE}/versions` + query({ offset, limit }));

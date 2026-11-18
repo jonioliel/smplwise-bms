@@ -39,7 +39,7 @@ export const PERSP_DIR: [number, number, number] = (() => {
 /** Screen right and screen up of the isometric camera (unit vectors in scene space). */
 export const ISO_RIGHT: [number, number, number] = [1 / SQ2, 0, -1 / SQ2];
 export const ISO_UP: [number, number, number] = [-1 / SQ6, 2 / SQ6, -1 / SQ6];
-export const ISO_PAD = 1.08;
+const ISO_PAD = 1.08;
 /** The height a cutaway wall keeps above its level's floor. */
 export const CUTAWAY_HEIGHT_M = 0.7;
 /** Above this many entity pills at the overview the element draws only the selected, hovered and alerting ones
@@ -50,7 +50,7 @@ export const PILL_CAP = 60;
 export const PILL_CAP_PHONE = 8;
 export const PHONE_STAGE_PX = 640;
 /** The cutaway follows the camera azimuth in steps of this many degrees (a small orbit does not re-cut every frame). */
-export const CUTAWAY_STEP_DEG = 10;
+const CUTAWAY_STEP_DEG = 10;
 /** A wall is cut when its outward normal faces the camera at least this closely (cos 65 deg). */
 const CUTAWAY_FACING = Math.cos((65 * Math.PI) / 180);
 const CUT_KINDS: ReadonlySet<ScenePart['kind']> = new Set(['wall']);
@@ -224,9 +224,9 @@ export function cutBox(p: ScenePart, levelElevation: number, cutHeight = CUTAWAY
  * its margins too and the building filled about half the stage. */
 const CONTENT_KINDS: ReadonlySet<ScenePart['kind']> = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'room', 'marker']);
 /** The margin around the drawn building, metres (the plates' own pad is 0.5 m). */
-export const CONTENT_PAD_M = 0.3;
+const CONTENT_PAD_M = 0.3;
 /** The live presets' padding over the fitted box (the stage margin itself is in the insets, in pixels). */
-export const LIVE_PAD = 1.03;
+const LIVE_PAD = 1.03;
 
 /** The extent of what the description draws (CONTENT_KINDS, padded by CONTENT_PAD_M), never past the plates' extent; the
  * plates' extent when nothing is drawn. The heights are the levels' (sceneExtent). */

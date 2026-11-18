@@ -184,7 +184,7 @@ abstract class Sized extends LitElement {
   }
 }
 
-export interface DayCount {
+interface DayCount {
   day: string;
   granted: number;
   denied: number;

@@ -79,7 +79,7 @@ const en: Record<Key, string> = {
 
 export const PLAN_CURVE_STRINGS = { he, en } as const;
 
-export function curveLang(): 'he' | 'en' {
+function curveLang(): 'he' | 'en' {
   return docLang(['en']);
 }
 

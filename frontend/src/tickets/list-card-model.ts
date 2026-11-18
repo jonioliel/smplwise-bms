@@ -28,7 +28,7 @@ const FINAL = ['closed', 'cancelled'];
 const isOpen = (t: Pick<TicketItem, 'status'>) => !FINAL.includes(t.status);
 
 /** Who reads a list: the department manager, the internal handler (a plain member), or a requester / limited viewer. */
-export type RoleSubject = Pick<CardItem, 'view' | 'department'> & { manager?: boolean; can?: { manage: boolean } };
+type RoleSubject = Pick<CardItem, 'view' | 'department'> & { manager?: boolean; can?: { manage: boolean } };
 export function roleFor(item: RoleSubject, meta: Pick<Meta, 'departments' | 'can'> | null): ViewerRole {
   if (item.view === 'limited') return 'requester';
   if (item.manager || item.can?.manage) return 'manager';
@@ -95,7 +95,7 @@ export function avatarPair(item: CardItem): Avatar[] {
 
 // ---------------------------------------------------------------- the board's one warning line
 
-export interface CardWarning {
+interface CardWarning {
   key: string;
   text: string;
   tone: 'warn' | 'bad';
@@ -123,7 +123,7 @@ export function boardWarning(item: CardItem, role: ViewerRole): CardWarning | nu
 
 // ---------------------------------------------------------------- the card
 
-export interface CardModel {
+interface CardModel {
   sentence: string;
   chip: StatusChip;
   chips: CardChip[];

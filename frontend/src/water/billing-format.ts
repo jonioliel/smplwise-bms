@@ -77,7 +77,7 @@ export function snoozeUntil(now: Date, min: number, timeZone = 'Asia/Jerusalem')
   return days === 1 ? `מחר ${hm}` : `${days} ימים, ${hm}`;
 }
 
-export const SNOOZE_LIMITS = { min: 5, max: 43200, count: 12 } as const;
+const SNOOZE_LIMITS = { min: 5, max: 43200, count: 12 } as const;
 
 /** The settings editor's check before saving (the server repeats it): null = valid, else the Hebrew reason. */
 export function snoozeProblem(s: SnoozeSettings): string | null {

@@ -4,7 +4,7 @@
 import { api, path, upload } from './client';
 import type { BackgroundImages, BackgroundSlot } from '../design/background';
 
-export interface BackgroundImagesResponse {
+interface BackgroundImagesResponse {
   images: BackgroundImages;
 }
 

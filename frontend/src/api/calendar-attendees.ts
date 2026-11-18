@@ -10,8 +10,8 @@ import { isApi } from './session';
 export type AttendeeKind = 'user' | 'resident' | 'guest';
 export type AttendeeRole = 'required' | 'optional';
 export type InviteStatus = 'invited' | 'accepted' | 'declined' | 'tentative';
-export type GuestsMode = 'off' | 'organizer' | 'anyone';
-export type ListVisibility = 'organizer' | 'attendees' | 'viewers';
+type GuestsMode = 'off' | 'organizer' | 'anyone';
+type ListVisibility = 'organizer' | 'attendees' | 'viewers';
 
 export interface Attendee {
   id: string;
@@ -73,7 +73,7 @@ export interface AttendeesApi {
 
 const ev = (id: string) => `/calendar/events/${encodeURIComponent(id)}/attendees`;
 
-export const httpAttendees: AttendeesApi = {
+const httpAttendees: AttendeesApi = {
   list: (id) => get(ev(id)),
   add: (id, attendees) => post(ev(id), { attendees }),
   setRole: (id, aid, role) => api(`${ev(id)}/${encodeURIComponent(aid)}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
@@ -107,7 +107,7 @@ function demoView(id: string): AttendeesView {
   };
 }
 
-export const demoAttendees: AttendeesApi = {
+const demoAttendees: AttendeesApi = {
   list: async (id) => demoView(id),
   add: async (id, items) => {
     const list = demoLists.get(id) ?? [];

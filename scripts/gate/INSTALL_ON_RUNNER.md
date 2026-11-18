@@ -208,3 +208,37 @@ ssh runner '~/runner_cleanup.sh --apply'    # removes exactly that list; the lis
 The script refuses to start, and stops between items, while a release gate or a nightly run is active (it does not probe the
 gate lock, so it can never make a starting gate refuse to run). Run it after each release round, or when `df -h /` passes
 80 percent. Remote branches are never deleted by it.
+
+## Frontend static checks (CR-FE-GATES-ENFORCE-2442)
+
+`release_gate.py` runs three blocking checks of category `fe_static` for a branch that carries
+`frontend/scripts/gates-baseline.json`: the entry-chunk budget and the unused-export baseline right after the build, ESLint over
+`src/` in the background (collected after Playwright). The scripts and their baselines come from the branch under test; only the
+engine is copied. `GATE_FE_STATIC=auto` (default): a check that could not finish (ESLint over `GATE_FE_LINT_SECS`, 1800; eslint
+missing from `node_modules`) is a skipped NOT_RUN item; `=require`: NOT_RUN fails the gate; `=off`: nothing runs.
+
+Re-install after this change (idle runner only, backup first), then the self-test (the process cases need `node`):
+
+```
+ssh runner 'cp ~/release_gate.py ~/release_gate.py.bak-$(date +%Y%m%d)'
+scp scripts/gate/release_gate.py scripts/gate/gate_summary.py scripts/gate/selftest_fe_static.py runner:~/
+scp scripts/gate/release_gate.py scripts/gate/gate_summary.py runner:~/gate2/
+scp scripts/gate/release_gate.py scripts/gate/gate_summary.py runner:~/nightly-gate/
+ssh runner 'python3 ~/selftest_fe_static.py'      # expected last line: SELFTEST OK
+```
+
+The first gate after the copy shows how long ESLint takes on the runner (`fe-lint-wait` and `fe_static.eslint.seconds` in the
+report). Switch to `GATE_FE_STATIC=require` once it has finished inside its budget twice.
+
+## Type-check programs (CR-TSCONFIG-SPLIT-2443)
+
+`frontend/tsconfig.json` is the app alone (`src` + the two vite configs); `frontend/tsconfig.tests.json` is everything the gate
+checked before the split (plus the other Playwright configs); `frontend/tsconfig.scripts.json` checks the `.mjs` tools. The
+engine's `tsc` phase runs `tsc --noEmit -p tsconfig.tests.json` and then every other `frontend/tsconfig.*.json`
+(`release_gate.tsc_commands`), all into `tsc.log`, one `tsc` count. A tree from before the split (no `tsconfig.tests.json`) gets
+plain `tsc --noEmit` as before, so the new engine is safe for every open branch.
+
+**Order matters: install this engine BEFORE a branch that carries the split is checked or merged.** An engine from before this
+change runs plain `tsc --noEmit`, which on a split tree type-checks `src` only - the specs would silently leave the check.
+Same copy commands as the section above (`~/`, `~/gate2/`, `~/nightly-gate/`), then `python3 ~/selftest_fe_static.py`
+(the `tsc:` cases run everywhere).

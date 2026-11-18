@@ -170,7 +170,7 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       font-size: var(--sw-fs-md);
-      font-weight: 500;
+      font-weight: var(--sw-fw-medium);
       color: var(--dv-text-2);
       white-space: nowrap;
       transition: background var(--mm-motion), color var(--mm-motion), transform var(--sw-t-press) var(--sw-ease-out);
@@ -323,7 +323,7 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
     .sh small em {
       font-style: normal;
       color: var(--dv-text);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .sgrid {
       display: grid;
@@ -359,7 +359,7 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
       place-items: center;
       color: var(--dv-text);
       font-size: var(--sw-fs-xs);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
       transition: background var(--mm-motion), transform var(--sw-t-press) var(--sw-ease-out);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -416,7 +416,7 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
     .note-bad {
       color: var(--dv-danger);
       font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
     }
     .toast {
       position: fixed;
@@ -434,7 +434,7 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
       border-radius: var(--sw-r-pill);
       border: 1px solid color-mix(in srgb, var(--sw-toast-text) 12%, transparent);
       font-size: var(--sw-fs-base);
-      font-weight: 500;
+      font-weight: var(--sw-fw-medium);
       box-shadow: var(--sw-shadow-3);
       display: flex;
       gap: 9px;

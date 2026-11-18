@@ -12,7 +12,7 @@ import type { SetupState, SetupStep, StepId } from '../api/setup';
 import { tr } from '../i18n/msg/shell';
 
 /** The same ids the backend marks optional - the fallback for a backend that does not send the `optional` field yet. */
-export const OPTIONAL_STEP_IDS: readonly StepId[] = ['floor', 'camera'];
+const OPTIONAL_STEP_IDS: readonly StepId[] = ['floor', 'camera'];
 
 export const isOptionalStep = (s: Pick<SetupStep, 'id'> & { optional?: boolean }): boolean => s.optional ?? OPTIONAL_STEP_IDS.includes(s.id);
 

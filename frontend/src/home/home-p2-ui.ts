@@ -7,10 +7,11 @@ import type { HomeHost } from './home-ext';
 import { getFamily, type FamilyInfo } from './home-p2-api';
 import { moreTiles } from './more-registry';
 import { tr } from '../i18n/msg/home';
+import { isoZ } from '../api/day-format';
 
 const P2_TILES = new Set(['presence', 'calendar', 'notices', 'tickets', 'schedules', 'weather', 'notif']);
 
-export type P2Mod = 'presence' | 'calendar' | 'booking' | 'notices' | 'transit' | 'tickets' | 'schedules' | 'sceneNew' | 'weather' | 'notif';
+type P2Mod = 'presence' | 'calendar' | 'booking' | 'notices' | 'transit' | 'tickets' | 'schedules' | 'sceneNew' | 'weather' | 'notif';
 
 const fam: { info: FamilyInfo | null; at: number; loading: boolean; failedAt: number } = { info: null, at: 0, loading: false, failedAt: 0 };
 
@@ -55,9 +56,7 @@ export function has(m: P2Mod): boolean {
   }
 }
 export const canManageSchedules = () => !!fam.info?.features.schedules.manage;
-export const familyKnown = () => fam.info != null;
-/** Tests and a sign-out: forget what was loaded. */
-export function resetFamily(): void { fam.info = null; fam.at = 0; }
+const familyKnown = () => fam.info != null;
 
 export function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : `${n} ${many}`;
@@ -85,7 +84,7 @@ const F_YMD = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digi
 const F_WD = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: TZ });
 
 export const timeOf = (iso: string) => F_HM.format(new Date(iso));
-export const dayMonth = (d: Date) => F_DM.format(d);
+const dayMonth = (d: Date) => F_DM.format(d);
 /** The local date (YYYY-MM-DD) of an instant in the installation's zone. */
 export const ymd = (d: Date) => F_YMD.format(d);
 export const weekdayIx = (d: Date) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(F_WD.format(d));
@@ -139,7 +138,7 @@ export function errText(e: unknown): string {
 }
 
 export function iso(d: Date): string {
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return isoZ(d);
 }
 
 /** For the hub tiles' `visible`: starts loading what the person may see (once) and answers true, so `seen(h) && has(...)` reads well. */

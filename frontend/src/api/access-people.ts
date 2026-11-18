@@ -7,13 +7,13 @@
  * Reply shape of the JSON reads: `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null unless `state` is
  * `ready`; `state` `unsupported` = this build of the access-control service does not offer the read (nothing was sent).
  */
-import { ApiError, apiResponse, get } from './client';
+import { apiResponse, get } from './client';
 import type { IntercomFeedState } from './intercom';
 import { peopleQueryString, type PeopleRequest } from '../access-control/people-logic';
 
-export type AcState = IntercomFeedState | 'unsupported';
+type AcState = IntercomFeedState | 'unsupported';
 
-export interface AcReplyHead {
+interface AcReplyHead {
   state: AcState;
   configured: boolean;
   last_error: string | null;
@@ -22,7 +22,7 @@ export interface AcReplyHead {
 export type AcReply<K extends string, T> = AcReplyHead & { [P in K]: T | null };
 
 /** One of a person's visible station assignments. `last_error` is the administrator's: null for everyone else. */
-export interface AcPersonStation {
+interface AcPersonStation {
   station_id: string;
   enabled: boolean;
   doors: number[];
@@ -31,7 +31,7 @@ export interface AcPersonStation {
   last_error: string | null;
 }
 
-export interface AcPersonTiming {
+interface AcPersonTiming {
   mode: 'weekly' | 'dates' | 'unknown' | null;
   timezone: string | null;
   days: string[];
@@ -41,12 +41,12 @@ export interface AcPersonTiming {
 }
 
 /** The credential KINDS of a person (sensitive level): a PIN is set, how many enabled cards. Never a number or a value. */
-export interface AcCredentials {
+interface AcCredentials {
   pin: boolean | null;
   cards: number | null;
 }
 
-export type AcLevel = 'names' | 'sensitive';
+type AcLevel = 'names' | 'sensitive';
 
 /** A person as this caller may see them. A LIST row has `phone`, `profile`, `photo_configured`, `responsible_person`,
  * `access_purpose` and `timing` null always (they belong to one person's page); a field null on a sensitive-level page is unknown. */
@@ -99,14 +99,14 @@ export interface AcPeoplePage {
 }
 
 export type AcPeopleReply = AcReply<'people', AcPeoplePage>;
-export type AcPersonReply = AcReply<'person', AcPerson>;
+type AcPersonReply = AcReply<'person', AcPerson>;
 
 export interface AcStationLite {
   id: string;
   name: string;
   online?: boolean;
 }
-export type AcStationsReply = AcReply<'stations', AcStationLite[]> & { fresh?: boolean };
+type AcStationsReply = AcReply<'stations', AcStationLite[]> & { fresh?: boolean };
 
 export interface AcGroup {
   id: string;
@@ -123,16 +123,16 @@ export interface AcProfileField {
   unique: boolean;
   options: string[];
 }
-export interface AcGroups {
+interface AcGroups {
   revision: number | null;
   photo_enabled: boolean;
   groups: AcGroup[];
   /** The field definitions: only for a holder of the sensitive level (they label profile values), else null. */
   fields: AcProfileField[] | null;
 }
-export type AcGroupsReply = AcReply<'groups', AcGroups>;
+type AcGroupsReply = AcReply<'groups', AcGroups>;
 
-export interface AcFeature {
+interface AcFeature {
   available: boolean | null;
   reason: string | null;
 }
@@ -159,6 +159,3 @@ export async function fetchPersonPhoto(id: string): Promise<{ url: string } | { 
   return { error: res.status === 403 ? 'forbidden' : res.status === 404 ? 'missing' : 'unavailable' };
 }
 
-/** A 403 / 404 of a person's page: the screen shows the "no permission" panel / "not found" and nothing else. */
-export const isForbidden = (err: unknown) => err instanceof ApiError && err.status === 403;
-export const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;

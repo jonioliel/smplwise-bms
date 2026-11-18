@@ -17,7 +17,7 @@ export const AREA_DESIGN_LABEL: Record<AreaDesign, string> = { tiles: tr('ארי
 export const AREA_DESIGN_KEY = 'sw.area.design';
 export const PERSONALIZE_PERMISSION = 'screen.personalize';
 
-export function isAreaDesign(v: unknown): v is AreaDesign {
+function isAreaDesign(v: unknown): v is AreaDesign {
   return v === 'tiles' || v === 'sections';
 }
 
@@ -34,7 +34,7 @@ export type BulkLook = 'icon' | 'text' | 'both';
 export const BULK_LOOKS: BulkLook[] = ['icon', 'text', 'both'];
 export const BULK_LOOK_LABEL: Record<BulkLook, string> = { icon: tr('אייקון בלבד'), text: tr('טקסט בלבד'), both: tr('אייקון וטקסט') };
 
-export interface SectionBulkAction {
+interface SectionBulkAction {
   kind: BulkKind;
   label: string;
   icon: 'power' | 'bolt' | 'arrowUp' | 'arrowDown';
@@ -80,23 +80,13 @@ export function sectionBulkActions(card: CardId, rows: readonly DeviceRow[]): Se
   return (SECTION_BULK[card] ?? []).filter((a) => sectionBulkShown(a, rows));
 }
 
-export function isBulkLook(v: unknown): v is BulkLook {
-  return v === 'icon' || v === 'text' || v === 'both';
-}
-
 // ------------------------------------------------------------------------------------------------ main sensors
-
-/** A device the main strip may pick from. */
-export interface MainCandidate {
-  row: DeviceRow;
-  card: CardId;
-}
 
 const MOTION_CLASSES = new Set(['motion', 'occupancy', 'presence', 'moving']);
 const DOOR_CLASSES = new Set(['door', 'window', 'opening', 'garage_door']);
 
-export type MainSlot = 'temperature' | 'humidity' | 'motion' | 'door';
-export const MAIN_SLOTS: MainSlot[] = ['temperature', 'humidity', 'motion', 'door'];
+type MainSlot = 'temperature' | 'humidity' | 'motion' | 'door';
+const MAIN_SLOTS: MainSlot[] = ['temperature', 'humidity', 'motion', 'door'];
 
 /** Which main-strip slot a device fills, if any: temperature and humidity sensors, motion and door contacts. */
 export function mainSlotOf(r: DeviceRow): MainSlot | null {
@@ -114,7 +104,7 @@ export function mainSlotOf(r: DeviceRow): MainSlot | null {
 
 /** The automatic main strip: the first temperature, humidity, motion and door device the area HAS - a slot with no such
  * device is simply absent (never a placeholder). An owner's own list (`main`) replaces it. */
-export function autoMain(rows: DeviceRow[]): DeviceRow[] {
+function autoMain(rows: DeviceRow[]): DeviceRow[] {
   const out: DeviceRow[] = [];
   for (const slot of MAIN_SLOTS) {
     const hit = rows.find((r) => mainSlotOf(r) === slot && r.available);

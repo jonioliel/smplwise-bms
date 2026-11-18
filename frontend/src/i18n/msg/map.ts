@@ -60,7 +60,6 @@ export const tr = msgCatalogue('msg/map', {
   'תאום דיגיטלי כהה': 'Digital twin dark',
   // geometry.ts (labels only)
   'מ׳': 'm',
-  'ישר': 'Straight',
   '{steps} מדרגות': '{steps} steps',
   'פודסט': 'landing',
   // history-replay.ts

@@ -18,7 +18,7 @@ export const PLAYBACK_ITEM_LABEL: Readonly<Record<PlaybackItem, string>> = { hel
 let current: Record<PlaybackItem, Visibility> = { helper_line: 'all', diagnostics: 'all' };
 const listeners = new Set<() => void>();
 
-export function normalizeVisibility(raw: unknown): Visibility {
+function normalizeVisibility(raw: unknown): Visibility {
   return VISIBILITY_VALUES.includes(raw as Visibility) ? (raw as Visibility) : 'all';
 }
 

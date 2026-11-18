@@ -9,6 +9,7 @@ import { addDays, dateLabel, dateOf, hasPortrait, localDate, localTime, showsMet
 import { offsetAt, offsetLabel } from './wiskey-format';
 import { ev, evDynamic } from '../i18n/access-events';
 import { glyph } from '../access-control/glyphs';
+import { mutedStyles } from '../styles/fragments';
 
 type PortraitState = { kind: 'none' } | { kind: 'loading' } | { kind: 'ready'; url: string } | { kind: 'gone' } | { kind: 'error' };
 type DetailState = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ready'; event: AccessEventDetail } | { kind: 'failed' } | { kind: 'unsupported' };
@@ -142,10 +143,7 @@ export class WiskeyEventDrawer extends LitElement {
         animation: none;
       }
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
+    ${mutedStyles}
   `;
 
   willUpdate(changed: PropertyValues<this>) {

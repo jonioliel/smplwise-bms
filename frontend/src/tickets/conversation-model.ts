@@ -16,7 +16,7 @@
 import type { TicketEvent } from '../api/tickets';
 import type { TicketMessage } from '../api/tickets-messages';
 
-export type FeedType = 'message' | 'internal_note' | 'status_event' | 'quote' | 'demand' | 'owner_change' | 'photo' | 'system';
+type FeedType = 'message' | 'internal_note' | 'status_event' | 'quote' | 'demand' | 'owner_change' | 'photo' | 'system';
 export type Channel = 'page' | 'whatsapp' | 'email';
 /** The delivery of an outgoing message in plain words (tickets/conversation-text.ts); `page` = a free text shown on the handler page. */
 export type Delivery = 'page' | 'sent' | 'unknown' | 'failed' | 'held' | 'queued' | 'sending';
@@ -90,7 +90,7 @@ export function outboxDelivery(state: TicketMessage['state']): Delivery {
   }
 }
 
-export function outboxItem(m: TicketMessage): FeedItem {
+function outboxItem(m: TicketMessage): FeedItem {
   return {
     id: `ob:${m.id}`, type: 'message', kind: 'outbox', at: m.created_at, actor: { kind: 'system', name: '', me: false }, body: null, external: true, direction: 'out',
     channel: m.channel === 'email' ? 'email' : 'whatsapp', delivery: outboxDelivery(m.state), fromNoteId: null, unverified: false, event: null, message: m,
@@ -231,7 +231,7 @@ export function prefillFromNote(s: ConvState, note: { id: string; body: string |
   return { ...s, sub: 'vendor', vendorDraft: draft, sourceNote: note.id };
 }
 
-export type SendPlan = { route: 'note'; text: string } | { route: 'vendor'; text: string } | { route: 'forward'; noteId: string; text: string } | null;
+type SendPlan = { route: 'note'; text: string } | { route: 'vendor'; text: string } | { route: 'forward'; noteId: string; text: string } | null;
 
 /** What the active composer's button does: a team note (POST /notes, internal), a vendor message, or the forward of a pre-filled note. */
 export function sendPlan(s: ConvState, sub: ConvSub = s.sub): SendPlan {
@@ -271,7 +271,7 @@ export function dayKey(iso: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-export type FeedRow<T> = { day: string } | { item: T };
+type FeedRow<T> = { day: string } | { item: T };
 
 /** The feed with a day pill before the first item of each day. */
 export function withDays<T extends { at: string }>(items: readonly T[]): FeedRow<T>[] {

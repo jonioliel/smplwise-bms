@@ -78,7 +78,7 @@ export interface RoomCardBulkDetail {
   items: { entityId: string; spec: HaActionSpec }[];
 }
 export type RoomCardPlace = 'side' | 'float' | 'sheet';
-export type RoomCardCamera = 'snapshot' | 'live' | 'none';
+type RoomCardCamera = 'snapshot' | 'live' | 'none';
 type Tab = 'lights' | 'climate' | 'opens' | 'cam';
 
 /** How many rows a section shows before it pages (desktop side panel / sheet). */

@@ -20,7 +20,7 @@
  */
 import { deg, rad } from './num';
 import type { SceneDescription, SceneInput, ScenePart, Vec3 } from './scene-builder';
-import { ISO_DIR, ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
+import { ISO_RIGHT, ISO_UP, isoFrame, sceneExtent, type IsoFrame } from './scene-frame';
 import { controlSceneInput, withoutCameraBodies } from './skin-control';
 import { TOKEN_GROUPS } from '../design/tokens';
 
@@ -39,12 +39,12 @@ export const VARIANTS: readonly StillVariant[] = ['off', 'on'];
 export const STILL_RECIPE_Q2 = 'still-q2.2';
 export const MASK_RECIPE = 'mask-1';
 /** Where the lifted mask outline sits: this share of the level's ceiling height (prototype stills.js). */
-export const MASK_TOP_SHARE = 0.55;
+const MASK_TOP_SHARE = 0.55;
 /** A room's chip (temperature) anchor height above its floor. */
-export const MASK_CENTRE_Y_M = 1.2;
+const MASK_CENTRE_Y_M = 1.2;
 /** Fallback site position (CR-029 section 5.2: Israel) when the infrastructure gives none. */
 export const DEFAULT_SITE = { lat: 32.0, lon: 34.8 } as const;
-export const BAND_LIMITS = { day: 6, night: -4 } as const;
+const BAND_LIMITS = { day: 6, night: -4 } as const;
 
 export interface BakeSlot {
   kind: BakeKind;
@@ -54,8 +54,8 @@ export interface BakeSlot {
   band: StillBand | '';
   variant: StillVariant | '';
 }
-export type BakeTrigger = 'manual' | 'auto';
-export type BakeViews = 'iso' | 'iso_top';
+type BakeTrigger = 'manual' | 'auto';
+type BakeViews = 'iso' | 'iso_top';
 export interface BakeSetting {
   /** Read-only: derived from `bake_views` by the backend (services/plan_bakes.VIEW_PRESETS). */
   presets: StillPreset[];
@@ -76,7 +76,6 @@ export const DEFAULT_BAKE_SETTING: BakeSetting = {
   bake_trigger: 'manual', bake_views: 'iso',
 };
 export const VIEW_PRESETS: Record<BakeViews, StillPreset[]> = { iso: ['iso'], iso_top: ['iso', 'top'] };
-export const BAKE_SIZES = ['1280x800', '1600x1000', '1920x1200'] as const;
 
 /** "still/L0/iso/light/day/off", "mask/L0/iso", "lightmap/L0" - services/plan_bakes.slot_id. */
 export function slotName(s: BakeSlot): string {
@@ -155,7 +154,7 @@ export function stillPalette(style: StillStyle): Readonly<Record<string, string>
   palettes.set(style, frozen);
   return frozen;
 }
-export const STILL_FALLBACK = { light: '#9aa7b8', dark: '#4b5364' } as const;
+const STILL_FALLBACK = { light: '#9aa7b8', dark: '#4b5364' } as const;
 export const stillColor = (style: StillStyle) => (token: string): string => stillPalette(style)[token] ?? STILL_FALLBACK[style];
 /** The opaque backdrop a still is flattened on (its sky): the style's map sky. */
 export function stillBackdrop(style: StillStyle, band: StillBand): string {
@@ -200,7 +199,7 @@ export function stillDescription(desc: SceneDescription, levelId: string, varian
 // ---- projection and masks ------------------------------------------------------------------------------------------------
 
 export type Project = (p: Vec3) => [number, number] | null;
-export interface StillCamera {
+interface StillCamera {
   preset: StillPreset;
   width: number;
   height: number;
@@ -231,9 +230,8 @@ export function isoProject(cam: StillCamera): Project {
     return [((r / halfW + 1) / 2) * cam.width, ((1 - u / halfH) / 2) * cam.height];
   };
 }
-export const ISO_VIEW_DIR = ISO_DIR;
 
-export interface MaskRoom {
+interface MaskRoom {
   id: string;
   floor: [number, number][];
   top: [number, number][];

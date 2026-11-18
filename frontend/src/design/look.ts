@@ -29,10 +29,10 @@ export type Surface = 'flat' | 'glass' | 'gradient' | 'fill' | 'none';
 export type Popup = 'sheet' | 'centred' | 'inline';
 export type Radius = 'pill' | 'soft' | 'square';
 /** BV1: the device sheet's sliders - pills (today) or tall vertical sliders side by side (`<sw-vslider>`). */
-export type Slider = 'horizontal' | 'vertical';
+type Slider = 'horizontal' | 'vertical';
 export type Touch = 32 | 44;
 /** `default` (the skin's own colours), one of the ten ready palette ids, or `custom-<slug>` (an installation's custom palette, design/palette.ts). */
-export type PaletteId = string;
+type PaletteId = string;
 export type Performance = PerformanceMode;
 /** MD1 material dials (owner 2026-10-03): 0 off, 1 normal / soft, 2 strong (x1.8). */
 export type Level = 0 | 1 | 2;
@@ -178,7 +178,7 @@ export function materialMacro(current: Pick<Look, 'depth' | 'tint'>, preset: Mat
 }
 
 /** A custom palette's dial value (the backend's CUSTOM_ID_RE): a lower-case kebab slug after `custom-`. */
-export const CUSTOM_PALETTE_ID = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const CUSTOM_PALETTE_ID = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'slider', 'transparency', 'scale', 'touch', 'performance', 'palette', 'depth', 'tint', 'material'] as const satisfies readonly LookDial[];
 
@@ -299,7 +299,7 @@ export class LookController {
 
 let autoResolved: Tier | null = null;
 /** `auto` re-resolved (the cache or a weak capability; starts the probe when there is neither). Called at boot and after the probe. */
-export function refreshAutoPerformance(): void {
+function refreshAutoPerformance(): void {
   const before = autoResolved;
   // the probe (a blurred layer over a moving backdrop for ~700 ms) only runs while the dial is `auto`; an explicit full / lite never pays for it
   // (and a page pinned with ?look=performance:full is deterministic: the pixel specs rely on it). If the dial later turns to `auto`, applyLook retries.
@@ -316,7 +316,7 @@ export function tierOf(mode: Performance): Tier {
   return autoResolved;
 }
 /** The tier in force on this page. */
-export const effectivePerformance = (): Tier => tierOf(lookOf('performance'));
+const effectivePerformance = (): Tier => tierOf(lookOf('performance'));
 
 /** The contrast floor of the sheet's alpha, set by design/contrast.ts once the skin and scheme are known (see applyLook). */
 let alphaFloor = 0;
@@ -330,21 +330,19 @@ export function setLiteAlpha(v: number) {
   liteAlpha = Math.max(0.5, Math.min(1, v));
   applyLook();
 }
-export const liteAlphaInForce = (): number => liteAlpha;
 /** MD1: the wash cap of the state tint (design/contrast.ts washCap; apply.ts computes it per skin x palette x scheme). Percent. */
 let washCapPct = 50;
 export function setWashCap(v: number) {
   washCapPct = Math.max(0, Math.min(100, Math.round(v)));
   applyLook();
 }
-export const washCapInForce = (): number => washCapPct;
 /** The sheet alpha in force: the transparency dial, never below the computed contrast floor. */
 export function effectiveSheetAlpha(): number {
   return Math.max(alphaFloor, lookOf('transparency') / 100);
 }
 
 /** Put the dials on <html>: data attributes for the enumerated ones, custom properties for the numbers. Idempotent. */
-export function applyLook(): void {
+function applyLook(): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const set = (name: string, v: string) => {
@@ -541,7 +539,7 @@ export function lookBundlesCss(skinSelector = ':root[data-skin="bubble"]', mater
 // ---- MD1 material dials: the numbers of the presets and the multipliers (the formula is styles/material.ts) ----
 
 /** The frosted grain: a 160 px fractal-noise SVG at ~5 % alpha (our own, written for the mockup); a data URI, no asset, no network. */
-export const MATERIAL_GRAIN =
+const MATERIAL_GRAIN =
   'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'160\'><filter id=\'n\'><feTurbulence type=\'fractalNoise\' baseFrequency=\'.9\' numOctaves=\'2\' stitchTiles=\'stitch\'/><feColorMatrix values=\'0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .05 0\'/></filter><rect width=\'160\' height=\'160\' filter=\'url(%23n)\'/></svg>")';
 
 /**

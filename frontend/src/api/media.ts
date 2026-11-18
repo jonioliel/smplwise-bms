@@ -299,7 +299,7 @@ export type SettingsResponse = { settings: ProductSettings; can_edit: boolean; /
 export const getSettings = () => get<SettingsResponse>('settings');
 export const patchSettings = (body: Partial<ProductSettings>) => patch<SettingsResponse>('settings', body);
 
-export interface LiveInfo {
+interface LiveInfo {
   camera_id: string;
   profile: 'sub' | 'main';
   ws_path: string;
@@ -312,11 +312,12 @@ export interface LiveInfo {
   h265?: { policy: 'auto' | 'sub' | 'transcode' | 'off'; max_transcodes: number; active_transcodes: number };
 }
 
+// CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by live video (go2rtc adapter, 0.1.x).
 export const liveInfo = (cameraId: string, profile: 'sub' | 'main') => get<LiveInfo>(path`media/live/${cameraId}` + query({ profile }));
 export const syncStreams = () => post<{ created: number; updated: number; unchanged: number; streams: string[]; foreign_streams_untouched: number }>('media/streams/sync');
 /** GO2RTC-STREAM-SYNC-2436: `online` = go2rtc pulls the stream right now. go2rtc connects a source on demand, so a stream nobody
  * watches is `idle` - ready, not down (lab 12.11: 41/41 idle between viewers, every one played in under a second). */
-export type MediaStreamState = 'active' | 'idle' | 'no_source';
+type MediaStreamState = 'active' | 'idle' | 'no_source';
 export type MediaStream = { name: string; online: boolean; state?: MediaStreamState; consumers?: number; sources: string[] };
 export const listStreams = () => get<{ go2rtc: Record<string, unknown>; streams: MediaStream[]; foreign_streams: number }>('media/streams');
 
@@ -355,29 +356,8 @@ export function relayWsUrl(path: string): string {
   return u.toString();
 }
 
-const TRANSPORT_KEY = 'sw.transport';
-
-/** Per-browser override of the transport (set from the player); '' = follow the product default. */
-export function transportOverride(): Transport | '' {
-  try {
-    const v = localStorage.getItem(TRANSPORT_KEY);
-    return v === 'webrtc' || v === 'mse' || v === 'auto' ? v : '';
-  } catch {
-    return '';
-  }
-}
-
-export function setTransportOverride(v: Transport | '') {
-  try {
-    if (v) localStorage.setItem(TRANSPORT_KEY, v);
-    else localStorage.removeItem(TRANSPORT_KEY);
-  } catch {
-    /* per-browser convenience only */
-  }
-}
-
 /** The camera's detection configuration as the NVR holds it (T075, read-only). Coordinates are in the device's own normalized frame. */
-export interface ZoneMotion {
+interface ZoneMotion {
   enabled: boolean;
   region_type: string;
   sensitivity: number | null;
@@ -387,19 +367,19 @@ export interface ZoneMotion {
   coverage_pct: number;
   target_types: string[];
 }
-export interface ZonePolygon {
+interface ZonePolygon {
   id: string;
   enabled?: boolean;
   sensitivity?: number;
   points: number[][];
 }
-export interface ZoneLine {
+interface ZoneLine {
   id: string;
   enabled: boolean;
   direction: string;
   points: number[][];
 }
-export interface ZoneFrame {
+interface ZoneFrame {
   width: number;
   height: number;
 }

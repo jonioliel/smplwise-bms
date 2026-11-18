@@ -61,7 +61,7 @@ const ENT: Record<string, EntDef> = {
   'script.good_morning': { name: 'בוקר טוב', area: 'bed' }, 'script.vacation': { name: 'מצב חופשה', area: 'entry' }, 'script.shutters': { name: 'תריסים לפי אחוז', area: 'salon' },
 };
 /** Notify services the administrator approved (CR §4.7). */
-export const NOTIFY: Record<string, string> = { 'notify.mobile_app_yoni': 'הטלפון של יוני', 'notify.mobile_app_dana': 'הטלפון של דנה', 'notify.notify': 'כל המכשירים' };
+const NOTIFY: Record<string, string> = { 'notify.mobile_app_yoni': 'הטלפון של יוני', 'notify.mobile_app_dana': 'הטלפון של דנה', 'notify.notify': 'כל המכשירים' };
 /** HA-shaped states for the scene capture. */
 const STATES: Record<string, { state: string; attributes?: Raw }> = {
   'light.entry': { state: 'on', attributes: { brightness: 204, color_mode: 'color_temp', color_temp_kelvin: 3000 } }, 'light.salon': { state: 'on', attributes: { brightness: 128, color_mode: 'color_temp', color_temp_kelvin: 2700 } },

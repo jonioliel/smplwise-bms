@@ -49,7 +49,7 @@ export interface IncomingCall {
   locks: { physical_index: number; name: string | null }[];
 }
 
-export type CallSoundReason = 'setting_off' | 'quiet_hours' | null;
+type CallSoundReason = 'setting_off' | 'quiet_hours' | null;
 
 export interface ActiveCalls {
   enabled: boolean;
@@ -61,7 +61,7 @@ export interface ActiveCalls {
   calls: IncomingCall[];
 }
 
-export type CallOutcome = 'answered' | 'rejected' | 'missed' | 'unknown';
+type CallOutcome = 'answered' | 'rejected' | 'missed' | 'unknown';
 
 /** One row of the call log (the server keeps the user ids; only names and "mine" come back). */
 export interface CallLogRow {
@@ -83,7 +83,7 @@ export interface CallLogRow {
   updated_at: string;
 }
 
-export interface CallLogPage {
+interface CallLogPage {
   calls: CallLogRow[];
   next: string | null;
   retention_days: number;

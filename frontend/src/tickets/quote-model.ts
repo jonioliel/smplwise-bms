@@ -15,11 +15,11 @@ import type { CostFlow, FlowStage, MessageDraft, Quote, QuoteLine, QuoteOnBehalf
 import type { TicketStatus } from '../api/tickets';
 import { lineProblem, vatOf, wireLine, type EditLine, type Tone } from './cost-model';
 import { fromLocalInput, HANDLING } from './model';
-import { dayText } from '../api/day-format';
+import { dayText, isoZ } from '../api/day-format';
 import type { QuoteTextKey } from './quote-text';
 
 export const KIND_ORDER: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
-export const QUOTE_APPROVED: readonly QuoteState[] = ['approved', 'partially_approved'];
+const QUOTE_APPROVED: readonly QuoteState[] = ['approved', 'partially_approved'];
 const NOT_LIVE: readonly QuoteState[] = ['superseded', 'withdrawn', 'not_awarded'];
 
 // ---------------------------------------------------------------- staff: no money surface
@@ -27,11 +27,6 @@ const NOT_LIVE: readonly QuoteState[] = ['superseded', 'withdrawn', 'not_awarded
 /** An assignment that may carry money: everything the server did not mark `quote_capable: false` (an older server sends no flag). */
 export function isMoneyAssignment(a: Pick<ExternalAssignment, 'quote_capable'> | null | undefined): boolean {
   return !!a && a.quote_capable !== false;
-}
-
-/** The ids of the assignments that may carry money. */
-export function moneyAssignmentIds(assignments: readonly ExternalAssignment[] | undefined): Set<string> {
-  return new Set((assignments ?? []).filter(isMoneyAssignment).map((a) => a.id));
 }
 
 /** The assignment the flow describes is a staff one (no money surface at all for the tab). */
@@ -54,7 +49,7 @@ export function moneyQuotes(quotes: readonly Quote[], assignments: readonly Exte
 // ---------------------------------------------------------------- the stage chip and the stepper
 
 export type StepId = 'quote' | 'work' | 'demand' | 'paid';
-export interface StageView { key: QuoteTextKey; tone: Tone; steps: { id: StepId; state: 'done' | 'cur' | '' }[] }
+interface StageView { key: QuoteTextKey; tone: Tone; steps: { id: StepId; state: 'done' | 'cur' | '' }[] }
 
 const STAGE: Record<FlowStage, { tone: Tone; at: number }> = {
   none: { tone: '', at: -1 },
@@ -121,7 +116,7 @@ export function quoteTone(state: QuoteState): Tone {
 
 // ---------------------------------------------------------------- what a quote offers
 
-export interface QuoteActions { approve: boolean; partial: boolean; fix: boolean; reject: boolean }
+interface QuoteActions { approve: boolean; partial: boolean; fix: boolean; reject: boolean }
 
 /** The decisions a quote offers the viewer: the server's `can` (decide / reject) on a money assignment, a revision to send back, and
  *  a partial approval only when there is more than one line to choose from. */
@@ -181,11 +176,6 @@ export function toggleKind(kinds: readonly LineKind[], kind: LineKind): LineKind
   return KIND_ORDER.filter((k) => k === 'labor' || (k === kind ? !has : kinds.includes(k)));
 }
 
-export function sameKinds(a: readonly LineKind[] | null | undefined, b: readonly LineKind[] | null | undefined): boolean {
-  if (!a || !b) return a === b;
-  return KIND_ORDER.every((k) => a.includes(k) === b.includes(k));
-}
-
 // ---------------------------------------------------------------- requirements (manager of the request)
 
 /** The money assignments whose requirement a manager may set now: open, money-capable. */
@@ -206,7 +196,7 @@ export const MODES: readonly CostMode[] = ['required', 'optional', 'off'];
 
 // ---------------------------------------------------------------- "לשלוח הודעה לספק?" (approvals never send a message by themselves)
 
-export type DraftSubject = 'quote' | 'claim';
+type DraftSubject = 'quote' | 'claim';
 export interface SendDialog {
   subject: DraftSubject;
   /** the decision the dialog follows (its title) - quote: approved / partially_approved / fix_requested / rejected; claim: approved / rejected */
@@ -252,7 +242,7 @@ export function claimDecisionOf(action: 'approve' | 'adjust' | 'reject'): 'appro
 export interface OnBehalfTarget { assignmentId: string; name: string; replaces: boolean }
 
 /** The server's work-window bounds for a quote (services/tickets/quotes.py `_instant`): from yesterday to WORK_HORIZON_DAYS ahead. */
-export const WORK_PAST_DAYS = 1;
+const WORK_PAST_DAYS = 1;
 export const WORK_HORIZON_DAYS = 366;
 
 /**
@@ -282,11 +272,6 @@ export function enteredByViewer(q: Pick<Quote, 'source' | 'created_by_name'> | u
   return !!q && q.source === 'manager' && !!who && !!viewerName && who === viewerName.trim();
 }
 
-/** A quote entered on the vendor's behalf by SOMEONE (shown to everyone as such; only the one who entered it cannot approve). */
-export function isOnBehalf(q: Pick<Quote, 'source'> | undefined): boolean {
-  return q?.source === 'manager';
-}
-
 /** The kinds the line editor offers: the request's allowed kinds, labour always on, in the canonical order. */
 export function editorKinds(allowed: readonly LineKind[] | undefined): LineKind[] {
   return KIND_ORDER.filter((k) => k === 'labor' || (allowed ?? []).includes(k));
@@ -306,7 +291,7 @@ export interface QuoteForm {
   lines: EditLine[];
 }
 
-export type WorkProblem = '' | 'format' | 'range' | 'order';
+type WorkProblem = '' | 'format' | 'range' | 'order';
 
 /** The work window as the server checks it: both ends optional, each a real instant between yesterday and a year ahead, `to` not before `from`. */
 export function workWindowProblem(from: string, to: string, now: Date = new Date()): WorkProblem {
@@ -322,7 +307,7 @@ export function workWindowProblem(from: string, to: string, now: Date = new Date
   return from && to && Date.parse(fromLocalInput(to)) < Date.parse(fromLocalInput(from)) ? 'order' : '';
 }
 
-export type ValidProblem = '' | 'format' | 'range';
+type ValidProblem = '' | 'format' | 'range';
 
 /**
  * TKQVALID: the quote's validity as the server checks it (services/tickets/quotes.py `_valid_until`): a day (`YYYY-MM-DD`), kept as the END
@@ -342,7 +327,7 @@ export function validUntilIso(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
   const at = new Date(y, m - 1, d, 23, 59, 59);
   if (Number.isNaN(at.getTime()) || at.getMonth() !== m - 1 || at.getDate() !== d) return '';
-  return at.toISOString().replace(/\.\d+Z$/, 'Z');
+  return isoZ(at);
 }
 
 /** The day text of a validity instant ('16.10.2026', the viewer's zone); '' when absent or invalid. */
@@ -365,7 +350,7 @@ export function approvalNeedsExpiredConfirm(q: Pick<Quote, 'valid_until' | 'stat
   return (kind === 'approve' || kind === 'partial') && q?.state === 'submitted' && isQuoteExpired(q, now);
 }
 
-export type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order' | 'valid_format' | 'valid_range';
+type QuoteFormProblem = '' | 'lines' | 'kind' | 'work_format' | 'work_range' | 'work_order' | 'valid_format' | 'valid_range';
 
 /** The first problem of the form (nothing is sent while there is one). The server re-checks everything. */
 export function quoteFormProblem(f: QuoteForm, allowed: readonly LineKind[] | undefined, now: Date = new Date()): QuoteFormProblem {

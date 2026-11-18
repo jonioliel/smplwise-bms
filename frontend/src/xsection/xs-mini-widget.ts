@@ -14,7 +14,7 @@ import { miniFloorLabel, type MiniFloor, type MiniModel } from './xs-mini-model'
  * neighbours. A state is never colour alone: every marker pairs an icon with a word in its accessible name.
  */
 
-export interface MiniWidgetHost {
+interface MiniWidgetHost {
   model: MiniModel | null;
   editing: boolean;
   /** The multi-building view is on: the head names the building drawn. */
@@ -146,4 +146,4 @@ export function renderXsMini(h: XsMiniArgs, it: WidgetItem): TemplateResult {
   return h.shell(it, `wg-xs${h.compact ? ' xm-compact' : ''}`, {}, html`${head}${sum}<div class="xm-b" role="group" aria-label=${tr('חתך {name}: {n} קומות', { name: m.buildingName, n: m.floors.length + m.more })}>${rows}</div>${more}`);
 }
 
-export type XsMiniArgs = MiniWidgetHost;
+type XsMiniArgs = MiniWidgetHost;

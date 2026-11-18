@@ -18,8 +18,8 @@ import type { IntercomTtsEngine, IntercomTtsEngines } from './intercom';
 export const TTS_ENGINE_KEY = 'access.tts_engine';
 export const TTS_LANGUAGE_KEY = 'access.tts_language';
 /** WisKey's own bounds for `tts/start` (engine 1..128, language <= 64), mirrored by the server's validation. */
-export const TTS_ENGINE_MAX = 128;
-export const TTS_LANGUAGE_MAX = 64;
+const TTS_ENGINE_MAX = 128;
+const TTS_LANGUAGE_MAX = 64;
 const ENGINE_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const LANGUAGE_RE = /^[A-Za-z]{1,8}([_-][A-Za-z0-9]{1,8}){0,6}$/;
 
@@ -64,7 +64,7 @@ export function languageFor(list: IntercomTtsEngines | null | undefined, engineI
   return autoLanguage(engine);
 }
 
-export interface TtsPick {
+interface TtsPick {
   /** The preselected engine; '' when the fixed engine is not available (the user must pick one for this send). */
   engine: string;
   language: string;

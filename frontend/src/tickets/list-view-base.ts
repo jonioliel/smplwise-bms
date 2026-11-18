@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi, type Meta, type ModuleState } from '../api/tickets';
 import { SkinController } from '../design/skin';

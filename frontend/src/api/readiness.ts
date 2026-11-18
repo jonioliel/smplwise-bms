@@ -5,9 +5,9 @@ import { get, post, put } from './client';
 import { tr } from '../i18n/msg/api-system';
 
 export type ReadinessStatus = 'ok' | 'attention' | 'blocked' | 'pending' | 'not_applicable';
-export type ReadinessLevel = 'building' | 'almost' | 'ready';
+type ReadinessLevel = 'building' | 'almost' | 'ready';
 
-export interface ReadinessFact {
+interface ReadinessFact {
   label: string;
   value: string;
   ok: boolean | null;
@@ -32,7 +32,7 @@ export interface ReadinessCheck {
   checked_at: string;
 }
 
-export interface ReadinessNextStep {
+interface ReadinessNextStep {
   id: string;
   title: string;
   label: string;
@@ -127,7 +127,7 @@ export function levelTone(level: ReadinessLevel): 'danger' | 'warning' | 'succes
 // ---- the score chip on the settings entry "מוכנות" (CR-READY96 slice 1) ----
 // The last RECORDED score (`/me.readiness`, system.configure holders only) is shown as a small chip after the entry's label; the page itself
 // refreshes it after every load / check. A tiny module store, so the settings navigation (a separate element) follows without a prop chain.
-export interface ReadinessChip { score: number; level: ReadinessLevel }
+interface ReadinessChip { score: number; level: ReadinessLevel }
 let CHIP: ReadinessChip | null = null;
 const chipListeners = new Set<() => void>();
 export function setReadinessChip(next: { score?: unknown; level?: unknown } | null | undefined): void {

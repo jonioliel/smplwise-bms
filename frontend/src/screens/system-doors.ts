@@ -22,6 +22,7 @@ import { editorBlockHint, editorBlockLabel, editorBlockQuestion, lockJobLine } f
 import { unmappedDoorsNotice } from './lock-reason';
 import { can } from '../api/session';
 import { tr } from '../i18n/msg/system-a';
+import { errLineStyles } from '../styles/fragments';
 
 const cardCss = css`
   :host {
@@ -82,10 +83,7 @@ const cardCss = css`
     align-items: center;
     margin-block-end: var(--sw-s-2);
   }
-  .err {
-    color: var(--sw-danger-text);
-    font-size: var(--sw-fs-sm);
-  }
+  ${errLineStyles}
   .notice {
     color: var(--sw-warning-text, var(--sw-text-2));
     font-size: var(--sw-fs-sm);

@@ -6,7 +6,7 @@
  * so a round trip never changes a number.
  */
 export type DurationUnit = 'min' | 'h' | 'd';
-export const UNIT_MINUTES: Record<DurationUnit, number> = { min: 1, h: 60, d: 1440 };
+const UNIT_MINUTES: Record<DurationUnit, number> = { min: 1, h: 60, d: 1440 };
 export const MINUTES_MAX = 365 * 24 * 60;
 
 /** The SLA fields of a department x priority row, in the order of the grid (13.1). */

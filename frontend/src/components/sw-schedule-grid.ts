@@ -30,7 +30,7 @@ import { tr } from '../i18n/msg/components';
  * Ctrl + arrow the START edge; Delete removes; Enter selects; ↑ ↓ (← → vertically) go to the same slot of the next day.
  */
 
-export type GridIcon = IconName | 'thermo' | 'sun' | 'fan' | 'blinds';
+type GridIcon = IconName | 'thermo' | 'sun' | 'fan' | 'blinds';
 
 export interface GridSlotView {
   key: string;

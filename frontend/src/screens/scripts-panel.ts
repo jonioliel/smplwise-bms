@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
-import { applyAutomationsGlass } from '../api/automations-demo';
+import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import { cardChips, confirmLine, floorLine, areaLine, runLine } from './automations-logic';
 import { mapAutomationError, runNeedsConfirm, runScriptNow, stopScriptNow, type AutomationsStatus, type Item } from '../api/automations';
@@ -11,6 +11,7 @@ import type { DrawerResult } from './automation-drawer';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/automation';
+import { dialogRowStyles } from '../styles/fragments';
 
 /**
  * CR-017 `<scripts-panel .items .status .now>`: the script runner (CR §4.4). A big "הפעל" button per script; a script that has fields opens its sheet
@@ -113,7 +114,7 @@ export class ScriptsPanel extends LitElement {
     }
     .where b {
       color: var(--dv-text);
-      font-weight: 700;
+      font-weight: var(--sw-fw-bold);
     }
     .where .ic {
       font-size: var(--sw-fs-md);
@@ -153,7 +154,7 @@ export class ScriptsPanel extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 7px;
-      font-weight: 600;
+      font-weight: var(--sw-fw-semibold);
       color: var(--dv-text);
     }
     .chip.live {
@@ -172,11 +173,7 @@ export class ScriptsPanel extends LitElement {
       font-size: var(--sw-fs-md);
       display: block;
     }
-    .dlgrow {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
+    ${dialogRowStyles}
   `];
 
   connectedCallback() {

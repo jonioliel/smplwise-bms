@@ -5,9 +5,9 @@ import { api, get, post, put } from './client';
 import type { FrigateCapabilities } from './frigate';
 import { CONFIRM_WORDS } from '../i18n/confirm-words';
 
-export type VendorId = 'hikvision' | 'provision_isr' | 'frigate' | 'none';
+type VendorId = 'hikvision' | 'provision_isr' | 'frigate' | 'none';
 
-export interface VendorField {
+interface VendorField {
   key: string;
   label: string;
   kind: 'host' | 'port' | 'text' | 'password' | 'bool' | 'select';

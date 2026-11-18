@@ -1,5 +1,8 @@
-// CR-FE-GATES-2436 (review 07:F20, master plan T6): ESLint for src/, REPORT-ONLY. Every rule is a warning, so `npm run lint` prints
-// the findings and their count and exits 0; CR-FE-GATES-ENFORCE fixes or baselines the reports and then turns them into errors.
+// CR-FE-GATES-2436 (review 07:F20, master plan T6): ESLint for src/.
+// CR-FE-GATES-ENFORCE-2442: every rule is an ERROR, so `npm run lint` (and the gate) exits non-zero on a report. The 27 reports
+// that existed when the rules became blocking are counted per file and rule in eslint-suppressions.json (ESLint's own bulk
+// suppressions: `eslint src --suppress-all` wrote it); a report above a file's count fails. Fixing one and then running
+// `npx eslint src --prune-suppressions` lowers the count. No new entry is added to that file without a reason in a change note.
 //
 // The rules the review asked for:
 //   - @typescript-eslint/no-floating-promises: a promise nobody awaits or catches (a failed request that vanishes);
@@ -11,8 +14,9 @@
 import tseslint from 'typescript-eslint';
 import lit from 'eslint-plugin-lit';
 
-const asWarnings = (rules) => Object.fromEntries(Object.entries(rules ?? {}).map(([k, v]) => [k, Array.isArray(v) ? ['warn', ...v.slice(1)] : 'warn']));
-const litRecommended = lit.configs['flat/recommended'];
+const asErrors = (rules) => Object.fromEntries(Object.entries(rules ?? {}).map(([k, v]) => [k, Array.isArray(v) ? ['error', ...v.slice(1)] : 'error']));
+/** @type {import('eslint').Linter.Config} the flat preset is one config object (the plugin's type is a union with the legacy shape) */
+const litRecommended = /** @type {any} */ (lit.configs)['flat/recommended'];
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'tests/**', 'scripts/**', '*.config.ts', '*.config.mjs', 'public/**'] },
@@ -25,9 +29,9 @@ export default [
     linterOptions: { reportUnusedDisableDirectives: 'off' },
     plugins: { '@typescript-eslint': tseslint.plugin, ...litRecommended.plugins },
     rules: {
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-misused-promises': 'warn',
-      ...asWarnings(litRecommended.rules),
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      ...asErrors(litRecommended.rules),
     },
   },
 ];

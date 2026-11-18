@@ -28,7 +28,7 @@ export const PRESENCE_PLATE_BASE = 0.36; // scene-builder PRESENCE_TINT_OPACITY
  * an exterior wall is 0.25 m, so half of it plus a margin keeps the wash in front of the inner face). */
 export const GLOW_INSET_M = 0.14;
 /** The presence edge band on the floor. */
-export const PRESENCE_BAND_M = 0.55;
+const PRESENCE_BAND_M = 0.55;
 /** PLAN3D-R32-ANSWERS-2438: the state bar on the wall tops (from the wall's centre line into the room) and the floor line. */
 export const MARK_BAR_M = 0.05;
 export const MARK_LINE_M = 0.07;
@@ -82,12 +82,12 @@ export interface GlowLamp {
   lumens: number;
   on: boolean;
 }
-export interface GlowLevel {
+interface GlowLevel {
   id: string;
   elevation_m: number;
   ceiling_height_m?: number;
 }
-export interface GlowPool {
+interface GlowPool {
   x: number;
   z: number;
   /** Radius of the pool (m): the gradient reaches 0 here. */

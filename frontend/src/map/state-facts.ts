@@ -8,7 +8,7 @@ import { buildPrimitives, type CatalogLookup, type GeometryDoc } from './geometr
 import { panelStateId } from './glass-wall';
 import type { StateEntity, StateOpening } from './room-state';
 
-export interface StateFactLamp {
+interface StateFactLamp {
   x: number;
   y: number;
   level_id: string;
@@ -50,7 +50,7 @@ export function stateFactsOf(doc: GeometryDoc, width: number, height: number, ca
 }
 
 /** The parts of a map bundle's anchor the state entities are built from (api/types Anchor). */
-export interface StateAnchor {
+interface StateAnchor {
   resource_type: 'camera' | 'ha_entity';
   resource_id: string;
   position: { x: number; y: number };

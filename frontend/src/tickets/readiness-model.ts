@@ -61,7 +61,7 @@ export function missingItems(r: Readiness | null | undefined): ReadyItem[] {
   return out;
 }
 
-export type OutsideGroup = 'employee' | 'person';
+type OutsideGroup = 'employee' | 'person';
 
 /** Why an outside group of the assign dialog cannot be used now - the first reason only (one short line), or null. `count` is how many
  * rows of the group the dialog may offer for this ticket; `readiness` is absent on the demo store / an older server. */

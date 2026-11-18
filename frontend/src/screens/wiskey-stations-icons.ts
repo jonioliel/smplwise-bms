@@ -12,7 +12,7 @@ const PATHS = {
   table: 'M3 5h18v14H3zM3 10h18M3 15h18M9 5v14',
 } as const;
 
-export type WkIconName = keyof typeof PATHS;
+type WkIconName = keyof typeof PATHS;
 export const isWkIcon = (name: string): name is WkIconName => name in PATHS;
 
 export function wkIcon(name: WkIconName, size = 16): TemplateResult {

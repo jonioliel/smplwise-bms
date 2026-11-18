@@ -15,6 +15,7 @@ import { armRingTone, Ringer, ringBlocked } from '../wiskey/ring-tone';
 import { openMic } from '../wiskey/talk-mic';
 import { TalkSession, type TalkDeps } from '../wiskey/talk-session';
 import { answerPlan, clockText, doorLabel, elapsedNow, pollDelay, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
+import { srOnlyStyles } from '../styles/fragments';
 
 const HIDDEN_KEY = 'sw.calls.hidden';
 const PICTURE_MS = 2_000;
@@ -268,14 +269,7 @@ export class SwIncomingCall extends LitElement {
       gap: 6px;
       min-block-size: 32px;
     }
-    .sr {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
+    ${srOnlyStyles}
     /* a phone: a bottom sheet over the screen's lower part, large press targets, clear of the home indicator */
     @media (max-width: 600px) {
       .sheet {

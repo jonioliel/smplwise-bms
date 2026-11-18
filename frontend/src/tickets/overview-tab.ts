@@ -50,7 +50,7 @@ export interface OverviewCtx {
 const MESSAGE_KINDS = ['inbound', 'late_reply', 'note', 'message'];
 
 /** The last message-like row with a body (a handler's reply, a note), for the "הודעה אחרונה" row. */
-export function lastMessage(events: readonly TicketEvent[]): TicketEvent | null {
+function lastMessage(events: readonly TicketEvent[]): TicketEvent | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (MESSAGE_KINDS.includes(e.kind) && e.body && e.body.trim()) return e;
@@ -59,7 +59,7 @@ export function lastMessage(events: readonly TicketEvent[]): TicketEvent | null 
 }
 
 /** The cost one-liner of the Now row: the stage in the new words (never the retired term) and, for who may see them, the amount. */
-export function costLine(t: Pick<TicketDetail, 'cost'>): { text: string; tone: '' | 'warn' | 'ok' | 'info'; amount: string } | null {
+function costLine(t: Pick<TicketDetail, 'cost'>): { text: string; tone: '' | 'warn' | 'ok' | 'info'; amount: string } | null {
   const c = t.cost;
   if (!c || c.status === 'not_required') return null;
   const key: Record<string, DrawerTextKey> = { awaiting: 'cs_awaiting', submitted: c.can_decide ? 'cs_submitted_mine' : 'cs_submitted', rejected: 'cs_rejected', approved: 'cs_approved', paid: 'cs_paid' };

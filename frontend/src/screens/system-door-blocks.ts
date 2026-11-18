@@ -19,6 +19,7 @@ import {
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bt } from '../i18n/door-blocks';
+import { errLineStyles } from '../styles/fragments';
 
 interface Pending {
   entity: DoorBlockEntity;
@@ -153,10 +154,7 @@ export class SwDoorBlocks extends LitElement {
         min-inline-size: 44px;
         justify-content: center;
       }
-      .err {
-        color: var(--sw-danger-text);
-        font-size: var(--sw-fs-sm);
-      }
+      ${errLineStyles}
       textarea {
         min-block-size: 88px;
         resize: vertical;

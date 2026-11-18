@@ -454,7 +454,9 @@ export class WkDoorTech extends LitElement {
 
   private ask(p: Pending): void {
     this.pending = p;
-    this.updateComplete.then(() => {
+    // CR-FE-PROMISES-2442: deliberately not handled - this only scrolls to the confirmation and focuses its button; the
+    // confirmation itself is already rendered, and a render fault is reported by Lit, not here
+    void this.updateComplete.then(() => {
       const box = this.renderRoot.querySelector<HTMLElement>('[data-wk-dt-confirm]');
       box?.scrollIntoView({ block: 'nearest' });
       box?.querySelector<HTMLElement>('[data-wk-dt-send]')?.focus();

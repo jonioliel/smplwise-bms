@@ -56,12 +56,12 @@ export interface RealisticChangeDetail {
 const CLOCK_TICK_MS = 60_000;
 const TOAST_MS = 4000;
 /** An automatic fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
-export const FALLBACK_KEY = 'sw.plan3d.fallback';
+const FALLBACK_KEY = 'sw.plan3d.fallback';
 /** K88: the viewer's night-mode choice for this browser. */
-export const NIGHT_KEY = 'sw.plan3d.night';
+const NIGHT_KEY = 'sw.plan3d.night';
 /** The walk guard's session flag (CR-029 section 3.4): separate from the auto mode's fallback (coordinator 2026-10-11). */
-export const WALK_GUARD_KEY = 'sw.plan3d.walkguard';
-export const DEFAULT_MIN_FPS = 30;
+const WALK_GUARD_KEY = 'sw.plan3d.walkguard';
+const DEFAULT_MIN_FPS = 30;
 export { PILL_CAP } from './scene-frame';
 /** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
 const PILL_GAP_PX = 6;
@@ -72,7 +72,7 @@ export interface PartSelectDetail {
   id: string | null;
   kind: string | null;
 }
-export interface PartHoverDetail {
+interface PartHoverDetail {
   id: string;
   kind: string;
   label: string;
@@ -82,7 +82,7 @@ export interface PartHoverDetail {
 export interface LevelSelectDetail {
   id: string | null;
 }
-export interface StripLevel {
+interface StripLevel {
   id: string;
   name: string;
   elevation_m: number;
@@ -93,7 +93,7 @@ export interface WalkChangeDetail {
 }
 /** CR-029 S3: the live ladder is exhausted on this device (no WebGL, or level 1 under the frame budget with a current still
  * set): the host may swap to the pre-rendered stills (quality-ladder.ts viewMode). */
-export interface StillsFallbackDetail {
+interface StillsFallbackDetail {
   reason: 'webgl' | 'fps';
 }
 /** CR-029 S4: a stair to another floor was walked to its top - "continue to that floor" (a document load, not a walk). */
@@ -106,7 +106,7 @@ export interface HudCornerDetail {
   corner: HudCorner;
 }
 /** CR-029 S5-B: the kiosk idle phase changed (`idle`: the slotted still is shown and the frame loop is stopped). */
-export interface KioskIdleDetail {
+interface KioskIdleDetail {
   idle: boolean;
   reason: IdleReason;
 }
@@ -114,21 +114,21 @@ export interface KioskIdleDetail {
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
 const LOCK_REFUSED_HE = tr('נעילת סמן אינה זמינה בדף הזה — המבט נשאר בגרירה');
 /** LOOK_SPEC section 9: the walk's field of view - desktop, touch, portrait. */
-export const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
+const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
 /** The crosshair turns to a device within this distance (LOOK_SPEC section 9). */
-export const WALK_ACT_M = 3.5;
+const WALK_ACT_M = 3.5;
 const WALK_TOAST_MS = 2600;
 const NO_STARTS: WalkStart[] = [];
 
 const ORIGIN: Vec3 = [0, 0, 0];
 /** The strip's levels as it draws them (id, name, elevation, in order). */
-export function sameLevels(a: readonly StripLevel[], b: readonly StripLevel[] | undefined): boolean {
+function sameLevels(a: readonly StripLevel[], b: readonly StripLevel[] | undefined): boolean {
   if (a === b) return true;
   if (!b || a.length !== b.length) return false;
   return a.every((l, i) => l.id === b[i].id && l.name === b[i].name && l.elevation_m === b[i].elevation_m);
 }
 /** The strip's state dots as it draws them (per level: the presence fade, an open opening, a lit room). */
-export function sameDots(a: Record<string, LevelDots>, b: Record<string, LevelDots> | undefined): boolean {
+function sameDots(a: Record<string, LevelDots>, b: Record<string, LevelDots> | undefined): boolean {
   if (a === b) return true;
   if (!b) return false;
   const ka = Object.keys(a);
@@ -157,7 +157,7 @@ function safeFileName(name: string): string {
 
 /** Where the walk resumes on a floor reached by a stair from `fromFloor` (CR-029 section 4.3): just off the mouth of the
  * twin stair that leads back there, facing away from it; null = the floor has no such twin (its default start then). */
-export function twinStart(world: WalkWorld, fromFloor: string): WalkStart | null {
+function twinStart(world: WalkWorld, fromFloor: string): WalkStart | null {
   const band = world.bands.find((b) => b.farFloor?.id === fromFloor);
   const ramp = band?.ramps[0];
   if (!band || !ramp) return null;

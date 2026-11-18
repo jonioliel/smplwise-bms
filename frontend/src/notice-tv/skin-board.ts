@@ -79,7 +79,7 @@ export interface EngineApi {
   liveHtml(): string; logo(dark: boolean): string;
 }
 
-export interface SkinOpts {
+interface SkinOpts {
   /** test hook `?clock=fixed` / `?now=`: no timers (rotation, ticker, drift, cleaning); transitions still run when a key / message asks */
   fixed: boolean;
   /** test hook `?nbrot=<s>`: seconds per rotation tick instead of the board's interval */

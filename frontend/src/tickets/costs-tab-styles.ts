@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * TKUI3 (release 2.6.0): the look of the request's Costs tab (mock-up v5 `.steps`, `.cstage`, `.allow`) on top of the tickets glass
@@ -7,10 +8,7 @@ import { css } from 'lit';
  * primary spans the width.
  */
 export const costsTabStyles = css`
-  :host {
-    display: block;
-    min-inline-size: 0;
-  }
+  ${hostBlockStyles}
   .ct {
     display: flex;
     flex-direction: column;

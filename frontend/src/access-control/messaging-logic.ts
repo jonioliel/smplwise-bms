@@ -118,7 +118,7 @@ export interface SendContext {
   bulk?: { id: string; total: number };
 }
 
-export type OutcomeKind = 'sent' | 'refused' | 'unknown' | 'pending' | 'held' | 'dropped'; // held / dropped: WA-CONSENT-LINK
+type OutcomeKind = 'sent' | 'refused' | 'unknown' | 'pending' | 'held' | 'dropped'; // held / dropped: WA-CONSENT-LINK
 
 export interface MessageHistoryItem {
   id: string;
@@ -190,7 +190,7 @@ function asciiDigit(ch: string): string {
 /** The forms of a text the guard looks at - the server's `_guard_forms`: NFKC, format characters and combining marks dropped, lower case,
  * every digit as ASCII, digit words as digits, letters spelled apart joined, the separators between digits collapsed; and the same with
  * look-alike letters mapped to Latin. */
-export function guardForms(text: string): [string, string] {
+function guardForms(text: string): [string, string] {
   let t = text.normalize('NFKC').replace(/[\p{Cf}\p{Mn}]/gu, '').toLowerCase();
   t = t.replace(/\p{Nd}/gu, (ch) => (/[0-9]/.test(ch) ? ch : asciiDigit(ch))).replace(ARABIC_ALEF, 'ا');
   t = t.replace(DIGIT_WORD_RE, (_m, w: string) => DIGIT_OF.get(w) ?? w);
@@ -237,7 +237,7 @@ export const retryMinutes = (seconds: number | undefined): number => Math.max(1,
 
 export type ComposerPhase = 'idle' | 'sending' | 'sent' | 'failed';
 
-export interface ComposerInputs {
+interface ComposerInputs {
   config: MessagingConfig;
   recipient: RecipientInfo | null;
   draft: MessageDraft;
@@ -246,7 +246,7 @@ export interface ComposerInputs {
   retryAfterS?: number;
 }
 
-export interface ComposerLine {
+interface ComposerLine {
   tone: 'ok' | 'warn' | 'err' | 'wait';
   /** A key of i18n/access-people.ts `msg.reason.*` for a failure (the line's text is built by the dialog), or the phase word. */
   kind: 'sending' | 'sent' | 'failed' | 'rate' | 'cant';
@@ -254,7 +254,7 @@ export interface ComposerLine {
   minutes?: number;
 }
 
-export interface ComposerView {
+interface ComposerView {
   /** Why nothing can be sent now (the sender's text box is dimmed and "send" disabled); null = nothing in the way. */
   blocked: SendFailure | null;
   canSend: boolean;
@@ -303,7 +303,7 @@ export function composerView(i: ComposerInputs): ComposerView {
 
 // ---------------------------------------------------------------- bulk
 
-export interface BulkPlan {
+interface BulkPlan {
   send: RecipientInfo[];
   skip: { recipient: RecipientInfo; reason: SendFailure }[];
   /** The selection is longer than the administrator's bulk limit. */
@@ -346,7 +346,7 @@ export interface BulkOutcome {
   rows: BulkRow[];
 }
 
-export interface BulkOptions {
+interface BulkOptions {
   onProgress?: (done: number, total: number) => void;
   /** Milliseconds to wait between two sends (the server's `pace_ms`). */
   paceMs?: number;

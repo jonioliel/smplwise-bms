@@ -22,7 +22,7 @@ export interface Reply {
 
 export type Failure = PanelKind | 'network';
 
-export interface ResourceSnap<T, R extends Reply> {
+interface ResourceSnap<T, R extends Reply> {
   /** The last good payload; kept across a failed reload, dropped by a 403. */
   data: T | null;
   /** The last reply of any state (the page's subtitle reads `sync` from it). */
@@ -43,7 +43,7 @@ export interface ResourceSnap<T, R extends Reply> {
   moreFailed: boolean;
 }
 
-export interface ResourceOptions<T, R extends Reply> {
+interface ResourceOptions<T, R extends Reply> {
   /** One read; `cursor` is null for the first page, else what `cursorOf` gave for the shown data. */
   fetch: (cursor: unknown) => Promise<R>;
   pick: (reply: R) => T | null;

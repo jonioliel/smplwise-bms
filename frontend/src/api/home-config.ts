@@ -38,8 +38,6 @@ export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'me
 // NOTICEPAGE-295: `notices` (the notice board) is appended last; drawn only while the notice board module is on and the viewer may read (no options of its own).
 export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'xsection'];
 export const WIDGET_NAME: Record<WidgetId, string> = { clock: tr('שעון'), weather: tr('מזג אוויר'), shabbat: tr('שבת'), alarm: tr('אזעקה'), quick: tr('פעולות מהירות'), media: tr('מולטימדיה'), agenda: tr('יומן'), launcher: tr('משגר מהיר'), elevators: tr('מעליות'), temperature: tr('טמפרטורות'), generators: tr('גנרטור'), doors: tr('דלתות'), notices: tr('לוח הודעות'), presence: tr('נוכחות במבנה'), xsection: tr('חתך בניין') };
-/** The infrastructure-list widgets (the same mode / hidden / filter shape). */
-export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
 export type ElevatorMode = 'combined' | 'cards' | 'both';
 export type ElevatorFilter = 'all' | 'alerts';
@@ -51,7 +49,7 @@ export const ELEVATOR_HIDDEN_MAX = 50;
 export type TileStyle = 'card' | 'tile';
 export const TILE_STYLES: TileStyle[] = ['card', 'tile'];
 export const TILE_STYLE_LABEL: Record<TileStyle, string> = { card: tr('כרטיס'), tile: tr('אריח') };
-export type AgendaDays = 1 | 3 | 7 | 14;
+type AgendaDays = 1 | 3 | 7 | 14;
 export const AGENDA_DAYS: AgendaDays[] = [1, 3, 7, 14];
 export const AGENDA_DAYS_LABEL: Record<AgendaDays, string> = { 1: tr('היום'), 3: tr('3 ימים'), 7: tr('שבוע'), 14: tr('שבועיים') };
 export const AGENDA_CALENDARS_MAX = 6;
@@ -72,7 +70,7 @@ export const PHONE_LAYOUT_DEFAULT: PhoneLayout = 'stack';
 /** The widest viewport that is a phone (the tiles' breakpoint: under 600 px). */
 export const PHONE_MAX_WIDTH = 599;
 
-export type ClockMode = 'time' | 'datetime';
+type ClockMode = 'time' | 'datetime';
 export const CLOCK_MODES: ClockMode[] = ['time', 'datetime'];
 export const CLOCK_MODE_LABEL: Record<ClockMode, string> = { time: tr('שעה'), datetime: tr('שעה ותאריך') };
 
@@ -92,11 +90,11 @@ export const WEATHER_FIELD_LABEL: Record<WeatherField, string> = {
 };
 /** The numeric fields a sensor may feed instead of the weather entity's own value. */
 export const WEATHER_SOURCE_FIELDS: WeatherField[] = ['temperature', 'apparent', 'humidity', 'wind', 'pressure', 'visibility', 'uv', 'precipitation'];
-export const WEATHER_FIELDS_DEFAULT: WeatherField[] = ['temperature', 'condition', 'humidity', 'wind', 'forecast'];
+const WEATHER_FIELDS_DEFAULT: WeatherField[] = ['temperature', 'condition', 'humidity', 'wind', 'forecast'];
 export type ForecastLen = '3' | '5' | 'max';
 export const FORECAST_LENS: ForecastLen[] = ['3', '5', 'max'];
 /** "max" shows every entry the entity carries, up to this many (a card cannot hold 14 columns). */
-export const FORECAST_MAX_SHOWN = 8;
+const FORECAST_MAX_SHOWN = 8;
 
 export type QuickAction = 'lights_off' | 'all_off';
 export const QUICK_ACTIONS: QuickAction[] = ['lights_off', 'all_off'];
@@ -108,7 +106,7 @@ export const CALENDAR_FIELD_LABEL: Record<CalendarField, string> = { date: tr('�
 export const EXTRAS_MAX = 4;
 export const LABEL_MAX = 30;
 
-export interface CommonCfg {
+interface CommonCfg {
   on: boolean;
   sizes: Sizes;
   /** The widget's own heading ('' = its name). */
@@ -118,13 +116,13 @@ export interface CommonCfg {
   /** ... and at this size (null = the desktop size of the direction, at most medium). */
   phone_size: Size | null;
 }
-export interface ClockCfg extends CommonCfg {
+interface ClockCfg extends CommonCfg {
   mode: ClockMode;
   seconds: boolean;
   hebrew: boolean;
   style: TileStyle;
 }
-export interface WeatherCfg extends CommonCfg {
+interface WeatherCfg extends CommonCfg {
   entity: string;
   fields: WeatherField[];
   forecast: ForecastLen;
@@ -132,7 +130,7 @@ export interface WeatherCfg extends CommonCfg {
   style: TileStyle;
 }
 /** BV1: the agenda tile - the chosen `calendar.*` entities and how far ahead it looks. */
-export interface AgendaCfg extends CommonCfg {
+interface AgendaCfg extends CommonCfg {
   calendars: string[];
   days: AgendaDays;
 }
@@ -142,19 +140,19 @@ export interface LaunchItemCfg {
   id: string;
   label: string;
 }
-export interface LauncherCfg extends CommonCfg {
+interface LauncherCfg extends CommonCfg {
   items: LaunchItemCfg[];
 }
-export type ShabbatCfg = CommonCfg;
-export interface AlarmCfg extends CommonCfg {
+type ShabbatCfg = CommonCfg;
+interface AlarmCfg extends CommonCfg {
   entity: string;
 }
-export interface QuickCfg extends CommonCfg {
+interface QuickCfg extends CommonCfg {
   actions: QuickAction[];
 }
 /** The media widget (CR-015): the screens that are on, as chips that open the remote - no entity to choose, so only the common settings. */
-export type MediaCfg = CommonCfg;
-export interface CalendarCfg {
+type MediaCfg = CommonCfg;
+interface CalendarCfg {
   date: string;
   parsha: string;
   candles: string;
@@ -333,7 +331,7 @@ export function configBody(c: HomeConfig): Record<string, unknown> {
 
 // ------------------------------------------------------------------------------------------------ the data behind the widgets
 
-export interface WeatherValue {
+interface WeatherValue {
   v: number;
   unit: string | null;
   bearing?: number;
@@ -346,7 +344,7 @@ export interface ForecastEntry {
   templow?: number;
   precipitation_probability?: number;
 }
-export interface WeatherData {
+interface WeatherData {
   entity_id: string;
   name: string;
   available: boolean;
@@ -356,14 +354,14 @@ export interface WeatherData {
   forecast_len: number;
   offers: WeatherField[];
 }
-export interface SensorData {
+interface SensorData {
   state: string;
   name: string;
   unit: string | null;
   device_class: string | null;
   available: boolean;
 }
-export interface AlarmData {
+interface AlarmData {
   entity_id: string;
   name: string;
   state: string | null;
@@ -371,7 +369,7 @@ export interface AlarmData {
   available: boolean;
 }
 /** BV1: one coming event of a mirrored calendar (its next event, as the platform reported it). */
-export interface AgendaEvent {
+interface AgendaEvent {
   calendar: string;
   calendar_name: string;
   message: string;
@@ -381,7 +379,7 @@ export interface AgendaEvent {
   all_day: boolean;
   location: string | null;
 }
-export interface AgendaData {
+interface AgendaData {
   calendars: { entity_id: string; name: string; available: boolean; found: boolean }[];
   events: AgendaEvent[];
 }
@@ -538,7 +536,7 @@ export interface WidgetItem {
   title: string;
 }
 
-export interface ResolveOpts {
+interface ResolveOpts {
   /** Edit mode: widgets that are not shown come back too (as ghosts that say why). */
   editing?: boolean;
   /** A phone: each widget's phone_on / phone_size apply instead of the desktop's on / size. */
@@ -661,7 +659,7 @@ export function forecastCount(n: number, len: ForecastLen): number {
 
 // ------------------------------------------------------------------------------------------------ calendar and text helpers
 
-export function safeZone(zone: string): string {
+function safeZone(zone: string): string {
   try {
     new Intl.DateTimeFormat('he-IL', { timeZone: zone });
     return zone;
@@ -715,6 +713,7 @@ export function timeOfState(state: string | null | undefined, zone: string): str
 }
 
 /** "פרשת נח" for "נח" (an integration that already says "פרשת" is left alone). */
+// CR-W3B-FE-COMBINED-2443: exported again - tests/unit-i18n-locale.spec.ts (I18N-COMBINED-C) reads it
 export function parshaText(state: string | null | undefined): string {
   const p = (state ?? '').trim();
   if (!p || p === 'unknown' || p === 'unavailable') return '';

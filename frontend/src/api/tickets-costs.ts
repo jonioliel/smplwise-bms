@@ -52,7 +52,7 @@ export type LineInput =
   | { kind: 'parts'; description: string; quantity: string; unit_price: string }
   | { kind: 'travel' | 'other'; description?: string; amount: string };
 
-export interface CostPage { id: string; kind: 'photo' | 'pdf'; bytes: number; name: string; width?: number | null; height?: number | null }
+interface CostPage { id: string; kind: 'photo' | 'pdf'; bytes: number; name: string; width?: number | null; height?: number | null }
 export interface CostDocument { no: number; kind: 'photo' | 'pdf'; pages: CostPage[] }
 
 export interface CostRevision {
@@ -96,9 +96,9 @@ export interface ExceptionalLine {
 }
 
 /** TKDETAILBE (5.2): the approved quote a payment demand was validated against. */
-export interface ClaimBaseline { quote_id: string; version: number; total_minor: number | null; currency: string; state?: string; subtotal_minor?: number | null; line_kinds?: LineKind[] }
+interface ClaimBaseline { quote_id: string; version: number; total_minor: number | null; currency: string; state?: string; subtotal_minor?: number | null; line_kinds?: LineKind[] }
 
-export type DecisionAction = 'approve' | 'adjust' | 'reject' | 'mark_paid' | 'unmark_paid' | 'reopen_window' | 'override_close' | 'superseded' | 'requirement';
+type DecisionAction = 'approve' | 'adjust' | 'reject' | 'mark_paid' | 'unmark_paid' | 'reopen_window' | 'override_close' | 'superseded' | 'requirement';
 export interface CostDecision {
   id: string;
   action: DecisionAction;
@@ -153,8 +153,8 @@ export interface CostClaim {
   instalment_index?: number | null;
 }
 
-export type QuoteCheckFlag = 'above_quote' | 'below_quote' | 'lines_differ' | 'currency';
-export interface QuoteCheck {
+type QuoteCheckFlag = 'above_quote' | 'below_quote' | 'lines_differ' | 'currency';
+interface QuoteCheck {
   status: 'same' | 'differs';
   flags: QuoteCheckFlag[];
   basis: 'total' | 'instalment';
@@ -168,7 +168,7 @@ export interface QuoteCheck {
   above_reason: string | null;
 }
 
-export interface CostSettingsBrief { currencies: string[]; vat_rate_bp: number; review_flag_above_minor: number; max_claim_total_minor: number; require_invoice: boolean }
+interface CostSettingsBrief { currencies: string[]; vat_rate_bp: number; review_flag_above_minor: number; max_claim_total_minor: number; require_invoice: boolean }
 export interface ExternalAssignment {
   id: string;
   name: string;
@@ -251,10 +251,8 @@ export interface PendingFile { id: string; kind: 'photo' | 'pdf'; bytes: number;
 
 // ---------------------------------------------------------------- the report (11A.9)
 
-export type ReportGroupBy = 'vendor' | 'department' | 'device' | 'room' | 'month';
+type ReportGroupBy = 'vendor' | 'department' | 'device' | 'room' | 'month';
 export type ReportStatus = 'submitted' | 'approved' | 'paid';
-export const REPORT_GROUPS: readonly ReportGroupBy[] = ['vendor', 'department', 'device', 'room', 'month'];
-export const REPORT_STATUSES: readonly ReportStatus[] = ['submitted', 'approved', 'paid'];
 /** `vendor` (the vendor grouping's key) and `department` (an id): TK258's filters, also taken by the report and the export. */
 export interface ReportQuery { group_by: ReportGroupBy; from?: string; to?: string; status?: ReportStatus[]; currency?: string; vendor?: string; department?: string }
 export interface ReportGroupRow {
@@ -346,7 +344,7 @@ export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; install
 export interface DepartmentCostsBody { cost_claim: CostMode | null; claim_window_days: number | null; allowed_line_kinds?: LineKind[] | null }
 
 /** `POST tickets/{id}/assign/preview` (slice 4) - only the part slice 9 reads; the rest belongs to slice 4's assign dialog. */
-export interface CostClaimOption { default: CostMode; from: 'contact' | 'vendor' | 'department' | 'installation'; choices: CostMode[] }
+interface CostClaimOption { default: CostMode; from: 'contact' | 'vendor' | 'department' | 'installation'; choices: CostMode[] }
 export interface AssignPreview { channel?: string; text?: string; require_code?: boolean; refusals?: string[]; cost_claim: CostClaimOption; [k: string]: unknown }
 
 export interface CostsBackend {

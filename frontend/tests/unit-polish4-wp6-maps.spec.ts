@@ -18,6 +18,7 @@ const FILES = [
   'screens/explore-presence.ts',
   'screens/explore-plan-import.ts',
   'screens/explore-plan-editor.ts',
+  'screens/explore-plan-editor-css.ts', // CR-STRUCT-CSS-SPLIT-2442: the editor's sheet
   'screens/explore-entities.ts',
   'screens/plan-studio-panel.ts',
   'screens/plan-studio6-panel.ts',
@@ -71,7 +72,7 @@ test('D13: the floor-links stack labels its floors on the type scale (no 6px lit
   const studio = src('screens/plan-studio-panel.ts');
   expect(studio).toMatch(/@media \(pointer: coarse\) \{[\s\S]*?\.modes button,[\s\S]*?min-block-size: var\(--sw-touch-desktop\)/);
   expect(studio).toMatch(/@media \(max-width: 479px\) \{\s*\.three \{/);
-  const editor = src('screens/explore-plan-editor.ts');
+  const editor = src('screens/explore-plan-editor-css.ts');
   expect(editor).toMatch(/@media \(max-width: 767px\) \{\s*\.layout \{[\s\S]*?\.mapwrap \{\s*min-block-size: min\(520px, 70dvh\);/);
   expect(editor).toMatch(/@media \(pointer: coarse\) \{\s*\.bar button\.icon \{/);
 });
@@ -94,7 +95,7 @@ test('D12 / map status: the side list and pick chips paint camera status with th
 
 test('D28: the favourite star and the active editor icon key read in the warning ink, not the bare warning hue', () => {
   expect(src('screens/plan-studio-panel.ts')).toMatch(/\.libitem \.fav\.on \{\s*color: var\(--sw-warning-text\);/);
-  expect(src('screens/explore-plan-editor.ts')).toMatch(/\.bar button\.icon\.on \{\s*background: var\(--sw-warning-soft\);\s*color: var\(--sw-warning-text\);/);
+  expect(src('screens/explore-plan-editor-css.ts')).toMatch(/\.bar button\.icon\.on \{\s*background: var\(--sw-warning-soft\);\s*color: var\(--sw-warning-text\);/);
   // the walk start star (plan-studio6) keeps the A11Y-POLISHED-2342 fix: the warning ink in light
   expect(src('screens/plan-studio6-panel.ts')).toContain('color: light-dark(var(--sw-warning-text), var(--sw-warning));');
 });

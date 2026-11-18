@@ -10,10 +10,6 @@ import { subscribeClock } from '../api/clock-ticker';
  * last clock.
  */
 let running = 0;
-/** the number of running clocks (the tests read it) */
-export function runningClocks(): number {
-  return running;
-}
 
 /**
  * `<ticket-elapsed .item>`: "פתוחה 3 ש׳ 12 ד׳" while open, "טופלה תוך 5 ש׳ 40 ד׳" once closed (frozen). The text is static for a screen reader

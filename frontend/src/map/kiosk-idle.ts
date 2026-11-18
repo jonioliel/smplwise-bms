@@ -26,13 +26,13 @@ export interface IdleScheduler {
 }
 
 /** The real clock and timers (the element's scheduler). */
-export const realScheduler: IdleScheduler = {
+const realScheduler: IdleScheduler = {
   now: () => Date.now(),
   setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
   clearTimeout: (h) => globalThis.clearTimeout(h as ReturnType<typeof setTimeout>),
 };
 
-export interface KioskIdleOptions {
+interface KioskIdleOptions {
   /** Seconds of no input and no plan change before the view goes idle; 0 (or anything not positive) = never. */
   idleS: number;
   /** A plan change wakes an idle view (default true: the wall shows what happened). Off: it only keeps an active view awake. */
@@ -183,7 +183,7 @@ export class KioskIdle {
   }
 }
 
-export type PauseReason = 'hidden' | 'idle';
+type PauseReason = 'hidden' | 'idle';
 
 /** Why the frame loop is stopped: a hidden tab, or the kiosk's idle phase. Paused = at least one reason; clearing a reason that is not
  * set changes nothing. */

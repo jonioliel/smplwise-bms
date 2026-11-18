@@ -21,7 +21,7 @@ import { applyDevicesScheme } from '../screens/devices-style';
 import { applyLiveEvent, replaceRow } from './notify-logic';
 import { tr } from '../i18n/msg/components';
 
-export type StorePhase = 'idle' | 'loading' | 'ready' | 'error';
+type StorePhase = 'idle' | 'loading' | 'ready' | 'error';
 export interface NotifyState {
   phase: StorePhase;
   error: string;
@@ -42,7 +42,7 @@ export interface NotifyState {
 }
 
 /** The mock scenario of a design review or a spec (sessionStorage `sw-notify-mock`, JSON). */
-export interface MockScenario {
+interface MockScenario {
   viewer?: 'admin' | 'operator' | 'door' | 'planner';
   quietNow?: boolean;
   push?: PushSupport;
@@ -56,8 +56,8 @@ export interface MockScenario {
   /** The colour scheme of the notification surfaces in the demo (a real installation follows `devices.scheme`). */
   scheme?: 'light' | 'dark';
 }
-export const SCENARIO_KEY = 'sw-notify-mock';
-export function readScenario(): MockScenario | null {
+const SCENARIO_KEY = 'sw-notify-mock';
+function readScenario(): MockScenario | null {
   try {
     const raw = window.sessionStorage.getItem(SCENARIO_KEY);
     return raw ? (JSON.parse(raw) as MockScenario) : null;

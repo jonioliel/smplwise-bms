@@ -9,11 +9,12 @@ import { fmtInstant } from './model';
 import { parseThreshold } from './emergency-model';
 import { maintCss } from './styles';
 import { confirmDialog } from '../components/confirm-dialog';
+import { errLineStyles, okLineStyles } from '../styles/fragments';
 
 const ITEM_IDS = ['E01', 'E02', 'E03', 'E04', 'E05', 'E06', 'E07', 'E09', 'E10', 'E11', 'E12', 'E14', 'E17', 'E18', 'E19'];
 
 /** Threshold keys that belong together on one row group (the order of the screen). */
-export const THRESHOLD_ORDER = Object.keys(TH_LABEL);
+const THRESHOLD_ORDER = Object.keys(TH_LABEL);
 
 const panelCss = css`
   :host { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 14px; }
@@ -26,8 +27,8 @@ const panelCss = css`
   .fld label { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-block-end: 1px solid var(--sw-border); }
   .row .sp { flex: 1; }
-  .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-  .ok { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
+  ${errLineStyles}
+  ${okLineStyles}
   .btn.sm { padding: 4px 10px; min-block-size: 30px; }
 `;
 

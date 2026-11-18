@@ -98,7 +98,7 @@ export function sensitiveLabel(cls: string | null): string {
 
 // ------------------------------------------------------------------------------------------------ tree operations
 
-export interface ListInfo { owner: string; name: string; blocks: Block[]; section: Section }
+interface ListInfo { owner: string; name: string; blocks: Block[]; section: Section }
 export const ROOT = 'root';
 
 /** Every block list of a draft with its owner (`root` or a container's uid) and name (`triggers`, `then`, `choose.0.sequence` ...). */
@@ -124,7 +124,7 @@ export function resolveList(draft: AnyDraft, owner: string, name: string, create
   return null;
 }
 
-export interface Located { owner: string; name: string; index: number; list: Block[]; section: Section }
+interface Located { owner: string; name: string; index: number; list: Block[]; section: Section }
 export function locate(draft: AnyDraft, uid: string): Located | null {
   for (const l of allLists(draft)) {
     const index = l.blocks.findIndex((b) => b.uid === uid);
@@ -141,7 +141,7 @@ export function subtreeUids(b: Block, into: Set<string> = new Set()): Set<string
   return into;
 }
 
-export function freshUids<T extends Block>(b: T): T {
+function freshUids<T extends Block>(b: T): T {
   b.uid = newUid();
   for (const l of childLists(b)) l.blocks.forEach((x) => freshUids(x));
   if (b.kind === 'typed' && (b as { type?: string }).type === 'condition') freshUids((b as Extract<ActionBlock, { type: 'condition' }>).condition);
@@ -209,7 +209,6 @@ export function updateBlock<D extends AnyDraft>(draft: D, uid: string, fn: (b: B
 }
 
 export const stepCount = (d: AnyDraft): number => walkDraft(d).filter((w) => w.section === 'action').length;
-export const depthOf = (d: AnyDraft, uid: string): number => walkDraft(d).find((w) => w.block.uid === uid)?.depth ?? 0;
 
 // ------------------------------------------------------------------------------------------------ block types (the type chooser)
 
@@ -239,7 +238,7 @@ export const CONDITION_TYPES: BlockTypeDef[] = [
   { id: 'and', label: tr('כל אלה'), hint: tr('כל התנאים יחד'), icon: 'branch', make: () => typed({ type: 'and', conditions: [] }) },
   { id: 'not', label: tr('לא אלה'), hint: tr('כשהתנאים לא מתקיימים'), icon: 'slash', make: () => typed({ type: 'not', conditions: [] }) },
 ];
-export const SENSITIVE_START = 'alarm_control_panel.alarm_arm_away';
+const SENSITIVE_START = 'alarm_control_panel.alarm_arm_away';
 export const ACTION_TYPES: BlockTypeDef[] = [
   { id: 'device', label: tr('שליטה במכשיר'), hint: tr('הדלקה, כיבוי, טמפרטורה…'), icon: 'light', make: () => typed({ type: 'service', action: 'light.turn_on', entity_ids: [], data: {}, role: 'device' }) },
   { id: 'scene', label: tr('הפעלת סצנה'), hint: tr('סצנה קיימת'), icon: 'scene', available: (e) => e.catalog.scenes.length > 0, make: (e) => { const s = firstOf(e.catalog.scenes)?.entity_id; return typed({ type: 'service', action: 'scene.turn_on', entity_ids: s ? [s] : [], data: {}, role: 'scene' }); } },
@@ -301,7 +300,6 @@ export function stateChoices(entityId: string | undefined): Choice[] {
   if (dom === 'media_player') return [{ value: 'off', label: tr('כבוי') }, { value: 'on', label: tr('דלוק') }, { value: 'playing', label: tr('מנגן') }, { value: 'paused', label: tr('מושהה') }, { value: 'idle', label: tr('לא מנגן') }];
   return ONOFF;
 }
-export const hasStateChoices = (entityId: string | undefined): boolean => !!entityId && /^(binary_sensor|person|device_tracker|climate|cover|lock|alarm_control_panel|media_player|light|switch|fan|input_boolean|siren|automation)\./.test(entityId);
 
 export const WEEKDAY_LABEL: Record<Weekday, string> = { sun: tr('א׳'), mon: tr('ב׳'), tue: tr('ג׳'), wed: tr('ד׳'), thu: tr('ה׳'), fri: tr('ו׳'), sat: tr('ש׳') };
 export const MODE_LABEL: Record<string, string> = { single: tr('התעלם'), restart: tr('התחל מחדש'), queued: tr('המתן בתור'), parallel: tr('הרץ במקביל') };
@@ -342,7 +340,7 @@ export function blockIcon(b: Block, section: Section): string {
 }
 
 /** Why a block is locked, in one short line (the "why locked" chip's text); a typed schema for the reason may arrive later (CR §6.2). */
-export const LOCKED_WHY: Record<string, string> = {
+const LOCKED_WHY: Record<string, string> = {
   template: tr('תבנית – נשמרת כמו שהיא'), device: tr('כפתור או מכשיר – נשמר כמו שהוא'), purpose_trigger: tr('טריגר ייעודי – נשמר כמו שהוא'), custom_service: tr('שירות מיוחד – נשמר כמו שהוא'),
   service_not_allowed: tr('שירות שאינו מותר בבונה – נשמר כמו שהוא'), unsupported_step: tr('צעד מתקדם – נשמר כמו שהוא'), disabled_step: tr('צעד מושבת – נשמר כמו שהוא'), secret: tr('ערך חסוי – לא מוצג'), code: tr('קוד חסוי – לא מוצג'), unknown: tr('חלק לא מוכר – נשמר כמו שהוא'),
 };
@@ -371,7 +369,7 @@ export function withTemplateText(b: LockedBlock, text: string): LockedBlock {
 
 // ------------------------------------------------------------------------------------------------ the code view
 
-export interface CodeLine { text: string; locked: boolean }
+interface CodeLine { text: string; locked: boolean }
 /** JSON.stringify(value, null, 2), line by line, each line marked when it belongs to a locked block (matched by fingerprint). */
 export function codeLines(value: unknown, locked: ReadonlySet<string>): CodeLine[] {
   const out: CodeLine[] = [];
@@ -395,7 +393,7 @@ export function codeLines(value: unknown, locked: ReadonlySet<string>): CodeLine
   return out;
 }
 
-export type JsonScan =
+type JsonScan =
   | { ok: true; value: unknown; ranges: Array<{ from: number; to: number; value: unknown }> }
   | { ok: false; pos: number; line: number; column: number; message: string };
 
@@ -526,7 +524,7 @@ export function canonicalOf(kind: ItemKind, draft: AnyDraft, ctx: ModelContext, 
   }
 }
 
-export type SaveRoute = 'create' | 'replace' | 'code';
+type SaveRoute = 'create' | 'replace' | 'code';
 /** Create / replace through the builder routes, or the code route when a locked block changed (CR §4.5: the profile follows the content). */
 export function saveRoute(isNew: boolean, draft: AnyDraft, stored: AnyDraft | null): SaveRoute {
   if (isNew) return 'create';
@@ -534,7 +532,7 @@ export function saveRoute(isNew: boolean, draft: AnyDraft, stored: AnyDraft | nu
 }
 
 const ROOT_LABEL: Record<string, string> = { triggers: tr('כאשר'), conditions: tr('אם'), actions: tr('אז'), sequence: tr('אז'), alias: tr('שם'), name: tr('שם'), description: tr('תיאור'), fields: tr('שדות'), members: tr('מכשירים'), mode: tr('אפשרויות'), max: tr('אפשרויות'), config: tr('קוד') };
-export const issueSection = (path: string): string => ROOT_LABEL[path.split(/[./[\]]+/).filter(Boolean)[0] ?? ''] ?? tr('שגיאה');
+const issueSection = (path: string): string => ROOT_LABEL[path.split(/[./[\]]+/).filter(Boolean)[0] ?? ''] ?? tr('שגיאה');
 export function issueLine(i: Issue): { where: string; what: string } { return { where: issueSection(i.path), what: i.message }; }
 /** Local issues + the server's, one per path and code. */
 export function mergeIssues(...lists: ReadonlyArray<readonly Issue[]>): Issue[] {

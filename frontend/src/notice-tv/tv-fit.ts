@@ -50,8 +50,6 @@ export function safeInset(vw: number, vh: number, pct: number): { x: number; y: 
   return { x, y, w: Math.max(1, vw - 2 * x), h: Math.max(1, vh - 2 * y) };
 }
 
-/** The reference shape: an ordinary logo is about three times as wide as it is tall. */
-export const LOGO_REF_RATIO = 3;
 export const LOGO_TALL_MAX = 1.4; // a crest grows to 1.4x the box height at most (the rows it sits in stay rows)
 export const LOGO_WIDE_MAX = 1.4; // a banner may take 1.4x the box's width cap at most
 
@@ -68,7 +66,7 @@ export function logoArea(ratio: number): { h: number; w: number; shape: 'tall' |
   return { h: 1, w: 1, shape: 'box' };
 }
 
-/** The shapes that keep the box as it is (an ordinary logo, LOGO_REF_RATIO in the middle). */
-export const LOGO_BAND = [2, 4] as const;
+/** The shapes that keep the box as it is (an ordinary logo is about three times as wide as it is tall: 3 is in the middle). */
+const LOGO_BAND = [2, 4] as const;
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;

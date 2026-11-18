@@ -23,6 +23,7 @@ import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
+import { ltrStyles } from '../styles/fragments';
 
 export type ReadingsDialog = '' | 'reading' | 'calibrate' | 'undo-reading' | 'undo-calibration';
 export interface OpenDialogDetail {
@@ -77,10 +78,7 @@ const sectionCss = css`
     gap: 10px;
     flex-wrap: wrap;
   }
-  .ltr {
-    direction: ltr;
-    unicode-bidi: isolate;
-  }
+  ${ltrStyles}
 `;
 
 /**

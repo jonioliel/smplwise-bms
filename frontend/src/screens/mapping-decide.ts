@@ -63,7 +63,7 @@ function renderQuestion(h: MappingAssistant, q: Question) {
   </div>`;
 }
 
-export function renderDecide(h: MappingAssistant) {
+function renderDecide(h: MappingAssistant) {
   const m = h.model();
   const st = h.st;
   const decided = Object.entries(st.decisions);

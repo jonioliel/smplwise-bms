@@ -16,8 +16,8 @@ import { decayLevel, decodeFrame, frameLevel, type ListenCodec } from './g711-de
 import { outcomeOfClose, type SocketLike } from './talk-session';
 import { openSessionSocket } from './session-socket';
 
-export type ListenPhase = 'idle' | 'starting' | 'listening';
-export type ListenProblem =
+type ListenPhase = 'idle' | 'starting' | 'listening';
+type ListenProblem =
   | 'busy'
   | 'user_busy'
   | 'forbidden'

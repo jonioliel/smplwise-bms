@@ -6,6 +6,7 @@ import './sw-dialog';
 import { describeError } from '../api/client';
 import { revealNewCode, revokeBridgeKey, type BridgeKeyStatus, type RevealResult } from '../api/bridge-key';
 import { bkt, bktLang } from '../i18n/bridge-key';
+import { hostBlockStyles } from '../styles/fragments';
 
 function when(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -39,10 +40,7 @@ export class SwBridgeKeyRevoke extends LitElement {
   @state() private done = false;
 
   static styles = css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .row {
       display: flex;
       align-items: center;

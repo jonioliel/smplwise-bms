@@ -11,7 +11,7 @@ import { tt } from '../i18n/temperature';
  * per unit; medium = the summary and the first rows; large = every row. Read-only: a tap opens תשתיות › טמפרטורות (the unit's detail).
  * Drawn by `home-widgets` through `renderTemperature` (the host's own card shell and edit bar).
  */
-export interface TemperatureWidgetHost {
+interface TemperatureWidgetHost {
   cfg: TemperatureCfg;
   units: readonly TempUnit[];
   stale: boolean;
@@ -74,7 +74,7 @@ export const TEMPERATURE_WIDGET_STYLES = css`
   [data-size='s'] .tw-card { min-inline-size: 110px; padding: 8px 10px; }
 `;
 
-export interface TemperatureView {
+interface TemperatureView {
   included: TempUnit[];
   items: TempUnit[];
   loudest: TempUnit | null;

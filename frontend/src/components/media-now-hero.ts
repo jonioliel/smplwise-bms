@@ -10,6 +10,7 @@ import { mmss } from './media-remote-logic';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import './sw-pill';
 import { tr } from '../i18n/msg/components';
+import { hostBlockStyles } from '../styles/fragments';
 
 /**
  * The Bubble skin's "now playing" hero (phase C, 2026-10-02; the media board's top panel): ONE glass panel over the blurred cover
@@ -28,10 +29,7 @@ export class MediaNowHero extends LitElement {
   private timers: number[] = [];
 
   static styles = [mediaGlassStyles, css`
-    :host {
-      display: block;
-      min-inline-size: 0;
-    }
+    ${hostBlockStyles}
     .hero {
       position: relative;
       isolation: isolate;

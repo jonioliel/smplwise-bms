@@ -833,7 +833,7 @@ const en: Record<Key, string> = {
 };
 
 export type WtKey = Key;
-export type WtLang = 'he' | 'en';
+type WtLang = 'he' | 'en';
 
 export function wtLang(): WtLang {
   const l = typeof document !== 'undefined' ? (document.documentElement?.lang || '').toLowerCase() : '';

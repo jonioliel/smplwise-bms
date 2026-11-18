@@ -13,6 +13,7 @@ import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { APPROVAL_LABEL, APPROVED_MOVE_LABEL, colorVar, OVERLAP_SHORT, pageOf, PROVIDER_LABEL, ROLE_HINT, ROLE_LABEL, rowsThatFit, STRICTNESS, TYPE_LABEL } from './model';
 import { LongListsController, perPageFor } from '../api/long-lists';
+import { errLineStyles } from '../styles/fragments';
 
 const TYPE_ICON: Record<CalType, 'door' | 'users' | 'wrench' | 'calendar'> = { room: 'door', team: 'users', maintenance: 'wrench', event: 'calendar' };
 const KIND_LABEL: Record<Member['subject_kind'], string> = { user: tr('משתמש'), role: tr('תפקיד'), department: tr('מחלקה'), everyone: tr('כולם') };
@@ -100,7 +101,7 @@ export class CalViewManage extends LitElement {
     .hue { inline-size: 32px; block-size: 32px; border-radius: 50%; background: var(--h); border: 3px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 2px var(--sw-surface-solid); }
     .hue[aria-pressed='true'] { border-color: var(--sw-heading); }
     .formfoot { display: flex; gap: 8px; margin-block-start: auto; }
-    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    ${errLineStyles}
     .center { flex: 1; display: grid; place-items: center; }
     @media (max-width: 1179px) {
       .cname { flex: 1; }
