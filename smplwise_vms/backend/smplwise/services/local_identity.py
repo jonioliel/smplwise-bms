@@ -327,6 +327,7 @@ class _Cache:
         self._sockets: dict[str, weakref.WeakSet] = {}
         self._to_close: list[Any] = []
         self._dropped: dict[str, float] = {}  # chain id -> when its entries were dropped (DROP_HOLD_S)
+        self._dropped_users: dict[str, float] = {}  # CR-APP-SESSION-CACHE-2443: user id -> when drop_user ran (DROP_HOLD_S)
 
     def get(self, sid_hash: str) -> LocalSession | None:
         now = time.time()
@@ -343,6 +344,15 @@ class _Cache:
         s = self.get(sid_hash)
         return s is not None
 
+    def _user_held_locked(self, user_id: str, now: float) -> bool:
+        at = self._dropped_users.get(user_id)
+        if at is None:
+            return False
+        if now - at < DROP_HOLD_S:
+            return True
+        self._dropped_users.pop(user_id, None)
+        return False
+
     def put(self, s: LocalSession) -> None:
         with self._lock:
             dropped = self._dropped.get(s.chain_id)
@@ -350,6 +360,8 @@ class _Cache:
                 if time.time() - dropped < DROP_HOLD_S:
                     return  # the chain was just revoked: the caller's row may predate the revocation's commit - the next request reads again
                 self._dropped.pop(s.chain_id, None)
+            if self._user_held_locked(s.user_id, time.time()):
+                return  # CR-APP-SESSION-CACHE-2443: the user's state just changed (a factor): the principal read may predate the commit
             if len(self._by_sid) > 5000:
                 for k in list(self._by_sid)[:500]:
                     self._by_sid.pop(k, None)
@@ -360,7 +372,15 @@ class _Cache:
             self._by_sid.pop(sid_hash, None)
 
     def drop_user(self, user_id: str) -> None:
+        """The user's state changed (a factor removed / enrolled, the display name): the entries go and, CR-APP-SESSION-CACHE-2443, are
+        not cached again for DROP_HOLD_S (the change commits after this call; a request that read before the commit must not cache
+        the old principal - its factor_ok - back). The sessions are not ended."""
         with self._lock:
+            now = time.time()
+            if len(self._dropped_users) > 5000:
+                for k in [k for k, t in self._dropped_users.items() if now - t >= DROP_HOLD_S]:
+                    self._dropped_users.pop(k, None)
+            self._dropped_users[user_id] = now
             for k in [k for k, v in self._by_sid.items() if v.user_id == user_id]:
                 self._by_sid.pop(k, None)
 
@@ -379,14 +399,20 @@ class _Cache:
                 if socks:
                     self._to_close.extend(list(socks))
 
-    def attach(self, sid_hash: str, chain_id: str, websocket: Any) -> bool:
+    def attach(self, sid_hash: str, chain_id: str, websocket: Any, user_id: str = "") -> bool:
         """False when the chain has no live entry any more (revoked between the resolve and the attach, review M2 / code review
         2026-11-13 P1-1): the caller refuses the socket. The session's own entry, or a rotated successor of the same chain (a concurrent
         request rotated it; the chain is still live) - every revocation drops the chain's entries (drop_chains, drop_user, clear)."""
         from .session_cache import attach_if_live
 
         def live() -> bool:
-            return sid_hash in self._by_sid or any(v.chain_id == chain_id for v in self._by_sid.values())
+            if sid_hash in self._by_sid or any(v.chain_id == chain_id for v in self._by_sid.values()):
+                return True
+            # CR-APP-SESSION-CACHE-2443: not cached only because the USER is held (drop_user, not a revocation): still live. A revocation
+            # marks the chain, which refuses here, or closes the socket once attached.
+            now = time.time()
+            chain_at = self._dropped.get(chain_id)
+            return bool(user_id) and not (chain_at is not None and now - chain_at < DROP_HOLD_S) and self._user_held_locked(user_id, now)
 
         return attach_if_live(self._lock, self._sockets, chain_id, websocket, live=live)
 
@@ -399,6 +425,7 @@ class _Cache:
         with self._lock:
             self._by_sid.clear()
             self._dropped.clear()
+            self._dropped_users.clear()
             for socks in self._sockets.values():
                 self._to_close.extend(list(socks))
             self._sockets.clear()
@@ -747,7 +774,7 @@ async def remote_principal_ws(websocket: Any, settings: Settings, cookie_value: 
     s = await run_in_threadpool(lambda: resolve(websocket.app.state.db, settings, websocket, cookie_value, rotate=False))
     if s is None or s.gate:
         return None
-    if not CACHE.attach(s.sid_hash, s.chain_id, websocket):
+    if not CACHE.attach(s.sid_hash, s.chain_id, websocket, s.user_id):
         return None  # review M2 (P1-1): the session ended between the resolve and the attach - nothing would close this socket
     try:
         websocket.state.sw_remote_session = s
