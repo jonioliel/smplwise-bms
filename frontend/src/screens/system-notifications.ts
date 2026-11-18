@@ -25,7 +25,7 @@ import { mediaPageStyles } from '../styles/media-page';
 import { nIcon } from '../components/notify-icons';
 import { notifyControls, notifyKnobs } from '../components/notify-css';
 import {
-  enabledCount, escalationLines, mailFormError, mailResultText, type MailBody, type MailTestResult, failedCount, failurePanel, logRows, lockPreview, matrixGroups, policyWithChannel, policyWithRule, policyWithSeverity, stepAfterMin, toggleDay, togglePass,
+  enabledCount, escalationLines, mailDraftAfterReload, mailFormError, mailResultText, notifySection, type MailBody, type MailDraft, type MailTestResult, type NotifySectionId, failedCount, failurePanel, logRows, lockPreview, matrixGroups, policyWithChannel, policyWithRule, policyWithSeverity, stepAfterMin, toggleDay, togglePass,
   type MatrixGroup,
 } from '../components/notify-logic';
 import { applyNotifyGlass, notifyStore } from '../components/notify-store';
@@ -37,7 +37,7 @@ import './system-quiet-windows'; // APP-SERVER-LEFTOVERS-2380: the quiet-window 
 import { qwt } from '../i18n/quiet-windows';
 import { tr } from '../i18n/msg/system-b';
 
-type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'wa' | 'chan' | 'log';
+type SecId = NotifySectionId; // CR-WISKEY-NOTIF-2443: the ids live in components/notify-logic.ts (with the guard `notifySection`)
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
   { id: 'sources', label: tr('מקורות והרשאות – מה נשלח'), icon: 'list' },
   { id: 'quiet', label: tr('שעות שקט ומה עובר'), icon: 'moon' },
@@ -50,7 +50,6 @@ const SECTIONS: { id: SecId; label: string; icon: string }[] = [
   { id: 'log', label: tr('יומן מסירה וכשלים'), icon: 'inbox' },
 ];
 type Phase = 'loading' | 'ready' | 'user' | 'error';
-interface MailDraft { linkBase: string; host: string; port: string; security: EmailSecurity; user: string; password: string; pwEdit: boolean; from: string; recipients: string }
 interface Person { id: string; name: string }
 const DEMO_USERS: Person[] = [{ id: 'u-yoni', name: 'יוני' }, { id: 'u-dana', name: 'דנה' }, { id: 'u-uri', name: 'אורי' }, { id: 'u-roni', name: 'רוני' }];
 const RULES: NotifyPolicy['recipients']['rule'][] = ['scope', 'managers', 'initiator', 'users'];
@@ -59,9 +58,6 @@ const STATUS_TONE: Record<Delivery['status'], string> = { sent: 'ok', failed: 'b
 
 /** The log table reaches back 14 days; the failures panel above it counts the last 24 hours (each is labelled with its own window). */
 const s14 = () => tr('{n} יום', { n: 14 });
-const mailDraftOf = (s: NotifySettings): MailDraft => ({
-  linkBase: (s.email as { link_base?: string }).link_base ?? '', host: s.email.host, port: String(s.email.port), security: s.email.security, user: s.email.user, password: '', pwEdit: !s.email.password_set, from: s.email.from, recipients: s.email.recipients.join(', '),
-});
 
 /**
  * CR-018 / CR §19: הגדרות › התראות. For a holder of `notify.manage`: the eight sections of the approved mockup - מקורות והרשאות (the source x severity x recipients x channel
@@ -921,7 +917,8 @@ export class SystemNotifications extends LitElement {
   private onMq = () => (this.phone = this.phoneMq.matches);
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (changed.has('section') && SECTIONS.some((s) => s.id === this.section)) this.sec = this.section as SecId;
+    const sec = changed.has('section') ? notifySection(this.section) : null;
+    if (sec) this.sec = sec;
   }
 
   // ---------------------------------------------------------------------------------------------- loading
@@ -951,6 +948,7 @@ export class SystemNotifications extends LitElement {
         this.loadUsers(), this.countDevices(), this.clockAndZone(), waNotify().view().catch(() => null),
       ]);
       this.wa = wa;
+      const before = this.settings;
       this.settings = s;
       this.rev = s.revision;
       this.policies = policies;
@@ -962,7 +960,7 @@ export class SystemNotifications extends LitElement {
       this.now = clock.now;
       this.clockOffset = clock.now - Date.now();
       this.tz = clock.tz;
-      this.mail = mailDraftOf(s);
+      this.mail = mailDraftAfterReload(this.mail, before, s); // CR-WISKEY-NOTIF-2443: a conflict reload keeps an unsaved mail form as typed
       this.mailResult = null;
       this.phase = 'ready';
     } catch (err) {
@@ -1054,8 +1052,9 @@ export class SystemNotifications extends LitElement {
   }
 
   /** AUDIT30-I6 (#18, owner Q11 option a): one section at a time at every width (was: all nine on one 6,699 px page on a desktop) */
-  private setSec(id: SecId) {
-    this.sec = id;
+  private setSec(id: string) {
+    const sec = notifySection(id); // CR-WISKEY-NOTIF-2443: only a known section (a stray id used to make `sections[this.sec]()` throw)
+    if (sec) this.sec = sec;
   }
 
   // ---------------------------------------------------------------------------------------------- the mail form
@@ -1323,7 +1322,7 @@ export class SystemNotifications extends LitElement {
     if (this.phase === 'user') return html`<div class="secs" data-set-state="user"><section class="glass sec"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></section></div>`;
     const sections: Record<SecId, () => TemplateResult> = { sources: () => this.renderSources(), quiet: () => this.renderQuiet(), esc: () => this.renderEsc(), lock: () => this.renderLock(), keep: () => this.renderKeep(), mail: () => this.renderMail(), wa: () => this.renderWa(), chan: () => this.renderChannels(), log: () => this.renderLog() };
     // AUDIT30-I6 (#18, owner Q11 option a): the existing sections are underline tabs (the product's sw-tabs) above one section
-    return html`<div class="set" data-set-state="ready"><sw-tabs variant="underline" class="settabs" data-set-tabs group-label=${tr('מדורים')} panel="set-panel" .items=${SECTIONS.map((x) => ({ id: x.id, label: x.label }))} .active=${this.sec} @change=${(e: CustomEvent<{ id: string }>) => this.setSec(e.detail.id as SecId)}></sw-tabs>
+    return html`<div class="set" data-set-state="ready"><sw-tabs variant="underline" class="settabs" data-set-tabs group-label=${tr('מדורים')} panel="set-panel" .items=${SECTIONS.map((x) => ({ id: x.id, label: x.label }))} .active=${this.sec} @change=${(e: CustomEvent<{ id: string }>) => this.setSec(e.detail.id)}></sw-tabs>
       <div class="secs" id="set-panel" data-set-panel=${this.sec}>${sections[this.sec]()}</div></div>`;
   }
 

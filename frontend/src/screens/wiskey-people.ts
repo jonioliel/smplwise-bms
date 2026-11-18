@@ -26,7 +26,6 @@ import { bulkSettings } from '../api/bulk-people';
 import type { ActionKind, ActionResult } from './wiskey-person-actions';
 import { PENDING_CHECKS, PENDING_CHECK_MS, deleteSettled, personActions, type PersonAction } from '../access-control/people-writes-logic';
 import { wt } from '../i18n/access-writes';
-import type { StateKind } from '../components/sw-badge';
 import { can, isApi, onSession } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeIntercom, type DisplayZone, type IntercomEditorPerson } from '../api/intercom';
@@ -85,7 +84,8 @@ import {
 } from '../access-control/people-logic';
 import type { MessagingConfig, MessagingTransport } from '../access-control/messaging-logic';
 import { pt } from '../i18n/access-people';
-import { t, UTC_ZONE } from './wiskey-format';
+import { peopleLookupsMemo, UTC_ZONE } from './wiskey-format'; // CR-WISKEY-NOTIF-2443: syncBadge now lives there (the editor imported it back from this screen)
+import { PollController } from '../components/poll-controller';
 import { stateBadge, syncKind, validityText } from './wiskey-person-drawer';
 import { tr } from '../i18n/msg/wiskey';
 
@@ -94,16 +94,6 @@ const TYPING_DEBOUNCE_MS = 250;
 const NOTICE_COALESCE_MS = 800; // WisKey sends a data-free notice for any change: one refetch for a burst
 const STORE_VIEW = 'sw.people.view';
 const STORE_COLUMNS = 'sw.people.columns';
-
-/** The sync status as a badge for the person editor's station rows (WisKey `badge(status)`): the editor's own contract, unchanged. */
-export function syncBadge(status: string): { kind: StateKind; label: string } {
-  if (status === 'synced') return { kind: 'recorded', label: t('synced') };
-  if (status === 'pending' || status === 'syncing' || status === 'delete_pending') return { kind: 'stale', label: t(status) };
-  if (status === 'conflict' || status === 'error') return { kind: 'error', label: t(status) };
-  if (status === 'offline') return { kind: 'offline', label: t('offline') };
-  if (status === 'unassigned') return { kind: 'unknown', label: t('filter_unassigned') };
-  return { kind: 'neutral', label: t(status) };
-}
 
 type Phase = 'loading' | 'ready' | 'forbidden' | 'unavailable' | 'unsupported' | 'error';
 
@@ -225,7 +215,11 @@ export class WiskeyPeople extends LitElement {
   private queued = false;
   private typing = 0;
   private coalesce = 0;
-  private poll = 0;
+  /** CR-WISKEY-NOTIF-2443 (review D2 / 06:POLL-1): the fallback poll while the change notices are down - paused while the page is hidden,
+   * never two reads at once, one catch-up read on resume (components/poll-controller.ts). Was a bare `setInterval`. */
+  private poll = new PollController(this);
+  /** CR-WISKEY-NOTIF-2443 (06:WK-1): the drawer's and the bulk dialog's name lookups, rebuilt only when the station or group list changes. */
+  private lookups = peopleLookupsMemo();
   private stop: (() => void) | null = null;
   private stopSession: (() => void) | null = null;
   private media: MediaQueryList | null = null;
@@ -261,16 +255,6 @@ export class WiskeyPeople extends LitElement {
       return;
     }
     this.begin();
-    this.stop = subscribeIntercom(
-      (m) => {
-        if (m.type === 'intercom_refresh' || m.type === 'intercom_state') this.scheduleRefresh();
-      },
-      (connected) => {
-        window.clearInterval(this.poll);
-        this.poll = connected ? 0 : window.setInterval(() => this.scheduleRefresh(), POLL_MS);
-        if (connected) this.scheduleRefresh(); // notices sent while the socket was down are gone: catch up now
-      },
-    );
   }
 
   disconnectedCallback() {
@@ -282,7 +266,7 @@ export class WiskeyPeople extends LitElement {
     this.stopSession = null;
     window.clearTimeout(this.typing);
     window.clearTimeout(this.coalesce);
-    window.clearInterval(this.poll);
+    this.poll.cancel('people');
     window.clearTimeout(this.pendingTimer);
     this.generation++;
     this.detailGeneration++;
@@ -290,8 +274,34 @@ export class WiskeyPeople extends LitElement {
 
   private begin() {
     this.phase = 'loading';
+    this.subscribe();
     void this.loadMeta();
     void this.reload();
+  }
+
+  /**
+   * The change notices of the add-on's feed. CR-WISKEY-NOTIF-2443 (review 06:WK-1): subscribed from `begin()`, so also when the
+   * permission arrives while the screen is open (the session listener calls `begin()`) - the subscription used to follow the early
+   * "forbidden" return of `connectedCallback` and was never made then: the list never refreshed on a change. Idempotent (the retry
+   * button calls `begin()` again).
+   */
+  private subscribe() {
+    if (this.stop) return;
+    this.stop = subscribeIntercom(
+      (m) => {
+        if (m.type === 'intercom_refresh' || m.type === 'intercom_state') this.scheduleRefresh();
+      },
+      (connected) => {
+        this.setPolling(!connected);
+        if (connected) this.scheduleRefresh(); // notices sent while the socket was down are gone: catch up now
+      },
+    );
+  }
+
+  /** While the notices are down the shown list is refetched every POLL_MS (the period as before). */
+  private setPolling(on: boolean) {
+    if (on) this.poll.every('people', POLL_MS, () => this.refresh());
+    else this.poll.cancel('people');
   }
 
   // ------------------------------------------------------------------ data
@@ -768,8 +778,8 @@ export class WiskeyPeople extends LitElement {
             @open-person=${(e: CustomEvent<{ id: string }>) => { this.stationPeople = false; void this.openPerson(e.detail.id); }}></wiskey-station-people>`
         : nothing}
       ${this.bulk
-        ? html`<sw-bulk-people-dialog open .mode=${this.bulk} .personIds=${[...this.selected]} .stations=${this.stations.map((st) => ({ id: st.id, name: st.name, locks: [1, 2] }))}
-            .groups=${this.groups.map((g) => ({ id: g.id, label: g.label }))} @close=${() => (this.bulk = null)} @changed=${() => void this.reload()}></sw-bulk-people-dialog>`
+        ? html`<sw-bulk-people-dialog open .mode=${this.bulk} .personIds=${[...this.selected]} .stations=${this.lookups(this.stations, this.groups).bulkStations}
+            .groups=${this.lookups(this.stations, this.groups).bulkGroups} @close=${() => (this.bulk = null)} @changed=${() => void this.reload()}></sw-bulk-people-dialog>`
         : nothing}`;
   }
 
@@ -1047,9 +1057,7 @@ export class WiskeyPeople extends LitElement {
 
   private renderDrawer(): TemplateResult | typeof nothing {
     if (!this.openId && !this.drawerOpen) return nothing;
-    const stationNames = Object.fromEntries(this.stations.map((s): [string, string] => [s.id, s.name]));
-    const groupLabels = Object.fromEntries(this.groups.map((g) => [g.id, g.label]));
-    const groupStations = Object.fromEntries(this.groups.map((g) => [g.id, g.station_ids ? g.station_ids.length : null]));
+    const { stationNames, groupLabels, groupStations } = this.lookups(this.stations, this.groups);
     const p = this.detail;
     const canEdit = this.canManage && !!p && p.editable !== false;
     const actions = this.actionsFor(p);

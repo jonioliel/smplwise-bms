@@ -8,7 +8,7 @@ import { rnt } from '../i18n/rfq-notify'; // TKRFQ5
 import {
   CATEGORY_LABEL, CATEGORY_ORDER, ESCALATION_AFTER_MIN, SEVERITY_LABEL, WEEKDAYS, clockText, validateEmailBody, deliveryChip, deliveryLine, escalationPreview, filterInbox, isSnoozed, isUnread,
   lockscreenInputOf, lockscreenText, pushActions, sourceInfo, withChannel,
-  type Category, type Channel, type Delivery, type EmailBody, type EscalationSettings, type InboxFilter, type Notification, type NotifyPolicy, type NotifySettings, type NotifyStats, type PassThrough,
+  type Category, type Channel, type Delivery, type EmailBody, type EmailSecurity, type EscalationSettings, type InboxFilter, type Notification, type NotifyPolicy, type NotifySettings, type NotifyStats, type PassThrough,
   type PushAction, type Severity, type SourceInfo, type SubjectKind, type Weekday,
 } from '../api/notifications';
 import { tr } from '../i18n/msg/components';
@@ -267,6 +267,36 @@ export function mailFormError(b: MailBody): 'email_invalid' | null {
   if (validateEmailBody(b) || b.recipients.length > MAX_MAIL_RECIPIENTS || !isValidLinkBase(b.link_base ?? '')) return 'email_invalid';
   return null;
 }
+
+/** The outgoing-mail form as typed (strings as in the inputs; `pwEdit` = the password field is open for a new password). */
+export interface MailDraft { linkBase: string; host: string; port: string; security: EmailSecurity; user: string; password: string; pwEdit: boolean; from: string; recipients: string }
+/** The form as the saved settings fill it (the password is never sent back: an empty field, open only when none is set). */
+export const mailDraftOf = (s: NotifySettings): MailDraft => ({
+  linkBase: (s.email as { link_base?: string }).link_base ?? '', host: s.email.host, port: String(s.email.port), security: s.email.security, user: s.email.user, password: '', pwEdit: !s.email.password_set, from: s.email.from, recipients: s.email.recipients.join(', '),
+});
+const MAIL_DRAFT_KEYS: (keyof MailDraft)[] = ['linkBase', 'host', 'port', 'security', 'user', 'password', 'pwEdit', 'from', 'recipients'];
+/** True when the form differs from what `saved` would fill it with: the user typed something not saved yet. */
+export const mailDraftDirty = (draft: MailDraft, saved: NotifySettings | null): boolean => {
+  if (!saved) return false;
+  const clean = mailDraftOf(saved);
+  return MAIL_DRAFT_KEYS.some((k) => draft[k] !== clean[k]);
+};
+/**
+ * CR-WISKEY-NOTIF-2443 (review 06:NOTIF-1): the form after the screen read the settings again (a revision conflict on another section
+ * reloads them). An unsaved form is kept as typed - the reload used to refill it from the server and the typing was lost; a clean
+ * form follows the new settings.
+ */
+export const mailDraftAfterReload = (draft: MailDraft, before: NotifySettings | null, after: NotifySettings): MailDraft => (mailDraftDirty(draft, before) ? draft : mailDraftOf(after));
+
+/** The sections of הגדרות › התראות (one shown at a time, AUDIT30-I6), in tab order. */
+export const NOTIFY_SECTION_IDS = ['sources', 'quiet', 'esc', 'lock', 'keep', 'mail', 'wa', 'chan', 'log'] as const;
+export type NotifySectionId = (typeof NOTIFY_SECTION_IDS)[number];
+/**
+ * CR-WISKEY-NOTIF-2443 (review 06:NOTIF-1): a section id from outside (the route's `section`, a tab's change event) -> the id, or null
+ * when it is not one of the sections. The screen used to cast any string (e.g. `quiet-windows`, a block INSIDE the quiet section) and
+ * `sections[id]()` threw on it.
+ */
+export const notifySection = (id: unknown): NotifySectionId | null => (typeof id === 'string' && (NOTIFY_SECTION_IDS as readonly string[]).includes(id) ? (id as NotifySectionId) : null);
 
 /** '#/notifications/<id>' (the url of every push v2 message) -> the notification id, or null. */
 export function parseNotificationLink(hash: string): string | null {
