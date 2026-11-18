@@ -128,7 +128,12 @@ test('a tab is drawn only after its chunk landed; a failed fetch offers a retry'
 // against 108 modules, 1,381,989 bytes when every tab's cards came with the screen. The budget is the measured size plus about ten
 // percent; a card imported statically by the screen again (instead of by its tab's module) goes over it. Source bytes, not built
 // bytes: no build is needed to check it (the built chunk is roughly a third of its sources).
-const OWN_BUDGET = 510_000;
+// RELEASE-2438-TRAIN (18.11): the 2.43.8 train measured 33 modules, 514,314 B (the train before its second part 509,503 B; main
+// 2.43.7 had no budget yet). The growth is the train's own content, no card came back statically: the translation of the 3D-map
+// settings card (CR-UI-POLISH-2443: its table i18n/msg/api-plan-view.ts +3.4 kB, api/plan-view.ts read through tr() +2.7 kB) and the
+// translated / restyled shared settings styles and map texts (styles/settings.ts, i18n/msg/map.ts), partly offset by modules that
+// moved to the entry chunk. New budget: the measured size plus about five percent (docs/changes/RELEASE-2438-TRAIN.md section 11).
+const OWN_BUDGET = 540_000;
 
 test('source-size budget of the settings screen\'s own chunk', () => {
   const eager = closure(['main.ts']);
