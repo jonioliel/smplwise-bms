@@ -1,5 +1,27 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.9 (pilot) - English / Arabic / Russian load only when chosen; a safer phone-app session and TV board; code-review wave 3B
+
+### חדש - New
+- שפות: חבילות האנגלית, הערבית והרוסית נטענות רק כשהממשק באותה שפה. הטעינה הראשונה של הממשק בעברית קטנה בכרבע (כ-270 ק"ב דחוס פחות). - Languages: the English, Arabic and Russian packs load only when the interface is in that language. The first load of the Hebrew interface is about a quarter smaller (about 270 KB compressed less).
+- יומן התזכורות בתחזוקה: יומן ארוך מוצג בעמודים במקום גלילה (לפי ההגדרה "רשימות ארוכות"). - Maintenance reminder log: a long log is shown in pages instead of scrolling (per the "long lists" setting).
+
+### שופר - Improved
+- אבטחה: כניסה של אפליקציית הטלפון שהסתיימה (יציאה, ביטול, יציאה מכל המכשירים) מפסיקה לעבוד מיד ולא חוזרת לרגע מהזיכרון; שינוי הרשאות או השבתת משתמש חלים כבר בבקשה הבאה. - Security: a phone-app sign-in that ended (sign-out, revoked, signed out everywhere) stops at once and never comes back for a moment from the cache; a permission change or a disabled user takes effect on the very next request.
+- לוח הטלוויזיה: כל ערך מהפיד מוצג כטקסט בלבד (הגנה מהזרקת תוכן); הגופנים של הלובי נטענים לפי סגנון התצוגה בלבד. - TV board: every feed value is shown as text only (no injected markup); the lobby fonts load per display style only.
+- מקלדת: שורות וכרטיסים שאפשר ללחוץ עליהם נפתחים גם ב-Enter וברווח. - Keyboard: clickable rows and cards also open with Enter and Space.
+- אירועים: טבלת חלונות הבדיקה מעוצבת, ותג החומרה אחיד בכל המסכים (קריטי באדום). - Events: the review-windows table is styled and the severity badge is the same on every screen (critical in red).
+- אותיות ראשי התיבות בתמונות הפרופיל: כלל אחד בכל המערכת. - Avatar initials: one rule across the system.
+- נגינה: רשת 2x2 נכנסת בחלון בלי גלילה. - Playback: the 2x2 grid fits the window without scrolling.
+- חשמל: שאר המסכים מתורגמים, וטופס לקוח אחד משותף. - Electricity: the remaining screens are translated, and one shared customer form.
+- אנשי WisKey: מי שקיבל הרשאה בזמן שהמסך פתוח מקבל עדכונים; בהגדרות ההתראות טופס הדוא"ל שלא נשמר אינו נמחק בהתנגשות שמירה, וקישור לחלק לא קיים אינו שובר את המסך. - WisKey people: a viewer granted access while the screen is open gets the updates. Notification settings: an unsaved mail form survives a save conflict, and a link to a non-existent section no longer breaks the screen.
+- שם פלטפורמת הבית לא מופיע במסכי התפעול (רק בהגדרות); הטקסט "מיקום האתר לשמש בתלת־ממד" מתורגם. - The home platform's name no longer appears on operator screens (Settings only); the "site location for the sun in 3D" text is translated.
+- צבעים: טקסט משני וגבולות שהפנו לצבע לא מוגדר מוצגים בצבע הנכון. - Colours: muted text and borders that named an undefined colour now draw in the right one.
+- סקירת קוד, גל 3B: ניקוי קוד בשרת ובממשק (קוד ו-CSS שאינם בשימוש, פיצול קבצי עיצוב, טיפול בהבטחות), בדיקות חובה חדשות בבנייה. - Code review wave 3B: server and interface clean-up (unused code and CSS, style files split, promise handling), new blocking build checks.
+
+### התקנה - Install
+- אין מיגרציה חדשה ואין צורך בהפעלה מחדש של מערכת הבית (הגשר נשאר 0.10.7). - No new migration and no home-system restart (the bridge stays 0.10.7).
+
 ## 2.43.8 (pilot) - Arx users can be created again; Domus is the default look; one dialog and one drawer; the English interface
 
 ### חדש - New
