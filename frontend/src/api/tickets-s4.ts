@@ -14,6 +14,8 @@ import { isApi } from './session';
 import { lazyAdapter } from './demo-load';
 import { ticketsMock, withTicketsMock } from './tickets';
 import type { Eligible, Handler, TicketDetail } from './tickets';
+import type { AssignPreviewExtra } from './tickets-messages';
+import type { CostClaimOption } from './tickets-costs';
 
 /** 'employee' (owner request 2026-10-14, migration 0084): an employee WITHOUT an account - assigned through a handler link like a contact. */
 export type ContactKind = 'person' | 'vendor' | 'employee';
@@ -137,7 +139,10 @@ export interface Readiness {
 export interface AssigneesAnswer { users: Eligible[]; handlers?: Handler[]; contacts?: ExternalAssignee[]; external?: boolean; public_ready?: boolean; readiness?: Readiness }
 
 export type Refusal = 'public_link_unavailable' | 'code_channel_unavailable' | string;
-export interface AssignPreview {
+/** `POST tickets/{id}/assign/preview`. CR-FE-TYPES-2443 (review 08:F19): the one answer carries slice 5b's send-hours / account lines
+ * (`AssignPreviewExtra`, OutboxDispatch.preview_extra) and slice 9's cost-claim preselection; the dialog used to read both through
+ * casts (one through `unknown`) because this type did not declare them. */
+export interface AssignPreview extends AssignPreviewExtra {
   channel: ContactChannel;
   lang: ContactLang;
   text: string;
@@ -151,6 +156,9 @@ export interface AssignPreview {
   location_nav?: { available: boolean; on: boolean };
   /** GRANTS3-295: the "access needed" tick (the arrival step on the vendor's page) - offered only while the external-access feature is on */
   access_needed?: { available: boolean };
+  /** slice 9 (D32): the claim requirement preselected for this assignment (vendor -> department -> installation) and the choices offered;
+   * absent from a server before slice 9 (the dialog then shows no choice) */
+  cost_claim?: CostClaimOption;
 }
 interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null;
   /** slice 9 (D32): the cost claim requirement of THIS assignment; null = the server's preselection */

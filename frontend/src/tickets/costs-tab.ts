@@ -21,7 +21,7 @@ import { cIcon } from './cost-icons';
 import { shortDateTime } from './model';
 import { ticketsLang } from './text';
 import { onTicketNames } from './naming';
-import { canWriteVendor, vendorOf, type ConvTicket } from './conversation-tab';
+import { canWriteVendor, vendorOf } from './conversation-tab';
 import {
   approvalNeedsExpiredConfirm, askQuoteTarget, currentQuote, enteredByViewer, flowIsStaff, lineMark, MODES, moneyClaims, moneyQuotes, olderQuotes, onBehalfTarget, partialValid, quoteActions,
   isQuoteExpired, quoteShownTotal, quoteTone, requirementTargets, selectionTotals, sendDialogOf, sendPlanOf, sendTitleKey, stageView, toggleKind, validDayText, VENDOR_TEXT_MAX,
@@ -148,7 +148,7 @@ export class TicketCostsTab extends LitElement {
     const t = this.ticket;
     if (!t) return { canWrite: false, vendor: null };
     const v = vendorOf(t);
-    return { canWrite: canWriteVendor(t as unknown as ConvTicket), vendor: v?.active ? v.name : null };
+    return { canWrite: canWriteVendor(t), vendor: v?.active ? v.name : null }; // CR-FE-TYPES-2443: no cast - canWriteVendor reads only status / can / assignee
   }
 
   /** After a decision: open "לשלוח הודעה לספק?" with the server's draft, or just say it was saved (no draft / nobody to write to). */

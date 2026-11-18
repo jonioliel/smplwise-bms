@@ -330,7 +330,7 @@ export class TicketsVendorAccounts extends LitElement {
         ];
         return html`<section data-va-currency-block=${b.currency}>
           <h3>${b.currency}</h3>
-          <sw-table dense .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+          <sw-table dense .columns=${cols} .rows=${rows}
             @row-select=${(e: CustomEvent<{ id: string }>) => e.detail.id.startsWith('v:') && this.setFilter('vendor', e.detail.id.slice(2))}></sw-table>
         </section>`;
       })}
@@ -355,7 +355,7 @@ export class TicketsVendorAccounts extends LitElement {
       { key: 'date', label: ct('vaColDate'), render: (r) => this.day(r.status === 'paid' ? r.paid_at ?? r.period_at : r.period_at) },
       { key: 'amount', label: ct('vaColAmount'), render: (r) => html`<span class="num" data-va-amount>${this.money(r.amount_minor, r.currency)}</span>` },
     ];
-    return html`<sw-table dense .rowKey=${"claim_id"} data-va-claims .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]}
+    return html`<sw-table dense .rowKey=${"claim_id"} data-va-claims .columns=${cols} .rows=${rows}
       @row-select=${(e: CustomEvent<{ row: AccountClaim }>) => e.detail.row.ticket_id && (window.location.hash = `#/tickets/${e.detail.row.ticket_id}`)}></sw-table>`;
   }
 

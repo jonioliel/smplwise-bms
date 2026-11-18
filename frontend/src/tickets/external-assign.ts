@@ -4,7 +4,6 @@ import { describeError } from '../api/client';
 import { isApi } from '../api/session';
 import type { TicketDetail } from '../api/tickets';
 import { ticketsS4Api, type AssignPreview, type AssigneesAnswer, type ExternalAssignee, type Readiness, type TicketWithLink } from '../api/tickets-s4';
-import type { AssignPreviewExtra } from '../api/tickets-messages';
 import { bidi } from '../i18n/bidi';
 import { tIcon } from './icons';
 import { assignLines } from './message-lines';
@@ -15,8 +14,6 @@ import { loct } from './org-locations-text';
 import { navForAssign, navForPreview, navSwitch, type NavAnswer } from './assign-nav-model';
 import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
 import { insuranceMark } from '../maintenance/model'; // MAINT215B: the supplier insurance mark of the picker
-
-type CostModeChoice = 'required' | 'optional' | 'off';
 
 /** The dialog's three groups (owner 2026-10-14): handlers with an account, employees without one, vendors and contacts. TKSTAFF2: the
  * first two are both HANDLERS (one list, one picker and one submit in the host - tickets/assignee-model.ts); this controller runs the
@@ -289,7 +286,7 @@ export class ExternalAssign implements ReactiveController {
   /** Slice 5b: the message this assignment queues - its channel and account, a WhatsApp account that cannot send now (the message
    * waits, then falls back, 9.9.4) and, outside the send hours, when it leaves with the "send now" choice (D29). */
   private channelLines(p: AssignPreview): TemplateResult | typeof nothing {
-    const l = assignLines(p as AssignPreview & AssignPreviewExtra);
+    const l = assignLines(p);
     if (!l) return nothing;
     return html`<span class="muted" data-assign-channel=${p.channel}>${tIcon(p.channel === 'email' ? 'note' : 'send')}${l.via}</span>
       ${l.down ? html`<span class="muted" data-assign-down>${tIcon('warning')}${l.down}</span>` : nothing}
@@ -300,13 +297,13 @@ export class ExternalAssign implements ReactiveController {
 
   /** The "send now" the assignment carries: only outside the send hours, the person's choice or the preview's default. */
   private sendNowChoice(): boolean {
-    const l = this.preview ? assignLines(this.preview as AssignPreview & AssignPreviewExtra) : null;
+    const l = this.preview ? assignLines(this.preview) : null;
     return !!l && !!l.hours && (this.sendNow ?? l.sendNowDefault);
   }
 
   /** Slice 9 (D32): the claim requirement of this assignment, preselected from the preview (vendor -> department -> installation). */
   private costChoice(): TemplateResult | typeof nothing {
-    const opt = (this.preview as unknown as { cost_claim?: { default: CostModeChoice; choices: CostModeChoice[] } } | null)?.cost_claim;
+    const opt = this.preview?.cost_claim; // CR-FE-TYPES-2443: declared on AssignPreview (was a cast through unknown)
     if (!opt) return nothing;
     const value = this.costClaim ?? opt.default;
     return html`<div class="fld" data-cost-claim=${value}><span>${ct('mode')}</span>
