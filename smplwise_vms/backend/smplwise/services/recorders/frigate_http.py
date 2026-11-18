@@ -122,7 +122,7 @@ WRITE_REPLY_MAX = 200_000
 WRITE_TIMEOUT_S = 8.0
 
 # Routes that must carry a time window / a limit: an unbounded call returns megabytes (live finding) and loads Frigate's CPU.
-WINDOWED = {"/api/events": ("limit",), "/api/review": ("limit",), f"/api/review/activity/motion": ("after", "before")}
+WINDOWED = {"/api/events": ("limit",), "/api/review": ("limit",), "/api/review/activity/motion": ("after", "before")}
 QUERY_KEYS = frozenset({"after", "before", "limit", "severity", "reviewed", "cameras", "labels", "zones", "h", "timezone", "camera",
                         "has_clip", "has_snapshot", "include_thumbnails", "bbox", "quality"})
 LIMIT_MAX = 500

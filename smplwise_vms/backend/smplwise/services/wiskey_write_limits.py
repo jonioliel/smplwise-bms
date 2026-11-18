@@ -63,6 +63,7 @@ class WriteLimits:
         at = self._last.get(key)
         return 0.0 if at is None else cooldown_s - (now - at)
 
+    # test-only: no product caller; used by tests/test_wiskey_write_limits_2438.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def cooldown_raw(self, key: Hashable, cooldown_s: float, now: float | None = None) -> float:
         """The unrounded remainder of `key`'s cool-down (<= 0 when none is running)."""
         with self._lock:

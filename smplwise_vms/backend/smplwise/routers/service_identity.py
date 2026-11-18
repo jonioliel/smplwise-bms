@@ -29,6 +29,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
 from ..services import service_identity as si
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -62,7 +63,7 @@ def put_service_identity(body: ServiceIdentityBody, request: Request, principal:
     require(conn, principal, "system.configure", INSTALLATION)
     if si.is_local(principal):  # defence in depth: a local identity never holds system.configure (owner answer Q3), and never configures this
         raise ApiError(403, "forbidden", "הפעולה אינה זמינה למשתמשי Arx.")
-    return si.configure(conn, principal, body.user_id, getattr(request.state, "correlation_id", None))
+    return si.configure(conn, principal, body.user_id, _rid(request))
 
 
 @router.put("/identity/service-identity/runnable")
@@ -71,7 +72,7 @@ def put_runnable(body: RunnableBody, request: Request, principal: Principal = De
     require(conn, principal, "system.configure", INSTALLATION)
     if si.is_local(principal):  # defence in depth, as above: a local identity never configures what local identities may run
         raise ApiError(403, "forbidden", "הפעולה אינה זמינה למשתמשי Arx.")
-    return si.configure_runnable(conn, principal, body.entity_ids, getattr(request.state, "correlation_id", None))
+    return si.configure_runnable(conn, principal, body.entity_ids, _rid(request))
 
 
 class KillBody(BaseModel):
@@ -90,7 +91,7 @@ def post_extended_kill(body: KillBody, request: Request, principal: Principal = 
     from ..audit import audit
     from ..rbac import is_system_admin
 
-    request_id = getattr(request.state, "correlation_id", None)
+    request_id = _rid(request)
     channel = "remote" if is_remote(request) else "local"
     if not body.turn_off and not body.clear_runnable:
         raise ApiError(422, "validation", "יש לבחור לפחות פעולה אחת: כיבוי המצב המורחב או ריקון רשימת ההרצה.", details={"fields": ["turn_off", "clear_runnable"]})

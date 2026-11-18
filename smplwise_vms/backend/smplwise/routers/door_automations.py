@@ -30,14 +30,11 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError, forbidden
 from ..rbac import Principal
 from ..services import door_automation as da
+from ._common import rid as _rid
 
 router = APIRouter()
 _ID = r"^da_[0-9a-f]{32}$"
 _ITEM = r"^[A-Za-z0-9_.:-]{1,128}$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _dev(request: Request) -> bool:

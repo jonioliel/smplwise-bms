@@ -954,13 +954,12 @@ def _resend_check(conn, viewer: Any, seen: Any, a: Mapping[str, Any], resend: bo
     return rfq_orders.resend_check(conn, viewer, seen, a["id"], now, rid)
 
 
-def _resend(conn, viewer: Any, seen: Any, ctx: Mapping[str, Any] | None, now: dt.datetime, rid: str | None, change: str, token: int,
-            old_lines: list[str]) -> bool:
+def _resend(conn, viewer: Any, seen: Any, ctx: Mapping[str, Any] | None, now: dt.datetime, rid: str | None, change: str, token: int) -> bool:
     if ctx is None:
         return False
     from . import rfq_orders
 
-    rfq_orders.resend(conn, viewer, seen, ctx, now, rid, change=change, token=str(token), old_lines=old_lines)
+    rfq_orders.resend(conn, viewer, seen, ctx, now, rid, change=change, token=str(token))
     return True
 
 
@@ -999,7 +998,6 @@ def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: An
     if new == old:
         return t  # nothing to move (a repeated click): no write, no audit
     order_ctx = _resend_check(conn, viewer, seen, a, resend_order, now, rid)
-    old_lines = order_lines(conn, a["id"])
     at = iso(now)
     agreed = it.get("agreed_date") or old
     it["date"] = new
@@ -1022,7 +1020,7 @@ def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: An
     store_rfq.insert_event(conn, seen.row["id"], "instalment_rescheduled", actor_kind="user", actor_user_id=viewer.uid,
                            actor_name=rfq.actor_name(viewer), rfq_vendor_id=a["rfq_vendor_id"], data=data, at=at)
     notified = _notice_send(conn, viewer, seen, a, text, now)
-    resent = _resend(conn, viewer, seen, order_ctx, now, rid, "instalment", int(revision) + 1, old_lines)
+    resent = _resend(conn, viewer, seen, order_ctx, now, rid, "instalment", int(revision) + 1)
     rfq._audit(conn, viewer, "ticket.rfq.instalment_reschedule", seen.row, rid, award_id=a["id"], instalment_index=int(index),
                from_date=old, to_date=new, has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]), order_resent=resent)
     fresh = store_rfq.terms(conn, a["id"]) or t
@@ -1066,7 +1064,6 @@ def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: A
     if wf == t.get("planned_from") and (wt or None) == (t.get("planned_to") or None):
         return t  # the same window (a repeated click): no write, no audit, nothing sent
     order_ctx = _resend_check(conn, viewer, seen, a, resend_order, now, rid)
-    old_lines = order_lines(conn, a["id"])
     at = iso(now)
     fields: dict[str, Any] = {"planned_from": wf, "planned_to": wt, "arrival_changed_at": at, "updated_at": at}
     state = t["arrival_state"]
@@ -1091,7 +1088,7 @@ def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: A
     if state == "proposed":
         rfq_notify.arrival_done(conn, seen.row["id"], a["rfq_vendor_id"])  # his proposal is superseded: nothing waits on a decision
     notified = _notice_send(conn, viewer, seen, a, text, now)
-    resent = _resend(conn, viewer, seen, order_ctx, now, rid, "arrival", int(revision) + 1, old_lines)
+    resent = _resend(conn, viewer, seen, order_ctx, now, rid, "arrival", int(revision) + 1)
     rfq._audit(conn, viewer, "ticket.rfq.arrival_reschedule", seen.row, rid, award_id=a["id"], from_date=t.get("planned_from"), to_date=wf,
                has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]), order_resent=resent)
     fresh = store_rfq.terms(conn, a["id"]) or t

@@ -27,6 +27,7 @@ def register_reset(module: str, attrs: Iterable[str], reset: Callable[[], None])
     _ATTRS[module] = tuple(attrs)
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/conftest.py, tests/test_singletons_registered.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_all() -> None:
     """Every registered reset, in registration (import) order. Tests only."""
     for reset in list(_RESETS.values()):

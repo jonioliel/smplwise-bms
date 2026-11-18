@@ -1171,6 +1171,7 @@ def stored_paths(conn: sqlite3.Connection, ticket_id: str) -> set[str]:
     return out
 
 
+# test-only: no product caller; used by tests/test_tickets_delete.py, tests/test_tickets_detail.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def ticket_rows_left(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     """Tests and the orphan sweep: rows still naming the ticket, per table (empty = nothing left)."""
     checks = {

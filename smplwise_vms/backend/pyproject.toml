@@ -13,8 +13,11 @@ markers = [
 ]
 
 # CR-BE-GATES-2436 (review findings 04:F06, 01:F-17): the static check is pyflakes only (rule set F: unused / undefined names, imports,
-# redefinitions), no style rules. The existing `# noqa` markers are honoured. Non-blocking lane for now (scripts/gate/lint_backend.py,
-# printed by `gate_entry.py decide`); the findings are fixed and the lane made blocking later (wave 3B, CR-PYFLAKES-ENFORCE).
+# redefinitions), no style rules. The existing `# noqa` markers are honoured.
+# CR-PYFLAKES-ENFORCE-2442: the package `smplwise/` is clean under F (0 findings) and the lane (scripts/gate/lint_backend.py, run by
+# `gate_entry.py decide` and by the entry check) is BLOCKING for every tree that carries the next line. Do not remove the marker; a tree
+# without it (a branch cut before this change) is still only reported. A kept unused import says why: `# noqa: F401 - <reason>`.
+# ruff-lane: blocking
 [tool.ruff]
 target-version = "py312"
 extend-exclude = ["tests/fixtures"]

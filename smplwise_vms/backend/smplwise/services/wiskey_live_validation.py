@@ -822,6 +822,7 @@ FEATURES_PROVIDER: Callable[[], Any] = _features_from_join  # tests: a FeatureAd
 INLINE = False  # tests: run the worker in the caller's thread
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_wiskey_live_validation_2390.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_probes(factory: Callable[[Any], Any] | None) -> None:
     global _PROBES
     _PROBES = factory or ArxProbes

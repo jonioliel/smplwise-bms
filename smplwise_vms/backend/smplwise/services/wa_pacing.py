@@ -270,6 +270,7 @@ def _parse(value: str) -> dt.datetime:
     return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_f3c_tpl_295.py, tests/test_wa_pacing.py (+5 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class MemoryPacerStore:
     def __init__(self) -> None:
         self.state: dict[str, tuple[int, dt.datetime]] = {}

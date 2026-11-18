@@ -151,6 +151,7 @@ def urgent_is_critical(installation_value: Any, department_override: Any = None)
     return True
 
 
+# test-only: no product caller; used by tests/test_tickets_msg_hours.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def signal_severity(priority_severity: str, urgent_critical: bool) -> str:
     """The CR-018 severity of a ticket signal: `critical` passes the managers' quiet hours; capped at `alert` when the
     department (or installation) turned that off (13.4)."""

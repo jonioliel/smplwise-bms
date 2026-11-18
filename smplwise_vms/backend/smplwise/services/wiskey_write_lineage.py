@@ -582,6 +582,7 @@ class WriteLineage:
         return [{"seq": s, "kind": k, "at": a, "detail": json.loads(d)} for s, k, a, d in
                 self.db.execute("SELECT seq, kind, at, detail FROM proofs WHERE operation_id = ? ORDER BY seq", (operation_id,))]
 
+    # test-only: no product caller; used by tests/test_wkjoin_295.py, tests/test_wkr5_295_writer.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def handoff_export(self) -> list[dict[str, Any]]:
         """The lineage as the lead's reply evidence: refs, states, codes, times and proof kinds. Never the sealed original."""
         out = []

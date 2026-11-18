@@ -857,7 +857,6 @@ def _overlaps(slots: list[dict[str, Any]], ctx: DraftContext) -> list[dict[str, 
     """§5.7: fixed-time slots must not overlap (half-open; `stop == next start` is the normal contiguous case; a point
     slot occupies one minute) -> `slots_overlap`; slots with a sun time are compared with today's sun times only as a
     warning (handled by the caller through `sun_overlap_possible`)."""
-    out: list[dict[str, str]] = []
     spans: list[tuple[int, int, int]] = []
     for i, s in enumerate(slots):
         a, b = policy.parse_time(s.get("start")), (policy.parse_time(s["stop"]) if s.get("stop") else None)

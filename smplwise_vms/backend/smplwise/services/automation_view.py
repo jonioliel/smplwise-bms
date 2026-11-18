@@ -7,7 +7,6 @@ view), and warnings. No secret-like value, user id or context id is ever returne
 from __future__ import annotations
 
 import datetime as dt
-import json
 import sqlite3
 from typing import Any
 
@@ -20,7 +19,6 @@ from . import automation_model as model
 from . import automation_policy as pol
 from . import automation_scope as scope
 from . import automation_text as text
-from . import automation_trace as trace
 from . import automation_transport as tr
 from . import automations as store
 from . import ha_bridge, ha_sync

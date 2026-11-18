@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 from ..audit import audit
-from ..db import get_setting, unlocked
+from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import automation_draft as drafts
@@ -34,7 +34,7 @@ from . import automation_view as view
 from . import automations as store
 from . import service_identity
 from . import door_path_guard as guard
-from . import door_run_guard, ha_bridge, ha_sync
+from . import door_run_guard, ha_bridge
 
 _RATE: dict[tuple[str, str], list[float]] = {}
 _LAST: dict[str, float] = {}
@@ -546,7 +546,7 @@ def new_item_id(w: W, kind: str, alias: str) -> str:
 
 def create(w: W, kind: str, draft: dict[str, Any], enabled: bool, confirm: bool, client_request_id: str) -> tuple[int, dict[str, Any]]:
     w.require_manage(kind)
-    with w.audited(f"automation.create", kind):
+    with w.audited("automation.create", kind):
         w.feature_on()
         prev = _prev(w, client_request_id)
         if prev is not None:

@@ -29,7 +29,6 @@ from . import store
 from .codes import CodeEngine
 from .image_intake import StorageMeter
 from .keyring import KEYS
-from .module_key import ModuleKeyError
 from .public_app import PublicApp, PublicDeps, create_public_app
 from .public_ports import CachedSwitch
 from .public_server import SERVER

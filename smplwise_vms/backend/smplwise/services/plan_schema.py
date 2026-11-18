@@ -156,6 +156,7 @@ def canonical_json(doc: dict[str, Any]) -> str:
     return json.dumps(norm(doc), ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
+# test-only: no product caller; used by tests/test_plan_schema.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def export_version(conn: sqlite3.Connection, version_id: str) -> dict[str, Any]:
     """Build the document for one plan version from what the VMS actually knows: the asset hash and page, the derived
     image size, rotation and crop, the floor's rooms / zones (with their provenance), the doors known from placed HA

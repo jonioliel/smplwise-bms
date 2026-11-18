@@ -30,7 +30,7 @@ import time
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 from ..rbac import Principal
 from . import door_windows_engine as dwe

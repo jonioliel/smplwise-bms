@@ -48,15 +48,7 @@ GET /api/v1/tickets/contacts/{contact_id}/stats/tickets  # audit tickets.stats.l
 GET /api/v1/infra/water/consumption.csv  # audit infra.water.export
 GET /api/v1/brand/white-label/pack  # audit brand.installer.pack.export
 
-# -- not reviewed here: routers/cases.py and routers/catalog.py are outside this branch's file list (master plan: held by
-#    BACKEND-SAFETY-2435, converted in the closing chain, wave 3B BE-1 CR-ROUTER-COMMON-TAIL). Listed so the inventory is
-#    complete; each needs the same route-by-route check (known: signing_info writes the installation id, download_bundle audits)
-GET /api/v1/cases/{case_id}  # held for wave 3B (routers/cases.py)
-GET /api/v1/cases/{case_id}/items/{item_id}/file  # held for wave 3B (routers/cases.py)
-GET /api/v1/cases/{case_id}/bundles  # held for wave 3B (routers/cases.py)
-GET /api/v1/cases/{case_id}/bundles/{name}  # held for wave 3B (routers/cases.py); audits the download
-GET /api/v1/evidence/signing  # held for wave 3B (routers/cases.py); bundle.installation_id may write the setting
-GET /api/v1/catalog/images/{kind}/{obj_id}  # held for wave 3B (routers/catalog.py)
-GET /api/v1/sites  # held for wave 3B (routers/catalog.py)
-GET /api/v1/floors/{floor_id}  # held for wave 3B (routers/catalog.py)
-GET /api/v1/home-links  # held for wave 3B (routers/catalog.py)
+# -- routers/cases.py, reviewed route by route in the closing chain (wave 3B BE-1, CR-ROUTER-COMMON-TAIL-2442): the other three
+#    cases GET routes and the four of routers/catalog.py only read and moved to the read connection
+GET /api/v1/cases/{case_id}/bundles/{name}  # audit case.bundle.download (an audit row on success, as the group above)
+GET /api/v1/evidence/signing  # bundle.installation_id(conn, create=True) stores the installation id on the first call

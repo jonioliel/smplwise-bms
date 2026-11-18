@@ -19,7 +19,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import get_read_conn
@@ -238,7 +238,7 @@ def admit_and_record(act: base._Act, body: Any, before_record: Any = None) -> tu
     except ApiError as exc:
         raise act.refuse(exc) from None
     ctx = _context(act, body.template_id)
-    tpl, person, account = ctx["tpl"], ctx["person"], ctx["account"]
+    tpl, person = ctx["tpl"], ctx["person"]
     if tpl is None:
         raise act.refuse(ApiError(422, "template_not_found", "התבנית אינה קיימת ברשימת התבניות."))
     for b in ctx["blockers"]:

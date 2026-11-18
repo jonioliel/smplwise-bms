@@ -29,7 +29,7 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import database_of, get_setting, now_iso, read_mode, unlocked
+from ..db import database_of, now_iso, read_mode, unlocked
 from ..errors import ApiError
 from ..rbac import Principal, note_grant
 from . import ha_actions, ha_bridge, ha_client, media_model as mm, media_profiles as profiles, media_query, media_store as store

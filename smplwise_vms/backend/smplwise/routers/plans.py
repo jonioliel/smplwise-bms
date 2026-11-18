@@ -21,13 +21,10 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
 from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, safe_paths, wall_path
+from ._common import rid as _rid
 from .catalog import get_floor
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def asset_row(r: sqlite3.Row) -> dict[str, Any]:

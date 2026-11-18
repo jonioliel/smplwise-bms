@@ -94,6 +94,7 @@ class WaterReadings:
     def now(self) -> int:
         return int(self._now if self._now is not None else time.time())
 
+    # test-only: no product caller; the name is read only by tests: tests/energy_billing_world.py, tests/energy_fake.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def get_meter(self, meter_id: str) -> MeterInfo | None:
         r = wm.get(self.conn, meter_id)
         return MeterInfo(r["id"], r["display_name"], r["status"]) if r is not None else None
@@ -159,6 +160,7 @@ def provider_for(conn: sqlite3.Connection, settings: Any) -> WaterReadings:
     return WaterReadings(conn, wm.store_for(settings), now=_OVERRIDE.get("now"))
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_water_billing_s3.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_now(ts: float | None) -> None:
     """Tests: pin the provider's clock (the retention floor of the quarter-hour data)."""
     if ts is None:
@@ -518,6 +520,7 @@ def _totals(lines: list[dict[str, Any]]) -> dict[str, Any]:
             "price_mode_note_he": "המחיר נקבע כולל מע״מ" if any(ln["price_mode"] == "inc_vat" for ln in lines) else None}
 
 
+# test-only: no product caller; the name is read only by tests: tests/test_bill_ledger_lifecycle_b.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
     return bl.prev_bill(KIND, conn, aid, start)
 
@@ -844,10 +847,6 @@ def seal(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, *, actor: 
             clock=lambda: now_utc())
 
 
-def _check_version(row: sqlite3.Row, row_version: int | None) -> None:
-    bl.check_version(row, row_version)
-
-
 def mark_sent(conn: sqlite3.Connection, bid: str, at: str, how: str, note: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
     bl.mark_sent(KIND, conn, bid, at, how, note, actor, request_id, row_version)
 
@@ -867,14 +866,6 @@ def check_correctable(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
 # ====================================================================== automatic generation and retention (the shared keys)
 
 AutoOutcome = bl.AutoOutcome  # created / issued / failed / skipped of one pass (shared with electricity)
-
-
-def _due_periods(conn: sqlite3.Connection, acc: sqlite3.Row, now: dt.datetime, delay: dt.timedelta) -> list[per.Period]:
-    return bl.due_periods(KIND, conn, acc, now, delay, AUTO_MAX_PER_ACCOUNT)
-
-
-def _record_run(conn: sqlite3.Connection, acc_id: str, p: per.Period, status: str, bill_id: str | None, error: str | None, now: dt.datetime) -> None:
-    bl.record_run(KIND, conn, acc_id, p, status, bill_id, error, now, AUTO_RETRY)
 
 
 def auto_generate(db: Database, settings: Any, now: dt.datetime | None = None) -> AutoOutcome:

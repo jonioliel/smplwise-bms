@@ -114,11 +114,3 @@ def erase_preview(conn: sqlite3.Connection, settings: dict[str, Any], now: dt.da
         if ev is not None and model.parse_utc(erase_after_for(settings, _base_end(ev, settings, now)), "x") <= now:
             n += r["c"]
     return n
-
-
-def janitor_due(conn: sqlite3.Connection, now: dt.datetime) -> int:
-    """Erases every record whose `erase_after` has passed; returns the count. One transaction per entry is the caller's loop."""
-    total = 0
-    for (eid,) in conn.execute("SELECT DISTINCT event_id FROM cal_guest_details WHERE erased_at IS NULL AND erase_after <= ?", (model.iso(now),)).fetchall():
-        total += erase_event(conn, eid, model.iso(now))
-    return total

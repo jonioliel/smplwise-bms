@@ -361,6 +361,7 @@ def _refusal_budget() -> bool:
         return True
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_doorwin2_events.py, tests/test_f3a_doorwin_dw06_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_budget() -> None:
     with _REFUSALS_LOCK:
         _REFUSALS.clear()

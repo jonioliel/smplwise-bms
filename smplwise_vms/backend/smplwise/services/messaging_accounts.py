@@ -571,6 +571,7 @@ def _parse(value: str) -> dt.datetime:
     return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_f3c_tpl_295.py, tests/test_messaging_accounts.py (+7 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class MemorySendLedger:
     def __init__(self) -> None:
         self.rows: list[tuple[str, str, str, str, dt.datetime]] = []

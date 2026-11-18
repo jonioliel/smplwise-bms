@@ -319,6 +319,7 @@ def bulge_through(a: Point, m: Point, b: Point) -> float:
     return math.copysign(min(MAX_BULGE, mag), side)
 
 
+# test-only: no product caller; used by tests/test_wall_curves.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def bulge_for_radius(a: Point, b: Point, r: float, sign: float, major: bool = False) -> float | None:
     """The bulge of the arc of radius r (pixels) from a to b on the side of `sign`; None when r is shorter than half
     the chord. The minor arc unless `major`."""
@@ -381,6 +382,7 @@ def _fillet_corner(a: Point, v: Point, b: Point, b_in: float, b_out: float, r: f
 
 # ---------------------------------------------------------------- areas and edges
 
+# test-only: no product caller; used by tests/test_wall_curve_points.py, tests/test_wall_curves.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def ring_area(pts: Sequence[Point], bulges: Sequence[float]) -> float:
     """The signed area (pixels squared) enclosed by a closed path (last point == first): the corner polygon by the
     shoelace plus each arc's circular segment. Positive when the path runs with increasing angle in the stored
@@ -428,6 +430,7 @@ def offset_polyline(pts: Sequence[Point], d: float, miter_limit: float = 4.0) ->
     return out
 
 
+# test-only: no product caller; used by tests/test_wall_curves.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def wall_faces(wall: Mapping[str, Any], width: float, height: float, thickness_px: float, tol: float = TOL_PX) -> tuple[list[Point], list[Point]]:
     """The wall's two faces in pixels (left, right of travel), from its sampled path."""
     pts, bulges = wall_px(wall, width, height)

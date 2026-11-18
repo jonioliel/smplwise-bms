@@ -142,6 +142,7 @@ class OwnerPin:
             raise ValueError("invalid owner pin")
 
 
+# test-only: no product caller; used by tests/test_peerquery_295.py, tests/test_wkpeer_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def encode_pin(pin: OwnerPin) -> str:
     return json.dumps({f: getattr(pin, f) for f in PIN_FIELDS}, sort_keys=True, separators=(",", ":"))
 

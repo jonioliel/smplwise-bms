@@ -21,7 +21,6 @@ services/notify_visibility's decision, not this module's.
 from __future__ import annotations
 
 import datetime as dt
-import json
 import logging
 import sqlite3
 from dataclasses import dataclass

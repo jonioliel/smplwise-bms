@@ -57,6 +57,7 @@ def _known() -> tuple[dict[str, Any], ...]:
     return tuple(r for r in rows if isinstance(r, dict)) if isinstance(rows, list) else ()
 
 
+# test-only: no product caller; used by tests/test_wiskey_native_bundle_2272.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def known_trees() -> list[dict[str, Any]]:
     return [dict(r) for r in _known()]
 

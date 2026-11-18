@@ -153,6 +153,7 @@ def sensitive_class_of(action: str, entity_class: str | None = None) -> str | No
     return entity_class if entity_class in ("alarm", "lock", "siren") else None
 
 
+# test-only: no product caller; used by tests/test_automation_policy.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def grant_of(action: str, entity_class: str | None = None) -> str | None:
     cls = sensitive_class_of(action, entity_class)
     return GRANT_OF_CLASS[cls] if cls else None

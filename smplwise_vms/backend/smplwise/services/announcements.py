@@ -33,7 +33,7 @@ from typing import Any
 
 from ..audit import audit
 from ..config import Settings
-from ..db import get_setting, new_id, now_iso, set_setting, unlocked
+from ..db import get_setting, new_id, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from . import announce_screens as screens

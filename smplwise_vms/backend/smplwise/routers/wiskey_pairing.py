@@ -26,13 +26,10 @@ from ..db import database_of, get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require, require_system_admin
 from ..services import wiskey_pairing as wp
+from ._common import rid as _rid
 
 router = APIRouter()
 CONFIGURE = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.get("/system/wiskey-pairing")

@@ -46,7 +46,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...errors import ApiError
-from ...rbac import INSTALLATION, authorize, require
+from ...rbac import INSTALLATION, authorize
 from . import access, codes as codes_mod, handler_links, settings_doc, store_links
 from .access import Viewer, text
 from .keyring import KEYS

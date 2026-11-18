@@ -32,7 +32,8 @@ from typing import Any, Callable, Iterable, Mapping
 from . import automation_policy as pol
 from . import building_presence_blocks as bpb
 from . import wall_buttons as wb
-from .automation_policy import MASK, has_mask, has_template, first_template, is_entity_id, is_number, mask_secrets, secret_kind
+from .automation_policy import MASK  # noqa: F401 - re-export: tests read it as this module's attribute (tests/test_automations_mirror.py)
+from .automation_policy import has_mask, has_template, first_template, is_entity_id, is_number, mask_secrets, secret_kind
 from .automation_text import (  # noqa: F401  (re-exported for the callers)
     ModelContext, action_sentence, automation_sentence, block_sentence, condition_sentence, draft_sentence, duration_text, join_names, locked_label,
     scene_sentence, script_sentence, trigger_sentence,
@@ -96,6 +97,7 @@ def revision_of(config: Any) -> str:
     return fingerprint_of(config)
 
 
+# test-only: no product caller; used by tests/test_automation_model.py, tests/test_automations_draft.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def dumps_exact(v: Any) -> str:
     """The text of a config in key order and with non-ASCII kept: what the byte-for-byte invariant compares."""
     return json.dumps(v, ensure_ascii=False)
@@ -1110,6 +1112,7 @@ def block_at_path(draft: Mapping[str, Any], path: str) -> Block | None:
     return best.block if best else None
 
 
+# test-only: no product caller; used by tests/test_automation_model.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def find_block(draft: Mapping[str, Any], uid: str) -> Block | None:
     return next((w.block for w in walk_draft(draft) if w.block.get("uid") == uid), None)
 
@@ -1135,6 +1138,7 @@ def changed_locked_blocks(draft: Mapping[str, Any], stored: Mapping[str, Any] | 
     return [b for b in locked_blocks(draft) if true_fingerprint(b) not in known]
 
 
+# test-only: no product caller; used by tests/test_automation_model.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def save_profile(draft: Mapping[str, Any], stored: Mapping[str, Any] | None) -> str:
     """The write profile derived from the CONTENT (CR section 4.5): every locked block is one of the stored item's -> `builder` (delegation applies);
     else `code` (HA administrator)."""
@@ -1203,6 +1207,7 @@ def locked_count(draft: Mapping[str, Any]) -> int:
     return len(locked_blocks(draft))
 
 
+# test-only: no product caller; used by tests/test_automation_model.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def steps_of_draft(draft: Mapping[str, Any]) -> int:
     """The number of action steps of a draft, nested ones included (the cap of section 2.2 is 60)."""
     return sum(1 for w in walk_draft(draft) if w.section == "action")
@@ -1247,6 +1252,7 @@ def controls_schedules(b: Block) -> bool:
     return isinstance(svc, str) and svc.startswith("scheduler.")
 
 
+# test-only: no product caller; used by tests/test_automation_model.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def block_is_sensitive(b: Block, class_of: Callable[[str], str | None] | None = None) -> bool:
     if b.get("kind") == "locked":
         return bool(b.get("sensitive"))
@@ -1299,6 +1305,7 @@ def unmask_draft(draft: Mapping[str, Any], stored: Mapping[str, Any] | None) -> 
     return out
 
 
+# test-only: no product caller; used by tests/test_automation_model.py, tests/test_automations_draft.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def config_has_mask(config: Any) -> bool:
     """A mask inside a config that is about to be written (it was never unmasked): never written."""
     return has_mask(config)
@@ -1505,6 +1512,7 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
     return out
 
 
+# test-only: no product caller; used by tests/test_automation_model.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def issues_by_uid(draft: Mapping[str, Any], issues: Iterable[Mapping[str, str]]) -> dict[str, list[Mapping[str, str]]]:
     out: dict[str, list[Mapping[str, str]]] = {}
     for i in issues:

@@ -1174,6 +1174,7 @@ class IntercomSync:
         if self.journal is not None and started_wall is not None:
             self.journal.readback(target, started_wall, memory)
 
+    # test-only: no product caller; used by tests/test_intercom.py, tests/test_wiskey_round3.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def late_results(self) -> list[dict[str, Any]]:
         """The late answers of writes this side stopped waiting for (newest last): key, lane, target, outcome, code, at."""
         with self._unsettled_lock:
@@ -1522,6 +1523,7 @@ class IntercomSync:
             cached = self._cache
         return list((cached or {}).get("stations", []))
 
+    # test-only: no product caller; used by tests/test_intercom.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def tts_status(self, station_id: str) -> dict[str, Any] | None:
         return self._tts_status.get(station_id)
 

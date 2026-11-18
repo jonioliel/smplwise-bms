@@ -208,6 +208,7 @@ def config_set_body(plan: dict[str, Any]) -> dict[str, Any]:
     return {"requires_restart": 1, "config_data": {"go2rtc": {"streams": adds}}}
 
 
+# test-only: no product caller; used by tests/test_frigate_perm_restream.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def rollback_body(streams: list[str]) -> dict[str, Any]:
     """Removes exactly the named streams again (an empty string deletes a key, FRIGLIVE-295). Only for names this plan added."""
     if not streams or any(not frs.STREAM_NAME.fullmatch(s) for s in streams):

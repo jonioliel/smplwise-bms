@@ -105,6 +105,7 @@ def _child_extra() -> dict[str, str]:
     return extra
 
 
+# test-only: no product caller; used by tests/test_bill_pdf.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def _child_env() -> dict[str, str]:
     """The scrubbed environment of the render child (what the Popen calls below pass as env=minimal_env(_child_extra()))."""
     return minimal_env(_child_extra())

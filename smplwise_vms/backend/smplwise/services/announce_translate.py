@@ -69,6 +69,7 @@ class Translator(Protocol):
     def translate(self, text: str, source: str, target: str) -> str: ...
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_announce_translate_297.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class FakeTranslator:
     """Deterministic and offline (tests, demos): `[ar] <text>`. Records every call so a test can prove the cache worked."""
 

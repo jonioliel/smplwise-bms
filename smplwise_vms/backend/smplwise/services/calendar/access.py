@@ -86,14 +86,6 @@ def get_visible(ctx: Ctx, cid: str, *, include_archived: bool = False) -> sqlite
     return row
 
 
-def need_role(ctx: Ctx, cal: sqlite3.Row, minimum: str, perm: str | None = None) -> str:
-    """Raises the audited-by-caller 403 when the effective role is below `minimum` (the caller audits via `deny`)."""
-    role = ctx.role_in(cal)
-    if role is None or model.ROLE_RANK[role] < model.ROLE_RANK[minimum] or (perm and not ctx.has(perm, scope_of(cal))):
-        raise Denied(perm or "calendar.role", cal["id"], minimum)
-    return role
-
-
 class Denied(Exception):
     def __init__(self, permission: str, resource_id: str, need: str = "") -> None:
         super().__init__(permission)

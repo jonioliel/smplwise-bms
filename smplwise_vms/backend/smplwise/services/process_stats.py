@@ -77,6 +77,7 @@ def snapshot(db_path: Path, clock: Callable[[], float] = time.monotonic) -> dict
     return value
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_health_process_stats.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_cache() -> None:
     with _lock:
         _cache.update(at=None, key=None, value=None)

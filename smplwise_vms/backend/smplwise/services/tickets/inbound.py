@@ -278,6 +278,7 @@ class TicketAccountFilter:
         return len(keys)
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_tickets_msg_inbound.py, tests/test_tickets_msg_logscan.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class MemoryDedupe:
     def __init__(self) -> None:
         self._at: dict[str, dt.datetime] = {}

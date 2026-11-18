@@ -22,7 +22,6 @@ import datetime as dt
 import json
 from typing import Any, Mapping
 
-from ...audit import audit
 from ...errors import ApiError
 from . import access, model, money, quotes, rfq, store, store_links, store_quotes, store_rfq
 from .access import Viewer, text
@@ -404,10 +403,9 @@ def refresh_order_lines(desc: str, lines: list[str]) -> str:
 
 
 def resend(conn, viewer: Viewer, seen: rfq.RfqSeen, ctx: Mapping[str, Any], now: dt.datetime, rid: str | None, *, change: str,
-           token: str, old_lines: list[str] | None = None) -> str | None:
+           token: str) -> str | None:
     """RFQPAY2 (contract 20.15): the manager ticked "send the updated work order" on a date change. The request's description gets the
-    updated order lines (the work window and the terms lines, matched by their label - `refresh_order_lines`; never an amount;
-    `old_lines` is accepted and unused since TKGATEFIX8),
+    updated order lines (the work window and the terms lines, matched by their label - `refresh_order_lines`; never an amount),
     then the SAME `rfq_order` message is queued again with the current window (idempotency `rfqorder:<award>:<generation>:re<token>` -
     one per change). Timeline `order_resent` (RFQ) / `rfq_order_resent` (the request), audit `ticket.rfq.order_resend`."""
     from . import rfq_terms

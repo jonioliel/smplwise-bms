@@ -33,7 +33,6 @@ from ..services import notify_email as email_svc
 from ..services import notify_policy as policies
 from ..services import notify_settings as nsettings
 from ..services import push as push_svc
-from ..services import user_events
 from ..services.notify_visibility import MANAGE, Reach
 from ..services.timeutil import iso_utc, parse_utc
 from ._common import rid as _rid

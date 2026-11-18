@@ -26,7 +26,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Sequence
 from zoneinfo import ZoneInfo
 
-from ..db import has_table, new_id, now_iso
+from ..db import has_table, new_id
 from ..errors import ApiError, conflict
 from . import energy_store as st
 from .timeutil import iso_from_epoch_or_none, parse_utc

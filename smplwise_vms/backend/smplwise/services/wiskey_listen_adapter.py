@@ -212,7 +212,7 @@ class ReceiveDownlink(_Downlink):
                     self._offer(frame)
         except asyncio.CancelledError:
             raise
-        except Exception as exc:  # noqa: BLE001 - the text of an upstream error is never kept
+        except Exception:  # noqa: BLE001 - the text of an upstream error is never kept
             self._end("upstream_closed")
 
     async def close(self, reason: str) -> None:

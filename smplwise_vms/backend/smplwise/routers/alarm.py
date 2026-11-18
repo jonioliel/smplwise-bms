@@ -218,6 +218,8 @@ class BypassBody(BaseModel):
 
 
 def _check_control(conn: sqlite3.Connection, principal: Principal) -> None:
+    """The permission before the body: a caller holding neither alarm.arm nor alarm.disarm anywhere gets the audited
+    403 before anything they sent is read."""
     if not set(permissions_anywhere(conn, principal)) & {ARM, DISARM}:
         require(conn, principal, ARM, INSTALLATION)
 
@@ -225,18 +227,6 @@ def _check_control(conn: sqlite3.Connection, principal: Principal) -> None:
 def _check_bypass(conn: sqlite3.Connection, principal: Principal) -> None:
     if BYPASS not in set(permissions_anywhere(conn, principal)):
         require(conn, principal, BYPASS, INSTALLATION)
-
-
-def _control_holder(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """The permission before the body: a caller holding neither alarm.arm nor alarm.disarm anywhere gets the audited
-    403 before anything they sent is read."""
-    _check_control(conn, principal)
-    return principal
-
-
-def _bypass_holder(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    _check_bypass(conn, principal)
-    return principal
 
 
 # review L7: the raw-body routes check the permission on a READ connection, read the body, and only then open the write one
@@ -633,13 +623,8 @@ def me(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Conne
     return {"arm_policy": pol["arm_policy"], "disarm_policy": pol["disarm_policy"], "pin_set": pol["pin_set"], "pin_set_at": pol["pin_set_at"], "code_mode": cfg["code_mode"]}
 
 
-def _alarm_actor(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """A caller who may use a code at all: alarm.arm, alarm.disarm or alarm.bypass anywhere (review L7)."""
-    _check_actor(conn, principal)
-    return principal
-
-
 def _check_actor(conn: sqlite3.Connection, principal: Principal) -> None:
+    """A caller who may use a code at all: alarm.arm, alarm.disarm or alarm.bypass anywhere (review L7)."""
     if not set(permissions_anywhere(conn, principal)) & {ARM, DISARM, BYPASS}:
         require(conn, principal, ARM, INSTALLATION)
 

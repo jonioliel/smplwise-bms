@@ -48,6 +48,7 @@ _ocr_reader: ports.OcrReader = ports.NullOcrReader()
 MODEL: ports.ModelExtractor = ports.NullModelExtractor()  # tier 3 seam: never called in this slice
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_docread_297.py, tests/test_docread_f4_297.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_text_reader(reader: ports.TextLayerReader | None) -> None:
     """Tests inject a fake reader; None restores the default (pdftotext from PATH)."""
     global _text_reader_override
@@ -58,7 +59,7 @@ def text_reader() -> ports.TextLayerReader:
     return _text_reader_override if _text_reader_override is not None else PdftotextReader()
 
 
-# Built ahead, no caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for CR-OCR119 tier 2 (the OCR reader slice,
+# built ahead for CR-OCR119 (no caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14) tier 2 (the OCR reader slice,
 # docs/changes/CR-SUPPLIERDOCS-297.md q53), which installs its reader here.
 def set_ocr_reader(reader: ports.OcrReader | None) -> None:
     """The OCR extension point (tier 2, a later slice): None restores the null reader."""

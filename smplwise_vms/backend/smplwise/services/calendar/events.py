@@ -72,7 +72,6 @@ def _times(body: dict[str, Any], tz: str, all_day: bool) -> tuple[dt.datetime, d
 
 
 def draft_from(ctx: Ctx, settings: dict[str, Any], body: dict[str, Any], cal: sqlite3.Row, role: str, *, require_kind: bool = True) -> Draft:
-    conn = ctx.conn
     kind = body.get("kind", "booking")
     if kind not in model.KINDS_USER:
         raise model.Invalid("kind: booking or event", "kind")

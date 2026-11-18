@@ -25,9 +25,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import logging
-import os
 import queue
-import re
 import sqlite3
 import threading
 import time

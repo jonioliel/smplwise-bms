@@ -39,6 +39,7 @@ def UNAVAILABLE(snapshot: dict[str, Any], **_kw: Any) -> bytes:  # noqa: N802 - 
     raise PdfUnavailable()
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_energy_bill_opening_reading.py, tests/test_energy_bill_pdf_diagnostics.py (+11 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_renderer(fn: Renderer | None) -> None:
     """A test renderer; None returns to the real one (services/bill_pdf)."""
     global _RENDERER

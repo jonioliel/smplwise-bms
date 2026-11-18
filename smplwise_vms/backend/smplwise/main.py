@@ -246,7 +246,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         from .services import exports as ex
         from .services import playback as pb
-        from .services import playback_groups as pg
         from .services.settings_store import setting_value  # CR-JANITOR-REGISTRY-2438 (05:P1-03): the zone is one key, not 261
 
         def _instance() -> str:
@@ -338,7 +337,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # earlier process holds the next write to that person until a fresh readback) - installed before the feed can send anything
         intercom_sync.SYNC.journal = intercom_write_journal.WriteJournal(app.state.db)
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
-        from .services import wiskey_direct_join
 
         # WKINT-295: WisKey's direct API behind the people-write / capture / template ports - installed ONLY when the installation chose
         # `access.station_media_provider = auto` AND the pairing key signs (else nothing at all: no lineage, no transport, no thread);

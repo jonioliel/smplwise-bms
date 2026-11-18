@@ -117,6 +117,7 @@ def status_rate(user_id: str) -> None:
         _STATUS_HITS[user_id] = hits
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_bridge_key_pause_295.py, tests/test_bridge_keyrot_harness_doors_295.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_status_rate() -> None:
     with _STATUS_LOCK:
         _STATUS_HITS.clear()
