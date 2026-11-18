@@ -176,3 +176,139 @@ scripts synced and ruff on the runner (handoff note).
 
 The train is a branch; `main` is untouched. Dropping a branch from the train = rebuilding the train without its merge (the 2.43.6
 precedent, `release/2436-train-r2`); the rerere records of section 2 replay the resolutions.
+
+
+---
+
+# Part 2 (18.11 evening) - the remaining branches, owner acceleration (c)
+
+Owner decision 18.11 08:35 (handoff `READ_FIRST_2026-11-16-PM.md`, "acceleration a+b+c"): every remaining branch merges into this
+train **without waiting for its own entry verdict**; then ONE release gate on the train, fixed forward with targeted re-runs. Every
+SHA below was the branch's `origin` head at merge time (`git fetch` just before). The entry verdicts read on the runner
+(`~/smplwise-results/entry_pilot-<branch>_<sha9>.md`) at merge time are listed for information only.
+
+## 9. Merges (`--no-ff`, in this order)
+
+| # | Branch | SHA merged | Entry verdict (information) | Merge commit | Conflicts |
+|---|---|---|---|---|---|
+| 10 | `pilot/CR-W2-FOLLOWUPS-2441` - wave-2 backend follow-ups (contains W3-BE, already here) | c193fab64 | GREEN | 8f90151d3 | none |
+| 11 | `pilot/CR-LOCAL-USER-CREATE-2438` - Arx user create sends, admin-set password (contains CR-LOCAL-ID-SWITCH-2442 f817bf7ae, not merged separately) | e26f001ec | RED: 2 x `evidence-tickets-drawer` :40 / :87 [mobile] (fixed by merge 18) | 7f593b53e | 2 files (below) |
+| 12 | `pilot/CR-MODAL-STACK-B-2442` - the hand-built dialogs join the modal stack | e99a8cba0 | GREEN | 69a198901 | 2 files (below) |
+| 13 | `pilot/CR-I18N-COMBINED-C-2442` - durations / units, typed confirmation words (contains COMBINED-B) | 590f53d85 | still running at merge time | 317a63fcc | 9 files (below) |
+| 14 | `pilot/DOMUS-DEFAULT-2439` - Domus the default skin, the strengthened selected chip | 2771a0b90 | RED: 1 x `evidence-media-queue:425` [desktop] (fixed by merge 18) | 69079a5cd | 9 text files + 16 baselines (below) |
+| 15 | `pilot/FIX-CAMVF-FLAKE-2443` - the viewfinder shot goes to review at once | b2b57e734 | GREEN | 93a45f2cb | none |
+| 16 | `pilot/CR-UI-POLISH-2443` - "my screen" first read (data-loss fix), plan-view card translated | 6ee4fa70a | not queued (by instruction) | fe078d867 | 1 file (below) |
+| 17 | `pilot/CR-COLOR-LITERALS-2443` - 8 colour literals to tokens, ratchet 2520 -> 2500 | b5e294ee1 | not queued | 1adb0b646 | none |
+| 18 | `pilot/FIX-2438-REDS` - fixes for the RED entries of 11 and 14 (lead instruction, added after 17) | f002e41eb | not queued | 5bcea468d | none (`media-ma-connection.ts` unchanged on the train since aa20f05ae) |
+
+## 10. Conflicts and resolutions (part 2)
+
+### Merge 11 (`7f593b53e`)
+- `smplwise/services/local_identity.py` `_Cache`: the train (W3-BE, code review P2-4) moved the cache onto the shared
+  `services/session_cache.py`, whose **ended keys** (`ENDED_KEEP_S` = 300 s, refused by `put`) already close the exact race the
+  branch's second commit fixed with its own `DROP_HOLD_S` (30 s) / `_dropped`. Kept the shared cache; the branch's copy (constant,
+  `put` override, `drop_chains` bookkeeping) dropped. `tests/test_local_session_cache_race_2438.py`: the three race cases are
+  unchanged and pass on the shared cache; the "hold ends" case now ends the hold through `session_cache.ENDED_KEEP_S` (test-only
+  adaptation, stated in the file). `app_session.py` (the branch note: "same cache shape - not checked") uses the same shared cache
+  on the train, so it has the rule too.
+- `frontend/src/i18n/local-identity.ts` (English table): the train's translated keys kept; the branch's new `off` text and its switch
+  keys (`offNotAdmin`, `onState`, `switchOn` / `switchOff`, their bodies, `switchedOn` / `switchedOff`) in place of the old `off`.
+  No duplicate key in the table (checked).
+
+### Merge 12 (`69a198901`)
+Only the branch's own two commits arrive (MODAL-STACK and DIALOG-DRAWER-ONE are already here); `components/modal-stack.ts`
+auto-merged beside the train's `focusWithin` (c7b5cca05).
+- `home/sw-home-call.ts`: imports - both (`tr`, `HandModal`).
+- `screens/devices-building.ts` `updated()`: both bodies - W3-FE's `warmHomePanels` block and its three fields, then the branch's
+  `treeLayer` field and `syncLayer(...)`.
+
+### Merge 13 (`317a63fcc`)
+- `api/automations.ts`, `events.ts`, `notifications.ts`: imports - both. `api/cases.ts`, `rules.ts`: the train's client import (W3-FE
+  `path` / `query` tags) plus the `tr` / `trTime` imports.
+- `api/plan-view.ts`: the train's labels (round-32 keys, polished Calacatta, travertine) wrapped in `tr()` - replaced by merge 16.
+- `routers/capture_lease.py`: imports - both (`_common.rid`, `services.confirm_words`).
+- `routers/wiskey_lineage.py`: the train's `require_system_admin` import (W2-FOLLOWUPS) plus `services.confirm_words`.
+- `routers/settings.py` (3 hunks): the train's layout (W3-BE split the PATCH into `routers/settings_patch/`); the router is
+  byte-identical to the train's. The branch's changes were ported into the split, not pasted back: `settings_patch/identity.py`
+  takes `ALLOW_DISARM_WORD` / `LOCAL_PURGE_WORD` from `confirm_words.he(...)` (the router still re-exports them), both checks accept
+  the typed word through `confirm_words.typed_lang(...)`, and both audit rows carry `confirm_word`; the disarm word reaches its
+  after-store audit row through a new `Patch.disarm_word` field (`settings_patch/__init__.py`).
+
+### Merge 14 (`69079a5cd`)
+- `design/skins/domus.ts` "domus 9": **the train's rule kept** (DIALOG-DRAWER-ONE, owner round 33 Q-DES-8A / 8B: one opaque dialog
+  and drawer, no blur; the skin adds only the lit top edge). The branch's version put the glass sheen, the sheet blur and
+  `--sw-r-xl` back on the dialog. Its reason - inside a device screen the layer must keep the palette's own solid surface, or a dark
+  palette draws light text on a light sheet - is already met on the train: `sw-dialog` / `sw-drawer` paint `var(--sw-menu-surface)`,
+  which `styles/devices-themes.ts` points at `--dv-surface-solid` on a device screen. (`--dv-sheet-sheen`, set by the branch, is
+  now read by nothing; harmless.)
+- `docs/design/system/DESIGN.md`: one question left OPEN (§13.3); §13.1 (dialog / drawer, train), §13.2 (selected chip, branch)
+  and the default skin are decided.
+- `smplwise/main.py`: the train's single `startup_steps.after_migrate(...)` call (CR-MAIN-ROUTERS-TABLE-2440). The branch's one-time
+  `skin_switch.run_once` step is `startup_steps.move_classic_skin_once`, second in `AFTER_MIGRATE` (right after
+  `keep_home_interface_defaults`, its place in the old inline order), guarded exactly as before; `tests/test_routers_table_2440.py`
+  lists it.
+- `screens/automation-drawer.ts`, `infra-temperature.ts`, `mapping-assistant.ts`, `schedule-create-dialog.ts`,
+  `system-automations.ts`: imports - both (`tr` / `LongListsController` / `OneAtATime` and the branch's `chip-selected`).
+- `screens/multimedia-screens.ts`: the train's imports (W3-FE moved `applyMultimediaKinds` and `Phase` to `multimedia-base`) plus
+  `chip-selected`.
+- `screens/devices-building.ts` `disconnectedCallback`: both (`removeLayer` of merge 12, the branch's fit-observer teardown).
+- 16 baselines both sides re-took (`audit30-f-calendars` x2, `evidence-replay-3d` x10, `pixel-plan-wizard-2433` x2,
+  `pixel-plan-wizard-2434` x2): the branch's (Domus) file to finish the merge, then refreshed on the runner (section 12).
+
+### Merge 16 (`fe078d867`)
+- `api/plan-view.ts`: the branch's version (its own table `i18n/msg/api-plan-view.ts`). Per its merge hint vs I18N-COMBINED-C: the 39
+  plan-view keys dropped from `i18n/msg/api-home.ts`, and `msg/api-plan-view` added to `TABLES` in
+  `tests/unit-i18n-api-2442.spec.ts`.
+
+The design-debt ratchet after all merges (`scripts/design_ratchet.py`): every metric at or below its baseline; `color-literal`
+2500 = baseline 2500 (merge 17 lowered it; the domus.ts resolution keeps the branch's glass rule out).
+
+## 11. Train commits after the merges (part 2)
+
+| Commit | What |
+|---|---|
+| 18e0ebdb6 | test(pixel): the 16 baselines of merge 14 refreshed on the runner (section 12) |
+| b69abad89 | fix(merge): `tests/test_confirm_words_2442.py` lists `routers/settings_patch/identity.py` (not `routers/settings.py`) among the callers of `confirm_words.typed_lang()` - the consequence of the merge-13 port |
+| 21e4ef10d | release: 2.43.8 - version (config.yaml, Dockerfile label, `__init__.py`), bilingual changelog, API inventory (1909 routes, header only) |
+| (next) | release: 2.43.8 - rebuilt UI (`npm run build:addon` on the runner at 21e4ef10d) + this section |
+
+No migration (0216 stays the last). Bridge stays **0.10.7**: the wave-3 bridge refactors (CR-BRIDGE-COMMON-2440, CR-BRIDGE-GAPS-2438)
+change the integration's files without a version bump, so an installed 0.10.7 keeps its old files (behaviour-compatible; the add-on
+does not depend on them). The bump (manifest, `const.py`, card `VERSION`, the test pins) and the Home Assistant restart it needs are
+an open item for the lead / owner (section 14).
+
+### Built UI
+`npm run build:addon` on the runner (`~/work/build_ui2438.sh`, the 2.43.7 script with the names changed; worktree
+`~/work/rel-build2438` at 21e4ef10d, node_modules linked, nice 10, no tests lock): DONE rc=0. The build's own
+`scripts/sourcemaps-archive.mjs` (CR-BUILD-GUARDS-2438) moved 319 `.map` files to `~/smplwise-results/sourcemaps/2.43.8/` and removed
+319 `sourceMappingURL` comments - no hand stripping. Tarball `/tmp/ui2438.tgz` sha256 `8f7c86eb...b64d7e77832`, checked after the copy;
+`smplwise_vms/www` and `www-public` replaced from it: 0 `.map` files, 0 `sourceMappingURL` comments.
+
+## 12. Receipts (part 2)
+
+Workstation: Python 3.12 (main checkout `.venv`), Node 24.21.0, `frontend/node_modules` junction to the main checkout.
+
+| Check | At | Result |
+|---|---|---|
+| backend `test_local_session_cache_race_2438`, `test_local_user_create_2438`, `test_local_identity` (`-p no:xdist`) | merge-11 tree | 56 passed, 0 failed |
+| `npx tsc --noEmit` | 1adb0b646 (merges 10-17) | exit 0 |
+| backend, the 28 test files the merges changed + 14 around the conflicts (`test_build_guards_2438`, five `test_capture_lease_*`, `test_gate_always_run`, `test_setting_value_parity`, `test_settings_patch_audit_order`, `test_authrevoke_2435`, `test_router_common_helpers`, `test_t06_admission_295`, `test_async_routes_no_inline_db`, `test_wiskey_live_validation_2390`), `-x` | 1adb0b646 | stopped at the first failure: `test_confirm_words_2442::test_every_check_of_a_typed_word_goes_through_the_table` (fixed in b69abad89) |
+| the same 42 files without `-x` | b69abad89 | see the release report (running when this section was written) |
+| Playwright unit config, every `tests/unit-*.spec.ts`, `--workers=1` | 1adb0b646 | see the release report (running when this section was written) |
+| `scripts/design_ratchet.py` | 1adb0b646 | every metric at or below the baseline; `color-literal` 2500 / 2500 |
+| runner `run_smart.py preview` `audit30-f-calendars`, `evidence-replay-3d`, `pixel-plan-wizard-2433`, `-2434`, `-u --workers=1`, all projects | 5bcea468d | 82 passed, 35 skipped (per-project); the 16 conflict baselines rewritten, nothing else |
+| `scripts/api_inventory.py` | 21e4ef10d | 1909 routes (header only) |
+| `scripts/release_check.py` | 21e4ef10d | one version 2.43.8; bridge 0.10.7 consistent; only `[FAIL] git tag v2.43.8 not yet`; RESULT: ready |
+
+## 13. NOT_RUN (part 2)
+
+- Locally: the browser projects of the evidence / pixel / layout specs, the full backend suite - the runner's release gate covers them.
+- The entry checks of merges 16, 17, 18 (not queued, by instruction); the I18N-COMBINED-C entry was still running at merge time.
+- Pixels beyond the 16 conflict files: not refreshed. DOMUS-DEFAULT re-took its own baselines on its branch; screens that the
+  train changed under classic AND that open the default skin may differ in the gate (fix forward with a targeted re-run).
+- Lab: nothing installed. No tag, no push of `main`, `#addon` untouched.
+
+## 14. Open items for the lead (part 2)
+
+- Bridge version bump for the wave-3 bridge refactors (section 11): recommended in 2.43.9 with one Home Assistant restart.
+- `--dv-sheet-sheen` (DOMUS) is now unused on the train (section 10, merge 14) - a cleanup row.
