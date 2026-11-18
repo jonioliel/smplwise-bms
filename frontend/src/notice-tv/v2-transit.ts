@@ -35,7 +35,8 @@ function badge(line: string): string {
   return '<span class="b2ln' + (badgeWide(line) ? ' w4' : '') + '">' + esc(line) + '</span>';
 }
 
-/** The time of one arrival: "now" (gold), minutes + "min", or the clock time (over the clock threshold, and always for cached data). */
+/** The time of one arrival: "now" (gold), minutes + "min", or the clock time (over the clock threshold, and always for cached data).
+ * Exported for tests/unit-notice-tv-escape-2443.spec.ts (hostile strings; CR-FE-SMALL-2440 merge fix). */
 export function v2Eta(it: Pick<TransitItem, 'at' | 'hm' | 'quality'>, d: TransitDigest, c: V2TransitCtx): string {
   const e = etaOf(it.at, it.hm, d, c.nowMs);
   const main = e.kind === 'now' ? '<b class="now">' + esc(ts(c.lang, 'now')) + '</b>' : e.kind === 'min' ? '<b class="num">' + esc(e.text) + '</b><small>' + esc(ts(c.lang, 'min')) + '</small>' : '<b class="cl num">' + esc(e.text) + '</b>';
