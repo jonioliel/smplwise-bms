@@ -203,6 +203,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-map-glow': lt('#ffd166', '#ffc857'),
       '--sw-map-sky': lt('#dbe7f8', '#0b1a33'),
       '--sw-map-sky-horizon': lt('#f5f8fc', '#1a2b47'),
+      // CR-COLOR-LITERALS-2443: the spread (stack) view's locked backdrops of sw-plan-3d (map/room-pill-view.ts) - the night sky and the day
+      // sky WHATEVER the theme (round 28 Q7 b, round 32 Q-MAP-7), so each carries one value for both schemes and no skin overrides them.
+      '--sw-map-stack-night': same('linear-gradient(180deg, #060b18 0%, #152442 100%)'),
+      '--sw-map-stack-day': same('linear-gradient(180deg, #dfe8f4 0%, #f3f6fa 100%)'),
       '--sw-map-wall-3d': lt('#d7dde6', '#2b3547'),
       '--sw-map-lit': lt('#ffc857', '#ffb547'),
       '--sw-map-presence': lt('#2767ed', '#6ea2ff'),
@@ -304,6 +308,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-glass-blur-nav': same('none'), // rail, bottom bar, corner pill
       '--sw-glass-blur-sheet': same('none'), // dialog, drawer, popover
       '--sw-glass-sheen': same('linear-gradient(transparent, transparent)'), // light catching the top of a glass panel
+      // CR-COLOR-LITERALS-2443: the fully opaque mask image of a reveal (the sheet-rise / drawer-in keyframes of sw-dialog and sw-drawer
+      // animate its mask-size). A mask reads only the alpha, so the value is the same in every skin and scheme; no skin overrides it.
+      '--sw-mask-solid': same('linear-gradient(#000, #000)'),
     },
   },
   {

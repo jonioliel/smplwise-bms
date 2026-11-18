@@ -169,13 +169,13 @@ export class SwDialog extends LitElement {
        the resting sheet carries no mask (a mask would cut its shadow). */
     @keyframes sheet-rise {
       from {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: bottom;
         mask-size: 100% 0%;
       }
       to {
-        mask-image: linear-gradient(#000, #000);
+        mask-image: var(--sw-mask-solid);
         mask-repeat: no-repeat;
         mask-position: bottom;
         mask-size: 100% 100%;
