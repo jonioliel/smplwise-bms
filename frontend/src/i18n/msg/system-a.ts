@@ -639,6 +639,20 @@ export const tr = msgCatalogue('msg/system-a', {
   'רק בדפדפן הזה; "כמו המערכת" מבטל': 'In this browser only; "Same as the system" cancels it',
   'כמו המערכת': 'Same as the system',
   'שמור': 'Save',
+  // system-diagnostics.ts: the site-location rows only (CR-HA-WORDING-2443; the rest of the screen is not translated yet).
+  // A settings screen, so "Home Assistant" stays where the Hebrew says it (Q-DES-10). The label's English is the one the
+  // 3D map card's hint points at (CR-UI-POLISH-2443).
+  'מיקום האתר לשמש בתלת־ממד': 'Site location for the sun in 3D',
+  'מיקום הבית בהגדרות Home Assistant: {lat}, {lon}': 'The home\'s location in the Home Assistant settings: {lat}, {lon}',
+  'מיקום הבית עדיין לא נקרא מ־Home Assistant; עד אז השמש מחושבת למרכז הארץ':
+    'The home\'s location has not been read from Home Assistant yet; until then the sun is worked out for the centre of the country',
+  'לפי מיקום הבית (ברירת מחדל)': 'By the home\'s location (default)',
+  'ידני': 'Manual',
+  'מיקום ידני': 'Manual location',
+  'קו רוחב וקו אורך במעלות (צפון ומזרח חיוביים); בלי שניהם — מיקום הבית':
+    'Latitude and longitude in degrees (north and east are positive); without both - the home\'s location',
+  'קו רוחב': 'Latitude',
+  'קו אורך': 'Longitude',
   // system-home-screen.ts
   'המסך הראשי נשמר': 'Home screen saved',
   'מסך ראשי': 'Home screen',

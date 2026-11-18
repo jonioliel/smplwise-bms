@@ -240,7 +240,8 @@ export async function startFlow(): Promise<{ flow: LoginFlow; step: FlowStep }> 
     const rejected = pkceSupported === null ? pkceRejection(r.status, r.data) : null;
     if (rejected) {
       // an HA release without PKCE: exactly one retry without it, remembered for this page (never a loop)
-      console.info(`Arx: Home Assistant refused PKCE on /auth/login_flow (${rejected}); signing in without it`);
+      // CR-HA-WORDING-2443 (review 08:F26): the console names the sign-in service, not the platform (no-branding rule)
+      console.info(`Arx: the sign-in service refused PKCE on /auth/login_flow (${rejected}); signing in without it`);
       pkceSupported = false;
       r = await postStart(handler, null);
     } else {
