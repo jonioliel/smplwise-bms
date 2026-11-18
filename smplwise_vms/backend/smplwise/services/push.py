@@ -431,6 +431,7 @@ class Job:
     mode: str = "new"  # new | renotify | escalate | resolved
 
 
+# test-only: legacy notice planner; its only caller is the queue fed by PushNotifier.enqueue (test-only); used by tests/test_push.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def plan(conn: sqlite3.Connection, notice: dict[str, Any], now: dt.datetime | None = None, tz_name: str | None = None) -> tuple[list[Job], dict[str, str]]:
     """Who gets this alert: every user with a subscription who may see it (row_scope events.read - the alert list's own
     rule), whose preferences take its category, outside their quiet hours (a critical alert may pass when allowed), and
@@ -555,7 +556,6 @@ def record(db: Database, job: Job, outcome: Outcome, final: bool) -> str:
     """Store what the push service said. 2xx → sent; 404/410 → the subscription is gone and removed; retryable while
     attempts remain → retry (nothing stored yet); anything else counts a failure (dropped after DROP_AFTER_FAILURES).
     A notification delivery (CR-018) also updates its delivery-log row in the same short transaction."""
-    st = outcome.status
     with db.connection(label="push.record") as conn:
         result = _record(conn, job, outcome, final)
         if job.delivery_id:
@@ -679,6 +679,7 @@ class PushNotifier:
             STATS["dropped_shutdown"] += len(self.retries)
             self.retries = []
 
+    # test-only: legacy notice queue; no product caller (the notification outbox replaced it); used by tests/test_push.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def enqueue(self, notices: list[dict[str, Any]]) -> int:
         if not self.running:
             return 0

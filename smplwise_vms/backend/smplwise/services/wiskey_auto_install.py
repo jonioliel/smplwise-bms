@@ -140,6 +140,7 @@ def manifest_path(config_root: Path | str | None = None) -> Path:
     return root / RELATIVE_PATH
 
 
+# test-only: no product caller; used by tests/test_wiskey_adopt_2272_contrib.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def read_installation(config_root: Path | str | None = None) -> dict[str, Any]:
     """The delivered reader: a READY manifest with exactly one entry whose GrantRef is the permanent full installation one."""
     value = read_private_json(manifest_path(config_root))
@@ -218,6 +219,7 @@ def read_checked_installation(config_root: Path | str | None = None) -> dict[str
     return check_manifest(read_private_json(manifest_path(config_root)))
 
 
+# test-only: no product caller; used by tests/test_wiskey_adopt_2272_install.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def installation_state(config_root: Path | str | None = None) -> dict[str, Any]:
     """A closed, secret-free status of the installation for the add-on's own status view: state, counts, the commands Arx relies on. No
     path, no ref, no GrantRef, no pairing material. `ready` is local authority/transport readiness - not a cloud or hardware proof."""
@@ -301,7 +303,7 @@ def check_resources(value: Any) -> dict[str, Any]:
     return value
 
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for SOURCE-CLOUD-EXPORT (BLOCKED,
+# built ahead for SOURCE-CLOUD-EXPORT (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14) (BLOCKED,
 # docs/changes/WISKEY-ADOPT-2272.md: when the WhatsApp source exists it calls write_resources; read_resources is its reader).
 def write_resources(value: Any, config_root: Path | str | None = None) -> Path:
     """The PRODUCER side of the exchange (owner28 says the Arx installer writes it): checked, then atomically replaced on the same
@@ -352,7 +354,7 @@ def _fsync_dir(directory: Path) -> None:
         os.close(fd)
 
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for SOURCE-CLOUD-EXPORT (see write_resources).
+# built ahead for SOURCE-CLOUD-EXPORT (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14) (see write_resources).
 def read_resources(config_root: Path | str | None = None) -> dict[str, Any]:
     return check_resources(read_private_json(manifest_path(config_root).with_name("resources.json")))
 

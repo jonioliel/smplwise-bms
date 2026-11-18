@@ -309,6 +309,7 @@ def mark(user_id: str, now: float | None = None) -> None:
     _RATE.mark(user_id, now)
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/fake_doorwin_adapters.py, tests/test_comply108_295.py (+10 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_rate() -> None:
     """Tests only."""
     _RATE.reset()

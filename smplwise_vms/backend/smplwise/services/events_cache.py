@@ -152,6 +152,7 @@ class WindowCache:
             self._entries.clear()
             self._rows = 0
 
+    # test-only: test seam / test double - product code never calls it; used by tests/soak_local.py, tests/test_events_cache.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def reset_stats(self) -> None:
         with self._lock:
             self.hits = self.misses = self.stale = self.expired = self.evictions = self.oversize = self.bypass = 0

@@ -138,6 +138,7 @@ def _local_address_towards(host: str) -> str | None:
         return None
 
 
+# test-only: no product caller; the name is read only by tests: tests/test_provision_push_addon.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def push_target(settings: Any, recorder_id: str) -> dict[str, Any]:
     """What the device must be told (configure_push): the address and port the ADD-ON is reachable at from the recorder, the
     path carrying the token, and the auth mode. `push_advertise_host` / `push_advertise_port` (recorder extras) win: inside the
@@ -213,6 +214,7 @@ def unregister_push(recorder_id: str) -> None:
             _PUSH.unregister(receiver)
 
 
+# test-only: no product caller; used by tests/test_provision_push_addon.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def stop_push() -> None:
     global _PUSH
     with _PUSH_LOCK:

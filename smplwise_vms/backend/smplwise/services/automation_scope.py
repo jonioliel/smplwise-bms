@@ -16,8 +16,7 @@ import sqlite3
 from typing import Any
 
 from ..db import get_setting
-from ..rbac import INSTALLATION, Principal, authorize, bindings_of
-from . import alarm as alarm_svc
+from ..rbac import Principal, bindings_of
 from . import automation_draft as drafts
 from . import automation_model as model
 from . import automation_policy as pol

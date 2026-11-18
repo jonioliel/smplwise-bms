@@ -12,9 +12,9 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize
 from ..services import exports as ex
-from ..services.access import camera_allowed, require_camera
+from ..services.access import require_camera
 from ..services.timeutil import parse_utc
 from .settings import read_settings
 

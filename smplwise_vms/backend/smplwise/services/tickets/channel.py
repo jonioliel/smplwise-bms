@@ -242,15 +242,18 @@ class TicketChannel(Protocol):
 
     def status(self, account: AccountRef | None = None) -> ChannelStatus: ...
 
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/test_tickets_msg_templates.py, tests/test_tickets_msg_whatsapp.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def can_reach(self, recipient: Recipient, account: AccountRef | None = None) -> str: ...
 
     def send(self, msg: OutboundMessage) -> SendResult: ...  # never raises for an outcome
 
     def supports_buttons(self) -> bool: ...
 
+    # test-only: interface member that no product code calls; the name is read only by tests: tests/test_tickets_msg_templates.py, tests/test_tickets_msg_whatsapp.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def parse_inbound(self, event: dict[str, Any]) -> InboundMessage | None: ...
 
 
+# test-only: no product caller; used by tests/test_tickets_msg_templates.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class ChannelRegistry:
     """Maps a channel key to its adapter. Only keys of CHANNELS are accepted (the outbox CHECK)."""
 

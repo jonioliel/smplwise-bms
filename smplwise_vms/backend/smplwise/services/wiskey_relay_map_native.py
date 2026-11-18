@@ -105,6 +105,7 @@ def publish(db: Any, port: Any, *, by: str, timeout_s: float = DEFAULT_TIMEOUT_S
         return {"state": "staged", "ack": reply, "record": acked}
 
 
+# test-only: no product caller; used by tests/test_wiskey_rc7_adopt_2331.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def prepare_quiesced(db: Any, port: Any, staged: dict[str, Any], *, maintenance_token: str, timeout_s: float = DEFAULT_TIMEOUT_S,
                      version: int = 1) -> dict[str, Any]:
     """Prepare a staged export - ONLY inside the original controller's authorized quiescent `maintenance_v1` (NOT_BUILT: the caller

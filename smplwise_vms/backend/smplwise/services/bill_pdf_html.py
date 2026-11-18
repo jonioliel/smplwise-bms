@@ -342,7 +342,7 @@ def build_html(s: BillSnapshot, has_logo: bool, logo_size: tuple[int, int] | Non
               f"{logo}</div></div>")
 
     # --- customer and period
-    cust_lines = [f"<b>לכבוד</b>", E(cust.name)]
+    cust_lines = ["<b>לכבוד</b>", E(cust.name)]
     if cust.address:
         cust_lines.append(E(cust.address))
     if cust.number:

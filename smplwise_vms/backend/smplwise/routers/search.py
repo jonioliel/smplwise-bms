@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
+from ..auth import current_principal_ro, get_read_conn
 from ..rbac import INSTALLATION, Principal, authorize, bindings_of
 from ..errors import ApiError
 from ..services import devices as dsvc

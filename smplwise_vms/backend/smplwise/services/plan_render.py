@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from ..errors import ApiError
-from . import image_guard  # noqa: F401 - SEC246 I3: Pillow's bomb threshold is set once there (60 M, the value this module always set)
+from . import image_guard  # SEC246 I3: Pillow's bomb threshold is also set once there (60 M, the value this module always set)
 from .child_env import minimal_env
 
 SUPPORTED = {"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg", "image/vnd.dxf": ".dxf"}
@@ -109,8 +109,6 @@ def render_pdf_page(path: Path, page: int, out_png: Path, max_px: int, timeout_s
 def normalize_image(path: Path, out_png: Path, max_px: int) -> None:
     """Re-encode an uploaded raster as PNG: EXIF orientation applied, RGB, bounded size."""
     out_png.parent.mkdir(parents=True, exist_ok=True)
-    from . import image_guard
-
     with image_guard.open_untrusted(path, ["PNG", "JPEG"], mpo_first_frame=True) as im:  # the upload, sniffed as PNG / JPEG by sniff_mime
         im = ImageOps.exif_transpose(im)
         im = im.convert("RGB")

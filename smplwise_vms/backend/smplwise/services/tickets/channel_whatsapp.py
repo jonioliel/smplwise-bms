@@ -151,6 +151,7 @@ def classify(reply: TransportReply) -> SendResult:
     return SendResult(NOT_SENT, "ha_rejected")
 
 
+# test-only: no product caller; used by tests/test_tickets_msg_whatsapp.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def outcome_from_api_error(exc: Any) -> SendResult:
     """For a path that still goes through `ha_client.call_service` (which raises ApiError): its codes cannot tell a connect error
     from a read timeout (`ha_unavailable` covers both), so that one is `unknown`. Never used by the adapter itself."""
@@ -193,6 +194,7 @@ class WhatsAppChannel:
         st = self._accounts.status(account.key)
         return ChannelStatus(st.state, detail_for_admin=f"source={st.source}")
 
+    # test-only: no product caller; the name is read only by tests: tests/test_tickets_msg_templates.py, tests/test_tickets_msg_whatsapp.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def can_reach(self, recipient: Recipient, account: AccountRef | None = None) -> str:
         if recipient.opted_out:
             return REACH_OPTED_OUT
@@ -205,6 +207,7 @@ class WhatsAppChannel:
     def supports_buttons(self) -> bool:
         return bool(self._use_buttons())
 
+    # test-only: no product caller; the name is read only by tests: tests/test_tickets_msg_templates.py, tests/test_tickets_msg_whatsapp.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def parse_inbound(self, event: dict[str, Any]) -> InboundMessage | None:
         from .inbound import normalise
 

@@ -25,6 +25,7 @@ from ..services.skins import provider as prov
 from ..services.skins import store
 from ._common import rid as _rid
 from .catalog import get_floor
+from ..services.settings_store import setting_value
 from .settings import read_settings
 
 router = APIRouter()
@@ -79,13 +80,12 @@ def skins_test(request: Request, principal: Principal = Depends(current_principa
     test, the provider's reply status (and its picture, when one came back). Refused without the acknowledgement, the key
     or the monthly budget - nothing is sent then."""
     require(conn, principal, P_SYSTEM, INSTALLATION)
-    s = read_settings(conn)
 
     def refuse(code: str, message: str, status: int = 409, **details: Any) -> ApiError:
         audit(conn, actor=principal, action="skins.test", decision="denied", resource_type="installation", resource_id="*", reason=code, request_id=_rid(request), details=details or None)
         return ApiError(status, code, message, details=details or None)
 
-    if s["skins.privacy_ack"] != "true":
+    if setting_value(conn, "skins.privacy_ack") != "true":
         raise refuse("skins_privacy_ack_required", "לא נשלח דבר: יש לאשר קודם בהגדרות מה יוצא מהמתקן לספק הרינדור.")
     if not settings_of(request).openai_api_key:
         raise refuse("skins_key_missing", "לא נשלח דבר: מפתח ה־API של OpenAI לא הוגדר (הגדרות › חיבורים › סודות).")

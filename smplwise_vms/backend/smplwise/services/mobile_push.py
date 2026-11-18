@@ -264,6 +264,7 @@ def _note_relay_reached(*, success: bool) -> None:
         HEALTH["last_ok_at"] = now_iso()
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_camera_sources_2410.py, tests/test_mobile_push.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_health() -> None:
     HEALTH.update(config_errors_in_a_row=0, config_code=None, last_config_error_at=None, last_config_error_status=None, backoff_until=0.0, last_ok_at=None)
     _URL_LOGGED.clear()

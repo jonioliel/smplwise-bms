@@ -8,14 +8,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..rbac import Principal, require
+from ..rbac import Principal
 from ..services import recorded_days, recordings
-from ..services.access import camera_allowed, require_camera
+from ..services.access import require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
-from .settings import read_settings
 from ..services.settings_store import setting_value
 
 router = APIRouter()
@@ -40,8 +39,7 @@ def camera_recordings(
     to: str | None = None,
 ) -> dict[str, Any]:
     cam = camera_for_playback(conn, principal, camera_id)
-    s = read_settings(conn)
-    tz_name = s["time.zone"]
+    tz_name = setting_value(conn, "time.zone")
     if date:
         start, end = local_day_bounds(dt.date.fromisoformat(date), zone(tz_name))
     elif from_ and to:

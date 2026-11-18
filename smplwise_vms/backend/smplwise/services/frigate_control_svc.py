@@ -351,6 +351,7 @@ def ptz_step(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAda
     return {"sent": True, "command": cmd, "change_id": cid, "lease_s": int(PTZ_LEASE_S)}
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_frigate_control.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def clear_leases() -> None:
     with _LEASE_LOCK:
         _LEASES.clear()

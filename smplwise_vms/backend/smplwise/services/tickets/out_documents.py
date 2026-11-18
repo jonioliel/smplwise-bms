@@ -78,6 +78,7 @@ _HTML_FORBIDDEN = re.compile(
 _ESCAPE_KEEP = re.compile(r"[A-Za-z0-9 ]")
 
 
+# test-only: no product caller; used by tests/test_fablefix_295_html_documents.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def escape_text(value: Any) -> str:
     """FABLEFIX-295 D-01 (a): the ONLY way an HTML producer interpolates operator / vendor / sensor text into a report. Every ASCII
     character other than a letter, a digit or a space becomes a numeric entity (so `<`, `>`, `&`, quotes, `=`, `:`, `(`, `/`, a

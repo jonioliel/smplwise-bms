@@ -1140,7 +1140,6 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
                                FROM users u JOIN auth_local_credentials c ON c.user_id = u.id
                                WHERE u.source = 'local' AND lower(u.username) = ? AND u.deleted_at IS NULL""", (uname,)).fetchone() if uname else None
         mode = lock_mode(conn)
-        ctx = _context_words(conn, user) if user is not None else []
         from . import local_passkeys as _lpk
 
         passkey_only = user is not None and _lpk.only_effective(conn, user["id"])  # usr2-passkeys-only-mode: the password is refused for this user
@@ -1322,7 +1321,6 @@ def link_path(settings: Settings, token: str) -> str:
 
 def use_link(db: Any, settings: Settings, conn_like: Any, token: str, password: str, request_id: str | None) -> dict[str, Any]:
     from . import local_passwords as lp
-    from . import second_factor as sf
     from .ha_user_auth import mask_address, request_meta
 
     meta = request_meta(conn_like)

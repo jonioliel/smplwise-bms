@@ -61,7 +61,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
-from ..db import Database, get_setting, now_iso, permission_revision, set_setting
+from ..db import Database, get_setting, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import confirm_words
@@ -382,11 +382,11 @@ def pending_count(conn: sqlite3.Connection, vendor_id: str) -> int:
 
 
 def zone_of(conn: sqlite3.Connection):
-    from ..routers.settings import read_settings
+    from .settings_store import setting_value
     from .timeutil import zone
 
     try:
-        return zone(read_settings(conn)["time.zone"])
+        return zone(setting_value(conn, "time.zone"))
     except Exception:  # noqa: BLE001 - a broken zone setting falls back to the product's default zone
         return zone("Asia/Jerusalem")
 
@@ -1882,6 +1882,7 @@ class Worker:
         finally:
             fh.close()
 
+    # test-only: no product caller; used by tests/test_wiskey_final280.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def holds_lease(self) -> bool:
         return self._lease is not None
 

@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
+from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require

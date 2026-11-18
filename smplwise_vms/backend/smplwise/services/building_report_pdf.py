@@ -26,6 +26,7 @@ _RENDERER: Callable[[dict[str, Any]], bytes] | None = None
 LAST_ENGINE: dict[str, str | None] = {"engine": None}
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_energy_bill_opening_reading.py, tests/test_energy_bill_pdf_diagnostics.py (+11 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def set_renderer(fn: Callable[[dict[str, Any]], bytes] | None) -> None:
     global _RENDERER
     _RENDERER = fn

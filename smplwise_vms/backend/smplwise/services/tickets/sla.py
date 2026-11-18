@@ -64,6 +64,7 @@ def _plus(at: str | None, minutes: Any, cal: work_calendar.Calendar | None = Non
     return base + dt.timedelta(minutes=int(minutes))
 
 
+# test-only: no product caller; used by tests/test_tickets_s2.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def due_kind(status: str, column: str) -> str | None:
     """The threshold a due column carries for a status (slice 6 writes it to `stuck_kind` when crossed)."""
     if column == "ack_due_at":

@@ -129,6 +129,7 @@ class ServiceInvalid(ValueError):
             out.setdefault("fields", list(self.fields))
         return out
 
+    # test-only: no product caller; used by tests/test_be_small_unify_2440.py, tests/test_be_twins_2440.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def to_api_error(self, message: str | None = None, *, status: int | None = None) -> ApiError:
         """The ApiError a router raises for this error: its status (422 unless the class or the instance says otherwise), its code,
         `message` when the router has the user-facing text (else the error's own message), and `api_details()`."""

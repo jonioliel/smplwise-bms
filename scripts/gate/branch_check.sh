@@ -206,9 +206,15 @@ else
   git -C "$WT" checkout -q -f --detach "origin/$BR" || { verdict "$ERES/none.json" "$SHA0" "git checkout in $WT failed"; exit 1; }
 fi
 SHA="$(git -C "$WT" rev-parse --short HEAD)"
-# CR-BE-GATES-2436 backend lint lane (non-blocking, information only; 20261113): ruff F count of the branch under check, printed to the log
+# CR-BE-GATES-2436 backend lint lane: ruff F over smplwise/ of the branch under check, printed to the log. CR-PYFLAKES-ENFORCE-2442: BLOCKING
+# for a branch whose smplwise_vms/backend/pyproject.toml carries `# ruff-lane: blocking` (lint_backend.py --gate exits 1 on a finding there);
+# a branch cut before that marker is only reported, a lint that could not run is NOT_RUN and does not block. GATE_BACKEND_LINT=0 off, =warn report only.
 if [ "${GATE_BACKEND_LINT:-1}" != 0 ] && [ -f "$G/lint_backend.py" ]; then
-  GATE_LINT_ROOT="$WT" timeout -k 5 300 nice -n 10 "$PY3" "$G/lint_backend.py" 2>&1 | head -20 || true
+  LINT_OUT="$(GATE_LINT_ROOT="$WT" timeout -k 5 300 nice -n 10 "$PY3" "$G/lint_backend.py" --gate 2>&1)"; LINT_RC=$?
+  printf '%s\n' "$LINT_OUT" | head -20
+  if [ "$LINT_RC" = 1 ] && [ "${GATE_BACKEND_LINT:-1}" != warn ]; then
+    verdict "$ERES/none.json" "$SHA" "backend lint (ruff F) has findings: $(printf '%s\n' "$LINT_OUT" | head -1)"; exit 1
+  fi
 fi
 VIS=()
 BASE_SHA="$(git -C "$WT" rev-parse --short "$(git -C "$WT" merge-base HEAD "$BASE" 2>/dev/null || echo "$BASE")" 2>/dev/null)"

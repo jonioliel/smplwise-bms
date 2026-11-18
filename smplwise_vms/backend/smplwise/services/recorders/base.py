@@ -136,6 +136,9 @@ class HealthReading:
     details: dict[str, object] | None = None
 
 
+# interface documentation: no code names this Protocol, the three adapters implement `read_health` and `recorder_health` calls it when
+# `capabilities().health_detail` is set (CR-026; docs/changes/CR-026-NVR-HEALTH.md names it for a new vendor). Kept, like `OAuthFlow`
+# (CR-BE-DEAD-CODE-B-2442).
 class HealthReader(Protocol):
     """Optional adapter ability, declared by `RecorderCapabilities.health_detail`. Read-only, bounded, device I/O only."""
 

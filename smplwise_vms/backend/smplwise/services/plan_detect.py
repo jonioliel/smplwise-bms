@@ -1358,7 +1358,7 @@ def detect(png: bytes | np.ndarray, *, targets: tuple[str, ...] | list[str] = TA
         tilt = 0.0
     src = gray.rotate(tilt, resample=Image.BICUBIC, fillcolor=255) if tilt else gray
     st = _stage(src, strength, ANALYSIS_PX, scale_m_per_px, deadline, light=door_model == "arc_v2")
-    an, dt, s, calibrated, segs, aw, ah, f = st["an"], st["dt"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
+    an, s, calibrated, segs, aw, ah, f = st["an"], st["s"], st["calibrated"], st["segs"], st["aw"], st["ah"], st["f"]
     ref_counts: dict[str, int] = {}
     segs, outside_main, dropped_reference = drop_reference_strokes(segs, st["t_med"], s, crossing=section_lines, counts=ref_counts)
     # T087 hollow_v1: walls drawn as two thin lines with white between (plan_detect_hollow), after the solid walls and

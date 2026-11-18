@@ -102,6 +102,7 @@ def consumer_on(conn: sqlite3.Connection, key: str) -> bool:
     return consumer_mode(conn, key) == "on" and go_live_permitted()
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py, tests/test_wkv2_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def capability_ok(advertised: Iterable[str], key: str) -> bool:
     """Command AND capability must both be advertised; ACR5-04 has no capability (draft planners are not on the wire)."""
     cap = CAPABILITIES.get(key)
@@ -128,6 +129,7 @@ def _result(frame: Any) -> dict[str, Any] | Unknown:
 
 # ---------------------------------------------------------------- ACR5-01 / ACR5-03 users/access_state
 
+# test-only: no product caller; used by tests/test_eccact_readback_295.py, tests/test_wkpeer_295.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def access_state_request(user_id: Any, revision: Any, *, version: int = 1) -> dict[str, Any]:
     """The request payload (the transport adds `id`); `api_contract` is omitted (a READ). `version` 2 names users/access_state_v2."""
     if not _id(user_id) or not _pos_int(revision) or not (_pos_int(version) and version in was.COMMANDS):
@@ -201,6 +203,7 @@ class RevisionBoundAccessState(Protocol):
     def access_state(self, user_id: str, revision: int) -> Any: ...
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py, tests/test_wkv2_295.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def revocation_pending_at(port: RevisionBoundAccessState, user_id: str, revision: int, *, central_revoked_at: int | None,
                           expect: int | None = None, last_known_stations: frozenset[str] | None = None) -> bool | None:
     """R11-I1-03: the revision travels WITH the question; any failure is UNKNOWN. Not wired to `Engine.revocation_pending`.
@@ -214,6 +217,7 @@ def revocation_pending_at(port: RevisionBoundAccessState, user_id: str, revision
                               central_revoked_at=central_revoked_at, last_known_stations=last_known_stations)
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py, tests/test_wkv2b_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def revocation_evidence_at(port: RevisionBoundAccessState, user_id: str, revision: int, *, central_revoked_at: int | None,
                            expect: int | None = None, last_known_stations: frozenset[str] | None = None) -> str | None:
     """WKV2B-295: `revocation_pending_at`, answered as evidence (pending / verified_clean / revoked_unverified) or None (UNKNOWN)."""
@@ -229,6 +233,7 @@ def _row_current(row: Assignment, person_revision: int) -> bool:
     return (row.desired_revision == person_revision and row.applied_revision == row.desired_revision and row.sync_state == "synced")
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py, tests/test_wkv2_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def stations_synced_verdict(state: AccessState | Unknown) -> bool | None:
     """Central applied bookkeeping (never physical proof), from the revision-bound answer; rows that contradict it make it None."""
     if not isinstance(state, AccessState) or state.presence != "present" or state.person_revision is None:
@@ -251,6 +256,7 @@ class PendingView:
     complete: bool  # False when anything was withheld (no count of what)
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def visible_pending(pending: PendingQueues, allowed: Any) -> PendingView | None:
     """Station ids filtered by the actor's Arx station scope (frozenset), ALL_STATIONS for an unrestricted actor, None = unknown
     scope (nothing is shown). The service-channel read never widens the actor's scope."""
@@ -265,12 +271,13 @@ def visible_pending(pending: PendingQueues, allowed: Any) -> PendingView | None:
     return PendingView(out, complete)
 
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-03, the "externally deleted person" acknowledgement
+# built ahead for ACR5-03 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14), the "externally deleted person" acknowledgement
 # (docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md, decision (a) still open).
 def presence_diagnostic(state: AccessState | Unknown) -> str | None:
     return state.presence if isinstance(state, AccessState) else None
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def is_cleanup_proof(_state: Any) -> bool:
     """ACR5-03: absent / not_found / delete_pending / empty queues are never proof that anything was removed."""
     return False
@@ -278,7 +285,7 @@ def is_cleanup_proof(_state: Any) -> bool:
 
 # ---------------------------------------------------------------- ACR5-02 schedules/normalize_user
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-02 in access_grants._policy_is (today exact equality;
+# built ahead for ACR5-02 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14) in access_grants._policy_is (today exact equality;
 # docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md). grant_policy_proven below is its proof.
 def normalize_request(schedule: Any) -> dict[str, Any]:
     if not schedule_ok(schedule):
@@ -327,7 +334,7 @@ def policy_equivalent(desired: Any, observed: Any, normalize: Normalizer) -> boo
     return a == b
 
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-02 (see normalize_request).
+# built ahead for ACR5-02 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14) (see normalize_request).
 def grant_policy_proven(desired_schedule: Any, observed_policy: Any, normalize: Normalizer) -> bool | None:
     """The grant proof: Arx requests {mode: ha, schedule, bindings: {}}; a native policy never proves it."""
     if desired_schedule is None and observed_policy is None:
@@ -353,7 +360,7 @@ class FeaturePlan:
         return False  # a draft is never a capability: no adapter exists on either side
 
 
-# Built ahead, no product caller yet (owner decision Q-CODE-2 / O15 a, 2026-11-14): kept for ACR5-04 feature dry plans (no adapter exists on either side;
+# built ahead for ACR5-04 (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14) feature dry plans (no adapter exists on either side;
 # consume_plan refuses; docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md).
 def parse_feature_plan(raw: Any) -> FeaturePlan | Unknown:
     if not isinstance(raw, dict) or set(raw) != PLAN_KEYS:
@@ -367,6 +374,7 @@ def parse_feature_plan(raw: Any) -> FeaturePlan | Unknown:
     return FeaturePlan(raw["feature"], copy.deepcopy(raw["draft"]))
 
 
+# test-only: no product caller; used by tests/test_wkpeer_295.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def consume_plan(conn: sqlite3.Connection, plan: FeaturePlan) -> None:
     """Never executes anything: refused while OFF, and refused when ON because no adapter exists."""
     if not consumer_on(conn, "acr5_04"):

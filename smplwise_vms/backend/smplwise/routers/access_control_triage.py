@@ -42,7 +42,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, StrictBool, StrictInt
 
 from ..audit import audit

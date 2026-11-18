@@ -710,6 +710,7 @@ def check_kiosk_code(conn: sqlite3.Connection, user_id: str, code: str) -> bool:
     return ok
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_home_followup_b_2431.py, tests/test_home_interface.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_state_for_tests() -> None:
     with _LOCK:
         _GATE_AUDITED.clear()

@@ -536,7 +536,6 @@ def _run_write(request: Request, conn: sqlite3.Connection, principal: Principal,
     if action == "deploy":
         return _deploy(act, body, not_after)
     op = sw.OPS[action]
-    user = principal.user_id
     fields: dict[str, Any]
     if action in ("create", "update"):
         draft = _draft(WHAT[action], body.data, act=act)

@@ -158,6 +158,7 @@ class EnergyStore:
             self._ids[ext_id] = mid
         return mid
 
+    # test-only: test seam / test double - product code never calls it; used by tests/test_insight215_waste.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def forget_ids(self) -> None:
         with self._ids_lock:
             self._ids.clear()

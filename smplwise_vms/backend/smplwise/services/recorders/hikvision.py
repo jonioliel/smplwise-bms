@@ -317,6 +317,7 @@ class HikvisionAdapter:
 
     # ------------------------------------------------------------------------------------------ S2: one stream
 
+    # test-only: no product caller; used by tests/test_nvr_stream_review_fixes.py, tests/test_recorder_adapter_write.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def cached_options(self, stream_ref: str) -> StreamOptions | None:
         """The options already discovered for this stream (not expired), without a device call."""
         with _OPTIONS_LOCK:

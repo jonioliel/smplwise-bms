@@ -88,6 +88,7 @@ _SEARCH_LOCKS: dict[str, threading.Lock] = {}  # one search per device at a time
 _monotonic = time.monotonic
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_provision_disabled.py, tests/test_provision_export_credentials.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def clear_caches() -> None:
     with _CACHE_LOCK:
         _ZONES.clear()
@@ -269,6 +270,7 @@ class ProvisionPlayback:
             _ZONES[key] = (_monotonic() + ZONE_TTL_S, tz, source, facts)
         return tz, source
 
+    # test-only: no product caller; used by tests/test_provision_playback.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def zone_report(self, year: int | None = None) -> dict[str, Any]:
         """For health / settings: which rule converts times and where it disagrees with the recorder's IANA zone."""
         tz, source = self.zone()
@@ -438,6 +440,7 @@ class ProvisionPlayback:
 
     # ---------------------------------------------------------------- snapshot at a time
 
+    # test-only: no product caller; used by tests/test_provision_playback.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     def snapshot_at(self, channel: int, at: dt.datetime, length_s: int = 10) -> SnapshotAt:
         """The key frame at (or within `length_s` after) `at`. 404 `no_recording` when nothing is recorded there (live:
         errorCode 3). The live NVR returns an H.264 key frame (`image/h264`); `to_jpeg` turns it into a picture."""

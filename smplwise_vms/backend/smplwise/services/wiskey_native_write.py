@@ -402,6 +402,7 @@ class WriteOutcome:
     user_id: str | None = None
     person_revision: int | None = None
 
+    # test-only: no product caller; the name is read only by tests: tests/test_adoptr6_295.py, tests/test_wk4adopt_295.py (+4 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @property
     def replay_permitted(self) -> bool:
         return False  # owner decision: an UNKNOWN people write is never re-sent or reconstructed automatically

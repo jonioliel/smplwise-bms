@@ -28,7 +28,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Path, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 

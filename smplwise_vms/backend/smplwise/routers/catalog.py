@@ -10,21 +10,18 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError, conflict, not_found, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services.safe_paths import confine  # BACKEND-SAFETY-2435: stored picture paths stay inside catalog_images
+from ._common import rid as _rid
 
 router = APIRouter()
 
 P_READ = "map.read"
 P_CONTENT = "site.content.configure"
 P_SYSTEM = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 # ---------- serializers ----------
@@ -152,7 +149,7 @@ def building_image_delete(building_id: str, request: Request, principal: Princip
 
 
 @router.get("/catalog/images/{kind}/{obj_id}")
-def catalog_image(kind: str, obj_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
+def catalog_image(kind: str, obj_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
     if kind == "site":
         r = get_site(conn, obj_id)
         require(conn, principal, "map.read", ("site", obj_id))
@@ -225,7 +222,7 @@ def get_floor(conn: sqlite3.Connection, floor_id: str) -> sqlite3.Row:
 # ---------- tree ----------
 
 @router.get("/sites")
-def list_sites(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), tree: bool = Query(True)) -> dict[str, Any]:
+def list_sites(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), tree: bool = Query(True)) -> dict[str, Any]:
     """Only nodes the caller may read appear; a site is listed when the caller can read it or any child."""
     all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed
     # T055: a floor reached only through camera-scoped bindings (a camera anchored there) is listed too - its map
@@ -384,7 +381,7 @@ def create_floor(building_id: str, body: FloorIn, request: Request, principal: P
 
 
 @router.get("/floors/{floor_id}")
-def read_floor(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def read_floor(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     f = get_floor(conn, floor_id)
     from ..services.access import require_floor_read
 
@@ -451,7 +448,7 @@ def _live_floor_ids(conn: sqlite3.Connection) -> set[str]:
 
 
 @router.get("/home-links")
-def list_home_links(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_home_links(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The rows whose floor the caller may read (an area taken off every floor has no floor and is always listed: it names no place)."""
     live = _live_floor_ids(conn)
     all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed

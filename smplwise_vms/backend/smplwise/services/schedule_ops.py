@@ -1033,7 +1033,8 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
             return _unknown(w, op_id, meta, "schedule.copy")
         sid, _entity = learned
         new_row = reread(w, sid)
-        warnings = [] if core["enabled"] else keep_disabled(w, op_id, sid, _entity, cls["sensitive"])  # a copy of a disabled schedule stays disabled
+        if not core["enabled"]:
+            keep_disabled(w, op_id, sid, _entity, cls["sensitive"])  # a copy of a disabled schedule stays disabled
         new_row = store.cache_row(w.conn, sid) or new_row
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
         store.note_arx_write(w.conn, sid, w.principal, created=True)

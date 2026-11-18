@@ -49,6 +49,7 @@ def delay_s(plan: Plan, dist_m: float, recorded_at: float) -> float:
     return recorded_at - planned_time_at(plan, dist_m)
 
 
+# test-only: no product caller; used by tests/test_transit_realtime.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def crossing_time(obs: list[tuple[float, float]], dist_m: float, max_gap_s: float = 300.0) -> float | None:
     """Ground truth for evaluation: when did the vehicle pass `dist_m`? obs = (epoch, dist) sorted by time. Linear
     interpolation between the two samples that bracket the distance; None when they are more than max_gap_s apart."""

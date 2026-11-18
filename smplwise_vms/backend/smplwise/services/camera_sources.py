@@ -870,6 +870,7 @@ def forget_health(camera_id: str) -> None:
         _HEALTH.pop(camera_id, None)
 
 
+# test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_camera_sources_2410.py, tests/test_mobile_push.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def reset_health() -> None:
     with _HEALTH_LOCK:
         _HEALTH.clear()

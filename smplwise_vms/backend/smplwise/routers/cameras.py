@@ -8,7 +8,6 @@ CR-024 (multi-NVR): every camera carries its `recorder_id`; device calls use the
 (default: every active recorder / the first recorder)."""
 from __future__ import annotations
 
-import json
 import datetime as dt
 import sqlite3
 import time
@@ -29,6 +28,7 @@ from ..recorder_scope import PRIMARY, camera_settings, ready_ids, settings_for
 from ..services import autosync, nvr, stream_codecs
 from ..services.ttl_cache import TtlCache
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
+from ._common import rid as _rid
 from .anchors import camera_row
 from .settings import read_settings
 from ..services.settings_store import setting_value
@@ -36,10 +36,6 @@ from ..services.settings_store import setting_value
 router = APIRouter()
 
 DEFAULT_RECORDER = PRIMARY
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model: str | None = None, firmware: str | None = None) -> None:

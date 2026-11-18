@@ -397,6 +397,7 @@ def check_pending_quota(pending_count: int, pending_bytes: int = 0) -> None:
         raise IntakeError("file_limit", 409)
 
 
+# test-only: no product caller; used by tests/test_tickets_cost_files.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def assemble_documents(documents: Sequence[Sequence[str]], pending: Mapping[str, PendingFile], *, link_id: str,
                        now: float) -> list[list[PendingFile]]:
     """The documents of one submission in the order given: each a list of file ids (one PDF, or 1-10 photographed pages in page

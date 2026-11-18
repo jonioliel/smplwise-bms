@@ -286,11 +286,13 @@ def take(value: bytes | None) -> _Challenge | None:
     return c
 
 
+# test-only: no product caller; used by tests/test_local_passkeys.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def all_challenges() -> list[_Challenge]:
     with _lock:
         return [c for pool in _pools.values() for c in pool.values()]
 
 
+# test-only: no product caller; used by tests/test_local_passkeys.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def live_challenges(purpose: str | None = None) -> int:
     with _lock:
         return sum(len(p) for k, p in _pools.items() if purpose is None or k == purpose)
@@ -654,7 +656,7 @@ def passwordless_sign_in(db: Any, settings: Any, conn_like: Any, body: Any, requ
         rec = take(wa.challenge_of(cred.client_data))
     except wa.WebAuthnError:
         cred, rec = None, None
-    principal = value = s = cred_row = row = user = None
+    principal = value = s = row = user = None
     reason: str | None = None
     with db.connection(label="local passkey sign-in") as conn:
         if not first_enabled(conn):

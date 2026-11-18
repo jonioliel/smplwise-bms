@@ -269,6 +269,7 @@ class TransientSecrets:
 
 # ---------------------------------------------------------------- the reference store
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_tickets_outbox_filter.py, tests/tickets_msg_fakes.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class MemoryOutboxStore:
     def __init__(self) -> None:
         self.rows: dict[str, OutboxRow] = {}
@@ -331,6 +332,7 @@ def code_route(*, link_sent_via: str | None, whatsapp_ok: bool, email_ok: bool) 
     return None
 
 
+# test-only: no product caller; used by tests/test_tickets_msg_outbox.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def assignment_code_check(*, whatsapp_ok: bool, codes_whatsapp_ok: bool, email_ok: bool) -> bool:
     """Assign time (D6): would a code-protected assignment get its code on a channel the rules allow? The planned link channel is
     WhatsApp when it can carry it, else e-mail, else "copy link" (manual). False -> 409 `code_channel_unavailable`."""
@@ -343,6 +345,7 @@ def assignment_code_check(*, whatsapp_ok: bool, codes_whatsapp_ok: bool, email_o
 CODE_LIMITS = ((dt.timedelta(seconds=60), 1, "code_wait"), (dt.timedelta(hours=1), 3, "code_hour"), (dt.timedelta(days=1), 6, "code_day"))
 
 
+# test-only: no product caller; used by tests/test_tickets_msg_outbox.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def code_request_check(previous: Iterable[dt.datetime], now: dt.datetime) -> tuple[bool, int | None, str | None]:
     """`POST /t/api/code/send` limits per LINK (10.5): 1 per 60 s, 3 per hour, 6 per day. (The 6-per-hour-per-recipient cap across
     links is the pacing gate's; codes never count against the per-recipient MESSAGE cap.) Returns (ok, retry_after_s, reason)."""

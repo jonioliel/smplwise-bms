@@ -292,6 +292,7 @@ def _bg_he(name: str) -> str:
     return name
 
 
+# test-only: no product caller; used by tests/test_palettes.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def failing_pairs(pal: dict[str, Any]) -> list[dict[str, Any]]:
     """The failing contrast rows of a well-formed palette, with the scheme."""
     out: list[dict[str, Any]] = []
@@ -302,6 +303,7 @@ def failing_pairs(pal: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+# test-only: no product caller; used by tests/test_palettes.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def describe_failures(rows: list[dict[str, Any]], limit: int = 3) -> str:
     """A short Hebrew message: how many pairs fail and the first few, worst first."""
     worst = sorted(rows, key=lambda r: r["ratio"])[:limit]

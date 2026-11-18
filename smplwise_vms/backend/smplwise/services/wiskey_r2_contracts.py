@@ -83,6 +83,7 @@ def read_readiness(reply: Any, manifest: dict[str, Any] | None = None) -> dict[s
     return reply
 
 
+# test-only: no product caller; used by tests/test_wiskey_r2_align_2272_contracts.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def read_event_retention(reply: Any) -> dict[str, Any]:
     """Validate `events/retention_policy_v1`. Returns the closed document; `effective` is what this install really applies."""
     if (type(reply) is not dict or set(reply) != {"contract", "schema_version", "effective", "order", "delivery", "age_basis", "minimum_days_guaranteed"}
@@ -114,6 +115,7 @@ def public_outcomes() -> dict[str, Any]:
         return {}
 
 
+# test-only: no product caller; used by tests/test_alignment_controller.py, tests/test_wiskey_r2_align_2272_contracts.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 def outcome_known(wire_value: Any) -> bool:
     """True for a wire code that appears in the R2 table. The value itself is never rewritten; False means unrecognised -
     treat as an uncertain refusal (no retry, no conversion to success or `not_sent`)."""

@@ -20,21 +20,17 @@ import json
 import logging
 import sqlite3
 import threading
-import uuid
 from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, Iterator
 
 from ..audit import audit
 from ..db import Database, get_setting, set_setting, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize
 from . import automation_model as model
 from . import automation_policy as pol
-from . import automation_scope as scope
-from . import automation_trace as trace
 from . import automation_transport as tr
-from . import ha_bridge, ha_sync
-from .timeutil import iso_utc, parse_utc, zone
+from . import ha_sync
+from .timeutil import iso_utc, parse_utc
 
 log = logging.getLogger("smplwise.automations")
 

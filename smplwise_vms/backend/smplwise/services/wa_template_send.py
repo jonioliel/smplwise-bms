@@ -389,6 +389,7 @@ def closed_result(version: int, state: str, code: str, provider_accepted: bool |
             "retry_permitted": False}
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_f3c_tpl_295.py, tests/test_wa_template_send_w11.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class FakeTemplateTransport:
     """Tests only. Records the wire form of each request (never a real call); `answers` are consumed in order, then `default`."""
 
@@ -444,10 +445,13 @@ def read_answer(raw: Any, *, version: int = SCHEMA_VERSION) -> TransportAnswer:
 
 # ---------------------------------------------------------------- the window
 
+# built ahead for W11TPL (no product caller yet; owner decision Q-CODE-2 / O15 a, 2026-11-14): the seam of the 24-hour window for the
+# live template transport (CR-W11TPL-295, WisKey open question 3). Today only `NoWindowProbe` (tests) has this shape.
 class WindowProbe(Protocol):
     def window(self, person_id: str) -> str: ...  # "open" | "closed" | "unknown"
 
 
+# test-only: test seam / test double - product code never calls it; used by tests/test_wa_template_send_w11.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
 class NoWindowProbe:
     """Arx has no inbound messages and WisKey reports no window (open question 3): always unknown."""
 

@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Backend static check (CR-BE-GATES-2436; review findings 04:F06 and 01:F-17): ruff with the pyflakes rules only (`F`), as configured in
-smplwise_vms/backend/pyproject.toml ([tool.ruff.lint] select = ["F"]). NON-BLOCKING lane: it reports the current count, it never fails a
-gate. The fixes themselves come later (wave 3B, CR-PYFLAKES-ENFORCE flips the lane to blocking).
+smplwise_vms/backend/pyproject.toml ([tool.ruff.lint] select = ["F"]), over the package `smplwise/` (not the tests).
 
-  lint_backend.py [--root <checkout>] [--json] [--strict]
+BLOCKING since CR-PYFLAKES-ENFORCE-2442 for a tree that carries the marker line `# ruff-lane: blocking` in that pyproject.toml (the tree
+where the findings were fixed, and everything cut from it): a finding there fails the gate. A tree without the marker (a branch cut
+earlier) is only reported, as before, so the switch does not turn older branches red. A lint that could not run (no ruff, no backend
+tree, timeout) is NOT_RUN: printed, never blocking under --gate.
+
+  lint_backend.py [--root <checkout>] [--json] [--gate | --strict]
     --root    the checkout to lint (default: GATE_LINT_ROOT, else the checkout this script sits in, else ~/smplwisebms)
     --json    print one JSON document instead of the text summary
-    --strict  exit 1 when there is a finding (for the later blocking switch; the gate does not pass it today)
+    --gate    what the gate scripts pass: exit 1 on a finding in a tree that carries the marker, else 0
+    --strict  exit 1 on any finding (marker or not), 2 when the lint could not run (for a manual check)
 
-Exit codes: 0 always without --strict (also when ruff is not installed: the lane then reports NOT_RUN); with --strict 1 on a finding,
-2 when the lint could not run. Reads files only, changes nothing.
+Exit codes: 0 always without --gate / --strict. Reads files only, changes nothing.
 """
 from __future__ import annotations
 
@@ -26,6 +30,16 @@ HERE = Path(__file__).resolve().parent
 BACKEND = Path("smplwise_vms") / "backend"
 PACKAGE = "smplwise"
 TIMEOUT_S = 120
+ENFORCE_MARK = "# ruff-lane: blocking"   # a line of the backend pyproject.toml (CR-PYFLAKES-ENFORCE-2442)
+
+
+def enforced(root: Path) -> bool:
+    """True when the tree under `root` carries the marker line: its findings block the gate."""
+    try:
+        lines = (root / BACKEND / "pyproject.toml").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+    return any(ln.strip() == ENFORCE_MARK for ln in lines)
 
 
 def default_root() -> Path:
@@ -94,19 +108,29 @@ def run(root: Path) -> dict:
     except ValueError:
         return {"state": "NOT_RUN", "why": "ruff output is not JSON"}
     version = subprocess.run([*cmd, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
-    out = {"state": "ok" if not findings else "findings", "ruff": version, **summarise(findings, backend)}
+    out = {"state": "ok" if not findings else "findings", "blocking": enforced(root), "ruff": version, **summarise(findings, backend)}
     out["sample"] = [f"{Path(f.get('filename', '')).name}:{(f.get('location') or {}).get('row', '?')} {f.get('code')} {f.get('message', '')}"[:160]
                      for f in findings[:10]]
     return out
 
 
+def blocks(res: dict) -> bool:
+    """The gate rule: a finding in a tree that carries the marker. NOT_RUN never blocks."""
+    return res.get("state") == "findings" and bool(res.get("blocking"))
+
+
 def text(res: dict) -> str:
     if res["state"] == "NOT_RUN":
-        return f"backend lint (ruff F, non-blocking): NOT_RUN - {res['why']}"
-    lines = [f"backend lint (ruff F, non-blocking): {res['total']} finding(s) [{res.get('ruff', 'ruff')}]"]
+        return f"backend lint (ruff F): NOT_RUN - {res['why']} (not blocking: the lint did not run)"
+    mode = "blocking" if res.get("blocking") else "non-blocking: this tree has no `ruff-lane: blocking` marker"
+    lines = [f"backend lint (ruff F, {mode}): {res['total']} finding(s) [{res.get('ruff', 'ruff')}]"]
     if res["total"]:
         lines.append("  by rule: " + ", ".join(f"{k} {v}" for k, v in res["by_code"].items()))
         lines.append("  by area: " + ", ".join(f"{k} {v}" for k, v in res["by_area"].items()))
+        if res.get("blocking"):
+            lines += [f"  {s}" for s in res.get("sample", [])]
+            lines.append("  BLOCKED: fix the findings (or keep an import with `# noqa: F401 - <reason>`); "
+                         "`ruff check smplwise` in smplwise_vms/backend lists them all")
     return "\n".join(lines)
 
 
@@ -114,15 +138,18 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--root")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--gate", action="store_true")
     ap.add_argument("--strict", action="store_true")
     ns = ap.parse_args(argv)
     res = run(Path(ns.root) if ns.root else default_root())
     print(json.dumps(res, indent=1) if ns.json else text(res))
-    if not ns.strict:
-        return 0
-    if res["state"] == "NOT_RUN":
-        return 2
-    return 1 if res["total"] else 0
+    if ns.strict:
+        if res["state"] == "NOT_RUN":
+            return 2
+        return 1 if res["total"] else 0
+    if ns.gate:
+        return 1 if blocks(res) else 0
+    return 0
 
 
 if __name__ == "__main__":
