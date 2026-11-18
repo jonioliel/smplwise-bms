@@ -238,7 +238,6 @@ export function shadowPenumbraTexels(r: number, px: number, cap: number): number
  * and place in, a UTC instant out); deterministic, scanned in 5-minute steps.
  */
 export type LightMood = 'auto' | 'day' | 'evening' | 'night';
-export const LIGHT_MOODS: readonly LightMood[] = ['auto', 'day', 'evening', 'night'];
 export function moodInstant(mood: Exclude<LightMood, 'auto'>, ymd: readonly [number, number, number], zone: string, latitude: number, longitude: number): number {
   // the zone's offset at noon holds for the whole afternoon and evening scanned here (a DST switch happens at night)
   const noon = siteInstant(ymd[0], ymd[1], ymd[2], 12, zone);

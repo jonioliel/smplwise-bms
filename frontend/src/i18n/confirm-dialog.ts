@@ -29,10 +29,9 @@ const ru: Record<Key, string> = {
   cancel: 'Отмена',
 };
 
-export type CdKey = Key;
-export type CdLang = 'he' | 'en' | 'ar' | 'ru';
+type CdLang = 'he' | 'en' | 'ar' | 'ru';
 
-export function cdLang(): CdLang {
+function cdLang(): CdLang {
   return docLang(['en', 'ar', 'ru']);
 }
 

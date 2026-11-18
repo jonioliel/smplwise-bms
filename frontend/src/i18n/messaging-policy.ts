@@ -148,7 +148,7 @@ const ru: Record<Key, string> = {
 export type MwKey = Key;
 export const MW_TABLES: Record<Lang, Record<Key, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const MW_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
+const MW_DEV_MARKED: readonly Lang[] = ['ar', 'ru'];
 export const MW_KEYS = Object.keys(he) as Key[];
 
 function mwLang(): Lang {

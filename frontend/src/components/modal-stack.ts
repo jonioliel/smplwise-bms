@@ -12,7 +12,7 @@
  * No DOM at import time (the unit spec runs it in Node).
  */
 
-export interface LayerOptions {
+interface LayerOptions {
   /** Whether the layer keeps Tab inside itself right now (an inline sw-sheet does not). Default: it does. */
   traps?: () => boolean;
 }

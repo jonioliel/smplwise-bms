@@ -838,7 +838,7 @@ const ru: Record<DwtKey, string> = {
 
 const TABLES: Record<DwtLang, Record<DwtKey, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const DWT_DEV_MARKED: readonly DwtLang[] = ['ar', 'ru'];
+const DWT_DEV_MARKED: readonly DwtLang[] = ['ar', 'ru'];
 export const DWT_KEYS = Object.keys(he) as DwtKey[];
 export const DWT_TABLES = TABLES;
 

@@ -430,11 +430,11 @@ const en: Record<PfKey, string> = {
   outcome_unknown: 'Unknown',
 };
 
-export type PfLang = 'he' | 'en';
+type PfLang = 'he' | 'en';
 const TABLES: Record<PfLang, Record<PfKey, string>> = { he, en };
 
 /** The interface language (`<html lang>`; Hebrew unless it starts with "en"). */
-export function pfLang(): PfLang {
+function pfLang(): PfLang {
   return docLang(['en']);
 }
 
@@ -448,7 +448,5 @@ export function pft(key: PfKey, vars?: Record<string, string | number>, lang: Pf
 export function pftDynamic(key: string, fallback: PfKey, vars?: Record<string, string | number>, lang: PfLang = pfLang()): string {
   return key in he ? pft(key as PfKey, vars, lang) : pft(fallback, vars, lang);
 }
-
-export const PF_EN: Record<PfKey, string> = en;
 
 registerCatalogue('i18n/wiskey-profiles', { he, en });

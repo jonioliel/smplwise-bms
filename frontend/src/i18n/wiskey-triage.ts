@@ -144,7 +144,7 @@ const he = {
   feedDown: 'אין חיבור פעיל למערכת הכניסה; הפעולות לא יישלחו עד שהחיבור יחזור.',
 };
 
-export type TriageText = typeof he;
+type TriageText = typeof he;
 
 const en: TriageText = {
   title: 'Conflicts and station alerts',

@@ -3,7 +3,6 @@
  * (installation scope) and none exists on the remote channel. The password is write-only: a response never carries it. */
 import { api, get, post, put } from './client';
 import type { FrigateCapabilities } from './frigate';
-import { CONFIRM_WORDS } from '../i18n/confirm-words';
 
 type VendorId = 'hikvision' | 'provision_isr' | 'frigate' | 'none';
 
@@ -101,11 +100,6 @@ export interface SaveResult extends NvrConnection {
   recorder_id?: string;
   new_recorder?: boolean;
 }
-
-/** The two typed words (CR-022 D6 / D7) in Hebrew. CR-I18N-CONFIRM-WORDS-2442: the words live in i18n/confirm-words.ts (the server
- * takes the Hebrew word or its English counterpart); the dialogs show `confirmWord('nvr_save_untested' | 'nvr_remove')`. */
-export const SAVE_WORD = CONFIRM_WORDS.nvr_save_untested.he;
-export const REMOVE_WORD = CONFIRM_WORDS.nvr_remove.he;
 
 export const nvrVendors = () => get<{ vendors: Vendor[] }>('nvr/vendors').then((r) => r.vendors);
 export const nvrConnection = () => get<NvrConnection>('nvr/connection');

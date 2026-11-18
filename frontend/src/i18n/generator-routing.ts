@@ -76,7 +76,7 @@ function grtLang(): GrtLang {
 
 const TABLES: Record<GrtLang, Partial<Record<Key, string>>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const GRT_DEV_MARKED: readonly GrtLang[] = ['ar', 'ru'];
+const GRT_DEV_MARKED: readonly GrtLang[] = ['ar', 'ru'];
 
 export function grt(key: Key, vars?: Record<string, string | number>, lang: GrtLang = grtLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;

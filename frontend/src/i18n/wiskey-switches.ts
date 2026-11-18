@@ -178,7 +178,7 @@ function wsLang(): WsLang {
 
 const TABLES: Record<WsLang, Record<Key, string>> = { he, en, ar, ru };
 /** The columns that are an initial, unreviewed translation. */
-export const WS_DEV_MARKED: readonly WsLang[] = ['ar', 'ru'];
+const WS_DEV_MARKED: readonly WsLang[] = ['ar', 'ru'];
 
 export function wst(key: Key, vars?: Record<string, string | number>, lang: WsLang = wsLang()): string {
   const raw = TABLES[lang][key] ?? he[key] ?? key;

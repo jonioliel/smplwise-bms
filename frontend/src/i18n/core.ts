@@ -7,7 +7,7 @@
  */
 
 /** The interface languages a catalogue may carry. Hebrew is the source and the fallback of every catalogue. */
-export type UiLangCode = 'he' | 'en' | 'ar' | 'ru';
+type UiLangCode = 'he' | 'en' | 'ar' | 'ru';
 
 /** Values for `{name}` placeholders. */
 export type Vars = Record<string, string | number>;
@@ -33,9 +33,9 @@ export function fill(text: string, vars?: Vars | null): string {
 }
 
 /** A nested catalogue (i18n/he.ts) or a flat one (every other module): string leaves under string keys. */
-export type CatalogueTable = { readonly [key: string]: string | CatalogueTable };
+type CatalogueTable = { readonly [key: string]: string | CatalogueTable };
 
-export interface RegisteredCatalogue {
+interface RegisteredCatalogue {
   /** The module's own name (its file under src/, without the extension). */
   readonly name: string;
   /** The tables by language; Hebrew is always present. */
