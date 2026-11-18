@@ -344,7 +344,7 @@ export interface DepartmentCostsAnswer { departments: DepartmentCosts[]; install
 export interface DepartmentCostsBody { cost_claim: CostMode | null; claim_window_days: number | null; allowed_line_kinds?: LineKind[] | null }
 
 /** `POST tickets/{id}/assign/preview` (slice 4) - only the part slice 9 reads; the rest belongs to slice 4's assign dialog. */
-interface CostClaimOption { default: CostMode; from: 'contact' | 'vendor' | 'department' | 'installation'; choices: CostMode[] }
+export interface CostClaimOption { default: CostMode; from: 'contact' | 'vendor' | 'department' | 'installation'; choices: CostMode[] }
 export interface AssignPreview { channel?: string; text?: string; require_code?: boolean; refusals?: string[]; cost_claim: CostClaimOption; [k: string]: unknown }
 
 export interface CostsBackend {
