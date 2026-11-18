@@ -8,6 +8,7 @@ import '../components/sw-toggle';
 import './devices-camera-card';
 import type { IconName } from '../components/sw-icon';
 import { deepFocusables } from '../components/sw-drawer';
+import { holdsTab, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { lockScrollChain } from '../components/scroll-lock';
 import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError } from '../api/client';
@@ -1279,6 +1280,7 @@ export class AreaQuickSheet extends LitElement {
   disconnectedCallback() {
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('resize', this.onResize);
+    removeLayer(this);
     this.stopLive();
     this.releaseScroll?.();
     this.releaseScroll = null;
@@ -1307,6 +1309,7 @@ export class AreaQuickSheet extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>) {
+    syncLayer(this, this.open); // CR-MODAL-STACK-B-2442: the open sheet is a layer of the shared modal stack
     this.toggleAttribute('data-expanded', this.expanded && this.mode !== 'sheet');
     this.toggleAttribute('data-editing', this.editing);
     this.toggleAttribute('data-ltr', getComputedStyle(this.parentElement ?? document.documentElement).direction === 'ltr');
@@ -1418,6 +1421,7 @@ export class AreaQuickSheet extends LitElement {
       // a nested confirmation (the host's bulk dialog) keeps Escape for itself
       const path = e.composedPath();
       if (path.some((n) => n instanceof Element && (n.tagName === 'SW-DIALOG' || n.tagName === 'DEVICES-BULK-DIALOG'))) return;
+      if (!takesEscape(this, e)) return; // CR-MODAL-STACK-B-2442: a layer above the sheet takes the key, wherever focus is
       e.preventDefault();
       if (this.confirmReset) {
         this.confirmReset = false;
@@ -1431,7 +1435,7 @@ export class AreaQuickSheet extends LitElement {
       this.close();
       return;
     }
-    if (e.key === 'Tab') this.trapTab(e);
+    if (e.key === 'Tab' && holdsTab(this)) this.trapTab(e);
   };
 
   private trapTab(e: KeyboardEvent) {

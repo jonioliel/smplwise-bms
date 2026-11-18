@@ -52,6 +52,7 @@ import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles j
 // HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
 import { P3, type P3Host, type P3Ovl } from './home-p3';
 import { homeP3Styles } from './home-p3-styles';
+import { HandModal } from '../components/hand-modal';
 // HOME-V3-P2-2431: the family and building screens (home-v3-p2.ts); two hooks below: the scenes screen's buttons, the wall panel's chips
 import { sceneScreenActs, wallChips } from './home-v3-p2';
 import { tr } from '../i18n/msg/home';
@@ -216,6 +217,7 @@ export class SwHome extends LitElement implements P3Host {
     // instead of being dropped.
     this.extFor(this.extRoute)?.leave?.();
     this.p3.dispose();
+    this.modal.release();
     for (const t of [this.refreshT, this.toastT, this.armT, this.holdT]) window.clearTimeout(t);
     this.refreshT = this.toastT = this.armT = this.holdT = this.clockT = 0;
     this.flushFavs();
@@ -375,6 +377,21 @@ export class SwHome extends LitElement implements P3Host {
     g.getBoundingClientRect();
     requestAnimationFrame(() => { for (const el of parts) { el.style.transition = ''; el.classList.add('out'); } });
     window.setTimeout(() => host.remove(), 260);
+  }
+
+  /** CR-MODAL-STACK-B-2442: every overlay of the home interface (`ovl`: the sheets, the confirmations, the full-screen camera, the code
+   * pads, the v3 / phase-3 module sheets) is ONE layer of the shared modal stack: Escape closes it only while it is the top layer, Tab
+   * stays inside it, the screen behind it is inert, and focus returns to the control that opened it. */
+  private ovlBox = () => this.renderRoot.querySelector('.app-root > .ovl');
+  private modal = new HandModal({
+    box: this.ovlBox,
+    close: () => { this.ovl = null; },
+    inert: () => [this.renderRoot.querySelector('.app-root > .hs')],
+  });
+
+  protected updated(changed: PropertyValues): void {
+    super.updated(changed);
+    this.modal.sync(!!this.ovl && !!this.ovlBox()?.firstElementChild);
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -708,10 +725,6 @@ export class SwHome extends LitElement implements P3Host {
       }
     }
     this.swipe = null;
-  };
-
-  private onKey = (ev: KeyboardEvent) => {
-    if (ev.key === 'Escape' && this.ovl) this.ovl = null;
   };
 
   private stepRoom(d: number) {
@@ -1692,7 +1705,7 @@ export class SwHome extends LitElement implements P3Host {
       this.lastName = name;
       this.lastRoute = this.path;
     }
-    return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
+    return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }}>
       <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + this.enterCls} id="main">${keyed(this.lastRoute, screen)}</main>${this.nowBar()}</div>
       <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
       <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;

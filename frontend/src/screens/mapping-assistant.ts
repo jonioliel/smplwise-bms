@@ -1,3 +1,4 @@
+import { pushLayer, removeLayer, takesEscape } from '../components/modal-stack';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -1215,15 +1216,18 @@ export class MappingAssistant extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this.onKey);
+    pushLayer(this); // CR-MODAL-STACK-B-2442: the assistant is mounted only while it is open - a layer of the shared modal stack
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
   }
 
   private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !this.busy) this.close();
+    if (e.key !== 'Escape' || !takesEscape(this, e)) return; // a confirmation above the assistant takes the key
+    if (!this.busy) this.close();
   };
 
   private close() {

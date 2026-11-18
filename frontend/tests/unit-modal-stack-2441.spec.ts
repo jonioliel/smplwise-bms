@@ -167,7 +167,9 @@ test('the three primitives use the shared stack and helpers, and none keeps a pr
     expect(s).toMatch(/pushLayer\(this/);
     expect(s).toMatch(/removeLayer\(this\)/);
     expect(s).not.toMatch(/function deepActive\(/);
-    expect(s).not.toMatch(/shadowRoot\?\.activeElement/);
+    // the private copy of deepActive() was a `while (x?.shadowRoot?.activeElement)` walk to the deepest element. sw-dialog's open() (main,
+    // b19e99165) walks every LEVEL of the focus chain to see whether focus is already inside the dialog - not a copy of the helper
+    expect(s).not.toMatch(/while \(\w+\?\.shadowRoot\?\.activeElement\)/);
   }
   expect(dialog).not.toContain('OPEN_STACK');
   for (const s of [dialog, sheet]) expect(s).toMatch(/if \(!holdsTab\(this\)\) return;/);

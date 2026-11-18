@@ -1,4 +1,5 @@
 import { deepFocusables } from './sw-drawer';
+import { holdsTab, takesEscape } from './modal-stack';
 
 /**
  * A11Y-POLISHED-2342: small keyboard helpers for the hand-written widgets of the screens (the shared sw-dialog / sw-drawer /
@@ -46,16 +47,19 @@ export function tablistKeydown(e: KeyboardEvent): void {
 
 /**
  * The keyboard of a hand-written modal sheet (role dialog, aria-modal): Escape closes it, Tab / Shift+Tab wrap inside it.
- * Returns true when it handled the key.
+ * Returns true when it handled the key. CR-MODAL-STACK-B-2442: with `layer` (the sheet's entry in the shared modal stack) Escape closes
+ * it only while it is the top layer and Tab wraps only while it holds the trap.
  */
-export function modalKeydown(e: KeyboardEvent, box: Element, close: () => void): boolean {
+export function modalKeydown(e: KeyboardEvent, box: Element, close: () => void, layer?: object): boolean {
   if (e.key === 'Escape') {
+    if (layer && !takesEscape(layer, e)) return false;
     e.preventDefault();
     e.stopPropagation();
     close();
     return true;
   }
   if (e.key !== 'Tab') return false;
+  if (layer && !holdsTab(layer)) return false;
   const all = deepFocusables(box);
   if (!all.length) {
     e.preventDefault();

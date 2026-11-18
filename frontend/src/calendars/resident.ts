@@ -1,3 +1,4 @@
+import { HandModal } from '../components/hand-modal';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -183,6 +184,7 @@ export class CalResident extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.modal.release();
     this.ro?.disconnect();
     clearTimeout(this.slowTimer);
   }
@@ -192,7 +194,17 @@ export class CalResident extends LitElement {
     if (changed.has('roomId') || changed.has('dayIdx')) this.tlFrom = this.dayIdx === 0 ? timelineWindow(true, this.now).from : 8; // the time bar opens around now today
   }
 
+  /** CR-MODAL-STACK-B-2442: the bottom sheets (equipment, confirm, cancel, another time) are one layer of the shared modal stack: Escape
+   * closes the sheet while it is the top layer, Tab stays inside it, the screen under the scrim is inert, focus returns to the opener. */
+  private sheetBox = () => this.renderRoot.querySelector('[data-res-sheet]');
+  private modal = new HandModal({
+    box: this.sheetBox,
+    close: () => this.close(),
+    inert: () => Array.from(this.renderRoot.children).filter((el) => !el.matches('style, .scrim, .sheet')),
+  });
+
   protected updated(): void {
+    this.modal.sync(!!this.sheet && !!this.sheetBox());
     const box = this.renderRoot.querySelector<HTMLElement>('[data-fit]');
     this.ro ??= new ResizeObserver(() => this.fit());
     this.ro.disconnect();

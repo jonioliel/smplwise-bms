@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { css, html, nothing, type ReactiveController, type ReactiveControllerHost, type TemplateResult } from 'lit';
 import { lt } from './list-text';
 import { tIcon } from './icons';
@@ -72,9 +73,11 @@ export class FilterPanelController implements ReactiveController {
   hostDisconnected(): void {
     window.removeEventListener('pointerdown', this.onOutside, true);
     this.host.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
   }
   hostUpdated(): void {
     const open = this.isOpen();
+    syncLayer(this, open, NO_TRAP); // CR-MODAL-STACK-B-2442: the open panel is a layer of the shared modal stack
     if (open) this.placeSheet();
     if (open && !this.wasOpen) this.panel()?.querySelector<HTMLElement>('button:not([disabled]), select, input')?.focus({ preventScroll: true });
     this.wasOpen = open;
@@ -102,6 +105,7 @@ export class FilterPanelController implements ReactiveController {
     const p = this.panel();
     const t = this.toggle();
     if ((p && path.includes(p)) || (t && path.includes(t))) {
+      if (!takesEscape(this, e)) return; // only the top layer answers Escape
       e.stopPropagation();
       this.setOpen(false);
       t?.focus();

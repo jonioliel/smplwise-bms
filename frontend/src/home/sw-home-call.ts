@@ -15,6 +15,7 @@ import { homeExtraStyles } from './home-styles-extra';
 import { hi } from './home-icons';
 import '../components/sw-camera-tile';
 import { tr } from '../i18n/msg/home';
+import { HandModal } from '../components/hand-modal';
 
 export interface HomeCallsState { ringing: number; waiting: number }
 
@@ -29,8 +30,18 @@ export class SwHomeCall extends SwIncomingCall {
     this.sync();
   }
 
+  /** CR-MODAL-STACK-B-2442: the full-screen call is a layer of the shared modal stack. Escape never dismisses a call (as before), but
+   * the call answers the key, so a sheet under it does not close behind it; Tab stays inside the call. */
+  private modal = new HandModal({ box: () => this.renderRoot.querySelector('.ovl'), close: () => {}, escape: () => false });
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.modal.release();
+  }
+
   protected updated(): void {
     super.updated();
+    this.modal.sync(!!this.renderRoot.querySelector('.ovl'));
     const calls = this.active?.calls ?? [];
     const ringing = calls.filter((c) => c.state === 'ringing').length;
     const waiting = calls.filter((c) => c.state === 'ringing' && this.hiddenCalls.has(c.call_id)).length;

@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from './modal-stack';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
@@ -45,7 +46,10 @@ export class SwCastPicker extends LitElement {
   @state() private quality: CastProfile = 'sub';
   private watch = new CastWatch(this);
   private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.open) this.close();
+    if (e.key !== 'Escape' || !this.open) return;
+    // CR-MODAL-STACK-B-2442: the docked panel is a layer of the shared modal stack (the phone's sheet is an sw-sheet, a layer already)
+    if (this.mode() !== 'sheet' && !takesEscape(this, e)) return;
+    this.close();
   };
   private onDoc = (e: Event) => {
     if (!this.open || this.mode() === 'sheet') return;
@@ -324,6 +328,7 @@ export class SwCastPicker extends LitElement {
   disconnectedCallback() {
     document.removeEventListener('keydown', this.onKey);
     document.removeEventListener('pointerdown', this.onDoc, true);
+    removeLayer(this);
     super.disconnectedCallback();
   }
 
@@ -337,6 +342,7 @@ export class SwCastPicker extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
+    syncLayer(this, this.open && this.mode() !== 'sheet', NO_TRAP);
     if (this.open && this.mode() === 'pop' && (changed.has('open') || changed.has('data'))) this.place();
   }
 
