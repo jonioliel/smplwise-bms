@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { describeError } from '../api/client';
 import {
-  DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, HOME_PERSONAL_EVENT, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, loadHomeSettings, loadPersonal, moveWidget, PERSONAL_EMPTY, personalIsEmpty, savePersonal, SIZE_LABEL, SIZES, WIDGET_NAME,
+  DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, HOME_PERSONAL_EVENT, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, loadHomeSettings, moveWidget, PERSONAL_EMPTY, personalIsEmpty, savePersonal, SIZE_LABEL, SIZES, WIDGET_NAME,
   type Direction, type ElevatorMode, type HomeConfig, type HomePersonal, type PersonalWidget, type PhoneLayout, type Size, type WidgetId, ELEVATOR_MODES,
 } from '../api/home';
 import { listElevators, type Elevator } from '../api/elevators';
@@ -20,7 +20,7 @@ import { presenceWidgetAvailable } from '../screens/building-presence-widget';
 import { canAnywhere, isApi } from '../api/session';
 import { MODE_KEY, personalHidden } from '../elevators/personal-mode'; // CR-NAV-LABELS-2436: not the whole elevators model
 import { elt } from '../i18n/elevators';
-import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
+import { effectiveRows, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
 import { productSettings } from '../api/prefs';
 import { loadTree as loadCatalogTree } from '../api/catalog';
 import { multiBuildingOn } from '../api/mapping';
@@ -29,6 +29,7 @@ import '../screens/area-row-editor';
 import { HOME_SCREEN_DEFAULT, homeScreenOf, SUMMARY_KINDS, type HomeScreenOptions, type PersonalScreen, type SummaryKind } from '../api/home-screen';
 import { hs } from '../i18n/home-screen';
 import { tr } from '../i18n/msg/shell';
+import { firstRead, noChoices, readOwnChoices } from './home-personal-read';
 import type { AreaRowChange } from '../screens/area-row-editor';
 
 
@@ -177,13 +178,21 @@ export class SwHomePersonal extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    void Promise.all([loadPersonal(), loadHomeSettings(true), loadPersonalRow(), productSettings().catch(() => null)]).then(([p, h, r, s]) => {
-      this.personal = p;
-      this.screenSite = homeScreenOf((s as unknown as Record<string, unknown> | null)?.['home.screen']);
-      this.base = { direction: h.direction, config: h.config };
-      this.row = r;
-      this.rowBase = devicesPrefsOf(s);
-    });
+    // CR-UI-POLISH-2443: the user's own choices are read strictly (readOwnChoices: a failed read rejects instead of answering "no
+    // choices"), and a first read that fails is the section's red note with the reason - not an empty section, and not the
+    // installation's defaults shown as if nothing was stored. The installation's side keeps its fallbacks (loadHomeSettings and
+    // the settings answer the defaults). No retry control: the section is mounted only while it is open in the user menu, so
+    // opening it again reads again.
+    void firstRead(
+      () => Promise.all([isApi() ? readOwnChoices() : noChoices(), loadHomeSettings(true), productSettings().catch(() => null)]),
+      ([own, h, s]) => {
+        this.personal = own.personal;
+        this.screenSite = homeScreenOf((s as unknown as Record<string, unknown> | null)?.['home.screen']);
+        this.base = { direction: h.direction, config: h.config };
+        this.row = own.row;
+        this.rowBase = devicesPrefsOf(s);
+      },
+    ).then((reason) => (this.failed = reason));
     if (elevatorsAccess().view) void listElevators().then((r) => (this.elevators = r.elevators)).catch(() => (this.elevators = []));
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
     void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
@@ -385,8 +394,13 @@ export class SwHomePersonal extends LitElement {
     this.commit({ ...this.personal, order: same ? null : order });
   }
 
+  /** The section's one error note: a save that failed (under the list) or the first read that failed (instead of the list). */
+  private errorNote() {
+    return this.failed ? html`<p class="err" role="alert" data-home-personal-error>${this.failed}</p>` : nothing;
+  }
+
   render() {
-    if (!this.base) return nothing;
+    if (!this.base) return this.errorNote(); // nothing while the first read is on its way; its reason when it failed
     const d = this.direction;
     const order = this.offered;
     return html`
@@ -433,7 +447,7 @@ export class SwHomePersonal extends LitElement {
           </div>`
         : nothing}
       <button type="button" class="reset" data-home-personal-reset ?disabled=${this.busy || (personalIsEmpty(this.personal) && !Object.keys(this.row).length)} @click=${async () => { await this.commit({ ...PERSONAL_EMPTY, widgets: {} }); if (Object.keys(this.row).length) await this.commitRow(null); }}>${tr('ברירת מחדל של המערכת')}</button>
-      ${this.failed ? html`<p class="err" role="alert" data-home-personal-error>${this.failed}</p>` : nothing}
+      ${this.errorNote()}
       <span hidden data-home-personal-direction-now=${d}></span>
     `;
   }

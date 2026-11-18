@@ -6,7 +6,7 @@
  */
 import { get, put } from './client';
 import { isApi } from './session';
-import { tr } from '../i18n/msg/api-home';
+import { tr } from '../i18n/msg/api-plan-view';
 
 export type ViewStyle = 'auto' | 'light' | 'dark';
 export type MouseMode = 'drag' | 'lock' | 'auto';
@@ -108,7 +108,8 @@ export interface PlanViewPrefs {
   location?: SiteLocation;
 }
 
-/** The Hebrew names the settings screen and the 3D view show (one place, so both agree). */
+/** The names the settings card shows, written in Hebrew and read through `tr()` (CR-UI-POLISH-2443: English in
+ * i18n/msg/api-plan-view.ts; the Hebrew interface shows the text exactly as written). */
 export const DIAL_HE: Record<keyof PlanViewDials, string> = {
   style: tr('סגנון חזותי'), default_view: tr('תצוגת ברירת מחדל'), furniture: tr('ריהוט'), textures: tr('טקסטורות'), wall_display: tr('מסך קיר'), time_source: tr('שעה ביום'),
   mouse_mode: tr('מבט בעכבר בסיור'), quality: tr('איכות'), kiosk_idle_s: tr('מעבר לתמונה מוכנה במסך קיר'), eye_m: tr('גובה עין'), dpr_cap: tr('חדות מרבית'),

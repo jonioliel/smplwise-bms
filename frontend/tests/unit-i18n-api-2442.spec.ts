@@ -9,6 +9,7 @@ import { tr as trElectricity } from '../src/i18n/msg/api-electricity';
 import { tr as trHome } from '../src/i18n/msg/api-home';
 import { tr as trMedia } from '../src/i18n/msg/api-media';
 import { tr as trNotify } from '../src/i18n/msg/api-notify';
+import { tr as trPlanView } from '../src/i18n/msg/api-plan-view';
 import { tr as trSystem } from '../src/i18n/msg/api-system';
 import { tr as trTime } from '../src/i18n/msg/time';
 import { tr as trVideo } from '../src/i18n/msg/api-video';
@@ -40,6 +41,7 @@ const TABLES: Record<string, Translator> = {
   'msg/api-home': trHome,
   'msg/api-media': trMedia,
   'msg/api-notify': trNotify,
+  'msg/api-plan-view': trPlanView,
   'msg/api-system': trSystem,
   'msg/api-video': trVideo,
 };
