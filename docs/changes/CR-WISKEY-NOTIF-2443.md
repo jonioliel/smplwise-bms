@@ -64,3 +64,9 @@ NOT_RUN (need the runner or a running backend; the runner is reserved for the 2.
 - `evidence-wiskey-people-native.spec.ts`, `evidence-wiskey-people-writes.spec.ts`, `evidence-wiskey-people.spec.ts`,
   `evidence-wiskey-editor.spec.ts`, `evidence-notifications.spec.ts`, layout/pixel wiskey-people specs (no pixel change expected).
 - The late-permission flow in a real browser (covered here by source pins on `begin()`/`subscribe()` only).
+
+## Update: brought to the newest train head
+
+The train moved while this branch was being written (aa20f05ae -> 5bcea468d, 64 commits). Merged
+`origin/release/2438-train` 5bcea468d into the branch (no conflicts; the train only touched `wiskey-format.ts`'s locale default).
+Re-run after the merge: `npx tsc --noEmit` clean; the same three unit files **60 passed** (`--workers=1`).
