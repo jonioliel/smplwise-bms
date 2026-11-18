@@ -13,6 +13,7 @@ import type {
 } from '../api/tickets-rfq';
 import { vatOf } from './cost-model';
 import { isoZ } from '../api/day-format';
+import { avatarInitials } from '../components/avatar-initials';
 
 export type Tone = 'ok' | 'info' | 'warn' | 'bad' | '';
 
@@ -211,13 +212,10 @@ export function plannedChannel(c: Pick<Contact, 'preferred_channel' | 'has_phone
   return c.email ? 'email' : 'manual';
 }
 
-/** Initials for the avatar of a vendor row ("מיזוג אלון" -> "מא"). */
+/** Initials for the avatar of a vendor row ("מיזוג אלון" -> "מא"): the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a);
+ *  a name with no letter keeps the "?" these rows always drew. */
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '?';
-  const first = [...parts[0]][0] ?? '';
-  const second = parts.length > 1 ? [...parts[parts.length - 1]][0] ?? '' : [...parts[0]][1] ?? '';
-  return `${first}${second}`;
+  return avatarInitials(name) || '?';
 }
 
 interface PreviewParts { name: string; number: string; title: string; place: string; due: string; window: string; link: string; organization: string;

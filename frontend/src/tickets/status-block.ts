@@ -5,6 +5,7 @@ import type { LinkBlock } from '../api/tickets-s4';
 import { flowSteps, type DrawerAction } from './drawer-model';
 import { dwt } from './drawer-text';
 import { tIcon } from './icons';
+import { avatarInitials } from '../components/avatar-initials';
 import { ballOf, sentenceFor, slaState, statusChip, warningFor, type ViewerRole } from './status-sentence';
 
 /**
@@ -25,11 +26,9 @@ interface StatusBlockCtx {
   onAction: (a: DrawerAction) => void;
 }
 
-/** Two letters of a name for the avatar ("אלון דוד" → "אד"). */
+/** Two letters of a name for the avatar ("אלון דוד" → "אד"): the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
 export function initials(name: string | null | undefined): string {
-  const w = (name ?? '').trim().split(/\s+/).filter(Boolean);
-  if (!w.length) return '';
-  return (w.length > 1 ? w[0][0] + w[1][0] : w[0].slice(0, 2)).toUpperCase();
+  return avatarInitials(name ?? '');
 }
 
 /** One action button of the block (also used by the phone sheet and the page hero). */

@@ -12,6 +12,7 @@ import { ticketsApi, type TicketItem } from '../api/tickets';
 import { ticketsEnabled } from '../tickets/gate';
 import { phoneVerifyApi } from '../api/tickets-phone-verify';
 import { dateInZone, minuteInZone } from '../api/recordings';
+import { avatarInitials } from '../components/avatar-initials';
 import { xCss } from './styles';
 import {
   LANGS, MAX_WINS, NOTES_MAX, PRESETS, PURPOSE_MAX, bodyOf, chosenStations, codeDue, confirmedNumber, daySpan, dm, doorKey, eligibility, freshForm,
@@ -251,7 +252,8 @@ export class AccessRequestDialog extends LitElement {
   }
 
   private initials(name: string): string {
-    return name.split(/[\s-]+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('');
+    // CR-INITIALS-B-2443: the shared rule; a name with no letter keeps a "?" (the .av spans have no person-icon fallback)
+    return avatarInitials(name) || '?';
   }
 
   // ---------------------------------------------------------------- sections

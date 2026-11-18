@@ -29,11 +29,13 @@ import { ct } from './cost-text';
 import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
 import { xt } from '../i18n/access-external';
+import { avatarInitials } from '../components/avatar-initials';
 import { MARKER_FILTERS, byMarker, carriesMarker, filterKey, markerView, type MarkerFilter } from './vendor-marker';
 import { hostBlockStyles } from '../styles/fragments';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
-const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((x) => x[0] ?? '').join('');
+/** The tile / avatar letters: the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
+const initials = avatarInitials;
 const LANG_NAMES: Record<ContactLang, string> = { he: 'עברית', en: 'English', ar: 'العربية', ru: 'Русский' };
 type KindFilter = 'all' | ContactKind;
 interface Draft {
