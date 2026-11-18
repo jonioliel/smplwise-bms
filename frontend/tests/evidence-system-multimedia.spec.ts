@@ -259,6 +259,8 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   });
 
   test('connection: with a music library (MA), without one (Sonos), and with the library unavailable', async ({ page }) => {
+    // three full boots of the app and a screenshot: the 60 s of a one-boot test ran out on a loaded runner (also on main, nightly 15.11)
+    test.setTimeout(120_000);
     await install(page, st);
     await open(page, '/system/multimedia');
     await expandAll(page);

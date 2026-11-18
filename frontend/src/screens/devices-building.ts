@@ -3897,8 +3897,20 @@ export class DevicesBuilding extends LitElement {
   private showLooseNote(n: LooseNotice | null) {
     window.clearTimeout(this.looseTimer);
     this.looseNote = n;
-    if (n) this.looseTimer = window.setTimeout(() => (this.looseNote = null), 8000);
+    if (n) this.looseTimer = window.setTimeout(this.expireLooseNote, 8000);
   }
+
+  /** CR-W2-FOLLOWUPS-2441: the 8 s end of the notice waits while the notice holds the keyboard focus (its "בטל" takes the focus when the
+   * row is hidden) or the pointer: closing it then dropped the focus to the page and took the undo away from a user still on it
+   * (WCAG 2.2.1 / 2.4.3). It looks again 2 s later and closes once the focus and the pointer have left. */
+  private expireLooseNote = () => {
+    const t = this.renderRoot.querySelector<HTMLElement>('[data-tree-unassigned-toast]');
+    if (t && (t.matches(':focus-within') || t.matches(':hover'))) {
+      this.looseTimer = window.setTimeout(this.expireLooseNote, 2000);
+      return;
+    }
+    this.looseNote = null;
+  };
 
   private undoLoose = () => {
     const n = this.looseNote;

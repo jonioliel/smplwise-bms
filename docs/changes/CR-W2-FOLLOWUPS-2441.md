@@ -189,3 +189,48 @@ subject kind `energy_bills` is checked by permission), so the people notified ar
 
 - `unit-tickets-1440-column-setting-2360.spec.ts`, `tsc`, the full backend suite, Playwright, pixels: the entry check.
 - No device or lab access.
+
+## Entry check 2 (59e4215fe, 18.11 01:04) - 2 preview failures
+
+Runner file `~/smplwise-results/entry/gate_pilot-CR-W2-FOLLOWUPS-2441_59e4215fe.json`; both failed in the full run and
+again alone (mobile, 60 s timeout). Runner load at the time: max load1 57, memory down to 371 MB available. This branch
+touches neither screen (no change under `devices-building`, `tree-unassigned` or the multimedia settings).
+
+### 1. `evidence-tree-unassigned-2331.spec.ts:80` [mobile] - "הסתר מהעץ" and its undo notice
+
+**What failed.** `locator.click` on the notice's "בטל" (line 99) waited until the timeout: the notice was already gone.
+**History on main.** The same test FAILED (also alone) in the nightly of main 0a8fb55e1 (14.11), was FLAKY in the
+nightly of main ccb77f28d (05.11) and in today's entry check of pilot/CR-I18N-COMBINED-C-2442 - not caused by this branch.
+**Cause.** `devices-building.showLooseNote` closes the notice 8 s after it opens, unconditionally. The screen moves the
+keyboard focus into the notice (its "בטל", because the row it was on is gone) and the test asserts that focus, takes a
+screenshot and measures the overflow, then presses "בטל". On a loaded runner the phone screenshot alone took more than the
+8 s, so the notice closed under the focus and the click found nothing. The same thing is a real defect for a user: a keyboard
+or screen-reader user standing on "בטל" lost both the undo and the focus (dropped to the page) when the 8 s ran out
+(WCAG 2.2.1 timing adjustable, 2.4.3 focus order).
+**Fix (code, not the test).** `expireLooseNote`: at the 8 s mark the notice stays while it holds the focus (`:focus-within`)
+or the pointer (`:hover`), looks again every 2 s and closes once both have left. Close ("×"), "בטל", a refused save and
+leaving the screen behave as before; a notice nobody is on still closes at 8 s. The test is unchanged.
+
+### 2. `evidence-system-multimedia.spec.ts:261` [mobile] - connection: MA, Sonos, library unavailable
+
+**What failed.** `page.screenshot` at the end (line 283 -> `shot`) ran into the 60 s test timeout.
+**History on main.** FLAKY with the same timeout in the nightly of main 4a345f8af (15.11) - not caused by this branch.
+**Cause.** The test boots the whole app three times (`open` x3, two `install`s) and ends with a screenshot - three tests'
+worth of work under the 60 s of a one-boot test. On a loaded runner the last step is the one that runs out. The product
+behaviour asserted is right; only the budget is short.
+**Fix (test budget).** `test.setTimeout(120_000)` for this one test, with the reason in a comment (the repository's usual
+form for multi-boot evidence tests, e.g. `evidence-area-redesign.spec.ts`). No assertion changed; not quarantined.
+
+### Tests actually run (entry check 2 fixes)
+
+- Workstation: `npx tsc --noEmit` on the worktree - rc 0.
+- Runner, own checkout `~/work/w2fu` (59e4215fe + this change, removed after), `npx vite build` (rc 0), then
+  `evidence-tree-unassigned-2331.spec.ts` + `evidence-system-multimedia.spec.ts`, `--project=mobile --workers=1`, private
+  port, runner load about 31-36 (the nightly running): **19 passed, 0 failed, 2 skipped** - both failing tests among the passes
+  (tree :80 in 7.1 s).
+
+### NOT_RUN
+
+- desktop / tablet projects of the two files, the rest of Playwright, pixels, backend: the entry check.
+- No test of the notice outliving 8 s with the focus on it was added (the existing test covers the focus; timing proof is
+  the entry check under load).
