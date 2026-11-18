@@ -15,18 +15,7 @@ import '../components/sw-sheet';
 import { billsTable } from './elec-bills-table';
 import { go, href, route } from './elec-routes';
 import { tr } from '../i18n/msg/electricity';
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-interface Form {
-  name: string;
-  customer_number: string;
-  tax_id: string;
-  address: string;
-  phone: string;
-  email: string;
-  notes: string;
-}
-const blank = (no = ''): Form => ({ name: '', customer_number: no, tax_id: '', address: '', phone: '', email: '', notes: '' });
+import { blankCustomerForm as blank, customerFormOf, customerFormProblems, customerMatches, customerSaveBody, type CustomerForm as Form } from './customer-form';
 
 @customElement('elec-customers-page')
 export class ElecCustomersPage extends ElecBase {
@@ -83,7 +72,7 @@ export class ElecCustomersPage extends ElecBase {
     try {
       const c = await elec().getCustomer(id);
       this.card = c;
-      this.form = { name: c.name, customer_number: c.customer_number, tax_id: c.tax_id ?? '', address: c.address ?? '', phone: c.phone ?? '', email: c.email ?? '', notes: c.notes ?? '' };
+      this.form = customerFormOf(c);
       this.cardSt = 'ready';
     } catch {
       this.cardSt = 'error';
@@ -94,10 +83,9 @@ export class ElecCustomersPage extends ElecBase {
   }
 
   private validate(): boolean {
+    const text = { name: tr('צריך לכתוב שם ללקוח'), email: tr('כתובת דוא״ל לא תקינה'), customer_number: tr('מספר לקוח הוא ספרות בלבד') };
     const e: Record<string, string> = {};
-    if (!this.form.name.trim()) e.name = tr('צריך לכתוב שם ללקוח');
-    if (this.form.email && !EMAIL.test(this.form.email)) e.email = tr('כתובת דוא״ל לא תקינה');
-    if (!/^\d{1,9}$/.test(this.form.customer_number)) e.customer_number = tr('מספר לקוח הוא ספרות בלבד');
+    for (const k of customerFormProblems(this.form, { numberRequired: true })) e[k] = text[k];
     this.errs = e;
     return !Object.keys(e).length;
   }
@@ -106,13 +94,10 @@ export class ElecCustomersPage extends ElecBase {
     this.busy = true;
     this.error = '';
     try {
-      const f = { ...this.form, name: this.form.name.trim() };
       if (this.card) {
-        const body = { ...f } as Partial<Form>;
-        if (f.customer_number === this.card.customer_number) delete body.customer_number;
-        this.card = await elec().updateCustomer(this.card.id, this.card.revision, body);
+        this.card = await elec().updateCustomer(this.card.id, this.card.revision, customerSaveBody(this.form, this.card));
       } else {
-        const c = await elec().createCustomer(f);
+        const c = await elec().createCustomer(customerSaveBody(this.form));
         await this.loadList();
         go(route.customer(c.id));
         return;
@@ -177,8 +162,7 @@ export class ElecCustomersPage extends ElecBase {
   render() {
     const perms = energyAccess();
     if (!perms.bills) return html`<div class="page" data-elec="customers" data-state="forbidden">${stateBox('forbidden', 'lock', tr('אין הרשאה ללקוחות'))}</div>`;
-    const q = this.q.trim();
-    const list = this.list.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));
+    const list = this.list.filter((c) => customerMatches(c, this.q));
     let body;
     if (this.st === 'loading') body = skeleton(5);
     else if (this.st === 'error') body = stateBox('error', 'warning', tr('לא ניתן לטעון את הלקוחות'), { label: tr('נסה שוב'), run: () => void this.loadList() });

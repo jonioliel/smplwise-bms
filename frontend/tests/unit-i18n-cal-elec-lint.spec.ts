@@ -25,7 +25,6 @@ const HEBREW_LITERALS: Record<string, { why: string; texts: string[] }> = {
   'calendars/view-calendar.ts': { why: 'default titles saved with an event', texts: ['בדיקה', 'הזמנת חדר', 'אירוע', 'הזמנה'] },
   'calendars/view-manage.ts': { why: 'the demo mode\'s roles; the member label saved to the server', texts: ['מפעיל', 'צופה', 'מנהל אתר', 'כל מי שיש לו צפייה ביומנים'] },
   'electricity/elec-bill-page.ts': { why: 'the watermark of the Hebrew bill paper (the paper compares it)', texts: ['טיוטה', 'בוטל'] },
-  'electricity/elec-format.ts': { why: 'the day unit of the Hebrew bill document', texts: ['יום', 'ימים'] },
   'electricity/elec-settings.ts': {
     why: 'the sample bill of the preview: content of the Hebrew bill paper',
     texts: ['חשבון צריכת חשמל ודרישת תשלום', 'אינו חשבונית מס', 'לקוח לדוגמה', 'רחוב הדוגמה 12, עיר לדוגמה', 'חשבון לדוגמה', 'תעריף', '[מונה]', 'מונה לדוגמה', 'מונה לדוגמה'],

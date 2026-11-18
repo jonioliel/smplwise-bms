@@ -98,8 +98,6 @@ export const billNumber = (to: string, customerNo: string, letter: string, revis
 /** `2026-12-0001-2` -> `2026-12-0001`; `2026-12-0001/2-3` -> `2026-12-0001/2` (the revision suffix is dropped, the running suffix stays) */
 export const baseNumber = (num: string): string => /^(\d{4}-\d{2}-\d+(?:\/\d+)?)/.exec(num)?.[1] ?? num;
 
-export const HEBREW_DAYS_UNIT = (n: number): string => (n === 1 ? 'יום' : 'ימים');
-
 /** `חודשי, מה-1 בחודש` / `דו-חודשי, מה-1 בינואר` */
 export const periodLabel = (months: number, day: number, month: number): string =>
   months === 1 ? tr('חודשי, מה-{day} בחודש', { day }) : tr('דו-חודשי, מה-{day} ב{month}', { day, month: MONTHS_FULL[Math.max(1, Math.min(12, month)) - 1] });
