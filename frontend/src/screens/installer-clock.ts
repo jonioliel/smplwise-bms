@@ -88,7 +88,7 @@ export class InstallerClock extends LitElement {
       }
       ${settingsFieldInvalidStyles}
       .field-error {
-        color: var(--sw-danger-text, var(--sw-err));
+        color: var(--sw-danger-text);
         font-size: var(--sw-fs-xs, var(--sw-fs-sm));
       }
       .stations {

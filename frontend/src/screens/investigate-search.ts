@@ -150,7 +150,7 @@ export class InvestigateSearch extends LitElement {
       padding: 8px 10px;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
-      border: 1px solid var(--sw-line);
+      border: 1px solid var(--sw-border);
       cursor: pointer;
     }
     .row .body {
@@ -364,7 +364,7 @@ export class InvestigateSearch extends LitElement {
           </sw-card>
           <div class="head"><span>${tr('התאמות (לפי מטא־דאטה)')}</span><a href="#/investigate/events">${tr('הצג הכל')}</a></div>
           <div class="results">
-            ${RESULTS.map((r) => html`<div class="res" @click=${() => (window.location.hash = '#/investigate/playback')}><div class="pic"><sw-scene kind=${r.scene}></sw-scene><span class="demo">${tr('דמו')}</span></div><div class="cap">${r.when}<small>${r.cam} · ${r.why}</small></div></div>`)}
+            ${RESULTS.map((r) => html`<div class="res" role="link" tabindex="0" @click=${() => (window.location.hash = '#/investigate/playback')} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.location.hash = '#/investigate/playback'; } }}><div class="pic"><sw-scene kind=${r.scene}></sw-scene><span class="demo">${tr('דמו')}</span></div><div class="cap">${r.when}<small>${r.cam} · ${r.why}</small></div></div>`)}
           </div>
         </div>
       </sw-page>

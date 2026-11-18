@@ -513,7 +513,7 @@ export const settingsFieldLabelStyles = css`
 /** The rejected input of such a field (screens/installer-styles.ts, installer-clock). */
 export const settingsFieldInvalidStyles = css`
   label.f input[aria-invalid='true'] {
-    border-color: var(--sw-danger, var(--sw-err));
+    border-color: var(--sw-danger);
   }
 `;
 

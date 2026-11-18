@@ -22,7 +22,7 @@ export class SwSearchAccess extends LitElement {
     :host { display: grid; gap: var(--sw-s-2); }
     .roles { display: flex; flex-wrap: wrap; gap: var(--sw-s-2) var(--sw-s-4); }
     label.role { display: inline-flex; align-items: center; gap: var(--sw-s-2); font-size: var(--sw-fs-sm, 0.875rem); }
-    .hint { color: var(--sw-text-muted); font-size: var(--sw-fs-sm, 0.875rem); }
+    .hint { color: var(--sw-text-3); font-size: var(--sw-fs-sm, 0.875rem); }
   `;
 
   protected willUpdate(): void {
