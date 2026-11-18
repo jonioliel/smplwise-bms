@@ -65,15 +65,31 @@ export const VIEWFINDER_TEXT = { he, en };
 
 type Phase = 'closed' | 'starting' | 'live' | 'review';
 
+/** The still as a JPEG (a canvas encode writes no EXIF), or null when the browser cannot encode it. `toBlob` copies the bitmap when it is
+ * called, so the canvas can be shown (and later dropped) while the encode runs. */
+function encodeJpeg(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise<Blob | null>((resolve) => {
+    try {
+      canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY);
+    } catch {
+      resolve(null); // e.g. a tainted canvas (never the case for a camera frame) - reported as a failure, like a null blob
+    }
+  });
+}
+
 @customElement('ticket-camera-viewfinder')
 export class TicketCameraViewfinder extends LitElement {
   /** The installation switch, checked again here (defence in depth: the owner does not render the tile while it is off). */
   @property({ type: Boolean }) enabled = false;
   @state() private phase: Phase = 'closed';
-  @state() private previewUrl = '';
+  /** FIX-CAMVF-FLAKE-2443: the shot itself - the canvas the frame was drawn on, shown as the still the moment the shutter is pressed */
+  @state() private still: HTMLCanvasElement | null = null;
+  /** "שימוש בתמונה" pressed while the JPEG is still being encoded: the button waits (disabled) for it */
+  @state() private using = false;
   @query('video') private video!: HTMLVideoElement | null;
   private stream: MediaStream | null = null;
-  private blob: Blob | null = null;
+  /** the JPEG of the still, encoded behind the review screen; resolves to null when the browser could not encode it */
+  private encoding: Promise<Blob | null> | null = null;
   /** bumps on every start / close: a getUserMedia answer that arrives after the person closed is stopped at once */
   private generation = 0;
   private listening = false;
@@ -90,7 +106,7 @@ export class TicketCameraViewfinder extends LitElement {
       place-items: center;
     }
     video,
-    img {
+    canvas {
       inline-size: 100%;
       block-size: 100%;
       object-fit: contain;
@@ -167,9 +183,9 @@ export class TicketCameraViewfinder extends LitElement {
   }
 
   private dropStill(): void {
-    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
-    this.previewUrl = '';
-    this.blob = null;
+    this.still = null;
+    this.encoding = null;
+    this.using = false;
   }
 
   private fail(reason: CameraFailure): void {
@@ -195,7 +211,14 @@ export class TicketCameraViewfinder extends LitElement {
     document[m]('visibilitychange', this.onVisibility);
   }
 
-  private async shoot(): Promise<void> {
+  /**
+   * FIX-CAMVF-FLAKE-2443: the shutter answers at once. The frame is drawn on a canvas, the camera goes off and the review shows THAT canvas
+   * in the same click; the JPEG is encoded behind it. Before, the dialog stayed on a dead "live" preview with an active shutter until
+   * `canvas.toBlob` called back - Chromium encodes a JPEG blob in idle time on the page's main thread (OffscreenCanvas.convertToBlob too,
+   * measured) and forces it only after its own start / complete timeouts (about 1 s, then 5 s), so under load, with phone emulation, the
+   * shot looked ignored for more than 5 s. The encode now overlaps the time the person looks at the still.
+   */
+  private shoot(): void {
     const v = this.video;
     if (this.phase !== 'live' || !v) return;
     const size = frameSize(v.videoWidth, v.videoHeight);
@@ -210,27 +233,35 @@ export class TicketCameraViewfinder extends LitElement {
     }
     ctx.drawImage(v, 0, 0, size.width, size.height);
     this.endStream(); // the shot is taken: the camera goes off now, not when the dialog closes
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
-    canvas.width = canvas.height = 0;
-    if (!blob || this.phase !== 'live') {
-      if (!blob) this.fail('failed');
-      return;
-    }
-    this.blob = blob;
-    this.previewUrl = URL.createObjectURL(blob);
+    canvas.dataset.camvfStill = '';
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', vft('still'));
+    const gen = this.generation;
+    const encoding = encodeJpeg(canvas);
+    this.encoding = encoding;
+    this.still = canvas;
     this.phase = 'review';
+    // a frame the browser cannot encode ends like any other failure (stream already off, dialog closed, the file input tile remains)
+    void encoding.then((blob) => {
+      if (!blob && gen === this.generation) this.fail('failed');
+    });
   }
 
-  private use(): void {
-    const blob = this.blob;
-    if (this.phase !== 'review' || !blob) return;
+  /** "שימוש בתמונה": the photo leaves the browser only now, through the owner. If the JPEG is not ready yet the button waits for it. */
+  private async use(): Promise<void> {
+    const encoding = this.encoding;
+    if (this.phase !== 'review' || !encoding || this.using) return;
+    const gen = this.generation;
+    this.using = true;
+    const blob = await encoding;
+    if (gen !== this.generation || !blob) return; // retake, close or any exit while it was encoding: nothing is sent (a failure was reported)
     const file = new File([blob], captureName(new Date()), { type: 'image/jpeg' });
     this.close();
     this.dispatchEvent(new CustomEvent('camera-photo', { detail: { file }, bubbles: true, composed: true }));
   }
 
   private body(): TemplateResult {
-    if (this.phase === 'review') return html`<div class="frame"><img src=${this.previewUrl} alt=${vft('still')} data-camvf-still /></div>`;
+    if (this.phase === 'review') return html`<div class="frame">${this.still}</div>`;
     return html`<div class="frame">
       <video playsinline muted autoplay aria-label=${vft('live')} data-camvf-video ?hidden=${this.phase !== 'live'}></video>
       ${this.phase === 'starting' ? html`<span class="wait" role="status" data-camvf-starting>${vft('starting')}</span>` : nothing}
@@ -242,8 +273,8 @@ export class TicketCameraViewfinder extends LitElement {
     return html`<sw-dialog ?open=${this.phase !== 'closed'} heading=${vft('title')} data-camvf=${this.phase} @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       ${this.phase === 'closed' ? nothing : this.body()}
       <sw-button slot="footer" data-camvf-secondary @click=${() => (review ? void this.start() : this.close())}>${review ? vft('retake') : vft('cancel')}</sw-button>
-      <sw-button slot="footer" variant="primary" icon=${review ? 'check' : 'camera'} data-camvf-primary ?disabled=${this.phase === 'starting'}
-        @click=${() => (review ? this.use() : void this.shoot())}>${review ? vft('use') : vft('shoot')}</sw-button>
+      <sw-button slot="footer" variant="primary" icon=${review ? 'check' : 'camera'} data-camvf-primary ?disabled=${this.phase === 'starting' || this.using}
+        @click=${() => (review ? void this.use() : this.shoot())}>${review ? vft('use') : vft('shoot')}</sw-button>
     </sw-dialog>`;
   }
 }
