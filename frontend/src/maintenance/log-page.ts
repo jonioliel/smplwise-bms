@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import { describeError } from '../api/client';
 import { PollController } from '../components/poll-controller';
 import { can, isApi } from '../api/session';
@@ -16,7 +18,8 @@ const LOOK: Record<LogEvent, string> = { due_soon: 'warn', overdue: 'alarm', req
 /**
  * The reminder log (owner review 24.10): what the worker sent - a reminder before a date, a reminder after it passed, a service
  * request a plan opened, a request that could not be opened - newest first, filtered by type. Only tasks the caller may see. It fills
- * the height of the screen and the list scrolls INSIDE its panel (control screens never scroll as a page). When reminders are still off
+ * the height of the screen and never scrolls as a page; on a desktop the log is split into pages (CR-NOSCROLL-LISTS-2443), with the
+ * long lists set to scroll it scrolls INSIDE its panel. When reminders are still off
  * the page says so with a way to the setting. The server keeps the log for the number of days set in Settings.
  */
 @customElement('maint-log-page')
@@ -27,12 +30,23 @@ export class MaintLogPage extends LitElement {
   @state() private event: LogEvent | '' = '';
   /** CR-POLL-FEATURES-2439: the reminder-log re-read every 60 s - paused while the tab is hidden, never two at once, caught up on resume. */
   private poll = new PollController(this);
+  /** CR-NOSCROLL-LISTS-2443 (code review 08:F23, owner decision O12 = a; owner round 32 Q-SYS-5 a): the log holds up to 200 rows and
+   * scrolled inside its panel (about 7 rows fit at 1366x768). On a desktop the rows that fit are page 1, the rest are on the next pages
+   * (the pager at the end of the toolbar, as on the maintenance lists). The long lists set to scroll (הגדרות › כללי): the table scrolls
+   * inside its panel as before. The phone's cards are unchanged. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scroller'), () => !!this.log?.items.length);
 
   static styles = [maintCss, css`
     :host { flex: 1; min-block-size: 0; }
     .fill { display: flex; flex-direction: column; flex: 1; min-block-size: 0; }
     .panel.flush.fill { min-block-size: 0; }
     .scroller { flex: 1; min-block-size: 0; overflow: auto; }
+    .fitsec { display: block; }
+    /* the pager's place at the end of the toolbar (as on the maintenance lists) */
+    .toolbar .pg { margin-inline-start: auto; min-inline-size: 150px; display: flex; justify-content: flex-end; }
+    @media screen and (min-width: 1024px) and (min-height: 560px) {
+      :host([data-fit][data-long-lists='paged']) .scroller { overflow: hidden; }
+    }
     .evt { display: inline-flex; align-items: center; gap: 6px; }
     .evt .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c, var(--sw-accent)); flex: none; }
     [data-look='warn'] { --c: var(--sw-warning); }
@@ -47,6 +61,10 @@ export class MaintLogPage extends LitElement {
     super.connectedCallback();
     void this.load();
     this.poll.every('log', 60_000, () => this.load());
+  }
+
+  protected willUpdate() {
+    this.toggleAttribute('data-fit', this.fit.fits);
   }
 
   private async load() {
@@ -64,7 +82,7 @@ export class MaintLogPage extends LitElement {
   }
 
   private row(r: LogRow) {
-    return html`<tr data-maint-log-row=${r.id} data-event=${r.event}>
+    return html`<tr data-fit-item data-maint-log-row=${r.id} data-event=${r.event}>
       <td class="date num">${fmtInstant(r.at)}</td>
       <td><span class="evt" data-look=${LOOK[r.event]}><span class="dot" aria-hidden="true"></span>${mt(`evt_${r.event}` as MtKey)}</span></td>
       <td class="name"><a class="task" href=${`#/tickets/maintenance?task=${encodeURIComponent(r.task_id)}`}>${r.title}</a><span class="t2">${kindText(r.task_kind)}</span></td>
@@ -90,16 +108,18 @@ export class MaintLogPage extends LitElement {
     const l = this.log;
     const off = !l.reminders_enabled;
     const sub = l.items.length ? mt('logSub', { n: l.items.length, k: l.keep_days }) : mt('logSubEmpty');
+    this.fit.sync(l.items.length, `${this.event}|${l.items.map((r) => r.id).join(',')}`);
     return html`${head(sub)}
       <div class="panel flush fill" data-maint-log>
         ${off ? html`<div class="note" role="status" data-maint-log-off><sw-icon name="bell" size="16"></sw-icon><div><b>${mt('logOffTitle')}</b> ${mt('logOffBody')}</div><span class="sp"></span>
           ${!isApi() || can('system.configure') ? html`<a class="btn sm" href="#/system/infra/maintenance" data-maint-to-settings>${mt('logToSettings')}</a>` : nothing}</div>` : nothing}
         <div class="toolbar"><div class="seg" role="group" aria-label=${mt('evtFilter')} data-maint-log-filter>
           <button type="button" aria-pressed=${String(this.event === '')} data-ev="all" @click=${() => this.pick('')}>${mt('colAll')}</button>
-          ${LOG_EVENTS.map((e) => html`<button type="button" aria-pressed=${String(this.event === e)} data-ev=${e} @click=${() => this.pick(e)}>${mt(`evt_${e}` as MtKey)}</button>`)}</div></div>
+          ${LOG_EVENTS.map((e) => html`<button type="button" aria-pressed=${String(this.event === e)} data-ev=${e} @click=${() => this.pick(e)}>${mt(`evt_${e}` as MtKey)}</button>`)}</div>
+          ${this.fit.fits ? html`<span class="pg">${this.fit.pages > 1 ? html`<sw-pager data-maint-log-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}</span>` : nothing}</div>
         ${l.items.length ? html`<div class="scroller">
-            <div class="scrollx"><table class="t" data-maint-log-table><thead><tr><th>${mt('colWhen')}</th><th>${mt('colEvent')}</th><th>${mt('colTaskName')}</th><th>${mt('colDueDate')}</th><th></th></tr></thead>
-              <tbody>${l.items.map((r) => this.row(r))}</tbody></table></div>
+            <div class="scrollx"><section class="fitsec"><table class="t" data-maint-log-table><thead><tr><th>${mt('colWhen')}</th><th>${mt('colEvent')}</th><th>${mt('colTaskName')}</th><th>${mt('colDueDate')}</th><th></th></tr></thead>
+              <tbody>${l.items.map((r, i) => (this.fit.shows(i) ? this.row(r) : nothing))}</tbody></table></section></div>
             <div class="cards-m">${l.items.map((r) => this.card(r))}</div></div>`
           : html`<sw-state-panel icon="bell" state="empty" heading=${mt('emptyLog')} hint=${mt('emptyLogBody')} data-state="empty"></sw-state-panel>`}
       </div>`;
