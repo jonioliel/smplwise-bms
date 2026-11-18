@@ -1,6 +1,6 @@
 /* LOBBY-STYLES-2300 - the luxury lobby styles (Gallery, Concierge, Stone), ported from the owner-approved mock-up
    private/design-system-2026-10-27/round7/noticeboard-luxury/lux.css onto the notice-board engine (#nbk, nb- classes, data-skin).
-   Canvas as the other styles: 1920x1080 / 1920x1200 / 1080x1920 / 1200x1920, scaled. Fonts (inlined by tv-fonts.css, OFL): Frank Ruhl Libre
+   Canvas as the other styles: 1920x1080 / 1920x1200 / 1080x1920 / 1200x1920, scaled. Fonts (inlined by tv-fonts-luxury.css, OFL): Frank Ruhl Libre
    ("LobbyFrank"), David Libre ("LobbyDavid"), Bodoni Moda ("LobbyBodoni"); Stone and all running text use the product face Heebo.
    One deep colour per style for the urgent screen: bordeaux (Gallery), lacquer (Concierge), terracotta (Stone). Motion is composite-only;
    the Ken Burns drift and Stone's parallax follow data-kb (always on; off under reduced motion or an explicit "frozen" / "off"). */

@@ -69,3 +69,41 @@ def test_generated_lobby_font_sheets_are_current() -> None:
     script = REPO / "scripts" / "notice_tv_fonts.py"
     got = subprocess.run([sys.executable, str(script), "--check"], capture_output=True, text=True, timeout=120)
     assert got.returncode == 0, got.stdout + got.stderr
+
+
+def test_each_lobby_face_carries_the_unicode_range_of_its_own_subset() -> None:
+    # CR-FE-SMALL-2440: "plex-sans-hebrew-latin-*" (family name contains "hebrew") got the Hebrew range, so Latin letters and
+    # digits in Lumen / Axis / Prism were drawn in the fallback (Heebo) and the Plex Latin files drew no glyph.
+    import re
+
+    sheets = REPO / "frontend" / "src" / "notice-tv"
+    faces = []
+    for css in sorted(sheets.glob("tv-fonts-*.css")):
+        faces += re.findall(r'font-family: "(\w+)"; font-style: normal; font-weight: ([\d ]+);.*?unicode-range: ([^;]+);', css.read_text(encoding="utf-8"))
+    assert faces, "the generated lobby sheets define faces"
+    latin = [(fam, wt) for fam, wt, rng in faces if rng.startswith("U+0000-00FF")]
+    hebrew = [(fam, wt) for fam, wt, rng in faces if "U+0590-05FF" in rng and not rng.startswith("U+0000")]
+    assert len(latin) + len(hebrew) == len(faces)
+    # every LobbySans weight has one Hebrew and one Latin face (IBM Plex Sans Hebrew ships both subsets)
+    for wt in ("200", "300", "400", "500", "600"):
+        assert ("LobbySans", wt) in latin, f"LobbySans {wt} latin"
+        assert ("LobbySans", wt) in hebrew, f"LobbySans {wt} hebrew"
+    assert sum(1 for fam, _ in latin if fam == "LobbySans") == 5
+
+
+def test_licence_documents_point_at_the_real_lobby_font_files() -> None:
+    # CR-FE-SMALL-2440: after CR-TV-FONTS-ESCAPE-2443 moved the woff2 files, the notices and the dependency audit still named
+    # frontend/public/fonts/lobby as their home. Every path a lobby-font row names must exist, and the row names the real sources.
+    import re
+
+    docs = (REPO / "THIRD_PARTY_NOTICES.md", REPO / "smplwise_vms" / "THIRD_PARTY_NOTICES.md",
+            REPO / "docs" / "security" / "DEPENDENCY_AND_SECRETS_AUDIT.md")
+    for doc in docs:
+        rows = [ln for ln in doc.read_text(encoding="utf-8").splitlines() if ln.startswith("| Lobby fonts")]
+        assert len(rows) == 1, f"{doc.relative_to(REPO)}: one lobby-font row"
+        paths = re.findall(r"`((?:frontend|smplwise_vms|docs|scripts)/[^`*]+)`", rows[0])
+        assert "frontend/fonts-src/lobby/" in paths, f"{doc.relative_to(REPO)} names the woff2 sources"
+        for rel in paths:
+            if rel == "smplwise_vms/www/assets/":
+                continue  # build output, hashed names
+            assert (REPO / rel).exists(), f"{doc.relative_to(REPO)} names a missing path: {rel}"

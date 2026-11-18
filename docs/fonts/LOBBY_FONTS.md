@@ -8,6 +8,8 @@ Files live in `frontend/fonts-src/lobby/` (with the OFL texts). `scripts/notice_
 
 CR-TV-FONTS-ESCAPE-2443 (code review 08:F04): until 2.43.8 the woff2 files lived in `frontend/public/fonts/lobby/`, so Vite also copied them into `smplwise_vms/www/fonts/lobby/` (452 KB that nothing read), and one `tv-fonts.css` with all five families was part of every board's render-blocking style sheet. The woff2 files moved; the five OFL texts stay in `frontend/public/fonts/lobby/` as well, so the licences still ship inside the add-on next to the fonts' inlined copies.
 
+CR-FE-SMALL-2440 (owner question 18.11 q15, answer a): the generator gave each face the unicode-range of its subset by testing `"-hebrew-" in stem`, which also matched the family name of `plex-sans-hebrew-latin-*`. The five Plex Sans Latin faces therefore carried the Hebrew range, and Latin letters and digits in Lumen, Axis and Prism were drawn in the fallback (Heebo). The subset is now the token after the family name; `test_font_licences.py` checks one Latin and one Hebrew `LobbySans` face per weight. Latin text and digits on the hi-tech boards change look (IBM Plex instead of Heebo).
+
 The two Plex Sans Hebrew weight-700 files were downloaded, then not used (the urgent title uses 600) and removed from the repository.
 
 | File | Source URL | Bytes | sha256 |
