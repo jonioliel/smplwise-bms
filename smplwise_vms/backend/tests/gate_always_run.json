@@ -16,6 +16,7 @@
   "test_bustimes_295.py": "package walk: the screens path never imports the HTTP client",
   "test_capabilities.py": "app.routes: the capabilities endpoint has no write route",
   "test_capture_lease_ledger.py": "package walk: only the capture start inserts a ledger row",
+  "test_confirm_words_2442.py": "package walk: no module keeps its own copy of a confirmation word; only the listed routers / services call the typed-word matcher",
   "test_db_gate.py": "package walk: no manual transaction control outside db.py",
   "test_db_template.py": "package walk: no product code reads the schema cookie",
   "test_f3c_g03_295.py": "every router module: only the switch writer writes an ACR5 / peer setting",
