@@ -7,7 +7,7 @@
  * States: fresh = minutes (clock from `clock_after_min`); cached = scheduled clock times and "not updated since HH:MM"; expired = the
  * panel says the data is unavailable; an empty window says so and names the next bus.
  */
-import { esc } from './tv-logic';
+import { esc, num } from './tv-logic';
 import { agoText, ahead, badgeWide, distanceText, etaOf, noneText, ts, windowChip, type TransitColumn, type TransitDigest, type TransitItem, type TransitMore } from './transit-logic';
 
 type Lang = 'he' | 'en';
@@ -30,7 +30,7 @@ function badge(line: string): string {
 
 function etaCell(at: string, hm: string, d: TransitDigest, c: TransitCtx, more?: TransitMore[], quality?: string): string {
   const e = etaOf(at, hm, d, c.nowMs);
-  const main = e.kind === 'now' ? '<b class="w">' + esc(ts(c.lang, 'now')) + '</b>' : e.kind === 'min' ? '<b class="num">' + e.text + '</b><small>' + esc(ts(c.lang, 'min')) + '</small>' : '<b class="num cl">' + esc(e.text) + '</b>';
+  const main = e.kind === 'now' ? '<b class="w">' + esc(ts(c.lang, 'now')) + '</b>' : e.kind === 'min' ? '<b class="num">' + esc(e.text) + '</b><small>' + esc(ts(c.lang, 'min')) + '</small>' : '<b class="num cl">' + esc(e.text) + '</b>';
   const extra = more && more.length ? '<span class="emore num">' + more.map((m) => esc(etaOf(m.at, m.hm, d, c.nowMs).kind === 'clock' ? m.hm : String(Math.max(0, Math.floor((Date.parse(m.at) - c.nowMs) / 60_000))))).join(' · ') + '</span>' : '';
   const rt = quality === 'realtime' && d.state === 'fresh'; // a small broadcast icon for a live estimate, a grey clock for the timetable
   return '<span class="eta">' + extra + (rt ? '<span class="mk rt">' + ic('rt', 'liveic') + '</span>' : '<span class="mk sc">' + ic('clock') + '</span>') + main + '</span>';
@@ -110,7 +110,7 @@ function header(d: TransitDigest, c: TransitCtx): string {
 
 /** The "and N more" line under the rows (always present, empty when nothing is hidden: the fit step fills it when it has to drop rows). */
 function bmore(n: number, c: TransitCtx): string {
-  return '<div class="bmore" data-n="' + n + '">' + (n > 0 ? esc(ts(c.lang, 'more', { n })) : '') + '</div>';
+  return '<div class="bmore" data-n="' + num(n) + '">' + (n > 0 ? esc(ts(c.lang, 'more', { n })) : '') + '</div>';
 }
 
 /** Side column: the whole panel (header, rows, legend). */
@@ -121,7 +121,7 @@ export function sidePanel(d: TransitDigest, c: TransitCtx): string {
   else if (!items.length) body = emptyBlock(d, c, d.next);
   else body = '<div class="rows">' + items.map((it) => rowHtml(it, d, c, !!d.multi)).join('') + '</div>';
   const more = bmore(d.state !== 'expired' && items.length ? d.overflow ?? 0 : 0, c);
-  return '<section class="bus" data-bus="side" data-bus-state="' + d.state + '">' + header(d, c) + body + more + outageLine(d, c.lang) + footer(d, c.lang) + '</section>'; // the header's second line says how old the data is
+  return '<section class="bus" data-bus="side" data-bus-state="' + esc(d.state) + '">' + header(d, c) + body + more + outageLine(d, c.lang) + footer(d, c.lang) + '</section>'; // the header's second line says how old the data is
 }
 
 /** Bottom strip: a label column and the cards (the fit step drops what does not fit and writes "and N more"). */
@@ -133,10 +133,10 @@ export function stripPanel(d: TransitDigest, c: TransitCtx): string {
     const n = d.next;
     body = '<div class="cards msg" data-bus-state="empty">' + ic('bus') + '<div>' + esc(noneText(c.lang, d.window_min ?? 60)) +
       (n ? '<span>' + esc(ts(c.lang, 'next')) + ' ' + esc(ts(c.lang, 'nextAt', { l: n.line, d: n.dest, t: n.hm })) + '</span>' : '') + '</div></div>';
-  } else body = '<div class="cards" data-total="' + (items.length + (d.overflow ?? 0)) + '">' + items.map((it) => cardHtml(it, d, c)).join('') + '</div>';
+  } else body = '<div class="cards" data-total="' + num(items.length + (d.overflow ?? 0)) + '">' + items.map((it) => cardHtml(it, d, c)).join('') + '</div>';
   const stale = d.source_down && d.state === 'cached' ? '<div class="bnote stalen">' + ic('clock') + '<span>' + esc(agoText(c.lang, d, c.elapsedMs ?? 0)) + ' · ' + esc(ts(c.lang, 'sourceDown')) + '</span></div>'
     : d.state === 'cached' && d.updated_hm ? '<div class="bnote stalen">' + ic('clock') + '<span>' + esc(ts(c.lang, 'stale', { t: d.updated_hm })) + '</span></div>' : '';
-  return '<section class="bus strip" data-bus="strip" data-bus-state="' + d.state + '"><div class="sl">' + ic('bus') + '<b>' + esc(stopsTitle(d, c.lang)) + '</b><span>' + esc(windowChip(c.lang, d.window_min ?? 60)) + '</span></div>' + body + stale + '</section>';
+  return '<section class="bus strip" data-bus="strip" data-bus-state="' + esc(d.state) + '"><div class="sl">' + ic('bus') + '<b>' + esc(stopsTitle(d, c.lang)) + '</b><span>' + esc(windowChip(c.lang, d.window_min ?? 60)) + '</span></div>' + body + stale + '</section>';
 }
 
 function columnHtml(col: TransitColumn, d: TransitDigest, c: TransitCtx): string {
@@ -146,12 +146,12 @@ function columnHtml(col: TransitColumn, d: TransitDigest, c: TransitCtx): string
   if (!items.length) body = emptyBlock(d, c, col.next);
   else body = '<div class="rows">' + items.map((it) => rowHtml(it, sub, c, false)).join('') + '</div>';
   const more = bmore(items.length ? col.overflow : 0, c);
-  return '<section class="bus" data-bus="col" data-stop="' + col.stop + '"><header class="bh col"><div class="tt"><b>' + esc(col.name) + '</b></div></header>' + body + more + '</section>';
+  return '<section class="bus" data-bus="col" data-stop="' + num(col.stop) + '"><header class="bh col"><div class="tt"><b>' + esc(col.name) + '</b></div></header>' + body + more + '</section>';
 }
 
 /** The rotating slide: one column per stop (the digest's `columns`), the clock-style note and legend once. */
 export function slidePanel(d: TransitDigest, c: TransitCtx, clockHtml: string): string {
   const cols = d.columns ?? [];
-  return '<article class="it transit" data-bus="slide" data-bus-state="' + d.state + '"><div class="bhead">' + ic('bus') + '<div class="tt"><b>' + esc(ts(c.lang, 'title')) + '</b><span>' + esc(subLine(d, c.lang, c.elapsedMs ?? 0)) + '</span></div>' +
+  return '<article class="it transit" data-bus="slide" data-bus-state="' + esc(d.state) + '"><div class="bhead">' + ic('bus') + '<div class="tt"><b>' + esc(ts(c.lang, 'title')) + '</b><span>' + esc(subLine(d, c.lang, c.elapsedMs ?? 0)) + '</span></div>' +
     clockHtml + '</div>' + note(d, c.lang) + '<div class="cols" data-n="' + cols.length + '">' + cols.map((col) => columnHtml(col, d, c)).join('') + '</div>' + footer(d, c.lang) + '</article>';
 }

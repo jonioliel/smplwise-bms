@@ -509,8 +509,15 @@ export function onPoll(s: NetState, status: number, nowMs: number): NetState {
 
 // ---------------------------------------------------------------- text helpers
 
+/** Text or a "..." / '...' attribute value for innerHTML. CR-TV-FONTS-ESCAPE-2443 (review 08:F05): the single quote too. */
 export function esc(s: string): string {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** A number from the feed for innerHTML (the feed is cast, never validated: JSON may carry a string where the type says number). A finite
+ * number prints exactly as the old concatenation did; anything else is escaped text (CR-TV-FONTS-ESCAPE-2443, review 08:F05). */
+export function num(x: unknown): string {
+  return typeof x === 'number' && Number.isFinite(x) ? String(x) : esc(String(x));
 }
 
 /**
