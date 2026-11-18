@@ -107,7 +107,7 @@ export class SystemVideoConnTest extends LitElement {
       font-size: var(--sw-fs-xs);
       line-height: 1.45;
       direction: ltr;
-      text-align: left;
+      text-align: start;
       white-space: pre-wrap;
       word-break: break-word;
       max-block-size: 420px;

@@ -582,7 +582,7 @@ export const formStyles = css`
     max-block-size: 220px;
     overflow: auto;
     border-inline-start: 3px solid var(--dv-text-3);
-    text-align: left;
+    text-align: start; /* dir="ltr" on the element: start = left */
   }
   .lockcode .ln {
     display: block;

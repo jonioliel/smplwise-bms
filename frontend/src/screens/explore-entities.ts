@@ -127,7 +127,7 @@ export class ExploreEntities extends LitElement {
       grid-template-columns: auto 1fr;
       gap: 3px 10px;
       direction: ltr;
-      text-align: left;
+      text-align: start;
     }
     .chips {
       display: flex;
