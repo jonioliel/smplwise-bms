@@ -116,7 +116,7 @@ def test_every_check_of_a_typed_word_goes_through_the_table():
     assert hits == []
     users = {p.relative_to(ROOT).as_posix() for p in ROOT.rglob("*.py") if "confirm_words.typed_lang(" in p.read_text(encoding="utf-8")}
     assert users == {
-        "routers/nvr_connection.py", "routers/recorders.py", "routers/settings.py", "routers/capture_lease.py", "routers/wiskey_installer_common.py",
+        "routers/nvr_connection.py", "routers/recorders.py", "routers/settings_patch/identity.py", "routers/capture_lease.py", "routers/wiskey_installer_common.py",
         "routers/wiskey_lineage.py", "services/wiskey_relay_map.py", "services/access_external.py", "services/access_grants.py",
         "services/access_visitors.py", "services/wiskey_managed_install.py", "services/wiskey_door_tech.py",
     }
