@@ -67,6 +67,11 @@ test.describe('LOGOS-295 placements', () => {
     expect(await page.title()).toBe('Smplwise Arx - ⁨נווה הירדן⁩ · ⁨Tower A⁩');
     // the rail carries the SmplWise mark, not the "S" tile
     // LOGOKIT-295: the approved developer-kit artwork (the SW symbol on the rail, the horizontal logo in the strip), not the mint PNG
+    // DOMUS-DEFAULT-2439: the default skin is domus, whose rail tile is the accent gradient - the mark on it is the kit's white tone
+    // (sw-app: scheme "dark" for domus / crystal); classic keeps the brand tone on its plain tile
+    await expect(page.locator('sw-app [data-brand-tile] sw-brand [data-brand-img="product"]')).toHaveAttribute('data-brand-art', 'kit-symbol-white');
+    await page.goto('about:blank');
+    await page.goto('/?design=a&look=performance:full&skin=classic#/system/diagnostics');
     await expect(page.locator('sw-app [data-brand-tile] sw-brand [data-brand-img="product"]')).toHaveAttribute('data-brand-art', 'kit-symbol-brand');
     await expect(product).toHaveAttribute('data-brand-art', 'kit-horizontal-brand');
   });

@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -17,6 +18,7 @@ import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, ST
 import { calCss } from '../calendars/styles';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { tr } from '../i18n/msg/system-a';
+import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', tr('חפיפת תחזוקה'), tr('חפיפה')], ['behavior', tr('התנהגות'), tr('התנהגות')], ['approval', tr('אישור לכל יומן'), tr('אישור')], ['perm', tr('הרשאות'), tr('הרשאות')], ['retention', tr('פרטי אורחים'), tr('אורחים')]];
@@ -71,7 +73,7 @@ export const BEHAVIOR_ROWS: SettingRow[] = [
   { group: 'residents', key: 'resident_rooms', label: tr('חדרים במסך ההזמנה של הדייר'), kind: 'seg', opts: [['bookable', tr('רק שמותר לו')], ['all_busy', tr('כולם, השאר "תפוס"')]] },
   { group: 'sync', key: 'sync_conflict_display', label: tr('התנגשות מסנכרון בתצוגת השבוע'), kind: 'seg', opts: [['side_by_side', tr('זו לצד זו')], ['list_only', tr('רק ברשימה')]] },
   { group: 'sync', key: 'reauth_mode', label: tr('חיבור שדורש הרשאה מחדש'), kind: 'seg', opts: [['reauth_and_continue', tr('הרשאה + "המשך"')], ['reauth_only', tr('הרשאה בלבד')]] },
-  { group: 'sync', key: 'purge_confirm', label: tr('אישור "מחיקת כל פרטי האורחים"'), kind: 'seg', opts: [['type_word', tr('הקלדת "מחיקה"')], ['one_click', tr('לחיצה בחלון')]] },
+  { group: 'sync', key: 'purge_confirm', label: tr('אישור "מחיקת כל פרטי האורחים"'), kind: 'seg', opts: [['type_word', tr('הקלדת "{word}"', { word: confirmWord('calendar_guest_purge') })], ['one_click', tr('לחיצה בחלון')]] },
   // CAL-FEED-REVIEW-2351 owner round 14 (3C): the expiry a new or renewed outgoing-feed address gets; an address already out keeps its own
   { group: 'sync', key: 'feed_max_age_days', label: tr('תוקף קישור של פיד יוצא'), kind: 'seg', opts: [[90, tr('90 יום')], [180, tr('180 יום')], [365, tr('365 יום')], [0, tr('ללא הגבלה')]],
     hint: tr('לקישורים חדשים ומחודשים; קישור קיים שומר על התוקף שלו') },
@@ -671,7 +673,7 @@ export class SystemCalendars extends LitElement {
     if (v === null) return;
     const n = await this.save({ guest_retention_days: v });
     this.draftRetention = null;
-    if (!this.saveError) this.toast(n ? tr('{n} רשומות יימחקו בהרצה הבאה', { n: n.toLocaleString('he-IL') }) : tr('נשמר'));
+    if (!this.saveError) this.toast(n ? tr('{n} רשומות יימחקו בהרצה הבאה', { n: n.toLocaleString(uiLocale()) }) : tr('נשמר'));
   }
 
   private async purge(): Promise<void> {
@@ -679,7 +681,7 @@ export class SystemCalendars extends LitElement {
     this.confirm = null;
     try {
       const r = await this.api.purgeGuests();
-      this.toast(tr('נמחקו פרטי אורחים מ־{n} רשומות', { n: r.erased.toLocaleString('he-IL') }));
+      this.toast(tr('נמחקו פרטי אורחים מ־{n} רשומות', { n: r.erased.toLocaleString(uiLocale()) }));
     } catch (e) {
       this.saveError = describeError(e);
     }
@@ -693,9 +695,9 @@ export class SystemCalendars extends LitElement {
         <button slot="footer" type="button" class="btn pri" data-confirm-ok @click=${() => void this.commitRetention()}>${tr('שמירה')}</button></sw-dialog>`;
     }
     if (this.confirm === 'purge') {
-      const ok = !word || this.typed.trim() === 'מחיקה';
+      const ok = !word || confirmWordMatches('calendar_guest_purge', this.typed);
       return html`<sw-dialog open heading=${tr('למחוק את כל פרטי האורחים?')} data-purge-confirm @close=${() => (this.confirm = null)}><div class="dlg"><p>${tr('השמות ומספרי הטלפון של כל האורחים יימחקו עכשיו. התוויות נשארות. אי אפשר לבטל.')}</p>
-        ${word ? html`<label class="typed"><span class="lbl">${tr('כדי לאשר, יש להקליד "מחיקה"')}</span><input class="inp" data-purge-word autocomplete="off" .value=${this.typed} @input=${(e: Event) => (this.typed = (e.target as HTMLInputElement).value)}></label>` : nothing}</div>
+        ${word ? html`<label class="typed"><span class="lbl">${tr('כדי לאשר, יש להקליד "{word}"', { word: confirmWord('calendar_guest_purge') })}</span><input class="inp" data-purge-word autocomplete="off" .value=${this.typed} @input=${(e: Event) => (this.typed = (e.target as HTMLInputElement).value)}></label>` : nothing}</div>
         <button slot="footer" type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button>
         <button slot="footer" type="button" class="btn bad fill" data-purge-ok ?disabled=${!ok} @click=${() => void this.purge()}>${tr('מחיקה')}</button></sw-dialog>`;
     }

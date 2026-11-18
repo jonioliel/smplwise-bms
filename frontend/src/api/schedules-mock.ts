@@ -14,6 +14,7 @@
  * "feature_disabled" | "error", "empty": true}`.
  */
 import { ApiError } from './client';
+import { confirmWordMatches } from '../i18n/confirm-words';
 import {
   ALL_CLASSES,
   ALLOW_DISARM_WORD,
@@ -1159,7 +1160,7 @@ export class ScheduleDemoStore {
   async saveSettings(to: ScheduleSettings, disarmConfirm = ''): Promise<ScheduleSettings> {
     await delay(100);
     if (this.persona !== 'admin') fail(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
-    if (to.allowDisarm && !this.settings.allowDisarm && disarmConfirm.trim() !== ALLOW_DISARM_WORD) {
+    if (to.allowDisarm && !this.settings.allowDisarm && !confirmWordMatches('schedules_allow_disarm', disarmConfirm)) {
       fail(422, 'confirm_required', `כדי לאפשר נטרול אזעקה בתזמונים יש להקליד "${ALLOW_DISARM_WORD}".`, { field: 'schedules.allow_disarm_confirm' });
     }
     this.settings = clone(to);

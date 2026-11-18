@@ -11,6 +11,7 @@ import { metaFromCatalog, type EntityMeta } from './schedule-edit-logic';
 import { PRESET_CHOICES, QUICK_DAYS, QUICK_TIMES, TEMPLATES, quickActions, quickDraft, quickReady, quickSentence, type QuickAction, type QuickDays, type QuickTime, type ScheduleTemplate } from './schedule-templates';
 import { tablistKeydown } from '../components/a11y-keys';
 import { tr } from '../i18n/msg/automation';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CR-014 S4: "תזמון חדש" (mockup 09 / 26). Two ways in: a template (then the editor opens with a draft; the devices are chosen
@@ -211,10 +212,11 @@ export class ScheduleCreateDialog extends LitElement {
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair (was solid accent) */
     .chip[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text);
-      font-weight: var(--sw-fw-semibold);
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .chip[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .chip:disabled {
       opacity: 0.45;

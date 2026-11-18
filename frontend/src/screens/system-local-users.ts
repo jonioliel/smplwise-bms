@@ -6,6 +6,7 @@ import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-table';
 import '../components/sw-state-panel';
+import '../components/sw-dialog'; // CR-LOCAL-ID-SWITCH-2442: the confirmation of the feature switch
 import './system-service-identity'; // USR2 P3: the service-identity card (local channel, system.configure)
 import type { TableColumn } from '../components/sw-table';
 import { ApiError, apiUrl, del, describeError, get, patch, post, put } from '../api/client';
@@ -60,7 +61,20 @@ export interface LocalUsersReply {
   public_url?: string | null;
   /** USR2 phase 4: the owner switch `security.local_passkey_first`. */
   passkey_first_allowed?: boolean;
+  /** CR-LOCAL-ID-SWITCH-2442: the viewer is a system administrator - the only one PATCH /settings lets switch the feature. */
+  can_switch?: boolean;
+  /** CR-LOCAL-USER-CREATE-2438: the shortest password the server's policy takes (`security.local_password_min`). */
+  password_min?: number;
 }
+
+/** CR-LOCAL-USER-CREATE-2438: a password the administrator types for a user (never kept after the request). */
+interface PwDraft {
+  password: string;
+  again: string;
+  must: boolean;
+}
+
+const PW_EMPTY: PwDraft = { password: '', again: '', must: true };
 
 /** USR2 phase 2: a link that went by WhatsApp - nothing secret is shown, only where and until when. */
 interface LinkSent {
@@ -124,6 +138,15 @@ export class SystemLocalUsers extends LitElement {
   @state() private suggest = '';
   @state() private form = { username: '', display_name: '', role_id: 'viewer', scope: 'installation:*', email: '', notes: '', reset_mode: 'manager_only' };
   @state() private roleEdit: { role_id: string; scope: string } | null = null;
+  /** CR-LOCAL-USER-CREATE-2438: how the new user gets a password ('set' = the administrator types it; 'link' = the first-login link),
+   * the typed password, the create form's own error (shown INSIDE the form, next to the button) and the result line. */
+  @state() private pwMode: 'set' | 'link' = 'set';
+  @state() private pw: PwDraft = { ...PW_EMPTY };
+  @state() private formError = '';
+  @state() private done = '';
+  /** The "set password" panel of the selected user (null = closed) and its own error. */
+  @state() private pwEdit: PwDraft | null = null;
+  @state() private pwError = '';
   @state() private sent: LinkSent | null = null;
   @state() private publicUrl = '';
   @state() private publicUrlNote = '';
@@ -131,6 +154,9 @@ export class SystemLocalUsers extends LitElement {
   @state() private pk: { userId: string; items: PasskeyView[] } | null = null;
   @state() private pkStepUp = false;
   @state() private pkCode = '';
+  /** CR-LOCAL-ID-SWITCH-2442: the direction waiting for the administrator's confirmation, and the result line after it. */
+  @state() private switching: 'on' | 'off' | null = null;
+  @state() private switched = '';
 
   static styles = css`
     :host {
@@ -276,6 +302,17 @@ export class SystemLocalUsers extends LitElement {
       grid-column: 1 / -1;
       border-block-start: 1px solid var(--sw-border);
     }
+    /* CR-LOCAL-USER-CREATE-2438: the set-password panel inside the selected user's card (the card's own grid, no second padding) */
+    form.pwform {
+      padding: 0;
+    }
+    label .muted {
+      font-weight: var(--sw-fw-regular, 400);
+    }
+    /* CR-LOCAL-ID-SWITCH-2442: the switch button under the off-state text */
+    .note .actions {
+      margin-block-start: 10px;
+    }
   `;
 
   @state() private narrow = false;
@@ -330,11 +367,39 @@ export class SystemLocalUsers extends LitElement {
     return { scope_type: key.slice(0, i), scope_id: key.slice(i + 1) };
   }
 
-  private create(e: Event) {
+  private closeCreate() {
+    this.creating = false;
+    this.formError = '';
+    this.pw = { ...PW_EMPTY, must: this.pw.must }; // a typed password does not wait in a closed form
+  }
+
+  private get pwMin(): number {
+    return this.data?.password_min ?? 12;
+  }
+
+  /** What is wrong with a typed password before it is sent (the server's policy - common, contextual, repeated - answers the rest). */
+  private pwProblem(d: PwDraft): string {
+    if (!d.password || !d.again) return lit('pwMissing');
+    if (d.password !== d.again) return lit('mismatch');
+    if ([...d.password].length < this.pwMin) return lit('pwTooShort', { min: this.pwMin });
+    return '';
+  }
+
+  /** CR-LOCAL-USER-CREATE-2438: the create form. A refusal - the page's own check or the server's - is shown inside the form with the
+   * server's sentence; the form stays open with what was typed (the passwords too, so a policy refusal is fixed in place). */
+  private async create(e: Event) {
     e.preventDefault();
+    if (this.busy) return;
     const f = this.form;
-    void this.run(async () => {
-      const r = await post<{ user: LocalUser; link: Omit<LinkShown, 'user'> }>('/identity/local-users', {
+    if (this.remote && roleIsAdmin(this.roleOf(f.role_id))) return; // the button is disabled; Enter must not send it either
+    const withPw = this.pwMode === 'set';
+    const pw = this.pw;
+    this.formError = !f.username.trim() || !f.display_name.trim() ? lit('fillUsernameName') : withPw ? this.pwProblem(pw) : '';
+    if (this.formError) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await post<{ user: LocalUser; link: Omit<LinkShown, 'user'> | null }>('/identity/local-users', {
         username: f.username.trim(),
         display_name: f.display_name.trim(),
         role_id: f.role_id,
@@ -342,13 +407,53 @@ export class SystemLocalUsers extends LitElement {
         email: f.email.trim() || null,
         notes: f.notes.trim() || null,
         reset_mode: f.reset_mode,
+        ...(withPw ? { password: pw.password, must_change: pw.must } : {}),
       });
-      this.link = { ...r.link, user: r.user.display_name };
+      this.link = r.link ? { ...r.link, user: r.user.display_name } : null;
+      this.done = r.link ? '' : lit(r.user.must_change_password ? 'createdWithPwChange' : 'createdWithPw', { name: r.user.display_name, username: r.user.username });
       this.copied = false;
       this.creating = false;
       this.form = { ...this.form, username: '', display_name: '', email: '', notes: '' };
+      this.pw = { ...PW_EMPTY, must: pw.must };
       await this.load();
-    });
+    } catch (err) {
+      this.formError = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** The administrator sets the password of an existing user (PUT .../password): the user's sign-ins end, the old password dies. */
+  private async savePassword(u: LocalUser, e?: Event) {
+    e?.preventDefault();
+    const d = this.pwEdit;
+    if (!d || this.busy) return;
+    this.pwError = this.pwProblem(d);
+    if (this.pwError) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await put(`/identity/local-users/${encodeURIComponent(u.id)}/password`, { password: d.password, must_change: d.must });
+      this.pwEdit = null;
+      this.link = null;
+      this.done = lit(d.must ? 'pwSetDoneChange' : 'pwSetDone', { name: u.display_name });
+      await this.load();
+    } catch (err) {
+      this.pwError = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** The password pair + the "must change" choice, shared by the create form and the selected user's panel. */
+  private renderPwFields(d: PwDraft, set: (next: PwDraft) => void, mark: string): TemplateResult {
+    const text = (k: 'password' | 'again') => (e: Event) => set({ ...d, [k]: (e.target as HTMLInputElement).value });
+    return html`<label>${lit('pwField')}<input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.password} @input=${text('password')} data-local-pw=${mark} />
+        <span class="muted">${lit('pwHint', { min: this.pwMin })}</span></label>
+      <label>${lit('pwAgain')}<input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.again} @input=${text('again')} data-local-pw-again=${mark} /></label>
+      <label class="full check"><input type="checkbox" .checked=${d.must} @change=${(e: Event) => set({ ...d, must: (e.target as HTMLInputElement).checked })} data-local-pw-must=${mark} />
+        ${lit(mark === 'user' ? 'pwMustChangeNext' : 'pwMustChange')}</label>
+      <div class="muted full">${lit('pwMustChangeHelp')}</div>`;
   }
 
   private issue(u: LocalUser, purpose: 'first_login' | 'reset', temporary = false) {
@@ -378,6 +483,41 @@ export class SystemLocalUsers extends LitElement {
       this.publicUrl = '';
       await this.load();
     });
+  }
+
+  /** CR-LOCAL-ID-SWITCH-2442: the feature switch (PATCH /settings; a system administrator only - the server decides and audits).
+   * Afterwards the tab reads its data again, so the create / export / address sections follow the new state. */
+  private applySwitch() {
+    const to = this.switching;
+    if (!to) return;
+    this.switched = '';
+    void this.run(async () => {
+      try {
+        await patch('/settings', { 'security.local_identity': to });
+      } finally {
+        this.switching = null; // a refusal (403, offline) shows in the tab's error note, not behind the dialog
+      }
+      this.creating = false;
+      this.selected = null;
+      this.roleEdit = null;
+      this.pwEdit = null;
+      this.pw = { ...PW_EMPTY };
+      this.done = '';
+      this.link = null;
+      this.sent = null;
+      this.switched = lit(to === 'on' ? 'switchedOn' : 'switchedOff');
+      await this.load();
+    });
+  }
+
+  private renderSwitchDialog(): TemplateResult | typeof nothing {
+    const to = this.switching;
+    if (!to) return nothing;
+    return html`<sw-dialog open heading=${lit(to === 'on' ? 'switchOn' : 'switchOff')} ?locked=${this.busy} data-local-switch-dialog=${to} @close=${() => (this.switching = null)}>
+      <div class="sub" data-local-switch-body>${lit(to === 'on' ? 'switchOnBody' : 'switchOffBody')}</div>
+      <sw-button slot="footer" variant="ghost" ?disabled=${this.busy} @click=${() => (this.switching = null)}>${lit('cancel')}</sw-button>
+      <sw-button slot="footer" variant=${to === 'on' ? 'primary' : 'danger'} ?disabled=${this.busy} @click=${() => this.applySwitch()} data-local-switch-confirm>${lit(to === 'on' ? 'switchOn' : 'switchOff')}</sw-button>
+    </sw-dialog>`;
   }
 
   private async copy() {
@@ -521,9 +661,10 @@ export class SystemLocalUsers extends LitElement {
     return html`<sw-card flush data-local-create>
       <form @submit=${this.create} novalidate>
         <div class="head"><div class="cell"><strong>${lit('add')}</strong></div>
-          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('cancel')} @click=${() => (this.creating = false)}></sw-button></div>
-        <label>${lit('colUsername')}<input class="ltr" .value=${f.username} @input=${up('username')} autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" required /></label>
-        <label>${lit('displayName')}<input .value=${f.display_name} @input=${up('display_name')} maxlength="60" required /></label>
+          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('cancel')} @click=${() => this.closeCreate()}></sw-button></div>
+        <label>${lit('colUsername')}<input class="ltr" .value=${f.username} @input=${up('username')} autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" required data-local-username />
+          <span class="muted">${lit('usernameHint')}</span></label>
+        <label>${lit('displayName')}<input .value=${f.display_name} @input=${up('display_name')} maxlength="60" required data-local-display /></label>
         <label>${lit('role')}<select .value=${f.role_id} @change=${up('role_id')} data-local-role>
           ${roles.map((r) => html`<option value=${r.id} ?selected=${r.id === f.role_id} ?disabled=${this.remote && roleIsAdmin(r)}>${r.name}</option>`)}
         </select></label>
@@ -537,10 +678,21 @@ export class SystemLocalUsers extends LitElement {
           <option value="self_service">${lit('reset_self_service')}</option>
         </select></label>
         ${admin ? html`<div class="note warn full" data-local-admin-note>${lit('adminNote')} ${lit('resetAdminNote')}</div>` : nothing}
+        <div class="sep" role="presentation"></div>
+        <label class="full">${lit('pwHow')}<select .value=${this.pwMode} @change=${(e: Event) => { this.pwMode = (e.target as HTMLSelectElement).value === 'link' ? 'link' : 'set'; this.formError = ''; }} data-local-pw-mode>
+          <option value="set" ?selected=${this.pwMode === 'set'}>${lit('pwHowSet')}</option>
+          <option value="link" ?selected=${this.pwMode === 'link'}>${lit('pwHowLink')}</option>
+        </select></label>
+        ${this.pwMode === 'set'
+          ? this.renderPwFields(this.pw, (next) => (this.pw = next), 'create')
+          : html`<div class="muted full" data-local-pw-link-help>${lit('pwLinkHelp')}</div>`}
+        ${this.formError ? html`<div class="note err full" role="alert" data-local-create-error>${this.formError}</div>` : nothing}
         <div class="actions">
           <sw-button variant="primary" type="submit" ?disabled=${this.busy || (admin && this.remote)} data-local-create-save>${lit('create')}</sw-button>
-          <sw-button variant="ghost" @click=${() => (this.creating = false)}>${lit('cancel')}</sw-button>
+          <sw-button variant="ghost" @click=${() => this.closeCreate()}>${lit('cancel')}</sw-button>
         </div>
+        <!-- Enter in a field submits: the visible button sits in sw-button's shadow root, so the form needs a submit button of its own -->
+        <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
       </form>
     </sw-card>`;
   }
@@ -599,7 +751,7 @@ export class SystemLocalUsers extends LitElement {
             ${u.admin ? html`<span class="muted">${lit('adminNote')}</span>` : nothing}
           </div>
           ${this.statusBadge(u)}
-          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('close')} data-local-user-close @click=${() => { this.selected = null; this.roleEdit = null; }}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('close')} data-local-user-close @click=${() => { this.selected = null; this.roleEdit = null; this.pwEdit = null; }}></sw-button>
         </div>
         ${manage
           ? html`<div class="actions">
@@ -610,11 +762,27 @@ export class SystemLocalUsers extends LitElement {
                 : html`<sw-button @click=${() => this.issue(u, 'reset')} ?disabled=${this.busy || !u.active} data-local-issue="reset">${lit('issueReset')}</sw-button>
                     <sw-button variant="ghost" @click=${() => this.issue(u, 'reset', true)} ?disabled=${this.busy || !u.active}>${lit('temporary')}</sw-button>`}
               ${u.status === 'delayed' ? html`<sw-button @click=${() => this.simple(u, 'unlock')} ?disabled=${this.busy}>${lit('unlock')}</sw-button>` : nothing}
+              ${adminLocked
+                ? nothing
+                : html`<sw-button @click=${() => { this.pwEdit = this.pwEdit ? null : { ...PW_EMPTY }; this.pwError = ''; }} ?disabled=${this.busy || !u.active} data-local-pw-set>${lit('pwSet')}</sw-button>`}
               <sw-button @click=${() => this.simple(u, 'sessions/revoke')} ?disabled=${this.busy || !u.sessions}>${lit('endSessions')}</sw-button>
               <sw-button @click=${() => this.setActive(u, !u.active)} ?disabled=${this.busy}>${u.active ? lit('disable') : lit('enable')}</sw-button>
               <sw-button @click=${() => (this.roleEdit = { role_id: u.role_id ?? 'viewer', scope: `${u.scope_type ?? 'installation'}:${u.scope_id ?? '*'}` })} ?disabled=${this.busy}>${lit('changeRole')}</sw-button>
               <sw-button class="end" variant="danger" @click=${() => this.removeUser(u)} ?disabled=${this.busy}>${lit('remove')}</sw-button>
             </div>
+            ${this.pwEdit && !adminLocked
+              ? html`<form class="full pwform" @submit=${(e: Event) => void this.savePassword(u, e)} novalidate data-local-pw-form>
+                  <div class="full"><strong>${lit('pwSetTitle', { name: u.display_name })}</strong></div>
+                  <div class="muted full">${lit('pwSetHelp')}</div>
+                  ${this.renderPwFields(this.pwEdit, (next) => (this.pwEdit = next), 'user')}
+                  ${this.pwError ? html`<div class="note err full" role="alert" data-local-pw-error>${this.pwError}</div>` : nothing}
+                  <div class="actions">
+                    <sw-button variant="primary" type="submit" ?disabled=${this.busy} data-local-pw-save>${lit('pwSet')}</sw-button>
+                    <sw-button variant="ghost" @click=${() => (this.pwEdit = null)}>${lit('cancel')}</sw-button>
+                  </div>
+                  <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
+                </form>`
+              : nothing}
             <div class="sep" role="presentation"></div>
             <label>${lit('resetMode')}<select .value=${u.reset_mode} ?disabled=${this.busy || u.admin} @change=${(e: Event) => this.setResetMode(u, (e.target as HTMLSelectElement).value)}>
               <option value="manager_only">${lit('reset_manager_only')}</option>
@@ -697,12 +865,19 @@ export class SystemLocalUsers extends LitElement {
         <div class="sub">${lit('tabSub')}</div>
         ${d.can_manage && d.enabled
           ? html`<div class="actions">
-              <sw-button variant="primary" icon="plus" @click=${() => (this.creating = !this.creating)} data-local-add>${lit('add')}</sw-button>
+              <sw-button variant="primary" icon="plus" @click=${() => { this.creating = !this.creating; this.formError = ''; this.done = ''; }} data-local-add>${lit('add')}</sw-button>
               <sw-button variant="ghost" @click=${() => window.open(apiUrl('/identity/local-users/export'), '_blank', 'noopener')}>${lit('export')}</sw-button>
             </div>`
           : nothing}
       </div>
-      ${!d.enabled ? html`<div class="note warn" data-local-off>${lit('off')}</div>` : nothing}
+      ${!d.enabled
+        ? html`<div class="note warn" data-local-off>${lit('off')}${d.can_switch
+            ? html`<div class="actions"><sw-button variant="primary" @click=${() => (this.switching = 'on')} ?disabled=${this.busy} data-local-switch="on">${lit('switchOn')}</sw-button></div>`
+            : html` <span data-local-switch-readonly>${lit('offNotAdmin')}</span>`}</div>`
+        : nothing}
+      ${this.switched ? html`<div class="note" role="status" data-local-switched>${this.switched}</div>` : nothing}
+      ${this.done ? html`<div class="note" role="status" data-local-done>${this.done}
+          <sw-button variant="ghost" size="sm" @click=${() => (this.done = '')}>${lit('close')}</sw-button></div>` : nothing}
       ${d.can_manage ? html`<system-service-identity ?remote=${this.remote}></system-service-identity>` : nothing}
       ${this.error ? html`<div class="note err" role="alert" data-local-error>${this.error}</div>` : nothing}
       ${this.suggest ? html`<div class="note warn" role="status">${this.suggest}</div>` : nothing}
@@ -714,10 +889,19 @@ export class SystemLocalUsers extends LitElement {
             @row-select=${(e: CustomEvent<{ id: string }>) => {
               this.selected = e.detail.id;
               this.roleEdit = null;
+              this.pwEdit = null;
+              this.pwError = '';
             }}></sw-table>`
         : html`<sw-state-panel icon="users" state="empty" compact hint=${lit('empty')} data-local-empty></sw-state-panel>`}
       ${sel ? this.renderSelected(sel) : nothing}
       ${d.can_manage && d.enabled ? this.renderPublicUrl(d) : nothing}
+      ${d.enabled && d.can_switch
+        ? html`<div class="bar" data-local-on>
+            <div class="sub">${lit('onState')}</div>
+            <sw-button variant="danger" @click=${() => (this.switching = 'off')} ?disabled=${this.busy} data-local-switch="off">${lit('switchOff')}</sw-button>
+          </div>`
+        : nothing}
+      ${this.renderSwitchDialog()}
     </div>`;
   }
 }

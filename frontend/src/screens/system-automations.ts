@@ -24,6 +24,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-a';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -145,11 +146,11 @@ export class SystemAutomations extends LitElement {
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text);
-      font-weight: 600;
-      box-shadow: none;
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .rc[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .rc:disabled {
       opacity: 0.6;

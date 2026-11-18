@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -202,7 +203,7 @@ export class InstallerTechnical extends LitElement {
             </select></label>
           <sw-button variant="secondary" ?disabled=${!this.stationId || this.loading} @click=${() => void this.load(true)} data-reread>${v ? X.reread : X.read}</sw-button>
         </div>
-        <div class="hint">${v?.fetched_at ? fill(X.readAt, { at: formatTime(v.report.checked_at ?? v.fetched_at, 'he-IL', LOCAL_ZONE) }) : X.pickHint}</div>
+        <div class="hint">${v?.fetched_at ? fill(X.readAt, { at: formatTime(v.report.checked_at ?? v.fetched_at, uiLocale(), LOCAL_ZONE) }) : X.pickHint}</div>
       </sw-card>
       ${this.flash ? html`<div class="msg ${this.flash.tone}" role="status" data-flash>${this.flash.text}</div>` : nothing}
       ${this.loading ? html`<sw-state-panel state="loading" heading=${T.loading} compact></sw-state-panel>` : nothing}

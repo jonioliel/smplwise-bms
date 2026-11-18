@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CR-038 slice 6b (D24): the look of the board TABLE - on top of the automations glass layer (styles/automations-glass.ts over
@@ -192,9 +193,12 @@ export const ticketTableStyles = css`
   .rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true']:hover {
-    background: var(--sw-accent-soft);
-    color: var(--sw-accent-text);
-    border-color: transparent;
+    ${chipSelected}
+  }
+  /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+  .rc[aria-pressed='true']::before,
+  .pop button.rc[aria-pressed='true']::before {
+    ${chipSelectedCheck}
   }
 
   /* the table card */

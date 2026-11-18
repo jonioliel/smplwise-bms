@@ -13,6 +13,7 @@ import { dwt, dwtDynamic } from '../i18n/door-windows';
 import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retryableOpenDoors, type SheetStep } from './logic';
 import { dwCss } from './styles';
 import { timeText } from '../api/day-format';
+import { uiLocale } from '../i18n/locale';
 
 /** While doors are still being sent, the incident is read again this often. */
 const FOLLOW_MS = 1500;
@@ -98,13 +99,13 @@ export class DoorHoldButton extends LitElement {
   render() {
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const p = reduce && this.started !== null ? 0.5 : this.p;
-    return html`<button ?disabled=${this.disabled} style=${`--p:${p}`} aria-label=${`${this.label} - ${dwt('emHold', { s: (this.holdMs / 1000).toLocaleString() })}`}
+    return html`<button ?disabled=${this.disabled} style=${`--p:${p}`} aria-label=${`${this.label} - ${dwt('emHold', { s: (this.holdMs / 1000).toLocaleString(uiLocale()) })}`}
         @pointerdown=${(e: PointerEvent) => { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); this.begin(); }}
         @pointerup=${() => this.cancel()} @pointercancel=${() => this.cancel()} @pointerleave=${() => this.cancel()}
         @keydown=${(e: KeyboardEvent) => this.key(e, true)} @keyup=${(e: KeyboardEvent) => this.key(e, false)} @contextmenu=${(e: Event) => e.preventDefault()}>
       <span class="ring"><span><sw-icon name=${this.icon}></sw-icon></span></span>
       <span class="t"><b>${this.label}</b>${this.sub ? html`<small>${this.sub}</small>` : nothing}
-        <em>${this.started !== null ? dwt('emHolding') : dwt('emHold', { s: (this.holdMs / 1000).toLocaleString() })}</em></span>
+        <em>${this.started !== null ? dwt('emHolding') : dwt('emHold', { s: (this.holdMs / 1000).toLocaleString(uiLocale()) })}</em></span>
     </button>`;
   }
 }

@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -23,6 +24,7 @@ import { applyInfraTemperature } from '../shell/nav';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { LongListsController } from '../api/long-lists';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 const POLL_MS = 30_000;
 const LONG_PRESS_MS = 480;
@@ -178,7 +180,9 @@ export class InfraTemperature extends LitElement {
       transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
     .floors button:active { transform: scale(0.97); }
-    .floors button[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
+    /* DOMUS-DEFAULT-2439: the product's one selected chip (styles/chip-selected.ts) and its check mark */
+    .floors button[aria-pressed='true'] { ${chipSelected} }
+    .floors button[aria-pressed='true']::before { ${chipSelectedCheck} }
     .floors button:focus-visible, .ghead:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .groups { display: grid; gap: 18px; }
     .group { display: grid; gap: 10px; }
@@ -543,7 +547,7 @@ export class InfraTemperature extends LitElement {
     const aff = addAffordances(this.access.manage, this.editing);
     const stale = this.data.stale;
     const now = Date.now();
-    const lang = document.documentElement.lang || 'he-IL';
+    const lang = uiLocale();
     const withDoor = list.filter((u) => u.door).length;
     const sub = stale ? tt('subtitleStale') : tt('subtitle', { n: list.length, d: withDoor });
     const actions = html`<div class="meta" slot="actions">

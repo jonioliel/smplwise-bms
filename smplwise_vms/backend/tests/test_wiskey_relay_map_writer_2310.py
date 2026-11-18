@@ -234,3 +234,29 @@ def test_the_service_refuses_a_stale_revision_without_writing(w):
 
 def test_the_station_revision_table_never_travels_in_a_backup():
     assert "wiskey_relay_map_stations" in backup.NEVER_EXPORTED_TABLES
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_an_automated_door_takes_the_hebrew_or_the_english_word_only(w, lang):
+    w.automate(ST, 2)
+    for text in bad("relay_map_confirm"):
+        r = w.save(ST, [(1, 2), (2, None)], 0, confirm_text=text)
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"]["doors"] == [2], text
+    assert w.table() == [] and w.audits() == []
+    r = w.save(ST, [(1, 2), (2, None)], 0, confirm_text=good("relay_map_confirm", lang))
+    assert r.status_code == 200, r.text
+    (row,) = w.audits()
+    assert json.loads(row["details_json"])["automated_doors"] == [2] and json.loads(row["details_json"])["confirm_word"] == lang
+
+
+def test_cw2442_a_change_that_needs_no_word_records_none(w):
+    w.automate(ST, 2)
+    assert w.save(ST, [(1, 1), (2, None)], 0, confirm_text="confirm").status_code == 200
+    assert "confirm_word" not in json.loads(w.audits()[0]["details_json"])

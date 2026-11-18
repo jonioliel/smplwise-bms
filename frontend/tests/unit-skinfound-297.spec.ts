@@ -22,7 +22,7 @@ const MOTION_NAMES = Object.keys(ARX_MOTION_TOKENS).filter((n) => !['--sw-t-fast
 
 test('registry: infra and soft are registered, selectable, at the foundation stage, with the Hebrew labels "Arx Infra" / "Arx Soft"; the default and the freeze are unchanged', () => {
   expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft']);
-  expect(DEFAULT_SKIN).toBe('classic'); // the owner decides the default after round 2
+  expect(DEFAULT_SKIN).toBe('domus'); // the owner decided: Domus (round 33, Q-DES-1; DOMUS-DEFAULT-2439)
   expect([...FROZEN_SKINS]).toEqual(['bubble']);
   expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft']);
   expect([...FOUNDATION_SKINS]).toEqual(['infra', 'soft']);

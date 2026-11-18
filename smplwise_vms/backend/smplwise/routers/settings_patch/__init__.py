@@ -29,6 +29,7 @@ class Patch:
     changes: dict[str, Any]
     # noted by a check when the switch actually changes; its audit row is written after the values are stored
     disarm_change: str | None = None
+    disarm_word: str | None = None  # CR-I18N-CONFIRM-WORDS-2442: which word confirmed the switch to true ("he" / "en"), for the audit row
     update_switch: str | None = None
     local_switch: str | None = None
     tickets_switch: str | None = None

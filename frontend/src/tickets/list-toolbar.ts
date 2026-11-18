@@ -1,6 +1,8 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { css, html, nothing, type ReactiveController, type ReactiveControllerHost, type TemplateResult } from 'lit';
 import { lt } from './list-text';
 import { tIcon } from './icons';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * TICKETS-POLISH-2331: the ONE toolbar of the request list and the manager board (design audit 27.10, P1-5 / §7.5.3 "filter bar"). Before
@@ -72,9 +74,11 @@ export class FilterPanelController implements ReactiveController {
   hostDisconnected(): void {
     window.removeEventListener('pointerdown', this.onOutside, true);
     this.host.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
   }
   hostUpdated(): void {
     const open = this.isOpen();
+    syncLayer(this, open, NO_TRAP); // CR-MODAL-STACK-B-2442: the open panel is a layer of the shared modal stack
     if (open) this.placeSheet();
     if (open && !this.wasOpen) this.panel()?.querySelector<HTMLElement>('button:not([disabled]), select, input')?.focus({ preventScroll: true });
     this.wasOpen = open;
@@ -102,6 +106,7 @@ export class FilterPanelController implements ReactiveController {
     const p = this.panel();
     const t = this.toggle();
     if ((p && path.includes(p)) || (t && path.includes(t))) {
+      if (!takesEscape(this, e)) return; // only the top layer answers Escape
       e.stopPropagation();
       this.setOpen(false);
       t?.focus();
@@ -306,11 +311,11 @@ export const ticketToolbarStyles = css`
   /* a single-choice group (the state) reads as the same chips; the chosen one takes the pressed look */
   /* AUDIT30-C-TICKETS (#4, Q3 option 1): the chosen one is the Blue Wash pair, never the black key */
   .fchips .rc[aria-checked='true'] {
-    background: var(--sw-accent-soft);
-    border-color: transparent;
-    color: var(--sw-accent-text);
-    font-weight: var(--sw-fw-semibold);
-    box-shadow: none;
+    ${chipSelected}
+  }
+  /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+  .fchips .rc[aria-checked='true']::before {
+    ${chipSelectedCheck}
   }
   .fchips .rc[aria-pressed='true'] small,
   .fchips .rc[aria-checked='true'] small {

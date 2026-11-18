@@ -4,6 +4,7 @@
  * Local sessions only; the probe and the repair are system-administrator actions, audited server-side.
  */
 import { get, post } from './client';
+import { tr } from '../i18n/msg/api-devices';
 
 export type PairingLineState = 'ok' | 'warn' | 'blocked' | 'unknown';
 export type PairingLineKey = 'bridge' | 'component' | 'key' | 'acceptance' | 'discovery' | 'provider' | 'rotation' | 'events' | 'last_error';
@@ -95,18 +96,18 @@ export function probeIsStale(p: PairingProbe | null, now = Date.now()): boolean 
 }
 
 export const VERDICT_TEXT: Record<PairingStatus['verdict'], string> = {
-  paired: 'מצומד: WisKey מקבל את המפתח של Arx',
-  not_paired: 'לא מצומד',
-  unknown: 'לא ידוע עדיין',
+  paired: tr('מצומד: WisKey מקבל את המפתח של Arx'),
+  not_paired: tr('לא מצומד'),
+  unknown: tr('לא ידוע עדיין'),
 };
 
 export const KIND_TEXT: Record<ReasonKind, string> = {
-  SET: 'הגדרה',
-  POL: 'מדיניות',
-  PAIR: 'צימוד',
-  WK: 'צד WisKey',
-  OWN: 'פעולת בעלים',
-  RUN: 'הפעלה מחדש',
+  SET: tr('הגדרה'),
+  POL: tr('מדיניות'),
+  PAIR: tr('צימוד'),
+  WK: tr('צד WisKey'),
+  OWN: tr('פעולת בעלים'),
+  RUN: tr('הפעלה מחדש'),
 };
 
 /** Rows grouped in the server's order (the groups keep their first appearance). */

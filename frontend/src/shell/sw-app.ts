@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -1963,7 +1964,7 @@ export class SwApp extends LitElement {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setScreenWarmup(ps['server.startup_warmup']); // WARMUP-POLISH-2421: the idle warm-up of the common screens (on unless "false")
-          setInstallationDesign(ps['ui.skin'], ps['ui.scheme'], ps['ui.motion'], ps['ui.rail_tone']); // the installation's skin, light / dark choice (design foundation), motion (MOTIONSETTING-297) and rail tone (SKINCOMP-297)
+          setInstallationDesign(ps['ui.skin'], ps['ui.scheme'], ps['ui.motion'], ps['ui.rail_tone'], undefined, ps['ui.chip_selected']); // the installation's skin, light / dark choice (design foundation), motion (MOTIONSETTING-297) and rail tone (SKINCOMP-297)
           setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
           setInstallationBackground(ps['ui.background'], ps['ui.background_images']); // CRY: the background artwork and the uploaded pictures' stamps
           setCustomPalettes(ps['ui.palettes']); // the installation's custom colour palettes (a palette id in the look dial may point at one)
@@ -2116,11 +2117,17 @@ export class SwApp extends LitElement {
       this.railObs = null;
       this.observedRail = rail;
       if (rail) {
+        // DOMUS-DEFAULT-2439: the width the rail takes of the shell, not only its box - a skin may float the rail off the edge
+        // (domus: 12 px) and what sits beside it (the user menu, the notification sheet, the banner) starts after that margin too.
+        // The border box is observed: a skin switch changes the border and the margin, not the content box.
         this.railObs = new ResizeObserver(() => {
           const w = rail.offsetWidth;
-          if (w > 0) this.style.setProperty('--sw-rail-w', `${w}px`);
+          if (w <= 0) return;
+          const cs = getComputedStyle(rail);
+          const margin = (parseFloat(cs.marginInlineStart) || 0) + (parseFloat(cs.marginInlineEnd) || 0);
+          this.style.setProperty('--sw-rail-w', `${w + margin}px`);
         });
-        this.railObs.observe(rail);
+        this.railObs.observe(rail, { box: 'border-box' });
       } else this.style.removeProperty('--sw-rail-w');
     }
   }
@@ -2175,7 +2182,11 @@ export class SwApp extends LitElement {
     if (scrolled !== this.hasAttribute('data-scrolled')) this.toggleAttribute('data-scrolled', scrolled);
   };
 
+  /** CR-MODAL-STACK-B-2442: the search panel / the system-status popover in the shared modal stack (one entry: they never stack). */
+  private readonly popLayer = {};
+
   protected updated() {
+    syncLayer(this.popLayer, this.searchPanel || this.sysPop, NO_TRAP);
     // The first load is over: the session is known and, with a backend, the product settings (ui.tabs, the start screen, the
     // hidden areas) are applied. Nothing in the UI reads this; specs wait for it instead of sleeping.
     // PERF-HOME-DEVICES-2342: a route screen rendered before its lazy chunk arrived starts the chunk here; the shell is not "ready"
@@ -2229,6 +2240,7 @@ export class SwApp extends LitElement {
 
   disconnectedCallback() {
     this.bannerObs?.disconnect();
+    removeLayer(this.popLayer);
     super.disconnectedCallback();
     this.stopDesign?.();
     this.stopDeviceClass?.();
@@ -2411,6 +2423,7 @@ export class SwApp extends LitElement {
       this.openSearch();
       return;
     }
+    if (e.key === 'Escape' && (this.searchPanel || this.sysPop) && !takesEscape(this.popLayer, e)) return; // CR-MODAL-STACK-B-2442: only the top layer answers
     if (e.key === 'Escape' && this.searchPanel) this.closeSearchPanel();
     if (e.key === 'Escape' && this.sysPop) this.closeSysPop(true);
   };

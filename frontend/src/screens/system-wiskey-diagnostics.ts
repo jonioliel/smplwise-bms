@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -255,7 +256,7 @@ export class SystemWiskeyDiagnostics extends LitElement {
     const d = this.data;
     return html`<sw-card heading=${this.bare ? '' : tr('WisKey רואה את Arx כ־')} subheading=${this.bare ? '' : tr('קריאה בלבד: מה ש־WisKey מדווח על זהות החיבורים של Arx אליו. הבדיקה נעשית לפי בקשה.')} data-wk-diag-card>
       <div class="block">
-        <div class="head"><span class="muted">${d ? html`${tr('נבדק ב־')}<bdi>${formatTime(d.generated_at, 'he-IL', UTC_ZONE)}</bdi>` : tr('עדיין לא נבדק')}</span>
+        <div class="head"><span class="muted">${d ? html`${tr('נבדק ב־')}<bdi>${formatTime(d.generated_at, uiLocale(), UTC_ZONE)}</bdi>` : tr('עדיין לא נבדק')}</span>
           <sw-button size="sm" variant="primary" icon="refresh" data-wk-diag-run ?disabled=${this.busy} @click=${() => this.run()}>${this.busy ? tr('בודק…') : d ? tr('בדיקה מחדש') : tr('בדיקה')}</sw-button></div>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </div>

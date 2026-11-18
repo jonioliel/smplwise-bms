@@ -14,13 +14,14 @@ import { settingsStyles } from '../styles/settings';
 import '../components/sw-icon';
 import { HINT_HE, KIOSK_HE, MAP3D_ROWS, type FlagDial, type Map3dKey, type Map3dRow, type SiteDial } from './plan-view-dials';
 import { KIT_HE, KIT_IDS, normalizePrefs, type WizardPrefs } from '../plan-wizard/wizard-prefs';
+import { tr } from '../i18n/msg/plan-view-card';
 
 type Target = 'own' | 'installation';
 type ChoiceDial = keyof typeof CHOICES;
 type RangeDial = keyof typeof RANGES;
 
 const choiceLabel = (dial: ChoiceDial, v: string | number): string => (dial === 'kiosk_idle_s' ? KIOSK_HE[Number(v)] ?? String(v) : CHOICE_HE[String(v)] ?? String(v));
-const fmtRange = (dial: RangeDial, v: number): string => (dial === 'eye_m' ? `${v.toFixed(2)} מ׳` : `×${v.toFixed(2)}`);
+const fmtRange = (dial: RangeDial, v: number): string => (dial === 'eye_m' ? tr('{n} מ׳', { n: v.toFixed(2) }) : `×${v.toFixed(2)}`);
 
 /**
  * הגדרות › מפה › מפה תלת־ממדית (CR-029 ST7 UI; LOOK_SPEC section 10, owner rule 2026-10-09: every look choice stays changeable).
@@ -256,7 +257,7 @@ export class SystemPlanView extends LitElement {
     const cur = this.wizard ?? normalizePrefs(null);
     const next = { ...cur, ...patch };
     if (next.review_min >= next.auto_accept) {
-      this.wizardErr = 'הסף התחתון צריך להיות נמוך מהסף העליון.';
+      this.wizardErr = tr('הסף התחתון צריך להיות נמוך מהסף העליון.');
       return;
     }
     this.wizardErr = '';
@@ -265,7 +266,7 @@ export class SystemPlanView extends LitElement {
     try {
       if (isApi()) await put('me/prefs', { 'plan.wizard': next });
       this.wizard = next;
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -318,11 +319,11 @@ export class SystemPlanView extends LitElement {
       const lat = parseFloat(site.lat);
       const lon = parseFloat(site.lon);
       if ((site.lat && (!Number.isFinite(lat) || Math.abs(lat) > 90)) || (site.lon && (!Number.isFinite(lon) || Math.abs(lon) > 180))) {
-        this.error = 'מיקום האתר: קו רוחב בין -90 ל-90, קו אורך בין -180 ל-180.';
+        this.error = tr('מיקום האתר: קו רוחב בין -90 ל-90, קו אורך בין -180 ל-180.');
         return;
       }
       if ((site.lat === '') !== (site.lon === '')) {
-        this.error = 'מיקום האתר: צריך גם קו רוחב וגם קו אורך (או שניהם ריקים).';
+        this.error = tr('מיקום האתר: צריך גם קו רוחב וגם קו אורך (או שניהם ריקים).');
         return;
       }
     }
@@ -348,7 +349,7 @@ export class SystemPlanView extends LitElement {
       this.draft = {};
       this.mapDraft = {};
       this.siteDraft = null;
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -362,7 +363,7 @@ export class SystemPlanView extends LitElement {
     this.error = '';
     try {
       this.prefs = await setPlanViewPrefs({ [dial]: value } as Partial<Record<PersonalDial, unknown>>);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -376,7 +377,7 @@ export class SystemPlanView extends LitElement {
     this.error = '';
     try {
       this.prefs = await setPlanViewPrefs(patch);
-      this.flash('ההעדפה נמחקה');
+      this.flash(tr('ההעדפה נמחקה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -398,11 +399,11 @@ export class SystemPlanView extends LitElement {
     const inst = dial === 'default_view' ? 'schematic' : this.siteValue(dial as SiteDial);
     const current = own ? (this.prefs?.own[dial as PersonalDial] ?? null) : inst;
     const disabled = own ? this.busy || !personal : this.instDisabled || dial === 'default_view';
-    const hint = own && current === null ? `לפי ההתקנה: ${choiceLabel(dial, inst as string | number)} · ${HINT_HE[dial]}` : HINT_HE[dial];
+    const hint = own && current === null ? `${tr('לפי ההתקנה: {value}', { value: choiceLabel(dial, inst as string | number) })} · ${HINT_HE[dial]}` : HINT_HE[dial];
     return html`<div class="row" data-view-row=${dial}>
       <span class="lbl">${DIAL_HE[dial]}<span class="muted">${hint}</span></span>
       <span class="seg" role="group" aria-label=${DIAL_HE[dial]}>
-        ${own && personal ? html`<button type="button" data-view-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial as PersonalDial, null)}>לפי ההתקנה</button>` : nothing}
+        ${own && personal ? html`<button type="button" data-view-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial as PersonalDial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
         ${values.map((v) => html`<button type="button" data-view-option=${`${dial}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${disabled}
           @click=${() => (own ? void this.setOwn(dial as PersonalDial, v) : this.setInst(dial as SiteDial, v as never))}>${choiceLabel(dial, v)}</button>`)}
       </span>
@@ -414,12 +415,12 @@ export class SystemPlanView extends LitElement {
     const inst = this.siteValue(dial);
     const current = own ? (this.prefs?.own[dial] ?? null) : inst;
     const disabled = own ? this.busy : this.instDisabled;
-    const label = (v: boolean) => (v ? 'פעיל' : 'כבוי');
-    const hint = own && current === null ? `לפי ההתקנה: ${label(inst)} · ${HINT_HE[dial]}` : HINT_HE[dial];
+    const label = (v: boolean) => (v ? tr('פעיל') : tr('כבוי'));
+    const hint = own && current === null ? `${tr('לפי ההתקנה: {value}', { value: label(inst) })} · ${HINT_HE[dial]}` : HINT_HE[dial];
     return html`<div class="row" data-view-row=${dial}>
       <span class="lbl">${DIAL_HE[dial]}<span class="muted">${hint}</span></span>
       <span class="seg" role="group" aria-label=${DIAL_HE[dial]}>
-        ${own ? html`<button type="button" data-view-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>לפי ההתקנה</button>` : nothing}
+        ${own ? html`<button type="button" data-view-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
         ${[true, false].map((v) => html`<button type="button" data-view-option=${`${dial}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${disabled}
           @click=${() => (own ? void this.setOwn(dial, v) : this.setInst(dial, v))}>${label(v)}</button>`)}
       </span>
@@ -440,9 +441,9 @@ export class SystemPlanView extends LitElement {
       else this.setInst(dial, v);
     };
     return html`<div class="row" data-view-row=${dial}>
-      <span class="lbl">${DIAL_HE[dial]}<span class="muted">${follows ? `לפי ההתקנה: ${fmtRange(dial, inst)}` : fmtRange(dial, value)} · ${HINT_HE[dial]}</span></span>
+      <span class="lbl">${DIAL_HE[dial]}<span class="muted">${follows ? tr('לפי ההתקנה: {value}', { value: fmtRange(dial, inst) }) : fmtRange(dial, value)} · ${HINT_HE[dial]}</span></span>
       <span class="range">
-        ${own ? html`<button type="button" data-view-follow=${dial} aria-pressed=${follows ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>לפי ההתקנה</button>` : nothing}
+        ${own ? html`<button type="button" data-view-follow=${dial} aria-pressed=${follows ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
         <input type="range" data-view-range=${dial} min=${lo} max=${hi} step=${step} .value=${String(value)} ?disabled=${disabled} aria-label=${DIAL_HE[dial]} aria-valuetext=${fmtRange(dial, value)} @input=${own ? nothing : onChange} @change=${onChange} />
         <output>${fmtRange(dial, value)}</output>
       </span>
@@ -473,17 +474,17 @@ export class SystemPlanView extends LitElement {
           else input.value = String(w[key]);
         }} /></sw-field>
     </div>`;
-    return html`${pct('auto_accept', 'נכנס בלי בדיקה מעל (%)', 'פריט שזוהה בביטחון גבוה מזה נכנס לתוכנית לבד')}
-      ${pct('review_min', 'לא נכנס בלי אישור מתחת ל־(%)', 'בין שני הספים הפריט מסומן לבדיקה')}
+    return html`${pct('auto_accept', tr('נכנס בלי בדיקה מעל (%)'), tr('פריט שזוהה בביטחון גבוה מזה נכנס לתוכנית לבד'))}
+      ${pct('review_min', tr('לא נכנס בלי אישור מתחת ל־(%)'), tr('בין שני הספים הפריט מסומן לבדיקה'))}
       <div class="row" data-wizard-row="unreviewed">
-        <span class="lbl">פריט לבדיקה שדילגת עליו<span class="muted">נכנס כמו שזוהה, או לא נכנס</span></span>
-        <span class="seg" role="group" aria-label="פריט לבדיקה שדילגת עליו">
-          ${(['as_detected', 'reject'] as const).map((v) => html`<button type="button" data-view-option=${`wizard.unreviewed:${v}`} aria-pressed=${w.unreviewed === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ unreviewed: v })}>${v === 'as_detected' ? 'נכנס כמו שזוהה' : 'לא נכנס'}</button>`)}
+        <span class="lbl">${tr('פריט לבדיקה שדילגת עליו')}<span class="muted">${tr('נכנס כמו שזוהה, או לא נכנס')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('פריט לבדיקה שדילגת עליו')}>
+          ${(['as_detected', 'reject'] as const).map((v) => html`<button type="button" data-view-option=${`wizard.unreviewed:${v}`} aria-pressed=${w.unreviewed === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ unreviewed: v })}>${v === 'as_detected' ? tr('נכנס כמו שזוהה') : tr('לא נכנס')}</button>`)}
         </span>
       </div>
       <div class="row" data-wizard-row="kit">
-        <span class="lbl">ערכת סגנון ראשונה<span class="muted">הערכה שמסומנת כשמגיעים לשלב הסגנון; בכל תוכנית אפשר לבחור אחרת</span></span>
-        <span class="seg" role="group" aria-label="ערכת סגנון ראשונה">
+        <span class="lbl">${tr('ערכת סגנון ראשונה')}<span class="muted">${tr('הערכה שמסומנת כשמגיעים לשלב הסגנון; בכל תוכנית אפשר לבחור אחרת')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('ערכת סגנון ראשונה')}>
           ${KIT_IDS.map((v) => html`<button type="button" data-view-option=${`wizard.kit:${v}`} aria-pressed=${w.kit === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ kit: v })}>${KIT_HE[v]}</button>`)}
         </span>
       </div>
@@ -497,10 +498,10 @@ export class SystemPlanView extends LitElement {
       this.message = '';
     };
     return html`<div class="row" data-view-row="site">
-      <span class="lbl">מיקום האתר — ידני<span class="muted">קו רוחב וקו אורך במעלות, לחישוב מסלול השמש. חל רק כשמקור המיקום הוא "ידני" (הגדרות ‹ כללי ‹ וידאו ומדיה ‹ מיקום האתר לשמש בתלת־ממד); אחרת השמש לפי מיקום הבית</span></span>
+      <span class="lbl">${tr('מיקום האתר — ידני')}<span class="muted">${tr('קו רוחב וקו אורך במעלות, לחישוב מסלול השמש. חל רק כשמקור המיקום הוא "ידני" (הגדרות ‹ כללי ‹ וידאו ומדיה ‹ מיקום האתר לשמש בתלת־ממד); אחרת השמש לפי מיקום הבית')}</span></span>
       <span class="site">
-        <sw-field label="קו רוחב"><input type="text" inputmode="decimal" data-ltr data-site-lat placeholder="32.08" .value=${d.lat} ?disabled=${this.instDisabled} @input=${(e: Event) => set({ lat: (e.target as HTMLInputElement).value.trim() })} /></sw-field>
-        <sw-field label="קו אורך"><input type="text" inputmode="decimal" data-ltr data-site-lon placeholder="34.78" .value=${d.lon} ?disabled=${this.instDisabled} @input=${(e: Event) => set({ lon: (e.target as HTMLInputElement).value.trim() })} /></sw-field>
+        <sw-field label=${tr('קו רוחב')}><input type="text" inputmode="decimal" data-ltr data-site-lat placeholder="32.08" .value=${d.lat} ?disabled=${this.instDisabled} @input=${(e: Event) => set({ lat: (e.target as HTMLInputElement).value.trim() })} /></sw-field>
+        <sw-field label=${tr('קו אורך')}><input type="text" inputmode="decimal" data-ltr data-site-lon placeholder="34.78" .value=${d.lon} ?disabled=${this.instDisabled} @input=${(e: Event) => set({ lon: (e.target as HTMLInputElement).value.trim() })} /></sw-field>
       </span>
     </div>`;
   }
@@ -508,16 +509,16 @@ export class SystemPlanView extends LitElement {
   render() {
     const own = this.target === 'own';
     const map = (group: Map3dRow['group']) => MAP3D_ROWS.filter((r) => r.group === group).map((r) => this.mapRow(r));
-    return html`<sw-card heading="מפה תלת־ממדית" subheading="תוויות וכרטיס החדר, כל הקומות, מראה, סימוני מצב, שעה ואור, תוכנית מתמונה, סיור ואיכות - לכל ההתקנה ולעצמי" data-plan-view-card data-settings-map3d>
+    return html`<sw-card heading=${tr('מפה תלת־ממדית')} subheading=${tr('תוויות וכרטיס החדר, כל הקומות, מראה, סימוני מצב, שעה ואור, תוכנית מתמונה, סיור ואיכות - לכל ההתקנה ולעצמי')} data-plan-view-card data-settings-map3d>
       <div class="row scope">
-        <span class="lbl">למי<span class="muted">${own ? 'ההעדפה שלי: כל שינוי נשמר מיד ותקף בכל מכשיר שלי. התוויות, כרטיס החדר והריצוף נקבעים בברירת המחדל של ההתקנה' : 'ברירת המחדל של ההתקנה: נשמרת בכפתור'}</span></span>
-        <span class="seg" role="group" aria-label="למי">
-          <button type="button" data-view-target="own" aria-pressed=${own ? 'true' : 'false'} @click=${() => (this.target = 'own')}>ההעדפה שלי</button>
-          <button type="button" data-view-target="installation" aria-pressed=${own ? 'false' : 'true'} @click=${() => (this.target = 'installation')}>ברירת המחדל של ההתקנה</button>
+        <span class="lbl">${tr('למי')}<span class="muted">${own ? tr('ההעדפה שלי: כל שינוי נשמר מיד ותקף בכל מכשיר שלי. התוויות, כרטיס החדר והריצוף נקבעים בברירת המחדל של ההתקנה') : tr('ברירת המחדל של ההתקנה: נשמרת בכפתור')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('למי')}>
+          <button type="button" data-view-target="own" aria-pressed=${own ? 'true' : 'false'} @click=${() => (this.target = 'own')}>${tr('ההעדפה שלי')}</button>
+          <button type="button" data-view-target="installation" aria-pressed=${own ? 'false' : 'true'} @click=${() => (this.target = 'installation')}>${tr('ברירת המחדל של ההתקנה')}</button>
         </span>
       </div>
-      ${own ? nothing : html`<h4 class="sub">תוויות וכרטיס החדר</h4>${map('labels')}<h4 class="sub">כל הקומות</h4>${map('stack')}`}
-      <h4 class="sub">מראה</h4>
+      ${own ? nothing : html`<h4 class="sub">${tr('תוויות וכרטיס החדר')}</h4>${map('labels')}<h4 class="sub">${tr('כל הקומות')}</h4>${map('stack')}`}
+      <h4 class="sub">${tr('מראה')}</h4>
       ${this.choiceRow('style')}
       ${this.choiceRow('backdrop')}
       ${this.choiceRow('default_view')}
@@ -528,31 +529,31 @@ export class SystemPlanView extends LitElement {
       ${this.flagRow('section_cut')}
       ${this.flagRow('show_temps')}
       ${this.flagRow('motion')}
-      <h4 class="sub">סימוני מצב החדר</h4>
+      <h4 class="sub">${tr('סימוני מצב החדר')}</h4>
       ${this.choiceRow('room_marks')}
       ${this.choiceRow('light_mark')}
       ${this.choiceRow('alarm_motion')}
-      <h4 class="sub">שעה ואור</h4>
+      <h4 class="sub">${tr('שעה ואור')}</h4>
       ${this.choiceRow('time_source')}
       ${this.choiceRow('light_mood')}
       ${own ? nothing : this.siteRow()}
-      ${own ? html`<h4 class="sub">תוכנית חדשה מתמונה</h4>${this.wizardRows()}` : nothing}
-      <h4 class="sub">סיור בגובה עין</h4>
+      ${own ? html`<h4 class="sub">${tr('תוכנית חדשה מתמונה')}</h4>${this.wizardRows()}` : nothing}
+      <h4 class="sub">${tr('סיור בגובה עין')}</h4>
       ${this.rangeRow('eye_m')}
       ${this.choiceRow('mouse_mode')}
       ${this.flagRow('walk_guard')}
-      <h4 class="sub">איכות ומסכים</h4>
+      <h4 class="sub">${tr('איכות ומסכים')}</h4>
       ${this.choiceRow('quality')}
       ${this.rangeRow('dpr_cap')}
       ${own ? nothing : html`${this.choiceRow('wall_display')}${this.choiceRow('kiosk_idle_s')}`}
       <div class="foot">
         ${own
-          ? html`<sw-button variant="ghost" size="sm" data-view-clear-own ?disabled=${this.busy || !Object.keys(this.prefs?.own ?? {}).length} @click=${() => void this.clearOwn()}>לפי ההתקנה בכל האפשרויות</sw-button>`
-          : html`<sw-button variant="primary" size="sm" icon="check" data-view-save ?disabled=${this.instDisabled || !this.dirty} @click=${() => void this.saveInstallation()}>שמור</sw-button>
-              <sw-button variant="ghost" size="sm" data-view-reset ?disabled=${this.instDisabled || !this.dirty} @click=${() => { this.draft = {}; this.mapDraft = {}; this.siteDraft = null; }}>בטל שינויים</sw-button>
-              ${this.dirty && !this.instDisabled ? html`<span class="dirty" data-view-dirty>יש שינויים שלא נשמרו</span>` : nothing}
-              ${!this.canEdit && isApi() ? html`<span class="note">שינוי ברירת המחדל דורש הרשאת מנהל מערכת.</span>` : nothing}
-              ${!isApi() ? html`<span class="note">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : nothing}`}
+          ? html`<sw-button variant="ghost" size="sm" data-view-clear-own ?disabled=${this.busy || !Object.keys(this.prefs?.own ?? {}).length} @click=${() => void this.clearOwn()}>${tr('לפי ההתקנה בכל האפשרויות')}</sw-button>`
+          : html`<sw-button variant="primary" size="sm" icon="check" data-view-save ?disabled=${this.instDisabled || !this.dirty} @click=${() => void this.saveInstallation()}>${tr('שמור')}</sw-button>
+              <sw-button variant="ghost" size="sm" data-view-reset ?disabled=${this.instDisabled || !this.dirty} @click=${() => { this.draft = {}; this.mapDraft = {}; this.siteDraft = null; }}>${tr('בטל שינויים')}</sw-button>
+              ${this.dirty && !this.instDisabled ? html`<span class="dirty" data-view-dirty>${tr('יש שינויים שלא נשמרו')}</span>` : nothing}
+              ${!this.canEdit && isApi() ? html`<span class="note">${tr('שינוי ברירת המחדל דורש הרשאת מנהל מערכת.')}</span>` : nothing}
+              ${!isApi() ? html`<span class="note">${tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</span>` : nothing}`}
         ${this.message ? html`<span class="msg ok" role="status" data-view-message><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="msg err" role="alert" data-view-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
       </div>

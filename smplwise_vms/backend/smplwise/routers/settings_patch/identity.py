@@ -11,11 +11,13 @@ from ...audit import audit
 from ...db import get_setting
 from ...errors import ApiError
 from ...rbac import Principal
+from ...services import confirm_words
 from ...services.settings_store import DEFAULTS
 from . import Patch
 
-ALLOW_DISARM_WORD = "אפשר נטרול"
-LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch the irreversible IDENT146 purge on
+# CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
+ALLOW_DISARM_WORD = confirm_words.he("schedules_allow_disarm")
+LOCAL_PURGE_WORD = confirm_words.he("privacy_local_purge")  # REL2140 M-1: typed to switch the irreversible IDENT146 purge on
 
 LOCAL_ONLY_IDENTITY_KEYS = ("security.local_public_url", "security.local_passkey_first", "security.local_passkey_android")
 LOCAL_ONLY_HE = "שינוי ההגדרה הזו אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית."
@@ -51,7 +53,9 @@ def allow_disarm(patch: Patch) -> None:
                 audit(conn, actor=principal, action="schedules.allow_disarm", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
                       request_id=getattr(request.state, "correlation_id", None), details={"to": changes["schedules.allow_disarm"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לשנות את נטרול האזעקה בתזמונים.")
-            if changes["schedules.allow_disarm"] == "true" and (disarm_confirm or "").strip() != ALLOW_DISARM_WORD:
+            if changes["schedules.allow_disarm"] == "true":
+                patch.disarm_word = confirm_words.typed_lang("schedules_allow_disarm", disarm_confirm)
+            if changes["schedules.allow_disarm"] == "true" and patch.disarm_word is None:
                 raise ApiError(422, "confirm_required", f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", details={"field": "schedules.allow_disarm_confirm"})
             patch.disarm_change = changes["schedules.allow_disarm"]
 
@@ -186,13 +190,14 @@ def local_purge(patch: Patch) -> None:
             audit(conn, actor=principal, action="privacy.local_purge.setting", decision="denied", resource_type="installation", resource_id="local_privacy",
                   reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": new})
             raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את המחיקה האוטומטית של משתמשי Arx.")
-        if key == "privacy.local_purge" and new == "on" and (purge_confirm or "").strip() != LOCAL_PURGE_WORD:
+        purge_word = confirm_words.typed_lang("privacy_local_purge", purge_confirm) if key == "privacy.local_purge" and new == "on" else None
+        if key == "privacy.local_purge" and new == "on" and purge_word is None:
             due = len(local_privacy.purge_due(conn))
             raise ApiError(422, "confirm_required", f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".",
                            details={"field": "privacy.local_purge_confirm", "due_now": due})
         audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
               request_id=getattr(request.state, "correlation_id", None),
-              details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local"})
+              details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local", **({"confirm_word": purge_word} if purge_word else {})})
 
 
 # ---------------------------------------------------------------- after the values are stored
@@ -222,4 +227,4 @@ def local_switch_applied(patch: Patch) -> None:
 def disarm_changed(patch: Patch) -> None:
     if patch.disarm_change is not None:
         audit(patch.conn, actor=patch.principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
-              request_id=getattr(patch.request.state, "correlation_id", None), details={"to": patch.disarm_change})
+              request_id=getattr(patch.request.state, "correlation_id", None), details={"to": patch.disarm_change, **({"confirm_word": patch.disarm_word} if patch.disarm_word else {})})

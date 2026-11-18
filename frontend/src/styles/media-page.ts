@@ -1,6 +1,7 @@
 import { css } from 'lit';
 import { leadReserveStyles } from './lead-reserve';
 import { liftedReset } from '../components/top-layer';
+import { chipSelected, chipSelectedCheck } from './chip-selected';
 
 /**
  * CR-016: the page chrome shared by the players page and the groups page (the screens page keeps its own copy, 0.1.149): the
@@ -132,11 +133,11 @@ export const mediaPageStyles = css`
     /* AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
        fill with the accent ink (Blue Wash), no border, no shadow; it was a black pill (--dv-text fill) */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text);
-      font-weight: var(--sw-fw-semibold);
-      box-shadow: none;
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .rc[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .rc:focus-visible {
       outline: 2px solid var(--dv-focus);

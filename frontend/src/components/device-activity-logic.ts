@@ -5,6 +5,7 @@
  * The wording is gender neutral on purpose (nouns: הדלקה, כיבוי, פתיחה ...) - the server does not know how a person is addressed.
  * Unknown stays unknown: nothing here guesses an actor (AGENTS.md: historical unknown is not current state).
  */
+import { uiLocale } from '../i18n/locale';
 import type { ActivityItem, ActivityKind, ActorType, EventType } from '../api/device-activity';
 import { timeText } from '../api/day-format';
 import { tr } from '../i18n/msg/components';
@@ -239,8 +240,8 @@ export function groupByDay(items: ActivityItem[], now = new Date(), tz?: string)
     const key = dayKey(d, tz);
     let g = out[out.length - 1];
     if (!g || g.key !== key) {
-      const dm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(d).replace('/', '.');
-      const wd = new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short' }).format(d);
+      const dm = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, day: 'numeric', month: 'numeric' }).format(d).replace('/', '.');
+      const wd = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'short' }).format(d);
       const label = key === today ? `${tr('היום')} · ${dm}` : key === yesterday ? `${tr('אתמול')} · ${dm}` : `${wd} · ${dm}`;
       g = { key, label, items: [] };
       out.push(g);
@@ -256,7 +257,7 @@ export function clockOf(iso: string, tz?: string): string {
 
 /** The full instant for a tooltip: "יום ג׳ 3.10.2026, 15:45". */
 export function fullDate(iso: string, tz?: string): string {
-  return new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)).replace(/\//g, '.');
+  return new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)).replace(/\//g, '.');
 }
 
 /** The one-line footnote: retention and the honest "manual" caveat. */
@@ -267,7 +268,7 @@ export function footnote(retentionDays: number, hasDevice: boolean): string {
 /** "מתועד מ־4.10": since when the history exists (starts from zero, owner decision). */
 export function trackedSince(fromIso: string | null | undefined, tz?: string): string {
   if (!fromIso) return '';
-  const dm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(new Date(fromIso)).replace('/', '.');
+  const dm = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, day: 'numeric', month: 'numeric' }).format(new Date(fromIso)).replace('/', '.');
   return tr('מתועד מ־{date}', { date: dm });
 }
 

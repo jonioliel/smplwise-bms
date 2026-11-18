@@ -11,6 +11,7 @@ import { RELEASE_MS, REFUSED_MS, allocateLive, effectiveLiveCap, sameSet } from 
 import type { ProductSettings } from './media';
 import type { Me } from './types';
 import { remoteVideo } from './video-policy';
+import { tr } from '../i18n/msg/api-video';
 
 /** A card's source: an NVR channel of the camera catalogue, or a Home Assistant camera entity. */
 export type CameraSource = { kind: 'nvr'; recorder_id: string; channel: number } | { kind: 'ha'; entity_id: string };
@@ -139,7 +140,7 @@ export function liveCapOf(settings: ProductSettings | null, me?: Me | null): num
 /** A card's own stream quality (owner 2026-09-30, stored in the layout item as `profile`): auto = today's rule below. */
 export type CardQuality = 'auto' | 'sub' | 'main';
 export const CARD_QUALITIES: CardQuality[] = ['auto', 'sub', 'main'];
-export const CARD_QUALITY_LABEL: Record<CardQuality, string> = { auto: 'אוטומטי', sub: 'משני', main: 'ראשי' };
+export const CARD_QUALITY_LABEL: Record<CardQuality, string> = { auto: tr('אוטומטי'), sub: tr('משני'), main: tr('ראשי') };
 
 export function isCardQuality(v: unknown): v is CardQuality {
   return v === 'auto' || v === 'sub' || v === 'main';

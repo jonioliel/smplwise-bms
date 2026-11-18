@@ -14,6 +14,7 @@ import {
 import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
 import { wmt, wmtOf, type WmKey } from '../i18n/wiskey-managed';
+import { shownConfirmWord } from '../i18n/confirm-words';
 
 type Pending =
   | { kind: 'switch'; name: SwitchName; next: OnOff }
@@ -361,7 +362,7 @@ export class SystemSecurityWiskeyManaged extends LitElement {
     const label = p.kind === 'switch' ? wmt(p.next === 'on' ? 'turnOn' : 'turnOff') : p.kind === 'adopt' ? wmt('adoptButton') : wmt('start');
     return html`<sw-dialog open heading=${heading} data-wm-dialog=${p.kind === 'switch' ? `${p.name}-${p.next}` : p.kind} @close=${() => { if (!this.busy) this.pending = null; }}>
       <p style="margin:0">${text}</p>
-      ${phrase !== null ? html`<label class="typed"><span class="lbl">${wmt('typeText', { phrase: '' })}<span class="phrase" data-wm-phrase>${phrase}</span></span>
+      ${phrase !== null ? html`<label class="typed"><span class="lbl">${wmt('typeText', { phrase: '' })}<span class="phrase" data-wm-phrase>${shownConfirmWord(phrase)}</span></span>
         <input data-wm-phrase-input autocomplete="off" spellcheck="false" aria-label=${wmt('typeLabel')} .value=${this.typed}
           @input=${(e: Event) => { this.typed = (e.target as HTMLInputElement).value; this.dlgError = ''; }}
           @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && ok) void this.confirm(); }}></label>` : nothing}

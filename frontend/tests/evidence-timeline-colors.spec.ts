@@ -16,7 +16,8 @@ const DEFAULTS: Record<string, string> = { recording: 'accent', motion: 'red', p
 const LABELS = ['הקלטה', 'תנועה', 'אדם', 'רכב', 'דלת', 'חציית קו', 'אובדן וידאו'];
 // The recording default is the skin's accent (--sw-tl-recording: var(--sw-accent)); POLISH-BOLD-297 (41a2a7879, owner-approved R5) set
 // the classic accent a hair deeper than the base #2767ed. The settings card swatch keeps the base blue as its label colour.
-const CLASSIC_ACCENT = '#2360e8';
+// DOMUS-DEFAULT-2439: the default skin is domus, so "the skin's accent" on these pages is the domus blue (classic's was #2360e8).
+const SKIN_ACCENT = '#2458e6';
 const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 
 async function open(page: Page, hash: string) {
@@ -122,7 +123,7 @@ test.describe('timeline colours (timeline.colors)', () => {
     const got = await timelineColours(page);
     expect(got.legend['אדם']).toBe(rgb('#14b8a6'));
     expect(got.legend['דלת']).toBe(rgb('#aa11cc'));
-    expect(got.legend['הקלטה (גובה = פעילות)']).toBe(rgb(CLASSIC_ACCENT));
+    expect(got.legend['הקלטה (גובה = פעילות)']).toBe(rgb(SKIN_ACCENT));
     expect(got.dots).toContain(rgb('#14b8a6')); // the person's dot on the track
     expect(got.dots).not.toContain(rgb('#ea580c'));
     await page.locator('styleguide-screen sw-timeline').first().scrollIntoViewIfNeeded();
@@ -172,7 +173,7 @@ test.describe('timeline colours (timeline.colors)', () => {
       for (const span of Array.from(el.shadowRoot!.querySelectorAll('.legend span'))) out[(span.textContent ?? '').trim()] = getComputedStyle(span, '::before').backgroundColor;
       return out;
     });
-    expect(legend['הקלטה (גובה = פעילות)']).toBe(rgb(CLASSIC_ACCENT));
+    expect(legend['הקלטה (גובה = פעילות)']).toBe(rgb(SKIN_ACCENT));
     expect(legend['אדם']).toBe(rgb('#ea580c'));
     expect(legend['תנועה']).toBe(rgb('#ef4444'));
     await tl.scrollIntoViewIfNeeded();

@@ -6,13 +6,14 @@
  * subscribe with `onPlaybackDisplay` and follow a change at once.
  */
 import { can } from './session';
+import { tr } from '../i18n/msg/api-video';
 
 export type Visibility = 'all' | 'installers' | 'hidden';
 export type PlaybackItem = 'helper_line' | 'diagnostics';
 
 export const VISIBILITY_VALUES: readonly Visibility[] = ['all', 'installers', 'hidden'];
-export const VISIBILITY_LABEL: Readonly<Record<Visibility, string>> = { all: 'לכולם', installers: 'מתקינים בלבד', hidden: 'מוסתר' };
-export const PLAYBACK_ITEM_LABEL: Readonly<Record<PlaybackItem, string>> = { helper_line: 'שורת העזר בציר הזמן', diagnostics: 'נתוני אבחון בהקלטה' };
+export const VISIBILITY_LABEL: Readonly<Record<Visibility, string>> = { all: tr('לכולם'), installers: tr('מתקינים בלבד'), hidden: tr('מוסתר') };
+export const PLAYBACK_ITEM_LABEL: Readonly<Record<PlaybackItem, string>> = { helper_line: tr('שורת העזר בציר הזמן'), diagnostics: tr('נתוני אבחון בהקלטה') };
 
 let current: Record<PlaybackItem, Visibility> = { helper_line: 'all', diagnostics: 'all' };
 const listeners = new Set<() => void>();

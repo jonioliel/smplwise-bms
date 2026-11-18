@@ -1,5 +1,6 @@
 // HOME-V3-P1-2430: the family words of the phase-1 screens (no platform names, no technical terms) and the small pure helpers behind
 // them, kept apart from the screens so the unit spec can check them without a browser page.
+import { uiLocale } from '../i18n/locale';
 import { tr } from '../i18n/msg/home';
 
 /** An event of the home diary in simple words, or null when it is technical (system, storage, coverage) and stays in the full interface. */
@@ -70,7 +71,7 @@ export function dayWord(back: number, now = new Date()): string {
   if (back === 1) return tr('אתמול');
   if (back === 2) return tr('שלשום');
   const d = new Date(now.getTime() - back * 86_400_000);
-  return d.toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' });
+  return d.toLocaleDateString(uiLocale(), { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' });
 }
 
 /** hh:mm:ss of a minute of the day (fractional). */

@@ -84,12 +84,13 @@ test.describe('design foundation', () => {
     const card = (page: Page) => page.locator('sw-app system-design');
     const attr = (page: Page, a: string) => page.evaluate((n) => document.documentElement.getAttribute(n), a);
 
-    test('default is classic / light; an unknown ?skin= is ignored; ?skin= and ?scheme= override the page view only', async ({ page }) => {
+    // DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): the default skin is domus (it was classic)
+    test('default is domus / light; an unknown ?skin= is ignored; ?skin= and ?scheme= override the page view only', async ({ page }) => {
       await open(page, '/devices');
-      expect(await attr(page, 'data-skin')).toBe('classic');
+      expect(await attr(page, 'data-skin')).toBe('domus');
       expect(await attr(page, 'data-theme')).toBe('light');
       await open(page, '/devices', '&skin=glass&scheme=night');
-      expect(await attr(page, 'data-skin')).toBe('classic');
+      expect(await attr(page, 'data-skin')).toBe('domus');
       expect(await attr(page, 'data-theme')).toBe('light');
       await open(page, '/devices', '&skin=tesla&scheme=dark');
       expect(await attr(page, 'data-skin')).toBe('tesla');
@@ -104,9 +105,20 @@ test.describe('design foundation', () => {
       // SKINFOUND-297: the picker offers the selectable skins, the foundation-stage Arx skins included
       await expect(card(page).locator('[data-skin-option]')).toHaveCount(PICKER_SKINS.length);
       for (const id of PICKER_SKINS) await expect(card(page).locator(`[data-skin-option="${id}"] .sw`)).toHaveCount(1);
-      await expect(card(page).locator('[data-skin-option="classic"] [data-skin-current]')).toBeVisible();
+      await expect(card(page).locator('[data-skin-option="domus"] [data-skin-current]')).toBeVisible(); // DOMUS-DEFAULT-2439: the default
       await expect(card(page).locator('[data-skin-option] .sw')).toHaveCount(PICKER_SKINS.length);
       await expect(card(page).locator('[data-design-save]')).toHaveAttribute('disabled', ''); // nothing changed yet
+      // classic stays selectable: an installation that chooses it keeps it (the stored choice wins over the default, also after a reload)
+      await card(page).locator('[data-skin-option="classic"]').click();
+      expect(await attr(page, 'data-skin')).toBe('domus'); // a draft
+      await card(page).locator('[data-design-save]').click();
+      await expect(card(page).locator('[data-design-message]')).toBeVisible();
+      expect(await attr(page, 'data-skin')).toBe('classic');
+      await page.reload();
+      await page.waitForSelector('sw-app');
+      expect(await attr(page, 'data-skin')).toBe('classic');
+      await open(page, '/system/diagnostics');
+      await expect(card(page).locator('[data-skin-option="classic"] [data-skin-current]')).toBeVisible();
       await card(page).locator('[data-skin-option="domus"]').click();
       await card(page).locator('[data-scheme-option="dark"]').click();
       expect(await attr(page, 'data-skin')).toBe('classic'); // a choice is a draft until it is saved

@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
@@ -259,8 +260,8 @@ export class CalViewManage extends LitElement {
     const ctx = this.ctx as CalCtx;
     const dev = ctx.device;
     const mgr = c.owner?.name ? html`${c.owner.name}` : html`<span class="missing">${tr('חסר מנהל')}</span>`;
-    const where = [c.floor_name, c.capacity ? tr('{n} מקומות', { n: c.capacity.toLocaleString('he-IL') }) : '', c.equipment.length ? tr('{n} פריטי ציוד', { n: c.equipment.length }) : ''].filter(Boolean).join(' · ');
-    const pending = c.pending_count ? html`<span class="chip dash num">${tr('{n} ממתינות', { n: c.pending_count > 999 ? '999+' : c.pending_count.toLocaleString('he-IL') })}</span>` : nothing;
+    const where = [c.floor_name, c.capacity ? tr('{n} מקומות', { n: c.capacity.toLocaleString(uiLocale()) }) : '', c.equipment.length ? tr('{n} פריטי ציוד', { n: c.equipment.length }) : ''].filter(Boolean).join(' · ');
+    const pending = c.pending_count ? html`<span class="chip dash num">${tr('{n} ממתינות', { n: c.pending_count > 999 ? '999+' : c.pending_count.toLocaleString(uiLocale()) })}</span>` : nothing;
     const go = () => (location.hash = this.href(`/${encodeURIComponent(c.id)}`));
     if (dev === 'phone') {
       return html`<div class="row" data-cal-row=${c.id} @click=${go}><span class="sq" style=${`--h:${colorVar(c.color)}`}></span>
@@ -382,7 +383,7 @@ export class CalViewManage extends LitElement {
       <div class="ph"><h2 style="font-size:var(--sw-fs-lg)">${tr('מה כל תפקיד מאפשר')}</h2>${overlay ? html`<span class="sp"></span><button type="button" class="btn icon sm" aria-label=${tr('סגירה')} @click=${() => (this.side = false)}><sw-icon name="close" size="14"></sw-icon></button>` : nothing}</div>
       <div class="rights">${CAL_ROLES.map((r) => html`<div class="rt"><b>${ROLE_LABEL[r]}</b><span>${ROLE_HINT[r]}</span></div>`)}</div>
       <div class="note"><sw-icon name="info" size="16"></sw-icon><div><b>${tr('התפקיד ביומן לא עוקף את המערכת')}</b><span class="muted">${tr('הזמנה בשם חוג או לקוח, חלונות תחזוקה ופרטי אורחים דורשים גם הרשאה במערכת.')}</span></div></div>
-      <span class="sp"></span><div class="muted num">${tr('{n} מתוך {max} שורות חברות ביומן', { n: n.toLocaleString('he-IL'), max: MAX_MEMBERS })}</div>
+      <span class="sp"></span><div class="muted num">${tr('{n} מתוך {max} שורות חברות ביומן', { n: n.toLocaleString(uiLocale()), max: MAX_MEMBERS })}</div>
     </aside>`;
   }
 
@@ -407,7 +408,7 @@ export class CalViewManage extends LitElement {
         <a class="btn icon sm" href=${this.href('')} aria-label=${tr('לכל היומנים')} data-back><sw-icon name="chevronBack" size="16"></sw-icon></a>
         <span class="sq" style=${`--h:${colorVar(c.color)}`}></span>
         <div class="grow"><h2 class="ell" title=${c.name}>${c.name}</h2>
-          <div class="sub ell muted">${[TYPE_LABEL[c.type], c.floor_name, c.capacity ? tr('{n} מקומות', { n: c.capacity.toLocaleString('he-IL') }) : '', tr('מנהל: {name}', { name: c.owner?.name || '—' })].filter(Boolean).join(' · ')}</div></div>
+          <div class="sub ell muted">${[TYPE_LABEL[c.type], c.floor_name, c.capacity ? tr('{n} מקומות', { n: c.capacity.toLocaleString(uiLocale()) }) : '', tr('מנהל: {name}', { name: c.owner?.name || '—' })].filter(Boolean).join(' · ')}</div></div>
         ${manage && !phone ? html`<button type="button" class="btn sm" data-edit-rules @click=${() => this.openEdit(c)}><sw-icon name="edit" size="14"></sw-icon>${tr('כללי היומן')}</button>` : nothing}
         ${manage ? html`<button type="button" class="btn sm pri" data-add-member @click=${() => { this.adding = !this.adding; this.addId = ''; }}><sw-icon name="plus" size="14"></sw-icon>${phone ? tr('הוספה') : tr('הוספת חבר')}</button>` : nothing}
         ${sideMode === 'overlay' && !phone ? html`<button type="button" class="btn icon sm" aria-label=${tr('מה כל תפקיד מאפשר')} data-roles-open @click=${() => (this.side = true)}><sw-icon name="help" size="16"></sw-icon></button>` : nothing}

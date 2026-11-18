@@ -17,6 +17,7 @@ import { listMeters, type Meter } from './electricity-meters';
 import { coefficients, factorLabel, type FormulaAst } from '../electricity/elec-formula';
 import { addDays, billNumber, daysInclusive, fmtRange, monthShort, r2 } from '../electricity/elec-format';
 import type { TouCheck, TouDefinition, TouTemplate } from '../electricity/elec-tou';
+import { tr } from '../i18n/msg/api-electricity';
 
 export type { FormulaAst, TouCheck, TouDefinition, TouTemplate };
 export type BillState = 'draft' | 'issued' | 'sent' | 'paid' | 'void';
@@ -24,43 +25,43 @@ export type PriceMode = 'ex_vat' | 'inc_vat';
 export type AutoMode = 'off' | 'draft' | 'issue';
 export type SentHow = 'email' | 'hand' | 'other';
 
-export const BILL_STATE_LABEL: Record<BillState, string> = { draft: 'טיוטה', issued: 'הונפק', sent: 'נשלח', paid: 'שולם', void: 'בוטל' };
+export const BILL_STATE_LABEL: Record<BillState, string> = { draft: tr('טיוטה'), issued: tr('הונפק'), sent: tr('נשלח'), paid: tr('שולם'), void: tr('בוטל') };
 export const BILL_STATES: BillState[] = ['draft', 'issued', 'sent', 'paid', 'void'];
-export const AUTO_LABEL: Record<AutoMode, string> = { draft: 'ליצור טיוטה', issue: 'להנפיק אוטומטית', off: 'בלי יצירה אוטומטית' };
+export const AUTO_LABEL: Record<AutoMode, string> = { draft: tr('ליצור טיוטה'), issue: tr('להנפיק אוטומטית'), off: tr('בלי יצירה אוטומטית') };
 
 /** Hebrew texts for the server's error codes (used when the server sends no user_message). */
 export const ERROR_TEXT: Record<string, string> = {
-  forbidden: 'אין הרשאה לפעולה הזו.',
-  validation: 'אחד השדות אינו תקין.',
-  not_found: 'הפריט לא נמצא.',
-  revision_conflict: 'הפריט השתנה בינתיים. רעננו ונסו שוב.',
-  formula_invalid: 'הנוסחה אינה תקינה.',
-  formula_negative: 'התוצאה שלילית בתקופה הזו. בדקו את הנוסחה או את המונים.',
-  tariff_missing: 'אין מחיר בתוקף בתאריך הזה. הגדירו מחיר בהגדרות.',
-  vat_missing: 'אין שיעור מע״מ בתוקף בתאריך הזה. הגדירו שיעור בהגדרות.',
-  period_invalid: 'התקופה אינה תקינה.',
-  period_overlap: 'כבר קיים חיוב לתקופה הזו. אפשר לתקן אותו במקום ליצור חדש.',
-  draft_exists: 'כבר קיימת טיוטה לתקופה הזו.',
-  bill_not_draft: 'אפשר לבצע את הפעולה רק על טיוטה.',
-  bill_state: 'הפעולה אינה אפשרית במצב הנוכחי של החיוב.',
-  reason_required: 'צריך לכתוב סיבה.',
-  customer_number_taken: 'מספר הלקוח כבר בשימוש.',
-  customer_number_locked: 'אי אפשר לשנות מספר של לקוח שיש לו חיובים ממוספרים.',
-  customer_has_accounts: 'ללקוח יש חשבונות פעילים. אי אפשר למחוק אותו.',
-  tariff_in_use: 'התעריף בשימוש. אי אפשר למחוק אותו.',
-  version_exists: 'כבר קיימת גרסה עם תאריך התחלה זהה.',
-  pdf_unavailable: 'יצירת PDF אינה זמינה בהתקנה הזו.',
-  pdf_render_failed: 'יצירת קובץ ה-PDF נכשלה. החיוב נשמר ואפשר לנסות שוב.',
-  pdf_timeout: 'יצירת קובץ ה-PDF לקחה יותר מדי זמן. החיוב נשמר ואפשר לנסות שוב.',
-  pdf_page_limit: 'החיוב ארוך מדי לקובץ PDF (יותר מדי עמודים).',
-  pdf_too_large: 'קובץ ה-PDF גדול מדי. נסו לוגו קטן יותר.',
-  pdf_no_lines: 'אין שורות חיוב בחיוב הזה (המונים לא דיווחו בתקופה); אי אפשר להפיק PDF.',
-  pdf_invalid_snapshot: 'אי אפשר להפיק PDF: נתוני החיוב אינם שלמים. יש לחשב את החיוב מחדש או לפנות לתמיכה.',
-  logo_invalid: 'הלוגו חייב להיות PNG או JPEG עד 1MB.',
-  tariff_definition_invalid: 'הגדרת התעריף לפי שעות אינה תקינה.',
-  tariff_kind_mixed: 'בתקופה יש גם מחיר קבוע וגם תעריף לפי שעות.',
-  tou_needs_interval_data: 'לחישוב לפי שעות נדרשים נתוני רבע שעה, ולתקופה זו הם כבר לא נשמרים.',
-  nothing_changed: 'לא בוצע שינוי.',
+  forbidden: tr('אין הרשאה לפעולה הזו.'),
+  validation: tr('אחד השדות אינו תקין.'),
+  not_found: tr('הפריט לא נמצא.'),
+  revision_conflict: tr('הפריט השתנה בינתיים. רעננו ונסו שוב.'),
+  formula_invalid: tr('הנוסחה אינה תקינה.'),
+  formula_negative: tr('התוצאה שלילית בתקופה הזו. בדקו את הנוסחה או את המונים.'),
+  tariff_missing: tr('אין מחיר בתוקף בתאריך הזה. הגדירו מחיר בהגדרות.'),
+  vat_missing: tr('אין שיעור מע״מ בתוקף בתאריך הזה. הגדירו שיעור בהגדרות.'),
+  period_invalid: tr('התקופה אינה תקינה.'),
+  period_overlap: tr('כבר קיים חיוב לתקופה הזו. אפשר לתקן אותו במקום ליצור חדש.'),
+  draft_exists: tr('כבר קיימת טיוטה לתקופה הזו.'),
+  bill_not_draft: tr('אפשר לבצע את הפעולה רק על טיוטה.'),
+  bill_state: tr('הפעולה אינה אפשרית במצב הנוכחי של החיוב.'),
+  reason_required: tr('צריך לכתוב סיבה.'),
+  customer_number_taken: tr('מספר הלקוח כבר בשימוש.'),
+  customer_number_locked: tr('אי אפשר לשנות מספר של לקוח שיש לו חיובים ממוספרים.'),
+  customer_has_accounts: tr('ללקוח יש חשבונות פעילים. אי אפשר למחוק אותו.'),
+  tariff_in_use: tr('התעריף בשימוש. אי אפשר למחוק אותו.'),
+  version_exists: tr('כבר קיימת גרסה עם תאריך התחלה זהה.'),
+  pdf_unavailable: tr('יצירת PDF אינה זמינה בהתקנה הזו.'),
+  pdf_render_failed: tr('יצירת קובץ ה-PDF נכשלה. החיוב נשמר ואפשר לנסות שוב.'),
+  pdf_timeout: tr('יצירת קובץ ה-PDF לקחה יותר מדי זמן. החיוב נשמר ואפשר לנסות שוב.'),
+  pdf_page_limit: tr('החיוב ארוך מדי לקובץ PDF (יותר מדי עמודים).'),
+  pdf_too_large: tr('קובץ ה-PDF גדול מדי. נסו לוגו קטן יותר.'),
+  pdf_no_lines: tr('אין שורות חיוב בחיוב הזה (המונים לא דיווחו בתקופה); אי אפשר להפיק PDF.'),
+  pdf_invalid_snapshot: tr('אי אפשר להפיק PDF: נתוני החיוב אינם שלמים. יש לחשב את החיוב מחדש או לפנות לתמיכה.'),
+  logo_invalid: tr('הלוגו חייב להיות PNG או JPEG עד 1MB.'),
+  tariff_definition_invalid: tr('הגדרת התעריף לפי שעות אינה תקינה.'),
+  tariff_kind_mixed: tr('בתקופה יש גם מחיר קבוע וגם תעריף לפי שעות.'),
+  tou_needs_interval_data: tr('לחישוב לפי שעות נדרשים נתוני רבע שעה, ולתקופה זו הם כבר לא נשמרים.'),
+  nothing_changed: tr('לא בוצע שינוי.'),
 };
 
 // ------------------------------------------------------------------------------------------------ wire types
@@ -641,29 +642,29 @@ export function buildStatus(account: Account, w: AccountStatusWire, ctx: { today
 /** Hebrew line of the bill log for a server event. */
 export function eventText(e: BillEventWire): string {
   const d = e.details ?? {};
-  const how = { email: 'בדוא״ל', hand: 'במסירה ידנית', other: 'באופן אחר' } as Record<string, string>;
+  const how = { email: tr('בדוא״ל'), hand: tr('במסירה ידנית'), other: tr('באופן אחר') } as Record<string, string>;
   switch (e.action) {
     case 'draft':
-      return e.actor?.kind === 'system' ? 'טיוטה נוצרה אוטומטית' : 'טיוטה נוצרה';
+      return e.actor?.kind === 'system' ? tr('טיוטה נוצרה אוטומטית') : tr('טיוטה נוצרה');
     case 'auto_draft':
-      return 'טיוטה נוצרה אוטומטית';
+      return tr('טיוטה נוצרה אוטומטית');
     case 'recalculate':
-      return 'חושב מחדש';
+      return tr('חושב מחדש');
     case 'issue':
     case 'auto_issue':
-      return d.replaces ? `הונפק, מחליף את ${String(d.replaces)}` : 'הונפק';
+      return d.replaces ? tr('הונפק, מחליף את {replaces}', { replaces: String(d.replaces) }) : tr('הונפק');
     case 'sent':
-      return `סומן כנשלח ${how[String(d.how)] ?? ''}`.trim();
+      return tr('סומן כנשלח {v}', { v: how[String(d.how)] ?? '' }).trim();
     case 'paid':
-      return d.reference ? `סומן כשולם, אסמכתה ${String(d.reference)}` : 'סומן כשולם';
+      return d.reference ? tr('סומן כשולם, אסמכתה {reference}', { reference: String(d.reference) }) : tr('סומן כשולם');
     case 'correct':
-      return 'נוצרה טיוטה מתוקנת';
+      return tr('נוצרה טיוטה מתוקנת');
     case 'void':
-      return d.reason ? `בוטל: ${String(d.reason)}` : 'בוטל';
+      return d.reason ? tr('בוטל: {reason}', { reason: String(d.reason) }) : tr('בוטל');
     case 'pdf':
-      return 'קובץ ה-PDF נוצר';
+      return tr('קובץ ה-PDF נוצר');
     case 'pdf_failed':
-      return 'הפקת ה-PDF נכשלה';
+      return tr('הפקת ה-PDF נכשלה');
     default:
       return e.action;
   }
@@ -833,8 +834,8 @@ export function elec(): ElecBackend {
 }
 
 export function elecErrorText(err: unknown): string {
-  if (err instanceof ApiError) return err.body.user_message || ERROR_TEXT[err.body.code] || (err.status === 403 ? ERROR_TEXT.forbidden : `השרת דחה את הבקשה (${err.status})`);
-  if (err instanceof TypeError) return 'אין חיבור לשרת.';
+  if (err instanceof ApiError) return err.body.user_message || ERROR_TEXT[err.body.code] || (err.status === 403 ? ERROR_TEXT.forbidden : tr('השרת דחה את הבקשה ({status})', { status: err.status }));
+  if (err instanceof TypeError) return tr('אין חיבור לשרת.');
   return err instanceof Error ? err.message : String(err);
 }
 export const elecErrorCode = (err: unknown): string => (err instanceof ApiError ? err.body.code : '');

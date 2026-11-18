@@ -135,9 +135,9 @@ def test_the_development_router_is_conditional():
 
 def test_after_migrate_order():
     assert [f.__name__ for f in startup_steps.AFTER_MIGRATE] == [
-        "keep_home_interface_defaults", "load_mic_mode", "ensure_migration_objects", "ensure_shared_spaces_schema", "record_version",
+        "keep_home_interface_defaults", "move_classic_skin_once", "load_mic_mode", "ensure_migration_objects", "ensure_shared_spaces_schema", "record_version",
         "settle_update_run", "note_release_restart", "ensure_notify_policies", "settle_bulk_device_actions", "reconcile_switch_protection",
-        "backfill_ha_event_cameras"]
+        "backfill_ha_event_cameras", "ensure_push_server_id"]
     assert startup_steps.log.name == "smplwise"
 
 

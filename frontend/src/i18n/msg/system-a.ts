@@ -828,7 +828,7 @@ export const tr = msgCatalogue('msg/system-a', {
   'כולם, השאר "תפוס"': 'All of them, the rest "Busy"',
   'התנגשות מסנכרון בתצוגת השבוע': 'A sync conflict in the week view',
   'אישור "מחיקת כל פרטי האורחים"': 'Confirming "Erase all guest details"',
-  'הקלדת "מחיקה"': 'Typing "מחיקה"',
+  'הקלדת "{word}"': 'Typing "{word}"',
   'לחיצה בחלון': 'A click in a dialog',
   'תוקף קישור של פיד יוצא': 'Outgoing feed link validity',
   '90 יום': '90 days',
@@ -947,7 +947,7 @@ export const tr = msgCatalogue('msg/system-a', {
   'ימים יימחקו בהרצה הבאה.': 'days ago will be erased in the next run.',
   'למחוק את כל פרטי האורחים?': 'Erase all guest details?',
   'השמות ומספרי הטלפון של כל האורחים יימחקו עכשיו. התוויות נשארות. אי אפשר לבטל.': 'The names and phone numbers of all guests are erased now. The labels stay. This cannot be undone.',
-  'כדי לאשר, יש להקליד "מחיקה"': 'To confirm, type "מחיקה"',
+  'כדי לאשר, יש להקליד "{word}"': 'To confirm, type "{word}"',
   // system-cast.ts
   'הכתובת נבדקה: ה־relay עונה': 'Address checked: the relay answers',
   'הבדיקה נכשלה': 'The check failed',

@@ -13,6 +13,11 @@ import { installTicketsMock, url, type TicketsMock, type TicketsMockOptions } fr
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/camera-viewfinder');
 const D = 'sw-app tickets-list ticket-detail';
 const TICKET = '/tickets/all?t=0000000000000a01';
+// FIX-CAMVF-FLAKE-2443: the shutter shows the still at once (default timeouts), but "שימוש בתמונה" waits for the JPEG the shutter started.
+// Chromium encodes a canvas JPEG in idle time on the page's main thread and forces it only after its own timeouts (about 1 s to start,
+// 5 s to complete); measured on the loaded runner with phone emulation, the encode took more than 5 s now and then. So that one step
+// waits for the browser's bound, not for the 5 s default.
+const ENCODE_BOUND = 15_000;
 
 test.use({
   launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
@@ -64,7 +69,9 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.waitForTimeout(300);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow, `${name}: horizontal overflow`).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}.png`) });
+  // FIX-CAMVF-FLAKE-2443: evidence in CSS pixels. At the phone's device scale (2.625) one capture took 4-40 s on the loaded runner and the
+  // three captures of the "on" test together used up its 60 s budget (traces); in CSS pixels the same test ran in about half the time (measured A/B).
+  await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}.png`), scale: 'css' });
 }
 
 const d = (page: Page) => page.locator(D);
@@ -119,7 +126,7 @@ test.describe('CR-CAMVF-295 live camera viewfinder', () => {
     expect(uploads, 'nothing leaves the browser before "use photo"').toHaveLength(0);
 
     await vf(page).locator('[data-camvf-primary]').click(); // שימוש בתמונה
-    await expect(vf(page).locator('sw-dialog')).toHaveAttribute('data-camvf', 'closed');
+    await expect(vf(page).locator('sw-dialog')).toHaveAttribute('data-camvf', 'closed', { timeout: ENCODE_BOUND });
     await expect.poll(() => uploads.length).toBe(1);
     expect(uploads[0]).toMatch(/filename="camera-\d{8}-\d{6}\.jpg"/);
     expect(uploads[0]).toContain('Content-Type: image/jpeg');

@@ -2,6 +2,7 @@
  * system.configure) and demo mode (GET /demo, POST /demo/start|extend|stop; demo.run, sensitive and in no built-in role). Without a backend (the
  * static preview) the same shapes come from the fixture at the bottom. */
 import { get, post, put } from './client';
+import { tr } from '../i18n/msg/api-system';
 
 export type ReadinessStatus = 'ok' | 'attention' | 'blocked' | 'pending' | 'not_applicable';
 export type ReadinessLevel = 'building' | 'almost' | 'ready';
@@ -88,18 +89,18 @@ export const startDemo = (dataset: DemoDataset, scenario: DemoScenario, hours: n
 export const extendDemo = (hours: number) => post<DemoState>('demo/extend', { hours });
 export const stopDemo = () => post<DemoState>('demo/stop');
 
-export const DATASET_TEXT: Record<DemoDataset, string> = { residential: 'בית פרטי', office: 'משרד', retail: 'חנות' };
-export const SCENARIO_TEXT: Record<DemoScenario, string> = { normal: 'יום רגיל', cameras_offline: 'מצלמות מנותקות', new_installation: 'התקנה חדשה' };
+export const DATASET_TEXT: Record<DemoDataset, string> = { residential: tr('בית פרטי'), office: tr('משרד'), retail: tr('חנות') };
+export const SCENARIO_TEXT: Record<DemoScenario, string> = { normal: tr('יום רגיל'), cameras_offline: tr('מצלמות מנותקות'), new_installation: tr('התקנה חדשה') };
 export const DEMO_HOURS = [1, 4, 8, 24] as const;
 
 // ---------------------------------------------------------------- presentation helpers (pure, unit-tested)
 
-export const STATUS_TEXT: Record<ReadinessStatus, string> = { ok: 'תקין', attention: 'דורש השלמה', blocked: 'חסם', pending: 'ממתין לאישור', not_applicable: 'לא רלוונטי' };
-export const LEVEL_TEXT: Record<ReadinessLevel, string> = { building: 'בהקמה', almost: 'כמעט מוכן למסירה', ready: 'מוכן למסירה' };
+export const STATUS_TEXT: Record<ReadinessStatus, string> = { ok: tr('תקין'), attention: tr('דורש השלמה'), blocked: tr('חסם'), pending: tr('ממתין לאישור'), not_applicable: tr('לא רלוונטי') };
+export const LEVEL_TEXT: Record<ReadinessLevel, string> = { building: tr('בהקמה'), almost: tr('כמעט מוכן למסירה'), ready: tr('מוכן למסירה') };
 
 export type KpiKey = 'all' | 'blocked' | 'attention' | 'ok' | 'pending' | 'not_applicable';
 export const KPI_ORDER: KpiKey[] = ['all', 'blocked', 'attention', 'ok', 'pending', 'not_applicable'];
-export const KPI_TEXT: Record<KpiKey, string> = { all: 'בדיקות', blocked: 'חסמים', attention: 'דורש השלמה', ok: 'תקין', pending: 'ממתין לאישור', not_applicable: 'לא רלוונטי' };
+export const KPI_TEXT: Record<KpiKey, string> = { all: tr('בדיקות'), blocked: tr('חסמים'), attention: tr('דורש השלמה'), ok: tr('תקין'), pending: tr('ממתין לאישור'), not_applicable: tr('לא רלוונטי') };
 
 export function kpiCounts(checks: ReadinessCheck[]): Record<KpiKey, number> {
   const out: Record<KpiKey, number> = { all: checks.length, blocked: 0, attention: 0, ok: 0, pending: 0, not_applicable: 0 };
@@ -160,11 +161,11 @@ export function demoLeft(expiresAt: string | undefined, now: number): string | n
 
 /** The editable thresholds the settings dialog lists, in order, with their Hebrew names and units. Weights are listed after them. */
 export const THRESHOLD_FIELDS: { key: string; label: string; unit: string; min: number; max: number }[] = [
-  { key: 'readiness.advice_score', label: 'ציון מסירה מומלץ', unit: 'נק׳', min: 1, max: 100 },
-  { key: 'readiness.band_almost_min', label: 'מציון זה: כמעט מוכן', unit: 'נק׳', min: 1, max: 99 },
-  { key: 'readiness.cameras_seen_hours', label: 'מצלמה נחשבת מאומתת אם נראתה ב־', unit: 'שעות', min: 1, max: 720 },
-  { key: 'readiness.backup_max_age_days', label: 'גיל מרבי של גיבוי מקומי', unit: 'ימים', min: 1, max: 365 },
-  { key: 'readiness.notify_days', label: 'ערוץ התראות נחשב מגיע אם נשלח ב־', unit: 'ימים', min: 1, max: 365 },
+  { key: 'readiness.advice_score', label: tr('ציון מסירה מומלץ'), unit: tr('נק׳'), min: 1, max: 100 },
+  { key: 'readiness.band_almost_min', label: tr('מציון זה: כמעט מוכן'), unit: tr('נק׳'), min: 1, max: 99 },
+  { key: 'readiness.cameras_seen_hours', label: tr('מצלמה נחשבת מאומתת אם נראתה ב־'), unit: tr('שעות'), min: 1, max: 720 },
+  { key: 'readiness.backup_max_age_days', label: tr('גיל מרבי של גיבוי מקומי'), unit: tr('ימים'), min: 1, max: 365 },
+  { key: 'readiness.notify_days', label: tr('ערוץ התראות נחשב מגיע אם נשלח ב־'), unit: tr('ימים'), min: 1, max: 365 },
 ];
 
 export function weightKey(checkId: string): string {

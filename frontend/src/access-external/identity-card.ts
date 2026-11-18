@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -10,6 +11,7 @@ import { getAcPeople, type AcPerson } from '../api/access-people';
 import { evidenceRefOk, mayOpenIdentityCard } from './model';
 import { xCss } from './styles';
 import { xt, type XtKey } from '../i18n/access-external';
+import { confirmWord, confirmWordMatches } from '../i18n/confirm-words';
 import { markerView } from '../tickets/vendor-marker';
 
 type Dialog = null | 'link' | 'unlink' | 'delete' | 'attach';
@@ -176,11 +178,11 @@ export class AccessIdentityCard extends LitElement {
     }
     if (this.dialog === 'delete' && d.link) {
       const id = d.link.id;
-      const w = xt('del_word');
+      const w = confirmWord('access_delete_person');
       return html`<sw-dialog open heading=${xt('del_q', { name })} data-identity-dialog="delete" @close=${() => (this.dialog = null)}>
         <div class="callout" data-tone="err"><sw-icon name="warning" size="18"></sw-icon><div><b>${xt('del_warn')}</b><ul><li>${xt('del_1')}</li><li>${xt('del_2')}</li><li>${xt('del_3')}</li></ul></div></div>
         <div class="field" style="margin-block-start:12px"><label for="dw">${xt('typeWord', { w })}</label><input id="dw" class="in" autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></div>
-        ${foot(html`<sw-button variant="danger" ?disabled=${this.busy || this.word.trim() !== w} @click=${() => this.run(() => deletePersonNow(id, this.word.trim()), 'del_done')}>${xt('act_deleteBtn')}</sw-button>`)}
+        ${foot(html`<sw-button variant="danger" ?disabled=${this.busy || !confirmWordMatches('access_delete_person', this.word)} @click=${() => this.run(() => deletePersonNow(id, this.word.trim()), 'del_done')}>${xt('act_deleteBtn')}</sw-button>`)}
       </sw-dialog>`;
     }
     if (this.dialog === 'link') {
@@ -278,9 +280,9 @@ function fmt(iso: string, tz?: string): string {
   if (Number.isNaN(d.getTime())) return '';
   const o: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
   try {
-    return d.toLocaleString(document.documentElement.lang || 'he-IL', tz ? { ...o, timeZone: tz } : o);
+    return d.toLocaleString(uiLocale(), tz ? { ...o, timeZone: tz } : o);
   } catch {
-    return d.toLocaleString(document.documentElement.lang || 'he-IL', o);
+    return d.toLocaleString(uiLocale(), o);
   }
 }
 

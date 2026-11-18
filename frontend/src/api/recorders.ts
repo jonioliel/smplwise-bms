@@ -4,6 +4,7 @@
  * Every change waits for a restart (`restart_required`, `pending_restart`). The password is write-only. */
 import { api, get, patch, post, put } from './client';
 import type { ConnectionBody, NvrConnection, SaveResult, TestResult } from './nvr-connection';
+import { tr } from '../i18n/msg/api-video';
 
 export const PRIMARY_RECORDER = 'nvr-1';
 
@@ -80,15 +81,15 @@ export const recorderHealth = (id: string) => get<{ recorder_id: string; online:
 
 /** Operator wording of a recorder's state (one short word or phrase; no infrastructure names). */
 export const STATE_TEXT: Record<RecorderState, string> = {
-  online: 'מחובר',
-  error: 'לא מגיב',
-  unknown: 'ממתין לבדיקה',
-  pending_restart: 'ממתין להפעלה מחדש',
-  disabled: 'מושבת',
-  removed: 'הוסר',
-  not_configured: 'לא מוגדר',
-  unreadable: 'יש להזין סיסמה מחדש',
-  refused: 'כתובת לא מותרת',
+  online: tr('מחובר'),
+  error: tr('לא מגיב'),
+  unknown: tr('ממתין לבדיקה'),
+  pending_restart: tr('ממתין להפעלה מחדש'),
+  disabled: tr('מושבת'),
+  removed: tr('הוסר'),
+  not_configured: tr('לא מוגדר'),
+  unreadable: tr('יש להזין סיסמה מחדש'),
+  refused: tr('כתובת לא מותרת'),
 };
 
 /** A camera's name in a picker: with two or more recorders the recorder is named too (unless the name already carries it,

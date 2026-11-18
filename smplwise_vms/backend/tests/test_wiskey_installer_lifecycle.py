@@ -216,3 +216,26 @@ def test_lifecycle_gates_and_validation(wx):  # noqa: F811
     assert post(c, "/lifecycle/prepare", source_id="nope").status_code == 404
     assert post(c, "/lifecycle/jobs/job-9/remove", fingerprint="x", typed_confirmation="x").json()["code"] == "lifecycle_not_found"
     assert not frames(fake, "platform/lifecycle_prepare") and not frames(fake, "platform/lifecycle_remove")
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_the_door_pulse_takes_the_hebrew_or_the_english_phrase_only(wx, flows, lang):  # noqa: F811
+    _, c, s = wx
+    fid = start(c)["flow_id"]
+    post(c, f"/onboarding/{fid}/steps/user", input=CREDS)
+    post(c, f"/onboarding/{fid}/steps/confirm_device", input={})
+    assert post(c, f"/onboarding/{fid}/steps/locks", input={"mode": "map_active_relay"}).json()["data"]["step_id"] == "mapping"
+    for text in bad("installer_pulse"):
+        r = post(c, f"/onboarding/{fid}/steps/mapping", input={"api_id": 1, "test_unlock": True}, typed_confirmation=text)
+        assert r.status_code == 409 and r.json()["code"] == "typed_confirmation_required" and flows.pulses == 0, text
+    r = post(c, f"/onboarding/{fid}/steps/mapping", input={"api_id": 1, "test_unlock": True}, typed_confirmation=good("installer_pulse", lang))
+    assert r.status_code == 200 and flows.pulses == 1, r.text
+    rows = audit_rows(s, "intercom.installer.onboarding_step")
+    assert rows[-1]["decision"] == "allowed" and rows[-1]["details"]["confirm_word"] == lang

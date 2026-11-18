@@ -9,16 +9,20 @@
  * directions. `resolveWidgets` turns config + data into the cards the screen draws (and, in edit mode, the ghosts that
  * explain why a widget is not shown).
  */
+import { uiLocale } from '../i18n/locale';
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words; CR-I18N-UNITS-2442: the durations and the weather units
+
+import { tr } from '../i18n/msg/api-home';
 
 export type Direction = 'a' | 'b' | 'c';
 export const DIRECTIONS: Direction[] = ['a', 'b', 'c'];
 export const DIRECTION_DEFAULT: Direction = 'a';
-export const DIRECTION_LABEL: Record<Direction, string> = { a: 'מרכז בקרה', b: 'לוח צד', c: 'מצומצם' };
-export const DIRECTION_LETTER: Record<Direction, string> = { a: 'א', b: 'ב', c: 'ג' };
+export const DIRECTION_LABEL: Record<Direction, string> = { a: tr('מרכז בקרה'), b: tr('לוח צד'), c: tr('מצומצם') };
+export const DIRECTION_LETTER: Record<Direction, string> = { a: tr('א'), b: tr('ב'), c: tr('ג') };
 export type Side = 'start' | 'end';
 export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
-export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
+export const SIDE_LABEL: Record<Side, string> = { end: tr('שמאל'), start: tr('ימין') };
 
 export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators' | 'doors' | 'notices' | 'presence' | 'xsection';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
@@ -33,7 +37,7 @@ export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'me
 // while the viewer may read the devices and the catalogue has a building with floors (no options of its own).
 // NOTICEPAGE-295: `notices` (the notice board) is appended last; drawn only while the notice board module is on and the viewer may read (no options of its own).
 export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'xsection'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות', presence: 'נוכחות במבנה', xsection: 'חתך בניין' };
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: tr('שעון'), weather: tr('מזג אוויר'), shabbat: tr('שבת'), alarm: tr('אזעקה'), quick: tr('פעולות מהירות'), media: tr('מולטימדיה'), agenda: tr('יומן'), launcher: tr('משגר מהיר'), elevators: tr('מעליות'), temperature: tr('טמפרטורות'), generators: tr('גנרטור'), doors: tr('דלתות'), notices: tr('לוח הודעות'), presence: tr('נוכחות במבנה'), xsection: tr('חתך בניין') };
 /** The infrastructure-list widgets (the same mode / hidden / filter shape). */
 export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
@@ -46,45 +50,45 @@ export const ELEVATOR_HIDDEN_MAX = 50;
 /** BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card). */
 export type TileStyle = 'card' | 'tile';
 export const TILE_STYLES: TileStyle[] = ['card', 'tile'];
-export const TILE_STYLE_LABEL: Record<TileStyle, string> = { card: 'כרטיס', tile: 'אריח' };
+export const TILE_STYLE_LABEL: Record<TileStyle, string> = { card: tr('כרטיס'), tile: tr('אריח') };
 export type AgendaDays = 1 | 3 | 7 | 14;
 export const AGENDA_DAYS: AgendaDays[] = [1, 3, 7, 14];
-export const AGENDA_DAYS_LABEL: Record<AgendaDays, string> = { 1: 'היום', 3: '3 ימים', 7: 'שבוע', 14: 'שבועיים' };
+export const AGENDA_DAYS_LABEL: Record<AgendaDays, string> = { 1: tr('היום'), 3: tr('3 ימים'), 7: tr('שבוע'), 14: tr('שבועיים') };
 export const AGENDA_CALENDARS_MAX = 6;
 /** How many events the agenda tile lists per size. */
 export const AGENDA_SHOWN: Record<Size, number> = { s: 1, m: 3, l: 6 };
 
 export type Size = 's' | 'm' | 'l';
 export const SIZES: Size[] = ['s', 'm', 'l'];
-export const SIZE_LABEL: Record<Size, string> = { s: 'קטן', m: 'בינוני', l: 'גדול' };
+export const SIZE_LABEL: Record<Size, string> = { s: tr('קטן'), m: tr('בינוני'), l: tr('גדול') };
 export type Sizes = Record<Direction, Size>;
 
 /** How the widgets are presented on a PHONE (under 600 px), edited apart from the desktop: a horizontal snap row, one card under the
  * other (the default) or two per row. */
 export type PhoneLayout = 'snap' | 'stack' | 'two';
 export const PHONE_LAYOUTS: PhoneLayout[] = ['stack', 'two', 'snap'];
-export const PHONE_LAYOUT_LABEL: Record<PhoneLayout, string> = { snap: 'בשורה גוללת', stack: 'אחד מתחת לשני', two: 'שתיים בשורה' };
+export const PHONE_LAYOUT_LABEL: Record<PhoneLayout, string> = { snap: tr('בשורה גוללת'), stack: tr('אחד מתחת לשני'), two: tr('שתיים בשורה') };
 export const PHONE_LAYOUT_DEFAULT: PhoneLayout = 'stack';
 /** The widest viewport that is a phone (the tiles' breakpoint: under 600 px). */
 export const PHONE_MAX_WIDTH = 599;
 
 export type ClockMode = 'time' | 'datetime';
 export const CLOCK_MODES: ClockMode[] = ['time', 'datetime'];
-export const CLOCK_MODE_LABEL: Record<ClockMode, string> = { time: 'שעה', datetime: 'שעה ותאריך' };
+export const CLOCK_MODE_LABEL: Record<ClockMode, string> = { time: tr('שעה'), datetime: tr('שעה ותאריך') };
 
 export type WeatherField = 'condition' | 'temperature' | 'apparent' | 'humidity' | 'wind' | 'pressure' | 'visibility' | 'uv' | 'precipitation' | 'forecast';
 export const WEATHER_FIELDS: WeatherField[] = ['condition', 'temperature', 'apparent', 'humidity', 'wind', 'pressure', 'visibility', 'uv', 'precipitation', 'forecast'];
 export const WEATHER_FIELD_LABEL: Record<WeatherField, string> = {
-  condition: 'מצב נוכחי',
-  temperature: 'טמפרטורה',
-  apparent: 'טמפרטורה מורגשת',
-  humidity: 'לחות',
-  wind: 'רוח',
-  pressure: 'לחץ אוויר',
-  visibility: 'ראות',
-  uv: 'מדד UV',
-  precipitation: 'משקעים',
-  forecast: 'תחזית',
+  condition: tr('מצב נוכחי'),
+  temperature: tr('טמפרטורה'),
+  apparent: tr('טמפרטורה מורגשת'),
+  humidity: tr('לחות'),
+  wind: tr('רוח'),
+  pressure: tr('לחץ אוויר'),
+  visibility: tr('ראות'),
+  uv: tr('מדד UV'),
+  precipitation: tr('משקעים'),
+  forecast: tr('תחזית'),
 };
 /** The numeric fields a sensor may feed instead of the weather entity's own value. */
 export const WEATHER_SOURCE_FIELDS: WeatherField[] = ['temperature', 'apparent', 'humidity', 'wind', 'pressure', 'visibility', 'uv', 'precipitation'];
@@ -96,11 +100,11 @@ export const FORECAST_MAX_SHOWN = 8;
 
 export type QuickAction = 'lights_off' | 'all_off';
 export const QUICK_ACTIONS: QuickAction[] = ['lights_off', 'all_off'];
-export const QUICK_ACTION_LABEL: Record<QuickAction, string> = { lights_off: 'כבה תאורה בלבד', all_off: 'כבה הכל בבניין' };
+export const QUICK_ACTION_LABEL: Record<QuickAction, string> = { lights_off: tr('כבה תאורה בלבד'), all_off: tr('כבה הכל בבניין') };
 
 export type CalendarField = 'date' | 'parsha' | 'candles' | 'havdalah' | 'holiday';
 export const CALENDAR_FIELDS: CalendarField[] = ['date', 'parsha', 'candles', 'havdalah', 'holiday'];
-export const CALENDAR_FIELD_LABEL: Record<CalendarField, string> = { date: 'תאריך עברי', parsha: 'פרשת השבוע', candles: 'הדלקת נרות', havdalah: 'צאת שבת', holiday: 'חג' };
+export const CALENDAR_FIELD_LABEL: Record<CalendarField, string> = { date: tr('תאריך עברי'), parsha: tr('פרשת השבוע'), candles: tr('הדלקת נרות'), havdalah: tr('צאת שבת'), holiday: tr('חג') };
 export const EXTRAS_MAX = 4;
 export const LABEL_MAX = 30;
 
@@ -705,7 +709,7 @@ export function timeOfState(state: string | null | undefined, zone: string): str
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     const d = new Date(s);
     if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat('he-IL', { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+    return new Intl.DateTimeFormat(uiLocale(), { timeZone: safeZone(zone), hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
   }
   return s;
 }
@@ -720,7 +724,7 @@ export function parshaText(state: string | null | undefined): string {
 /** The clock's parts in the site's zone: "14:32", ":07" (only with seconds), the weekday and the date in three lengths. */
 export function clockParts(now: Date, zone: string): { h: string; m: string; s: string; weekdayShort: string; weekdayLong: string; dateShort: string; dateLong: string; dateYear: string } {
   const tz = safeZone(zone);
-  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, ...o }).format(now);
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, ...o }).format(now);
   const two = (v: string) => v.padStart(2, '0');
   return {
     h: two(f({ hour: 'numeric', hourCycle: 'h23' }).replace(/\D/g, '') || '0'),
@@ -739,27 +743,27 @@ export function forecastLabel(iso: string, zone: string, daily: boolean): string
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const tz = safeZone(zone);
-  if (daily) return new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short' }).format(d).replace(/^יום\s*/, '');
-  return new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  if (daily) return new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'short' }).format(d).replace(/^יום\s*/, '');
+  return new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
 }
 
 /** Home Assistant's weather conditions, in Hebrew (an unknown condition shows as reported). */
 export const WEATHER_HE: Record<string, string> = {
-  'clear-night': 'לילה בהיר',
-  cloudy: 'מעונן',
-  exceptional: 'חריג',
-  fog: 'ערפל',
-  hail: 'ברד',
-  lightning: 'ברקים',
-  'lightning-rainy': 'סופת רעמים',
-  partlycloudy: 'מעונן חלקית',
-  pouring: 'גשם שוטף',
-  rainy: 'גשם',
-  snowy: 'שלג',
-  'snowy-rainy': 'שלג וגשם',
-  sunny: 'שמשי',
-  windy: 'סוער',
-  'windy-variant': 'סוער ומעונן',
+  'clear-night': tr('לילה בהיר'),
+  cloudy: tr('מעונן'),
+  exceptional: tr('חריג'),
+  fog: tr('ערפל'),
+  hail: tr('ברד'),
+  lightning: tr('ברקים'),
+  'lightning-rainy': tr('סופת רעמים'),
+  partlycloudy: tr('מעונן חלקית'),
+  pouring: tr('גשם שוטף'),
+  rainy: tr('גשם'),
+  snowy: tr('שלג'),
+  'snowy-rainy': tr('שלג וגשם'),
+  sunny: tr('שמשי'),
+  windy: tr('סוער'),
+  'windy-variant': tr('סוער ומעונן'),
 };
 
 export type WeatherGlyph = 'sun' | 'moon' | 'cloud' | 'partly' | 'rain' | 'snow' | 'storm' | 'fog' | 'wind';
@@ -792,7 +796,8 @@ export function weatherGlyph(condition: string): WeatherGlyph {
   }
 }
 
-const UNIT_HE: Record<string, string> = { 'km/h': 'קמ״ש', 'm/s': 'מ׳/שנ׳', kph: 'קמ״ש', km: 'ק״מ', m: 'מ׳', mm: 'מ״מ', hPa: 'הקטופסקל', mbar: 'מ״ב' };
+/** The unit words of the interface language (in English the unit as the integration reports it; `kph` reads km/h). */
+const unitWords = (): Record<string, string> => ({ 'km/h': trTime('קמ״ש'), 'm/s': trTime('מ׳/שנ׳'), kph: trTime('קמ״ש'), km: trTime('ק״מ'), m: trTime('מ׳'), mm: trTime('מ״מ'), hPa: trTime('הקטופסקל'), mbar: trTime('מ״ב') });
 
 /** A weather value as text: "61%", "14 קמ״ש", "1012 hPa". Temperatures keep their degree sign, without repeating the unit letter twice. */
 export function valueText(field: WeatherField, v: WeatherValue): string {
@@ -801,7 +806,7 @@ export function valueText(field: WeatherField, v: WeatherValue): string {
   if (field === 'temperature' || field === 'apparent') return `${Math.round(v.v)}${unit.startsWith('°') ? unit : `°${unit}`}`;
   if (field === 'humidity') return `${Math.round(v.v)}%`;
   if (field === 'uv') return n;
-  return unit ? `${n} ${UNIT_HE[unit] ?? unit}` : n;
+  return unit ? `${n} ${unitWords()[unit] ?? unit}` : n;
 }
 
 /** A calendar sensor's state as the card shows it (a time sensor as HH:mm, the parsha with its word). */
@@ -809,7 +814,7 @@ export function calendarText(field: CalendarField | 'extra', s: SensorData | und
   if (!hasValue(s)) return '';
   if (field === 'candles' || field === 'havdalah') return timeOfState(s.state, zone);
   if (field === 'parsha') return parshaText(s.state);
-  if (field === 'extra') return s.state === 'on' ? 'כן' : s.state === 'off' ? 'לא' : (timeOfState(s.state, zone) || s.state);
+  if (field === 'extra') return s.state === 'on' ? tr('כן') : s.state === 'off' ? tr('לא') : (timeOfState(s.state, zone) || s.state);
   return s.state;
 }
 
@@ -818,13 +823,13 @@ export function untilText(iso: string | null | undefined, now: Date): string {
   const t = new Date(iso ?? '').getTime();
   if (!iso || !/^\d{4}-\d{2}-\d{2}T/.test(iso) || Number.isNaN(t) || t <= now.getTime()) return '';
   const mins = Math.round((t - now.getTime()) / 60_000);
-  if (mins < 60) return `עוד ${mins} דקות`;
+  if (mins < 60) return trTime('עוד {n} דקות', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `עוד ${hours === 1 ? 'שעה' : `${hours} שעות`}`;
+  if (hours < 24) return trTime('עוד {v}', { v: hours === 1 ? trTime('שעה') : trTime('{n} שעות', { n: hours }) });
   const days = Math.floor(hours / 24);
   const rest = hours % 24;
-  const d = days === 1 ? 'יום' : days === 2 ? 'יומיים' : `${days} ימים`;
-  return rest ? `עוד ${d} ו־${rest === 1 ? 'שעה' : `${rest} שעות`}` : `עוד ${d}`;
+  const d = days === 1 ? trTime('יום') : days === 2 ? trTime('יומיים') : trTime('{n} ימים', { n: days });
+  return rest ? trTime('עוד {v} ו־{v2}', { v: d, v2: rest === 1 ? trTime('שעה') : trTime('{n} שעות', { n: rest }) }) : trTime('עוד {v}', { v: d });
 }
 
 /** BV1: when an agenda event happens, in the site's zone and relative to today: "היום · 14:30", "מחר · כל היום", "יום ג׳ · 10:00",
@@ -840,11 +845,11 @@ export function agendaWhen(ev: Pick<AgendaEvent, 'start' | 'all_day'>, now: Date
   const tomorrow = dayKey(new Date(now.getTime() + 86_400_000));
   const days = Math.round((Date.parse(`${key}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
   let day: string;
-  if (key === today) day = 'היום';
-  else if (key === tomorrow) day = 'מחר';
-  else if (days > 0 && days < 7) day = new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'long' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
-  else day = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
-  const time = ev.all_day ? 'כל היום' : new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  if (key === today) day = trTime('היום');
+  else if (key === tomorrow) day = trTime('מחר');
+  else if (days > 0 && days < 7) day = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, weekday: 'long' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
+  else day = new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, day: 'numeric', month: 'numeric' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
+  const time = ev.all_day ? trTime('כל היום') : new Intl.DateTimeFormat(uiLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
   return `${day} · ${time}`;
 }
 
@@ -853,10 +858,10 @@ export function sinceText(iso: string | null | undefined, now: Date): string {
   const t = new Date(iso ?? '').getTime();
   if (!iso || Number.isNaN(t)) return '';
   const mins = Math.max(0, Math.round((now.getTime() - t) / 60_000));
-  if (mins < 2) return 'שונה עכשיו';
-  if (mins < 60) return `שונה לפני ${mins} דקות`;
+  if (mins < 2) return trTime('שונה עכשיו');
+  if (mins < 60) return trTime('שונה לפני {n} דקות', { n: mins });
   const h = Math.round(mins / 60);
-  if (h < 24) return h === 1 ? 'שונה לפני שעה' : `שונה לפני ${h} שעות`;
+  if (h < 24) return h === 1 ? trTime('שונה לפני שעה') : trTime('שונה לפני {n} שעות', { n: h });
   const d = Math.round(h / 24);
-  return d === 1 ? 'שונה אתמול' : `שונה לפני ${d} ימים`;
+  return d === 1 ? trTime('שונה אתמול') : trTime('שונה לפני {n} ימים', { n: d });
 }

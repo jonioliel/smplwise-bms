@@ -15,6 +15,7 @@ import { del, get, post, put, resourceUrl } from './client';
 import { commandId } from './request-id';
 import { isApi } from './session';
 import { lazyAdapter } from './demo-load';
+import { tr } from '../i18n/msg/api-media';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
 
@@ -40,8 +41,8 @@ export type KeyId = (typeof KEY_IDS)[number];
 export const REMOTE_SECTIONS = ['recent', 'nav', 'dpad', 'touch', 'vol', 'ch', 'pbk', 'nums', 'colors', 'text', 'xtra'] as const;
 export type RemoteSection = (typeof REMOTE_SECTIONS)[number];
 export const SECTION_LABEL: Record<RemoteSection, string> = {
-  recent: 'אחרונים', nav: 'חזרה · בית · תפריט', dpad: 'חצים ואישור', touch: 'משטח מגע', vol: 'עוצמה', ch: 'ערוצים', pbk: 'ניגון',
-  nums: 'מספרים', colors: 'מקשי צבע', text: 'הקלדה', xtra: 'מקשים נוספים',
+  recent: tr('אחרונים'), nav: tr('חזרה · בית · תפריט'), dpad: tr('חצים ואישור'), touch: tr('משטח מגע'), vol: tr('עוצמה'), ch: tr('ערוצים'), pbk: tr('ניגון'),
+  nums: tr('מספרים'), colors: tr('מקשי צבע'), text: tr('הקלדה'), xtra: tr('מקשים נוספים'),
 };
 /** Decision 5b: shown by default, in this order; the rest behind "עוד מקשים". `touch` is the d-pad's alternative (off). */
 export const DEFAULT_REMOTE: RemoteConfig = {
@@ -233,15 +234,15 @@ export function needsPublic(c: MediaCommand): boolean {
 }
 
 export const ERROR_LABEL: Record<string, string> = {
-  rate_limited: 'יותר מדי לחיצות; נסו שוב',
-  power_pending: 'פקודת הפעלה קודמת עדיין ממתינה',
-  not_supported: 'המסך אינו תומך בפעולה זו',
-  screen_off: 'המסך כבוי',
-  unavailable: 'המסך אינו זמין',
-  public_screen: 'מסך ציבורי: נדרשת הרשאה נפרדת',
-  bridge_outdated: 'נדרש עדכון של רכיב החיבור',
-  forbidden: 'אין הרשאה',
-  not_confirmed: 'המסך לא אישר את הפקודה',
+  rate_limited: tr('יותר מדי לחיצות; נסו שוב'),
+  power_pending: tr('פקודת הפעלה קודמת עדיין ממתינה'),
+  not_supported: tr('המסך אינו תומך בפעולה זו'),
+  screen_off: tr('המסך כבוי'),
+  unavailable: tr('המסך אינו זמין'),
+  public_screen: tr('מסך ציבורי: נדרשת הרשאה נפרדת'),
+  bridge_outdated: tr('נדרש עדכון של רכיב החיבור'),
+  forbidden: tr('אין הרשאה'),
+  not_confirmed: tr('המסך לא אישר את הפקודה'),
 };
 
 // ------------------------------------------------------------------------------------------------ layout (§2.5)
@@ -376,13 +377,13 @@ export const isDead = (l: Pick<MediaLive, 'power'>): boolean => l.power === 'una
 /** The card's state line (clean operator wording, no hints). */
 export function stateText(d: Pick<MediaDevice, 'live'>): string {
   const l = d.live;
-  if (l.power === 'unavailable') return 'לא זמין';
-  if (l.power === 'unknown') return 'מצב לא ידוע';
-  if (l.power === 'art') return 'מצב אמנות';
-  if (l.power === 'off' || l.power === 'standby') return 'כבוי';
-  if (l.play === 'playing') return l.now.label ? `מנגן · ${l.now.label}` : 'מנגן';
-  if (l.play === 'paused') return l.now.label ? `מושהה · ${l.now.label}` : 'מושהה';
-  return l.now.label || 'דולק';
+  if (l.power === 'unavailable') return tr('לא זמין');
+  if (l.power === 'unknown') return tr('מצב לא ידוע');
+  if (l.power === 'art') return tr('מצב אמנות');
+  if (l.power === 'off' || l.power === 'standby') return tr('כבוי');
+  if (l.play === 'playing') return l.now.label ? tr('מנגן · {label}', { label: l.now.label }) : tr('מנגן');
+  if (l.play === 'paused') return l.now.label ? tr('מושהה · {label}', { label: l.now.label }) : tr('מושהה');
+  return l.now.label || tr('דולק');
 }
 
 /** Whether the UI should offer a command at all (the server re-checks everything). */
@@ -470,14 +471,14 @@ export function resolveCards(devices: MediaDevice[], layout: MediaLayout, phone:
   const item = (d: MediaDevice) => ({ device: d, size: size(d) });
   const groups: CardGroup[] = [];
   const pinned = layout.pinned.map((k) => shown.find((d) => d.key === k)).filter((d): d is MediaDevice => !!d);
-  if (pinned.length) groups.push({ id: 'pinned', label: 'מועדפים', items: pinned.map(item) });
+  if (pinned.length) groups.push({ id: 'pinned', label: tr('מועדפים'), items: pinned.map(item) });
   const rest = shown.filter((d) => !layout.pinned.includes(d.key)).sort(byOrder);
   if (layout.group_by === 'none') {
-    if (rest.length) groups.push({ id: 'all', label: 'כל המסכים', items: rest.map(item) });
+    if (rest.length) groups.push({ id: 'all', label: tr('כל המסכים'), items: rest.map(item) });
     return groups;
   }
   const idOf = (d: MediaDevice) => (layout.group_by === 'floor' ? d.floor_id : d.area_id) ?? 'none';
-  const nameOf = (d: MediaDevice) => (layout.group_by === 'floor' ? d.floor_name ?? 'ללא קומה' : d.area_name ?? 'ללא שיוך');
+  const nameOf = (d: MediaDevice) => (layout.group_by === 'floor' ? d.floor_name ?? tr('ללא קומה') : d.area_name ?? tr('ללא שיוך'));
   const ids = [...new Set(rest.map(idOf))];
   const floorRank = new Map(layout.floor_order.map((f, i) => [f, i]));
   if (layout.group_by === 'floor') ids.sort((a, b) => (floorRank.get(a) ?? 1e6) - (floorRank.get(b) ?? 1e6));

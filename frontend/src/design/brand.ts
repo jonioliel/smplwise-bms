@@ -102,10 +102,12 @@ export function brandTokens(c: BrandColors, theme: 'light' | 'dark', label = '#f
     if (theme === 'light') {
       out['--sw-accent-soft'] = `color-mix(in srgb, ${a} 10%, #ffffff)`;
       out['--sw-accent-text'] = `color-mix(in srgb, ${a} 82%, #000000)`;
+      out['--sw-accent-text-strong'] = `color-mix(in srgb, ${a} 67%, #000000)`; // DOMUS-DEFAULT-2439: the selected chip's ink (82 % of the line above)
       out['--sw-focus'] = a;
     } else {
       out['--sw-accent-soft'] = `color-mix(in srgb, ${a} 18%, transparent)`;
       out['--sw-accent-text'] = `color-mix(in srgb, ${a} 62%, #ffffff)`;
+      out['--sw-accent-text-strong'] = `color-mix(in srgb, ${a} 32%, #ffffff)`; // DOMUS-DEFAULT-2439 (52 % of the line above)
       out['--sw-focus'] = `color-mix(in srgb, ${a} 72%, #ffffff)`;
     }
   }

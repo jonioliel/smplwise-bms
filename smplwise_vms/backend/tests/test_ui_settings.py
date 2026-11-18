@@ -339,7 +339,7 @@ def test_ui_tile_layout_setting(settings):
 
 
 def test_ui_skin_and_scheme_settings(settings):
-    """Design foundation (2026-10-01): ui.skin (classic | domus | tesla, default classic) and ui.scheme (light | dark | auto, default
+    """Design foundation (2026-10-01): ui.skin (classic | domus | tesla ..., default domus since DOMUS-DEFAULT-2439) and ui.scheme (light | dark | auto, default
     light) are per installation, validated here, audited, readable by everyone, writable with system.configure. The frontend's
     skin registry lists the same ids."""
     import re
@@ -366,7 +366,8 @@ def test_ui_skin_and_scheme_settings(settings):
     app = create_app(settings)
     with TestClient(app) as c:
         s = c.get("/api/v1/settings").json()["settings"]
-        assert s["ui.skin"] == "classic" and s["ui.scheme"] == "light"
+        assert s["ui.skin"] == "domus" and s["ui.scheme"] == "light"  # DOMUS-DEFAULT-2439 (owner round 33): no stored row reads as domus
+        assert "export const DEFAULT_SKIN: SkinId = 'domus';" in front
         for skin in ("domus", "tesla", "crystal", "infra", "soft", "classic"):  # SKINFOUND-297: the two Arx skins are selectable
             r = c.patch("/api/v1/settings", json={"ui.skin": skin})
             assert r.status_code == 200, (skin, r.text)
@@ -481,6 +482,56 @@ def test_stored_frozen_skin_reads_as_domus(settings):
         assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "domus"
         with app.state.db.connection() as conn:
             assert conn.execute("SELECT value FROM settings WHERE key = 'ui.skin'").fetchone()[0] == "bubble"
+
+
+def test_default_skin_is_domus_and_a_stored_choice_is_kept(settings):
+    """DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): an installation with no stored skin reads as domus; one that stored a skin -
+    classic included - keeps it. A read-time default: no row is written or changed."""
+    from smplwise.db import set_setting
+
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "domus"
+        with app.state.db.connection() as conn:
+            assert conn.execute("SELECT value FROM settings WHERE key = 'ui.skin'").fetchone() is None  # nothing was migrated
+            set_setting(conn, "ui.skin", "classic")
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "classic"
+        for skin in ("tesla", "crystal"):
+            with app.state.db.connection() as conn:
+                set_setting(conn, "ui.skin", skin)
+                conn.commit()
+            assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == skin
+        with app.state.db.connection() as conn:
+            set_setting(conn, "ui.skin", "no-such-skin")  # a corrupt row reads as the default
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "domus"
+
+
+def test_ui_chip_selected_setting(settings):
+    """DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b, settable): ui.chip_selected - strong (default) | soft | filled | dark;
+    validated, audited, read by everyone, written with system.configure; a corrupt stored value reads as the default."""
+    from smplwise.db import set_setting
+
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.chip_selected"] == "strong"
+        for mode in ("soft", "filled", "dark", "strong"):
+            r = c.patch("/api/v1/settings", json={"ui.chip_selected": mode})
+            assert r.status_code == 200, (mode, r.text)
+            assert r.json()["settings"]["ui.chip_selected"] == mode
+        for bad in ("", "Soft", "blue", "strong ", "plain"):
+            assert c.patch("/api/v1/settings", json={"ui.chip_selected": bad}).status_code == 422, bad
+        assert c.patch("/api/v1/settings", json={"ui.chip_selected": "soft"}).status_code == 200
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+            assert {"ui.chip_selected": "soft"} in rows
+            set_setting(conn, "ui.chip_selected", "neon")
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.chip_selected"] == "strong"
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.chip_selected"] == "strong"
+        assert c.patch("/api/v1/settings", json={"ui.chip_selected": "dark"}, headers=as_user("dana")).status_code == 403
 
 
 def test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure(settings):

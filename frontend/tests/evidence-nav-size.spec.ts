@@ -45,8 +45,13 @@ async function measure(page: Page, info: { project: { name: string } }) {
     const av = nav.querySelector('sw-avatar') as HTMLElement;
     const r = (el: Element) => el.getBoundingClientRect();
     const items = Array.from(nav.querySelectorAll('a[data-nav], button.me'));
+    const ncs = getComputedStyle(nav);
     return {
       nav: { w: Math.round(r(nav).width), h: Math.round(r(nav).height) },
+      // DOMUS-DEFAULT-2439: the skin decides the rail's frame - classic draws one border line at its inner edge, domus (the default)
+      // floats the rail 12 px off the screen edge with a border all round
+      border: Math.round(parseFloat(ncs.borderInlineStartWidth) + parseFloat(ncs.borderInlineEndWidth)),
+      margin: Math.round(parseFloat(ncs.marginInlineStart) + parseFloat(ncs.marginInlineEnd)),
       item: { w: Math.round(r(first).width), h: Math.round(r(first).height) },
       icon: Math.round(r(icon).width),
       labelPx: parseFloat(getComputedStyle(label).fontSize),
@@ -108,9 +113,13 @@ test.describe('navigation size on the demo data', () => {
       } else {
         expect(m.item.h, `${p} item`).toBe(want.item);
         expect(m.item.w, `${p} item width`).toBeGreaterThanOrEqual(want.rail - 14);
-        expect(m.nav.w, `${p} rail = item + padding + border`).toBe(m.item.w + 15);
+        // DOMUS-DEFAULT-2439: the default skin is domus - a border on both sides (2 px; classic had 1) and a 12 px margin, which
+        // the offset of what sits beside the rail now includes (it was the rail's box alone: the user menu overlapped a floating rail)
+        expect(m.border, `${p} rail border (the default skin, domus: both sides)`).toBe(2);
+        expect(m.margin, `${p} rail margin (the default skin, domus: floating)`).toBe(12);
+        expect(m.nav.w, `${p} rail = item + padding + border`).toBe(m.item.w + 14 + m.border);
         expect(m.avatar, `${p} avatar`).toBe(want.avatar);
-        expect(parseFloat(m.railVar), 'the user menu / banner offset follows the rail').toBe(m.nav.w);
+        expect(parseFloat(m.railVar), 'the user menu / banner offset follows the rail and its margin').toBe(m.nav.w + m.margin);
       }
       if (p === 's' || p === 'xl') await shot(page, `nav-size-${p}-${phone(info) ? 'phone' : 'desktop'}-settings`);
     }

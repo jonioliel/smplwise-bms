@@ -8,6 +8,7 @@ import { entityLabel } from '../i18n/entity-label';
 import type { HaSyncState } from './ha';
 import type { HomeView } from './home-config';
 import type { UnlockReason } from '../screens/lock-reason';
+import { tr } from '../i18n/msg/api-devices';
 
 export type { UnlockReason };
 
@@ -331,14 +332,14 @@ export const assignEntityArea = (entityId: string, areaId: string) => put<{ enti
  * say what is missing and what would fill it. `GET /devices/building` (the same counts as the tree's `building`)
  * has no wrapper yet: no screen needs it apart from the tree, which already carries the counts. */
 export const CARD_EMPTY: Record<CardId, { heading: string; hint: string }> = {
-  lighting: { heading: 'אין תאורה באזור הזה', hint: 'שייכו גופי תאורה לאזור והם יופיעו כאן אוטומטית.' },
-  switches: { heading: 'אין מתגים באזור הזה', hint: 'מתגים ודגלים (input_boolean) המשויכים לאזור יופיעו כאן.' },
-  climate: { heading: 'אין התקן מיזוג באזור הזה', hint: 'שייכו מזגן, תרמוסטט, מאוורר או מייבש לאזור והם יופיעו כאן.' },
-  heating: { heading: 'אין התקן חימום באזור הזה', hint: 'תרמוסטטים, משאבות חום וחימום תת־רצפתי המשויכים לאזור יופיעו כאן.' },
-  covers: { heading: 'אין תריסים באזור הזה', hint: 'תריסים, וילונות ושערים המשויכים לאזור יופיעו כאן.' },
-  security: { heading: 'אין התקני אבטחה באזור הזה', hint: 'מנעולים, מצלמות, מערכת אזעקה וחיישני דלת / תנועה המשויכים לאזור יופיעו כאן.' },
-  media: { heading: 'אין מסכים או נגנים באזור הזה', hint: 'טלוויזיות, מקרנים ורמקולים המשויכים לאזור יופיעו כאן.' },
-  sensors: { heading: 'אין חיישנים באזור הזה', hint: 'טמפרטורה, לחות ושאר חיישני הסביבה של האזור יופיעו כאן.' },
+  lighting: { heading: tr('אין תאורה באזור הזה'), hint: tr('שייכו גופי תאורה לאזור והם יופיעו כאן אוטומטית.') },
+  switches: { heading: tr('אין מתגים באזור הזה'), hint: tr('מתגים ודגלים (input_boolean) המשויכים לאזור יופיעו כאן.') },
+  climate: { heading: tr('אין התקן מיזוג באזור הזה'), hint: tr('שייכו מזגן, תרמוסטט, מאוורר או מייבש לאזור והם יופיעו כאן.') },
+  heating: { heading: tr('אין התקן חימום באזור הזה'), hint: tr('תרמוסטטים, משאבות חום וחימום תת־רצפתי המשויכים לאזור יופיעו כאן.') },
+  covers: { heading: tr('אין תריסים באזור הזה'), hint: tr('תריסים, וילונות ושערים המשויכים לאזור יופיעו כאן.') },
+  security: { heading: tr('אין התקני אבטחה באזור הזה'), hint: tr('מנעולים, מצלמות, מערכת אזעקה וחיישני דלת / תנועה המשויכים לאזור יופיעו כאן.') },
+  media: { heading: tr('אין מסכים או נגנים באזור הזה'), hint: tr('טלוויזיות, מקרנים ורמקולים המשויכים לאזור יופיעו כאן.') },
+  sensors: { heading: tr('אין חיישנים באזור הזה'), hint: tr('טמפרטורה, לחות ושאר חיישני הסביבה של האזור יופיעו כאן.') },
 };
 
 /** A climate row's target range and step: the entity's own (a heating thermostat / heat pump targets 45 and reports
@@ -349,24 +350,24 @@ export function climateRange(r: Pick<DeviceRow, 'min_temp' | 'max_temp' | 'targe
   return { min, max: max >= min ? max : min, step: r.target_temp_step && r.target_temp_step > 0 ? r.target_temp_step : 1 };
 }
 
-export const HVAC_HE: Record<string, string> = { heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
+export const HVAC_HE: Record<string, string> = { heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר'), off: tr('כבוי') };
 /** POLISH-LEFTOVERS-2341: the common climate fan_mode values (HA's FAN_* constants plus the usual vendor words) in Hebrew. */
 export const FAN_HE: Record<string, string> = {
-  auto: 'אוטומטי', on: 'פועל', off: 'כבוי', low: 'נמוך', medium: 'בינוני', middle: 'בינוני', mid: 'בינוני', high: 'גבוה', top: 'מרבי',
-  focus: 'ממוקד', diffuse: 'מפוזר', quiet: 'שקט', silent: 'שקט', turbo: 'טורבו', strong: 'חזק', powerful: 'חזק', max: 'מרבי', min: 'מזערי',
-  low_medium: 'נמוך-בינוני', medium_low: 'בינוני-נמוך', medium_high: 'בינוני-גבוה', high_medium: 'גבוה-בינוני', very_low: 'נמוך מאוד', very_high: 'גבוה מאוד',
-  level1: 'דרגה 1', level2: 'דרגה 2', level3: 'דרגה 3', level4: 'דרגה 4', level5: 'דרגה 5',
+  auto: tr('אוטומטי'), on: tr('פועל'), off: tr('כבוי'), low: tr('נמוך'), medium: tr('בינוני'), middle: tr('בינוני'), mid: tr('בינוני'), high: tr('גבוה'), top: tr('מרבי'),
+  focus: tr('ממוקד'), diffuse: tr('מפוזר'), quiet: tr('שקט'), silent: tr('שקט'), turbo: tr('טורבו'), strong: tr('חזק'), powerful: tr('חזק'), max: tr('מרבי'), min: tr('מזערי'),
+  low_medium: tr('נמוך-בינוני'), medium_low: tr('בינוני-נמוך'), medium_high: tr('בינוני-גבוה'), high_medium: tr('גבוה-בינוני'), very_low: tr('נמוך מאוד'), very_high: tr('גבוה מאוד'),
+  level1: tr('דרגה 1'), level2: tr('דרגה 2'), level3: tr('דרגה 3'), level4: tr('דרגה 4'), level5: tr('דרגה 5'),
 };
 /** The common climate swing_mode values (HA's SWING_* constants plus the usual vendor words) in Hebrew. */
 export const SWING_HE: Record<string, string> = {
-  off: 'כבוי', on: 'פועל', both: 'אנכי ואופקי', vertical: 'אנכי', horizontal: 'אופקי', auto: 'אוטומטי', swing: 'נדנוד', stop: 'עצור', fixed: 'קבוע',
-  top: 'למעלה', upper: 'למעלה', high: 'למעלה', middle: 'באמצע', center: 'באמצע', mid: 'באמצע', bottom: 'למטה', lower: 'למטה', low: 'למטה',
-  left: 'שמאלה', right: 'ימינה', wide: 'רחב', '1': 'מיקום 1', '2': 'מיקום 2', '3': 'מיקום 3', '4': 'מיקום 4', '5': 'מיקום 5',
+  off: tr('כבוי'), on: tr('פועל'), both: tr('אנכי ואופקי'), vertical: tr('אנכי'), horizontal: tr('אופקי'), auto: tr('אוטומטי'), swing: tr('נדנוד'), stop: tr('עצור'), fixed: tr('קבוע'),
+  top: tr('למעלה'), upper: tr('למעלה'), high: tr('למעלה'), middle: tr('באמצע'), center: tr('באמצע'), mid: tr('באמצע'), bottom: tr('למטה'), lower: tr('למטה'), low: tr('למטה'),
+  left: tr('שמאלה'), right: tr('ימינה'), wide: tr('רחב'), '1': tr('מיקום 1'), '2': tr('מיקום 2'), '3': tr('מיקום 3'), '4': tr('מיקום 4'), '5': tr('מיקום 5'),
 };
 /** P6 item 7 (moved here from devices-controls.ts): the common preset names, plus a humidifier's usual modes, in Hebrew. */
 export const PRESET_HE: Record<string, string> = {
-  home: 'בבית', away: 'מחוץ לבית', eco: 'חיסכון', comfort: 'נוחות', sleep: 'שינה', boost: 'מוגבר', none: 'ללא', auto: 'אוטומטי', off: 'כבוי', activity: 'פעילות',
-  normal: 'רגיל', baby: 'תינוק', night: 'לילה', quiet: 'שקט', manual: 'ידני', smart: 'חכם', turbo: 'טורבו', vacation: 'חופשה', frost_protection: 'הגנה מקיפאון',
+  home: tr('בבית'), away: tr('מחוץ לבית'), eco: tr('חיסכון'), comfort: tr('נוחות'), sleep: tr('שינה'), boost: tr('מוגבר'), none: tr('ללא'), auto: tr('אוטומטי'), off: tr('כבוי'), activity: tr('פעילות'),
+  normal: tr('רגיל'), baby: tr('תינוק'), night: tr('לילה'), quiet: tr('שקט'), manual: tr('ידני'), smart: tr('חכם'), turbo: tr('טורבו'), vacation: tr('חופשה'), frost_protection: tr('הגנה מקיפאון'),
 };
 export type ClimateChoice = 'hvac' | 'fan' | 'swing' | 'preset' | 'hmode';
 /** A climate / humidifier mode value in words for the screen - display only (the device always receives the raw value).
@@ -378,20 +379,20 @@ export function climateWord(kind: ClimateChoice, value: string | null | undefine
   const k = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
   return map[v] ?? map[k] ?? v;
 }
-export const HVAC_ACTION_HE: Record<string, string> = { heating: 'מחמם', cooling: 'מקרר', drying: 'מייבש', fan: 'מאוורר', idle: 'ממתין', off: 'כבוי', preheating: 'מחמם מראש', defrosting: 'מפשיר' };
+export const HVAC_ACTION_HE: Record<string, string> = { heating: tr('מחמם'), cooling: tr('מקרר'), drying: tr('מייבש'), fan: tr('מאוורר'), idle: tr('ממתין'), off: tr('כבוי'), preheating: tr('מחמם מראש'), defrosting: tr('מפשיר') };
 export const ALARM_HE: Record<string, string> = {
-  disarmed: 'מנוטרלת',
-  armed_home: 'דרוכה (בית)',
-  armed_away: 'דרוכה (חוץ)',
-  armed_night: 'דרוכה (לילה)',
-  armed_vacation: 'דרוכה (חופשה)',
-  armed_custom_bypass: 'דרוכה (מותאם)',
-  pending: 'ממתינה',
-  arming: 'נדרכת…',
-  disarming: 'מנוטרלת…',
-  triggered: 'הופעלה!',
-  unavailable: 'לא זמינה',
-  unknown: 'לא ידוע',
+  disarmed: tr('מנוטרלת'),
+  armed_home: tr('דרוכה (בית)'),
+  armed_away: tr('דרוכה (חוץ)'),
+  armed_night: tr('דרוכה (לילה)'),
+  armed_vacation: tr('דרוכה (חופשה)'),
+  armed_custom_bypass: tr('דרוכה (מותאם)'),
+  pending: tr('ממתינה'),
+  arming: tr('נדרכת…'),
+  disarming: tr('מנוטרלת…'),
+  triggered: tr('הופעלה!'),
+  unavailable: tr('לא זמינה'),
+  unknown: tr('לא ידוע'),
 };
 
 /**

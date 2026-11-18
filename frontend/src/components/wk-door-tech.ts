@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-badge';
@@ -18,6 +19,7 @@ import {
   getHold,
   normalized,
   phraseFor,
+  shownPhraseFor,
   policyProblems,
   programAction,
   runWrite,
@@ -36,6 +38,7 @@ import {
 } from '../api/door-tech';
 import { fill } from '../i18n/wiskey-stations';
 import { dtt } from '../i18n/wiskey-door-tech';
+import { CONFIRM_WORDS } from '../i18n/confirm-words';
 
 type Tab = 'hold' | 'codes' | 'programs' | 'history';
 type Load = 'idle' | 'loading' | 'ready' | 'error';
@@ -556,7 +559,7 @@ export class WkDoorTech extends LitElement {
     if (!f || !s || !v || this.running) return;
     const root = this.renderRoot;
     const val = (name: string) => root.querySelector<HTMLInputElement>(`[data-wk-dt-code-field="${name}"]`)?.value ?? '';
-    const form = { action: f.action, expected: f.expected, newCode: val('new'), repeatCode: val('repeat'), currentCode: val('current'), typed: val('typed'), phrase: phraseFor(v.confirm_phrase, f.slot) };
+    const form = { action: f.action, expected: f.expected, newCode: val('new'), repeatCode: val('repeat'), currentCode: val('current'), typed: val('typed'), phrase: phraseFor(v.confirm_phrase, f.slot), template: v.confirm_phrase, slot: f.slot };
     const problem = codeFormProblem(form);
     const note = root.querySelector<HTMLElement>('[data-wk-dt-code-problem]');
     if (problem) {
@@ -861,7 +864,7 @@ export class WkDoorTech extends LitElement {
     const t = dtt();
     const slot = fill(t.codes.slot, { n: f.slot });
     const title = f.action === 'clear' ? t.codes.formClear : f.expected ? t.codes.formReplace : t.codes.formSet;
-    const phrase = phraseFor(this.view?.confirm_phrase ?? 'קוד {slot}', f.slot);
+    const phrase = shownPhraseFor(this.view?.confirm_phrase ?? CONFIRM_WORDS.door_code.he, f.slot);
     const doors = this.doors();
     return html`<form class="confirm" data-wk-dt-code-form=${f.slot} data-action=${f.action} autocomplete="off" @submit=${(e: Event) => void this.sendCode(e)}>
       <h5>${fill(title, { slot })}</h5>
@@ -906,7 +909,7 @@ export class WkDoorTech extends LitElement {
             : `${h.kind === 'program_action' && h.program_action ? t.programActions[h.program_action] : t.kinds[h.kind]}${h.door ? ` · ${this.doorName(h.door)}` : ''}`;
         return html`<li data-wk-dt-history-row=${h.kind} data-status=${h.status}>
           <span>${what}</span>
-          <span class="line" data-tone=${statusTone(h.status)}><bdi>${new Date(h.at).toLocaleString(document.documentElement.lang || 'he', { dateStyle: 'short', timeStyle: 'short' })}</bdi> · ${statusText(h, t)}</span>
+          <span class="line" data-tone=${statusTone(h.status)}><bdi>${new Date(h.at).toLocaleString(uiLocale(), { dateStyle: 'short', timeStyle: 'short' })}</bdi> · ${statusText(h, t)}</span>
         </li>`;
       })}
     </ul>`;

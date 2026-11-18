@@ -232,6 +232,13 @@ def test_unknown_and_malformed_zone_names_fall_back():
         assert tu.zone(bad) == IL
 
 
+@pytest.mark.parametrize("name", ["Asia", "America/Argentina", "Etc"])
+def test_a_directory_like_zone_name_falls_back(name):
+    """CR-W2-FOLLOWUPS-2441: a tzdata directory is no zone - zoneinfo raises an OSError (PermissionError on Windows,
+    IsADirectoryError elsewhere) or ZoneInfoNotFoundError, depending on where the data comes from; all answer the default."""
+    assert tu.zone(name) == ZoneInfo(tu.DEFAULT_ZONE)
+
+
 def test_module_zone_readers_answer_as_before(monkeypatch):
     from smplwise.services import insights_common, temperature, water_meters
     from smplwise.services.notices import sources

@@ -1,3 +1,4 @@
+import { pushLayer, removeLayer, takesEscape } from '../components/modal-stack';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
@@ -12,6 +13,7 @@ import {
 import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../api/mapping';
 import { OneAtATime } from './editor-guards';
 import { tr } from '../i18n/msg/media';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * MAPPING-ASSIST-2330 `<mapping-assistant>` - the approved round-10 mockup v3: one question first ("איך הבניין מסומן בשמות שלכם?"), the
@@ -348,10 +350,11 @@ export class MappingAssistant extends LitElement {
       white-space: nowrap;
     }
     .ch[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: transparent;
-      color: var(--sw-accent-text, var(--sw-accent));
-      font-weight: var(--sw-fw-semibold);
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .ch[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .ch small {
       font-size: var(--sw-fs-xs);
@@ -1215,15 +1218,18 @@ export class MappingAssistant extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this.onKey);
+    pushLayer(this); // CR-MODAL-STACK-B-2442: the assistant is mounted only while it is open - a layer of the shared modal stack
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
   }
 
   private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !this.busy) this.close();
+    if (e.key !== 'Escape' || !takesEscape(this, e)) return; // a confirmation above the assistant takes the key
+    if (!this.busy) this.close();
   };
 
   private close() {

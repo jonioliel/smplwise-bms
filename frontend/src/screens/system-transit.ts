@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { settingsLadderStyles } from '../styles/settings';
@@ -383,12 +384,12 @@ function errorText(code: string | null | undefined): string {
 function stamp(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(trLang() === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(localeFor(trLang()), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function clock(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString(trLang() === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString(localeFor(trLang()), { hour: '2-digit', minute: '2-digit' });
 }
 
 declare global {

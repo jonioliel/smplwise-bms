@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
@@ -16,7 +17,7 @@ import { tr } from '../i18n/msg/components';
 
 const fmt = (iso: string): string => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(uiLocale(), { dateStyle: 'short', timeStyle: 'short' });
 };
 
 /**

@@ -39,6 +39,18 @@ def keep_home_interface_defaults(app: FastAPI, settings: Settings, applied: list
             log.exception("could not keep the 2.42.0 home interface defaults")
 
 
+def move_classic_skin_once(app: FastAPI, settings: Settings, applied: list[int] | None) -> None:
+    try:  # DOMUS-DEFAULT-2439 (owner Q-DES-20): a saved "classic" look moves to Domus once; a later choice of classic stays
+        from .services import skin_switch as _skin_switch
+
+        with app.state.db.connection(label="skin_switch.run_once") as conn:
+            moved = _skin_switch.run_once(conn)  # the connection's own exit commits (the write gate: no commit by hand)
+        if moved == "moved":
+            log.info("look: the saved classic skin was moved to domus (once; classic stays selectable)")
+    except Exception:  # noqa: BLE001 - never block the start; the step has written no marker and runs again at the next start
+        log.exception("could not run the one-time move of the classic skin to domus")
+
+
 def load_mic_mode(app: FastAPI, settings: Settings, applied: list[int] | None) -> None:
     try:  # LAZYMIC-295: the remote channel's microphone policy follows this installation's settings from the first response
         from . import remote_channel as _rc
@@ -137,9 +149,24 @@ def backfill_ha_event_cameras(app: FastAPI, settings: Settings, applied: list[in
         log.exception("HA event camera backfill failed")
 
 
+def ensure_push_server_id(app: FastAPI, settings: Settings, applied: list[int] | None) -> None:
+    try:  # CR-W2-FOLLOWUPS-2441: the installation's opaque push id exists before the first GET /presence/config, so that read never writes
+        from .db import get_setting
+        from .services import mobile_push
+
+        with app.state.db.connection(mode="read", label="push.server_id") as conn:
+            present = bool(get_setting(conn, "push.server_id"))
+        if not present:
+            with app.state.db.connection(label="push.server_id") as conn:
+                mobile_push.server_id(conn)
+    except Exception:  # noqa: BLE001 - never block the start; the first read that needs the id still creates it
+        log.exception("could not create the installation's push id")
+
+
 AfterMigrate = Callable[[FastAPI, Settings, "list[int] | None"], None]
 AFTER_MIGRATE: tuple[AfterMigrate, ...] = (
     keep_home_interface_defaults,
+    move_classic_skin_once,
     load_mic_mode,
     ensure_migration_objects,
     ensure_shared_spaces_schema,
@@ -150,6 +177,7 @@ AFTER_MIGRATE: tuple[AfterMigrate, ...] = (
     settle_bulk_device_actions,
     reconcile_switch_protection,
     backfill_ha_event_cameras,
+    ensure_push_server_id,
 )
 
 

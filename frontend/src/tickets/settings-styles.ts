@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CR-038: the stylesheet of the module's settings screens (system-tickets and its parts: the department editor, the SLA grid), on top
@@ -179,10 +180,11 @@ export const ticketSettingsCss = css`
   }
   /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, not the filled accent key */
   .rc[aria-pressed='true'] {
-    background: var(--sw-accent-soft);
-    border-color: transparent;
-    color: var(--sw-accent-text);
-    font-weight: var(--sw-fw-semibold);
+    ${chipSelected}
+  }
+  /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+  .rc[aria-pressed='true']::before {
+    ${chipSelectedCheck}
   }
   .rc:disabled {
     opacity: 0.6;

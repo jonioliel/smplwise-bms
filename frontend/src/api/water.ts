@@ -8,6 +8,7 @@
 import { apiUrl, del, get, patch, post, put } from './client';
 import { isApi } from './session';
 import type { SnoozeSettings } from './water-billing';
+import { tr } from '../i18n/msg/api-electricity';
 
 export type MeterKind = 'main' | 'sub' | 'irrigation' | 'cooling' | 'pool' | 'other';
 export type MeterState = 'reporting' | 'not_reporting' | 'paused' | 'retired';
@@ -304,7 +305,7 @@ export interface AreaNode {
 /** The tree's key of a meter's area ('_none' for a meter without one). */
 export const areaKey = (m: Pick<Meter, 'area_id'>): string => m.area_id ?? '_none';
 
-export function buildWaterAreaTree(meters: Meter[], noFloor = 'ללא קומה', noArea = 'ללא אזור'): AreaNode[] {
+export function buildWaterAreaTree(meters: Meter[], noFloor = tr('ללא קומה'), noArea = tr('ללא אזור')): AreaNode[] {
   const floors = new Map<string, AreaNode>();
   for (const m of meters) {
     const fid = m.floor_id ?? '';

@@ -12,6 +12,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { productSettings } from './prefs';
 import { isApi } from './session';
+import { tr } from '../i18n/msg/api-home';
 
 /** The setting's values (keep in step with ui.tile_layout in smplwise_vms/backend/smplwise/routers/settings.py). */
 export const TILE_LAYOUTS = ['auto', 'cards', 'compact'] as const;
@@ -22,7 +23,7 @@ export type TileLayout = 'cards' | 'compact';
 export const COMPACT_BELOW_PX = 600;
 const OVERRIDE_KEY = 'sw.tiles.override';
 
-export const TILE_LAYOUT_LABEL: Record<TileLayoutSetting, string> = { auto: 'אוטומטי', cards: 'כרטיסים', compact: 'קומפקטי' };
+export const TILE_LAYOUT_LABEL: Record<TileLayoutSetting, string> = { auto: tr('אוטומטי'), cards: tr('כרטיסים'), compact: tr('קומפקטי') };
 
 function isSetting(v: unknown): v is TileLayoutSetting {
   return typeof v === 'string' && (TILE_LAYOUTS as readonly string[]).includes(v);

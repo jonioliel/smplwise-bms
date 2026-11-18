@@ -9,6 +9,7 @@
 import { ApiError, get, post, put } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
+import { CONFIRM_WORDS } from '../i18n/confirm-words';
 
 const BASE = 'access-control/installer';
 const TTL_MS = 20_000; // the server accepts at most 60 s; it sends within 15 s of arrival or not at all
@@ -293,7 +294,8 @@ export interface FlowView {
   reason: string | null;
 }
 
-export const PULSE_PHRASE = 'פתיחת דלת לבדיקה';
+/** The Hebrew phrase of the door pulse (i18n/confirm-words.ts `installer_pulse`; the dialog shows `confirmWord(...)`). */
+export const PULSE_PHRASE = CONFIRM_WORDS.installer_pulse.he;
 
 export const startOnboarding = (kind: 'add' | 'reconfigure', entryId?: string) =>
   post<WriteReply<FlowView>>(`${BASE}/onboarding`, { ...envelope(), kind, ...(entryId ? { entry_id: entryId } : {}) });

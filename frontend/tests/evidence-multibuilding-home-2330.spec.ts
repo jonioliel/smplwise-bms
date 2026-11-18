@@ -102,7 +102,8 @@ test('card -> building: today home scoped, breadcrumb, switch; the tree jumps st
     expect(ids.every((id) => id?.startsWith('ha_bA_'))).toBe(true);
     await expect(B(page).locator('[data-tree-select] .nm').first()).toHaveText('קרקע');
     await expect(B(page).locator('[data-tree-more]')).toHaveAttribute('data-tree-more', String(8 - ids.length));
-    expect(await overflowY(page), 'a building fits like today home').toBeLessThanOrEqual(1);
+    // DOMUS-DEFAULT-2439: the packing is measured a frame after the screen (and its cards) settle, so the fit is polled
+    await expect.poll(() => overflowY(page), { message: 'a building fits like today home', timeout: 3000 }).toBeLessThanOrEqual(1);
   }
   expect(await overflowX(page)).toBeLessThanOrEqual(0);
   await shot(page, 'building-a', info.project.name);

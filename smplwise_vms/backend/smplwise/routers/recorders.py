@@ -31,7 +31,7 @@ from ..db import now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
-from ..services import autosync, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
+from ..services import autosync, confirm_words, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
 from ..services.recorders import registry
 from ._common import rid as _rid
 from . import nvr_connection as nc
@@ -329,14 +329,15 @@ def remove_recorder(recorder_id: str, request: Request, background: BackgroundTa
     require(conn, principal, PERMISSION, INSTALLATION)
     body: nc.RemoveIn = nc._parse(request, raw, nc.RemoveIn)
     _known(conn, recorder_id)
-    if body.confirm_text.strip() != nc.REMOVE_WORD:
+    confirm_word = confirm_words.typed_lang("nvr_remove", body.confirm_text)
+    if confirm_word is None:
         raise ApiError(422, "confirm_required", f"כדי להסיר את ה־NVR יש להקליד \"{nc.REMOVE_WORD}\".", details={"field": "confirm_text"})
     nc._require_revision(body.if_revision, conn, recorder_id)
     if _row(conn, recorder_id) is None:
         autosync.ensure_recorder(conn, recorder_id=recorder_id)
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id, recorder_id)
     audit(conn, actor=principal, action="nvr.recorder.remove", decision="allowed", resource_type="recorder", resource_id=recorder_id, request_id=_rid(request),
-          details={"revision": revision, "cameras_disabled": disabled})
+          details={"revision": revision, "cameras_disabled": disabled, "confirm_word": confirm_word})
     background.add_task(recorder_live.stop, request.app.state.db, settings_of(request), recorder_id)  # stopped at once (CR-024)
     return {"removed": True, "restart_required": True, "recorder_id": recorder_id, "revision": revision, "cameras_disabled": disabled}
 

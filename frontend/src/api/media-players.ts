@@ -27,6 +27,7 @@ import {
   type MediaLive, type MediaStatus, type NowKind, type NowShowing, type PowerState, type RecentItem, type RemoteConfig, type SourceItem,
 } from './media-screens';
 import type { EndpointRole as AdminEndpointRole } from './media-admin';
+import { tr } from '../i18n/msg/api-media';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
 
@@ -242,17 +243,17 @@ export function toggleSelected(selected: readonly string[], item: string, max = 
 export const upcomingCount = (l: Pick<QueueList, 'count' | 'locked_to'> | null): number => (l && l.count !== null && l.locked_to !== null ? Math.max(0, l.count - (l.locked_to + 1)) : 0);
 /** The Hebrew line after a multi-row edit that stopped half way or removed rows. */
 export const queueResultLine = (r: QueueEditResult, asked: number): string =>
-  r.status === 'refused' ? (typeof r.done === 'number' && asked > 1 ? `הוסרו ${r.done} מתוך ${asked}` : 'הפעולה נדחתה') : '';
+  r.status === 'refused' ? (typeof r.done === 'number' && asked > 1 ? tr('הוסרו {done} מתוך {asked}', { done: r.done, asked }) : tr('הפעולה נדחתה')) : '';
 
 export type BrowseType = 'track' | 'album' | 'artist' | 'playlist' | 'radio';
 export const BROWSE_TYPES: readonly BrowseType[] = ['track', 'album', 'artist', 'playlist', 'radio'];
-export const BROWSE_TYPE_LABEL: Record<BrowseType, string> = { track: 'שירים', album: 'אלבומים', artist: 'אמנים', playlist: 'פלייליסטים', radio: 'תחנות' };
+export const BROWSE_TYPE_LABEL: Record<BrowseType, string> = { track: tr('שירים'), album: tr('אלבומים'), artist: tr('אמנים'), playlist: tr('פלייליסטים'), radio: tr('תחנות') };
 /** GET devices/{key}/browse. */
 export interface BrowsePage { type: BrowseType; q: string | null; items: LibraryItem[]; offset: number; more: boolean; read_at: string; provider: MusicProvider }
 export const SEARCH_DEBOUNCE_MS = 400;
 export const SEARCH_MAX = 60;
 export const LIBRARY_TAB = 'library' as const;
-export const LIBRARY_TAB_TEXT = 'ספרייה';
+export const LIBRARY_TAB_TEXT = tr('ספרייה');
 
 export type MaState = 'off' | 'ready' | 'unreachable' | 'unauthorized' | 'schema_too_old' | 'error' | 'unreadable' | 'host_refused';
 /** GET /multimedia/admin/ma-connection (system.configure): the token is never returned. */
@@ -272,7 +273,7 @@ export interface MaTest { state: MaState; server_version: string | null; schema_
 export interface MaConnectionBody { enabled?: boolean; url?: string | null; token?: string; clear_token?: boolean }
 /** Settings wording (technical names are allowed in settings only). */
 export const MA_STATE_LABEL: Record<MaState, string> = {
-  off: 'כבוי', ready: 'מחובר', unreachable: 'השרת אינו נגיש', unauthorized: 'האסימון נדחה', schema_too_old: 'גרסת השרת ישנה מדי', error: 'שגיאה', unreadable: 'האסימון השמור אינו קריא - יש להזין שוב', host_refused: 'הכתובת אינה מותרת',
+  off: tr('כבוי'), ready: tr('מחובר'), unreachable: tr('השרת אינו נגיש'), unauthorized: tr('האסימון נדחה'), schema_too_old: tr('גרסת השרת ישנה מדי'), error: tr('שגיאה'), unreadable: tr('האסימון השמור אינו קריא - יש להזין שוב'), host_refused: tr('הכתובת אינה מותרת'),
 };
 
 /** The tab "ספרייה" is offered: the device browses (caps) and the caller holds media.browse. */
@@ -307,7 +308,7 @@ export interface MergeSuggestion {
   device_name: string;
 }
 export const SUGGESTION_REASON_LABEL: Record<MergeSuggestion['reason'], string> = {
-  same_model: 'דגם זהה', same_name_area_one_side: 'שם זהה · חדר באחד הצדדים', same_name_area: 'שם וחדר זהים',
+  same_model: tr('דגם זהה'), same_name_area_one_side: tr('שם זהה · חדר באחד הצדדים'), same_name_area: tr('שם וחדר זהים'),
 };
 
 /** GET /multimedia/groups: a live group (its leader), a static group, or a helper shortcut (see media-players-mock). */
@@ -432,29 +433,29 @@ export const PRESET_RUNNING_MS = 30_000;
 
 export const PLAYER_ERROR_LABEL: Record<string, string> = {
   ...ERROR_LABEL,
-  screen_off: 'הנגן כבוי',
-  unavailable: 'הנגן אינו זמין',
-  confirm_required: 'נדרש אישור',
-  bulk_required: 'קבוצה לכל הבית דורשת הרשאה נפרדת',
-  group_pending: 'פעולת קיבוץ קודמת עדיין רצה',
-  not_groupable: 'הנגן אינו יכול להצטרף לקבוצה הזו',
-  unknown_item: 'הפריט אינו זמין; טענו את הרשימה מחדש',
-  not_playing: 'אין מה להעביר: הנגן לא מנגן',
-  no_library: 'אין ספריית מוזיקה',
-  caps_unknown: 'הנגן אינו זמין',
-  revision_conflict: 'נערך במקום אחר; טענו מחדש',
-  use_group_volume: 'עוצמת קבוצה נשלטת ממסך הקבוצה',
-  use_media_screen: 'הנגן מנוהל מהמולטימדיה',
-  media_managed_control: 'הנגן מנוהל מהמולטימדיה',
-  locked: 'השיר הזה כבר מתנגן',
-  queue_changed: 'התור השתנה',
-  ma_unavailable: 'התור אינו זמין כרגע',
-  search_unavailable: 'החיפוש אינו זמין כרגע',
+  screen_off: tr('הנגן כבוי'),
+  unavailable: tr('הנגן אינו זמין'),
+  confirm_required: tr('נדרש אישור'),
+  bulk_required: tr('קבוצה לכל הבית דורשת הרשאה נפרדת'),
+  group_pending: tr('פעולת קיבוץ קודמת עדיין רצה'),
+  not_groupable: tr('הנגן אינו יכול להצטרף לקבוצה הזו'),
+  unknown_item: tr('הפריט אינו זמין; טענו את הרשימה מחדש'),
+  not_playing: tr('אין מה להעביר: הנגן לא מנגן'),
+  no_library: tr('אין ספריית מוזיקה'),
+  caps_unknown: tr('הנגן אינו זמין'),
+  revision_conflict: tr('נערך במקום אחר; טענו מחדש'),
+  use_group_volume: tr('עוצמת קבוצה נשלטת ממסך הקבוצה'),
+  use_media_screen: tr('הנגן מנוהל מהמולטימדיה'),
+  media_managed_control: tr('הנגן מנוהל מהמולטימדיה'),
+  locked: tr('השיר הזה כבר מתנגן'),
+  queue_changed: tr('התור השתנה'),
+  ma_unavailable: tr('התור אינו זמין כרגע'),
+  search_unavailable: tr('החיפוש אינו זמין כרגע'),
 };
 /** Refusals that depend on the server's `reason` (a short Hebrew line each): the leader's followers are not the caller's, an unmute above the ceiling. */
 const REASON_LABEL: Record<string, string> = {
-  'forbidden:group_member': 'אין הרשאה לשלוט בכל חדרי הקבוצה',
-  'not_supported:ceiling': 'העוצמה גבוהה מהתקרה: הנמיכו ואז בטלו השתקה',
+  'forbidden:group_member': tr('אין הרשאה לשלוט בכל חדרי הקבוצה'),
+  'not_supported:ceiling': tr('העוצמה גבוהה מהתקרה: הנמיכו ואז בטלו השתקה'),
 };
 
 /** The Hebrew line of an error of the players API: the table above by code, else the server's own message. */
@@ -489,8 +490,8 @@ export function confirmCount(err: unknown): number | null {
 }
 
 export const MEMBER_OUTCOME_LABEL: Record<MemberOutcome, string> = {
-  joined: 'הצטרף', not_joined: 'לא הצטרף', left: 'יצא', set: 'עודכן', unknown: 'לא ידוע', skipped_muted: 'מושתק', skipped_off: 'כבוי',
-  skipped_unavailable: 'לא זמין', clamped: 'הוגבל לתקרה', not_allowed: 'אין הרשאה',
+  joined: tr('הצטרף'), not_joined: tr('לא הצטרף'), left: tr('יצא'), set: tr('עודכן'), unknown: tr('לא ידוע'), skipped_muted: tr('מושתק'), skipped_off: tr('כבוי'),
+  skipped_unavailable: tr('לא זמין'), clamped: tr('הוגבל לתקרה'), not_allowed: tr('אין הרשאה'),
 };
 /** "פרגולה לא הצטרף": the room, then what happened. */
 export const memberOutcomeLine = (room: string, outcome: MemberOutcome): string => `${room} ${MEMBER_OUTCOME_LABEL[outcome]}`;
@@ -652,18 +653,18 @@ export const leaderLabel = (leader: Pick<PlayerDevice, 'name' | 'area_name'>): s
 /** The card's state line (clean operator wording, no hints): "מנגן", "תחנה", "מושהה", "לא מנגן", "כבוי", "לא זמין", "מנגן עם סלון". */
 export function playerStateText(d: Pick<PlayerDevice, 'live' | 'kind'>, opts: StateTextOptions = {}): string {
   const l = d.live;
-  if (l.power === 'unavailable') return 'לא זמין';
-  if (l.power === 'unknown') return 'מצב לא ידוע';
-  if (l.power === 'off' || l.power === 'standby') return 'כבוי';
-  if (d.kind === 'receiver') return l.now.label || 'דולק';
+  if (l.power === 'unavailable') return tr('לא זמין');
+  if (l.power === 'unknown') return tr('מצב לא ידוע');
+  if (l.power === 'off' || l.power === 'standby') return tr('כבוי');
+  if (d.kind === 'receiver') return l.now.label || tr('דולק');
   const title = opts.withTitle && l.now.title ? ` · ${l.now.title}` : '';
   if (l.play === 'playing' || l.play === 'paused') {
     const paused = l.play === 'paused';
-    if (l.group.role === 'member' && opts.leaderLabel) return `מנגן עם ${opts.leaderLabel}${paused ? ' · מושהה' : ''}${title}`;
-    if (paused) return `מושהה${title}`;
-    return `${l.now.kind === 'station' ? 'תחנה' : 'מנגן'}${title}`;
+    if (l.group.role === 'member' && opts.leaderLabel) return tr('מנגן עם {leaderLabel}{v}{title}', { leaderLabel: opts.leaderLabel, v: paused ? tr(' · מושהה') : '', title });
+    if (paused) return tr('מושהה{title}', { title });
+    return `${l.now.kind === 'station' ? tr('תחנה') : tr('מנגן')}${title}`;
   }
-  return 'לא מנגן';
+  return tr('לא מנגן');
 }
 
 /** The state filter of the players tab: "מנגנים" / "כבויים" (off or idle) / "לא זמינים". */
@@ -677,8 +678,8 @@ export function matchesState(d: Pick<PlayerDevice, 'live'>, f: PlayerStateFilter
 /** The group chip of a card: a leader says how many rooms, a member names its leader, a conflict says so. */
 export function groupChip(d: Pick<PlayerDevice, 'live'>, leaderName?: string | null): { kind: 'leader' | 'member' | 'conflict'; text: string } | null {
   const g = d.live.group;
-  if (g.conflict) return { kind: 'conflict', text: 'קיבוץ לא תואם' };
-  if (g.role === 'leader') return { kind: 'leader', text: `${Math.max(2, liveGroupKeys(g).length)} חדרים` };
+  if (g.conflict) return { kind: 'conflict', text: tr('קיבוץ לא תואם') };
+  if (g.role === 'leader') return { kind: 'leader', text: tr('{v} חדרים', { v: Math.max(2, liveGroupKeys(g).length) }) };
   if (g.role === 'member') return { kind: 'member', text: leaderName ?? '' };
   return null;
 }
@@ -703,7 +704,7 @@ export const nextRepeat = (m: RepeatMode | null): RepeatMode => (m === 'off' || 
 
 // ------------------------------------------------------------------------------------------------ pure helpers: up next
 
-export const UP_NEXT_UNAVAILABLE = 'לא זמין';
+export const UP_NEXT_UNAVAILABLE = tr('לא זמין');
 /** Rows beyond the current and the next one ("עוד N"); 0 when unknown. */
 export function upNextMore(u: UpNext | null): number {
   if (!u || !u.confirmed || u.count === null || u.index === null) return 0;
@@ -717,8 +718,8 @@ export function upNextText(u: UpNext | null): string {
   if (!u || !u.confirmed) return UP_NEXT_UNAVAILABLE;
   if (u.next) return u.next.artist ? `${u.next.name} · ${u.next.artist}` : u.next.name;
   const more = upNextMore(u);
-  if (more > 0) return `עוד ${more}`;
-  return 'אין המשך';
+  if (more > 0) return tr('עוד {more}', { more });
+  return tr('אין המשך');
 }
 
 // ------------------------------------------------------------------------------------------------ pure helpers: volume
@@ -897,9 +898,9 @@ export interface PlayerSection {
   label: string;
   devices: PlayerDevice[];
 }
-export const UNPLACED_LABEL = 'לא משויכים';
-export const ALL_ROOMS_LABEL = 'כל החדרים';
-export const NO_ROOM_LABEL = 'ללא חדר';
+export const UNPLACED_LABEL = tr('לא משויכים');
+export const ALL_ROOMS_LABEL = tr('כל החדרים');
+export const NO_ROOM_LABEL = tr('ללא חדר');
 
 /** The players tab's sections: one per floor (the layout's order, else first seen) + "לא משויכים" last; with no floors one
  * list "כל החדרים" (the room chips are the filter) + "לא משויכים". Empty sections are dropped. `order` = device keys. */
@@ -983,7 +984,7 @@ export function libraryTabs(d: Pick<PlayerDevice, 'caps' | 'music_provider'>, ki
   if (d.caps.playlists && d.music_provider !== 'sonos') tabs.push('playlists');
   return kindsOn ? tabs.filter((k) => kindsOn.includes(k)) : tabs;
 }
-export const LIBRARY_TAB_LABEL: Record<LibraryKind, string> = { favourites: 'מועדפים', stations: 'תחנות', playlists: 'פלייליסטים' };
+export const LIBRARY_TAB_LABEL: Record<LibraryKind, string> = { favourites: tr('מועדפים'), stations: tr('תחנות'), playlists: tr('פלייליסטים') };
 
 /** The curation applied to a page (hidden items out, the administrator's order first, the rest in the server's order). */
 export function applyCuration(items: readonly LibraryItem[], c: Pick<FavouritesCuration, 'items'> | null): LibraryItem[] {

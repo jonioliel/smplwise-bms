@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './sw-card';
@@ -14,7 +15,7 @@ import { bkt, bktCode, bktLang } from '../i18n/bridge-key';
 function when(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
-  const locale = { he: 'he-IL', en: 'en-GB', ar: 'ar', ru: 'ru-RU' }[bktLang()];
+  const locale = localeFor(bktLang());
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(locale, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 

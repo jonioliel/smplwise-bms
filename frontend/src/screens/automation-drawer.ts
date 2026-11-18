@@ -18,6 +18,7 @@ import { addressAction, areaLine, fieldDefaults, missingFields, type FieldChoice
 import type { TrashRow } from '../api/automations';
 import { tr } from '../i18n/msg/automation';
 import { t } from '../i18n/he';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 export type DrawerResult = { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } };
 
@@ -201,11 +202,11 @@ export class AutomationDrawer extends LitElement {
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the product's Blue Wash pair, never a solid text-colour block */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-      border-color: transparent;
-      font-weight: 600;
-      box-shadow: none;
+      ${chipSelected}
+    }
+    /* DOMUS-DEFAULT-2439: the check mark of the selected chip (hidden by the other looks of ui.chip_selected) */
+    .rc[aria-pressed='true']::before {
+      ${chipSelectedCheck}
     }
     .ver {
       display: grid;

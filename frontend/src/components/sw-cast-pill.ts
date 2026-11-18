@@ -1,3 +1,4 @@
+import { NO_TRAP, removeLayer, syncLayer, takesEscape } from './modal-stack';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
@@ -32,6 +33,7 @@ export class SwCastPill extends LitElement {
   };
   private onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.openTray) {
+      if (!takesEscape(this, e)) return; // CR-MODAL-STACK-B-2442: only the top layer answers Escape
       this.openTray = false;
       this.shadowRoot?.querySelector<HTMLElement>('.pill')?.focus();
     }
@@ -194,7 +196,13 @@ export class SwCastPill extends LitElement {
   disconnectedCallback() {
     document.removeEventListener('pointerdown', this.onDoc, true);
     document.removeEventListener('keydown', this.onKey);
+    removeLayer(this);
     super.disconnectedCallback();
+  }
+
+  /** CR-MODAL-STACK-B-2442: the open tray is a layer of the shared modal stack. */
+  protected updated() {
+    syncLayer(this, this.openTray, NO_TRAP);
   }
 
   private async extend(id: string) {

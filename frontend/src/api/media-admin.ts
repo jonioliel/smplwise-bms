@@ -12,6 +12,7 @@ import { getDevicesTree } from './devices';
 import type { KeyId, MediaKind, ProfileId } from './media-screens';
 import type { MusicProvider, PlayerKind, VolumeNight } from './media-players';
 import type { PlayersMockStore } from './media-players-mock';
+import { tr } from '../i18n/msg/api-media';
 
 export type Control = 'power' | 'volume' | 'mute' | 'sources' | 'apps' | 'keys' | 'now_playing';
 /** CR-016: `music` (the device's music layer, CR §5.2) and `mirror` (a poorer cloud twin, hidden, never primary) join the CR-015 roles. */
@@ -287,16 +288,16 @@ export const PROFILE_LABEL: Record<ProfileId, string> = {
   samsung_smart: 'Samsung (samsungtv_smart)',
   lg_webos: 'LG (webostv)',
   android_tv: 'Android TV (androidtv_remote)',
-  generic: 'כללי',
+  generic: tr('כללי'),
 };
-export const KIND_LABEL: Partial<Record<MediaKind, string>> = { screen: 'מסך', receiver: 'מגבר', speaker: 'רמקול', player: 'נגן' };
+export const KIND_LABEL: Partial<Record<MediaKind, string>> = { screen: tr('מסך'), receiver: tr('מגבר'), speaker: tr('רמקול'), player: tr('נגן') };
 /** CR-016: every kind by name (the non-physical ones are listed apart, never chosen as a kind). */
-export const ANY_KIND_LABEL: Record<MediaKind | PlayerKind, string> = { screen: 'מסך', receiver: 'מגבר', speaker: 'רמקול', player: 'נגן', group: 'קבוצה', session: 'סשן', virtual_group: 'קבוצה וירטואלית', service: 'שירות' };
+export const ANY_KIND_LABEL: Record<MediaKind | PlayerKind, string> = { screen: tr('מסך'), receiver: tr('מגבר'), speaker: tr('רמקול'), player: tr('נגן'), group: tr('קבוצה'), session: tr('סשן'), virtual_group: tr('קבוצה וירטואלית'), service: tr('שירות') };
 export const ROLE_LABEL: Record<EndpointRole, string> = {
-  vendor: 'יצרן', remote: 'שלט', cast: 'Cast', dlna: 'DLNA', smartthings: 'SmartThings', ma_export: 'Music Assistant (יצוא)', ma_import: 'Music Assistant (יבוא)',
-  ma_native: 'Music Assistant', ma_universal: 'Music Assistant (אוניברסלי)', other: 'אחר', music: 'שכבת המוזיקה', mirror: 'מראה (מוסתר)',
+  vendor: tr('יצרן'), remote: tr('שלט'), cast: 'Cast', dlna: 'DLNA', smartthings: 'SmartThings', ma_export: tr('Music Assistant (יצוא)'), ma_import: tr('Music Assistant (יבוא)'),
+  ma_native: 'Music Assistant', ma_universal: tr('Music Assistant (אוניברסלי)'), other: tr('אחר'), music: tr('שכבת המוזיקה'), mirror: tr('מראה (מוסתר)'),
 };
 export const CONTROL_LABEL: Record<Control, string> = {
-  power: 'הפעלה', volume: 'עוצמה', mute: 'השתקה', sources: 'מקורות', apps: 'אפליקציות', keys: 'מקשים', now_playing: 'מה מתנגן',
+  power: tr('הפעלה'), volume: tr('עוצמה'), mute: tr('השתקה'), sources: tr('מקורות'), apps: tr('אפליקציות'), keys: tr('מקשים'), now_playing: tr('מה מתנגן'),
 };
-export const CONFIDENCE_LABEL: Record<AdminDevice['confidence'], string> = { exact: 'מדויק', strong: 'חזק', weak: 'חלש', manual: 'ידני' };
+export const CONFIDENCE_LABEL: Record<AdminDevice['confidence'], string> = { exact: tr('מדויק'), strong: tr('חזק'), weak: tr('חלש'), manual: tr('ידני') };

@@ -30,6 +30,7 @@ import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { pl } from '../i18n/polish';
+import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time words of agoHe
 import { ApiError, describeError, patch } from '../api/client';
 import { getSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -100,6 +101,7 @@ import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 import { dayTimeText, timeText } from '../api/day-format';
 import { modalKeydown } from '../components/a11y-keys';
+import { removeLayer, syncLayer } from '../components/modal-stack';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -167,13 +169,13 @@ export function agoHe(what: string, iso: string | null | undefined, now: number 
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return '';
   const s = Math.max(0, Math.round((now - t) / 1000));
-  if (s < 10) return `${what} עכשיו`;
-  if (s < 60) return `${what} לפני ${s} שניות`;
+  if (s < 10) return tr('{what} עכשיו', { what });
+  if (s < 60) return tr('{what} לפני {n} שניות', { what, n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return m === 1 ? `${what} לפני דקה` : `${what} לפני ${m} דקות`;
+  if (m < 60) return m === 1 ? tr('{what} לפני דקה', { what }) : tr('{what} לפני {n} דקות', { what, n: m });
   const h = Math.round(m / 60);
-  if (h < 24) return h === 1 ? `${what} לפני שעה` : `${what} לפני ${h} שעות`;
-  return `${what} ב־${dayTimeText(new Date(t))}`;
+  if (h < 24) return h === 1 ? tr('{what} לפני שעה', { what }) : tr('{what} לפני {n} שעות', { what, n: h });
+  return tr('{what} ב־{at}', { what, at: dayTimeText(new Date(t)) });
 }
 
 /** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
@@ -1314,6 +1316,11 @@ export class DevicesBuilding extends LitElement {
   private editHandled = false;
   private wasEditing = false;
   private fitTimer = 0;
+  /** DOMUS-DEFAULT-2439: the page body's size is watched - a card that grows after this element's last update (a child that renders
+   * later, a font) is measured too. The fit used to be measured only after this element's own updates, so such a late growth of a
+   * pixel or two left a control screen scrolling at the loosest packing (tablet 1024x768, a building of a site, the domus skin). */
+  private fitObs: ResizeObserver | null = null;
+  private fitObserved: Element | null = null;
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
   /** HOME-EDIT-DRAWER-2351: edit mode's drawer (home-edit-drawer.ts) - open or closed (Escape), and its tab. */
@@ -2296,12 +2303,15 @@ export class DevicesBuilding extends LitElement {
   private panelUsed = false;
   private quickUsed = false;
   private panelsWarmed = false;
+  /** CR-MODAL-STACK-B-2442: the phone's tree sheet in the shared modal stack. */
+  private readonly treeLayer = {};
 
   protected updated() {
     if (this.tree && !this.panelsWarmed) {
       this.panelsWarmed = true;
       warmHomePanels(() => this.requestUpdate()); // idle: the first press on a tile or an area rarely waits for the network
     }
+    syncLayer(this.treeLayer, !!this.renderRoot.querySelector('[data-tree-sheet]'));
     loadPendingScreens(this.renderRoot, () => this.requestUpdate(), true); // the plan view's map chunk (not the shell's route: data-shell-ready does not wait for it)
     if (this.treeSheet !== this.treeSheetShown) {
       this.treeSheetShown = this.treeSheet;
@@ -2349,6 +2359,17 @@ export class DevicesBuilding extends LitElement {
       notifyScreenViews(); // the user menu's view choice re-reads the value (and hides itself while the layout editor is open)
     }
     if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+    const body = this.renderRoot.querySelector('.page-body');
+    if (body !== this.fitObserved) {
+      this.fitObs?.disconnect();
+      this.fitObserved = body;
+      if (body) {
+        this.fitObs ??= new ResizeObserver(() => {
+          if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+        });
+        this.fitObs.observe(body);
+      }
+    }
   }
 
   static styles = [devicesStyleTokens, css`
@@ -3415,6 +3436,10 @@ export class DevicesBuilding extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    removeLayer(this.treeLayer);
+    this.fitObs?.disconnect();
+    this.fitObs = null;
+    this.fitObserved = null;
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offXs?.();
@@ -4257,7 +4282,7 @@ export class DevicesBuilding extends LitElement {
     if (this.treeSheet) {
       return html`<div class="scrim" @click=${() => (this.treeSheet = false)}></div>
         <div class="hsheet" role="dialog" aria-modal="true" aria-label=${hs('treeTitle')} data-tree-sheet
-          @keydown=${(e: KeyboardEvent) => modalKeydown(e, e.currentTarget as Element, () => ((this.treeSheetByKey = true), (this.treeSheet = false)))}
+          @keydown=${(e: KeyboardEvent) => modalKeydown(e, e.currentTarget as Element, () => ((this.treeSheetByKey = true), (this.treeSheet = false)), this.treeLayer)}
           @click=${(e: Event) => { if ((e.composedPath() as Element[]).some((n) => n instanceof HTMLElement && n.dataset?.treeSelect !== undefined)) this.treeSheet = false; }}>
           <div class="grab" aria-hidden="true"></div>
           <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${(e: MouseEvent) => ((this.treeSheetByKey = e.detail === 0), (this.treeSheet = false))}><sw-icon name="close" size=${15}></sw-icon></button></div>

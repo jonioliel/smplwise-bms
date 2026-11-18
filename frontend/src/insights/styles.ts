@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 
 /**
  * CR-INSIGHT215: the look of the insight screens (the approved mock-up docs/design/mockups/insight-215), on the product's v2 tokens only.
@@ -100,7 +101,9 @@ export const insightCss = css`
     transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
   }
   button.chip:active { transform: scale(0.97); }
-  .chip.sel { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
+  /* DOMUS-DEFAULT-2439: the product's one selected chip (styles/chip-selected.ts) and its check mark */
+  .chip.sel { ${chipSelected} }
+  .chip.sel::before { ${chipSelectedCheck} }
   .chip .n { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: var(--sw-fw-regular); }
   /* DARK-REVIEW-2342: on the selected chip the count keeps full ink - accent-text at 0.8 over accent-soft read 4.47:1 in domus dark (3.4-4.1:1 in light) */
   .chip.sel .n { opacity: 1; }

@@ -5,17 +5,18 @@
  */
 import { api, del, get, patch, path, post, put, query } from './client';
 import type { SpatialZone, ZonePoint } from './types';
+import { tr } from '../i18n/msg/api-home';
 
 export type { SpatialZone, ZonePoint } from './types';
 
 export type ZoneKind = SpatialZone['kind'];
 
 export const ZONE_KINDS: { id: ZoneKind; label: string }[] = [
-  { id: 'room', label: 'חדר' },
-  { id: 'zone', label: 'אזור' },
-  { id: 'corridor', label: 'מסדרון' },
-  { id: 'outdoor', label: 'חוץ' },
-  { id: 'service', label: 'שירות / טכני' },
+  { id: 'room', label: tr('חדר') },
+  { id: 'zone', label: tr('אזור') },
+  { id: 'corridor', label: tr('מסדרון') },
+  { id: 'outdoor', label: tr('חוץ') },
+  { id: 'service', label: tr('שירות / טכני') },
 ];
 
 export const zoneKindLabel = (kind: string) => ZONE_KINDS.find((k) => k.id === kind)?.label ?? kind;

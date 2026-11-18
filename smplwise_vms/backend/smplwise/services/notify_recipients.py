@@ -37,7 +37,11 @@ def as_lists(rec: Any) -> dict[str, list[str]]:
 
 
 def active_user_ids(conn: sqlite3.Connection) -> set[str]:
-    return {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
+    """The users a recipients choice may name or reach: the Arx accounts that are active under the ONE rule (services/active_users,
+    owner decision O16 a - disabled on either side is not active). CR-W2-FOLLOWUPS-2441: it used to read `users.active = 1` on its own."""
+    from .active_users import active_account_ids
+
+    return set(active_account_ids(conn))
 
 
 def group_ids(conn: sqlite3.Connection) -> set[str]:

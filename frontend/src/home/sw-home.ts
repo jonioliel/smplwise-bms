@@ -3,6 +3,7 @@
 // category icons, the person's favourites as widgets, and a fixed "now" bar with what is on and one tap to turn the room off).
 // Real data only (home-api.ts), existing control paths only (home-actions.ts). Hebrew, RTL, no platform names or internal terms.
 // No control screen scrolls: every list pages (home-logic.ts paged / packPages). Themes: data-hs-theme + data-hs-scheme on the host.
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, nothing, svg, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
@@ -52,6 +53,7 @@ import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles j
 // HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
 import { P3, type P3Host, type P3Ovl } from './home-p3';
 import { homeP3Styles } from './home-p3-styles';
+import { HandModal } from '../components/hand-modal';
 // HOME-V3-P2-2431: the family and building screens (home-v3-p2.ts); two hooks below: the scenes screen's buttons, the wall panel's chips
 import { sceneScreenActs, wallChips } from './home-v3-p2';
 import { tr } from '../i18n/msg/home';
@@ -105,8 +107,8 @@ function readPaintHint(): { theme: string; scheme: 'light' | 'dark' } | null {
 function writePaintHint(theme: string, scheme: string, bg: string) {
   try { if (bg) localStorage.setItem(PAINT_KEY, JSON.stringify({ theme, scheme, bg })); } catch { /* storage off: the usual first frame */ }
 }
-const HE_WEEKDAY = new Intl.DateTimeFormat('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jerusalem' });
-const HE_TIME = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
+const HE_WEEKDAY = new Intl.DateTimeFormat(uiLocale(), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jerusalem' });
+const HE_TIME = new Intl.DateTimeFormat(uiLocale(), { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
 
 type ActFn = (el: HTMLElement) => boolean | void;
 /** The names after `a_` of the element's own action handlers. */
@@ -216,6 +218,7 @@ export class SwHome extends LitElement implements P3Host {
     // instead of being dropped.
     this.extFor(this.extRoute)?.leave?.();
     this.p3.dispose();
+    this.modal.release();
     for (const t of [this.refreshT, this.toastT, this.armT, this.holdT]) window.clearTimeout(t);
     this.refreshT = this.toastT = this.armT = this.holdT = this.clockT = 0;
     this.flushFavs();
@@ -375,6 +378,21 @@ export class SwHome extends LitElement implements P3Host {
     g.getBoundingClientRect();
     requestAnimationFrame(() => { for (const el of parts) { el.style.transition = ''; el.classList.add('out'); } });
     window.setTimeout(() => host.remove(), 260);
+  }
+
+  /** CR-MODAL-STACK-B-2442: every overlay of the home interface (`ovl`: the sheets, the confirmations, the full-screen camera, the code
+   * pads, the v3 / phase-3 module sheets) is ONE layer of the shared modal stack: Escape closes it only while it is the top layer, Tab
+   * stays inside it, the screen behind it is inert, and focus returns to the control that opened it. */
+  private ovlBox = () => this.renderRoot.querySelector('.app-root > .ovl');
+  private modal = new HandModal({
+    box: this.ovlBox,
+    close: () => { this.ovl = null; },
+    inert: () => [this.renderRoot.querySelector('.app-root > .hs')],
+  });
+
+  protected updated(changed: PropertyValues): void {
+    super.updated(changed);
+    this.modal.sync(!!this.ovl && !!this.ovlBox()?.firstElementChild);
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -708,10 +726,6 @@ export class SwHome extends LitElement implements P3Host {
       }
     }
     this.swipe = null;
-  };
-
-  private onKey = (ev: KeyboardEvent) => {
-    if (ev.key === 'Escape' && this.ovl) this.ovl = null;
   };
 
   private stepRoom(d: number) {
@@ -1424,7 +1438,7 @@ export class SwHome extends LitElement implements P3Host {
     for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
     const br = E.byRoom;
     const brMax = Math.max(...br.map((b) => b[1]), 0.1);
-    const weekday = new Intl.DateTimeFormat('he-IL', { weekday: 'long', timeZone: 'Asia/Jerusalem' }).format(this.now);
+    const weekday = new Intl.DateTimeFormat(uiLocale(), { weekday: 'long', timeZone: 'Asia/Jerusalem' }).format(this.now);
     return html`${this.head(html`${day ? tr('היום') : tr('השבוע')}: <span class="num">${num1(tot)}</span> ${tr('קוט״ש')}`, html`${usualSame > 0 ? (diff === 0 ? tr('כמו ביום רגיל') : ((w) => (w.pct ? html`<span class="num">${w.pct}</span> ${w.words}` : w.words))(diffWords(diff, day ? tr('מ{weekday} רגיל', { weekday }) : tr('משבוע רגיל')))) : ''}${this.price != null ? html` ${tr('· בערך')} <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, html`${this.p3.energyActs()}${this.seg('period', [['day', tr('היום')], ['week', tr('השבוע')]], this.period, tr('תקופה'))}`)}
       <div class="en-body"><section class="tile pane chart" aria-label=${tr('צריכה לפי ') + (day ? tr('שעה') : tr('יום'))}><div class="bar"><h2>${day ? tr('לפי שעה') : tr('לפי יום')}</h2><div class="legend"><span><i class="k today"></i>${day ? tr('היום') : tr('השבוע')}</span><span><i class="k usual"></i>${day ? tr('יום רגיל') : tr('שבוע רגיל')}</span></div></div>
         <div class="plot" style=${`--n:${rows.length}`} @pointerover=${this.tipOver} @pointerleave=${this.tipOff} @focusin=${this.tipOver} @focusout=${this.tipOff}><div class="yax">${ticks.map((v) => html`<span style=${`bottom:${v / top * 100}%`}><em class="num">${v}</em></span>`)}</div>
@@ -1692,7 +1706,7 @@ export class SwHome extends LitElement implements P3Host {
       this.lastName = name;
       this.lastRoute = this.path;
     }
-    return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
+    return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }}>
       <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + this.enterCls} id="main">${keyed(this.lastRoute, screen)}</main>${this.nowBar()}</div>
       <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
       <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;

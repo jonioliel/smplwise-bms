@@ -70,10 +70,10 @@ test.describe('AUDIT30-F-CALENDARS', () => {
       if (scheme === 'dark') await open(page, '/calendars/cal?view=month&date=2026-10-29', { scheme });
       const got = await on.evaluate((el) => { const cs = getComputedStyle(el); return { bg: cs.backgroundColor, fg: cs.color }; });
       const soft = await tokenOf(page, `${P} .floors .chipb[aria-pressed="true"]`, 'background-color', '--sw-accent-soft');
-      const ink = await tokenOf(page, `${P} .floors .chipb[aria-pressed="true"]`, 'color', '--sw-accent-text');
+      const ink = await tokenOf(page, `${P} .floors .chipb[aria-pressed="true"]`, 'color', '--sw-accent-text-strong'); // DOMUS-DEFAULT-2439: the deeper ink
       const heading = await tokenOf(page, `${P} .floors .chipb[aria-pressed="true"]`, 'background-color', '--sw-heading');
       expect(got.bg, `${scheme}: the fill is --sw-accent-soft`).toBe(soft);
-      expect(got.fg, `${scheme}: the ink is --sw-accent-text`).toBe(ink);
+      expect(got.fg, `${scheme}: the ink is --sw-accent-text-strong`).toBe(ink);
       expect(got.bg, `${scheme}: never the heading colour (the black pill)`).not.toBe(heading);
     }
   });

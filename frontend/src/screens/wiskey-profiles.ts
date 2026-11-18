@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dropdown';
@@ -511,7 +512,7 @@ export class WiskeyProfilesScreen extends LitElement {
         </div>
       </div>
       ${!im.can_apply ? html`<p class="note err" role="alert" data-pf-blocked>${pft('blocked')}</p>` : nothing}
-      <p class="muted" data-pf-expiry>${left > 0 ? pft('expiresAt', { time: new Date(p.expires_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }) : pft('expired')}
+      <p class="muted" data-pf-expiry>${left > 0 ? pft('expiresAt', { time: new Date(p.expires_at).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }) : pft('expired')}
         · ${pft('deviceWrites')}</p>
 
       <section class="card"><header><h2>${pft('changesTitle')}</h2></header>${this.diffList(p.diff)}</section>
@@ -621,7 +622,7 @@ export class WiskeyProfilesScreen extends LitElement {
           return html`<li data-pf-version=${r.revision ?? ''}>
             <b>${pft('revision', { n: r.revision ?? '?' })}</b>
             ${current ? html`<sw-badge kind="live" label=${pft('versionCurrent')}></sw-badge>` : nothing}
-            <span class="muted">${r.saved_at ? new Date(r.saved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : pft('versionBaseline')}</span>
+            <span class="muted">${r.saved_at ? new Date(r.saved_at).toLocaleString(uiLocale(), { dateStyle: 'short', timeStyle: 'short' }) : pft('versionBaseline')}</span>
             <span>${pftDynamic(`versionAction_${r.action ?? ''}`, 'versionAction_system')}</span>
             <span class="muted">${pft('versionChanges', { f: r.field_changes ?? 0, g: r.group_changes ?? 0 })}</span>
             ${!current && canCompare && r.revision !== null
@@ -651,7 +652,7 @@ export class WiskeyProfilesScreen extends LitElement {
         <form class="row-inline" @submit=${(e: Event) => (e.preventDefault(), void this.searchPeople())}>
           <label class="f grow"><span>${pft('suggestSearch')}</span><input type="search" .value=${this.peopleQuery} placeholder=${pft('suggestSearchPh')} data-pf-people-q
             @input=${(e: Event) => (this.peopleQuery = (e.target as HTMLInputElement).value)} /></label>
-          <sw-button type="submit" variant="secondary" icon="search" data-pf-people-search @click=${() => void this.searchPeople()}>${pft('suggestSearch')}</sw-button>
+          <sw-button type="submit" variant="secondary" icon="search" data-pf-people-search>${pft('suggestSearch')}</sw-button>
         </form>
         ${this.people.length
           ? html`<div class="chips" role="listbox" aria-label=${pft('suggestSearch')}>${this.people.map((p) => html`<button type="button" role="option" class="chip ${this.person?.id === p.id ? 'on' : ''}"

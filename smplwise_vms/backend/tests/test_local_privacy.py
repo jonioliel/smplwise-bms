@@ -310,3 +310,28 @@ def test_a_purged_person_has_nothing_left_to_export(lx):
     disable(lx, uid, T0)
     assert lpv.run(lx.db, now=T0 + dt.timedelta(days=30)) == {"purged": 1}
     assert lx.admin.get(f"/api/v1/identity/local-users/{uid}/personal-data").status_code == 404
+
+
+# ================================================================ CR-I18N-CONFIRM-WORDS-2442 (owner decision 17.11)
+# The typed confirmation takes the Hebrew word or its fixed English counterpart (services/confirm_words.py), nothing looser, and the
+# audit row says which was typed (`confirm_word`); the typed text itself is never stored.
+
+from confirm_words_cases import LANGS, bad, good  # noqa: E402
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_cw2442_switching_the_purge_on_takes_the_hebrew_or_the_english_word_only(lx, lang):
+    lx.enable()
+    for text in bad("privacy_local_purge"):
+        r = lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "on", "privacy.local_purge_confirm": text})
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required", text
+    assert _purge_setting(lx) == "off" and lx.rows("SELECT 1 FROM audit_log WHERE action = 'privacy.local_purge.setting'") == []
+    r = lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "on", "privacy.local_purge_confirm": good("privacy_local_purge", lang)})
+    assert r.status_code == 200 and r.json()["settings"]["privacy.local_purge"] == "on", r.text
+    assert lx.rows("SELECT COUNT(*) AS n FROM settings WHERE key = 'privacy.local_purge_confirm'")[0]["n"] == 0  # never stored
+    (row,) = lx.rows("SELECT decision, details_json FROM audit_log WHERE action = 'privacy.local_purge.setting'")
+    assert row["decision"] == "allowed" and json.loads(row["details_json"])["confirm_word"] == lang
+    # off (the stop direction) needs no word and records none
+    assert lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "off"}).status_code == 200
+    last = lx.rows("SELECT details_json FROM audit_log WHERE action = 'privacy.local_purge.setting' ORDER BY id")[-1]
+    assert "confirm_word" not in json.loads(last["details_json"])

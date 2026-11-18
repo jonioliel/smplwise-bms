@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -32,7 +33,7 @@ const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp'
 /** SYNOPTIC-MOBILE-2342: the icon and the short word of each column on the phone board (the header icons carry the full name as a title). */
 const PH_ICON: Record<SynColumn, string> = { light: 'light', temp: 'therm', presence: 'person', cameras: 'cam', doors: 'door', alerts: 'bell', fire: 'flame' };
 const PH_WORD: Record<SynColumn, XtKey> = { light: 'lightsOn', temp: 'phTemp', presence: 'phPresence', cameras: 'colCameras', doors: 'phDoors', alerts: 'phAlerts', fire: 'phFire' };
-const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+const clock = () => new Date().toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' });
 
 /**
  * Release 2.29.0 - ראשי › מפה סינופטית (`#/devices/synoptic`, and the wall screen `#/kiosk/synoptic`): the whole building as a live status board,
@@ -404,7 +405,7 @@ export class DevicesSynoptic extends LitElement {
     const events = wide && o.syn_events
       ? html`<aside class="card events hide-phone hide-narrow" aria-label=${xt('events')} data-syn-events><h3>${xi('light')}${xt('events')}</h3>
           ${this.events && this.events.length
-            ? this.events.slice(0, 8).map((e) => html`<div class="ev"><span>${xi(e.type === 'door' ? 'door' : e.type === 'offline' ? 'offline' : 'bell')}</span><span><b>${e.raw_type}</b><small>${e.camera_name ?? ''}</small></span><time>${new Date(e.occurred_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</time></div>`)
+            ? this.events.slice(0, 8).map((e) => html`<div class="ev"><span>${xi(e.type === 'door' ? 'door' : e.type === 'offline' ? 'offline' : 'bell')}</span><span><b>${e.raw_type}</b><small>${e.camera_name ?? ''}</small></span><time>${new Date(e.occurred_at).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' })}</time></div>`)
             : html`<span class="nc">${xt('eventsNone')}</span>`}
         </aside>`
       : nothing;

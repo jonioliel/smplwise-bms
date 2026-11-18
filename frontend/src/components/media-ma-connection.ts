@@ -99,14 +99,24 @@ export class MediaMaConnection extends LitElement {
     }
   }
 
+  /** FIX-2438-REDS: the host says when a save / test is in flight (`aria-busy`), the settled marker for assistive tech and the tests. */
+  protected updated(): void {
+    const busy = String(this.busy);
+    if (this.getAttribute('aria-busy') !== busy) this.setAttribute('aria-busy', busy);
+  }
+
   private async save(body: Parameters<ReturnType<typeof players>['saveMaConnection']>[0]) {
     this.busy = true;
     this.error = '';
     try {
       this.conn = await players().saveMaConnection(body);
-      this.url = this.conn.url ?? '';
-      this.token = '';
-      this.editingToken = false;
+      // FIX-2438-REDS: a save resets only the draft it sent. Before, saving the address also wiped a token typed while that save was
+      // in flight (and a token save reset an address being edited): the token then never reached the server (entry check 2771a0b90).
+      if ('url' in body) this.url = this.conn.url ?? '';
+      if ('token' in body || 'clear_token' in body) {
+        this.token = '';
+        this.editingToken = false;
+      }
       this.test = null;
     } catch (err) {
       this.error = describeError(err);

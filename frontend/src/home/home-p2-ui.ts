@@ -1,5 +1,6 @@
 // HOME-V3-P2-2431: the shared pieces of the family and building screens - what the person may see (one GET /home/family per home load,
 // refreshed every few minutes), the switch, the time stepper, the week picker, Hebrew counts and times. No screen of its own.
+import { uiLocale } from '../i18n/locale';
 import { html, nothing } from 'lit';
 import { describeError } from '../api/client';
 import type { HomeHost } from './home-ext';
@@ -78,8 +79,8 @@ export const DAY_LETTER = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('�
 export const DAY_NAME = [tr('ראשון'), tr('שני'), tr('שלישי'), tr('רביעי'), tr('חמישי'), tr('שישי'), tr('שבת')];
 export const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const TZ = 'Asia/Jerusalem';
-const F_HM = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ, hourCycle: 'h23' });
-const F_DM = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'numeric', timeZone: TZ });
+const F_HM = new Intl.DateTimeFormat(uiLocale(), { hour: '2-digit', minute: '2-digit', timeZone: TZ, hourCycle: 'h23' });
+const F_DM = new Intl.DateTimeFormat(uiLocale(), { day: 'numeric', month: 'numeric', timeZone: TZ });
 const F_YMD = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ });
 const F_WD = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: TZ });
 

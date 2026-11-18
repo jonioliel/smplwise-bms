@@ -1,3 +1,4 @@
+import { localeFor } from '../i18n/locale';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
@@ -278,9 +279,9 @@ export class TempReport extends LitElement {
       ${empty ? html`<div class="nodata" data-rep-empty><b>${T('repNoData')}</b><span dir="ltr">${m.range_text}</span></div>` : html`
       <div class="st">${stats.map(([k, v]) => html`<div><span>${T(k)}</span><b class="num" dir="ltr">${v}</b></div>`)}</div>
       ${m.chart && pts.length ? html`<div class="chart">${bigChart({ points: pts, setpoints: u.source === 'climate' ? (u.points ?? []).map((p) => [p[0], p[2]] as [number, number | null]) : undefined,
-        low: u.low, high: u.high, doors: u.doors ?? [], defrost: u.defrost ?? [], t0: m.from, t1: m.to, step: 300 }, 600, 170, lang === 'he' ? 'he-IL' : 'en-GB', null)}</div>` : nothing}
+        low: u.low, high: u.high, doors: u.doors ?? [], defrost: u.defrost ?? [], t0: m.from, t1: m.to, step: 300 }, 600, 170, localeFor(lang), null)}</div>` : nothing}
       ${m.events ? html`<table><thead><tr><th>${T('colTime')}</th><th>${T('colEvent')}</th><th>${T('colValue')}</th></tr></thead><tbody>
-        ${(u.events ?? []).slice(0, 6).map((e) => html`<tr><td dir="ltr">${new Date(e.started_at).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+        ${(u.events ?? []).slice(0, 6).map((e) => html`<tr><td dir="ltr">${new Date(e.started_at).toLocaleString(localeFor(lang), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
           <td>${eventText({ ...e, id: '', unit_id: '', warned_at: null, alarmed_at: null, suppressed: null, ack_at: null, ack_by_name: e.by_name ?? null, notified: false, detail: { reason: e.reason ?? undefined } })}</td><td dir="ltr">${deg(e.peak ?? e.value)}</td></tr>`)}
       </tbody></table>` : nothing}
       ${u.daily ? html`<table data-rep-daily><thead><tr><th>${T('dailyTitle')}</th><th>${T('statMin')}</th><th>${T('statMax')}</th><th>${T('statOut')}</th><th>${T('coverage')}</th><th></th></tr></thead><tbody>

@@ -83,15 +83,22 @@ DEFAULTS: dict[str, str] = {
     "ui.page_size.automations_cards_phone": "1",
     "ui.schedules_view": "rows",  # rows | cards | table | week
     "ui.automations_view": "rows",  # rows | cards (POLISH2-295: the cards with their sentence stay a choice; a browser may keep its own)
-    # Design foundation (2026-10-01): the installation's skin (classic = today's look | domus | tesla; frontend/src/design/skins)
+    # Design foundation (2026-10-01): the installation's skin (classic | domus | tesla ...; frontend/src/design/skins)
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
-    "ui.skin": "classic",
+    # DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): the default is domus (was classic); DEFAULT_SKIN in
+    # frontend/src/design/skins/index.ts. A stored row wins over it. Q-DES-20: a stored "classic" is moved to domus once, at the
+    # first start of this version (services/skin_switch.py, marker `ui.skin.domus_switch`); a classic chosen afterwards stays.
+    "ui.skin": "domus",
     "ui.scheme": "light",
     # MOTIONSETTING-297 (owner 2026-10-27): the motion setting, separate from the skin and the scheme - auto (follow the operating
     # system's reduced-motion choice) | full (ignore that reduction for non-essential motion) | reduced (zero durations, press scale 1,
     # the same thing the OS reduction does). Per installation; frontend/src/design/apply.ts reads it (data-motion on <html>).
     "ui.motion": "auto",
     "ui.entry_animations": "on",  # 2.29.0: on | off - the panel entrance animation of the classic / domus skins; ENTER_MODES in frontend/src/design/apply.ts
+    # DOMUS-DEFAULT-2439 (owner round 33, Q-DES-3 option b, "settable"): how a selected chip is drawn - strong (default: the light-blue
+    # field with a deeper ink, an accent ring and a check mark) | soft (the plain light-blue field) | filled (the accent key) | dark
+    # (the ink-filled pill). CHIP_ON_MODES in frontend/src/design/apply.ts.
+    "ui.chip_selected": "strong",
     "ui.rail_tone": "auto",  # SKINCOMP-297: auto | dark - the dark (navy) rail of a skin that has one (Arx Infra = direction D); RAIL_TONES in frontend/src/design/skins/index.ts
     # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
     # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
@@ -590,6 +597,8 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
         out["ui.motion"] = DEFAULTS["ui.motion"]
     if out.get("ui.entry_animations") not in ("on", "off"):  # 2.29.0: a corrupt value reads as the default
         out["ui.entry_animations"] = "on"
+    if out.get("ui.chip_selected") not in ("strong", "soft", "filled", "dark"):  # DOMUS-DEFAULT-2439: a corrupt value reads as the default
+        out["ui.chip_selected"] = DEFAULTS["ui.chip_selected"]
     if out.get("ui.rail_tone") not in ("auto", "dark"):  # SKINCOMP-297: a corrupt value reads as the default
         out["ui.rail_tone"] = "auto"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
@@ -812,7 +821,7 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
 # The keys `read_settings` answers with something other than `int(stored or default)` / `stored or default`: a normaliser,
 # a derived value or a JSON object. `setting_value` refuses them (tests/test_setting_value_parity.py keeps this list complete).
 NORMALISED_KEYS: frozenset[str] = frozenset({
-    "access.external.placement", "access.settings_layout", "ui.skin", "ui.motion", "ui.entry_animations", "ui.rail_tone", "ui.tabs",
+    "access.external.placement", "access.settings_layout", "ui.skin", "ui.motion", "ui.entry_animations", "ui.chip_selected", "ui.rail_tone", "ui.tabs",
     "ui.tickets_section_row", "ui.nav_size", "ui.look", "ui.background_images", "ui.palettes", "ui.tabs_mode", "ui.tabs_mode_groups",
     "ui.dd_style", "ui.dd_style_groups", "ui.dd_phone", "ui.dd_search", "ui.dd_picker", "ui.dd_place", "ui.dd_size", "ui.dd_size_groups",
     "ui.dd_ring", "ui.dd_ring_groups", "ui.dd_panel", "ui.dd_panel_groups", "ui.mobile", "ui.xs", "timeline.colors", *brand_colors.KEYS,

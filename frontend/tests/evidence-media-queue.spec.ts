@@ -432,9 +432,15 @@ test.describe('phase 2b: settings › מולטימדיה › חיבור (mocked 
       await expect(c.locator('[data-mc-state]')).toHaveAttribute('data-mc-state', 'off');
       await c.locator('[data-mc-url]').fill('http://music.local:8095');
       await c.locator('[data-mc-url-save]').click();
+      // FIX-2438-REDS: each save settles before the next step (the host's `aria-busy`). The save button is the native one inside
+      // sw-button: a click while it is disabled (busy, or a short draft) is lost, so wait for it to be enabled. And "לא הוגדר"
+      // ("not set") contains "הוגדר" ("set"): the old toContainText passed on an unsaved token - anchor it.
+      await expect(c).toHaveAttribute('aria-busy', 'false');
       await c.locator('[data-mc-token-input]').fill('demo-token-0123456789abcdef');
+      await expect(c.locator('[data-mc-token-save] button')).toBeEnabled();
       await c.locator('[data-mc-token-save]').click();
-      await expect(c.locator('[data-mc-token]')).toContainText('הוגדר');
+      await expect(c).toHaveAttribute('aria-busy', 'false');
+      await expect(c.locator('[data-mc-token]')).toHaveText(/^\s*הוגדר/);
       await expect(c.locator('[data-mc-token-input]')).toHaveCount(0); // write-only: the token is never shown again
       await c.locator('sw-toggle[data-mc-enabled]').click();
       await expect(c.locator('[data-mc-state]')).toHaveAttribute('data-mc-state', 'ready');
@@ -451,4 +457,34 @@ test.describe('phase 2b: settings › מולטימדיה › חיבור (mocked 
       }
     });
   }
+
+  test('a token typed while the address is still saving is kept, and is the one saved (FIX-2438-REDS)', async ({ page }) => {
+    const st = fresh(ADMIN);
+    await install(page, st);
+    // hold the address save until the token is typed (registered after install(): this route runs first, then falls back to the mock)
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route('**/api/v1/multimedia/admin/ma-connection', async (route) => {
+      if (route.request().method() === 'PUT' && 'url' in (route.request().postDataJSON() ?? {})) await held;
+      await route.fallback();
+    });
+    await open(page, '/system/multimedia');
+    const c = page.locator('sw-app system-multimedia [data-mm-connection] media-ma-connection');
+    await expect(c.locator('[data-mc-state]')).toHaveAttribute('data-mc-state', 'off');
+    await c.locator('[data-mc-url]').fill('http://music.local:8095');
+    await c.locator('[data-mc-url-save]').click();
+    await expect(c).toHaveAttribute('aria-busy', 'true');
+    await c.locator('[data-mc-token-input]').fill('demo-token-0123456789abcdef');
+    release();
+    await expect(c).toHaveAttribute('aria-busy', 'false');
+    await expect(c.locator('[data-mc-url]')).toHaveValue('http://music.local:8095');
+    await expect(c.locator('[data-mc-token-input]'), 'the address save did not wipe the token being typed').toHaveValue('demo-token-0123456789abcdef');
+    await expect(c.locator('[data-mc-token-save] button')).toBeEnabled();
+    await c.locator('[data-mc-token-save]').click();
+    await expect(c).toHaveAttribute('aria-busy', 'false');
+    await expect(c.locator('[data-mc-token]')).toHaveText(/^\s*הוגדר/);
+    await expect(c.locator('[data-mc-token-input]')).toHaveCount(0);
+    const puts = st.calls.filter((x) => x.path.startsWith('multimedia/admin/ma-connection') && x.method === 'PUT').map((x) => x.body);
+    expect(puts).toEqual([{ url: 'http://music.local:8095' }, { token: 'demo-token-0123456789abcdef' }]);
+  });
 });

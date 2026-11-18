@@ -40,6 +40,7 @@ from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import access_grants as ag
+from . import confirm_words
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
 from .access_grant_engine import NAME_MAX, EngineError
@@ -70,7 +71,7 @@ GONE_WATCH_S = 3600        # a person confirmed gone is looked for again once an
 NAME_RETRY_S = 900         # an automatic name push that did not land is tried again after 15 minutes (owner decision 5)
 DIGEST_LATE_S = 6 * 3600   # a digest whose time passed more than 6 hours ago (the system was off) is skipped, not sent late
 SLOW_REVOKE_S = 120        # "revocations over 2 minutes" (the same 2 minutes after which the managers are alerted)
-GONE_WORD = "נמחק"
+GONE_WORD = confirm_words.he("access_gone")  # "נמחק" (or its English counterpart, services/confirm_words.py)
 GONE_CHECKS = 3
 REFERENCE_MIN, REFERENCE_MAX = 8, 128
 _PHONE_RUN = re.compile(r"\d[\d\s\-.]{6,}\d")  # seven or more digits in a row (spaces / dashes allowed): a phone number, refused
@@ -373,7 +374,8 @@ def confirm_gone(db: Database, principal: Principal, grant_id: str, *, reference
                                                     state=g["state"]))
         if not isinstance(checks, list) or len(checks) != GONE_CHECKS or not all(c is True for c in checks):
             raise deny("checks", ApiError(422, "validation", "יש לסמן את שלוש הבדיקות.", details={"field": "checks"}))
-        if (confirm or "").strip() != GONE_WORD:
+        confirm_word = confirm_words.typed_lang("access_gone", confirm)
+        if confirm_word is None:
             raise deny("confirm", ApiError(422, "confirm_required", f"כדי להמשיך יש להקליד \"{GONE_WORD}\".", details={"field": "confirm"}))
         ref = _reference_ok(reference)
         if ref is None:
@@ -384,7 +386,7 @@ def confirm_gone(db: Database, principal: Principal, grant_id: str, *, reference
         conn.execute("""INSERT INTO access_grant_closures(grant_id, kind, link_id, wiskey_person_id, closed_by, closed_at, reference, watch_checked_at)
                         VALUES (?, 'confirmed_gone', ?, ?, ?, ?, ?, ?)""", (grant_id, link["id"], link["wiskey_person_id"], principal.user_id, at, ref, at))
         ag._audit(conn, principal, "access.grant.confirm_gone", grant_id, request_id=request_id, link_id=link["id"], wiskey_person_id=link["wiskey_person_id"],
-                  checks=GONE_CHECKS, state="ended")
+                  checks=GONE_CHECKS, state="ended", confirm_word=confirm_word)
         _notify(conn, CLOSED_SOURCE, grant_id, "confirmed_gone")
         return ag.grant_row(conn, grant_id)
 

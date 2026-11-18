@@ -11,16 +11,17 @@ Every route opens its own connection, so a device-token call never takes the wri
 (the same rule the remote channel applies to sessions: refuse from memory first)."""
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import APIRouter, Body, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import resolve_principal, resolve_remote_first, settings_of, touch_user
-from ..db import get_setting
+from ..db import get_setting, is_busy
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..remote_channel import is_remote
@@ -32,6 +33,7 @@ from ..services.ha_user_auth import bearer_of
 from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
+log = logging.getLogger("smplwise.presence")
 
 REPORT = "presence.report"
 VIEW = "presence.sensors.view"
@@ -58,6 +60,24 @@ def _client_key(request: Request) -> str:
 
 
 RATE_LIMITED_HE = "יותר מדי ניסיונות. נסו שוב בעוד דקה."
+
+# CR-W2-FOLLOWUPS-2441: a GET here answers from its read connection whatever the write lock is doing. The side rows such a read
+# records (a phone's last-seen stamp, the throttled "who is in the building" view row) wait this long for the lock at most; when it
+# stays busy the row is left for the next poll instead of failing the read with 500 `database_busy` after BUSY_TIMEOUT_S.
+SIDE_WAIT_S = 0.5
+
+
+def _side_write(request: Request, label: str, write: Callable[[sqlite3.Connection], Any]) -> bool:
+    """`write(w)` in a short side transaction that gives up after SIDE_WAIT_S. False when the write lock stayed busy (nothing was
+    written); every other failure is raised as before."""
+    try:
+        with _db(request).write_aside(label=label, wait_s=SIDE_WAIT_S) as w:
+            write(w)
+    except sqlite3.OperationalError as exc:
+        if not is_busy(exc):
+            raise
+        return False
+    return True
 
 
 def device_caller(request: Request) -> Caller:
@@ -238,12 +258,12 @@ def get_config(request: Request, caller: Caller = Depends(any_caller)) -> dict[s
     allow-lists while the installation is off (device token or session)."""
     with _db(request).connection(mode="read", label="presence.config") as conn:
         if caller.device is not None:
-            with _db(request).write_aside() as w:
-                svc.touch(w, caller.device["id"])
+            device_id = caller.device["id"]
+            _side_write(request, "presence.config touch", lambda w: svc.touch(w, device_id))  # a last-seen stamp: the next poll writes it
         cfg = svc.config_for(conn)
         # The opaque installation id the relay push payload carries as `server` (the app stores it with the origin it registered at).
         sid = get_setting(conn, "push.server_id")
-        if not sid:
+        if not sid:  # only on a database the start-up step could not complete (startup_steps.ensure_push_server_id creates it once)
             with _db(request).write_aside() as w:
                 sid = mobile_push.server_id(w)
         cfg["server_id"] = sid
@@ -338,9 +358,13 @@ def people_in_building(request: Request, caller: Caller = Depends(session_caller
             raise forbidden(permission=PEOPLE_VIEW)
         out = people_svc.people_view(conn, caller.principal)
         if people_svc.should_audit(caller.principal.user_id):
-            with _db(request).write_aside() as w:  # counts only, never a name
-                audit(w, actor=caller.principal, action="presence.people.view", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-                      details={"inside": out["totals"]["inside"], "named": out["totals"]["named"], "hidden": out["totals"]["hidden"], "enabled": out["enabled"]})
+            details = {"inside": out["totals"]["inside"], "named": out["totals"]["named"], "hidden": out["totals"]["hidden"], "enabled": out["enabled"]}
+            written = _side_write(request, "presence.people audit", lambda w: audit(  # counts only, never a name
+                w, actor=caller.principal, action="presence.people.view", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+                details=details))
+            if not written:  # the write lock stayed busy: the viewer's next poll records the row (the 10-minute throttle is not started)
+                people_svc.audit_missed(caller.principal.user_id)
+                log.warning("the presence.people.view audit row waits for the next poll (the database write lock is busy)")
         return out
 
 
